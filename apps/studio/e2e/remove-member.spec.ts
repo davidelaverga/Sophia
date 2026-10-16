@@ -38,6 +38,19 @@ test('remove · an admin removes a member after confirming, and the row goes', a
   await expect(list.getByRole('listitem')).toHaveCount(2)
 })
 
+test('remove · confirmed from the keyboard, the focus goes to the list’s heading, never the page (Codex P1 on #356)', async ({
+  page,
+}) => {
+  const list = await inProject(page)
+  const marco = list.getByRole('listitem').filter({ hasText: 'Marco' })
+  await marco.getByRole('button', { name: 'Remove' }).focus()
+  await page.keyboard.press('Enter')
+  await marco.getByRole('button', { name: 'Remove from project' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(list.getByRole('listitem').filter({ hasText: 'Marco' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'In this project' })).toBeFocused()
+})
+
 test('remove · your own row offers no Remove; leaving is the project menu’s', async ({ page }) => {
   const list = await inProject(page)
   await expect(
