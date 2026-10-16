@@ -26,6 +26,7 @@ import {
   MANY,
   ordered,
   rowLine,
+  withDue,
   type Glanced,
 } from './goals-glance.ts'
 import type { Ask } from './planning/plan.ts'
@@ -215,22 +216,27 @@ function NotesFailed({ ledger }: { ledger: ReturnType<typeof useLedger> }) {
   )
 }
 
+/** The viewer's own goals past their date, for the brief (goal-overdue-health.md). */
+const lateMine = (goals: readonly Goal[], plans: Plans, targets: ReadonlyMap<string, GoalTarget>, me: string) =>
+  goals.filter((g) => plans?.[g.id]?.overdue && targets.get(g.id)?.ownerId === me).length
+
 export function GoalsOverview({ goals, plans: served, notes, onOpenGoal }: Props) {
   const ledger = useLedger(notes)
-  const plans: Plans = withNotes(goals, served, ledger.data?.entries ?? [], notes.me, notes.names)
+  const [targets, members] = [useGoalTargets(notes), useMembers(notes)]
+  const today = todayOf(new Date(useNow(60 * 60_000)))
+  const noted = withNotes(goals, served, ledger.data?.entries ?? [], notes.me, notes.names)
+  const plans: Plans = withDue(goals, noted, targets, today)
   const { many, query, setQuery, shown, listed, folded, unfold } = useListed(goals, plans)
   const [open, setOpen] = useOpenGoal(goals)
   const asks = asksIn(goals, plans)
   const openAsk = askOpener(onOpenGoal)
   const opened = goals.find((g) => g.id === open)
   const health = healthLine(goals, plans)
-  const [targets, members] = [useGoalTargets(notes), useMembers(notes)]
-  const today = todayOf(new Date(useNow(60 * 60_000)))
   const mine = useMine(goals, targets, notes.me)
   return (
     <div className="goals-briefing">
       <p className="goals-brief">
-        <span className="goals-brief-you">{briefOf(asks.length)}</span>
+        <span className="goals-brief-you">{briefOf(asks.length, lateMine(goals, plans, targets, notes.me))}</span>
         {health && ` ${health}`}
         {/* Until the notes are read a difficulty may be missing from the health: said (notes-robust.md). */}
         {notesRead(ledger) === 'reading' && ' · Reading the notes…'}

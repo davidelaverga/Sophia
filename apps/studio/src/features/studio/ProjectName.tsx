@@ -11,6 +11,7 @@ import { ApiError, leaveProject, renameProject } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import { membershipKey } from '../access/useAccess.ts'
+import { ActivitySheet } from './ActivitySheet.tsx'
 import { snapshotKey } from './useProjectFeed.ts'
 
 interface Props {
@@ -135,10 +136,10 @@ function LeaveSheet({ title, projectId, identity, onClose, onLeft }: SheetProps 
 
 export function ProjectName(props: Props) {
   const [open, setOpen] = useState(false)
-  const [sheet, setSheet] = useState<'rename' | 'leave' | null>(null)
+  const [sheet, setSheet] = useState<'rename' | 'leave' | 'activity' | null>(null)
   const menu = usePopover(open, () => setOpen(false))
   if (!props.role) return props.title
-  const choose = (next: 'rename' | 'leave') => () => {
+  const choose = (next: 'rename' | 'leave' | 'activity') => () => {
     setOpen(false)
     setSheet(next)
   }
@@ -164,10 +165,16 @@ export function ProjectName(props: Props) {
       {open && (
         <Menu popover={menu} label="Project" side="bottom" align="start">
           {props.role === 'admin' && <MenuItem onClick={choose('rename')}>Rename…</MenuItem>}
+          {props.role === 'admin' && <MenuItem onClick={choose('activity')}>Activity</MenuItem>}
           <MenuItem onClick={choose('leave')}>Leave project…</MenuItem>
         </Menu>
       )}
       {sheet === 'rename' && createPortal(<RenameSheet {...shared} />, document.body)}
+      {sheet === 'activity' &&
+        createPortal(
+          <ActivitySheet projectId={props.projectId} identity={props.identity} onClose={() => setSheet(null)} />,
+          document.body,
+        )}
       {sheet === 'leave' && createPortal(<LeaveSheet {...shared} onLeft={props.onLeft} />, document.body)}
     </span>
   )

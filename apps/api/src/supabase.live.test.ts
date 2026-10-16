@@ -89,9 +89,13 @@ before(async () => {
   await app.listen({ port: 0, host: '127.0.0.1' })
   base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`
 })
-/** Every table that references a project, children first (room tables since migration 0009). */
+/**
+ * Every table that references a project, children first (room tables since migration 0009; a project's creation is an
+ * event since migration 0057).
+ */
 const PROJECT_TABLES = [
   'project_creations',
+  'project_events',
   'floor_changes',
   'room_state',
   'project_members',

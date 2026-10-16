@@ -9,6 +9,8 @@ export const TASK = '#task-'
 export const DECISION = '#decision-'
 /** A goal in Tasks: the address chooses it, so its plan is the one on the board (docs/plans/goals-progress.md). */
 export const GOAL = '#goal-'
+/** A conversation in Conversations: the address opens it, and opening one puts it there (conversation-address.md). */
+export const CONVERSATION = '#conversation-'
 /** A native request on a resource, by its id: its resource's sheet opens and the request takes the focus (needs-api.md). */
 export const REQUEST = '#request-'
 

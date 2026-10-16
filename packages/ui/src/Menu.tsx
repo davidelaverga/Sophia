@@ -36,17 +36,19 @@ export function Menu({ label, popover, side, align, className, children }: MenuP
 export interface MenuItemProps extends Omit<ComponentProps<'button'>, 'type' | 'role' | 'disabled'> {
   /** Given, the item is one of a set (a radio item), and the one checked wears the mark. */
   checked?: boolean
+  /** With `checked`: the item turns one thing on or off (a checkbox item), not one of a set. */
+  toggle?: boolean
   /** A press that waits: it keeps the focus and says so, and pressing it does nothing. */
   disabled?: boolean
   /** A word or two beside the item's own, in the label type (a day's topics), cut at the row's end. */
   detail?: ReactNode
 }
 
-export function MenuItem({ checked, disabled = false, detail, children, onClick, ...rest }: MenuItemProps) {
+export function MenuItem({ checked, toggle, disabled = false, detail, children, onClick, ...rest }: MenuItemProps) {
   return (
     <button
       type="button"
-      role={itemRole(checked)}
+      role={itemRole(checked, toggle)}
       tabIndex={-1}
       aria-checked={checked}
       aria-disabled={disabled || undefined}

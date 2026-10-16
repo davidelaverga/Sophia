@@ -15,6 +15,8 @@ import type {
   GoalTargetSet,
   ProjectMembers,
   MemberRoleSet,
+  ActivityPage,
+  MemberRemoved,
   Receipt,
   RoomToken,
   RoomTokenRequest,
@@ -31,6 +33,8 @@ import {
   parseGoalTargetSet,
   parseProjectMembers,
   parseMemberRoleSet,
+  parseActivityPage,
+  parseMemberRemoved,
   parseReceipt,
   parseRoomToken,
   parseSnapshot,
@@ -165,6 +169,24 @@ export async function setGoalTarget(
   }
   return inTime(READ_TIMEOUT_MS, send)
 }
+
+/** readProjectActivity (A28): who did what in the project, for its admins; newest first, before a sequence. */
+export function getProjectActivity(token: string, projectId: string, before: string | null): Promise<ActivityPage> {
+  const query = before ? `?before=${encodeURIComponent(before)}` : ''
+  const read = async (limit: AbortSignal) => {
+    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/activity${query}`), {
+      headers: auth(token),
+      signal: limit,
+    })
+    if (!res.ok) throw await toError(res)
+    return readBody(res, parseActivityPage, 'safe_read')
+  }
+  return inTime(READ_TIMEOUT_MS, read)
+}
+
+/** removeMember (A29): admins only, never oneself; idempotent per key, so a retry after an unknown outcome is the same. */
+export const removeMember = (token: string, projectId: string, actorId: string, key: string): Promise<MemberRemoved> =>
+  postIdempotent(token, `/api/v1/projects/${projectId}/members/${actorId}/removal`, key, {}, parseMemberRemoved)
 
 /** changeMemberRole (A27): admins only; a project keeps an admin; a role already held changes nothing. */
 export async function changeMemberRole(

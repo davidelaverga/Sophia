@@ -394,16 +394,24 @@ function floorMoves(actorId: string): void {
   floorTo.push(nameOf(actorId))
 }
 
-/** The goals' owners and dates the page asks for (`targets=`), by goal id. */
+/**
+ * The goals' owners and dates the page asks for (`targets=`), by goal id; `late` makes the admin change the viewer's,
+ * past its date (goal-overdue-health.md).
+ */
 function goalTargetsAsked(
   wanted: string | null,
 ): [string, { ownerId: string; targetDate: string; revision: number }][] {
-  if (wanted !== '1' && wanted !== 'mine') return []
+  if (wanted !== '1' && wanted !== 'mine' && wanted !== 'late') return []
   const rollout: [string, { ownerId: string; targetDate: string; revision: number }] = [
     '00000000-0000-4000-8000-000000009001',
     { ownerId: personId(1), targetDate: '2026-10-30', revision: 1 },
   ]
   if (wanted === '1') return [rollout]
+  if (wanted === 'late')
+    return [
+      rollout,
+      ['00000000-0000-4000-8000-000000009002', { ownerId: membership.actorId, targetDate: '2026-10-25', revision: 1 }],
+    ]
   return [
     rollout,
     ['00000000-0000-4000-8000-000000009002', { ownerId: membership.actorId, targetDate: '2026-11-20', revision: 1 }],
@@ -526,6 +534,7 @@ const project = {
   versionsFail: false as false | 'unavailable' | 'not_found',
   sourcesHeld: query.get('hold') === 'sources',
   textHeld: query.get('hold') === 'text',
+  activityHeld: query.get('hold') === 'activity',
   // The demo's research is on its second version, as its report (both published by default).
   taskRevision: RESEARCH_REVISION,
   taskHeld: query.get('hold') === 'task',

@@ -2514,7 +2514,8 @@ button.contribution-quote:hover {
     clip: rect(0 0 0 0);
     white-space: nowrap;
   }
-  .dock :is(.floor-label, .dock-sep) {
+  /* The phone's one row of squares: no separators, and no clock (room-basics.md), as Meet's phone dock. */
+  .dock :is(.floor-label, .dock-sep, .dock-time) {
     display: none;
   }
   /* Who holds the floor stays said to a screen reader; the eye finds it in the room. */
@@ -2532,6 +2533,16 @@ button.contribution-quote:hover {
   height: 20px;
   margin: 0 4px;
   background: var(--line-2);
+  flex: none;
+}
+/* How long the call has run, before Leave (docs/plans/room-basics.md): quiet, its digits not moving the dock. */
+.dock-time {
+  min-width: 4ch;
+  padding: 0 4px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
   flex: none;
 }
 .dock-note {
@@ -2887,6 +2898,15 @@ button.contribution-quote:hover {
 /* «+N»: the people past the tiles, a tile of its own that opens everyone in the call. */
 .tile-more {
   padding: 0;
+}
+/* Your tile, hidden for this call (docs/plans/room-basics.md): where it was, what it is, and Show. */
+.tile-hidden-self {
+  align-content: center;
+  gap: 4px;
+  padding: 12px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+  text-align: center;
 }
 .tile-more button {
   display: grid;
@@ -6482,7 +6502,7 @@ button.contribution-quote:hover {
 }
 .in-project-people li {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 4px 12px;
   min-height: 36px;
@@ -6499,4 +6519,52 @@ button.contribution-quote:hover {
 .in-project-people .form-error {
   grid-column: 1 / -1;
   margin: 0;
+}
+/* Asked to confirm, Remove takes its own line under the row: the name and the role stay in sight. */
+.in-project-people .confirm {
+  grid-column: 1 / -1;
+  justify-self: end;
+}
+
+/* A project's activity (docs/plans/project-activity.md): who, what on whom, when; one line each. */
+.activity {
+  display: grid;
+  gap: 12px;
+}
+.activity-filter {
+  justify-self: start;
+}
+.activity-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.activity-list li {
+  display: grid;
+  grid-template-columns: minmax(80px, auto) minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--type-small);
+}
+.activity-who {
+  color: var(--text);
+}
+.activity-what {
+  color: var(--text-2);
+}
+.activity-when {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.activity-earlier {
+  justify-self: center;
+}
+.activity-reading {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
 }

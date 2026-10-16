@@ -306,7 +306,8 @@ describe('createProject', () => {
       { 'idempotency-key': randomUUID() },
     )
     assert.equal(created.status, 201)
-    assert.equal(parseProjectCreated(created.json).cursor, '0')
+    // Its first event is its creation (project-activity.md): the receipt's cursor is that event's.
+    assert.equal(parseProjectCreated(created.json).cursor, '1')
     const mine = await call(A, 'GET', `/api/v1/projects/${created.json.projectId}/snapshot`)
     assert.equal(mine.status, 200)
     assert.deepEqual([parseSnapshot(mine.json).title, parseSnapshot(mine.json).goals], ['Founder project', []])
@@ -647,6 +648,117 @@ describe('member roles (A27)', () => {
     assert.equal((await role(A, projectId, C, 'editor')).status, 422)
     assert.equal((await role(A, projectId, V, 'owner')).status, 422)
     assert.deepEqual(await roles(V, projectId), { [A]: 'admin', [B]: 'editor', [V]: 'viewer' })
+  })
+})
+
+describe('project activity (A28)', () => {
+  type Entry = {
+    sequence: string
+    type: string
+    actor: { id: string | null; name: string | null }
+    target: { id: string; name: string | null } | null
+  }
+  const activity = (actor: string, projectId: string, anchor?: string) =>
+    call(actor, 'GET', `/api/v1/projects/${projectId}/activity${anchor ? `?before=${anchor}` : ''}`)
+
+  it('lists people’s acts newest first, with who did them and on whom; never a chat message', async () => {
+    const created = await call(A, 'POST', '/api/v1/projects', { title: 'Audited' }, { 'idempotency-key': randomUUID() })
+    const projectId = created.json.projectId as string
+    // B joins as an editor, as an invitation would leave them (owner write: this suite has no invitation link).
+    await ownerCount(
+      `WITH m AS (INSERT INTO sophia.project_members(project_id, actor_id, role) VALUES ($1, $2, 'editor') RETURNING 1)
+       SELECT count(*)::int AS n FROM m`,
+      [projectId, B],
+    )
+    await call(
+      A,
+      'POST',
+      `/api/v1/projects/${projectId}/title`,
+      { title: 'Audited, v2' },
+      { 'idempotency-key': randomUUID() },
+    )
+    await call(A, 'PUT', `/api/v1/projects/${projectId}/members/${B}/role`, { role: 'admin' })
+    const said = await call(
+      B,
+      'POST',
+      `/api/v1/projects/${projectId}/contributions`,
+      { source: null, threadId: null, artifactVersionId: null, intent: 'discuss', text: 'Not for the log' },
+      { 'idempotency-key': randomUUID() },
+    )
+    assert.equal(said.status, 202)
+    const read = await activity(A, projectId)
+    assert.equal(read.status, 200)
+    const entries = read.json.entries as Entry[]
+    assert.deepEqual(
+      entries.map((e) => [e.type, e.actor.id, e.target?.id ?? null]),
+      [
+        ['project.member_role_changed', A, B],
+        ['project.renamed', A, null],
+        ['project.created', A, null],
+      ],
+    )
+    assert.equal(read.json.before, null)
+    assert.equal((await activity(B, projectId)).status, 200, 'B is an admin now')
+  })
+
+  it('admins only; pages go back with before', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    assert.equal((await activity(B, projectId)).status, 403)
+    assert.equal((await activity(C, projectId)).status, 403)
+    for (let i = 0; i < 55; i++)
+      await call(
+        A,
+        'POST',
+        `/api/v1/projects/${projectId}/title`,
+        { title: `Title ${i}` },
+        { 'idempotency-key': randomUUID() },
+      )
+    const first = await activity(A, projectId)
+    assert.equal((first.json.entries as Entry[]).length, 50)
+    assert.equal(first.json.before, (first.json.entries as Entry[]).at(-1)?.sequence)
+    const second = await activity(A, projectId, first.json.before)
+    assert.deepEqual([(second.json.entries as Entry[]).length, second.json.before], [5, null])
+  })
+})
+
+describe('removing a member (A29)', () => {
+  const remove = (actor: string, projectId: string, target: string, key = randomUUID()) =>
+    call(actor, 'POST', `/api/v1/projects/${projectId}/members/${target}/removal`, {}, { 'idempotency-key': key })
+  const count = async (actor: string, projectId: string) =>
+    ((await call(actor, 'GET', `/api/v1/projects/${projectId}/members`)).json.members as unknown[]).length
+
+  it('an admin removes an editor: they can no longer read it, it counts one fewer, and it is kept on record', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    const key = randomUUID()
+    const removed = await remove(A, projectId, B, key)
+    assert.equal(removed.status, 200)
+    assert.deepEqual({ ...removed.json, cursor: typeof removed.json.cursor }, { actorId: B, cursor: 'string' })
+    assert.equal((await call(B, 'GET', `/api/v1/projects/${projectId}/snapshot`)).status, 403)
+    assert.equal(await count(V, projectId), 2)
+    const kept = await ownerCount(
+      `SELECT count(*)::int AS n FROM sophia.project_events
+        WHERE project_id = $1 AND type = 'project.member_removed' AND actor_id = $2 AND entity_id = $3`,
+      [projectId, A, B],
+    )
+    assert.equal(kept, 1)
+    const removal = await ownerCount(
+      `SELECT count(*)::int AS n FROM sophia.room_removals
+        WHERE project_id = $1 AND identity = $2 AND reason = 'removed' AND lobby_entry_id IS NULL AND state <> 'cancelled'`,
+      [projectId, B],
+    )
+    assert.equal(removal, 1)
+    const again = await remove(A, projectId, B, key)
+    assert.deepEqual([again.status, again.json], [200, removed.json])
+  })
+
+  it('admins only; never oneself; the target a member', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    assert.equal((await remove(B, projectId, V)).status, 403)
+    assert.equal((await remove(C, projectId, V)).status, 403)
+    const self = await remove(A, projectId, A)
+    assert.deepEqual([self.status, self.json.code], [422, 'invalid_request'])
+    assert.equal((await remove(A, projectId, C)).status, 422)
+    assert.equal(await count(V, projectId), 3)
   })
 })
 
