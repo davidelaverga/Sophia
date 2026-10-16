@@ -41,7 +41,8 @@ results after 6 ms, the source read by its UUID with a complete page, and both s
 
 Tool level, real tools, `ServiceTransport` and generated wire validators over a real HTTP connection to a stand-in of the
 API (source-faithful, not the API): the exact R1 read input reads the task; a criteriaRef finding is sent unchanged,
-refused with the reason and the criteria's ids, then the corrected review publishes. The earlier tests fail on the old
+refused with the fixed refusal sentence and the criteria's ids (at this record's first commit, before the containment,
+the tool passed the service's reason instead), then the corrected review publishes. The earlier tests fail on the old
 source (2 of 21).
 
 Service level, real API, its PostgreSQL functions and both generated validators (the bridge's runtime wire and the
