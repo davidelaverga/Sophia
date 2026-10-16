@@ -26,6 +26,7 @@ import {
   type FloorView,
   floorView,
   orderParticipants,
+  RECONNECTING,
   type RoomLine,
   roomLine,
   runningWork,
@@ -288,7 +289,7 @@ function OnVideo({
           {reconnecting && (
             <p className="stage-reconnecting" role="status">
               <span className="connection-dot" aria-hidden />
-              Reconnecting…
+              {RECONNECTING}
             </p>
           )}
           {showing}
