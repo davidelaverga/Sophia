@@ -35,3 +35,8 @@ commits on the branch merge its base forward or touch only this record). 5 files
 ## Remaining obligations
 
 - None. Whether a guest may react at all needs a data grant for guests, which is the API's to decide.
+
+## Next bounded action
+
+- Luis: merge on green with no open P1.
+- Source IDs consulted: none from the source register; the work read this repository only.
