@@ -10,6 +10,7 @@ const KIND: Record<SearchHit['kind'], string> = {
   report: 'Report',
   report_section: 'Report section',
   recap: 'Meeting recap',
+  message: 'Message',
 }
 
 /** «Decision · Oct 4»; «Meeting recap · Oct 4, 15:00». */

@@ -5,12 +5,15 @@
 // A message can be corrected or withdrawn (A36, docs/plans/message-acts.md): the snapshot's window decides for the
 // span it covers, so a message withdrawn there never stays from an earlier read; withdrawn places (tombstones, with the
 // message acts flag) are held as messages are; and the reader's own act shows before the next read brings it.
+// A message a search found beyond the window (A38) is read with the one page that ends at it, held apart from the
+// window by a gap line until the reader fills it, a page at a time (segment-view.ts).
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import type { DiscussionEntry, WithdrawnEntry } from '@sophia/contracts'
 import { getDiscussionPage } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Acted } from './MessageActions.tsx'
 import { heldView, inOrder } from './message-acts.ts'
+import { afterGap, closesGap, gapAfterPage } from './segment-view.ts'
 
 /** How many entries the snapshot holds, withdrawn places included: with fewer, it holds the whole discussion. */
 const WINDOW = 50
@@ -23,6 +26,8 @@ interface Held {
   withdrawn: ReadonlyMap<string, WithdrawnEntry>
   /** The first message is among them. */
   atStart: boolean
+  /** A page a search read stands apart: the gap is after this message, until the messages between are read (A38). */
+  gap: string | null
 }
 
 type Reading = 'idle' | 'loading' | 'failed'
@@ -38,6 +43,12 @@ export interface Earlier {
   load: () => void
   /** The reader's own act, shown until the chat is read again. */
   revise: (acted: Acted) => void
+  /** Reads the one page that ends just before `before` (a found message's next, A38), held apart from the window. */
+  jump: (before: string) => void
+  /** That read: under way, failed (the reader tries again), or not. */
+  jumping: Reading
+  /** Between a page a search read and the window: after which message, its read, and the press that fills it. */
+  gap: { after: string; reading: Reading; fill: () => void } | null
 }
 
 const withEntries = <T extends { id: string }>(held: ReadonlyMap<string, T>, more: readonly T[]) => {
@@ -58,6 +69,60 @@ function useActed(projectId: string) {
     setActed((now) => ({ projectId, acts: new Map([...(now?.projectId === projectId ? now.acts : []), [id, a]]) }))
   }
   return { acted, revise }
+}
+
+/** A page of the discussion as the hooks below keep it. */
+interface Page {
+  entries: readonly DiscussionEntry[]
+  withdrawn?: readonly WithdrawnEntry[] | undefined
+  before: string | null
+}
+
+/** What a page a search found is read into: what the chat shows, and how a page is held. */
+interface Holding {
+  shown: readonly (DiscussionEntry | WithdrawnEntry)[]
+  atStart: boolean
+  gap: string | null
+  hold: (page: Page, at: Pick<Held, 'atStart' | 'gap'>) => void
+  closeGap: () => void
+}
+
+/**
+ * A message a search found beyond the window (A38): the one page that ends at it, held apart by a gap until the reader
+ * fills it, a page under the gap at a time, until a page meets it (segment-view.ts).
+ */
+function useFoundPage(projectId: string, token: string, at: Holding): Pick<Earlier, 'jump' | 'jumping' | 'gap'> {
+  const [jumping, setJumping] = useState<Reading>('idle')
+  const [filling, setFilling] = useState<Reading>('idle')
+  const { shown, hold } = at
+  const jump = (before: string) => {
+    if (jumping === 'loading') return
+    setJumping('loading')
+    getDiscussionPage(token, projectId, before).then(
+      (page) => {
+        const gap = gapAfterPage([...page.entries, ...(page.withdrawn ?? [])], shown, before)
+        hold(page, { atStart: page.before === null || at.atStart, gap })
+        setJumping('idle')
+      },
+      () => setJumping('failed'),
+    )
+  }
+  const gapAt = at.gap === null ? undefined : shown.find((s) => s.id === at.gap)
+  const fill = () => {
+    const below = gapAt && afterGap(shown, gapAt.id)
+    if (!gapAt || filling === 'loading') return
+    if (!below) return at.closeGap()
+    setFilling('loading')
+    getDiscussionPage(token, projectId, below.id).then(
+      (page) => {
+        const met = closesGap([...page.entries, ...(page.withdrawn ?? [])], gapAt, page.before === null)
+        hold(page, { atStart: at.atStart, gap: met ? null : gapAt.id })
+        setFilling('idle')
+      },
+      () => setFilling('failed'),
+    )
+  }
+  return { jump, jumping, gap: gapAt ? { after: gapAt.id, reading: filling, fill } : null }
 }
 
 export function useEarlierDiscussion(
@@ -92,6 +157,14 @@ export function useEarlierDiscussion(
   }, [held, history])
   const { entries, withdrawn } = heldView(held, { entries: discussion, withdrawn: discussionWithdrawn }, acted)
   const atStart = held?.atStart ?? false
+  /** A page read, kept with everything held and shown. */
+  const hold = (page: Page, at: Pick<Held, 'atStart' | 'gap'>) =>
+    setHeld({
+      projectId,
+      entries: withEntries(withEntries(held?.entries ?? new Map(), entries), page.entries),
+      withdrawn: withEntries(withEntries(held?.withdrawn ?? new Map(), withdrawn), page.withdrawn ?? []),
+      ...at,
+    })
   const load = () => {
     const [oldest] = [...entries, ...withdrawn].toSorted(inOrder)
     if (!oldest || reading === 'loading') return
@@ -100,19 +173,17 @@ export function useEarlierDiscussion(
       (page) => {
         const el = history.current
         fromBottom.current = el ? el.scrollHeight - el.scrollTop : null
-        setHeld({
-          projectId,
-          entries: withEntries(withEntries(held?.entries ?? new Map(), entries), page.entries),
-          withdrawn: withEntries(withEntries(held?.withdrawn ?? new Map(), withdrawn), page.withdrawn ?? []),
-          atStart: page.before === null,
-        })
+        hold(page, { atStart: page.before === null, gap: held?.gap ?? null })
         setReading('idle')
       },
       () => setReading('failed'),
     )
   }
-  const total = entries.length + withdrawn.length
-  return { entries, withdrawn, offered: !atStart && total >= WINDOW, atStart, reading, load, revise }
+  const shown = [...entries, ...withdrawn]
+  const closeGap = () => setHeld((h) => h && { ...h, gap: null })
+  const found = useFoundPage(projectId, identity.token, { shown, atStart, gap: held?.gap ?? null, hold, closeGap })
+  const offered = !atStart && shown.length >= WINDOW
+  return { entries, withdrawn, offered, atStart, reading, load, revise, ...found }
 }
 
 /** The words the one control says, by how the read goes. */

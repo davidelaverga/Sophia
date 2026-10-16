@@ -11,6 +11,8 @@ export const SEARCH_PAGE = 3
 
 interface Searched {
   meeting: Meeting
+  /** The room's messages as the chat lists them, oldest first (A38 finds them; `before` is the next one's id). */
+  messages?: readonly { id: string; text: string; createdAt: string }[]
   kept: readonly { id: string; text: string | null; recordedAt: string }[]
   report: { versions: number; title: string; pilot: boolean | undefined }
 }
@@ -122,7 +124,26 @@ export function searchHits(s: Searched, q: string): SearchHit[] {
       at: r.startedAt,
       cite: { recordId: r.meetingId },
     }))
-  return [...decisions, ...notes, ...reportHits(s, q), ...meetings]
+  return [...decisions, ...notes, ...reportHits(s, q), ...messageHits(s, q), ...meetings]
+}
+
+/** The room's messages that say `q`, newest first, each with the message after it (A38's `before`). */
+function messageHits(s: Searched, q: string): SearchHit[] {
+  const all = s.messages ?? []
+  return all
+    .map((m, i) => ({ m, next: all[i + 1]?.id ?? null }))
+    .filter(({ m }) => has(m.text, q))
+    .toReversed()
+    .map(({ m, next }): SearchHit => ({
+      kind: 'message',
+      id: m.id,
+      title: 'Marco',
+      snippet: m.text,
+      meetingId: null,
+      at: m.createdAt,
+      cite: { recordId: m.id },
+      before: next,
+    }))
 }
 
 /** One page of the hits, from the cursor (an offset, for the fixture). */

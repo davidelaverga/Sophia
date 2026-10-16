@@ -19,7 +19,7 @@ import { authorLabel, withAuthors } from './conversation-view.ts'
 import { EarlierLine, useEarlierDiscussion } from './EarlierDiscussion.tsx'
 import { EditedMark, MessageActions, useHandedFocus, WithdrawnWords, type Acted } from './MessageActions.tsx'
 import { MentionedLine, useMemberNames } from './MentionPicker.tsx'
-import { ADDRESS_WORDS, needFor, type AddressState, type Waiting } from './mention-view.ts'
+import { ADDRESS_WORDS, JUMP_FAILED, needFor, type AddressState, type Waiting } from './mention-view.ts'
 import { useMentionsSeen, useMessageAddressed, useMyMentions } from './useMentionAttention.ts'
 import type { Earlier } from './EarlierDiscussion.tsx'
 import { actsOf, discussionItems, lastSaidAt } from './message-acts.ts'
@@ -97,8 +97,7 @@ export function Conversation(props: Props) {
         )}
         <TopLines earlier={earlier} address={members.address} />
         <Discussion
-          entries={earlier.entries}
-          withdrawn={earlier.withdrawn}
+          {...shownOf(earlier)}
           acts={acts}
           named={members}
           me={me}
@@ -170,9 +169,14 @@ function useMentionShown(props: Props, history: RefObject<HTMLDivElement | null>
   return { ...useMemberNames(projectId, identity), projectId, waiting, address }
 }
 
-/** The chat's top: what it says of a message the address named when it can't show it (A37), then the earlier ones. */
-function TopLines({ earlier, address }: { earlier: Earlier; address: AddressState }) {
-  const words = ADDRESS_WORDS[address]
+/**
+ * The chat's top: what it says of a message the address named when it can't show it (A37), or when the page a search
+ * found it in couldn't be read, with Try again (A38); then the earlier ones.
+ */
+function TopLines(props: { earlier: Earlier; address: { at: AddressState; retry: (() => void) | null } }) {
+  const { earlier, address } = props
+  const words = ADDRESS_WORDS[address.at]
+  const retry = address.retry
   return (
     <>
       {words && (
@@ -180,10 +184,21 @@ function TopLines({ earlier, address }: { earlier: Earlier; address: AddressStat
           {words}
         </p>
       )}
+      {retry && (
+        <p className="chat-status" role="alert">
+          {JUMP_FAILED}{' '}
+          <button type="button" className="text-button" onClick={retry}>
+            Try again
+          </button>
+        </p>
+      )}
       <EarlierLine earlier={earlier} />
     </>
   )
 }
+
+/** What the discussion shows from what was read: its messages, withdrawn places, and a found page's gap (A38). */
+const shownOf = ({ entries, withdrawn, gap }: Earlier) => ({ entries, withdrawn, gap })
 
 /** Nothing to show yet: no message, no withdrawn one's place (A36), no turn with Sophia. */
 const nothingSaid = (
@@ -363,10 +378,12 @@ interface DiscussionProps {
   replies: ReadonlyMap<string, DiscussionReply['replyTo']>
   /** Reply to an entry (the vision flag's): absent, no entry offers it. */
   onReply: ((replying: Replying) => void) | undefined
+  /** Between a page a search read and the latest (A38): the gap's line goes after that message. */
+  gap: Earlier['gap']
 }
 
 function Discussion(props: DiscussionProps) {
-  const { entries, withdrawn, acts, named, me, names: known, replies, onReply } = props
+  const { entries, withdrawn, acts, named, me, names: known, replies, onReply, gap } = props
   const now = useNow()
   if (entries.length === 0 && withdrawn.length === 0) return null
   const items = discussionItems(entries, withdrawn)
@@ -380,8 +397,10 @@ function Discussion(props: DiscussionProps) {
   return (
     <ol className="discussion" aria-label="Recent discussion">
       {items.map((item, i) => {
+        // The gap's line, after the message it follows (A38).
+        const gapLine = gap?.after === item.id ? <GapLine key="gap" gap={gap} /> : null
         if (item.type === 'withdrawn')
-          return <Withdrawn key={item.id} withdrawn={item.withdrawn} day={days[i]} me={me} names={names} />
+          return [<Withdrawn key={item.id} withdrawn={item.withdrawn} day={days[i]} me={me} names={names} />, gapLine]
         const { entry } = item
         const author = authorLabel(entry.actorId, me, names)
         const answers = replies.get(entry.id)
@@ -390,7 +409,7 @@ function Discussion(props: DiscussionProps) {
             <LinkedText text={entry.text} />
           </span>
         )
-        return (
+        return [
           <li key={entry.id} className="contribution" {...entryAttrs(entry, named.waiting, !!onReply)}>
             {days[i] && <span className="chat-day">{days[i]}</span>}
             {answers && <Quote answers={answers} here={here.has(answers.id)} me={me} names={names} />}
@@ -415,10 +434,32 @@ function Discussion(props: DiscussionProps) {
                 Reply
               </button>
             )}
-          </li>
-        )
+          </li>,
+          gapLine,
+        ]
       })}
     </ol>
+  )
+}
+
+/**
+ * Between a page a search read and the chat's latest (A38): the messages between aren't shown until the reader asks;
+ * each press reads one page under it (A23), until it meets the page found.
+ */
+function GapLine({ gap }: { gap: NonNullable<Earlier['gap']> }) {
+  const loading = gap.reading === 'loading'
+  return (
+    <li className="discussion-earlier discussion-gap">
+      <p>{gap.reading === 'failed' ? 'Couldn’t load the newer messages.' : 'Newer messages aren’t shown here.'}</p>
+      <button
+        type="button"
+        className="text-button"
+        aria-disabled={loading || undefined}
+        onClick={() => !loading && gap.fill()}
+      >
+        {loading ? 'Loading…' : gap.reading === 'failed' ? 'Try again' : 'Show them'}
+      </button>
+    </li>
   )
 }
 

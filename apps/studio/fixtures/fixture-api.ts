@@ -219,6 +219,8 @@ interface Project {
   showing?: Showing
   /** While set, searches wait for `holdSearch(false)` (A13). */
   searchHeld?: (() => void)[] | null
+  /** While set, searches fail as an unavailable API's (`failSearch`, A38). */
+  failSearch?: boolean
   /** While set, reads of the served board wait for `holdBoard(false)` (search-honest.md). */
   boardHeld?: (() => void)[] | null
   /** The versions' reviews (review-data.ts, A16); absent, their requests are unexpected. */
@@ -882,10 +884,12 @@ function searchAnswer(project: Project, url: URL): Response | Promise<Response> 
   const meeting = project.meeting
   if (!meeting) return null
   served.push(`search:${q}:${cursor ?? '0'}`)
+  if (project.failSearch) return unavailable()
   const held = project.searchHeld
   const kept = project.notes?.kept ?? []
   const report = { versions: project.reportVersions, title: project.reportTitle, pilot: project.pilot }
-  const page = () => json(searchPage(searchHits({ meeting, kept, report }, q), cursor))
+  const messages = project.messages.map(said)
+  const page = () => json(searchPage(searchHits({ meeting, kept, report, messages }, q), cursor))
   return held ? new Promise<Response>((resolve) => held.push(() => resolve(page()))) : page()
 }
 

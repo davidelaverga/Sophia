@@ -196,16 +196,19 @@ export interface ReportQuery {
   cursor: string | null
 }
 
+/** The words a search keeps: letters and digits only, lower case, the first 8. */
+export const searchWords = (text: string | null): string[] =>
+  (text ?? '')
+    .toLowerCase()
+    .match(/[\p{L}\p{N}]+/gu)
+    ?.slice(0, 8) ?? []
+
 /**
  * A search as a full-text query: each word (letters and digits only, so nothing typed is query syntax) as a prefix,
  * all of them required, at most 8. Null when nothing searchable was typed.
  */
 export function searchQuery(text: string | null): string | null {
-  const words =
-    (text ?? '')
-      .toLowerCase()
-      .match(/[\p{L}\p{N}]+/gu)
-      ?.slice(0, 8) ?? []
+  const words = searchWords(text)
   return words.length === 0 ? null : words.map((w) => `${w}:*`).join(' & ')
 }
 

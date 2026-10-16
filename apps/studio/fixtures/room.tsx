@@ -191,6 +191,8 @@ interface Fixture {
   releaseTaskReads: () => void
   /** While on, searches wait; off, the waiting ones are answered (A13). */
   holdSearch: (on: boolean) => void
+  /** While on, searches fail as an unavailable API's (A38). */
+  failSearch: (on: boolean) => void
   /** Reads of the served board wait while on, as a slow API's do; off, the waiting ones are answered (search-honest.md). */
   holdBoard: (on: boolean) => void
   /** The conversations' list reads fail, or read again (A18). */
@@ -490,10 +492,12 @@ const project = {
   // `discussion=mine`: the viewer's own written message, another member's, and the viewer's own shared report (A36).
   // `discussion=mentioned`: another member's message that mentions the viewer, on its revision 2 (A37).
   // `mentionOld=1` with `discussion=60`: the third message, beyond the chat's 50, mentions the viewer (A37).
+  // `heron=N` with `discussion=N…`: message N says a word a search finds (A38, the FND-C4 handoff).
   messages: (query.get('mentionOld') === '1'
-    ? Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) =>
-        i === 2 ? { text: `Message ${i + 1}`, mentions: [ME] } : `Message ${i + 1}`,
-      )
+    ? Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => {
+        const text = i + 1 === Number(query.get('heron')) ? `The heron arrived, message ${i + 1}.` : `Message ${i + 1}`
+        return i === 2 ? { text, mentions: [ME] } : text
+      })
     : query.get('discussion') === 'mentioned'
       ? ['Sounds good to me.', MENTIONING]
       : query.get('discussion') === 'mine'
@@ -504,9 +508,9 @@ const project = {
           ]
         : query.get('discussion') === 'days' || query.get('discussion') === 'yesterday'
           ? overTwoDays().slice(0, query.get('discussion') === 'days' ? 4 : 2)
-          : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`)) as (
-    string | Said
-  )[],
+          : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) =>
+              i + 1 === Number(query.get('heron')) ? `The heron arrived, message ${i + 1}.` : `Message ${i + 1}`,
+            )) as (string | Said)[],
   contributions: new Map(),
   // `acts=1`: the viewer's messages offer Edit and Withdraw (message-acts.md, A36).
   messageActs: messageActsOf(query),
@@ -612,6 +616,7 @@ const project = {
   membershipHeld: query.get('membership') === 'hold' ? waiting() : null,
   // A13: searches held while the page asks (`holdSearch`).
   searchHeld: null as (() => void)[] | null,
+  failSearch: false,
   boardHeld: null as (() => void)[] | null,
   // `mission=fail`: the brief's reads fail from the first (notes-robust.md); `window.fixture.failMission` turns it.
   missionFails: query.get('mission') === 'fail',
@@ -856,6 +861,9 @@ window.fixture = {
   holdSearch: (on) => {
     if (!on) for (const answer of project.searchHeld ?? []) answer()
     project.searchHeld = on ? waiting() : null
+  },
+  failSearch: (on) => {
+    project.failSearch = on
   },
   holdBoard: (on) => {
     if (!on) for (const answer of project.boardHeld ?? []) answer()
