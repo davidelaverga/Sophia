@@ -62,6 +62,9 @@ test('personal · a resize that moves the divider away reads the crowding again,
   await expect(pill).toHaveAttribute('data-crowded', 'true')
   // The box changes size and the divider goes 80 px further down; scrollTop does not move, so no scroll event fires.
   const scrolls = await page.locator('.msgs').evaluate(async (list) => {
+    // placeToday's own scrollTop queues a scroll the browser delivers at the next frame: let it go before listening,
+    // or it is counted as the resize's (it raced the check about one run in three).
+    await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))
     let seen = 0
     list.addEventListener('scroll', () => seen++)
     list.style.paddingTop = `${parseFloat(getComputedStyle(list).paddingTop) + 80}px`
