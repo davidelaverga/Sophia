@@ -18,3 +18,4 @@
   - the title, then «As of …»;
   - each day in full, «Tuesday, September 29, 2026», where it said «Yesterday»;
   - each message after its time.
+- No fixture page serves the personal export, so the copy is checked at its pure function, where the change is.
