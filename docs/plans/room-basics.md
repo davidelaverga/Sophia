@@ -1,0 +1,30 @@
+# The room's basics: how long, your own tile, your mirror
+
+> 2026-10-16 · Luis's QoL queue, item 1 (from informe-brechas-a-fondo.md §3). Meet, Zoom and Teams all show how long
+> the call has run, let you hide your own tile, and let you choose whether your camera is mirrored. The Studio does
+> none of these. Your own camera is always mirrored (`VideoStage.tsx:29`), and nothing says how long you've been in.
+> Studio only.
+
+## What changes
+
+- **How long:** a quiet clock in the dock, before Leave. It counts from when this person's call went live
+  (`room.liveSince`), as «12:04», or «1:02:05» past an hour. It has `role="timer"`, and its name says it in words
+  («In the call for 12 minutes»). `call-clock.ts` (pure) does the words.
+- **Your own tile** gets a press, «Your tile», where other people's tiles have Pin. It opens a menu:
+  - **Mirror my video**, checked, offered while your camera is on. Unchecked, your camera shows as others see it. It
+    is kept on this device (`mirror-preference.ts`, on by default).
+  - **Hide my tile:** your tile leaves your own gallery, for this call only. The others still see you. In its place, a
+    small item at the end of the tiles says «Your tile is hidden» with «Show».
+- **The kit's `MenuItem`** gains `toggle`. With it, an item that turns one thing on or off is a `menuitemcheckbox`,
+  where a `checked` item without it stays one of a set (`menuitemradio`).
+- **The fixture:** the viewer's camera, once turned on, gives a local feed (`fake-people.ts`), as LiveKit's local
+  track does.
+
+## Checks
+
+- **`call-clock.test.ts`:** 0:00, 1:05, 1:02:05, and the words for each.
+- **`room-basics.spec.ts`:**
+  - in a call, the dock's clock reads 0:00, then 1:05 after 65 s (clock installed);
+  - «Hide my tile» takes your tile away and «Show» brings it back;
+  - with the camera on, your video is mirrored. «Mirror my video» unchecked unmirrors it, and after a reload it is
+    still unmirrored.
