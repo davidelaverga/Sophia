@@ -106,6 +106,7 @@ describe('the brief', () => {
     const goals = [goal('a', 'running'), goal('b', 'running'), goal('c', 'ready'), goal('d', 'completed')]
     assert.equal(healthLine(goals, { a: { glance: stuck } }), '1 needs attention · 1 on track · 1 not started')
     assert.equal(healthLine([goal('d', 'completed')], {}), '')
+    assert.equal(healthLine(goals, { a: { glance: stuck }, b: { overdue: true } }), '2 need attention · 1 not started')
   })
 })
 

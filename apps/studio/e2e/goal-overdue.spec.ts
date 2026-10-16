@@ -52,6 +52,7 @@ test('attention · your goal past its date needs attention, and the brief says i
   await expect(health(page, ADMIN)).toHaveText('Needs attention')
   await expect(row(page, ADMIN)).toHaveAttribute('data-health', 'attention')
   await expect(brief(page)).toContainText('one of your goals is overdue', { ignoreCase: true })
+  await expect(page.locator('.goals-brief')).toContainText('2 need attention')
   await row(page, ADMIN).locator('.goal-press').click()
   await expect(page.locator('.goal-sheet .goal-health')).toHaveText('Needs attention')
 })

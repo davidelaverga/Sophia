@@ -19,6 +19,7 @@
     - «One of your goals is overdue.»
     - «Two of your goals are overdue.»
     - «One thing waits on you, and one of your goals is overdue.»
+- **The health count** says «2 need attention», never «2 needs attention» (seen in the same capture).
 - **Same health everywhere:**
   - Goals (rows, brief, order, health count) and the goal's sheet read the plans with `withDue`.
   - The project search reads them the same way, so it doesn't call a goal «On track» when its row says «Needs
