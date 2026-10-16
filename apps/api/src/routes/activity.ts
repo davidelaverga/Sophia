@@ -27,7 +27,7 @@ interface Deps {
 }
 
 /**
- * One attempt to take a removed member out of the call, right after (A29). Removing recorded the removal (0057); this
+ * One attempt to take a removed member out of the call, right after (A29). Removing recorded the removal (0058); this
  * settles it only on the room server's evidence, and the worker does the rest, keeping watch meanwhile.
  */
 async function outOfTheCall({ pool, livekit }: Deps, actorId: string, projectId: string, target: string) {

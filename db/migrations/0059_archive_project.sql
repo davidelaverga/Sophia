@@ -3,7 +3,7 @@
 -- (archived_at, null while active); the snapshot, the mission and the runtime see nothing new. Idempotent per actor
 -- and key as a rename is (0051): the same key with the same choice answers the same receipt, with the other choice it
 -- is a conflict. A change emits project.archived or project.unarchived; asking for the state it has changes nothing
--- and emits nothing. 0001–0057 are not edited.
+-- and emits nothing. 0001–0058 are not edited.
 BEGIN;
 
 ALTER TABLE sophia.projects ADD COLUMN archived_at timestamptz;

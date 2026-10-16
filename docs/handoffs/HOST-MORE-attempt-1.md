@@ -10,14 +10,14 @@ Runtime unit: Luis's Windows host (Playwright through `.claude-guards/safe-run.p
 Existing authority: Luis's queue; merges on green with no open P1, after #368.
 Ending commit/tree: `7a304bf31a70` (tree `f8a4ccac0968`), the last commit of `api/host-more`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 22 files changed against
-`origin/api/archive-project` at that commit: `apps/api/src/app.ts`, `apps/api/src/diagnostics/sanitize.ts`, `apps/api/src/livekit.ts`, `apps/api/src/readiness.db.test.ts`, `apps/api/src/routes/rooms.ts`, `e2e/host-controls.spec.ts`, `fixtures/fake-people.ts`, `fixtures/fixture-api.ts`, `src/api/client.ts`, `src/app/theme.css`, `src/features/studio/ActivitySheet.tsx`, `src/features/studio/PeoplePanel.tsx`, `src/features/voice/livekit-room.ts`, `src/features/work/labels.ts`, `db/migrations/0059_room_acts.sql`, `docs/plans/host-more.md`, `packages/contracts/amendments/A31-host-more.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/src/generated-types.ts`, `packages/persistence/src/activity.ts`, `packages/persistence/src/index.ts`, `packages/persistence/src/persistence.db.test.ts`. The review notes below name the commit of each later change.
+`origin/api/archive-project` at that commit: `apps/api/src/app.ts`, `apps/api/src/diagnostics/sanitize.ts`, `apps/api/src/livekit.ts`, `apps/api/src/readiness.db.test.ts`, `apps/api/src/routes/rooms.ts`, `e2e/host-controls.spec.ts`, `fixtures/fake-people.ts`, `fixtures/fixture-api.ts`, `src/api/client.ts`, `src/app/theme.css`, `src/features/studio/ActivitySheet.tsx`, `src/features/studio/PeoplePanel.tsx`, `src/features/voice/livekit-room.ts`, `src/features/work/labels.ts`, `db/migrations/0060_room_acts.sql`, `docs/plans/host-more.md`, `packages/contracts/amendments/A31-host-more.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/src/generated-types.ts`, `packages/persistence/src/activity.ts`, `packages/persistence/src/index.ts`, `packages/persistence/src/persistence.db.test.ts`. The review notes below name the commit of each later change.
 
 ## Outcome
 
-- **Migration 0059:** `sophia.record_room_act(uuid,uuid,text)`.
+- **Migration 0060:** `sophia.record_room_act(uuid,uuid,text)`.
   - `camera` and `screen` act on an active member; `mute_all` acts on the project.
   - Admins only; an unknown act is refused (22023).
-  - 0056's `record_host_act` is untouched.
+  - 0057's `record_host_act` is untouched.
 - **A31:** `stop-camera`, `stop-screen` and `mute-all`. The route body follows A24's.
 - **`livekit.ts`:** `stopCamera` and `stopScreen` through `muteSources`; `muteEveryone` skips Sophia and unknown
   standings.
@@ -37,8 +37,8 @@ commits on the branch merge its base forward or touch only this record). 22 file
 
 - Plan: `docs/plans/host-more.md`.
 - Written first and failing (commit `92a8cb94`):
-  - `persistence.db.test.ts` «room acts (0059)»;
-  - `readiness.db.test.ts` without 0059;
+  - `persistence.db.test.ts` «room acts (0060)»;
+  - `readiness.db.test.ts` without 0060;
   - `host-controls.spec.ts`: camera and screen stop, Mute everyone, and an editor without it.
 - **After the change, locally:**
   - host-controls, project-activity, room-people, two-screens and room-tiles specs: 49/49;

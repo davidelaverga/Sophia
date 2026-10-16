@@ -14,7 +14,7 @@
   - As with A24's mute, only they turn it on again.
 - **The Studio's own call:** a screen share muted by the host stops sharing, so the browser's capture ends too. A
   camera muted by the host reads as off, as LiveKit reports it.
-- **Migration 0059:** `sophia.record_room_act(project, target, act)`, the evidence after the room server has acted.
+- **Migration 0060:** `sophia.record_room_act(project, target, act)`, the evidence after the room server has acted.
   - `camera` and `screen` on a member emit `room.host_camera_off` and `room.host_screen_off`.
   - `mute_all`, with no target, emits `room.host_muted_all`.
   - Admins only; an unknown act is refused.
@@ -32,10 +32,10 @@
 
 ## Checks
 
-- `persistence.db.test.ts`, «room acts (0059)»:
+- `persistence.db.test.ts`, «room acts (0060)»:
   - camera, screen and everyone are recorded with their target, or none;
   - an editor is refused, and so is an unknown act.
-- `readiness.db.test.ts`: not ready without 0059.
+- `readiness.db.test.ts`: not ready without 0060.
 - `host-controls.spec.ts`:
   - an admin turns a member's camera off, and stops a member's screen;
   - «Mute everyone» asks first, then every other microphone is off;

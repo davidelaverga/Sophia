@@ -12,7 +12,7 @@
 
 ## What changes
 
-- **Migration 0057:** `sophia.remove_member(project, actor, key)`.
+- **Migration 0058:** `sophia.remove_member(project, actor, key)`.
   - Admins only (403).
   - Not oneself, since leaving is that (422).
   - The target is an active member (422). Removing an admin is allowed, because the remover is an admin, so the
@@ -27,7 +27,7 @@
 - **Contract amendment A29:** `POST /api/v1/projects/{projectId}/members/{actorId}/removal`, with an Idempotency-Key
   and body `{}`, returns `{ actorId, cursor }`.
   - The API tries once to take them out of the call, and the worker does the rest.
-  - `/ready` requires 0057.
+  - `/ready` requires 0058.
 - **Labels:** «Member removed» in the Work pulse. In Activity, «Removed from the project · Marco».
 - **Studio:**
   - Each other member's row in «In this project» has, for an admin, a «Remove» confirmed in place: «They leave the
@@ -45,7 +45,7 @@
   - an editor is refused;
   - oneself and a non-member are refused.
 - `access.db.test.ts`: someone removed comes back by invitation, and the removal is cancelled.
-- `readiness.db.test.ts`: not ready without 0057.
+- `readiness.db.test.ts`: not ready without 0058.
 - `remove-member.spec.ts`:
   - an admin removes Marco after confirming, and the row goes;
   - their own row offers no Remove;

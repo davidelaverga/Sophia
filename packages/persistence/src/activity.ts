@@ -1,4 +1,4 @@
-// A project's activity for its admins (db/migrations/0056, contract amendment A28): people's acts from the project's
+// A project's activity for its admins (db/migrations/0057, contract amendment A28): people's acts from the project's
 // events, with their actors and the members acted on, named as the room keeps them; and the record of an admin's act on
 // someone in the call (A24), which the API writes once the room server has done it.
 import type pg from 'pg'
@@ -44,9 +44,9 @@ export async function readProjectActivity(
   return { entries, before: more ? (entries.at(-1)?.sequence ?? null) : null }
 }
 
-/** Record an admin's act on a member in the call (A24, 0056); returns the event's cursor. Inside withActor("write"). */
+/** Record an admin's act on a member in the call (A24, 0057); returns the event's cursor. Inside withActor("write"). */
 /**
- * An admin's camera stop, screen stop, or everyone muted (A31, 0059), recorded once the room server has done it; the
+ * An admin's camera stop, screen stop, or everyone muted (A31, 0060), recorded once the room server has done it; the
  * target is the member, or null for everyone. Call inside withActor(..., "write").
  */
 export async function recordRoomAct(
@@ -77,7 +77,7 @@ export async function recordHostAct(
   return onlyRow(rows, 'record_host_act').cursor
 }
 
-/** Remove a member (A29, 0057): admins only, never oneself, idempotent per actor and key. Inside withActor("write"). */
+/** Remove a member (A29, 0058): admins only, never oneself, idempotent per actor and key. Inside withActor("write"). */
 export async function removeMember(
   c: pg.PoolClient,
   projectId: string,

@@ -1,6 +1,6 @@
 -- More for the host (docs/plans/host-more.md, A31): an admin's camera stop, screen stop or everyone muted, recorded
--- once the room server has done it, as A24's acts are (0056). A camera or a screen is an act on a member; everyone
--- muted is an act on the project, with no member named. 0056's record_host_act is untouched. 0001–0058 are not edited.
+-- once the room server has done it, as A24's acts are (0057). A camera or a screen is an act on a member; everyone
+-- muted is an act on the project, with no member named. 0057's record_host_act is untouched. 0001–0059 are not edited.
 BEGIN;
 
 CREATE FUNCTION sophia.record_room_act(p_project uuid, p_target uuid, p_act text) RETURNS bigint LANGUAGE plpgsql

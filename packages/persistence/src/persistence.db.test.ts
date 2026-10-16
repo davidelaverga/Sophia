@@ -301,7 +301,7 @@ describe('events', () => {
   })
 })
 
-describe('host acts (migration 0056)', () => {
+describe('host acts (migration 0057)', () => {
   it('an admin’s act on a member in the call is recorded as an event; an editor can’t record one', async () => {
     const fresh = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
     const cursor = await withActor(pool, A, 'write', (c) => recordHostAct(c, fresh.projectId, V, 'mute'))
@@ -317,7 +317,7 @@ describe('host acts (migration 0056)', () => {
   })
 })
 
-describe('room acts (migration 0059)', () => {
+describe('room acts (migration 0060)', () => {
   it('a camera, a screen and everyone muted are recorded with their target, or none; an editor can’t record one', async () => {
     const fresh = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
     await withActor(pool, A, 'write', (c) => recordRoomAct(c, fresh.projectId, V, 'camera'))

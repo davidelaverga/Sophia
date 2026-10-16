@@ -4,7 +4,7 @@
   "title": "More for the host: everyone muted, a camera or a screen stopped",
   "why": [
     "Follows A24 (an admin mutes or removes a member in the call). A meeting's host also mutes everyone at once and stops someone's camera or screen share, as Meet, Zoom and Teams allow (docs/plans/host-more.md).",
-    "Each act is the room server's, recorded once done (record_room_act, 0059) as room.host_camera_off, room.host_screen_off or room.host_muted_all; only the person turns their device on again. Twice is the same as once, so no key."
+    "Each act is the room server's, recorded once done (record_room_act, 0060) as room.host_camera_off, room.host_screen_off or room.host_muted_all; only the person turns their device on again. Twice is the same as once, so no key."
   ],
   "patch": [
     {
