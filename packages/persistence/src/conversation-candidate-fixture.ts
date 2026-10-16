@@ -1,4 +1,5 @@
-// CON candidate/Q13 tests retain the sealed pre-promotion migration baseline, including0053.
+// CON candidate/Q13 tests retain the sealed pre-promotion migration baseline: main's applied migrations through 0057
+// (0053 included, once) and 0063, before 0064's runtime promotion.
 // Only tests import this helper. Full migrated-runtime tests use createTestDatabase() directly.
 // Every sealed input is verified before database creation; a migration edit cannot silently change this baseline.
 import { createHash } from 'node:crypto'
@@ -53,8 +54,19 @@ const BASELINE = [
   ['0043_design_delivery.sql', 'b52dfede00a6fc611d3bc69734e2cb2f7c3e12914df9d0e49f46778d03ccb0b6'],
   ['0044_object_write_once.sql', '643a4a7bb6b03221973606b23e77d816d1fc2cc1e808fd5f1dafdd8cf0610bf6'],
   ['0045_render_requeue_output.sql', '603143a7a1b4e50d68371ac3930aeab1b813f6437cf88c2e7dc88a349a45aac1'],
-  ['0063_project_conversations.sql', '0cda4f52bc74569c3b10e65819a3b80dfccfb2e5aa8e63b3a666b1d170613758'],
+  ['0046_pending_member_invitations.sql', '2d6477cf41a1873dab28041815e97ad07aed08f74d1bfb935833c4d8c62904d7'],
+  ['0047_blank_project_title.sql', 'fd5d57f4ffa62d8ce554eb760398eecbc5601e16d2443bde7738f2dad120858d'],
+  ['0048_discussion_author_name.sql', '14f69941380419e77a69ce102b5df13f2c7cdacd6683350c763730606a825156'],
+  ['0049_mission_author_names.sql', '407651d5e3a17489f856ae1c639f4bdaa08a5291cf5258700520f9efef880b72'],
+  ['0050_room_names.sql', '244537bb10b9cdac49c7b1c2e7294342023666d27186ee6fea78b01551c085e3'],
+  ['0051_project_rename.sql', '70ea350b667adc949b690e61b79e200dcf538f5132317b538aa4046d7a2c36b3'],
+  ['0052_project_leave.sql', '8c97c0d47049f48401c7ecda0b75e10d79bff255caa91fd3b02cd41d2b8ee297'],
   ['0053_runtime_outbox_reconcile.sql', 'bf403b7eff741a5d2056b484c802cdc4cbe382f23bc00ee5826315beedc4bae7'],
+  ['0054_goal_targets.sql', '9a9ea04d4c124e4c8be19403cc5ae86bc889880222d5c03061bfc38d87c1dff9'],
+  ['0055_invitable_people.sql', 'adac7a01bddd353064b297246d619f7c3267a62f493e7f2ecba10322b7cbf6c4'],
+  ['0056_member_roles.sql', '37238a27e28fe51eeddd2da0ed8776b16a8601ab52b0b599c425ea647029f580'],
+  ['0057_project_activity.sql', '69d4d52992590ea84d2fcf99ac819266de9aee7bdabce121b44643647760c6af'],
+  ['0063_project_conversations.sql', '0cda4f52bc74569c3b10e65819a3b80dfccfb2e5aa8e63b3a666b1d170613758'],
 ] as const
 
 async function removeStaging(dir: string, database: TestDatabase | undefined): Promise<void> {
