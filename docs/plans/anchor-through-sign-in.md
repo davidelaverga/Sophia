@@ -30,5 +30,7 @@
   - another fragment (a token, `#top`) is not kept, and lets an older anchor go;
   - another path, or a kept anchor older than 30 minutes, gives nothing back;
   - unreadable storage gives nothing back.
-- The return itself needs a real Auth service, which the fixture pages don't have. It is checked on the local stack
-  with a magic link through Mailpit.
+- **The return itself** needs a real Auth service, which the fixture pages don't have.
+  - Read through instead: between the callback's address and the view, nothing rewrites a canonical path.
+    `useProjectRoute` rewrites only legacy and unknown ones.
+  - The view reads the fragment as it mounts (`useAddressed`).
