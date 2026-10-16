@@ -17,6 +17,7 @@ import { isAbsolute, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { ControlBridge } from './control-bridge.js'
 import type { BridgeReadiness, RouteConfig, RoutePrices } from './control-bridge.js'
+import type { ReplyServiceSettings } from './reply-service.js'
 import type { ResearchSources } from './research-tools.js'
 import { roleOf } from './role-registry.js'
 import { createJinaReader } from './source-jina.js'
@@ -34,9 +35,10 @@ export const name = 'sophia-control-bridge'
  * Services the bridge drives; the row waits until all exist. `agentDefaultModel`
  * supplies the recorded model route, `agentPresets` the native presets roles
  * run under (SMC-M02 G3), `systemPrompt` the research section a research agent
- * gets in its own scope (SMC-M03 S4).
+ * gets in its own scope (SMC-M03 S4), `llm` the public prepareCall/stream a
+ * service-mode conversation reply makes its one call through (CON-01 B2).
  */
-export const inject = ['agents', 'sessions', 'tools', 'agentDefaultModel', 'agentPresets', 'systemPrompt']
+export const inject = ['agents', 'sessions', 'tools', 'agentDefaultModel', 'agentPresets', 'systemPrompt', 'llm']
 
 /** Wire protocol between this bridge and the Sophia service. */
 export const PROTOCOL_VERSION = 1
@@ -75,6 +77,12 @@ export interface ControlBridgeConfig {
     readonly tavilyEndpoint: string | null
     readonly jinaEndpoint: string | null
   }
+  /**
+   * Conversation replies in service mode (CON-01 B2), or null: no reply runs here. The route is one of `routes`, and
+   * must be priced; the executor's artifact digest is read from the named environment variable, set by the operator
+   * to the digest the grant was pinned with (0067). Unset or unpriced, the mode is unavailable and nothing dispatches.
+   */
+  readonly replies: { readonly mode: 'service'; readonly routeId: string; readonly executorDigestEnv: string } | null
 }
 
 const ENV_NAME = /^[A-Z][A-Z0-9_]*$/
@@ -82,7 +90,7 @@ const ENV_NAME = /^[A-Z][A-Z0-9_]*$/
 const ROUTE_ID = /^[a-z][a-z0-9-]{0,62}[a-z0-9]$/
 const ROUTE_PART = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/
 const EFFORT = /^[a-z]{1,16}$/
-const CONFIG_KEYS = new Set(['protocolVersion', 'serviceUrlEnv', 'tokenEnv', 'runtimeUnitEnv', 'workspaceEnv', 'routes', 'roleRoutes', 'sources'])
+const CONFIG_KEYS = new Set(['protocolVersion', 'serviceUrlEnv', 'tokenEnv', 'runtimeUnitEnv', 'workspaceEnv', 'routes', 'roleRoutes', 'sources', 'replies'])
 const PRICE_KEYS = ['input', 'cacheRead', 'cacheWrite', 'output'] as const
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -186,6 +194,55 @@ function parseRoleRoutes(value: unknown, routes: Readonly<Record<string, RouteCo
   return roleRoutes
 }
 
+function parseReplies(value: unknown, routes: Readonly<Record<string, RouteConfig>>): ControlBridgeConfig['replies'] {
+  if (value === undefined || value === null) return null
+  if (!isRecord(value) || Object.keys(value).some((key) => !['mode', 'routeId', 'executorDigestEnv'].includes(key))) {
+    throw new TypeError(`${name}: replies are mode, routeId and executorDigestEnv`)
+  }
+  if (value.mode !== 'service') throw new TypeError(`${name}: replies.mode must be service`)
+  if (typeof value.routeId !== 'string' || !Object.hasOwn(routes, value.routeId)) {
+    throw new TypeError(`${name}: replies.routeId must be one of this unit's routes`)
+  }
+  if (typeof value.executorDigestEnv !== 'string' || !ENV_NAME.test(value.executorDigestEnv)) {
+    throw new TypeError(`${name}: replies.executorDigestEnv must name an environment variable`)
+  }
+  return { mode: 'service', routeId: value.routeId, executorDigestEnv: value.executorDigestEnv }
+}
+
+/** Fixed protocol bounds of a service reply: each server request, its retries, and the call itself. */
+const REPLY_SERVICE_BOUNDS = { retry: { requestWaitMs: 10_000, retryWaitMs: 1_000, maxAttempts: 3 }, deadlineMs: 120_000 } as const
+
+/**
+ * The service-mode settings the bridge runs with, or null with the reason logged: an unpriced route or an unset
+ * artifact digest leaves the mode unavailable (the role is not advertised, so the server dispatches nothing).
+ */
+export function replyServiceSettings(
+  replies: ControlBridgeConfig['replies'],
+  routes: Readonly<Record<string, RouteConfig>>,
+  env: Readonly<Record<string, string | undefined>>,
+  report: (line: string) => void,
+): ReplyServiceSettings | null {
+  if (replies === null) return null
+  const route = routes[replies.routeId]
+  const digest = env[replies.executorDigestEnv]
+  if (!route?.prices) {
+    report(`reply_service_unavailable route_unpriced`)
+    return null
+  }
+  if (digest === undefined || !/^[0-9a-f]{64}$/.test(digest)) {
+    report(`reply_service_unavailable executor_digest_unset`)
+    return null
+  }
+  return {
+    mode: 'service',
+    routeId: replies.routeId,
+    route: { provider: route.provider, model: route.model, reasoningEffort: route.reasoningEffort, maxTokens: route.maxTokens },
+    prices: route.prices,
+    executorArtifactDigest: digest,
+    ...REPLY_SERVICE_BOUNDS,
+  }
+}
+
 /**
  * Validate the row config. Throwing makes dsh report this plugin as failed,
  * which the Sophia runtime gate treats as an unusable composition.
@@ -217,6 +274,7 @@ export function parseConfig(config: unknown): ControlBridgeConfig {
     routes,
     roleRoutes: parseRoleRoutes(raw.roleRoutes, routes),
     sources: parseSources(raw.sources),
+    replies: parseReplies(raw.replies, routes),
   }
 }
 
@@ -258,7 +316,8 @@ export function apply(ctx: Context, config: unknown): void {
     routes: settings.routes,
     roleRoutes: settings.roleRoutes,
     research: researchSources(settings.sources),
-    replies: null, // Qualified host/profile/route composition is not installed yet.
+    replies: null, // The native child composition is not qualified; only service mode may run, when configured.
+    replyService: replyServiceSettings(settings.replies, settings.routes, process.env, log),
     log,
   })
   current = bridge

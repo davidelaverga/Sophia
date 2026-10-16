@@ -199,7 +199,9 @@ export class ReplyDelivery {
     this.replyId = command.binding.conversationReplyId
     this.identity = Object.freeze({ runtimeUnitId: command.binding.runtimeUnitId,
       attemptId: binding.attemptId, nativeSessionId: `sophia-${binding.attemptId}` })
-    this.source = Object.freeze({ routeId: command.payload.route, ...command.payload.conversation })
+    // The reservation's source names exactly these; the payload's pinned execution tuple (A35) is not part of a call.
+    const { credentialRef, ownerResourceRef, unit } = command.payload.conversation
+    this.source = Object.freeze({ routeId: command.payload.route, credentialRef, ownerResourceRef, unit })
     this.policy = Object.freeze({ ...policy })
   }
 

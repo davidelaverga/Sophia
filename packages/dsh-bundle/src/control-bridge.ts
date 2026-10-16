@@ -38,6 +38,7 @@ import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import type { ToolDefinition, ToolGuard } from '@deepseek-ai/dsh-tools'
 import { commandText, parseCommand, ProtocolError } from './protocol.js'
 import { ReplyController, type ReplyControllerSettings } from './reply-child.js'
+import { ReplyServiceExecutor, SERVICE_ROLE, SERVICE_ROLE_DIGEST, serviceSettings, type ReplyServiceSettings } from './reply-service.js'
 import { RetainedQueue } from './retained-queue.js'
 import { wire } from './runtime-wire.generated.js'
 import type { RuntimeCommand, RuntimeReceipt, ReceiptStage } from './protocol.js'
@@ -73,6 +74,8 @@ export type RouteConfig = RouteSpec & { readonly maxTokens: number; readonly pri
 /** Row config plus the resolved environment the bridge runs with. */
 export interface BridgeSettings {
   readonly replies?: ReplyControllerSettings | null
+  /** Conversation replies in service mode (CON-01 B2): one public prepareCall/stream per reply, no Agent or home. */
+  readonly replyService?: ReplyServiceSettings | null
   readonly protocolVersion: 1
   readonly bundle: string
   readonly dshVersion: string
@@ -140,11 +143,30 @@ const OBSERVATION_TYPE = /^[a-z][a-z0-9_/.-]{0,63}$/
 /** Upper bound of a receipt reason on the wire (A04). */
 const REASON_LIMIT = 16_000
 
+/** Service-mode settings the executor accepts, or null with the reason logged (the mode is then unavailable). */
+function validServiceSettings(value: ReplyServiceSettings | null, log: (line: string) => void): ReplyServiceSettings | null {
+  if (value === null) return null
+  try {
+    return serviceSettings(value)
+  } catch {
+    log('reply_service_unavailable settings_invalid')
+    return null
+  }
+}
+
+/** The conversation role a service-mode runtime advertises: the server dispatches replies only on its route. */
+function serviceRole(settings: ReplyServiceSettings): { id: string; route: string; presetDigest: string } {
+  return { id: SERVICE_ROLE, route: settings.routeId, presetDigest: SERVICE_ROLE_DIGEST }
+}
+
 /** Readiness as reported to the Sophia service and to the startup log. */
 export type BridgeReadiness = { state: 'ready' } | { state: 'not_ready'; reason: string }
 
 export class ControlBridge {
   private replies: ReplyController | null = null
+  /** Valid service-mode settings, or null: then no conversation role is advertised and no reply runs here. */
+  private readonly replyServiceSettings: ReplyServiceSettings | null
+  private replyService: ReplyServiceExecutor | null = null
   /** Installed only by the enabled CON controller; cancellation is not cleanup proof. */
   private replySuperseded: (() => void) | null = null
   private readonly attempts = new Map<string, AttemptState>()
@@ -173,6 +195,7 @@ export class ControlBridge {
 
   constructor(private readonly ctx: Context, private readonly settings: BridgeSettings) {
     this.journal = new Journal(settings.journalDir)
+    this.replyServiceSettings = validServiceSettings(settings.replyService ?? null, settings.log)
     this.transport = settings.service
       ? new ServiceTransport({ ...settings.service, runtimeUnitId: settings.runtimeUnitId, bridgeInstanceId: this.instanceId })
       : null
@@ -315,6 +338,7 @@ export class ControlBridge {
     return async () => {
       this.stopping.abort()
       this.replies?.dispose()
+      this.replyService?.dispose()
       offPreStep()
       offGuard()
       offStream()
@@ -348,9 +372,16 @@ export class ControlBridge {
       this.replies = new ReplyController({ projectId: hello.projectId, runtimeUnitId: this.settings.runtimeUnitId,
         leaseId: this.instanceId }, null, this.transport)
     }
+    if (this.replyServiceSettings) {
+      this.replyService?.dispose()
+      this.replyService = new ReplyServiceExecutor({ projectId: hello.projectId, runtimeUnitId: this.settings.runtimeUnitId,
+        leaseId: this.instanceId }, this.replyServiceSettings, this.ctx.llm, this.transport, this.settings.log)
+    }
     this.cursor = hello.cursor
     const unrecovered: UnrecoveredBinding[] = []
     for (const binding of hello.bindings) {
+      // A service attempt under this executor's exact tuple is adopted for Stop and retire; it is never run again.
+      if ('conversationReplyId' in binding && this.replyService?.adopt(binding)) continue
       if ('conversationReplyId' in binding) this.replies.unrecovered()
       const failure = 'conversationReplyId' in binding
         ? { attemptId: binding.attemptId, reason: 'conversation_child_unqualified' }
@@ -453,6 +484,7 @@ export class ControlBridge {
    */
   private async advertisedRoles(): Promise<Array<{ id: string; route: string; presetDigest: string }>> {
     const roles: Array<{ id: string; route: string; presetDigest: string }> = []
+    if (this.replyServiceSettings) roles.push(serviceRole(this.replyServiceSettings))
     for (const [roleId, routeId] of Object.entries(this.settings.roleRoutes).sort(([a], [b]) => a.localeCompare(b))) {
       const role = roleOf(roleId)
       if (!role) continue
@@ -735,7 +767,10 @@ export class ControlBridge {
 
     // Reply ownership/transport stay outside goal history. The production reply configuration remains disabled.
     // Controller admission is retained asynchronously so this serial queue can promptly deliver Stop.
-    if ('conversationReplyId' in command.binding) return this.replies?.execute(command) ?? reject('conversation_child_unqualified')
+    if ('conversationReplyId' in command.binding) {
+      if (this.replyService) return this.replyService.execute(command)
+      return this.replies?.execute(command) ?? reject('conversation_child_unqualified')
+    }
     if (command.kind === 'retire') return reject('retire_requires_reply_owner')
 
     const attempt = this.attempts.get(attemptId)
