@@ -24,7 +24,10 @@ reduction of the per-width snapshot gave ~4% and is not part of this change.
 
 Fit (coordinator-verified surrounding limits, not a completion proof): the capture's claim is 180 s for PNG (0039) and
 aborts the whole job; R1's captures spent 10.6–13.5 s outside the sweep, so 150 s leaves about 16.5 s; the supervisor
-gives the UML guest 270 s; CPU, lease and upload bounds are compatible.
+gives the UML guest 270 s of wall time (the 180 s PNG claim plus `UML_MARGIN_MS` 90 s, supervisor.mjs:703), and its
+launcher caps CPU at 240 s (landlock-launch.py:104); the QA host's 240 s wall watchdog (host-qa.py:173) is the fixture's,
+not production's. CPU, lease and upload bounds are compatible. The QA diagnostic's optional timing probe now starts only
+with its whole 125 s budget left (30 s launch, 30 s load, 60 s measurement, 5 s close), not 90 s (#387 review).
 
 Tests: the new bound test pins `SWEEP` and the probe bounds; the existing timeout (`sweepMs: 1`), late-batch and
 injected clipping/overflow/cover tests are unchanged and must still fail as before. Commands and CI runs are in the PR.
