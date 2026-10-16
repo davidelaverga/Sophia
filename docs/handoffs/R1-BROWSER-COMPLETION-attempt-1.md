@@ -32,7 +32,7 @@ Measured with a temporary, uncommitted probe: Node `performance.now()` around ea
 | `fastForward(6500)` | 10/10 pass | 1436–1930 | 2–31 | 2–57 (median 4) | 3–25 | 1475–1940 |
 
 All runs are kept; none were selected. Raw logs are kept privately by P's coordination (sha256):
-- probe timings: `runFor` `b960c1ea…c058`, `fastForward` `96ba4d6d…b4e7`;
+- probe timings: `runFor` `b960c1ea…c058`, `fastForward` `96ba4d6dafbdf3f9dcef8fcded3154ff6c000e50b67571fa5e699b7e2c3537e4`;
 - run output: `runFor` `d5824a07…1b87`, `fastForward` `1530ccbb…bb3`, final `ad0a5b2e…34c`;
 - the failing CI job's log (job 117088952223): `a4e0d843…f6e0`.
 
