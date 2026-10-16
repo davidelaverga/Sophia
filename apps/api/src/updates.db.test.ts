@@ -100,16 +100,34 @@ async function row<T extends pg.QueryResultRow>(c: pg.Client, sql: string, param
   return found
 }
 
-/** A report version a task made, with its events as the runtime emits them (admitted by `asker`, then its result). */
-async function made(seed: SeededProject, asker: string, title: string, amends?: { artifact: string; version: string }) {
+/** A job id that sorts first, or last, among UUIDs: the order a query might wrongly lean on is tried both ways. */
+const tail = () => randomUUID().slice(24)
+const lowJob = () => `00000000-0000-4000-8000-${tail()}`
+const highJob = () => `ffffffff-ffff-4fff-bfff-${tail()}`
+
+/**
+ * A report version a task made, with its events as the runtime emits them (admitted by `asker`, then its result). An
+ * amendment is a new version whose parent is the one it replaces (0026), which it supersedes.
+ */
+async function made(
+  seed: SeededProject,
+  asker: string,
+  title: string,
+  {
+    amends,
+    job: jobId,
+    versionNumber,
+  }: { amends?: { artifact: string; version: string }; job?: string; versionNumber?: number } = {},
+) {
   const c = new pg.Client({ connectionString: db.ownerUrl })
   await c.connect()
   try {
     await c.query(`SELECT set_config('sophia.actor_id', $1, false)`, [asker])
     const job = await row<{ id: string }>(
       c,
-      `INSERT INTO sophia.jobs(project_id,kind,state) VALUES($1,'research','succeeded') RETURNING id`,
-      [seed.projectId],
+      `INSERT INTO sophia.jobs(project_id,id,kind,state) VALUES($1,coalesce($2::uuid,gen_random_uuid()),'research','succeeded')
+       RETURNING id`,
+      [seed.projectId, jobId ?? null],
     )
     const artifact = amends
       ? { id: amends.artifact }
@@ -125,10 +143,19 @@ async function made(seed: SeededProject, asker: string, title: string, amends?: 
     )
     const version = await row<{ id: string }>(
       c,
-      `INSERT INTO sophia.artifact_versions(project_id,artifact_id,source_id,source_hash,goal_id,goal_revision,
+      `INSERT INTO sophia.artifact_versions(project_id,artifact_id,parent_id,source_id,source_hash,goal_id,goal_revision,
          authority_epoch,state,version_number,job_id)
-       VALUES($1,$2,$3,$4,$5,1,1,'stable',$7,$6) RETURNING id`,
-      [seed.projectId, artifact.id, source.id, source.sha256, seed.goalId, job.id, amends ? 2 : 1],
+       VALUES($1,$2,$8,$3,$4,$5,1,1,'stable',$7,$6) RETURNING id`,
+      [
+        seed.projectId,
+        artifact.id,
+        source.id,
+        source.sha256,
+        seed.goalId,
+        job.id,
+        versionNumber ?? (amends ? 2 : 1),
+        amends?.version ?? null,
+      ],
     )
     // An amendment supersedes the version before it (0026): the report's current version is the new one.
     if (amends) await c.query(`UPDATE sophia.artifact_versions SET state='superseded' WHERE id=$1`, [amends.version])
@@ -150,8 +177,8 @@ async function made(seed: SeededProject, asker: string, title: string, amends?: 
 }
 
 /**
- * A rendition settled (0032, 0040): a renderer's version supersedes the report's current one, becomes its stable
- * version, and `artifact.rendition_ready` names the artifact, from the service (no member actor).
+ * A rendition settled (0032, 0034, 0040): a renderer's version, rendition-only and whose parent is the version it renders,
+ * supersedes it, becomes the stable version, and `artifact.rendition_ready` names the artifact, from the service.
  */
 async function rendition(seed: SeededProject, artifact: string, prior: string, versionNumber: number) {
   const c = new pg.Client({ connectionString: db.ownerUrl })
@@ -170,8 +197,8 @@ async function rendition(seed: SeededProject, artifact: string, prior: string, v
     const version = await row<{ id: string }>(
       c,
       `INSERT INTO sophia.artifact_versions(project_id,artifact_id,parent_id,source_id,source_hash,goal_id,goal_revision,
-         authority_epoch,state,version_number,job_id)
-       VALUES($1,$2,$3,$4,$5,$6,1,1,'stable',$7,$8) RETURNING id`,
+         authority_epoch,state,version_number,job_id,change_facts)
+       VALUES($1,$2,$3,$4,$5,$6,1,1,'stable',$7,$8,'{"renditionOnly":true}') RETURNING id`,
       [seed.projectId, artifact, prior, source.id, source.sha256, seed.goalId, versionNumber, job.id],
     )
     await c.query(`UPDATE sophia.artifact_versions SET state='superseded' WHERE id=$1`, [prior])
@@ -345,53 +372,76 @@ describe('what changed since a member last looked (A34)', () => {
     )
   })
 
-  it('lists a report’s current version only, and reads no private event to say who asked for it', async () => {
-    const [admin, editor, asker] = [randomUUID(), randomUUID(), randomUUID()]
-    const seed = await seedProject(db.ownerUrl, { admin, editors: [editor, asker] })
-    await asOwner(`INSERT INTO sophia.actor_profiles(actor_id, display_name) VALUES ($1, 'Ari Asker')`, [asker])
-    const first = await made(seed, asker, 'Door study')
-    const second = await made(seed, asker, 'Door study', { artifact: first.artifact, version: first.version })
-    const u = await updatesOf(admin, seed.projectId)
-    assert.deepEqual(
-      u.made.map((m) => [m.artifactVersionId, m.versionNumber, m.askedBy]),
-      [[second.version, 2, asker]],
-    )
-    assert.equal(u.names[asker], 'Ari Asker')
-    // The admitting event is made private to the editor: the admin no longer reads who asked, nor their name.
-    await asOwner(
-      `UPDATE sophia.project_events SET visibility_owner=$3
-        WHERE project_id=$1 AND entity_id=$2 AND type='native_task.admitted'`,
-      [seed.projectId, second.job, editor],
-    )
-    const hidden = await updatesOf(admin, seed.projectId)
-    assert.deepEqual(
-      hidden.made.map((m) => [m.artifactVersionId, m.askedBy]),
-      [[second.version, null]],
-    )
-    assert.equal(hidden.names[asker], undefined)
-    assert.equal((await updatesOf(editor, seed.projectId)).made[0]?.askedBy, asker)
-  })
+  for (const order of ['the older job sorting first', 'the newer job sorting first'] as const) {
+    it(`asks who asked of the current version’s own task; a private admission there is null, never an older requester (${order})`, async () => {
+      const [admin, editor, older, newer] = [randomUUID(), randomUUID(), randomUUID(), randomUUID()]
+      const seed = await seedProject(db.ownerUrl, { admin, editors: [editor, older, newer] })
+      await asOwner(
+        `INSERT INTO sophia.actor_profiles(actor_id, display_name) VALUES ($1, 'Olga Older'), ($2, 'Nils Newer')`,
+        [older, newer],
+      )
+      const [olderJob, newerJob] =
+        order === 'the older job sorting first' ? [lowJob(), highJob()] : [highJob(), lowJob()]
+      const first = await made(seed, older, 'Door study', { job: olderJob })
+      const second = await made(seed, newer, 'Door study', { job: newerJob, amends: first })
+      const u = await updatesOf(admin, seed.projectId)
+      // Only the current version, asked for by its own task's requester; the replaced version's requester is no one here.
+      assert.deepEqual(
+        u.made.map((m) => [m.artifactVersionId, m.versionNumber, m.askedBy]),
+        [[second.version, 2, newer]],
+      )
+      assert.deepEqual([u.names[newer], u.names[older]], ['Nils Newer', undefined])
+      // The current version's admission made private to the editor: the admin reads no asker, not the older one.
+      await asOwner(
+        `UPDATE sophia.project_events SET visibility_owner=$3
+          WHERE project_id=$1 AND entity_id=$2 AND type='native_task.admitted'`,
+        [seed.projectId, second.job, editor],
+      )
+      const hidden = await updatesOf(admin, seed.projectId)
+      assert.deepEqual(
+        hidden.made.map((m) => [m.artifactVersionId, m.askedBy]),
+        [[second.version, null]],
+      )
+      assert.deepEqual([hidden.names[newer], hidden.names[older]], [undefined, undefined])
+      assert.equal((await updatesOf(editor, seed.projectId)).made[0]?.askedBy, newer)
+    })
 
-  it('lists a report whose rendition settled at its current version, with who asked for the report', async () => {
-    const [admin, asker] = [randomUUID(), randomUUID()]
-    const seed = await seedProject(db.ownerUrl, { admin, editors: [asker] })
-    const report = await made(seed, asker, 'Venue study')
-    const pdf = await rendition(seed, report.artifact, report.version, 2)
-    const u = await updatesOf(admin, seed.projectId)
-    assert.deepEqual(
-      u.made.map((m) => [m.artifactId, m.artifactVersionId, m.versionNumber, m.askedBy]),
-      [[report.artifact, pdf, 2, asker]],
-    )
-    // A window holding only a later rendition still lists the report, at its newest version; the renderer asked for
-    // nothing, and the asking event is not in this window.
-    assert.equal(await markSeen(admin, seed.projectId, u.toSequence), 204)
-    const later = await rendition(seed, report.artifact, pdf, 3)
-    const next = await updatesOf(admin, seed.projectId)
-    assert.deepEqual(
-      next.made.map((m) => [m.artifactVersionId, m.versionNumber, m.askedBy]),
-      [[later, 3, null]],
-    )
-  })
+    it(`asks who asked of the version a rendition renders, through renditions, and no further (${order})`, async () => {
+      const [admin, editor, older, newer] = [randomUUID(), randomUUID(), randomUUID(), randomUUID()]
+      const seed = await seedProject(db.ownerUrl, { admin, editors: [editor, older, newer] })
+      const [olderJob, newerJob] =
+        order === 'the older job sorting first' ? [lowJob(), highJob()] : [highJob(), lowJob()]
+      const first = await made(seed, older, 'Venue study', { job: olderJob })
+      const second = await made(seed, newer, 'Venue study', { job: newerJob, amends: first })
+      const pdf = await rendition(seed, second.artifact, second.version, 3)
+      const u = await updatesOf(admin, seed.projectId)
+      assert.deepEqual(
+        u.made.map((m) => [m.artifactId, m.artifactVersionId, m.versionNumber, m.askedBy]),
+        [[second.artifact, pdf, 3, newer]],
+      )
+      // The rendered version's admission private: no asker, and never the amended-away version's.
+      await asOwner(
+        `UPDATE sophia.project_events SET visibility_owner=$3
+          WHERE project_id=$1 AND entity_id=$2 AND type='native_task.admitted'`,
+        [seed.projectId, second.job, editor],
+      )
+      assert.equal((await updatesOf(admin, seed.projectId)).made[0]?.askedBy, null)
+      // A later window holding only a rendition of the rendition: the report at its newest version, its asker the
+      // version both render, once readable again.
+      assert.equal(await markSeen(admin, seed.projectId, u.toSequence), 204)
+      const again = await rendition(seed, second.artifact, pdf, 4)
+      assert.deepEqual(
+        (await updatesOf(admin, seed.projectId)).made.map((m) => [m.artifactVersionId, m.versionNumber, m.askedBy]),
+        [[again, 4, null]],
+      )
+      await asOwner(
+        `UPDATE sophia.project_events SET visibility_owner=NULL
+          WHERE project_id=$1 AND entity_id=$2 AND type='native_task.admitted'`,
+        [seed.projectId, second.job],
+      )
+      assert.equal((await updatesOf(admin, seed.projectId)).made[0]?.askedBy, newer)
+    })
+  }
 
   it('still reads an archived project to its members, who can mark it seen; the mark is theirs alone', async () => {
     const [admin, viewer] = [randomUUID(), randomUUID()]

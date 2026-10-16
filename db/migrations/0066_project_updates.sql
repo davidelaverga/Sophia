@@ -29,6 +29,29 @@ SET search_path=pg_catalog,sophia AS $$
   ORDER BY x.sequence LIMIT 1 $$;
 REVOKE ALL ON FUNCTION sophia.update_asker(uuid,uuid,uuid) FROM PUBLIC;
 
+-- Who asked for a report version: the task that produced it. A rendition-only version (0034, 0040: change_facts
+-- renditionOnly, its parent the version it renders) produced nothing of its own, so it is the version it renders, through
+-- any renditions of renditions, up to the first version a task produced; that version's source must still be readable.
+-- An amendment's parent is the version it replaces, never its asker: a current version whose own admission the reader
+-- may not read gives null, never an older version's requester (Codex on #391).
+CREATE FUNCTION sophia.version_asker(p_project uuid, p_version uuid, p_reader uuid) RETURNS uuid LANGUAGE sql STABLE
+SET search_path=pg_catalog,sophia AS $$
+ WITH RECURSIVE lineage AS (
+   SELECT v.id, v.parent_id, v.job_id, v.source_id,
+          coalesce((v.change_facts->>'renditionOnly')::boolean,false) AS rendition, 0 AS depth
+     FROM sophia.artifact_versions v WHERE v.project_id=p_project AND v.id=p_version
+   UNION ALL
+   SELECT p.id, p.parent_id, p.job_id, p.source_id,
+          coalesce((p.change_facts->>'renditionOnly')::boolean,false), l.depth+1
+     FROM lineage l JOIN sophia.artifact_versions p ON p.project_id=p_project AND p.id=l.parent_id
+    WHERE l.rendition AND l.depth<32
+ )
+ SELECT sophia.update_asker(p_project, l.job_id, p_reader)
+   FROM lineage l JOIN sophia.source_objects s ON s.project_id=p_project AND s.id=l.source_id AND s.state='ready' AND s.eligible
+  WHERE NOT l.rendition
+  ORDER BY l.depth LIMIT 1 $$;
+REVOKE ALL ON FUNCTION sophia.version_asker(uuid,uuid,uuid) FROM PUBLIC;
+
 -- readProjectUpdates: the window after the member's mark, up to toSequence, as current records; 42501 for anyone who
 -- isn't an active member. `more` says events lie after toSequence (the next window, once this one is seen).
 CREATE FUNCTION sophia.project_updates(p_project uuid, p_limit integer DEFAULT 500) RETURNS jsonb LANGUAGE plpgsql STABLE
@@ -73,12 +96,12 @@ BEGIN
  ), made AS (
    -- Its current version, whichever task made it (an amendment or a rendition supersedes the one before).
    SELECT DISTINCT ON (ar.id) sv.id, ar.id AS artifact_id, ar.title, sv.version_number, sv.created_at,
-          coalesce(sophia.update_asker(p_project, sv.job_id, a), sophia.update_asker(p_project, t.job_id, a)) AS asked_by
+          sophia.version_asker(p_project, sv.id, a) AS asked_by
      FROM touched t JOIN sophia.artifacts ar ON ar.project_id=p_project AND ar.id=t.artifact_id
      JOIN sophia.artifact_versions sv ON sv.project_id=ar.project_id AND sv.id=ar.stable_version_id
      JOIN sophia.source_objects s ON s.project_id=sv.project_id AND s.id=sv.source_id AND s.state='ready' AND s.eligible
     WHERE sv.version_number IS NOT NULL
-    ORDER BY ar.id, t.job_id NULLS LAST
+    ORDER BY ar.id
  ), people AS (
    SELECT DISTINCT x.actor FROM (
      SELECT proposed_by AS actor FROM decided UNION ALL SELECT decided_by FROM decided

@@ -18,8 +18,11 @@
     - `made`: a report reached through the window, by its task's result or a settled rendition
       (`artifact.rendition_ready`), at its current (stable) version, whichever task made it, its source ready and
       eligible. A superseded version is never listed, and a report whose current version is a rendition still is.
-      `askedBy` is who admitted the current version's task, else the task the window reached, read only from events
-      the member may read; otherwise null (Codex on #391).
+      `askedBy` is who admitted the task that produced the current version (`version_asker`). A rendition-only
+      version (`change_facts.renditionOnly`, its parent the version it renders) produced nothing of its own, so it
+      takes the version it renders, through renditions of renditions, whose source must still be readable. An
+      amendment's parent is the version it replaces, never its asker. A current version whose admission the member
+      may not read gives null, never an older version's requester (Codex on #391).
   - **Withdrawals:** a record withdrawn, superseded or made unreadable since is in no line, and so in no count. The
     Studio counts lines.
   - **Private events:** an event private to another person (`visibility_owner`) is never read.
@@ -87,7 +90,7 @@ rights:
 
 ## Checks
 
-- **`updates.db.test.ts`** (real API on PostgreSQL), 8 cases:
+- **`updates.db.test.ts`** (real API on PostgreSQL), 10 cases:
   - **current records:** every section, with display names and no address;
   - **access:** a viewer reads; an outsider and a removed member get 403;
   - **the shown bound:** seen marks only what was shown; an event after it stays new; a poll acknowledges nothing; a
@@ -95,10 +98,11 @@ rights:
   - **the window:** a bounded window with `more`, and the next window starting where the shown one ended;
   - **withdrawals:** a withdrawn note and a report whose source was withdrawn are in no line and no count; another
     person's private event is not read, and its owner reads it;
-  - **versions:** an amended report lists only its current version; a private admitting event hides who asked, and
-    their name;
-  - **renditions:** a settled rendition keeps the report listed at its current version with its asker; a
-    rendition-only window lists its newest version;
+  - **versions:** an amended report lists only its current version, asked by its own task. A private admission there
+    gives null and no name, never the older requester.
+  - **renditions:** the asker is the rendered version's, through a rendition of a rendition, and no further.
+  - **both job orders:** each of the two runs twice, with the older job's UUID sorting first and then the newer
+    job's. On the previous fallback, 3 of the 4 fail.
   - **archived:** an archived project still reads, and the mark is per member;
   - **Needs:** a work-board decision stays in Needs after seen.
 - **`readiness.db.test.ts`:** not ready without 0066.
