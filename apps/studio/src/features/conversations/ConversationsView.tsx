@@ -310,6 +310,7 @@ function Middle(props: {
       <NewConversation
         {...{ projectId, identity }}
         notice={reader.firstNotice}
+        answers={reader.answers}
         {...start.form}
         conversations={existing.all}
         onOpenExisting={existing.open}

@@ -1252,6 +1252,8 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       sameTimeNext: false,
       failMessagesOf: (failMessages ? CONVERSATION.briefs : null) as string | null,
       failOlder: query.get('older') === 'fail',
+      // `ask=off`: Sophia doesn't answer here, as while replies are off (CON-01 C1).
+      askOff: query.get('ask') === 'off',
       send: sendAsked(query.get('send')),
       start: startAsked(query.get('start')),
       answerMs: query.get('answer') === 'slow' ? 10_000 : 900,

@@ -283,6 +283,8 @@ export interface Conversations extends TalkWrites {
   heldMessages?: (() => void)[] | null
   /** Reads of the pages before the newest fail (`older=fail`, `window.fixture.failOlderMessages`). */
   failOlder?: boolean
+  /** Sophia doesn't answer here (`ask=off`): the list says `ask: unavailable`, as the API does while replies are off. */
+  askOff?: boolean
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -957,6 +959,7 @@ function conversationsRead(talk: Conversations, role: Membership['role']) {
     viewer: role === 'viewer',
     admin: role === 'admin',
     more: talk.more === true || Boolean(talk.cappedOut),
+    askOff: talk.askOff === true,
   }
   const listed = talk.cappedOut ? talk.list.filter((c) => c.id !== talk.cappedOut) : talk.list
   const asRead = json(wireList(listed, talk.messages, opts))

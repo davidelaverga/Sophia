@@ -83,7 +83,7 @@ export function wireSummary(
 export function wireList(
   list: readonly FixtureConversation[],
   messages: Readonly<Record<string, readonly FixtureMessage[]>>,
-  opts: { lastShown: boolean; viewer: boolean; admin: boolean; more?: boolean },
+  opts: { lastShown: boolean; viewer: boolean; admin: boolean; more?: boolean; askOff?: boolean },
 ): ConversationList {
   return {
     projectId: PROJECT,
@@ -101,6 +101,13 @@ export function wireList(
       retention: 'until_withdrawn_or_erased',
       audience: 'project_members',
     },
-    capability: { state: 'enabled', write: !opts.viewer, moderate: opts.admin, ask: 'available', askReason: null },
+    capability: {
+      state: 'enabled',
+      write: !opts.viewer,
+      moderate: opts.admin,
+      ...(opts.askOff === true
+        ? { ask: 'unavailable', askReason: 'replies_not_enabled' }
+        : { ask: 'available', askReason: null }),
+    },
   }
 }
