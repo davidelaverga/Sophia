@@ -1,0 +1,102 @@
+// The project's human tasks in the brief (A39, the tasks flag's; docs/handoffs/FND-C5-HUMAN-TASKS-attempt-1.md): open
+// ones first, newest first, 50 at a time, each as the report's Tasks tab shows it (TaskRow): who it is for, its passage
+// as a link (or that this reader can't follow it), Done and, for editors and admins, its owner. Read again as the feed
+// moves. A task named in the address (#todo-<id>) is brought into view once for each time it is followed; one not
+// among those read is read on its own, and the brief says so when it can't be shown.
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useEffect, useRef, type ComponentProps } from 'react'
+import { getProjectTask, listProjectTasks } from '../../api/tasks.ts'
+import type { ProjectTask } from '../../api/vision.ts'
+import type { Identity } from '../../app/dev-identity.ts'
+import { TASKS } from '../../app/tasks.ts'
+import { useMembership } from '../access/useAccess.ts'
+import { TODO } from '../resources/link.ts'
+import { useAddressed } from '../resources/useAddressed.ts'
+import { TaskRow, TasksPending } from './TaskList.tsx'
+import { useFeedRefetch } from './useFeedRefetch.ts'
+
+interface Props {
+  projectId: string
+  identity: Identity
+  cursor: string | undefined
+}
+
+export function ProjectTasks({ projectId, identity, cursor }: Props) {
+  const me = useMembership(projectId, identity.name, identity.token).data
+  const read = useInfiniteQuery({
+    queryKey: ['tasks', 'project', projectId, identity.name],
+    queryFn: ({ pageParam, signal }) => listProjectTasks(identity.token, projectId, pageParam, signal),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.next,
+    enabled: TASKS,
+    retry: 1,
+  })
+  useFeedRefetch(TASKS ? cursor : undefined, read)
+  const listed = read.data?.pages.flatMap((p) => p.tasks) ?? []
+  const named = useNamedTask(projectId, identity, listed.length > 0 || read.isSuccess ? listed : undefined)
+  if (!TASKS) return null
+  return (
+    <section className="project-tasks" aria-labelledby="project-tasks-title">
+      <h3 id="project-tasks-title">Tasks</h3>
+      {named.words && (
+        <p className="task-none" role="status">
+          {named.words}
+        </p>
+      )}
+      {!read.data || !me ? (
+        <TasksPending failed={read.isError} onRetry={() => void read.refetch()} />
+      ) : (
+        <Rows
+          tasks={[...(named.task ? [named.task] : []), ...listed]}
+          row={{ me, projectId, identity, artifactId: null, onStale: () => void read.refetch() }}
+        />
+      )}
+      {read.hasNextPage && (
+        <button type="button" className="text-button" onClick={() => void read.fetchNextPage()}>
+          More tasks
+        </button>
+      )}
+    </section>
+  )
+}
+
+/** The rows, or that there are none. */
+function Rows({ tasks, row }: { tasks: readonly ProjectTask[]; row: Omit<ComponentProps<typeof TaskRow>, 'task'> }) {
+  if (tasks.length === 0) return <p className="task-none">No tasks yet.</p>
+  return (
+    <ul className="task-rows" aria-label="Project tasks">
+      {tasks.map((task) => (
+        <TaskRow key={task.taskId} task={task} {...row} />
+      ))}
+    </ul>
+  )
+}
+
+/**
+ * The task the address names (#todo-<id>): when it isn't among those read, it is read on its own (one read); brought
+ * into view and given the focus once for each time the address is followed.
+ */
+function useNamedTask(projectId: string, identity: Identity, listed: readonly { taskId: string }[] | undefined) {
+  const named = useAddressed(TODO)
+  const among = named.id !== null && listed?.some((t) => t.taskId === named.id)
+  const alone = useQuery({
+    queryKey: ['tasks', 'one', projectId, named.id, identity.name],
+    queryFn: ({ signal }) => getProjectTask(identity.token, projectId, named.id ?? '', signal),
+    enabled: TASKS && named.id !== null && listed !== undefined && !among,
+    retry: false,
+  })
+  const shown = useRef<string | null>(null)
+  const key = named.id ? `${named.id}#${String(named.seq)}` : null
+  const ready = among || alone.isSuccess
+  useEffect(() => {
+    if (!key || !ready || shown.current === key) return
+    shown.current = key
+    const row = document.getElementById(`todo-${named.id ?? ''}`)
+    row?.scrollIntoView({ block: 'center' })
+    row?.focus({ preventScroll: true })
+  }, [key, ready, named.id])
+  return {
+    task: !among && alone.data ? alone.data : null,
+    words: named.id !== null && alone.isError ? 'The task you opened isn’t available.' : null,
+  }
+}

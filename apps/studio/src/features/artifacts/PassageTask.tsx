@@ -6,10 +6,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { ApiError } from '../../api/client.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
-import { createTask, type ProjectTask, type TaskAsk } from '../../api/vision.ts'
+import { createTask, SERVED_TASKS, TASKABLE } from '../../api/tasks.ts'
+import type { ProjectTask, TaskAsk } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
-import { VISION } from '../../app/vision.ts'
 import { canInvite, useMembership } from '../access/useAccess.ts'
 import { keptText, type PassageSource } from './passage.ts'
 import { ownerWords, taskQuote } from './task-view.ts'
@@ -91,10 +91,10 @@ export function usePassageTask(props: {
           }}
         />
       )}
-      {VISION && (
+      {TASKABLE && (
         <TaskLine
           lineRef={line}
-          said={added && me ? `Task added for ${ownerWords(added, me.actorId)}.` : null}
+          said={added && me ? `Task added for ${ownerWords(added, me.actorId, SERVED_TASKS)}.` : null}
           // With the form closed, a Create still unanswered (or refused) says so here, with its one way on.
           write={asked ? null : write}
           onSee={() => {
@@ -106,7 +106,7 @@ export function usePassageTask(props: {
     </>
   )
   // Not while a form is open, so its words are never lost to another passage's Task, nor while a Create is held.
-  return { offered: VISION && canInvite(me) && !write.held && !asked, start, node }
+  return { offered: TASKABLE && canInvite(me) && !write.held && !asked, start, node }
 }
 
 /**

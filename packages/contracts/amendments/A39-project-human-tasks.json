@@ -1,0 +1,818 @@
+{
+  "id": "A39",
+  "goal": "E2E",
+  "title": "A project's human tasks: created, assigned, claimed and done by people, linked to a passage",
+  "why": [
+    "#365 section 3 (FND-C5-HUMAN-TASKS-01): nothing let a member give a person something to do, or say it was done. A human task is a person's, not agent work: it has no goal, allowance, plan or commission, and its Done changes only the task.",
+    "D-TASKS (Davide): editors and admins create, claim, assign or reassign, release and finish any open task; a viewer reads them and finishes only a task assigned to them; nobody outside the project acts. Each act is compared and set on the task's revision (409 when it moved); creating and finishing are once per key.",
+    "Its origin is a link only (a version of a report and a place in it), decided for each reader on each read: the task keeps no words, hash or title of its source, and a reader who may not read that source sees only that it is unavailable. Each act is one project event (project.task_created, project.task_owner_set, project.task_done) with the task's id and revision, no words."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectTaskOrigin",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Where a task came from, a link only, decided for THIS reader now: available while the version is published and its source ready and readable by this reader (their own, or the project's released and eligible). Unavailable (someone else's private source, made ineligible, erased, or unreadable): only {available: false}, with no id, place, title, words or hash. No quote is ever kept or served.",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "versionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "versionNumber": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "at": {
+            "$ref": "#/components/schemas/ProjectTaskPlace"
+          }
+        },
+        "required": ["available"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectTaskPlace",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Where the passage is in that version, as the report viewer places it: its block, its first word in the block, how many words. Navigation only: a place past the version's text opens it with the viewer's own «not found».",
+        "properties": {
+          "block": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9999
+          },
+          "word": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 99999
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60
+          }
+        },
+        "required": ["block", "word", "count"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectTask",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A person's task in a project (A39): its words are the member's own; for a member (ownerId) or nobody yet; open until done. Done changes only the task.",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "ownerId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ownerName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The owner's current display name (D-NAMES), never an address; null: «A member»."
+          },
+          "state": {
+            "type": "string",
+            "enum": ["open", "done"]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "createdBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdByName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "doneBy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "doneByName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "doneAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProjectTaskOrigin"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null: the task came from no passage."
+          }
+        },
+        "required": [
+          "taskId",
+          "projectId",
+          "title",
+          "ownerId",
+          "ownerName",
+          "state",
+          "revision",
+          "createdBy",
+          "createdByName",
+          "createdAt",
+          "doneBy",
+          "doneByName",
+          "doneAt",
+          "origin"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectTaskList",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/ProjectTask"
+            }
+          },
+          "next": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,200}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["tasks", "next"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectTaskRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A new task (editors and admins). Its words are what the member wrote; nothing is taken from the passage. The origin is a published version of a report of this project, whose source the member may read now, and a place in it; no quote.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "ownerId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "artifactId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "versionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "block": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9999
+                  },
+                  "word": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 99999
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 60
+                  }
+                },
+                "required": ["artifactId", "versionId", "block", "word", "count"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["title"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectTaskOwnerRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Who the task is for (editors and admins): oneself (claim), an active member (assign), or nobody (release), against the revision shown.",
+        "properties": {
+          "ownerId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": ["ownerId", "expectedRevision"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectTaskDoneRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": ["expectedRevision"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1tasks",
+      "value": {
+        "get": {
+          "operationId": "listProjectTasks",
+          "summary": "The project's human tasks, open ones first, newest first, 50 a page.",
+          "tags": ["projects"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "cursor",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,200}$"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "The page",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProjectTaskList"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not an active member of the project, or this member may not do this (D-TASKS)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or the cursor is not one of this list's",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "post": {
+          "operationId": "createProjectTask",
+          "summary": "A new human task (editors and admins), once per key.",
+          "tags": ["projects"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectTaskRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "201": {
+              "description": "The task, read for this member",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProjectTask"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not an active member of the project, or this member may not do this (D-TASKS)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "idempotency_conflict: the key was used for another request",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema; the owner is not an active member; the passage can't be linked (not a published version of a report of this project whose source this member may read)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1tasks~1{taskId}",
+      "value": {
+        "get": {
+          "operationId": "getProjectTask",
+          "summary": "One human task, read for this member now.",
+          "tags": ["projects"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "taskId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "The task",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProjectTask"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not an active member of the project, or this member may not do this (D-TASKS)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "not_found: no such task in this project",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1tasks~1{taskId}~1owner",
+      "value": {
+        "put": {
+          "operationId": "setProjectTaskOwner",
+          "summary": "Claim, assign, reassign or release an open human task (editors and admins), against its revision.",
+          "tags": ["projects"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "taskId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectTaskOwnerRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "The task, read for this member",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProjectTask"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not an active member of the project, or this member may not do this (D-TASKS)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "stale_revision: the task changed since it was shown; invalid_state: the task is done",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or the owner is not an active member; not_found: no such task in this project",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1tasks~1{taskId}~1done",
+      "value": {
+        "post": {
+          "operationId": "finishProjectTask",
+          "summary": "Mark a human task done: an editor or an admin, any open task; a viewer, only one assigned to them. Once per key; changes only the task.",
+          "tags": ["projects"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "taskId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectTaskDoneRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "The task, read for this member",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProjectTask"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not an active member of the project, or this member may not do this (D-TASKS)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "stale_revision: the task changed since it was shown; invalid_state: it is already done; idempotency_conflict: the key was used for another request",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema; not_found: no such task in this project",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1artifacts~1{artifactId}~1tasks",
+      "value": {
+        "get": {
+          "operationId": "listReportTasks",
+          "summary": "The human tasks whose origin is a passage of this report AND is available to this member now, open first, newest first (at most 100).",
+          "tags": ["knowledge"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "artifactId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "The tasks",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProjectTaskList"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "422": {
+              "description": "not_found: no such report for this member",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
