@@ -2,7 +2,9 @@
 -- that, 0052); the target an active member (removing an admin leaves the remover, an admin). Idempotent per actor and
 -- key. The membership goes inactive and the audience moves, as a leave does; the member is taken out of the call by the
 -- same obligation (room_removals, reason 'removed'), which a new invitation cancels; project.member_removed is emitted
--- with the member as its entity, so the project's activity says who removed whom. 0001–0057 are not edited.
+-- with the member as its entity, so the project's activity says who removed whom. An invitation issued before an admin
+-- last removed someone neither brings them back nor waits for them in the app (Codex P1 on #356): only a new one does.
+-- 0001–0057 are not edited.
 BEGIN;
 
 ALTER TABLE sophia.room_removals DROP CONSTRAINT room_removals_reason_check;
@@ -80,6 +82,9 @@ BEGIN
   RETURN jsonb_build_object('projectId',i.project_id); END IF;
  IF i.revoked_at IS NOT NULL OR i.expires_at<=now() THEN RAISE EXCEPTION 'The invitation is closed' USING ERRCODE='40001'; END IF;
  IF i.uses>=i.max_uses THEN RAISE EXCEPTION 'The invitation has been used up' USING ERRCODE='40001'; END IF;
+ IF EXISTS(SELECT 1 FROM sophia.member_removals r WHERE r.project_id=i.project_id AND r.target_id=a
+   AND r.created_at>i.created_at) THEN
+  RAISE EXCEPTION 'The invitation is closed' USING ERRCODE='40001'; END IF;
  INSERT INTO sophia.project_members AS pm(project_id,actor_id,role) VALUES(i.project_id,a,i.member_role)
   ON CONFLICT (project_id,actor_id) DO UPDATE SET active=true, role=EXCLUDED.role, revision=pm.revision+1
   RETURNING revision INTO revision_value;
@@ -90,6 +95,24 @@ BEGIN
  PERFORM sophia.emit_project_event(i.project_id,'project.member_joined','project_member',a,revision_value,'project.member');
  RETURN jsonb_build_object('projectId',i.project_id);
 END $$;
+
+-- pending_member_invitations (0046), replaced: an invitation issued before this person's latest removal from its
+-- project no longer waits for them (Codex P1 on #356).
+CREATE OR REPLACE FUNCTION sophia.pending_member_invitations(p_email text)
+RETURNS TABLE(id uuid, project_id uuid, project_title text, inviter_name text, member_role text, expires_at timestamptz,
+  token_version integer)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+ SELECT i.id, i.project_id, p.title, i.inviter_name, i.member_role, i.expires_at, i.token_version
+ FROM sophia.room_invitations i JOIN sophia.projects p ON p.id=i.project_id
+ WHERE sophia.actor_id() IS NOT NULL AND p_email IS NOT NULL AND i.kind='member' AND i.email=lower(p_email)
+  AND i.revoked_at IS NULL AND i.expires_at>now() AND i.uses<i.max_uses
+  AND NOT EXISTS (SELECT 1 FROM sophia.project_members m
+   WHERE m.project_id=i.project_id AND m.actor_id=sophia.actor_id() AND m.active)
+  AND NOT EXISTS (SELECT 1 FROM sophia.member_removals r
+   WHERE r.project_id=i.project_id AND r.target_id=sophia.actor_id() AND r.created_at>i.created_at)
+ ORDER BY i.created_at DESC, i.id
+ LIMIT 50
+$$;
 
 REVOKE ALL ON FUNCTION sophia.remove_member(uuid,uuid,text), sophia.pending_member_removal(uuid,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.remove_member(uuid,uuid,text), sophia.pending_member_removal(uuid,uuid) TO sophia_api;

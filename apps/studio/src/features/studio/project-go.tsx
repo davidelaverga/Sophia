@@ -5,7 +5,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { View } from '../../app/route.ts'
 import { VISION } from '../../app/vision.ts'
-import { showInAddress, TASK } from '../resources/link.ts'
+import { ADDRESS_NAMED } from '../resources/useAddressed.ts'
+import { GOAL, showInAddress, TASK } from '../resources/link.ts'
 
 export type Arrival =
   | { view: 'conversations'; conversationId: string }
@@ -14,6 +15,8 @@ export type Arrival =
   | { view: 'updates'; meetingId: string }
   | { view: 'studio'; brief: true }
   | { view: 'work'; taskId?: string | undefined }
+  /** A goal's sheet in Goals, named in the address (report-origin.md). */
+  | { view: 'goals'; goalId: string }
 
 interface Go {
   go: (to: Arrival) => void
@@ -40,11 +43,15 @@ export function ProjectGoProvider({ onShow, children }: { onShow: (view: View) =
   const [arrival, setArrival] = useState<Arrival | null>(null)
   const go = useCallback(
     (to: Arrival) => {
-      if (to.view !== 'work') setArrival(to)
+      if (to.view !== 'work' && to.view !== 'goals') setArrival(to)
       onShow(to.view)
-      // A task is named in the address after the view's own push (which carries no fragment): the board that holds
-      // it opens it (useOpenTask), as a link followed does.
+      // A task or a goal is named in the address after the view's own push (which carries no fragment): the board or
+      // Goals opens it (useOpenTask, useOpenGoal), as a link followed does.
       if (to.view === 'work' && to.taskId !== undefined) showInAddress(to.taskId, TASK)
+      if (to.view === 'goals') {
+        showInAddress(to.goalId, GOAL)
+        window.dispatchEvent(new Event(ADDRESS_NAMED))
+      }
     },
     [onShow],
   )
