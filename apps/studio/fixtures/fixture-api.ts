@@ -108,6 +108,8 @@ interface Project {
   failEarlier?: boolean
   /** A20's replies read fails as the API's `unavailable` (`window.fixture.failReplies`). */
   failReplies?: boolean
+  /** The next room token is refused as an unavailable API's, so the join fails (`window.fixture.failToken`). */
+  failToken?: boolean
   /** How many versions of the fixture report are published (report-data.ts). */
   reportVersions: number
   /** The fixture report's title (report-data.ts): LONG_TITLE with `title=long`. */
@@ -360,6 +362,13 @@ function departed(project: Project): Response {
   project.left = true
   served.push('leave')
   return json({ projectId: PROJECT, cursor: String(project.revision) })
+}
+
+/** A room token, unless the next one is to fail (`failToken`). */
+function tokenAnswer(project: Project): Response {
+  if (!project.failToken) return json(roomToken)
+  project.failToken = false
+  return unavailable()
 }
 
 /** A request to revise the page's sections (requestDesignEdit): recorded; refused once as a design under way. */
@@ -1239,7 +1248,7 @@ function posted(project: Project, path: string, init: RequestInit | undefined) {
   const doneOf = TASK_DONE.exec(path)?.[1]
   if (doneOf) return taskDone(project, doneOf, init)
   if (path === `/api/v1/rooms/${ROOM}/meetings/${MEETING}/close`) return meetingClosed(project, init)
-  if (path === `${base}/room-token`) return json(roomToken)
+  if (path === `${base}/room-token`) return tokenAnswer(project)
   const own = projectWritten(project, path, init)
   if (own) return own
   if (path === `${base}/commands`) return admitted(project, init)

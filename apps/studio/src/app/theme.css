@@ -2658,11 +2658,25 @@ button.contribution-quote:hover {
   margin: 0;
   padding: 16px;
 }
+/* The picture, the words over it while the camera is off, and the switches at its foot share one cell. */
+.device-preview > * {
+  grid-area: 1 / 1;
+}
 .device-preview-video {
   width: 100%;
   height: 100%;
   object-fit: cover;
   transform: scaleX(-1);
+}
+.device-preview[data-camera='off'] .device-preview-video {
+  visibility: hidden;
+}
+/* The microphone and the camera for the join (docs/plans/prejoin-toggles.md), on the picture as Meet has them. */
+.device-preview-switches {
+  align-self: end;
+  display: flex;
+  gap: 12px;
+  padding-bottom: 12px;
 }
 .device-rows {
   display: grid;

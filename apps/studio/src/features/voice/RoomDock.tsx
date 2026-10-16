@@ -132,9 +132,9 @@ function CheckOpener({ room }: { room: ProjectRoom }) {
             list={room.listDevices}
             onChoose={(kind, id) => void room.switchDevice(kind, id)}
             onClose={() => setOpen(false)}
-            onJoin={() => {
+            onJoin={(chosen) => {
               setOpen(false)
-              void room.join()
+              void room.join(chosen)
             }}
           />,
           document.body,

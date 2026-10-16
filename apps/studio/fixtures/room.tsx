@@ -121,6 +121,8 @@ interface Fixture {
   releaseMessages: () => void
   /** While on, the read of which messages answer which fails (A20). */
   failReplies: (on: boolean) => void
+  /** The next room token is refused, so that join fails and offers Try again. */
+  failToken: () => void
   /** The next request to revise the page is refused, a design under way (revise-section.md). */
   failEdit: () => void
   /** While on, requests to revise the page wait for their replies; off, they answer. */
@@ -456,6 +458,7 @@ const project = {
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
+  failToken: false,
   failEdit: false,
   editHeld: null as (() => void)[] | null,
   failEarlier: false,
@@ -619,6 +622,9 @@ window.fixture = {
   },
   failReplies: (on) => {
     project.failReplies = on
+  },
+  failToken: () => {
+    project.failToken = true
   },
   failEdit: () => {
     project.failEdit = true
