@@ -14,7 +14,9 @@ const added = (page: Page) => pane(page).locator('.task-added')
 const tasksTab = (page: Page) => pane(page).getByRole('tab', { name: /^Tasks/ })
 const rows = (page: Page) => pane(page).getByRole('list', { name: 'Tasks' }).getByRole('listitem')
 const served = (page: Page) => page.evaluate(() => [...(window.fixture?.served ?? [])])
-const writes = async (page: Page) => (await served(page)).filter((s) => s.startsWith('task:'))
+// The passage tasks' writes as the fixture records them (passage-task-writes.md): a research task's read is recorded as
+// task:<revision>, and the report shown reads the task that made it (#383).
+const writes = async (page: Page) => (await served(page)).filter((s) => s === 'task:create' || s === 'task:done')
 const reads = async (page: Page) => (await served(page)).filter((s) => s === 'tasks:read').length
 
 async function open(page: Page, query = '') {
