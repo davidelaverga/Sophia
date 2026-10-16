@@ -27,7 +27,7 @@ export const TERMS: readonly LegalSection[] = [
   {
     heading: 'Your account',
     body: [
-      'Anyone can create an account with an email link, a passkey or a sign-in provider. An account is for one person. Keep access to your email and devices safe: whoever holds them can act as you.',
+      'Anyone can create an account with an email link or a sign-in provider, then add a passkey to sign in with. An account is for one person. Keep access to your email and devices safe: whoever holds them can act as you.',
       'You need to be at least 16 to use Sophia.',
     ],
   },
@@ -101,6 +101,7 @@ export const PRIVACY: readonly LegalSection[] = [
       '· Supabase: sign-in, the database and stored files.',
       '· LiveKit: the calls’ sound and video.',
       '· Google (Gemini) and OpenAI: the AI models behind Sophia’s voice, answers and research.',
+      '· Tavily and Jina: when Sophia researches, the words she searches for go to Tavily and the pages she reads to Jina.',
       '· Resend: the emails Sophia sends, such as sign-in links and invitations.',
       '· Vercel and Render: hosting the app and its server.',
     ],
