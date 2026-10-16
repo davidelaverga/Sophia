@@ -968,15 +968,28 @@ class PrepareTests(LockTests):
                     launcher._launcher_identity(request)
 
     def test_other_shared_admission_does_not_block_this_attempt(self):
+        # Deterministic, not timed: another attempt really holds the admission shared, and this attempt's own request
+        # on that inode must be one non-blocking shared lock that the real flock grants at once. A retry (it would have
+        # had to wait) or another mode (an exclusive request) fails here, without depending on how long the durable
+        # lease setup after admission takes (FND-B1 sentinel evidence: the old 0.1 s bound also spanned fsyncs).
         root, admission, request = self.prepared_request()
         self.holder(admission)
-        started = time.monotonic()
-        def bounded():
-            if time.monotonic() - started > 0.1:
-                raise launcher.InventoryError("test_sentinel")
+        inode = os.stat(admission).st_ino
+        real = launcher.fcntl.flock
+        requests = []
+
+        def flock(fd, operation):
+            if os.fstat(fd).st_ino == inode:
+                requests.append(operation)
+                self.assertEqual(operation, launcher.fcntl.LOCK_SH | launcher.fcntl.LOCK_NB, "admission is a non-blocking shared lock")
+                self.assertEqual(len(requests), 1, "admission retried: another shared holder blocked this attempt")
+            return real(fd, operation)
+
         with mock.patch.object(launcher, "_launcher_identity", return_value=self.identity()):
-            with self.prepare(request, bounded):
-                self.assertTrue((root / self.attempt / "lease.json").exists())
+            with mock.patch.object(launcher.fcntl, "flock", side_effect=flock):
+                with self.prepare(request):
+                    self.assertTrue((root / self.attempt / "lease.json").exists())
+        self.assertEqual(requests, [launcher.fcntl.LOCK_SH | launcher.fcntl.LOCK_NB])
 
     def test_records_durable_before_admission_release_and_life_lock_retained(self):
         root, _, request = self.prepared_request()
