@@ -12,7 +12,7 @@
 
 ## What changes
 
-- **Migration 0055:** `sophia.change_member_role(project, actor, role)`.
+- **Migration 0056:** `sophia.change_member_role(project, actor, role)`.
   - Admins only (403).
   - The target is an active member (422), and the role is admin, editor or viewer (422).
   - A project keeps at least one admin: demoting its last admin, oneself included, is refused (409 `invalid_state`,
@@ -24,7 +24,7 @@
   - A call already joined keeps the standing its token carries until it reconnects, at most the token's 10 minutes.
     The next token reads the new role.
 - **Contract amendment A27:** `PUT /api/v1/projects/{projectId}/members/{actorId}/role` takes `{ role }` and returns
-  `{ actorId, role, revision, cursor }`. `/ready` requires 0055.
+  `{ actorId, role, revision, cursor }`. `/ready` requires 0056.
 - **Studio:**
   - The Invite sheet's Members tab gains «In this project»: each member (A25's names, «A member» when unknown), you
     marked. For an admin each row has a role select; for anyone else the role is words.
@@ -41,7 +41,7 @@
   - a non-member target and an unknown role are refused;
   - the same role twice changes nothing;
   - an event is kept.
-- `readiness.db.test.ts`: not ready without 0055.
+- `readiness.db.test.ts`: not ready without 0056.
 - `member-roles.spec.ts`:
   - an admin makes Marco an admin from the Members tab, and it is sent;
   - the only admin making themselves editor is told why, and the select goes back;
