@@ -28,7 +28,7 @@ Main's required browser job failed intermittently on `e2e/home-phone-needs.spec.
   2. From `apps/studio`: `CI=1 pnpm exec playwright test e2e/home-phone-needs.spec.ts e2e/home.spec.ts --repeat-each=3 --reporter=line --output=<private scratch>/pw-home`.
      - Exit 0: 87 passed.
      - Both config projects ran (desktop, and phone for the `@phone` cases). CI=1 starts cold fixture servers on 5198/5199 and stops them at exit.
-  3. Slot release: `lsof -nP -iTCP:5198 -iTCP:5199 -sTCP:LISTEN` found no listener, and no Playwright process of this session remained.
+  3. Slot release: `lsof -nP -iTCP:5198 -iTCP:5199 -sTCP:LISTEN` found no listener. No process query was run for this slot, so this records only that no fixture server was listening.
 
 ## Current main integration (FND-B-CURRENT-MAIN-01)
 
@@ -42,5 +42,5 @@ Main's required browser job failed intermittently on `e2e/home-phone-needs.spec.
 
 ## Remaining obligations
 
-- The required CI on the pushed head is authoritative. The local browser slot was released, with fixture ports free.
+- The required CI on the pushed head is authoritative. The local browser slot was released, with no listener on the fixture ports.
 - Luis's UI is untouched.
