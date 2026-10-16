@@ -6,7 +6,7 @@
 
 ## What changes
 
-- **Each note says its day,** quietly, after its words: «15 Oct».
+- **Each note says its day,** quietly, after its words, as the Studio says a day («Oct 15»).
 - **«Newest» and «Oldest»** sort the notes, offered from two notes up. It is a small segmented control beside Find,
   Newest by default, and lasts while the notes are open.
 - **«Download notes»** in the notes' head saves `sophia-notes-YYYY-MM-DD.md`:
