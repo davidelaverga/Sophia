@@ -37,6 +37,16 @@ commits on the branch merge its base forward or touch only this record). 6 files
     room-present, room-tiles, two-screens and room-made: 106/106;
   - type-aware lint, typecheck and Prettier are clean.
 
+## Decisions and changes
+
+- **Over the video, not instead of the line:** the pill sits in the stage's corner over the tiles; without video,
+  Sophia's line says it as before.
+- **Codex P1 on #403, after the ending commit: the word written twice.** The pill wrote «Reconnecting…» itself, beside
+  `roomLine`'s own, against CONTRIBUTING's rule that copy lives in tested view helpers.
+  - A unit check came first (`c3d45d0d`) and failed.
+  - The fix (`c849e4fe`): `RECONNECTING` in `room-view.ts`, read by `roomLine` and the pill.
+  - `reconnecting-on-video`, `room-people` and `dock-header`: 39/39; `room-view.test.ts` 25/25.
+
 ## Remaining obligations
 
 - None.
