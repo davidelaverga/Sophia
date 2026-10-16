@@ -41,6 +41,8 @@ function useDraftsOnlyOfWhoIsIn(state: AuthState) {
   const who = draftsKeptFor(state)
   useEffect(() => {
     if (who !== undefined) draftsOnlyOf(who)
+    // Signed out, here or in another tab: the views' unsent words go too (Codex P1 on #366).
+    if (who === null) forgetViewerDrafts()
   }, [who])
 }
 
