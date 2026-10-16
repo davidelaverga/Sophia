@@ -28,6 +28,7 @@ const turn: ChatTurn = {
   state: 'sending',
   reason: null,
   at: 1,
+  sentAt: 0,
 }
 it('a duplicate packet or another exchange cannot duplicate a visible reply', () => {
   const accepted = receiveChat([turn], { id: 'a', exchangeId: 'e', kind: 'accepted', sequence: 0, text: '' })

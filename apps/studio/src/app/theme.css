@@ -2265,6 +2265,24 @@ img.avatar {
   color: var(--text-2);
   font-size: 12px;
 }
+/* When each message was said (docs/plans/chat-times.md): its time by the author, and a day line above each day's first
+   message, as the conversations' day line is set. */
+.contribution-at,
+.chat-at {
+  margin-right: 8px;
+  color: var(--text-3);
+  font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.chat-day {
+  display: block;
+  margin: 10px 0 8px;
+  text-align: center;
+  color: var(--text-2);
+  font: var(--type-label) / var(--lh-small) var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 /* Replies (A20, the vision flag's): Reply after a message's words, the quote of what a reply answers above them, and
    above the bar what is being answered, with ✕. */
 .contribution:focus-visible {
@@ -3315,6 +3333,11 @@ button.contribution-quote:hover {
 .lobby-note {
   padding-bottom: 6px;
   color: var(--text-3);
+  font-size: 12px;
+}
+/* One offer to hear of the next knock in another tab (docs/plans/knock-alert.md). */
+.lobby-notify {
+  margin-bottom: 6px;
   font-size: 12px;
 }
 /* The count, and with several waiting, one answer for all. */
