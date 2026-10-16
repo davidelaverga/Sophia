@@ -333,7 +333,8 @@ describe('the report as a web page (html-report-v2)', () => {
     const digest = createHash('sha256').update(page()).digest('hex')
     // Moved by the stylesheet only (M75): the contents rail wraps an entry instead of scrolling sideways (C16, the
     // "italiano" and "stress" fixtures). With 86f70aa's PAGE_CSS in its place this page is 9725b221…, byte for byte.
-    assert.equal(digest, 'f5676191df941f9fd72b180614fb4db1820d90f1a10a95b95472d5342147f52f')
+    // Moved by the stylesheet only again (report-page-windows.md): Sitka Text left the text stack, f5676191… before.
+    assert.equal(digest, '25d6fc74044c8e06be1c3f89a2e201df8255ca42796cf7bdaf7939e3ed21853e')
     const html = page()
     assert.ok(
       html.includes('<meta name="referrer" content="no-referrer"><meta name="color-scheme" content="light dark">'),
