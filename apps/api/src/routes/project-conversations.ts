@@ -2,7 +2,8 @@
 // editors) start and continue them in a project whose conversations are on; an author withdraws their own message and
 // an admin any, or erases a conversation. Each write is one sophia.* function under the member's own identity,
 // idempotent per Idempotency-Key, and answers with the records read back under that member in the same transaction.
-// The author's name is the verified token's (req.actorName), never the client's. Nothing here reaches a model:
+// The author's name is their display name from their own token (0062's nameActor), never the client's and never an
+// address; members read it through actor_label. Nothing here reaches a model:
 // asking Sophia records a reply request that says its own state.
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
@@ -21,6 +22,7 @@ import {
   readConversationReply,
   readProjectConversationPage,
   readConversationSummary,
+  nameActor,
   readFeedPosition,
   sendConversationMessage,
   startConversation,
@@ -28,6 +30,7 @@ import {
   withdrawConversationMessage,
   type ConversationReceipt,
 } from '@sophia/persistence'
+import { namesOf } from './profile.ts'
 import { idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
 
 const conversationParams = {
@@ -143,7 +146,7 @@ function writeRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool }): void {
           req.params.projectId,
           req.headers['idempotency-key'],
           req.body,
-          req.actorName,
+          await nameActor(c, namesOf(req)),
         )
         const conversation = await readConversationSummary(c, r.conversationId)
         const receipt = await written(c, r)
@@ -173,7 +176,7 @@ function writeRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool }): void {
             req.params.conversationId,
             req.headers['idempotency-key'],
             req.body,
-            req.actorName,
+            await nameActor(c, namesOf(req)),
           ),
         ),
       )

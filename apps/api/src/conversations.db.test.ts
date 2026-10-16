@@ -38,8 +38,8 @@ let base: string
 let offBase: string
 let projectId: string
 
-const token = (sub: string, email = `${sub.slice(0, 6)}@example.test`) =>
-  new SignJWT({ role: 'authenticated', email })
+const token = (sub: string, email = `${sub.slice(0, 6)}@example.test`, meta?: Record<string, string>) =>
+  new SignJWT({ role: 'authenticated', email, ...(meta ? { user_metadata: meta } : {}) })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(sub)
     .setIssuer(ISSUER)
@@ -53,12 +53,20 @@ type ResponseBody = any
 
 async function call(
   path: string,
-  init: { as?: string; email?: string; body?: unknown; key?: string; post?: boolean; at?: string } = {},
+  init: {
+    as?: string
+    email?: string
+    meta?: Record<string, string>
+    body?: unknown
+    key?: string
+    post?: boolean
+    at?: string
+  } = {},
 ) {
   const res = await fetch(`${init.at ?? base}${path}`, {
     method: init.body === undefined && !init.post ? 'GET' : 'POST',
     headers: {
-      ...(init.as ? { authorization: `Bearer ${await token(init.as, init.email)}` } : {}),
+      ...(init.as ? { authorization: `Bearer ${await token(init.as, init.email, init.meta)}` } : {}),
       ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
       ...(init.key ? { 'idempotency-key': init.key } : {}),
     },
@@ -135,7 +143,8 @@ describe('A33 over HTTP', () => {
     assert.equal(s.status, 202)
     const started = parseConversationStarted(s.json)
     assert.equal(started.message.actorId, E)
-    assert.equal(started.message.name, `${E.slice(0, 6)}@example.test`, "the token's name, not the client's")
+    // A token with an address and no name names nobody: an address is never a name (0062), and never the client's.
+    assert.equal(started.message.name, null)
     assert.equal(started.sophia, 'not_asked')
     assert.equal(started.reply, null)
     const l = await call(`/api/v1/projects/${projectId}/conversations`, { as: V })
@@ -155,6 +164,29 @@ describe('A33 over HTTP', () => {
       page.messages.map((m) => m.seq),
       [1, 2],
     )
+  })
+
+  it('names the author as members see them: the provider name seeds it; the address never shows (0062)', async () => {
+    const meta = { full_name: 'Elena Ruiz' }
+    const s = await call(`/api/v1/projects/${projectId}/conversations`, {
+      as: E,
+      meta,
+      key: randomUUID(),
+      body: { title: 'Names', text: 'Who am I here?', askSophia: false },
+    })
+    assert.equal(s.status, 202)
+    const started = parseConversationStarted(s.json)
+    assert.equal(started.message.name, 'Elena Ruiz')
+    const listed = await call(`/api/v1/projects/${projectId}/conversations`, { as: V })
+    const mine = parseConversationList(listed.json).conversations.find((c) => c.id === started.conversation.id)!
+    assert.deepEqual(mine.contributors, [{ actorId: E, name: 'Elena Ruiz' }])
+    const read = await call(`/api/v1/projects/${projectId}/conversations/${started.conversation.id}/messages`, {
+      as: V,
+    })
+    assert.equal(read.status, 200)
+    for (const body of [s.json, listed.json, read.json]) {
+      assert.ok(!JSON.stringify(body).includes('@example.test'), 'no address in what members read')
+    }
   })
 
   it('a body naming an actor, a name, an author, a project or a reply target is refused (CON01-A06)', async () => {

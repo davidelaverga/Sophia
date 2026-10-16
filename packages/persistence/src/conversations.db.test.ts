@@ -17,6 +17,7 @@ import {
   readConversationPage,
   readProjectConversationPage,
   sendConversationMessage,
+  setMyProfile,
   startConversation,
   withActor,
   withdrawConversationMessage,
@@ -157,7 +158,7 @@ describe('the project setting (the cohort and rollback switch)', () => {
 })
 
 describe('starting and continuing', () => {
-  it('a start is a conversation and its first message, with the writer and the name the token carried', async () => {
+  it('a start is a conversation and its first message, with the writer; an address kept as a name names nobody', async () => {
     const p = await project()
     const baseline = await workRows(p)
     const r = await start(E, p, { text: '  Map first, list second?  ', name: 'e@example.test' })
@@ -168,7 +169,8 @@ describe('starting and continuing', () => {
     const c = l.conversations[0]!
     assert.equal(c.id, r.conversationId)
     assert.equal(c.title, 'Onboarding direction')
-    assert.deepEqual(c.contributors, [{ actorId: E, name: 'e@example.test' }])
+    // An address kept by an API before 0062 is never shown as a name (actor_label): the Studio's «A member».
+    assert.deepEqual(c.contributors, [{ actorId: E, name: 'A member' }])
     assert.equal(c.sophia, false)
     assert.equal(c.summary, null)
     assert.equal(c.summaryCoverage.state, 'not_assessed')
@@ -236,6 +238,52 @@ describe('starting and continuing', () => {
     assert.equal(s.sophia, 'asked')
     assert.notEqual(s.replyId, r.replyId)
     assert.deepEqual(await workRows(p), baseline)
+  })
+})
+
+describe('names, as the project’s members see them (0062 actor_label; CON-01 C1 with FND-C1-PROFILE)', () => {
+  const rename = (actor: string, displayName: string, expectedRevision: number) =>
+    withActor(pool, actor, 'write', (c) => setMyProfile(c, randomUUID(), { displayName, expectedRevision }))
+
+  it('an address kept as a name shows nowhere; a chosen name shows on every message, earlier ones included', async () => {
+    const p = await project()
+    const r = await start(E, p, { name: 'e@example.test' })
+    const later = await send(E, r.conversationId, 'And a second thought')
+    const unnamed = await page(V, r.conversationId)
+    assert.deepEqual(
+      unnamed.messages.map((m) => m.name),
+      [null, null],
+    )
+    const listed = await list(V, p)
+    assert.deepEqual(listed.conversations[0]!.contributors, [{ actorId: E, name: 'A member' }])
+    assert.equal(listed.conversations[0]!.lastMessage?.name, null)
+    assert.ok(!JSON.stringify(listed).includes('@example.test'), 'no address anywhere in what members read')
+    assert.ok(!JSON.stringify(unnamed).includes('@example.test'))
+    await rename(E, 'Elena', 0)
+    const renamed = await page(V, r.conversationId)
+    assert.deepEqual(
+      renamed.messages.map((m) => [m.id, m.name, m.actorId, m.at]),
+      unnamed.messages.map((m) => [m.id, 'Elena', m.actorId, m.at]),
+      'the current name on earlier messages; who wrote each, and when, unchanged',
+    )
+    const again = await list(V, p)
+    assert.deepEqual(again.conversations[0]!.contributors, [{ actorId: E, name: 'Elena' }])
+    assert.equal(again.conversations[0]!.lastMessage?.name, 'Elena')
+    assert.equal(later.messageId, renamed.messages[1]!.id)
+  })
+
+  it('a withdrawn message names nobody, its author’s chosen name notwithstanding', async () => {
+    const p = await project()
+    await rename(F, 'Fede', 0)
+    const r = await start(F, p, { name: 'Fede' })
+    const kept = await send(F, r.conversationId, 'Still here')
+    await withdraw(F, r.conversationId, r.messageId)
+    const read = await page(V, r.conversationId)
+    const gone = read.messages.find((m) => m.id === r.messageId)!
+    assert.ok(gone.withdrawn)
+    assert.equal(gone.name, null)
+    assert.equal(gone.text, null)
+    assert.equal(read.messages.find((m) => m.id === kept.messageId)!.name, 'Fede')
   })
 })
 

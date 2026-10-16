@@ -110,13 +110,15 @@ interface SummaryRow {
 /** How many contributors a summary names: A33's `ConversationSummary.contributors` `maxItems`. */
 const CONTRIBUTORS_NAMED = 200
 
-// Contributors: members whose messages are not withdrawn, in the order they first wrote, named as their newest message
-// carries it. At most CONTRIBUTORS_NAMED, so a summary never says more than A33 lets it: the first of them to write,
+// Contributors: members whose messages are not withdrawn, in the order they first wrote, named as the project's members
+// see them (0062's actor_label: their current display name, else the name their newest message kept when it isn't an
+// address). At most CONTRIBUTORS_NAMED, so a summary never says more than A33 lets it: the first of them to write,
 // except that the reader, whenever they wrote here, is always among them (in the last place kept, when they first wrote
 // later), so «Mine» and «You» stay true for them. A writer beyond them is named on every message they wrote. Sophia: an
 // answer of hers that is not withdrawn. The opening: the newest message not withdrawn.
 const SUMMARIES = `SELECT c.id, c.title, c.revision, c.last_at, c.message_seq,
-    (SELECT coalesce(jsonb_agg(jsonb_build_object('actorId', x.actor_id, 'name', x.name) ORDER BY x.first_seq), '[]')
+    (SELECT coalesce(jsonb_agg(jsonb_build_object('actorId', x.actor_id,
+        'name', sophia.actor_label(c.project_id, x.actor_id, x.name)) ORDER BY x.first_seq), '[]')
        FROM (SELECT m.actor_id, min(m.seq) AS first_seq, (array_agg(m.author_name ORDER BY m.seq DESC))[1] AS name
                FROM sophia.conversation_messages m
               WHERE m.conversation_id = c.id AND m.author = 'member' AND m.withdrawn_at IS NULL
@@ -125,7 +127,8 @@ const SUMMARIES = `SELECT c.id, c.title, c.revision, c.last_at, c.message_seq,
               LIMIT ${CONTRIBUTORS_NAMED}) x) AS contributors,
     EXISTS (SELECT 1 FROM sophia.conversation_messages s
              WHERE s.conversation_id = c.id AND s.author = 'sophia' AND s.withdrawn_at IS NULL) AS sophia,
-    l.author AS last_author, l.actor_id AS last_actor, l.author_name AS last_name,
+    l.author AS last_author, l.actor_id AS last_actor,
+    CASE WHEN l.author = 'member' THEN sophia.actor_label(c.project_id, l.actor_id, l.author_name) END AS last_name,
     left(l.body, ${CONVERSATION_OPENING}) AS last_text, l.created_at AS last_at_message, l.seq AS last_seq
   FROM sophia.conversations c
   LEFT JOIN LATERAL (SELECT author, actor_id, author_name, body, created_at, seq FROM sophia.conversation_messages
@@ -256,7 +259,11 @@ interface MessageRow {
   reply_id: string | null
 }
 
-const MESSAGES = `SELECT m.id, m.conversation_id, m.seq, m.author, m.actor_id, m.author_name, m.body, m.created_at,
+// A member's message is named as the project's members see its author (0062's actor_label); a withdrawn one by nobody,
+// as 0063 keeps none: the label never names withdrawn text.
+const MESSAGES = `SELECT m.id, m.conversation_id, m.seq, m.author, m.actor_id,
+    CASE WHEN m.author = 'member' AND m.withdrawn_at IS NULL
+      THEN sophia.actor_label(m.project_id, m.actor_id, m.author_name) END AS author_name, m.body, m.created_at,
     m.withdrawn_at, a.id AS ask_id, a.state AS ask_state, a.reason AS ask_reason, a.answer_id AS ask_answer,
     a.created_at AS ask_at, a.settled_at AS ask_settled, q.message_id AS reply_to_message, m.reply_id
   FROM sophia.conversation_messages m
@@ -370,7 +377,8 @@ export async function readConversationReply(c: pg.PoolClient, replyId: string): 
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Writes. Each is one sophia.* function; call inside withActor(..., "write"). `name` is the verified token's.
+// Writes. Each is one sophia.* function; call inside withActor(..., "write"). `name` is the actor's display name
+// (0062's nameActor: chosen, else seeded from the verified token; never an address), or null.
 
 async function receipt<T>(c: pg.PoolClient, statement: string, sql: string, params: unknown[]): Promise<T> {
   const { rows } = await c.query<{ receipt: T }>(sql, params)
