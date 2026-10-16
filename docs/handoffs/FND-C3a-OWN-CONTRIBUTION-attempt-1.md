@@ -87,6 +87,39 @@ Shared files, declared:
   - an earlier page read before another tab's act shows its old state until it is read again;
   - `draft_brief` admission still accepts a withdrawn shared message's id.
 
+## Repair exchange 1 (FND-C3a-BROWSER-01 and FND-C3a-REVIEW-R1)
+
+The evidence below is for the commit that carries this section: source, tests and docs together, with nothing changed
+after the runs.
+
+- **Browser** (P granted the headless local slot). Chromium ran through Playwright with `CI=1`, so no foreign server
+  was reused. Loopback ports 5199 and 5198 were verified free before every run and released after.
+- **Three findings in the first browser run, all kept in the logs:**
+  - Escape in the edit field closed the chat panel. It is now spent in the field and in the question.
+  - Re-sorting the snapshot window broke `room-chat-replies` «the failure stays put» (3/3 on this branch, 3/3 passing
+    on base 6d4585a3 in a scratch worktree). The window keeps the API's order, and tombstones go in their place.
+  - The lost-reply case for a withdrawal was unreachable: the withdrawal had landed, and the next read showed its place
+    with the question gone, which is the honest outcome. The same-key retry is now exercised on a correction, whose
+    message stays.
+- **V, P1: cross-reference leak.** Reproduced through the signed API: a live message sharing a source whose words
+  were then corrected away answered its replay 202 with the erased hash. Now `request_erased`, with no erased hash
+  kept in any contribution or served in any read. Detach-only and the sharer's own words are kept.
+- **Codex 4296199485, P1: cancelling an act in flight.** Reproduced with a held fixture request on f73ec7e6's UI:
+  both new browser cases fail there. Now Cancel and Escape do nothing while an act is under way, and a lost answer
+  can only be asked again with its key.
+- **Codex 4296199503, P2: more than 100 tasks reached.** Reproduced with 101 running research tasks on a local
+  database: the generated parser refused the preview. A36's reach arrays are no longer bounded at 100, in the preview
+  or in either act. The signed proof still binds every task, and leaving one out is stale. Regenerated under C's
+  retained slot.
+- **Codex 4296199494: the handoff.** This file; its evidence is bound here.
+- **Results:**
+  - API suites (contribution-acts 10/10, readiness, access, api, profile, runtime, media): 116/116.
+  - The 0068 research and design cases: 4/4.
+  - Browser: `message-acts.spec.ts` 14/14, run twice. With the nearby reader specs (discussion-earlier,
+    room-discussion, chat-times, message-links, room-chat-replies), 47 of 48 passed before the forced-click test fix;
+    that case then passed in the repeated run.
+  - Lint, format, typecheck and contracts are clean; units give 2359 pass, 0 fail.
+
 ## Next bounded action
 
 After CI, the automatic review and the browser slot, write the bounded C3a handback. C3b (0069/A37 mentions) does not

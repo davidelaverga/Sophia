@@ -36,8 +36,7 @@
           },
           "reach": {
             "type": "array",
-            "maxItems": 100,
-            "description": "Running work that read the words and is revoked by erasing them, in task order. Words a provider already received cannot be recalled.",
+            "description": "Every running task that read the words and is revoked by erasing them, in task order, none left out. Words a provider already received cannot be recalled.",
             "items": {
               "type": "object",
               "additionalProperties": false,
@@ -89,12 +88,11 @@
           },
           "reach": {
             "type": "array",
-            "maxItems": 100,
             "items": {
               "type": "string",
               "format": "uuid"
             },
-            "description": "The task ids the preview listed, as it listed them."
+            "description": "The task ids the preview listed, every one of them, as it listed them. Not bounded here: the preview lists every task the words reach, none left out (Codex on #396)."
           },
           "previewToken": {
             "type": "string",
@@ -118,12 +116,11 @@
           },
           "reach": {
             "type": "array",
-            "maxItems": 100,
             "items": {
               "type": "string",
               "format": "uuid"
             },
-            "description": "The task ids the preview listed, as it listed them."
+            "description": "The task ids the preview listed, every one of them, as it listed them. Not bounded here: the preview lists every task the words reach, none left out (Codex on #396)."
           },
           "previewToken": {
             "type": "string",

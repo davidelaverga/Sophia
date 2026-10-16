@@ -45,7 +45,7 @@ describe('actsOf', () => {
 })
 
 describe('discussionItems', () => {
-  it('puts withdrawn messages in their place, by time then id, and never beside their old entry', () => {
+  it('keeps the entries’ order and puts withdrawn messages in their place, never beside their old entry', () => {
     const a = entry({ id: '00000000-0000-4000-8000-000000000001', createdAt: '2026-10-16T09:00:00.000Z' })
     const b = entry({ id: '00000000-0000-4000-8000-000000000002', createdAt: '2026-10-16T09:01:00.000Z' })
     const c = entry({ id: '00000000-0000-4000-8000-000000000003', createdAt: '2026-10-16T09:01:00.000Z' })
@@ -57,7 +57,7 @@ describe('discussionItems', () => {
       withdrawnAt: '2026-10-16T10:00:00.000Z',
     }
     assert.deepEqual(
-      discussionItems([c, a, b], [gone]).map((i) => [i.type, i.id]),
+      discussionItems([a, b, c], [gone]).map((i) => [i.type, i.id]),
       [
         ['entry', a.id],
         ['withdrawn', b.id],

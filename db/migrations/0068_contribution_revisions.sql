@@ -182,7 +182,9 @@ END $$;
 REVOKE ALL ON FUNCTION sophia.contribution_act_confirmed(sophia.contributions,text,jsonb) FROM PUBLIC;
 
 -- Erase a written message's current words (mission_erase_source: text, hash, research and design that read them), and
--- what its requests kept of them: the submit's digest once, and the digest of any correction that named these words.
+-- what requests kept of them: the submit's digest once, the digest of any correction that named these words, and the
+-- hash any other message that shares them kept in its submit and receipt (V on #396). That message stays as it is,
+-- its author's and detach-only; a retry of its submit is refused as erased. No other message's own words are touched.
 CREATE FUNCTION sophia.contribution_erase(c sophia.contributions) RETURNS void LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 BEGIN
@@ -190,6 +192,10 @@ BEGIN
  UPDATE sophia.contributions SET semantic_request=(semantic_request-'text')||'{"text":null,"redacted":true}',
   receipt=receipt||'{"sha256":null}'
   WHERE project_id=c.project_id AND id=c.id AND NOT semantic_request ? 'redacted';
+ UPDATE sophia.contributions SET semantic_request=jsonb_set(semantic_request,'{source,sha256}','null'::jsonb)||'{"redacted":true}',
+  receipt=receipt||'{"sha256":null}'
+  WHERE project_id=c.project_id AND id<>c.id AND jsonb_typeof(semantic_request->'source')='object'
+   AND semantic_request->'source'->>'sourceId'=c.source_id::text AND NOT semantic_request ? 'redacted';
  UPDATE sophia.contribution_acts SET semantic_request=(semantic_request-'text')||'{"redacted":true}'
   WHERE project_id=c.project_id AND contribution_id=c.id AND source_id=c.source_id;
 END $$;

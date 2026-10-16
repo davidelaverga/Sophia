@@ -25,6 +25,8 @@ export interface MessageActs {
   failNext?: boolean
   /** How many running research tasks the next previews list as reading the words (`reachNextPreview`). */
   reach: number
+  /** While set, acts land but their replies wait for `releaseActs` (`holdActs`). */
+  held?: (() => void)[] | null
 }
 
 export const messageActsOf = (query: URLSearchParams): MessageActs => ({
@@ -163,13 +165,18 @@ export function messageActAnswer(
 }
 
 /** The act's body as the page sent it: its words and the revision it was shown. */
-function requestOf(body: string): { text?: string; expectedRevision?: number } {
+function requestOf(body: string): { text?: string; expectedRevision?: number; reach?: number } {
   const value: unknown = JSON.parse(body)
   if (typeof value !== 'object' || value === null) return {}
   const text = 'text' in value && typeof value.text === 'string' ? value.text : undefined
   const revision =
     'expectedRevision' in value && typeof value.expectedRevision === 'number' ? value.expectedRevision : undefined
-  return { ...(text === undefined ? {} : { text }), ...(revision === undefined ? {} : { expectedRevision: revision }) }
+  const reach = 'reach' in value && Array.isArray(value.reach) ? value.reach.length : undefined
+  return {
+    ...(text === undefined ? {} : { text }),
+    ...(revision === undefined ? {} : { expectedRevision: revision }),
+    ...(reach === undefined ? {} : { reach }),
+  }
 }
 
 /** An act as the API takes it: the message it names, and where the fixture answers. */
@@ -231,6 +238,12 @@ function replayedOrFailed({ acts, at, served }: Acting, key: string, body: strin
   return problem(503, 'unavailable', 'The records can’t be written right now')
 }
 
+/** Stale as the API is: withdrawn, a moved revision, or work that read the words started or ended since the preview. */
+function staleFor({ acts, at }: Acting, request: { expectedRevision?: number; reach?: number }): boolean {
+  const reach = at.own.kind === 'reference' ? 0 : acts.reach
+  return !!at.own.withdrawnAt || request.expectedRevision !== (at.own.revision ?? 1) || request.reach !== reach
+}
+
 function acted(acting: Acting, init: RequestInit | undefined): Response | Promise<Response> {
   const { project, acts, at, served } = acting
   const key = new Headers(init?.headers).get('idempotency-key') ?? ''
@@ -243,8 +256,10 @@ function acted(acting: Acting, init: RequestInit | undefined): Response | Promis
     acts.staleNext = false
     return correctedElsewhere(acting, id)
   }
-  if (at.own.withdrawnAt || request.expectedRevision !== (at.own.revision ?? 1))
+  if (staleFor(acting, request)) {
+    served.push(`act-stale:${at.operation}`)
     return problem(409, 'stale_revision', 'Stale message: it changed since it was shown')
+  }
   const receipt = applied(acting, id, request.text)
   acts.keys.set(key, { body, receipt })
   served.push(`act:${at.operation}`)
@@ -252,5 +267,7 @@ function acted(acting: Acting, init: RequestInit | undefined): Response | Promis
     acts.loseNextReply = false
     return Promise.reject(new TypeError('Failed to fetch')) // it landed; the page never hears so
   }
+  const held = acts.held
+  if (held) return new Promise((resolve) => held.push(() => resolve(json(receipt))))
   return json(receipt)
 }

@@ -25,12 +25,16 @@ export function discussionItems(
   withdrawn: readonly WithdrawnEntry[],
 ): DiscussionItem[] {
   const gone = new Set(withdrawn.map((w) => w.id))
-  return [
-    ...entries
-      .filter((e) => !gone.has(e.id))
-      .map((entry): DiscussionItem => ({ type: 'entry', id: entry.id, createdAt: entry.createdAt, entry })),
-    ...withdrawn.map((w): DiscussionItem => ({ type: 'withdrawn', id: w.id, createdAt: w.createdAt, withdrawn: w })),
-  ].toSorted((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+  // The entries keep the order they were read in (the API's); each withdrawn place goes before the first entry after it.
+  const items = entries
+    .filter((e) => !gone.has(e.id))
+    .map((entry): DiscussionItem => ({ type: 'entry', id: entry.id, createdAt: entry.createdAt, entry }))
+  for (const w of withdrawn.toSorted(inOrder)) {
+    const at = items.findIndex((item) => inOrder(item, w) > 0)
+    const place: DiscussionItem = { type: 'withdrawn', id: w.id, createdAt: w.createdAt, withdrawn: w }
+    items.splice(at < 0 ? items.length : at, 0, place)
+  }
+  return items
 }
 
 const count = (n: number, one: string, many: string) => `${n === 1 ? 'One' : String(n)} ${n === 1 ? one : many}`
@@ -118,5 +122,7 @@ export function heldView(
     if (a.type === 'corrected' && now && (now.revision ?? 0) < (a.entry.revision ?? 0)) entries.set(a.entry.id, a.entry)
   }
   for (const id of withdrawn.keys()) entries.delete(id)
-  return { entries: [...entries.values()].toSorted(inOrder), withdrawn: [...withdrawn.values()].toSorted(inOrder) }
+  // Without earlier reads, the window's own order (the API's); with them, merged by time, then id.
+  const merged = [...entries.values()]
+  return { entries: held ? merged.toSorted(inOrder) : merged, withdrawn: [...withdrawn.values()].toSorted(inOrder) }
 }

@@ -510,6 +510,86 @@ describe('own message correction and withdrawal (A36)', () => {
     assert.ok(kept.includes(digest('The final plan.')), 'the current words’ digest stays for a retry')
   })
 
+  it('leaves no erased hash in another member’s message that still shares the erased words, and keeps their own words', async () => {
+    const [admin, author, sharer] = [randomUUID(), randomUUID(), randomUUID()]
+    const { projectId } = await seedProject(db.ownerUrl, { admin, editors: [author, sharer] })
+    const said = await say(author, projectId, 'Our door code is 4711.')
+    // Another member shares those words while they stand, and writes words of their own.
+    const shared = await share(sharer, projectId, { sourceId: said.sourceId, sha256: said.sha256 })
+    const theirs = await say(sharer, projectId, 'Thanks, noted.')
+    await corrected(author, projectId, said.contributionId, 'Ask me for the door code.')
+
+    // The sharer's retry of their message is refused as erased: never the receipt with the old hash.
+    const replay = await call(sharer, messages(projectId), {
+      body: {
+        intent: 'discuss',
+        text: null,
+        source: { sourceId: said.sourceId, sha256: said.sha256, eligibilityRevision: shared.eligibilityRevision },
+        threadId: null,
+        artifactVersionId: null,
+      },
+      key: shared.key,
+    })
+    assert.deepEqual([replay.status, replay.json?.code], [409, 'request_erased'])
+    assert.ok(!replay.raw.includes(said.sha256))
+    // Nothing kept for any message, nor any read, holds the erased hash.
+    const kept = JSON.stringify(
+      await owner(`SELECT semantic_request, receipt FROM sophia.contributions WHERE project_id=$1`, [projectId]),
+    )
+    assert.ok(!kept.includes(said.sha256), 'an erased hash is kept')
+    for (const revisions of [false, true]) {
+      const read = await call(sharer, `/api/v1/projects/${projectId}/snapshot${revisions ? '?revisions=1' : ''}`)
+      assert.ok(!read.raw.includes(said.sha256) && !read.raw.includes('4711'))
+    }
+    // The sharing message stays the sharer's, detach-only: still theirs to withdraw, never to correct.
+    const [row] = await owner<{ state: string; source: Record<string, unknown> }>(
+      `SELECT state, semantic_request->'source' AS source FROM sophia.contributions WHERE project_id=$1 AND id=$2`,
+      [projectId, shared.contributionId],
+    )
+    assert.deepEqual([row?.state, row?.source.sourceId], ['current', said.sourceId])
+    assert.equal((await preview(sharer, projectId, shared.contributionId, 'correct')).status, 422)
+    const out = await withdrawn(sharer, projectId, shared.contributionId)
+    assert.equal(out.state, 'withdrawn')
+    // The sharer's own words are untouched.
+    const own = await sourceOf(projectId, theirs.sourceId)
+    assert.deepEqual([own.state, own.text, own.sha256], ['ready', 'Thanks, noted.', theirs.sha256])
+  })
+
+  it('confirms every task a preview lists, past a hundred: none truncated, the proof still binding them all', async () => {
+    const [admin, editor] = [randomUUID(), randomUUID()]
+    const seed = await seedProject(db.ownerUrl, { admin, editors: [editor], goalStatus: 'stopped' })
+    const { projectId } = seed
+    const said = await say(editor, projectId, 'Read me, all of you.')
+    // 101 running research tasks whose manifests drew on the message (as research admission records them).
+    await owner(
+      `WITH m AS (SELECT n, (sophia.put_text_source($1,$2,'application/json','{"n":'||n||'}')).id AS manifest
+                    FROM generate_series(1,101) n),
+            d AS (INSERT INTO sophia.source_dependencies(project_id,source_id,derived_source_id) SELECT $1,$3,manifest FROM m),
+            a AS (INSERT INTO sophia.work_attempts(project_id,goal_id,goal_revision,authority_epoch,state)
+                    SELECT $1,$4,1,1,'running' FROM m RETURNING id),
+            pairs AS (SELECT m.manifest, x.id AS attempt FROM (SELECT manifest, row_number() OVER () r FROM m) m
+                       JOIN (SELECT id, row_number() OVER () r FROM a) x USING (r))
+       INSERT INTO sophia.jobs(project_id,kind,input_source_id,state,attempt_id)
+       SELECT $1,'research',manifest,'running',attempt FROM pairs`,
+      [projectId, editor, said.sourceId, seed.goalId],
+    )
+    const p = await previewed(editor, projectId, said.contributionId, 'withdraw')
+    assert.equal(p.reach.length, 101)
+    // Leaving one out is stale; all of them is the act.
+    const short = await withdraw(editor, projectId, said.contributionId, {
+      ...shown(p),
+      reach: shown(p).reach.slice(1),
+    })
+    assert.deepEqual([short.status, short.json?.code], [409, 'stale_revision'])
+    const out = await withdraw(editor, projectId, said.contributionId, shown(p))
+    assert.equal(out.status, 200, JSON.stringify(out.json))
+    const [left] = await owner<{ n: string }>(
+      `SELECT count(*) AS n FROM sophia.jobs WHERE project_id=$1 AND kind='research' AND state='running'`,
+      [projectId],
+    )
+    assert.equal(Number(left?.n), 0, 'every task it reached is revoked')
+  })
+
   it('serves the old shape without revisions=1, and revisions and tombstones with it, in the snapshot and earlier pages', async () => {
     const [admin, editor, viewer] = [randomUUID(), randomUUID(), randomUUID()]
     const { projectId } = await seedProject(db.ownerUrl, { admin, editors: [editor], viewers: [viewer] })

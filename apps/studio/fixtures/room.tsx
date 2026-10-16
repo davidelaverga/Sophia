@@ -236,6 +236,9 @@ interface Fixture {
   failNextAct: () => void
   /** The next previews list this many running research tasks as reading the words. */
   reachNextPreview: (tasks: number) => void
+  /** Acts on messages land, but their replies wait until `releaseActs`. */
+  holdActs: () => void
+  releaseActs: () => void
   /** The next show lands, but its reply is lost: the page can't tell it was committed. */
   loseNextFocusReply: () => void
   /** The next close of the meeting lands, but its reply is lost. */
@@ -876,6 +879,14 @@ window.fixture = {
   },
   reachNextPreview: (tasks) => {
     project.messageActs.reach = tasks
+  },
+  holdActs: () => {
+    project.messageActs.held = []
+  },
+  releaseActs: () => {
+    const held = project.messageActs.held ?? []
+    project.messageActs.held = null
+    for (const release of held) release()
   },
   loseNextFocusReply: () => {
     project.showing.loseReply = true

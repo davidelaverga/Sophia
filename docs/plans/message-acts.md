@@ -27,7 +27,8 @@
 - **Identical words change nothing:** no erasure, no rebuild, no event, no eligibility move. The receipt says
   `changed: false`.
 - **The preview.** `GET .../contributions/{id}/preview?action=correct|withdraw` lists the running work the words reach
-  (`reach`: task, kind, whether it starts again) and signs it. The proof is an HMAC under 0018's preview key with its
+  (`reach`: task, kind, whether it starts again) and signs it. The reach is never cut short: the preview and both
+  acts carry every task, however many (Codex on #396; a case with 101 tasks). The proof is an HMAC under 0018's preview key with its
   own label, binding the member, project, message, act, revision, source, expiry (15 minutes) and the reach shown.
 - **Confirming.** The act sends back `expectedRevision`, `reach` and `previewToken`. Under the project's and the
   message's locks, any of these gives 409 `stale_revision`:
@@ -44,6 +45,9 @@
   - A retry of a correction whose words have since been erased gives 409 `request_erased`.
 - **Nothing kept leaks erased words.**
   - The submit's text digest and receipt hash are redacted, and so are earlier corrections' digests.
+  - Another message that still shares the erased words keeps no hash of them either: its submit's source hash and
+    receipt hash are redacted. It stays its author's and detach-only, and a retry of its submit gives
+    `request_erased` (V on #396). No other message's own words are touched.
   - A retry of the original submit after its words were erased gives `request_erased`; after a withdrawal of a
     shared message, `stale_revision`.
   - Act receipts carry no text or digest.
@@ -71,7 +75,9 @@ A tombstone is `{id, actorId, authorName, createdAt, withdrawnAt}`, never words.
 - **Withdrawing** always asks first. A withdrawn message shows as «You withdrew this message.» or «This message was
   withdrawn.».
 - **Failures.**
-  - A lost reply says so and tries again with the same key.
+  - Once an act is sent, nothing pretends to call it back (Codex on #396). While it is under way, Cancel and Escape
+    wait for its answer. After a lost reply the only way on is «Try again», with the same key.
+  - Escape in the edit field or the question is spent there: it never closes the chat panel.
   - A message changed elsewhere reads the chat again and keeps the draft.
   - Any other failure says so in plain words.
 - **What the chat holds.** The snapshot's window decides for its own span, so a message withdrawn there never stays

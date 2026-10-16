@@ -123,7 +123,9 @@ function useMessageAct({ projectId, identity, entry, onActed }: Acting) {
   const forget = () => {
     pending.current = null
   }
-  return { step, setStep, send, begin, forget }
+  /** An act was sent and its answer never came: until it is asked again, it may or may not have been done. */
+  const unresolved = () => pending.current !== null
+  return { step, setStep, send, begin, forget, unresolved }
 }
 
 interface Props extends Acting {
@@ -134,7 +136,7 @@ interface Props extends Acting {
 
 export function MessageActions({ acts, children, ...acting }: Props) {
   const { entry } = acting
-  const { step, setStep, send, begin, forget } = useMessageAct(acting)
+  const { step, setStep, send, begin, forget, unresolved } = useMessageAct(acting)
   const edit = useRef<HTMLButtonElement>(null)
   const cancel = () => {
     forget()
@@ -178,6 +180,7 @@ export function MessageActions({ acts, children, ...acting }: Props) {
           preview={step.preview}
           problem={step.problem}
           editing={step.draft !== undefined}
+          unresolved={step.problem !== undefined && unresolved()}
           onConfirm={() => void send(step.act, step.preview, step.draft)}
           onBack={() => (step.draft === undefined ? cancel() : setStep({ at: 'editing', draft: step.draft }))}
         />
@@ -234,14 +237,26 @@ function EditForm(props: {
         readOnly={props.working}
         onChange={(e) => props.onDraft(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') props.onCancel()
+          if (e.key !== 'Escape' || e.nativeEvent.isComposing) return
+          // The edit goes, not the panel: Escape is spent here. A correction already sent is not undone by it.
+          e.preventDefault()
+          e.stopPropagation()
+          if (!props.working) props.onCancel()
         }}
       />
       <span className="message-edit-actions">
         <button className="pill primary" type="submit" aria-disabled={props.working || undefined}>
           {props.working ? 'Saving…' : 'Save'}
         </button>
-        <button className="text-button" type="button" onClick={props.onCancel}>
+        <button
+          className="text-button"
+          type="button"
+          aria-disabled={props.working || undefined}
+          onClick={() => {
+            // Sent is sent: Cancel can't call a correction back, so it waits for the answer (Codex on #396).
+            if (!props.working) props.onCancel()
+          }}
+        >
           Cancel
         </button>
       </span>
@@ -284,6 +299,8 @@ function Confirm(props: {
   preview: ContributionActPreview
   problem: string | undefined
   editing: boolean
+  /** Sent, its answer lost: it may have been done, so the only way on is to ask again with the same key. */
+  unresolved: boolean
   onConfirm: () => void
   onBack: () => void
 }) {
@@ -292,7 +309,18 @@ function Confirm(props: {
   const title = props.act === 'withdraw' ? 'Withdraw your message?' : 'Save your edit?'
   const go = props.act === 'withdraw' ? 'Withdraw message' : 'Save anyway'
   return (
-    <div className="message-confirm" role="group" aria-label={title}>
+    <div
+      className="message-confirm"
+      role="group"
+      aria-label={title}
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape') return
+        // The question goes, not the panel; an act whose answer was lost stays to be asked again.
+        e.preventDefault()
+        e.stopPropagation()
+        if (!props.unresolved) props.onBack()
+      }}
+    >
       <p className="message-confirm-title">{title}</p>
       <ul>
         {effectWords(props.preview).map((words) => (
@@ -313,9 +341,11 @@ function Confirm(props: {
         >
           {props.problem ? 'Try again' : go}
         </button>
-        <button className="text-button" type="button" onClick={props.onBack}>
-          {props.editing ? 'Keep editing' : 'Cancel'}
-        </button>
+        {!props.unresolved && (
+          <button className="text-button" type="button" onClick={props.onBack}>
+            {props.editing ? 'Keep editing' : 'Cancel'}
+          </button>
+        )}
       </span>
     </div>
   )
