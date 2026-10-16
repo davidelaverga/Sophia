@@ -64,3 +64,46 @@ test('crash · without a DSN, nothing is sent and no Send feedback is offered', 
   await expect(page.getByRole('menuitem', { name: 'Send feedback' })).toHaveCount(0)
   expect(sent).toEqual([])
 })
+
+test('feedback · the feedback carries the address without its query or fragment (Codex P1 on #367)', async ({
+  page,
+}) => {
+  const sent = await ingest(page)
+  await page.goto('/room.html?sentry=1#private-token')
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Send feedback' }).click()
+  await sheet(page).getByLabel('What would you like us to know?').fill('Words for the team.')
+  await sheet(page).getByRole('button', { name: 'Send' }).click()
+  await expect(sheet(page).getByRole('status')).toHaveText('Sent. Thank you.')
+  const feedback = sent.find((e) => e.includes('Words for the team.')) ?? ''
+  expect(feedback).toContain('/room.html')
+  expect(feedback).not.toContain('private-token')
+  expect(feedback).not.toContain('sentry=1')
+})
+
+test('crash · an error before Sentry has loaded is still reported (Codex P1 on #367)', async ({ page }) => {
+  const sent = await ingest(page)
+  await page.addInitScript(() => {
+    setTimeout(() => {
+      throw new Error('An early failure')
+    }, 0)
+  })
+  await page.goto('/room.html?sentry=1')
+  await expect.poll(() => sent.some((e) => e.includes('An early failure'))).toBe(true)
+})
+
+test('feedback · the words hold still while they go (Codex P2 on #367)', async ({ page }) => {
+  await page.route(
+    (url) => url.hostname.endsWith('ingest.sentry.io'),
+    async (route) => {
+      await new Promise((done) => setTimeout(done, 1500))
+      await route.fulfill({ status: 200, body: '{}' })
+    },
+  )
+  await page.goto('/room.html?sentry=1')
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Send feedback' }).click()
+  await sheet(page).getByLabel('What would you like us to know?').fill('Slow words.')
+  await sheet(page).getByRole('button', { name: 'Send' }).click()
+  await expect(sheet(page).getByLabel('What would you like us to know?')).toHaveAttribute('readonly', '')
+})

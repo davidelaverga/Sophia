@@ -819,3 +819,24 @@ test('legal · /terms and /privacy keep their address and their page, signed out
   expect(new URL(signedIn.url()).pathname).toBe('/privacy')
   await expect(signedIn.getByRole('heading', { level: 1 })).toHaveText('Privacy notice')
 })
+
+test('feedback · opened from Home during a call, the call’s switches stay in reach (Codex P1 on #367)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/p/${WORK_PROJECT}/studio?work=lost&sentry=1`)
+  await page
+    .getByRole('navigation', { name: 'Room controls' })
+    .getByRole('button', { name: /^Join the room/ })
+    .click()
+  await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
+  await page.keyboard.press('h')
+  await expect(page.locator('div.places[data-place="home"]')).toBeVisible()
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Send feedback' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Send feedback' })
+  await expect(
+    sheet.getByRole('group', { name: 'Your call' }).getByRole('button', { name: 'Leave the room' }),
+  ).toBeVisible()
+})
