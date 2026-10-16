@@ -15,6 +15,10 @@ interface ProfileFixture {
   unavailable: boolean
   /** Keep the next save, then lose its reply (the request fails as a dropped connection does). */
   loseNextReply: boolean
+  /** Answer the next read with a 503, as a server that is away does. */
+  failNextRead: boolean
+  /** Answer the next save only after this many milliseconds (0: at once), as a cold server does. */
+  slowNextSaveMs: number
   /** Every save the page sent: its key and its body, in order. */
   saves: { key: string; body: unknown }[]
   /** Change the name as another device would, for a token (else the first one read): the revision moves on. */
@@ -42,6 +46,8 @@ const keptFor = (token: string): Kept => {
 const fixture: ProfileFixture = {
   unavailable: new URLSearchParams(window.location.search).get('profile') === 'none',
   loseNextReply: false,
+  failNextRead: false,
+  slowNextSaveMs: 0,
   saves: [],
   changeElsewhere: (name, token) => {
     const k = keptFor(token ?? [...kept.keys()][0] ?? '')
@@ -125,6 +131,13 @@ function saved(init: RequestInit | undefined): Response | Promise<Response> {
   return Promise.reject(new TypeError('Failed to fetch'))
 }
 
+/** A read of the profile, or once a 503 when the page asked for one. */
+function read(init: RequestInit | undefined): Response {
+  if (!fixture.failNextRead) return json(keptFor(tokenOf(init)).profile)
+  fixture.failNextRead = false
+  return refusal(503, 'unavailable', 'Unavailable')
+}
+
 /** GET and PUT /api/v1/me/profile; null for any other request. */
 export function profileAnswer(
   method: string,
@@ -135,6 +148,9 @@ export function profileAnswer(
   if (fixture.unavailable) {
     return json({ message: `Route ${method}:${path} not found`, error: 'Not Found', statusCode: 404 }, 404)
   }
-  if (method === 'GET') return json(keptFor(tokenOf(init)).profile)
-  return method === 'PUT' ? saved(init) : null
+  if (method === 'GET') return read(init)
+  if (method !== 'PUT') return null
+  const wait = fixture.slowNextSaveMs
+  fixture.slowNextSaveMs = 0
+  return wait > 0 ? new Promise<Response>((resolve) => setTimeout(() => resolve(saved(init)), wait)) : saved(init)
 }

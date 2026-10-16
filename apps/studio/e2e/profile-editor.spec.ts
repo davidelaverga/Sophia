@@ -110,6 +110,43 @@ test('profile · a lost reply keeps the name and Try again sends the same key: o
   expect(await kept(page)).toEqual({ displayName: 'Ana', chosen: true, revision: 1 })
 })
 
+test('profile · after a conflict nothing is saved until the name kept now is read; a failed read says so', async ({
+  page,
+}) => {
+  const sheet = await openSheet(page)
+  const field = sheet.getByRole('textbox', { name: 'Name' })
+  await page.evaluate(() => {
+    window.profileFixture?.changeElsewhere('Bea from the phone')
+    if (window.profileFixture) window.profileFixture.failNextRead = true
+  })
+  await field.fill('Ana')
+  await sheet.getByRole('button', { name: 'Save' }).click()
+  await expect(sheet.getByRole('alert')).toContainText('Changed elsewhere, and the new name couldn’t be read.')
+  // The revision read before the conflict is known to be stale: Save waits for a read that answers.
+  await expect(sheet.getByRole('button', { name: 'Save' })).toBeDisabled()
+  await sheet.getByRole('button', { name: 'Try again' }).click()
+  await expect(sheet.getByRole('status')).toHaveText(
+    'Changed elsewhere to «Bea from the phone». Save to use yours instead.',
+  )
+  await expect(field).toHaveValue('Ana')
+  await sheet.getByRole('button', { name: 'Save' }).click()
+  await expect(sheet.getByRole('status')).toContainText('Saved.')
+  expect(await kept(page)).toEqual({ displayName: 'Ana', chosen: true, revision: 2 })
+})
+
+test('profile · a save that takes long says so after six seconds, then says it saved', async ({ page }) => {
+  const sheet = await openSheet(page)
+  await page.evaluate(() => {
+    if (window.profileFixture) window.profileFixture.slowNextSaveMs = 7500
+  })
+  await sheet.getByRole('textbox', { name: 'Name' }).fill('Ana')
+  await sheet.getByRole('button', { name: 'Save' }).click()
+  await expect(sheet.getByRole('button', { name: 'Saving…' })).toBeDisabled()
+  await expect(sheet.getByText('Taking longer than usual.', { exact: false })).toBeVisible({ timeout: 7000 })
+  await expect(sheet.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible({ timeout: 5000 })
+  await expect(sheet.getByText('Taking longer than usual.', { exact: false })).toHaveCount(0)
+})
+
 test('profile · a server without profiles offers no «Your name», and the head keeps the address', async ({ page }) => {
   const menu = await openMenu(page, '&profile=none')
   await expect(menu.getByRole('menuitem', { name: 'Your personal data' })).toBeVisible()
@@ -231,4 +268,28 @@ test('profile · another account signing in here never shows the last one’s na
   await account.click()
   await page.getByRole('menu', { name: 'Account' }).getByRole('menuitem', { name: 'Your name' }).click()
   await expect(page.getByRole('dialog', { name: 'Your name' }).getByRole('textbox', { name: 'Name' })).toHaveValue('')
+})
+
+test('profile · another account coming in closes the sheet: nothing typed for one is saved for the next', async ({
+  context,
+}) => {
+  const page = await appSignedIn(context, DAVIDE)
+  const account = page.getByRole('button', { name: 'Account' }).first()
+  await account.click()
+  await page.getByRole('menu', { name: 'Account' }).getByRole('menuitem', { name: 'Your name' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Your name' })
+  await sheet.getByRole('textbox', { name: 'Name' }).fill('Davide typed this')
+  const other = await context.newPage()
+  await other.goto(`${APP}/favicon.svg`)
+  await other.evaluate(
+    ([key, signedIn]) => {
+      localStorage.setItem(key, JSON.stringify(signedIn))
+      // oxlint-disable-next-line unicorn/require-post-message-target-origin -- a BroadcastChannel has no target origin
+      new BroadcastChannel(key).postMessage({ event: 'SIGNED_IN', session: signedIn })
+    },
+    [SESSION_KEY, session(LUIS)] as const,
+  )
+  await other.close()
+  await expect(sheet).toBeHidden()
+  expect(await saves(page)).toEqual([])
 })

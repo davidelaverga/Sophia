@@ -23,13 +23,20 @@
   - **A name changed elsewhere** (409 `stale_revision`): the sheet reads the profile again and says «Changed
     elsewhere to «…». Save to use yours instead.». Your typed name stays, and the next Save goes over the new
     revision.
+    - Save waits while that read runs. Only a read that answers becomes the new revision.
+    - A read that fails says «Changed elsewhere, and the new name couldn't be read.» with Try again; the old cache is
+      never shown as the current name (Codex P2 on #388).
+  - **A wait that lasts six seconds**, the first read or a save, adds the Studio's `SlowNote` (Codex P2 on #388).
   - **A name the API refuses** (422) is said in the Studio's words, not the schema's. A refused account (401, 403)
     reads «Sign in again to change your name.»
   - **Saved:** the menu's head shows the new name at once (the same query, updated), and the members' lists are read
     again. Others see it the next time their view loads: the API emits no event for a profile.
   - **Cancel** is shown only while an edit would be dropped; the head's Close closes in every state.
-- **One account's name is never read for another.** The profile is cached under the account (`accountOf`: the token's
-  subject), inside that account's own cache (`account-cache.ts`).
+- **One account's name is never read for another.**
+  - The profile is cached under the account (`accountOf`: the token's subject), inside that account's own cache
+    (`account-cache.ts`).
+  - The sheet belongs to the account it was opened for. Another account coming in (another tab) closes it, so nothing
+    typed for one is saved for the next (Codex P1 on #388).
 
 The words are in `profile-view.ts` (with tests); `useMyProfile.ts` holds the read.
 

@@ -70,5 +70,8 @@ export function saveWords(err: ApiError, sent: string): string {
 export const conflictWords = (now: string | null): string =>
   now ? `Changed elsewhere to «${now}». Save to use yours instead.` : 'Changed elsewhere. Save to use yours instead.'
 
+/** A conflict whose current name couldn't be read: nothing is saved over a revision not read. */
+export const CONFLICT_UNREAD = 'Changed elsewhere, and the new name couldn’t be read.'
+
 /** Saved: who sees it, and when. */
 export const SAVED_WORDS = 'Saved. People in your projects see it the next time their view loads.'

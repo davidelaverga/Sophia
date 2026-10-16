@@ -8,12 +8,13 @@ import { useEffect, useRef, useState } from 'react'
 import type { Profile, ProfileUpdate } from '@sophia/contracts'
 import { Button } from '@sophia/ui'
 import { ApiError } from '../api/client.ts'
-import { updateMyProfile } from '../api/profile.ts'
+import { getMyProfile, updateMyProfile } from '../api/profile.ts'
 import { useAdmission, type AdmissionState } from '../api/useAdmission.ts'
 import { AdmissionNote } from '../features/access/AdmissionNote.tsx'
 import type { Identity } from './dev-identity.ts'
 import {
   canSave,
+  CONFLICT_UNREAD,
   conflictWords,
   nameProblem,
   READ_WORDS,
@@ -22,6 +23,7 @@ import {
   type ReadTrouble,
 } from './profile-view.ts'
 import { Sheet } from './Sheet.tsx'
+import { SlowNote } from './SignIn.tsx'
 import { profileKey, useMyProfile } from './useMyProfile.ts'
 
 /** What was read and is being edited over: the name kept and its revision. */
@@ -33,6 +35,30 @@ interface Base {
 const baseOf = (p: Profile): Base => ({ kept: p.displayName, revision: p.revision })
 
 type Note = { kind: 'saved' | 'conflict'; words: string } | null
+
+/** After a conflict: reading the name kept now, or that read failed and must be asked again before any save. */
+type Fresh = 'reading' | 'failed' | null
+
+/**
+ * After a conflict, the name kept now, read afresh: only a read that answers becomes the base saved over (`onRead`).
+ * Until then Save waits; a read that fails says so and is asked again, never a cached answer shown as the current one.
+ */
+function useFreshRead(identity: Identity, onRead: (now: Profile) => void) {
+  const client = useQueryClient()
+  const [fresh, setFresh] = useState<Fresh>(null)
+  const readFresh = async () => {
+    setFresh('reading')
+    try {
+      const now = await getMyProfile(identity.token)
+      client.setQueryData(profileKey(identity), now)
+      onRead(now)
+      setFresh(null)
+    } catch {
+      setFresh('failed')
+    }
+  }
+  return { fresh, readFresh }
+}
 
 /** The edit: what was read, what is typed, and the save's admission with its outcomes. */
 function useNameEdit(identity: Identity) {
@@ -47,6 +73,10 @@ function useNameEdit(identity: Identity) {
     setBase(baseOf(profile))
     setTyped(profile.displayName ?? '')
   }, [base, profile])
+  const { fresh, readFresh } = useFreshRead(identity, (now) => {
+    setBase(baseOf(now))
+    setNote({ kind: 'conflict', words: conflictWords(now.displayName) })
+  })
   // A save's outcome: kept, or a conflict read again. A refusal and no reply stay in the admission's state.
   const save = useAdmission(async (key: string, body: ProfileUpdate) => {
     try {
@@ -59,18 +89,12 @@ function useNameEdit(identity: Identity) {
       void client.invalidateQueries({ queryKey: ['members'] })
       return kept
     } catch (err: unknown) {
-      if (err instanceof ApiError && err.code === 'stale_revision') {
-        void reread().then(({ data }) => {
-          if (!data) return
-          setBase(baseOf(data))
-          setNote({ kind: 'conflict', words: conflictWords(data.displayName) })
-        })
-      }
+      if (err instanceof ApiError && err.code === 'stale_revision') void readFresh()
       throw err
     }
   })
-  const waiting = save.state.status === 'sending' || save.state.status === 'unknown'
-  const offered = base !== null && !waiting && canSave(typed, base.kept)
+  const waiting = save.state.status === 'sending' || save.state.status === 'unknown' || fresh === 'reading'
+  const offered = base !== null && !waiting && fresh === null && canSave(typed, base.kept)
   return {
     base,
     typed,
@@ -80,6 +104,8 @@ function useNameEdit(identity: Identity) {
     save,
     waiting,
     offered,
+    fresh,
+    readFresh: () => void readFresh(),
     type: (value: string) => {
       setTyped(value)
       if (note?.kind === 'saved') setNote(null)
@@ -111,7 +137,10 @@ function ReadNote({ trouble, reread }: { trouble: ReadTrouble | null; reread: ()
           )}
         </p>
       ) : (
-        <p className="sheet-status">Reading…</p>
+        <>
+          <p className="sheet-status">Reading…</p>
+          <SlowNote />
+        </>
       )}
     </div>
   )
@@ -128,6 +157,24 @@ function SaveTrouble({ state, retry }: { state: AdmissionState<ProfileUpdate, Pr
   }
   if (state.status !== 'rejected' || state.error.code === 'stale_revision') return null
   return <p role="alert">{saveWords(state.error, state.args.displayName)}</p>
+}
+
+/** Under the field: a refused or unanswered save, a conflict whose name couldn't be read, and a wait that is long. */
+function FormTrouble({ edit }: { edit: Edit }) {
+  return (
+    <>
+      <SaveTrouble state={edit.save.state} retry={() => void edit.save.retry()} />
+      {edit.fresh === 'failed' && (
+        <p role="alert">
+          {CONFLICT_UNREAD}{' '}
+          <button type="button" className="text-button" onClick={edit.readFresh}>
+            Try again
+          </button>
+        </p>
+      )}
+      {(edit.save.state.status === 'sending' || edit.fresh === 'reading') && <SlowNote />}
+    </>
+  )
 }
 
 function NameForm({ edit, base, onClose }: { edit: Edit; base: Base; onClose: () => void }) {
@@ -162,7 +209,7 @@ function NameForm({ edit, base, onClose }: { edit: Edit; base: Base; onClose: ()
         />
       </div>
       {problem && <p role="alert">{problem}</p>}
-      <SaveTrouble state={edit.save.state} retry={() => void edit.save.retry()} />
+      <FormTrouble edit={edit} />
       {edit.note && (
         <p className="sheet-status" role="status">
           {edit.note.words}

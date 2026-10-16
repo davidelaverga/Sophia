@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Menu, MenuHead, MenuItem, MenuSep, Tip, usePopover } from '@sophia/ui'
 import { authMode, passkeysOffered } from './auth.ts'
+import { accountOf } from './auth-callback.ts'
 import { Avatar } from './Avatar.tsx'
 import { devIdentities, type Identity } from './dev-identity.ts'
 import { askCommands } from './CommandsHost.tsx'
@@ -120,7 +121,9 @@ interface Props {
 export function AccountMenu({ identity, where, actions }: Props) {
   const [open, setOpen] = useState(false)
   const [passkeys, setPasskeys] = useState(false)
-  const [naming, setNaming] = useState(false)
+  // The account the sheet was opened for: another account coming in (another tab) closes it, so nothing typed for one
+  // is ever saved for the next (Codex P1 on #388).
+  const [naming, setNaming] = useState<string | null>(null)
   const mine = useMyProfile(identity)
   const menu = usePopover(open, () => setOpen(false))
   // The item goes with the menu: its button takes the focus first, so a sheet the item opens gives it back there.
@@ -151,7 +154,7 @@ export function AccountMenu({ identity, where, actions }: Props) {
             name={mine.profile?.displayName ?? identity.displayName ?? null}
             onChoose={actions.chooseDev}
           />
-          {mine.offered && <MenuItem onClick={pick(() => setNaming(true))}>Your name</MenuItem>}
+          {mine.offered && <MenuItem onClick={pick(() => setNaming(accountOf(identity)))}>Your name</MenuItem>}
           <MenuItem className="has-tip" onClick={pick(actions.data)}>
             {DATA_LABEL[where]}
             <Tip label={tip.label} {...(tip.keys ? { keys: tip.keys } : {})} side="bottom" align="end" />
@@ -171,7 +174,9 @@ export function AccountMenu({ identity, where, actions }: Props) {
       )}
       {passkeys && <PasskeySheet onClose={() => setPasskeys(false)} />}
       {/* Out of the bar, as the project's sheets are (ProjectName): the bar's own styles never reach the sheet. */}
-      {naming && createPortal(<ProfileSheet identity={identity} onClose={() => setNaming(false)} />, document.body)}
+      {naming !== null &&
+        naming === accountOf(identity) &&
+        createPortal(<ProfileSheet key={naming} identity={identity} onClose={() => setNaming(null)} />, document.body)}
     </div>
   )
 }
