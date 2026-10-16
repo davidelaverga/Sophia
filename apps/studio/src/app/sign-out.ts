@@ -11,3 +11,9 @@ export async function signOutForgetting(signOut: () => Promise<void>, forget: ()
     forget()
   }
 }
+
+/** Ends the session with Supabase (stub: sign-out-scope.md). */
+export const endSession = (
+  _auth: { signOut: (options: { scope: 'local' | 'global' }) => Promise<unknown> },
+  _everywhere: boolean,
+): Promise<void> => Promise.resolve()

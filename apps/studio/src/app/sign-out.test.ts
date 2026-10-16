@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { draftKey, forgetDrafts } from '../features/personal/draft.ts'
-import { signOutForgetting } from './sign-out.ts'
+import { endSession, signOutForgetting } from './sign-out.ts'
 
 /** A browser's localStorage, as forgetDrafts lists it. */
 function storage() {
@@ -36,5 +36,20 @@ describe('signing out', () => {
     }
     await assert.rejects(signOutForgetting(failing, () => forgetDrafts(store)))
     assert.deepEqual([...store.held.keys()], [])
+  })
+})
+
+describe('ending the session (sign-out-scope.md)', () => {
+  it('signs out this device only, and every device only when asked', async () => {
+    const asked: unknown[] = []
+    const auth = {
+      signOut: (options: { scope: 'local' | 'global' }) => {
+        asked.push(options)
+        return Promise.resolve({ error: null })
+      },
+    }
+    await endSession(auth, false)
+    await endSession(auth, true)
+    assert.deepEqual(asked, [{ scope: 'local' }, { scope: 'global' }])
   })
 })
