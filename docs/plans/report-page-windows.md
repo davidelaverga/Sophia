@@ -36,6 +36,9 @@
   - the size check reads the paragraph's opening across the items after the one it starts at, composed (NFC).
   - The size is still the item's own.
 
+- **The Studio's Document tab** (`artifacts.css`, `.md`) leaves Sitka Text out too, so a report keeps its lines between
+  the Studio and its download (Codex P2 on #400). `reader-stack.test.ts` keeps the two stacks equal, face by face.
+
 ## Checks
 
 - `report-page.test.ts`: the text stack holds no Sitka Text, and the pinned digest is the new one.
