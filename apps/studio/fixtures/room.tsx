@@ -76,7 +76,7 @@ import {
   unexpected,
 } from './fixture-api.ts'
 import { messageActsOf } from './message-acts.ts'
-import { ME } from './data.ts'
+import { idOf, ME } from './data.ts'
 import { missionWrites } from './mission-writes.ts'
 import {
   briefNotice,
@@ -236,6 +236,8 @@ interface Fixture {
   loseNextActReply: () => void
   /** The next act on a message fails as an unavailable API's. */
   failNextAct: () => void
+  /** The `n`th message comes to mention the viewer, its words and revision unchanged (a mention-only correction, A37). */
+  mentionMeIn: (n: number) => void
   /** The next previews list this many running research tasks as reading the words. */
   reachNextPreview: (tasks: number) => void
   /** Acts on messages land, but their replies wait until `releaseActs`. */
@@ -893,6 +895,12 @@ window.fixture = {
   },
   reachNextPreview: (tasks) => {
     project.messageActs.reach = tasks
+  },
+  mentionMeIn: (n) => {
+    const m = project.messages[n]
+    if (m === undefined) return
+    project.messages[n] = { ...(typeof m === 'string' ? { text: m } : m), id: idOf(m, n), mentions: [ME] }
+    publish(project)
   },
   holdActs: () => {
     project.messageActs.held = []

@@ -153,7 +153,9 @@ const entryAttrs = (entry: DiscussionEntry, me: string, projectId: string, repli
 function useMentionShown(props: Props, history: RefObject<HTMLDivElement | null>, entries: readonly DiscussionEntry[]) {
   const { projectId, identity, me } = props
   const inView = props.inView ?? false
-  const shown = entries.map((e) => `${e.id}@${String(e.revision ?? 0)}`).join(',') + projectId + me
+  // Whom each names too: a mention-only correction keeps the revision, and the newly named entry is observed (Codex on #409).
+  const shown =
+    entries.map((e) => `${e.id}@${String(e.revision ?? 0)}:${(e.mentions ?? []).join('+')}`).join(',') + projectId + me
   useMentionsSeen(identity, history, inView, shown)
   useMessageAddressed(history, inView, shown)
   return { ...useMemberNames(projectId, identity), projectId }

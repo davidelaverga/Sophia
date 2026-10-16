@@ -15,7 +15,8 @@
   A viewer still writes, corrects and withdraws their own ordinary words with no recipients, and can be mentioned.
 - **Compatibility:**
   - a submit without `mentions` has none;
-  - a correction without `mentions` keeps the recipients;
+  - a correction without `mentions` keeps the recipients, whoever has left since;
+  - a correction that names a list checks every one, kept recipients too: someone who left is refused (Codex on #409);
   - `[]` clears them;
   - a request without recipients keeps 0068's semantic, so an older client's retry replays its receipt;
   - the A36 v2 proof (echoed taskId:kind:restarts) and the detach-only rule for shared sources are unchanged.

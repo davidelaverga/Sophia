@@ -51,18 +51,20 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION sophia.mention_recipients(jsonb) FROM PUBLIC;
 
--- Whether the caller may name these recipients now (under the project's lock): every one an active member, and a
--- non-empty list that differs from the message's current one only from an editor or an admin.
-CREATE FUNCTION sophia.mentions_allowed(p_project uuid, p_current uuid[], p_recipients uuid[]) RETURNS void
-LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+-- Whether the caller may name these recipients now (under the project's lock): a non-empty list that differs from the
+-- message's current one only from an editor or an admin; and a list the request names (p_named) every one an active
+-- member, kept ones too (Codex on #409). A correction that leaves `mentions` out keeps the current recipients as they
+-- are, whoever has left since.
+CREATE FUNCTION sophia.mentions_allowed(p_project uuid, p_current uuid[], p_recipients uuid[], p_named boolean)
+RETURNS void LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 BEGIN
  IF cardinality(p_recipients)>0 AND p_recipients IS DISTINCT FROM p_current AND NOT sophia.can_edit(p_project) THEN
   RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;
- IF EXISTS(SELECT 1 FROM unnest(p_recipients) r WHERE r <> ALL(p_current) AND NOT EXISTS(SELECT 1 FROM sophia.project_members m
+ IF p_named AND EXISTS(SELECT 1 FROM unnest(p_recipients) r WHERE NOT EXISTS(SELECT 1 FROM sophia.project_members m
    WHERE m.project_id=p_project AND m.actor_id=r AND m.active)) THEN
   RAISE EXCEPTION 'Invalid mentions: someone named is not a member of this project' USING ERRCODE='22023'; END IF;
 END $$;
-REVOKE ALL ON FUNCTION sophia.mentions_allowed(uuid,uuid[],uuid[]) FROM PUBLIC;
+REVOKE ALL ON FUNCTION sophia.mentions_allowed(uuid,uuid[],uuid[],boolean) FROM PUBLIC;
 
 -- A message's current recipients, in order: everyone still mentioned, whether they have looked or not.
 CREATE FUNCTION sophia.mentions_current(c sophia.contributions) RETURNS uuid[] LANGUAGE sql STABLE SECURITY DEFINER
@@ -131,7 +133,7 @@ BEGIN
   IF prior.state='withdrawn' THEN RAISE EXCEPTION 'Stale request: that message has since been withdrawn' USING ERRCODE='40001'; END IF;
   RETURN prior.receipt;
  END IF;
- PERFORM sophia.mentions_allowed(p_project,'{}'::uuid[],coalesce(recipients,'{}'::uuid[]));
+ PERFORM sophia.mentions_allowed(p_project,'{}'::uuid[],coalesce(recipients,'{}'::uuid[]),true);
  IF body IS NOT NULL THEN
   src:=sophia.put_text_source(p_project,a,'text/plain; charset=utf-8',body);
  ELSE
@@ -178,8 +180,8 @@ BEGIN
  IF old.state<>'ready' THEN
   RAISE EXCEPTION 'This message''s words are gone already; it can only be withdrawn' USING ERRCODE='22023'; END IF;
  current_recipients:=sophia.mentions_current(c);
+ PERFORM sophia.mentions_allowed(p_project,current_recipients,coalesce(recipients,current_recipients),recipients IS NOT NULL);
  recipients:=coalesce(recipients,current_recipients);
- PERFORM sophia.mentions_allowed(p_project,current_recipients,recipients);
  -- The same words with other recipients, on the revision shown: only who is mentioned changes. Nothing is erased,
  -- rebuilt or woken; the revision stays (0069).
  IF old.sha256=digest AND c.revision=(p_request->>'expectedRevision')::bigint AND recipients IS DISTINCT FROM current_recipients THEN

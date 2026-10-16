@@ -98,6 +98,23 @@ The evidence below is for the commit that carries this section.
   - lint, format, typecheck and contracts clean; units 2364 pass, 0 fail.
   - No SQL or contract change, so the PG evidence above stands.
 
+## Repair exchange 2 (Codex on b48450fb; the last consolidated exchange)
+
+The evidence below is for the commit that carries this section.
+
+- **Codex 4297868222, P2: a mention-only change on a shown message wasn't observed.** The chat's observation now
+  follows each entry's recipients as well as its revision. The browser case (`mentionMeIn`, same words and revision)
+  failed before and passes now.
+- **Codex 4297868229, P2: an explicit list accepted a removed member who was already named.**
+  - `mentions_allowed` now checks every recipient when the request names a list; an omitted list keeps the current
+    ones.
+  - The PG case failed before (200, log `pg-c3b-r2-before.log`) and gives 422 now.
+- **Results:**
+  - PG suites with mentions and the C3a and nearby suites: 157/157. Research and design: 15/15.
+  - Browser: `mentions.spec.ts` 8/8; with message-acts and the chat specs, 49/49.
+  - lint, format, typecheck and contracts clean; units 2364 pass, 0 fail.
+- **What happens next.** Any later finding goes to P for a focused, split or owner disposition.
+
 ## Next bounded action
 
 Read the automatic review on this head once (at most two consolidated exchanges), then hand back to P. The next

@@ -151,3 +151,19 @@ test('mentions · until the members are read, nobody is offered and no recipient
   await expect(page.getByText('a former member')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Mention' })).toHaveCount(0)
 })
+
+test('mentions · a message that comes to mention the reader while it is shown is marked seen, its revision unchanged', async ({
+  page,
+}) => {
+  await page.goto('/room.html?call=on&people=2&floor=1&discussion=mine')
+  await expect(leave(page)).toBeVisible()
+  await chatToggle(page).click()
+  const entry = line(page, 'Sounds good to me.')
+  await expect(entry).toBeInViewport()
+  // A mention-only correction by its author: same words, same revision, the reader now named.
+  await page.evaluate(() => window.fixture?.mentionMeIn(1))
+  await expect(entry.locator('.contribution-mentions')).toHaveText('to you')
+  await expect
+    .poll(() => served(page))
+    .toContain('seen:mention:00000000-0000-4000-8000-0000000000aa:1:00000000-0000-4000-8000-000000000002')
+})

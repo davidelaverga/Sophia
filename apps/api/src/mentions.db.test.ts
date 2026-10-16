@@ -328,6 +328,11 @@ describe('explicit mentions in room messages (A37)', () => {
     assert.equal(await seen(b, need.id), 404)
     // A removed member can't be newly mentioned.
     assert.equal((await say(author, projectId, 'Back?', [b])).status, 422)
+    // Nor kept by an explicit list (Codex on #409): a correction naming B again is refused; left out, the list is kept.
+    const explicit = await correct(author, projectId, m.contributionId, 'Look again, B.', [b])
+    assert.deepEqual([explicit.status, explicit.json?.code], [422, 'invalid_request'], explicit.raw)
+    const kept = await correct(author, projectId, m.contributionId, 'Look again, everyone.')
+    assert.equal(kept.status, 200, kept.raw)
     // A malformed or foreign mention id: 404.
     assert.equal(await seen(c, `mention:${projectId}:x:${m.contributionId}`), 404)
     assert.equal(await seen(c, `mention:${projectId}:2:${m.contributionId}`), 404, 'not mentioned')
