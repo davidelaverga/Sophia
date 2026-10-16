@@ -37,6 +37,13 @@ commits on the branch merge its base forward or touch only this record). 6 files
 - **The Studio's own view keeps the outer boundary for now:** its stage holds the dock, and the dock must stay outside a
   boundary that could replace it.
 - **`LoadFailed` stays** for what loads before any view.
+- **Codex P1 on #416, after the ending commit: the pulse outside the boundary.** In Tasks, WorkPulse was a sibling of
+  `ViewFailed`, so a pulse that failed to draw took the header with it.
+  - The check came first (`f1139f44`): the pulse inside the boundary's mark. It failed.
+  - The fix (`4737289d`): the pulse moves inside with the view's body. What the boundary holds is marked
+    (`data-view-boundary`) in a box that draws nothing (`display: contents`), so the page's grid is unchanged.
+  - The boundary's, Tasks', Goals', Conversations', Knowledge's, Updates', Resources' and the cards' specs, with
+    `view-titles`: 269/269.
 
 ## Remaining obligations
 
