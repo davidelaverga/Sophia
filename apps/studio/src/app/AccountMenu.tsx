@@ -1,18 +1,22 @@
 // The account, one control in every bar (the places' and a project's): the avatar opens a menu with who is signed in
-// (their picture, name, email and how they signed in; account-menu.md),
-// "Your data" and how privacy works, passkeys, and signing out. From a project the first two open at home, where the
+// (their picture, name, email and how they signed in; account-menu.md), «Your name» where the server serves profiles
+// (profile-editor.md), "Your data" and how privacy works, passkeys, and signing out. From a project the first two open at home, where the
 // personal space's own sheets are. Locally the dev identity is chosen in its head. It is the kit's menu, and closes
 // like any popover (usePopover): Escape returns to the avatar, a press anywhere else closes it.
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Menu, MenuHead, MenuItem, MenuSep, Tip, usePopover } from '@sophia/ui'
 import { authMode, passkeysOffered } from './auth.ts'
+import { accountOf } from './auth-callback.ts'
 import { Avatar } from './Avatar.tsx'
 import { devIdentities, type Identity } from './dev-identity.ts'
 import { askCommands } from './CommandsHost.tsx'
 import { PasskeySheet } from './PasskeySheet.tsx'
+import { ProfileSheet } from './ProfileSheet.tsx'
 import { keyLabel, onMac } from './shortcuts.ts'
 import { signedInWith } from './profile.ts'
 import { type Theme, useTheme } from './theme.ts'
+import { useMyProfile } from './useMyProfile.ts'
 
 export interface AccountActions {
   data: () => void
@@ -51,16 +55,27 @@ function DevChoice({ identity, onChoose }: { identity: Identity; onChoose: (i: I
   )
 }
 
-/** Who is signed in: their picture, their name (else the email), the email under a name, and how they signed in. */
-function Head({ identity, onChoose }: { identity: Identity; onChoose: (i: Identity | null) => void }) {
+/**
+ * Who is signed in: their picture, their name (the one their projects see, else the provider's, else the email), the
+ * email under a name, and how they signed in. The email is theirs to see here; it is never their name to others.
+ */
+function Head({
+  identity,
+  name,
+  onChoose,
+}: {
+  identity: Identity
+  name: string | null
+  onChoose: (i: Identity | null) => void
+}) {
   const how = signedInWith(identity.provider)
   return (
     <MenuHead>
       <span className="account-who">
         <Avatar identity={identity} />
         <span className="account-names">
-          <span className="account-name">{identity.displayName ?? identity.name}</span>
-          {authMode !== 'dev' && identity.displayName && <span>{identity.name}</span>}
+          <span className="account-name">{name ?? identity.name}</span>
+          {authMode !== 'dev' && name && <span>{identity.name}</span>}
           {authMode !== 'dev' && how && <span>{how}</span>}
         </span>
       </span>
@@ -106,6 +121,10 @@ interface Props {
 export function AccountMenu({ identity, where, actions }: Props) {
   const [open, setOpen] = useState(false)
   const [passkeys, setPasskeys] = useState(false)
+  // The account the sheet was opened for: another account coming in (another tab) closes it, so nothing typed for one
+  // is ever saved for the next (Codex P1 on #388).
+  const [naming, setNaming] = useState<string | null>(null)
+  const mine = useMyProfile(identity)
   const menu = usePopover(open, () => setOpen(false))
   // The item goes with the menu: its button takes the focus first, so a sheet the item opens gives it back there.
   const pick = (run: () => void) => () => {
@@ -130,7 +149,12 @@ export function AccountMenu({ identity, where, actions }: Props) {
       </button>
       {open && (
         <Menu popover={menu} label="Account" className="account-menu">
-          <Head identity={identity} onChoose={actions.chooseDev} />
+          <Head
+            identity={identity}
+            name={mine.profile?.displayName ?? identity.displayName ?? null}
+            onChoose={actions.chooseDev}
+          />
+          {mine.offered && <MenuItem onClick={pick(() => setNaming(accountOf(identity)))}>Your name</MenuItem>}
           <MenuItem className="has-tip" onClick={pick(actions.data)}>
             {DATA_LABEL[where]}
             <Tip label={tip.label} {...(tip.keys ? { keys: tip.keys } : {})} side="bottom" align="end" />
@@ -149,6 +173,10 @@ export function AccountMenu({ identity, where, actions }: Props) {
         </Menu>
       )}
       {passkeys && <PasskeySheet onClose={() => setPasskeys(false)} />}
+      {/* Out of the bar, as the project's sheets are (ProjectName): the bar's own styles never reach the sheet. */}
+      {naming !== null &&
+        naming === accountOf(identity) &&
+        createPortal(<ProfileSheet key={naming} identity={identity} onClose={() => setNaming(null)} />, document.body)}
     </div>
   )
 }
