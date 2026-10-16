@@ -57,7 +57,7 @@ What this does not establish:
 
   **Second repair (CI on `7520df7a`).** With the digest fixed, CI's PostgreSQL job reached the candidate suites, and 65 of 949 tests failed. All were in `conversation-assembly.db.test.ts` (22) and `conversation-fences.db.test.ts` (43). The sealed baseline still held only the checkpoint's subset: 0001–0045, then `0053` and `0063`. Main's persistence code, which those suites call through `readMissionContext`, reads columns that only main's 0046–0057 add, so the database answered `42703`. One example is `decisions.proposed_by_name`, from 0049. The assembler then reported `retry` where `recorded` was expected.
 
-  The baseline now seals main's applied 0046–0057 in migration order, each at main's own bytes. That makes it every applied migration through 0057, with `0053` once, then `0063`: the real order before `0064`'s runtime promotion. The fixture still verifies every entry before it creates a database. No migration file changed.
+  The baseline now seals main's accepted-source migrations 0046–0057 in migration order, each at main's own bytes. These are source files, not a claim about production: the live ledger is at 51, and 0051/0052/0054–0057 were pending at V's census. That makes the baseline every accepted source migration through 0057, with `0053` once, then `0063`: the real source order before `0064`'s runtime promotion. The fixture still verifies every entry before it creates a database. No migration file changed.
 - **Applied migrations.** No applied migration was edited. `0053_runtime_outbox_reconcile.sql` is byte-identical on main and on the checkpoint (SHA-256 `bf403b7e…`), so #256's accepted correction is consumed once and is not duplicated.
 - **Order checked.** Neither CON migration redefines a function that main's 0046–0057 define. Neither of main's amendments A16–A28 touches a schema that A33 replaces (`RuntimeWorkBinding`, `RuntimeServiceBinding`, `RuntimeCommand`, `RuntimeHelloReply.bindings`, `RuntimeReady.unrecovered`).
 - **Generated files** come from one combined source. The OpenAPI, the generated types, the validators and the runtime wire were all produced by `pnpm --filter @sophia/contracts generate`, then `pnpm artifacts:record` was run. None was merged by hand.
@@ -68,6 +68,21 @@ What this does not establish:
   - the fixtures (`fixture-api.ts`, `room.tsx`): the union of both sides' switches;
   - `route.ts` and `ProjectShell.tsx`: the gating above.
 - **Lint fixes.** `useTranscript`'s feed callback joined its `on` object (max-params). The fixture `messagesRead` split out `unreadable` (complexity). No rule was weakened.
+
+## Shared integration slice (FND-B1-SHARED-INTEGRATION, packet v1)
+
+- **C's profile API is in.** C's exact API head `0a21925e` (#386) is merged into this candidate. It carries Luis's open stack (0058–0061, A29–A31) and C's 0062/A32.
+  - Every number is kept: B's 0063/0064/A33 included.
+  - Contracts were regenerated once from the combined source, and artifact identities reproduce unchanged.
+  - The candidate fixture now seals every source migration before 0063 (0001–0062, `0053` once), because CON's readers now call 0062's `actor_label`.
+- **Names.** CON readers name members through `actor_label` for messages, contributors and the last message. A withdrawn message names nobody. CON writers keep `nameActor`'s display name, never the raw token name. An address is therefore never served as a name, legacy rows included.
+  - New real-PostgreSQL regressions are in `packages/persistence/src/conversations.db.test.ts` and `apps/api/src/conversations.db.test.ts`.
+  - The dormant C2 context still quotes raw `author_name`: 0064's compiler and `conversation-assembly.ts`'s renderer, which must change together. That remains a gate before any C2 provider call.
+- **Ask off.** The New conversation form says «Sophia doesn't answer here yet: the question goes to the team.» while «Ask Sophia» is checked and the list's capability says Sophia doesn't answer. The fixture switch `ask=off` serves that; the new spec is `e2e/conversations-ask-off.spec.ts`.
+- **Signed-in browser failures (`e2e/app-auth.spec.ts`), classified from existing evidence:**
+  - Three palette cases pressed `Control+k`. The app binds the palette to ⌘K on a Mac (`src/app/shortcuts.ts`: `onMac ? metaKey : ctrlKey`), so they failed only on macOS. The spec now presses `ControlOrMeta+k`, as `palette-knows.spec.ts` does.
+  - The two Account-button cases time out while the page shows only the splash. Their trace has no Auth or API request at all, just the cold dev-server module load (about 470 requests). That points to first-load timing on a cold server, not an account-isolation fault.
+  - Main's Linux CI passes all of `app-auth`. Both explanations still need confirming in a B browser slot.
 
 ## Remaining obligations
 
