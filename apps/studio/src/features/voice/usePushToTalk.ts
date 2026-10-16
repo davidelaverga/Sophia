@@ -1,5 +1,6 @@
 // Push to talk in the room (docs/plans/push-to-talk.md): listens in the capture phase, so Space held from nowhere is
-// the microphone's before stray typing takes it, and lets go when the key does, or when the window loses focus.
+// the microphone's before stray typing takes it, and lets go when the key does, when the window loses focus, or when
+// the page goes hidden (a phone's app switch, a screen lock), where neither may come (Codex P1 on #381).
 import { useContext, useEffect, useRef, useState } from 'react'
 import { modalOnScreen, ShortcutScope } from '../../app/shortcuts.ts'
 import { pushToTalk } from './push-to-talk.ts'
@@ -49,13 +50,18 @@ export function usePushToTalk(micOn: boolean, setMicrophone: (on: boolean) => Pr
     }
     const down = onKey('down')
     const up = onKey('up')
+    const hidden = () => {
+      if (document.hidden) stop()
+    }
     window.addEventListener('keydown', down, true)
     window.addEventListener('keyup', up, true)
     window.addEventListener('blur', stop)
+    document.addEventListener('visibilitychange', hidden)
     return () => {
       window.removeEventListener('keydown', down, true)
       window.removeEventListener('keyup', up, true)
       window.removeEventListener('blur', stop)
+      document.removeEventListener('visibilitychange', hidden)
       stop()
     }
   }, [enabled])
