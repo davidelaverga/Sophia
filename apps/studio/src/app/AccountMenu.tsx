@@ -154,8 +154,8 @@ export function AccountMenu({ identity, where, actions }: Props) {
           <MenuItem onClick={pick(actions.signOut)}>Sign out</MenuItem>
         </Menu>
       )}
-      {passkeys && <PasskeySheet onClose={() => setPasskeys(false)} />}
-      {/* Over the page, not inside the bar, whose blur would hold a fixed sheet within its own box. */}
+      {/* Both sheets go over the page, not inside the bar, whose blur would hold a fixed sheet within its own box. */}
+      {passkeys && createPortal(<PasskeySheet onClose={() => setPasskeys(false)} />, document.body)}
       {feedback && createPortal(<FeedbackSheet onClose={() => setFeedback(false)} />, document.body)}
     </div>
   )
