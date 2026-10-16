@@ -36,7 +36,7 @@ commits on the branch merge its base forward or touch only this record). 11 file
   - commands, goal-controls, segmented-scale and work (stray typing): 220/220;
   - type-aware lint, typecheck and Prettier are clean.
 
-## Review notes
+## Decisions and changes
 
 - **Codex P1, out-of-sight project** (`ceb89309` tests, `e158073d` fix): a project kept out of sight takes no Space
   (`ShortcutScope`), and «Talking» is said only with the microphone on.
@@ -47,6 +47,10 @@ commits on the branch merge its base forward or touch only this record). 11 file
   - The hook awaits the enable and turns it off again when Space is up by then. A press again before it arrives keeps
     it, and a second check covers that.
   - Push-to-talk: 35/35 over five repeats. Room, dock and device specs: 49/49. Lint and typecheck are clean.
+- **Codex P1, a page hidden while Space is held** (`4fe4ae70` test, `ab7ceef4` fix):
+  - A phone's app switch or a screen lock hides the page, and neither Space's release nor a blur may come.
+  - The hook lets go on `visibilitychange` to hidden too.
+  - Push-to-talk, room dock, header dock and call keys: 43/43.
 
 ## Remaining obligations
 
