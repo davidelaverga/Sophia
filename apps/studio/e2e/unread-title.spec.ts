@@ -16,11 +16,10 @@ test.beforeEach(async ({ page }) => {
     (route) => route.abort(),
   )
   await page.addInitScript(() => {
-    const hidden = () => Reflect.get(window, 'away') === true
-    Object.defineProperty(document, 'hidden', { configurable: true, get: hidden })
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => Reflect.get(window, 'away') === true })
     Object.defineProperty(document, 'visibilityState', {
       configurable: true,
-      get: () => (hidden() ? 'hidden' : 'visible'),
+      get: () => (Reflect.get(window, 'away') === true ? 'hidden' : 'visible'),
     })
   })
 })
