@@ -2,6 +2,9 @@
 
 Goal and attempt: FND-B-UI-FOCUS, attempt 1 (Claude B, coordinator P's packet; same Claude Code session as CON-01 C1)
 Starting worktree/commit: `sophia-home-focus`, branch `fix/home-breakpoint-focus`, from main `f6be9fa7cd7b83ca688878390d474f0f2899bf69`
+Ending commit/tree and changed files:
+- Ending commit: the spec repair is `f374b528876e379c0d9a3e178c8c232fabc98a1b` (tree `b0deaa0cb240a248092d9398e4f7c54bfa2061fb`). This record's own correction is the next commit on the branch; a commit cannot name its own id, so its id and tree are in B's private handback and on #392.
+- Changed files: `apps/studio/e2e/home-phone-needs.spec.ts` (the one case at line 79) and this record. No product file changed.
 
 ## Outcome
 
