@@ -88,3 +88,17 @@ test('@phone · goals · the list fits the width, and a row opens its sheet', as
   await page.getByRole('button', { name: 'Reports export to PDF reliably', exact: true }).click()
   await expect(page.getByRole('dialog', { name: 'Reports export to PDF reliably' })).toBeVisible()
 })
+
+// A goal lists the reports its work made (docs/plans/goal-reports.md): the demo's research task, the rollout's, made its
+// report; the title opens it in the viewer. Without them in the snapshot, no «Reports».
+test('goals · a goal lists the reports its work made, and a title opens it in the viewer', async ({ page }) => {
+  await page.goto('/room.html?demo=1&place=goals&reports=1')
+  await page.getByRole('button', { name: ROLLOUT, exact: true }).click()
+  const reports = page.getByRole('dialog', { name: ROLLOUT }).getByRole('region', { name: 'Reports' })
+  await expect(reports.getByRole('button')).toHaveCount(1)
+  await reports.getByRole('button').click()
+  await expect(page).toHaveURL(/[?&]report=00000000-0000-4000-8000-0000000000b1/)
+  await page.goto('/room.html?demo=1&place=goals')
+  await page.getByRole('button', { name: ROLLOUT, exact: true }).click()
+  await expect(page.getByRole('dialog', { name: ROLLOUT }).getByRole('region', { name: 'Reports' })).toHaveCount(0)
+})
