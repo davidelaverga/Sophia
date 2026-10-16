@@ -36,16 +36,17 @@ describe('«You’re muted» (muted-speech.md)', () => {
   })
 })
 
-describe('listening while muted, on the right microphone (Codex P2s on #357)', () => {
-  const recorder = () => {
-    const heard: string[] = []
-    const listen = (device: string | undefined) => {
-      heard.push(`on:${device ?? 'default'}`)
-      return () => heard.push(`off:${device ?? 'default'}`)
-    }
-    return { heard, listen }
+/** What the watch opened and let go, in order. */
+const recorder = () => {
+  const heard: string[] = []
+  const listen = (device: string | undefined) => {
+    heard.push(`on:${device ?? 'default'}`)
+    return () => heard.push(`off:${device ?? 'default'}`)
   }
+  return { heard, listen }
+}
 
+describe('listening while muted, on the right microphone (Codex P2s on #357)', () => {
   it('a call that begins muted listens from the start', () => {
     const r = recorder()
     mutedWatch(r.listen).set(true, 'mic-a')

@@ -364,6 +364,8 @@ function useConversation(connection: { current: RoomConnection | null }, silence
     typedChat.interrupted()
     live.interrupted()
     reacting.clear()
+    // The hint is its call's: out of it, nothing is muted (Codex P2 on #357).
+    muted.clear()
   }
   return {
     ...typedChat,
@@ -392,7 +394,11 @@ function useMutedHint() {
     setShown(true)
     timer.current = setTimeout(() => setShown(false), MUTED_HINT_MS)
   }
-  return { shown, heard }
+  const clear = () => {
+    clearTimeout(timer.current)
+    setShown(false)
+  }
+  return { shown, heard, clear }
 }
 
 /** What the conversation gives the room: the chat, the notices, the captions, the reactions, and text mode. */

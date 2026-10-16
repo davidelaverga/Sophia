@@ -34,7 +34,7 @@ import { chosenBackground, type BackgroundId } from './background-preference.ts'
 import { backgroundPicture } from './background-pictures.ts'
 import { cameraBackground } from './camera-background.ts'
 import { deviceChange } from './device-change.ts'
-import { hearWhileMuted } from './muted-speech.ts'
+import { hearWhileMuted, mutedWatch } from './muted-speech.ts'
 import { chosenDevices, deviceName, type DeviceKind, type MediaDevice } from './device-preference.ts'
 import { followingSignal } from './following-signal.ts'
 import { VISION } from '../../app/vision.ts'
@@ -350,21 +350,23 @@ type DeviceControls = Pick<
  * (muted-speech.md): on any change of the microphone, a host's mute included, and never once the call is over.
  */
 function mutedMicrophone(room: Room, onSpeaking: () => void): () => void {
-  let stop: (() => void) | null = null
-  const sync = () => {
-    const off = room.state === ConnectionState.Connected && !room.localParticipant.isMicrophoneEnabled
-    if (off && !stop) stop = hearWhileMuted(room.getActiveDevice('audioinput'), onSpeaking)
-    if (!off && stop) {
-      stop()
-      stop = null
-    }
-  }
-  for (const event of [RoomEvent.TrackMuted, RoomEvent.TrackUnmuted, RoomEvent.LocalTrackPublished])
+  const watch = mutedWatch((deviceId) => hearWhileMuted(deviceId, onSpeaking))
+  const sync = () =>
+    watch.set(
+      room.state === ConnectionState.Connected && !room.localParticipant.isMicrophoneEnabled,
+      room.getActiveDevice('audioinput'),
+    )
+  // A switched microphone is a new one to listen on; a call that begins muted listens from the start (Codex on #357).
+  for (const event of [
+    RoomEvent.TrackMuted,
+    RoomEvent.TrackUnmuted,
+    RoomEvent.LocalTrackPublished,
+    RoomEvent.ActiveDeviceChanged,
+    RoomEvent.Reconnected,
+  ])
     room.on(event, sync)
-  room.on(RoomEvent.Disconnected, () => {
-    stop?.()
-    stop = null
-  })
+  room.on(RoomEvent.Disconnected, watch.end)
+  sync()
   return sync
 }
 
