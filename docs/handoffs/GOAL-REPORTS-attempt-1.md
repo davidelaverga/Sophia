@@ -38,6 +38,11 @@ commits on the branch merge its base forward or touch only this record). 10 file
 - **The limit is the snapshot's 50 tasks.** The plan says so.
 - **The fixture's `reports=1`** puts the research task and the report's current version in the snapshot, as the API
   serves them.
+- **Codex P1 on #414, after the ending commit: the report opened under the sheet.** The goal's modal sheet (z-index 50)
+  stayed over the report pane (12), and the check read only the address.
+  - The check came first (`ad34be8f`): the sheet gone, the report's middle its own. It failed.
+  - The fix (`1361bd3d`): a report's title closes the sheet first, then opens the report.
+  - `goals-overview`, `goal-controls` and `report-origin`: 16/16.
 
 ## Remaining obligations
 
