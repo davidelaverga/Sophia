@@ -15,9 +15,11 @@
       eligible;
     - `open`: proposals made in the window and still open;
     - `work`: tasks (jobs) with any `native_task.*` event in the window, with their state now;
-    - `made`: a report's current (stable) version, when its task's result arrived in the window and its source is
-      still ready and eligible. A version since superseded is not listed. `askedBy` is who admitted the task, read
-      only from an event the member may read; otherwise null (Codex on #391).
+    - `made`: a report reached through the window, by its task's result or a settled rendition
+      (`artifact.rendition_ready`), at its current (stable) version, whichever task made it, its source ready and
+      eligible. A superseded version is never listed, and a report whose current version is a rendition still is.
+      `askedBy` is who admitted the current version's task, else the task the window reached, read only from events
+      the member may read; otherwise null (Codex on #391).
   - **Withdrawals:** a record withdrawn, superseded or made unreadable since is in no line, and so in no count. The
     Studio counts lines.
   - **Private events:** an event private to another person (`visibility_owner`) is never read.
@@ -85,7 +87,7 @@ rights:
 
 ## Checks
 
-- **`updates.db.test.ts`** (real API on PostgreSQL), 7 cases:
+- **`updates.db.test.ts`** (real API on PostgreSQL), 8 cases:
   - **current records:** every section, with display names and no address;
   - **access:** a viewer reads; an outsider and a removed member get 403;
   - **the shown bound:** seen marks only what was shown; an event after it stays new; a poll acknowledges nothing; a
@@ -95,6 +97,8 @@ rights:
     person's private event is not read, and its owner reads it;
   - **versions:** an amended report lists only its current version; a private admitting event hides who asked, and
     their name;
+  - **renditions:** a settled rendition keeps the report listed at its current version with its asker; a
+    rendition-only window lists its newest version;
   - **archived:** an archived project still reads, and the mark is per member;
   - **Needs:** a work-board decision stays in Needs after seen.
 - **`readiness.db.test.ts`:** not ready without 0066.

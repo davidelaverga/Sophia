@@ -149,6 +149,43 @@ async function made(seed: SeededProject, asker: string, title: string, amends?: 
   }
 }
 
+/**
+ * A rendition settled (0032, 0040): a renderer's version supersedes the report's current one, becomes its stable
+ * version, and `artifact.rendition_ready` names the artifact, from the service (no member actor).
+ */
+async function rendition(seed: SeededProject, artifact: string, prior: string, versionNumber: number) {
+  const c = new pg.Client({ connectionString: db.ownerUrl })
+  await c.connect()
+  try {
+    const job = await row<{ id: string }>(
+      c,
+      `INSERT INTO sophia.jobs(project_id,kind,state) VALUES($1,'render','succeeded') RETURNING id`,
+      [seed.projectId],
+    )
+    const source = await row<{ id: string; sha256: string }>(
+      c,
+      `SELECT (s).id, (s).sha256 FROM (SELECT sophia.put_text_source($1,$2,'application/pdf',$3) AS s) x`,
+      [seed.projectId, randomUUID(), `pdf ${String(versionNumber)}`],
+    )
+    const version = await row<{ id: string }>(
+      c,
+      `INSERT INTO sophia.artifact_versions(project_id,artifact_id,parent_id,source_id,source_hash,goal_id,goal_revision,
+         authority_epoch,state,version_number,job_id)
+       VALUES($1,$2,$3,$4,$5,$6,1,1,'stable',$7,$8) RETURNING id`,
+      [seed.projectId, artifact, prior, source.id, source.sha256, seed.goalId, versionNumber, job.id],
+    )
+    await c.query(`UPDATE sophia.artifact_versions SET state='superseded' WHERE id=$1`, [prior])
+    await c.query(`UPDATE sophia.artifacts SET stable_version_id=$2 WHERE id=$1`, [artifact, version.id])
+    await c.query(
+      `SELECT sophia.emit_project_event($1,'artifact.rendition_ready','artifact',$2,$3,'artifact.rendition_ready')`,
+      [seed.projectId, artifact, versionNumber],
+    )
+    return version.id
+  } finally {
+    await c.end()
+  }
+}
+
 before(async () => {
   db = await createTestDatabase()
   pool = createPool(db.apiUrl, { max: 4 })
@@ -333,6 +370,27 @@ describe('what changed since a member last looked (A34)', () => {
     )
     assert.equal(hidden.names[asker], undefined)
     assert.equal((await updatesOf(editor, seed.projectId)).made[0]?.askedBy, asker)
+  })
+
+  it('lists a report whose rendition settled at its current version, with who asked for the report', async () => {
+    const [admin, asker] = [randomUUID(), randomUUID()]
+    const seed = await seedProject(db.ownerUrl, { admin, editors: [asker] })
+    const report = await made(seed, asker, 'Venue study')
+    const pdf = await rendition(seed, report.artifact, report.version, 2)
+    const u = await updatesOf(admin, seed.projectId)
+    assert.deepEqual(
+      u.made.map((m) => [m.artifactId, m.artifactVersionId, m.versionNumber, m.askedBy]),
+      [[report.artifact, pdf, 2, asker]],
+    )
+    // A window holding only a later rendition still lists the report, at its newest version; the renderer asked for
+    // nothing, and the asking event is not in this window.
+    assert.equal(await markSeen(admin, seed.projectId, u.toSequence), 204)
+    const later = await rendition(seed, report.artifact, pdf, 3)
+    const next = await updatesOf(admin, seed.projectId)
+    assert.deepEqual(
+      next.made.map((m) => [m.artifactVersionId, m.versionNumber, m.askedBy]),
+      [[later, 3, null]],
+    )
   })
 
   it('still reads an archived project to its members, who can mark it seen; the mark is theirs alone', async () => {

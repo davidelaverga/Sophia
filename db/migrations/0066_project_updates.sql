@@ -6,7 +6,8 @@
 -- - project_updates reads a bounded window: the events after the member's mark, up to an upper bound the server pins
 --   (toSequence: at most 500 events on). Events after it stay new. Each line is a current record an event in the
 --   window names: a decision accepted, a note kept (still current, its text still readable), a proposal still open, a
---   report's current version made (a version since superseded is not listed), a task that moved. What has since been withdrawn, superseded or made unreadable is not listed,
+--   report's current version (reached through its task's result or a settled rendition; a version since superseded
+--   is not listed), a task that moved. What has since been withdrawn, superseded or made unreadable is not listed,
 --   so it is in no count. An event private to someone else (visibility_owner) is never read. People are named by
 --   actor_label (0062): their display name, never an address.
 -- 0001–0065 are not edited.
@@ -18,6 +19,15 @@ CREATE TABLE sophia.project_seen (
  PRIMARY KEY(project_id,actor_id)
 );
 ALTER TABLE sophia.project_seen ENABLE ROW LEVEL SECURITY;
+
+-- Who asked for a task: the actor of its admitting event, when the reader may read that event; else null.
+CREATE FUNCTION sophia.update_asker(p_project uuid, p_job uuid, p_reader uuid) RETURNS uuid LANGUAGE sql STABLE
+SET search_path=pg_catalog,sophia AS $$
+ SELECT x.actor_id FROM sophia.project_events x
+  WHERE x.project_id=p_project AND x.entity_type='job' AND x.entity_id=p_job AND x.type='native_task.admitted'
+    AND (x.visibility_owner IS NULL OR x.visibility_owner=p_reader)
+  ORDER BY x.sequence LIMIT 1 $$;
+REVOKE ALL ON FUNCTION sophia.update_asker(uuid,uuid,uuid) FROM PUBLIC;
 
 -- readProjectUpdates: the window after the member's mark, up to toSequence, as current records; 42501 for anyone who
 -- isn't an active member. `more` says events lie after toSequence (the next window, once this one is seen).
@@ -53,15 +63,22 @@ BEGIN
    SELECT DISTINCT ON (j.id) j.id, j.kind, j.state
      FROM win JOIN sophia.jobs j ON j.project_id=p_project AND j.id=win.entity_id
     WHERE win.entity_type='job' AND win.type LIKE 'native_task.%'
+ ), touched AS (
+   -- A report reached through the window: its task's result (the version that task made), or a rendition settled
+   -- (0032, 0040: it names the artifact; its version is the renderer's).
+   SELECT v.artifact_id, v.job_id FROM win JOIN sophia.artifact_versions v ON v.project_id=p_project AND v.job_id=win.entity_id
+    WHERE win.type='native_task.result_ready'
+   UNION ALL
+   SELECT win.entity_id, NULL::uuid FROM win WHERE win.type='artifact.rendition_ready' AND win.entity_type='artifact'
  ), made AS (
-   SELECT DISTINCT ON (v.id) v.id, v.artifact_id, ar.title, v.version_number, v.created_at,
-          (SELECT x.actor_id FROM sophia.project_events x WHERE x.project_id=p_project AND x.entity_type='job'
-             AND x.entity_id=v.job_id AND x.type='native_task.admitted'
-             AND (x.visibility_owner IS NULL OR x.visibility_owner=a) ORDER BY x.sequence LIMIT 1) AS asked_by
-     FROM win JOIN sophia.artifact_versions v ON v.project_id=p_project AND v.job_id=win.entity_id
-     JOIN sophia.artifacts ar ON ar.project_id=v.project_id AND ar.id=v.artifact_id
-     JOIN sophia.source_objects s ON s.project_id=v.project_id AND s.id=v.source_id AND s.state='ready' AND s.eligible
-    WHERE win.type='native_task.result_ready' AND v.version_number IS NOT NULL AND ar.stable_version_id=v.id
+   -- Its current version, whichever task made it (an amendment or a rendition supersedes the one before).
+   SELECT DISTINCT ON (ar.id) sv.id, ar.id AS artifact_id, ar.title, sv.version_number, sv.created_at,
+          coalesce(sophia.update_asker(p_project, sv.job_id, a), sophia.update_asker(p_project, t.job_id, a)) AS asked_by
+     FROM touched t JOIN sophia.artifacts ar ON ar.project_id=p_project AND ar.id=t.artifact_id
+     JOIN sophia.artifact_versions sv ON sv.project_id=ar.project_id AND sv.id=ar.stable_version_id
+     JOIN sophia.source_objects s ON s.project_id=sv.project_id AND s.id=sv.source_id AND s.state='ready' AND s.eligible
+    WHERE sv.version_number IS NOT NULL
+    ORDER BY ar.id, t.job_id NULLS LAST
  ), people AS (
    SELECT DISTINCT x.actor FROM (
      SELECT proposed_by AS actor FROM decided UNION ALL SELECT decided_by FROM decided
