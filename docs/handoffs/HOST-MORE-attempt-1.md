@@ -52,3 +52,17 @@ commits on the branch merge its base forward or touch only this record). 22 file
 - #368 merges first.
 - The screen stop in a real call (LiveKit's remote mute reaching the local publication) is covered by the fixture
   only. A real-stack check belongs to the next real-stack video pass.
+
+## Later change: #351's Codex P2s (same panel, same routes)
+
+- **`removedJustNow`:** this admin's `room.host_removed` for the target in the last ten minutes. The remove route
+  answers 204 when a retry finds the person gone.
+- **`PeoplePanel`:**
+  - `Pending` shows `SLOW_NOTE` past six seconds;
+  - a removal moves the focus to the list.
+- **`--corner-room`:** 144 px for three toggles (156 px on touch).
+- **Evidence:**
+  - tests first (`3a039a2e`): host-controls' slow note, the focus after a removal and the corner's room, plus
+    `persistence.db.test.ts` «a removal just recorded»;
+  - host-controls, room-people, room and dock-header specs: 56/56;
+  - typecheck and lint are clean.
