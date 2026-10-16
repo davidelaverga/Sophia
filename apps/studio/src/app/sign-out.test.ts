@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { draftKey, forgetDrafts } from '../features/personal/draft.ts'
-import { endSession, signOutForgetting } from './sign-out.ts'
+import { endSession, NOT_EVERYWHERE, signedOutAfter, signOutForgetting } from './sign-out.ts'
 
 /** A browser's localStorage, as forgetDrafts lists it. */
 function storage() {
@@ -51,5 +51,24 @@ describe('ending the session (sign-out-scope.md)', () => {
     await endSession(auth, false)
     await endSession(auth, true)
     assert.deepEqual(asked, [{ scope: 'local' }, { scope: 'global' }])
+  })
+})
+
+describe('a sign-out everywhere that only signs out here (Codex P1 on #410)', () => {
+  // supabase-js resolves a failed logout (a 5xx, the network) with `{ error }`, this device's session removed anyway.
+  const failing = { signOut: () => Promise.resolve({ error: new Error('503') }) }
+  const fine = { signOut: () => Promise.resolve({ error: null }) }
+
+  it('says when every device was asked and only this one is out', async () => {
+    assert.equal(await endSession(failing, true), 'here-only')
+    assert.equal(await endSession(fine, true), 'ended')
+    // This device's own sign-out has nothing more to say: its session is gone either way.
+    assert.equal(await endSession(failing, false), 'ended')
+  })
+
+  it('the sign-in says the other devices may still be signed in', () => {
+    assert.deepEqual(signedOutAfter('ended'), { status: 'signed_out' })
+    assert.deepEqual(signedOutAfter('here-only'), { status: 'signed_out', notice: NOT_EVERYWHERE })
+    assert.match(NOT_EVERYWHERE, /other devices may still be signed in/)
   })
 })

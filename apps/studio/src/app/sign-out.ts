@@ -22,3 +22,10 @@ export async function endSession(
 ): Promise<void> {
   await auth.signOut({ scope: everywhere ? 'global' : 'local' })
 }
+
+/** What a sign-out left (Codex P1 on #410). Stub: nothing said yet. */
+export type Ended = 'ended' | 'here-only'
+
+export const NOT_EVERYWHERE = ''
+
+export const signedOutAfter = (_ended: Ended): { status: 'signed_out'; notice?: string } => ({ status: 'signed_out' })
