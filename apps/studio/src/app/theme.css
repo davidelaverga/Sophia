@@ -2159,6 +2159,19 @@ img.avatar {
 }
 /* The message bar: the words and their Send in one field, as a chat has it. Built like the dock (5 px around 36 px
    controls), so one line of text makes it the dock's height. */
+/* How full the bar is, on its own line over it, once it nears the most one message holds (room-message-length.md):
+   Personal's count, in the Studio's third ink; at the most and past it, warm. */
+.bar-count {
+  margin: 0 6px;
+  text-align: right;
+  color: var(--text-3);
+  font: var(--type-label) / var(--lh-small) var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bar-count.full {
+  color: var(--warm);
+}
 .message-bar {
   display: flex;
   align-items: flex-end;

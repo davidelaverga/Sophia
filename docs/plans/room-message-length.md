@@ -12,7 +12,8 @@
   - **to the room:** 4000 characters, as the API counts them (A05, `Contribution.text`);
   - **to Sophia:** 2000 UTF-16 units, the typed turn's chat packet (`room-chat.ts`), which the bridge refuses past
     that.
-- **A count beside Send,** from nine tenths of the most on, in Personal's words:
+- **A count on its own line over the bar** (beside Send it squeezed the field in the chat's narrow panel), from nine
+  tenths of the most on, in Personal's words:
   - «3,612 / 4,000»;
   - at the most, «· the most one message holds»;
   - past it, «· 100 over».
