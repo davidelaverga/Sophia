@@ -7,9 +7,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-e2e`, branch `account/se
 Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`); no API.
 Runtime unit: Luis's Windows host; CI as the run on record.
 Existing authority: Luis 2026-10-16, «Seguimos con quality of life»; merges on green with no open P1.
-Ending commit/tree: `58543262b631` (tree `7e4a16fd4d9f`), the last commit of `account/settings`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 5 files changed against
-`origin/main` at that commit: `e2e/account-settings.spec.ts`, `src/app/AccountMenu.tsx`, `src/app/SettingsSheet.tsx`, `src/app/theme.css`, `docs/plans/account-settings.md`. The review notes below name the commit of each later change.
+Ending commit/tree: `6e64ad7dd795` (tree `ab6d7f17ed6c`), the last commit of `account/settings`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 6 files changed against
+`origin/main` at that commit: `e2e/account-settings.spec.ts`, `src/app/AccountMenu.tsx`, `src/app/SettingsSheet.tsx`, `src/app/theme.css`, `docs/handoffs/ACCOUNT-SETTINGS-attempt-1.md`, `docs/plans/account-settings.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -20,9 +20,17 @@ commits on the branch merge its base forward or touch only this record). 5 files
 - Plan: `docs/plans/account-settings.md`.
 - Specs written first (the commit of the tests).
 - **Locally:** typecheck, type-aware lint and Prettier are clean.
-- **Not run locally yet:** the Playwright specs. The machine guard refused them while a heavy app was open (AION2), so
-  the PR opens as a draft and CI runs them. The local run and the capture follow before it is marked ready.
+- **Run locally once the machine was free** (through `safe-run.ps1`, two workers):
+  - `account-settings`, `account-menu`, `menu-scale`, `press-answers` and `room-basics`: 39 passed.
+- **The capture caught what the specs didn't:**
+  - the checkboxes took the global input's field size (90 px wide), and their words were cut into columns;
+  - the email ran into «Signed in with an email code».
+- **The fix:**
+  - A check for both was written first and failed (90 px).
+  - The fix takes Invite's checkbox measures and the account menu head's lines.
+  - Then the settings and menu specs passed 30/30 with `--repeat-each=2`.
+  - Desktop and phone captures are clean; the phone has no sideways scroll at 390 px.
 
 ## Remaining obligations
 
-- The local e2e run and the capture, then ready for review.
+- None: the local run and the captures are done, and the PR is ready for review.
