@@ -94,6 +94,7 @@ export const SUMMARY: Record<string, string> = {
   'room.input_floor_released': 'Input to Sophia released',
   'project.member': 'Member joined',
   'project.member_left': 'Member left',
+  'project.member_removed': 'Member removed',
   'project.member_role': 'Role changed',
   'project.created': 'Project created',
   'room.host_muted': 'Muted in the call by an admin',

@@ -16,6 +16,7 @@ import type {
   ProjectMembers,
   MemberRoleSet,
   ActivityPage,
+  MemberRemoved,
   Receipt,
   RoomToken,
   RoomTokenRequest,
@@ -33,6 +34,7 @@ import {
   parseProjectMembers,
   parseMemberRoleSet,
   parseActivityPage,
+  parseMemberRemoved,
   parseReceipt,
   parseRoomToken,
   parseSnapshot,
@@ -181,6 +183,10 @@ export function getProjectActivity(token: string, projectId: string, before: str
   }
   return inTime(READ_TIMEOUT_MS, read)
 }
+
+/** removeMember (A29): admins only, never oneself; idempotent per key, so a retry after an unknown outcome is the same. */
+export const removeMember = (token: string, projectId: string, actorId: string, key: string): Promise<MemberRemoved> =>
+  postIdempotent(token, `/api/v1/projects/${projectId}/members/${actorId}/removal`, key, {}, parseMemberRemoved)
 
 /** changeMemberRole (A27): admins only; a project keeps an admin; a role already held changes nothing. */
 export async function changeMemberRole(
