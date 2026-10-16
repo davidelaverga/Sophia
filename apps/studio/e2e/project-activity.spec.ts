@@ -61,8 +61,15 @@ test('activity · a slow read says it is reading, then why it takes long (Codex 
   await open(page, '?hold=activity')
   const status = sheet(page).getByRole('status')
   await expect(status).toHaveText('Reading the activity…')
-  await page.clock.runFor(6500)
-  await expect(status).toHaveText(
-    'Taking longer than usual. After a quiet spell, the first answer can take up to a minute.',
-  )
+  // The slow timer starts in an effect after the read's render: on a busy runner a single runFor came before it, and
+  // the note never came (CI, #399's and #407's runs). The clock moves on a second at a time until it does.
+  await expect
+    .poll(
+      async () => {
+        await page.clock.runFor(1000)
+        return status.textContent()
+      },
+      { timeout: 20_000 },
+    )
+    .toBe('Taking longer than usual. After a quiet spell, the first answer can take up to a minute.')
 })
