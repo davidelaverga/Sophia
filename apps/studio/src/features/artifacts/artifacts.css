@@ -304,6 +304,35 @@
   color: var(--text-2);
   font-size: 13px;
 }
+/* What it was made for (docs/plans/report-origin.md): the goal, a press, then what was asked, on one line each. */
+.report-origin {
+  display: grid;
+  gap: 4px;
+  max-width: var(--measure);
+  margin: 0 0 16px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+.report-origin-goal,
+.report-origin-asked {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+.report-origin-asked {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.report-origin-label {
+  margin-right: 8px;
+  color: var(--text-3);
+}
+.report-origin-goal .report-origin-label {
+  margin-right: 0;
+}
 /* The version's limitations above its text: under an amber rule, as the page sets a report's limitations, never a
    tinted card. */
 .report-limits {

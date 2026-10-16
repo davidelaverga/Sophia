@@ -12,6 +12,7 @@ describe('event words in the work pulse', () => {
     assert.equal(summaryLabel('project.member_role', 'project.member_role_changed'), 'Role changed')
     // Who did what (project-activity.md): a creation and an admin's acts in the call are said as such.
     assert.equal(summaryLabel('project.created', 'project.created'), 'Project created')
+    assert.equal(summaryLabel('project.member_removed', 'project.member_removed'), 'Member removed')
     assert.equal(summaryLabel('room.host_removed', 'room.host_removed'), 'Taken out of the call by an admin')
     assert.equal(summaryLabel('project.renamed', 'project.renamed'), 'Project renamed')
   })
