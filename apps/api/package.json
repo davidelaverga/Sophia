@@ -12,6 +12,9 @@
     "dev": "node --watch src/server.ts"
   },
   "dependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "@deepseek-ai/dsh-llm": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-llm-pi-ai": "0.2.0-rc.2",
     "@sophia/contracts": "workspace:*",
     "@sophia/coordination": "workspace:*",
     "@sophia/design": "workspace:*",

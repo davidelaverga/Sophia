@@ -2,8 +2,7 @@
 import { checkRoleSafety, createPool } from '@sophia/persistence'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
-import type { Companion } from './companion.ts'
-import { rehearsalCompanion } from './companion-rehearsal.ts'
+import { personalCompanionFrom } from './companion-config.ts'
 import { parseOrigins } from './cors.ts'
 import type { InviteConfig } from './invite-token.ts'
 import { byteStoreFromEnv } from './byte-store.ts'
@@ -55,16 +54,10 @@ function mediaBridgeHash(): Buffer | undefined {
 }
 const mediaBridgeTokenSha256 = mediaBridgeHash()
 /**
- * Who answers in the personal space: SOPHIA_COMPANION=rehearse runs the keyless scripted rehearsal (development only;
- * a production start refuses it). Unset, there is no companion yet and personal messages are refused.
+ * Who answers in the personal space (companion-config.ts): unset, no one (personal messages are refused); rehearse, the
+ * keyless scripted rehearsal (development only); live, the live companion with its complete settings, or no start.
  */
-function personalCompanion(): Companion | null {
-  const mode = optional('SOPHIA_COMPANION')
-  if (!mode) return null
-  if (mode !== 'rehearse') throw new Error('SOPHIA_COMPANION is rehearse or unset')
-  if (process.env.NODE_ENV === 'production') throw new Error('The rehearsal companion is for development only')
-  return rehearsalCompanion()
-}
+const personal = await personalCompanionFrom(process.env, pool)
 /**
  * Saved project conversations (CON-01): SOPHIA_CONVERSATIONS=on serves A33 and makes /ready require migration 0063.
  * Unset or off, neither: nothing else changes. Which projects keep text is still each project's own setting (0063).
@@ -84,7 +77,7 @@ const app = buildApp({
   // The report byte store (SMC-M03, D5): without it the API still starts; stored report bytes answer 503 and inline
   // texts are still read. The retired REST settings stop the start (byteStoreFromEnv).
   byteStore: byteStoreFromEnv(process.env),
-  companion: personalCompanion(),
+  companion: personal.companion,
   conversations: conversationsOn(),
   ...(mediaBridgeTokenSha256 ? { mediaBridgeTokenSha256 } : {}),
   ...(livekitUrl
@@ -100,6 +93,7 @@ const app = buildApp({
 
 const shutdown = async () => {
   await app.close()
+  await personal.dispose()
   await pool.end()
   process.exit(0)
 }
