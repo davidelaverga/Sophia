@@ -4,6 +4,8 @@
 import type { Goal } from '@sophia/contracts'
 import { Button } from '@sophia/ui'
 import { Sheet } from '../../app/Sheet.tsx'
+import { CopyLink } from '../resources/CopyLink.tsx'
+import { addressOf, GOAL } from '../resources/link.ts'
 import { GoalNotes, type NotesFor } from './GoalNotes.tsx'
 import { GoalTargetSection } from './GoalTargets.tsx'
 import { Asks } from './GoalParts.tsx'
@@ -48,7 +50,13 @@ export function GoalSheet({ goal, plan, notes, onClose, onOpenAsk, onOpenTasks }
   const way = wayLine(plan?.glance)
   const asks = (plan?.asks ?? []).map((ask) => ({ ask, goal }))
   return (
-    <Sheet id={`goal-sheet-${goal.id}`} title={goal.title} onClose={onClose}>
+    <Sheet
+      id={`goal-sheet-${goal.id}`}
+      title={goal.title}
+      onClose={onClose}
+      // Keyed by the goal: a copy half done, or just said, stays with its sheet (as Resources').
+      actions={<CopyLink key={goal.id} href={() => addressOf(goal.id, GOAL)} />}
+    >
       <div className="goal-sheet" data-health={health}>
         <p className="goal-sheet-health">
           <span className="goal-health">{HEALTH_LABEL[health]}</span>

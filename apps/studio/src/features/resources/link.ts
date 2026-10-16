@@ -16,6 +16,10 @@ export const REQUEST = '#request-'
 
 export const linkHash = (id: string, prefix = RESOURCE) => `${prefix}${encodeURIComponent(id)}`
 
+/** The address that opens one thing on this page: its path and query, then the thing's anchor (work-copy-links.md). */
+export const addressOf = (id: string, prefix: string) =>
+  `${window.location.origin}${window.location.pathname}${window.location.search}${linkHash(id, prefix)}`
+
 /**
  * A request named with its resource, when known: two resources may hold the same request id (A13 bounds it only by
  * length), so the address carries both, `<resource>/<request>`, each part encoded (Codex on #245). A bare request id
