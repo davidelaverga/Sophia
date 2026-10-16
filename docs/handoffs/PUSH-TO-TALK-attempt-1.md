@@ -51,3 +51,8 @@ commits on the branch merge its base forward or touch only this record). 11 file
 ## Remaining obligations
 
 - None.
+
+## Next bounded action
+
+- Luis: merge on green with no open P1.
+- Source IDs consulted: none from the source register; the work read this repository only.
