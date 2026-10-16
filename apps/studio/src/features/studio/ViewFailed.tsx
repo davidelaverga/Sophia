@@ -4,6 +4,7 @@
 // What it holds is marked (`data-view-boundary`, a box that draws nothing: display contents), so its reach can be read.
 import { Component, type ReactNode } from 'react'
 import { reportCrash } from '../../app/crash-report.ts'
+import { VIEW_FAILED } from './view-failed-view.ts'
 
 export class ViewFailed extends Component<{ children: ReactNode }, { failed: boolean }> {
   override state = { failed: false }
@@ -25,16 +26,14 @@ export class ViewFailed extends Component<{ children: ReactNode }, { failed: boo
       )
     return (
       <div className="view-failed" role="alert">
-        <p className="view-failed-title">This view couldn’t be drawn.</p>
-        <p className="view-failed-note">
-          Something in it didn’t draw as it should. The rest of the project is still here.
-        </p>
+        <p className="view-failed-title">{VIEW_FAILED.title}</p>
+        <p className="view-failed-note">{VIEW_FAILED.note}</p>
         <div className="view-failed-acts">
           <button type="button" className="pill" onClick={() => this.setState({ failed: false })}>
-            Try again
+            {VIEW_FAILED.again}
           </button>
           <button type="button" className="text-button" onClick={() => window.location.reload()}>
-            Load the page again
+            {VIEW_FAILED.reload}
           </button>
         </div>
       </div>
