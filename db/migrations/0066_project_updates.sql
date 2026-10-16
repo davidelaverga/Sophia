@@ -6,7 +6,7 @@
 -- - project_updates reads a bounded window: the events after the member's mark, up to an upper bound the server pins
 --   (toSequence: at most 500 events on). Events after it stay new. Each line is a current record an event in the
 --   window names: a decision accepted, a note kept (still current, its text still readable), a proposal still open, a
---   report version made, a task that moved. What has since been withdrawn, superseded or made unreadable is not listed,
+--   report's current version made (a version since superseded is not listed), a task that moved. What has since been withdrawn, superseded or made unreadable is not listed,
 --   so it is in no count. An event private to someone else (visibility_owner) is never read. People are named by
 --   actor_label (0062): their display name, never an address.
 -- 0001–0065 are not edited.
@@ -56,11 +56,12 @@ BEGIN
  ), made AS (
    SELECT DISTINCT ON (v.id) v.id, v.artifact_id, ar.title, v.version_number, v.created_at,
           (SELECT x.actor_id FROM sophia.project_events x WHERE x.project_id=p_project AND x.entity_type='job'
-             AND x.entity_id=v.job_id AND x.type='native_task.admitted' ORDER BY x.sequence LIMIT 1) AS asked_by
+             AND x.entity_id=v.job_id AND x.type='native_task.admitted'
+             AND (x.visibility_owner IS NULL OR x.visibility_owner=a) ORDER BY x.sequence LIMIT 1) AS asked_by
      FROM win JOIN sophia.artifact_versions v ON v.project_id=p_project AND v.job_id=win.entity_id
      JOIN sophia.artifacts ar ON ar.project_id=v.project_id AND ar.id=v.artifact_id
      JOIN sophia.source_objects s ON s.project_id=v.project_id AND s.id=v.source_id AND s.state='ready' AND s.eligible
-    WHERE win.type='native_task.result_ready' AND v.version_number IS NOT NULL
+    WHERE win.type='native_task.result_ready' AND v.version_number IS NOT NULL AND ar.stable_version_id=v.id
  ), people AS (
    SELECT DISTINCT x.actor FROM (
      SELECT proposed_by AS actor FROM decided UNION ALL SELECT decided_by FROM decided

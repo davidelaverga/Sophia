@@ -101,7 +101,7 @@ async function row<T extends pg.QueryResultRow>(c: pg.Client, sql: string, param
 }
 
 /** A report version a task made, with its events as the runtime emits them (admitted by `asker`, then its result). */
-async function made(seed: SeededProject, asker: string, title: string) {
+async function made(seed: SeededProject, asker: string, title: string, amends?: { artifact: string; version: string }) {
   const c = new pg.Client({ connectionString: db.ownerUrl })
   await c.connect()
   try {
@@ -111,11 +111,13 @@ async function made(seed: SeededProject, asker: string, title: string) {
       `INSERT INTO sophia.jobs(project_id,kind,state) VALUES($1,'research','succeeded') RETURNING id`,
       [seed.projectId],
     )
-    const artifact = await row<{ id: string }>(
-      c,
-      `INSERT INTO sophia.artifacts(project_id,title,format) VALUES($1,$2,'markdown') RETURNING id`,
-      [seed.projectId, title],
-    )
+    const artifact = amends
+      ? { id: amends.artifact }
+      : await row<{ id: string }>(
+          c,
+          `INSERT INTO sophia.artifacts(project_id,title,format) VALUES($1,$2,'markdown') RETURNING id`,
+          [seed.projectId, title],
+        )
     const source = await row<{ id: string; sha256: string }>(
       c,
       `SELECT (s).id, (s).sha256 FROM (SELECT sophia.put_text_source($1,$2,'text/markdown',$3) AS s) x`,
@@ -125,9 +127,12 @@ async function made(seed: SeededProject, asker: string, title: string) {
       c,
       `INSERT INTO sophia.artifact_versions(project_id,artifact_id,source_id,source_hash,goal_id,goal_revision,
          authority_epoch,state,version_number,job_id)
-       VALUES($1,$2,$3,$4,$5,1,1,'stable',1,$6) RETURNING id`,
-      [seed.projectId, artifact.id, source.id, source.sha256, seed.goalId, job.id],
+       VALUES($1,$2,$3,$4,$5,1,1,'stable',$7,$6) RETURNING id`,
+      [seed.projectId, artifact.id, source.id, source.sha256, seed.goalId, job.id, amends ? 2 : 1],
     )
+    // An amendment supersedes the version before it (0026): the report's current version is the new one.
+    if (amends) await c.query(`UPDATE sophia.artifact_versions SET state='superseded' WHERE id=$1`, [amends.version])
+    await c.query(`UPDATE sophia.artifacts SET stable_version_id=$2 WHERE id=$1`, [artifact.id, version.id])
     await c.query(`SELECT sophia.emit_project_event($1,'native_task.admitted','job',$2,1,'native_task.research')`, [
       seed.projectId,
       job.id,
@@ -229,6 +234,11 @@ describe('what changed since a member last looked (A34)', () => {
     assert.equal(await markSeen(admin, seed.projectId, shown.toSequence), 204)
     assert.equal(await markSeen(admin, seed.projectId, '0'), 204)
     assert.equal((await updatesOf(admin, seed.projectId)).fromSequence, shown.toSequence)
+    // Past any bigint: refused as a request, not a database failure.
+    const huge = await call(`/api/v1/projects/${seed.projectId}/seen`, await token(admin), 'PUT', {
+      sequence: '9999999999999999999',
+    })
+    assert.deepEqual([huge.status, huge.json?.code], [422, 'invalid_request'])
     // Never past the newest event: that would swallow what comes next.
     const ahead = String(BigInt(next.toSequence) + 5n)
     const refused = await call(`/api/v1/projects/${seed.projectId}/seen`, await token(admin), 'PUT', {
@@ -296,6 +306,33 @@ describe('what changed since a member last looked (A34)', () => {
       (await updatesOf(other, seed.projectId)).noted.map((n) => n.entryId),
       [stays.entryId],
     )
+  })
+
+  it('lists a report’s current version only, and reads no private event to say who asked for it', async () => {
+    const [admin, editor, asker] = [randomUUID(), randomUUID(), randomUUID()]
+    const seed = await seedProject(db.ownerUrl, { admin, editors: [editor, asker] })
+    await asOwner(`INSERT INTO sophia.actor_profiles(actor_id, display_name) VALUES ($1, 'Ari Asker')`, [asker])
+    const first = await made(seed, asker, 'Door study')
+    const second = await made(seed, asker, 'Door study', { artifact: first.artifact, version: first.version })
+    const u = await updatesOf(admin, seed.projectId)
+    assert.deepEqual(
+      u.made.map((m) => [m.artifactVersionId, m.versionNumber, m.askedBy]),
+      [[second.version, 2, asker]],
+    )
+    assert.equal(u.names[asker], 'Ari Asker')
+    // The admitting event is made private to the editor: the admin no longer reads who asked, nor their name.
+    await asOwner(
+      `UPDATE sophia.project_events SET visibility_owner=$3
+        WHERE project_id=$1 AND entity_id=$2 AND type='native_task.admitted'`,
+      [seed.projectId, second.job, editor],
+    )
+    const hidden = await updatesOf(admin, seed.projectId)
+    assert.deepEqual(
+      hidden.made.map((m) => [m.artifactVersionId, m.askedBy]),
+      [[second.version, null]],
+    )
+    assert.equal(hidden.names[asker], undefined)
+    assert.equal((await updatesOf(editor, seed.projectId)).made[0]?.askedBy, asker)
   })
 
   it('still reads an archived project to its members, who can mark it seen; the mark is theirs alone', async () => {

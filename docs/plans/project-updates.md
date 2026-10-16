@@ -15,8 +15,9 @@
       eligible;
     - `open`: proposals made in the window and still open;
     - `work`: tasks (jobs) with any `native_task.*` event in the window, with their state now;
-    - `made`: report versions whose task's result arrived in the window, their source still ready and eligible.
-      `askedBy` is who admitted the task, from its own event.
+    - `made`: a report's current (stable) version, when its task's result arrived in the window and its source is
+      still ready and eligible. A version since superseded is not listed. `askedBy` is who admitted the task, read
+      only from an event the member may read; otherwise null (Codex on #391).
   - **Withdrawals:** a record withdrawn, superseded or made unreadable since is in no line, and so in no count. The
     Studio counts lines.
   - **Private events:** an event private to another person (`visibility_owner`) is never read.
@@ -27,7 +28,8 @@
 - **`PUT /api/v1/projects/{projectId}/seen`** with `{ sequence }` answers 204.
   - The member's mark moves to the `toSequence` they were shown. It moves only forward, so an older value or a retry
     after a lost reply changes nothing.
-  - Never past the project's newest event: that would swallow what comes next, so it answers 422.
+  - Never past the project's newest event: that would swallow what comes next, so it answers 422. A value past any
+    bigint is refused by the route, also 422, not a database failure (Codex on #391).
   - Each member's mark is their own.
 - **Reading acknowledges nothing.** Reading, polling and opening a line move no mark. Events after the shown
   `toSequence` stay new for the next window.
@@ -83,7 +85,7 @@ rights:
 
 ## Checks
 
-- **`updates.db.test.ts`** (real API on PostgreSQL), 6 cases:
+- **`updates.db.test.ts`** (real API on PostgreSQL), 7 cases:
   - **current records:** every section, with display names and no address;
   - **access:** a viewer reads; an outsider and a removed member get 403;
   - **the shown bound:** seen marks only what was shown; an event after it stays new; a poll acknowledges nothing; a
@@ -91,6 +93,8 @@ rights:
   - **the window:** a bounded window with `more`, and the next window starting where the shown one ended;
   - **withdrawals:** a withdrawn note and a report whose source was withdrawn are in no line and no count; another
     person's private event is not read, and its owner reads it;
+  - **versions:** an amended report lists only its current version; a private admitting event hides who asked, and
+    their name;
   - **archived:** an archived project still reads, and the mark is per member;
   - **Needs:** a work-board decision stays in Needs after seen.
 - **`readiness.db.test.ts`:** not ready without 0066.

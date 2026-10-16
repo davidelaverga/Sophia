@@ -4,8 +4,12 @@
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import type { ProjectSeenRequest } from '@sophia/contracts'
+import { DomainError } from '@sophia/domain'
 import { markProjectSeen, readProjectUpdates, withActor } from '@sophia/persistence'
 import { projectParams } from './schemas.ts'
+
+/** The largest sequence a bigint holds: a seen sequence past it is refused here, not by the database (503). */
+const MOST_SEQUENCE = 9223372036854775807n
 
 export function updatesRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool }): void {
   app.get<{ Params: { projectId: string } }>(
@@ -18,6 +22,8 @@ export function updatesRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool })
     '/api/v1/projects/:projectId/seen',
     { schema: { params: projectParams, body: { $ref: 'ProjectSeenRequest#' } } },
     async (req, reply) => {
+      if (BigInt(req.body.sequence) > MOST_SEQUENCE)
+        throw new DomainError('invalid_request', 'A seen sequence the project has reached')
       await withActor(pool, req.actorId, 'write', (c) => markProjectSeen(c, req.params.projectId, req.body.sequence))
       return reply.status(204).send()
     },
