@@ -104,6 +104,8 @@ interface Project {
   goalTargets?: Map<string, { ownerId: string | null; targetDate: string | null; revision: number }>
   /** The next target saved finds someone else's first (`window.fixture.staleTarget`). */
   staleTarget?: boolean
+  /** Members an admin removed (A29), by actor id. */
+  removedMembers?: Set<string>
   /** Members' roles as an admin changed them (A27), by actor id. */
   memberRoles?: Map<string, Membership['role']>
   /** The next host control is refused as an unreachable room server's (`window.fixture.failHost`). */
@@ -143,6 +145,8 @@ interface Project {
   sourcesHeld: boolean
   /** So do reads of a version's text (`hold=text`). */
   textHeld: boolean
+  /** Reads of the project's activity never answer (`hold=activity`), as a hosted API starting cold. */
+  activityHeld?: boolean
   /** The research task's result revision (report-data.ts): 1 unless the check revises it. */
   taskRevision?: 1 | 2
   /** Reads of the research task wait until the page lets them through (`hold=task`), as a slow API's do. */
@@ -425,6 +429,8 @@ function projectWritten(
   if (path === `${base}/title`) return renamed(project, init)
   if (path === `${base}/html-edits`) return designEdited(project, init)
   if (path === `${base}/leave`) return departed(project)
+  const removal = MEMBER_REMOVAL.exec(path)?.[1]
+  if (removal) return memberRemoved(project, removal)
   const host = HOST_ACT.exec(path)
   return host?.[1] && (host[2] === 'mute' || host[2] === 'remove') ? hostAct(project, host[2], host[1]) : null
 }
@@ -446,9 +452,47 @@ function hostAct(project: Project, what: 'mute' | 'remove', identity: string): R
   return held ? new Promise((resolve) => held.push(() => resolve(done()))) : done()
 }
 
+/** The project's activity (A28): sixty acts, the oldest its creation; 50 a page, newest first. */
+function activityRead(url: URL): Response {
+  const people = [
+    { id: membership.actorId, name: VIEWER_NAME },
+    { id: personId(1), name: 'Marco' },
+    { id: personId(2), name: 'Lucía' },
+  ]
+  const kinds = [
+    { type: 'project.renamed', summaryCode: 'project.renamed', onMember: false },
+    { type: 'goal.target_set', summaryCode: 'goal.target', onMember: false },
+    { type: 'project.member_role_changed', summaryCode: 'project.member_role', onMember: true },
+    { type: 'room.host_removed', summaryCode: 'room.host_removed', onMember: true },
+  ]
+  const all = Array.from({ length: 60 }, (_, i) => {
+    const sequence = i + 1
+    const kind =
+      sequence === 1
+        ? { type: 'project.created', summaryCode: 'project.created', onMember: false }
+        : kinds[(sequence + 3) % 4]
+    const actor = people[(sequence + 1) % 3] ?? people[0]
+    const target = kind?.onMember ? (people[(sequence + 2) % 3] ?? null) : null
+    return {
+      sequence: String(sequence),
+      occurredAt: new Date(Date.UTC(2026, 9, 15, 9, sequence)).toISOString(),
+      type: kind?.type ?? 'project.renamed',
+      summaryCode: kind?.summaryCode ?? 'project.renamed',
+      actor,
+      target,
+    }
+  }).toReversed()
+  const before = Number(url.searchParams.get('before') ?? '61')
+  const page = all.filter((e) => Number(e.sequence) < before).slice(0, 50)
+  const more = all.some((e) => Number(e.sequence) < Number(page.at(-1)?.sequence ?? '0'))
+  return json({ entries: page, before: more ? (page.at(-1)?.sequence ?? null) : null })
+}
+
 /** The project's own reads: its discussion (A20 proposed, A23), its goals' targets and its members (A25). */
-function projectRead(project: Project, url: URL): Response | null {
+function projectRead(project: Project, url: URL): Response | Promise<Response> | null {
   const base = `/api/v1/projects/${PROJECT}`
+  if (url.pathname === `${base}/activity`)
+    return project.activityHeld ? new Promise<Response>(() => undefined) : activityRead(url)
   if (url.pathname.startsWith(`${base}/discussion`)) return discussionRead(project, url)
   if (url.pathname === `${base}/goal-targets`) return goalTargetsRead(project)
   return url.pathname === `${base}/members` ? membersRead(project) : null
@@ -463,21 +507,33 @@ function goalTargetsRead(project: Project): Response {
 /** The project's members (A25): the viewer and the two others the room fixture names, with roles as changed (A27). */
 function membersRead(project: Project): Response {
   const roleOf = (actorId: string, start: Membership['role']) => project.memberRoles?.get(actorId) ?? start
+  const gone = project.removedMembers ?? new Set<string>()
   return json({
-    members: [
-      {
-        actorId: membership.actorId,
-        role: roleOf(membership.actorId, project.role ?? membership.role),
-        name: VIEWER_NAME,
-      },
-      { actorId: personId(1), role: roleOf(personId(1), 'editor'), name: 'Marco' },
-      { actorId: personId(2), role: roleOf(personId(2), 'viewer'), name: 'Lucía' },
-    ],
+    members: (
+      [
+        {
+          actorId: membership.actorId,
+          role: roleOf(membership.actorId, project.role ?? membership.role),
+          name: VIEWER_NAME,
+        },
+        { actorId: personId(1), role: roleOf(personId(1), 'editor'), name: 'Marco' },
+        { actorId: personId(2), role: roleOf(personId(2), 'viewer'), name: 'Lucía' },
+      ] as const
+    ).filter((m) => !gone.has(m.actorId)),
   })
 }
 
 const GOAL_TARGET = new RegExp(`^/api/v1/projects/${PROJECT}/goals/([0-9a-f-]+)/target$`)
 const MEMBER_ROLE = new RegExp(`^/api/v1/projects/${PROJECT}/members/([0-9a-f-]+)/role$`)
+const MEMBER_REMOVAL = new RegExp(`^/api/v1/projects/${PROJECT}/members/([0-9a-f-]+)/removal$`)
+
+/** A member removed (A29): an admin's; recorded, and the member leaves the list. */
+function memberRemoved(project: Project, actorId: string): Response {
+  if ((project.role ?? membership.role) !== 'admin') return refused('Only an admin removes members')
+  ;(project.removedMembers ??= new Set()).add(actorId)
+  served.push(`remove-member:${actorId}`)
+  return json({ actorId, cursor: String(project.revision) })
+}
 
 /** The project's own PUTs: a goal's owner and date (A25), a member's role (A27); null for any other path. */
 function projectPut(project: Project, path: string, init: RequestInit | undefined): Response | null {

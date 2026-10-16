@@ -47,6 +47,8 @@ import {
   validateProjectMembers,
   validateInvitablePeople,
   validateMemberRoleSet,
+  validateActivityPage,
+  validateMemberRemoved,
   validateProjectList,
   validateWorkBoardView,
   validateWorkReceipt,
@@ -96,6 +98,8 @@ export const parseGoalTargetSet = parser('GoalTargetSet', validateGoalTargetSet)
 export const parseProjectMembers = parser('ProjectMembers', validateProjectMembers)
 export const parseInvitablePeople = parser('InvitablePeople', validateInvitablePeople)
 export const parseMemberRoleSet = parser('MemberRoleSet', validateMemberRoleSet)
+export const parseActivityPage = parser('ActivityPage', validateActivityPage)
+export const parseMemberRemoved = parser('MemberRemoved', validateMemberRemoved)
 export const parseEvent = parser('Event', validateEvent)
 export const parseCursorAdvance = parser('CursorAdvance', validateCursorAdvance)
 export const parseRoomToken = parser('RoomToken', validateRoomToken)
