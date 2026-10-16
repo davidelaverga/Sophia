@@ -7,9 +7,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-e2e`, branch `tasks/boar
 Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`); no API.
 Runtime unit: Luis's Windows host; CI as the run on record.
 Existing authority: Luis 2026-10-16, «Seguimos con quality of life»; merges on green with no open P1.
-Ending commit/tree: `a90121f85dc8` (tree `1636f9275513`), the last commit of `tasks/board-export`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 6 files changed against
-`origin/main` at that commit: `e2e/board-export.spec.ts`, `src/features/work/planning/PlanBoard.tsx`, `src/features/work/planning/board-export.test.ts`, `src/features/work/planning/board-export.ts`, `src/features/work/planning/board.css`, `docs/plans/board-export.md`. The review notes below name the commit of each later change.
+Ending commit/tree: `08ee507beace` (tree `b356fdb699b9`), the last commit of `tasks/board-export`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 7 files changed against
+`origin/main` at that commit: `e2e/board-export.spec.ts`, `src/features/work/planning/PlanBoard.tsx`, `src/features/work/planning/board-export.test.ts`, `src/features/work/planning/board-export.ts`, `src/features/work/planning/board.css`, `docs/handoffs/BOARD-EXPORT-attempt-1.md`, `docs/plans/board-export.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -20,9 +20,14 @@ commits on the branch merge its base forward or touch only this record). 6 files
 - Plan: `docs/plans/board-export.md`.
 - Specs written first (the commit of the tests).
 - **Locally:** typecheck, type-aware lint and Prettier are clean.
-- **Not run locally yet:** the Playwright specs. The machine guard refused them while a heavy app was open (AION2), so
-  the PR opens as a draft and CI runs them. The local run and the capture follow before it is marked ready.
+- **Run locally once the machine was free** (through `safe-run.ps1`, two workers):
+  - The first run of `board-export`, `board-why`, `work`, `next-up` and `states` failed both export checks: the role
+    query for «Export» also matched the fixture task «Write the export's release note» (strict mode).
+  - Both queries ask for the exact name now (the test-only commit after the code's).
+  - Then: 214 others passed, and `board-export` passed 6/6 with `--repeat-each=3`.
+- **Capture:** the board's Export menu, open and settled. It has a solid background and is on top
+  (`elementFromPoint` at its centre is the menu).
 
 ## Remaining obligations
 
-- The local e2e run and the capture, then ready for review.
+- None: the local run and the capture are done, and the PR is ready for review.
