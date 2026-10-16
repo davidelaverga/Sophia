@@ -53,6 +53,7 @@ import { useServedWork, type ServedWork } from '../work/planning/ServedWork.tsx'
 import type { Feed } from '../../projectors/projection.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { ProjectName } from './ProjectName.tsx'
+import { ViewFailed } from './ViewFailed.tsx'
 
 // The Invite sheet (and its QR encoder) loads the first time someone opens it.
 const InviteSheet = lazy(() => import('../access/InviteSheet.tsx').then((m) => ({ default: m.InviteSheet })))
@@ -698,7 +699,8 @@ function ProjectBody(props: BodyProps) {
     <>
       {lobby}
       <main className={pageClass(work, props.plans, view === 'conversations' && VISION)}>
-        {resources ?? <PageBody {...props} />}
+        {/* A view that fails to draw says so in its place; the shell and the call stay (view-boundary.md). */}
+        <ViewFailed key={view}>{resources ?? <PageBody {...props} />}</ViewFailed>
         {work && pulse}
       </main>
       {props.floating}

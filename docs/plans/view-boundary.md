@@ -22,9 +22,10 @@
 ## Checks
 
 - **`view-boundary.spec.ts`:**
-  - in the demo's Goals, a goal served with no criteria fails to draw: the view says so, the header's views stay, and
-    another view opens fine;
-  - once the goals are whole again, Try again draws Goals anew.
+  - the demo's Resources view fails to draw: the view says so, the header's views stay, and another view opens fine;
+  - once it can draw again, Try again draws it anew.
 - **The fixture:**
-  - `goals=broken` serves the demo's first goal with `criteria: null`, data shaped other than the contract;
-  - `window.fixture.healGoals()` makes it whole again, and the project moves.
+  - `resources=crash` makes the Resources view throw as it draws, as a bug in a view would;
+  - `window.fixture.healView()` lets it draw again.
+  - A snapshot shaped other than the contract can't be the trigger: the client refuses it as «unreachable» before any
+    view reads it, which a first try showed.
