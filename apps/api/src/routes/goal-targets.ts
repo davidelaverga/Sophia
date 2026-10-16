@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import type { GoalTargetRequest } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
-import { readGoalTargets, readProjectMembers, setGoalTarget, withActor } from '@sophia/persistence'
+import { readGoalTargets, readInvitablePeople, readProjectMembers, setGoalTarget, withActor } from '@sophia/persistence'
 import { projectParams } from './schemas.ts'
 
 const goalParams = {
@@ -36,6 +36,15 @@ export function goalTargetRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool
     },
     async (req) =>
       withActor(pool, req.actorId, 'write', (c) => setGoalTarget(c, req.params.projectId, req.params.goalId, req.body)),
+  )
+
+  // listInvitablePeople (A26): an admin's people from other projects, to invite here by address.
+  app.get<{ Params: { projectId: string } }>(
+    '/api/v1/projects/:projectId/invitable',
+    { schema: { params: projectParams, response: { 200: { $ref: 'InvitablePeople#' } } } },
+    async (req) => ({
+      people: await withActor(pool, req.actorId, 'read', (c) => readInvitablePeople(c, req.params.projectId)),
+    }),
   )
 
   app.get<{ Params: { projectId: string } }>(

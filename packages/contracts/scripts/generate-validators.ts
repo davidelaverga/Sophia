@@ -25,6 +25,7 @@ const EXPORTS = [
   'GoalTargetList',
   'GoalTargetSet',
   'ProjectMembers',
+  'InvitablePeople',
   'Error',
   'Event',
   'CursorAdvance',

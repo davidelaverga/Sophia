@@ -19,6 +19,7 @@ import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { Goal, GoalCommand } from '@sophia/contracts'
 import type { ChatCaption } from '@sophia/contracts/room-chat'
+import { OFFERED } from './invitations-data.ts'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { forgetKept } from '../src/features/conversations/talk-store.ts'
 import { StrictMode, useEffect, useState, type ReactNode } from 'react'
@@ -133,6 +134,8 @@ interface Fixture {
   failHost: () => void
   /** The next goal target saved finds someone else's first (goal-owner-date.md). */
   staleTarget: () => void
+  /** The next invitation to this address fails, as an unavailable API's (invite-from-projects.md). */
+  failInvite: (email: string) => void
   /** While on, host controls land but their replies wait; off, they answer. */
   holdHost: (on: boolean) => void
   /** Another member writes in the room's discussion, and the event saying so goes out. */
@@ -487,7 +490,12 @@ const project = {
   // `admins=1`: the viewer is the project's only admin, so leaving is refused (project-leave.md).
   soleAdmin: query.get('admins') === '1',
   // The invitations made here, kept as the API keeps them (invitations-data.ts): the demo's Invite has no dead end.
-  invitations: { kept: [], made: 0 },
+  invitations: {
+    kept: [],
+    made: 0,
+    offered: query.get('invitable') === 'none' ? [] : OFFERED,
+    failFor: null as string | null,
+  },
   description: SOPHIAS_DESCRIPTION,
   versionsFail: false as false | 'unavailable' | 'not_found',
   sourcesHeld: query.get('hold') === 'sources',
@@ -651,6 +659,9 @@ window.fixture = {
   },
   staleTarget: () => {
     project.staleTarget = true
+  },
+  failInvite: (email) => {
+    project.invitations.failFor = email
   },
   holdHost: (on) => {
     const held = project.hostHeld ?? []

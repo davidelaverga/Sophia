@@ -214,6 +214,35 @@ describe('guest invitations', () => {
   })
 })
 
+describe('people to invite from other projects (A26)', () => {
+  it('offers an admin the members of their other projects known by address; not members, not themselves, not invited', async () => {
+    const [admin, editor, other, quiet] = [randomUUID(), randomUUID(), randomUUID(), randomUUID()]
+    const elsewhere = await seedProject(db.ownerUrl, { admin, editors: [editor], viewers: [other, quiet] })
+    const here = await seedProject(db.ownerUrl, { admin, editors: [editor] })
+    // Known by address once they opened a project (the room keeps the name their token carries).
+    for (const sub of [admin, editor, other])
+      assert.equal(
+        (await call(`/api/v1/projects/${elsewhere.projectId}/membership`, { method: 'GET', bearer: await token(sub) }))
+          .status,
+        200,
+      )
+    const offered = async (sub: string) =>
+      call(`/api/v1/projects/${here.projectId}/invitable`, { method: 'GET', bearer: await token(sub) })
+    const first = await offered(admin)
+    assert.equal(first.status, 200)
+    assert.deepEqual(first.json, { people: [{ actorId: other, email: `${other.slice(0, 8)}@sophia.test` }] })
+    assert.equal((await offered(editor)).status, 403)
+    const bearer = await token(admin)
+    const sent = await call(`/api/v1/projects/${here.projectId}/invitations`, {
+      bearer,
+      key: true,
+      body: { kind: 'member', role: 'viewer', email: `${other.slice(0, 8)}@sophia.test` },
+    })
+    assert.equal(sent.status, 200)
+    assert.deepEqual((await offered(admin)).json, { people: [] })
+  })
+})
+
 describe('a project’s members (A25)', () => {
   it('lists the active members with their roles, named once they opened the project; an outsider is refused', async () => {
     const [admin, editor, viewer] = [randomUUID(), randomUUID(), randomUUID()]
