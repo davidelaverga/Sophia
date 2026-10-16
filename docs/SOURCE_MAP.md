@@ -224,6 +224,16 @@ Approved provenance addition under CON01-FILTER-AMENDMENT,14October2026; no upst
 
 No claim of actual Linux qualification. All local capability/syscall/pidfd/signal0 paths used injected operations. Actual topology, runtime installation and physical isolation remain held.
 
+## 2j. Upstream sources at CON-01 B2 (service-mode replies)
+
+Read in the installed runtime of dsh `0.2.0-rc.2` and pi-ai `0.87.1` (`.artifacts/runtime/node_modules/.pnpm/…`), 2026-10-16; nothing is copied.
+
+| Source id | Upstream file (installed package) | Used for | Sophia files |
+|---|---|---|---|
+| CON-B2-PREPARE | `@deepseek-ai/dsh-llm` `lib/index.js` `prepareCall(config, signal)` (line 2203) and `lib/types/index.d.ts` `PreparedLlmCall` (line 93) | One call is prepared with its config and adapter registration resolved together; the returned config is detached and frozen, with any adapter default materialized; its `stream` dispatches once (a second dispatch, or a request whose call-config fields differ from the prepared ones, fails `INVALID_PREPARED_CALL`, lines 2224–2225) | `packages/dsh-bundle/src/reply-service.ts` (`prepare`, `call`: the prepared config must equal the pinned route; one stream per reply) |
+| CON-B2-ADAPTER-PREPARE | `@deepseek-ai/dsh-llm-pi-ai` `lib/index.js` `prepareCall(provider, model, _signal)` (line 1831) | The adapter's preparation reads its current profile snapshot and the model's info from it, and returns the stream bound to that snapshot: no provider I/O happens before `stream` | `reply-service.ts` (preparation before the reservation; no provider request until the reserved call) |
+| CON-B2-NO-RETRY | `@deepseek-ai/dsh-llm-pi-ai` `lib/index.js` `profileOptions` (lines 1674–1685, `maxRetries: 0`); pi-ai `dist/api/openai-responses.js` (lines 117–124: SDK request `maxRetries: 0`, then `retryProviderRequest` with the adapter's 0) and `dist/utils/provider-retry.js` (lines 75–90: no retry while `maxRetries` is 0) | A prepared call with no session id and no Agent makes one HTTP request: neither the SDK, pi-ai nor the adapter retries a 429 or 5xx (`dsh-llm-retry` hooks only `agent/request-error`) | `reply-service.ts`; `tests/integration/conversation-service.test.mjs` (a controlled 429 and 503 each reach the provider double once) |
+
 ## 3. Facts learned at the pin (not in the pack)
 
 These are observed behaviors of the pinned release, recorded so later goals

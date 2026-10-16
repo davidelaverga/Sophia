@@ -13,6 +13,7 @@ import {
   serviceSettings,
   usedOf,
 } from '../../packages/dsh-bundle/dist/reply-service.js'
+import { TransportError } from '../../packages/dsh-bundle/dist/transport.js'
 
 const DIGEST = 'a'.repeat(64)
 const ROUTE = 'conversation-service-luna-high-v1'
@@ -87,6 +88,7 @@ function scriptedTransport(script = {}) {
       if (script.observations) return script.observations(values)
     },
     async receipts(values) {
+      if (script.receipts) return script.receipts(values)
       for (const value of values) calls.push(['receipt', value])
     },
   }
@@ -132,8 +134,9 @@ function scene(script = {}, settings = SETTINGS) {
   const transport = scriptedTransport({ replyId: command.binding.conversationReplyId, ...script.transport })
   const llm = scriptedLlm(script.llm)
   const lines = []
-  const executor = new ReplyServiceExecutor(OWNER, settings, llm, transport, (line) => lines.push(line))
-  return { command, transport, llm, lines, executor }
+  const retained = []
+  const executor = new ReplyServiceExecutor(OWNER, settings, llm, transport, (line) => lines.push(line), (r) => retained.push(r))
+  return { command, transport, llm, lines, retained, executor }
 }
 
 async function until(predicate, what) {
@@ -374,6 +377,50 @@ describe('ReplyServiceExecutor (CON-01 B2)', () => {
     await until(() => receipts(s.transport).length === 3, 'stop and retire')
     assert.deepEqual(receipts(s.transport).slice(1).map((r) => [r.stage, r.executor ?? null]), [['checked', null], ['checked', TUPLE]])
     assert.equal(s.llm.prepared.length, 0)
+  })
+})
+
+describe('bounded requests and retained receipts (#393 review)', () => {
+  test('a claim or go that never answers is bounded by the request wait: no call, a receipt says so', async () => {
+    for (const [transport, stage, reason] of [
+      [{ claim: () => new Promise(() => {}) }, 'outcome_unknown', 'claim_unconfirmed'],
+      [{ go: () => new Promise(() => {}) }, 'rejected', 'go_unconfirmed'],
+    ]) {
+      const s = scene({ transport: { ...transport } })
+      // A transport that honours the signal, as ServiceTransport's fetch does.
+      const hang = transport.claim ? 'conversationClaim' : 'conversationGo'
+      s.transport[hang] = (_body, signal) =>
+        new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true }))
+      const began = Date.now()
+      s.executor.execute(s.command)
+      await until(() => receipts(s.transport).some((r) => r.stage === stage), `${stage} receipt`)
+      assert.ok(Date.now() - began < 2_000, 'within the request wait, not forever')
+      assert.equal(receipts(s.transport).at(-1).reason, reason)
+      assert.equal(s.llm.prepared.length, 0)
+    }
+  })
+
+  test('receipts the service cannot take are retained, never dropped; an unconfirmed delivered becomes a terminal failed', async () => {
+    const s = scene({ transport: { receipts: () => Promise.reject(new Error('connection reset')) } })
+    s.executor.execute(s.command)
+    await until(() => s.retained.length === 1, 'the retained receipt')
+    const [kept] = s.retained
+    assert.deepEqual([kept.commandId, kept.stage, kept.reason, kept.nativeSessionId], [s.command.commandId, 'failed', 'delivery_unconfirmed', `sophia-${s.command.binding.attemptId}`])
+    assert.equal(s.llm.prepared.length, 0, 'no call after an unconfirmed delivered')
+    assert.ok(!kinds(s.transport).includes('observation'))
+    // A refused or a terminal receipt is kept as itself.
+    const r = scene({ command: { execution: null }, transport: { receipts: () => Promise.reject(new Error('timeout')) } })
+    r.executor.execute(r.command)
+    await until(() => r.retained.length === 1, 'the retained rejection')
+    assert.deepEqual([r.retained[0].stage, r.retained[0].reason], ['rejected', 'reply_executor_mismatch'])
+  })
+
+  test('a receipt the service refused (4xx) is not retained: it would block every receipt behind it', async () => {
+    const s = scene({ command: { execution: null }, transport: { receipts: () => Promise.reject(new TransportError('refused', 409, 'invalid_state')) } })
+    s.executor.execute(s.command)
+    await until(() => s.lines.some((l) => l.startsWith('reply_service_receipt_refused')), 'the refusal log')
+    await sleep(30)
+    assert.deepEqual(s.retained, [])
   })
 })
 

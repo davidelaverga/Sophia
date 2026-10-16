@@ -375,7 +375,8 @@ export class ControlBridge {
     if (this.replyServiceSettings) {
       this.replyService?.dispose()
       this.replyService = new ReplyServiceExecutor({ projectId: hello.projectId, runtimeUnitId: this.settings.runtimeUnitId,
-        leaseId: this.instanceId }, this.replyServiceSettings, this.ctx.llm, this.transport, this.settings.log)
+        leaseId: this.instanceId }, this.replyServiceSettings, this.ctx.llm, this.transport, this.settings.log,
+        (receipt) => this.send(receipt))
     }
     this.cursor = hello.cursor
     const unrecovered: UnrecoveredBinding[] = []

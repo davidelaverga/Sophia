@@ -16,6 +16,7 @@ import { createHash } from 'node:crypto'
 import type { GenerateOptions, LlmCallConfig, ReasoningEffortId, StreamChunk, TokenUsage } from '@deepseek-ai/dsh-llm'
 import type { RoutePrices } from './control-bridge.js'
 import { ReplyDelivery, ReplySettlements, type ReplySettlementPolicy } from './reply-child.js'
+import { TransportError } from './transport.js'
 import { wire } from './runtime-wire.generated.js'
 import type {
   RuntimeCommand,
@@ -69,8 +70,17 @@ export interface ServiceReplyTransport {
   conversationReserve(body: RuntimeConversationReserveRequest, signal?: AbortSignal): Promise<RuntimeConversationReservation>
   conversationSettle(body: RuntimeConversationSettleRequest, signal?: AbortSignal): Promise<RuntimeConversationSettlement>
   observations(values: readonly RuntimeObservation[], signal?: AbortSignal): Promise<void>
-  receipts(values: readonly RuntimeReceipt[]): Promise<void>
+  receipts(values: readonly RuntimeReceipt[], signal?: AbortSignal): Promise<void>
 }
+
+/** A 4xx other than 408/429: the service refused the item itself, and sending it again cannot succeed. */
+const refused = (error: unknown): boolean =>
+  error instanceof TransportError &&
+  error.status !== undefined &&
+  error.status >= 400 &&
+  error.status < 500 &&
+  error.status !== 408 &&
+  error.status !== 429
 
 export interface ReplyServiceOwner {
   readonly projectId: string
@@ -261,6 +271,11 @@ export class ReplyServiceExecutor {
     private readonly llm: ServiceLlm,
     private readonly transport: ServiceReplyTransport,
     private readonly log: (line: string) => void = () => {},
+    /**
+     * The bridge's retained receipt queue: a receipt this executor could not confirm within its bounds is kept there
+     * and sent until the service acknowledges it, because the command cursor has already moved past its command.
+     */
+    private readonly retain: (receipt: RuntimeReceipt) => void = () => {},
   ) {
     this.settings = serviceSettings(settings)
     this.tuple = Object.freeze({
@@ -352,7 +367,7 @@ export class ReplyServiceExecutor {
     const body = this.claimBody(command)
     let claim: RuntimeConversationClaimReply
     try {
-      claim = await this.transport.conversationClaim(body, stopped)
+      claim = await this.transport.conversationClaim(body, this.bounded(stopped))
     } catch {
       await this.post(command, 'outcome_unknown', 'claim_unconfirmed')
       return false
@@ -363,7 +378,7 @@ export class ReplyServiceExecutor {
     }
     let go: RuntimeConversationGoReply
     try {
-      go = await this.transport.conversationGo(body, stopped)
+      go = await this.transport.conversationGo(body, this.bounded(stopped))
     } catch {
       // Nothing has left, and nothing will: no call follows an unconfirmed go.
       await this.post(command, 'rejected', 'go_unconfirmed')
@@ -399,7 +414,7 @@ export class ReplyServiceExecutor {
     }
     // Preparation resolves the route without provider I/O; a call that would not be exactly the pinned route is
     // refused here, before anything is reserved.
-    const prepared = await this.prepare(stopped)
+    const prepared = await this.prepare(this.bounded(stopped))
     if (prepared === null) return failed('call_unprepared')
     const reserved = await delivery.reserve({ t: 'reserve', n: 1, ...reservationOf(text, unit, this.settings) }, stopped)
     // Nothing was called. A refused reservation ends the turn; an unconfirmed one may exist, and stays counted.
@@ -565,12 +580,49 @@ export class ReplyServiceExecutor {
   }
 
   /** One receipt, retried within bounds; true once the server took it. */
+  /** One server request's own bound, besides Stop: no claim, go, preparation or receipt waits without one. */
+  private bounded(stopped: AbortSignal): AbortSignal {
+    return AbortSignal.any([stopped, AbortSignal.timeout(this.settings.retry.requestWaitMs)])
+  }
+
+  /**
+   * One receipt, sent within bounds; true once the service took it. Unconfirmed after a transient failure, it goes to
+   * the retained queue instead of being dropped. A `delivered` is retained as a terminal `failed`: this executor will
+   * not run the call it announced, so the reply must end rather than stay running. A receipt the service refused (a
+   * 4xx) is not retained: it would block every receipt behind it.
+   */
   private async post(
     command: ReplyCommand,
     stage: RuntimeReceipt['stage'],
     reason: string | null,
     extra: { session?: boolean; executor?: ServiceTuple } = {},
   ): Promise<boolean> {
+    const receipt = this.receiptOf(command, stage, reason, extra)
+    const { maxAttempts, retryWaitMs, requestWaitMs } = this.settings.retry
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        await this.transport.receipts([receipt], AbortSignal.timeout(requestWaitMs))
+        return true
+      } catch (error) {
+        if (refused(error)) {
+          this.log(`reply_service_receipt_refused ${stage}`)
+          return false
+        }
+        if (attempt + 1 < maxAttempts) await new Promise((resolve) => setTimeout(resolve, retryWaitMs))
+      }
+    }
+    const kept = stage === 'delivered' ? this.receiptOf(command, 'failed', 'delivery_unconfirmed', { session: true }) : receipt
+    this.retain(kept)
+    this.log(`reply_service_receipt_retained ${kept.stage}`)
+    return false
+  }
+
+  private receiptOf(
+    command: ReplyCommand,
+    stage: RuntimeReceipt['stage'],
+    reason: string | null,
+    extra: { session?: boolean; executor?: ServiceTuple },
+  ): RuntimeReceipt {
     const receipt = {
       commandId: command.commandId,
       attemptId: command.binding.attemptId,
@@ -583,16 +635,6 @@ export class ReplyServiceExecutor {
       ...(extra.executor ? { executor: { ...extra.executor } } : {}),
     }
     if (!wire.RuntimeReceipt(receipt)) throw new Error('reply_service_receipt_invalid')
-    const { maxAttempts, retryWaitMs } = this.settings.retry
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        await this.transport.receipts([receipt])
-        return true
-      } catch {
-        if (attempt + 1 < maxAttempts) await new Promise((resolve) => setTimeout(resolve, retryWaitMs))
-      }
-    }
-    this.log(`reply_service_receipt_unconfirmed ${stage}`)
-    return false
+    return receipt
   }
 }
