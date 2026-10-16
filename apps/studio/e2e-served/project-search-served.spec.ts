@@ -44,13 +44,51 @@ async function search(page: Page, q: string) {
 
 /** Opens the hit whose words end with «message N.» (`heron=` messages) and waits for it in the chat. */
 async function openHeron(page: Page, n: number) {
+  await pressHeron(page, n)
+  await expect(discussion(page).locator(`[data-message="${entryIdOf(n - 1)}"]`)).toBeInViewport()
+}
+
+/** Presses that hit without waiting for its message (its read may be held). */
+async function pressHeron(page: Page, n: number) {
   await search(page, 'heron')
   await hits(page)
     .filter({ hasText: `message ${String(n)}.` })
     .getByRole('button')
     .click()
-  await expect(discussion(page).locator(`[data-message="${entryIdOf(n - 1)}"]`)).toBeInViewport()
 }
+
+/** The message numbers shown, in order, and 'gap' where a gap line stands. */
+const layout = (page: Page) =>
+  discussion(page).evaluate((list) =>
+    [...list.children].map((li) =>
+      li.classList.contains('discussion-gap')
+        ? 'gap'
+        : String(Number((li instanceof HTMLElement ? (li.dataset.message ?? '') : '').slice(-12))),
+    ),
+  )
+
+/** Runs of consecutive message numbers, with the gaps between them. */
+async function runs(page: Page) {
+  const out: string[] = []
+  let from = 0
+  let last = 0
+  for (const item of await layout(page)) {
+    if (item === 'gap') {
+      if (from) out.push(`${String(from)}–${String(last)}`, 'gap')
+      from = 0
+      continue
+    }
+    const k = Number(item)
+    if (!from || k !== last + 1) {
+      if (from) out.push(`${String(from)}–${String(last)}`)
+      from = k
+    }
+    last = k
+  }
+  if (from) out.push(`${String(from)}–${String(last)}`)
+  return out
+}
+const BOTH_READ = ['1–40', 'gap', '51–100', 'gap', '161–260']
 
 test('served search · asks A38’s endpoint with the query and its cursor, reads strict pages, and a section opens at its heading', async ({
   page,
@@ -147,4 +185,45 @@ test('served search · the found page’s read fails: the failure and Try again 
   await page.getByRole('button', { name: 'Try again' }).click()
   await expect(discussion(page).locator(`[data-message="${entryIdOf(2)}"]`)).toBeInViewport()
   await expect.poll(() => seenOf(page)).toEqual([`seen:mention:${PROJECT}:1.1:${entryIdOf(2)}`])
+})
+
+test('served search · a slow Show them, then a search open answering first: both pages stay (R-C4-02)', async ({
+  page,
+}) => {
+  await open(page, 'discussion=260&heron=40,100')
+  await openHeron(page, 100)
+  await page.evaluate((id) => window.fixture?.holdEarlierBefore([id]), entryIdOf(210))
+  await gapLine(page).getByRole('button', { name: 'Show them' }).click()
+  await expect.poll(() => reads(page)).toHaveLength(2)
+  await openHeron(page, 40)
+  await page.evaluate(() => window.fixture?.releaseEarlierReads())
+  await expect(discussion(page).locator(`[data-message="${entryIdOf(209)}"]`)).toHaveCount(1)
+  await expect(discussion(page).locator(`[data-message="${entryIdOf(39)}"]`)).toHaveCount(1)
+  expect(await runs(page)).toEqual(BOTH_READ)
+  expect(await reads(page)).toEqual([
+    `discussion:${entryIdOf(100)}`,
+    `discussion:${entryIdOf(210)}`,
+    `discussion:${entryIdOf(40)}`,
+  ])
+})
+
+test('served search · a slow search open, then a Show them answering first: both pages stay (R-C4-02)', async ({
+  page,
+}) => {
+  await open(page, 'discussion=260&heron=40,100')
+  await openHeron(page, 100)
+  await page.evaluate((id) => window.fixture?.holdEarlierBefore([id]), entryIdOf(40))
+  await pressHeron(page, 40)
+  await expect.poll(() => reads(page)).toHaveLength(2)
+  await gapLine(page).getByRole('button', { name: 'Show them' }).click()
+  await expect(discussion(page).locator(`[data-message="${entryIdOf(209)}"]`)).toHaveCount(1)
+  await page.evaluate(() => window.fixture?.releaseEarlierReads())
+  await expect(discussion(page).locator(`[data-message="${entryIdOf(39)}"]`)).toBeInViewport()
+  await expect(discussion(page).locator(`[data-message="${entryIdOf(209)}"]`)).toHaveCount(1)
+  expect(await runs(page)).toEqual(BOTH_READ)
+  expect(await reads(page)).toEqual([
+    `discussion:${entryIdOf(100)}`,
+    `discussion:${entryIdOf(40)}`,
+    `discussion:${entryIdOf(210)}`,
+  ])
 })

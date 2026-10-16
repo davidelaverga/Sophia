@@ -57,6 +57,16 @@ const withEntries = <T extends { id: string }>(held: ReadonlyMap<string, T>, mor
   return next
 }
 
+/** Entries added to those held, an entry never replaced by an older revision of itself (A36). */
+const withNewer = (held: ReadonlyMap<string, DiscussionEntry>, more: readonly DiscussionEntry[]) => {
+  const next = new Map(held)
+  for (const entry of more) {
+    const now = next.get(entry.id)
+    if (!now || (entry.revision ?? 0) >= (now.revision ?? 0)) next.set(entry.id, entry)
+  }
+  return next
+}
+
 const NONE: readonly WithdrawnEntry[] = []
 
 /** The reader's own acts, by message, until the chat is read again; `revise` records one. */
@@ -143,6 +153,53 @@ function useKeptWindows(
   }, [setHeld, discussion, discussionWithdrawn, projectId])
 }
 
+/** The snapshot's window: the latest messages and withdrawn places. */
+interface Latest {
+  entries: readonly DiscussionEntry[]
+  withdrawn: readonly WithdrawnEntry[]
+}
+
+/**
+ * A page read, added to what is held WHEN IT ANSWERS (R-C4-02): another read that answered first stays, with its links;
+ * the start, once read, stays read; the current window goes last, as the latest.
+ */
+function heldWith(
+  now: Held | null,
+  projectId: string,
+  read: { page: Page; before: string; start: boolean },
+  win: Latest,
+): Held {
+  const { page, before, start } = read
+  return {
+    projectId,
+    entries: withNewer(withNewer(now?.entries ?? new Map(), page.entries), win.entries),
+    withdrawn: withEntries(withEntries(now?.withdrawn ?? new Map(), page.withdrawn ?? []), win.withdrawn),
+    atStart: start || (now?.atStart ?? false),
+    links: new Map([
+      ...(now?.links ?? []),
+      ...pageLinks([...page.entries, ...(page.withdrawn ?? [])], before),
+      ...windowLinks([...win.entries, ...win.withdrawn]),
+    ]),
+  }
+}
+
+/** How a page read is held: against the held state and the window as they are when it answers, not when it was asked. */
+function useHold(
+  setHeld: (update: (h: Held | null) => Held | null) => void,
+  projectId: string,
+  discussion: readonly DiscussionEntry[],
+  discussionWithdrawn: readonly WithdrawnEntry[],
+) {
+  const windowNow = useRef<Latest>({ entries: discussion, withdrawn: discussionWithdrawn })
+  useLayoutEffect(() => {
+    windowNow.current = { entries: discussion, withdrawn: discussionWithdrawn }
+  }, [discussion, discussionWithdrawn])
+  return (page: Page, before: string, start: boolean) =>
+    setHeld((h) =>
+      heldWith(h?.projectId === projectId ? h : null, projectId, { page, before, start }, windowNow.current),
+    )
+}
+
 export function useEarlierDiscussion(
   projectId: string,
   identity: Identity,
@@ -166,18 +223,7 @@ export function useEarlierDiscussion(
   }, [held, history])
   const { entries, withdrawn } = heldView(held, { entries: discussion, withdrawn: discussionWithdrawn }, acted)
   const atStart = held?.atStart ?? false
-  const hold = (page: Page, before: string, start: boolean) =>
-    setHeld({
-      projectId,
-      entries: withEntries(withEntries(held?.entries ?? new Map(), entries), page.entries),
-      withdrawn: withEntries(withEntries(held?.withdrawn ?? new Map(), withdrawn), page.withdrawn ?? []),
-      atStart: start,
-      links: new Map([
-        ...(held?.links ?? []),
-        ...latest,
-        ...pageLinks([...page.entries, ...(page.withdrawn ?? [])], before),
-      ]),
-    })
+  const hold = useHold(setHeld, projectId, discussion, discussionWithdrawn)
   const load = () => {
     const [oldest] = [...entries, ...withdrawn].toSorted(inOrder)
     if (!oldest || reading === 'loading') return

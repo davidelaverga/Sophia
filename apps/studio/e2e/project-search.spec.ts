@@ -127,8 +127,8 @@ test('project search · nothing found and a failed search say different things; 
   await expect(hits(page)).toHaveCount(1)
 })
 
-/** Opens the search hit whose words end with «message N.» (`heron=` messages). */
-async function openHeron(page: Page, n: number) {
+/** Presses the search hit whose words end with «message N.» (`heron=` messages). */
+async function pressHeron(page: Page, n: number) {
   // The head's Search: after an open, the chat's bar has the focus, where `/` is typed.
   await page.getByRole('button', { name: 'Search', exact: true }).click()
   await field(page).fill('heron')
@@ -136,6 +136,11 @@ async function openHeron(page: Page, n: number) {
     .filter({ hasText: `message ${String(n)}.` })
     .getByRole('button')
     .click()
+}
+
+/** Opens that hit and waits for its message in the chat's view. */
+async function openHeron(page: Page, n: number) {
+  await pressHeron(page, n)
   await expect(discussion(page).locator(`[data-message="${entryIdOf(n - 1)}"]`)).toBeInViewport()
 }
 
@@ -205,4 +210,80 @@ test('project search · a disjoint second open keeps both unread intervals behin
   await press(0, 101, 5, 1)
   await press(0, 51, 6, 0)
   expect((await layout(page)).filter((s) => s !== 'gap').map(n)).toEqual(Array.from({ length: 260 }, (_, i) => i + 1))
+})
+
+/** What the chat holds, as runs of message numbers with the gaps between them. */
+async function runs(page: Page) {
+  const out: string[] = []
+  let from: number | null = null
+  let last: number | null = null
+  for (const item of await layout(page)) {
+    if (item === 'gap') {
+      if (from !== null) out.push(`${String(from)}–${String(last)}`, 'gap')
+      from = null
+      continue
+    }
+    const k = n(item)
+    if (from === null || last === null || k !== last + 1) {
+      if (from !== null) out.push(`${String(from)}–${String(last)}`)
+      from = k
+    }
+    last = k
+  }
+  if (from !== null) out.push(`${String(from)}–${String(last)}`)
+  return out
+}
+
+/** Both reads done, whatever order they answered in: every page read is held, each gap where messages are unread. */
+const BOTH_READ = ['1–40', 'gap', '51–100', 'gap', '161–260']
+
+test('project search · a slow Show them and a later search open: the open answers first, then the fill; both pages stay (R-C4-02)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?people=2&discussion=260&heron=40,100')
+  await expect(page.locator('.room-stage')).toBeVisible()
+  await openHeron(page, 100)
+  // The fill under the gap (before 211) is slow; the search's read for 40 (before 41) is not.
+  await page.evaluate((id) => window.fixture?.holdEarlierBefore([id]), entryIdOf(210))
+  await gapLine(page).getByRole('button', { name: 'Show them' }).click()
+  await expect.poll(() => reads(page)).toHaveLength(2)
+  await openHeron(page, 40)
+  expect(await reads(page)).toEqual([
+    `discussion:${entryIdOf(100)}`,
+    `discussion:${entryIdOf(210)}`,
+    `discussion:${entryIdOf(40)}`,
+  ])
+  await page.evaluate(() => window.fixture?.releaseEarlierReads())
+  await expect(discussion(page).locator(`[data-message="${entryIdOf(209)}"]`)).toHaveCount(1)
+  // The message opened stays, with the start, and both pages read.
+  await expect(discussion(page).locator(`[data-message="${entryIdOf(39)}"]`)).toHaveCount(1)
+  expect(await runs(page)).toEqual(BOTH_READ)
+  await expect(page.getByText('The start of the room’s chat')).toBeVisible()
+  expect(await reads(page)).toHaveLength(3)
+})
+
+test('project search · a slow search open and a Show them meanwhile: the fill answers first, then the open; both pages stay (R-C4-02)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?people=2&discussion=260&heron=40,100')
+  await expect(page.locator('.room-stage')).toBeVisible()
+  await openHeron(page, 100)
+  // The search's read for 40 (before 41) is slow; the fill under the gap (before 211) is not.
+  await page.evaluate((id) => window.fixture?.holdEarlierBefore([id]), entryIdOf(40))
+  await pressHeron(page, 40)
+  await expect.poll(() => reads(page)).toHaveLength(2)
+  await gapLine(page).getByRole('button', { name: 'Show them' }).click()
+  await expect(discussion(page).locator(`[data-message="${entryIdOf(209)}"]`)).toHaveCount(1)
+  expect(await reads(page)).toEqual([
+    `discussion:${entryIdOf(100)}`,
+    `discussion:${entryIdOf(40)}`,
+    `discussion:${entryIdOf(210)}`,
+  ])
+  await page.evaluate(() => window.fixture?.releaseEarlierReads())
+  await expect(discussion(page).locator(`[data-message="${entryIdOf(39)}"]`)).toBeInViewport()
+  // The fill read meanwhile stays.
+  await expect(discussion(page).locator(`[data-message="${entryIdOf(209)}"]`)).toHaveCount(1)
+  expect(await runs(page)).toEqual(BOTH_READ)
+  await expect(page.getByText('The start of the room’s chat')).toBeVisible()
+  expect(await reads(page)).toHaveLength(3)
 })

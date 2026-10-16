@@ -109,6 +109,9 @@ interface Project {
   heldMessages?: (string | Said)[] | undefined
   /** While set, every earlier page's read fails as an unavailable API's (`failEarlierReads`). */
   failEarlierReads?: boolean
+  /** Earlier pages read before these messages wait for `releaseEarlierReads` (a slow read; A38's concurrent reads). */
+  earlierHeldBefore?: ReadonlySet<string> | undefined
+  earlierHeld?: (() => void)[]
   /** The viewer's messages to the room, by their Idempotency-Key: the same key again replays the receipt. */
   contributions?: Map<string, { text: string; receipt: ContributionReceipt }>
   /** The next message lands, but its reply is lost on the way (`window.fixture.loseNextContributionReply`). */
@@ -647,13 +650,23 @@ const discussionRead = (project: Project, url: URL) =>
   url.pathname.endsWith('/replies') ? repliesRead(project) : discussionPage(project, url)
 
 /** A page of the room's discussion (A23): the 50 before `before`, oldest first; `before` again while older ones remain. */
-function discussionPage(project: Project, url: URL): Response {
+function discussionPage(project: Project, url: URL): Response | Promise<Response> {
   const anchor = url.searchParams.get('before')
   served.push(`discussion:${anchor ?? 'newest'}`)
   if (project.failEarlier || project.failEarlierReads) {
     project.failEarlier = false
     return unavailable()
   }
+  // A held read is answered when released, from the discussion as it is then.
+  if (anchor && project.earlierHeldBefore?.has(anchor)) {
+    const held = (project.earlierHeld ??= [])
+    return new Promise<Response>((resolve) => held.push(() => resolve(earlierPage(project, url, anchor))))
+  }
+  return earlierPage(project, url, anchor)
+}
+
+/** The 50 before `anchor` (or the newest), as A23 answers them. */
+function earlierPage(project: Project, url: URL, anchor: string | null): Response {
   const all = (project.heldMessages ?? project.messages).map(said)
   const end = anchor ? all.findIndex((e) => e.id === anchor) : all.length
   if (end < 0) {

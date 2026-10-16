@@ -251,6 +251,10 @@ interface Fixture {
   releaseSnapshot: () => void
   /** Every earlier page's read fails until turned off. */
   failEarlierReads: (on: boolean) => void
+  /** Earlier pages read before these messages wait until `releaseEarlierReads` (a slow read). */
+  holdEarlierBefore: (ids: readonly string[]) => void
+  /** The held earlier reads are answered, and no more are held. */
+  releaseEarlierReads: () => void
   /** The next previews list this many running research tasks as reading the words. */
   reachNextPreview: (tasks: number) => void
   /** Acts on messages land, but their replies wait until `releaseActs`. */
@@ -522,6 +526,8 @@ const project = {
   membersFail: query.get('members') === 'fail',
   heldMessages: undefined as (string | Said)[] | undefined,
   failEarlierReads: false,
+  earlierHeldBefore: undefined as ReadonlySet<string> | undefined,
+  earlierHeld: [] as (() => void)[],
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
@@ -960,6 +966,15 @@ window.fixture = {
   },
   failEarlierReads: (on) => {
     project.failEarlierReads = on
+  },
+  holdEarlierBefore: (ids) => {
+    project.earlierHeldBefore = new Set(ids)
+  },
+  releaseEarlierReads: () => {
+    const held = project.earlierHeld
+    project.earlierHeldBefore = undefined
+    project.earlierHeld = []
+    for (const answer of held) answer()
   },
   unmentionMeIn: (n) => {
     const m = project.messages[n]

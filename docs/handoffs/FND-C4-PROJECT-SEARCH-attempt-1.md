@@ -178,6 +178,31 @@ profile or lock byte changed from `d5c32e68`.
     `segment-view.test.ts` traces both.
   - The C3b and search neighbors pass.
 
+## Concurrent reads (FND-C4-CONCURRENT-READ-CLOSURE-01; R-C4-02)
+
+The evidence below is for the commit that carries this section. Studio only: no server, SQL, A38, generated, native,
+profile or lock byte changed from `284cce2e`. This is the final consolidated C4 exchange.
+
+- **R-C4-02, P2: a slow read overwriting another.**
+  - A page that answered used the held state captured when its read began, so a read that answered meanwhile was
+    lost.
+  - Reproduced in the browser first, on `284cce2e`, with a fixture hold of chosen earlier reads (`holdEarlierBefore`,
+    `releaseEarlierReads`). 260 messages; open 100:
+    - **Order A:** Show them is held (before 211); open 40 answers. When the fill is released, message 40 is gone.
+    - **Order B:** the open for 40 is held; Show them answers. When the open is released, 161–210 are gone.
+  - Log `browser-concurrent-before.keep.log`.
+- **The repair.** A page is added to the held state as it is when the page answers (a functional update):
+  - what other reads brought stays, with their links;
+  - the start, once read, stays read;
+  - the window is the one now, not the one when the read was asked, and goes last as the latest;
+  - an entry is never replaced by an older revision of itself.
+  - The window's authority over its span, withdrawals, the once-address look, one page per press, and the current
+    revision and visible-Need ACK are unchanged.
+- **Checks.**
+  - Both orders, in the vision fixture spec and in the strict served (SEARCH=1, no vision) spec: the target and both
+    pages stay; gaps after 40 and after 100; the start shown; three reads, one per press or open.
+  - The serial, disjoint, failure and mentions neighbors pass.
+
 ## Next bounded action
 
 Stop at the local seal. R or V review the exact head, and B integrates on common main. C5 (human tasks) waits for its
