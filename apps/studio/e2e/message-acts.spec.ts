@@ -66,6 +66,8 @@ test('acts · a correction keeps the message’s place and says it was edited; t
   const fixed = line(page, 'Meet at ten by the north door.')
   await expect(fixed).toBeVisible()
   await expect(fixed.getByText('Edited')).toBeVisible()
+  // The focus the field held goes on to the message's Edit, not to the page.
+  await expect(fixed.getByRole('button', { name: 'Edit' })).toBeFocused()
   await expect(discussion(page).locator('.contribution').first()).toContainText('Meet at ten')
   await expect(page.getByText(MINE)).toHaveCount(0)
   expect(await served(page)).toEqual(expect.arrayContaining(['act-preview:correct', 'act:correct']))
@@ -98,6 +100,8 @@ test('acts · a withdrawal asks first, then leaves only the message’s place; a
   await ask.getByRole('button', { name: 'Withdraw message' }).click()
   await expect(discussion(page).getByText('You withdrew this message.')).toBeVisible()
   await expect(page.getByText(MINE)).toHaveCount(0)
+  // The focus the question held goes on to the message's place.
+  await expect(discussion(page).locator('.contribution.withdrawn')).toBeFocused()
 
   await line(page, SHARED).getByRole('button', { name: 'Withdraw' }).click()
   const shared = page.getByRole('group', { name: 'Withdraw your message?' })

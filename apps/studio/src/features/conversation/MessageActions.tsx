@@ -3,7 +3,7 @@
 // work read the words, when the member decides first. Withdraw always asks first. Every act carries its preview's
 // proof: one the service no longer recognises is refused, the chat is read again, and the draft stays. A reply lost on
 // the way is asked again with the same key, so it is never done twice.
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import type { ContributionActPreview, ContributionActReceipt, DiscussionEntry, WithdrawnEntry } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
 import { correctMessage, previewMessageAct, proofOf, withdrawMessage } from '../../api/message-acts.ts'
@@ -42,6 +42,30 @@ interface Acting {
 }
 
 const codeOf = (err: unknown) => (err instanceof ApiError ? err.code : 'unavailable')
+
+/** Whether the focus is in this message's act (its field or its question), so it goes on with the act. */
+const focusWithin = (id: string) => (document.activeElement?.closest(`[data-message-acts="${id}"]`) ?? null) !== null
+
+/**
+ * A done act hands the focus it held on (Codex on #396): a correction's to its message's Edit, a withdrawal's to the
+ * place the message now shows, which takes it. Never taken from somewhere else on the page.
+ */
+function handFocus(act: MessageAct, id: string) {
+  // What takes it shows once the chat draws it, and takes it as it mounts (useHandedFocus).
+  handed.set(id, act === 'withdraw' ? 'place' : 'edit')
+}
+
+/** Messages whose act held the focus, by id, and what takes it: their withdrawn place, or their Edit. */
+const handed = new Map<string, 'place' | 'edit'>()
+
+/** The withdrawn place or the Edit of a message takes the focus its own act held, once. */
+export function useHandedFocus(id: string, taker: 'place' | 'edit', el: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    if (handed.get(id) !== taker || !el.current) return
+    handed.delete(id)
+    el.current.focus()
+  }, [id, taker, el])
+}
 
 /** What the chat shows of a done act before its next read. Identical words changed nothing. */
 function actedOf(
@@ -91,6 +115,7 @@ function useMessageAct({ projectId, identity, entry, onActed }: Acting) {
     const again = pending.current
     const key = again && again.act === act && again.draft === draft ? again.key : crypto.randomUUID()
     pending.current = { act, key, draft, preview }
+    const focused = focusWithin(entry.id)
     setStep({ at: 'working', act, draft })
     const { token } = identity
     try {
@@ -102,6 +127,7 @@ function useMessageAct({ projectId, identity, entry, onActed }: Acting) {
       setStep({ at: 'idle' })
       const acted = actedOf(entry, act, draft, receipt)
       if (acted) onActed(acted)
+      if (focused) handFocus(act, entry.id)
     } catch (err) {
       failed(act, err, draft, preview)
     }
@@ -167,6 +193,7 @@ export function MessageActions({ acts, children, ...acting }: Props) {
       )}
       {step.at === 'idle' && (
         <ActButtons
+          id={entry.id}
           acts={acts}
           edit={edit}
           onEdit={() => setStep({ at: 'editing', draft: entry.text })}
@@ -176,6 +203,7 @@ export function MessageActions({ acts, children, ...acting }: Props) {
       <ActStatus step={step} />
       {step.at === 'asking' && (
         <Confirm
+          id={entry.id}
           act={step.act}
           preview={step.preview}
           problem={step.problem}
@@ -205,6 +233,14 @@ function ActStatus({ step }: { step: Step }) {
   )
 }
 
+/** Escape in the field: the edit goes, not the panel. A correction already sent is not undone by it. */
+function escaped(e: KeyboardEvent<HTMLTextAreaElement>, working: boolean, cancel: () => void) {
+  if (e.key !== 'Escape' || e.nativeEvent.isComposing) return
+  e.preventDefault()
+  e.stopPropagation()
+  if (!working) cancel()
+}
+
 /** The message's words in a field: Save, Cancel, Escape. */
 function EditForm(props: {
   id: string
@@ -220,6 +256,7 @@ function EditForm(props: {
   return (
     <form
       className="message-edit"
+      data-message-acts={props.id}
       onSubmit={(e) => {
         e.preventDefault()
         if (!props.working) props.onSave()
@@ -236,13 +273,7 @@ function EditForm(props: {
         maxLength={4000}
         readOnly={props.working}
         onChange={(e) => props.onDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key !== 'Escape' || e.nativeEvent.isComposing) return
-          // The edit goes, not the panel: Escape is spent here. A correction already sent is not undone by it.
-          e.preventDefault()
-          e.stopPropagation()
-          if (!props.working) props.onCancel()
-        }}
+        onKeyDown={(e) => escaped(e, props.working, props.onCancel)}
       />
       <span className="message-edit-actions">
         <button className="pill primary" type="submit" aria-disabled={props.working || undefined}>
@@ -271,16 +302,24 @@ function EditForm(props: {
 
 /** Edit and Withdraw after the message's words, as its acts allow. */
 function ActButtons(props: {
+  id: string
   acts: readonly MessageAct[]
   edit: RefObject<HTMLButtonElement | null>
   onEdit: () => void
   onWithdraw: () => void
 }) {
+  useHandedFocus(props.id, 'edit', props.edit)
   if (props.acts.length === 0) return null
   return (
     <span className="message-acts">
       {props.acts.includes('correct') && (
-        <button ref={props.edit} type="button" className="text-button" onClick={props.onEdit}>
+        <button
+          ref={props.edit}
+          id={`message-edit-${props.id}`}
+          type="button"
+          className="text-button"
+          onClick={props.onEdit}
+        >
           Edit
         </button>
       )}
@@ -295,6 +334,7 @@ function ActButtons(props: {
 
 /** What the act will do, said before it goes, and the member's decision. */
 function Confirm(props: {
+  id: string
   act: MessageAct
   preview: ContributionActPreview
   problem: string | undefined
@@ -311,6 +351,7 @@ function Confirm(props: {
   return (
     <div
       className="message-confirm"
+      data-message-acts={props.id}
       role="group"
       aria-label={title}
       onKeyDown={(e) => {

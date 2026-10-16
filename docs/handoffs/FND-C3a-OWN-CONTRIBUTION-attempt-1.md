@@ -120,6 +120,26 @@ after the runs.
     that case then passed in the repeated run.
   - Lint, format, typecheck and contracts are clean; units give 2359 pass, 0 fail.
 
+## Repair exchange 2 (Codex on 14ef2f34)
+
+The evidence below is for the commit that carries this section. This is the second and last consolidated exchange;
+any further finding goes to a focused correction, a split or an owner's disposition.
+
+- **Codex 4296355201, P2: focus after a done act.** Focus fell to the page after a successful correction or
+  withdrawal. Now, when the act's field or question held the focus:
+  - a correction hands it to the message's Edit;
+  - a withdrawal hands it to the withdrawn place (focusable, `tabIndex=-1`).
+
+  Each takes it as it mounts. A first try with an animation frame raced the chat's render, and the browser run caught
+  it (logs `browser-c3a-r2*.log`).
+- **Codex, P2 in the review summary: «Today» after a tombstone.** The divider before today's turns now counts a
+  withdrawn message's place (`lastSaidAt`, unit-tested), even when no message is left.
+- **Results:**
+  - browser `message-acts.spec.ts` 14/14, run three times (42 passed);
+  - the nearby reader specs 34/34;
+  - lint, format, typecheck and contracts clean; units give 2360 pass, 0 fail, and the Studio units 11/11.
+  - No SQL or contract change, so the PG evidence of exchange 1 stands.
+
 ## Next bounded action
 
 After CI, the automatic review and the browser slot, write the bounded C3a handback. C3b (0069/A37 mentions) does not

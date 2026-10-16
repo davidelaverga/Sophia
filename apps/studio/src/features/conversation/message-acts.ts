@@ -126,3 +126,7 @@ export function heldView(
   const merged = [...entries.values()]
   return { entries: held ? merged.toSorted(inOrder) : merged, withdrawn: [...withdrawn.values()].toSorted(inOrder) }
 }
+
+/** When the discussion's last line was said, a withdrawn message's place included (Codex on #396): «Today» goes after it. */
+export const lastSaidAt = (entries: readonly Placed[], withdrawn: readonly Placed[]): string | undefined =>
+  [...entries, ...withdrawn].toSorted(inOrder).at(-1)?.createdAt

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ContributionActPreview, DiscussionEntry } from '@sophia/contracts'
-import { actsOf, asksFirst, discussionItems, effectWords, failureOf, heldView } from './message-acts.ts'
+import { actsOf, asksFirst, discussionItems, effectWords, failureOf, heldView, lastSaidAt } from './message-acts.ts'
 
 const ME = '00000000-0000-4000-8000-0000000000a1'
 const OTHER = '00000000-0000-4000-8000-0000000000a2'
@@ -159,5 +159,20 @@ describe('heldView', () => {
       newer.entries.map((x) => x.text),
       ['Newer'],
     )
+  })
+})
+
+describe('lastSaidAt', () => {
+  it('counts a withdrawn message’s place: «Today» goes after a tombstone, even when no message is left', () => {
+    const tomb = {
+      id: entry().id,
+      actorId: ME,
+      authorName: null,
+      createdAt: '2026-10-15T18:00:00.000Z',
+      withdrawnAt: '2026-10-16T08:00:00.000Z',
+    }
+    assert.equal(lastSaidAt([], [tomb]), '2026-10-15T18:00:00.000Z')
+    assert.equal(lastSaidAt([entry({ createdAt: '2026-10-15T09:00:00.000Z' })], [tomb]), '2026-10-15T18:00:00.000Z')
+    assert.equal(lastSaidAt([], []), undefined)
   })
 })

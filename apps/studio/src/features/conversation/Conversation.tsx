@@ -17,8 +17,8 @@ import { chatTimeline, type ChatEntryItem, type ChatTurn } from './chat-view.ts'
 import { Composer } from './Composer.tsx'
 import { authorLabel, withAuthors } from './conversation-view.ts'
 import { EarlierLine, useEarlierDiscussion } from './EarlierDiscussion.tsx'
-import { EditedMark, MessageActions, WithdrawnWords, type Acted } from './MessageActions.tsx'
-import { actsOf, discussionItems } from './message-acts.ts'
+import { EditedMark, MessageActions, useHandedFocus, WithdrawnWords, type Acted } from './MessageActions.tsx'
+import { actsOf, discussionItems, lastSaidAt } from './message-acts.ts'
 import { NoticeCard } from './NoticeCard.tsx'
 import { quoteOf } from './replies.ts'
 import type { Replying } from './ReplyingTo.tsx'
@@ -99,7 +99,7 @@ export function Conversation(props: Props) {
           onReply={VISION ? setReplying : undefined}
         />
         {VISION && discussion.length > 0 && <RepliesState failed={replies.failed} onRetry={replies.retry} />}
-        <TodayLine lastAt={earlier.entries.at(-1)?.createdAt} shown={timeline.length > 0} />
+        <TodayLine lastAt={lastSaidAt(earlier.entries, earlier.withdrawn)} shown={timeline.length > 0} />
         {timeline.length > 0 && (
           <ol className="chat-messages" aria-label="Conversation with Sophia">
             {timeline.map((entry) => (
@@ -370,8 +370,11 @@ function Withdrawn(props: {
   names: ReadonlyMap<string, string>
 }) {
   const { withdrawn: w, day, me, names } = props
+  const place = useRef<HTMLLIElement>(null)
+  useHandedFocus(props.withdrawn.id, 'place', place)
   return (
-    <li className="contribution withdrawn">
+    // It takes the focus its own withdrawal held (MessageActions' handFocus).
+    <li ref={place} id={`withdrawn-${w.id}`} className="contribution withdrawn" tabIndex={-1}>
       {day && <span className="chat-day">{day}</span>}
       <span className="contribution-author">{authorLabel(w.actorId, me, names)}</span>
       <At at={new Date(w.createdAt)} className="contribution-at" />
