@@ -50,3 +50,12 @@ test('ai · in a talk by voice, the line is there too', async ({ page }) => {
   await expect(talk).toBeVisible()
   await expect(talk.locator('.c3-ai-line')).toHaveText('Sophia is an AI, not a person.')
 })
+
+test('@phone · ai · on a touch screen, «Help now» is a full-size target, and the line keeps its height', async ({
+  page,
+}) => {
+  await page.goto('/personal.html')
+  const help = await line(page).getByRole('button', { name: 'Help now' }).boundingBox()
+  expect(help?.height ?? 0).toBeGreaterThanOrEqual(40)
+  expect((await line(page).boundingBox())?.height ?? 0).toBeLessThanOrEqual(28)
+})
