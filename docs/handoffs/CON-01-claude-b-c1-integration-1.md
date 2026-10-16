@@ -84,6 +84,22 @@ What this does not establish:
   - The two Account-button cases time out while the page shows only the splash. Their trace has no Auth or API request at all, just the cold dev-server module load (about 470 requests). That points to first-load timing on a cold server, not an account-isolation fault.
   - Main's Linux CI passes all of `app-auth`. Both explanations still need confirming in a B browser slot.
 
+## Common browser gate (FND-B-CON-CI-INTEGRATION-02)
+
+- **Merge.** One normal merge of #392's sealed `355039d9`, which carries main `e1cc4b4d`. No conflict. It brings:
+  - main's day-pill test fix;
+  - the Home and room-task read-versus-write test corrections;
+  - the browser job's 90-minute deadline (same tests, two workers, retries and per-test bounds);
+  - the activity case's `fastForward` clock.
+  - C1's own long-name activity case is kept beside it.
+- **Personal draft ordering** (`personal.spec.ts`, "a send that fails comes back beside words another tab kept meanwhile"). On C1's cancelled CI run, tab B's intermediate check saw `From A.\nFrom B.` instead of `From B.`. Locally, on cold servers with two workers:
+  - the original case passed 20/20 together with its neighbour. With a temporary timing probe, B was checked 505–550 ms after A's Enter, and A's failure landed at 1794–1839 ms: the fixed 1500 ms delay was the only thing ordering the two tabs;
+  - with B mounted on time but first checked 1.5 s later (temporary probe), the original assertion failed 3/3 with CI's exact value. Both drafts were kept, so this is no data loss;
+  - the fix is a fixture barrier, not a product change: `holdSend=1` holds A's send until `window.personalFixture.releaseSend()`, and the case releases it only after B's words are checked. The intermediate check and the final both-draft and storage assertions are unchanged;
+  - after the fix: 20/20 (both failed-send cases ×10), and 3/3 with the same 1.5 s late check.
+- **Activity.** The file passed once on the integrated source: 6/6, with case 59 at 1.6 s. No new timing campaign. The earlier 10+10 measurement shows lower clock cost; it is not a reproduction of the CI timeout.
+- **Not shown:** the full browser suite was not run locally. The required CI on the integrated head is still owed.
+
 ## Remaining obligations
 
 - **#382 (Luis, open; its browser job was failing at packet time)** touches `ConversationsView.tsx`, `OpenConversation.tsx` and `fixtures/room.tsx`. Once its accepted head is on main, B merges main again in the final shared Studio slot. Luis then accepts the shared Studio resolutions. Neither #382 nor Luis's branch was merged or edited here.
