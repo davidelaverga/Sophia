@@ -7,6 +7,7 @@ import { Avatar } from './Avatar.tsx'
 import { reportsOn } from './crash-report.ts'
 import type { Identity } from './dev-identity.ts'
 import { signedInWith } from './profile.ts'
+import { EVERYWHERE } from './sign-out.ts'
 import { Sheet } from './Sheet.tsx'
 import { type Theme, useTheme } from './theme.ts'
 import { micOnJoin, rememberMic } from '../features/voice/mic-preference.ts'
@@ -91,14 +92,7 @@ function Account({
         </button>
       )}
       {/* The menu's Sign out is this device's; every device is asked for here, and asked about (sign-out-scope.md). */}
-      <ConfirmButton
-        label="Sign out of all devices"
-        warning="Every device signed in to this account is signed out, this one too."
-        confirm="Sign out everywhere"
-        keep="Stay signed in"
-        className="text-button"
-        onConfirm={onSignOutEverywhere}
-      />
+      <ConfirmButton {...EVERYWHERE} className="text-button" onConfirm={onSignOutEverywhere} />
     </Part>
   )
 }

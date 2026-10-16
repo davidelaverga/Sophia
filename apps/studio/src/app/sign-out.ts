@@ -52,6 +52,18 @@ export async function endSession(auth: SessionEnd, everywhere: boolean): Promise
   }
 }
 
+/**
+ * What «Sign out of all devices» says before it signs out (Codex P1 on #410, third): a global sign-out revokes the
+ * refresh tokens, and an access token already given lives to its expiry (jwt_expiry 3600 s in supabase/config.toml,
+ * Supabase's default), which is all the API checks. So the others go within the hour, not at once.
+ */
+export const EVERYWHERE = {
+  label: 'Sign out of all devices',
+  warning: 'This one signs out now. Your other devices are signed out within an hour, when their sign-in next renews.',
+  confirm: 'Sign out everywhere',
+  keep: 'Stay signed in',
+} as const
+
 /** Said on the sign-in when every device was asked and only this one is out. */
 export const NOT_EVERYWHERE =
   'You’re signed out here. Your other devices may still be signed in: sign in and try “Sign out of all devices” again.'
