@@ -3,10 +3,11 @@
 // while it is on (only they turn it on again), or take them out of the call (A24). A guest leaves by the door's Deny,
 // so their row offers nothing. What changed shows as the call itself changes; a refusal is said on the row. While a
 // control is on its way its row says so and its menu waits, so one press is one act.
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ConfirmButton, EmptyState, Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
 import { actInCall, muteEveryoneInCall } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { useMembership } from '../access/useAccess.ts'
 import { shortName, type RoomParticipant, type Standing } from '../voice/room-view.ts'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
@@ -103,6 +104,7 @@ export function PeoplePanel({ room, projectId, identity }: Props) {
   const host = useMembership(projectId, identity.name, identity.token).data?.role === 'admin'
   const [failed, setFailed] = useState<{ identity: string; text: string } | null>(null)
   const [pending, setPending] = useState<ReadonlyMap<string, Act>>(new Map())
+  const list = useRef<HTMLUListElement>(null)
   // You first, then the others as the call lists them.
   const people = room.participants.toSorted((a, b) => Number(b.local) - Number(a.local))
   if (people.length === 0) return <EmptyState>Nobody is in the call yet.</EmptyState>
@@ -111,6 +113,10 @@ export function PeoplePanel({ room, projectId, identity }: Props) {
     setFailed(null)
     setPending((was) => new Map(was).set(person.identity, what))
     actInCall(identity.token, projectId, person.identity, what)
+      .then(() => {
+        // Their row goes as they leave the call: the focus goes to the list, never the page (Codex P2 on #351).
+        if (what === 'remove') requestAnimationFrame(() => list.current?.focus({ preventScroll: true }))
+      })
       .catch(() => setFailed({ identity: person.identity, text: refusal(what, name) }))
       .finally(() =>
         setPending((was) => {
@@ -123,7 +129,7 @@ export function PeoplePanel({ room, projectId, identity }: Props) {
   return (
     <>
       {host && <MuteEveryone people={people} projectId={projectId} identity={identity} />}
-      <ul className="people" aria-label="People in the call">
+      <ul ref={list} className="people" aria-label="People in the call" tabIndex={-1}>
         {people.map((p) => {
           const name = shortName(p.name)
           const acts = host && !p.local && p.standing !== 'guest' && p.standing !== 'unknown'
@@ -135,7 +141,7 @@ export function PeoplePanel({ room, projectId, identity }: Props) {
                 <Icon name={p.micOn ? 'mic' : 'micOff'} />
               </span>
               {acts && <Actions person={p} name={name} busy={pending.has(p.identity)} onAct={act(p, name)} />}
-              <Pending what={pending.get(p.identity)} name={name} />
+              {pending.has(p.identity) && <Pending what={pending.get(p.identity) ?? 'mute'} name={name} />}
               {failed?.identity === p.identity && (
                 <p role="alert" className="person-failed">
                   {failed.text}
@@ -190,11 +196,13 @@ function MuteEveryone({
   )
 }
 
-function Pending({ what, name }: { what: Act | undefined; name: string }) {
-  if (!what) return null
+/** A control on its way, and past six seconds, that it is slow, as every Studio write says (Codex P2 on #351). */
+function Pending({ what, name }: { what: Act; name: string }) {
+  const slow = useSlow(true)
   return (
     <p role="status" className="person-pending">
       {underWay(what, name)}
+      {slow && ` ${SLOW_NOTE}`}
     </p>
   )
 }

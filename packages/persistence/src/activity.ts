@@ -63,6 +63,19 @@ export async function recordRoomAct(
   return onlyRow(rows, 'record_room_act').cursor
 }
 
+/**
+ * Whether this admin took `target` out of the call in the last ten minutes (Codex P2 on #351): a retry of a removal
+ * whose answer was lost finds them gone, and is answered as done. Call inside withActor(..., "read").
+ */
+export async function removedJustNow(c: pg.PoolClient, projectId: string, target: string): Promise<boolean> {
+  const { rows } = await c.query<{ done: boolean }>(
+    `SELECT EXISTS(SELECT 1 FROM sophia.project_events WHERE project_id = $1 AND type = 'room.host_removed'
+       AND entity_id = $2 AND actor_id = sophia.actor_id() AND occurred_at > now() - interval '10 minutes') AS done`,
+    [projectId, target],
+  )
+  return onlyRow(rows, 'removed_just_now').done
+}
+
 export async function recordHostAct(
   c: pg.PoolClient,
   projectId: string,

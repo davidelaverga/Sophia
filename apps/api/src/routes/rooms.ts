@@ -8,6 +8,7 @@ import {
   nameActor,
   recordHostAct,
   recordRoomAct,
+  removedJustNow,
   rememberRoomName,
   transferInputFloor,
   withActor,
@@ -171,8 +172,16 @@ function hostControls(app: FastifyInstance, { pool, livekit }: Deps): void {
         if (!roomId) throw new DomainError('forbidden', 'Not permitted')
         if (req.params.identity === req.actorId) throw new DomainError('invalid_request', 'Your own call is yours')
         if (!livekit) throw new DomainError('unavailable', 'The voice room is not configured on this server')
-        if (!(await memberInRoom(livekit, roomId, req.params.identity)))
+        if (!(await memberInRoom(livekit, roomId, req.params.identity))) {
+          // A removal retried after its answer was lost finds them gone: done, as the first said (Codex P2 on #351).
+          const gone =
+            what === 'remove' &&
+            (await withActor(pool, req.actorId, 'read', (c) =>
+              removedJustNow(c, req.params.projectId, req.params.identity),
+            ))
+          if (gone) return reply.code(204).send()
           throw new DomainError('invalid_request', 'They aren’t a member in the call')
+        }
         await (what === 'mute' ? muteMicrophone : removeFromCall)(livekit, roomId, req.params.identity)
         // Evidence of who did it, once it is done (project-activity.md): the project's activity lists it.
         await withActor(pool, req.actorId, 'write', (c) =>
