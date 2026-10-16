@@ -74,18 +74,38 @@ const MESSAGES: Readonly<Record<string, string>> = {
     'receipt of every page you rely on).',
 }
 
-/** A refusal from the service, as one sentence the model can act on; anything else is a failure to retry later. */
+/**
+ * A refusal from the service, as one sentence the model can act on; anything else is a failure to retry later. An
+ * `invalid_request` refusal says what to fix when the service did (its bounded `detail`, R1-F02): the model then
+ * corrects that field instead of guessing again from the general rule.
+ */
 function serviceProblem(error: unknown): { code: string; message: string } {
   if (error instanceof TransportError && error.code) {
-    return { code: error.code, message: MESSAGES[error.code] ?? `The Sophia service refused the operation (${error.code}).` }
+    const message = MESSAGES[error.code] ?? `The Sophia service refused the operation (${error.code}).`
+    if (error.code === 'invalid_request' && error.detail)
+      return { code: error.code, message: `The service refused it: ${error.detail}. Nothing was published; correct that and call again.` }
+    return { code: error.code, message }
   }
   return { code: 'service_unavailable', message: 'The Sophia service could not be reached; nothing was read or published.' }
 }
 
-const contractRefusal = (error: unknown): { code: string; message: string } | null =>
-  error instanceof Error && /does not match the runtime contract/.test(error.message)
-    ? { code: 'invalid_request', message: MESSAGES.invalid_request ?? 'Check each field.' }
+/**
+ * Where a request the bridge never sent breaks the contract (`path message`, from the generated validator), or null
+ * for any other error, a reply off the contract included: that is the service's fault, not the model's.
+ */
+const unsentField = (error: unknown, what: string): string | null => {
+  const prefix = `${what} request does not match the runtime contract: `
+  return error instanceof TransportError && error.status === undefined && error.message.startsWith(prefix)
+    ? error.message.slice(prefix.length).slice(0, 200)
     : null
+}
+
+const contractRefusal = (error: unknown): { code: string; message: string } | null => {
+  const field = unsentField(error, 'review submit')
+  return field === null
+    ? null
+    : { code: 'invalid_request', message: `The submission was not sent: ${field}. ${MESSAGES.invalid_request ?? 'Check each field.'}` }
+}
 
 /** What a read answers when the service did not answer it in time. */
 const READ_UNANSWERED = {
@@ -225,10 +245,13 @@ export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
     async execute(args, exec): Promise<Json> {
       const session = sessionOf(exec)
       const deadline = AbortSignal.timeout(readMs)
+      const signal = AbortSignal.any([exec.signal, deadline])
+      // An empty sourceId is no sourceId: the task, as the description says (R1-F02).
+      const sourceId = args.sourceId?.trim() ? args.sourceId.trim() : undefined
       try {
         const reply = await deps.client.sourceReviewContext(
-          { ...ids(session), ...(args.sourceId === undefined ? {} : { sourceId: args.sourceId, offset: args.offset ?? 0 }) },
-          AbortSignal.any([exec.signal, deadline]),
+          { ...ids(session), ...(sourceId === undefined ? {} : { sourceId, offset: args.offset ?? 0 }) },
+          signal,
         )
         if (!('text' in reply)) return asJson(reply)
         return envelope({
@@ -241,11 +264,35 @@ export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
         })
       } catch (error) {
         if (deadline.aborted && !exec.signal.aborted) return { ...READ_UNANSWERED }
+        const field = unsentField(error, 'review context')
+        if (field !== null) return unsentRead(field, session, signal)
         if (error instanceof TransportError) return serviceProblem(error)
         throw error
       }
     },
   })
+
+  /**
+   * A read the bridge did not send because it breaks the contract (R1-F02: a sourceId that is a source's ref or a word,
+   * not one of the manifest's sourceIds, was once told "the service could not be reached"): which field, what it must
+   * be, and the sourceIds this review may read, from its task. Nothing was read.
+   */
+  async function unsentRead(field: string, session: ResearchSession, signal: AbortSignal): Promise<Json> {
+    const refusal = {
+      code: 'invalid_request',
+      field: field.split(' ')[0] ?? '/',
+      message:
+        `The read was not sent: ${field}. Pass a sourceId exactly as your task lists it (a UUID, not its ref such as S1), ` +
+        'and offset as a whole number from 0; omit sourceId to read your task. Nothing was read.',
+    }
+    try {
+      const task = await deps.client.sourceReviewContext(ids(session), signal)
+      if ('text' in task) return refusal
+      return { ...refusal, eligibleSourceIds: task.sources.filter((s) => s.readable).map((s) => s.sourceId) }
+    } catch {
+      return refusal
+    }
+  }
 
   const submit = defineTool({
     name: 'submit_source_review',
