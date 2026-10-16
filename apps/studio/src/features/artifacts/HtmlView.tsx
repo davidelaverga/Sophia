@@ -3,6 +3,7 @@
 // navigation), so the page cannot run, reach Studio's DOM, cookies or storage, or send anything; its own Content
 // Security Policy, written by the compiler, refuses every load besides. It is never parsed into Studio's DOM and never
 // passes through MarkdownView. Above it, in Studio's words, how it was reviewed and what it says it could not do.
+import type { ReactNode } from 'react'
 import type { ArtifactRendition } from '@sophia/contracts'
 
 /** What a designed page's review state means to a reader, in one sentence. */
@@ -30,15 +31,20 @@ interface Props {
   title: string
   rendition: ArtifactRendition
   full: boolean
+  /** Beside the review's sentence: «Revise with Sophia…», for those who may ask (ReviseSections). */
+  revise?: ReactNode
 }
 
-export function HtmlView({ html, title, rendition, full }: Props) {
+export function HtmlView({ html, title, rendition, full, revise }: Props) {
   const limits = rendition.limitations ?? []
   return (
     <div className="report-html" data-full={full || undefined}>
-      <p className="report-format-note" role="note" data-review={rendition.reviewState ?? 'self_review_only'}>
-        {reviewWords(rendition.reviewState)}
-      </p>
+      <div className="report-html-head">
+        <p className="report-format-note" role="note" data-review={rendition.reviewState ?? 'self_review_only'}>
+          {reviewWords(rendition.reviewState)}
+        </p>
+        {revise}
+      </div>
       {limits.length > 0 && (
         <section className="report-limits" aria-label="Limitations of the design">
           <h3>Limitations</h3>

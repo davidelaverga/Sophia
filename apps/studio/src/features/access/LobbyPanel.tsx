@@ -2,7 +2,8 @@
 // Declining is for now: the guest may ask again in a minute, and "Let in instead" takes back a slip at once.
 // Blocking is for good, asks first, and is offered to those who keep asking (the Invite sheet can block or
 // unblock anyone). With several waiting, one click answers them all. The list is the snapshot's, so every
-// member sees it change.
+// member sees it change. A new knock chimes for those who can answer, and notifies while the tab is hidden
+// (knock-alert.md).
 import { useEffect, useState } from 'react'
 import type { LobbyEntry } from '@sophia/contracts'
 import { Button, ConfirmButton } from '@sophia/ui'
@@ -12,12 +13,16 @@ import { useLobbyDecision } from './useAccess.ts'
 import { lasted } from '../../app/time-words.ts'
 import { useNow } from '../../app/use-now.ts'
 import { initialOf } from '../../app/profile.ts'
+import { useKnockAlert } from './useKnockAlert.ts'
 
 interface Props {
   projectId: string
   identity: Identity
-  lobby: readonly LobbyEntry[]
+  /** Who is at the door; undefined until the snapshot is read (those waiting before it are not news). */
+  lobby: readonly LobbyEntry[] | undefined
   canDecide: boolean
+  /** The project's title, for a knock's notification. */
+  projectTitle: string | undefined
 }
 
 /** How long "Let in instead" stays after a decline. */
@@ -40,11 +45,12 @@ function useJustDeclined(): [readonly LobbyEntry[], (entries: readonly LobbyEntr
   return [declined, setDeclined]
 }
 
-export function LobbyPanel({ projectId, identity, lobby, canDecide }: Props) {
+export function LobbyPanel({ projectId, identity, lobby, canDecide, projectTitle = '' }: Props) {
   const now = useNow(30_000)
   const { busy, error, decide } = useLobbyDecision(projectId, identity)
   const [declined, setDeclined] = useJustDeclined()
-  const waiting = lobby.filter((e) => e.status === 'waiting')
+  const waiting = (lobby ?? []).filter((e) => e.status === 'waiting')
+  useKnockAlert(waiting, { projectId, projectTitle, canDecide, loaded: lobby !== undefined })
   if (waiting.length === 0 && declined.length === 0) return null
   const decline = (entries: readonly LobbyEntry[]) => {
     setDeclined(entries)
@@ -131,7 +137,26 @@ function LobbyHead({ names, count, canDecide, busy, onDeclineAll, onAdmitAll }: 
         )}
       </div>
       {!canDecide && <p className="lobby-note">An editor or admin can let them in.</p>}
+      {canDecide && <NotifyOffer />}
     </>
+  )
+}
+
+/** While notifications have never been asked for, one offer to hear of the next knock in another tab. */
+function NotifyOffer() {
+  const [asked, setAsked] = useState(() => typeof Notification === 'undefined' || Notification.permission !== 'default')
+  if (asked) return null
+  return (
+    <button
+      type="button"
+      className="text-button lobby-notify"
+      onClick={() => {
+        setAsked(true)
+        void Notification.requestPermission()
+      }}
+    >
+      Notify me when someone knocks
+    </button>
   )
 }
 
