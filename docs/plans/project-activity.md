@@ -16,7 +16,7 @@
 
 ## What changes
 
-- **Migration 0056:**
+- **Migration 0057:**
   - `create_project` (0047) is replaced to emit `project.created`. Its receipt's cursor is that event's sequence
     (`'1'` for a new project, `'0'` before); a replayed key still answers its stored receipt.
   - `sophia.record_host_act(project, target, act)` lets an admin record an act on an active member, `mute` or
@@ -35,7 +35,7 @@
 - **Contract amendment A28:** `GET /api/v1/projects/{projectId}/activity?before={sequence}` returns
   `{ entries: ActivityEntry[], before }`.
   - An entry is `{ sequence, occurredAt, type, summaryCode, actor: { id, name }, target: { id, name } | null }`.
-  - `/ready` requires 0056.
+  - `/ready` requires 0057.
 - **Studio:**
   - The project menu gains «Activity» for admins. Its sheet «Project activity» lists entries newest first: who, what
     (the Work pulse's labels, plus «Project created», «Muted in the call by an admin», «Taken out of the call by an
@@ -52,7 +52,7 @@
   - pages go back with `before`.
 - `persistence.db.test.ts`: `record_host_act` emits for an admin and refuses an editor.
 - `api.db.test.ts` and `persistence.db.test.ts`: a new project's receipt cursor is `'1'`, its creation event's.
-- `readiness.db.test.ts`: not ready without 0056.
+- `readiness.db.test.ts`: not ready without 0057.
 - `project-activity.spec.ts`:
   - an admin opens Activity from the project menu and reads who did what;
   - the person filter narrows it;

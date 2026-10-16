@@ -27,12 +27,12 @@ const MISSION_NAMES = '0049_mission_author_names.sql'
 const ROOM_NAMES = '0050_room_names.sql'
 const PROJECT_RENAME = '0051_project_rename.sql'
 const PROJECT_LEAVE = '0052_project_leave.sql'
-const GOAL_TARGETS = '0053_goal_targets.sql'
-const INVITABLE = '0054_invitable_people.sql'
-const MEMBER_ROLES = '0055_member_roles.sql'
-const ACTIVITY = '0056_project_activity.sql'
-const REMOVE_MEMBER = '0057_remove_member.sql'
-const ARCHIVE = '0058_archive_project.sql'
+const GOAL_TARGETS = '0054_goal_targets.sql'
+const INVITABLE = '0055_invitable_people.sql'
+const MEMBER_ROLES = '0056_member_roles.sql'
+const ACTIVITY = '0057_project_activity.sql'
+const REMOVE_MEMBER = '0058_remove_member.sql'
+const ARCHIVE = '0059_archive_project.sql'
 
 let dir: string
 let db: TestDatabase
@@ -115,17 +115,17 @@ describe('readiness across 0043', () => {
     await migrate(PROJECT_RENAME)
     assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0052')
     await migrate(PROJECT_LEAVE)
-    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0053')
-    await migrate(GOAL_TARGETS)
     assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0054')
-    await migrate(INVITABLE)
+    await migrate(GOAL_TARGETS)
     assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0055')
-    await migrate(MEMBER_ROLES)
+    await migrate(INVITABLE)
     assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0056')
-    await migrate(ACTIVITY)
+    await migrate(MEMBER_ROLES)
     assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0057')
-    await migrate(REMOVE_MEMBER)
+    await migrate(ACTIVITY)
     assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0058')
+    await migrate(REMOVE_MEMBER)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0059')
     await migrate(ARCHIVE)
     await current()
     assert.deepEqual(await ready(), [200, { ready: true }], 'with all')

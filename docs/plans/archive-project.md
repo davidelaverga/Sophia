@@ -9,7 +9,7 @@
 
 - **Kept in the project's row:** `projects.archived_at` (null while active). The snapshot, the mission and the runtime
   see nothing new, and an archived project can still be opened and written to.
-- **Migration 0058:**
+- **Migration 0059:**
   - `sophia.set_project_archived(project, archived, key)`:
     - admins only (403);
     - idempotent per actor and key, as a rename is: the same key and choice answers the same receipt, while the same
@@ -39,7 +39,7 @@
   - one event per change, and none for asking again;
   - an editor, a viewer and an outsider are refused;
   - a key answers once, and only for its own choice.
-- `readiness.db.test.ts`: not ready without 0058.
+- `readiness.db.test.ts`: not ready without 0059.
 - `archive-project.spec.ts`:
   - an admin archives from the menu, it is recorded, and they go to Work;
   - an editor sees no Archive;

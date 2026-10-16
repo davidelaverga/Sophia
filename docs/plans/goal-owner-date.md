@@ -15,7 +15,7 @@
 
 - **Kept beside the goal, not in it:** `Goal`, its revision and its authority are untouched. The mission's commands
   and the runtime see nothing new.
-- **Migration 0053:**
+- **Migration 0054:**
   - `sophia.goal_targets(project_id, goal_id, owner_id, target_date, revision)`;
   - `sophia.set_goal_target(project, goal, owner, date, expected_revision)`:
     - editors and admins only (403);
@@ -48,7 +48,7 @@
   - an event is kept.
 - `api.db.test.ts`, «members»: the active members with their roles, named once they opened the project; an outsider
   is refused.
-- `readiness.db.test.ts`: not ready without 0053.
+- `readiness.db.test.ts`: not ready without 0054.
 - `goal-owner-date.spec.ts`:
   - an editor sets an owner and a date in the sheet, and the row says them;
   - a viewer sees them with no Save;
