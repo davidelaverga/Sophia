@@ -13,9 +13,12 @@ declare global {
 const door = (page: Page) => page.getByRole('complementary', { name: 'Waiting to come in' })
 
 /** Stand-ins for the chime's AudioContext and for Notification, with `permission` and `hidden` as asked. */
-async function standIns(page: Page, { permission, hidden }: { permission: string; hidden: boolean }) {
+async function standIns(
+  page: Page,
+  { permission, hidden, dismiss = false }: { permission: string; hidden: boolean; dismiss?: boolean },
+) {
   await page.addInitScript(
-    ({ permission: given, hidden: away }) => {
+    ({ permission: given, hidden: away, dismiss: closes }) => {
       const alerts = { chimes: 0, notified: [] as { title: string; body: string }[], asked: 0 }
       window.alerts = alerts
       class FakeContext {
@@ -49,7 +52,8 @@ async function standIns(page: Page, { permission, hidden }: { permission: string
         }
         static requestPermission() {
           alerts.asked += 1
-          allowed = 'granted'
+          // Dismissed, the browser's prompt leaves the choice unmade: still «default».
+          if (!closes) allowed = 'granted'
           return Promise.resolve(allowed)
         }
         addEventListener() {}
@@ -64,7 +68,7 @@ async function standIns(page: Page, { permission, hidden }: { permission: string
         Object.defineProperty(document, 'visibilityState', { get: () => 'hidden' })
       }
     },
-    { permission, hidden },
+    { permission, hidden, dismiss },
   )
 }
 
@@ -117,4 +121,26 @@ test('knock · the door offers notifications once; the browser asks, and the off
   await offer.click()
   await expect(offer).toHaveCount(0)
   expect((await alerts(page))?.asked).toBe(1)
+})
+
+test('knock · a knock while the role is still being read is heard once it is known (Codex P2 on #362)', async ({
+  page,
+}) => {
+  await standIns(page, { permission: 'granted', hidden: false })
+  await page.goto('/room.html?membership=hold')
+  await page.evaluate(() => window.fixture?.knock())
+  await expect(door(page).getByRole('status')).toContainText('At the door')
+  await page.evaluate(() => window.fixture?.releaseMembership())
+  await expect.poll(async () => (await alerts(page))?.chimes ?? 0).toBeGreaterThan(0)
+})
+
+test('knock · a prompt dismissed is not offered again, here or after a reload (Codex P2 on #362)', async ({ page }) => {
+  await standIns(page, { permission: 'default', hidden: false, dismiss: true })
+  await page.goto('/room.html?lobby=waiting')
+  const offer = door(page).getByRole('button', { name: 'Notify me when someone knocks' })
+  await offer.click()
+  await expect(offer).toHaveCount(0)
+  await page.reload()
+  await expect(door(page).getByRole('status')).toContainText('At the door')
+  await expect(offer).toHaveCount(0)
 })
