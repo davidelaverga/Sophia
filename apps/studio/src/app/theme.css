@@ -6379,3 +6379,37 @@ button.contribution-quote:hover {
   align-items: center;
   gap: 8px;
 }
+
+/* Who is in the project (docs/plans/member-roles.md): a row each, the role at its end, a select for an admin. */
+.in-project {
+  display: grid;
+  gap: 8px;
+  margin-top: 20px;
+}
+.in-project-people {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.in-project-people li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 36px;
+}
+.in-project-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.in-project-role-words {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.in-project-people .form-error {
+  grid-column: 1 / -1;
+  margin: 0;
+}

@@ -41,6 +41,8 @@ test('leave · the only admin is told why, and stays', async ({ page }) => {
   await menu(page).getByRole('menuitem', { name: 'Leave project…' }).click()
   await sheet(page).getByRole('button', { name: 'Leave project' }).click()
   await expect(sheet(page).getByRole('alert')).toContainText('only admin')
+  // And where to go: the admin role can be handed over first (member-roles.md).
+  await expect(sheet(page).getByRole('alert')).toContainText('Invite › Members')
   expect(await served(page)).not.toContain('went:work')
   expect(await served(page)).not.toContain('leave')
 })

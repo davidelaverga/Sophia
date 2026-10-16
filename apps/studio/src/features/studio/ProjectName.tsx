@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Membership } from '@sophia/contracts'
 import { Button, Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
-import { leaveProject, renameProject } from '../../api/client.ts'
+import { ApiError, leaveProject, renameProject } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import { membershipKey } from '../access/useAccess.ts'
@@ -27,6 +27,9 @@ type SheetProps = Pick<Props, 'title' | 'projectId' | 'identity'> & { onClose: (
 
 /** The most a title holds (A21), counted as the API counts it. */
 const TITLE_MOST = 180
+
+/** Where the only admin goes before leaving (member-roles.md). */
+const LAST_ADMIN_HINT = 'Make another member an admin in Invite › Members first.'
 
 const failure = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback)
 
@@ -98,7 +101,9 @@ function LeaveSheet({ title, projectId, identity, onClose, onLeft }: SheetProps 
     try {
       await leaveProject(identity.token, projectId, key)
     } catch (err: unknown) {
-      setState({ sending: false, failed: failure(err, 'Couldn’t leave the project. Try again.') })
+      const lastAdmin = err instanceof ApiError && err.code === 'invalid_state'
+      const said = failure(err, 'Couldn’t leave the project. Try again.')
+      setState({ sending: false, failed: lastAdmin ? `${said}. ${LAST_ADMIN_HINT}` : said })
       return
     }
     onClose()

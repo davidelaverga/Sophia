@@ -26,6 +26,7 @@ const EXPORTS = [
   'GoalTargetSet',
   'ProjectMembers',
   'InvitablePeople',
+  'MemberRoleSet',
   'Error',
   'Event',
   'CursorAdvance',

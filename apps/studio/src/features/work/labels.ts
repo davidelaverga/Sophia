@@ -94,6 +94,7 @@ export const SUMMARY: Record<string, string> = {
   'room.input_floor_released': 'Input to Sophia released',
   'project.member': 'Member joined',
   'project.member_left': 'Member left',
+  'project.member_role': 'Role changed',
   'project.renamed': 'Project renamed',
   // What someone sent from the composer, by its intent (the composer says "Shared with the project" too).
   'contribution.discuss': 'Shared with the project',

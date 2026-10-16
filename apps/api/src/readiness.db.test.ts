@@ -29,6 +29,7 @@ const PROJECT_RENAME = '0051_project_rename.sql'
 const PROJECT_LEAVE = '0052_project_leave.sql'
 const GOAL_TARGETS = '0054_goal_targets.sql'
 const INVITABLE = '0055_invitable_people.sql'
+const MEMBER_ROLES = '0056_member_roles.sql'
 
 let dir: string
 let db: TestDatabase
@@ -115,6 +116,8 @@ describe('readiness across 0043', () => {
     await migrate(GOAL_TARGETS)
     assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0055')
     await migrate(INVITABLE)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0056')
+    await migrate(MEMBER_ROLES)
     await current()
     assert.deepEqual(await ready(), [200, { ready: true }], 'with all')
   })
