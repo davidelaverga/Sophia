@@ -19,6 +19,7 @@ import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { Goal, GoalCommand } from '@sophia/contracts'
 import type { ChatCaption } from '@sophia/contracts/room-chat'
+import { OFFERED } from './invitations-data.ts'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { forgetKept } from '../src/features/conversations/talk-store.ts'
 import { StrictMode, useEffect, useState, type ReactNode } from 'react'
@@ -122,10 +123,20 @@ interface Fixture {
   releaseMessages: () => void
   /** While on, the read of which messages answer which fails (A20). */
   failReplies: (on: boolean) => void
+  /** The next room token is refused, so that join fails and offers Try again. */
+  failToken: () => void
+  /** The next request to revise the page is refused, a design under way (revise-section.md). */
+  failEdit: () => void
+  /** While on, requests to revise the page wait for their replies; off, they answer. */
+  holdEdit: (on: boolean) => void
   /** The next read of the earlier discussion fails, as an unavailable API's (discussion-earlier.md). */
   failEarlier: () => void
   /** The next host control fails, as an unreachable room server's (host-controls.md). */
   failHost: () => void
+  /** The next goal target saved finds someone else's first (goal-owner-date.md). */
+  staleTarget: () => void
+  /** The next invitation to this address fails, as an unavailable API's (invite-from-projects.md). */
+  failInvite: (email: string) => void
   /** While on, host controls land but their replies wait; off, they answer. */
   holdHost: (on: boolean) => void
   /** Another member writes in the room's discussion, and the event saying so goes out. */
@@ -374,6 +385,23 @@ function floorMoves(actorId: string): void {
   floorTo.push(nameOf(actorId))
 }
 
+/** The goals' owners and dates the page asks for (`targets=`), by goal id. */
+function goalTargetsAsked(
+  wanted: string | null,
+): [string, { ownerId: string; targetDate: string; revision: number }][] {
+  if (wanted !== '1' && wanted !== 'mine') return []
+  const rollout: [string, { ownerId: string; targetDate: string; revision: number }] = [
+    '00000000-0000-4000-8000-000000009001',
+    { ownerId: personId(1), targetDate: '2026-10-30', revision: 1 },
+  ]
+  if (wanted === '1') return [rollout]
+  return [
+    rollout,
+    ['00000000-0000-4000-8000-000000009002', { ownerId: membership.actorId, targetDate: '2026-11-20', revision: 1 }],
+    ['00000000-0000-4000-8000-000000009003', { ownerId: membership.actorId, targetDate: '2026-10-01', revision: 1 }],
+  ]
+}
+
 /** Four messages over two days in the viewer's zone: yesterday's evening, this morning (chat-times.md). */
 function overTwoDays(): Said[] {
   const day = new Date()
@@ -455,8 +483,15 @@ const project = {
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
+  failToken: false,
+  failEdit: false,
+  editHeld: null as (() => void)[] | null,
   failEarlier: false,
   failHost: false,
+  staleTarget: false,
+  // `targets=1`: the rollout is Marco's, due 30 October 2026 (goal-owner-date.md); `targets=mine` adds the admin change
+  // as the viewer's, due 20 November, and the completed pilot as theirs, due 1 October (goal-overdue.md).
+  goalTargets: new Map(goalTargetsAsked(query.get('targets'))),
   hostHeld: null as (() => void)[] | null,
   // The demo publishes both its versions (the second region's revision), unless `versions=` says otherwise.
   reportVersions: Math.min(VERSIONS_HELD, Math.max(1, Number(query.get('versions')) || (DEMO ? 2 : 1))),
@@ -472,7 +507,12 @@ const project = {
   // `admins=1`: the viewer is the project's only admin, so leaving is refused (project-leave.md).
   soleAdmin: query.get('admins') === '1',
   // The invitations made here, kept as the API keeps them (invitations-data.ts): the demo's Invite has no dead end.
-  invitations: { kept: [], made: 0 },
+  invitations: {
+    kept: [],
+    made: 0,
+    offered: query.get('invitable') === 'none' ? [] : OFFERED,
+    failFor: null as string | null,
+  },
   description: SOPHIAS_DESCRIPTION,
   versionsFail: false as false | 'unavailable' | 'not_found',
   sourcesHeld: query.get('hold') === 'sources',
@@ -617,11 +657,28 @@ window.fixture = {
   failReplies: (on) => {
     project.failReplies = on
   },
+  failToken: () => {
+    project.failToken = true
+  },
+  failEdit: () => {
+    project.failEdit = true
+  },
+  holdEdit: (on) => {
+    const held = project.editHeld ?? []
+    project.editHeld = on ? [] : null
+    if (!on) for (const reply of held) reply()
+  },
   failEarlier: () => {
     project.failEarlier = true
   },
   failHost: () => {
     project.failHost = true
+  },
+  staleTarget: () => {
+    project.staleTarget = true
+  },
+  failInvite: (email) => {
+    project.invitations.failFor = email
   },
   holdHost: (on) => {
     const held = project.hostHeld ?? []

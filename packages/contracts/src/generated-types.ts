@@ -248,6 +248,16 @@ export type ProjectRenamed = { "projectId": string; "title": string; "cursor": s
 export type ProjectLeaveRequest = {  };
 export type ProjectLeft = { "projectId": string; "cursor": string; };
 export type DiscussionPage = { "entries": ReadonlyArray<DiscussionEntry>; "before": string | null; };
+export type GoalTarget = { "goalId": string; "ownerId": string | null; "targetDate": string | null; "revision": number; };
+export type GoalTargetList = { "targets": ReadonlyArray<GoalTarget>; };
+export type GoalTargetRequest = { "ownerId": string | null; "targetDate": string | null; "expectedRevision": number; };
+export type GoalTargetSet = { "goalId": string; "ownerId": string | null; "targetDate": string | null; "revision": number; "cursor": string; };
+export type ProjectMember = { "actorId": string; "role": "admin" | "editor" | "viewer"; "name": string | null; };
+export type ProjectMembers = { "members": ReadonlyArray<ProjectMember>; };
+export type InvitablePerson = { "actorId": string; "email": string; };
+export type InvitablePeople = { "people": ReadonlyArray<InvitablePerson>; };
+export type MemberRoleRequest = { "role": "admin" | "editor" | "viewer"; };
+export type MemberRoleSet = { "actorId": string; "role": "admin" | "editor" | "viewer"; "revision": number; "cursor": string; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
@@ -396,4 +406,9 @@ export interface Operations {
   "readDiscussion": { method: "GET"; path: "/api/v1/projects/{projectId}/discussion"; request: undefined; response: DiscussionPage; };
   "muteInCall": { method: "POST"; path: "/api/v1/projects/{projectId}/room/people/{identity}/mute"; request: undefined; response: undefined; };
   "removeFromCall": { method: "POST"; path: "/api/v1/projects/{projectId}/room/people/{identity}/remove"; request: undefined; response: undefined; };
+  "listGoalTargets": { method: "GET"; path: "/api/v1/projects/{projectId}/goal-targets"; request: undefined; response: GoalTargetList; };
+  "setGoalTarget": { method: "PUT"; path: "/api/v1/projects/{projectId}/goals/{goalId}/target"; request: GoalTargetRequest; response: GoalTargetSet; };
+  "listProjectMembers": { method: "GET"; path: "/api/v1/projects/{projectId}/members"; request: undefined; response: ProjectMembers; };
+  "listInvitablePeople": { method: "GET"; path: "/api/v1/projects/{projectId}/invitable"; request: undefined; response: InvitablePeople; };
+  "changeMemberRole": { method: "PUT"; path: "/api/v1/projects/{projectId}/members/{actorId}/role"; request: MemberRoleRequest; response: MemberRoleSet; };
 }

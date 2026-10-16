@@ -2658,11 +2658,25 @@ button.contribution-quote:hover {
   margin: 0;
   padding: 16px;
 }
+/* The picture, the words over it while the camera is off, and the switches at its foot share one cell. */
+.device-preview > * {
+  grid-area: 1 / 1;
+}
 .device-preview-video {
   width: 100%;
   height: 100%;
   object-fit: cover;
   transform: scaleX(-1);
+}
+.device-preview[data-camera='off'] .device-preview-video {
+  visibility: hidden;
+}
+/* The microphone and the camera for the join (docs/plans/prejoin-toggles.md), on the picture as Meet has them. */
+.device-preview-switches {
+  align-self: end;
+  display: flex;
+  gap: 12px;
+  padding-bottom: 12px;
 }
 .device-rows {
   display: grid;
@@ -3043,9 +3057,12 @@ button.contribution-quote:hover {
   left: 10px;
   bottom: 10px;
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  height: 22px;
-  padding: 0 7px;
+  max-width: calc(100% - 20px);
+  /* At least a line, and as many as the other screens' offers wrap to (Codex P2 on #358). */
+  min-height: 22px;
+  padding: 2px 7px;
   border-radius: var(--r-1);
   background: rgb(var(--void-rgb) / 0.66);
   font-size: 12px;
@@ -5738,6 +5755,10 @@ button.contribution-quote:hover {
 .goals-list-head .field-label {
   margin: 0;
 }
+/* «Mine», before the search, at the head's end (goal-overdue.md). */
+.goals-mine {
+  margin-left: auto;
+}
 .goals-search {
   width: min(280px, 100%);
 }
@@ -6380,4 +6401,102 @@ button.contribution-quote:hover {
   margin: 0 0 6px;
   color: var(--rose);
   font-size: var(--type-small);
+}
+
+/* A goal's owner and target date (docs/plans/goal-owner-date.md): on its row, and in its sheet. */
+.goal-row-target {
+  margin: 2px 0 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+/* A date that has passed, on a goal not completed (docs/plans/goal-overdue.md). */
+.goal-row-target[data-due='overdue'] {
+  color: var(--rose);
+}
+.goal-target-form {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 12px;
+}
+.goal-target-form button {
+  grid-column: 2;
+  justify-self: start;
+}
+.goal-target p {
+  margin: 0;
+}
+
+/* Invite people from your other projects (docs/plans/invite-from-projects.md): a checkbox each, one role, Invite N. */
+.invite-from {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+}
+.invite-from-people {
+  display: grid;
+  gap: 2px;
+  max-height: 220px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+.invite-from-people label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  padding: 0 6px;
+  border-radius: var(--r-2);
+}
+.invite-from-people input {
+  width: 16px;
+  height: 24px;
+  margin: 0;
+}
+.invite-from-people label:hover {
+  background: rgb(var(--ink-rgb) / 0.04);
+}
+.invite-from-acts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Who is in the project (docs/plans/member-roles.md): a row each, the role at its end, a select for an admin. */
+.in-project {
+  display: grid;
+  gap: 8px;
+  margin-top: 20px;
+}
+.in-project-people {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.in-project-people li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 36px;
+}
+.in-project-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.in-project-role-words {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.in-project-people .form-error {
+  grid-column: 1 / -1;
+  margin: 0;
 }

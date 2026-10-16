@@ -10,6 +10,7 @@ import { Sheet } from '../../app/Sheet.tsx'
 import {
   presenceRole,
   screenCaption,
+  showScreenLabel,
   shortName,
   type FloorView,
   type RoomParticipant,
@@ -97,14 +98,21 @@ function AlsoSharing(props: {
   if (props.others.length === 0) return null
   return (
     <span className="screen-also" role="group" aria-label="Also sharing">
-      {props.others.map((s) => {
-        const name = shortName(props.people.find((p) => p.identity === s.identity)?.name ?? 'Someone')
-        return (
-          <button key={s.identity} type="button" className="text-button" onClick={() => props.onShow(s.identity)}>
-            {`Show ${name}’s screen`}
-          </button>
-        )
-      })}
+      {props.others.map((s) => (
+        <button
+          key={s.identity}
+          type="button"
+          className="text-button"
+          onClick={(e) => {
+            // The press goes with the screen it showed: the focus stays in the offer (Codex P2 on #358).
+            const group = e.currentTarget.parentElement
+            props.onShow(s.identity)
+            requestAnimationFrame(() => group?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true }))
+          }}
+        >
+          {showScreenLabel(props.people.find((p) => p.identity === s.identity))}
+        </button>
+      ))}
     </span>
   )
 }

@@ -553,6 +553,103 @@ describe('host controls (A24)', () => {
   })
 })
 
+describe('goal targets (A25)', () => {
+  const put = (actor: string, projectId: string, goalId: string, body: Record<string, unknown>) =>
+    call(actor, 'PUT', `/api/v1/projects/${projectId}/goals/${goalId}/target`, body)
+  const read = async (actor: string, projectId: string) =>
+    (await call(actor, 'GET', `/api/v1/projects/${projectId}/goal-targets`)).json as {
+      targets: { goalId: string; ownerId: string | null; targetDate: string | null; revision: number }[]
+    }
+
+  it('an editor sets owner and date, every member reads them, the room hears it; clearing is a target too', async () => {
+    const { projectId, goalId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    assert.deepEqual(await read(V, projectId), { targets: [] })
+    const set = await put(B, projectId, goalId, { ownerId: V, targetDate: '2026-10-30', expectedRevision: 0 })
+    assert.equal(set.status, 200)
+    assert.deepEqual(
+      { ...set.json, cursor: typeof set.json.cursor },
+      { goalId, ownerId: V, targetDate: '2026-10-30', revision: 1, cursor: 'string' },
+    )
+    assert.deepEqual(await read(V, projectId), {
+      targets: [{ goalId, ownerId: V, targetDate: '2026-10-30', revision: 1 }],
+    })
+    const heard = await ownerCount(
+      `SELECT count(*)::int AS n FROM sophia.project_events WHERE project_id = $1 AND type = 'goal.target_set'`,
+      [projectId],
+    )
+    assert.equal(heard, 1)
+    const cleared = await put(A, projectId, goalId, { ownerId: null, targetDate: null, expectedRevision: 1 })
+    assert.deepEqual(
+      [cleared.status, cleared.json.ownerId, cleared.json.targetDate, cleared.json.revision],
+      [200, null, null, 2],
+    )
+  })
+
+  it('editors and admins only; the owner a member; a date in range; a stale write and an unknown goal refused', async () => {
+    const { projectId, goalId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    const body = { ownerId: B, targetDate: '2026-11-15', expectedRevision: 0 }
+    assert.equal((await put(V, projectId, goalId, body)).status, 403)
+    assert.equal((await put(C, projectId, goalId, body)).status, 403)
+    assert.equal((await call(C, 'GET', `/api/v1/projects/${projectId}/goal-targets`)).status, 403)
+    const stranger = await put(B, projectId, goalId, { ...body, ownerId: C })
+    assert.deepEqual([stranger.status, stranger.json.code], [422, 'invalid_request'])
+    assert.equal((await put(B, projectId, goalId, { ...body, targetDate: '1999-12-31' })).status, 422)
+    assert.equal((await put(B, projectId, goalId, { ...body, targetDate: '30/10/2026' })).status, 422)
+    assert.equal((await put(B, projectId, randomUUID(), body)).status, 422)
+    assert.equal((await put(B, projectId, goalId, body)).status, 200)
+    const stale = await put(A, projectId, goalId, body)
+    assert.deepEqual([stale.status, stale.json.code], [409, 'stale_revision'])
+  })
+})
+
+describe('member roles (A27)', () => {
+  const role = (actor: string, projectId: string, target: string, next: unknown) =>
+    call(actor, 'PUT', `/api/v1/projects/${projectId}/members/${target}/role`, { role: next })
+  const roles = async (actor: string, projectId: string) =>
+    Object.fromEntries(
+      (
+        (await call(actor, 'GET', `/api/v1/projects/${projectId}/members`)).json.members as {
+          actorId: string
+          role: string
+        }[]
+      ).map((m) => [m.actorId, m.role]),
+    )
+
+  it('an admin hands the admin role over: the other becomes admin, then the first steps down and can leave', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    const made = await role(A, projectId, B, 'admin')
+    assert.equal(made.status, 200)
+    assert.deepEqual(
+      { ...made.json, cursor: typeof made.json.cursor },
+      { actorId: B, role: 'admin', revision: 2, cursor: 'string' },
+    )
+    assert.deepEqual(await roles(V, projectId), { [A]: 'admin', [B]: 'admin', [V]: 'viewer' })
+    const again = await role(A, projectId, B, 'admin')
+    assert.deepEqual([again.status, again.json.revision], [200, 2])
+    assert.equal((await role(A, projectId, A, 'editor')).status, 200)
+    assert.deepEqual(await roles(V, projectId), { [A]: 'editor', [B]: 'admin', [V]: 'viewer' })
+    const heard = await ownerCount(
+      `SELECT count(*)::int AS n FROM sophia.project_events
+        WHERE project_id = $1 AND type = 'project.member_role_changed' AND summary_code = 'project.member_role'`,
+      [projectId],
+    )
+    assert.equal(heard, 2)
+    const left = await call(A, 'POST', `/api/v1/projects/${projectId}/leave`, {}, { 'idempotency-key': randomUUID() })
+    assert.equal(left.status, 200)
+  })
+
+  it('admins only; a project keeps an admin; the target a member; a role the contract knows', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    assert.equal((await role(B, projectId, V, 'editor')).status, 403)
+    assert.equal((await role(C, projectId, V, 'editor')).status, 403)
+    const last = await role(A, projectId, A, 'editor')
+    assert.deepEqual([last.status, last.json.code], [409, 'invalid_state'])
+    assert.equal((await role(A, projectId, C, 'editor')).status, 422)
+    assert.equal((await role(A, projectId, V, 'owner')).status, 422)
+    assert.deepEqual(await roles(V, projectId), { [A]: 'admin', [B]: 'editor', [V]: 'viewer' })
+  })
+})
+
 describe('snapshot + SSE replay', () => {
   it("delivers another member's admitted command live, then replays without duplicates", async () => {
     const snap = parseSnapshot((await call(A, 'GET', `/api/v1/projects/${seed.projectId}/snapshot`)).json)

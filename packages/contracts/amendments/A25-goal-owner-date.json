@@ -1,0 +1,396 @@
+{
+  "id": "A25",
+  "goal": "E2E",
+  "title": "A goal has an owner and a target date; a project's members are listed",
+  "why": [
+    "The gaps report (2026-10-15, point 9): in Asana Goals or Linear a goal says who owns it and when it should be done; here a goal had neither, and the Studio had no list of a project's members to choose an owner from.",
+    "The owner and date are kept beside the goal, not in it: Goal, its revision and its authority are untouched, so the mission's commands and the runtime see nothing new. Editors and admins set them, compare-and-set on their own revision; the owner is an active member; the date a calendar date in 2000–2100. Members read them, and read the project's members with the name the room keeps for each (0050)."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/GoalTarget",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "goalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "targetDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": ["goalId", "ownerId", "targetDate", "revision"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/GoalTargetList",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "targets": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "$ref": "#/components/schemas/GoalTarget"
+            }
+          }
+        },
+        "required": ["targets"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/GoalTargetRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ownerId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "targetDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": ["ownerId", "targetDate", "expectedRevision"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/GoalTargetSet",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "goalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "targetDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          }
+        },
+        "required": ["goalId", "ownerId", "targetDate", "revision", "cursor"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectMember",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "editor", "viewer"]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["actorId", "role", "name"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectMembers",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "members": {
+            "type": "array",
+            "maxItems": 1000,
+            "items": {
+              "$ref": "#/components/schemas/ProjectMember"
+            }
+          }
+        },
+        "required": ["members"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1goal-targets",
+      "value": {
+        "get": {
+          "operationId": "listGoalTargets",
+          "summary": "The project's goals' owners and target dates, for its members.",
+          "tags": ["goals"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "The targets",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/GoalTargetList"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not a member of the project",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1goals~1{goalId}~1target",
+      "value": {
+        "put": {
+          "operationId": "setGoalTarget",
+          "summary": "Set a goal's owner and target date: editors and admins, compare-and-set on its revision.",
+          "tags": ["goals"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "goalId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoalTargetRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Set",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/GoalTargetSet"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not an editor or admin of the project",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "The target changed since `expectedRevision`",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, an unknown goal, an owner who isn't a member, or a date out of range",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1members",
+      "value": {
+        "get": {
+          "operationId": "listProjectMembers",
+          "summary": "The project's active members, with their roles and the names the room keeps, for its members.",
+          "tags": ["projects"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "The members",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProjectMembers"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not a member of the project",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

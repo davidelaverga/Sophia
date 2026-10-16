@@ -22,6 +22,11 @@ const EXPORTS = [
   'ProjectRenamed',
   'ProjectLeft',
   'DiscussionPage',
+  'GoalTargetList',
+  'GoalTargetSet',
+  'ProjectMembers',
+  'InvitablePeople',
+  'MemberRoleSet',
   'Error',
   'Event',
   'CursorAdvance',
@@ -64,6 +69,7 @@ const EXPORTS = [
   'WorkResult',
   'SourceReviewProposal',
   'SourceReviewAvailability',
+  'DesignEditReceipt',
 ] as const
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')

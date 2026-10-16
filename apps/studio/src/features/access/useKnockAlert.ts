@@ -64,8 +64,15 @@ export function useKnockAlert(waiting: readonly LobbyEntry[], { projectId, proje
     if (!loaded) return
     const people = latest.current
     const before = seen.current
+    // The first look is the baseline: those already waiting are not news.
+    if (before === null) {
+      seen.current = new Set(people.map((e) => e.id))
+      return
+    }
+    // While the role is unread (or isn't one that answers), the look doesn't move on: a knock meanwhile is still news
+    // once the role says they can answer (Codex P2 on #362).
+    if (!canDecide) return
     seen.current = new Set(people.map((e) => e.id))
-    if (before === null || !canDecide) return
     const arrived = arrivals(before, people)
     if (arrived.length === 0) return
     chime()

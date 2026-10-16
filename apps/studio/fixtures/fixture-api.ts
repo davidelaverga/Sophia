@@ -30,9 +30,9 @@ import {
   idOf,
   said,
 } from './data.ts'
-import { hostActed } from './fake-people.ts'
+import { hostActed, personId } from './fake-people.ts'
 import { missionWritten } from './mission-writes.ts'
-import { DEMO, DEMO_ORIGINS, PROJECT_NAME } from './demo.ts'
+import { DEMO, DEMO_ORIGINS, PROJECT_NAME, VIEWER_NAME } from './demo.ts'
 import { exchangeWritten, type ExchangeAction } from './exchange-writes.ts'
 import { libraryVersions } from './demo-library.ts'
 import {
@@ -82,6 +82,10 @@ interface Project {
   revision: number
   /** The project's title once renamed (project-rename.md); absent, the snapshot's own. */
   title?: string
+  /** The next request to revise the page is refused, a design under way (`window.fixture.failEdit`). */
+  failEdit?: boolean
+  /** While set, requests to revise the page land but their replies wait (`window.fixture.holdEdit`). */
+  editHeld?: (() => void)[] | null
   /** The viewer is the project's only admin (`admins=1`): leaving is refused (project-leave.md). */
   soleAdmin?: boolean
   /** The viewer left the project (A22): it leaves their list. */
@@ -96,6 +100,12 @@ interface Project {
   loseContributionReply?: boolean
   /** While set, messages land but their replies wait for `releaseMessages` (`window.fixture.holdMessages`). */
   messagesHeld?: (() => void)[] | null
+  /** The goals' owners and dates (A25), by goal id; `targets=1` gives the rollout one. */
+  goalTargets?: Map<string, { ownerId: string | null; targetDate: string | null; revision: number }>
+  /** The next target saved finds someone else's first (`window.fixture.staleTarget`). */
+  staleTarget?: boolean
+  /** Members' roles as an admin changed them (A27), by actor id. */
+  memberRoles?: Map<string, Membership['role']>
   /** The next host control is refused as an unreachable room server's (`window.fixture.failHost`). */
   failHost?: boolean
   /** While set, host controls land but their replies wait for `holdHost(false)` (`window.fixture.holdHost`). */
@@ -104,6 +114,8 @@ interface Project {
   failEarlier?: boolean
   /** A20's replies read fails as the API's `unavailable` (`window.fixture.failReplies`). */
   failReplies?: boolean
+  /** The next room token is refused as an unavailable API's, so the join fails (`window.fixture.failToken`). */
+  failToken?: boolean
   /** How many versions of the fixture report are published (report-data.ts). */
   reportVersions: number
   /** The fixture report's title (report-data.ts): LONG_TITLE with `title=long`. */
@@ -358,6 +370,51 @@ function departed(project: Project): Response {
   return json({ projectId: PROJECT, cursor: String(project.revision) })
 }
 
+/** A room token, unless the next one is to fail (`failToken`). */
+function tokenAnswer(project: Project): Response {
+  if (!project.failToken) return json(roomToken)
+  project.failToken = false
+  return unavailable()
+}
+
+/** A request to revise the page's sections (requestDesignEdit): recorded; refused once as a design under way. */
+function designEdited(project: Project, init: RequestInit | undefined): Response | Promise<Response> {
+  const held = project.editHeld
+  if (held) return new Promise((resolve) => held.push(() => resolve(designAdmitted(project, init))))
+  return designAdmitted(project, init)
+}
+
+function designAdmitted(project: Project, init: RequestInit | undefined): Response {
+  if (project.failEdit) {
+    project.failEdit = false
+    const problem = {
+      code: 'invalid_state',
+      message: 'A design of this page is under way',
+      requestId: PROJECT,
+      retry: 'never',
+    }
+    return new Response(JSON.stringify(problem), { status: 409, headers: { 'content-type': 'application/json' } })
+  }
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  const field = (k: string): unknown => (typeof body === 'object' && body !== null ? Reflect.get(body, k) : undefined)
+  const sections = field('sections')
+  const versionId = field('versionId')
+  served.push(`html-edit:${Array.isArray(sections) ? sections.join(',') : ''}:${String(field('instruction'))}`)
+  const id = '00000000-0000-4000-8000-0000000009e1'
+  return new Response(
+    JSON.stringify({
+      taskId: id,
+      state: 'designing',
+      versionId,
+      baseCandidateId: id,
+      sections,
+      shell: false,
+      styles: false,
+    }),
+    { status: 202, headers: { 'content-type': 'application/json' } },
+  )
+}
+
 /** The project's own writes: its rename (A21), a member leaving it (A22), an admin's host controls (A24). */
 function projectWritten(
   project: Project,
@@ -366,6 +423,7 @@ function projectWritten(
 ): Response | Promise<Response> | null {
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/title`) return renamed(project, init)
+  if (path === `${base}/html-edits`) return designEdited(project, init)
   if (path === `${base}/leave`) return departed(project)
   const host = HOST_ACT.exec(path)
   return host?.[1] && (host[2] === 'mute' || host[2] === 'remove') ? hostAct(project, host[2], host[1]) : null
@@ -386,6 +444,103 @@ function hostAct(project: Project, what: 'mute' | 'remove', identity: string): R
   }
   const held = project.hostHeld
   return held ? new Promise((resolve) => held.push(() => resolve(done()))) : done()
+}
+
+/** The project's own reads: its discussion (A20 proposed, A23), its goals' targets and its members (A25). */
+function projectRead(project: Project, url: URL): Response | null {
+  const base = `/api/v1/projects/${PROJECT}`
+  if (url.pathname.startsWith(`${base}/discussion`)) return discussionRead(project, url)
+  if (url.pathname === `${base}/goal-targets`) return goalTargetsRead(project)
+  return url.pathname === `${base}/members` ? membersRead(project) : null
+}
+
+/** The goals' owners and dates (A25). */
+function goalTargetsRead(project: Project): Response {
+  const targets = [...(project.goalTargets?.entries() ?? [])].map(([goalId, t]) => ({ goalId, ...t }))
+  return json({ targets })
+}
+
+/** The project's members (A25): the viewer and the two others the room fixture names, with roles as changed (A27). */
+function membersRead(project: Project): Response {
+  const roleOf = (actorId: string, start: Membership['role']) => project.memberRoles?.get(actorId) ?? start
+  return json({
+    members: [
+      {
+        actorId: membership.actorId,
+        role: roleOf(membership.actorId, project.role ?? membership.role),
+        name: VIEWER_NAME,
+      },
+      { actorId: personId(1), role: roleOf(personId(1), 'editor'), name: 'Marco' },
+      { actorId: personId(2), role: roleOf(personId(2), 'viewer'), name: 'Lucía' },
+    ],
+  })
+}
+
+const GOAL_TARGET = new RegExp(`^/api/v1/projects/${PROJECT}/goals/([0-9a-f-]+)/target$`)
+const MEMBER_ROLE = new RegExp(`^/api/v1/projects/${PROJECT}/members/([0-9a-f-]+)/role$`)
+
+/** The project's own PUTs: a goal's owner and date (A25), a member's role (A27); null for any other path. */
+function projectPut(project: Project, path: string, init: RequestInit | undefined): Response | null {
+  const target = GOAL_TARGET.exec(path)?.[1]
+  if (target) return goalTargetPut(project, target, init)
+  const member = MEMBER_ROLE.exec(path)?.[1]
+  return member ? rolePut(project, member, init) : null
+}
+
+/** The role a request names, or null. */
+function requestedRole(init: RequestInit | undefined): Membership['role'] | null {
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  const next: unknown = typeof body === 'object' && body !== null ? Reflect.get(body, 'role') : null
+  return next === 'admin' || next === 'editor' || next === 'viewer' ? next : null
+}
+
+const NEEDS_AN_ADMIN = {
+  code: 'invalid_state',
+  message: 'A project needs an admin: make another member an admin first',
+  requestId: PROJECT,
+  retry: 'never',
+}
+
+/** A member's role changed (A27): an admin's; the only admin stepping down is refused, as the API refuses it. */
+function rolePut(project: Project, actorId: string, init: RequestInit | undefined): Response {
+  if ((project.role ?? membership.role) !== 'admin') return refused('Only an admin changes roles')
+  const next = requestedRole(init)
+  if (!next) return refused('Unknown role')
+  const roles = (project.memberRoles ??= new Map())
+  if (actorId === membership.actorId && next !== 'admin' && project.soleAdmin)
+    return new Response(JSON.stringify(NEEDS_AN_ADMIN), {
+      status: 409,
+      headers: { 'content-type': 'application/json' },
+    })
+  roles.set(actorId, next)
+  served.push(`role:${actorId}:${next}`)
+  return json({ actorId, role: next, revision: 2, cursor: String(project.revision) })
+}
+
+/** A goal's owner and date set (A25): an editor's or an admin's, compare-and-set on its revision. */
+function goalTargetPut(project: Project, goalId: string, init: RequestInit | undefined): Response {
+  if (project.role === 'viewer') return refused('Only editors and admins set a goal’s owner and date')
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  const field = (k: string): unknown => (typeof body === 'object' && body !== null ? Reflect.get(body, k) : undefined)
+  const [ownerId, targetDate, expected] = [field('ownerId'), field('targetDate'), field('expectedRevision')]
+  const targets = (project.goalTargets ??= new Map())
+  const now = targets.get(goalId)
+  if (project.staleTarget) {
+    project.staleTarget = false
+    targets.set(goalId, { ownerId: personId(2), targetDate: '2026-12-01', revision: (now?.revision ?? 0) + 1 })
+    publish(project)
+    const problem = { code: 'stale_revision', message: 'The goal’s target changed', requestId: PROJECT, retry: 'never' }
+    return new Response(JSON.stringify(problem), { status: 409, headers: { 'content-type': 'application/json' } })
+  }
+  served.push(`target:${String(ownerId)}:${String(targetDate)}:${String(expected)}`)
+  const next = {
+    ownerId: typeof ownerId === 'string' ? ownerId : null,
+    targetDate: typeof targetDate === 'string' ? targetDate : null,
+    revision: (now?.revision ?? 0) + 1,
+  }
+  targets.set(goalId, next)
+  publish(project)
+  return json({ goalId, ...next, cursor: String(project.revision) })
 }
 
 /** The room's discussion read: A20's replies (proposed), or a page of it (A23). */
@@ -516,7 +671,8 @@ function ownRead(project: Project, url: URL) {
 /** The proposed reads of the vision (A13's search, A14's focus); undefined for any other request. */
 function visionRead(project: Project, url: URL) {
   if (url.pathname === `/api/v1/projects/${PROJECT}/search`) return searchAnswer(project, url)
-  if (url.pathname.startsWith(`/api/v1/projects/${PROJECT}/discussion`)) return discussionRead(project, url)
+  const read = projectRead(project, url)
+  if (read) return read
   const talk = project.conversations && conversationRead(project.conversations, url)
   if (talk !== undefined) return talk
   const own = ownRead(project, url)
@@ -847,6 +1003,8 @@ function written(project: Project, method: string, path: string, init: RequestIn
   const receipt = answered(project, method, path, init)
   if (receipt) return receipt
   if (method === 'PUT' && path === `/api/v1/projects/${PROJECT}/seen`) return seenPut(project, init)
+  const put = method === 'PUT' ? projectPut(project, path, init) : null
+  if (put) return put
   if (method === 'PUT') return path === `/api/v1/rooms/${ROOM}/focus` ? focusPut(project, init) : null
   return posted(project, path, init)
 }
@@ -1196,7 +1354,7 @@ function posted(project: Project, path: string, init: RequestInit | undefined) {
   const doneOf = TASK_DONE.exec(path)?.[1]
   if (doneOf) return taskDone(project, doneOf, init)
   if (path === `/api/v1/rooms/${ROOM}/meetings/${MEETING}/close`) return meetingClosed(project, init)
-  if (path === `${base}/room-token`) return json(roomToken)
+  if (path === `${base}/room-token`) return tokenAnswer(project)
   const own = projectWritten(project, path, init)
   if (own) return own
   if (path === `${base}/commands`) return admitted(project, init)

@@ -1,0 +1,144 @@
+{
+  "id": "A27",
+  "goal": "E2E",
+  "title": "An admin changes a member's role, and can hand the admin role over",
+  "why": [
+    "The deep gaps report (2026-10-15, §2.1): no function changed a role and a member invitation gives editor or viewer only, so since a member can leave (A22) the last admin could never go and a project couldn't outlive its creator.",
+    "PUT /api/v1/projects/{projectId}/members/{actorId}/role: admins only, the target an active member, and a project keeps at least one admin. A role already held changes nothing. Handing the admin over is two acts: make someone admin, then step down or leave."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/MemberRoleRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["admin", "editor", "viewer"]
+          }
+        },
+        "required": ["role"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MemberRoleSet",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "editor", "viewer"]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          }
+        },
+        "required": ["actorId", "role", "revision", "cursor"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1members~1{actorId}~1role",
+      "value": {
+        "put": {
+          "operationId": "changeMemberRole",
+          "summary": "Change a member's role: admins only; a project keeps at least one admin.",
+          "tags": ["projects"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "actorId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberRoleRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "The role now, changed or already so",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/MemberRoleSet"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not an admin of the project",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "The project's last admin would be demoted",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or the target isn't a member",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

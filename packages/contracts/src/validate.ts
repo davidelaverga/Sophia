@@ -42,12 +42,18 @@ import {
   validateProjectRenamed,
   validateProjectLeft,
   validateDiscussionPage,
+  validateGoalTargetList,
+  validateGoalTargetSet,
+  validateProjectMembers,
+  validateInvitablePeople,
+  validateMemberRoleSet,
   validateProjectList,
   validateWorkBoardView,
   validateWorkReceipt,
   validateWorkResult,
   validateSourceReviewProposal,
   validateSourceReviewAvailability,
+  validateDesignEditReceipt,
   validateReceipt,
   validateRoomSession,
   validateRoomToken,
@@ -85,6 +91,11 @@ export const parseProjectCreated = parser('ProjectCreated', validateProjectCreat
 export const parseProjectRenamed = parser('ProjectRenamed', validateProjectRenamed)
 export const parseProjectLeft = parser('ProjectLeft', validateProjectLeft)
 export const parseDiscussionPage = parser('DiscussionPage', validateDiscussionPage)
+export const parseGoalTargetList = parser('GoalTargetList', validateGoalTargetList)
+export const parseGoalTargetSet = parser('GoalTargetSet', validateGoalTargetSet)
+export const parseProjectMembers = parser('ProjectMembers', validateProjectMembers)
+export const parseInvitablePeople = parser('InvitablePeople', validateInvitablePeople)
+export const parseMemberRoleSet = parser('MemberRoleSet', validateMemberRoleSet)
 export const parseEvent = parser('Event', validateEvent)
 export const parseCursorAdvance = parser('CursorAdvance', validateCursorAdvance)
 export const parseRoomToken = parser('RoomToken', validateRoomToken)
@@ -126,6 +137,7 @@ export const parseWorkReceipt = parser('WorkReceipt', validateWorkReceipt)
 export const parseWorkResult = parser('WorkResult', validateWorkResult)
 export const parseSourceReviewProposal = parser('SourceReviewProposal', validateSourceReviewProposal)
 export const parseSourceReviewAvailability = parser('SourceReviewAvailability', validateSourceReviewAvailability)
+export const parseDesignEditReceipt = parser('DesignEditReceipt', validateDesignEditReceipt)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {

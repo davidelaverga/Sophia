@@ -11,6 +11,8 @@ import { Sheet } from '../../app/Sheet.tsx'
 import { admissionLabel, doorNote, firstInviteTab, invitationState, linkLimits, ROLE_NOTE } from './access-view.ts'
 import { AdmissionNote } from './AdmissionNote.tsx'
 import { CalendarTab } from './CalendarTab.tsx'
+import { FromYourProjects } from './FromYourProjects.tsx'
+import { InProject } from './InProject.tsx'
 import { QrCode } from './QrCode.tsx'
 import { useInvitations, useLobbyDecision, useRefreshInvitations, type SheetContext } from './useAccess.ts'
 import { useNow } from '../../app/use-now.ts'
@@ -379,6 +381,7 @@ function MembersTab({ context, onGuests }: { context: SheetContext; onGuests: ()
         <button type="button" className="pill" onClick={onGuests}>
           Go to Guests
         </button>
+        <InProject context={context} />
       </section>
     )
   }
@@ -388,8 +391,10 @@ function MembersTab({ context, onGuests }: { context: SheetContext; onGuests: ()
       <p className="sheet-lead">
         A member works in the project with you. The invitation is bound to one email: only that person can accept it.
       </p>
+      <FromYourProjects context={context} onSent={refresh} />
       <MemberForm context={context} onSent={refresh} />
       <InvitationList invitations={members} token={context.identity.token} onChange={refresh} />
+      <InProject context={context} />
     </section>
   )
 }
