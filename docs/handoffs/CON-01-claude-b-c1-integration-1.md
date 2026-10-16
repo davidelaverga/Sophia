@@ -49,7 +49,11 @@ What this does not establish:
 
   Profile work keeps 0062 and A32 (worker C). Luis's open stack keeps 0058–0061 and A29–A31.
 
-  Inside CON-01 source, comments and test names that named the old numbers now name the new ones. The SQL in the migrations is unchanged except for its comments. The CON candidate fixture's sealed baseline pins `0063_project_conversations.sql` at the same digest it had as 0048. The historical `db/candidates/` files and the docs keep their original numbers as history.
+  Inside CON-01 source, comments and test names that named the old numbers now name the new ones. The SQL in the migrations is unchanged except for its comments. The historical `db/candidates/` files and the docs keep their original numbers as history.
+
+  **Correction (FND-B1-REPAIR-01).** The first head, `cc79b739`, said the sealed baseline kept `0063` at its 0048 digest (`e3684304…`). That was wrong. The renumbering changed `0063`'s first comment line from A16 to A33, so its committed bytes hash to `0cda4f52…`. The CON candidate fixture rejected them as baseline drift. On CI PostgreSQL that failed 9 of 153 tests, which V reproduced independently, and the automatic review raised it as finding 4294147743.
+
+  The repair records the actual digest in `packages/persistence/src/conversation-candidate-fixture.ts`. Every other sealed entry, `0053` included, already matched its committed bytes. Checksum enforcement is unchanged, and no applied migration was touched.
 - **Applied migrations.** No applied migration was edited. `0053_runtime_outbox_reconcile.sql` is byte-identical on main and on the checkpoint (SHA-256 `bf403b7e…`), so #256's accepted correction is consumed once and is not duplicated.
 - **Order checked.** Neither CON migration redefines a function that main's 0046–0057 define. Neither of main's amendments A16–A28 touches a schema that A33 replaces (`RuntimeWorkBinding`, `RuntimeServiceBinding`, `RuntimeCommand`, `RuntimeHelloReply.bindings`, `RuntimeReady.unrecovered`).
 - **Generated files** come from one combined source. The OpenAPI, the generated types, the validators and the runtime wire were all produced by `pnpm --filter @sophia/contracts generate`, then `pnpm artifacts:record` was run. None was merged by hand.
