@@ -1,5 +1,6 @@
 // The chat: the project's recent discussion and the conversation with Sophia, typed and, as live captions, spoken
-// (CX-0023), newest at the bottom, then the composer. It lives in the room's side panel (StudioShell), as meeting apps have it, so the stage keeps Sophia's
+// (CX-0023), newest at the bottom, then the composer. A day line opens each day, and each message says its time
+// (chat-times.md). It lives in the room's side panel (StudioShell), as meeting apps have it, so the stage keeps Sophia's
 // light and the people at its centre. Discussion never starts work.
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
@@ -18,6 +19,9 @@ import { NoticeCard } from './NoticeCard.tsx'
 import { quoteOf } from './replies.ts'
 import type { Replying } from './ReplyingTo.tsx'
 import { LinkedText } from '../../app/LinkedText.tsx'
+import { clock } from '../../app/time-words.ts'
+import { useNow } from '../../app/use-now.ts'
+import { dayBreaks, todayAfter } from './chat-days.ts'
 
 interface Props {
   projectId: string
@@ -86,6 +90,7 @@ export function Conversation(props: Props) {
           onReply={VISION ? setReplying : undefined}
         />
         {VISION && discussion.length > 0 && <RepliesState failed={replies.failed} onRetry={replies.retry} />}
+        <TodayLine lastAt={earlier.entries.at(-1)?.createdAt} shown={timeline.length > 0} />
         {timeline.length > 0 && (
           <ol className="chat-messages" aria-label="Conversation with Sophia">
             {timeline.map((entry) => (
@@ -196,17 +201,36 @@ function Caption({ caption, me, names }: { caption: CaptionTurn; me: string; nam
   )
 }
 
-/** One typed message and Sophia's reply to it. */
+/** «Today» above the turns with Sophia, when the discussion before them ends on another day. */
+function TodayLine({ lastAt, shown }: { lastAt: string | undefined; shown: boolean }) {
+  const now = useNow()
+  return shown && todayAfter(lastAt, now) ? <span className="chat-day">Today</span> : null
+}
+
+/** When, on a 24-hour clock, as a `<time>`: by the author's name. */
+function At({ at, className }: { at: Date; className: string }) {
+  if (Number.isNaN(at.getTime())) return null
+  return (
+    <time className={className} dateTime={at.toISOString()}>
+      {clock(at)}
+    </time>
+  )
+}
+
+/** One typed message and Sophia's reply to it, their web addresses as links, as the discussion's are. */
 function Turn({ turn }: { turn: ChatTurn }) {
+  const waiting = turn.state === 'sending' ? 'Sending…' : turn.state === 'responding' ? 'Thinking…' : ''
   return (
     <>
       <div className="chat-message user">
-        <strong>You</strong>
-        <p>{turn.text}</p>
+        <strong>You</strong> <At at={new Date(turn.sentAt)} className="chat-at" />
+        <p>
+          <LinkedText text={turn.text} />
+        </p>
       </div>
       <div className="chat-message sophia">
         <strong>Sophia</strong>
-        <p>{turn.reply || (turn.state === 'sending' ? 'Sending…' : turn.state === 'responding' ? 'Thinking…' : '')}</p>
+        <p>{turn.reply ? <LinkedText text={turn.reply} /> : waiting}</p>
         {turn.reason && (
           <p className="chat-status" role="status">
             {turn.reason}
@@ -228,19 +252,26 @@ interface DiscussionProps {
 }
 
 function Discussion({ entries, me, names: known, replies, onReply }: DiscussionProps) {
+  const now = useNow()
   if (entries.length === 0) return null
+  const days = dayBreaks(
+    entries.map((e) => e.createdAt),
+    now,
+  )
   const here = new Set(entries.map((e) => e.id))
   // Each message's own author name for an author the call doesn't know (A17): outside a call, no «A member».
   const names = withAuthors(known, entries)
   return (
     <ol className="discussion" aria-label="Recent discussion">
-      {entries.map((entry) => {
+      {entries.map((entry, i) => {
         const author = authorLabel(entry.actorId, me, names)
         const answers = replies.get(entry.id)
         return (
           <li key={entry.id} className="contribution" {...(onReply ? { id: `entry-${entry.id}`, tabIndex: -1 } : {})}>
+            {days[i] && <span className="chat-day">{days[i]}</span>}
             {answers && <Quote answers={answers} here={here.has(answers.id)} me={me} names={names} />}
             <span className="contribution-author">{author}</span>
+            <At at={new Date(entry.createdAt)} className="contribution-at" />
             <span className="contribution-text">
               <LinkedText text={entry.text} />
             </span>

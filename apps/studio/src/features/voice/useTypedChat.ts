@@ -133,6 +133,7 @@ export function useTypedChat(connection: Connection, silence: () => Promise<bool
         state: 'sending',
         reason: null,
         at,
+        sentAt: Date.now(),
       },
     ])
     try {

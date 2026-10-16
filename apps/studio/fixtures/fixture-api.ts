@@ -82,6 +82,10 @@ interface Project {
   revision: number
   /** The project's title once renamed (project-rename.md); absent, the snapshot's own. */
   title?: string
+  /** The next request to revise the page is refused, a design under way (`window.fixture.failEdit`). */
+  failEdit?: boolean
+  /** While set, requests to revise the page land but their replies wait (`window.fixture.holdEdit`). */
+  editHeld?: (() => void)[] | null
   /** The viewer is the project's only admin (`admins=1`): leaving is refused (project-leave.md). */
   soleAdmin?: boolean
   /** The viewer left the project (A22): it leaves their list. */
@@ -362,6 +366,44 @@ function departed(project: Project): Response {
   return json({ projectId: PROJECT, cursor: String(project.revision) })
 }
 
+/** A request to revise the page's sections (requestDesignEdit): recorded; refused once as a design under way. */
+function designEdited(project: Project, init: RequestInit | undefined): Response | Promise<Response> {
+  const held = project.editHeld
+  if (held) return new Promise((resolve) => held.push(() => resolve(designAdmitted(project, init))))
+  return designAdmitted(project, init)
+}
+
+function designAdmitted(project: Project, init: RequestInit | undefined): Response {
+  if (project.failEdit) {
+    project.failEdit = false
+    const problem = {
+      code: 'invalid_state',
+      message: 'A design of this page is under way',
+      requestId: PROJECT,
+      retry: 'never',
+    }
+    return new Response(JSON.stringify(problem), { status: 409, headers: { 'content-type': 'application/json' } })
+  }
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  const field = (k: string): unknown => (typeof body === 'object' && body !== null ? Reflect.get(body, k) : undefined)
+  const sections = field('sections')
+  const versionId = field('versionId')
+  served.push(`html-edit:${Array.isArray(sections) ? sections.join(',') : ''}:${String(field('instruction'))}`)
+  const id = '00000000-0000-4000-8000-0000000009e1'
+  return new Response(
+    JSON.stringify({
+      taskId: id,
+      state: 'designing',
+      versionId,
+      baseCandidateId: id,
+      sections,
+      shell: false,
+      styles: false,
+    }),
+    { status: 202, headers: { 'content-type': 'application/json' } },
+  )
+}
+
 /** The project's own writes: its rename (A21), a member leaving it (A22), an admin's host controls (A24). */
 function projectWritten(
   project: Project,
@@ -370,6 +412,7 @@ function projectWritten(
 ): Response | Promise<Response> | null {
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/title`) return renamed(project, init)
+  if (path === `${base}/html-edits`) return designEdited(project, init)
   if (path === `${base}/leave`) return departed(project)
   const host = HOST_ACT.exec(path)
   return host?.[1] && (host[2] === 'mute' || host[2] === 'remove') ? hostAct(project, host[2], host[1]) : null
@@ -1203,7 +1246,13 @@ function contributed(project: Project, init: RequestInit | undefined): Response 
   const replyTo = replyOf(project, body)
   if (replyTo instanceof Response) return replyTo
   const id = entryIdOf(project.messages.length)
-  project.messages.push({ id, text: body.text, me: true, ...(replyTo ? { replyTo } : {}) })
+  project.messages.push({
+    id,
+    text: body.text,
+    me: true,
+    at: new Date().toISOString(),
+    ...(replyTo ? { replyTo } : {}),
+  })
   publish(project)
   served.push(`contribution:${body.intent}`)
   const receipt: ContributionReceipt = {
