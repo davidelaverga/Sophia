@@ -198,7 +198,7 @@ function TopLines(props: { earlier: Earlier; address: { at: AddressState; retry:
 }
 
 /** What the discussion shows from what was read: its messages, withdrawn places, and a found page's gap (A38). */
-const shownOf = ({ entries, withdrawn, gap }: Earlier) => ({ entries, withdrawn, gap })
+const shownOf = ({ entries, withdrawn, gaps }: Earlier) => ({ entries, withdrawn, gaps })
 
 /** Nothing to show yet: no message, no withdrawn one's place (A36), no turn with Sophia. */
 const nothingSaid = (
@@ -378,12 +378,12 @@ interface DiscussionProps {
   replies: ReadonlyMap<string, DiscussionReply['replyTo']>
   /** Reply to an entry (the vision flag's): absent, no entry offers it. */
   onReply: ((replying: Replying) => void) | undefined
-  /** Between a page a search read and the latest (A38): the gap's line goes after that message. */
-  gap: Earlier['gap']
+  /** Where messages between were never read (A38): a gap's line goes after each of those messages. */
+  gaps: Earlier['gaps']
 }
 
 function Discussion(props: DiscussionProps) {
-  const { entries, withdrawn, acts, named, me, names: known, replies, onReply, gap } = props
+  const { entries, withdrawn, acts, named, me, names: known, replies, onReply, gaps } = props
   const now = useNow()
   if (entries.length === 0 && withdrawn.length === 0) return null
   const items = discussionItems(entries, withdrawn)
@@ -398,7 +398,7 @@ function Discussion(props: DiscussionProps) {
     <ol className="discussion" aria-label="Recent discussion">
       {items.map((item, i) => {
         // The gap's line, after the message it follows (A38).
-        const gapLine = gap?.after === item.id ? <GapLine key="gap" gap={gap} /> : null
+        const gapLine = gaps.after.includes(item.id) ? <GapLine key="gap" gaps={gaps} after={item.id} /> : null
         if (item.type === 'withdrawn')
           return [<Withdrawn key={item.id} withdrawn={item.withdrawn} day={days[i]} me={me} names={names} />, gapLine]
         const { entry } = item
@@ -443,21 +443,22 @@ function Discussion(props: DiscussionProps) {
 }
 
 /**
- * Between a page a search read and the chat's latest (A38): the messages between aren't shown until the reader asks;
- * each press reads one page under it (A23), until it meets the page found.
+ * Where messages between were never read (A38): they aren't shown until the reader asks; each press reads one page under
+ * the gap (A23), until no message between is unread.
  */
-function GapLine({ gap }: { gap: NonNullable<Earlier['gap']> }) {
-  const loading = gap.reading === 'loading'
+function GapLine({ gaps, after }: { gaps: Earlier['gaps']; after: string }) {
+  const reading = gaps.reading(after)
+  const loading = reading === 'loading'
   return (
     <li className="discussion-earlier discussion-gap">
-      <p>{gap.reading === 'failed' ? 'Couldn’t load the newer messages.' : 'Newer messages aren’t shown here.'}</p>
+      <p>{reading === 'failed' ? 'Couldn’t load the newer messages.' : 'Newer messages aren’t shown here.'}</p>
       <button
         type="button"
         className="text-button"
         aria-disabled={loading || undefined}
-        onClick={() => !loading && gap.fill()}
+        onClick={() => !loading && gaps.fill(after)}
       >
-        {loading ? 'Loading…' : gap.reading === 'failed' ? 'Try again' : 'Show them'}
+        {loading ? 'Loading…' : reading === 'failed' ? 'Try again' : 'Show them'}
       </button>
     </li>
   )

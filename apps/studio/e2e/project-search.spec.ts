@@ -126,3 +126,83 @@ test('project search · nothing found and a failed search say different things; 
   await sheet(page).getByRole('button', { name: 'Try again' }).click()
   await expect(hits(page)).toHaveCount(1)
 })
+
+/** Opens the search hit whose words end with «message N.» (`heron=` messages). */
+async function openHeron(page: Page, n: number) {
+  // The head's Search: after an open, the chat's bar has the focus, where `/` is typed.
+  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  await field(page).fill('heron')
+  await hits(page)
+    .filter({ hasText: `message ${String(n)}.` })
+    .getByRole('button')
+    .click()
+  await expect(discussion(page).locator(`[data-message="${entryIdOf(n - 1)}"]`)).toBeInViewport()
+}
+
+/** The ids shown, in order, and where the gap lines stand (after which message). */
+const layout = (page: Page) =>
+  discussion(page).evaluate((list) =>
+    [...list.children].map((li) =>
+      li.classList.contains('discussion-gap')
+        ? 'gap'
+        : li instanceof HTMLElement
+          ? (li.dataset.message ?? li.id)
+          : li.id,
+    ),
+  )
+const n = (id: string) => Number(id.slice(-12)) // entryIdOf(i) ends with i + 1
+
+test('project search · two sequential opens, 100 then 125: the unread messages between stay behind a gap, filled a page a press (R-C4-01)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?people=2&discussion=260&heron=100,125')
+  await expect(page.locator('.room-stage')).toBeVisible()
+  await openHeron(page, 100)
+  await openHeron(page, 125)
+  expect(await reads(page)).toEqual([`discussion:${entryIdOf(100)}`, `discussion:${entryIdOf(125)}`])
+  // 51–125 read, 126–210 not: the gap is after 125, before 211.
+  const shown = await layout(page)
+  const at = shown.indexOf('gap')
+  expect(at, 'a gap line is shown').toBeGreaterThan(0)
+  expect(n(shown[at - 1] ?? '')).toBe(125)
+  expect(n(shown[at + 1] ?? '')).toBe(211)
+  expect(shown.filter((s) => s === 'gap')).toHaveLength(1)
+  // Each press reads one page under the gap, until it meets 125.
+  for (const [i, before] of [210, 160].entries()) {
+    await gapLine(page).getByRole('button', { name: 'Show them' }).click()
+    await expect.poll(() => reads(page)).toHaveLength(3 + i)
+    expect((await reads(page)).at(-1)).toBe(`discussion:${entryIdOf(before)}`)
+  }
+  await expect(gapLine(page)).toHaveCount(0)
+  const all = (await layout(page)).filter((s) => s !== 'gap').map(n)
+  expect(all).toEqual(Array.from({ length: 210 }, (_, i) => i + 51))
+})
+
+test('project search · a disjoint second open keeps both unread intervals behind their own gaps', async ({ page }) => {
+  await page.goto('/room.html?people=2&discussion=260&heron=40,150')
+  await expect(page.locator('.room-stage')).toBeVisible()
+  await openHeron(page, 150)
+  await openHeron(page, 40)
+  expect(await reads(page)).toEqual([`discussion:${entryIdOf(150)}`, `discussion:${entryIdOf(40)}`])
+  // Read: 1–40 (the start), 101–150, 211–260. Unread: 41–100 and 151–210, each behind a gap.
+  const shown = await layout(page)
+  const gaps = shown.flatMap((s, i) => (s === 'gap' ? [[n(shown[i - 1] ?? ''), n(shown[i + 1] ?? '')]] : []))
+  expect(gaps).toEqual([
+    [40, 101],
+    [150, 211],
+  ])
+  await expect(page.getByText('The start of the room’s chat')).toBeVisible()
+  // Each press reads one page under its own gap, and leaves the other: the lower one (151–210) in two, from 211 then
+  // 161; the upper one (41–100) in two, from 101 then 51.
+  const press = async (gap: number, before: number, count: number, left: number) => {
+    await gapLine(page).nth(gap).getByRole('button', { name: 'Show them' }).click()
+    await expect.poll(() => reads(page)).toHaveLength(count)
+    expect((await reads(page)).at(-1)).toBe(`discussion:${entryIdOf(before - 1)}`)
+    await expect(gapLine(page)).toHaveCount(left)
+  }
+  await press(1, 211, 3, 2)
+  await press(1, 161, 4, 1)
+  await press(0, 101, 5, 1)
+  await press(0, 51, 6, 0)
+  expect((await layout(page)).filter((s) => s !== 'gap').map(n)).toEqual(Array.from({ length: 260 }, (_, i) => i + 1))
+})

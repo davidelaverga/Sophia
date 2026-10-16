@@ -66,7 +66,8 @@ import type { ConversationMessage, ConversationSummary, ProjectTask, VersionRevi
 import { MESSAGE_PAGE, type conversationMission } from './conversation-data.ts'
 import { conversationWritten, type TalkWrites } from './conversation-writes.ts'
 import type { ProjectRelease, ReportList } from '@sophia/contracts'
-import { searchHits, searchPage } from './search-data.ts'
+import { searchHits, searchPage, servedHits } from './search-data.ts'
+import { VISION } from '../src/app/vision.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
 import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
 import { profileAnswer } from './profile-data.ts'
@@ -221,6 +222,8 @@ interface Project {
   searchHeld?: (() => void)[] | null
   /** While set, searches fail as an unavailable API's (`failSearch`, A38). */
   failSearch?: boolean
+  /** The next search is answered as the A13 proposal (recaps, meetings) even on the served page (A38's parser refuses). */
+  searchAsProposed?: boolean
   /** While set, reads of the served board wait for `holdBoard(false)` (search-honest.md). */
   boardHeld?: (() => void)[] | null
   /** The versions' reviews (review-data.ts, A16); absent, their requests are unexpected. */
@@ -884,12 +887,18 @@ function searchAnswer(project: Project, url: URL): Response | Promise<Response> 
   const meeting = project.meeting
   if (!meeting) return null
   served.push(`search:${q}:${cursor ?? '0'}`)
+  // The request as it was sent, endpoint and query, so a check sees what the Studio asked for.
+  served.push(`search-request:${url.pathname}${url.search}`)
   if (project.failSearch) return unavailable()
   const held = project.searchHeld
   const kept = project.notes?.kept ?? []
   const report = { versions: project.reportVersions, title: project.reportTitle, pilot: project.pilot }
   const messages = project.messages.map(said)
-  const page = () => json(searchPage(searchHits({ meeting, kept, report, messages }, q), cursor))
+  const found = searchHits({ meeting, kept, report, messages }, q)
+  // Without the vision flag, the page is served as A38 is (strict); `searchAsProposed` answers once as A13 instead.
+  const strict = !VISION && !project.searchAsProposed
+  project.searchAsProposed = false
+  const page = () => (strict ? json(searchPage(servedHits(found), cursor)) : json(searchPage(found, cursor)))
   return held ? new Promise<Response>((resolve) => held.push(() => resolve(page()))) : page()
 }
 

@@ -5,15 +5,15 @@
 // A message can be corrected or withdrawn (A36, docs/plans/message-acts.md): the snapshot's window decides for the
 // span it covers, so a message withdrawn there never stays from an earlier read; withdrawn places (tombstones, with the
 // message acts flag) are held as messages are; and the reader's own act shows before the next read brings it.
-// A message a search found beyond the window (A38) is read with the one page that ends at it, held apart from the
-// window by a gap line until the reader fills it, a page at a time (segment-view.ts).
+// A message a search found beyond the window (A38) is read with the one page that ends at it. Wherever messages between
+// what was read were never read, a gap line says so until the reader fills it, a page at a time (segment-view.ts).
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import type { DiscussionEntry, WithdrawnEntry } from '@sophia/contracts'
 import { getDiscussionPage } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Acted } from './MessageActions.tsx'
 import { heldView, inOrder } from './message-acts.ts'
-import { afterGap, closesGap, gapAfterPage } from './segment-view.ts'
+import { afterGap, gapsIn, pageLinks, windowLinks } from './segment-view.ts'
 
 /** How many entries the snapshot holds, withdrawn places included: with fewer, it holds the whole discussion. */
 const WINDOW = 50
@@ -26,8 +26,8 @@ interface Held {
   withdrawn: ReadonlyMap<string, WithdrawnEntry>
   /** The first message is among them. */
   atStart: boolean
-  /** A page a search read stands apart: the gap is after this message, until the messages between are read (A38). */
-  gap: string | null
+  /** Each message's next one, as reads showed it (A23 pages, the windows): where the next shown differs, a gap (A38). */
+  links: ReadonlyMap<string, string>
 }
 
 type Reading = 'idle' | 'loading' | 'failed'
@@ -47,8 +47,8 @@ export interface Earlier {
   jump: (before: string) => void
   /** That read: under way, failed (the reader tries again), or not. */
   jumping: Reading
-  /** Between a page a search read and the window: after which message, its read, and the press that fills it. */
-  gap: { after: string; reading: Reading; fill: () => void } | null
+  /** Where messages between were never read (A38): after which messages, a gap's read, and the press that fills it. */
+  gaps: { after: readonly string[]; reading: (after: string) => Reading; fill: (after: string) => void }
 }
 
 const withEntries = <T extends { id: string }>(held: ReadonlyMap<string, T>, more: readonly T[]) => {
@@ -78,51 +78,69 @@ interface Page {
   before: string | null
 }
 
-/** What a page a search found is read into: what the chat shows, and how a page is held. */
+/** What a page a search found is read into: what the chat shows, its gaps, and how a page is held. */
 interface Holding {
   shown: readonly (DiscussionEntry | WithdrawnEntry)[]
   atStart: boolean
-  gap: string | null
-  hold: (page: Page, at: Pick<Held, 'atStart' | 'gap'>) => void
-  closeGap: () => void
+  gaps: readonly string[]
+  /** A page read before `before`, kept with everything held. */
+  hold: (page: Page, before: string, atStart: boolean) => void
 }
 
 /**
- * A message a search found beyond the window (A38): the one page that ends at it, held apart by a gap until the reader
- * fills it, a page under the gap at a time, until a page meets it (segment-view.ts).
+ * Messages a search found beyond the window (A38): the one page that ends at each, and the gaps any reads leave, each
+ * filled from below a page at a time, until no message between is unread (segment-view.ts).
  */
-function useFoundPage(projectId: string, token: string, at: Holding): Pick<Earlier, 'jump' | 'jumping' | 'gap'> {
+function useFoundPage(projectId: string, token: string, at: Holding): Pick<Earlier, 'jump' | 'jumping' | 'gaps'> {
   const [jumping, setJumping] = useState<Reading>('idle')
-  const [filling, setFilling] = useState<Reading>('idle')
+  const [filling, setFilling] = useState<{ after: string; reading: Reading } | null>(null)
   const { shown, hold } = at
   const jump = (before: string) => {
     if (jumping === 'loading') return
     setJumping('loading')
     getDiscussionPage(token, projectId, before).then(
       (page) => {
-        const gap = gapAfterPage([...page.entries, ...(page.withdrawn ?? [])], shown, before)
-        hold(page, { atStart: page.before === null || at.atStart, gap })
+        hold(page, before, page.before === null || at.atStart)
         setJumping('idle')
       },
       () => setJumping('failed'),
     )
   }
-  const gapAt = at.gap === null ? undefined : shown.find((s) => s.id === at.gap)
-  const fill = () => {
-    const below = gapAt && afterGap(shown, gapAt.id)
-    if (!gapAt || filling === 'loading') return
-    if (!below) return at.closeGap()
-    setFilling('loading')
+  const fill = (after: string) => {
+    const below = at.gaps.includes(after) ? afterGap(shown, after) : undefined
+    if (!below || filling?.reading === 'loading') return
+    setFilling({ after, reading: 'loading' })
     getDiscussionPage(token, projectId, below.id).then(
       (page) => {
-        const met = closesGap([...page.entries, ...(page.withdrawn ?? [])], gapAt, page.before === null)
-        hold(page, { atStart: at.atStart, gap: met ? null : gapAt.id })
-        setFilling('idle')
+        hold(page, below.id, page.before === null || at.atStart)
+        setFilling(null)
       },
-      () => setFilling('failed'),
+      () => setFilling({ after, reading: 'failed' }),
     )
   }
-  return { jump, jumping, gap: gapAt ? { after: gapAt.id, reading: filling, fill } : null }
+  const reading = (after: string): Reading => (filling?.after === after ? filling.reading : 'idle')
+  return { jump, jumping, gaps: { after: at.gaps, reading, fill } }
+}
+
+/** Each window the snapshot shows is kept once pages are read, so a message leaving it stays, with its next one. */
+function useKeptWindows(
+  setHeld: (update: (h: Held | null) => Held | null) => void,
+  projectId: string,
+  discussion: readonly DiscussionEntry[],
+  discussionWithdrawn: readonly WithdrawnEntry[],
+) {
+  useEffect(() => {
+    setHeld((h) =>
+      h && h.projectId === projectId
+        ? {
+            ...h,
+            entries: withEntries(h.entries, discussion),
+            withdrawn: withEntries(h.withdrawn, discussionWithdrawn),
+            links: new Map([...h.links, ...windowLinks([...discussion, ...discussionWithdrawn])]),
+          }
+        : h,
+    )
+  }, [setHeld, discussion, discussionWithdrawn, projectId])
 }
 
 export function useEarlierDiscussion(
@@ -137,18 +155,9 @@ export function useEarlierDiscussion(
   const fromBottom = useRef<number | null>(null)
   const held = stored?.projectId === projectId ? stored : null
   const { acted, revise } = useActed(projectId)
-  // Each window the snapshot shows is kept once pages are read, so a message leaving it stays.
-  useEffect(() => {
-    setHeld((h) =>
-      h && h.projectId === projectId
-        ? {
-            ...h,
-            entries: withEntries(h.entries, discussion),
-            withdrawn: withEntries(h.withdrawn, discussionWithdrawn),
-          }
-        : h,
-    )
-  }, [discussion, discussionWithdrawn, projectId])
+  // The window, consecutive: the latest messages, each one's next among them.
+  const latest = windowLinks([...discussion, ...discussionWithdrawn])
+  useKeptWindows(setHeld, projectId, discussion, discussionWithdrawn)
   // A page put above keeps the reader where they were: the distance from the bottom is what stays.
   useLayoutEffect(() => {
     const el = history.current
@@ -157,13 +166,17 @@ export function useEarlierDiscussion(
   }, [held, history])
   const { entries, withdrawn } = heldView(held, { entries: discussion, withdrawn: discussionWithdrawn }, acted)
   const atStart = held?.atStart ?? false
-  /** A page read, kept with everything held and shown. */
-  const hold = (page: Page, at: Pick<Held, 'atStart' | 'gap'>) =>
+  const hold = (page: Page, before: string, start: boolean) =>
     setHeld({
       projectId,
       entries: withEntries(withEntries(held?.entries ?? new Map(), entries), page.entries),
       withdrawn: withEntries(withEntries(held?.withdrawn ?? new Map(), withdrawn), page.withdrawn ?? []),
-      ...at,
+      atStart: start,
+      links: new Map([
+        ...(held?.links ?? []),
+        ...latest,
+        ...pageLinks([...page.entries, ...(page.withdrawn ?? [])], before),
+      ]),
     })
   const load = () => {
     const [oldest] = [...entries, ...withdrawn].toSorted(inOrder)
@@ -173,15 +186,16 @@ export function useEarlierDiscussion(
       (page) => {
         const el = history.current
         fromBottom.current = el ? el.scrollHeight - el.scrollTop : null
-        hold(page, { atStart: page.before === null, gap: held?.gap ?? null })
+        hold(page, oldest.id, page.before === null)
         setReading('idle')
       },
       () => setReading('failed'),
     )
   }
   const shown = [...entries, ...withdrawn]
-  const closeGap = () => setHeld((h) => h && { ...h, gap: null })
-  const found = useFoundPage(projectId, identity.token, { shown, atStart, gap: held?.gap ?? null, hold, closeGap })
+  // Without a page read, the window alone: consecutive, no gap.
+  const gaps = held ? gapsIn(shown, new Map([...held.links, ...latest])) : []
+  const found = useFoundPage(projectId, identity.token, { shown, atStart, gaps, hold })
   const offered = !atStart && shown.length >= WINDOW
   return { entries, withdrawn, offered, atStart, reading, load, revise, ...found }
 }
