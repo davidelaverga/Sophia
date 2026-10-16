@@ -47,6 +47,15 @@ commits on the branch merge its base forward or touch only this record). 12 file
 - **Length limits:** `leaving`, `accountActions` and `opening` leave `App` and `SignedIn`.
 - **`.settings-part .confirm`** reads from the left, as the room link's and the sessions' questions set theirs.
 - **The guest's session** (`endGuestSession`) is unchanged: an anonymous account has only that one.
+- **Codex P1 on #410, after the ending commit: a logout that fails.** supabase-js 2.117.1's `_signOut` resolves a
+  failed logout (a 5xx, the network) with `{ error }`, having removed this device's session. `endSession` dropped the
+  result, so «Sign out everywhere» looked done.
+  - The checks came first (`8d748fd6`): the unit checks, and the app's auth spec, which answers the logout 503. Both
+    failed.
+  - The fix (`d3c0b73e`): asked for every device, a failed logout is `here-only`. The sign-in then says the other
+    devices may still be signed in.
+  - This device's own sign-out has nothing more to say: its session is gone either way.
+  - `app-auth`, `account-settings`, `account-menu` and the sign-in specs passed 65/65.
 
 ## Remaining obligations
 
