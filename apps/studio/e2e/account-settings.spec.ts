@@ -51,3 +51,20 @@ test('settings · Keyboard shortcuts there opens the index', async ({ page }) =>
   await sheet(page).getByRole('button', { name: 'Keyboard shortcuts' }).click()
   await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible()
 })
+
+test('settings · a choice is a small box beside its words on one line, and the account says each thing on its line', async ({
+  page,
+}) => {
+  await openSettings(page)
+  for (const name of ['Join with my microphone on', 'Mirror my video']) {
+    const box = await sheet(page).getByRole('checkbox', { name }).boundingBox()
+    const row = await sheet(page).locator('.settings-check', { hasText: name }).boundingBox()
+    expect(box?.width ?? 0).toBeLessThanOrEqual(20)
+    expect(row?.height ?? 99).toBeLessThanOrEqual(32)
+  }
+  const said = sheet(page).locator('.account-names > span')
+  const first = await said.first().boundingBox()
+  const last = await said.last().boundingBox()
+  if (!first || !last) throw new Error('the account says nothing')
+  expect(last.y).toBeGreaterThanOrEqual(first.y + first.height - 1)
+})
