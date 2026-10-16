@@ -216,7 +216,7 @@ describe('Q13 exclusive owned-cluster admission and activation (L1, no hosted ef
   it('requires every assembly callable, relation read and schema usage grant', async () => {
     for (const fn of [
       'actor_id()',
-      'actor_label(uuid,uuid,text)',
+      'conversation_actor_label(uuid,uuid,text)',
       'is_member(uuid)',
       'is_task_kind(text)',
       'mission_capture_default()',

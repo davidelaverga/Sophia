@@ -2688,7 +2688,7 @@ const candidateSeals = [
   ['con01-s2-conversation-reply-ledger.sql', 'e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316'],
   // Current Q13 candidate supplies the same table DDL; its extra role/read policies are not promoted or compared here.
   // Resealed for the FND-B1 amendment (actor_label in the assembler's read helpers; members named by actor_label).
-  ['con01-s3-conversation-reply-context.sql', '3aa8948bbfae493c7427a8361432b8d92b89b95ea4b344d3c19daedef1efe0cb'],
+  ['con01-s3-conversation-reply-context.sql', '09da4ac3cc80b6971af26425557ac364b305e126f316e42284359c7afe37955d'],
   ['con01-s4-reply-fences.sql', 'ba32e07294d0e2908b06ba2887c207d8811625a2ea5e361c62ca90c4d34e47b8'],
 ] as const
 

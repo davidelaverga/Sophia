@@ -25,7 +25,7 @@ import {
   type ContextMessage,
   type RenderedContext,
 } from './conversation-context.ts'
-import { readMissionContext } from './mission-context.ts'
+import { readMissionContextForAssembly } from './mission-context.ts'
 
 export const ASSEMBLER_ROLE = 'sophia_conversation_assembler'
 
@@ -297,10 +297,11 @@ interface MessageRow {
 async function readWindow(c: pg.PoolClient, b: Binding): Promise<ContextMessage[]> {
   const ids = [...b.window, b.messageId]
   const { rows } = await c.query<MessageRow>(
-    // A member named as the project's members see them (0062's actor_label), never by a kept address; the compiler
-    // (conversation_context_message) names them the same way.
+    // A member named as the project's members see them, never by a kept address: through the claim-bound
+    // conversation_actor_label (the assembler may not execute actor_label); the owner's compiler
+    // (conversation_context_message) names them by actor_label inside the same validated claim, the same way.
     `SELECT id, conversation_id, seq::text AS seq, author,
-            CASE WHEN author = 'member' THEN sophia.actor_label(project_id, actor_id, author_name) END AS author_name,
+            CASE WHEN author = 'member' THEN sophia.conversation_actor_label(project_id, actor_id, author_name) END AS author_name,
             body, created_at
        FROM sophia.conversation_messages WHERE project_id = $1 AND conversation_id = $2 AND id = ANY($3::uuid[])`,
     [b.projectId, b.conversationId, ids],
@@ -320,7 +321,7 @@ async function readWindow(c: pg.PoolClient, b: Binding): Promise<ContextMessage[
 /** The context, read and rendered as the asker in begin's snapshot: the actor set transaction-locally, never the caller. */
 export async function renderBound(c: pg.PoolClient, b: Binding): Promise<RenderedContext> {
   await c.query("SELECT set_config('sophia.actor_id', $1, true)", [b.askedBy])
-  const context = await readMissionContext(c, b.projectId, { actorId: b.askedBy, channel: 'studio' })
+  const context = await readMissionContextForAssembly(c, b.projectId, { actorId: b.askedBy, channel: 'studio' })
   if (!context) throw new Unreadable('the asker cannot read the project')
   const messages = await readWindow(c, b)
   return renderConversationContext({

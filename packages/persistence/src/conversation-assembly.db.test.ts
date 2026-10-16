@@ -23,7 +23,7 @@ import {
   type Binding,
 } from './conversation-assembly.ts'
 import { renderConversationContext, TEMPLATES, type ContextMessage, type TemplateId } from './conversation-context.ts'
-import { readMissionContext } from './mission-context.ts'
+import { readMissionContext, readMissionContextForAssembly } from './mission-context.ts'
 import {
   createPool,
   decideMissionChange,
@@ -64,6 +64,7 @@ const C = randomUUID() // editor
 
 /** Every entry point and helper the candidate adds, and the five its role may execute. */
 const ADDED_FUNCTIONS = [
+  'sophia.conversation_actor_label(uuid,uuid,text)',
   'sophia.conversation_assembly_begin(uuid,integer,uuid)',
   'sophia.conversation_assembly_claim(uuid,integer)',
   'sophia.conversation_assembly_close(uuid,integer,uuid,text)',
@@ -119,7 +120,7 @@ const READ_RELATIONS = [
 ]
 const READ_HELPERS = [
   'sophia.actor_id()',
-  'sophia.actor_label(uuid,uuid,text)',
+  'sophia.conversation_actor_label(uuid,uuid,text)',
   'sophia.conversation_assembly_project()',
   'sophia.is_member(uuid)',
   'sophia.is_task_kind(text)',
@@ -633,11 +634,15 @@ async function operationalDigest(): Promise<string> {
   return hash.digest('hex')
 }
 
-/** A person's label as `c` is answered it (0062 actor_label). */
-const label = (c: pg.PoolClient, project: string, actor: string, kept: string | null) =>
-  c
-    .query<{ v: string | null }>('SELECT sophia.actor_label($1, $2, $3) AS v', [project, actor, kept])
-    .then((r) => r.rows[0]?.v ?? null)
+/** A person's label as `c` is answered it: the API's (0062 actor_label), or the assembler's claim-bound one. */
+const labelBy =
+  (fn: 'actor_label' | 'conversation_actor_label') =>
+  (c: pg.PoolClient, project: string, actor: string, kept: string | null) =>
+    c
+      .query<{ v: string | null }>(`SELECT sophia.${fn}($1, $2, $3) AS v`, [project, actor, kept])
+      .then((r) => r.rows[0]?.v ?? null)
+const label = labelBy('actor_label')
+const claimLabel = labelBy('conversation_actor_label')
 
 /** Permission must fail before a writer is entered; its transaction is always rolled back. */
 async function deniedAsAssembler(c: pg.PoolClient, sql: string): Promise<void> {
@@ -958,7 +963,7 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
       await candidateCases(cases)
     })
 
-    it('lets only the assembler execute its six added functions, and nobody read or write its tables', async () => {
+    it('lets only the assembler execute its seven added functions, and nobody read or write its tables', async () => {
       const grants = await owner<{ role: string; fn: string }>(
         `SELECT g.role, p.oid::regprocedure::text AS fn FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace,
                 unnest(ARRAY['public', 'sophia_api', 'sophia_worker', $1]) g(role)
@@ -970,7 +975,9 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
       )
       assert.deepEqual(
         grants.map((g) => `${g.role} ${g.fn}`),
-        [...ENTRY_POINTS, 'sophia.conversation_assembly_project()'].toSorted().map((f) => `${ROLE} ${f}`),
+        [...ENTRY_POINTS, 'sophia.conversation_assembly_project()', 'sophia.conversation_actor_label(uuid,uuid,text)']
+          .toSorted()
+          .map((f) => `${ROLE} ${f}`),
       )
       const tables = await owner<{ role: string; t: string }>(
         `SELECT g.role, t FROM unnest($2::text[]) t, unnest(ARRAY['public', 'sophia_api', 'sophia_worker', $1]) g(role)
@@ -1010,7 +1017,7 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
       }
     })
 
-    it('has exactly the ten assembly/read functions and twenty SELECT grants, no operational authority', async () => {
+    it('has exactly the eleven assembly/read functions and twenty SELECT grants, no operational authority', async () => {
       const functions = await owner<{ f: string }>(
         `SELECT p.oid::regprocedure::text AS f FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
           WHERE n.nspname='sophia' AND has_function_privilege($1,p.oid,'EXECUTE') ORDER BY p.oid::regprocedure::text COLLATE "C"`,
@@ -1060,7 +1067,10 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
         )
         await b.s.query("SELECT set_config('sophia.actor_id',$1,true)", [E])
         assert.deepEqual(await readSurface(b.s, target.projectId), apiSurface)
-        assert.deepEqual(await readMissionContext(b.s, target.projectId, { actorId: E, channel: 'studio' }), apiContext)
+        assert.deepEqual(
+          await readMissionContextForAssembly(b.s, target.projectId, { actorId: E, channel: 'studio' }),
+          apiContext,
+        )
         assert.deepEqual(
           await readSurface(b.s, other.projectId),
           READ_RELATIONS.map(() => []),
@@ -1091,15 +1101,19 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
           READ_RELATIONS.map(() => []),
           'claim begun in another transaction',
         )
-        assert.equal(await readMissionContext(b.s, target.projectId, { actorId: E, channel: 'studio' }), null)
+        assert.equal(
+          await readMissionContextForAssembly(b.s, target.projectId, { actorId: E, channel: 'studio' }),
+          null,
+        )
       } finally {
         await b.s.query('ROLLBACK')
         b.s.release(true)
       }
     })
 
-    it('labels a member of the claimed project as the API does, and never an outsider, an address or another project', async () => {
+    it('names people only through the begun claim: as the API inside it, nothing outside it, actor_label denied', async () => {
       const target = await scene()
+      const both = await scene() // E asks in both: a member of A and of B.
       const elsewhere = (await seedProject(db.ownerUrl, { admin: A, editors: [C] })).projectId
       const outsider = randomUUID()
       await owner(
@@ -1107,22 +1121,68 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
            ON CONFLICT (actor_id) DO UPDATE SET display_name = 'Elena', chosen = true`,
         [E],
       )
-      const apiLabel = await withActor(api, E, 'read', (c) => label(c, target.projectId, E, 'e@example.test'))
-      assert.equal(apiLabel, 'Elena')
-      const k = await claimAs(target.replyId, 8000)
-      const b = await begin(target.replyId, k)
-      assert.equal((await b.begun).verdict, 'begun')
       try {
-        await b.s.query("SELECT set_config('sophia.actor_id',$1,true)", [E])
-        assert.equal(await label(b.s, target.projectId, E, 'e@example.test'), apiLabel, 'as the API labels the asker')
-        assert.equal(await label(b.s, target.projectId, B, 'b@example.test'), null, 'a kept address is never a name')
-        assert.equal(await label(b.s, elsewhere, C, 'Carla'), null, 'a project the asker is not in')
-        await b.s.query("SELECT set_config('sophia.actor_id',$1,true)", [outsider])
-        assert.equal(await label(b.s, target.projectId, E, 'Kept'), null, 'an outsider is told nothing')
-        assert.equal(await refusal(b.s.query("SELECT sophia.kept_name('x')")), '42501', 'kept_name stays private')
+        const apiLabel = await withActor(api, E, 'read', (c) => label(c, target.projectId, E, 'e@example.test'))
+        assert.equal(apiLabel, 'Elena')
+        assert.equal(
+          await withActor(api, C, 'read', (c) => label(c, elsewhere, C, 'Carla')),
+          'Carla',
+          'the API unchanged',
+        )
+        // No claim begun: nothing, for a project the actor is a member of too.
+        const none = await assemblerPool.connect()
+        try {
+          await none.query(`BEGIN; ${AS_ASSEMBLER}`)
+          await none.query("SELECT set_config('sophia.actor_id',$1,true)", [C])
+          assert.equal(await claimLabel(none, elsewhere, C, 'Carla'), null, 'no claim: another member’s project')
+          assert.equal(
+            await refusal(none.query('SELECT sophia.actor_label(NULL::uuid,NULL::uuid,NULL::text)')),
+            '42501',
+          )
+        } finally {
+          await none.query('ROLLBACK')
+          none.release(true)
+        }
+        const k = await claimAs(target.replyId, 8000)
+        const b = await begin(target.replyId, k)
+        assert.equal((await b.begun).verdict, 'begun')
+        try {
+          await b.s.query("SELECT set_config('sophia.actor_id',$1,true)", [E])
+          assert.equal(await claimLabel(b.s, target.projectId, E, 'e@example.test'), apiLabel, 'claimed A: as the API')
+          assert.equal(await claimLabel(b.s, target.projectId, B, 'b@example.test'), null, 'a kept address is no name')
+          assert.equal(await claimLabel(b.s, both.projectId, E, 'Elena'), null, 'claimed A: not B, though E is in B')
+          assert.equal(await claimLabel(b.s, elsewhere, C, 'Carla'), null, 'a project the asker is not in')
+          await b.s.query("SELECT set_config('sophia.actor_id',$1,true)", [B])
+          assert.equal(await claimLabel(b.s, target.projectId, E, 'Kept'), null, 'actor swapped: not the claim’s asker')
+          await b.s.query("SELECT set_config('sophia.actor_id',$1,true)", [outsider])
+          assert.equal(await claimLabel(b.s, target.projectId, E, 'Kept'), null, 'an outsider is told nothing')
+          await b.s.query("SELECT set_config('sophia.actor_id',$1,true)", [E])
+          // The full crossing: the renderer names E through the claim, the compiler by actor_label; they agree.
+          assert.equal(
+            (await record(b.s, target.replyId, k, recordPayload(await renderBound(b.s, bindingOf(await b.begun)))))
+              .verdict,
+            'recorded',
+          )
+          assert.equal(await claimLabel(b.s, target.projectId, E, 'Kept'), null, 'a settled claim names nobody')
+          assert.equal(await refusal(b.s.query("SELECT sophia.kept_name('x')")), '42501', 'kept_name stays private')
+        } finally {
+          await b.s.query('ROLLBACK')
+          b.s.release(true)
+        }
+        // An expired claim names nobody either.
+        const late = await scene()
+        const lk = await claimAs(late.replyId, 300)
+        const lb = await begin(late.replyId, lk)
+        assert.equal((await lb.begun).verdict, 'begun')
+        try {
+          await lb.s.query("SELECT set_config('sophia.actor_id',$1,true)", [E])
+          await sleep(400)
+          assert.equal(await claimLabel(lb.s, late.projectId, E, 'Kept'), null, 'an expired claim')
+        } finally {
+          await lb.s.query('ROLLBACK')
+          lb.s.release(true)
+        }
       } finally {
-        await b.s.query('ROLLBACK')
-        b.s.release(true)
         // E asks in every scene of this file: their name goes, so later renders read the names their rows kept.
         await owner('DELETE FROM sophia.actor_profiles WHERE actor_id = $1', [E])
       }

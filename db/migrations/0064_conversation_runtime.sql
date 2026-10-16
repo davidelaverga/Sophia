@@ -1213,6 +1213,24 @@ REVOKE ALL ON FUNCTION sophia.conversation_context_kept(), sophia.conversation_c
  sophia.conversation_record_context(uuid,integer,uuid,jsonb)
  FROM PUBLIC, sophia_api, sophia_worker;
 
+-- FND-B1 (Codex P1 on #385): the project of the one live claim this transaction has begun for its actor, and a
+-- person's label read only through it. The renderer (conversation-assembly.ts) names people with
+-- conversation_actor_label, never actor_label, so these are installed wherever it runs; the definitions are the S3
+-- candidate's, here executable by their owner alone (no assembler role is installed by this migration).
+CREATE FUNCTION sophia.conversation_assembly_project() RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path=pg_catalog,sophia AS $$
+ SELECT CASE WHEN count(*)=1 THEN (array_agg(k.project_id))[1] END
+   FROM sophia.conversation_assembly_claims k
+   JOIN sophia.conversation_replies r ON r.project_id=k.project_id AND r.id=k.reply_id
+  WHERE k.begun_xid=pg_current_xact_id_if_assigned() AND k.outcome IS NULL AND k.lease_expires_at>clock_timestamp()
+    AND r.asked_by=sophia.actor_id() $$;
+CREATE FUNCTION sophia.conversation_actor_label(p_project uuid, p_actor uuid, p_kept text) RETURNS text
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+ SELECT CASE WHEN p_project IS NOT NULL AND p_project=sophia.conversation_assembly_project()
+  THEN sophia.actor_label(p_project,p_actor,p_kept) END $$;
+REVOKE ALL ON FUNCTION sophia.conversation_assembly_project(), sophia.conversation_actor_label(uuid,uuid,text)
+ FROM PUBLIC, sophia_api, sophia_worker;
+
 -- Frozen input con01-s4-reply-fences.sql SHA256 ba32e07294d0e2908b06ba2887c207d8811625a2ea5e361c62ca90c4d34e47b8
 -- CON-01 G2-S4: a reply's answer published under its fences, and a source's withdrawal reaching what read it, a
 -- review-only candidate (CX-0100/CX-0101 N4: CC-0100). NOT a migration: it sits outside db/migrations so no runner

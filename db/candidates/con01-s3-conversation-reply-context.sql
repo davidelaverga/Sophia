@@ -822,11 +822,20 @@ GRANT SELECT ON sophia.commands, sophia.contributions, sophia.conversation_messa
  sophia.mission_entries, sophia.mission_note_consents, sophia.mission_note_policies, sophia.native_task_view,
  sophia.project_members, sophia.project_revisions, sophia.projects, sophia.source_dependencies, sophia.source_objects,
  sophia.source_texts, sophia.work_attempts TO sophia_conversation_assembler;
--- FND-B1 amendment (16 October 2026, for V's review): the shared mission reader names people through 0062's
--- actor_label (a SECURITY DEFINER label that answers only to a member of the project, never an address), so the
--- assembler executes it too. kept_name, which it calls as its owner, is pinned above and granted to nobody.
 GRANT EXECUTE ON FUNCTION sophia.actor_id(), sophia.is_member(uuid), sophia.is_task_kind(text),
- sophia.mission_capture_default(), sophia.actor_label(uuid,uuid,text) TO sophia_conversation_assembler;
+ sophia.mission_capture_default() TO sophia_conversation_assembler;
+
+-- FND-B1 amendment (16 October 2026, for V's review; Codex P1 on #385): the assembler names people only through this,
+-- never through 0062's actor_label (SECURITY DEFINER, so the assembler's row policies would not bind it). It answers
+-- only for the project of the one live claim begun in this transaction for the current actor
+-- (conversation_assembly_project); otherwise null, without calling the resolver. actor_label and kept_name, pinned
+-- above, keep their own grants (sophia_api; nobody).
+CREATE FUNCTION sophia.conversation_actor_label(p_project uuid, p_actor uuid, p_kept text) RETURNS text
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+ SELECT CASE WHEN p_project IS NOT NULL AND p_project=sophia.conversation_assembly_project()
+  THEN sophia.actor_label(p_project,p_actor,p_kept) END $$;
+REVOKE ALL ON FUNCTION sophia.conversation_actor_label(uuid,uuid,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION sophia.conversation_actor_label(uuid,uuid,text) TO sophia_conversation_assembler;
 ALTER POLICY members_read ON sophia.commands TO sophia_api, sophia_conversation_assembler;
 ALTER POLICY members_read ON sophia.contributions TO sophia_api, sophia_conversation_assembler;
 ALTER POLICY members_read ON sophia.conversation_messages TO sophia_api, sophia_conversation_assembler;
