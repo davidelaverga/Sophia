@@ -191,12 +191,13 @@ function lotsOfNotes(): Space['notes'] {
     'Thank Bea for the review',
     'Read the vendor contract',
   ]
+  // A day apart, newest first, as the API keeps them (notes-order-export.md).
   return words.map((text, i) => ({
     id: `note-${String(i + 1)}`,
     text,
     keptBy: 'person' as const,
     fromTurnId: null,
-    createdAt: ago(DAY),
+    createdAt: ago(DAY * (i + 1)),
   }))
 }
 
