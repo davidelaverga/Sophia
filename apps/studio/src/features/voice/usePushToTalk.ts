@@ -10,7 +10,7 @@ const nowhere = (target: EventTarget | null) => target === document.body || targ
  * Whether Space is held to talk now, the microphone on (not while the browser still asks, or refused it: Codex P2 on
  * #381). `setMicrophone` and `micOn` are the call's. A project kept out of sight takes no Space (Codex P1 on #381).
  */
-export function usePushToTalk(micOn: boolean, setMicrophone: (on: boolean) => void, live: boolean): boolean {
+export function usePushToTalk(micOn: boolean, setMicrophone: (on: boolean) => Promise<void>, live: boolean): boolean {
   const scoped = useContext(ShortcutScope)
   const enabled = live && scoped
   const [holding, setHolding] = useState(false)
@@ -24,7 +24,7 @@ export function usePushToTalk(micOn: boolean, setMicrophone: (on: boolean) => vo
       if (!now.current.holding) return
       now.current.holding = false
       setHolding(false)
-      now.current.setMicrophone(false)
+      void now.current.setMicrophone(false)
     }
     const onKey = (phase: 'down' | 'up') => (e: KeyboardEvent) => {
       const key = {
@@ -40,7 +40,11 @@ export function usePushToTalk(micOn: boolean, setMicrophone: (on: boolean) => vo
       if (act === 'start') {
         now.current.holding = true
         setHolding(true)
-        now.current.setMicrophone(true)
+        // The browser may still be asking when Space is let go, and LiveKit publishes a late enable even after the
+        // turn-off stopped waiting for it: a microphone that arrives once Space is up goes off again (Codex P1 on #381).
+        void now.current
+          .setMicrophone(true)
+          .then(() => (now.current.holding ? undefined : now.current.setMicrophone(false)))
       } else if (act === 'stop') stop()
     }
     const down = onKey('down')

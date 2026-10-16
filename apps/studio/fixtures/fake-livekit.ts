@@ -207,6 +207,24 @@ function fakeRoom(): Pick<Room, 'on'> {
   return room as unknown as Pick<Room, 'on'>
 }
 
+/**
+ * The viewer's devices, switched as LiveKit does: what is asked is recorded, a refused one rejects, and a microphone
+ * held on its way (`window.fixture.holdMicrophone`) arrives when released.
+ */
+function deviceSwitch(me: RoomParticipant, changed: () => void) {
+  return (name: 'microphone' | 'camera' | 'screen', key: 'micOn' | 'cameraOn' | 'screenOn') => (on: boolean) => {
+    asked.push(`${name}:${on ? 'on' : 'off'}`)
+    if (on && refused === name) return Promise.reject(blocked())
+    const apply = () => {
+      me[key] = on
+      changed()
+    }
+    if (on && name === 'microphone' && enabling.held) return arrival(apply)
+    apply()
+    return Promise.resolve()
+  }
+}
+
 export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallbacks): Promise<RoomConnection> {
   connected()
   said = null // a new connection has said nothing yet, as following-signal.ts starts each one
@@ -228,18 +246,7 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     open = false
     cb.onEnded(why)
   }
-  const device =
-    (name: 'microphone' | 'camera' | 'screen', key: 'micOn' | 'cameraOn' | 'screenOn') => (on: boolean) => {
-      asked.push(`${name}:${on ? 'on' : 'off'}`)
-      if (on && refused === name) return Promise.reject(blocked())
-      const apply = () => {
-        me[key] = on
-        cb.onChange()
-      }
-      if (on && name === 'microphone' && enabling.held) return arrival(apply)
-      apply()
-      return Promise.resolve()
-    }
+  const device = deviceSwitch(me, () => cb.onChange())
   return Promise.resolve({
     sendChat,
     setTextMode: (on) => {

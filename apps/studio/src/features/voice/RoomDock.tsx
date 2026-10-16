@@ -68,7 +68,7 @@ export function RoomDock(props: Props) {
   const wrap = useRef<HTMLDivElement>(null)
   useDockHeight(wrap)
   const micOn = !!room.participants.find((p) => p.local)?.micOn
-  const talking = usePushToTalk(micOn, (on) => void room.setMicrophone(on), live)
+  const talking = usePushToTalk(micOn, room.setMicrophone, live)
   return (
     <>
       {/* Beside the dock, not in it: the dock's measured height (--dock-h) is the dock's alone. */}
