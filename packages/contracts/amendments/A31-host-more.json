@@ -1,0 +1,216 @@
+{
+  "id": "A31",
+  "goal": "E2E",
+  "title": "More for the host: everyone muted, a camera or a screen stopped",
+  "why": [
+    "Follows A24 (an admin mutes or removes a member in the call). A meeting's host also mutes everyone at once and stops someone's camera or screen share, as Meet, Zoom and Teams allow (docs/plans/host-more.md).",
+    "Each act is the room server's, recorded once done (record_room_act, 0060) as room.host_camera_off, room.host_screen_off or room.host_muted_all; only the person turns their device on again. Twice is the same as once, so no key."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1room~1people~1{identity}~1stop-camera",
+      "value": {
+        "post": {
+          "operationId": "stopCameraInCall",
+          "summary": "Stop a member's camera in the project's call: an admin only.",
+          "tags": ["rooms"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "identity",
+              "in": "path",
+              "required": true,
+              "description": "The member's actor id, their identity in the call.",
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "204": {
+              "description": "Done, or already so"
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not an admin of the project",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Their own call, or they aren't a member in the call",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "No room server is configured, or it could not be reached",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1room~1people~1{identity}~1stop-screen",
+      "value": {
+        "post": {
+          "operationId": "stopScreenInCall",
+          "summary": "Stop a member's screen share in the project's call: an admin only.",
+          "tags": ["rooms"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "identity",
+              "in": "path",
+              "required": true,
+              "description": "The member's actor id, their identity in the call.",
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "204": {
+              "description": "Done, or already so"
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not an admin of the project",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Their own call, or they aren't a member in the call",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "No room server is configured, or it could not be reached",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1room~1mute-all",
+      "value": {
+        "post": {
+          "operationId": "muteEveryoneInCall",
+          "summary": "Mute everyone else's microphone in the project's call: an admin only.",
+          "tags": ["rooms"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "204": {
+              "description": "Done, or already so"
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not an admin of the project",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "No room server is configured, or it could not be reached",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

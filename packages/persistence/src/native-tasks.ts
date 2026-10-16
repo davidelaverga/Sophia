@@ -17,7 +17,7 @@ import type {
 import { DomainError } from '@sophia/domain'
 import { readDesignProgress, readResearchHtml } from './design-progress.ts'
 import { onlyRow } from './rows.ts'
-import { nameActor } from './tx.ts'
+import { nameActor, type ActorNames } from './tx.ts'
 
 const iso = (value: Date | string) => new Date(value).toISOString()
 
@@ -31,12 +31,12 @@ export async function submitContribution(
   idempotencyKey: string,
   body: Contribution,
   /**
-   * Where it came from (the composer by default), and the author's name from their token, kept with the message so the
-   * room names them outside a call (0048).
+   * Where it came from (the composer by default), and the author's names from their token (nameActor), so the message
+   * keeps their display name (0048). Without them, the transaction's own name stands (a voice write's, 0050).
    */
-  { origin = 'composer', authorName = null }: { origin?: ContributionOrigin; authorName?: string | null } = {},
+  { origin = 'composer', names = null }: { origin?: ContributionOrigin; names?: ActorNames | null } = {},
 ): Promise<ContributionReceipt> {
-  await nameActor(c, authorName)
+  if (names) await nameActor(c, names)
   const { rows } = await c.query<{ receipt: ContributionReceipt }>(
     `SELECT sophia.submit_contribution($1, $2, $3, $4) AS receipt`,
     [projectId, idempotencyKey, JSON.stringify(body), origin],
@@ -72,7 +72,7 @@ interface DiscussionRow {
 
 /** A page of the discussion: the newest `limit`, or the `limit` just older than an entry (A23), oldest first. */
 const DISCUSSION_PAGE = `SELECT * FROM (
-     SELECT ct.id, ct.actor_id, ct.author_name, ct.intent, ct.origin, t.body, s.id AS source_id, s.sha256, ct.created_at
+     SELECT ct.id, ct.actor_id, sophia.actor_label(ct.project_id, ct.actor_id, ct.author_name) AS author_name, ct.intent, ct.origin, t.body, s.id AS source_id, s.sha256, ct.created_at
        FROM sophia.contributions ct
        JOIN sophia.source_objects s ON s.project_id = ct.project_id AND s.id = ct.source_id
        JOIN sophia.source_texts t ON t.project_id = s.project_id AND t.source_id = s.id

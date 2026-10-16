@@ -30,7 +30,7 @@ import {
   idOf,
   said,
 } from './data.ts'
-import { hostActed, personId } from './fake-people.ts'
+import { hostActed, others, personId } from './fake-people.ts'
 import { missionWritten } from './mission-writes.ts'
 import { DEMO, DEMO_ORIGINS, PROJECT_NAME, VIEWER_NAME } from './demo.ts'
 import { exchangeWritten, type ExchangeAction } from './exchange-writes.ts'
@@ -101,6 +101,8 @@ interface Project {
   soleAdmin?: boolean
   /** The viewer left the project (A22): it leaves their list. */
   left?: boolean
+  /** The project is archived (A30, `archived=1`): out of the list, in the archived one. */
+  archived?: boolean
   exchange: boolean
   /** The door shut under the shell (`window.fixture.shutDoor`): every snapshot read from now on is refused (403). */
   doorShut?: boolean
@@ -115,6 +117,8 @@ interface Project {
   goalTargets?: Map<string, { ownerId: string | null; targetDate: string | null; revision: number }>
   /** The next target saved finds someone else's first (`window.fixture.staleTarget`). */
   staleTarget?: boolean
+  /** Members an admin removed (A29), by actor id. */
+  removedMembers?: Set<string>
   /** Members' roles as an admin changed them (A27), by actor id. */
   memberRoles?: Map<string, Membership['role']>
   /** The next host control is refused as an unreachable room server's (`window.fixture.failHost`). */
@@ -411,6 +415,15 @@ function tokenAnswer(project: Project): Response {
   return unavailable()
 }
 
+/** An admin archives the project, or brings it back (A30): recorded, and the lists read it so. */
+function archived(project: Project, init: RequestInit | undefined): Response {
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  const wanted = typeof body === 'object' && body !== null && Reflect.get(body, 'archived') === true
+  project.archived = wanted
+  served.push(`archive:${String(wanted)}`)
+  return json({ projectId: PROJECT, archived: wanted, cursor: String(project.revision) })
+}
+
 /** A request to revise the page's sections (requestDesignEdit): recorded; refused once as a design under way. */
 function designEdited(project: Project, init: RequestInit | undefined): Response | Promise<Response> {
   const held = project.editHeld
@@ -459,14 +472,35 @@ function projectWritten(
   if (path === `${base}/title`) return renamed(project, init)
   if (path === `${base}/html-edits`) return designEdited(project, init)
   if (path === `${base}/leave`) return departed(project)
+  if (path === `${base}/archive`) return archived(project, init)
+  const removal = MEMBER_REMOVAL.exec(path)?.[1]
+  if (removal) return memberRemoved(project, removal)
   const host = HOST_ACT.exec(path)
-  return host?.[1] && (host[2] === 'mute' || host[2] === 'remove') ? hostAct(project, host[2], host[1]) : null
+  if (path === `${base}/room/mute-all`) return mutedAll(project)
+  return host?.[1] && isHostAct(host[2]) ? hostAct(project, host[2], host[1]) : null
 }
 
-const HOST_ACT = new RegExp(`^/api/v1/projects/${PROJECT}/room/people/([0-9a-f-]+)/(mute|remove)$`)
+const HOST_ACT = new RegExp(
+  `^/api/v1/projects/${PROJECT}/room/people/([0-9a-f-]+)/(mute|remove|stop-camera|stop-screen)$`,
+)
 
-/** An admin mutes or removes someone (A24): recorded, and LiveKit's server applies it to the fake room. */
-function hostAct(project: Project, what: 'mute' | 'remove', identity: string): Response | Promise<Response> {
+type HostAct = 'mute' | 'remove' | 'stop-camera' | 'stop-screen'
+const isHostAct = (what: string | undefined): what is HostAct =>
+  what === 'mute' || what === 'remove' || what === 'stop-camera' || what === 'stop-screen'
+
+/** An admin mutes everyone else (A31): recorded, and every other microphone in the fake room goes off. */
+function mutedAll(project: Project): Response {
+  if (project.failHost) {
+    project.failHost = false
+    return unavailable()
+  }
+  served.push('mute-all')
+  for (const p of others()) hostActed('mute', p.identity)
+  return new Response(null, { status: 204 })
+}
+
+/** An admin acts on someone (A24, A31): recorded, and LiveKit's server applies it to the fake room. */
+function hostAct(project: Project, what: HostAct, identity: string): Response | Promise<Response> {
   if (project.failHost) {
     project.failHost = false
     return unavailable()
@@ -535,21 +569,33 @@ function goalTargetsRead(project: Project): Response {
 /** The project's members (A25): the viewer and the two others the room fixture names, with roles as changed (A27). */
 function membersRead(project: Project): Response {
   const roleOf = (actorId: string, start: Membership['role']) => project.memberRoles?.get(actorId) ?? start
+  const gone = project.removedMembers ?? new Set<string>()
   return json({
-    members: [
-      {
-        actorId: membership.actorId,
-        role: roleOf(membership.actorId, project.role ?? membership.role),
-        name: VIEWER_NAME,
-      },
-      { actorId: personId(1), role: roleOf(personId(1), 'editor'), name: 'Marco' },
-      { actorId: personId(2), role: roleOf(personId(2), 'viewer'), name: 'Lucía' },
-    ],
+    members: (
+      [
+        {
+          actorId: membership.actorId,
+          role: roleOf(membership.actorId, project.role ?? membership.role),
+          name: VIEWER_NAME,
+        },
+        { actorId: personId(1), role: roleOf(personId(1), 'editor'), name: 'Marco' },
+        { actorId: personId(2), role: roleOf(personId(2), 'viewer'), name: 'Lucía' },
+      ] as const
+    ).filter((m) => !gone.has(m.actorId)),
   })
 }
 
 const GOAL_TARGET = new RegExp(`^/api/v1/projects/${PROJECT}/goals/([0-9a-f-]+)/target$`)
 const MEMBER_ROLE = new RegExp(`^/api/v1/projects/${PROJECT}/members/([0-9a-f-]+)/role$`)
+const MEMBER_REMOVAL = new RegExp(`^/api/v1/projects/${PROJECT}/members/([0-9a-f-]+)/removal$`)
+
+/** A member removed (A29): an admin's; recorded, and the member leaves the list. */
+function memberRemoved(project: Project, actorId: string): Response {
+  if ((project.role ?? membership.role) !== 'admin') return refused('Only an admin removes members')
+  ;(project.removedMembers ??= new Set()).add(actorId)
+  served.push(`remove-member:${actorId}`)
+  return json({ actorId, cursor: String(project.revision) })
+}
 
 /** The project's own PUTs: a goal's owner and date (A25), a member's role (A27); null for any other path. */
 function projectPut(project: Project, path: string, init: RequestInit | undefined): Response | null {
@@ -740,9 +786,18 @@ export function needsAnswer(now = Date.now()) {
   }
 }
 
+/** The person's archived projects (A30): this one, when it is. */
+function archivedListAnswer(project: Project): Response {
+  served.push('projects:archived')
+  const listed = { projectId: PROJECT, title: 'Fixture project', role: project.role ?? membership.role, members: 3 }
+  const projects = project.archived && !project.left ? [{ ...listed, room: null, nextSession: null, releases: [] }] : []
+  return json({ projects, personalEpoch: 1 })
+}
+
 /** The person's own reads (the projects they are in, what needs them); undefined for any other request. */
 function ownRead(project: Project, url: URL) {
   if (url.pathname === '/api/v1/projects') return projectListAnswer(project)
+  if (url.pathname === '/api/v1/projects/archived') return archivedListAnswer(project)
   if (url.pathname === '/api/v1/me/needs') return json(needsAnswer())
   return undefined
 }
@@ -979,7 +1034,7 @@ function projectListAnswer(project: Project): Response | Promise<Response> {
     releases: project.carriedIn ?? [],
   }
   const other = { ...listed, projectId: '00000000-0000-4000-8000-0000000000a9', title: 'Another project', releases: [] }
-  const mine = project.left ? [] : [listed]
+  const mine = project.left || project.archived ? [] : [listed]
   return json({ projects: project.carriedElsewhere ? [other] : mine, personalEpoch: 1 })
 }
 

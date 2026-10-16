@@ -28,6 +28,7 @@ import { MEDIA_ROUTES, mediaRoutes } from './routes/media.ts'
 import { missionRoutes } from './routes/mission.ts'
 import { personalRoutes } from './routes/personal.ts'
 import { CONVERSATION_SCHEMA, projectConversationRoutes } from './routes/project-conversations.ts'
+import { profileRoutes } from './routes/profile.ts'
 import { eventRoutes } from './routes/events.ts'
 import { projectionRoutes } from './routes/projections.ts'
 import { projectRoutes } from './routes/projects.ts'
@@ -44,8 +45,13 @@ import { NotificationHub } from './notification-hub.ts'
 declare module 'fastify' {
   interface FastifyRequest {
     actorId: string
-    /** Display name from the verified token (email), or null. Shown to others; never authority. */
+    /**
+     * The account provider's name from the verified token, or null: it seeds a display name the person hasn't chosen
+     * (0062). Never an address; others see a person's profile name, never this.
+     */
     actorName: string | null
+    /** The verified token's email, or null: the contact invitations are matched by (A16). Never shown as a name. */
+    actorContact: string | null
     /** An anonymous guest: only GUEST_ROUTES are open to them. */
     actorAnonymous: boolean
     /** On a RUNTIME_ROUTES request only: the runtime capability's hash and transport headers (A04). */
@@ -187,7 +193,15 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.invitable_people(uuid)') IS NOT NULL
   AND to_regprocedure('sophia.change_member_role(uuid,uuid,text)') IS NOT NULL
   AND to_regprocedure('sophia.project_activity(uuid,bigint,integer)') IS NOT NULL
+  AND to_regprocedure('sophia.remove_member(uuid,uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.set_project_archived(uuid,boolean,text)') IS NOT NULL
+  AND to_regprocedure('sophia.record_room_act(uuid,uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.activity_name(uuid,uuid)') IS NOT NULL
   AND to_regprocedure('sophia.name_from_room(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.name_actor(text,text)') IS NOT NULL
+  AND to_regprocedure('sophia.my_profile()') IS NOT NULL
+  AND to_regprocedure('sophia.set_my_profile(text,bigint,text)') IS NOT NULL
+  AND to_regprocedure('sophia.actor_label(uuid,uuid,text)') IS NOT NULL
   AND ${COLUMNS.map(([table, column]) => columnExists(table, column)).join('\n  AND ')} AS ok`
 
 /**
@@ -239,7 +253,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   projectRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   projectionRoutes(app, { pool: deps.pool })
   goalTargetRoutes(app, { pool: deps.pool })
-  activityRoutes(app, { pool: deps.pool })
+  profileRoutes(app, { pool: deps.pool })
+  activityRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   commandRoutes(app, { pool: deps.pool })
   conversationRoutes(app, { pool: deps.pool })
   missionRoutes(app, { pool: deps.pool })
@@ -321,6 +336,7 @@ function requireMediaCapability(req: FastifyRequest, expected: Buffer | null): v
 function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor, mediaToken: Buffer | null): void {
   app.decorateRequest('actorId', '')
   app.decorateRequest('actorName', null)
+  app.decorateRequest('actorContact', null)
   app.decorateRequest('actorAnonymous', false)
   app.decorateRequest('runtimeCaller', null)
   app.decorateRequest('rendererToken', null)
@@ -348,6 +364,7 @@ function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor, 
       const actor = await verifyActor(req.headers.authorization)
       req.actorId = actor.id
       req.actorName = actor.name
+      req.actorContact = actor.contact
       req.actorAnonymous = actor.anonymous
     } catch (err: unknown) {
       req.log.warn({ auth: describeAuthRejection(req.headers.authorization, err) }, 'authentication rejected')

@@ -23,6 +23,7 @@ import {
   fencePersonalWrite,
   forgetPersonalNote,
   keepPersonalNote,
+  nameActor,
   readPersonalEpoch,
   readPersonalExport,
   readPersonalSpace,
@@ -37,6 +38,7 @@ import {
   withActor,
 } from '@sophia/persistence'
 import { stoppedEverywhere, type CompanionRunner } from '../companion.ts'
+import { namesOf } from './profile.ts'
 import { idempotencyHeader, UUID_PATTERN } from './schemas.ts'
 
 interface Deps {
@@ -310,14 +312,21 @@ function noteRoutes(app: FastifyInstance, { pool }: Deps): void {
 }
 
 function crossingRoutes(app: FastifyInstance, { pool, companion }: Deps): void {
-  // A carried note is attributed to the name the person shows (their token's), never to an id or to request input.
+  // A carried note is attributed to the person's display name (0062), never to their address, an id or request input;
+  // the project's readers show their current one.
   app.post<{ Params: { noteId: string }; Headers: Fenced; Body: PersonalCarryRequest }>(
     '/api/v1/personal/notes/:noteId/carry',
     { schema: writeSchema(idParams('noteId'), 'PersonalCarryRequest') },
     async (req, reply) => {
       const { noteId } = req.params
-      const receipt = await fenced(pool, req.actorId, req.headers, (c) =>
-        carryPersonalNote(c, req.headers['idempotency-key'], noteId, req.body.projectId, req.actorName),
+      const receipt = await fenced(pool, req.actorId, req.headers, async (c) =>
+        carryPersonalNote(
+          c,
+          req.headers['idempotency-key'],
+          noteId,
+          req.body.projectId,
+          await nameActor(c, namesOf(req)),
+        ),
       )
       return reply.status(202).send(receipt)
     },

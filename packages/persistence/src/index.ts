@@ -9,14 +9,16 @@ export {
   withActor,
   withoutActor,
   withService,
+  type ActorNames,
   type PoolOptions,
   type TxMode,
 } from './tx.ts'
+export { readMyProfile, setMyProfile } from './profiles.ts'
 export { classifyDbError } from './errors.ts'
 export { migrate, readMigrations, MigrationDrift, type MigrationReport } from './migrate.ts'
 export { readSnapshot } from './snapshot.ts'
 export { admitGoalCommand, canCommand, sentCommand, type SentCommand } from './commands.ts'
-export { createProject, renameProject, leaveProject } from './projects.ts'
+export { createProject, renameProject, leaveProject, setProjectArchived } from './projects.ts'
 export { authorizeRoomJoin, hostedRoom, transferInputFloor, type MemberRole } from './room.ts'
 export {
   acceptRoomInvitation,
@@ -298,4 +300,11 @@ export {
   readProjectMembers,
   setGoalTarget,
 } from './goal-targets.ts'
-export { readProjectActivity, recordHostAct } from './activity.ts'
+export {
+  pendingMemberRemoval,
+  readProjectActivity,
+  recordHostAct,
+  recordRoomAct,
+  removedJustNow,
+  removeMember,
+} from './activity.ts'

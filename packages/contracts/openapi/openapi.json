@@ -13828,7 +13828,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "pattern": "^[1-9][0-9]*$"
+              "pattern": "^[1-9][0-9]{0,18}$"
             }
           }
         ],
@@ -13858,6 +13858,541 @@
           },
           "422": {
             "description": "Request fails the declared schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/members/{actorId}/removal": {
+      "post": {
+        "operationId": "removeMember",
+        "summary": "Remove a member from the project: admins only, never oneself, idempotent per actor and key.",
+        "tags": [
+          "projects"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "actorId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberRemoveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Removed, or the same removal again under its key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberRemoved"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not an admin of the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The key reused for another removal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, oneself, or the target isn't a member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/archive": {
+      "post": {
+        "operationId": "archiveProject",
+        "summary": "Archive a project, or bring it back: an admin only, idempotent per actor and key.",
+        "tags": [
+          "projects"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectArchiveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Archived or brought back (or already so), or the same request again under its key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectArchived"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not an admin of the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/archived": {
+      "get": {
+        "operationId": "listArchivedProjects",
+        "summary": "The caller's archived projects, as their Work side lists them.",
+        "tags": [
+          "projects"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller's archived projects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/room/people/{identity}/stop-camera": {
+      "post": {
+        "operationId": "stopCameraInCall",
+        "summary": "Stop a member's camera in the project's call: an admin only.",
+        "tags": [
+          "rooms"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "description": "The member's actor id, their identity in the call.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done, or already so"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not an admin of the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Their own call, or they aren't a member in the call",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No room server is configured, or it could not be reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/room/people/{identity}/stop-screen": {
+      "post": {
+        "operationId": "stopScreenInCall",
+        "summary": "Stop a member's screen share in the project's call: an admin only.",
+        "tags": [
+          "rooms"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "description": "The member's actor id, their identity in the call.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done, or already so"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not an admin of the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Their own call, or they aren't a member in the call",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No room server is configured, or it could not be reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/room/mute-all": {
+      "post": {
+        "operationId": "muteEveryoneInCall",
+        "summary": "Mute everyone else's microphone in the project's call: an admin only.",
+        "tags": [
+          "rooms"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done, or already so"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not an admin of the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No room server is configured, or it could not be reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/profile": {
+      "get": {
+        "operationId": "getMyProfile",
+        "summary": "The caller's own display name.",
+        "tags": [
+          "me"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "A guest without an account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateMyProfile",
+        "summary": "Set the caller's own display name: compare-and-set on its revision, idempotent per actor and key.",
+        "tags": [
+          "me"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Set, or the same edit again under its key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "A guest without an account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The profile changed since `expectedRevision`, or the key was used for another edit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or a name that is blank, an address, or has a control or invisible character",
             "content": {
               "application/json": {
                 "schema": {
@@ -17371,7 +17906,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Who invited: the display name they had when they invited; null when they had none (never an address)."
           },
           "kind": {
             "type": "string",
@@ -18603,7 +19139,7 @@
                 "type": "null"
               }
             ],
-            "description": "Who wrote it, as their account named them then (an address when it gave no other name); null when unknown."
+            "description": "Who wrote it: the author's current display name; null when they have none (never an address)."
           }
         },
         "required": [
@@ -19964,7 +20500,7 @@
                 "type": "null"
               }
             ],
-            "description": "Who wrote it, as their account named them then (an address when it gave no other name); null when unknown."
+            "description": "Who wrote it: the author's current display name; null when they have none (never an address)."
           }
         },
         "required": [
@@ -20168,7 +20704,7 @@
                 "type": "null"
               }
             ],
-            "description": "Who proposed it, as their account named them then; null when unknown."
+            "description": "Who proposed it: their current display name; null when they have none or it is unknown (never an address)."
           },
           "decidedByName": {
             "anyOf": [
@@ -20181,7 +20717,7 @@
                 "type": "null"
               }
             ],
-            "description": "Who decided it, as their account named them then; null while undecided or when unknown."
+            "description": "Who decided it: their current display name; null while undecided, when they have none or it is unknown (never an address)."
           }
         },
         "required": [
@@ -21952,7 +22488,8 @@
             "type": "string"
           },
           "ownerName": {
-            "type": "string"
+            "type": "string",
+            "description": "Who carried the note: their current display name, else «A member» (never an address)."
           },
           "mine": {
             "type": "boolean"
@@ -31238,7 +31775,7 @@
                 "type": "null"
               }
             ],
-            "description": "Who invited, as their account names them (an address when it has no other name)."
+            "description": "Who invited: the display name they had when they invited; null when they had none (never an address)."
           },
           "role": {
             "type": "string",
@@ -31535,7 +32072,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "The member's current display name; null when they have none (never an address)."
           }
         },
         "required": [
@@ -31650,7 +32188,7 @@
         "properties": {
           "sequence": {
             "type": "string",
-            "pattern": "^[1-9][0-9]*$"
+            "pattern": "^[1-9][0-9]{0,18}$"
           },
           "occurredAt": {
             "type": "string",
@@ -31684,7 +32222,8 @@
                   {
                     "type": "null"
                   }
-                ]
+                ],
+                "description": "The person's current display name, else the name a guest gave at the door; null when neither (never an address)."
               }
             },
             "required": [
@@ -31712,7 +32251,8 @@
                       {
                         "type": "null"
                       }
-                    ]
+                    ],
+                    "description": "The person's current display name, else the name a guest gave at the door; null when neither (never an address)."
                   }
                 },
                 "required": [
@@ -31750,7 +32290,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "pattern": "^[1-9][0-9]*$"
+                "pattern": "^[1-9][0-9]{0,18}$"
               },
               {
                 "type": "null"
@@ -31762,6 +32302,116 @@
         "required": [
           "entries",
           "before"
+        ]
+      },
+      "MemberRemoveRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      },
+      "MemberRemoved": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          }
+        },
+        "required": [
+          "actorId",
+          "cursor"
+        ]
+      },
+      "ProjectArchiveRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "archived": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "archived"
+        ]
+      },
+      "ProjectArchived": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          }
+        },
+        "required": [
+          "projectId",
+          "archived",
+          "cursor"
+        ]
+      },
+      "Profile": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The caller's own display name. `chosen` is true once they set it themself; until then it may be their account provider's name, or null.",
+        "properties": {
+          "displayName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "chosen": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Counts the person's own edits; 0 before the first."
+          }
+        },
+        "required": [
+          "displayName",
+          "chosen",
+          "revision"
+        ]
+      },
+      "ProfileUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "Trimmed by the service; spaces alone, an address ('@'), a control or invisible character are refused (422)."
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The profile's revision as last read (0 before any edit)."
+          }
+        },
+        "required": [
+          "displayName",
+          "expectedRevision"
         ]
       },
       "ConversationMember": {

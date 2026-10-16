@@ -51,6 +51,7 @@ import { inviteEmail } from '../invite-email.ts'
 import { linkFor, tokenHash, type InviteConfig } from '../invite-token.ts'
 import { issueRoomToken, removeParticipant, roomParticipants, SOPHIA_IDENTITY, type LiveKitConfig } from '../livekit.ts'
 import type { Mailer } from '../mail.ts'
+import { namesOf } from './profile.ts'
 import { idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
 
 export interface AccessDeps {
@@ -194,8 +195,9 @@ function invitationRoutes(app: FastifyInstance, deps: AccessDeps): void {
     async (req) => {
       const cfg = requireInvites(deps)
       const id = randomUUID()
-      const request = invitationRequest(req.body, req.actorName)
       const record = await withActor(deps.pool, req.actorId, 'write', async (c) => {
+        // The inviter is named by their display name (0062), never their address: the link's preview reaches anyone.
+        const request = invitationRequest(req.body, await nameActor(c, namesOf(req)))
         const created = await createRoomInvitation(c, {
           projectId: req.params.projectId,
           id,
@@ -282,7 +284,7 @@ function joinRoutes(app: FastifyInstance, deps: AccessDeps): void {
     '/api/v1/join/accept',
     { schema: { body: ref('InvitationToken'), response: { 200: ref('InvitationAccepted') } } },
     async (req) => {
-      const email = req.actorName
+      const email = req.actorContact
       if (req.actorAnonymous || !email) throw new DomainError('forbidden', 'Sign in with the invited email to accept')
       return withActor(deps.pool, req.actorId, 'write', (c) =>
         acceptRoomInvitation(c, tokenHash(req.body.token), email),
@@ -402,12 +404,12 @@ function sessionRoutes(app: FastifyInstance, deps: AccessDeps): void {
     '/api/v1/projects/:projectId/membership',
     { schema: { params: projectParams, response: { 200: ref('Membership') } } },
     async (req) => {
-      // Opening a project keeps the reader's name for the room (0050), as joining the call does: the project's members
-      // are named to each other once they opened it (A25's members).
+      // Opening a project keeps the reader's address for the room's address book (0050, 0062), as joining the call
+      // does, and lets their provider's name seed a display name they haven't chosen.
       const membership = await withActor(deps.pool, req.actorId, 'write', async (c) => {
         const mine = await readMembership(c, req.params.projectId)
         if (mine) {
-          await nameActor(c, req.actorName)
+          await nameActor(c, namesOf(req))
           await rememberRoomName(c, req.params.projectId)
         }
         return mine
@@ -420,8 +422,8 @@ function sessionRoutes(app: FastifyInstance, deps: AccessDeps): void {
 
 /** The address a signed-in person's invitations are for: their token's email; a guest or no address has none. */
 function addressOf(req: FastifyRequest): string {
-  if (req.actorAnonymous || !req.actorName) throw new DomainError('forbidden', 'Sign in with the invited email')
-  return req.actorName
+  if (req.actorAnonymous || !req.actorContact) throw new DomainError('forbidden', 'Sign in with the invited email')
+  return req.actorContact
 }
 
 /**

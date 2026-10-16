@@ -40,6 +40,7 @@ import {
   validatePersonalTurnPage,
   validateProjectCreated,
   validateProjectRenamed,
+  validateProjectArchived,
   validateProjectLeft,
   validateDiscussionPage,
   validateGoalTargetList,
@@ -48,6 +49,8 @@ import {
   validateInvitablePeople,
   validateMemberRoleSet,
   validateActivityPage,
+  validateMemberRemoved,
+  validateProfile,
   validateProjectList,
   validateWorkBoardView,
   validateWorkReceipt,
@@ -96,6 +99,7 @@ export const parseSnapshot = parser('Snapshot', validateSnapshot)
 export const parseReceipt = parser('Receipt', validateReceipt)
 export const parseProjectCreated = parser('ProjectCreated', validateProjectCreated)
 export const parseProjectRenamed = parser('ProjectRenamed', validateProjectRenamed)
+export const parseProjectArchived = parser('ProjectArchived', validateProjectArchived)
 export const parseProjectLeft = parser('ProjectLeft', validateProjectLeft)
 export const parseDiscussionPage = parser('DiscussionPage', validateDiscussionPage)
 export const parseGoalTargetList = parser('GoalTargetList', validateGoalTargetList)
@@ -104,6 +108,8 @@ export const parseProjectMembers = parser('ProjectMembers', validateProjectMembe
 export const parseInvitablePeople = parser('InvitablePeople', validateInvitablePeople)
 export const parseMemberRoleSet = parser('MemberRoleSet', validateMemberRoleSet)
 export const parseActivityPage = parser('ActivityPage', validateActivityPage)
+export const parseMemberRemoved = parser('MemberRemoved', validateMemberRemoved)
+export const parseProfile = parser('Profile', validateProfile)
 export const parseEvent = parser('Event', validateEvent)
 export const parseCursorAdvance = parser('CursorAdvance', validateCursorAdvance)
 export const parseRoomToken = parser('RoomToken', validateRoomToken)

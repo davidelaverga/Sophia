@@ -7,6 +7,7 @@ import type {
   FloorRequest,
   GoalCommand,
   ProjectCreated,
+  ProjectArchived,
   ProjectRenamed,
   ProjectLeft,
   DiscussionPage,
@@ -16,6 +17,7 @@ import type {
   ProjectMembers,
   MemberRoleSet,
   ActivityPage,
+  MemberRemoved,
   Receipt,
   RoomToken,
   RoomTokenRequest,
@@ -26,6 +28,7 @@ import {
   parseExchangeReceipt,
   parseProjectCreated,
   parseProjectRenamed,
+  parseProjectArchived,
   parseProjectLeft,
   parseDiscussionPage,
   parseGoalTargetList,
@@ -33,6 +36,7 @@ import {
   parseProjectMembers,
   parseMemberRoleSet,
   parseActivityPage,
+  parseMemberRemoved,
   parseReceipt,
   parseRoomToken,
   parseSnapshot,
@@ -182,6 +186,10 @@ export function getProjectActivity(token: string, projectId: string, before: str
   return inTime(READ_TIMEOUT_MS, read)
 }
 
+/** removeMember (A29): admins only, never oneself; idempotent per key, so a retry after an unknown outcome is the same. */
+export const removeMember = (token: string, projectId: string, actorId: string, key: string): Promise<MemberRemoved> =>
+  postIdempotent(token, `/api/v1/projects/${projectId}/members/${actorId}/removal`, key, {}, parseMemberRemoved)
+
 /** changeMemberRole (A27): admins only; a project keeps an admin; a role already held changes nothing. */
 export async function changeMemberRole(
   token: string,
@@ -207,10 +215,23 @@ export async function actInCall(
   token: string,
   projectId: string,
   identity: string,
-  what: 'mute' | 'remove',
+  what: 'mute' | 'remove' | 'stop-camera' | 'stop-screen',
 ): Promise<void> {
   const send = async (limit: AbortSignal) => {
     const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/room/people/${identity}/${what}`), {
+      method: 'POST',
+      headers: auth(token),
+      signal: limit,
+    })
+    if (!res.ok) throw await toError(res)
+  }
+  return inTime(WRITE_TIMEOUT_MS, send)
+}
+
+/** An admin mutes everyone else in the call (A31): members and guests. No key: twice is once. */
+export async function muteEveryoneInCall(token: string, projectId: string): Promise<void> {
+  const send = async (limit: AbortSignal) => {
+    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/room/mute-all`), {
       method: 'POST',
       headers: auth(token),
       signal: limit,
@@ -304,6 +325,15 @@ export const createProject = (token: string, key: string, title: string): Promis
 /** renameProject (A21): an admin only, idempotent per person and key; reuse the key when retrying an unknown outcome. */
 export const renameProject = (token: string, projectId: string, key: string, title: string): Promise<ProjectRenamed> =>
   postIdempotent(token, `/api/v1/projects/${projectId}/title`, key, { title }, parseProjectRenamed)
+
+/** archiveProject (A30): an admin archives a project or brings it back, idempotent per person and key. */
+export const archiveProject = (
+  token: string,
+  projectId: string,
+  key: string,
+  archived: boolean,
+): Promise<ProjectArchived> =>
+  postIdempotent(token, `/api/v1/projects/${projectId}/archive`, key, { archived }, parseProjectArchived)
 
 /** leaveProject (A22): any member but the only admin, idempotent per person and key. */
 export const leaveProject = (token: string, projectId: string, key: string): Promise<ProjectLeft> =>

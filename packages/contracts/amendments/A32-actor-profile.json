@@ -1,0 +1,234 @@
+{
+  "id": "A32",
+  "goal": "E2E",
+  "title": "A person names themself; no address is a name",
+  "why": [
+    "#365 sections 6 and 8 (FND-C1-PROFILE): an account without a display name was named by its email everywhere a member reads a name, because the API kept the token's email as the author's name (A17, A18), the room's (0050) and the members' (A25). The recommendation on #365 (6205504044, 6213218315): members see each other's chosen display names, never an address.",
+    "GET and PUT /api/v1/me/profile read and set the caller's own display name: 1–60 characters, trimmed by the service, no control or invisible characters and no '@'. The PUT is compare-and-set on the profile's revision (0 before any edit) and idempotent per actor and key. The actor is the token's subject; nothing in the request names whose profile it is. The account provider's name seeds a profile its person hasn't chosen and never replaces a chosen one.",
+    "Every name a member reads is now the author's current display name, so a rename shows on what they wrote before; ids and times are untouched. A name a row kept that is an address, and a person with no display name, read null (the Studio's «A member»), or «A member» where the field is a required string. The email an invitation is matched by, and the addresses A26 offers an admin, are contact, not names, and are unchanged."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/Profile",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The caller's own display name. `chosen` is true once they set it themself; until then it may be their account provider's name, or null.",
+        "properties": {
+          "displayName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "chosen": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Counts the person's own edits; 0 before the first."
+          }
+        },
+        "required": ["displayName", "chosen", "revision"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProfileUpdate",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "Trimmed by the service; spaces alone, an address ('@'), a control or invisible character are refused (422)."
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The profile's revision as last read (0 before any edit)."
+          }
+        },
+        "required": ["displayName", "expectedRevision"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1me~1profile",
+      "value": {
+        "get": {
+          "operationId": "getMyProfile",
+          "summary": "The caller's own display name.",
+          "tags": ["me"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "The profile",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Profile"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "A guest without an account",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "put": {
+          "operationId": "updateMyProfile",
+          "summary": "Set the caller's own display name: compare-and-set on its revision, idempotent per actor and key.",
+          "tags": ["me"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileUpdate"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Set, or the same edit again under its key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Profile"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "A guest without an account",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "The profile changed since `expectedRevision`, or the key was used for another edit",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or a name that is blank, an address, or has a control or invisible character",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/DiscussionEntry/properties/authorName/description",
+      "value": "Who wrote it: the author's current display name; null when they have none (never an address)."
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionEntry/properties/authorName/description",
+      "value": "Who wrote it: the author's current display name; null when they have none (never an address)."
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionDecision/properties/proposedByName/description",
+      "value": "Who proposed it: their current display name; null when they have none or it is unknown (never an address)."
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionDecision/properties/decidedByName/description",
+      "value": "Who decided it: their current display name; null while undecided, when they have none or it is unknown (never an address)."
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectMember/properties/name/description",
+      "value": "The member's current display name; null when they have none (never an address)."
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectRelease/properties/ownerName/description",
+      "value": "Who carried the note: their current display name, else «A member» (never an address)."
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PendingInvitation/properties/inviter/description",
+      "value": "Who invited: the display name they had when they invited; null when they had none (never an address)."
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/InvitationPreview/properties/inviterName/description",
+      "value": "Who invited: the display name they had when they invited; null when they had none (never an address)."
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ActivityEntry/properties/actor/properties/name/description",
+      "value": "The person's current display name, else the name a guest gave at the door; null when neither (never an address)."
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ActivityEntry/properties/target/anyOf/0/properties/name/description",
+      "value": "The person's current display name, else the name a guest gave at the door; null when neither (never an address)."
+    }
+  ]
+}
