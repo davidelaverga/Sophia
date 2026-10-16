@@ -1,0 +1,140 @@
+{
+  "id": "A29",
+  "goal": "E2E",
+  "title": "An admin removes a member from the project",
+  "why": [
+    "Luis's queue (2026-10-15): members management after roles (A27) — a member could leave (A22) but an admin couldn't take someone out of the project.",
+    "POST /api/v1/projects/{projectId}/members/{actorId}/removal: admins only, never oneself, the target an active member; idempotent per actor and key. The member is taken out of the call as a leave takes them (a removal the worker settles and watches), a new invitation brings them back, and the project's activity records who removed whom."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/MemberRemoveRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MemberRemoved",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          }
+        },
+        "required": ["actorId", "cursor"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1members~1{actorId}~1removal",
+      "value": {
+        "post": {
+          "operationId": "removeMember",
+          "summary": "Remove a member from the project: admins only, never oneself, idempotent per actor and key.",
+          "tags": ["projects"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "actorId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberRemoveRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Removed, or the same removal again under its key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/MemberRemoved"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not an admin of the project",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "The key reused for another removal",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, oneself, or the target isn't a member",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

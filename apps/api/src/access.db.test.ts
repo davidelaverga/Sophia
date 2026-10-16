@@ -343,6 +343,57 @@ describe('member invitations', () => {
     assert.deepEqual(me, { actorId: L, role: 'viewer' })
   })
 
+  it('bring back someone an admin removed (A29): the removal is cancelled, so the call isn’t taken from them again', async () => {
+    const first = parseInvitation((await invite(A, { kind: 'member', role: 'editor', email: 'rafa@example.com' })).json)
+    const R = randomUUID()
+    const bearer = await token(R, { email: 'rafa@example.com' })
+    assert.equal((await call('/api/v1/join/accept', { bearer, body: { token: tokenOf(first.url) } })).status, 200)
+    const removed = await call(`/api/v1/projects/${seed.projectId}/members/${R}/removal`, {
+      bearer: await token(A),
+      body: {},
+      key: true,
+    })
+    assert.equal(removed.status, 200)
+    const second = parseInvitation(
+      (await invite(A, { kind: 'member', role: 'viewer', email: 'rafa@example.com' })).json,
+    )
+    assert.equal((await call('/api/v1/join/accept', { bearer, body: { token: tokenOf(second.url) } })).status, 200)
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    try {
+      const open = await owner.query(
+        `SELECT 1 FROM sophia.room_removals WHERE project_id = $1 AND identity = $2 AND state <> 'cancelled'`,
+        [seed.projectId, R],
+      )
+      assert.equal(open.rowCount, 0)
+    } finally {
+      await owner.end()
+    }
+  })
+
+  it('an invitation issued before a removal no longer brings them back; one issued after does (Codex P1 on #356)', async () => {
+    const older = parseInvitation(
+      (await invite(A, { kind: 'member', role: 'editor', email: 'sara@example.com', maxUses: 3 })).json,
+    )
+    const S = randomUUID()
+    const bearer = await token(S, { email: 'sara@example.com' })
+    assert.equal((await call('/api/v1/join/accept', { bearer, body: { token: tokenOf(older.url) } })).status, 200)
+    const removed = await call(`/api/v1/projects/${seed.projectId}/members/${S}/removal`, {
+      bearer: await token(A),
+      body: {},
+      key: true,
+    })
+    assert.equal(removed.status, 200)
+    // The same link, with uses left: closed for them now, and not waiting in the app either.
+    const again = await call('/api/v1/join/accept', { bearer, body: { token: tokenOf(older.url) } })
+    assert.equal(again.status, 409)
+    const waiting = await call('/api/v1/me/invitations', { method: 'GET', bearer })
+    assert.deepEqual((waiting.json as { invitations: unknown[] }).invitations, [])
+    // An admin's new invitation, after the removal, brings them back.
+    const newer = parseInvitation((await invite(A, { kind: 'member', role: 'viewer', email: 'sara@example.com' })).json)
+    assert.equal((await call('/api/v1/join/accept', { bearer, body: { token: tokenOf(newer.url) } })).status, 200)
+  })
+
   it('are admin-only', async () => {
     assert.equal((await invite(B, { kind: 'member', role: 'viewer', email: 'beto@example.com' })).status, 403)
   })
