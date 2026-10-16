@@ -2314,6 +2314,12 @@
   width: 100%;
   margin: 6px 0 4px;
 }
+.places .c3-write-status {
+  flex: none;
+  padding-right: 10px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
 .places .c3-find-none {
   margin: 4px 0;
   color: var(--text-3);
