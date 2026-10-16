@@ -211,6 +211,10 @@ async function submitted(client: ReviewClient, body: SourceReviewSubmitRequest, 
   throw sent.error
 }
 
+/** Whether a tool answer is an invalid_request refusal (nothing was published). */
+const isRefusal = (answer: Json): answer is { [key: string]: Json } =>
+  typeof answer === 'object' && answer !== null && !Array.isArray(answer) && answer.code === 'invalid_request'
+
 const VERDICTS = ['supported', 'changes_required', 'insufficient_evidence'] as const
 const STATUSES = ['supported', 'contradicted', 'not_established'] as const
 
@@ -285,12 +289,28 @@ export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
         `The read was not sent: ${field}. Pass a sourceId exactly as your task lists it (a UUID, not its ref such as S1), ` +
         'and offset as a whole number from 0; omit sourceId to read your task. Nothing was read.',
     }
+    const { eligibleSourceIds } = await eligibleOf(session, signal)
+    return eligibleSourceIds ? { ...refusal, eligibleSourceIds } : refusal
+  }
+
+  /**
+   * What this review may cite, from its task (one read; a read records nothing): the readable sources' sourceIds and
+   * the criteria's ids. Nothing when the task cannot be read: the refusal then stands alone. A refusal never maps one
+   * value onto another (R1-F02: a criteriaRef sent as a criterionId is named, not replaced by a criterion's id).
+   */
+  async function eligibleOf(
+    session: ResearchSession,
+    signal: AbortSignal,
+  ): Promise<{ eligibleSourceIds?: string[]; eligibleCriterionIds?: string[] }> {
     try {
       const task = await deps.client.sourceReviewContext(ids(session), signal)
-      if ('text' in task) return refusal
-      return { ...refusal, eligibleSourceIds: task.sources.filter((s) => s.readable).map((s) => s.sourceId) }
+      if ('text' in task) return {}
+      return {
+        eligibleSourceIds: task.sources.filter((s) => s.readable).map((s) => s.sourceId),
+        eligibleCriterionIds: task.goal.criteria.map((c) => c.id),
+      }
     } catch {
-      return refusal
+      return {}
     }
   }
 
@@ -316,7 +336,12 @@ export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
             status: { type: 'string', enum: STATUSES, required: true },
             statement: { type: 'string', required: true },
             sourceIds: { type: 'array', items: { type: 'string' }, required: true },
-            criterionId: { type: 'string' },
+            criterionId: {
+              type: 'string',
+              description:
+                "The id of one of the goal's criteria, exactly as your task lists it (the word before its colon, such as " +
+                'report-sourced), when the finding concerns one; never the criteriaRef (criteria:…), which names the whole set.',
+            },
           },
         },
       },
@@ -340,7 +365,10 @@ export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
         ...(f.criterionId ? { criterionId: f.criterionId } : {}),
       }))
       const body = { ...ids(session), callId: callKeyOf(exec.callId), result: { verdict: args.verdict, report: args.report, findings, receipts: args.receipts } }
-      return submitted(deps.client, body, patience, exec.signal, 'Published. The review has ended; Sophia tells the team, and the team decides what it means.')
+      const answer = await submitted(deps.client, body, patience, exec.signal, 'Published. The review has ended; Sophia tells the team, and the team decides what it means.')
+      // A refused submission names what the review may cite, so the model corrects it from the task's own ids (R1-F02).
+      if (!isRefusal(answer) || exec.signal.aborted) return answer
+      return { ...answer, ...(await eligibleOf(session, AbortSignal.any([exec.signal, AbortSignal.timeout(readMs)]))) }
     },
   })
 

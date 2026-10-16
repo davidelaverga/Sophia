@@ -4,43 +4,47 @@ Goal and attempt: R1-F02 (FND-A2-R1-F02, packet v1), attempt 1. Human owner / ex
 Native session: Claude Code `local_775c886b-f077-43c7-a07c-74868ab14b5c`.  
 Starting worktree/commit: `foundation/review-f02-20261016` from `main` at `f6be9fa7cd7b83ca688878390d474f0f2899bf69`.  
 Ending commit/tree and changed files: resolve from the commit containing this record; `packages/dsh-bundle/src/
-{review-tools.ts,transport.ts}`, `tests/unit/review-tools.test.mjs`, `config/runtime-unit.json`,
+{review-tools.ts,transport.ts}`, `tests/unit/review-tools.test.mjs`, `apps/api/src/coordination.db.test.ts`,
+`config/runtime-unit.json`,
 `config/dsh/profile/pnpm-lock.yaml` (recorded bundle identity) and this record.
 
 ## Outcome
 
-Two defects at the bridge's review-tool boundary are proven and corrected; their link to the R1 failure is inferred,
-pending the native session's own tool events.
+The R1 review failed at two points of the bridge's review-tool boundary, both now corrected; the native session's own
+tool events (recovered by the operator, private) bind each to the R1 inputs.
 
-1. A read the bridge refuses under its own request contract was told "the Sophia service could not be reached" and sent
-   nothing. Now an empty `sourceId` reads the task, as omitting it does, and any other `sourceId` off the contract (not a
-   manifest UUID: a ref such as `S1`, a word) is not sent and is answered `invalid_request` with the field, what it must
-   be, and the sourceIds the review may read.
-2. A submission the service refused as `invalid_request` reached the model as the general rule only; the service's own
-   reason (0042 `review_checks`: the missing section, the unknown criterion, the source not read whole) was discarded.
-   Now the model gets that reason, bounded to 300 characters on one line.
+1. Both of the reviewer's task reads sent exactly `{"sourceId":"","offset":0}`: an empty string, present. The tool
+   forwarded it, the bridge's own request contract refused it before sending, and the model was told "the Sophia
+   service could not be reached". Now an empty `sourceId` reads the task, as omitting it does; any other `sourceId` off
+   the contract is not sent and is answered `invalid_request` with the field, what it must be, and the sourceIds the
+   review may read.
+2. Both submissions gave every finding the goal's whole `criteriaRef` (`criteria:…@2:…`, the name of the criteria set)
+   as its `criterionId`, where the manifest's criterion is `report-sourced`. 0042 `review_checks` refuses that with a
+   reason; the bridge discarded the reason and the model was told only the general rule. Now an `invalid_request`
+   refusal reaches the model with the service's reason (one line, at most 300 characters) and, from one task read, the
+   criteria's ids and the readable sourceIds. Nothing is mapped: a criteriaRef is sent as given and refused. The
+   `criterionId` parameter's own description now tells a criterion's id from the criteriaRef.
 
 The prompt, SQL, API and contract are unchanged; malformed, partial-source, withdrawn, stopped and unauthorized
 submissions are refused exactly as before. Not shown: a published review on the native host (no commission was run).
 
 ## Evidence
 
-Proven by reproduction, through the real tools, `ServiceTransport` and generated wire validators against a local
-stand-in of the API (source-faithful, not the API itself): `sourceId` `""`, `"S1"` or `"manifest"` sends nothing and
-answers `service_unavailable`; `null` is refused earlier by the tool's own argument check, with another message. A 422
-`invalid_request` whose body says "missing: Goal" reaches the model as the general rule. The new tests fail on the old
-source (2 of 21) and pass on this one. The API already returns the SQL reason as the 422 body's message, and the
-PostgreSQL suite asserts it for an unserved receipt and an unread source (`coordination.db.test.ts`); a valid complete
-publication crosses the real API, SQL and generated validators there.
+Native events (private, scoped to the one session): the two task reads' raw arguments, their `service_unavailable`
+results after 6 ms, the source read by its UUID with a complete page, and both submissions' shapes (verdict
+`changes_required`, all five headings, three findings each citing the read source with its receipt, every
+`criterionId` the criteriaRef). The service's historical 422 bodies were not retained.
 
-Inferred, pending native evidence: in the R1 review (private evidence with the coordinator) the route log holds the six
-settled model calls the receipt reports and one `context` request, after the second model call, which was the source's
-page (its receipt was issued that second). So the reviewer's task read apparently never reached the service, yet the
-model reported `service_unavailable`, which fits defect 1. Its two submissions reached the service and were refused as
-`invalid_request`, and it reported "no validation detail", which fits defect 2. The native tool arguments and results
-were not retained in the service's logs, so the read's actual input, the session binding it used and the submissions'
-actual payloads and refusal reasons are not known. A different cause is not excluded (an incomplete log window, or a
-binding fault).
+Tool level, real tools, `ServiceTransport` and generated wire validators over a real HTTP connection to a stand-in of the
+API (source-faithful, not the API): the exact R1 read input reads the task; a criteriaRef finding is sent unchanged,
+refused with the reason and the criteria's ids, then the corrected review publishes. The earlier tests fail on the old
+source (2 of 21).
+
+Service level, real API, its PostgreSQL functions and both generated validators (the bridge's runtime wire and the
+API's), `coordination.db.test.ts` "the R1 review, replayed": the task read the bridge sends for the R1 input, both sources
+read whole, a submission whose findings name the criteriaRef refused 422 with "A finding names a criterion this review
+does not have: <criteriaRef>" and nothing published, then the same review with the criterion's id published once
+(`changes_required`), replayed on resend. Run locally on PostgreSQL 17.11 (50 of 50); CI runs it on PostgreSQL 16.
 
 ## Decisions and changes
 

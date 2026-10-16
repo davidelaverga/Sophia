@@ -31,6 +31,9 @@ import {
   type TestDatabase,
 } from '@sophia/test-support'
 import { coordinateOnce, dispatchOnce, httpPaperclipClient } from '@sophia/worker'
+// The bridge's own generated runtime wire (packages/dsh-bundle), so the R1-F02 test holds each body and reply to the
+// contract the bridge's transport checks, not only to the API's.
+import { wire } from '../../../packages/dsh-bundle/src/runtime-wire.generated.ts'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
 
@@ -1120,6 +1123,76 @@ describe('one Paperclip-managed source review', () => {
     assert.equal(declined.json.effect, 'choice_recorded')
     assert.deepEqual(await outcomesOf(w, await deliver(w)), [])
     assert.equal(w.paperclip.issues.size, 0)
+  })
+})
+
+// R1-F02, the R1 review's own inputs (recovered native events) through the real API, its PostgreSQL functions and
+// both generated validators: the task read the bridge sends for {"sourceId":"","offset":0}, the source read whole,
+// a submission whose every finding names the goal's criteriaRef as its criterionId (refused, with the reason the
+// bridge now passes on), then the same review with the criterion's id, published once.
+describe('the R1 review, replayed (R1-F02)', () => {
+  it('reads its task without a sourceId, refuses a criteriaRef as a criterion with its reason, then publishes', async () => {
+    const w = await world()
+    const { attemptId } = await running(w)
+    const at = { attemptId, nativeSessionId: `sophia-${attemptId}` }
+    const sent = async (path: string, body: Record<string, unknown>, request: (v: unknown) => boolean) => {
+      assert.ok(request(body), `${path}: the bridge's contract takes the body`)
+      return w.runtime(path, body)
+    }
+    // The task: what the bridge sends for an empty sourceId, as for none.
+    const task = await sent('/v1/runtime/source-review/context', at, wire.SourceReviewContextRequest)
+    assert.equal(task.status, 200, JSON.stringify(task.json))
+    const reply: unknown = task.json
+    assert.ok(wire.SourceReviewContextReply(reply) && 'goal' in reply, "the task is the bridge's contract")
+    const { goal } = reply
+    assert.deepEqual(
+      goal.criteria.map((c) => c.id),
+      ['c1'],
+    )
+    assert.notEqual(goal.criteriaRef, 'c1')
+    // Each source, read whole from offset 0.
+    const receipts = [await pageOf(w, at, w.sourceA), await pageOf(w, at, w.sourceB)]
+    const finding = (criterionId: string) => ({
+      status: 'contradicted',
+      statement: 'The two budgets differ.',
+      sourceIds: [w.sourceA, w.sourceB],
+      criterionId,
+    })
+    const submit = (callId: string, criterionId: string) =>
+      sent(
+        '/v1/runtime/source-review/submit',
+        {
+          ...at,
+          callId,
+          result: {
+            verdict: 'changes_required',
+            report: REPORT,
+            findings: [finding(criterionId), finding(criterionId), finding(criterionId)],
+            receipts,
+          },
+        },
+        wire.SourceReviewSubmitRequest,
+      )
+    const refused = await submit('r1-a', goal.criteriaRef)
+    assert.equal(refused.status, 422, JSON.stringify(refused.json))
+    assert.equal(refused.json.code, 'invalid_request')
+    assert.equal(
+      refused.json.message,
+      `A finding names a criterion this review does not have: ${goal.criteriaRef}`,
+      'the reason the bridge passes on, naming the value sent',
+    )
+    const unpublished = await asOwner(
+      async (o) => (await o.query(`SELECT 1 FROM sophia.work_results WHERE project_id=$1`, [w.projectId])).rowCount,
+    )
+    assert.equal(unpublished, 0, 'a refused submission publishes nothing')
+    const published = await submit('r1-b', 'c1')
+    assert.equal(published.status, 200, JSON.stringify(published.json))
+    assert.ok(wire.SourceReviewSubmission(published.json), "the publication is the bridge's contract")
+    assert.equal(published.json.outcome, 'published')
+    assert.equal(published.json.verdict, 'changes_required', 'an adverse verdict is a review')
+    const again = await submit('r1-b', 'c1')
+    assert.equal(again.json.replayed, true, 'published once')
+    assert.equal((await itemOf(w)).lifecycle, 'complete')
   })
 })
 
