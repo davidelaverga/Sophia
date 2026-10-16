@@ -7,6 +7,7 @@ import {
   orderParticipants,
   presenceRole,
   presenceSlots,
+  RECONNECTING,
   roomLine,
   runningWork,
   soleWorkingTask,
@@ -182,6 +183,11 @@ describe('room stage', () => {
     assert.equal(roomLine('live', floorView('b', [luis]), 0).text, 'Someone has the floor but isn’t here')
     assert.equal(roomLine('live', free, 2).note, 'Working on 2 tasks in the background')
     assert.equal(roomLine('idle', free, 1).note, 'Working on 1 task in the background')
+  })
+
+  it('one word for a call coming back, on the line and over the video (Codex P1 on #403)', () => {
+    assert.equal(RECONNECTING, 'Reconnecting…')
+    assert.equal(roomLine('reconnecting', floorView(null, [luis, davide]), 0).text, RECONNECTING)
   })
 
   it('says what she is doing in place of the count, and never over her own note', () => {
