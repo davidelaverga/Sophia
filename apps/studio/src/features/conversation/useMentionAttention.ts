@@ -12,19 +12,20 @@ import { MENTIONS } from '../../app/mentions.ts'
 import { MESSAGE } from '../resources/link.ts'
 import { useAddressed } from '../resources/useAddressed.ts'
 import type { Earlier } from './EarlierDiscussion.tsx'
-import { nextLook, readable, type AddressState } from './mention-view.ts'
+import { nextLook, readable, waitingRevision, type AddressState, type Waiting } from './mention-view.ts'
 
-const NONE: ReadonlyMap<string, string> = new Map()
+const NONE: ReadonlyMap<string, Waiting> = new Map()
 
 /**
- * The mentions waiting for the reader in this project, by message: each one's need id as the service lists it, with its
- * revision and occurrence (`mention:<project>:<revision>.<occurrence>:<message>`). Read again as the project moves.
+ * The mentions waiting for the reader in this project, by message: each one's need id exactly as the service lists it
+ * (`mention:<project>:<revision>.<occurrence>:<message>`) and the message revision it is for, so it is attached only to
+ * that revision shown (mention-view `needFor`). Read again as the project moves.
  */
 export function useMyMentions(
   identity: Identity,
   projectId: string,
   cursor: string | undefined,
-): ReadonlyMap<string, string> {
+): ReadonlyMap<string, Waiting> {
   const read = useQuery({
     queryKey: ['mentions', 'needs', tokenSubject(identity.token) ?? identity.token, cursor],
     queryFn: ({ signal }) => listNeeds(identity.token, signal),
@@ -37,7 +38,10 @@ export function useMyMentions(
   return new Map(
     needs
       .filter((n) => n.kind === 'mention' && n.projectId === projectId && n.ref.kind === 'contribution')
-      .map((n) => [n.ref.id, n.id]),
+      .flatMap((n): [string, Waiting][] => {
+        const revision = waitingRevision(n.ref.within)
+        return revision === null ? [] : [[n.ref.id, { need: n.id, revision }]]
+      }),
   )
 }
 
@@ -52,19 +56,38 @@ function readNeed(change: IntersectionObserverEntry): string | undefined {
 const STEPS = Array.from({ length: 21 }, (_, i) => i / 20)
 
 /**
+ * How much of an entry the chat shows, measured on the page: the part of it inside the chat's scrolled box. The chat's
+ * scroll is followed with this too: an entry so tall that its most visible part is under the observer's first 5% step
+ * (a short window) crosses no step after it first appears, so the observer alone would never see it fill the chat
+ * (V on #409, measured: 4000 characters, 1344 px, in a 40 px chat).
+ */
+function shownNeed(el: Element, root: Element): string | undefined {
+  const id = el instanceof HTMLElement ? el.dataset.mentionNeed : undefined
+  const box = root.getBoundingClientRect()
+  const top = box.top + root.clientTop
+  const r = el.getBoundingClientRect()
+  const visible = Math.min(r.bottom, top + root.clientHeight) - Math.max(r.top, top)
+  return id && readable(visible, r.height, root.clientHeight) ? id : undefined
+}
+
+/**
  * The waiting mentions the reader was shown are seen: the chat on screen (`inView`) and the message readable in its
- * view (mention-view `readable`). Each occurrence once; a write that fails is tried again the next time it is shown.
+ * view (mention-view `readable`), as the observer reports it or as the chat's scroll moves it. Each occurrence once; a
+ * write that fails is tried again the next time it is shown.
  */
 export function useMentionsSeen(
   identity: Identity,
   history: RefObject<HTMLElement | null>,
   inView: boolean,
-  waiting: ReadonlyMap<string, string>,
+  waiting: ReadonlyMap<string, Waiting>,
   shown: string,
 ) {
   const client = useQueryClient()
   const marked = useRef(new Set<string>())
-  const ids = [...waiting.values()].toSorted().join(',')
+  const ids = [...waiting.values()]
+    .map((w) => w.need)
+    .toSorted()
+    .join(',')
   useEffect(() => {
     // Only what still waits is remembered: a later occurrence is a new id, and is marked when shown.
     marked.current = new Set([...marked.current].filter((id) => ids.split(',').includes(id)))
@@ -75,19 +98,31 @@ export function useMentionsSeen(
       void client.invalidateQueries({ queryKey: ['mentions', 'needs', subject] })
       void client.invalidateQueries({ queryKey: ['vision', 'needs', subject] })
     }
-    const observer = new IntersectionObserver(
-      (changes) => {
-        for (const change of changes) {
-          const id = readNeed(change)
-          if (!id || marked.current.has(id)) continue
-          marked.current.add(id)
-          void markNeedSeen(identity.token, id).then(again, () => marked.current.delete(id))
-        }
-      },
-      { root, threshold: STEPS },
-    )
-    for (const el of root.querySelectorAll('[data-mention-need]')) observer.observe(el)
-    return () => observer.disconnect()
+    const seen = (id: string | undefined) => {
+      if (!id || marked.current.has(id)) return
+      marked.current.add(id)
+      void markNeedSeen(identity.token, id).then(again, () => marked.current.delete(id))
+    }
+    const observer = new IntersectionObserver((changes) => changes.forEach((change) => seen(readNeed(change))), {
+      root,
+      threshold: STEPS,
+    })
+    const waitingEls = () => root.querySelectorAll('[data-mention-need]')
+    for (const el of waitingEls()) observer.observe(el)
+    let frame = 0
+    const onScroll = () => {
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        for (const el of waitingEls()) seen(shownNeed(el, root))
+      })
+    }
+    root.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      observer.disconnect()
+      root.removeEventListener('scroll', onScroll)
+      cancelAnimationFrame(frame)
+    }
   }, [client, identity.token, history, inView, ids, shown])
 }
 
@@ -124,6 +159,7 @@ export function useMessageAddressed(
       found: !!el,
       withdrawn: withdrawn.some((w) => w.id === id),
       reading: reading === 'loading',
+      failed: reading === 'failed',
       offered,
       atStart,
       pages,

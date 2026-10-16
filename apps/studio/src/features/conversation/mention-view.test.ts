@@ -8,9 +8,11 @@ import {
   mentionWords,
   MOST_MENTIONS,
   nameable,
+  needFor,
   nextLook,
   readable,
   toggled,
+  waitingRevision,
 } from './mention-view.ts'
 
 const ME = '00000000-0000-4000-8000-0000000000a1'
@@ -73,7 +75,15 @@ describe('readable', () => {
 })
 
 describe('nextLook', () => {
-  const base = { found: false, withdrawn: false, reading: false, offered: true, atStart: false, pages: 0 }
+  const base = {
+    found: false,
+    withdrawn: false,
+    reading: false,
+    failed: false,
+    offered: true,
+    atStart: false,
+    pages: 0,
+  }
   it('shows a message found; says a withdrawn one is gone; waits for a page being read', () => {
     assert.equal(nextLook({ ...base, found: true }), 'found')
     assert.equal(nextLook({ ...base, withdrawn: true }), 'gone')
@@ -85,5 +95,30 @@ describe('nextLook', () => {
     assert.equal(nextLook({ ...base, pages: ADDRESS_PAGES }), 'further')
     assert.equal(nextLook({ ...base, offered: false, atStart: true }), 'gone')
     assert.equal(nextLook({ ...base, offered: false }), 'gone')
+  })
+})
+
+describe('waitingRevision and needFor', () => {
+  it('reads the revision from <revision>.<occurrence>, and nothing from any other form', () => {
+    assert.equal(waitingRevision('2.1'), 2)
+    assert.equal(waitingRevision('12.3'), 12)
+    for (const bad of ['2', '2.0', '0.1', 'x.1', '', null]) assert.equal(waitingRevision(bad), null)
+  })
+
+  it('attaches a need only to the revision it is for: never to older words still shown, never without a revision', () => {
+    const waiting = { need: 'mention:p:2.1:m', revision: 2 }
+    assert.equal(needFor(waiting, 2), 'mention:p:2.1:m')
+    assert.equal(needFor(waiting, 1), undefined)
+    assert.equal(needFor(waiting, 3), undefined)
+    assert.equal(needFor(waiting, undefined), undefined)
+    assert.equal(needFor(undefined, 2), undefined)
+  })
+})
+
+describe('nextLook after a failed read', () => {
+  it('waits for the reader’s Try again instead of reading again or calling it further back', () => {
+    const at = { found: false, withdrawn: false, reading: false, failed: true, offered: true, atStart: false }
+    assert.equal(nextLook({ ...at, pages: 1 }), 'wait')
+    assert.equal(nextLook({ ...at, pages: 4 }), 'wait')
   })
 })

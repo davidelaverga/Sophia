@@ -240,6 +240,13 @@ interface Fixture {
   mentionMeIn: (n: number) => void
   /** The `n`th message no longer mentions the viewer, its words and revision unchanged (A37). */
   unmentionMeIn: (n: number) => void
+  /** Its author corrects the `n`th message's words: a new revision, its recipients (and their occurrence) kept (A36). */
+  reviseMessage: (n: number, text: string) => void
+  /** The discussion's reads (snapshot, pages) lag: they keep what they read now until `releaseSnapshot`. */
+  holdSnapshot: () => void
+  releaseSnapshot: () => void
+  /** Every earlier page's read fails until turned off. */
+  failEarlierReads: (on: boolean) => void
   /** The next previews list this many running research tasks as reading the words. */
   reachNextPreview: (tasks: number) => void
   /** Acts on messages land, but their replies wait until `releaseActs`. */
@@ -504,6 +511,8 @@ const project = {
   // `acts=1`: the viewer's messages offer Edit and Withdraw (message-acts.md, A36).
   messageActs: messageActsOf(query),
   membersFail: query.get('members') === 'fail',
+  heldMessages: undefined as (string | Said)[] | undefined,
+  failEarlierReads: false,
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
@@ -911,6 +920,29 @@ window.fixture = {
     if (said.mentions?.includes(ME)) return
     project.messages[n] = { ...said, id: idOf(m, n), mentions: [ME], occurrence: (said.occurrence ?? 0) + 1 }
     publish(project)
+  },
+  reviseMessage: (n, text) => {
+    const m = project.messages[n]
+    if (m === undefined) return
+    const said = typeof m === 'string' ? { text: m } : m
+    project.messages[n] = {
+      ...said,
+      id: idOf(m, n),
+      text,
+      revision: (said.revision ?? 1) + 1,
+      correctedAt: new Date().toISOString(),
+    }
+    publish(project)
+  },
+  holdSnapshot: () => {
+    project.heldMessages = structuredClone(project.messages)
+  },
+  releaseSnapshot: () => {
+    project.heldMessages = undefined
+    publish(project)
+  },
+  failEarlierReads: (on) => {
+    project.failEarlierReads = on
   },
   unmentionMeIn: (n) => {
     const m = project.messages[n]

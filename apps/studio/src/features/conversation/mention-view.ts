@@ -36,6 +36,29 @@ export function readable(visible: number, height: number, view: number): boolean
   return visible >= 0.6 * Math.min(height, view > 0 ? view : height)
 }
 
+/** A waiting mention as the Needs read lists it: its exact need id, and the message revision it is for. */
+export interface Waiting {
+  need: string
+  revision: number
+}
+
+/**
+ * The revision a mention need is for, from its ref's `within` (`<revision>.<occurrence>`, A37); null when it is not
+ * that form, so nothing is attached (fail closed).
+ */
+export function waitingRevision(within: string | null): number | null {
+  const m = /^([1-9][0-9]{0,15})\.[1-9][0-9]{0,15}$/.exec(within ?? '')
+  return m?.[1] ? Number(m[1]) : null
+}
+
+/**
+ * The need a shown message carries, only when the message shown is the revision the need is for (V on #409): a newer
+ * revision's need never rides on older words still shown, and an older one's never on newer words.
+ */
+export function needFor(waiting: Waiting | undefined, shownRevision: number | undefined): string | undefined {
+  return waiting && shownRevision !== undefined && waiting.revision === shownRevision ? waiting.need : undefined
+}
+
 /** What became of a message the address named (a mention from Home), said in the chat when it can't be shown. */
 export type AddressState = 'none' | 'looking' | 'found' | 'gone' | 'further'
 
@@ -55,13 +78,15 @@ export function nextLook(at: {
   found: boolean
   withdrawn: boolean
   reading: boolean
+  /** The last earlier page's read failed: the look waits for the reader's own Try again (V on #409). */
+  failed: boolean
   offered: boolean
   atStart: boolean
   pages: number
 }): 'found' | 'gone' | 'further' | 'load' | 'wait' {
   if (at.found) return 'found'
   if (at.withdrawn) return 'gone'
-  if (at.reading) return 'wait'
+  if (at.reading || at.failed) return 'wait'
   if (at.offered && at.pages < ADDRESS_PAGES) return 'load'
   return at.atStart || !at.offered ? 'gone' : 'further'
 }

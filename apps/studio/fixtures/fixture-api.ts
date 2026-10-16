@@ -104,6 +104,10 @@ interface Project {
   membersFail?: boolean
   /** The viewer's mentions marked seen (A37), by need id. */
   mentionsSeen?: Set<string>
+  /** While set, the snapshot's and the pages' discussion read these messages (`holdSnapshot`): a lagging read. */
+  heldMessages?: (string | Said)[] | undefined
+  /** While set, every earlier page's read fails as an unavailable API's (`failEarlierReads`). */
+  failEarlierReads?: boolean
   /** The viewer's messages to the room, by their Idempotency-Key: the same key again replays the receipt. */
   contributions?: Map<string, { text: string; receipt: ContributionReceipt }>
   /** The next message lands, but its reply is lost on the way (`window.fixture.loseNextContributionReply`). */
@@ -305,7 +309,7 @@ function eventStream(project: Project, after: number, signal: AbortSignal | null
 function snapshotOf(project: Project, revisions = false) {
   const now = {
     ...snapshot(project.revision, project.exchange, project.messages, project.goals, project.room),
-    ...snapshotDiscussion(project, revisions),
+    ...snapshotDiscussion({ ...project, messages: project.heldMessages ?? project.messages }, revisions),
   }
   const running = project.researching ? researchRunning(project.researching.reads).task : null
   const work = running
@@ -641,11 +645,11 @@ const discussionRead = (project: Project, url: URL) =>
 function discussionPage(project: Project, url: URL): Response {
   const anchor = url.searchParams.get('before')
   served.push(`discussion:${anchor ?? 'newest'}`)
-  if (project.failEarlier) {
+  if (project.failEarlier || project.failEarlierReads) {
     project.failEarlier = false
     return unavailable()
   }
-  const all = project.messages.map(said)
+  const all = (project.heldMessages ?? project.messages).map(said)
   const end = anchor ? all.findIndex((e) => e.id === anchor) : all.length
   if (end < 0) {
     const problem = {
@@ -656,7 +660,13 @@ function discussionPage(project: Project, url: URL): Response {
     }
     return new Response(JSON.stringify(problem), { status: 422, headers: { 'content-type': 'application/json' } })
   }
-  return json(discussionPageOf(project, end, url.searchParams.get('revisions') === '1'))
+  return json(
+    discussionPageOf(
+      { ...project, messages: project.heldMessages ?? project.messages },
+      end,
+      url.searchParams.get('revisions') === '1',
+    ),
+  )
 }
 
 /** The snapshot as the API serves it; refused once the door is shut under the shell (`window.fixture.shutDoor`). */

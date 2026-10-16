@@ -19,7 +19,7 @@ import { authorLabel, withAuthors } from './conversation-view.ts'
 import { EarlierLine, useEarlierDiscussion } from './EarlierDiscussion.tsx'
 import { EditedMark, MessageActions, useHandedFocus, WithdrawnWords, type Acted } from './MessageActions.tsx'
 import { MentionedLine, useMemberNames } from './MentionPicker.tsx'
-import { ADDRESS_WORDS, type AddressState } from './mention-view.ts'
+import { ADDRESS_WORDS, needFor, type AddressState, type Waiting } from './mention-view.ts'
 import { useMentionsSeen, useMessageAddressed, useMyMentions } from './useMentionAttention.ts'
 import type { Earlier } from './EarlierDiscussion.tsx'
 import { actsOf, discussionItems, lastSaidAt } from './message-acts.ts'
@@ -141,8 +141,9 @@ export function Conversation(props: Props) {
  * An entry's attributes: its id for the address (#message-, A37); a mention of the reader carries its need's id, so
  * the chat can say when it was shown; with replies (A20), its own anchor and focus.
  */
-const entryAttrs = (entry: DiscussionEntry, waiting: ReadonlyMap<string, string>, replies: boolean) => {
-  const need = waiting.get(entry.id)
+const entryAttrs = (entry: DiscussionEntry, waiting: ReadonlyMap<string, Waiting>, replies: boolean) => {
+  // Only on the revision shown: a need for another revision of this message is not attached (fail closed).
+  const need = needFor(waiting.get(entry.id), entry.revision)
   return {
     'data-message': entry.id,
     ...(need ? { 'data-mention-need': need } : {}),
@@ -355,7 +356,7 @@ interface DiscussionProps {
   /** The reader's own message acts (the message acts flag's); absent, no message offers them. */
   acts: MessageActsOf | undefined
   /** The project's members by id, to say whom a message mentions (A37), once read; the mentions waiting for the reader. */
-  named: { known: boolean; byId: ReadonlyMap<string, ProjectMember>; waiting: ReadonlyMap<string, string> }
+  named: { known: boolean; byId: ReadonlyMap<string, ProjectMember>; waiting: ReadonlyMap<string, Waiting> }
   me: string
   names: ReadonlyMap<string, string>
   /** What each reply answers, by the reply's entry id (A20). */

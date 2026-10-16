@@ -147,6 +147,37 @@ The evidence below is for the commit that carries this section; logs are in the 
   - Browser: mentions 14/14, ×3 42/42; broad regression 170/170.
   - Units 2368 pass, 0 fail; lint, format, typecheck and contracts clean; artifacts reproduced.
 
+## Rendered-revision correction (FND-C3b-RENDERED-REVISION-01; V on a837572e)
+
+The evidence below is for the commit that carries this section; logs are in the operator journal
+(C3b-rendered-revision-logs). It is Studio-only: 0069, the API, A37, the generated outputs and the PG test are
+byte-identical to a837572e.
+
+- **V-C3b-a837-1 (P1): an acknowledgement on older words still shown.** The chat attached the Needs read's newest id
+  for a message to whatever revision it showed.
+  - Reproduced on a837 (`browser-rr-before.keep.log`): with the chat's reads held at revision 1 and the Needs read at
+    2.1, `seen …:2.1:…` was sent while the old words showed.
+  - Now each waiting need keeps the revision its `within` names, and `needFor` attaches it only to that rendered
+    revision; any other form fails closed.
+  - The case: no acknowledgement while the old words show, then exactly one `2.1` once the new ones do.
+- **V-C3b-a837-2 (P2): a failed earlier page was read again.** Reproduced on a837 (same log): four automatic reads
+  after a failure.
+  - Now `nextLook` waits on a failed read: EarlierLine's own «Couldn't load earlier messages» and Try again stay,
+    there is no «further back», and after the reader's Try again the message loads, shows and is acknowledged once.
+- **V-C3b-a837-3: tall evidence.** The fixture now uses valid ≤4000-character text (3995). Measured rendered
+  geometry: 1344 px tall; the chat is 520, 280, 120 and 40 px at windows 800, 560, 400 and 320 px high; on a 390×844
+  phone, 1284 in 476.
+  - At 1280×320 the most visible part is 0.03 of the message, under the observer's first 5% step. There, a message
+    first seen as a 2 px sliver and then scrolled to fill the chat was never acknowledged (`browser-rr-tall-before.keep.log`):
+    V's delivery gap, confirmed.
+  - Minimal fix in the same hook: the chat's scroll also re-measures the waiting entries (frame-throttled, the same
+    readable rule).
+  - Limit kept: only this measured geometry is shown, not every layout; the old tiny-edge defect was never reproduced.
+- **Results:**
+  - mentions.spec 17/17, ×3 51/51; neighbors 156/156;
+  - units 2371 pass, 0 fail; lint, format, typecheck and contracts clean; artifacts reproduced.
+  - No PG rerun, since the server is unchanged.
+
 ## Next bounded action
 
 Read the automatic review on this head once (at most two consolidated exchanges), then hand back to P. The next
