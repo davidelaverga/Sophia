@@ -159,6 +159,14 @@ export function sophiaLeaves(): void {
 
 const blocked = () => new DOMException('Permission denied', 'NotAllowedError')
 
+/** The standing the API signed into this viewer's token: a member's, unless the page says (the guest's, join.tsx). */
+let signed: RoomParticipant['standing'] = 'admin'
+
+/** The viewer's token is signed with this standing from the next connection on, as the API signs a guest's. */
+export function signViewerAs(standing: RoomParticipant['standing']): void {
+  signed = standing
+}
+
 /** The viewer as LiveKit lists the local participant, devices off until the call turns them on. */
 const viewer = (): RoomParticipant => ({
   identity: '00000000-0000-4000-8000-0000000000a1',
@@ -168,7 +176,7 @@ const viewer = (): RoomParticipant => ({
   cameraOn: false,
   screenOn: false,
   local: true,
-  standing: 'admin',
+  standing: signed,
 })
 
 /** What the page said it follows, last (following-signal.ts sends only a change). */
