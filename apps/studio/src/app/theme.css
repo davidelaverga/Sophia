@@ -3022,6 +3022,14 @@ button.contribution-quote:hover {
   font-size: 20px;
   font-weight: 600;
 }
+/* A muted microphone on the tile (muted-on-tiles.md): first in its name's chip, as Meet's, never cut with the name. */
+.tile-muted {
+  display: inline-flex;
+  flex: none;
+  order: -1;
+  margin-right: 5px;
+  color: var(--text-2);
+}
 .tile-name {
   position: absolute;
   left: 8px;
