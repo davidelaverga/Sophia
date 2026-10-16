@@ -176,8 +176,27 @@ export async function memberInRoom(cfg: LiveKitConfig, roomId: string, identity:
 }
 
 /**
+ * A batch of mutes the room server failed partway through: `muted` tracks were muted before it failed. The act did
+ * something, so its evidence is still recorded (routes/host-acts.ts), and the request still reports the failure.
+ */
+export class PartialMute extends Error {
+  readonly muted: number
+
+  constructor(muted: number, cause: unknown) {
+    super('The room server failed after muting some of them', { cause })
+    this.name = 'PartialMute'
+    this.muted = muted
+  }
+}
+
+/** A failure after `muted` changes: carried as a PartialMute when any were made, else as it was. */
+const partial = (muted: number, err: unknown): unknown =>
+  muted > 0 ? new PartialMute(muted + (err instanceof PartialMute ? err.muted : 0), err) : err
+
+/**
  * Mute those of these published tracks that are on; how many it muted. One already muted is left as it is and not
- * counted, so a repeated or retried act that changes nothing is not recorded as done (Codex P2 on #385).
+ * counted, so a repeated or retried act that changes nothing is not recorded as done (Codex P2 on #385). A failure
+ * after some were muted says how many (PartialMute).
  */
 export async function muteUnmuted(
   rooms: Pick<RoomServiceClient, 'mutePublishedTrack'>,
@@ -186,10 +205,14 @@ export async function muteUnmuted(
   tracks: readonly { sid: string; muted: boolean }[],
 ): Promise<number> {
   let muted = 0
-  for (const t of tracks) {
-    if (t.muted) continue
-    await rooms.mutePublishedTrack(roomId, identity, t.sid, true)
-    muted += 1
+  try {
+    for (const t of tracks) {
+      if (t.muted) continue
+      await rooms.mutePublishedTrack(roomId, identity, t.sid, true)
+      muted += 1
+    }
+  } catch (err: unknown) {
+    throw partial(muted, err)
   }
   return muted
 }
@@ -226,9 +249,13 @@ export const stopScreen = (cfg: LiveKitConfig, roomId: string, identity: string)
 export async function muteEveryone(cfg: LiveKitConfig, roomId: string, except: string): Promise<number> {
   const people = await roomParticipants(cfg, roomId)
   let muted = 0
-  for (const p of people) {
-    if (p.identity === except || p.standing === 'sophia' || p.standing === 'unknown') continue
-    if (await muteMicrophone(cfg, roomId, p.identity)) muted += 1
+  try {
+    for (const p of people) {
+      if (p.identity === except || p.standing === 'sophia' || p.standing === 'unknown') continue
+      if (await muteMicrophone(cfg, roomId, p.identity)) muted += 1
+    }
+  } catch (err: unknown) {
+    throw partial(muted, err)
   }
   return muted
 }
