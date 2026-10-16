@@ -464,4 +464,28 @@ describe('A33 over HTTP', () => {
       await owner(`ALTER FUNCTION sophia.conversation_access_hidden(uuid) RENAME TO conversation_access`)
     }
   })
+
+  it("the reply runtime's routes exist, and /ready needs 0064's entry points, only while conversations are served", async () => {
+    for (const path of ['claim', 'go', 'reserve', 'settle', 'acknowledged']) {
+      const r = await call(`/v1/runtime/conversation/${path}`, { at: offBase, as: E, body: {} })
+      assert.equal(r.status, 404, `switched off, /v1/runtime/conversation/${path} is not served`)
+    }
+    await owner(
+      `ALTER FUNCTION sophia.runtime_conversation_settle(bytea,text,text,jsonb) RENAME TO runtime_conversation_settle_hidden`,
+    )
+    try {
+      const r = await call('/ready')
+      assert.equal(r.status, 503)
+      assert.equal(r.json.reason, 'schema')
+      assert.equal(
+        (await call('/ready', { at: offBase })).status,
+        200,
+        'the API without conversations needs nothing of 0064',
+      )
+    } finally {
+      await owner(
+        `ALTER FUNCTION sophia.runtime_conversation_settle_hidden(bytea,text,text,jsonb) RENAME TO runtime_conversation_settle`,
+      )
+    }
+  })
 })

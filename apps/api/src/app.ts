@@ -260,7 +260,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   missionRoutes(app, { pool: deps.pool })
   runtimeRoutes(app, { pool: deps.pool, hub: runtimeHub })
   researchRoutes(app, deps.pool)
-  conversationRuntimeRoutes(app, deps.pool)
+  // The reply runtime's routes call 0064's functions: served, and checked by /ready, only with conversations on.
+  if (deps.conversations) conversationRuntimeRoutes(app, deps.pool)
   designRoutes(app, { pool: deps.pool, store })
   roomRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   exchangeRoutes(app, { pool: deps.pool, livekit: deps.livekit })
