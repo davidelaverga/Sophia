@@ -1364,6 +1364,67 @@ describe("the R1 review through the bridge's own tools (R1-F02)", () => {
     assert.equal((await itemOf(w)).lifecycle, 'complete')
   })
 
+  // Codex 4299962005: a criterion's id may hold a colon (any 1-160 characters); 0042 requires it whole. The task lists it
+  // as "- legal:privacy: Privacy terms", and the submit tool once said to take "the word before its colon".
+  it('a colon-bearing criterion id: cut at its colon it is refused with the whole id; copied whole it publishes once', async () => {
+    const w = await world()
+    const CRITERION = 'legal:privacy'
+    await asOwner(async (o) =>
+      o.query(`UPDATE sophia.goals SET criteria=$1 WHERE id=$2`, [
+        JSON.stringify([{ id: CRITERION, description: 'Privacy terms', required: true, verification: 'e2e' }]),
+        w.goalId,
+      ]),
+    )
+    const { attemptId } = await running(w)
+    const use = await toolsOf(w, attemptId)
+    const task = (await use('read_review_source', { sourceId: '' })) as {
+      goal: { criteria: { id: string }[] }
+      sources: { sourceId: string; readable: boolean }[]
+    }
+    assert.deepEqual(
+      task.goal.criteria.map((c) => c.id),
+      [CRITERION],
+      'the task gives the whole id',
+    )
+    const receipts: string[] = []
+    for (const sourceId of [w.sourceA, w.sourceB]) {
+      for (let offset: string | undefined = '0'; offset !== 'none';) {
+        const page = attributesOf(await use('read_review_source', { sourceId, offset: Number(offset) }))
+        receipts.push(String(page.receipt))
+        offset = page.next_offset
+      }
+    }
+    const review = (criterionId: string) => ({
+      verdict: 'changes_required',
+      report: REPORT,
+      findings: [
+        { status: 'contradicted', statement: 'The terms differ.', sourceIds: [w.sourceA, w.sourceB], criterionId },
+      ],
+      receipts,
+    })
+    const results = async () =>
+      asOwner(
+        async (o) => (await o.query(`SELECT 1 FROM sophia.work_results WHERE project_id=$1`, [w.projectId])).rowCount,
+      )
+    // What the old description had the reviewer send: the word before the colon. Refused with the fixed sentence and the
+    // whole id as data; nothing is published, and the service's own words never reach the model.
+    const cut = (await use('submit_source_review', review('legal'), 'colon-cut')) as Record<string, unknown>
+    assert.deepEqual(cut, {
+      code: 'invalid_request',
+      message: REVIEW_REFUSED,
+      eligibleSourceIds: task.sources.filter((x) => x.readable).map((x) => x.sourceId),
+      eligibleCriterionIds: [CRITERION],
+    })
+    assert.equal(await results(), 0, 'a refused submission publishes nothing')
+    // The whole id, as the task and the refusal give it: published once, and its replay is the same publication.
+    const published = (await use('submit_source_review', review(CRITERION), 'colon-whole')) as Record<string, unknown>
+    assert.equal(published.outcome, 'published', JSON.stringify(published))
+    assert.equal(published.replayed, false)
+    const again = (await use('submit_source_review', review(CRITERION), 'colon-whole')) as Record<string, unknown>
+    assert.deepEqual([again.outcome, again.resultId, again.replayed], ['published', published.resultId, true])
+    assert.equal(await results(), 1, 'published once')
+  })
+
   it("a stopped review reads nothing and publishes nothing through the bridge's tools", async () => {
     const w = await world()
     const { attemptId, proposal } = await running(w)

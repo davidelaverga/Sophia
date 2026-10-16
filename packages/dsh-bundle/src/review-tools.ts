@@ -339,8 +339,9 @@ export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
             criterionId: {
               type: 'string',
               description:
-                "The id of one of the goal's criteria, exactly as your task lists it (the word before its colon, such as " +
-                'report-sourced), when the finding concerns one; never the criteriaRef (criteria:…), which names the whole set.',
+                "The id of one of the goal's criteria, when the finding concerns one: copied whole and exactly from " +
+                'goal.criteria[].id as read_review_source gives it without a sourceId, or from eligibleCriterionIds; an id ' +
+                'may itself contain colons, so never shorten it; never the criteriaRef (criteria:…), which names the whole set.',
             },
           },
         },

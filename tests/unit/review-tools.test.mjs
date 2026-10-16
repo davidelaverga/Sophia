@@ -322,7 +322,17 @@ test('submit_source_review tells criterionId from criteriaRef in its own schema 
   const submit = reviewTools({ client: fakeService().client, sessionOf: () => SESSION, log: () => {} }).find((t) => t.name === 'submit_source_review')
   const described = JSON.stringify(submit)
   assert.match(described, /never the criteriaRef \(criteria:…\)/u)
-  assert.match(described, /such as report-sourced/u)
+})
+
+// Codex 4299962005: a criterion's id is any 1-160 characters (SourceReviewCriterion.id) and 0042 requires it exactly, so
+// "the word before its colon" turned a valid id such as legal:privacy into legal, which the service refuses.
+test("submit_source_review has the complete criterion id copied, colons and all, from the task's own ids", () => {
+  const submit = reviewTools({ client: fakeService().client, sessionOf: () => SESSION, log: () => {} }).find((t) => t.name === 'submit_source_review')
+  const criterion = submit.parameters.properties.findings.items.properties.criterionId.description
+  assert.doesNotMatch(criterion, /before its colon|word before/u, 'no id is cut at a colon')
+  assert.match(criterion, /goal\.criteria\[\]\.id/u)
+  assert.match(criterion, /eligibleCriterionIds/u)
+  assert.match(criterion, /whole/u)
 })
 
 test('a Hold or Stop still cuts a read at once, as before its deadline: the tool fails, never "read again"', async () => {
