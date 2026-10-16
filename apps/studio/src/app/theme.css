@@ -6241,7 +6241,8 @@ button.contribution-quote:hover {
 }
 
 /* What continuing means, under the sign-in (docs/plans/terms-privacy.md): small, quiet, its links underlined. */
-.signin-legal {
+/* Above `.screen-body p`, which sets the screen's paragraphs in the second ink. */
+.screen-body p.signin-legal {
   margin-top: 12px;
   color: var(--text-3);
   font-size: var(--type-small);
@@ -6251,8 +6252,9 @@ button.contribution-quote:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+/* Under the pointer the link answers in the full ink (press-answers.spec). */
 .signin-legal a:hover {
-  color: var(--text-2);
+  color: var(--text);
 }
 
 /* The terms and the privacy notice: a reading column on the page's ground, the mark above, the way on below. */
