@@ -61,3 +61,15 @@ test('talk · the window losing focus while Space is held mutes again', async ({
   await page.evaluate(() => window.dispatchEvent(new Event('blur')))
   await expect(mic(page)).toHaveAttribute('aria-pressed', 'false')
 })
+
+test('talk · a project kept out of sight takes no Space (Codex P1 on #381)', async ({ page }) => {
+  await mic(page).click()
+  await expect(mic(page)).toHaveAttribute('aria-pressed', 'false')
+  const asked = () => page.evaluate(() => [...(window.fixture?.asked ?? [])].filter((a) => a.startsWith('microphone')))
+  const before = (await asked()).length
+  await page.evaluate(() => window.fixture?.away())
+  await nowhere(page)
+  await page.keyboard.down('Space')
+  await page.keyboard.up('Space')
+  expect((await asked()).slice(before)).toEqual([])
+})
