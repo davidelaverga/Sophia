@@ -28,6 +28,16 @@ commits on the branch merge its base forward or touch only this record). 7 files
 - **Capture:** the board's Export menu, open and settled. It has a solid background and is on top
   (`elementFromPoint` at its centre is the menu).
 
+## Decisions and changes
+
+- **Pure and local:** the file is made in the page from the rows on the board; nothing is asked of the API.
+- **Codex P1 on #397, after the ending commit: a formula behind a control character.** A name starting with a tab (or
+  another control character, or a space) and then `=`, `+`, `-` or `@` passed the first-character check.
+  - A check came first (`dd80953e`) and failed.
+  - The fix (`294da9f1`): the guard reads past those leading characters before looking for a formula's mark. A leading
+    tab or carriage return is prefixed whatever follows, as OWASP's CSV injection list has it.
+  - The unit checks passed 4/4, `board-export` 2/2.
+
 ## Remaining obligations
 
 - None: the local run and the capture are done, and the PR is ready for review.
