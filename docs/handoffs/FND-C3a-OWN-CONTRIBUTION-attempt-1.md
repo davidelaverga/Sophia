@@ -140,6 +140,28 @@ any further finding goes to a focused correction, a split or an owner's disposit
   - lint, format, typecheck and contracts clean; units give 2360 pass, 0 fail, and the Studio units 11/11.
   - No SQL or contract change, so the PG evidence of exchange 1 stands.
 
+## Focused erasure correction (FND-C3a-FOCUSED-ERASURE-01, P's disposition)
+
+The evidence below is for the commit that carries this section.
+
+- **V's finding, a P1 on an enabled path.** A note's source was shared by another member's current message, then the
+  note was forgotten through the signed mission withdrawal (0041 `mission_erase_source`). The sharer's submit retry
+  answered 202 with the erased hash.
+  - Reproduced through the signed mission preview and withdrawal API, B's original share retry, the generated
+    validators and a restricted local PostgreSQL. The reference stayed current.
+  - The same exposure held for a written message whose own source another path erased.
+  - Log `pg-note-erasure-before.log`.
+- **The fix, narrow, in this branch's unapplied 0068 `submit_contribution`.** A retry answers its prior receipt only
+  while the message's source is not deleted and still has the receipt's hash; otherwise it gives `request_erased`.
+  - The shared `mission_erase_source` and every applied migration are untouched.
+  - Ownership, detach-only, other authors' words, the cascades, published bytes and function ACLs are unchanged.
+- **Results:**
+  - API suites with the new case (contribution-acts 11/11, readiness, access, api, profile, runtime, media): 117/117.
+  - mission and research API: 53/53.
+  - 0068 and revocation cases in persistence research and design: 14/14.
+  - lint, format, typecheck and contracts clean; units 2360 pass, 0 fail.
+  - No UI or contract change, so the browser evidence of exchange 2 stands.
+
 ## Next bounded action
 
 After CI, the automatic review and the browser slot, write the bounded C3a handback. C3b (0069/A37 mentions) does not

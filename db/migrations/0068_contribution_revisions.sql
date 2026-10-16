@@ -15,7 +15,8 @@
 --   them has moved since; it is checked again under the project's and the message's locks.
 -- * Identical words change nothing: no erasure, no rebuild, no event, no paid work woken.
 -- * What a request kept of erased words goes with them: the submit's and an earlier correction's text digests are
---   redacted, and a retry of either is refused as erased (request_erased) rather than answered with them. A retry of a
+--   redacted, and a retry of either is refused as erased (request_erased) rather than answered with them. A submit's
+--   retry is refused the same way whenever its source has been erased since, by this or any other path. A retry of a
 --   withdrawn message's submit is stale. Receipts of these acts carry no text and no digest.
 -- * Accepted decisions, published report versions and their files, and sources a message only shares are not touched.
 -- submit_contribution is 0048's with those two retries; 0001–0066 are not edited.
@@ -281,7 +282,9 @@ REVOKE ALL ON FUNCTION sophia.withdraw_contribution(uuid,uuid,text,jsonb) FROM P
 GRANT EXECUTE ON FUNCTION sophia.withdraw_contribution(uuid,uuid,text,jsonb) TO sophia_api;
 
 -- submit_contribution (0048), replaced: a retry of a message whose words have been erased is refused as erased, never
--- answered with the digest it kept; a retry of a withdrawn message is stale. Otherwise 0048's text.
+-- answered with the digest it kept: its request redacted here, or its source erased by any other path (a forgotten
+-- note's mission_erase_source, a withdrawn input), whose hash its receipt no longer matches. A retry of a withdrawn
+-- message is stale. Otherwise 0048's text.
 CREATE OR REPLACE FUNCTION sophia.submit_contribution(p_project uuid, p_key text, p_request jsonb, p_origin text DEFAULT 'composer')
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.actor_id(); prior sophia.contributions; semantic jsonb; body text:=p_request->>'text';
@@ -302,6 +305,10 @@ BEGIN
  SELECT * INTO prior FROM sophia.contributions WHERE project_id=p_project AND actor_id=a AND idempotency_key=p_key;
  IF FOUND THEN
   IF prior.semantic_request ? 'redacted' THEN
+   RAISE EXCEPTION 'Stale request: what it wrote has since been erased' USING ERRCODE='40001'; END IF;
+  -- Its source erased by any path (a forgotten note, a withdrawn source; V on #396): the receipt's hash is gone with it.
+  IF NOT EXISTS(SELECT 1 FROM sophia.source_objects s WHERE s.project_id=p_project AND s.id=prior.source_id
+    AND s.state<>'deleted' AND s.sha256=prior.receipt->>'sha256') THEN
    RAISE EXCEPTION 'Stale request: what it wrote has since been erased' USING ERRCODE='40001'; END IF;
   IF prior.semantic_request<>semantic THEN RAISE EXCEPTION 'Idempotency key reused with different request' USING ERRCODE='23505'; END IF;
   IF prior.state='withdrawn' THEN RAISE EXCEPTION 'Stale request: that message has since been withdrawn' USING ERRCODE='40001'; END IF;

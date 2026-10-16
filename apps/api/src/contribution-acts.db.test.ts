@@ -14,9 +14,11 @@ import {
   parseContributionActReceipt,
   parseContributionReceipt,
   parseDiscussionPage,
+  parseMissionReceipt,
+  parseMissionWithdrawalPreview,
   parseSnapshot,
 } from '@sophia/contracts/validate'
-import { createPool } from '@sophia/persistence'
+import { createPool, shownReach } from '@sophia/persistence'
 import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
@@ -553,6 +555,70 @@ describe('own message correction and withdrawal (A36)', () => {
     // The sharer's own words are untouched.
     const own = await sourceOf(projectId, theirs.sourceId)
     assert.deepEqual([own.state, own.text, own.sha256], ['ready', 'Thanks, noted.', theirs.sha256])
+  })
+
+  it('answers no erased hash to a retry when the words a live message shares were erased elsewhere: a forgotten note, a withdrawn source', async () => {
+    const [admin, author, sharer] = [randomUUID(), randomUUID(), randomUUID()]
+    const { projectId } = await seedProject(db.ownerUrl, { admin, editors: [author, sharer] })
+    // A note in the brief, through the signed mission API; another member shares its words in the chat while it stands.
+    const noted = await call(author, `/api/v1/projects/${projectId}/mission/entries`, {
+      body: { kind: 'observation', epistemic: 'observed', text: 'The vendor quoted 9,400.' },
+      key: randomUUID(),
+    })
+    assert.equal(noted.status, 202, JSON.stringify(noted.json))
+    const note = parseMissionReceipt(noted.json)
+    assert.ok(note.sourceId && note.sha256 && note.entryId)
+    const shared = await share(sharer, projectId, { sourceId: note.sourceId, sha256: note.sha256 })
+    // Its author forgets the note: the signed preview, then the withdrawal (0018, 0041's mission_erase_source).
+    const withdrawal = `/api/v1/projects/${projectId}/mission/entries/${note.entryId}/withdrawal`
+    const shownNote = await call(author, withdrawal)
+    assert.equal(shownNote.status, 200, JSON.stringify(shownNote.json))
+    const forgot = await call(author, withdrawal, {
+      body: shownReach(parseMissionWithdrawalPreview(shownNote.json)),
+      key: randomUUID(),
+    })
+    assert.equal(forgot.status, 202, JSON.stringify(forgot.json))
+    // The sharing message is still current, still the sharer's; its retry is refused as erased, never the old hash.
+    const [row] = await owner<{ state: string; actor_id: string }>(
+      `SELECT state, actor_id FROM sophia.contributions WHERE project_id=$1 AND id=$2`,
+      [projectId, shared.contributionId],
+    )
+    assert.deepEqual([row?.state, row?.actor_id], ['current', sharer])
+    const replay = await call(sharer, messages(projectId), {
+      body: {
+        intent: 'discuss',
+        text: null,
+        source: { sourceId: note.sourceId, sha256: note.sha256, eligibilityRevision: shared.eligibilityRevision },
+        threadId: null,
+        artifactVersionId: null,
+      },
+      key: shared.key,
+    })
+    assert.deepEqual([replay.status, replay.json?.code], [409, 'request_erased'], replay.raw)
+    assert.ok(!replay.raw.includes(note.sha256))
+
+    // A written message whose own source is withdrawn by another path (as an input's withdrawal erases it): the same.
+    const said = await say(author, projectId, 'Our pilot hosts render PDFs in a sandbox.')
+    await owner(`SELECT sophia.mission_erase_source($1, $2)`, [projectId, said.sourceId])
+    const again = await call(author, messages(projectId), {
+      body: {
+        intent: 'discuss',
+        text: 'Our pilot hosts render PDFs in a sandbox.',
+        source: null,
+        threadId: null,
+        artifactVersionId: null,
+      },
+      key: said.key,
+    })
+    assert.deepEqual([again.status, again.json?.code], [409, 'request_erased'], again.raw)
+    assert.ok(!again.raw.includes(said.sha256))
+    // A retry whose words stand still answers its receipt.
+    const standing = await say(sharer, projectId, 'Still here.')
+    const same = await call(sharer, messages(projectId), {
+      body: { intent: 'discuss', text: 'Still here.', source: null, threadId: null, artifactVersionId: null },
+      key: standing.key,
+    })
+    assert.deepEqual([same.status, same.json?.sha256], [202, standing.sha256])
   })
 
   it('confirms every task a preview lists, past a hundred: none truncated, the proof still binding them all', async () => {

@@ -48,6 +48,9 @@
   - Another message that still shares the erased words keeps no hash of them either: its submit's source hash and
     receipt hash are redacted. It stays its author's and detach-only, and a retry of its submit gives
     `request_erased` (V on #396). No other message's own words are touched.
+  - Whatever path erased a message's source (a forgotten note's `mission_erase_source`, a withdrawn input), a retry
+    of its submit answers its receipt only while that source still has the hash the receipt names. Otherwise it gives
+    `request_erased` (FND-C3a-FOCUSED-ERASURE-01). The shared helper is unchanged.
   - A retry of the original submit after its words were erased gives `request_erased`; after a withdrawal of a
     shared message, `stale_revision`.
   - Act receipts carry no text or digest.
