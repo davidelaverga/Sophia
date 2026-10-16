@@ -9,6 +9,7 @@ import { useAdmission } from '../../api/useAdmission.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
 import { barTarget, type Target } from './discussion-view.ts'
+import type { MentionsUnderWay } from './MentionPicker.tsx'
 
 /** A message's first words, for the line that says which one wasn't confirmed. */
 const firstWords = (text: string) => (text.length > 48 ? `${text.slice(0, 47).trimEnd()}…` : text)
@@ -17,6 +18,8 @@ const firstWords = (text: string) => (text.length > 48 ? `${text.slice(0, 47).tr
 interface RoomMessage {
   text: string
   replyTo: string | null
+  /** The members it names (A37); none leaves `mentions` out of the request, as before. */
+  mentions: readonly string[]
 }
 
 /** The reply under way: the entry answered (or none), and what to do once the reply is recorded. */
@@ -26,13 +29,15 @@ export interface ReplyUnderWay {
 }
 
 const NO_REPLY: ReplyUnderWay = { id: null, done: () => undefined }
+const NO_MENTIONS: MentionsUnderWay = { ids: [], done: () => undefined }
 
 export function useRoomMessage(
   projectId: string,
   identity: Identity,
   draft: string,
   onDraft: (text: string) => void,
-  reply: ReplyUnderWay = NO_REPLY,
+  /** The entry it answers (A20) and the members it names (A37), when there are. */
+  { reply = NO_REPLY, mentions = NO_MENTIONS }: { reply?: ReplyUnderWay; mentions?: MentionsUnderWay } = {},
 ) {
   const queryClient = useQueryClient()
   const write = useAdmission<RoomMessage, ContributionReceipt>(async (key, message) => {
@@ -43,15 +48,16 @@ export function useRoomMessage(
         threadId: message.replyTo,
         artifactVersionId: null,
         intent: 'discuss',
+        ...(message.mentions.length > 0 ? { mentions: [...message.mentions] } : {}),
       })
     } finally {
       void queryClient.invalidateQueries({ queryKey: snapshotKey(projectId, identity.name) })
     }
   })
   // The draft and the reply as they are now: read after the answer, never from the press's render.
-  const latest = useRef({ draft, reply })
+  const latest = useRef({ draft, reply, mentions })
   useLayoutEffect(() => {
-    latest.current = { draft, reply }
+    latest.current = { draft, reply, mentions }
   })
   const unknown = write.state.status === 'unknown' ? write.state.args : null
   /**
@@ -60,12 +66,14 @@ export function useRoomMessage(
    * still holds what was sent: words written meanwhile stay.
    */
   const send = async () => {
-    const message = unknown ?? { text: draft.trim(), replyTo: reply.id }
+    const message = unknown ?? { text: draft.trim(), replyTo: reply.id, mentions: mentions.ids }
     if (!message.text || !(await write.send(message))) return
     // The reply sent is let go; another chosen meanwhile (while it went, or a message re-sent after no reply) stays.
     const now = latest.current.reply
     if (message.replyTo !== null && message.replyTo === now.id) now.done()
     if (latest.current.draft.trim() === message.text) onDraft('')
+    // The members it named were named: the choice clears for the next message.
+    if (message.mentions.length > 0) latest.current.mentions.done()
   }
   const words = unknown
     ? `Not confirmed: “${firstWords(unknown.text)}”`

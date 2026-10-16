@@ -86,7 +86,8 @@ export function useNeeds(token: string, go: NeedsGo, options: NeedsOptions = {})
   // A write that fails is read again too: the row stays where it was, which is the truth, and the next press writes
   // again (nothing that failed may look done: Codex on #245).
   const seen = (need: Need) => {
-    if (need.kind !== 'reply') return
+    // A mention (A37) is seen once its message is opened in the room, as a reply is once its turn is shown.
+    if (need.kind !== 'reply' && need.kind !== 'mention') return
     const again = () => client.invalidateQueries({ queryKey })
     void markNeedSeen(token, need.id).then(again, again)
   }

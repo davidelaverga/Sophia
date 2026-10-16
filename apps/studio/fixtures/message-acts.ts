@@ -56,6 +56,7 @@ function revised(m: string | Said, n: number, offered: boolean): DiscussionEntry
     revision: s.revision ?? 1,
     correctedAt: s.correctedAt ?? null,
     ...(offered ? { kind: s.kind ?? 'text' } : {}),
+    mentions: s.mentions ?? [],
   }
 }
 

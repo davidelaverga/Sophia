@@ -2349,6 +2349,51 @@ img.avatar {
   margin: 0;
   padding-left: 16px;
 }
+/* Mentions (docs/plans/mentions.md, A37; the mentions flag's): the members chosen above the bar, the choice itself,
+   and the line under a message that names them. */
+.mention-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+.mention-chosen {
+  margin: 0;
+  color: var(--text-2);
+}
+.mention-chosen:empty {
+  display: none;
+}
+.mention-options {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-1);
+}
+.mention-options legend {
+  padding: 0 4px;
+  color: var(--text-2);
+}
+.mention-options label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+}
+.mention-options input {
+  width: auto;
+  height: auto;
+}
+.contribution-mentions {
+  display: block;
+  color: var(--text-3);
+  font-size: 12px;
+}
 .contribution-edited {
   margin-right: 8px;
   color: var(--text-3);

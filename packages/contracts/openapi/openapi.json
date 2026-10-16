@@ -12886,7 +12886,21 @@
           }
         },
         "x-sophia-implementation": "contract_only",
-        "x-sophia-release-goal": "F2"
+        "x-sophia-release-goal": "F2",
+        "parameters": [
+          {
+            "name": "mentions",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            },
+            "description": "1: also the messages that mention the person (A37): kind mention, ref.kind contribution, ref.id the message, ref.within its revision; the id is `mention:<projectId>:<revision>:<contributionId>`. Without it, only A15's kinds, for a reader that knows no other."
+          }
+        ]
       }
     },
     "/api/v1/me/needs/{id}/seen": {
@@ -15935,6 +15949,22 @@
               "ask_sophia",
               "propose_work"
             ]
+          },
+          "mentions": {
+            "anyOf": [
+              {
+                "type": "array",
+                "maxItems": 5,
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Members this message mentions (A37), by actor id: at most five, each an active member; the author and repeats are left out. Absent or null: none. A non-empty list needs an editor or an admin; a viewer writes without one. Nothing is parsed from the text."
           }
         },
         "required": [
@@ -17996,6 +18026,15 @@
               "reference"
             ],
             "description": "revisions=1 only: written as text (its author may correct it), or sharing a report or file (it can only be withdrawn)."
+          },
+          "mentions": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "revisions=1 only (A37): the members this message mentions now, never whether they looked."
           }
         },
         "required": [
@@ -30451,7 +30490,8 @@
               "decision",
               "permission",
               "guest",
-              "reply"
+              "reply",
+              "mention"
             ],
             "description": "What it is. A review asked of a person is not in this amendment: A11 keeps verdicts, not requests; the kind joins when a request record exists."
           },
@@ -30523,7 +30563,8 @@
                   "work_decision",
                   "work_wait",
                   "lobby_entry",
-                  "personal_turn"
+                  "personal_turn",
+                  "contribution"
                 ],
                 "description": "The record family: a decision of the work board (WorkDecision: it has a decider and an expiry, and Tasks renders it), a work item's wait (WorkWait, by its own reference: one work item may hold several), a lobby entry, a personal turn."
               },
@@ -31664,6 +31705,22 @@
             "type": "string",
             "pattern": "^v2\\.[0-9]{1,12}\\.[0-9a-f]{64}$",
             "description": "The preview's proof (v2): it binds the revision and the reach as shown. Another version's is refused."
+          },
+          "mentions": {
+            "anyOf": [
+              {
+                "type": "array",
+                "maxItems": 5,
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The message's recipients after the correction (A37). Absent or null: kept as they are. [] clears them. A list that adds or changes recipients needs an editor or an admin. The same words with other recipients change only who is mentioned: no new revision, nothing erased or woken."
           }
         },
         "required": [

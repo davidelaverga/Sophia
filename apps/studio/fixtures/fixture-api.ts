@@ -705,8 +705,11 @@ const needRef = (kind: string, id: string, within: string | null = null, resourc
   resourceId,
 })
 
-/** What needs the viewer (A15, docs/plans/needs-api.md): one of each kind, given out of order; the Studio sorts them. */
-export function needsAnswer(now = Date.now()) {
+/**
+ * What needs the viewer (A15, docs/plans/needs-api.md): one of each kind, given out of order; the Studio sorts them.
+ * With `mentions` (A37's mentions=1), a message in the fixture project that mentions them too.
+ */
+export function needsAnswer(now = Date.now(), mentions = false) {
   const at = (minutes: number) => new Date(now + minutes * 60_000).toISOString()
   const here = { projectId: PROJECT, projectTitle: PROJECT_NAME }
   const need = (id: string, kind: string, title: string, over: Record<string, unknown>) => ({
@@ -746,9 +749,24 @@ export function needsAnswer(now = Date.now()) {
         at: at(-1440),
         ref: needRef('personal_turn', 't9'),
       }),
+      ...(mentions ? [MENTION_NEED(at(-5))] : []),
     ],
   }
 }
+
+/** The message that mentions the viewer (A37): Marco's, on its revision 2, its current words. */
+const MENTIONED_IN = '00000000-0000-4000-8000-00000000003a'
+const MENTION_NEED = (at: string) => ({
+  id: `mention:${PROJECT}:2:${MENTIONED_IN}`,
+  kind: 'mention',
+  title: 'Can you check the door plan before Friday?',
+  projectId: PROJECT,
+  projectTitle: PROJECT_NAME,
+  expiresAt: null,
+  detail: 'Marco mentioned you',
+  at,
+  ref: needRef('contribution', MENTIONED_IN, '2'),
+})
 
 /** The person's archived projects (A30): this one, when it is. */
 function archivedListAnswer(project: Project): Response {
@@ -762,7 +780,8 @@ function archivedListAnswer(project: Project): Response {
 function ownRead(project: Project, url: URL) {
   if (url.pathname === '/api/v1/projects') return projectListAnswer(project)
   if (url.pathname === '/api/v1/projects/archived') return archivedListAnswer(project)
-  if (url.pathname === '/api/v1/me/needs') return json(needsAnswer())
+  if (url.pathname === '/api/v1/me/needs')
+    return json(needsAnswer(Date.now(), url.searchParams.get('mentions') === '1'))
   return undefined
 }
 
@@ -1399,13 +1418,7 @@ function contributed(project: Project, init: RequestInit | undefined): Response 
   const replyTo = replyOf(project, body)
   if (replyTo instanceof Response) return replyTo
   const id = entryIdOf(project.messages.length)
-  project.messages.push({
-    id,
-    text: body.text,
-    me: true,
-    at: new Date().toISOString(),
-    ...(replyTo ? { replyTo } : {}),
-  })
+  project.messages.push(messageWritten(id, body.text, replyTo, mentionsOf(init?.body)))
   publish(project)
   served.push(`contribution:${body.intent}`)
   const receipt: ContributionReceipt = {
@@ -1433,6 +1446,31 @@ function contributionAnswer(project: Project, receipt: ContributionReceipt): Res
 /** A contribution recorded, as the API answers it: 202. */
 const recorded = (receipt: ContributionReceipt) =>
   new Response(JSON.stringify(receipt), { status: 202, headers: { 'content-type': 'application/json' } })
+
+/** A message the viewer wrote, with what it answers (A20) and whom it names (A37), each recorded as served. */
+function messageWritten(
+  id: string,
+  text: string,
+  replyTo: Said['replyTo'] | null | undefined,
+  mentions: string[],
+): Said {
+  if (mentions.length > 0) served.push(`mentions:${mentions.join(',')}`)
+  return {
+    id,
+    text,
+    me: true,
+    at: new Date().toISOString(),
+    ...(replyTo ? { replyTo } : {}),
+    ...(mentions.length > 0 ? { mentions } : {}),
+  }
+}
+
+/** The members a message names (A37), as sent: none when `mentions` is left out. */
+function mentionsOf(body: BodyInit | null | undefined): string[] {
+  const value: unknown = typeof body === 'string' ? JSON.parse(body) : null
+  if (typeof value !== 'object' || value === null || !('mentions' in value) || !Array.isArray(value.mentions)) return []
+  return value.mentions.filter((m): m is string => typeof m === 'string')
+}
 
 const isContribution = (value: unknown): value is { text: string; intent: ContributionReceipt['intent'] } =>
   typeof value === 'object' &&

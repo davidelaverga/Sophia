@@ -6,10 +6,16 @@ import type { Need as WireNeed, NeedList } from '@sophia/contracts'
 import { parseNeedList } from '@sophia/contracts/validate'
 import type { View } from '../app/route.ts'
 import type { Need } from '../features/personal/needs-you.ts'
+import { MENTIONS } from '../app/mentions.ts'
 import { callApi } from './client.ts'
 
+/** With the mentions flag, the person's mentions too (A37's mentions=1); without, only A15's kinds. */
 export const listNeeds = (token: string, signal?: AbortSignal): Promise<NeedList> =>
-  callApi('/api/v1/me/needs', { token, method: 'GET', ...(signal ? { signal } : {}) }, parseNeedList)
+  callApi(
+    MENTIONS ? '/api/v1/me/needs?mentions=1' : '/api/v1/me/needs',
+    { token, method: 'GET', ...(signal ? { signal } : {}) },
+    parseNeedList,
+  )
 
 /**
  * The person has seen a need (A15, `markNeedSeen`): for a reply it advances their last seen personal turn, so the reply
@@ -35,6 +41,8 @@ const VIEW_OF: Readonly<Record<WireNeed['kind'], View>> = {
   permission: 'resources',
   guest: 'studio',
   reply: 'work',
+  // A37: the room's chat, where the message stands.
+  mention: 'studio',
 }
 
 /**

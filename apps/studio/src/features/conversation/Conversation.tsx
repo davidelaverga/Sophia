@@ -4,7 +4,7 @@
 // light and the people at its centre. Discussion never starts work.
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
-import type { DiscussionEntry, Snapshot, WithdrawnEntry } from '@sophia/contracts'
+import type { DiscussionEntry, ProjectMember, Snapshot, WithdrawnEntry } from '@sophia/contracts'
 import { EmptyState } from '@sophia/ui'
 import { listReplies, type DiscussionReply } from '../../api/vision.ts'
 import { VISION } from '../../app/vision.ts'
@@ -18,6 +18,7 @@ import { Composer } from './Composer.tsx'
 import { authorLabel, withAuthors } from './conversation-view.ts'
 import { EarlierLine, useEarlierDiscussion } from './EarlierDiscussion.tsx'
 import { EditedMark, MessageActions, useHandedFocus, WithdrawnWords, type Acted } from './MessageActions.tsx'
+import { MentionedLine, useMemberNames } from './MentionPicker.tsx'
 import { actsOf, discussionItems, lastSaidAt } from './message-acts.ts'
 import { NoticeCard } from './NoticeCard.tsx'
 import { quoteOf } from './replies.ts'
@@ -81,6 +82,7 @@ export function Conversation(props: Props) {
   const replies = useReplies(projectId, identity, snapshot?.cursor)
   const earlier = useEarlierDiscussion(projectId, identity, discussion, history, withdrawnNow)
   const acts = useMessageActs(projectId, identity, earlier.revise)
+  const named = useMemberNames(projectId, identity).byId
   useReplyGone(replying, earlier.withdrawn, setReplying)
   return (
     <div className="conversation">
@@ -93,6 +95,7 @@ export function Conversation(props: Props) {
           entries={earlier.entries}
           withdrawn={earlier.withdrawn}
           acts={acts}
+          named={named}
           me={me}
           names={names}
           replies={replies.of}
@@ -299,6 +302,8 @@ interface DiscussionProps {
   withdrawn: readonly WithdrawnEntry[]
   /** The reader's own message acts (the message acts flag's); absent, no message offers them. */
   acts: MessageActsOf | undefined
+  /** The project's members by id, to say whom a message mentions (A37); empty without the mentions flag. */
+  named: ReadonlyMap<string, ProjectMember>
   me: string
   names: ReadonlyMap<string, string>
   /** What each reply answers, by the reply's entry id (A20). */
@@ -307,7 +312,7 @@ interface DiscussionProps {
   onReply: ((replying: Replying) => void) | undefined
 }
 
-function Discussion({ entries, withdrawn, acts, me, names: known, replies, onReply }: DiscussionProps) {
+function Discussion({ entries, withdrawn, acts, named, me, names: known, replies, onReply }: DiscussionProps) {
   const now = useNow()
   if (entries.length === 0 && withdrawn.length === 0) return null
   const items = discussionItems(entries, withdrawn)
@@ -345,6 +350,7 @@ function Discussion({ entries, withdrawn, acts, me, names: known, replies, onRep
             ) : (
               words
             )}
+            <MentionedLine ids={entry.mentions} me={me} byId={named} />
             {onReply && (
               <button
                 type="button"

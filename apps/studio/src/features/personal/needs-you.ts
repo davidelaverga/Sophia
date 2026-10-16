@@ -2,7 +2,7 @@
 // learn nothing is waiting. No API serves it yet: the Studio shows it behind the vision flag, on fixture data.
 import { about } from '../../app/time-words.ts'
 
-export type NeedKind = 'decision' | 'permission' | 'review' | 'guest' | 'reply'
+export type NeedKind = 'decision' | 'permission' | 'review' | 'guest' | 'reply' | 'mention'
 
 export interface Need {
   id: string
@@ -24,6 +24,7 @@ export const NEED_WORDS: Readonly<Record<NeedKind, string>> = {
   review: 'Review',
   guest: 'Let in',
   reply: 'Read',
+  mention: 'Read',
 }
 
 const HOUR = 3_600_000

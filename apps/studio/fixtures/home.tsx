@@ -174,6 +174,8 @@ const needs = VISION ? NEEDS[query.get('needs') ?? (DEMO ? 'some' : '')] : undef
  * its seen write (POST …/needs/<id>/seen) is recorded as "seen <id>" and that need leaves the next answer.
  */
 const viaApi = query.get('needs') === 'api'
+/** `mentions=1` (A37): with `needs=api`, a message that mentions the viewer is among what needs them. */
+const MENTIONED = query.get('mentions') === '1'
 /** `needsFail=1`: every read of the route fails (503) until `homeFixture.recover()`, so Home's note and its Try again can be checked. */
 let failing: number | null = query.get('needsFail') === '1' ? 503 : null
 if (viaApi) {
@@ -199,7 +201,11 @@ if (viaApi) {
         const body = JSON.stringify({ error })
         return Promise.resolve(new Response(body, { status: failing, headers: { 'content-type': 'application/json' } }))
       }
-      const answer = needsAnswer()
+      const answer = needsAnswer(
+        Date.now(),
+        // A37: a message mentioning the viewer, when the page asks for it (`mentions=1`) and the read opts in.
+        MENTIONED && new URL(url, window.location.href).searchParams.get('mentions') === '1',
+      )
       const body = JSON.stringify({ ...answer, needs: answer.needs.filter((n) => !seen.has(n.id)) })
       return Promise.resolve(new Response(body, { headers: { 'content-type': 'application/json' } }))
     }

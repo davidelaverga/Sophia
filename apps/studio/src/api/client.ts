@@ -41,6 +41,7 @@ import {
   parseRoomToken,
   parseSnapshot,
 } from '@sophia/contracts/validate'
+import { MENTIONS } from '../app/mentions.ts'
 import { MESSAGE_ACTS } from '../app/message-acts.ts'
 import { apiUrl } from './base.ts'
 import { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS } from './timeouts.ts'
@@ -112,8 +113,11 @@ async function inTime<T>(ms: number, run: (signal: AbortSignal) => Promise<T>, o
   }
 }
 
-/** With the message acts flag, the discussion is read with its revisions and tombstones (A36's revisions=1). */
-const REVISIONS = MESSAGE_ACTS ? 'revisions=1' : ''
+/**
+ * With the message acts flag (or the mentions flag, whose recipients come with revisions: A37), the discussion is read
+ * with its revisions and tombstones (A36's revisions=1).
+ */
+const REVISIONS = MESSAGE_ACTS || MENTIONS ? 'revisions=1' : ''
 
 export function getSnapshot(token: string, projectId: string, signal?: AbortSignal): Promise<Snapshot> {
   const read = async (limit: AbortSignal) => {
