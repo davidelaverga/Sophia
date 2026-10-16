@@ -382,6 +382,23 @@ function floorMoves(actorId: string): void {
   floorTo.push(nameOf(actorId))
 }
 
+/** The goals' owners and dates the page asks for (`targets=`), by goal id. */
+function goalTargetsAsked(
+  wanted: string | null,
+): [string, { ownerId: string; targetDate: string; revision: number }][] {
+  if (wanted !== '1' && wanted !== 'mine') return []
+  const rollout: [string, { ownerId: string; targetDate: string; revision: number }] = [
+    '00000000-0000-4000-8000-000000009001',
+    { ownerId: personId(1), targetDate: '2026-10-30', revision: 1 },
+  ]
+  if (wanted === '1') return [rollout]
+  return [
+    rollout,
+    ['00000000-0000-4000-8000-000000009002', { ownerId: membership.actorId, targetDate: '2026-11-20', revision: 1 }],
+    ['00000000-0000-4000-8000-000000009003', { ownerId: membership.actorId, targetDate: '2026-10-01', revision: 1 }],
+  ]
+}
+
 /** Four messages over two days in the viewer's zone: yesterday's evening, this morning (chat-times.md). */
 function overTwoDays(): Said[] {
   const day = new Date()
@@ -469,12 +486,9 @@ const project = {
   failEarlier: false,
   failHost: false,
   staleTarget: false,
-  // `targets=1`: the rollout is Marco's, due 30 October 2026 (goal-owner-date.md).
-  goalTargets: new Map(
-    query.get('targets') === '1'
-      ? [['00000000-0000-4000-8000-000000009001', { ownerId: personId(1), targetDate: '2026-10-30', revision: 1 }]]
-      : [],
-  ),
+  // `targets=1`: the rollout is Marco's, due 30 October 2026 (goal-owner-date.md); `targets=mine` adds the admin change
+  // as the viewer's, due 20 November, and the completed pilot as theirs, due 1 October (goal-overdue.md).
+  goalTargets: new Map(goalTargetsAsked(query.get('targets'))),
   hostHeld: null as (() => void)[] | null,
   // The demo publishes both its versions (the second region's revision), unless `versions=` says otherwise.
   reportVersions: Math.min(VERSIONS_HELD, Math.max(1, Number(query.get('versions')) || (DEMO ? 2 : 1))),

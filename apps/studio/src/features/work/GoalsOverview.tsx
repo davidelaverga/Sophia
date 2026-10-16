@@ -3,7 +3,7 @@
 // sheet. Done goals fold to one line; past six goals, a search. One accent, amber, only where something waits. Each
 // goal's latest note is read from the project's ledger (goal-notes.md).
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import type { Goal } from '@sophia/contracts'
+import type { Goal, GoalTarget } from '@sophia/contracts'
 import { Button, EmptyState, Search } from '@sophia/ui'
 import { useCommands } from '../../app/useCommands.ts'
 import { DECISION, GOAL, showInAddress, TASK } from '../resources/link.ts'
@@ -14,6 +14,8 @@ import { notesRead, withNotes } from './goal-notes.ts'
 import { Asks, Faces, Meter, type Asked } from './GoalParts.tsx'
 import { GoalSheet } from './GoalSheet.tsx'
 import { targetLine, useGoalTargets, useMembers } from './GoalTargets.tsx'
+import { todayOf } from './goal-due.ts'
+import { useNow } from '../../app/use-now.ts'
 import {
   briefOf,
   canOpenInTasks,
@@ -43,7 +45,12 @@ interface Props {
  * One goal: its title (the press that opens its sheet), its health and what matters now, its owner and date
  * (goal-owner-date.md), its progress, its people.
  */
-function GoalRow(props: { goal: Goal; plan: Glanced | undefined; target: string | null; onOpen: () => void }) {
+function GoalRow(props: {
+  goal: Goal
+  plan: Glanced | undefined
+  target: ReturnType<typeof targetLine>
+  onOpen: () => void
+}) {
   const { goal, plan, target, onOpen } = props
   const health = healthOf(goal, plan)
   const line = rowLine(goal, plan)
@@ -60,7 +67,11 @@ function GoalRow(props: { goal: Goal; plan: Glanced | undefined; target: string 
           <span className="goal-health">{health === 'paused' ? line : HEALTH_LABEL[health]}</span>
           {health !== 'paused' && line && ` · ${line}`}
         </p>
-        {target && <p className="goal-row-target">{target}</p>}
+        {target && (
+          <p className="goal-row-target" data-due={target.due ?? undefined}>
+            {target.text}
+          </p>
+        )}
       </div>
       <Meter glance={plan?.glance} />
       <Faces glance={plan?.glance} />
@@ -174,6 +185,23 @@ function useOpenGoal(goals: readonly Goal[]): [string | null, (id: string | null
   return [open, set]
 }
 
+/** «Mine» (goal-overdue.md): whether only the viewer's own goals are listed, offered while one of the open goals is. */
+function useMine(goals: readonly Goal[], targets: ReadonlyMap<string, GoalTarget>, me: string) {
+  const [on, setOn] = useState(false)
+  const owned = (g: Goal) => targets.get(g.id)?.ownerId === me
+  const offered = goals.some((g) => g.status !== 'completed' && owned(g))
+  return { offered, on: on && offered, toggle: () => setOn(!on), keeps: (g: Goal) => !(on && offered) || owned(g) }
+}
+
+function MineSwitch({ mine }: { mine: ReturnType<typeof useMine> }) {
+  if (!mine.offered) return null
+  return (
+    <button type="button" className="ghost goals-mine" aria-pressed={mine.on} onClick={mine.toggle}>
+      Mine
+    </button>
+  )
+}
+
 /** The notes unread: a difficulty may be missing from the health, said with the way to read them again. */
 function NotesFailed({ ledger }: { ledger: ReturnType<typeof useLedger> }) {
   if (notesRead(ledger) !== 'failed') return null
@@ -197,6 +225,8 @@ export function GoalsOverview({ goals, plans: served, notes, onOpenGoal }: Props
   const opened = goals.find((g) => g.id === open)
   const health = healthLine(goals, plans)
   const [targets, members] = [useGoalTargets(notes), useMembers(notes)]
+  const today = todayOf(new Date(useNow(60 * 60_000)))
+  const mine = useMine(goals, targets, notes.me)
   return (
     <div className="goals-briefing">
       <p className="goals-brief">
@@ -209,16 +239,17 @@ export function GoalsOverview({ goals, plans: served, notes, onOpenGoal }: Props
       <Asks asks={asks} onOpen={openAsk} />
       <div className="goals-list-head">
         <h3 className="field-label">Goals</h3>
+        <MineSwitch mine={mine} />
         {many && <SearchGoals query={query} onQuery={setQuery} />}
       </div>
       {shown.length === 0 && <NoAnswer query={query} onClear={() => setQuery('')} />}
       <ul className="goal-rows" onKeyDown={moveAlong}>
-        {listed.map((g) => (
+        {listed.filter(mine.keeps).map((g) => (
           <GoalRow
             key={g.id}
             goal={g}
             plan={plans[g.id]}
-            target={targetLine(targets.get(g.id), members)}
+            target={targetLine(targets.get(g.id), members, { me: notes.me, today, done: g.status === 'completed' })}
             onOpen={() => setOpen(g.id)}
           />
         ))}
