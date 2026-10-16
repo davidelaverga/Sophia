@@ -24,6 +24,14 @@ describe('the board, exported', () => {
     )
   })
 
+  it('keeps out a formula behind a control character or a space a sheet skips (Codex P1 on #397)', () => {
+    const csv = boardCsv([{ lane: 'Ready', task: '\t=1+1', who: ' @SUM(A1)', status: '\u0001+cmd' }])
+    assert.equal(csv.split('\r\n')[1], `Ready,"'\t=1+1","' @SUM(A1)","'\u0001+cmd"`)
+    // A leading tab or carriage return is kept out whatever follows (OWASP's CSV injection list); words aren't.
+    const words = boardCsv([{ lane: 'Ready', task: '\tNotes', who: 'Ana', status: 'a-b' }])
+    assert.equal(words.split('\r\n')[1], `Ready,"'\tNotes",Ana,a-b`)
+  })
+
   it('writes Markdown by lane, a complete task checked', () => {
     assert.equal(
       boardMarkdown(rows, 2, now),
