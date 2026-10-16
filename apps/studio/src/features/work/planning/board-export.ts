@@ -8,9 +8,21 @@ export interface ExportRow {
   status: string
 }
 
+const FORMULA = new Set(['=', '+', '-', '@'])
+
+/** Where a value's words start: past the control characters and spaces a sheet may skip (Codex P1 on #397). */
+function wordsStart(value: string): number {
+  let at = 0
+  while (at < value.length && value.charCodeAt(at) <= 0x20) at += 1
+  return at
+}
+
+/** A value a sheet would run: a formula's mark first or past what it skips, or a leading tab or CR (OWASP's list). */
+const runs = (value: string) => FORMULA.has(value.charAt(wordsStart(value))) || /^[\t\r]/.test(value)
+
 /** A field as CSV keeps it: quoted when it holds a comma, a quote or a line break; never a formula a sheet would run. */
 function field(value: string): string {
-  const safe = /^[=+\-@]/.test(value) ? `'${value}` : value
+  const safe = runs(value) ? `'${value}` : value
   return /[",\r\n]/.test(safe) || safe !== value ? `"${safe.replaceAll('"', '""')}"` : safe
 }
 
