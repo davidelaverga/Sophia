@@ -14,7 +14,9 @@ commits on the branch merge its base forward or touch only this record). 11 file
 ## Outcome
 
 - On paper the halo lives on `.light::after` and breathes: 6 s ease-in-out alternate, scale 1 → 1.04 about the
-  light's centre, opacity 0.92 → 1; none under reduced motion. The trace canvas sits above it (`z-index: 1`).
+  light's centre, opacity 0.92 → 1; none under reduced motion. The trace canvas paints over it by order
+  (`z-index: auto`), the halo sitting at `z-index: -1` inside the light's own stacking (`9519350b`). (Corrected after
+  merge: Codex on #251.)
 - The trace writes in the paper's inks on paper: the edge in the theme's halo at 0.22, the thread from the warm to the
   violet, the head a violet glow composited `source-over`; in the room, exactly as before (`ROOM_INKS`). The engine
   is told by `SophiaLight`, which follows the root's `data-theme` through a `MutationObserver` (`usePaper`).

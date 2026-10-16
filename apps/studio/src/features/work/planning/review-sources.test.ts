@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { allowanceOk, kib, selectionOf } from './review-sources.ts'
+import { allowanceOk, kib, offered, selectionOf } from './review-sources.ts'
 
 const sources = [
   { sourceId: 'a', byteLength: 20_000 },
@@ -32,5 +32,20 @@ describe('a source review selection', () => {
     assert.equal(allowanceOk(0.0000015, 0.005), false, 'finer than Sophia keeps')
     assert.equal(allowanceOk(0, 0.5), false)
     assert.equal(allowanceOk(0.51, 0.5), false, 'above the cap')
+  })
+})
+
+describe('where Review sources is offered (E2E-Q3)', () => {
+  const pilot = (enabled: boolean, n: number) => ({ enabled, sources: sources.slice(0, n) })
+
+  it('where Sophia enables the pilot and there is something to review', () => {
+    assert.equal(offered(pilot(true, 2), false), true)
+    assert.equal(offered(pilot(true, 0), false), false, 'nothing to review yet')
+    assert.equal(offered(pilot(false, 2), false), false, 'not enabled')
+  })
+
+  it('while a proposal is unanswered, so it can be asked about again', () => {
+    assert.equal(offered(pilot(true, 0), true), true)
+    assert.equal(offered(pilot(false, 0), true), false, 'never where the pilot is not enabled')
   })
 })

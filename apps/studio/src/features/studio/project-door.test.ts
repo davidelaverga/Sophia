@@ -66,9 +66,10 @@ describe('asking again', () => {
 })
 
 describe('the work board Sophia serves', () => {
-  it('is read only while Tasks is in view', () => {
+  it('is read while Tasks or Goals is in view: Goals says each plan’s progress (docs/plans/goals-progress.md)', () => {
     assert.equal(readsServedBoard('work', null, false), true)
-    for (const view of ['studio', 'goals', 'knowledge', 'updates', 'resources'] as const) {
+    assert.equal(readsServedBoard('goals', null, false), true)
+    for (const view of ['studio', 'knowledge', 'updates', 'resources'] as const) {
       assert.equal(readsServedBoard(view, null, false), false, view)
     }
   })

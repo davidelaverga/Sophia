@@ -24,7 +24,7 @@ export const BUDGETS = {
   whole: 124 * 1024,
 } as const
 
-/** Schema lengths, in characters, that keep the always-whole sections bounded (0018's proposals, 0048's messages). */
+/** Schema lengths, in characters, that keep the always-whole sections bounded (0018's proposals, 0063's messages). */
 export const LIMITS = { statement: 2000, field: 1000, member: 4000, sophia: 16000, name: 320 } as const
 
 /** Compiled fields this renderer never puts in the prompt: recorded as excluded, never rendered. */

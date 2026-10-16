@@ -30,6 +30,24 @@ export function viewerReducer(state: ViewerState, action: ViewerAction): ViewerS
   return { ...state, drafts }
 }
 
+/**
+ * Signing out forgets every view's unsent words on this device, whoever's, and keeps each view's lens: words written
+ * and not sent are personal, which lens was open is not (terms-privacy.md; Codex P1 on #366).
+ */
+export function forgetViewerDrafts(store: Storage = localStorage): void {
+  try {
+    const keys = Array.from({ length: store.length }, (_, i) => store.key(i)).filter(
+      (k): k is string => k?.startsWith('sophia.viewer.v1.') === true,
+    )
+    for (const key of keys) {
+      const { lens } = readViewerState(store.getItem(key))
+      store.setItem(key, JSON.stringify({ lens, drafts: {} }))
+    }
+  } catch {
+    // Storage refused: there is nothing kept to forget.
+  }
+}
+
 /** Storage key: per viewer and project, so two people on one browser never share a view. */
 export const viewerKey = (viewer: string, projectId: string) => `sophia.viewer.v1.${viewer}.${projectId}`
 
@@ -77,6 +95,19 @@ export function lensInAddress(search: string): Lens | null {
  * The address's search with the lens in it, Converse too: an address without one is no claim (the stored lens
  * stands), so a link that shows Converse must say so (Codex on #242). Null takes the lens out: nothing shows one.
  */
+/**
+ * The lens of one address carried into another search: an address normalized (a legacy or trailing-slash path) keeps
+ * the lens a shared link named (Codex on #242).
+ */
+export const lensKept = (from: string, into: string): string => withLensInAddress(into, lensInAddress(from))
+
+/**
+ * What an address says of its lens, for whose it is: the path and the lens alone, so a report opened over it since
+ * (its own parameters, pushed by the viewer) does not make it another address (Codex on #242).
+ */
+export const lensAddress = (pathname: string, search: string): string =>
+  `${pathname}${withLensInAddress('', lensInAddress(search))}`
+
 export function withLensInAddress(search: string, lens: Lens | null): string {
   const params = new URLSearchParams(search)
   if (lens === null) params.delete('lens')
@@ -115,6 +146,6 @@ export function addressLensFor(
 ): Lens | null {
   const named = lensInAddress(here.search)
   if (!named) return null
-  const left = wrote !== null && wrote.key !== key && wrote.address === `${here.pathname}${here.search}`
+  const left = wrote !== null && wrote.key !== key && wrote.address === lensAddress(here.pathname, here.search)
   return left ? null : named
 }

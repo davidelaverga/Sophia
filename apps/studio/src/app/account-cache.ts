@@ -9,7 +9,23 @@ export interface AccountCache {
   client: QueryClient
 }
 
-export const cacheOf = (account: string | null): AccountCache => ({ account, client: new QueryClient() })
+/**
+ * How a read is asked again: never after a refusal the API marks `retry: never` (a 403 behind «No access» does not
+ * change by asking: e2e-real Q2); anything else three times, as TanStack's default. A read's own `retry` wins.
+ */
+export const retryRead = (failures: number, error: unknown): boolean => !finalRefusal(error) && failures < 3
+
+/**
+ * An API refusal marked `retry: never` (ApiError's shape), read without importing the API client: this module loads on
+ * the sign-in page, which fetches none of the signed-in Studio, its client or the validators (signed-in-later.spec).
+ */
+const finalRefusal = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && 'retry' in error && error.retry === 'never'
+
+export const cacheOf = (account: string | null): AccountCache => ({
+  account,
+  client: new QueryClient({ defaultOptions: { queries: { retry: retryRead } } }),
+})
 
 /** The cache for `account`: the one it has, or a new, empty one. */
 export const cacheFor = (cache: AccountCache, account: string | null): AccountCache =>

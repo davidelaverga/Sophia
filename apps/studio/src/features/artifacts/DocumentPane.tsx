@@ -10,6 +10,8 @@ import type { ArtifactVersion } from '@sophia/contracts'
 import { reportLanguage } from '@sophia/report/language'
 import { Icon, ReadNote, Segmented, Tabs, Tip } from '@sophia/ui'
 import { listArtifactVersions, listReportSources } from '../../api/artifacts.ts'
+import { useMembership } from '../access/useAccess.ts'
+import { ReviseSections } from './ReviseSections.tsx'
 import type { Identity } from '../../app/dev-identity.ts'
 import { modalOnScreen, onScreen as isVisible, ShortcutScope } from '../../app/shortcuts.ts'
 import { useCommands } from '../../app/useCommands.ts'
@@ -439,6 +441,7 @@ export function DocumentPane(props: Props) {
   const { focusSource, cite, choose } = useCitation(tab, onTab)
   const full = link.size === 'full'
   const tasks = useTaskTab(props)
+  const revise = useRevise(props, data, onCurrent)
   return (
     <aside ref={pane} className="report-pane" data-size={link.size} aria-labelledby="report-pane-title">
       {!full && <div className="report-pane-grip" aria-hidden onPointerDown={width.drag} />}
@@ -477,10 +480,23 @@ export function DocumentPane(props: Props) {
         recover={recover}
         changes={live.changes}
         tasks={tasks.list}
+        revise={revise}
       />
       <PaneStatus {...status} />
       <PassageBar pane={pane} version={data.version} viewer={{ ...props, onSeeTasks: () => choose('tasks') }} />
     </aside>
+  )
+}
+
+/** «Revise with Sophia…» (revise-section.md): an editor's or an admin's, on the current version's designed page. */
+function useRevise(props: Props, data: PaneData, onCurrent: boolean): ReactNode {
+  const role = useMembership(props.projectId, props.identity.name, props.identity.token).data?.role
+  const text = data.html.data?.text
+  if ((role !== 'admin' && role !== 'editor') || !onCurrent || !data.showHtml || !data.version || text === undefined) {
+    return null
+  }
+  return (
+    <ReviseSections projectId={props.projectId} identity={props.identity} versionId={data.version.id} html={text} />
   )
 }
 
@@ -540,6 +556,8 @@ interface BodyProps {
   changes: LiveChanges
   /** The Tasks tab's list (A17), under the vision flag. */
   tasks: ReactNode
+  /** «Revise with Sophia…» over the designed page, or null (useRevise). */
+  revise: ReactNode
 }
 
 /**
@@ -615,16 +633,17 @@ function PaneBody(props: BodyProps) {
  * an isolated frame, never in MarkdownView or the Studio's own DOM, or the Markdown read in the reading voice (with
  * what changed in a version that arrived live).
  */
-function DocumentView({ data, full, onCite, changes }: Pick<BodyProps, 'data' | 'full' | 'onCite' | 'changes'>) {
+function DocumentView(props: Pick<BodyProps, 'data' | 'full' | 'onCite' | 'changes' | 'revise'>) {
+  const { data, full, onCite, changes } = props
   if (data.showPdf) return <PdfTab data={data} full={full} />
-  if (data.showHtml) return <HtmlTab data={data} full={full} />
+  if (data.showHtml) return <HtmlTab data={data} full={full} revise={props.revise} />
   return <DocumentTab data={data} onCite={onCite} changes={changes} />
 }
 
-function TabContent({ tab, data, full, identity, focusSource, onCite, onVersion, changes, tasks }: BodyProps) {
+function TabContent({ tab, data, full, identity, focusSource, onCite, onVersion, changes, tasks, revise }: BodyProps) {
   return (
     <>
-      {tab === 'document' && <DocumentView data={data} full={full} onCite={onCite} changes={changes} />}
+      {tab === 'document' && <DocumentView data={data} full={full} onCite={onCite} changes={changes} revise={revise} />}
       {tab === 'sources' && (
         <SourcesTab
           identity={identity}
@@ -958,7 +977,7 @@ function PdfTab({ data, full }: { data: PaneData; full: boolean }) {
 }
 
 /** The version's designed page, once its bytes matched the rendition's hash. */
-function HtmlTab({ data, full }: { data: PaneData; full: boolean }) {
+function HtmlTab({ data, full, revise }: { data: PaneData; full: boolean; revise: ReactNode }) {
   if (data.html.isError) {
     return (
       <p className="muted" role="alert">
@@ -970,7 +989,13 @@ function HtmlTab({ data, full }: { data: PaneData; full: boolean }) {
   }
   if (!data.html.data || !data.page) return <ReadNote>Loading the page…</ReadNote>
   return (
-    <HtmlView html={data.html.data.text} title={data.version?.title ?? 'Report'} rendition={data.page} full={full} />
+    <HtmlView
+      html={data.html.data.text}
+      title={data.version?.title ?? 'Report'}
+      rendition={data.page}
+      full={full}
+      revise={revise}
+    />
   )
 }
 

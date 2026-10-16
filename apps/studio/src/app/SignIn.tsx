@@ -18,6 +18,7 @@ import { SLOW_NOTE, useSlow } from './useSlow.ts'
 import { Mark } from './Mark.tsx'
 import { mailHome, plausibleEmail } from './mail-home.ts'
 import { CODE_NOT_CONFIRMED, EMAIL_NOT_CONFIRMED, FIRST_EMAIL_NOT_CONFIRMED, waitAfter } from './auth-words.ts'
+import { SENT_HOW, SENT_TO } from './auth-words.ts'
 import { endsWithin } from './deadline.ts'
 
 /** Auth served by the local Supabase stack: sign-in emails land in Mailpit, not a real inbox. */
@@ -175,6 +176,16 @@ function DevIdentityPicker({ onChoose }: { onChoose: (identity: Identity) => voi
           ))}
       </div>
     </Centered>
+  )
+}
+
+/** What continuing means, one press from the door (terms-privacy.md). */
+function LegalLine() {
+  return (
+    <p className="signin-legal">
+      By continuing you agree to the <a href="/terms">Terms</a> and acknowledge the{' '}
+      <a href="/privacy">Privacy notice</a>.
+    </p>
   )
 }
 
@@ -340,6 +351,7 @@ export function EmailSignIn({ notice, send = sendMagicLink, verify }: { notice: 
       )}
       <p className="muted">New here? The same link creates your account.</p>
       <PasskeyLink {...passkey} />
+      <LegalLine />
     </Centered>
   )
 }
@@ -428,10 +440,11 @@ function LinkSent({
   const home = mailHome(email)
   return (
     <>
-      <p>
-        We sent a sign-in link and a code to <strong>{email}</strong>. Open the link in this browser, or enter the code
-        here if you read your email somewhere else.
+      {/* What went where, then how to use it, as a line and a note (docs/plans/signin-hierarchy.md). */}
+      <p className="sent-to">
+        {SENT_TO} <strong>{email}</strong>.
       </p>
+      <p className="muted">{SENT_HOW}</p>
       {home && (
         <a className="pill" href={home.url} target="_blank" rel="noreferrer">
           Open {home.name}
@@ -459,6 +472,8 @@ function LinkSent({
  * thing left to do here. */
 export function CodeForm({ email, verify = verifyEmailCode }: { email: string } & Pick<EmailPorts, 'verify'>) {
   const [state, setState] = useState<Step>({ step: 'idle' })
+  // Refused, the code is wrong and said on its field; not confirmed in time, it may still sign in: the field is not.
+  const wrong = state.step === 'error' && state.message !== CODE_NOT_CONFIRMED
   const check = async (code: string) => {
     setState({ step: 'sending' })
     try {
@@ -475,11 +490,15 @@ export function CodeForm({ email, verify = verifyEmailCode }: { email: string } 
         action="Sign in with code"
         busy={state.step === 'sending'}
         focus={finePointer()}
+        invalid={wrong ? 'email-code-error' : undefined}
         onCheck={(code) => void check(code)}
+        onEdit={() => {
+          if (wrong) setState({ step: 'idle' })
+        }}
       />
       {state.step === 'sending' && <SlowNote />}
       {state.step === 'error' && (
-        <p className="form-error" role="alert">
+        <p id="email-code-error" className="form-error" role="alert">
           {state.message}
         </p>
       )}

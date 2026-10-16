@@ -130,7 +130,14 @@ function useWorkGo(snapshot: Snapshot | undefined): (() => void) | null {
   const go = useProjectGo()
   if (!go) return null
   const only = soleWorkingTask(snapshot)
-  return () => go(only === null ? { view: 'work' } : { view: 'work', taskId: only })
+  return () => {
+    go(only === null ? { view: 'work' } : { view: 'work', taskId: only })
+    // No task named, no card to take the focus: the view's own item in the nav does, never the page (Codex on #242).
+    if (only === null)
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => document.querySelector<HTMLElement>('.view-nav a[aria-current]')?.focus()),
+      )
+  }
 }
 
 function SophiaLine({
@@ -163,6 +170,7 @@ function SophiaLine({
           </p>
         )
       )}
+      {line.presses && <div className="line-presses arrive">{line.presses}</div>}
       {session && <p className="line-session">{session}</p>}
     </div>
   )
@@ -183,6 +191,7 @@ function roomCommands(room: ProjectRoom, me: Participant | undefined, speaks: bo
       id: 'join',
       words: 'Join the room',
       group: 'room',
+      also: ['call', 'meet'],
       key: ROOM_KEYS.join,
       run: when(joins, () => void room.join()),
     },
@@ -190,6 +199,7 @@ function roomCommands(room: ProjectRoom, me: Participant | undefined, speaks: bo
       id: 'microphone',
       words: `Microphone ${onOff(me?.micOn)}`,
       group: 'room',
+      also: ['mute', 'unmute', 'mic'],
       key: ROOM_KEYS.microphone,
       run: when(speaks, () => void room.setMicrophone(!me?.micOn)),
     },
@@ -197,6 +207,7 @@ function roomCommands(room: ProjectRoom, me: Participant | undefined, speaks: bo
       id: 'camera',
       words: `Camera ${onOff(me?.cameraOn)}`,
       group: 'room',
+      also: ['video'],
       key: ROOM_KEYS.camera,
       run: when(speaks, () => void room.setCamera(!me?.cameraOn)),
     },
@@ -204,6 +215,7 @@ function roomCommands(room: ProjectRoom, me: Participant | undefined, speaks: bo
       id: 'screen',
       words: me?.screenOn ? 'Stop sharing the screen' : 'Share the screen',
       group: 'room',
+      also: ['present'],
       key: ROOM_KEYS.screen,
       run: when(speaks && canShareScreen, () => void room.setScreenShare(!me?.screenOn)),
     },

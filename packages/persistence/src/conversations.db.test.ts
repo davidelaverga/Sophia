@@ -1,4 +1,4 @@
-// CON-01 G1, saved project conversations (migration 0048, amendment A16), level: sql-run. Every call runs on the
+// CON-01 G1, saved project conversations (migration 0063, amendment A33), level: sql-run. Every call runs on the
 // non-owner sophia_api login with a transaction-local actor, as the API does; the migration owner only seeds, switches
 // a project's setting (the operator's function) and inspects.
 import { randomUUID } from 'node:crypto'
@@ -429,7 +429,7 @@ describe('order and pages (CON01-A07)', () => {
     )
   })
 
-  it('a conversation with more writers than A16 names lists 200, the reader among them, in order (PR #199 review)', async () => {
+  it('a conversation with more writers than A33 names lists 200, the reader among them, in order (PR #199 review)', async () => {
     const p = await project()
     const r = await start(E, p)
     const more = Array.from({ length: 200 }, () => randomUUID())
@@ -440,7 +440,7 @@ describe('order and pages (CON01-A07)', () => {
     for (const [i, actor] of more.entries()) await send(actor, r.conversationId, `Writer ${i}`)
     const namedFor = async (reader: string) => {
       const read = await list(reader, p)
-      // The whole answer as the Studio checks it: the generated A16 contract.
+      // The whole answer as the Studio checks it: the generated A33 contract.
       assert.doesNotThrow(() => parseConversationList(read))
       return read.conversations.find((c) => c.id === r.conversationId)?.contributors.map((x) => x.actorId)
     }

@@ -31,6 +31,8 @@ import { CONVERSATION_SCHEMA, projectConversationRoutes } from './routes/project
 import { eventRoutes } from './routes/events.ts'
 import { projectionRoutes } from './routes/projections.ts'
 import { projectRoutes } from './routes/projects.ts'
+import { goalTargetRoutes } from './routes/goal-targets.ts'
+import { activityRoutes } from './routes/activity.ts'
 import { roomRoutes } from './routes/rooms.ts'
 import { designRoutes } from './routes/design.ts'
 import { RENDERER_ROUTES, rendererRoutes } from './routes/renderer.ts'
@@ -83,18 +85,34 @@ export interface AppDeps {
    */
   companion?: Companion | null
   /**
-   * Saved project conversations (CON-01, amendment A16): served only when on (SOPHIA_CONVERSATIONS=on). Off, no A16 route
-   * exists and /ready requires nothing of migration 0048, so this API and the previous one run on either database.
+   * Saved project conversations (CON-01, amendment A33): served only when on (SOPHIA_CONVERSATIONS=on). Off, no A33 route
+   * exists and /ready requires nothing of migration 0063, so this API and the previous one run on either database.
    */
   conversations?: boolean
 }
+
+/**
+ * Columns the API reads that no required function names: the authors' names a room message keeps (0048) and a note
+ * and a decision keep (0049). The chat and the brief read them on every load (Codex P1 on #336).
+ */
+const COLUMNS = [
+  ['contributions', 'author_name'],
+  ['mission_entries', 'author_name'],
+  ['decisions', 'proposed_by_name'],
+  ['decisions', 'decided_by_name'],
+] as const
+
+/** Whether a column of the schema exists: read from the catalog, which every role may read. */
+const columnExists = (table: string, column: string) =>
+  `EXISTS (SELECT 1 FROM pg_catalog.pg_attribute WHERE attrelid = to_regclass('sophia.${table}') AND attname = '${column}' AND NOT attisdropped)`
 
 /**
  * Functions the API requires in the database; /ready fails if any is missing, so an instance on a database that a
  * migration hasn't reached takes no traffic. The personal space (0021) lists every function its routes call. 0043
  * (#117) is required by the two functions the capture routes call, the only ones this API calls that main's doesn't:
  * the migration is one transaction, and its other changes replace functions under their own signatures. The previous
- * API requires nothing of 0043 and stays ready on either database (Codex on #107; readiness.db.test.ts).
+ * API requires nothing of 0043 and stays ready on either database (Codex on #107; readiness.db.test.ts). The columns
+ * above are required too.
  */
 const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT NULL
   AND to_regproc('sophia.notify_project_event') IS NOT NULL
@@ -161,7 +179,16 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.coordination_permit(bytea,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.runtime_source_review_submit(bytea,text,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.runtime_capture_issue(bytea,text,text,jsonb,text)') IS NOT NULL
-  AND to_regprocedure('sophia.runtime_capture_delivered(bytea,text,text,jsonb,text)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.runtime_capture_delivered(bytea,text,text,jsonb,text)') IS NOT NULL
+  AND to_regprocedure('sophia.remember_room_name(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.rename_project(uuid,text,text)') IS NOT NULL
+  AND to_regprocedure('sophia.leave_project(uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.set_goal_target(uuid,uuid,uuid,date,bigint)') IS NOT NULL
+  AND to_regprocedure('sophia.invitable_people(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.change_member_role(uuid,uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.project_activity(uuid,bigint,integer)') IS NOT NULL
+  AND to_regprocedure('sophia.name_from_room(uuid)') IS NOT NULL
+  AND ${COLUMNS.map(([table, column]) => columnExists(table, column)).join('\n  AND ')} AS ok`
 
 /**
  * What an API with a byte store also requires: the claim every write makes first (0044, writeOnce). An API without
@@ -175,8 +202,8 @@ export const STORE_SCHEMA = `SELECT to_regprocedure('sophia.claim_object_write(t
  */
 export const writeOnceStore = (pool: pg.Pool, store: ByteStore | null | undefined): ByteStore | null =>
   store
-    ? writeOnce(store, (path, sha256, byteLength) =>
-        withService(pool, (c) => claimObjectWrite(c, path, sha256, byteLength)),
+    ? writeOnce(store, (path, sha256, byteLength, control) =>
+        withService(pool, (c) => claimObjectWrite(c, path, sha256, byteLength), control),
       )
     : null
 
@@ -211,6 +238,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   projectRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   projectionRoutes(app, { pool: deps.pool })
+  goalTargetRoutes(app, { pool: deps.pool })
+  activityRoutes(app, { pool: deps.pool })
   commandRoutes(app, { pool: deps.pool })
   conversationRoutes(app, { pool: deps.pool })
   missionRoutes(app, { pool: deps.pool })

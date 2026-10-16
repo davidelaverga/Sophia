@@ -406,15 +406,65 @@ const blockedIn = (row: PlanRow, rows: readonly PlanRow[]) =>
   })
 
 /**
- * The items of the plan that `blocked` rows wait on and that are not complete, once each, in the plan's order (not
- * the order a dependent lists them in: Codex on #244).
+ * The items of the plan that `blocked` rows wait on and that are not complete, once each, in the plan's order (`order`,
+ * its items' ids): not the order a dependent lists them in, nor the board's, sorted by mark (Codex on #244).
  */
-export function blockersOf(blocked: readonly PlanRow[], rows: readonly PlanRow[]): PlanRow[] {
+export function blockersOf(blocked: readonly PlanRow[], rows: readonly PlanRow[], order: readonly string[]): PlanRow[] {
   const ids = new Set(blocked.flatMap((r) => r.item.blocked_by))
-  return rows.filter((r) => ids.has(r.item.id) && LANE[r.status.mark] !== 'complete')
+  const place = (r: PlanRow) => order.indexOf(r.item.id)
+  return rows
+    .filter((r) => ids.has(r.item.id) && LANE[r.status.mark] !== 'complete')
+    .toSorted((a, b) => place(a) - place(b))
 }
 
 /** The lane a row sits in: its mark's; Blocked when it is up next but waits on an item of its plan not done yet. */
+/** A goal's progress from its board's lanes: done is Complete; closed work is out of the count (goals-progress.md). */
+export function progressOf(lanes: readonly Lane[]): { done: number; total: number } {
+  const counted = lanes.filter((l) => l !== 'closed')
+  return { done: counted.filter((l) => l === 'complete').length, total: counted.length }
+}
+
+/** What stands in a goal's way, counted by kind: pending waits on its open tasks, and its Blocked lane. */
+export interface Ways {
+  permissions: number
+  decisions: number
+  capacity: number
+  /** A connection or another service. */
+  outside: number
+  blocked: number
+}
+
+/** A goal at a glance on Goals (goals-overview.md): its tasks' lanes, who is on its open tasks, what is in its way. */
+export interface GoalGlance {
+  lanes: readonly Lane[]
+  people: readonly Person[]
+  ways: Ways
+}
+
+/** What is in its way leaves out what waits on the viewer: that is theirs to answer (`asksOf`), said apart. */
+export function glanceOf(rows: readonly PlanRow[], viewerId: string | null = null): GoalGlance {
+  const lanes = rows.map((r) => laneOf(r, rows))
+  const unfinished = rows.filter((_, i) => lanes[i] !== 'complete' && lanes[i] !== 'closed')
+  const pending = unfinished.flatMap((r) =>
+    r.waits
+      .filter((w) => w.wait.state === 'pending' && (viewerId === null || w.wait.respondent_id !== viewerId))
+      .map((w) => w.wait.kind),
+  )
+  const n = (...kinds: WaitKind[]) => pending.filter((k) => kinds.includes(k)).length
+  const people = new Map(unfinished.flatMap((r) => (r.doer.person ? [[r.doer.person.id, r.doer.person] as const] : [])))
+  return {
+    lanes,
+    people: [...people.values()],
+    ways: {
+      permissions: n('native_permission'),
+      decisions: n('product_decision'),
+      capacity: n('capacity'),
+      outside: n('connection', 'external'),
+      blocked: lanes.filter((l) => l === 'blocked').length,
+    },
+  }
+}
+
 export const laneOf = (row: PlanRow, rows: readonly PlanRow[]): Lane => {
   const lane = LANE[row.status.mark]
   return lane === 'next' && blockedIn(row, rows) ? 'blocked' : lane
@@ -439,6 +489,58 @@ export const forYou = (
   viewerId !== null &&
   (rows.some((r) => r.waits.some((w) => w.wait.state === 'pending' && w.wait.respondent_id === viewerId)) ||
     latestDecisions(decisions).some((d) => d.decider_id === viewerId && actionable(d, now)))
+
+/** Something in a goal that waits on the viewer: a request naming them, or a decision of theirs still open. */
+export interface Ask {
+  id: string
+  kind: 'request' | 'decision'
+  /** The request's words, or the decision's question. */
+  words: string
+  /** Who asks: the task's doer; none for a decision. */
+  by: string | null
+  /** Where it opens in Tasks: the task's id (`#task-`), or the decision's (`#decision-`). */
+  target: string
+}
+
+/** What waits on the viewer in a goal (goals-overview.md): its requests naming them, then their open decisions. */
+export function asksOf(
+  rows: readonly PlanRow[],
+  decisions: readonly BoardDecision[],
+  viewerId: string | null,
+  now: Date,
+): Ask[] {
+  if (viewerId === null) return []
+  const requests = rows.flatMap((r) =>
+    r.waits
+      .filter((w) => w.wait.state === 'pending' && w.wait.respondent_id === viewerId)
+      .map((w): Ask => ({
+        id: `${r.item.id}:${w.wait.reference_id}`,
+        kind: 'request',
+        words: w.wait.detail,
+        by: r.doer.name,
+        target: r.item.id,
+      })),
+  )
+  const decided = latestDecisions(decisions)
+    .filter((d) => d.decider_id === viewerId && actionable(d, now))
+    .map((d): Ask => ({ id: d.decision_id, kind: 'decision', words: d.question, by: null, target: d.decision_id }))
+  return [...requests, ...decided]
+}
+
+/** What Goals reads of a goal's plan (goals-overview.md): its glance, what in it waits on the viewer, its checkpoint. */
+export const glancedOf = (
+  goal: GoalView,
+  rows: readonly PlanRow[],
+  operable: boolean,
+  viewerId: string | null,
+  now: Date,
+) => ({
+  glance: glanceOf(rows, viewerId),
+  asks: operable ? asksOf(rows, goal.decisions, viewerId, now) : [],
+  checkpoint: goal.next_checkpoint?.label,
+  // What the project's search finds a task by (search-goals.md): its purpose and who does it.
+  tasksFound: rows.map((r) => ({ id: r.item.id, purpose: r.item.purpose, doer: r.doer.name })),
+})
 
 /** Its last report, when it is its current attempt's, in its current generation. */
 const currentActivity = (view: ItemView | null): Activity | null => {

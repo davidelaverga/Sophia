@@ -2,6 +2,7 @@
 // door, its chunk not fetched (a deploy replaced it, the connection dropped as it came) or anything under it failing to
 // draw. Said, with the page again one press away, never a blank screen.
 import { Component, type ReactNode } from 'react'
+import { reportCrash } from './crash-report.ts'
 import { Centered } from './SignIn.tsx'
 
 export class LoadFailed extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -9,6 +10,11 @@ export class LoadFailed extends Component<{ children: ReactNode }, { failed: boo
 
   static getDerivedStateFromError() {
     return { failed: true }
+  }
+
+  // What failed to draw reaches the crash reports where they are on (crash-feedback.md).
+  override componentDidCatch(error: unknown) {
+    reportCrash(error)
   }
 
   override render() {

@@ -11,6 +11,10 @@ import fs from 'node:fs'
 import http from 'node:http'
 import { runOnce } from '../supervisor.mjs'
 
+// Match the protected production startup: credentials stay private while the guest must read its own input disk.
+process.umask(0o077)
+process.stdout.write(`${JSON.stringify({ event: 'UML_E2E_CONTEXT', umask: process.umask().toString(8) })}\n`)
+
 /**
  * @typedef {{ name: string, outcome: string, target?: string | null, detail?: unknown }} Check
  * @typedef {{ status?: string, error?: unknown, sandbox?: { active?: boolean }, checks?: Check[],
@@ -245,6 +249,17 @@ const notPassed = (receipt) =>
       (c) => `${c.name}${c.target ? `@${c.target}` : ''}=${c.outcome}: ${JSON.stringify(c.detail ?? '').slice(0, 200)}`,
     )
 
+/** The actual kernel check counts, retained in the qualification log for independent auditing. @param {Receipt | undefined} receipt */
+const checkCounts = (receipt) => {
+  const checks = receipt?.checks ?? []
+  return {
+    total: checks.length,
+    passed: checks.filter((c) => c.outcome === 'passed').length,
+    failed: checks.filter((c) => c.outcome === 'failed').length,
+    unknown: checks.filter((c) => c.outcome === 'unknown').length,
+  }
+}
+
 try {
   // A PDF job with an image: delivered, the receipt's PDF uploaded, the sandbox active, every kernel check passed.
   {
@@ -259,7 +274,15 @@ try {
       failed.length === 0 &&
       seen.uploads.length === 1 &&
       upload?.sha256 === receipt.output?.sha256
-    step('pdf', ok, { outcome, ms, status: receipt?.status, sandbox: receipt?.sandbox, failed, uploads: seen.uploads })
+    step('pdf', ok, {
+      outcome,
+      ms,
+      status: receipt?.status,
+      sandbox: receipt?.sandbox,
+      failed,
+      checks: checkCounts(receipt),
+      uploads: seen.uploads,
+    })
   }
   // A capture job at both targets: every capture uploaded matches its receipt, every check passed, the width sweep
   // among them.
@@ -281,7 +304,7 @@ try {
       captures.length === seen.uploads.length &&
       uploaded
     const detail = { outcome, ms, status: receipt?.status, error: receipt?.error, sandbox: receipt?.sandbox, failed }
-    step('capture', ok, { ...detail, captures: captures.length })
+    step('capture', ok, { ...detail, checks: checkCounts(receipt), captures: captures.length })
   }
   // A Stop while the guest renders: cancelled, nothing uploaded or settled, and within 15 s no process of the
   // launchers' uid and no UML kernel remains.

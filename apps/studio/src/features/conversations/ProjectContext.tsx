@@ -37,7 +37,7 @@ interface Props {
   /** Opened as a panel (under 1180 px): its Close takes the focus. */
   opened: boolean
   onClose: () => void
-  /** The saved-text policy's notice (A16), reachable here after a first message: null where none applies. */
+  /** The saved-text policy's notice (A33), reachable here after a first message: null where none applies. */
   notice: string | null
   /** Where the reader erases the open conversation (an admin: the list's `capability.moderate`); null for others. */
   erase: Erase | null

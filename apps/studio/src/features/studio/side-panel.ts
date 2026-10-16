@@ -2,9 +2,9 @@
 // the chat, and whether the brief changed since it was last looked at.
 import type { Snapshot } from '@sophia/contracts'
 
-export type Panel = 'chat' | 'brief'
-export const PANELS: readonly Panel[] = ['chat', 'brief']
-export const PANEL_TITLE: Record<Panel, string> = { chat: 'Chat', brief: 'Brief' }
+export type Panel = 'chat' | 'people' | 'brief'
+export const PANELS: readonly Panel[] = ['chat', 'people', 'brief']
+export const PANEL_TITLE: Record<Panel, string> = { chat: 'Chat', people: 'People', brief: 'Brief' }
 
 /** A turn that has its outcome: answered, refused, or left unconfirmed. */
 const SETTLED: ReadonlySet<string> = new Set(['complete', 'refused', 'unknown'])

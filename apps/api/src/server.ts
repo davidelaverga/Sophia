@@ -7,6 +7,7 @@ import { rehearsalCompanion } from './companion-rehearsal.ts'
 import { parseOrigins } from './cors.ts'
 import type { InviteConfig } from './invite-token.ts'
 import { byteStoreFromEnv } from './byte-store.ts'
+import { RENDER_BODY_MS } from './renderer-upload-admission.ts'
 import { folderMailer, resendMailer, type Mailer } from './mail.ts'
 
 // Trimmed: a trailing CR from a CRLF env file would silently break the exact issuer check.
@@ -17,7 +18,7 @@ function required(name: string): string {
   return v
 }
 
-const pool = createPool(required('SOPHIA_API_DATABASE_URL'))
+const pool = createPool(required('SOPHIA_API_DATABASE_URL'), { connectionTimeoutMillis: RENDER_BODY_MS })
 await checkRoleSafety(pool) // refuse to start as an owner, superuser or BYPASSRLS login
 
 /** Invitation links need a secret (≥ 32 characters) and the Studio address people open. */
@@ -65,8 +66,8 @@ function personalCompanion(): Companion | null {
   return rehearsalCompanion()
 }
 /**
- * Saved project conversations (CON-01): SOPHIA_CONVERSATIONS=on serves A16 and makes /ready require migration 0048.
- * Unset or off, neither: nothing else changes. Which projects keep text is still each project's own setting (0048).
+ * Saved project conversations (CON-01): SOPHIA_CONVERSATIONS=on serves A33 and makes /ready require migration 0063.
+ * Unset or off, neither: nothing else changes. Which projects keep text is still each project's own setting (0063).
  */
 function conversationsOn(): boolean {
   const mode = optional('SOPHIA_CONVERSATIONS')

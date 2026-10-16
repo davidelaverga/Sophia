@@ -8,7 +8,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { ThreadHeld } from './conversation-list.ts'
 
 /**
- * A feed position: the contract's decimal cursor (`CURSOR_PATTERN` in @sophia/contracts, which the A16 validator applies
+ * A feed position: the contract's decimal cursor (`CURSOR_PATTERN` in @sophia/contracts, which the A33 validator applies
  * to a receipt's `cursor`). Written here, not imported: that package's root reads files at load and is server-only, so a
  * runtime import from it left the Studio blank at 7ff0eac9.
  */

@@ -2,7 +2,9 @@
 // no traffic. On a database migrated through 0042 only, the capture routes of 0043 (#117) would fail on undefined
 // functions: not ready. Once 0043 is applied, ready. The previous API requires nothing of 0043, so during a rolling
 // deployment it stays ready on either database. An API given a byte store also requires 0044's write claim
-// (writeOnce): not ready without it, and an API without a store requires nothing of 0044.
+// (writeOnce): not ready without it, and an API without a store requires nothing of 0044. The brief and the room's
+// chat read the authors' names of 0048 and 0049 (Codex P1 on #336), and a voice write the room names of 0050: not
+// ready on a database short of any.
 import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -20,6 +22,15 @@ import { memoryByteStore } from './byte-store.ts'
 const MIGRATIONS = fileURLToPath(new URL('../../../db/migrations', import.meta.url))
 const DELIVERY = '0043_design_delivery.sql'
 const WRITE_ONCE = '0044_object_write_once.sql'
+const DISCUSSION_NAMES = '0048_discussion_author_name.sql'
+const MISSION_NAMES = '0049_mission_author_names.sql'
+const ROOM_NAMES = '0050_room_names.sql'
+const PROJECT_RENAME = '0051_project_rename.sql'
+const PROJECT_LEAVE = '0052_project_leave.sql'
+const GOAL_TARGETS = '0054_goal_targets.sql'
+const INVITABLE = '0055_invitable_people.sql'
+const MEMBER_ROLES = '0056_member_roles.sql'
+const ACTIVITY = '0057_project_activity.sql'
 
 let dir: string
 let db: TestDatabase
@@ -71,18 +82,52 @@ async function migrate(file: string) {
   }
 }
 
+/** Every migration after 0044 and before `until`, as written, that this run hasn't applied (none needs 0044). */
+async function through(until: string) {
+  for (const file of readdirSync(MIGRATIONS)
+    .filter((f) => f.endsWith('.sql') && f > WRITE_ONCE && f < until)
+    .toSorted())
+    if (!applied.has(file)) await migrate(file)
+}
+
+/** The database as the API needs it, short of 0044: 0043 and every migration after 0044. */
+async function current() {
+  if (!applied.has(DELIVERY)) await migrate(DELIVERY)
+  await through('9999')
+}
+
 describe('readiness across 0043', () => {
-  it('is not ready on a database migrated through 0042, and ready once 0043 is applied', async () => {
+  it('is not ready on a database migrated through 0042, nor short of 0048, 0049, 0050 or 0051; ready with all', async () => {
     assert.ok(readdirSync(dir).includes('0042_source_review_coordination.sql'), 'migrated through 0042')
     assert.ok(!readdirSync(dir).includes(DELIVERY))
     assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0043')
     await migrate(DELIVERY)
-    assert.deepEqual(await ready(), [200, { ready: true }], 'with 0043')
+    await through(DISCUSSION_NAMES)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0048')
+    await migrate(DISCUSSION_NAMES)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0049')
+    await migrate(MISSION_NAMES)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0050')
+    await migrate(ROOM_NAMES)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0051')
+    await migrate(PROJECT_RENAME)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0052')
+    await migrate(PROJECT_LEAVE)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0054')
+    await migrate(GOAL_TARGETS)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0055')
+    await migrate(INVITABLE)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0056')
+    await migrate(MEMBER_ROLES)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0057')
+    await migrate(ACTIVITY)
+    await current()
+    assert.deepEqual(await ready(), [200, { ready: true }], 'with all')
   })
 
   it('with a byte store, is not ready until 0044 lets every write claim its key; without one, needs no 0044', async () => {
     assert.ok(!readdirSync(dir).includes(WRITE_ONCE))
-    if (!applied.has(DELIVERY)) await migrate(DELIVERY)
+    await current()
     assert.deepEqual(await ready(stored), [503, { ready: false, reason: 'schema' }], 'a store, no 0044')
     assert.deepEqual(await ready(), [200, { ready: true }], 'no store, no 0044')
     await migrate(WRITE_ONCE)

@@ -19,6 +19,7 @@ import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { Goal, GoalCommand } from '@sophia/contracts'
 import type { ChatCaption } from '@sophia/contracts/room-chat'
+import { OFFERED } from './invitations-data.ts'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { forgetKept, keptAt, type Kept } from '../src/features/conversations/talk-store.ts'
 import { accountOf } from '../src/app/auth-callback.ts'
@@ -26,11 +27,13 @@ import { messagesKey } from '../src/features/conversations/conversation-list.ts'
 import { StrictMode, useEffect, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AccountMenu } from '../src/app/AccountMenu.tsx'
+import { PrivacySheet } from '../src/features/personal/PlaceDialogs.tsx'
 import type { View } from '../src/app/route.ts'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
+import { rememberWelcome } from '../src/features/access/welcome.ts'
 import '../src/app/theme.css'
-import { noteKept, type Notes } from './brief-data.ts'
+import { goalNote, noteKept, type Notes } from './brief-data.ts'
 import { noShowing, walked } from './focus-data.ts'
 import { noReviews } from './review-data.ts'
 import { noTasks, taskOf } from './task-data.ts'
@@ -38,7 +41,17 @@ import { finishedAfter, newMeeting, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
 import type { CallEnd } from '../src/features/voice/call-end.ts'
 import { CONVERSATION, conversationMission, conversations, messagesOf, quietConversation } from './conversation-data.ts'
-import { asked, deliverCaption, deliverNotice, dropCall, leaving, sophiaLeaves } from './fake-livekit.ts'
+import {
+  asked,
+  deliverCaption,
+  deliverNotice,
+  dropCall,
+  joined,
+  leaving,
+  reactFrom,
+  sophiaLeaves,
+  speakWhileMuted,
+} from './fake-livekit.ts'
 import {
   count,
   endPause,
@@ -47,6 +60,7 @@ import {
   others,
   personId,
   setFollowers,
+  personLeaves,
   setSophia,
   setSpeaking,
   sophiaAsked,
@@ -79,17 +93,29 @@ import {
   VERSIONS_HELD,
 } from './report-data.ts'
 import { DEMO, DEMO_LABEL, DEMO_VERSION, VIEWER_NAME } from './demo.ts'
+import { ResourcePanel } from '../src/features/resources/ResourcePanel.tsx'
+import {
+  actions as resourceActions,
+  earlierReadings,
+  NOW as RESOURCES_READ,
+  observations as resourceObservations,
+  people as resourcePeople,
+  resources as resourceList,
+} from './resources-data.ts'
 import type { ExchangeAction } from './exchange-writes.ts'
 import { sophiaArrives, stopScene } from './room-scene.ts'
 import { DEMO_GOALS, goalsAdmitted, goalsSettled } from './demo-goals.ts'
-import { demoServedGoals } from './demo-work.ts'
+import { demoResources, demoServedGoals } from './demo-work.ts'
 import { bootTheme } from '../src/app/theme.ts'
+import { startCrashReports } from '../src/app/crash-report.ts'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
   update: () => void
   /** The door shuts under the shell: the next snapshot read is refused (403), with no move of the route. */
   shutDoor: () => void
+  /** Sophia writes a difficulty on the demo's goal of that title, from a call, and the project's stream moves (goal-notes.md). */
+  noteOnGoal: (title: string, text: string) => void
   /** The room's recent discussion goes (it moved past what the snapshot holds): a reply to it is refused (A20). */
   forgetDiscussion: () => void
   /** The account is forgotten, as signing out or switching identity forgets it (App): reads cleared, nothing kept. */
@@ -101,8 +127,26 @@ interface Fixture {
   releaseMessages: () => void
   /** While on, the read of which messages answer which fails (A20). */
   failReplies: (on: boolean) => void
+  /** The next room token is refused, so that join fails and offers Try again. */
+  failToken: () => void
+  /** The next request to revise the page is refused, a design under way (revise-section.md). */
+  failEdit: () => void
+  /** While on, requests to revise the page wait for their replies; off, they answer. */
+  holdEdit: (on: boolean) => void
+  /** The next read of the earlier discussion fails, as an unavailable API's (discussion-earlier.md). */
+  failEarlier: () => void
+  /** The next host control fails, as an unreachable room server's (host-controls.md). */
+  failHost: () => void
+  /** The next goal target saved finds someone else's first (goal-owner-date.md). */
+  staleTarget: () => void
+  /** The next invitation to this address fails, as an unavailable API's (invite-from-projects.md). */
+  failInvite: (email: string) => void
+  /** While on, host controls land but their replies wait; off, they answer. */
+  holdHost: (on: boolean) => void
   /** Another member writes in the room's discussion, and the event saying so goes out. */
   say: (text: string) => void
+  /** Someone starts waiting at the door, and the event saying so goes out (knock-alert.md). */
+  knock: () => void
   /** The call's connection is lost. */
   drop: (why?: CallEnd) => void
   /** The fixture report's next version is published (the viewer learns of it when it reads the list again). */
@@ -151,14 +195,18 @@ interface Fixture {
   releaseTaskReads: () => void
   /** While on, searches wait; off, the waiting ones are answered (A13). */
   holdSearch: (on: boolean) => void
+  /** Reads of the served board wait while on, as a slow API's do; off, the waiting ones are answered (search-honest.md). */
+  holdBoard: (on: boolean) => void
   /** The conversations' list reads fail, or read again (A18). */
   failConversations: (on: boolean) => void
   /** The list's reads are refused (403), as to a reader no longer in the project, the feed not moving; or answer again. */
   refuseConversations: (on: boolean) => void
+  /** The reads of a conversation's older pages fail, or read again. */
+  failOlderMessages: (on: boolean) => void
   /** The second conversation gets a message: it is the newest now, and the list says so when read again (A18). */
   conversationMoves: () => void
   /**
-   * Newer activity pushes this conversation past what the list holds (A16's newest 200, `more`), never erasing it; null
+   * Newer activity pushes this conversation past what the list holds (A33's newest 200, `more`), never erasing it; null
    * brings it back. The feed moves either way.
    */
   capPast: (conversationId: string | null) => void
@@ -229,6 +277,8 @@ interface Fixture {
   taskBy: (n: number | null) => void
   /** These others follow the shown version (their `sophia.following`, A14); the rest follow nothing. */
   followers: (people: number[]) => void
+  /** Someone leaves the room, by name (room-pin-fullscreen.md). */
+  leaves?: (name: string) => void
   /** Sophia moves the shown report's focus to a section, as her `present_section` would (A14). */
   sophiaWalks: (anchor: string) => void
   /** The next message to the room lands, but its reply is lost: the page can't tell it was recorded. */
@@ -261,6 +311,8 @@ interface Fixture {
   caption: (packet: ChatCaption) => void
   /** Sophia's participant leaves the room (her bridge lost its link, or restarted). */
   sophiaLeaves: () => void
+  /** Speech is heard on this person's muted microphone (muted-speech.md). */
+  speakMuted: () => void
   /** A teammate edits the report's description elsewhere (the page learns of it when it reads the cards again). */
   describeElsewhere: (text: string) => void
   /** Reads of the report's versions fail from now on: unavailable, or refused (`not_found`); given false, they succeed. */
@@ -287,6 +339,12 @@ interface Fixture {
   floorTo: readonly string[]
   /** What the room's connection was asked (fake-livekit.ts). */
   asked: readonly string[]
+  /** Someone in the room reacts, by name, with any emoji the check gives (call-reactions.md). */
+  reactFrom?: (name: string, emoji: string) => void
+  /** The devices the last call opened with (call-devices.md); null before any. */
+  readonly devicesOnJoin: Partial<Record<string, string>> | null
+  /** The camera background the last call opened with (call-backgrounds.md); null before any. */
+  readonly backgroundOnJoin: string | null
   /** What the API answered, as `snapshot:2` (fixture-api.ts). */
   served: readonly string[]
   unexpected: readonly string[]
@@ -302,6 +360,35 @@ declare global {
 
 const query = new URLSearchParams(window.location.search)
 bootTheme(query.get('theme'))
+// As main.tsx starts them: on here only with `?sentry=1` (fixtures/crash-dsn.ts, crash-feedback.md).
+startCrashReports()
+// `earlyFail=1`: a failure while Sentry's chunk is still on its way, as a first render's could be (Codex P1 on #367).
+if (query.has('earlyFail'))
+  setTimeout(() => {
+    throw new Error('An early failure')
+  }, 0)
+// `welcome=1`: the project was just joined, as accepting a member's invitation leaves it (newcomer-welcome.md).
+if (query.get('welcome') === '1')
+  rememberWelcome({ projectId: PROJECT, inviter: 'Lucia', role: 'editor', at: Date.now() })
+
+/** The demo's notes on its rollout (goal-notes.md): Sophia's difficulty from the call, and the viewer's own. */
+function demoGoalNotes() {
+  const rollout = DEMO_GOALS.find((g) => g.status === 'running')
+  if (!rollout) return []
+  return [
+    goalNote(1, rollout.id, {
+      kind: 'observation',
+      text: 'The pilot numbers hold: 2.4 days to a first shared report.',
+      hours: 72,
+    }),
+    goalNote(2, rollout.id, {
+      kind: 'blocker',
+      text: 'From the call: legal review of the translated checklist lands Thursday; nothing ships before.',
+      hours: 2,
+      sophia: true,
+    }),
+  ]
+}
 
 /** The floor's holder the page asked for: the viewer, the `n`th other person, or someone not in the room. */
 function holderAsked(floor: string | null): string | undefined {
@@ -354,6 +441,44 @@ function floorMoves(actorId: string): void {
     endPause()
   }
   floorTo.push(nameOf(actorId))
+}
+
+/**
+ * The goals' owners and dates the page asks for (`targets=`), by goal id; `late` makes the admin change the viewer's,
+ * past its date (goal-overdue-health.md).
+ */
+function goalTargetsAsked(
+  wanted: string | null,
+): [string, { ownerId: string; targetDate: string; revision: number }][] {
+  if (wanted !== '1' && wanted !== 'mine' && wanted !== 'late') return []
+  const rollout: [string, { ownerId: string; targetDate: string; revision: number }] = [
+    '00000000-0000-4000-8000-000000009001',
+    { ownerId: personId(1), targetDate: '2026-10-30', revision: 1 },
+  ]
+  if (wanted === '1') return [rollout]
+  if (wanted === 'late')
+    return [
+      rollout,
+      ['00000000-0000-4000-8000-000000009002', { ownerId: membership.actorId, targetDate: '2026-10-25', revision: 1 }],
+    ]
+  return [
+    rollout,
+    ['00000000-0000-4000-8000-000000009002', { ownerId: membership.actorId, targetDate: '2026-11-20', revision: 1 }],
+    ['00000000-0000-4000-8000-000000009003', { ownerId: membership.actorId, targetDate: '2026-10-01', revision: 1 }],
+  ]
+}
+
+/** Four messages over two days in the viewer's zone: yesterday's evening, this morning (chat-times.md). */
+function overTwoDays(): Said[] {
+  const day = new Date()
+  const at = (back: number, hour: number, minute: number) =>
+    new Date(day.getFullYear(), day.getMonth(), day.getDate() - back, hour, minute).toISOString()
+  return [
+    { text: 'The deck is in Resources.', at: at(1, 17, 40) },
+    { text: 'I’ll read it tonight.', me: true, at: at(1, 18, 5) },
+    { text: 'Morning. Comments are in.', at: at(0, 8, 10) },
+    { text: 'Thanks, reading them now.', me: true, at: at(0, 8, 25) },
+  ]
 }
 
 const project = {
@@ -415,11 +540,25 @@ const project = {
       })
     }
   },
-  messages: [] as (string | Said)[],
+  // `discussion=60`: that many messages from another member, more than the snapshot's 50 (discussion-earlier.md);
+  // `discussion=days`: two from yesterday and two from today; `discussion=yesterday`, yesterday's two (chat-times.md).
+  messages: (query.get('discussion') === 'days' || query.get('discussion') === 'yesterday'
+    ? overTwoDays().slice(0, query.get('discussion') === 'days' ? 4 : 2)
+    : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`)) as (string | Said)[],
   contributions: new Map(),
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
+  failToken: false,
+  failEdit: false,
+  editHeld: null as (() => void)[] | null,
+  failEarlier: false,
+  failHost: false,
+  staleTarget: false,
+  // `targets=1`: the rollout is Marco's, due 30 October 2026 (goal-owner-date.md); `targets=mine` adds the admin change
+  // as the viewer's, due 20 November, and the completed pilot as theirs, due 1 October (goal-overdue.md).
+  goalTargets: new Map(goalTargetsAsked(query.get('targets'))),
+  hostHeld: null as (() => void)[] | null,
   // The demo publishes both its versions (the second region's revision), unless `versions=` says otherwise.
   reportVersions: Math.min(VERSIONS_HELD, Math.max(1, Number(query.get('versions')) || (DEMO ? 2 : 1))),
   reportTitle: query.get('title') === 'long' ? LONG_TITLE : TITLE,
@@ -428,11 +567,23 @@ const project = {
   waiting: query.get('lobby') === 'waiting' || query.get('lobby') === 'again' || query.get('lobby') === 'two',
   lobbyAsked: query.get('lobby'),
   ...(query.get('role') === 'viewer' ? { role: 'viewer' as const } : {}),
+  // `fresh=1`: a project just made, nothing recorded yet (first-step.md).
+  fresh: query.get('fresh') === '1',
   ...(query.get('role') === 'editor' ? { role: 'editor' as const } : {}),
+  // `admins=1`: the viewer is the project's only admin, so leaving is refused (project-leave.md).
+  soleAdmin: query.get('admins') === '1',
+  // The invitations made here, kept as the API keeps them (invitations-data.ts): the demo's Invite has no dead end.
+  invitations: {
+    kept: [],
+    made: 0,
+    offered: query.get('invitable') === 'none' ? [] : OFFERED,
+    failFor: null as string | null,
+  },
   description: SOPHIAS_DESCRIPTION,
   versionsFail: false as false | 'unavailable' | 'not_found',
   sourcesHeld: query.get('hold') === 'sources',
   textHeld: query.get('hold') === 'text',
+  activityHeld: query.get('hold') === 'activity',
   // The demo's research is on its second version, as its report (both published by default).
   taskRevision: RESEARCH_REVISION,
   taskHeld: query.get('hold') === 'task',
@@ -493,7 +644,9 @@ const project = {
   outsider: query.get('member') === '0',
   // A13: searches held while the page asks (`holdSearch`).
   searchHeld: null as (() => void)[] | null,
-  missionFails: false,
+  boardHeld: null as (() => void)[] | null,
+  // `mission=fail`: the brief's reads fail from the first (notes-robust.md); `window.fixture.failMission` turns it.
+  missionFails: query.get('mission') === 'fail',
   missionRefused: false,
   reviews: {
     ...noReviews(query.get('reviews') === 'fail'),
@@ -518,7 +671,7 @@ const project = {
     ...(DEMO ? { published: () => [readoutMade()] } : {}),
   },
   notes: {
-    kept: [],
+    kept: DEMO ? demoGoalNotes() : [],
     written: 0,
     receipts: new Map(),
     loseReply: false,
@@ -535,8 +688,20 @@ window.fixture = {
     project.doorShut = true
     publish(project)
   },
+  noteOnGoal: (title, text) => {
+    const goal = DEMO_GOALS.find((g) => g.title === title)
+    if (!goal) return
+    project.notes.kept.push(
+      goalNote(project.notes.kept.length + 10, goal.id, { kind: 'blocker', text, hours: 0, sophia: true }),
+    )
+    publish(project)
+  },
   say: (text) => {
     project.messages.push(text)
+    publish(project)
+  },
+  knock: () => {
+    project.waiting = true
     publish(project)
   },
   forgetAccount: () => {
@@ -562,6 +727,34 @@ window.fixture = {
   },
   failReplies: (on) => {
     project.failReplies = on
+  },
+  failToken: () => {
+    project.failToken = true
+  },
+  failEdit: () => {
+    project.failEdit = true
+  },
+  holdEdit: (on) => {
+    const held = project.editHeld ?? []
+    project.editHeld = on ? [] : null
+    if (!on) for (const reply of held) reply()
+  },
+  failEarlier: () => {
+    project.failEarlier = true
+  },
+  failHost: () => {
+    project.failHost = true
+  },
+  staleTarget: () => {
+    project.staleTarget = true
+  },
+  failInvite: (email) => {
+    project.invitations.failFor = email
+  },
+  holdHost: (on) => {
+    const held = project.hostHeld ?? []
+    project.hostHeld = on ? [] : null
+    if (!on) for (const reply of held) reply()
   },
   drop: dropCall,
   // Never past the versions the fixture holds (the demo's two): a further publish changes nothing.
@@ -652,6 +845,9 @@ window.fixture = {
   },
   refuseConversations: (on) => {
     if (project.conversations) project.conversations.refusedList = on
+  },
+  failOlderMessages: (on) => {
+    if (project.conversations) project.conversations.failOlder = on
   },
   conversationMoves: () => {
     const moved = project.conversations?.list.find((c) => c.id === CONVERSATION.briefs)
@@ -766,6 +962,10 @@ window.fixture = {
     if (!on) for (const answer of project.searchHeld ?? []) answer()
     project.searchHeld = on ? waiting() : null
   },
+  holdBoard: (on) => {
+    if (!on) for (const answer of project.boardHeld ?? []) answer()
+    project.boardHeld = on ? waiting() : null
+  },
   releaseTaskReads: () => {
     const held = project.tasks.heldReads ?? []
     project.tasks.heldReads = null
@@ -853,6 +1053,7 @@ window.fixture = {
   },
   caption: deliverCaption,
   sophiaLeaves,
+  speakMuted: speakWhileMuted,
   describeElsewhere: (text) => {
     project.description = { text, revision: project.description.revision + 1, author: TEAMMATE }
   },
@@ -875,11 +1076,19 @@ window.fixture = {
   },
   sophia: setSophia,
   speaking: setSpeaking,
+  leaves: personLeaves,
   moveRoom: () => {
     project.roomMoves = true
   },
   floorTo,
   asked,
+  reactFrom,
+  get devicesOnJoin() {
+    return joined.devices
+  },
+  get backgroundOnJoin() {
+    return joined.background
+  },
   served,
   unexpected,
   missionWrites,
@@ -1040,6 +1249,7 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       heldMessages: null as (() => void)[] | null,
       sameTimeNext: false,
       failMessagesOf: (failMessages ? CONVERSATION.briefs : null) as string | null,
+      failOlder: query.get('older') === 'fail',
       send: sendAsked(query.get('send')),
       start: startAsked(query.get('start')),
       answerMs: query.get('answer') === 'slow' ? 10_000 : 900,
@@ -1056,28 +1266,60 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
  * The project as the signed-in Studio shows it (SignedIn.tsx): its view moves as the person picks another (ViewNav,
  * the mini dock).
  */
+/**
+ * The account menu's actions on the fixture page (account-menu.md): How privacy works opens its sheet here; your
+ * personal data goes to the personal space, as the app goes home; signing out goes to the sign-in.
+ */
+const demoAccount = (privacy: () => void) => ({
+  data: () => window.location.assign(`personal.html${DEMO ? '?demo=1' : ''}`),
+  privacy,
+  chooseDev: nothing,
+  signOut: () => window.location.assign(`signin.html${DEMO ? '?demo=1' : ''}`),
+})
+
 function Project({ background }: { background: boolean }) {
   const [view, setView] = useState<View>(viewOf(query.get('place')))
+  const [privacy, setPrivacy] = useState(false)
   return (
-    <ProjectShell
-      projectId={PROJECT}
-      view={view}
-      identity={identity}
-      account={
-        <AccountMenu
-          identity={identity}
-          where="project"
-          actions={{ data: nothing, privacy: nothing, chooseDev: nothing, signOut: nothing }}
-        />
-      }
-      onShow={(next) => {
-        if (SERVED.includes(next)) setView(next)
-      }}
-      onLeave={nothing}
-      onWork={nothing}
-      onSignOut={nothing}
-      joinOnOpen={query.get('call') === 'on'}
-      background={background}
+    <>
+      {privacy && <PrivacySheet onClose={() => setPrivacy(false)} />}
+      <ProjectShell
+        projectId={PROJECT}
+        view={view}
+        identity={identity}
+        account={<AccountMenu identity={identity} where="project" actions={demoAccount(() => setPrivacy(true))} />}
+        onShow={(next) => {
+          if (SERVED.includes(next)) setView(next)
+        }}
+        onLeave={nothing}
+        onWork={() => served.push('went:work')}
+        onSignOut={nothing}
+        joinOnOpen={query.get('call') === 'on'}
+        background={background}
+        resources={DEMO ? <DemoResources /> : undefined}
+      />
+    </>
+  )
+}
+
+/** The resources' labelled fixture data told in the pilot's words and cast, as the demo's board is (demo-work.ts). */
+const DEMO_RESOURCES = demoResources({ resources: resourceList, actions: resourceActions })
+
+/**
+ * The demo's Resources: the real panel over the resources' labelled fixture data (resources-data.ts), read-only (no
+ * effort, act or task link wired, so nothing offers a press that does nothing; docs/plans/demo-resources.md), told as
+ * the board is (docs/plans/demo-resources-story.md).
+ */
+function DemoResources() {
+  return (
+    <ResourcePanel
+      resources={DEMO_RESOURCES.resources}
+      observations={resourceObservations}
+      actions={DEMO_RESOURCES.actions}
+      viewerId={resourcePeople.luis.id}
+      now={RESOURCES_READ}
+      history={earlierReadings(resourceObservations)}
+      scope="demo"
     />
   )
 }

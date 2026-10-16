@@ -128,7 +128,7 @@ const start = (body: unknown, key = randomUUID(), as = E) =>
 const send = (conversationId: string, body: unknown, key = randomUUID(), as = E) =>
   call(`/api/v1/conversations/${conversationId}/messages`, { as, key, body })
 
-describe('A16 over HTTP', () => {
+describe('A33 over HTTP', () => {
   it('switched off, no route exists; switched on, every answer matches the contract', async () => {
     assert.equal((await call(`/api/v1/projects/${projectId}/conversations`, { as: E, at: offBase })).status, 404)
     const s = await start({ title: 'Onboarding direction', text: 'Map first?', askSophia: false })
@@ -415,7 +415,7 @@ describe('A16 over HTTP', () => {
     assert.equal(row?.body, 'Synthetic body to preserve')
   })
 
-  it("/ready needs 0048's functions only while conversations are served", async () => {
+  it("/ready needs 0063's functions only while conversations are served", async () => {
     assert.equal((await call('/ready')).status, 200)
     assert.equal((await call('/ready', { at: offBase })).status, 200)
     await owner(`ALTER FUNCTION sophia.conversation_access(uuid) RENAME TO conversation_access_hidden`)
@@ -426,7 +426,7 @@ describe('A16 over HTTP', () => {
       assert.equal(
         (await call('/ready', { at: offBase })).status,
         200,
-        'the API without conversations needs nothing of 0048',
+        'the API without conversations needs nothing of 0063',
       )
     } finally {
       await owner(`ALTER FUNCTION sophia.conversation_access_hidden(uuid) RENAME TO conversation_access`)

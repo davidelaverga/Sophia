@@ -123,3 +123,35 @@ test('next ask · the field’s description says why too, for the keyboard and a
   })
   expect(described).toContain('Because it is proposed and not decided')
 })
+
+test('next ask · focus in the field shows why, as a pointer on the cap does (Codex P2 on #262)', async ({ page }) => {
+  await page.goto(PAGE)
+  await askAndWait(page, 'Sum it up')
+  await expect(field(page)).toHaveAttribute('placeholder', PROPOSAL_ASK)
+  const tip = hint(page).locator('.tip')
+  // Nothing focused yet: the quick ask pressed may have kept the focus.
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+  })
+  await expect(tip).toHaveCSS('opacity', '0')
+  await field(page).focus()
+  await expect(tip).toHaveCSS('opacity', '1')
+  await expect(tip).toContainText('Because it is proposed and not decided')
+})
+
+test('next ask · older asks unread, the quick asks wait; read again with the thread, they come (Codex on #275)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&older=fail`)
+  await expect(messages(page).first()).toBeVisible()
+  // The page before the loaded one unread: what was asked there is not known, so no quick ask is offered.
+  await expect(quick(page)).toHaveCount(0)
+  // The older read given up for good: its own retry (one, a second on) spent, and the read on its error done.
+  await page.waitForTimeout(2500)
+  await expect(quick(page)).toHaveCount(0)
+  await page.evaluate(() => window.fixture?.failOlderMessages(false))
+  // The feed moves (an event on the project's stream, no focus regained): the open thread is read again, and the older
+  // asks with it, the viewer's own asks unchanged, so nothing else would ask for them again (Codex on #275).
+  await page.evaluate(() => window.fixture?.update())
+  await expect(quick(page).first()).toBeVisible({ timeout: 15_000 })
+})

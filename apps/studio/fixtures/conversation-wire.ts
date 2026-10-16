@@ -1,4 +1,4 @@
-// The fixtures' conversations as A16 serves them (CON-01): the list with its policy and the reader's capability, a
+// The fixtures' conversations as A33 serves them (CON-01): the list with its policy and the reader's capability, a
 // summary with its coverage, a message with its order and its reply request. Only the fixture pages use this; what
 // they keep is conversation-data.ts's. Every word is synthetic.
 import type { ConversationList, ConversationMessage, ConversationSummary, ProjectionCoverage } from '@sophia/contracts'
@@ -33,7 +33,7 @@ const assessed = (messages: readonly FixtureMessage[], at: string): ProjectionCo
         ledgerRevision: 1,
       }
 
-/** A message as A16 serves it: its order is its place in the conversation. */
+/** A message as A33 serves it: its order is its place in the conversation. */
 export const wireMessage = (m: FixtureMessage, index: number): ConversationMessage => ({
   id: m.id,
   seq: index + 1,
@@ -50,14 +50,14 @@ export const wireMessage = (m: FixtureMessage, index: number): ConversationMessa
 /** `?order=none`: rows as an API before CC-0023 lists them, with neither `messageSeq` nor `lastMessage.seq`. */
 const ORDERLESS = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('order') === 'none'
 
-/** A conversation as A16 lists it; its newest message's opening only where the page asks for last messages. */
+/** A conversation as A33 lists it; its newest message's opening only where the page asks for last messages. */
 export function wireSummary(
   c: FixtureConversation,
   messages: readonly FixtureMessage[],
   lastShown: boolean,
 ): ConversationSummary {
   const last = messages.findLast((m) => !m.withdrawn && m.text !== null)
-  // The highest place taken, withdrawn messages included (0048's message_seq), and the opening's own (CC-0023).
+  // The highest place taken, withdrawn messages included (0063's message_seq), and the opening's own (CC-0023).
   const placed = (seq: number) => (ORDERLESS ? {} : { seq })
   return {
     ...c,
@@ -79,7 +79,7 @@ export function wireSummary(
   }
 }
 
-/** The list as A16 serves it to a member (a viewer reads and writes nothing; an admin also removes and erases). */
+/** The list as A33 serves it to a member (a viewer reads and writes nothing; an admin also removes and erases). */
 export function wireList(
   list: readonly FixtureConversation[],
   messages: Readonly<Record<string, readonly FixtureMessage[]>>,

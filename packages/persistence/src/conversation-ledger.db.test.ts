@@ -1,4 +1,4 @@
-// CON-01 G2-S2, the reply ledger: frozen candidate promoted into 0049 (source remains in db/candidates),
+// CON-01 G2-S2, the reply ledger: frozen candidate promoted into 0064 (source remains in db/candidates),
 // BINDING_MAP §8.7.1), read here from the complete migrated disposable database. Level: sql-run. No role or provider executes.
 // A reply is put `running` by the owner here because this suite isolates accounting; no
 // dispatch exists yet; that is this test's setup, not a path the candidate offers.

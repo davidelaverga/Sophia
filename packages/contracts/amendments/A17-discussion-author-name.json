@@ -1,0 +1,28 @@
+{
+  "id": "A17",
+  "goal": "E2E",
+  "title": "A message in the room names who wrote it, in a call or not",
+  "why": [
+    "Verifying #330 on the real dev stack (2026-10-14): with nobody in the call, a message in the room's chat read «A member». The Studio names an author from the call's participants, and a DiscussionEntry carries only the author's actorId; no table held a member's name.",
+    "DiscussionEntry gains authorName: the name the author's token carried when they wrote it (an address when the account has no other name), kept with the message by the service. It is never taken from the request (Contribution has no such field). It is null for messages written before this, by voice or by a tool; optional, so a reader that does not know it is unchanged."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/DiscussionEntry/properties/authorName",
+      "value": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 320
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Who wrote it, as their account named them then (an address when it gave no other name); null when unknown."
+      }
+    }
+  ]
+}

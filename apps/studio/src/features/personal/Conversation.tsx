@@ -1,13 +1,13 @@
 // The conversation's rows (conversation-view.ts), rendered: day dividers that list the days, turns grouped by side, each
 // side's first turn marked by its half of Umbral, times on hover (a tap on touch), "Note this" on the person's own turns with its short form in their own
 // words, "Copy" on hers, Sophia's suggested note (keep it or let it go), and the wait for her reply.
-import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type { PersonalSuggestion, PersonalTurn } from '@sophia/contracts'
 import { Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
 import { onScreen } from '../../app/shortcuts.ts'
 import { UMBRAL } from '../light/threshold.ts'
 import type { Way } from './arrive.ts'
-import { daysOf, notePrefill, suggestionFor, type Row } from './conversation-view.ts'
+import { daysOf, notePrefill, opensHere, suggestionFor, type Row } from './conversation-view.ts'
 import type { Week } from './extras.ts'
 import { FindLens, Marked, type Lens } from './Find.tsx'
 import { useCapped } from './useCapped.ts'
@@ -223,7 +223,8 @@ function Turn({ row, noting, onNote }: TurnProps) {
       className={`msg ${me ? 'me' : 'sophia'} ${row.first ? 'first' : 'cont'}${showAt ? ' show-at' : ''}`}
       data-turn={row.turn?.id}
       onClick={(e) => {
-        if (tapShowsTime() && !(e.target instanceof Element && e.target.closest('button'))) setShowAt(!showAt)
+        // A link opens; it doesn't toggle the time (message-links.md).
+        if (tapShowsTime() && !(e.target instanceof Element && e.target.closest('button, a'))) setShowAt(!showAt)
       }}
     >
       {row.first && <Who who={me ? 'you' : 'sophia'} />}
@@ -387,8 +388,14 @@ function TurnWithForm(props: Omit<RowProps, 'row' | 'onDays'> & { row: Extract<R
 }
 
 /** The pill names the day at the top of what you're reading, once its divider has scrolled away. */
+/** The band under the pill where the list fades while scrolled (personal.css, the mask's 68 px). */
+const PILL_BAND = 68
+
 function useDayPill(list: RefObject<HTMLDivElement | null>, rows: readonly Row[]) {
   const [day, setDay] = useState<string | null>(null)
+  const [crowded, setCrowded] = useState(false)
+  // The divider that crowds it, by its id: the pill holding the focus hands it there (useHandOff).
+  const [ahead, setAhead] = useState<string | null>(null)
   useEffect(() => {
     const box = list.current
     if (!box) return undefined
@@ -398,12 +405,37 @@ function useDayPill(list: RefObject<HTMLDivElement | null>, rows: readonly Row[]
       const above = days.filter((d) => d.getBoundingClientRect().top < top).at(-1)
       // The day alone, as the days' menu names it: not the moment it carries.
       setDay(days.length >= 2 && above ? (above.dataset['day'] ?? null) : null)
+      // The next day's divider right under the pill names its day: the pill steps aside rather than say another one a
+      // line above it (docs/plans/personal-day-pill.md).
+      const next = days.find((d) => d.getBoundingClientRect().top >= top)
+      const crowding = next !== undefined && next.getBoundingClientRect().top - top < PILL_BAND
+      setCrowded(crowding)
+      setAhead(crowding ? next.id : null)
     }
     update()
     box.addEventListener('scroll', update, { passive: true })
-    return () => box.removeEventListener('scroll', update)
+    // A resize or a rotation moves the dividers too: crowding is read again then, not only on scroll (Codex P2 on #292).
+    const resized = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
+    resized?.observe(box)
+    return () => {
+      box.removeEventListener('scroll', update)
+      resized?.disconnect()
+    }
   }, [list, rows])
-  return day
+  return { day, crowded, ahead }
+}
+
+/**
+ * The pill holding the focus as it steps aside hands it to the divider that crowds it, which names the next day and
+ * opens the same menu: inert, the pill would keep a focus no key can use (Codex P2 on #316). Before paint, while the
+ * focus is still on it.
+ */
+function useHandOff(pill: RefObject<HTMLButtonElement | null>, stepped: boolean, ahead: string | null) {
+  useLayoutEffect(() => {
+    if (stepped && ahead && document.activeElement === pill.current) {
+      document.getElementById(ahead)?.focus({ preventScroll: true })
+    }
+  }, [pill, stepped, ahead])
 }
 
 /** The day chosen from the days' menu: in sight, with the focus, so Tab and the keys go on from there. */
@@ -438,6 +470,10 @@ function Earlier(props: {
   rows: readonly Row[]
   open: boolean
   day: string | null
+  /** The next day's divider is right under the pill: it steps aside (useDayPill). */
+  crowded: boolean
+  /** That divider's id, while it crowds the pill. */
+  ahead: string | null
   setOpen: (open: boolean) => void
   /** Earlier days than those shown exist: the first item reads them back. */
   more: boolean
@@ -445,15 +481,21 @@ function Earlier(props: {
   reading: boolean
   onMore: () => void
 }) {
-  const { rows, open, day, setOpen, more, reading, onMore } = props
+  const { rows, open, day, crowded, setOpen, more, reading, onMore } = props
   const menu = usePopover(open, () => setOpen(false))
   useFocusAfterMore(menu.panel, open, more)
+  useHandOff(menu.opener, crowded && !open, props.ahead)
   return (
     <div ref={menu.wrap} className="c3-daybar">
       {day && (
         <button
           ref={menu.opener}
           className="c3-daypill"
+          data-crowded={(crowded && !open) || undefined}
+          tabIndex={crowded && !open ? -1 : undefined}
+          // Stepped aside, it is out of sight and out of reach: no reader names it, no key lands on it (Codex P2 on #292).
+          aria-hidden={(crowded && !open) || undefined}
+          inert={crowded && !open}
           type="button"
           aria-haspopup="menu"
           aria-expanded={open}
@@ -507,6 +549,25 @@ interface ConversationProps {
   answered?: React.ReactNode
   /** What finding marks in the turns (Find), or null when nothing is looked for. */
   lens?: Lens | null
+  /** Personal is out of sight (another place): its visit, and the start begun in it, end. */
+  hidden?: boolean
+}
+
+/**
+ * A conversation that opened here (the ways to start offered) keeps its start for the rest of the visit: the first
+ * message sent grows the thread downward from where it began, instead of throwing it to the bottom
+ * (docs/plans/personal-first-talk.md).
+ */
+function useBegins(rows: readonly Row[], hidden: boolean) {
+  const [begins, setBegins] = useState(false)
+  const opens = opensHere(rows)
+  // The visit ends when Personal is left: come back to, the conversation rests on the field (Codex P2 on #290); one
+  // that still opens here begins its start again, as opening it did (Codex P2 on #320).
+  useEffect(() => {
+    if (hidden) setBegins(false)
+    else if (opens) setBegins(true)
+  }, [opens, hidden])
+  return begins || opens
 }
 
 export function Conversation(props: ConversationProps) {
@@ -514,7 +575,8 @@ export function Conversation(props: ConversationProps) {
     props
   const lens = props.lens ?? null
   const [noteAt, setNoteAt] = useState<string | null>(null)
-  const day = useDayPill(list, rows)
+  const { day, crowded, ahead } = useDayPill(list, rows)
+  const begins = useBegins(rows, props.hidden ?? false)
   // The typing scope (shortcuts.ts): a letter typed on any of its controls, or with the focus on the conversation
   // itself, is text for the message bar, never a place's key.
   return (
@@ -524,11 +586,20 @@ export function Conversation(props: ConversationProps) {
           rows={rows}
           open={earlier}
           day={day}
+          crowded={crowded}
+          ahead={ahead}
           setOpen={setEarlier}
           {...{ more, reading }}
           onMore={() => void actions.readEarlier()}
         />
-        <div ref={list} id="c-log" className="msgs" aria-label="Conversation with Sophia" tabIndex={-1}>
+        <div
+          ref={list}
+          id="c-log"
+          className="msgs"
+          data-begins={begins || undefined}
+          aria-label="Conversation with Sophia"
+          tabIndex={-1}
+        >
           {notice}
           {rows.map((row) => (
             <RowView

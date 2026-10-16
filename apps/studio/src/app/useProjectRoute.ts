@@ -3,7 +3,10 @@
 import { useEffect, useState } from 'react'
 import { reportSearch, withReportLink, type ReportLink } from '../features/artifacts/report-link.ts'
 import { DECISION, REQUEST, requestAddress, TASK, showInAddress } from '../features/resources/link.ts'
+import { lensKept } from '../features/studio/viewer-state.ts'
+import { ADDRESS_NAMED } from '../features/resources/useAddressed.ts'
 import { ADDRESS_MOVED, HOME, isJoinPath, parseRoute, routePath, type Place, type Route, type View } from './route.ts'
+import { legalDoc } from './legal.ts'
 
 const current = (): Route => parseRoute(window.location.pathname)
 
@@ -12,10 +15,15 @@ export function useProjectRoute() {
 
   useEffect(() => {
     // Normalize legacy and unknown addresses once, without adding a history entry. An invitation link
-    // (/join#token) is left exactly as it came.
+    // (/join#token) is left exactly as it came, and so are the terms and the privacy notice (Codex P1 on #366).
     const path = window.location.pathname
-    if (!isJoinPath(path) && path !== routePath(route)) {
-      window.history.replaceState(null, '', routePath(route) + reportSearch(window.location.search))
+    if (!isJoinPath(path) && legalDoc(path) === null && path !== routePath(route)) {
+      // The report goes along, and the Studio's lens a shared link named (Codex on #242).
+      const search = window.location.search
+      window.history.replaceState(null, '', routePath(route) + lensKept(search, reportSearch(search)))
+      // A viewer mounted first noted whose lens the address carries under the old path: told, it notes the new one
+      // (Codex on #284).
+      window.dispatchEvent(new Event(ADDRESS_MOVED))
     }
     const onPop = () => setRoute(current())
     window.addEventListener('popstate', onPop)
@@ -50,6 +58,9 @@ export function useProjectRoute() {
       if (at.requestId) showInAddress(requestAddress(at.resourceId ?? null, at.requestId), REQUEST)
       else if (at.decisionId) showInAddress(at.decisionId, DECISION)
       else if (at.taskId) showInAddress(at.taskId, TASK)
+      // A shell kept mounted (Home shown during a call) heard the route move before the record was named: it is told
+      // again once the fragment is in (useAddressed; Codex on #245).
+      if (at.requestId || at.decisionId || at.taskId) window.dispatchEvent(new Event(ADDRESS_NAMED))
     },
     show: (view: View) => go({ ...route, view }),
     /** Out of the project, back to the two doors. */

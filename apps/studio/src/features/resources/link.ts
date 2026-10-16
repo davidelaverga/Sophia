@@ -7,6 +7,10 @@ export const RESOURCE = '#resource-'
 export const TASK = '#task-'
 /** A decision on the board, by its own id: the board scrolls to its choice and gives it the focus (needs-api.md). */
 export const DECISION = '#decision-'
+/** A goal in Tasks: the address chooses it, so its plan is the one on the board (docs/plans/goals-progress.md). */
+export const GOAL = '#goal-'
+/** A conversation in Conversations: the address opens it, and opening one puts it there (conversation-address.md). */
+export const CONVERSATION = '#conversation-'
 /** A native request on a resource, by its id: its resource's sheet opens and the request takes the focus (needs-api.md). */
 export const REQUEST = '#request-'
 
@@ -18,15 +22,17 @@ export const linkHash = (id: string, prefix = RESOURCE) => `${prefix}${encodeURI
  * (an older link) still reads.
  */
 export const requestAddress = (resourceId: string | null, requestId: string) =>
-  resourceId === null ? requestId : `${encodeURIComponent(resourceId)}/${encodeURIComponent(requestId)}`
+  // A bare id leads with the separator (an empty resource), so a slash inside it is never read as one (Codex on #245).
+  `${resourceId === null ? '' : encodeURIComponent(resourceId)}/${encodeURIComponent(requestId)}`
 
 /** The resource and the request a request address names (`requestAddress`); the resource null for a bare id. */
 export function requestOf(address: string): { resourceId: string | null; requestId: string } {
   const at = address.indexOf('/')
   if (at < 0) return { resourceId: null, requestId: address }
   try {
+    const resource = decodeURIComponent(address.slice(0, at))
     return {
-      resourceId: decodeURIComponent(address.slice(0, at)),
+      resourceId: resource === '' ? null : resource,
       requestId: decodeURIComponent(address.slice(at + 1)),
     }
   } catch {

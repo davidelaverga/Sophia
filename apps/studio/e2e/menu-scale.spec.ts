@@ -84,7 +84,8 @@ test('menu · the account’s: the plane 6 px under its control at its end, the 
   await page.keyboard.press('ArrowDown')
   await expect(page.getByRole('menuitem', { name: 'How privacy works' })).toBeFocused()
   await page.keyboard.press('ArrowUp')
-  await expect(page.getByRole('menuitem', { name: /^Your data/ })).toBeFocused()
+  // In a project it is your personal data, said so (docs/plans/account-menu.md).
+  await expect(page.getByRole('menuitem', { name: /^Your personal data/ })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('menu')).toHaveCount(0)
   await expect(account).toBeFocused()
@@ -134,11 +135,19 @@ test('menu · the personal space’s days: the same plane 6 px under the day pil
 }) => {
   // Short enough for the conversation to scroll, so the day pill shows.
   await page.setViewportSize({ width: 1280, height: 480 })
-  await page.goto('/personal.html?demo=1&earlier=1&readSlow=1')
+  // Half past midnight, when CI once ran it (#334). The fixture's talk is set at noon (`at=12:00`): unpinned, yesterday's
+  // was a day and 42 minutes back, the day before yesterday until 00:42, and «Yesterday» wasn't offered.
+  const halfPastMidnight = new Date()
+  halfPastMidnight.setHours(0, 30, 0, 0)
+  await page.clock.setFixedTime(halfPastMidnight)
+  await page.goto('/personal.html?demo=1&earlier=1&readSlow=1&at=12:00')
   await drawn(page, DRAWN.personal)
+  // Scrolled until today's divider sits 120 px under the top, yesterday's above it: the pill names yesterday, with no
+  // divider right under it to step aside for (docs/plans/personal-day-pill.md).
   await page.locator('.msgs').evaluate((l) => {
     l.style.scrollBehavior = 'auto'
-    l.scrollTop = 200
+    const today = [...l.querySelectorAll<HTMLElement>('.c3-day')].at(-1)
+    if (today) l.scrollTop += today.getBoundingClientRect().top - l.getBoundingClientRect().top - 120
   })
   const pill = page.locator('.c3-daypill')
   await expect(pill).toBeVisible()

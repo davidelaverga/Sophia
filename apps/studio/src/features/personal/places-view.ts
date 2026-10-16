@@ -268,7 +268,7 @@ const peopleIn = (p: ProjectSummary) => p.room?.people.length ?? 0
 export function homeNextAsk(
   projects: readonly ProjectSummary[] | undefined,
   now: Date,
-): { words: string; why: string } | null {
+): { words: string; why: string; full: string } | null {
   if (!projects || projects.length === 0) return null
   // About to start, not under way: a session that started is to join, not to get ready for (Codex on #268).
   const ahead = (p: ProjectSummary) =>
@@ -276,10 +276,15 @@ export function homeNextAsk(
   const starting = workOrder(projects, now).find(ahead)
   const when = starting ? sessionWhen(starting, now) : null
   if (!starting?.nextSession || !when) return null
-  return {
-    words: `Help me get ready for ${starting.nextSession.title} in ${starting.title}`,
-    why: `Because it ${when}`,
-  }
+  const words = `Help me get ready for ${starting.nextSession.title} in ${starting.title}`
+  // What Tab puts in the line carries the timing: she reads only the words sent, and the tip saying why is gone by then
+  // (Codex P2 on #268). The placeholder stays short.
+  return { words, why: `Because it ${when}`, full: `${words}. ${when.startsWith('starts') ? 'It' : 'It’s'} ${when}.` }
+}
+
+/** The place arrived at: the last of the places on screen, the one moved to from the first frame of the move. */
+export function placeAt<P>(shown: readonly P[]): P | undefined {
+  return shown.at(-1)
 }
 
 /** Projects with a session about to start come first, the soonest first; then the rest as listed. */
@@ -292,6 +297,36 @@ export function workOrder(projects: readonly ProjectSummary[], now: Date): Proje
     if (x === y) return 0
     return x < y ? -1 : 1
   })
+}
+
+/** From how many projects Work offers finding one and ordering them (find-projects.md). */
+export const FIND_FROM = 6
+
+/** A title as a search compares it: no case, no accents. */
+const plain = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+
+/** The notes whose words hold what is typed, whatever its case or accents, in their order (personal-notes-write-find.md). */
+export function findNotes<T extends { text: string }>(notes: readonly T[], typed: string): T[] {
+  const wanted = plain(typed.trim())
+  return wanted ? notes.filter((n) => plain(n.text).includes(wanted)) : [...notes]
+}
+
+/** The projects whose title holds what is typed, whatever its case or accents; all of them for nothing typed. */
+export function findProjects(projects: readonly ProjectSummary[], typed: string): ProjectSummary[] {
+  const wanted = plain(typed.trim())
+  return wanted ? projects.filter((p) => plain(p.title).includes(wanted)) : [...projects]
+}
+
+export type ProjectOrder = 'next' | 'az'
+
+/** Work's own order (sessions soon first), or A–Z by title as a person reads it. */
+export function orderProjects(projects: readonly ProjectSummary[], order: ProjectOrder, now: Date): ProjectSummary[] {
+  if (order === 'next') return workOrder(projects, now)
+  return projects.toSorted((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
 }
 
 /** All projects' count, under Home's rows: how many, and the notes carried from you. Nothing while they load. */

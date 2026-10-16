@@ -80,6 +80,8 @@ export interface JournalRecordMap {
    * with the same stage (a Hold's `checked`, not a generic `delivered`).
    */
   'sophia/settled': { commandId: string; nativeSeq: number | null; stage?: ReceiptStage; reason?: string | null }
+  /** A Hold-created continuation recovered after a runtime crash, before native delivery. */
+  'sophia/resume-recovery': { attemptId: string; commandId: string; afterNativeSeq: number; message: StashedMessage }
   /** The service acknowledged this session's observations up to `nativeSeq`. */
   'sophia/observed': { nativeSeq: number }
   /** The service acknowledged a command's `incorporation_observed` receipt. */

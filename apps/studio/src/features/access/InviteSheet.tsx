@@ -8,9 +8,11 @@ import { createInvitation, reissueInvitation, revokeInvitation } from '../../api
 import { ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { Sheet } from '../../app/Sheet.tsx'
-import { admissionLabel, doorNote, invitationState, linkLimits } from './access-view.ts'
+import { admissionLabel, doorNote, firstInviteTab, invitationState, linkLimits, ROLE_NOTE } from './access-view.ts'
 import { AdmissionNote } from './AdmissionNote.tsx'
 import { CalendarTab } from './CalendarTab.tsx'
+import { FromYourProjects } from './FromYourProjects.tsx'
+import { InProject } from './InProject.tsx'
 import { QrCode } from './QrCode.tsx'
 import { useInvitations, useLobbyDecision, useRefreshInvitations, type SheetContext } from './useAccess.ts'
 import { useNow } from '../../app/use-now.ts'
@@ -37,7 +39,7 @@ const EMAIL: Record<Invitation['emailStatus'], string> = {
 }
 
 export function InviteSheet({ context, onClose }: { context: SheetContext; onClose: () => void }) {
-  const [tab, setTab] = useState<Tab>('guests')
+  const [tab, setTab] = useState<Tab>(() => firstInviteTab(context.membership?.role, context.inCall ?? false))
   return (
     <Sheet id="invite-title" title="Invite" onClose={onClose} top={<SheetTabs tab={tab} onTab={setTab} />}>
       <TabPanel tab="guests" shown={tab}>
@@ -379,6 +381,7 @@ function MembersTab({ context, onGuests }: { context: SheetContext; onGuests: ()
         <button type="button" className="pill" onClick={onGuests}>
           Go to Guests
         </button>
+        <InProject context={context} />
       </section>
     )
   }
@@ -388,8 +391,10 @@ function MembersTab({ context, onGuests }: { context: SheetContext; onGuests: ()
       <p className="sheet-lead">
         A member works in the project with you. The invitation is bound to one email: only that person can accept it.
       </p>
+      <FromYourProjects context={context} onSent={refresh} />
       <MemberForm context={context} onSent={refresh} />
       <InvitationList invitations={members} token={context.identity.token} onChange={refresh} />
+      <InProject context={context} />
     </section>
   )
 }
@@ -430,6 +435,7 @@ function MemberForm({ context, onSent }: { context: SheetContext; onSent: () => 
           <option value="viewer">Viewer</option>
         </select>
       </div>
+      <p className="role-note">{ROLE_NOTE[role]}</p>
       <button type="submit" className="pill primary" disabled={create.state.status === 'sending' || !email.trim()}>
         {admissionLabel(create.state.status, 'Send invitation', 'Sending…')}
       </button>

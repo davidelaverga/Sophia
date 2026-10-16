@@ -220,6 +220,54 @@ export async function guestTokenMinting(
   return onlyRow(rows, 'guest_token_minting').access
 }
 
+/** A member invitation waiting for the calling person (A16): never its token, only the link's version. */
+export interface PendingInvitationRecord {
+  id: string
+  projectId: string
+  projectTitle: string
+  inviterName: string | null
+  role: 'editor' | 'viewer'
+  expiresAt: string
+  tokenVersion: number
+}
+
+interface PendingRow {
+  id: string
+  project_id: string
+  project_title: string
+  inviter_name: string | null
+  member_role: 'editor' | 'viewer'
+  expires_at: Date
+  token_version: number
+}
+
+/** The member invitations still open for `email` (the caller's token's address) in projects they are not yet in. */
+export async function listPendingInvitations(c: pg.PoolClient, email: string): Promise<PendingInvitationRecord[]> {
+  const { rows } = await c.query<PendingRow>(`SELECT * FROM sophia.pending_member_invitations($1)`, [email])
+  return rows.map((r) => ({
+    id: r.id,
+    projectId: r.project_id,
+    projectTitle: r.project_title,
+    inviterName: r.inviter_name,
+    role: r.member_role,
+    expiresAt: iso(r.expires_at),
+    tokenVersion: r.token_version,
+  }))
+}
+
+/** The member invitation for `email` by its id, whatever its state: its link's version, to accept it (A16). */
+export async function memberInvitationFor(
+  c: pg.PoolClient,
+  email: string,
+  invitationId: string,
+): Promise<{ id: string; tokenVersion: number } | null> {
+  const { rows } = await c.query<{ id: string; token_version: number }>(
+    `SELECT id, token_version FROM sophia.member_invitation_for($1, $2)`,
+    [email, invitationId],
+  )
+  return rows[0] ? { id: rows[0].id, tokenVersion: rows[0].token_version } : null
+}
+
 /** The person a member invitation was sent to (their verified email) joins the project. */
 export async function acceptRoomInvitation(
   c: pg.PoolClient,

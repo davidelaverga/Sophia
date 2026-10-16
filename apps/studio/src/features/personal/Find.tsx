@@ -2,15 +2,16 @@
 // opens a line under the head. The turns mark what matches, the current match in sight; Enter goes on, Shift Enter
 // back, round at either end; Esc closes it and gives the focus back to where it was. It looks in what is read, and
 // "Look further back" reads earlier days.
-import { createContext, Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Icon, Tip } from '@sophia/ui'
 import { keyLabel, onMac } from '../../app/shortcuts.ts'
 import { useCommands } from '../../app/useCommands.ts'
-import type { Row } from './conversation-view.ts'
+import { askAbout, type Row } from './conversation-view.ts'
 import { focusConversation } from './focus.ts'
 import { useEscape } from './useEscape.ts'
 import { foundIn, pieces, type Found } from './find-view.ts'
+import { LinkedText } from '../../app/LinkedText.tsx'
 
 /** What the turns mark: the query, and the match that is current. */
 export interface Lens {
@@ -26,16 +27,10 @@ export const FIND_KEYS = keyLabel('mod+f', onMac)
 /** A turn's words, what matches the lens marked, the current match set apart. */
 export function Marked({ rowKey, text }: { rowKey: string; text: string }) {
   const lens = useContext(FindLens)
-  if (!lens) return text
-  return pieces(text, lens.query).map((p, i) => {
-    if (p.n === null) return <Fragment key={i}>{p.text}</Fragment>
-    const current = lens.current?.key === rowKey && lens.current.n === p.n
-    return (
-      <mark key={i} className={current ? 'current' : undefined}>
-        {p.text}
-      </mark>
-    )
-  })
+  // Its web addresses are links, a mark inside one kept inside it (message-links.md).
+  if (!lens) return <LinkedText text={text} />
+  const current = lens.current?.key === rowKey ? lens.current.n : null
+  return <LinkedText text={text} marks={pieces(text, lens.query)} current={current} />
 }
 
 interface BarProps {
@@ -49,10 +44,15 @@ interface BarProps {
   reading: boolean
   onMore: () => void
   onClose: () => void
+  /** Nothing matches and nothing earlier is left to read: ask Sophia instead; absent where she can't be written to. */
+  onAsk?: (() => void) | undefined
+  /** The last ask wasn't taken (she can't answer now, another message is on its way): the count says so. */
+  refused: boolean
 }
 
-function FindBar({ query, count, at, more, reading, onQuery, onStep, onMore, onClose }: BarProps) {
-  const said = !query.trim() ? '' : count ? `${String(at + 1)} of ${String(count)}` : 'No match'
+function FindBar({ query, count, at, more, reading, onQuery, onStep, onMore, onClose, onAsk, refused }: BarProps) {
+  const found = count ? `${String(at + 1)} of ${String(count)}` : 'No match'
+  const said = !query.trim() ? '' : refused ? 'She can’t be asked now' : found
   return (
     <div className="c3-find" role="search" aria-label="Find in your conversation">
       <div className="field quiet">
@@ -91,6 +91,11 @@ function FindBar({ query, count, at, more, reading, onQuery, onStep, onMore, onC
           }}
         >
           {reading ? 'Reading…' : 'Look further back'}
+        </button>
+      )}
+      {onAsk && !more && query.trim() !== '' && count === 0 && (
+        <button className="text-button" type="button" aria-label={`Ask Sophia about “${query.trim()}”`} onClick={onAsk}>
+          Ask Sophia
         </button>
       )}
       <button className="ghost has-tip" type="button" aria-label="Close find" onClick={onClose}>
@@ -193,11 +198,31 @@ function useFindOpen(on: boolean, uncover: (() => void) | null, clear: () => voi
  * whether it is open, how to open it, its line, and the lens the turns mark by. The current match is held as itself,
  * so earlier days read in before it leave it current.
  */
+/**
+ * Asking Sophia from Find (docs/plans/find-ask-sophia.md): the line goes as the field's words do, and Find closes only
+ * once it is taken; refused (she can't answer now, another message is on its way), Find stays and says so (Codex on
+ * #294). No press at all where she can't be written to.
+ */
+function useAsk(ask: ((words: string) => Promise<boolean>) | null, query: string, close: () => void) {
+  const [refused, setRefused] = useState(false)
+  const onAsk = ask
+    ? () => {
+        void ask(askAbout(query)).then((taken) => {
+          if (taken) close()
+          else setRefused(true)
+        })
+      }
+    : undefined
+  return { refused, reset: () => setRefused(false), onAsk }
+}
+
 export function useFind(
   rows: readonly Row[],
   on: boolean,
   back: { more: boolean; reading: boolean; read: () => Promise<void> },
   uncover: (() => void) | null,
+  /** Sends Sophia a line as yours (actions.start); null where she can't be written to (docs/plans/find-ask-sophia.md). */
+  ask: ((words: string) => Promise<boolean>) | null = null,
 ) {
   const [query, setQuery] = useState('')
   const [held, setHeld] = useState<Found | null>(null)
@@ -219,6 +244,7 @@ export function useFind(
   useEffect(() => {
     if (where) document.querySelector('.msgs mark.current')?.scrollIntoView({ block: 'center' })
   }, [where, steps])
+  const asking = useAsk(ask, query, close)
   const bar = open ? (
     <FindBar
       {...{ query }}
@@ -226,7 +252,9 @@ export function useFind(
       reading={back.reading}
       count={found.length}
       at={index}
+      refused={asking.refused}
       onQuery={(q) => {
+        asking.reset()
         setQuery(q)
         setHeld(null)
       }}
@@ -240,6 +268,7 @@ export function useFind(
         void back.read()
       }}
       onClose={close}
+      onAsk={asking.onAsk}
     />
   ) : null
   const lens = open && query.trim() ? { query, current } : null

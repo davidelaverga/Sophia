@@ -2700,7 +2700,7 @@ async function applySealedCandidates(c: pg.Client) {
 }
 
 describe('CON migration preservation (real PostgreSQL)', () => {
-  it('adds no cluster role or inherited/assumable membership when 0049 is actually applied', async () => {
+  it('adds no cluster role or inherited/assumable membership when 0064 is actually applied', async () => {
     const baseline = await createConversationCandidateDatabase()
     const c = new pg.Client({ connectionString: baseline.ownerUrl })
     await c.connect()
@@ -2717,7 +2717,7 @@ describe('CON migration preservation (real PostgreSQL)', () => {
     try {
       // Observe this migration's own catalog effects, without racing unrelated test-login creation/removal.
       const migration = readFileSync(
-        new URL('../../../db/migrations/0049_conversation_runtime.sql', import.meta.url),
+        new URL('../../../db/migrations/0064_conversation_runtime.sql', import.meta.url),
         'utf8',
       )
       assert.match(migration, /^BEGIN;$/mu)
@@ -2808,7 +2808,7 @@ describe('CON migration preservation (real PostgreSQL)', () => {
         )
         const snapshot = await databaseSnapshot(c)
         const migration = readFileSync(
-          new URL('../../../db/migrations/0049_conversation_runtime.sql', import.meta.url),
+          new URL('../../../db/migrations/0064_conversation_runtime.sql', import.meta.url),
           'utf8',
         )
         await assert.rejects(c.query(migration), denied('23514'))

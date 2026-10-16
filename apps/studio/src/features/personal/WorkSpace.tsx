@@ -2,16 +2,26 @@
 // it or a session is about to start, else open it), and the notes carried to it: yours marked as coming from your
 // personal space and yours to take back, a teammate's marked as theirs. Until the list has loaded it shows neither
 // projects nor "No projects yet"; a list that failed says so, with Try again.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ProjectCreated, ProjectRelease, ProjectSummary } from '@sophia/contracts'
-import { EmptyState, Icon, Tip } from '@sophia/ui'
+import { EmptyState, Icon, Search, Segmented, Tip } from '@sophia/ui'
 import { createProject } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { useMounted } from '../../app/useMounted.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { AdmissionNote } from '../access/AdmissionNote.tsx'
 import { shortName } from '../voice/room-view.ts'
-import { CARD_ACTION, carriedFrom, EDGE_TIP, projectCard, workOrder, type LockedBy } from './places-view.ts'
+import {
+  CARD_ACTION,
+  carriedFrom,
+  EDGE_TIP,
+  FIND_FROM,
+  findProjects,
+  orderProjects,
+  projectCard,
+  type LockedBy,
+  type ProjectOrder,
+} from './places-view.ts'
 import { ReadNotes, type Read } from './ReadNotes.tsx'
 import { useCapped } from './useCapped.ts'
 import { useNow } from '../../app/use-now.ts'
@@ -40,6 +50,8 @@ interface Props {
     takingBack: (releaseId: string) => boolean
     cross: () => void
   }
+  /** The invitations waiting for the person (InvitedBand, A16): at the head of the list; nothing when none waits. */
+  invited?: ReactNode
 }
 
 function Edge({ lock, onCross }: { lock: LockedBy | null; onCross: () => void }) {
@@ -239,10 +251,54 @@ function Empty({ onStart }: { onStart: () => void }) {
   )
 }
 
+const ORDERS: readonly { id: ProjectOrder; label: string }[] = [
+  { id: 'next', label: 'Next' },
+  { id: 'az', label: 'A–Z' },
+]
+
+/** Past five projects, a field finds one by its title and an order sorts them (find-projects.md). */
+function useFinder(projects: readonly ProjectSummary[] | undefined, now: number) {
+  const [typed, setTyped] = useState('')
+  const [order, setOrder] = useState<ProjectOrder>('next')
+  const all = projects ?? []
+  const offered = all.length >= FIND_FROM
+  const list = orderProjects(offered ? findProjects(all, typed) : all, offered ? order : 'next', new Date(now))
+  return { offered, typed, setTyped, order, setOrder, list, none: offered && all.length > 0 && list.length === 0 }
+}
+
+function Finder({ finder }: { finder: ReturnType<typeof useFinder> }) {
+  return (
+    <div className="c3-find">
+      <Search
+        id="find-project"
+        className="c3-find-field"
+        placeholder="Find a project"
+        aria-label="Find a project"
+        value={finder.typed}
+        maxLength={120}
+        onChange={(e) => finder.setTyped(e.target.value)}
+      />
+      <Segmented role="radiogroup" label="Order" items={ORDERS} value={finder.order} onChange={finder.setOrder} />
+    </div>
+  )
+}
+
+function NoneFound({ typed, onClear }: { typed: string; onClear: () => void }) {
+  return (
+    <p className="c3-none" role="status">
+      {`No project is called «${typed.trim()}». `}
+      <button className="text-button" type="button" onClick={onClear}>
+        Clear
+      </button>
+    </p>
+  )
+}
+
 export function WorkSpace(props: Props) {
   const { token, projects, newProject, personalLock, actions } = props
   const now = useNow(20_000)
-  const list = projects ? workOrder(projects, new Date(now)) : []
+  const finder = useFinder(projects, now)
+  const list = finder.list
   return (
     <section className="c3-space job" data-place-view="work" hidden={props.hidden} aria-labelledby="c-w-h">
       <Edge lock={personalLock} onCross={actions.cross} />
@@ -251,14 +307,16 @@ export function WorkSpace(props: Props) {
           Your projects
         </h2>
         <div className="c3-head-acts">
-          {!newProject.open && list.length > 0 && (
+          {!newProject.open && !!projects && projects.length > 0 && (
             <button className="ghost" type="button" onClick={() => newProject.set(true)}>
               New project
             </button>
           )}
         </div>
       </header>
+      {finder.offered && <Finder finder={finder} />}
       <div className="c3-projects">
+        {props.invited}
         <ReadNotes reads={[props.read]} />
         {newProject.open && (
           <NewProject
@@ -269,7 +327,17 @@ export function WorkSpace(props: Props) {
             onClose={() => newProject.set(false)}
           />
         )}
-        {projects && list.length === 0 && !newProject.open && <Empty onStart={() => newProject.set(true)} />}
+        {finder.none && (
+          <NoneFound
+            typed={finder.typed}
+            onClear={() => {
+              // The Clear pressed goes with the words: the focus goes back to the field (Codex on #347).
+              document.getElementById('find-project')?.focus()
+              finder.setTyped('')
+            }}
+          />
+        )}
+        {projects && projects.length === 0 && !newProject.open && <Empty onStart={() => newProject.set(true)} />}
         {list.map((p) => (
           <Card key={p.projectId} project={p} props={props} now={now} />
         ))}

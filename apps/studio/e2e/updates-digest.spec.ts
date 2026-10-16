@@ -66,3 +66,15 @@ test('digest · in the demo, the meeting left now made nothing: the readout is t
   await expect(recap.getByRole('region', { name: 'Decided' })).toContainText('Run the pilot with fourteen teams')
   await expect(recap.getByRole('region', { name: 'Made' })).toHaveCount(0)
 })
+
+test('digest · each decided and kept line says when; a meeting’s recap does not (docs/plans/updates-when.md)', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await expect(part(page, 'Kept')).toContainText(/kept by Noor · \d+ days? ago/)
+  await expect(part(page, 'Decided')).toContainText(/decided by you · (\d+ (days?|h|min) ago|just now)/)
+  await page.getByRole('button', { name: /Oct 2, 09:30|Oct 2, 05:30/ }).click()
+  const recap = page.getByRole('dialog', { name: 'This meeting' })
+  await expect(recap).toContainText('kept by Noor')
+  await expect(recap).not.toContainText('kept by Noor ·')
+})

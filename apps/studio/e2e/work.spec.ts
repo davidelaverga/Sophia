@@ -1907,7 +1907,7 @@ test('codex · F-012 · a result lost since the last look is said lost, not as t
   await expect(tile(page, 'work-1')).toBeVisible({ timeout: 15_000 })
   // The last look, as kept: the same board, but when retry-v2 was the task's one current result.
   await page.evaluate(() => {
-    const key = Object.keys(localStorage).find((k) => k.startsWith('sophia.plan.seen.v3:'))
+    const key = Object.keys(localStorage).find((k) => k.startsWith('sophia.plan.seen.v4:'))
     if (!key) throw new Error('no look kept')
     const kept: unknown = JSON.parse(localStorage.getItem(key) ?? '{}', (field: string, value: unknown) =>
       field === 'work-1' && typeof value === 'object' && value !== null ? { ...value, result: 'retry-v2' } : value,
@@ -2956,7 +2956,7 @@ test('codex · F-034 · a look kept under the old joined key is left as it is: n
   page,
 }) => {
   const fresh =
-    'sophia.plan.seen.v3:["00000000-0000-4000-8000-0000000000aa","00000000-0000-4000-8000-0000000000b1","plan-1","davide"]'
+    'sophia.plan.seen.v4:["00000000-0000-4000-8000-0000000000aa","00000000-0000-4000-8000-0000000000b1","plan-1","davide"]'
   const old =
     'sophia.plan.seen.v2.00000000-0000-4000-8000-0000000000aa.00000000-0000-4000-8000-0000000000b1.plan-1.davide'
   // An old look for this very plan, taken before anything was: read as this one's, it would say everything arrived.
@@ -3265,6 +3265,36 @@ test('codex · #107 · sources over a review’s limit together are said so and 
   await pick('Budget note v1').uncheck()
   await expect(over).toHaveCount(0)
   await expect(propose).toBeEnabled()
+})
+
+// ---- E2E-Q3 (real stack, 2026-10-14): Review sources is offered only where there is something to review. ----
+
+const offersRead = (page: Page) =>
+  page.evaluate(() => (window.workFixture?.served ?? []).filter((s) => s.startsWith('review:offered')))
+
+test('e2e · Q3 · with no report version to review, the goal offers no Review sources', async ({ page }) => {
+  await page.goto(`${PAGE}?served=1&sources=0`)
+  // Sophia has answered what it offers: enabled, with nothing to review yet.
+  await expect.poll(() => offersRead(page)).toContain('review:offered:0')
+  await expect(page.getByRole('button', { name: 'Review sources' })).toHaveCount(0)
+})
+
+test('e2e · Q3 · a proposal still unanswered keeps its way back, sources or not', async ({ page }) => {
+  await page.goto(`${PAGE}?served=1&proposed=lost`)
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  const form = page.getByRole('form', { name: 'Review sources' })
+  await form.getByRole('checkbox', { name: 'Press plan v2' }).check()
+  await form.getByRole('button', { name: 'Propose review' }).click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'No reply from Sophia. Propose again to check; it is the same proposal.',
+  )
+  // The page comes back with nothing to review: the kept proposal is still reachable, to be asked about again.
+  await page.goto(`${PAGE}?served=1&proposed=lost&sources=0`)
+  await expect.poll(() => offersRead(page)).toContain('review:offered:0')
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'An earlier proposal may already be recorded. Propose again to check; it is the same proposal, never a second one.',
+  )
 })
 
 /**

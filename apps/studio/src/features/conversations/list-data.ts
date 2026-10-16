@@ -50,7 +50,7 @@ function startedIn(list: ConversationList, row: ConversationStarted['conversatio
  * isn't known here is said to be unknown, never none). Nothing else of the receipt is kept, as it may have changed
  * since: no opening or writer, no summary, questions, Sophia or output, each coverage not assessed (PR #199
  * r4238709220). Its start's time stays only to place it among the rest; it is never said (ConversationRows `Row`).
- * A16 changes a title only by erasing it, so while the conversation stands its title is current.
+ * A33 changes a title only by erasing it, so while the conversation stands its title is current.
  */
 const titleOnly = (row: ConversationStarted['conversation']): ConversationSummary & Unnamed => ({
   id: row.id,
@@ -210,7 +210,7 @@ export function releasable(k: Kept): Kept['start']['heldBack'] {
  * Where the request asked here stands, as the messages read show it (`awaiting`: the one asked, kept by the view;
  * `readFrom`: where in this view's order that read set out). Only the request itself ends the wait: answered (her
  * answer names it), or said why not; a message of hers to another request, or written later by the clock, settles
- * nothing (A16; CON01-A09). Seen ended (`ended`), the wait is over for good, whichever read showed it: an ended request
+ * nothing (A33; CON01-A09). Seen ended (`ended`), the wait is over for good, whichever read showed it: an ended request
  * never opens again, and newer messages may later push the asking message out of the page. One noted from a start's
  * receipt held back (`after`) is waited on only while a read set out after it shows it still open: none such (none
  * yet, one failing, one cached from before), no wait claimed (PR #199 r4238533090, r4238594445).

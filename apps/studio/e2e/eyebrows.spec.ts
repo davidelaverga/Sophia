@@ -39,7 +39,8 @@ for (const [name, url, parts, root] of [
     const seen = await labels(page, root)
     expect(seen, root).not.toBeNull()
     expect(seen?.length ?? 0, name).toBeGreaterThan(0)
-    const off = (seen ?? []).filter((l) => Math.abs(l.tracking - TOKEN * l.size) > 0.01)
+    // A tracking that isn't a number («normal»: the declaration gone) is off too, not passed by a NaN (Codex on #260).
+    const off = (seen ?? []).filter((l) => !Number.isFinite(l.tracking) || Math.abs(l.tracking - TOKEN * l.size) > 0.01)
     expect(off, JSON.stringify(off)).toEqual([])
     // The day label, the case the rule was written for, is among those read (Codex on #260).
     if (name === 'Conversations') expect((seen ?? []).some((l) => l.className.includes('conv-day'))).toBe(true)

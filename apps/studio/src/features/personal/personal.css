@@ -195,6 +195,9 @@
   letter-spacing: -0.045em;
 }
 .places .hw-hello > span {
+  /* Each line is an element of its own: it keeps the greeting's display leading, not the universal grid's 1.55
+     (docs/plans/home-first-glance.md). */
+  line-height: inherit;
   animation: hw-in 620ms var(--ease) both;
 }
 .places .hw-hello > span + span {
@@ -204,8 +207,27 @@
   color: var(--text-3);
 }
 /* A first visit: the line follows its label directly, with the label's own gap. */
-.places .hw-you .hw-label + .hw-say {
+.places .hw-you .hw-label-row + .hw-say {
   margin-top: 0;
+}
+/* A section's head with a press on its right: your notes beside «You and Sophia». */
+.places .hw-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.places .hw-label-row .hw-label {
+  margin-bottom: 0;
+}
+.places .hw-notes {
+  font-size: var(--type-small);
+  color: var(--text-2);
+  animation: hw-in 520ms var(--ease) var(--d) both;
+}
+.places .hw-notes:hover {
+  color: var(--text);
 }
 .places .hw-says {
   max-width: 460px;
@@ -383,6 +405,24 @@
     opacity: 1;
   }
 }
+/* A row that joins or takes you back says so at rest, in its own width, on every screen: its press is the one the
+   moment asks for (docs/plans/home-first-glance.md). */
+.places .hw-row:is([data-act='join'], [data-act='back']) {
+  grid-template-columns: 28px minmax(0, 1fr) auto auto;
+}
+.places .hw-row:is([data-act='join'], [data-act='back']) .hw-go {
+  opacity: 1;
+  transform: none;
+}
+.places .hw-row:is([data-act='join'], [data-act='back']) .hw-go-words {
+  position: static;
+  width: auto;
+  height: auto;
+  clip-path: none;
+  margin-right: 6px;
+  font-size: 12px;
+  color: var(--halo-text);
+}
 /* Without a pointer that hovers, a row that joins or takes you back says so before it is tapped, in its own width. */
 @media (hover: none) {
   .places .hw-row {
@@ -438,7 +478,8 @@
   margin-top: 14px;
   padding: 0;
   border: 0;
-  border-bottom: 1px solid rgb(var(--sheen-rgb) / 0.12);
+  /* The ink's hairline, not the sheen's: white on paper drew no line at all (Codex P2 on #234). */
+  border-bottom: 1px solid rgb(var(--ink-rgb) / 0.12);
   background: none;
   color: var(--text-3);
   text-align: left;
@@ -467,7 +508,7 @@
 /* Listening, it still answers: a press stops it (its own selector outranks the kit's pressed hover; Codex on #232). */
 .places .hw-mic[aria-pressed='true']:hover {
   color: var(--text);
-  background: rgba(156, 130, 245, 0.22);
+  background: rgb(var(--halo-rgb) / 0.22);
 }
 @keyframes hw-listen {
   50% {
@@ -842,6 +883,15 @@
   margin-left: calc(-1 * var(--gut));
   scroll-behavior: smooth;
 }
+/* On a wide screen a conversation that opened here starts at the page's optical centre and grows downward from it;
+   once it fills the view it scrolls to its latest turn like any other. On a phone it rests on the field, where the
+   thumb is (docs/plans/personal-first-talk.md). */
+@media (min-width: 861px) {
+  .places .msgs[data-begins] {
+    align-content: start;
+    padding-top: max(18px, 22vh);
+  }
+}
 .places .msg {
   position: relative;
   display: grid;
@@ -1044,6 +1094,14 @@
   box-shadow: 0 8px 24px rgb(var(--shadow-rgb) / calc(0.4 * var(--shadow-k)));
   animation: ps-arrive 200ms var(--ease);
 }
+/* The next day's divider right under it names the day: the pill steps aside (docs/plans/personal-day-pill.md). */
+.places .c3-daypill {
+  transition: opacity 140ms var(--ease);
+}
+.places .c3-daypill[data-crowded] {
+  opacity: 0;
+  pointer-events: none;
+}
 .places .c3-daypill:hover,
 .places .c3-daypill[aria-expanded='true'] {
   color: var(--text);
@@ -1054,6 +1112,11 @@
   mask-image: linear-gradient(transparent 0 30px, #000 68px);
 }
 /* The days' menu hangs 6 px under the pill (10 + 26 in the bar), centred, as wide as the chip's popover. */
+/* A day's date on one line, however long its topics: they give way, cut with an ellipsis. Only here: another menu's
+   rows (a member's long name) still wrap rather than widen past the screen (docs/plans/personal-day-menu.md). */
+.places .c3-daybar .menu [role='menuitem'] {
+  white-space: nowrap;
+}
 .places .c3-daybar .menu {
   top: 42px;
   min-width: 230px;
@@ -1073,7 +1136,8 @@
   border-radius: 0;
   background: none;
   color: var(--text-sec);
-  font: 500 var(--type-small) / var(--lh-small) var(--mono);
+  /* The day is data: at the label size, as dates and times are (Codex P2 on #241). */
+  font: 500 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   scroll-margin-top: 44px;
@@ -1204,7 +1268,7 @@
   gap: 10px;
   padding: 6px 0 0;
   border: 0;
-  border-top: 1px solid rgb(var(--sheen-rgb) / 0.12);
+  border-top: 1px solid rgb(var(--ink-rgb) / 0.12);
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -1255,7 +1319,7 @@
 /* Listening, it still answers: a press stops it (Codex on #232). */
 .places .ps-composer .message-bar .round[aria-pressed='true']:hover {
   color: var(--text);
-  background: rgba(156, 130, 245, 0.3);
+  background: rgb(var(--halo-rgb) / 0.3);
 }
 /* Voice is a mode: the field gives way to a listening line whose bars move with the room's light. */
 .places .message-bar.listening textarea {
@@ -1669,22 +1733,6 @@
 .places .sheet [aria-disabled='true'] {
   cursor: progress;
 }
-.places .privacy-rules {
-  display: grid;
-  gap: 12px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.places .privacy-rules li {
-  color: var(--text-2);
-  font-size: 13px;
-}
-.places .privacy-rules strong {
-  display: block;
-  color: var(--text);
-  font-weight: 600;
-}
 @keyframes ps-arrive {
   from {
     opacity: 0;
@@ -1796,6 +1844,13 @@
     overflow: hidden;
     text-overflow: ellipsis;
     font-size: 12px;
+  }
+  /* What needs you, on one column: a note says itself whole under its title, as the side column's rows do under 440 px
+     (a project's title may run to 180 characters; Codex P2 on #289). */
+  .places .hw-needs-here .hw-m {
+    max-width: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .places .hw-go {
     grid-area: go;
@@ -2253,6 +2308,23 @@
     text-align: left;
   }
 }
+/* A note written straight in, and Find from six notes (docs/plans/personal-notes-write-find.md). */
+.places .c3-write-note,
+.places .c3-find-notes {
+  width: 100%;
+  margin: 6px 0 4px;
+}
+.places .c3-write-status {
+  flex: none;
+  padding-right: 10px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.places .c3-find-none {
+  margin: 4px 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
 /* Carry only what you choose (CarryPackage, Davide's chapter 1): a reviewed package of notes, in the notes panel. */
 .places .c3-pack-open {
   justify-self: start;
@@ -2340,4 +2412,37 @@
 /* On paper the session note is the soon ink whole: 85 % of it fell under 4.5:1 (Codex on #234). */
 :root[data-theme='light'] .places .c3-way-note {
   color: var(--soon);
+}
+
+/* The invitations waiting for the signed-in person (A16, pending-invitations-studio.md): at the head of Home and
+   Work, one row each, the line and its Accept; a refusal said under the row. */
+.places .invited {
+  margin-top: 24px;
+}
+.places .invited ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.places .invited-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--plane-2);
+}
+.places .invited-line {
+  flex: 1 1 240px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.places .invited-error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--text-2);
 }

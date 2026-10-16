@@ -53,7 +53,7 @@ const BASELINE = [
   ['0043_design_delivery.sql', 'b52dfede00a6fc611d3bc69734e2cb2f7c3e12914df9d0e49f46778d03ccb0b6'],
   ['0044_object_write_once.sql', '643a4a7bb6b03221973606b23e77d816d1fc2cc1e808fd5f1dafdd8cf0610bf6'],
   ['0045_render_requeue_output.sql', '603143a7a1b4e50d68371ac3930aeab1b813f6437cf88c2e7dc88a349a45aac1'],
-  ['0048_project_conversations.sql', 'e36843045caf07b34a0aae9470bd4c18ce50a0849a0d10cf52709089a9fdcf35'],
+  ['0063_project_conversations.sql', 'e36843045caf07b34a0aae9470bd4c18ce50a0849a0d10cf52709089a9fdcf35'],
   ['0053_runtime_outbox_reconcile.sql', 'bf403b7eff741a5d2056b484c802cdc4cbe382f23bc00ee5826315beedc4bae7'],
 ] as const
 

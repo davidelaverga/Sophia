@@ -19,7 +19,8 @@ commits on the branch merge its base forward or touch only this record). 5 files
 ## Outcome
 
 - Updates' section labels («Since you last looked», «Meetings», «Decided»…) and Conversations' day label («OCT 6») take
-  the kit's tracking for small capitals, 0.06em (0.72 px at 12 px), where they had 0.09em (1.08 px): a third wider, 6 px
+  the kit's tracking for small capitals, 0.06em: 0.72 px on Updates' 12 px labels, 0.63 px on the day label, which is
+  data at the label size, 10.5 px (corrected after merge: Codex on #282); they had 0.09em (1.08 px at 12 px): a third wider, 6 px
   over «SINCE YOU LAST LOOKED», read as another family beside Knowledge's label one view away.
 - Nothing else moves: sizes, weights, inks and cases are as they were. The personal space's 0.08em labels are the
   companion's voice and stay; the context pane's sentence-case labels are C9's and stay.
@@ -29,7 +30,9 @@ commits on the branch merge its base forward or touch only this record). 5 files
 - `evaluacion-2026-10-12/views-type-measures.json` and the captures `knowledge|updates|conv-context-{dark,light}-1280.png`:
   every distinct text style of the three views, dark and light, from which the table in the design note is drawn.
 - `e2e/eyebrows.spec.ts` (3): on Knowledge, Updates and Conversations, every uppercase 12 px label drawn in the view has
-  the token's 0.72 px. Run locally through the guard before the push; CI is the run on record.
+  the token's 0.72 px; Conversations' day label (`.conv-day`) is data at the label size, 10.5 px (Codex on #241), and
+  has the same 0.06em, 0.63 px, which the check reads apart. Run locally through the guard before the push; CI is the
+  run on record. (Record corrected after merge: Codex on #260.)
 
 ## Decisions and changes
 

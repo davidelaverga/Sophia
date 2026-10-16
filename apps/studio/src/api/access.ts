@@ -1,6 +1,7 @@
 // Room access calls (contract amendments A02 and A03). An invitation link's token travels only in request
 // bodies, never in a URL the API or a proxy could log; the Studio reads it from the link's fragment.
 import type {
+  InvitablePeople,
   Invitation,
   InvitationAccepted,
   InvitationCreate,
@@ -9,17 +10,20 @@ import type {
   LobbyDecision,
   LobbyEntry,
   Membership,
+  PendingInvitationList,
   RoomSession,
   RoomToken,
   SessionCreate,
 } from '@sophia/contracts'
 import {
+  parseInvitablePeople,
   parseInvitation,
   parseInvitationAccepted,
   parseInvitationList,
   parseInvitationPreview,
   parseLobbyEntry,
   parseMembership,
+  parsePendingInvitationList,
   parseRoomSession,
   parseRoomToken,
 } from '@sophia/contracts/validate'
@@ -27,6 +31,10 @@ import { callApi } from './client.ts'
 
 export const createInvitation = (token: string, projectId: string, key: string, body: InvitationCreate) =>
   callApi<Invitation>(`/api/v1/projects/${projectId}/invitations`, { token, body, key }, parseInvitation)
+
+/** listInvitablePeople (A26): the people an admin shares other projects with, to invite here by address. */
+export const listInvitablePeople = (token: string, projectId: string) =>
+  callApi<InvitablePeople>(`/api/v1/projects/${projectId}/invitable`, { token, method: 'GET' }, parseInvitablePeople)
 
 export const listInvitations = (token: string, projectId: string) =>
   callApi<InvitationList>(`/api/v1/projects/${projectId}/invitations`, { token, method: 'GET' }, parseInvitationList)
@@ -50,6 +58,22 @@ export const knockRoom = (token: string, linkToken: string, displayName: string)
 
 export const acceptInvitation = (token: string, linkToken: string) =>
   callApi<InvitationAccepted>('/api/v1/join/accept', { token, body: { token: linkToken } }, parseInvitationAccepted)
+
+/** A16: the member invitations waiting for the signed-in person, by their address (no link, no token in them). */
+export const listPendingInvitations = (token: string, signal?: AbortSignal) =>
+  callApi<PendingInvitationList>(
+    '/api/v1/me/invitations',
+    { token, method: 'GET', ...(signal ? { signal } : {}) },
+    parsePendingInvitationList,
+  )
+
+/** A16: accepting one of them where the person is, with the same checks as the link's. */
+export const acceptPendingInvitation = (token: string, invitationId: string) =>
+  callApi<InvitationAccepted>(
+    `/api/v1/invitations/${invitationId}/accept`,
+    { token, body: {} },
+    parseInvitationAccepted,
+  )
 
 export const getLobbyEntry = (token: string, entryId: string) =>
   callApi<LobbyEntry>(`/api/v1/lobby/${entryId}`, { token, method: 'GET' }, parseLobbyEntry)

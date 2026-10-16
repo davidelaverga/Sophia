@@ -1,6 +1,6 @@
-// A16's writes as the fixture pages answer them (docs/plans/project-conversation-writes.md; CON-01): a conversation
+// A33's writes as the fixture pages answer them (docs/plans/project-conversation-writes.md; CON-01): a conversation
 // started, a message sent, each once per Idempotency-Key (the same key replays its receipt); viewers refused. Its
-// author withdraws their own message, an admin removes any or erases a conversation, as 0048 does it
+// author withdraws their own message, an admin removes any or erases a conversation, as 0063 does it
 // (`withdraw=slow`: its reply and the feed 1.5 s on; `withdraw=feedFirst`: the feed 0.5 s on, its reply 2.5 s on;
 // `withdraw=thenFail`: it lands, then the conversation's and the list's reads fail; `withdraw=unreached`: the first
 // one never reaches the API). Asking
@@ -47,7 +47,7 @@ export interface TalkWrites {
   erase: 'feedFirst' | 'unreached' | 'lost' | null
   /** An erasure has already failed to reach the API (`erase=unreached` lets one through after it). */
   eraseMissed?: boolean
-  /** The conversations erased here: a read of one is refused as not found (0048 hides it), never answered with words. */
+  /** The conversations erased here: a read of one is refused as not found (0063 hides it), never answered with words. */
   erasedIds?: Set<string>
   /**
    * One still listed whose message reads are refused (403), as the API refuses a reader no longer in the project
@@ -78,7 +78,7 @@ const ERASURE_OF = /^\/api\/v1\/conversations\/([0-9a-f-]{36})\/erasure$/
 const ME = membership.actorId
 let made = 0
 let sent = 0
-/** Ids the writes make, UUIDs as A16's are. */
+/** Ids the writes make, UUIDs as A33's are. */
 let ids = 0
 const freshId = () => {
   ids += 1
@@ -278,7 +278,7 @@ function answerLater(talk: TalkWrites, id: string, asking: FixtureMessage, ctx: 
   }, talk.answerMs)
 }
 
-/** A withdrawal (A16), once per key: the same key replays its receipt; undefined for any other request. */
+/** A withdrawal (A33), once per key: the same key replays its receipt; undefined for any other request. */
 export function conversationWithdrawn(talk: TalkWrites, path: string, init: RequestInit | undefined, ctx: Context) {
   const [, conversationId = '', messageId = ''] = WITHDRAWAL_OF.exec(path) ?? []
   if (!messageId) return undefined
@@ -328,7 +328,7 @@ function withdrawalReplied(order: TalkWrites['withdraw'], answer: unknown, ctx: 
   return order === 'slow' ? later(1500, both) : both()
 }
 
-/** `sameTimeNext`: once, the conversation's last time (0048 stamps from one clock; two may share a millisecond). */
+/** `sameTimeNext`: once, the conversation's last time (0063 stamps from one clock; two may share a millisecond). */
 function tiedOnce(talk: TalkWrites, conversation: FixtureConversation): string | undefined {
   if (!talk.sameTimeNext) return undefined
   talk.sameTimeNext = false
@@ -352,7 +352,7 @@ function withdrawn(talk: TalkWrites, conversationId: string, messageId: string, 
   return { conversationId, message: wireMessage(message, at) }
 }
 
-/** The message at `at` withdrawn, as 0048 does it (the conversation's last activity left as it was). */
+/** The message at `at` withdrawn, as 0063 does it (the conversation's last activity left as it was). */
 function withdrawAt(talk: TalkWrites, conversation: FixtureConversation, all: FixtureMessage[], at: number) {
   withdrawFrom(all, at, next(talk.list))
   conversation.contributors = conversation.contributors.filter((p) =>
@@ -389,7 +389,7 @@ function withdrawFrom(all: FixtureMessage[], at: number, now: string) {
   }
 }
 
-/** A conversation an admin erases (A16), once per key: it leaves the list, with every message; undefined otherwise. */
+/** A conversation an admin erases (A33), once per key: it leaves the list, with every message; undefined otherwise. */
 export function conversationErased(talk: TalkWrites, path: string, init: RequestInit | undefined, ctx: Context) {
   const conversationId = ERASURE_OF.exec(path)?.[1]
   if (!conversationId) return undefined

@@ -52,6 +52,8 @@ export function WorkControls({ goal, projectId, identity, token }: Props) {
               className="text-button"
               // Its tip as Hold has its own: the destructive press says what it does too (Codex on #253).
               tip={COMMAND.stop.hint}
+              // The last control, at the content's edge: its tip aligns to its end (Codex P2 on #253).
+              tipAlign="end"
               disabled={busy}
               onConfirm={() => void admission.submit('stop')}
             />

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import { DomainError } from '@sophia/domain'
-import { readSnapshot, withActor } from '@sophia/persistence'
+import { readDiscussionPage, readSnapshot, withActor } from '@sophia/persistence'
 import { projectParams } from './schemas.ts'
 
 /** getProjectSnapshot — consistent authorized snapshot with replay cursor (S1-02). */
@@ -14,6 +14,29 @@ export function projectionRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool
       // Unknown and non-member projects look the same: no existence oracle.
       if (!snapshot) throw new DomainError('forbidden', 'Not permitted')
       return snapshot
+    },
+  )
+
+  // readDiscussion (A23): the room's discussion further back than the snapshot's 50, a page at a time.
+  app.get<{ Params: { projectId: string }; Querystring: { before?: string } }>(
+    '/api/v1/projects/:projectId/discussion',
+    {
+      schema: {
+        params: projectParams,
+        querystring: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { before: { type: 'string', format: 'uuid' } },
+        },
+        response: { 200: { $ref: 'DiscussionPage#' } },
+      },
+    },
+    async (req) => {
+      const page = await withActor(pool, req.actorId, 'read', (c) =>
+        readDiscussionPage(c, req.params.projectId, req.query.before ?? null),
+      )
+      if (!page) throw new DomainError('forbidden', 'Not permitted')
+      return page
     },
   )
 }

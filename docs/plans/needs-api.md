@@ -18,14 +18,18 @@
 
 - `GET /api/v1/me/needs` → `NeedList { needs: Need[], readAt }`, bearer, owner-only (as A10's personal space): built
   from the person's own memberships and space; nothing of another person is in it.
-- `Need`: `id` (`<kind>:<ref.id>`, stable), `kind` (decision · permission · review · guest · reply), `title` (the
-  record's own words), `projectId` / `projectTitle` (null for the personal space), `expiresAt` (a decision's or a
-  permission's; null else), `detail` («Davide asks», how long a guest has waited), `at`, and `ref` (`mission_decision`
-  · `work_item` · `artifact_version` · `lobby_entry` · `personal_turn`, with its id), so the Studio opens that record
-  and never guesses.
+- `Need` (as merged, after the review rounds below): `id` (`<kind>:<projectId, or personal>:<ref.within, or ->:<ref.id>`,
+  stable and unique across the person's needs: a wait's reference may repeat across projects or work items), `kind` (decision · permission
+  · guest · reply; review dropped), `title` (the record's own words), `projectId` / `projectTitle` (null for the
+  personal space), `expiresAt` (a decision's, `WorkDecision.expires_at`; null for the rest: a wait, a guest and a reply
+  have none), `detail` («Davide asks», how long a permission or a guest has waited), `at`, and `ref` (`work_decision` ·
+  `work_wait` · `lobby_entry` · `personal_turn`, its id, and `within`: the work item that holds a decision or a wait,
+  null otherwise, and `resourceId`: the resource whose native tool holds a permission's request, meant to be set for every
+  permission so it opens in Resources, though A15's schema still lets it be null (open, below); null otherwise), so the Studio opens that record and never guesses.
 - `readAt`: the service's clock; expiries are compared against it, not the reader's.
-- Not in it: marking read, dismissing; a badge is the list's length. A need leaves the list when its record is answered
-  where it lives.
+- `POST /api/v1/me/needs/{id}/seen` (owner-only, idempotent, 204): a reply leaves the list through it (the person's
+  last seen personal turn, `last_seen_turn_seq` on `personal_spaces`); any other need leaves when its record is answered
+  where it lives. No dismissing; a badge is the list's length. (Brought to the merged A15 after merge: Codex on #282.)
 
 ## What the Studio does now (behind the vision flag)
 
@@ -33,16 +37,31 @@
   the wire's needs to Home's (`needs-you.ts`): the project's title as `project`, the rest as they are, `projectId`
   kept for the way there.
 - Places reads it at Home (`useNeeds`, every 20 s as the projects are), and hands Welcome `{ items, open }`: a
-  decision or a permission opens the project's Tasks, a review its Knowledge, a guest its room, a reply the personal
-  space. Without the flag nothing is read and Home is as it was.
-- The fixture's API answers the route with five needs (one of each kind); the app's own check routes it and finds the
-  column and the way to Tasks.
+  decision opens the project's Tasks at its choice, a permission its task in Tasks until Resources is served (`withoutResources` in SignedIn; then its Resources with
+  the request focused), a guest
+  its room, a reply the personal space (`VIEW_OF` in `api/needs.ts`; no review: A15 dropped it). Without the flag nothing is read and Home is as it was. Opening a reply from Home posts its seen mark only once
+  the reply is shown in the personal space (`turnShown`, read again); a reply not shown, or a failed read, posts
+  nothing and the need stays (`useNeeds`, home-needs.spec). Then the list is read again.
+- The fixture's API answers the route with four needs, one of each kind (a decision and a permission within their work
+  item, a guest, a reply); the app's own check routes it and finds the column and the way to Tasks.
 
 ## What is Davide's
 
-- The route in `apps/api` (`listNeeds`): the five sources above, owner-only, with `readAt`; `403` for a guest; the
-  tests beside the other personal routes.
-- Later, if wanted: a `seenAt` per need (marking read), which this amendment leaves out on purpose.
+- The route in `apps/api` (`listNeeds`) as the final A15 has it: four kinds (decision, permission, guest, reply; no
+  review), owner-only, with `readAt`; `403` for a guest; the tests beside the other personal routes.
+- `POST /api/v1/me/needs/{id}/seen` (owner-only, idempotent, 204), required: for a reply it advances the person's last
+  seen personal turn, `last_seen_turn_seq` on `personal_spaces`, a new column by a migration; for any other kind it
+  changes nothing. Without it a reply never leaves the list. (Corrected after merge: Codex on #245; the review
+  appendix below has the reasons.)
+- Four more points for the route and its contract, raised by Codex on #245 and left to this side (the amendment is
+  the service's): the seen POST is the only transition of the cursor (a background read of the personal space must
+  not advance it); each need kind tied to its `ref.kind`, project and `within` in the schema (discriminated variants, a permission's `resourceId` required non-null among them);
+  only the latest open revision of a decision, its expiry after `readAt`; and the cursor's start for spaces that exist
+  at rollout (none read as all unread, nor a reply present then hidden), with a migration test on a space with turns.
+  Two more, raised on #282: A15's own text still lets the service advance the cursor when the personal space is read,
+  which the Studio does in the background at Home, so the amendment should be changed to the seen POST alone; and the
+  need id joins its parts with `:` though A13 lets a work item's and a reference's ids hold one, so it wants an
+  injective encoding (each part escaped, or length-prefixed) before the Studio's keys and the seen route rely on it.
 
 ## Checks (written first)
 
@@ -54,7 +73,7 @@
 
 ## Left
 
-- Marking a need read; a push or a mail when one arrives (F2's second half).
+- A push or a mail when one arrives (F2's second half). Marking a reply read is in the amendment (the seen POST).
 
 ## After the review (Codex on #245)
 

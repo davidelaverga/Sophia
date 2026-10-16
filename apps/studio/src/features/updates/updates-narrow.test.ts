@@ -91,3 +91,14 @@ describe('the row over it', () => {
     assert.equal(new Set(named.map((p) => p.name)).size, named.length)
   })
 })
+
+describe('the filter’s own labels kept (Codex P2 on #239)', () => {
+  it('a member named «Everyone» or «You» is told apart; the viewer is always You', () => {
+    // Lucía called «You» appears before the viewer; Noor is called «Everyone», the filter's own label.
+    const named = peopleOf(R, { lucia: 'You', noor: 'Everyone', me: 'Fixture viewer' }, 'me')
+    assert.deepEqual(
+      named.map((p) => p.name),
+      ['You (2)', 'You', 'Everyone (2)'],
+    )
+  })
+})

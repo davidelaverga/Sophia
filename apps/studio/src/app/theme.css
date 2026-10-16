@@ -716,6 +716,13 @@ input[type='checkbox']:hover:not(:disabled) {
 .has-tip:focus-visible .tip[data-align='end'] {
   transform: translate(0, 0);
 }
+/* The next ask's reason with the focus in its field too: the keyboard's way to see why, the cap being no stop of its
+   own (Codex P2 on #262). */
+:is(input, textarea):focus-visible ~ .next-ask .tip {
+  opacity: 1;
+  transform: translate(0, 0);
+  transition-delay: 320ms;
+}
 
 /* A chip (docs/plans/chips-radii.md): a word or two in a small box on the first radius. The state chip (the tag): 20 px,
    the small type at 500, a dot and a tone that only reinforce the word. The data chip (a model's name): 18 px, the mono
@@ -976,6 +983,10 @@ button.mark:hover {
 .account-btn[aria-expanded='true'] .avatar {
   border-color: var(--warm);
 }
+/* Open, under the pointer that comes back to close it: the warm edge rings out (Codex P2 on #232). */
+.account-btn[aria-expanded='true']:hover .avatar {
+  box-shadow: 0 0 0 2px rgb(var(--warm-rgb) / 0.35);
+}
 /* A menu (docs/plans/menu-scale.md): the plane a control opens, 6 px from it, aligned to its end, its start or its
    middle, under it or (`menu-top`) over it. The account's is 230 wide. */
 .menu {
@@ -1059,6 +1070,76 @@ button.mark:hover {
 }
 .menu [aria-disabled='true'] {
   color: var(--text-3);
+}
+/* How privacy works, wherever its sheet opens (at home, or over a project in the demo; account-menu.md): each rule's
+   lead on its line, the rest under it. */
+.privacy-rules {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.privacy-rules li {
+  color: var(--text-2);
+  font-size: var(--type-body);
+}
+.privacy-rules strong {
+  display: block;
+  color: var(--text);
+  font-weight: 600;
+}
+/* The account's head (account-menu.md): the picture beside the name, the email and how they signed in. */
+.account-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.account-who > .avatar {
+  width: 32px;
+  height: 32px;
+}
+.menu-head .account-names {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: 500;
+}
+.menu-head .account-name {
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: 500;
+}
+.account-names > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A set of radio items on one row (the theme): the word, then the choices, the one on lit instead of dotted. */
+.menu-choices {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 8px;
+}
+.menu-choices-label {
+  flex: 1;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.menu .menu-choices [role='menuitemradio'] {
+  padding: 0 10px;
+  color: var(--text-2);
+}
+.menu .menu-choices [role='menuitemradio'][aria-checked='true'] {
+  background: rgb(var(--ink-rgb) / 0.08);
+  color: var(--text);
+}
+.menu-choices .menu-mark {
+  display: none;
 }
 /* The one of a set that is on: the app's lavender dot at the row's end. */
 .menu-mark {
@@ -1218,6 +1299,12 @@ img.avatar {
 /* A quiet screen speaks in three sizes: its title, its text (words, fields, buttons alike), and a label. */
 .screen-body :where(p, input, .pill, .text-button) {
   font-size: 14px;
+}
+/* Its label size: the note under a form and a status beside a press, a size under the text, so the lede, the text and
+   the fine print read as three levels, not one (docs/plans/signin-hierarchy.md). */
+.screen-body :is(p.muted, .send-again [role='status']) {
+  font-size: 12px;
+  line-height: 16px;
 }
 /* An error on a quiet screen still reads as one: the rule above would give it the body's grey. */
 .screen-body .form-error {
@@ -2178,6 +2265,24 @@ img.avatar {
   color: var(--text-2);
   font-size: 12px;
 }
+/* When each message was said (docs/plans/chat-times.md): its time by the author, and a day line above each day's first
+   message, as the conversations' day line is set. */
+.contribution-at,
+.chat-at {
+  margin-right: 8px;
+  color: var(--text-3);
+  font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.chat-day {
+  display: block;
+  margin: 10px 0 8px;
+  text-align: center;
+  color: var(--text-2);
+  font: var(--type-label) / var(--lh-small) var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 /* Replies (A20, the vision flag's): Reply after a message's words, the quote of what a reply answers above them, and
    above the bar what is being answered, with ✕. */
 .contribution:focus-visible {
@@ -2490,6 +2595,154 @@ button.contribution-quote:hover {
 }
 .pass-list [role='menuitem'] {
   color: var(--warm);
+}
+/* A device opener (docs/plans/call-devices.md): a narrow tab beside the switch it serves, its chevron pointing to the
+   menu that opens over the dock; the kit's menu. On a phone the dock keeps its one row of squares without them. */
+.device-menu {
+  position: relative;
+  display: inline-flex;
+  margin-left: -2px;
+}
+.device-open {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text-3);
+  transition:
+    background var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+.device-open:hover,
+.device-open[aria-expanded='true'] {
+  color: var(--text);
+  background: rgb(var(--ink-rgb) / 0.06);
+}
+.device-open svg {
+  width: 14px;
+  height: 14px;
+  transform: rotate(180deg);
+}
+.menu.device-list {
+  min-width: 240px;
+}
+@media (max-width: 600px) {
+  .device-menu {
+    display: none;
+  }
+}
+/* The check before joining (docs/plans/device-check.md): the camera's picture over a row per device, the voice's meter
+   beside the microphone, and Join at its foot. The picture is mirrored, as a person expects to see themselves. */
+.device-check {
+  display: grid;
+  gap: 16px;
+}
+.device-preview {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line);
+  background: rgb(var(--ink-rgb) / 0.04);
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 13px;
+  text-align: center;
+}
+.device-preview p {
+  max-width: 320px;
+  margin: 0;
+  padding: 16px;
+}
+/* The picture, the words over it while the camera is off, and the switches at its foot share one cell. */
+.device-preview > * {
+  grid-area: 1 / 1;
+}
+.device-preview-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+.device-preview[data-camera='off'] .device-preview-video {
+  visibility: hidden;
+}
+/* The microphone and the camera for the join (docs/plans/prejoin-toggles.md), on the picture as Meet has them. */
+.device-preview-switches {
+  align-self: end;
+  display: flex;
+  gap: 12px;
+  padding-bottom: 12px;
+}
+.device-rows {
+  display: grid;
+  gap: 8px;
+}
+.device-row {
+  display: grid;
+  /* The meter's column on every row, so the devices' names line up whether a row has one or not. */
+  grid-template-columns: 96px minmax(0, 1fr) 72px;
+  align-items: center;
+  gap: 12px;
+}
+.device-row-label {
+  color: var(--text-2);
+  font-size: 13px;
+}
+.device-choice {
+  position: relative;
+  min-width: 0;
+}
+.device-choice-open {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: rgb(var(--ink-rgb) / 0.03);
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+}
+.device-choice-open:hover,
+.device-choice-open[aria-expanded='true'] {
+  border-color: var(--line-2);
+  background: rgb(var(--ink-rgb) / 0.06);
+}
+.device-choice-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.device-choice-open svg {
+  width: 14px;
+  height: 14px;
+  color: var(--text-3);
+}
+.device-meter {
+  width: 72px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgb(var(--ink-rgb) / 0.08);
+  overflow: hidden;
+}
+.device-meter span {
+  display: block;
+  height: 100%;
+  background: var(--core);
+}
+.device-check-foot {
+  display: flex;
+  justify-content: flex-end;
 }
 /* Sophia's controls in the dock (S1-05A): conversation only; work carries on whatever is pressed. */
 .sophia-controls {
@@ -2804,9 +3057,12 @@ button.contribution-quote:hover {
   left: 10px;
   bottom: 10px;
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  height: 22px;
-  padding: 0 7px;
+  max-width: calc(100% - 20px);
+  /* At least a line, and as many as the other screens' offers wrap to (Codex P2 on #358). */
+  min-height: 22px;
+  padding: 2px 7px;
   border-radius: var(--r-1);
   background: rgb(var(--void-rgb) / 0.66);
   font-size: 12px;
@@ -2911,6 +3167,46 @@ button.contribution-quote:hover {
   font-size: var(--type-small);
 }
 /* A project that is slow to open says so where the lobby would float (it has no one waiting yet). */
+/* The newcomer's welcome (docs/plans/newcomer-welcome.md): a card under the bar, on the right as the slow opening's note,
+   over whatever view is open and moving none of it; once, until a press ends it. */
+.welcome-band {
+  position: fixed;
+  top: calc(var(--topbar) + 16px);
+  right: var(--gutter);
+  z-index: 15;
+  display: grid;
+  gap: 14px;
+  width: min(360px, calc(100% - 2 * var(--gutter)));
+  padding: 16px 18px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: var(--plane-2);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.32);
+}
+.welcome-words {
+  display: grid;
+  gap: 4px;
+}
+.welcome-title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--type-head);
+  font-weight: 600;
+  line-height: var(--lh-body);
+}
+.welcome-line,
+.welcome-for {
+  margin: 0;
+  color: var(--text-2);
+}
+.welcome-for {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.welcome-presses {
+  display: flex;
+  gap: 8px;
+}
 .wait-note {
   position: fixed;
   top: calc(var(--topbar) + 24px);
@@ -2955,6 +3251,35 @@ button.contribution-quote:hover {
   opacity: 1;
   pointer-events: auto;
   transform: translate(-50%, 0);
+}
+/* While a sheet is open the notice stands clear of it (docs/plans/toast-over-sheet.md): centred in what the panel
+   (min(420px, 100%)) leaves on the left, and no wider. The command palette shares the veil's class and is no sheet
+   (Codex on #293). */
+:root:has(.sheet-backdrop:not(.palette-veil)) .toast {
+  left: calc((100% - 420px) / 2);
+  max-width: calc(100% - 420px - 2 * var(--gutter));
+}
+/* Where that space is too narrow to read in (just above a phone), it keeps a width of its own at the bottom left,
+   under the sheet's head, the panel's lower edge at most behind it (Codex on #293). */
+@media (min-width: 561px) and (max-width: 790px) {
+  :root:has(.sheet-backdrop:not(.palette-veil)) .toast {
+    left: var(--gutter);
+    width: min(320px, calc(100% - 2 * var(--gutter)));
+    max-width: none;
+    transform: translate(0, 8px);
+  }
+  :root:has(.sheet-backdrop:not(.palette-veil)) .toast[data-shown] {
+    transform: none;
+  }
+}
+/* On a phone, where the sheet rises from the bottom, at the top. */
+@media (max-width: 560px) {
+  :root:has(.sheet-backdrop:not(.palette-veil)) .toast {
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    bottom: auto;
+    left: 50%;
+    max-width: calc(100% - 2 * var(--gutter));
+  }
 }
 .toast-time {
   position: absolute;
@@ -3025,6 +3350,11 @@ button.contribution-quote:hover {
 .lobby-note {
   padding-bottom: 6px;
   color: var(--text-3);
+  font-size: 12px;
+}
+/* One offer to hear of the next knock in another tab (docs/plans/knock-alert.md). */
+.lobby-notify {
+  margin-bottom: 6px;
   font-size: 12px;
 }
 /* The count, and with several waiting, one answer for all. */
@@ -3433,6 +3763,12 @@ button.contribution-quote:hover {
 .sheet-form > input {
   width: 100%;
 }
+/* What the role chosen may do, under the member's field (docs/plans/invite-members.md). */
+.role-note {
+  margin: 0 0 4px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
 .sheet-status {
   min-height: 1.3em;
   color: var(--text-3);
@@ -3598,6 +3934,7 @@ button.contribution-quote:hover {
 }
 .goal-title {
   font-size: 15px;
+  font-weight: 600;
   letter-spacing: -0.015em;
 }
 .goal-outcome {
@@ -3965,6 +4302,26 @@ button.contribution-quote:hover {
   .copy-link .swap {
     display: none;
   }
+  /* Folded to its icon, it still shows the copy landed: the teal of done, for the two seconds «Link copied» is said
+     (Codex P2 on #259). */
+  .copy-link[data-copied] {
+    border-color: var(--teal);
+    color: var(--teal);
+  }
+}
+/* With a header wide enough for the room's dock, a long project title gives way before the views: the nav keeps its
+   width and the title folds to an ellipsis first (Codex P2 on #259). */
+@media (min-width: 901px) {
+  .project-name {
+    flex-shrink: 100;
+  }
+}
+/* Where the seven views are meant to stand whole (1241 px and up: docs/plans/nav-fits-1280.md), the nav keeps its own
+   width outright and only the title gives way; under it the row may still scroll, with its fades (Codex on #259). */
+@media (min-width: 1241px) {
+  .view-nav {
+    flex-shrink: 0;
+  }
 }
 
 @media (max-width: 900px) {
@@ -4102,6 +4459,11 @@ button.contribution-quote:hover {
   .presence .meter {
     display: none;
   }
+  /* Who holds the floor keeps their role under their name: the phone's dock leaves saying it to the room
+     (docs/plans/phone-dock.md, docs/plans/room-phone-floor.md). */
+  .presence[data-floor] .role {
+    display: block;
+  }
   .dock {
     flex-wrap: wrap;
     justify-content: center;
@@ -4151,7 +4513,9 @@ button.contribution-quote:hover {
     top: auto;
     left: 0;
     width: 100%;
-    max-height: 90dvh;
+    /* At most 90 % of the screen, and always 64 px short of its top: a notice (the toast) has its band there over an
+       open sheet, even in a window both narrow and short (500×400; Codex P2 on #293). */
+    max-height: min(90dvh, calc(100dvh - 64px));
     padding: var(--sheet-top) 16px calc(env(safe-area-inset-bottom, 0px) + 20px);
     border-left: 0;
     border-top: 1px solid var(--line-2);
@@ -5144,6 +5508,13 @@ button.contribution-quote:hover {
 .search-hit:hover {
   background: var(--line);
 }
+/* The words searched for, in a hit (docs/plans/search-goals.md): the ink kept, a quiet lavender behind. */
+.search-hit mark {
+  /* On the kit's radii (4 · 6 · 8 · 12), as every box. */
+  border-radius: 4px;
+  background: rgb(var(--halo-text-rgb) / 0.22);
+  color: inherit;
+}
 .search-hit-title {
   font-size: 14px;
   font-weight: 500;
@@ -5313,4 +5684,862 @@ button.contribution-quote:hover {
 /* A number inside a label (the review sources' «up to N»): data, on the 10.5 px scale. */
 .field-label .data {
   font-size: var(--type-label);
+}
+/* Goals as a briefing (docs/plans/goals-overview.md): one sentence, what waits on the viewer, then the goals by health
+   in one list; the type carries the hierarchy and the one accent, amber, marks only what waits. */
+.goals-briefing {
+  display: grid;
+  gap: 28px;
+  margin-top: 8px;
+}
+.goals-brief {
+  margin: 0;
+  max-width: 64ch;
+  color: var(--text-3);
+  font-size: var(--type-title);
+  line-height: var(--lh-body);
+}
+.goals-brief-you {
+  color: var(--text);
+}
+/* The notes unread, said under the brief (docs/plans/notes-robust.md). */
+.goals-notes-failed {
+  margin: -16px 0 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.goal-asks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.goal-asks li {
+  display: grid;
+  grid-template-columns: 6px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.goal-asks li:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.goal-ask-dot {
+  align-self: start;
+  width: 6px;
+  height: 6px;
+  margin-top: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+.goal-ask-words {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.goal-ask-text {
+  margin: 0;
+}
+.goal-ask-meta {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.goals-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: -16px;
+}
+.goals-list-head .field-label {
+  margin: 0;
+}
+/* «Mine», before the search, at the head's end (goal-overdue.md). */
+.goals-mine {
+  margin-left: auto;
+}
+.goals-search {
+  width: min(280px, 100%);
+}
+.goal-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.goal-rows > .goal {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) 112px 56px;
+  align-items: center;
+  gap: 24px;
+  padding: 14px 12px;
+  margin: 0 -12px;
+  border-bottom: 0;
+  border-radius: 8px;
+  box-shadow: 0 1px 0 var(--line);
+  transition: background 0.16s var(--ease);
+}
+.goal-rows > .goal:hover,
+.goal-rows > .goal:focus-within {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+.goal-row-words {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.goal-press {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: start;
+  text-decoration: underline transparent;
+  text-underline-offset: 4px;
+  cursor: pointer;
+  transition: text-decoration-color 0.16s var(--ease);
+}
+/* Under the pointer the title takes a hairline, as the row's plane lifts. */
+.goal-press:hover {
+  text-decoration-color: var(--line-2);
+}
+/* The whole row is the title's press. */
+.goal-press::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+}
+.goal-press:focus-visible {
+  outline: none;
+}
+.goal-press:focus-visible::after {
+  box-shadow: 0 0 0 2px rgb(var(--halo-text-rgb) / 0.7);
+}
+.goal-row-line {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--type-small);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.goal-health {
+  color: var(--text-2);
+}
+[data-health='attention'] .goal-health {
+  color: var(--amber);
+}
+.goal-meter {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+.goal-track {
+  display: block;
+  width: 100%;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 1px;
+  background: var(--line-2);
+}
+.goal-track > span {
+  display: block;
+  height: 100%;
+  background: var(--text-2);
+}
+.goal-meter-count {
+  color: var(--text-3);
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
+}
+.goal-faces {
+  display: inline-flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+.goal-faces .avatar {
+  width: 22px;
+  height: 22px;
+  margin-left: -6px;
+  background: var(--plane-2);
+  box-shadow: 0 0 0 2px var(--void);
+}
+.goal-faces .avatar:first-child {
+  margin-left: 0;
+}
+.goal-faces-more {
+  margin-left: 6px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.goals-done-fold {
+  justify-self: start;
+  margin-top: -12px;
+  color: var(--text-3);
+}
+/* A goal's sheet. */
+.goal-sheet {
+  display: grid;
+  gap: 22px;
+}
+.goal-sheet-health {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.goal-sheet .goal-outcome {
+  margin: -14px 0 0;
+}
+.goal-sheet .goal-asks li {
+  grid-template-columns: 6px minmax(0, 1fr) auto;
+}
+.goal-sheet-way {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.goal-sheet-progress {
+  display: grid;
+  gap: 8px;
+}
+.goal-sheet-progress p {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.goal-sheet-progress b {
+  color: var(--text);
+  font-weight: 500;
+}
+.goal-sheet-section {
+  display: grid;
+  gap: 8px;
+}
+.goal-sheet-section .field-label {
+  margin: 0;
+}
+.goal-sheet-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+/* Notes on a goal, in its sheet (docs/plans/goal-notes.md): the field, then the notes, newest first. */
+.goal-note-field {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--plane-2);
+}
+.goal-note-field:focus-within {
+  border-color: rgb(var(--halo-text-rgb) / 0.5);
+}
+.goal-note-field textarea {
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+.goal-note-field textarea::placeholder {
+  color: var(--text-3);
+}
+.goal-note-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.goal-note-send {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.goal-note-refused {
+  color: var(--rose);
+  font-size: var(--type-small);
+}
+.goal-notes {
+  display: grid;
+  gap: 14px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.goal-notes li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 10px;
+}
+.goal-notes .avatar {
+  width: 22px;
+  height: 22px;
+}
+.goal-note-words {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.goal-note-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.goal-note-author {
+  color: var(--text);
+  font-weight: 500;
+}
+[data-kind='blocker'] .goal-note-kind {
+  color: var(--amber);
+}
+.goal-note-text {
+  margin: 0;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.goal-notes-none,
+.goal-notes-off {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+@media (max-width: 640px) {
+  .goal-rows > .goal {
+    grid-template-columns: minmax(0, 1fr) 56px;
+  }
+  .goal-rows > .goal .goal-faces {
+    display: none;
+  }
+}
+
+/* A new project's first step under Sophia's line (docs/plans/first-step.md): by voice or in writing, side by side. */
+.line-presses {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Work past five projects (docs/plans/find-projects.md): a field that finds one by its title, and the order beside. */
+.c3-find {
+  width: min(760px, 100%);
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+.c3-find-field {
+  flex: 1;
+  min-width: 0;
+}
+.c3-none {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+/* Reactions in the call (docs/plans/call-reactions.md): each floats up the room's left side over the dock for a few
+   seconds, with who sent it; with less motion asked for, it appears without moving. */
+.reactions {
+  position: absolute;
+  left: var(--gutter, 16px);
+  bottom: calc(var(--dock-h, 64px) + 24px);
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+  z-index: 3;
+}
+.reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 6px;
+  border-radius: var(--r-4);
+  background: var(--glass);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  animation: reaction-rise 4s var(--ease) both;
+}
+.reaction-emoji {
+  font-size: 22px;
+  line-height: 1;
+}
+@keyframes reaction-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  10%,
+  80% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reaction {
+    animation: none;
+  }
+}
+.menu.react-list {
+  min-width: 180px;
+}
+
+/* The stage's main view, under the pointer or the focus (docs/plans/room-pin-fullscreen.md): full screen, and Unpin for
+   a person pinned. Full screen keeps the picture whole on black. */
+.stage-acts {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity var(--fast) var(--ease);
+}
+.screen-main:hover .stage-acts,
+.screen-main:focus-within .stage-acts {
+  opacity: 1;
+}
+.screen-main:fullscreen {
+  border: 0;
+  border-radius: 0;
+}
+.spotlight-main {
+  display: grid;
+  place-items: center;
+  background: var(--plane);
+}
+.spotlight-initial {
+  font-size: 64px;
+}
+/* A tile's Pin, in the gallery, under the pointer or the focus. */
+.tile-pin {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  opacity: 0;
+  transition: opacity var(--fast) var(--ease);
+}
+.tile:hover .tile-pin,
+.tile:focus-within .tile-pin {
+  opacity: 1;
+}
+@media (hover: none) {
+  .stage-acts,
+  .tile-pin {
+    opacity: 1;
+  }
+}
+
+/* A web address in a message (docs/plans/message-links.md): the halo's link colour, underlined, wrapping inside the
+   column however long it is. */
+.msg-link {
+  color: var(--halo-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+.msg-link:hover {
+  color: var(--text);
+}
+/* With the finder, Work's column has three rows: the head, the finder, and the list, which keeps the scroll (Codex P1
+   on #347). Without it the list still takes the last row; the empty middle one is nothing. */
+.places .c3-space[data-place-view='work'] {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+.places .c3-space[data-place-view='work'] > .c3-projects {
+  grid-row: 3;
+}
+
+/* The project's title for an admin (docs/plans/project-rename.md): the same words, a press that opens the project's
+   menu; Rename… opens its sheet. */
+.project-name:has(.project-name-menu) {
+  overflow: visible;
+}
+.project-name-menu {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+}
+.project-name-open {
+  display: inline-flex;
+  min-width: 0;
+  max-width: calc(100% + 12px);
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.project-name-open:hover,
+.project-name-open[aria-expanded='true'] {
+  background: rgb(var(--ink-rgb) / 0.06);
+}
+.project-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-name-open svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--text-3);
+}
+.rename-acts {
+  justify-self: stretch;
+  margin-top: 4px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.leave-note {
+  margin: 0;
+  color: var(--text-2);
+}
+
+/* The other screens shared (docs/plans/two-screens.md): beside the caption, each a press that shows it. */
+.screen-also {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-left: 10px;
+}
+
+/* The room's chat further back (docs/plans/discussion-earlier.md): «Earlier messages» at its top, or where it starts. */
+.discussion-earlier {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 0 4px;
+  font-size: var(--type-small);
+}
+.discussion-earlier p {
+  margin: 0;
+  color: var(--text-2);
+}
+.discussion-start {
+  margin: 0;
+  padding: 8px 0 4px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+
+/* What continuing means, under the sign-in (docs/plans/terms-privacy.md): small, quiet, its links underlined. */
+/* Above `.screen-body p`, which sets the screen's paragraphs in the second ink. */
+.screen-body p.signin-legal {
+  margin-top: 12px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.signin-legal a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* Under the pointer the link answers in the full ink (press-answers.spec). */
+.signin-legal a:hover {
+  color: var(--text);
+}
+
+/* The terms and the privacy notice: a reading column on the page's ground, the mark above, the way on below. */
+.legal {
+  min-height: 100dvh;
+  padding: 32px 16px 48px;
+  background: var(--bg);
+  color: var(--text);
+}
+.legal-head,
+.legal-doc,
+.legal-foot {
+  max-width: 680px;
+  margin-inline: auto;
+}
+.legal-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  text-decoration: none;
+}
+.legal-doc h1 {
+  margin: 40px 0 4px;
+  font-size: var(--type-view);
+  letter-spacing: -0.025em;
+}
+.legal-updated {
+  margin: 0 0 24px;
+  color: var(--text-3);
+  font: var(--type-label) / var(--lh-small) var(--mono);
+}
+.legal-doc h2 {
+  margin: 28px 0 8px;
+  font-size: var(--type-head);
+  font-weight: 600;
+}
+.legal-doc p,
+.legal-doc li {
+  color: var(--text-2);
+  font-size: var(--type-title);
+  line-height: 1.6;
+}
+.legal-doc p {
+  margin: 0 0 10px;
+}
+.legal-doc ul {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+.legal-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: var(--type-small);
+}
+.legal-foot a {
+  color: var(--text-2);
+}
+
+/* Room to write feedback (docs/plans/crash-feedback.md). */
+.feedback-words textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+/* Everyone in the call, in the side panel (docs/plans/host-controls.md): a row each, the admin's menu at its end. */
+.people {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 8px 0;
+  list-style: none;
+}
+.person {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 20px 32px;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 4px 0 8px;
+  border-radius: var(--r-2);
+}
+.person:hover {
+  background: rgb(var(--ink-rgb) / 0.04);
+}
+.person-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.person-role {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.person-mic {
+  display: inline-flex;
+  color: var(--text-2);
+}
+.person-mic svg {
+  width: 16px;
+  height: 16px;
+}
+.person-actions {
+  position: relative;
+  grid-column: 4;
+}
+.person-pending {
+  grid-column: 1 / -1;
+  margin: 0 0 6px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.person-actions .round[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: progress;
+}
+.person-failed {
+  grid-column: 1 / -1;
+  margin: 0 0 6px;
+  color: var(--rose);
+  font-size: var(--type-small);
+}
+
+/* A goal's owner and target date (docs/plans/goal-owner-date.md): on its row, and in its sheet. */
+.goal-row-target {
+  margin: 2px 0 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+/* A date that has passed, on a goal not completed (docs/plans/goal-overdue.md). */
+.goal-row-target[data-due='overdue'] {
+  color: var(--rose);
+}
+.goal-target-form {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 12px;
+}
+.goal-target-form button {
+  grid-column: 2;
+  justify-self: start;
+}
+.goal-target p {
+  margin: 0;
+}
+
+/* Invite people from your other projects (docs/plans/invite-from-projects.md): a checkbox each, one role, Invite N. */
+.invite-from {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+}
+.invite-from-people {
+  display: grid;
+  gap: 2px;
+  max-height: 220px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+.invite-from-people label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  padding: 0 6px;
+  border-radius: var(--r-2);
+}
+.invite-from-people input {
+  width: 16px;
+  height: 24px;
+  margin: 0;
+}
+.invite-from-people label:hover {
+  background: rgb(var(--ink-rgb) / 0.04);
+}
+.invite-from-acts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Who is in the project (docs/plans/member-roles.md): a row each, the role at its end, a select for an admin. */
+.in-project {
+  display: grid;
+  gap: 8px;
+  margin-top: 20px;
+}
+.in-project-people {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.in-project-people li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 36px;
+}
+.in-project-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.in-project-role-words {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.in-project-people .form-error {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+/* A project's activity (docs/plans/project-activity.md): who, what on whom, when; one line each. */
+.activity {
+  display: grid;
+  gap: 12px;
+}
+.activity-filter {
+  justify-self: start;
+}
+.activity-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.activity-list li {
+  display: grid;
+  grid-template-columns: minmax(80px, auto) minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--type-small);
+}
+.activity-who {
+  color: var(--text);
+}
+.activity-what {
+  color: var(--text-2);
+}
+.activity-when {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.activity-earlier {
+  justify-self: center;
+}
+.activity-reading {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
 }

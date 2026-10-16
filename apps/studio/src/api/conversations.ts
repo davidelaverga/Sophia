@@ -1,4 +1,4 @@
-// A project's saved text conversations (CON-01, contract amendment A16; the UI proposal vision.ts once named A18): the
+// A project's saved text conversations (CON-01, contract amendment A33; the UI proposal vision.ts once named A18): the
 // list with the saved-text policy and what the reader may do, a conversation's pages, starting one, a message, and
 // withdrawing or erasing. Every answer is checked against the generated contract; a different answer is an error,
 // never a cast. Served by the API only where conversations are on (SOPHIA_CONVERSATIONS); the fixture pages answer
@@ -54,7 +54,7 @@ export const listConversations = (token: string, projectId: string, signal?: Abo
   )
 
 /**
- * A page of a conversation's messages, read within its project (A16 getProjectConversationMessages): the newest, or
+ * A page of a conversation's messages, read within its project (A33 getProjectConversationMessages): the newest, or
  * those before `before`. In one snapshot: a reader not a current member of the project is refused (403 `forbidden`)
  * before anything of the conversation is read; to a member, `not_found` (422) is none open in this project (erased,
  * missing or another project's alike: not proof of an erasure). The Studio reads a transcript only this way.

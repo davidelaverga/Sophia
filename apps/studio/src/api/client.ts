@@ -7,6 +7,15 @@ import type {
   FloorRequest,
   GoalCommand,
   ProjectCreated,
+  ProjectRenamed,
+  ProjectLeft,
+  DiscussionPage,
+  GoalTargetList,
+  GoalTargetRequest,
+  GoalTargetSet,
+  ProjectMembers,
+  MemberRoleSet,
+  ActivityPage,
   Receipt,
   RoomToken,
   RoomTokenRequest,
@@ -16,6 +25,14 @@ import {
   asErrorBody,
   parseExchangeReceipt,
   parseProjectCreated,
+  parseProjectRenamed,
+  parseProjectLeft,
+  parseDiscussionPage,
+  parseGoalTargetList,
+  parseGoalTargetSet,
+  parseProjectMembers,
+  parseMemberRoleSet,
+  parseActivityPage,
   parseReceipt,
   parseRoomToken,
   parseSnapshot,
@@ -99,6 +116,110 @@ export function getSnapshot(token: string, projectId: string, signal?: AbortSign
   return inTime(READ_TIMEOUT_MS, read, signal)
 }
 
+/** readDiscussion (A23): a page of the room's discussion, oldest first: the newest, or the 50 before `before`. */
+export function getDiscussionPage(token: string, projectId: string, before: string | null): Promise<DiscussionPage> {
+  const query = before ? `?before=${encodeURIComponent(before)}` : ''
+  const read = async (limit: AbortSignal) => {
+    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/discussion${query}`), {
+      headers: auth(token),
+      signal: limit,
+    })
+    if (!res.ok) throw await toError(res)
+    return readBody(res, parseDiscussionPage, 'safe_read')
+  }
+  return inTime(READ_TIMEOUT_MS, read)
+}
+
+/** A JSON read under the person's token, validated as `parse` (A25's goal targets and members). */
+function readJson<T>(token: string, path: `/api/${string}`, parse: (value: unknown) => T): Promise<T> {
+  const read = async (limit: AbortSignal) => {
+    const res = await fetch(apiUrl(path), { headers: auth(token), signal: limit })
+    if (!res.ok) throw await toError(res)
+    return readBody(res, parse, 'safe_read')
+  }
+  return inTime(READ_TIMEOUT_MS, read)
+}
+
+/** listGoalTargets (A25): the project's goals' owners and target dates. */
+export const getGoalTargets = (token: string, projectId: string): Promise<GoalTargetList> =>
+  readJson(token, `/api/v1/projects/${projectId}/goal-targets`, parseGoalTargetList)
+
+/** listProjectMembers (A25): the project's active members, with the names the room keeps. */
+export const getProjectMembers = (token: string, projectId: string): Promise<ProjectMembers> =>
+  readJson(token, `/api/v1/projects/${projectId}/members`, parseProjectMembers)
+
+/** setGoalTarget (A25): editors and admins, compare-and-set on the target's revision (0 for none yet). */
+export async function setGoalTarget(
+  token: string,
+  projectId: string,
+  goalId: string,
+  body: GoalTargetRequest,
+): Promise<GoalTargetSet> {
+  const send = async (limit: AbortSignal) => {
+    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/goals/${goalId}/target`), {
+      method: 'PUT',
+      headers: { ...auth(token), 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: limit,
+    })
+    if (!res.ok) throw await toError(res)
+    return readBody(res, parseGoalTargetSet, 'never')
+  }
+  return inTime(READ_TIMEOUT_MS, send)
+}
+
+/** readProjectActivity (A28): who did what in the project, for its admins; newest first, before a sequence. */
+export function getProjectActivity(token: string, projectId: string, before: string | null): Promise<ActivityPage> {
+  const query = before ? `?before=${encodeURIComponent(before)}` : ''
+  const read = async (limit: AbortSignal) => {
+    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/activity${query}`), {
+      headers: auth(token),
+      signal: limit,
+    })
+    if (!res.ok) throw await toError(res)
+    return readBody(res, parseActivityPage, 'safe_read')
+  }
+  return inTime(READ_TIMEOUT_MS, read)
+}
+
+/** changeMemberRole (A27): admins only; a project keeps an admin; a role already held changes nothing. */
+export async function changeMemberRole(
+  token: string,
+  projectId: string,
+  actorId: string,
+  role: 'admin' | 'editor' | 'viewer',
+): Promise<MemberRoleSet> {
+  const send = async (limit: AbortSignal) => {
+    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/members/${actorId}/role`), {
+      method: 'PUT',
+      headers: { ...auth(token), 'content-type': 'application/json' },
+      body: JSON.stringify({ role }),
+      signal: limit,
+    })
+    if (!res.ok) throw await toError(res)
+    return readBody(res, parseMemberRoleSet, 'never')
+  }
+  return inTime(READ_TIMEOUT_MS, send)
+}
+
+/** An admin's act on a member in the call (A24): mute their microphone, or take them out. No key: twice is once. */
+export async function actInCall(
+  token: string,
+  projectId: string,
+  identity: string,
+  what: 'mute' | 'remove',
+): Promise<void> {
+  const send = async (limit: AbortSignal) => {
+    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/room/people/${identity}/${what}`), {
+      method: 'POST',
+      headers: auth(token),
+      signal: limit,
+    })
+    if (!res.ok) throw await toError(res)
+  }
+  return inTime(WRITE_TIMEOUT_MS, send)
+}
+
 /**
  * One idempotent write: POST with the caller's Idempotency-Key, the reply validated as `parse`. No reply
  * at all, or none in time, is outcome_unknown (the write may have committed), so the caller retries with the same
@@ -179,6 +300,14 @@ export const admitGoalCommand = (token: string, projectId: string, key: string, 
 /** createProject: idempotent per person and key; reuse the key when retrying an unknown outcome. */
 export const createProject = (token: string, key: string, title: string): Promise<ProjectCreated> =>
   postIdempotent(token, '/api/v1/projects', key, { title }, parseProjectCreated)
+
+/** renameProject (A21): an admin only, idempotent per person and key; reuse the key when retrying an unknown outcome. */
+export const renameProject = (token: string, projectId: string, key: string, title: string): Promise<ProjectRenamed> =>
+  postIdempotent(token, `/api/v1/projects/${projectId}/title`, key, { title }, parseProjectRenamed)
+
+/** leaveProject (A22): any member but the only admin, idempotent per person and key. */
+export const leaveProject = (token: string, projectId: string, key: string): Promise<ProjectLeft> =>
+  postIdempotent(token, `/api/v1/projects/${projectId}/leave`, key, {}, parseProjectLeft)
 
 /** A short-lived token for this project's LiveKit room; issuing it changes nothing, so a retry is harmless. */
 export const issueRoomToken = (

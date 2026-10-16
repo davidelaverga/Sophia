@@ -1,6 +1,8 @@
 // What the room shows, derived from the project's room record (the input floor) and the people and
 // video LiveKit reports. Pure, so the rules are unit-tested; React only renders the result.
+import type { ReactNode } from 'react'
 import type { NativeTask, Snapshot } from '@sophia/contracts'
+import { BackgroundUnavailable } from './camera-background.ts'
 
 export type DockStatus = 'idle' | 'joining' | 'live' | 'reconnecting' | 'failed'
 
@@ -20,6 +22,9 @@ const STILL_ON: Record<Device, string> = {
  */
 export function mediaMessage(err: unknown, device: Device, on: boolean): string | null {
   if (!on) return STILL_ON[device]
+  // The chosen background couldn't be drawn, so the camera stayed off rather than show what is behind (Codex on #342).
+  if (err instanceof BackgroundUnavailable)
+    return 'Couldn’t draw your background, so the camera stayed off. Choose None or try again.'
   const name = err instanceof Error ? err.name : ''
   if (device === 'screen') {
     return name === 'NotAllowedError' || name === 'AbortError' ? null : 'Screen sharing couldn’t start. Try again.'
@@ -126,6 +131,10 @@ export function presenceRole(person: RoomParticipant, holds: boolean): string | 
 }
 
 /** Whose shared screen is on the stage; a guest's says so, as their tile does. */
+/** The press that puts another shared screen on the stage, in the caption's words (Codex P2 on #358). */
+export const showScreenLabel = (presenter: RoomParticipant | undefined): string =>
+  presenter ? `Show ${screenCaption(presenter)}` : 'Show the other shared screen'
+
 export function screenCaption(presenter: RoomParticipant | undefined): string {
   if (!presenter) return 'Shared screen'
   return `${shortName(presenter.name)}’s screen${presenter.standing === 'guest' ? ' · guest' : ''}`
@@ -161,6 +170,8 @@ export interface RoomLine {
   note: string | null
   /** The note is the work's: a press goes to Tasks (docs/plans/studio-lens-address.md). */
   goes?: 'work' | undefined
+  /** Presses under the line: a new project's first step (first-step.md). */
+  presses?: ReactNode
 }
 
 /** Before anyone asks Sophia into the conversation (S1-05A), the room says how she joins. */

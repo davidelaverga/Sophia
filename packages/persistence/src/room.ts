@@ -55,3 +55,17 @@ export async function transferInputFloor(
   )
   return onlyRow(rows, 'transfer_input_floor').receipt
 }
+
+/**
+ * The project's room, for an admin of it (A24's host controls); null for anyone else, a non-member looking the same.
+ * Call inside withActor(..., "read").
+ */
+export async function hostedRoom(c: pg.PoolClient, projectId: string): Promise<string | null> {
+  const { rows } = await c.query<{ id: string }>(
+    `SELECT r.id FROM sophia.room_state r
+       JOIN sophia.project_members m ON m.project_id = r.project_id AND m.actor_id = sophia.actor_id() AND m.active
+      WHERE r.project_id = $1 AND m.role = 'admin'`,
+    [projectId],
+  )
+  return rows[0]?.id ?? null
+}

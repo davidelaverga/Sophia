@@ -9,7 +9,7 @@ import { Ajv } from 'ajv'
 import addFormats from 'ajv-formats'
 import { parseConversationList } from './validate.ts'
 
-/** A projection not made: as the API says it for every conversation before G2 (A16 `ProjectionCoverage`). */
+/** A projection not made: as the API says it for every conversation before G2 (A33 `ProjectionCoverage`). */
 const NOT_ASSESSED = {
   state: 'not_assessed',
   complete: false,

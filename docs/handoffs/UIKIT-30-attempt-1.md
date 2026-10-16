@@ -15,6 +15,9 @@ commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending
 Ending commit/tree: `8d9057cb46fc` (tree `f5b642686d62`), the last commit of `ui/light-stage`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 4 files changed against
 `ui/light-breath` at that commit: `e2e/light-stage.spec.ts`, `src/app/theme.css`, `docs/handoffs/UIKIT-30-attempt-1.md`, `docs/plans/light-stage.md`. The review notes below name the commit of each later change.
+The branch as merged (#252, merge commit `86de0da06125`): its head `3fd143b7407f` (tree `5666d637add9`), the repository result
+reviewed and merged: no commit of the branch's own after `8d9057cb46fc` changes code, the later ones merge its base
+forward or touch this record. (Recorded after merge: Codex on #252.)
 
 ## Outcome
 

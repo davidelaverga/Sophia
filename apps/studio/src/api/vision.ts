@@ -446,7 +446,7 @@ export const getAfter = (token: string, projectId: string, meetingId: string, si
     parseAfter,
   )
 
-// A18's four conversation calls are real now: api/conversations.ts (amendment A16, CON-01).
+// A18's four conversation calls are real now: api/conversations.ts (amendment A33, CON-01).
 
 /** A20 (proposed): which entry of the room's discussion a reply answers, with that entry's first words as recorded. */
 export interface DiscussionReply {

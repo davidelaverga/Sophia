@@ -306,7 +306,8 @@ describe('createProject', () => {
       { 'idempotency-key': randomUUID() },
     )
     assert.equal(created.status, 201)
-    assert.equal(parseProjectCreated(created.json).cursor, '0')
+    // Its first event is its creation (project-activity.md): the receipt's cursor is that event's.
+    assert.equal(parseProjectCreated(created.json).cursor, '1')
     const mine = await call(A, 'GET', `/api/v1/projects/${created.json.projectId}/snapshot`)
     assert.equal(mine.status, 200)
     assert.deepEqual([parseSnapshot(mine.json).title, parseSnapshot(mine.json).goals], ['Founder project', []])
@@ -333,6 +334,27 @@ describe('createProject', () => {
     assert.equal(await projectsForKey(key), 1) // still exactly one project
   })
 
+  it('replays a blank title admitted before blanks were refused: the stored receipt, not a refusal (Codex P1 on #327)', async () => {
+    // The state an earlier build could leave: a project titled with spaces, its creation recorded under its key.
+    const key = randomUUID()
+    const legacy = randomUUID()
+    const receipt = { projectId: legacy, cursor: '0' }
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    try {
+      await owner.query(`INSERT INTO sophia.projects(id, title, created_by) VALUES ($1, '   ', $2)`, [legacy, A])
+      await owner.query(
+        `INSERT INTO sophia.project_creations(actor_id, idempotency_key, semantic_request, project_id, receipt)
+         VALUES ($1, $2, '{"title":"   "}', $3, $4)`,
+        [A, key, legacy, receipt],
+      )
+    } finally {
+      await owner.end()
+    }
+    const replay = await call(A, 'POST', '/api/v1/projects', { title: '   ' }, { 'idempotency-key': key })
+    assert.deepEqual([replay.status, replay.json], [201, receipt])
+  })
+
   it('conflicts on a reused key with another title and validates the request', async () => {
     const key = randomUUID()
     await call(A, 'POST', '/api/v1/projects', { title: 'One' }, { 'idempotency-key': key })
@@ -348,6 +370,9 @@ describe('createProject', () => {
         .status,
       422,
     )
+    // A title of spaces alone is no title (e2e-real S2): refused as the empty one is, never stored as "   ".
+    const blank = await call(A, 'POST', '/api/v1/projects', { title: '   ' }, { 'idempotency-key': randomUUID() })
+    assert.deepEqual([blank.status, blank.json.code, blank.json.retry], [422, 'invalid_request', 'never'])
     assert.equal(
       (await call(A, 'POST', '/api/v1/projects', { title: 'Spoof', createdBy: B }, { 'idempotency-key': randomUUID() }))
         .status,
@@ -357,6 +382,342 @@ describe('createProject', () => {
       (await call(null, 'POST', '/api/v1/projects', { title: 'Anon' }, { 'idempotency-key': randomUUID() })).status,
       401,
     )
+  })
+})
+
+describe('renaming a project (A21)', () => {
+  const rename = (actor: string, projectId: string, title: unknown, key = randomUUID()) =>
+    call(actor, 'POST', `/api/v1/projects/${projectId}/title`, { title }, { 'idempotency-key': key })
+
+  it('an admin renames it: every member reads the new title, and the room hears of it', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    const renamed = await rename(A, projectId, 'Launch plan, v2')
+    assert.equal(renamed.status, 200)
+    assert.deepEqual([renamed.json.projectId, renamed.json.title], [projectId, 'Launch plan, v2'])
+    assert.equal(typeof renamed.json.cursor, 'string')
+    const theirs = parseSnapshot((await call(B, 'GET', `/api/v1/projects/${projectId}/snapshot`)).json)
+    assert.equal(theirs.title, 'Launch plan, v2')
+    const listed = (await call(V, 'GET', '/api/v1/projects')).json.projects as { projectId: string; title: string }[]
+    assert.equal(listed.find((p) => p.projectId === projectId)?.title, 'Launch plan, v2')
+    const heard = await ownerCount(
+      `SELECT count(*)::int AS n FROM sophia.project_events WHERE project_id = $1 AND type = 'project.renamed'`,
+      [projectId],
+    )
+    assert.equal(heard, 1)
+  })
+
+  it('only an admin may; a title of spaces is no title; a key answers once, and only for its own title', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    assert.deepEqual([(await rename(B, projectId, 'Editor title')).status], [403])
+    assert.deepEqual([(await rename(C, projectId, 'Outsider title')).status], [403])
+    const blank = await rename(A, projectId, '   ')
+    assert.deepEqual([blank.status, blank.json.code], [422, 'invalid_request'])
+    assert.equal((await rename(A, projectId, 'x'.repeat(181))).status, 422)
+    assert.equal((await rename(A, projectId, '')).status, 422)
+    const key = randomUUID()
+    const first = await rename(A, projectId, 'Once', key)
+    const again = await rename(A, projectId, 'Once', key)
+    assert.deepEqual([again.status, again.json], [200, first.json])
+    const other = await rename(A, projectId, 'Twice', key)
+    assert.deepEqual([other.status, other.json.code], [409, 'idempotency_conflict'])
+    assert.equal((await call(A, 'POST', `/api/v1/projects/${projectId}/title`, { title: 'No key' })).status, 422)
+  })
+})
+
+describe('leaving a project (A22)', () => {
+  const leave = (actor: string, projectId: string, key = randomUUID()) =>
+    call(actor, 'POST', `/api/v1/projects/${projectId}/leave`, {}, { 'idempotency-key': key })
+  const listed = async (actor: string) =>
+    (await call(actor, 'GET', '/api/v1/projects')).json.projects as { projectId: string; members: number }[]
+
+  it('an editor leaves: it leaves their list and their reads, the others count one fewer, and the room hears of it', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    assert.equal((await listed(V)).find((p) => p.projectId === projectId)?.members, 3)
+    const key = randomUUID()
+    const left = await leave(B, projectId, key)
+    assert.equal(left.status, 200)
+    assert.equal(left.json.projectId, projectId)
+    assert.equal(typeof left.json.cursor, 'string')
+    assert.equal((await call(B, 'GET', `/api/v1/projects/${projectId}/snapshot`)).status, 403)
+    assert.equal(
+      (await listed(B)).some((p) => p.projectId === projectId),
+      false,
+    )
+    assert.equal((await listed(V)).find((p) => p.projectId === projectId)?.members, 2)
+    const heard = await ownerCount(
+      `SELECT count(*)::int AS n FROM sophia.project_events WHERE project_id = $1 AND type = 'project.member_left'`,
+      [projectId],
+    )
+    assert.equal(heard, 1)
+    // Said as a departure, never as «Member joined» (Codex P2 on #349).
+    const said = await ownerCount(
+      `SELECT count(*)::int AS n FROM sophia.project_events
+        WHERE project_id = $1 AND type = 'project.member_left' AND summary_code = 'project.member_left'`,
+      [projectId],
+    )
+    assert.equal(said, 1)
+    // Out of the call too: a removal the worker keeps until any token they hold has expired (Codex P1 on #349).
+    const removal = await ownerCount(
+      `SELECT count(*)::int AS n FROM sophia.room_removals
+        WHERE project_id = $1 AND identity = $2 AND reason = 'left' AND lobby_entry_id IS NULL
+          AND state <> 'cancelled' AND guard_until > now() + interval '9 minutes'`,
+      [projectId, B],
+    )
+    assert.equal(removal, 1)
+    // A retry after a lost reply answers the same receipt, though the person is no longer a member.
+    const again = await leave(B, projectId, key)
+    assert.deepEqual([again.status, again.json], [200, left.json])
+  })
+
+  it('an outsider is refused; the only admin stays until a second admin exists; a key is needed', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    assert.equal((await leave(C, projectId)).status, 403)
+    const alone = await leave(A, projectId)
+    assert.deepEqual([alone.status, alone.json.code], [409, 'invalid_state'])
+    assert.equal(
+      (await listed(A)).some((p) => p.projectId === projectId),
+      true,
+    )
+    const promoted = await ownerCount(
+      `WITH u AS (UPDATE sophia.project_members SET role = 'admin' WHERE project_id = $1 AND actor_id = $2 RETURNING 1)
+       SELECT count(*)::int AS n FROM u`,
+      [projectId, V],
+    )
+    assert.equal(promoted, 1)
+    assert.equal((await leave(A, projectId)).status, 200)
+    assert.equal((await call(A, 'POST', `/api/v1/projects/${projectId}/leave`, {})).status, 422)
+  })
+})
+
+/** A page's texts, oldest first (A23). */
+const pageTexts = (res: { json: { entries: { text: string }[] } }) => res.json.entries.map((e) => e.text)
+/** «Message from» to «Message to», as seeded. */
+const numbered = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => `Message ${from + i}`)
+
+describe('reading the room’s earlier discussion (A23)', () => {
+  const page = (actor: string, projectId: string, anchor?: string) =>
+    call(actor, 'GET', `/api/v1/projects/${projectId}/discussion${anchor ? `?before=${anchor}` : ''}`)
+
+  it('pages back 50 at a time, oldest first, to the first message; the newest page is the snapshot’s', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    for (let i = 1; i <= 120; i++) {
+      const said = await call(
+        B,
+        'POST',
+        `/api/v1/projects/${projectId}/contributions`,
+        { source: null, threadId: null, artifactVersionId: null, intent: 'discuss', text: `Message ${i}` },
+        { 'idempotency-key': randomUUID() },
+      )
+      assert.equal(said.status, 202)
+    }
+    const newest = await page(V, projectId)
+    assert.equal(newest.status, 200)
+    assert.deepEqual(pageTexts(newest), numbered(71, 120))
+    assert.equal(newest.json.before, newest.json.entries[0].id)
+    const snap = parseSnapshot((await call(V, 'GET', `/api/v1/projects/${projectId}/snapshot`)).json)
+    assert.deepEqual(
+      snap.discussion.map((e) => e.id),
+      (newest.json.entries as { id: string }[]).map((e) => e.id),
+    )
+    const middle = await page(V, projectId, newest.json.before)
+    assert.deepEqual(pageTexts(middle), numbered(21, 70))
+    const first = await page(V, projectId, middle.json.before)
+    assert.deepEqual([pageTexts(first), first.json.before], [numbered(1, 20), null])
+  })
+
+  it('members only, as the snapshot; an anchor the discussion doesn’t hold is refused', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    assert.equal((await page(C, projectId)).status, 403)
+    assert.equal((await page(V, projectId, randomUUID())).status, 422)
+    const empty = await page(V, projectId)
+    assert.deepEqual([empty.status, empty.json], [200, { entries: [], before: null }])
+  })
+})
+
+describe('host controls (A24)', () => {
+  // This suite has no LiveKit server: every check before the room server's is proven here, and the room server's own
+  // part in host-controls.livekit.test.ts.
+  const act = (actor: string, projectId: string, identity: string, what: 'mute' | 'remove') =>
+    call(actor, 'POST', `/api/v1/projects/${projectId}/room/people/${identity}/${what}`, {})
+
+  it('an admin only; never at themselves or at Sophia; past those, the room server answers', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    for (const what of ['mute', 'remove'] as const) {
+      assert.equal((await act(B, projectId, V, what)).status, 403, `an editor may not ${what}`)
+      assert.equal((await act(C, projectId, V, what)).status, 403, `an outsider may not ${what}`)
+      const self = await act(A, projectId, A, what)
+      assert.deepEqual([self.status, self.json.code], [422, 'invalid_request'])
+      assert.equal((await act(A, projectId, 'sophia', what)).status, 422)
+      const reached = await act(A, projectId, B, what)
+      assert.deepEqual([reached.status, reached.json.code], [503, 'unavailable'])
+    }
+  })
+})
+
+describe('goal targets (A25)', () => {
+  const put = (actor: string, projectId: string, goalId: string, body: Record<string, unknown>) =>
+    call(actor, 'PUT', `/api/v1/projects/${projectId}/goals/${goalId}/target`, body)
+  const read = async (actor: string, projectId: string) =>
+    (await call(actor, 'GET', `/api/v1/projects/${projectId}/goal-targets`)).json as {
+      targets: { goalId: string; ownerId: string | null; targetDate: string | null; revision: number }[]
+    }
+
+  it('an editor sets owner and date, every member reads them, the room hears it; clearing is a target too', async () => {
+    const { projectId, goalId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    assert.deepEqual(await read(V, projectId), { targets: [] })
+    const set = await put(B, projectId, goalId, { ownerId: V, targetDate: '2026-10-30', expectedRevision: 0 })
+    assert.equal(set.status, 200)
+    assert.deepEqual(
+      { ...set.json, cursor: typeof set.json.cursor },
+      { goalId, ownerId: V, targetDate: '2026-10-30', revision: 1, cursor: 'string' },
+    )
+    assert.deepEqual(await read(V, projectId), {
+      targets: [{ goalId, ownerId: V, targetDate: '2026-10-30', revision: 1 }],
+    })
+    const heard = await ownerCount(
+      `SELECT count(*)::int AS n FROM sophia.project_events WHERE project_id = $1 AND type = 'goal.target_set'`,
+      [projectId],
+    )
+    assert.equal(heard, 1)
+    const cleared = await put(A, projectId, goalId, { ownerId: null, targetDate: null, expectedRevision: 1 })
+    assert.deepEqual(
+      [cleared.status, cleared.json.ownerId, cleared.json.targetDate, cleared.json.revision],
+      [200, null, null, 2],
+    )
+  })
+
+  it('editors and admins only; the owner a member; a date in range; a stale write and an unknown goal refused', async () => {
+    const { projectId, goalId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    const body = { ownerId: B, targetDate: '2026-11-15', expectedRevision: 0 }
+    assert.equal((await put(V, projectId, goalId, body)).status, 403)
+    assert.equal((await put(C, projectId, goalId, body)).status, 403)
+    assert.equal((await call(C, 'GET', `/api/v1/projects/${projectId}/goal-targets`)).status, 403)
+    const stranger = await put(B, projectId, goalId, { ...body, ownerId: C })
+    assert.deepEqual([stranger.status, stranger.json.code], [422, 'invalid_request'])
+    assert.equal((await put(B, projectId, goalId, { ...body, targetDate: '1999-12-31' })).status, 422)
+    assert.equal((await put(B, projectId, goalId, { ...body, targetDate: '30/10/2026' })).status, 422)
+    assert.equal((await put(B, projectId, randomUUID(), body)).status, 422)
+    assert.equal((await put(B, projectId, goalId, body)).status, 200)
+    const stale = await put(A, projectId, goalId, body)
+    assert.deepEqual([stale.status, stale.json.code], [409, 'stale_revision'])
+  })
+})
+
+describe('member roles (A27)', () => {
+  const role = (actor: string, projectId: string, target: string, next: unknown) =>
+    call(actor, 'PUT', `/api/v1/projects/${projectId}/members/${target}/role`, { role: next })
+  const roles = async (actor: string, projectId: string) =>
+    Object.fromEntries(
+      (
+        (await call(actor, 'GET', `/api/v1/projects/${projectId}/members`)).json.members as {
+          actorId: string
+          role: string
+        }[]
+      ).map((m) => [m.actorId, m.role]),
+    )
+
+  it('an admin hands the admin role over: the other becomes admin, then the first steps down and can leave', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    const made = await role(A, projectId, B, 'admin')
+    assert.equal(made.status, 200)
+    assert.deepEqual(
+      { ...made.json, cursor: typeof made.json.cursor },
+      { actorId: B, role: 'admin', revision: 2, cursor: 'string' },
+    )
+    assert.deepEqual(await roles(V, projectId), { [A]: 'admin', [B]: 'admin', [V]: 'viewer' })
+    const again = await role(A, projectId, B, 'admin')
+    assert.deepEqual([again.status, again.json.revision], [200, 2])
+    assert.equal((await role(A, projectId, A, 'editor')).status, 200)
+    assert.deepEqual(await roles(V, projectId), { [A]: 'editor', [B]: 'admin', [V]: 'viewer' })
+    const heard = await ownerCount(
+      `SELECT count(*)::int AS n FROM sophia.project_events
+        WHERE project_id = $1 AND type = 'project.member_role_changed' AND summary_code = 'project.member_role'`,
+      [projectId],
+    )
+    assert.equal(heard, 2)
+    const left = await call(A, 'POST', `/api/v1/projects/${projectId}/leave`, {}, { 'idempotency-key': randomUUID() })
+    assert.equal(left.status, 200)
+  })
+
+  it('admins only; a project keeps an admin; the target a member; a role the contract knows', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    assert.equal((await role(B, projectId, V, 'editor')).status, 403)
+    assert.equal((await role(C, projectId, V, 'editor')).status, 403)
+    const last = await role(A, projectId, A, 'editor')
+    assert.deepEqual([last.status, last.json.code], [409, 'invalid_state'])
+    assert.equal((await role(A, projectId, C, 'editor')).status, 422)
+    assert.equal((await role(A, projectId, V, 'owner')).status, 422)
+    assert.deepEqual(await roles(V, projectId), { [A]: 'admin', [B]: 'editor', [V]: 'viewer' })
+  })
+})
+
+describe('project activity (A28)', () => {
+  type Entry = {
+    sequence: string
+    type: string
+    actor: { id: string | null; name: string | null }
+    target: { id: string; name: string | null } | null
+  }
+  const activity = (actor: string, projectId: string, anchor?: string) =>
+    call(actor, 'GET', `/api/v1/projects/${projectId}/activity${anchor ? `?before=${anchor}` : ''}`)
+
+  it('lists people’s acts newest first, with who did them and on whom; never a chat message', async () => {
+    const created = await call(A, 'POST', '/api/v1/projects', { title: 'Audited' }, { 'idempotency-key': randomUUID() })
+    const projectId = created.json.projectId as string
+    // B joins as an editor, as an invitation would leave them (owner write: this suite has no invitation link).
+    await ownerCount(
+      `WITH m AS (INSERT INTO sophia.project_members(project_id, actor_id, role) VALUES ($1, $2, 'editor') RETURNING 1)
+       SELECT count(*)::int AS n FROM m`,
+      [projectId, B],
+    )
+    await call(
+      A,
+      'POST',
+      `/api/v1/projects/${projectId}/title`,
+      { title: 'Audited, v2' },
+      { 'idempotency-key': randomUUID() },
+    )
+    await call(A, 'PUT', `/api/v1/projects/${projectId}/members/${B}/role`, { role: 'admin' })
+    const said = await call(
+      B,
+      'POST',
+      `/api/v1/projects/${projectId}/contributions`,
+      { source: null, threadId: null, artifactVersionId: null, intent: 'discuss', text: 'Not for the log' },
+      { 'idempotency-key': randomUUID() },
+    )
+    assert.equal(said.status, 202)
+    const read = await activity(A, projectId)
+    assert.equal(read.status, 200)
+    const entries = read.json.entries as Entry[]
+    assert.deepEqual(
+      entries.map((e) => [e.type, e.actor.id, e.target?.id ?? null]),
+      [
+        ['project.member_role_changed', A, B],
+        ['project.renamed', A, null],
+        ['project.created', A, null],
+      ],
+    )
+    assert.equal(read.json.before, null)
+    assert.equal((await activity(B, projectId)).status, 200, 'B is an admin now')
+  })
+
+  it('admins only; pages go back with before', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    assert.equal((await activity(B, projectId)).status, 403)
+    assert.equal((await activity(C, projectId)).status, 403)
+    for (let i = 0; i < 55; i++)
+      await call(
+        A,
+        'POST',
+        `/api/v1/projects/${projectId}/title`,
+        { title: `Title ${i}` },
+        { 'idempotency-key': randomUUID() },
+      )
+    const first = await activity(A, projectId)
+    assert.equal((first.json.entries as Entry[]).length, 50)
+    assert.equal(first.json.before, (first.json.entries as Entry[]).at(-1)?.sequence)
+    const second = await activity(A, projectId, first.json.before)
+    assert.deepEqual([(second.json.entries as Entry[]).length, second.json.before], [5, null])
   })
 })
 

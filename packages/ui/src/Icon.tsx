@@ -14,6 +14,7 @@ export type IconName =
   | 'quote'
   | 'invite'
   | 'chevron'
+  | 'react'
   | 'close'
   | 'calendar'
   | 'chat'
@@ -33,6 +34,7 @@ export type IconName =
   | 'search'
   | 'hand'
   | 'sophia'
+  | 'sophiaOff'
   | 'eye'
   | 'eyeOff'
   | 'speaker'
@@ -41,6 +43,8 @@ export type IconName =
   | 'keyboard'
   | 'pass'
   | 'decide'
+  | 'people'
+  | 'more'
 
 const slash = <path d="M4 4l16 16" />
 const mic = (
@@ -97,6 +101,12 @@ const PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   chevron: <path d="M6.5 9.5l5.5 5.5 5.5-5.5" />,
+  react: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M8.5 14a4 4 0 0 0 7 0M9.5 9.5h.01M14.5 9.5h.01" />
+    </>
+  ),
   close: <path d="M6 6l12 12M18 6L6 18" />,
   calendar: (
     <>
@@ -149,6 +159,15 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
     </>
   ),
+  // Sophia out of the conversation: her light struck through, as the dock strikes the camera and the speaker
+  // (docs/plans/dock-end-icon.md).
+  sophiaOff: (
+    <>
+      <circle cx="12" cy="12" r="3.5" fill="currentColor" />
+      <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+      {slash}
+    </>
+  ),
   eye,
   eyeOff: (
     <>
@@ -196,6 +215,19 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <circle cx="12" cy="12" r="8.5" />
       <path d="M8.5 12.2l2.4 2.4 4.6-4.9" />
+    </>
+  ),
+  people: (
+    <>
+      <circle cx="9" cy="8.5" r="3.2" />
+      <path d="M3.5 19.5a5.5 5.5 0 0 1 11 0M15.5 5.6a3.2 3.2 0 0 1 0 5.8M17.5 14.3a5.5 5.5 0 0 1 3 5.2" />
+    </>
+  ),
+  more: (
+    <>
+      <circle cx="6" cy="12" r="1.2" />
+      <circle cx="12" cy="12" r="1.2" />
+      <circle cx="18" cy="12" r="1.2" />
     </>
   ),
 }

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-// Removing a message and erasing a conversation (CON-01, A16; binding map §6): the fixture's own member is an admin,
+// Removing a message and erasing a conversation (CON-01, A33; binding map §6): the fixture's own member is an admin,
 // who removes any message and erases a conversation; an editor or a viewer withdraws only their own. What a
 // withdrawal takes leaves the screen at once, whatever the reads after it do; a list holding only the newest says so
 // (PR #199's review). Every word is synthetic.
@@ -35,7 +35,7 @@ test.afterEach(async ({ page }) => {
 })
 
 /**
- * The erased conversation read only before the page could know it was gone, and refused as not found (as 0048 hides
+ * The erased conversation read only before the page could know it was gone, and refused as not found (as 0063 hides
  * it): as the feed moves, the open thread is read again with the list. Once the list shows it gone, never again.
  */
 async function noReadOnceGone(page: Page) {

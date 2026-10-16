@@ -34,6 +34,10 @@ declare global {
       answer?: () => void
       carried: string[]
       takenBack: string[]
+      /** Each note forgotten, by id (personal-forget-note.md). */
+      forgotten: string[]
+      /** What the toast said, in order. */
+      toasts: string[]
       /** The account leaves (signing out): Personal goes from the page, as App's leaveSession takes it. */
       signOut?: () => void
       /** Personal left for another place, and come back to: the notes' Escape layer goes and opens again, as Places'. */
@@ -49,7 +53,9 @@ const sent: string[] = []
 const pressed: string[] = []
 const carried: string[] = []
 const takenBack: string[] = []
-window.personalFixture = { sent, pressed, carried, takenBack }
+const forgotten: string[] = []
+const toasts: string[] = []
+window.personalFixture = { sent, pressed, carried, takenBack, forgotten, toasts }
 /** `carryFails=N`: the Nth carry fails, once (a package stops there); `carryLost=N`: it lands, its reply lost. */
 let carries = 0
 /** The fixture's account, signed in until `signOut` (the writes' `here`). */
@@ -171,6 +177,27 @@ const receipt = (operation: PersonalReceipt['operation']): PersonalReceipt => ({
   erased: null,
 })
 
+/** `notes=lots`: eight notes, one with an accent, for Find (personal-notes-write-find.md). */
+function lotsOfNotes(): Space['notes'] {
+  const words = [
+    'Start the deck from one number I trust',
+    'Revisar el número de marzo',
+    'Call Ana about the venue',
+    'Ask finance for the March close',
+    'Book the room for Thursday',
+    'Draft the pilot’s second region',
+    'Thank Bea for the review',
+    'Read the vendor contract',
+  ]
+  return words.map((text, i) => ({
+    id: `note-${String(i + 1)}`,
+    text,
+    keptBy: 'person' as const,
+    fromTurnId: null,
+    createdAt: ago(DAY),
+  }))
+}
+
 /** The space as first read: the query string picks its turns and notes. */
 const firstSpace = (): Space => ({
   companion: query.has('unavailable') ? 'unavailable' : 'rehearsal',
@@ -180,34 +207,36 @@ const firstSpace = (): Space => ({
   notes:
     query.get('notes') === 'none'
       ? []
-      : [
-          {
-            id: 'note-1',
-            text: 'Start the deck from one number I trust',
-            keptBy: query.get('kept') === 'sophia' ? 'sophia' : 'person',
-            fromTurnId: null,
-            createdAt: ago(DAY),
-          },
-          // `many=1`: three notes, a finding, Sophia's suggestion and an unfinished thought (personal-carry checks).
-          ...(query.has('many')
-            ? [
-                {
-                  id: 'note-2',
-                  text: 'Ask finance for the March close',
-                  keptBy: 'sophia' as const,
-                  fromTurnId: null,
-                  createdAt: ago(DAY),
-                },
-                {
-                  id: 'note-3',
-                  text: 'Unfinished: whether the pilot needs a second region',
-                  keptBy: 'person' as const,
-                  fromTurnId: null,
-                  createdAt: ago(DAY),
-                },
-              ]
-            : []),
-        ],
+      : query.getAll('notes').includes('lots')
+        ? lotsOfNotes()
+        : [
+            {
+              id: 'note-1',
+              text: 'Start the deck from one number I trust',
+              keptBy: query.get('kept') === 'sophia' ? 'sophia' : 'person',
+              fromTurnId: null,
+              createdAt: ago(DAY),
+            },
+            // `many=1`: three notes, a finding, Sophia's suggestion and an unfinished thought (personal-carry checks).
+            ...(query.has('many')
+              ? [
+                  {
+                    id: 'note-2',
+                    text: 'Ask finance for the March close',
+                    keptBy: 'sophia' as const,
+                    fromTurnId: null,
+                    createdAt: ago(DAY),
+                  },
+                  {
+                    id: 'note-3',
+                    text: 'Unfinished: whether the pilot needs a second region',
+                    keptBy: 'person' as const,
+                    fromTurnId: null,
+                    createdAt: ago(DAY),
+                  },
+                ]
+              : []),
+          ],
   releases: [],
   epoch: 1,
   days: 2,
@@ -341,9 +370,14 @@ function useSimulated() {
         ...s,
         notes: [...s.notes, { id, text, keptBy: 'person', fromTurnId: turnId, createdAt: new Date().toISOString() }],
       }))
-      return Promise.resolve({ ...receipt('keep_note'), noteId: id })
+      // `keepSlow=1`: the note takes 1.5 s on its way, as a slow API's write does.
+      const kept = { ...receipt('keep_note'), noteId: id }
+      return query.has('keepSlow')
+        ? new Promise((done) => window.setTimeout(() => done(kept), 1500))
+        : Promise.resolve(kept)
     },
     forget: (id) => {
+      forgotten.push(id)
       setSpace((s) => ({ ...s, notes: s.notes.filter((n) => n.id !== id) }))
       return Promise.resolve(receipt('forget_note'))
     },
@@ -407,7 +441,7 @@ function useHanded() {
  * `window.personalFixture.away/back` leave Personal and come back (its notes' layer goes, then opens again), and
  * `signOut` takes the account away. Whether the account is still signed in.
  */
-function useFixturePlace(notes: boolean, setNotes: (open: boolean) => void): boolean {
+function useFixturePlace(notes: boolean, setNotes: (open: boolean) => void): { signedIn: boolean; here: boolean } {
   const [here, setHere] = useState(true)
   useEscape(notes && here, () => setNotes(false))
   const [signedIn, setSignedIn] = useState(true)
@@ -420,7 +454,7 @@ function useFixturePlace(notes: boolean, setNotes: (open: boolean) => void): boo
     window.personalFixture.away = () => setHere(false)
     window.personalFixture.back = () => setHere(true)
   }, [])
-  return signedIn
+  return { signedIn, here }
 }
 
 function Personal() {
@@ -429,7 +463,7 @@ function Personal() {
   const extras = useExtras(query, pressed, ago, wrote)
   const projects = useMemo(() => projectsFor(query, ahead), [])
   const [notes, setNotes] = useState(query.get('notes') === 'open')
-  const signedIn = useFixturePlace(notes, setNotes)
+  const { signedIn, here } = useFixturePlace(notes, setNotes)
   const [earlier, setEarlier] = useState(false)
   const [locked, setLocked] = useState(false)
   const epochKnown = useLater('epochAfter')
@@ -451,7 +485,8 @@ function Personal() {
       )}
       {signedIn && (
         <PersonalSpace
-          hidden={locked}
+          // Away (another place), Personal is hidden as Places hides it (personal-first-talk.md).
+          hidden={locked || !here}
           handed={handed}
           onHanded={() => setHanded(null)}
           locked={locked}
@@ -469,7 +504,7 @@ function Personal() {
           notes={{ open: notes, set: setNotes }}
           earlier={{ open: earlier, set: setEarlier }}
           edge={{ badge: 0, pulse: 0 }}
-          toast={() => undefined}
+          toast={(text) => void toasts.push(text)}
           onCarried={() => undefined}
           onCross={() => undefined}
           onStartProject={() => undefined}

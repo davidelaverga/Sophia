@@ -34,6 +34,7 @@ import {
   type NotApplied,
 } from './control-words.ts'
 import {
+  asSpeaker,
   decideChange,
   projectStatus,
   proposeChange,
@@ -130,7 +131,7 @@ async function admitControl(c: pg.PoolClient, ctx: ToolContext, req: ControlRequ
         ctx.projectId,
         `${ctx.key}:steer`,
         { source: null, text: req.brief, threadId: null, artifactVersionId: null, intent: 'discuss' },
-        'voice',
+        { origin: 'voice' },
       )
     : null
   const receipt = await admitGoalCommand(c, ctx.projectId, ctx.key, {
@@ -185,7 +186,7 @@ async function controlWork(ctx: ToolContext): Promise<MediaToolResult> {
     const task = snap?.work.find((t) => t.id === request.taskId)
     const goal = snap?.goals.find((g) => g.id === task?.goalId)
     if (!task || !goal) return clarify('I can’t find that work in this project.')
-    const done = await withActor(ctx.pool, ctx.actorId, 'write', (c) => admitControl(c, ctx, request, goal))
+    const done = await asSpeaker(ctx, (c) => admitControl(c, ctx, request, goal))
     if ('ended' in done) {
       return notApplied(
         refusedControl({

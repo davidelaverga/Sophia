@@ -28,6 +28,8 @@ export const identity: Identity = {
   name: DEMO ? 'luis@sophia.test' : 'fixture@sophia.test',
   role: 'admin',
   token: 'fixture-no-api',
+  // How the demo's viewer signed in, said in the account menu's head (account-menu.md).
+  provider: 'email',
 }
 
 export const membership: Membership = { actorId: ME, role: 'admin' }
@@ -41,6 +43,8 @@ export interface Said {
   id?: string
   /** The entry it answers (A20's reply), by id, with who wrote that and its first words, recorded with the reply. */
   replyTo?: { id: string; actorId: string; excerpt: string }
+  /** When it was said; absent, the fixture's fixed moment (chat-times.md). */
+  at?: string
 }
 
 /** The `n`th message's entry id in the discussion (0-based), as the snapshot lists it. */
@@ -53,7 +57,7 @@ export const idOf = (message: string | Said, n: number) =>
 /** Who wrote a message: the viewer's own, or another member's. */
 export const authorOf = (message: string | Said) => (typeof message === 'string' || !message.me ? OTHER : ME)
 
-const said = (message: string | Said, n: number): DiscussionEntry => ({
+export const said = (message: string | Said, n: number): DiscussionEntry => ({
   id: idOf(message, n),
   actorId: authorOf(message),
   intent: 'discuss',
@@ -61,7 +65,7 @@ const said = (message: string | Said, n: number): DiscussionEntry => ({
   text: typeof message === 'string' ? message : message.text,
   sourceId: SOURCE,
   sha256: '0'.repeat(64),
-  createdAt: AT,
+  createdAt: (typeof message !== 'string' && message.at) || AT,
 })
 
 /** A holder who isn't in the room (`floor=absent`, and a pause because the holder left). */
@@ -154,7 +158,8 @@ export function snapshot(
     room: { id: ROOM, revision, inputActorId: holder, mode: 'invoked', sophia: presenceOf(exchange, holder, room) },
     lobby: [],
     sessions: room.sessions ?? [],
-    discussion: messages.map(said),
+    // The last 50, as the API holds them (A23 reads further back).
+    discussion: messages.map(said).slice(-50),
     work: [],
   }
 }

@@ -1141,7 +1141,7 @@ describe('CON-01 N4: a reply’s answer under its fences, and a source’s withd
       })
     }
 
-    it('a read earlier message withdrawn through 0048: the reply was cancelled there, its digest erased, and nothing publishes', async () => {
+    it('a read earlier message withdrawn through 0063: the reply was cancelled there, its digest erased, and nothing publishes', async () => {
       const s = await running()
       const was = await contextOf(s.replyId)
       await asActor(E, (c) => withdrawConversationMessage(c, s.conversationId, s.earlier[0] ?? '', randomUUID()))
@@ -1686,7 +1686,7 @@ describe('CON-01 N4: a reply’s answer under its fences, and a source’s withd
   })
 
   describe('a rollback keeps read and erase access', () => {
-    it('source_out rolled back: the answer stays readable by members, and withdrawable and erasable through 0048', async () => {
+    it('source_out rolled back: the answer stays readable by members, and withdrawable and erasable through 0063', async () => {
       const s = await running()
       const v = await publish(s.replyId, 1, randomUUID(), 'Still here.')
       const dep = await must(dependency(s.replyId, s.constraint), 'dependency')
@@ -1800,7 +1800,7 @@ describe('CON-01 N4: a reply’s answer under its fences, and a source’s withd
       assert.equal((await messageOf(v.answerId))?.body, 'In time.', 'a published answer follows its current audience')
     })
 
-    it('a withdrawal through 0048 first: publication waits on the project, then finds the reply cancelled; publication first: 0048 withdraws the answer', async () => {
+    it('a withdrawal through 0063 first: publication waits on the project, then finds the reply cancelled; publication first: 0063 withdraws the answer', async () => {
       const s = await running()
       const w = await client()
       await w.c.query('BEGIN')
@@ -1944,7 +1944,7 @@ describe('CON-01 N4: a reply’s answer under its fences, and a source’s withd
       })
     })
 
-    it('against publication, and against a withdrawal through 0048, in both orders under a held lock: one outcome each', async () => {
+    it('against publication, and against a withdrawal through 0063, in both orders under a held lock: one outcome each', async () => {
       const s = await running()
       const p = await client()
       await p.c.query('BEGIN')

@@ -3,6 +3,7 @@
 // the hairline with the lock is always at the edge you crossed. This component owns what is open over the places (the
 // notes, the sheets, the small menus) and wires the keys; the places render; the words come from the view modules. The
 // toast is the app's (SignedIn), so a result is said the same way in a project and here.
+import { InvitedBand } from '../access/InvitedBand.tsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PersonalSpace as Space, ProjectRelease, ProjectSummary } from '@sophia/contracts'
 import { accountOf, tokenSubject } from '../../app/auth-callback.ts'
@@ -36,11 +37,12 @@ import {
   firstName,
   greeting,
   PLACE_TITLE,
+  placeAt,
   READ_FAILED,
   readState,
   sophiaSays,
-  youDoor,
   workCount,
+  youDoor,
 } from './places-view.ts'
 import type { Read } from './ReadNotes.tsx'
 import { useEscape } from './useEscape.ts'
@@ -292,9 +294,23 @@ function usePlaceKeys(props: PlacesProps, layers: Layers, nav: Nav) {
   useCommands(
     [
       { id: 'home', words: 'Home', group: 'go', key: 'h', run: () => nav.enter('home') },
-      { id: 'personal', words: 'Personal', group: 'go', key: 'p', run: () => nav.enter('personal') },
+      {
+        id: 'personal',
+        words: 'Personal',
+        group: 'go',
+        key: 'p',
+        also: ['sophia', 'companion'],
+        run: () => nav.enter('personal'),
+      },
       { id: 'work', words: 'Your projects', group: 'go', key: 'w', run: () => nav.enter('work') },
-      { id: 'data', words: 'Your data', group: 'do', key: 'd', run: () => layers.setData(true) },
+      {
+        id: 'data',
+        words: 'Your data',
+        group: 'do',
+        key: 'd',
+        also: ['privacy', 'export'],
+        run: () => layers.setData(true),
+      },
       {
         id: 'lock',
         words: props.lock.locked ? 'Unlock your space' : 'Lock your space',
@@ -408,6 +424,7 @@ function Home({ v }: { v: View }) {
         you={youDoor({ locked: lockedBy(props.lock), turns: data?.turns, notes: data?.notes.length ?? 0, now })}
         reads={needsRead ? [personalRead(v), projectsRead(v), needsRead] : [personalRead(v), projectsRead(v)]}
         needs={needs}
+        invited={<InvitedBand identity={props.identity} onOpen={(id) => props.onOpenProject(id, false)} />}
         projects={projects}
         loadingProjects={readState(v.projects) === 'loading'}
         now={now}
@@ -415,6 +432,7 @@ function Home({ v }: { v: View }) {
         count={workCount(projects)}
         locked={props.lock.locked}
         hidden={!v.shown.includes('home')}
+        here={placeAt(v.shown) === 'home'}
         actions={{
           personal: () => nav.enter('personal'),
           notes: () => nav.enter('personal', () => v.layers.setNotes(true)),
@@ -472,6 +490,7 @@ function Work({ v }: { v: View }) {
       hidden={!v.shown.includes('work')}
       token={props.identity.token}
       projects={v.projects.data?.projects}
+      invited={<InvitedBand identity={props.identity} onOpen={(id) => props.onOpenProject(id, false)} />}
       read={projectsRead(v)}
       fresh={v.carried.fresh}
       inCallProject={props.call?.projectId ?? null}
@@ -576,6 +595,25 @@ function useUnlockedElsewhere(locked: boolean, layers: Layers) {
   }, [locked, unlock, setUnlock])
 }
 
+/**
+ * Each project as a command, «Open <title>», with no key (find-projects.md): offered once what is typed names it, so
+ * the blank palette stays as it was however many projects there are.
+ */
+function useProjectCommands(
+  projects: readonly { projectId: string; title: string }[] | undefined,
+  open: PlacesProps['onOpenProject'],
+) {
+  useCommands(
+    (projects ?? []).map((p) => ({
+      id: `project:${p.projectId}`,
+      words: `Open ${p.title}`,
+      group: 'go' as const,
+      typed: true,
+      run: () => open(p.projectId, false),
+    })),
+  )
+}
+
 export function Places(props: PlacesProps) {
   const { place, identity, lock } = props
   const root = useRef<HTMLDivElement>(null)
@@ -601,6 +639,7 @@ export function Places(props: PlacesProps) {
   }
   useArrival(place)
   usePlaceKeys(props, layers, nav)
+  useProjectCommands(projects.data?.projects, props.onOpenProject)
   useOpening(props, layers)
   useDocumentTitle(PLACE_TITLE[place])
   useShutSpace(props, layers.setNotes)

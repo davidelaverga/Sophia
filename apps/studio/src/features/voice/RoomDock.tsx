@@ -3,15 +3,21 @@
 // and leave. Nothing here changes project work. Its height (a note, a second row on a phone) is the room's
 // --dock-h, so the words and the video above always clear it.
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, type RefObject } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import type { ExchangeReceipt, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip, type IconName } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { transferInputFloor, type ApiError } from '../../api/client.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
+import type { DeviceKind } from './device-preference.ts'
+import { DeviceCheck } from './DeviceCheck.tsx'
+import { DeviceMenu } from './DeviceMenu.tsx'
 import { micOnJoin } from './mic-preference.ts'
 import { PassMenu } from './PassMenu.tsx'
+import { ReactMenu } from './ReactMenu.tsx'
+import { Reactions } from './Reactions.tsx'
 import { roomKey } from './room-keys.ts'
 import { shortName, type FloorView, type RoomParticipant } from './room-view.ts'
 import { LookingIndicator, SophiaControls } from './SophiaControls.tsx'
@@ -33,6 +39,10 @@ interface Props {
 
 /** Screen sharing needs getDisplayMedia, which phones do not offer; an insecure page has no mediaDevices. */
 export const canShareScreen = 'mediaDevices' in navigator && 'getDisplayMedia' in navigator.mediaDevices
+
+/** What each device opener lists (call-devices.md): beside the microphone, the camera, and Join. */
+const AUDIO: readonly DeviceKind[] = ['audioinput', 'audiooutput']
+const VIDEO: readonly DeviceKind[] = ['videoinput']
 
 /** The dock's height, notes included, as --dock-h on the room around it. */
 function useDockHeight(ref: RefObject<HTMLDivElement | null>) {
@@ -57,25 +67,36 @@ export function RoomDock(props: Props) {
   const wrap = useRef<HTMLDivElement>(null)
   useDockHeight(wrap)
   return (
-    <div ref={wrap} className="dock-wrap">
-      <LookingIndicator text={props.sophia.looking} />
-      {/* What stopped a device, or why this person is out of the call: a failed join, or a call that ended. */}
-      {(room.mediaError ?? room.error) && (
-        <p className="dock-note" role="alert">
-          {room.mediaError ?? room.error}
-        </p>
-      )}
-      <nav className="dock" aria-label="Room controls">
-        {live ? (
-          <LiveControls {...props} />
-        ) : (
-          <>
-            <JoinButton room={room} />
-            <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
-          </>
+    <>
+      {/* Beside the dock, not in it: the dock's measured height (--dock-h) is the dock's alone. */}
+      <Reactions shown={room.reactions} />
+      <div ref={wrap} className="dock-wrap">
+        <LookingIndicator text={props.sophia.looking} />
+        {/* What stopped a device, or why this person is out of the call: a failed join, or a call that ended. */}
+        {(room.mediaError ?? room.error) && (
+          <p className="dock-note" role="alert">
+            {room.mediaError ?? room.error}
+          </p>
         )}
-      </nav>
-    </div>
+        {/* Speech on a muted microphone (muted-speech.md): said while it is still off. */}
+        {live && room.mutedHint && !room.participants.find((p) => p.local)?.micOn && (
+          <p className="dock-note" role="status">
+            You’re muted. Turn the microphone on to be heard.
+          </p>
+        )}
+        <nav className="dock" aria-label="Room controls">
+          {live ? (
+            <LiveControls {...props} />
+          ) : (
+            <>
+              <JoinButton room={room} />
+              <CheckOpener room={room} />
+              <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
+            </>
+          )}
+        </nav>
+      </div>
+    </>
   )
 }
 
@@ -86,6 +107,41 @@ export const joinTip = (textMode: boolean) =>
     : micOnJoin()
       ? 'You join with your microphone on'
       : 'You join with your microphone off'
+
+/**
+ * Beside Join: the check before joining (device-check.md), the camera's picture, the voice's meter and the devices.
+ * Its sheet goes over the page, not inside the dock, whose blur would hold a fixed sheet within its own box.
+ */
+function CheckOpener({ room }: { room: ProjectRoom }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="device-menu">
+      <button
+        type="button"
+        className="device-open has-tip"
+        aria-label="Check audio and video"
+        aria-haspopup="dialog"
+        onClick={() => setOpen(true)}
+      >
+        <Icon name="chevron" />
+        <Tip label="Check audio and video" />
+      </button>
+      {open &&
+        createPortal(
+          <DeviceCheck
+            list={room.listDevices}
+            onChoose={(kind, id) => void room.switchDevice(kind, id)}
+            onClose={() => setOpen(false)}
+            onJoin={(chosen) => {
+              setOpen(false)
+              void room.join(chosen)
+            }}
+          />,
+          document.body,
+        )}
+    </span>
+  )
+}
 
 function JoinButton({ room }: { room: ProjectRoom }) {
   const label = room.status === 'joining' ? 'joining' : room.status === 'failed' ? 'retry' : 'join'
@@ -167,6 +223,12 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
         anchor
         onToggle={() => void room.setMicrophone(!me?.micOn)}
       />
+      <DeviceMenu
+        kinds={AUDIO}
+        label="Audio settings"
+        list={room.listDevices}
+        onChoose={(kind, id) => void room.switchDevice(kind, id)}
+      />
       <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
       <Toggle
         on={!!me?.cameraOn}
@@ -174,6 +236,13 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
         keys={roomKey('camera')}
         icons={['camera', 'cameraOff']}
         onToggle={() => void room.setCamera(!me?.cameraOn)}
+      />
+      <DeviceMenu
+        kinds={VIDEO}
+        label="Video settings"
+        list={room.listDevices}
+        onChoose={(kind, id) => void room.switchDevice(kind, id)}
+        background={{ supported: room.backgroundsSupported, onChoose: (id) => void room.setBackground(id) }}
       />
       {canShareScreen && (
         <Toggle
@@ -193,6 +262,7 @@ function LiveControls({ room, floor, projectId, identity, snapshot, sophia, onPa
   return (
     <>
       <MediaToggles room={room} me={me} />
+      <ReactMenu onReact={room.react} />
       <span className="dock-sep" aria-hidden />
       {snapshot && me && (
         <FloorControl floor={floor} me={me.identity} context={{ projectId, identity, snapshot }} onPassed={onPassed} />

@@ -112,8 +112,19 @@ test('light · a stored value the app does not read is the room at first paint t
   page,
 }) => {
   await page.emulateMedia({ colorScheme: 'light' })
-  await page.addInitScript(() => localStorage.setItem('sophia.theme', 'sepia'))
+  await page.addInitScript(() => {
+    localStorage.setItem('sophia.theme', 'sepia')
+    // The tab's mark as entry.js leaves it, read as the body begins: before the app's own boot can change it.
+    new MutationObserver((_, watch) => {
+      if (!document.querySelector('body')) return
+      watch.disconnect()
+      const icon = document.querySelector('link[rel="icon"][type="image/svg+xml"]')
+      document.documentElement.dataset['firstIcon'] = icon?.getAttribute('href') ?? ''
+    }).observe(document, { childList: true, subtree: true })
+  })
   await page.goto('/opening.html')
   await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'light')
-  await expect(page.locator('link[rel="icon"][type="image/svg+xml"]')).toHaveAttribute('href', /favicon(-dark)?\.svg$/)
+  // The room's mark from the first paint, not the light system's (Codex P2 on #249), and after the app's boot too.
+  await expect(page.locator('html')).toHaveAttribute('data-first-icon', '/favicon-dark.svg')
+  await expect(page.locator('link[rel="icon"][type="image/svg+xml"]')).toHaveAttribute('href', '/favicon-dark.svg')
 })

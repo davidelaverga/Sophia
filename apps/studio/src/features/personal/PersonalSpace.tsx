@@ -118,12 +118,37 @@ function useNotesCover(open: boolean): boolean {
   return open && narrow
 }
 
+/** A keep said as kept, with Undo; resolves to whether it was. */
+function keptSaid(
+  keeping: Promise<{ noteId?: string | null }>,
+  {
+    toast,
+    onFailed,
+    undo,
+  }: { toast: Props['toast']; onFailed: (err: unknown) => void; undo: (noteId: string) => void },
+): Promise<boolean> {
+  return keeping.then(
+    (receipt) => {
+      const noteId = receipt.noteId
+      if (noteId) toast(NOTICE.kept, () => undo(noteId))
+      return true
+    },
+    (err: unknown) => {
+      onFailed(err)
+      return false
+    },
+  )
+}
+
 /** Writes that say what happened, and offer Undo where it can be undone. */
 function useActions(
   props: Props,
   onFailed: (err: unknown) => void,
 ): ConversationActions & {
   carry: (note: PersonalNote, project: ProjectSummary) => void
+  forget: (noteId: string) => Promise<boolean>
+  /** A note written straight into the notes; whether it was kept (its words stay in the field when not). */
+  write: (text: string) => Promise<boolean>
   /** Where the composer puts its send for a way to start. */
   starter: RefObject<((words: string) => Promise<boolean>) | null>
 } {
@@ -136,6 +161,8 @@ function useActions(
     },
     [onFailed],
   )
+  const kept = (keeping: ReturnType<typeof writes.keep>) =>
+    keptSaid(keeping, { toast, onFailed, undo: (noteId) => attempt(() => writes.forget(noteId)) })
   return {
     starter,
     waits: presses.waits,
@@ -147,11 +174,13 @@ function useActions(
     retry: (turnId) => presses.press(turnId, () => writes.retry(turnId).catch(onFailed)),
     readEarlier: () => props.readBack.readMore().catch(onFailed),
     // Whether it was kept: a refused note's words go back into its form.
-    keepNote: (text, turnId, suggestion) =>
-      writes.keep(text, turnId, suggestion?.id ?? null).then(
-        (kept) => {
-          const noteId = kept.noteId
-          if (noteId) toast(NOTICE.kept, () => attempt(() => writes.forget(noteId)))
+    keepNote: (text, turnId, suggestion) => kept(writes.keep(text, turnId, suggestion?.id ?? null)),
+    write: (text) => kept(writes.keep(text, null, null)),
+    // A note forgotten from the notes: gone for good, so the toast offers no Undo (personal-forget-note.md).
+    forget: (noteId) =>
+      writes.forget(noteId).then(
+        () => {
+          toast(NOTICE.forgotten)
           return true
         },
         (err: unknown) => {
@@ -581,6 +610,8 @@ function Notes({ props, actions, under }: { props: Props; actions: ReturnType<ty
         focusNotesToggle()
       }}
       onCarry={actions.carry}
+      onForget={actions.forget}
+      onWrite={actions.write}
       carrying={actions.waits}
       memory={props.extras?.memory}
       under={under}
@@ -607,13 +638,16 @@ function useConversationFind(
   props: Props,
   rows: readonly Row[],
   over: boolean,
-  readEarlier: () => Promise<void>,
   covered: boolean,
+  actions: { readEarlier: () => Promise<void>; start: (words: string) => Promise<boolean> },
 ) {
   const uncover = covered ? () => props.notes.set(false) : null
+  // Asking Sophia from Find sends as the field does; not offered while the padlock is shut (no field to send from).
+  const ask = props.locked ? null : actions.start
   const { more, reading } = props.readBack
   // Only once the conversation is read: before, a search would say "No match" over one still loading.
-  return useFind(rows, !!props.space && !props.hidden && !over, { more, reading, read: readEarlier }, uncover)
+  const back = { more, reading, read: actions.readEarlier }
+  return useFind(rows, !!props.space && !props.hidden && !over, back, uncover, ask)
 }
 
 export function PersonalSpace(props: Props) {
@@ -631,7 +665,7 @@ export function PersonalSpace(props: Props) {
   const waiting = rows.some((r) => r.kind === 'typing')
   const said = useHeard(space, turns, waiting)
   const latest = useLatestInSight(list, grows(turns, writes.sending, waiting, props.hidden))
-  const find = useConversationFind(props, rows, talk.talking || covered, actions.readEarlier, covered)
+  const find = useConversationFind(props, rows, talk.talking || covered, covered, actions)
   const composer = props.locked ? null : (
     <Composer
       props={props}
@@ -659,6 +693,7 @@ export function PersonalSpace(props: Props) {
         <Conversation
           {...{ rows, turns, list, actions, composer, more: props.readBack.more, reading: props.readBack.reading }}
           covered={covered || talk.talking}
+          hidden={props.hidden}
           notice={<ReadNotes reads={[props.read]} />}
           earlier={earlier.open}
           setEarlier={earlier.set}

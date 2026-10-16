@@ -1,7 +1,7 @@
 // Several conversations, one project (docs/plans/project-conversations.md, Davide's chapter 2): the project's text
 // conversations, newest activity first, each with its own history; the one open beside them; and the project's
 // context, the same for all of them. Members start one (New conversation) and continue one; viewers read
-// (docs/plans/project-conversation-writes.md). The API's A16 (CON-01) answers, or the fixture pages with its shapes;
+// (docs/plans/project-conversation-writes.md). The API's A33 (CON-01) answers, or the fixture pages with its shapes;
 // the list says what this reader may do there now (`capability`), and every write is checked again when made.
 // In three panes (docs/plans/conversations-panes.md): the list, the open one, its context. Under 1180 px the context is
 // a panel «Context» opens; on a phone one screen shows at a time, the list or the conversation.
@@ -55,6 +55,8 @@ import { landed, newestRead, putStarted, releasable, setListsData, shownList, st
 import { keepWithdrawnPurged, listReadSetsOut, orderNow, type ListRead } from './withdrawn-purge.ts'
 import { Probes } from './probes.ts'
 import { useArrival } from '../studio/project-go.tsx'
+import { CONVERSATION, showInAddress } from '../resources/link.ts'
+import { useAddressed } from '../resources/useAddressed.ts'
 import { fitQuestion } from './new-conversation.ts'
 import './conversations.css'
 
@@ -198,7 +200,7 @@ function useArrivals(
   writer: boolean | undefined,
   talk: ReturnType<typeof useTalk>,
   start: ReturnType<typeof useStart>,
-  show: () => void,
+  screen: { show: () => void; back: () => void },
 ) {
   // One asked for from elsewhere (a report's source, project-go.tsx): open, and shown on a phone too. Words to ask Sophia
   // (a search that found nothing) open the new conversation's form with them, for a member; a viewer sees the list.
@@ -213,7 +215,10 @@ function useArrivals(
       // the sheet that asked has given its own back (Codex on #267).
       else focusQuestion()
     }
-    show()
+    // A viewer's words to ask: the list, as promised, on a phone too, from a conversation already open there (Codex
+    // on #267 and #276); shown, a phone would take them into the newest conversation.
+    if (!('ask' in to) || writer) screen.show()
+    else screen.back()
     return undefined
   })
 }
@@ -222,7 +227,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
   const reader = useReader(projectId, identity, membership, cursor)
   const { talk, all, fenced } = useShown(projectId, identity, reader)
   const { list, capability, notice, settled, me, writer } = reader
-  const { open, choose, ask, missing } = useChosen(all, settled)
+  const { open, choose, ask, missing, picked } = useChosen(all, settled)
   const panes = usePanes()
   const erased = useErased(talk, panes, { ...reader, seen: list.isSuccess, projectId }, identity)
   const feedAt = useLatest(cursor)
@@ -232,9 +237,10 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
     panes.show()
   })
   useStanding(projectId, identity, talk, reader, start.land)
-  useArrivals(ask, writer, talk, start, panes.show)
+  useArrivals(ask, writer, talk, start, panes)
   // The one open, unless the form for a new one is in its place; neither while fenced (its fields kept meanwhile).
   const shown = start.starting ? undefined : open
+  useInAddress({ shown, picked, screen: panes.screen }, ask, panes.show)
   // Opened from the form (the same question), its title takes the focus the form had (Codex on #266).
   const openOne = (id: string, fromForm = false) => {
     start.close()
@@ -319,6 +325,7 @@ function Middle(props: {
       notice={reader.firstNotice}
       me={reader.me}
       writer={reader.writer}
+      list={reader.list}
       {...{ projectId, identity, cursor, talk, start, panes, settle }}
     />
   )
@@ -336,7 +343,7 @@ interface ListProps {
   /** One asked for from elsewhere that the list, read again, doesn't hold. */
   missing: boolean
   /**
-   * The list holds the newest only (A16's `more`), this many as read (a start landed here and shown with them is not
+   * The list holds the newest only (A33's `more`), this many as read (a start landed here and shown with them is not
    * one of them: list-data `shownList`, said besides them): older conversations exist that it doesn't list. Null: it
    * holds them all.
    */
@@ -618,6 +625,8 @@ function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, clo
 function Open(props: {
   projectId: string
   conversation: ConversationSummary
+  /** The list as read: being read again, or its last read failed, what it says of this conversation may be stale. */
+  list: { isError: boolean; fetchStatus: 'fetching' | 'paused' | 'idle' }
   identity: Identity
   me: string
   cursor: string | undefined
@@ -650,6 +659,7 @@ function Open(props: {
       key={c.id}
       projectId={props.projectId}
       conversation={c}
+      list={props.list}
       identity={props.identity}
       me={props.me}
       cursor={props.cursor}
@@ -677,6 +687,8 @@ function Open(props: {
  */
 function useChosen(all: readonly ConversationSummary[], settled: boolean) {
   const [chosen, setChosen] = useState<string | null>(null)
+  // Opened by a person (a row, the form, another view, the address), not the newest by default (conversation-address.md).
+  const [picked, setPicked] = useState(false)
   // One asked for from elsewhere (`ask`) waits for the list read again before the newest takes its place, and then
   // says it isn't there (`missing`) rather than opening another in silence.
   const [wanted, setWanted] = useState<string | null>(null)
@@ -687,13 +699,43 @@ function useChosen(all: readonly ConversationSummary[], settled: boolean) {
     choose: (id: string) => {
       setWanted(null)
       setChosen(id)
+      setPicked(true)
     },
     ask: (id: string) => {
       setWanted(id)
       setChosen(id)
+      setPicked(true)
     },
     missing: wanted !== null && settled && !all.some((c) => c.id === wanted),
+    picked,
   }
+}
+
+/**
+ * The open conversation in the address (conversation-address.md): an address naming one opens it, on a phone too; one a
+ * person opened is written there while it is on screen, and taken away for the list or the form. The newest open by
+ * default never writes it, and a fragment under another prefix is left alone.
+ */
+function useInAddress(
+  open: { shown: ConversationSummary | undefined; picked: boolean; screen: 'list' | 'thread' },
+  ask: (id: string) => void,
+  show: () => void,
+) {
+  const named = useAddressed(CONVERSATION)
+  const follow = useRef({ ask, show })
+  useEffect(() => {
+    follow.current = { ask, show }
+  })
+  useEffect(() => {
+    if (named.id === null) return
+    follow.current.ask(named.id)
+    follow.current.show()
+  }, [named.id, named.seq])
+  const written = open.picked && open.screen === 'thread' ? (open.shown?.id ?? null) : null
+  useEffect(() => {
+    if (!open.picked || (written === null && !window.location.hash.startsWith(CONVERSATION))) return
+    showInAddress(written, CONVERSATION)
+  }, [open.picked, written])
 }
 
 /**
@@ -1098,7 +1140,7 @@ function useStanding(
 /** What the form says while its start's receipt is held back for an erasure of that conversation pressed here. */
 const HELD_BACK = 'Started, while you erase that conversation: it opens here only if the erase doesn’t go through.'
 
-/** An API that serves no conversations (A16 switched off) answers the list with 404: not a failure to try again. */
+/** An API that serves no conversations (A33 switched off) answers the list with 404: not a failure to try again. */
 const unserved = (error: unknown) => error instanceof ApiError && error.status === 404
 
 /**

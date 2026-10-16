@@ -1,5 +1,5 @@
 // The project's conversations as the fixtures keep them (docs/plans/project-conversations.md): three, newest activity
-// first, the first with more messages than a page. Served in A16's shapes (conversation-wire.ts). Every word is
+// first, the first with more messages than a page. Served in A33's shapes (conversation-wire.ts). Every word is
 // synthetic.
 import type { ConversationMessage, ConversationSummary, MissionDecision } from '@sophia/contracts'
 import { membership } from './data.ts'
@@ -21,17 +21,17 @@ export const CONVERSATION = {
 /** A page of messages: the newest six, and `before` for the page before them. */
 export const MESSAGE_PAGE = 6
 
-/** A conversation as kept here: its words and people; A16's other fields are added when it is served. */
+/** A conversation as kept here: its words and people; A33's other fields are added when it is served. */
 export type FixtureConversation = Pick<
   ConversationSummary,
   'id' | 'title' | 'summary' | 'lastAt' | 'contributors' | 'sophia' | 'openQuestions' | 'output'
 >
 
-/** A message as kept here: A16's, its order (`seq`) given by its place when it is served. */
+/** A message as kept here: A33's, its order (`seq`) given by its place when it is served. */
 export type FixtureMessage = Pick<ConversationMessage, 'id' | 'author' | 'actorId' | 'name' | 'text' | 'at'> &
   Partial<Pick<ConversationMessage, 'withdrawn' | 'ask' | 'replyTo'>>
 
-/** A message's id, a UUID as A16's are: the seeded ones by number. */
+/** A message's id, a UUID as A33's are: the seeded ones by number. */
 export const messageId = (n: number) => `00000000-0000-4000-8000-0000000c${n.toString(16).padStart(4, '0')}`
 
 export const conversations = (): FixtureConversation[] => [

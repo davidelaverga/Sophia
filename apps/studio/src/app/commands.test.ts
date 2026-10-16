@@ -21,6 +21,32 @@ const ROOM: Offered[] = [
   cmd('palette', 'Commands', { group: 'do', key: 'mod+k' }),
 ]
 
+describe('other words people type (docs/plans/palette-also.md)', () => {
+  const light = cmd('light', 'Switch to the light page', { group: 'do', also: ['theme', 'dark', 'mode'] })
+  const keys = cmd('keys', 'Keyboard shortcuts', { group: 'do', also: ['keys', 'help'] })
+  const help = cmd('help-centre', 'Help centre', { group: 'do' })
+  const updates = cmd('updates', 'Go to Updates', { also: ['what changed', 'recap'] })
+  const all = [light, keys, help, updates]
+  const ids = (q: string) => matchCommands(q, all).map((c) => c.id)
+  it('a word only in `also` finds its command', () => {
+    assert.deepEqual(ids('dark'), ['light'])
+    assert.deepEqual(ids('them'), ['light'])
+  })
+  it('two words, each its own or in `also`', () => {
+    assert.deepEqual(ids('what changed'), ['updates'])
+    assert.deepEqual(ids('go recap'), ['updates'])
+  })
+  it('a command’s own word outranks another’s `also`', () => {
+    assert.deepEqual(ids('help'), ['help-centre', 'keys'])
+  })
+  it('`also` is never said: the index lists the words alone', () => {
+    assert.deepEqual(
+      indexGroups([{ ...keys, key: 'mod+/' }], false).flatMap((g) => g.rows.map((r) => r.words)),
+      ['Keyboard shortcuts'],
+    )
+  })
+})
+
 describe('the registry', () => {
   it('keeps the parts in the order they came, drops what a part cannot run, and forgets a part that leaves', () => {
     const first = registerCommands([cmd('a', 'A'), { id: 'x', words: 'X', group: 'go', run: undefined }])
@@ -144,5 +170,29 @@ describe('a query in any script (Codex on #238)', () => {
     assert.deepEqual(matchCommands('?!', named), [])
     assert.deepEqual(matchCommands('🙂', named), [])
     assert.equal(matchCommands('   ', named).length, named.length)
+  })
+})
+
+describe('a command offered only once typed (find-projects.md)', () => {
+  const projects = [
+    cmd('project:a', 'Open Launch plan', { typed: true }),
+    cmd('project:b', 'Open Research notes', { typed: true }),
+  ]
+
+  it('stays out of the blank palette, so dozens of projects never crowd it', () => {
+    const rows = paletteRows('', [...ROOM, ...projects], [])
+    assert.equal(
+      rows.some((r) => r.command.id.startsWith('project:')),
+      false,
+    )
+  })
+
+  it('is found by what is typed, and shows under Recent once run', () => {
+    assert.deepEqual(
+      paletteRows('launch', [...ROOM, ...projects], []).map((r) => r.command.id),
+      ['project:a'],
+    )
+    const recent = paletteRows('', [...ROOM, ...projects], ['project:b'])
+    assert.equal(recent.find((r) => r.label === 'Recent')?.command.id, 'project:b')
   })
 })

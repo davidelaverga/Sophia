@@ -3,6 +3,9 @@
 export {
   createPool,
   checkRoleSafety,
+  nameActor,
+  nameFromRoom,
+  rememberRoomName,
   withActor,
   withoutActor,
   withService,
@@ -13,8 +16,8 @@ export { classifyDbError } from './errors.ts'
 export { migrate, readMigrations, MigrationDrift, type MigrationReport } from './migrate.ts'
 export { readSnapshot } from './snapshot.ts'
 export { admitGoalCommand, canCommand, sentCommand, type SentCommand } from './commands.ts'
-export { createProject } from './projects.ts'
-export { authorizeRoomJoin, transferInputFloor, type MemberRole } from './room.ts'
+export { createProject, renameProject, leaveProject } from './projects.ts'
+export { authorizeRoomJoin, hostedRoom, transferInputFloor, type MemberRole } from './room.ts'
 export {
   acceptRoomInvitation,
   authorizeGuestJoin,
@@ -24,6 +27,8 @@ export {
   decideLobbyEntry,
   knockRoom,
   listInvitations,
+  listPendingInvitations,
+  memberInvitationFor,
   previewRoomInvitation,
   readInvitation,
   readLobbyEntry,
@@ -34,6 +39,7 @@ export {
   scheduleRoomSession,
   type InvitationRecord,
   type InvitationRequest,
+  type PendingInvitationRecord,
   type LobbyRecord,
   type NewInvitation,
 } from './access.ts'
@@ -79,6 +85,7 @@ export {
 export {
   admitNativeTask,
   readDiscussion,
+  readDiscussionPage,
   readNativeTask,
   readNativeTasks,
   readResearchVersion,
@@ -136,6 +143,7 @@ export {
 } from './exchange.ts'
 export {
   claimRoomRemovals,
+  pendingDeparture,
   pendingRemoval,
   readRemoval,
   settleRoomRemoval,
@@ -283,3 +291,11 @@ export {
   runtimeConversationSettle,
   runtimeConversationAcknowledged,
 } from './conversation-runtime.ts'
+export {
+  changeMemberRole,
+  readGoalTargets,
+  readInvitablePeople,
+  readProjectMembers,
+  setGoalTarget,
+} from './goal-targets.ts'
+export { readProjectActivity, recordHostAct } from './activity.ts'

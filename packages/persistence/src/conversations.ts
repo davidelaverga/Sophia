@@ -1,4 +1,4 @@
-// Saved project conversations (CON-01; db/migrations/0048, contract amendment A16). Reads run under the calling member
+// Saved project conversations (CON-01; db/migrations/0063, contract amendment A33). Reads run under the calling member
 // and see only the projects they belong to (RLS); a conversation or message they cannot see answers as one that does
 // not exist. Writes are sophia.* functions that check the caller's current role before an earlier request under the
 // key is read, are idempotent per project, actor and key, and answer with a receipt of ids, never text: the API reads
@@ -107,11 +107,11 @@ interface SummaryRow {
   message_seq: string
 }
 
-/** How many contributors a summary names: A16's `ConversationSummary.contributors` `maxItems`. */
+/** How many contributors a summary names: A33's `ConversationSummary.contributors` `maxItems`. */
 const CONTRIBUTORS_NAMED = 200
 
 // Contributors: members whose messages are not withdrawn, in the order they first wrote, named as their newest message
-// carries it. At most CONTRIBUTORS_NAMED, so a summary never says more than A16 lets it: the first of them to write,
+// carries it. At most CONTRIBUTORS_NAMED, so a summary never says more than A33 lets it: the first of them to write,
 // except that the reader, whenever they wrote here, is always among them (in the last place kept, when they first wrote
 // later), so «Mine» and «You» stay true for them. A writer beyond them is named on every message they wrote. Sophia: an
 // answer of hers that is not withdrawn. The opening: the newest message not withdrawn.

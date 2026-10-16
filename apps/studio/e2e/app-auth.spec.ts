@@ -15,7 +15,7 @@ const PREFIX = 'sophia.review.proposal.v1:'
 const PROJECT_A = '00000000-0000-4000-8000-0000000000a1'
 const PROJECT_B = '00000000-0000-4000-8000-0000000000b1'
 /** What another part of the Studio keeps in the tab: never a proposal, so it always stays. */
-const OTHER_PART = 'sophia.plan.seen.v3:["synthetic"]'
+const OTHER_PART = 'sophia.plan.seen.v4:["synthetic"]'
 
 interface Person {
   id: string
@@ -199,7 +199,8 @@ async function signedInAs(page: Page) {
   const head = page.locator('.menu-head')
   try {
     await account(page).click({ timeout: 1000 })
-    return (await head.textContent({ timeout: 1000 })) ?? ''
+    // The head's name line: the picture's initial and how they signed in sit beside it (account-menu.md).
+    return (await head.locator('.account-name').textContent({ timeout: 1000 })) ?? ''
   } catch {
     return ''
   } finally {
@@ -684,4 +685,158 @@ test('browser-account · at Home the palette’s veil covers the page, not the b
   const size = page.viewportSize()
   expect(veil?.height).toBe(size?.height)
   expect(veil?.width).toBe(size?.width)
+})
+
+/** A project as the list reads it, known by its title. */
+const listed = (projectId: string, title: string) => ({
+  projectId,
+  title,
+  role: 'editor',
+  members: 3,
+  room: null,
+  nextSession: null,
+  releases: [],
+})
+
+/**
+ * Seven projects, past the five where Work offers finding one (find-projects.md): the one check here that has a project
+ * list, answered in place of serve()'s unavailable API (a later route wins).
+ */
+async function sevenProjects(context: BrowserContext) {
+  const titles = [
+    'Copper launch',
+    'Fixture project',
+    'Another project',
+    'Atlas',
+    'Beacon',
+    'Delta pitch',
+    'Ember notes',
+  ]
+  const projects = titles.map((title, i) =>
+    listed(title === 'Fixture project' ? WORK_PROJECT : `00000000-0000-4000-8000-0000000000c${String(i)}`, title),
+  )
+  await context.route(`${APP}/api/v1/projects`, (route) => route.fulfill({ json: { projects, personalEpoch: 1 } }))
+}
+
+test('browser-account · past five projects, Work finds one by its title and orders them A–Z (find-projects.md)', async ({
+  context,
+}) => {
+  await serve(context)
+  await sevenProjects(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await page.keyboard.press('w')
+  const work = page.locator('section[data-place-view="work"]')
+  const titles = work.locator('.c3-proj h3')
+  const field = work.getByRole('searchbox', { name: 'Find a project' })
+  await expect(titles).toHaveCount(7)
+  // The list keeps the row that scrolls, under the finder, and the finder keeps the column (Codex on #347).
+  await page.setViewportSize({ width: 1280, height: 560 })
+  // Polled: the view's entrance moves the column a few pixels until it settles.
+  const laid = () =>
+    work.evaluate((section) => {
+      const box = (s: string) => section.querySelector(s)?.getBoundingClientRect()
+      const list = section.querySelector('.c3-projects')
+      const [head, find, all] = [box('.c3-head'), box('.c3-find'), section.getBoundingClientRect()]
+      return {
+        scrolls: !!list && list.scrollHeight > list.clientHeight,
+        inside: !!list && list.getBoundingClientRect().bottom <= all.bottom + 1,
+        column: !!head && !!find && Math.abs(head.left - find.left) < 1 && Math.abs(head.width - find.width) < 1,
+      }
+    })
+  await expect.poll(laid).toEqual({ scrolls: true, inside: true, column: true })
+  await field.fill('copper')
+  await expect(titles).toHaveText(['Copper launch'])
+  await field.fill('nothing like it')
+  // Said to a screen reader too; New project stays, for the project not made yet (Codex on #347).
+  await expect(work.getByRole('status')).toContainText('No project is called «nothing like it»')
+  await expect(work.getByRole('button', { name: 'New project' })).toBeVisible()
+  await work.locator('.c3-none').getByRole('button', { name: 'Clear' }).click()
+  await expect(titles).toHaveCount(7)
+  await expect(field).toBeFocused()
+  await work.getByRole('radio', { name: 'A–Z' }).click()
+  await expect(titles).toHaveText([
+    'Another project',
+    'Atlas',
+    'Beacon',
+    'Copper launch',
+    'Delta pitch',
+    'Ember notes',
+    'Fixture project',
+  ])
+})
+
+test('browser-account · ⌘K opens a project by its name (find-projects.md)', async ({ context }) => {
+  await serve(context)
+  await sevenProjects(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await page.keyboard.press('Control+k')
+  const palette = page.getByRole('dialog', { name: 'Commands' })
+  // Blank, the palette names no project.
+  expect((await palette.getByRole('option').allInnerTexts()).join('\n')).not.toContain('Open Fixture project')
+  await page.keyboard.type('fixture')
+  await expect(palette.getByRole('option').first()).toContainText('Open Fixture project')
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(new RegExp(WORK_PROJECT))
+})
+
+test('legal · a sign-out in another tab forgets the views’ unsent words here too (Codex P1 on #366)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  const key = viewerKeyOf(DAVIDE.id, WORK_PROJECT)
+  await page.evaluate(
+    (k) => localStorage.setItem(k, JSON.stringify({ lens: 'build', drafts: { build: 'secret plan' } })),
+    key,
+  )
+  await anotherTab(context, null)
+  await expect(page.locator('input[type="email"]')).toBeVisible()
+  await expect
+    .poll(() => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? '{}') as unknown, key))
+    .toEqual({ lens: 'build', drafts: {} })
+})
+
+test('legal · /terms and /privacy keep their address and their page, signed out or in (Codex P1 on #366)', async ({
+  context,
+}) => {
+  await serve(context)
+  const out = await context.newPage()
+  await out.goto(`${APP}/terms`)
+  await expect(out.getByRole('heading', { level: 1 })).toHaveText('Terms of use')
+  await out.waitForTimeout(1500)
+  expect(new URL(out.url()).pathname).toBe('/terms')
+  await expect(out.getByRole('heading', { level: 1 })).toHaveText('Terms of use')
+  const signedIn = await signedInTab(context, DAVIDE)
+  await signedIn.goto(`${APP}/privacy`)
+  await expect(signedIn.getByRole('heading', { level: 1 })).toHaveText('Privacy notice')
+  await signedIn.waitForTimeout(1500)
+  expect(new URL(signedIn.url()).pathname).toBe('/privacy')
+  await expect(signedIn.getByRole('heading', { level: 1 })).toHaveText('Privacy notice')
+})
+
+test('feedback · opened from Home during a call, the call’s switches stay in reach (Codex P1 on #367)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/p/${WORK_PROJECT}/studio?work=lost&sentry=1`)
+  await page
+    .getByRole('navigation', { name: 'Room controls' })
+    .getByRole('button', { name: /^Join the room/ })
+    .click()
+  await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
+  await page.keyboard.press('h')
+  await expect(page.locator('div.places[data-place="home"]')).toBeVisible()
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Send feedback' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Send feedback' })
+  await expect(
+    sheet.getByRole('group', { name: 'Your call' }).getByRole('button', { name: 'Leave the room' }),
+  ).toBeVisible()
 })

@@ -4,6 +4,7 @@ import { Button, Icon, Tag } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { GOAL_STATUS } from './labels.ts'
 import { WorkControls } from './WorkControls.tsx'
+import { Criteria } from './Criteria.tsx'
 
 interface Props {
   goal: Goal
@@ -20,20 +21,6 @@ interface Props {
   children?: React.ReactNode
   /** Its plan's next checkpoint, said on its second line (Tasks, compact). */
   next?: React.ReactNode
-}
-
-/** A goal's criteria. Required unless said otherwise: the exception is marked, never the rule (goal-optional.md). */
-function Criteria({ goal }: { goal: Goal }) {
-  return (
-    <ul className="criteria">
-      {goal.criteria.map((c) => (
-        <li key={c.id}>
-          <span>{c.description}</span>
-          {!c.required && <span className="criterion-optional"> · optional</span>}
-        </li>
-      ))}
-    </ul>
-  )
 }
 
 /**

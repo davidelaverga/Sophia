@@ -121,9 +121,13 @@ test('home · with a sheet open over Home, “/” leaves the focus where it is'
 test('home · you and Sophia: where you left off opens your conversation; your notes open them', async ({ page }) => {
   await page.goto(PAGE)
   const you = page.getByRole('list', { name: 'You and Sophia' })
-  await expect(you.getByRole('button').first()).toContainText(/Continue.*the launch pressure/)
+  await expect(you.getByRole('button').first()).toContainText(/Continue.*the launch pressure/i)
   await you.getByRole('button', { name: /Continue/ }).click()
-  await you.getByRole('button', { name: /3 notes/ }).click()
+  // Your notes are a press in the section's head (docs/plans/home-first-glance.md).
+  await page
+    .locator('.hw-you')
+    .getByRole('button', { name: /3 notes/ })
+    .click()
   expect(await pressed(page)).toEqual(['personal', 'notes'])
 })
 

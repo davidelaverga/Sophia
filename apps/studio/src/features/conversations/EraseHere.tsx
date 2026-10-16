@@ -1,4 +1,4 @@
-// Erasing a conversation (CON-01, A16; binding map §6, owner D-3): an admin erases a whole conversation for everyone,
+// Erasing a conversation (CON-01, A33; binding map §6, owner D-3): an admin erases a whole conversation for everyone,
 // its title and every message, and Sophia's answers in it. A quiet press at the foot of «This conversation» in the
 // context; pressed, a short confirmation under it says what goes, and only its own press erases. One intent, one key:
 // with no reply, the press sends it again under the same key. Erased, the conversation leaves the list at once (then

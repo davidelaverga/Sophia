@@ -90,7 +90,7 @@ const conversation = (over: Partial<ConversationSummary> = {}): ConversationSumm
 })
 
 describe('contributorsLine', () => {
-  it('says there may be others once it names as many as A16 lets it (PR #199 review)', () => {
+  it('says there may be others once it names as many as A33 lets it (PR #199 review)', () => {
     const many = Array.from({ length: 200 }, (_, i) => ({ actorId: `a${String(i)}`, name: `N${String(i)}` }))
     assert.match(contributorsLine(conversation({ contributors: many }), 'a199'), /N198, You and others$/)
     assert.doesNotMatch(contributorsLine(conversation({ contributors: many.slice(0, 199) }), ME), /others/)
@@ -653,7 +653,7 @@ const message = (id: string, over: Partial<ConversationMessage> = {}): Conversat
 })
 
 describe('the request a message asked, never the clock (CON01-A09)', () => {
-  it('is open while pending or running only; an uncertain one (outcome_unknown) has ended, as 0049 binds it', () => {
+  it('is open while pending or running only; an uncertain one (outcome_unknown) has ended, as 0064 binds it', () => {
     for (const state of ['pending', 'running'] as const) assert.equal(replyOpen({ state }), true)
     for (const state of ['answered', 'failed', 'cancelled', 'blocked', 'outcome_unknown'] as const)
       assert.equal(replyOpen({ state }), false)
@@ -1152,7 +1152,7 @@ describe('listWithdrawn: the list says nothing the withdrawal took (PR #199 revi
     assert.equal(stays?.conversations[0]?.contributors.length, 2)
   })
 
-  it('a list that named as many as A16 lets it still says there are others once a named writer is taken out', () => {
+  it('a list that named as many as A33 lets it still says there are others once a named writer is taken out', () => {
     // 201 wrote there; the list names 200, you among them. Your only message withdrawn, the reads after it failing:
     const named = Array.from({ length: 199 }, (_, i) => ({ actorId: `w${String(i)}`, name: `W${String(i)}` }))
     const capped = listOf({ contributors: [...named, { actorId: ME, name: 'Me' }] })

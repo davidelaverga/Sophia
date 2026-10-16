@@ -13,9 +13,11 @@ import {
   useState,
   type FormEvent,
   type KeyboardEvent,
+  type ReactNode,
   type RefObject,
 } from 'react'
 import { modalOnScreen, onScreen } from '../../app/shortcuts.ts'
+import { useMedia } from '../../app/useMedia.ts'
 import { defaultTarget, type LightMode, type LightTarget } from '../light/engine.ts'
 import type { Point } from '../light/motion.ts'
 import { SophiaLight } from '../light/SophiaLight.tsx'
@@ -63,11 +65,15 @@ interface Props {
   locked: boolean
   /** Home is out of sight (another place is): the microphone stops and her light stops following. */
   hidden: boolean
+  /** Home is the place arrived at (not only on screen while a move runs): a visit ends when it is not. */
+  here: boolean
   /**
    * What needs you (needs-you.ts) and what opens one: undefined until an API serves it, and the right half is her
    * light alone. The opener comes with the items, so no row is ever offered that leads nowhere.
    */
   needs?: { items: readonly Need[]; open: (need: Need) => void; skew?: number } | undefined
+  /** The invitations waiting for the person (InvitedBand, A16): right under the greeting; nothing when none waits. */
+  invited?: ReactNode
   actions: {
     /** Into your conversation with her (unlocking it first, when locked). */
     personal: () => void
@@ -282,8 +288,9 @@ interface LineProps {
   onTalk: (t: Talk) => void
   line: RefObject<HTMLElement | null>
   hidden: boolean
-  /** The next ask the line suggests (docs/plans/next-ask-places.md); null with none. */
-  next: { words: string; why: string } | null
+  here: boolean
+  /** The next ask the line suggests (docs/plans/next-ask-places.md), and what Tab puts in; null with none. */
+  next: { words: string; why: string; full: string } | null
 }
 
 /**
@@ -295,14 +302,18 @@ function useLineNext(
   text: string,
   listening: boolean,
   setText: (words: string) => void,
-  hidden: boolean,
+  here: boolean,
 ) {
   const [away, setAway] = useState(false)
   // Put away for this visit only: Home left (it stays mounted under a hidden place), the next visit offers the ask
-  // again (Codex on #268).
+  // again (Codex on #268). A visit begins when Home is arrived at again, from the move's first frame: a move reversed
+  // before it settles still begins one (Codex P2 on #268), and Home fading out as it is left never shows the ask again
+  // (Codex on #276).
+  const wasHere = useRef(here)
   useEffect(() => {
-    if (hidden) setAway(false)
-  }, [hidden])
+    if (here && !wasHere.current) setAway(false)
+    wasHere.current = here
+  }, [here])
   const [focused, setFocused] = useState(false)
   const id = useId()
   const shown = !away && !listening && text === '' ? next : null
@@ -312,18 +323,18 @@ function useLineNext(
     const move = nextAskKey(press, text, shown !== null)
     if (!move || !shown) return
     e.preventDefault()
-    if (move === 'accept') setText(shown.words)
+    if (move === 'accept') setText(shown.full)
     else setAway(true)
   }
   return { id, shown, cap: focused ? shown : null, onKey, setFocused }
 }
 
 /** One line to write to Sophia, no box, or to speak to her. */
-function SayLine({ actions, onTalk, line, hidden, next }: LineProps) {
+function SayLine({ actions, onTalk, line, hidden, here, next }: LineProps) {
   const s = useSay(actions.say, hidden)
   useSlashReaches(s.field)
   const listening = s.voice.listening
-  const ask = useLineNext(next, s.text, listening, s.setText, hidden)
+  const ask = useLineNext(next, s.text, listening, s.setText, here)
   // She listens while you speak, and until you leave the line; a dictation that heard nothing lets her rest.
   useEffect(() => {
     onTalk({ writing: listening || document.activeElement === s.field.current })
@@ -364,7 +375,7 @@ function SayLine({ actions, onTalk, line, hidden, next }: LineProps) {
         <NextAskHint
           id={ask.id}
           why={ask.cap.why}
-          description={`Suggested: ${ask.cap.words}. Tab puts it in the line; Escape puts it away.`}
+          description={`Suggested: ${ask.cap.words}. ${ask.cap.why}. Tab puts it in the line; Escape puts it away.`}
         />
       ) : (
         <kbd aria-hidden>{s.text ? '↵' : '/'}</kbd>
@@ -374,12 +385,20 @@ function SayLine({ actions, onTalk, line, hidden, next }: LineProps) {
 }
 
 /** You and Sophia, private: where you left off (or the padlock), your notes, and the line to her: alone on a first visit. */
-function You({ you, locked, actions, onTalk, line, hidden, next }: Pick<Props, 'you' | 'locked'> & LineProps) {
+function You({ you, locked, actions, onTalk, line, hidden, here, next }: Pick<Props, 'you' | 'locked'> & LineProps) {
   return (
     <section className="hw-section hw-you" aria-labelledby="hw-you-h">
-      <h3 id="hw-you-h" className="hw-label" tabIndex={-1}>
-        You and Sophia
-      </h3>
+      {/* Your notes in the head, as Personal's head carries them (docs/plans/home-first-glance.md). */}
+      <div className="hw-label-row">
+        <h3 id="hw-you-h" className="hw-label" tabIndex={-1}>
+          You and Sophia
+        </h3>
+        {you && you.notes !== null && (
+          <button className="text-button hw-notes" type="button" onClick={actions.notes}>
+            {notesLabel(you.notes)} <span aria-hidden>→</span>
+          </button>
+        )}
+      </div>
       {you && (
         <ol className="hw-index" aria-label="You and Sophia">
           <li style={{ '--i': 0 }}>
@@ -394,20 +413,9 @@ function You({ you, locked, actions, onTalk, line, hidden, next }: Pick<Props, '
               </span>
             </button>
           </li>
-          {you.notes !== null && (
-            <li style={{ '--i': 1 }}>
-              <button className="hw-row hw-more" type="button" onClick={actions.notes}>
-                <span className="hw-n" aria-hidden />
-                <span className="hw-t">{notesLabel(you.notes)}</span>
-                <span className="hw-go">
-                  <span aria-hidden>→</span>
-                </span>
-              </button>
-            </li>
-          )}
         </ol>
       )}
-      {!locked && <SayLine actions={actions} onTalk={onTalk} line={line} hidden={hidden} next={next} />}
+      {!locked && <SayLine {...{ actions, onTalk, line, hidden, here, next }} />}
     </section>
   )
 }
@@ -494,13 +502,59 @@ function Light({
   )
 }
 
+/** Home's one column (personal.css, ≤ 860 px): there what needs you comes right after the greeting. */
+const ONE_COLUMN = '(max-width: 860px)'
+
+/** «What needs you», wherever it is mounted, and the controls in it. */
+const NEEDS = '[aria-label="What needs you"]'
+const PRESSES = 'button, a[href], [tabindex]:not([tabindex="-1"])'
+
+/**
+ * The focus kept on a need when the list moves across 860 px (home-needs-focus.md; Codex P2 on #289): the place in the
+ * list of the control last focused is remembered, forgotten once the focus goes elsewhere, and given back there after
+ * the move if the focus fell to the page.
+ */
+function useNeedsFocus(home: RefObject<HTMLDivElement | null>, oneColumn: boolean) {
+  const at = useRef<number | null>(null)
+  useEffect(() => {
+    const el = home.current
+    const onFocus = (e: FocusEvent) => {
+      const target = e.target instanceof Element ? e.target : null
+      const list = target?.closest(NEEDS)
+      at.current = list && target ? [...list.querySelectorAll(PRESSES)].indexOf(target) : null
+    }
+    el?.addEventListener('focusin', onFocus)
+    return () => el?.removeEventListener('focusin', onFocus)
+  }, [home])
+  useLayoutEffect(() => {
+    const kept = at.current
+    const fell = document.activeElement === null || document.activeElement === document.body
+    if (kept === null || kept < 0 || !fell) return
+    home.current?.querySelector(NEEDS)?.querySelectorAll<HTMLElement>(PRESSES)[kept]?.focus()
+  }, [home, oneColumn])
+}
+
 export function Welcome(props: Props) {
   const [talk, setTalk] = useState<Talk>({ writing: false })
   const line = useRef<HTMLElement | null>(null)
+  // Mounted where it is read: on one column right after the greeting, in the document as on the screen, so a keyboard
+  // and a screen reader meet it where the eye does (docs/plans/home-phone-needs.md); beside the words otherwise.
+  const oneColumn = useMedia(ONE_COLUMN)
+  const home = useRef<HTMLDivElement>(null)
+  useNeedsFocus(home, oneColumn)
+  const needs = props.needs && (
+    <NeedsYou needs={props.needs.items} now={onService(props.now, props.needs.skew)} onOpen={props.needs.open} />
+  )
   return (
-    <div className="hw">
+    <div className="hw" ref={home}>
       <div className="hw-col">
         <Greeting hello={props.hello} name={props.name} date={props.date} says={props.says} />
+        {props.invited}
+        {needs && oneColumn && (
+          <aside className="hw-needs-here" aria-label="What needs you">
+            {needs}
+          </aside>
+        )}
         <ReadNotes reads={props.reads} />
         <You
           you={props.you}
@@ -509,6 +563,7 @@ export function Welcome(props: Props) {
           onTalk={setTalk}
           line={line}
           hidden={props.hidden}
+          here={props.here}
           next={homeNextAsk(props.projects, props.now)}
         />
         {(props.projects || props.loadingProjects) && (
@@ -527,10 +582,10 @@ export function Welcome(props: Props) {
           </section>
         )}
       </div>
-      {props.needs ? (
+      {needs && !oneColumn ? (
         <aside className="hw-side" aria-label="What needs you">
           <Light talk={talk} line={line} hidden={props.hidden} large />
-          <NeedsYou needs={props.needs.items} now={onService(props.now, props.needs.skew)} onOpen={props.needs.open} />
+          {needs}
         </aside>
       ) : (
         <Light talk={talk} line={line} hidden={props.hidden} />

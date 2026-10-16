@@ -1,4 +1,4 @@
-// Withdrawing a message (CON-01, A16; binding map §6): its author withdraws their own, an admin removes any. A small
+// Withdrawing a message (CON-01, A33; binding map §6): its author withdraws their own, an admin removes any. A small
 // press at the message's corner, beside «Propose as decision», under the pointer or the focus as that one is; pressed, a
 // short confirmation under the message says what goes, and only its own press withdraws. One intent, one key: with no
 // reply, the press sends it again under the same key, kept by the view (talk-store.ts) so another conversation opened

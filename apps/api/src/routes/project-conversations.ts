@@ -1,4 +1,4 @@
-// Saved project conversations (CON-01, contract amendment A16, db/migrations/0048). Members read; writers (admins and
+// Saved project conversations (CON-01, contract amendment A33, db/migrations/0063). Members read; writers (admins and
 // editors) start and continue them in a project whose conversations are on; an author withdraws their own message and
 // an admin any, or erases a conversation. Each write is one sophia.* function under the member's own identity,
 // idempotent per Idempotency-Key, and answers with the records read back under that member in the same transaction.
@@ -63,7 +63,7 @@ const pageQuery = {
   properties: { before: { type: 'string', minLength: 1, maxLength: 200 } },
 } as const
 
-/** The functions 0048 adds that these routes call; /ready requires them only while the routes are served. */
+/** The functions 0063 adds that these routes call; /ready requires them only while the routes are served. */
 export const CONVERSATION_SCHEMA = `SELECT to_regprocedure('sophia.start_conversation(uuid,text,text,text,boolean,text)') IS NOT NULL
   AND to_regprocedure('sophia.send_conversation_message(uuid,text,text,boolean,text)') IS NOT NULL
   AND to_regprocedure('sophia.withdraw_conversation_message(uuid,uuid,text)') IS NOT NULL

@@ -1,4 +1,6 @@
 // Runtime validation of what a client reads from the Sophia API (published as "@sophia/contracts/validate").
+// A property the contract doesn't list is dropped, not refused: a client built before an additive amendment reads
+// a newer API as the shape it knows (docs/plans/tolerant-readers.md). Anything else off the contract is refused.
 // Browser-safe: the validators are generated ahead of time (scripts/generate-validators.ts), so there is
 // no Ajv compiler and no eval at runtime. A body that breaks the contract throws; it is never cast.
 import type { ErrorObject, ValidateFunction } from 'ajv'
@@ -12,6 +14,7 @@ import {
   validateInvitation,
   validateInvitationAccepted,
   validateInvitationList,
+  validatePendingInvitationList,
   validateInvitationPreview,
   validateLobbyEntry,
   validateMediaAssignmentBatch,
@@ -36,6 +39,15 @@ import {
   validatePersonalSpace,
   validatePersonalTurnPage,
   validateProjectCreated,
+  validateProjectRenamed,
+  validateProjectLeft,
+  validateDiscussionPage,
+  validateGoalTargetList,
+  validateGoalTargetSet,
+  validateProjectMembers,
+  validateInvitablePeople,
+  validateMemberRoleSet,
+  validateActivityPage,
   validateProjectList,
   validateWorkBoardView,
   validateWorkReceipt,
@@ -48,6 +60,7 @@ import {
   validateConversationMessageSent,
   validateConversationWithdrawal,
   validateConversationErasure,
+  validateDesignEditReceipt,
   validateReceipt,
   validateRoomSession,
   validateRoomToken,
@@ -82,12 +95,22 @@ function parser<T>(schema: string, validate: ValidateFunction<T>): (value: unkno
 export const parseSnapshot = parser('Snapshot', validateSnapshot)
 export const parseReceipt = parser('Receipt', validateReceipt)
 export const parseProjectCreated = parser('ProjectCreated', validateProjectCreated)
+export const parseProjectRenamed = parser('ProjectRenamed', validateProjectRenamed)
+export const parseProjectLeft = parser('ProjectLeft', validateProjectLeft)
+export const parseDiscussionPage = parser('DiscussionPage', validateDiscussionPage)
+export const parseGoalTargetList = parser('GoalTargetList', validateGoalTargetList)
+export const parseGoalTargetSet = parser('GoalTargetSet', validateGoalTargetSet)
+export const parseProjectMembers = parser('ProjectMembers', validateProjectMembers)
+export const parseInvitablePeople = parser('InvitablePeople', validateInvitablePeople)
+export const parseMemberRoleSet = parser('MemberRoleSet', validateMemberRoleSet)
+export const parseActivityPage = parser('ActivityPage', validateActivityPage)
 export const parseEvent = parser('Event', validateEvent)
 export const parseCursorAdvance = parser('CursorAdvance', validateCursorAdvance)
 export const parseRoomToken = parser('RoomToken', validateRoomToken)
 export const parseExchangeReceipt = parser('ExchangeReceipt', validateExchangeReceipt)
 export const parseInvitation = parser('Invitation', validateInvitation)
 export const parseInvitationList = parser('InvitationList', validateInvitationList)
+export const parsePendingInvitationList = parser('PendingInvitationList', validatePendingInvitationList)
 export const parseInvitationPreview = parser('InvitationPreview', validateInvitationPreview)
 export const parseInvitationAccepted = parser('InvitationAccepted', validateInvitationAccepted)
 export const parseLobbyEntry = parser('LobbyEntry', validateLobbyEntry)
@@ -128,6 +151,7 @@ export const parseConversationStarted = parser('ConversationStarted', validateCo
 export const parseConversationMessageSent = parser('ConversationMessageSent', validateConversationMessageSent)
 export const parseConversationWithdrawal = parser('ConversationWithdrawal', validateConversationWithdrawal)
 export const parseConversationErasure = parser('ConversationErasure', validateConversationErasure)
+export const parseDesignEditReceipt = parser('DesignEditReceipt', validateDesignEditReceipt)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {

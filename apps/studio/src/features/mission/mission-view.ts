@@ -15,6 +15,12 @@ import { authorLabel } from '../conversation/conversation-view.ts'
 /** The mission read's query key: every write and project event refreshes it. */
 export const missionKey = (projectId: string) => ['mission', projectId] as const
 
+/**
+ * Under the direction form: who accepts it, as the server decides (any editor or admin, `can_edit`), the one who
+ * proposed it included: the voice flow puts Sophia's proposal back to its speaker to confirm (e2e-real S1).
+ */
+export const SAVE_DIRECTION_NOTE = 'Saving proposes it. Any editor or admin can accept it, you included.'
+
 export const ENTRY_KIND: Record<MissionEntry['kind'], string> = {
   observation: 'Observation',
   expectation: 'Expectation',
@@ -53,10 +59,13 @@ export const OUTCOME: Record<MissionDecision['state'], string> = {
   superseded: 'Replaced',
 }
 
-/** Who decided a proposal, and where: by voice with Sophia or in the Studio; null when it was replaced, not decided. */
+/**
+ * Who decided a proposal, and where: by voice with Sophia or in the Studio; null when it was replaced, not decided. The
+ * decider is named by the call, else by the name the decision kept (A18).
+ */
 export function decidedBy(d: MissionDecision, me: string, names: ReadonlyMap<string, string>): string | null {
   if (!d.decidedBy) return null
-  return `${authorLabel(d.decidedBy, me, names)}, ${d.decidedVia === 'voice' ? 'by voice' : d.decidedVia === 'text' ? 'by text with Sophia' : 'in the Studio'}`
+  return `${authorLabel(d.decidedBy, me, names, d.decidedByName ?? null)}, ${d.decidedVia === 'voice' ? 'by voice' : d.decidedVia === 'text' ? 'by text with Sophia' : 'in the Studio'}`
 }
 
 export interface Line {

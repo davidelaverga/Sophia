@@ -243,7 +243,7 @@ for (const migrated of [false, true]) {
 
     if (!migrated)
       describe('its footprint, recorded before and after it', () => {
-        it('replaces only the settled-time CHECK, under the same name; every other constraint is 0048’s', (t) => {
+        it('replaces only the settled-time CHECK, under the same name; every other constraint is 0063’s', (t) => {
           assert.deepEqual(
             settledCheck(pre).map((c) => c.def),
             [SETTLED_BEFORE],
@@ -264,7 +264,7 @@ for (const migrated of [false, true]) {
           assert.deepEqual(openIndex(pre), { name: OPEN_INDEX, def: INDEX_BEFORE, unique: false })
           assert.deepEqual(openIndex(post), { name: OPEN_INDEX, def: INDEX_AFTER, unique: false })
           assert.deepEqual(otherIndexes(post), otherIndexes(pre))
-          // The by-id and per-message uniqueness stay as 0048 made them.
+          // The by-id and per-message uniqueness stay as 0063 made them.
           assert.deepEqual(
             otherIndexes(post).map((i) => [i.name, i.unique]),
             [
@@ -277,7 +277,7 @@ for (const migrated of [false, true]) {
         })
 
         it('changes conversation_withdrawn_from in its open set only; owner, SECURITY DEFINER, search_path and privileges stay', (t) => {
-          assert.equal(pre.withdrawnFrom.src.split(OPEN_BEFORE).length, 2, '0048’s body names the open set once')
+          assert.equal(pre.withdrawnFrom.src.split(OPEN_BEFORE).length, 2, '0063’s body names the open set once')
           assert.equal(post.withdrawnFrom.src, pre.withdrawnFrom.src.replace(OPEN_BEFORE, OPEN_AFTER))
           assert.deepEqual(
             { ...post.withdrawnFrom, src: '' },
@@ -454,7 +454,7 @@ describe('CON-01 N3: over rows written before it, and taken back', () => {
   before(async () => {
     db = await createConversationCandidateDatabase()
     pool = createPool(db.apiUrl, { max: 4 })
-    // Before the candidate: a request in each state 0048 allows with its settled time (G1 itself writes only blocked).
+    // Before the candidate: a request in each state 0063 allows with its settled time (G1 itself writes only blocked).
     const { projectId, conversationId, messages, replies } = await conversationWithAsks(db, pool, 6)
     const [, pending, running, answered, failed, cancelled] = replies as [
       string,
@@ -482,7 +482,7 @@ describe('CON-01 N3: over rows written before it, and taken back', () => {
     await db.drop()
   })
 
-  it('applies over them, changing none, and each satisfies 0048’s settled-time rule and the candidate’s', async () => {
+  it('applies over them, changing none, and each satisfies 0063’s settled-time rule and the candidate’s', async () => {
     const was = await snapshot()
     assert.equal(was.length, seeded.replies.length)
     await query(db.ownerUrl, CANDIDATE)
@@ -496,7 +496,7 @@ describe('CON-01 N3: over rows written before it, and taken back', () => {
     }
   })
 
-  it('taken back to 0048’s definitions while no outcome_unknown is written, its identities are 0048’s again and the rows unchanged', async () => {
+  it('taken back to 0063’s definitions while no outcome_unknown is written, its identities are 0063’s again and the rows unchanged', async () => {
     const was = await snapshot()
     const settled = pre.constraints.find((c) => c.def === SETTLED_BEFORE)
     assert.ok(settled)
@@ -512,7 +512,7 @@ describe('CON-01 N3: over rows written before it, and taken back', () => {
     assert.deepEqual(await snapshot(), was)
   })
 
-  it('is refused over a request 0048 recorded as an open outcome_unknown, and changes nothing', async () => {
+  it('is refused over a request 0063 recorded as an open outcome_unknown, and changes nothing', async () => {
     const [, pending] = seeded.replies
     await query(
       db.ownerUrl,

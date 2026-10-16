@@ -236,3 +236,23 @@ test('commands · nothing matching keeps the list the field controls, and says s
   await box.fill('commands')
   await expect(palette(page).getByRole('option', { name: /^Do\s*Commands/ })).toHaveCount(0)
 })
+
+test('commands · the palette understands other words people type: «dark», «help», «what changed», «find» (informe-comandos-20)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1&place=work')
+  await drawn(page, DRAWN.tasks)
+  for (const [typed, first] of [
+    ['dark', /Switch to the light page/],
+    ['help', /Keyboard shortcuts/],
+    ['what changed', /Go to Updates/],
+    ['find', /Search/],
+    ['sophia', /Go to Conversations/],
+  ] as const) {
+    await page.keyboard.press('Control+k')
+    await field(page).fill(typed)
+    await expect(options(page).first()).toHaveText(first)
+    await page.keyboard.press('Escape')
+    await expect(palette(page)).toHaveCount(0)
+  }
+})

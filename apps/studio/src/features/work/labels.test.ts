@@ -7,6 +7,13 @@ describe('event words in the work pulse', () => {
     assert.equal(summaryLabel('room.lobby_knock', 'room.lobby_changed'), 'A guest asked to come in')
     assert.equal(summaryLabel('room.session', 'room.session_scheduled'), 'Session scheduled')
     assert.equal(summaryLabel('project.member', 'project.member_joined'), 'Member joined')
+    // A departure is said as one, and a rename as one (project-leave.md; Codex P2 on #349).
+    assert.equal(summaryLabel('project.member_left', 'project.member_left'), 'Member left')
+    assert.equal(summaryLabel('project.member_role', 'project.member_role_changed'), 'Role changed')
+    // Who did what (project-activity.md): a creation and an admin's acts in the call are said as such.
+    assert.equal(summaryLabel('project.created', 'project.created'), 'Project created')
+    assert.equal(summaryLabel('room.host_removed', 'room.host_removed'), 'Taken out of the call by an admin')
+    assert.equal(summaryLabel('project.renamed', 'project.renamed'), 'Project renamed')
   })
 
   it('never shows a raw code for an event it does not know', () => {

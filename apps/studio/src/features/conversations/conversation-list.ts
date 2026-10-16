@@ -21,12 +21,12 @@ export const messagesKey = (conversationId: string, name: string) =>
   ['conversations', 'messages', conversationId, name] as const
 
 /** Who wrote there, mine as «You», then Sophia when she answered: «Lucía, You · Sophia». */
-/** The most writers a conversation's summary names (A16's `contributors` `maxItems`): at that many, there may be more. */
+/** The most writers a conversation's summary names (A33's `contributors` `maxItems`): at that many, there may be more. */
 export const NAMED_AT_MOST = 200
 
 /**
  * What this view knows beyond a summary as read: that writers it doesn't name may exist. Set only here, when a
- * withdrawal takes a writer out of a list that named as many as A16 lets it (`listWithdrawn`); the next read answers
+ * withdrawal takes a writer out of a list that named as many as A33 lets it (`listWithdrawn`); the next read answers
  * for itself.
  */
 export interface Unnamed {
@@ -78,7 +78,7 @@ export function contributorsLine(
 }
 
 /**
- * What a list of the newest only says of itself (A16's `more`): how many it holds as read, and the starts made here
+ * What a list of the newest only says of itself (A33's `more`): how many it holds as read, and the starts made here
  * that it shows besides, kept reachable though the read leaves them out (list-data `shownList`). That older ones
  * can’t be opened is said only of the others (Codex CX-0067).
  */
@@ -93,7 +93,7 @@ export const openWords = (n: number): string =>
   n === 0 ? 'No open questions' : n === 1 ? '1 open question' : `${String(n)} open questions`
 
 /**
- * What is open, as far as anyone knows (A16 coverage): never «No open questions» where nobody has looked, only that
+ * What is open, as far as anyone knows (A33 coverage): never «No open questions» where nobody has looked, only that
  * none is recorded yet.
  */
 export const questionWords = (c: Pick<ConversationSummary, 'openQuestions' | 'questionsCoverage'>): string =>
@@ -235,9 +235,9 @@ export function initialOf(name: string | null): string {
 
 /**
  * Whether a reply request is still under way: its answer, or its end, is still to come. Only the request itself says
- * so: a message of Sophia's settles only the request it names (`replyTo`), never one asked before it by time (A16).
+ * so: a message of Sophia's settles only the request it names (`replyTo`), never one asked before it by time (A33).
  * `pending` and `running` only: an uncertain one (`outcome_unknown`) has ended, and nothing is ever published for it
- * (binding map §8.2.1, the state set 0049 binds; G1 never produces it).
+ * (binding map §8.2.1, the state set 0064 binds; G1 never produces it).
  */
 export const replyOpen = (r: Pick<ConversationReply, 'state'>): boolean =>
   r.state === 'pending' || r.state === 'running'
@@ -308,7 +308,7 @@ export function withMessage<M extends { id: string }>(
  * The pages as a withdrawal the API accepted leaves them, at once and before they are read again (should that read
  * fail, they stay so): the message as the API answered it; Sophia's answers that read it (asked at it or after; one
  * whose asking message isn't read here but came after it, too) withdrawn; and a request still open from there
- * cancelled, as 0048 does it. Nothing it said stays on screen meanwhile.
+ * cancelled, as 0063 does it. Nothing it said stays on screen meanwhile.
  */
 export function withWithdrawn(
   read: ReadPages<ConversationMessage> | undefined,
@@ -605,7 +605,7 @@ export function gistOf(c: ConversationSummary, me: string): string | null {
  *   messages included; the message's own `seq`): only if the row's is lower, so the read came before the message. A
  *   cleared preview or an equal place is no permission. On equal times this still orders (two messages in one
  *   millisecond).
- * - Otherwise (an API from before them): only if the row's last activity (`lastAt`, which 0048 stamps with the
+ * - Otherwise (an API from before them): only if the row's last activity (`lastAt`, which 0063 stamps with the
  *   message's own time and a withdrawal leaves) is earlier, and so is the opening it says. As read, that opening is
  *   never later than `lastAt`; one this view put there since is its receipt's, and it bounds the next (Codex at
  *   7969d40: receipts 3 then 2 took the row back to 2), and `lastAt` moves up with it, never back. Equal times keep

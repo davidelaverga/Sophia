@@ -12,6 +12,13 @@ on:
 permissions:
   contents: read
 
+# One run per branch at a time. A push and the pull request it updates share a group (the branch's name), so a later
+# run cancels the one it supersedes. main keeps every run: each commit there is a group of its own, since a group
+# without cancel-in-progress still drops a run left pending behind a newer one.
+concurrency:
+  group: ci-${{ github.head_ref || (github.ref_name == 'main' && github.sha) || github.ref_name }}
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
+
 jobs:
   runtime-unit:
     runs-on: ubuntu-24.04

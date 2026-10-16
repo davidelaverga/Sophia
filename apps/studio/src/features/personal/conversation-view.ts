@@ -76,16 +76,20 @@ const TOPICS: ReadonlyArray<readonly [RegExp, string]> = [
   [/anx|nervous|worr|scared|afraid|stress/, 'nerves'],
 ]
 
+/**
+ * A topic Sophia names stays as she names it; otherwise your own words are quoted as you wrote them, names and «I»
+ * keeping their capitals, up to the first sentence's end (docs/plans/personal-day-menu.md).
+ */
 export function topicOf(text: string): string {
   const lower = text.toLowerCase()
   const hit = TOPICS.find(([re]) => re.test(lower))
   if (hit) return hit[1]
-  const words = text
-    .replace(/[.,;:?!]+/g, '')
-    .split(/\s+/)
-    .filter(Boolean)
-  return words.slice(0, 3).join(' ').toLowerCase() + (words.length > 3 ? '…' : '')
+  const words = (text.split(/[.?!]/)[0] ?? '').replace(/[,;:]/g, '').split(/\s+/).filter(Boolean)
+  return words.slice(0, 3).join(' ') + (words.length > 3 ? '…' : '')
 }
+
+/** What Find asks Sophia when nothing matches: the words looked for, as typed (docs/plans/find-ask-sophia.md). */
+export const askAbout = (query: string): string => `What did I tell you about ${query.trim()}?`
 
 /** Sophia's first words in a new conversation. Not a stored turn: the space's own introduction. */
 export function introText(name: string | null): string {
@@ -281,6 +285,12 @@ export function conversationRows(input: ConversationInput): Row[] {
  * Sophia's introduction leads a new conversation: none yet, or one that began today with its very first turn. Someone
  * returning to an older conversation is welcomed back instead (resume), never introduced again.
  */
+/**
+ * The conversation opens here: its rows offer the ways to start (nothing said yet, a new space or one erased), so it
+ * starts at the page's optical centre rather than resting on the field (docs/plans/personal-first-talk.md).
+ */
+export const opensHere = (rows: readonly Row[]): boolean => rows.some((r) => r.kind === 'starters')
+
 export function opensWithIntro(turns: readonly PersonalTurn[], earlier: boolean, now: Date): boolean {
   const first = turns[0]
   if (!first) return !earlier
@@ -361,7 +371,8 @@ export function daysOf(rows: readonly Row[]): Array<{ key: string; label: string
     const current = days.at(-1)
     if (current && row.kind === 'turn' && row.author === 'person') {
       const topic = topicOf(row.text)
-      if (!current.topics.includes(topic)) current.topics.push(topic)
+      // Listed once whatever its case: quoted words keep theirs (Codex on #291).
+      if (!current.topics.some((t) => t.toLowerCase() === topic.toLowerCase())) current.topics.push(topic)
     }
   }
   return days.map((d) => ({ key: d.key, label: d.label, topics: d.topics.slice(0, 2).join(' · ') || 'Just started' }))

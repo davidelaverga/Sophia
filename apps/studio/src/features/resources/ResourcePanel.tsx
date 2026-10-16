@@ -167,6 +167,7 @@ function Search({ query, onChange }: SearchProps) {
       words: 'Search the resources',
       group: 'view',
       key: '/',
+      also: ['find'],
       run: () => input.current?.focus(),
     },
   ])

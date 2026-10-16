@@ -26,7 +26,6 @@ export interface Notes {
   unread?: boolean
 }
 
-const AT = '2026-10-05T12:00:00.000Z'
 const BUILT = { id: '00000000-0000-4000-8000-0000000000af', revision: 1 }
 
 const isEntryRequest = (value: unknown): value is MissionEntryRequest =>
@@ -74,13 +73,14 @@ export function noteKept(notes: Notes, body: unknown, revision: number, key: str
     relatedEntryId: null,
     supersedesEntryId: null,
     supersededById: null,
-    goalId: null,
+    goalId: request.goalId ?? null,
     decisionId: null,
     sourceId: '00000000-0000-4000-8000-0000000000ae',
     sha256: null,
     ledgerRevision: revision,
-    observedAt: AT,
-    recordedAt: AT,
+    // Written now, as the API stamps it: a goal's notes read newest first (goal-notes.md).
+    observedAt: new Date().toISOString(),
+    recordedAt: new Date().toISOString(),
     changedAt: null,
   })
   const kept = receipt('record_note', id, revision)
@@ -124,4 +124,41 @@ export function noteWithdrawn(notes: Notes, entryId: string, body: unknown, revi
   if (!isWithdrawal(request) || at < 0) return null
   notes.kept.splice(at, 1)
   return receipt('withdraw_note', entryId, revision)
+}
+
+/**
+ * A note on one of the demo's goals, written `hours` ago (goal-notes.md): Sophia's from a call, or the viewer's own.
+ * Every word is synthetic.
+ */
+export function goalNote(
+  n: number,
+  goalId: string,
+  note: { kind: MissionEntry['kind']; text: string; hours: number; sophia?: boolean },
+): MissionEntry {
+  const at = new Date(Date.now() - note.hours * 3_600_000).toISOString()
+  return {
+    id: `00000000-0000-4000-8000-0000000009${String(n).padStart(2, '0')}`,
+    kind: note.kind,
+    epistemic: 'reported',
+    state: 'current',
+    text: note.text,
+    textKind: note.sophia ? 'sophia_paraphrase' : 'member_text',
+    authoredBy: note.sophia ? 'sophia' : 'member',
+    // Sophia's own actor, an id as every actor's is: the contract reads it as a UUID.
+    actorId: note.sophia ? '00000000-0000-4000-8000-00000000050f' : membership.actorId,
+    origin: note.sophia ? 'voice' : 'studio',
+    exchangeId: null,
+    inputEpoch: null,
+    relatedEntryId: null,
+    supersedesEntryId: null,
+    supersededById: null,
+    goalId,
+    decisionId: null,
+    sourceId: '00000000-0000-4000-8000-0000000000ae',
+    sha256: null,
+    ledgerRevision: 1,
+    observedAt: at,
+    recordedAt: at,
+    changedAt: null,
+  }
 }
