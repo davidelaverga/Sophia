@@ -11,6 +11,7 @@ import {
   runningWork,
   soleWorkingTask,
   screenCaption,
+  showScreenLabel,
   shortName,
   stageMode,
   standingOf,
@@ -132,6 +133,12 @@ describe('what sets someone apart', () => {
     assert.equal(screenCaption(davide), 'Davide’s screen')
     assert.equal(screenCaption(guest), 'Luis’s screen · guest')
     assert.equal(screenCaption(undefined), 'Shared screen')
+  })
+
+  it('offers another screen in the caption’s words, a guest still one (Codex P2 on #358)', () => {
+    assert.equal(showScreenLabel(davide), 'Show Davide’s screen')
+    assert.equal(showScreenLabel(guest), 'Show Luis’s screen · guest')
+    assert.equal(showScreenLabel(undefined), 'Show the other shared screen')
   })
 })
 

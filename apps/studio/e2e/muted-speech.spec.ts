@@ -29,3 +29,11 @@ test('muted · with the microphone on, nothing is said', async ({ page }) => {
   await page.evaluate(() => window.fixture?.speakMuted())
   await expect(hint(page)).toHaveCount(0)
 })
+
+test('muted · the hint goes with its call (Codex P2 on #357)', async ({ page }) => {
+  await mic(page).click()
+  await page.evaluate(() => window.fixture?.speakMuted())
+  await expect(hint(page)).toBeVisible()
+  await page.evaluate(() => window.fixture?.drop())
+  await expect(hint(page)).toHaveCount(0)
+})
