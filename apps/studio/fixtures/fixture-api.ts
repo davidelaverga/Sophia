@@ -141,6 +141,8 @@ interface Project {
   sourcesHeld: boolean
   /** So do reads of a version's text (`hold=text`). */
   textHeld: boolean
+  /** Reads of the project's activity never answer (`hold=activity`), as a hosted API starting cold. */
+  activityHeld?: boolean
   /** The research task's result revision (report-data.ts): 1 unless the check revises it. */
   taskRevision?: 1 | 2
   /** Reads of the research task wait until the page lets them through (`hold=task`), as a slow API's do. */
@@ -474,9 +476,10 @@ function activityRead(url: URL): Response {
 }
 
 /** The project's own reads: its discussion (A20 proposed, A23), its goals' targets and its members (A25). */
-function projectRead(project: Project, url: URL): Response | null {
+function projectRead(project: Project, url: URL): Response | Promise<Response> | null {
   const base = `/api/v1/projects/${PROJECT}`
-  if (url.pathname === `${base}/activity`) return activityRead(url)
+  if (url.pathname === `${base}/activity`)
+    return project.activityHeld ? new Promise<Response>(() => undefined) : activityRead(url)
   if (url.pathname.startsWith(`${base}/discussion`)) return discussionRead(project, url)
   if (url.pathname === `${base}/goal-targets`) return goalTargetsRead(project)
   return url.pathname === `${base}/members` ? membersRead(project) : null
