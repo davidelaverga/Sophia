@@ -2,7 +2,7 @@
 -- already share another project with, known by the address the room keeps for them (their verified account name,
 -- 0050), so choosing them sends the same member invitation a typed email does. Left out: the admin, the project's
 -- members, anyone an open member invitation to this project already reaches, and anyone whose address isn't known.
--- 0001–0053 are not edited.
+-- 0001–0054 are not edited.
 BEGIN;
 
 CREATE FUNCTION sophia.invitable_people(p_project uuid)

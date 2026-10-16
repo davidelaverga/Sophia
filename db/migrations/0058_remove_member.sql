@@ -2,7 +2,7 @@
 -- that, 0052); the target an active member (removing an admin leaves the remover, an admin). Idempotent per actor and
 -- key. The membership goes inactive and the audience moves, as a leave does; the member is taken out of the call by the
 -- same obligation (room_removals, reason 'removed'), which a new invitation cancels; project.member_removed is emitted
--- with the member as its entity, so the project's activity says who removed whom. 0001–0056 are not edited.
+-- with the member as its entity, so the project's activity says who removed whom. 0001–0057 are not edited.
 BEGIN;
 
 ALTER TABLE sophia.room_removals DROP CONSTRAINT room_removals_reason_check;

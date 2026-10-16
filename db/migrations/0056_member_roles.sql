@@ -2,7 +2,7 @@
 -- set when a member joined and never after, and since a member can leave (0052) the last admin could never go. Admins
 -- only; the target an active member; a project keeps at least one admin, so demoting its last one, oneself included,
 -- is refused. A role already held changes nothing. A change holds the project's row, bumps the membership's revision
--- and the audience's, and emits project.member_role_changed. 0001–0054 are not edited.
+-- and the audience's, and emits project.member_role_changed. 0001–0055 are not edited.
 BEGIN;
 
 CREATE FUNCTION sophia.change_member_role(p_project uuid, p_actor uuid, p_role text) RETURNS jsonb LANGUAGE plpgsql

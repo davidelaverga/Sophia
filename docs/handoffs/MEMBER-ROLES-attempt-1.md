@@ -13,17 +13,17 @@ record (Docker Desktop doesn't start on the host, so the DB suites run in CI onl
 Existing authority: Luis's instruction; merges on green with no open P1.
 Ending commit/tree: `d36919284e72` (tree `3f933e514502`), the last commit of `api/member-roles`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 33 files changed against
-`api/invite-from-projects` at that commit: `apps/api/src/access.db.test.ts`, `apps/api/src/api.db.test.ts`, `apps/api/src/app.ts`, `apps/api/src/diagnostics/sanitize.ts`, `apps/api/src/readiness.db.test.ts`, `apps/api/src/routes/goal-targets.ts`, `apps/api/src/routes/projects.ts`, `e2e/field-scale.spec.ts`, `e2e/invite-members.spec.ts`, `e2e/member-roles.spec.ts`, `e2e/project-leave.spec.ts`, `fixtures/fixture-api.ts`, `src/api/client.ts`, `src/app/theme.css`, `src/features/access/InProject.tsx`, `src/features/access/InviteSheet.tsx`, `src/features/studio/ProjectName.tsx`, `src/features/work/labels.test.ts`, `src/features/work/labels.ts`, `db/migrations/0052_project_leave.sql`, `db/migrations/0055_member_roles.sql`, `docs/handoffs/PROJECT-LEAVE-attempt-1.md`, `docs/plans/member-roles.md`, `packages/contracts/amendments/A27-member-roles.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/scripts/generate-validators.ts`, `packages/contracts/src/generated-types.ts`, `packages/contracts/src/generated/validators.d.ts`, `packages/contracts/src/generated/validators.js`, `packages/contracts/src/validate.ts`, `packages/persistence/src/goal-targets.ts`, `packages/persistence/src/index.ts`, `packages/persistence/src/removals.ts`. The review notes below name the commit of each later change.
+`api/invite-from-projects` at that commit: `apps/api/src/access.db.test.ts`, `apps/api/src/api.db.test.ts`, `apps/api/src/app.ts`, `apps/api/src/diagnostics/sanitize.ts`, `apps/api/src/readiness.db.test.ts`, `apps/api/src/routes/goal-targets.ts`, `apps/api/src/routes/projects.ts`, `e2e/field-scale.spec.ts`, `e2e/invite-members.spec.ts`, `e2e/member-roles.spec.ts`, `e2e/project-leave.spec.ts`, `fixtures/fixture-api.ts`, `src/api/client.ts`, `src/app/theme.css`, `src/features/access/InProject.tsx`, `src/features/access/InviteSheet.tsx`, `src/features/studio/ProjectName.tsx`, `src/features/work/labels.test.ts`, `src/features/work/labels.ts`, `db/migrations/0052_project_leave.sql`, `db/migrations/0056_member_roles.sql`, `docs/handoffs/PROJECT-LEAVE-attempt-1.md`, `docs/plans/member-roles.md`, `packages/contracts/amendments/A27-member-roles.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/scripts/generate-validators.ts`, `packages/contracts/src/generated-types.ts`, `packages/contracts/src/generated/validators.d.ts`, `packages/contracts/src/generated/validators.js`, `packages/contracts/src/validate.ts`, `packages/persistence/src/goal-targets.ts`, `packages/persistence/src/index.ts`, `packages/persistence/src/removals.ts`. The review notes below name the commit of each later change.
 
 ## Outcome
 
-- **Migration 0055:** `sophia.change_member_role(project, actor, role)`.
+- **Migration 0056:** `sophia.change_member_role(project, actor, role)`.
   - Admins only (42501). The target must be an active member and the role admin, editor or viewer (22023).
   - A project keeps at least one admin: demoting its last one, oneself included, is 409 `invalid_state`.
   - Setting a role already held changes nothing.
   - A change bumps the membership's revision and `audience_revision`, and emits `project.member_role_changed`,
     labelled «Role changed». The sanitizer knows it.
-- **A27:** `PUT /api/v1/projects/{projectId}/members/{actorId}/role`. `/ready` requires 0055.
+- **A27:** `PUT /api/v1/projects/{projectId}/members/{actorId}/role`. `/ready` requires 0056.
 - **Handing the admin role over** is two acts: make someone admin, then step down or leave.
 - **Studio:**
   - The Invite sheet's Members tab gains «In this project», using A25's members. An admin gets a role select on each
@@ -36,7 +36,7 @@ commits on the branch merge its base forward or touch only this record). 33 file
 - Plan: `docs/plans/member-roles.md`.
 - Written first and failing (commit `3cef015f`):
   - `api.db.test.ts` «member roles (A27)»: hand over, step down, then leave; the refusals;
-  - readiness «without 0055»;
+  - readiness «without 0056»;
   - `member-roles.spec.ts`. Run without the change, all 3 cases failed (no list).
 - **After the change, locally:**
   - member roles, leave, invite from projects, invite members, field scale, sheet frame, tabs scale and toast specs:

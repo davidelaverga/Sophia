@@ -3,7 +3,7 @@
 -- project.created (create_project, 0047, replaced: the receipt's cursor is that event's), and an admin's act on a member
 -- in the call (A24) is recorded as room.host_muted or room.host_removed (record_host_act), where before nothing was.
 -- The activity lists people's acts only, never a chat message's content or Sophia's work, with codes and names, never
--- text. 0001–0055 are not edited.
+-- text. 0001–0056 are not edited.
 BEGIN;
 
 CREATE OR REPLACE FUNCTION sophia.create_project(p_title text, p_key text) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
