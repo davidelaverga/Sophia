@@ -947,7 +947,9 @@ const Updating = ({ decisions, ...props }: DecisionsProps) => (
  * Where this board sends, now: commands, choices, challenges and questions go only from a plan in force whose live
  * state can be read. From a read that may be stale (coverage unavailable) nothing goes, as from a plan only proposed:
  * what shows stays, results still open, and what was sent stays said, its receipts and replies still landing. A
- * partial read still sends: what it holds was read now (Codex F-022).
+ * partial read still sends: what it holds was read now (Codex F-022). `asking`: a page with a conversation, one to ask
+ * in or one to go to; with none at all a task offers no asking, never a question kept unanswered (prod-asks.md). One
+ * that only dropped keeps its asks, with why (Codex F-005).
  */
 function portsOf(props: BodyProps, operable: boolean) {
   const live = operable && props.coverage !== 'unavailable'
@@ -956,6 +958,7 @@ function portsOf(props: BodyProps, operable: boolean) {
     onDecide: live ? props.onDecide : undefined,
     onChallenge: live ? props.onChallenge : undefined,
     onAsk: live ? props.onAsk : undefined,
+    asking: props.onAsk !== undefined || props.onOpenConversation !== undefined,
     closed: props.coverage === 'unavailable' ? NOT_READ : NOT_CONNECTED,
   }
 }
@@ -1008,7 +1011,8 @@ function BoardBody(props: BodyProps) {
       {opened && (
         <TaskSheet
           {...props}
-          {...{ row: opened, rows, plan, operable, viewerId, acts, asks: questions, account: accountOf(opened, props) }}
+          {...{ row: opened, rows, plan, operable, viewerId, acts, account: accountOf(opened, props) }}
+          asks={ports.asking ? questions : undefined}
           next={goal.next_checkpoint}
           onOpen={view.setOpen}
           onStep={view.step}

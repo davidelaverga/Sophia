@@ -57,6 +57,16 @@ export const COMMAND: Record<CommandKind, Command> = {
   },
 }
 
+const ORDER: readonly CommandKind[] = ['request_review', 'hold', 'resume', 'stop']
+
+/**
+ * A goal's commands in its state, in order. Request review only under the vision flag: the lead's review
+ * ('lead.review' in the outbox) has no consumer yet, so in production its receipt would wait for ever; the fixtures'
+ * lead answers it (docs/plans/prod-asks.md).
+ */
+export const goalCommands = (status: Goal['status'], vision: boolean): CommandKind[] =>
+  ORDER.filter((kind) => (vision || kind !== 'request_review') && COMMAND[kind].allowed.includes(status))
+
 /**
  * Command summaries describe what was *requested* (admission is not completion); room and membership
  * summaries describe what happened.

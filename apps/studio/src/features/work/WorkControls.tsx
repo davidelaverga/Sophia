@@ -6,10 +6,9 @@ import type { Goal, Receipt } from '@sophia/contracts'
 import { ConfirmButton, Tag, Tip } from '@sophia/ui'
 import { admitGoalCommand, type ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
+import { VISION } from '../../app/vision.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
-import { COMMAND, type CommandKind } from './labels.ts'
-
-const ORDER: CommandKind[] = ['request_review', 'hold', 'resume', 'stop']
+import { COMMAND, goalCommands, type CommandKind } from './labels.ts'
 
 interface Props {
   goal: Goal
@@ -35,7 +34,7 @@ export function WorkControls({ goal, projectId, identity, token }: Props) {
     }
   })
   const busy = admission.state.status === 'sending'
-  const available = ORDER.filter((kind) => COMMAND[kind].allowed.includes(goal.status))
+  const available = goalCommands(goal.status, VISION)
 
   return (
     <div className="controls">
