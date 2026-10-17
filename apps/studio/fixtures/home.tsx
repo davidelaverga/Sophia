@@ -2,7 +2,8 @@
 // projects. The query string picks them: `projects=four` (default: Launch plan, Research notes, Design review, and
 // Product launch, whose Standup starts in 10 min), `live` (Davide and Sophia in Pitch deck's room), `none`, `loading`,
 // `failed` (their read failed); `locked=1` (the personal space locked), `call=<id>` (in that project's call);
-// `away=1` (Home starts out of sight, as when someone lands on another place); `you=new` (no conversation yet), else
+// `away=1` (Home starts out of sight, as when someone lands on another place); `companion=unavailable|reading` (Sophia
+// can't answer in the personal space; or that isn't known yet), else she answers; `you=new` (no conversation yet), else
 // one from yesterday with 3 notes; `voice=none` (no speech on this device), else one that hears "the launch felt rushed" when
 // the check says so (`window.homeFixture.hear()`), if it is still listening. `window.homeFixture.pressed` lists each
 // action taken,
@@ -261,6 +262,13 @@ const turn = (text: string): PersonalTurn => ({
 })
 const fresh = query.get('you') === 'new'
 const locked = query.get('locked') === '1'
+
+/** Whether Sophia answers in the personal space, as the API's `companion` says: unknown while it is read. */
+function answersOf(companion: string | null): boolean | undefined {
+  if (companion === 'reading') return undefined
+  return companion !== 'unavailable'
+}
+const answers = answersOf(query.get('companion'))
 const you = youDoor({
   locked: locked ? 'you' : null,
   turns: fresh
@@ -371,7 +379,7 @@ function Home() {
           hello={greeting(NOW.getHours(), null, false)}
           name="Luis"
           date={dateLine(NOW)}
-          says={sophiaSays(projects, NOW, call)}
+          says={sophiaSays(projects, NOW, call, answers === true)}
           you={you}
           reads={
             set === 'failed'
@@ -386,7 +394,7 @@ function Home() {
           inCallProject={inCall}
           count={workCount(projects)}
           locked={locked}
-          {...{ hidden: away, here: !away, invited: INVITED_BAND }}
+          {...{ hidden: away, here: !away, invited: INVITED_BAND, answers }}
           needs={
             fromApi.seen ?? (needs ? { items: needs, open: (need) => pressed.push(`need ${need.id}`) } : undefined)
           }
