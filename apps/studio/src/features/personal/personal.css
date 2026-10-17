@@ -2314,6 +2314,29 @@
   width: 100%;
   margin: 6px 0 4px;
 }
+/* Your notes, by date (docs/plans/notes-order-export.md): each one's day under its words, Newest or Oldest above them,
+   and the file beside Close. */
+.places .c2-t .c2-day {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-3);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.places .c3-order {
+  justify-self: start;
+  margin: 6px 0 2px;
+}
+.places .c3-notes .sheet-head .c3-download {
+  margin-left: auto;
+  margin-right: 6px;
+}
+.places .c3-write-status {
+  flex: none;
+  padding-right: 10px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
 .places .c3-find-none {
   margin: 4px 0;
   color: var(--text-3);

@@ -69,12 +69,19 @@ const MESSAGES: Readonly<Record<string, string>> = {
   research_limit_reached: 'This review has used its model requests or its allowance; submit what you have or report the blocker.',
   forbidden: 'This review may not read that: a source outside the manifest, or one that was withdrawn.',
   invalid_request:
-    'The service refused the submission as given (check the report has the five section headings, 1 to 40 findings, ' +
-    'each citing only sources you read whole with read_review_source, every page of them, and receipts holding the ' +
-    'receipt of every page you rely on).',
+    'The service refused the submission as given; nothing was published. Check that the report has the five section ' +
+    'headings and 1 to 40 findings, that each finding cites only sources you read whole with read_review_source with the ' +
+    'receipt of every page, and that every criterionId and sourceId is copied exactly from eligibleCriterionIds and ' +
+    'eligibleSourceIds when they are listed; then submit again.',
 }
 
-/** A refusal from the service, as one sentence the model can act on; anything else is a failure to retry later. */
+/**
+ * A refusal from the service, as one fixed sentence the model can act on; anything else is a failure to retry later.
+ * The service's own words never reach the model: a refusal can quote what the model sent (0042 review_checks quotes a
+ * criterionId), which an admitted source may have put there, and it would read as the framework's instruction (Codex
+ * 4297108266). What to correct comes as data instead: the review's own eligibleCriterionIds and eligibleSourceIds,
+ * which a refused submission carries (R1-F02).
+ */
 function serviceProblem(error: unknown): { code: string; message: string } {
   if (error instanceof TransportError && error.code) {
     return { code: error.code, message: MESSAGES[error.code] ?? `The Sophia service refused the operation (${error.code}).` }
@@ -82,10 +89,23 @@ function serviceProblem(error: unknown): { code: string; message: string } {
   return { code: 'service_unavailable', message: 'The Sophia service could not be reached; nothing was read or published.' }
 }
 
-const contractRefusal = (error: unknown): { code: string; message: string } | null =>
-  error instanceof Error && /does not match the runtime contract/.test(error.message)
-    ? { code: 'invalid_request', message: MESSAGES.invalid_request ?? 'Check each field.' }
+/**
+ * Where a request the bridge never sent breaks the contract (`path message`, from the generated validator), or null
+ * for any other error, a reply off the contract included: that is the service's fault, not the model's.
+ */
+const unsentField = (error: unknown, what: string): string | null => {
+  const prefix = `${what} request does not match the runtime contract: `
+  return error instanceof TransportError && error.status === undefined && error.message.startsWith(prefix)
+    ? error.message.slice(prefix.length).slice(0, 200)
     : null
+}
+
+const contractRefusal = (error: unknown): { code: string; message: string } | null => {
+  const field = unsentField(error, 'review submit')
+  return field === null
+    ? null
+    : { code: 'invalid_request', message: `The submission was not sent: ${field}. ${MESSAGES.invalid_request ?? 'Check each field.'}` }
+}
 
 /** What a read answers when the service did not answer it in time. */
 const READ_UNANSWERED = {
@@ -191,6 +211,10 @@ async function submitted(client: ReviewClient, body: SourceReviewSubmitRequest, 
   throw sent.error
 }
 
+/** Whether a tool answer is an invalid_request refusal (nothing was published). */
+const isRefusal = (answer: Json): answer is { [key: string]: Json } =>
+  typeof answer === 'object' && answer !== null && !Array.isArray(answer) && answer.code === 'invalid_request'
+
 const VERDICTS = ['supported', 'changes_required', 'insufficient_evidence'] as const
 const STATUSES = ['supported', 'contradicted', 'not_established'] as const
 
@@ -225,10 +249,13 @@ export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
     async execute(args, exec): Promise<Json> {
       const session = sessionOf(exec)
       const deadline = AbortSignal.timeout(readMs)
+      const signal = AbortSignal.any([exec.signal, deadline])
+      // An empty sourceId is no sourceId: the task, as the description says (R1-F02).
+      const sourceId = args.sourceId?.trim() ? args.sourceId.trim() : undefined
       try {
         const reply = await deps.client.sourceReviewContext(
-          { ...ids(session), ...(args.sourceId === undefined ? {} : { sourceId: args.sourceId, offset: args.offset ?? 0 }) },
-          AbortSignal.any([exec.signal, deadline]),
+          { ...ids(session), ...(sourceId === undefined ? {} : { sourceId, offset: args.offset ?? 0 }) },
+          signal,
         )
         if (!('text' in reply)) return asJson(reply)
         return envelope({
@@ -241,11 +268,51 @@ export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
         })
       } catch (error) {
         if (deadline.aborted && !exec.signal.aborted) return { ...READ_UNANSWERED }
+        const field = unsentField(error, 'review context')
+        if (field !== null) return unsentRead(field, session, signal)
         if (error instanceof TransportError) return serviceProblem(error)
         throw error
       }
     },
   })
+
+  /**
+   * A read the bridge did not send because it breaks the contract (R1-F02: a sourceId that is a source's ref or a word,
+   * not one of the manifest's sourceIds, was once told "the service could not be reached"): which field, what it must
+   * be, and the sourceIds this review may read, from its task. Nothing was read.
+   */
+  async function unsentRead(field: string, session: ResearchSession, signal: AbortSignal): Promise<Json> {
+    const refusal = {
+      code: 'invalid_request',
+      field: field.split(' ')[0] ?? '/',
+      message:
+        `The read was not sent: ${field}. Pass a sourceId exactly as your task lists it (a UUID, not its ref such as S1), ` +
+        'and offset as a whole number from 0; omit sourceId to read your task. Nothing was read.',
+    }
+    const { eligibleSourceIds } = await eligibleOf(session, signal)
+    return eligibleSourceIds ? { ...refusal, eligibleSourceIds } : refusal
+  }
+
+  /**
+   * What this review may cite, from its task (one read; a read records nothing): the readable sources' sourceIds and
+   * the criteria's ids. Nothing when the task cannot be read: the refusal then stands alone. A refusal never maps one
+   * value onto another (R1-F02: a criteriaRef sent as a criterionId is named, not replaced by a criterion's id).
+   */
+  async function eligibleOf(
+    session: ResearchSession,
+    signal: AbortSignal,
+  ): Promise<{ eligibleSourceIds?: string[]; eligibleCriterionIds?: string[] }> {
+    try {
+      const task = await deps.client.sourceReviewContext(ids(session), signal)
+      if ('text' in task) return {}
+      return {
+        eligibleSourceIds: task.sources.filter((s) => s.readable).map((s) => s.sourceId),
+        eligibleCriterionIds: task.goal.criteria.map((c) => c.id),
+      }
+    } catch {
+      return {}
+    }
+  }
 
   const submit = defineTool({
     name: 'submit_source_review',
@@ -269,7 +336,13 @@ export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
             status: { type: 'string', enum: STATUSES, required: true },
             statement: { type: 'string', required: true },
             sourceIds: { type: 'array', items: { type: 'string' }, required: true },
-            criterionId: { type: 'string' },
+            criterionId: {
+              type: 'string',
+              description:
+                "The id of one of the goal's criteria, when the finding concerns one: copied whole and exactly from " +
+                'goal.criteria[].id as read_review_source gives it without a sourceId, or from eligibleCriterionIds; an id ' +
+                'may itself contain colons, so never shorten it; never the criteriaRef (criteria:…), which names the whole set.',
+            },
           },
         },
       },
@@ -293,7 +366,10 @@ export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
         ...(f.criterionId ? { criterionId: f.criterionId } : {}),
       }))
       const body = { ...ids(session), callId: callKeyOf(exec.callId), result: { verdict: args.verdict, report: args.report, findings, receipts: args.receipts } }
-      return submitted(deps.client, body, patience, exec.signal, 'Published. The review has ended; Sophia tells the team, and the team decides what it means.')
+      const answer = await submitted(deps.client, body, patience, exec.signal, 'Published. The review has ended; Sophia tells the team, and the team decides what it means.')
+      // A refused submission names what the review may cite, so the model corrects it from the task's own ids (R1-F02).
+      if (!isRefusal(answer) || exec.signal.aborted) return answer
+      return { ...answer, ...(await eligibleOf(session, AbortSignal.any([exec.signal, AbortSignal.timeout(readMs)]))) }
     },
   })
 

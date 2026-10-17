@@ -44,8 +44,10 @@ import {
   deliverCaption,
   deliverNotice,
   dropCall,
+  enabling,
   joined,
   leaving,
+  linkLost,
   reactFrom,
   sophiaLeaves,
   speakWhileMuted,
@@ -64,6 +66,7 @@ import {
   sophiaAsked,
   type SophiaState,
 } from './fake-people.ts'
+import type { ConversationMessage } from '../src/api/vision.ts'
 import {
   installFixtureApi,
   publish,
@@ -103,6 +106,8 @@ import { sophiaArrives, stopScene } from './room-scene.ts'
 import { DEMO_GOALS, goalsAdmitted, goalsSettled } from './demo-goals.ts'
 import { demoResources, demoServedGoals } from './demo-work.ts'
 import { bootTheme } from '../src/app/theme.ts'
+import { startCrashReports } from '../src/app/crash-report.ts'
+import { SkipLink } from '../src/app/SkipLink.tsx'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
@@ -122,6 +127,8 @@ interface Fixture {
   releaseMessages: () => void
   /** While on, the read of which messages answer which fails (A20). */
   failReplies: (on: boolean) => void
+  /** The next room token is refused, so that join fails and offers Try again. */
+  failToken: () => void
   /** The next request to revise the page is refused, a design under way (revise-section.md). */
   failEdit: () => void
   /** While on, requests to revise the page wait for their replies; off, they answer. */
@@ -196,6 +203,8 @@ interface Fixture {
   failOlderMessages: (on: boolean) => void
   /** The second conversation gets a message: it is the newest now, and the list says so when read again (A18). */
   conversationMoves: () => void
+  /** Someone writes in the open conversation (the newest), and the feed moves (conversation-moves.md). */
+  conversationMessage: (name: string, text: string) => void
   /** The brief's reads fail, or read again. */
   failMission: (on: boolean) => void
   /** While on, the brief's reads wait; off, the waiting ones are answered. */
@@ -235,6 +244,9 @@ interface Fixture {
   keep: (text: string) => void
   /** The next «Mark as seen» lands, but its reply is lost. */
   loseNextSeenReply: () => void
+  /** Turning the microphone on waits until `releaseMicrophone`, as a browser still asking for it. */
+  holdMicrophone: () => void
+  releaseMicrophone: () => void
   /** Leaving the call waits until `releaseLeave`, as a slow disconnect. */
   holdLeave: () => void
   /** Leaving the call fails on LiveKit's side, as a disconnect that rejects. */
@@ -257,6 +269,8 @@ interface Fixture {
   sophiaLeaves: () => void
   /** Speech is heard on this person's muted microphone (muted-speech.md). */
   speakMuted: () => void
+  /** The call's link is lost for a while (true), or back (false), as LiveKit reconnects (reconnecting-on-video.md). */
+  linkLost: (lost: boolean) => void
   /** A teammate edits the report's description elsewhere (the page learns of it when it reads the cards again). */
   describeElsewhere: (text: string) => void
   /** Reads of the report's versions fail from now on: unavailable, or refused (`not_found`); given false, they succeed. */
@@ -304,6 +318,13 @@ declare global {
 
 const query = new URLSearchParams(window.location.search)
 bootTheme(query.get('theme'))
+// As main.tsx starts them: on here only with `?sentry=1` (fixtures/crash-dsn.ts, crash-feedback.md).
+startCrashReports()
+// `earlyFail=1`: a failure while Sentry's chunk is still on its way, as a first render's could be (Codex P1 on #367).
+if (query.has('earlyFail'))
+  setTimeout(() => {
+    throw new Error('An early failure')
+  }, 0)
 // `welcome=1`: the project was just joined, as accepting a member's invitation leaves it (newcomer-welcome.md).
 if (query.get('welcome') === '1')
   rememberWelcome({ projectId: PROJECT, inviter: 'Lucia', role: 'editor', at: Date.now() })
@@ -378,6 +399,31 @@ function floorMoves(actorId: string): void {
     endPause()
   }
   floorTo.push(nameOf(actorId))
+}
+
+/**
+ * The goals' owners and dates the page asks for (`targets=`), by goal id; `late` makes the admin change the viewer's,
+ * past its date (goal-overdue-health.md).
+ */
+function goalTargetsAsked(
+  wanted: string | null,
+): [string, { ownerId: string; targetDate: string; revision: number }][] {
+  if (wanted !== '1' && wanted !== 'mine' && wanted !== 'late') return []
+  const rollout: [string, { ownerId: string; targetDate: string; revision: number }] = [
+    '00000000-0000-4000-8000-000000009001',
+    { ownerId: personId(1), targetDate: '2026-10-30', revision: 1 },
+  ]
+  if (wanted === '1') return [rollout]
+  if (wanted === 'late')
+    return [
+      rollout,
+      ['00000000-0000-4000-8000-000000009002', { ownerId: membership.actorId, targetDate: '2026-10-25', revision: 1 }],
+    ]
+  return [
+    rollout,
+    ['00000000-0000-4000-8000-000000009002', { ownerId: membership.actorId, targetDate: '2026-11-20', revision: 1 }],
+    ['00000000-0000-4000-8000-000000009003', { ownerId: membership.actorId, targetDate: '2026-10-01', revision: 1 }],
+  ]
 }
 
 /** Four messages over two days in the viewer's zone: yesterday's evening, this morning (chat-times.md). */
@@ -461,6 +507,7 @@ const project = {
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
+  failToken: false,
   failEdit: false,
   editHeld: null as (() => void)[] | null,
   failEarlier: false,
@@ -468,12 +515,9 @@ const project = {
   staleTarget: false,
   // `archived=1`: the project is archived (archive-project.md).
   archived: query.get('archived') === '1',
-  // `targets=1`: the rollout is Marco's, due 30 October 2026 (goal-owner-date.md).
-  goalTargets: new Map(
-    query.get('targets') === '1'
-      ? [['00000000-0000-4000-8000-000000009001', { ownerId: personId(1), targetDate: '2026-10-30', revision: 1 }]]
-      : [],
-  ),
+  // `targets=1`: the rollout is Marco's, due 30 October 2026 (goal-owner-date.md); `targets=mine` adds the admin change
+  // as the viewer's, due 20 November, and the completed pilot as theirs, due 1 October (goal-overdue.md).
+  goalTargets: new Map(goalTargetsAsked(query.get('targets'))),
   hostHeld: null as (() => void)[] | null,
   // The demo publishes both its versions (the second region's revision), unless `versions=` says otherwise.
   reportVersions: Math.min(VERSIONS_HELD, Math.max(1, Number(query.get('versions')) || (DEMO ? 2 : 1))),
@@ -514,6 +558,9 @@ const project = {
   designing: query.get('design') === 'designing',
   pageTampered: query.get('tamper') === 'html',
   work: query.get('place') === 'work',
+  // `reports=1`: the research task in the snapshot's work and the report's current version in its artifacts, as the API
+  // serves them (goal-reports.md).
+  goalReports: query.get('reports') === '1',
   // `notes=off`: the brief allows this person no note.
   showing: noShowing(),
   // A18: the project's conversations (`conversations=1`; `=none`, none; `=fail`, the list fails; `messages=fail`, the
@@ -640,6 +687,9 @@ window.fixture = {
   failReplies: (on) => {
     project.failReplies = on
   },
+  failToken: () => {
+    project.failToken = true
+  },
   failEdit: () => {
     project.failEdit = true
   },
@@ -759,6 +809,14 @@ window.fixture = {
     const moved = project.conversations?.list.find((c) => c.id === CONVERSATION.briefs)
     if (moved) moved.lastAt = '2026-10-06T10:00:00.000Z'
   },
+  conversationMessage: (name, text) => {
+    const all: Partial<Record<string, ConversationMessage[]>> | undefined = project.conversations?.messages
+    const thread = all?.[CONVERSATION.reading]
+    if (!thread) return
+    const at = new Date().toISOString()
+    thread.push({ id: `m-${String(thread.length + 1)}`, author: 'member', actorId: personId(1), name, text, at })
+    publish(project)
+  },
   failMission: (on) => {
     project.missionFails = on
   },
@@ -863,6 +921,13 @@ window.fixture = {
   loseNextSeenReply: () => {
     project.meeting.seen.loseReply = true
   },
+  holdMicrophone: () => {
+    enabling.held = true
+  },
+  releaseMicrophone: () => {
+    enabling.held = false
+    for (const done of enabling.waiting.splice(0)) done()
+  },
   holdLeave: () => {
     leaving.held = true
   },
@@ -894,6 +959,7 @@ window.fixture = {
   caption: deliverCaption,
   sophiaLeaves,
   speakMuted: speakWhileMuted,
+  linkLost,
   describeElsewhere: (text) => {
     project.description = { text, revision: project.description.revision + 1, author: TEAMMATE }
   },
@@ -1152,6 +1218,8 @@ const queryClient = new QueryClient()
 
 createRoot(root).render(
   <StrictMode>
+    {/* As main.tsx renders it beside the App (skip-link.md). */}
+    <SkipLink />
     <QueryClientProvider client={queryClient}>
       <p className="fixture-label" role="note" data-demo={DEMO || undefined}>
         {DEMO ? DEMO_LABEL : 'Fixture — no API, no call'}

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { mutedSpeech } from './muted-speech.ts'
+import { mutedSpeech, mutedWatch } from './muted-speech.ts'
 
 /** Feed levels a tenth of a second apart from `start`; the times the watch spoke up. */
 function run(levels: readonly number[], watch = mutedSpeech(), start = 0): number[] {
@@ -33,5 +33,42 @@ describe('«You’re muted» (muted-speech.md)', () => {
     assert.deepEqual(run(talk, watch, 0), [500])
     assert.deepEqual(run(talk, watch, 10_000), [])
     assert.deepEqual(run(talk, watch, 21_000), [21_500])
+  })
+})
+
+/** What the watch opened and let go, in order. */
+const recorder = () => {
+  const heard: string[] = []
+  const listen = (device: string | undefined) => {
+    heard.push(`on:${device ?? 'default'}`)
+    return () => heard.push(`off:${device ?? 'default'}`)
+  }
+  return { heard, listen }
+}
+
+describe('listening while muted, on the right microphone (Codex P2s on #357)', () => {
+  it('a call that begins muted listens from the start', () => {
+    const r = recorder()
+    mutedWatch(r.listen).set(true, 'mic-a')
+    assert.deepEqual(r.heard, ['on:mic-a'])
+  })
+
+  it('a microphone switched while muted is listened to instead of the old one; on, it stops', () => {
+    const r = recorder()
+    const watch = mutedWatch(r.listen)
+    watch.set(true, 'mic-a')
+    watch.set(true, 'mic-a')
+    watch.set(true, 'mic-b')
+    watch.set(false, 'mic-b')
+    assert.deepEqual(r.heard, ['on:mic-a', 'off:mic-a', 'on:mic-b', 'off:mic-b'])
+  })
+
+  it('the call’s end lets it go', () => {
+    const r = recorder()
+    const watch = mutedWatch(r.listen)
+    watch.set(true, undefined)
+    watch.end()
+    watch.end()
+    assert.deepEqual(r.heard, ['on:default', 'off:default'])
   })
 })

@@ -189,12 +189,13 @@ function lotsOfNotes(): Space['notes'] {
     'Thank Bea for the review',
     'Read the vendor contract',
   ]
+  // A day apart, newest first, as the API keeps them (notes-order-export.md).
   return words.map((text, i) => ({
     id: `note-${String(i + 1)}`,
     text,
     keptBy: 'person' as const,
     fromTurnId: null,
-    createdAt: ago(DAY),
+    createdAt: ago(DAY * (i + 1)),
   }))
 }
 
@@ -370,7 +371,11 @@ function useSimulated() {
         ...s,
         notes: [...s.notes, { id, text, keptBy: 'person', fromTurnId: turnId, createdAt: new Date().toISOString() }],
       }))
-      return Promise.resolve({ ...receipt('keep_note'), noteId: id })
+      // `keepSlow=1`: the note takes 1.5 s on its way, as a slow API's write does.
+      const kept = { ...receipt('keep_note'), noteId: id }
+      return query.has('keepSlow')
+        ? new Promise((done) => window.setTimeout(() => done(kept), 1500))
+        : Promise.resolve(kept)
     },
     forget: (id) => {
       forgotten.push(id)

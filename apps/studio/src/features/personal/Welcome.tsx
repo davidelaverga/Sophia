@@ -505,17 +505,48 @@ function Light({
 /** Home's one column (personal.css, ≤ 860 px): there what needs you comes right after the greeting. */
 const ONE_COLUMN = '(max-width: 860px)'
 
+/** «What needs you», wherever it is mounted, and the controls in it. */
+const NEEDS = '[aria-label="What needs you"]'
+const PRESSES = 'button, a[href], [tabindex]:not([tabindex="-1"])'
+
+/**
+ * The focus kept on a need when the list moves across 860 px (home-needs-focus.md; Codex P2 on #289): the place in the
+ * list of the control last focused is remembered, forgotten once the focus goes elsewhere, and given back there after
+ * the move if the focus fell to the page.
+ */
+function useNeedsFocus(home: RefObject<HTMLDivElement | null>, oneColumn: boolean) {
+  const at = useRef<number | null>(null)
+  useEffect(() => {
+    const el = home.current
+    const onFocus = (e: FocusEvent) => {
+      const target = e.target instanceof Element ? e.target : null
+      const list = target?.closest(NEEDS)
+      at.current = list && target ? [...list.querySelectorAll(PRESSES)].indexOf(target) : null
+    }
+    el?.addEventListener('focusin', onFocus)
+    return () => el?.removeEventListener('focusin', onFocus)
+  }, [home])
+  useLayoutEffect(() => {
+    const kept = at.current
+    const fell = document.activeElement === null || document.activeElement === document.body
+    if (kept === null || kept < 0 || !fell) return
+    home.current?.querySelector(NEEDS)?.querySelectorAll<HTMLElement>(PRESSES)[kept]?.focus()
+  }, [home, oneColumn])
+}
+
 export function Welcome(props: Props) {
   const [talk, setTalk] = useState<Talk>({ writing: false })
   const line = useRef<HTMLElement | null>(null)
   // Mounted where it is read: on one column right after the greeting, in the document as on the screen, so a keyboard
   // and a screen reader meet it where the eye does (docs/plans/home-phone-needs.md); beside the words otherwise.
   const oneColumn = useMedia(ONE_COLUMN)
+  const home = useRef<HTMLDivElement>(null)
+  useNeedsFocus(home, oneColumn)
   const needs = props.needs && (
     <NeedsYou needs={props.needs.items} now={onService(props.now, props.needs.skew)} onOpen={props.needs.open} />
   )
   return (
-    <div className="hw">
+    <div className="hw" ref={home}>
       <div className="hw-col">
         <Greeting hello={props.hello} name={props.name} date={props.date} says={props.says} />
         {props.invited}
