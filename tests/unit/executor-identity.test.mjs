@@ -174,6 +174,21 @@ test('only the canonical hoisted bundle placement: a nested or linked placement 
   assert.throws(() => executorClosure({ ...elsewhere, bundleDir: join(elsewhere.profileDir, 'other', 'dsh-bundle') }), unverifiable('profile_unsupported'))
 })
 
+test('a closed bundle only: a link (even under node_modules/.bin), a node_modules or a special entry refuses', () => {
+  for (const change of [
+    (b, p) => { mkdirSync(join(b, 'node_modules', '@deepseek-ai'), { recursive: true }); symlinkSync(join(p, '.peer-root'), join(b, 'node_modules', '.bin'))
+      symlinkSync(join('..', '.bin', 'dsh-llm'), join(b, 'node_modules', '@deepseek-ai', 'dsh-llm')) },
+    (b) => mkdirSync(join(b, 'node_modules')),
+    (b) => mkdirSync(join(b, 'dist', 'node_modules', '.bin'), { recursive: true }),
+    (b) => symlinkSync('index.js', join(b, 'dist', 'alias.js')),
+  ]) {
+    const inputs = install()
+    executorClosure(inputs)
+    change(inputs.bundleDir, inputs.profileDir)
+    assert.throws(() => executorClosure(inputs), unverifiable('profile_unsupported'))
+  }
+})
+
 test('a patch is strict JSON overrides of reviewed config rows; no insert, name, group, include, expression or inline key', () => {
   for (const ok of ['[]', '[{"id":"llm-pi-ai","config":{"providers":{"p":{"apiKeyEnv":"OPENAI_API_KEY","baseURL":"http://127.0.0.1:1/v1"}}}}]',
     '[{"id":"sophia-control-bridge","config":{"protocolVersion":1}},{"id":"agent-default-model","config":{"provider":"p"}}]']) {

@@ -2,7 +2,7 @@
  * The service executor's complete identity (A35/A40 `executorArtifactDigest`, #393 4302689994): one digest over the
  * installed closure that actually runs a service reply, derived from the loaded components, never taken on trust.
  *
- * Recipe `sophia-executor-closure-v1`, the SHA-256 of the recipe's name, a newline and the canonical JSON (keys sorted)
+ * Recipe `sophia-executor-closure-v2`, the SHA-256 of the recipe's name, a newline and the canonical JSON (keys sorted)
  * of these components:
  * - `runtime`: the dsh runtime this process was launched from (`argv[1]` is its declared bin), with its dependency
  *   closure: dsh-base, the LLM adapters, pi-ai and the OpenAI SDK. Digested as `sophia-tree-v2` (the recorded
@@ -25,6 +25,9 @@
  *   pinned loader prefers a local package found on the importer's Node search paths inside the profile over the
  *   installation's (dsh-app-boot routeScoped); from the canonical place those paths are the bundle's own (hashed), its
  *   scope's and the profile's node_modules (both held to the one package), so no unmeasured peer can be chosen;
+ * - a closed bundle: the recorded archive has only regular files (no link, no node_modules), so the installed bundle
+ *   may hold only regular files and directories, none of them a node_modules, read with lstat before any exclusion
+ *   (a link, even under the tree scheme's skipped `node_modules/.bin`, could otherwise reach an unmeasured peer);
  * - the profile patch and every overlay are strict JSON arrays of `{ id, config }` overrides of the reviewed config
  *   rows (the LLM providers, the default model, the bridge), with a mapping as config and no inline `apiKey`: no insert,
  *   plugin name, group, include or expression (JSON cannot carry a YAML tag);
@@ -183,6 +186,23 @@ function assertBaseProfile(profileDir: string): void {
   }
 }
 
+/**
+ * Refuse a bundle that is not closed: any entry that is not a regular file or a directory (a link, a socket, ...), or
+ * any `node_modules`, at any depth. Read with lstat and no exclusion, so nothing the tree scheme skips can hide a link
+ * or a local package candidate on the importer's search paths (R-B2-R02-CANONICAL-BIN-LINK).
+ */
+function assertClosedBundle(bundleDir: string): void {
+  const walk = (dir: string): void => {
+    for (const name of readdirSync(dir)) {
+      const abs = join(dir, name)
+      const stat = lstatSync(abs)
+      if (name === 'node_modules' || !(stat.isFile() || stat.isDirectory())) throw new ClosureUnverifiable('profile_unsupported')
+      if (stat.isDirectory()) walk(abs)
+    }
+  }
+  walk(bundleDir)
+}
+
 /** Refuse a home patch: the loader composes it, and the service composition admits none. */
 function assertNoHomePatch(dshHome: string): void {
   try {
@@ -207,6 +227,7 @@ export function executorClosure(inputs: ClosureInputs): { digest: string; compon
   // search paths (R-B2-A868-02-NESTED-PEER).
   const hoisted = join(profileDir, 'node_modules', '@sophia', 'dsh-bundle')
   if (bundleDir !== hoisted || !lstatSync(hoisted).isDirectory()) throw new ClosureUnverifiable('profile_unsupported')
+  assertClosedBundle(bundleDir)
   let profile: Record<string, string>
   try {
     profile = Object.fromEntries([...PROFILE_INPUTS, inputs.archive].map((file) => [file, sha256(readFileSync(join(profileDir, file)))]))

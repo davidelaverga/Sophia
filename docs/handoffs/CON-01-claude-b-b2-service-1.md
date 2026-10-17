@@ -506,6 +506,40 @@ over the verified installation.
   host helper's refusal.
 - PostgreSQL 16, both helper phases, Supabase-local auth and Linux have not run on this source.
 
+## The closed service bundle (FND-B2-CLOSED-BUNDLE-SHAPE-FOCUSED-CORRECTION-01)
+
+R's review of `59658927` closed the nested placement but kept one residual on the same guarantee,
+R-B2-R02-CANONICAL-BIN-LINK. The canonical real bundle directory could hold `node_modules/.bin` as a link to another
+place in the profile, and `node_modules/@deepseek-ai/dsh-llm` as a link to `../.bin/dsh-llm`.
+- The tree scheme skips `.bin` before lstat, and hashes only the second link's text.
+- `profileDrift` ignores links.
+- The pinned loader follows both links to a peer whose bytes were in no pin.
+
+**Before, on `59658927` (executed, with a capture-only double).** The links change the pristine pin, `ccbe9a33…` →
+`b88ba5b8…`. But peers A and B, of the same name and version with different bytes, gave the same link-layout pin,
+`b88ba5b8…`. Each loaded (marker) and was verified and advertised under it.
+
+**Now the service bundle is closed.** The recorded archive is 89 regular files, with no link and no `node_modules`. An
+installed one is those files in 13 directories.
+- The host helper and the bootstrap now walk the canonical bundle with lstat and no exclusion. Anything but a regular
+  file or a directory, or any `node_modules` at any depth, is `profile_unsupported`.
+- The hash and the drift checks are unchanged. The normal hoisted install passes.
+- A peer may still load before the bootstrap refuses; no service executor or role exists.
+
+**Identities.** Bundle `ddd2ce41…` → `a27cc50a…`, and the profile lock; the darwin tree, workspace lock and linux-x64
+(unqualified) are unchanged.
+
+**Checks** (private PostgreSQL 17.11, en_US.UTF-8).
+- **Unit 11/11:** a `.bin` link pair, a bare `node_modules`, a nested `node_modules/.bin`, and an in-bundle link each
+  refuse.
+- **The crossing.** The `.bin`-link case: the host refuses to derive a pin, the peer loads (marker), and service mode
+  is refused, with no role, a blocked Ask with no attempt or outbox, and no request. The nested case and the normal
+  answer pass.
+  - All 25 cases run in the ordinary check.
+- **Mutation.** With `assertClosedBundle` not called and packed (`b11858f8…`), the `.bin`-link case fails, first at the
+  host helper's refusal.
+- PostgreSQL 16, both helper phases, Supabase-local auth and Linux have not run on this source.
+
 ## Next bounded action
 
 B's private handback goes to P, and R checks this residual. No push until P selects a publication.

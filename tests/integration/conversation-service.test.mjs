@@ -63,6 +63,31 @@ function serviceOverlay(baseURL) {
 const PLUGIN_MARKER = '[crossing] external relative plugin loaded'
 const PRELOAD_MARKER = '[crossing] node preloader ran'
 const PEER_MARKER = '[crossing] nested local dsh-llm peer loaded'
+const BIN_PEER_MARKER = '[crossing] bundle .bin-link dsh-llm peer loaded'
+
+/** A same-version `@deepseek-ai/dsh-llm` at `dir` that prints `marker` and re-exports the runtime's own package. */
+function writeLocalPeer(dir, marker) {
+  const pnpmDir = join(RUNTIME_DIR, 'node_modules', '.pnpm')
+  const real = realpathSync(join(pnpmDir, readdirSync(pnpmDir).find((name) => name.startsWith('@deepseek-ai+dsh-llm@0.')), 'node_modules', '@deepseek-ai', 'dsh-llm'))
+  const manifest = JSON.parse(readFileSync(join(real, 'package.json'), 'utf8'))
+  mkdirSync(join(dir, 'lib'), { recursive: true })
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: manifest.name, version: manifest.version, type: 'module', exports: { '.': './lib/index.js' } }))
+  writeFileSync(join(dir, 'lib', 'index.js'), `process.stderr.write(${JSON.stringify(`${marker}\n`)})\nexport * from ${JSON.stringify(pathToFileURL(join(real, 'lib', 'index.js')).href)}\n`)
+}
+
+/**
+ * R-B2-R02-CANONICAL-BIN-LINK: the canonical real bundle directory kept, with `node_modules/.bin` a link to
+ * `<profile>/.peer-root` and `node_modules/@deepseek-ai/dsh-llm` a link to `../.bin/dsh-llm`, and a same-version peer
+ * there. The tree scheme skipped `.bin` and hashed the second link's text only, so the peer's bytes were in no pin.
+ */
+function binLinkPeer(layout) {
+  const profile = join(layout.dshHome, 'profiles', unit.dsh.profile)
+  const bundle = join(profile, 'node_modules', '@sophia', 'dsh-bundle')
+  mkdirSync(join(bundle, 'node_modules', '@deepseek-ai'), { recursive: true })
+  symlinkSync(join(profile, '.peer-root'), join(bundle, 'node_modules', '.bin'))
+  symlinkSync(join('..', '.bin', 'dsh-llm'), join(bundle, 'node_modules', '@deepseek-ai', 'dsh-llm'))
+  writeLocalPeer(join(profile, '.peer-root', 'dsh-llm'), BIN_PEER_MARKER)
+}
 
 /**
  * R-B2-A868-02-NESTED-PEER: the same installed bundle bytes moved to `<profile>/.nested/node_modules/@sophia/dsh-bundle`,
@@ -628,6 +653,16 @@ describe('conversation service crossing (real dsh service executor, API, worker,
       'the host derives no expected pin for it')
     await w.start()
     assert.ok(w.stderr().includes(PEER_MARKER), 'the loader selected the nested local peer')
+    await assertNoExecutor(w, 'executor_closure_unverifiable profile_unsupported')
+  })
+
+  test('a canonical bundle with a .bin-link local dsh-llm peer is no executor: the bundle is not closed', async (t) => {
+    const w = await world(t)
+    binLinkPeer(w.layout)
+    await assert.rejects(executorClosureDigest({ unit, runtimeDir: RUNTIME_DIR, layout: w.layout, overlays: [w.overlay] }), /profile_unsupported/,
+      'the host derives no expected pin for it')
+    await w.start()
+    assert.ok(w.stderr().includes(BIN_PEER_MARKER), 'the loader selected the linked local peer')
     await assertNoExecutor(w, 'executor_closure_unverifiable profile_unsupported')
   })
 
