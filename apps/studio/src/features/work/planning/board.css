@@ -165,7 +165,7 @@
   width: 18px;
   height: 18px;
   margin-right: -6px;
-  border: 1.5px solid var(--plane);
+  border: 1.5px solid var(--surface-well);
   font-size: 8.5px;
 }
 .plan-tab-faces + .plan-tab-count {

@@ -1739,7 +1739,11 @@
 /* The last pass. The sheet's head takes a faint light in its tool's colour, as the app's pages take hers from above;
    its mark arrives with a small pop; a meter in the red glows softly; a tile's mark lifts under the pointer. */
 .resource-sheet .sheet-top {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--tool-accent) 7%, var(--plane)), var(--plane));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--tool-accent) 7%, var(--surface-well)),
+    var(--surface-well)
+  );
 }
 .resource-sheet-head .tool-logo {
   animation: logo-in 0.45s var(--ease) both;

@@ -169,7 +169,7 @@
      Linux stand-in, Liberation Serif, at 17 px. 36rem gave 72 and 80, the top of the 60 to 80 band. */
   --measure: 34rem;
   border-left: 1px solid var(--line-2);
-  background: var(--plane);
+  background: var(--surface-well);
   box-shadow: -24px 0 48px rgb(var(--shadow-rgb) / calc(0.35 * var(--shadow-k)));
   animation: rp-slide var(--base) var(--ease);
 }
@@ -529,8 +529,8 @@
   container-type: inline-size;
   padding-block: 1px;
   background:
-    linear-gradient(to right, var(--plane) 40%, transparent) left / 1.5rem 100% no-repeat local,
-    linear-gradient(to left, var(--plane) 40%, transparent) right / 1.5rem 100% no-repeat local,
+    linear-gradient(to right, var(--surface-well) 40%, transparent) left / 1.5rem 100% no-repeat local,
+    linear-gradient(to left, var(--surface-well) 40%, transparent) right / 1.5rem 100% no-repeat local,
     radial-gradient(farthest-side at 0 50%, var(--line-3), transparent) left / 0.6rem 100% no-repeat scroll,
     radial-gradient(farthest-side at 100% 50%, var(--line-3), transparent) right / 0.6rem 100% no-repeat scroll;
 }
@@ -582,7 +582,7 @@
   left: 0;
   z-index: 1;
   min-width: 7.5em;
-  background: var(--plane);
+  background: var(--surface-well);
   box-shadow: 1px 0 0 var(--line-2);
 }
 

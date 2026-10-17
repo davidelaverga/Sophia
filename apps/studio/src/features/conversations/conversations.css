@@ -107,7 +107,7 @@
   min-width: 0;
   min-height: 0;
   padding: 18px 8px 0;
-  background: var(--plane);
+  background: var(--surface-well);
 }
 .conv-list-head {
   display: flex;
@@ -682,7 +682,7 @@
   /* The room's dock floats over this pane's foot: its last line stays clear of it. */
   padding: 22px 22px calc(var(--floor) + 72px);
   overflow: auto;
-  background: var(--plane);
+  background: var(--surface-well);
 }
 .conv-context-head {
   display: flex;
@@ -1055,7 +1055,7 @@
   padding: 8px 10px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-3);
-  background: var(--plane);
+  background: var(--surface-well);
   color: var(--text);
   font: var(--type-body) / var(--lh-body) var(--sans);
   resize: vertical;

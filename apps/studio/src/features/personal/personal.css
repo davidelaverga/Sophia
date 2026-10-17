@@ -670,7 +670,7 @@
   place-items: center;
   border-radius: 50%;
   border: 1px solid rgb(var(--warm-rgb) / 0.4);
-  background: var(--plane);
+  background: var(--surface-well);
   color: var(--warm);
   font-size: 9.5px; /* an initial: a glyph sized to its circle, not text on the scale */
   font-weight: 600;
@@ -694,7 +694,7 @@
   padding: 10px 14px;
   border-radius: var(--r-3);
   border: 1px solid var(--line-2);
-  background: var(--plane);
+  background: var(--surface-well);
   color: var(--text-2);
   font-size: 13px;
 }
@@ -1385,7 +1385,7 @@
   padding: 12px 14px 16px;
   border-left: 1px solid var(--line-2);
   border-radius: var(--r-3) 0 0 var(--r-3);
-  background: var(--plane);
+  background: var(--surface-well);
   box-shadow: -24px 0 60px rgb(var(--shadow-rgb) / calc(0.45 * var(--shadow-k)));
   animation: ps-from-edge 260ms var(--ease);
 }
@@ -1619,7 +1619,7 @@
   padding: 16px 18px;
   border-radius: var(--r-4);
   border: 1px solid var(--line-2);
-  background: var(--plane);
+  background: var(--surface-well);
 }
 .places .c3-proj h3 {
   font-size: 15px;

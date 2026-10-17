@@ -19,6 +19,13 @@
   --lh-head: 24px;
   --lh-view: 32px;
   color-scheme: dark;
+  /* The surfaces, by level (docs/plans/light-surfaces.md): the page; a well, the first step over it (a list, a panel,
+     a sheet's ground, a card's cover); a raised sheet; an overlay, as raised, set apart by its shadow. They climb in
+     both themes, and a rule paints its level, never a plane: paper's plane sat under its page (informe-claro D6). */
+  --surface-page: var(--void);
+  --surface-well: var(--plane);
+  --surface-raised: var(--plane-2);
+  --surface-overlay: var(--plane-2);
   --void: #050408;
   --plane: #0b0a0f;
   --plane-2: #121118;
@@ -104,6 +111,10 @@
    white plane), Sophia's light is a halo on paper, the grain goes. */
 :root[data-theme='light'] {
   color-scheme: light;
+  /* Paper's well is a step toward white, where its plane (#f4f0ea) sat 1.07:1 under the page: the room's two steps,
+     1.036:1 from the void to the plane and 1.051:1 on to the raised one, kept in proportion inside the 1.059:1 from
+     paper to white (1.026:1 and 1.033:1). */
+  --surface-well: #fdfbf8;
   --void: #fbf8f3;
   --plane: #f4f0ea;
   --plane-2: #ffffff;
@@ -3015,7 +3026,7 @@ button.contribution-quote:hover {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--r-3);
-  background: var(--plane);
+  background: var(--surface-well);
 }
 .tile {
   position: relative;
@@ -3025,7 +3036,7 @@ button.contribution-quote:hover {
   overflow: hidden;
   border-radius: var(--r-4);
   border: 1px solid var(--line);
-  background: var(--plane);
+  background: var(--surface-well);
   animation: arrive 0.4s var(--ease) both;
   transition:
     border-color var(--base) var(--ease),
@@ -3726,7 +3737,7 @@ button.contribution-quote:hover {
   overflow-y: auto;
   padding: var(--sheet-top) 20px 28px;
   border-left: 1px solid var(--line-2);
-  background: var(--plane);
+  background: var(--surface-well);
   box-shadow: -24px 0 64px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
   animation: slide var(--base) var(--ease) both;
 }
@@ -3741,7 +3752,7 @@ button.contribution-quote:hover {
   z-index: 2;
   margin-top: calc(-1 * var(--sheet-top));
   padding-top: var(--sheet-top);
-  background: var(--plane);
+  background: var(--surface-well);
 }
 /* A live call's switches under a sheet's head: the sheet covers the room's own (call-in-reach.tsx). */
 .sheet-call {
@@ -4865,7 +4876,7 @@ button.contribution-quote:hover {
   width: min(380px, 42vw);
   min-height: 0;
   border-left: 1px solid var(--line-2);
-  background: var(--plane);
+  background: var(--surface-well);
   animation: slide var(--base) var(--ease) both;
 }
 /* The tabs sit in the lens bar's band (16 px down, 36 px tall), so the two rows of words share a line. Close's
@@ -5180,7 +5191,7 @@ button.contribution-quote:hover {
   overflow: hidden;
   border-radius: var(--r-4);
   border: 1px solid var(--line-2);
-  background: var(--plane);
+  background: var(--surface-well);
   animation: arrive 0.4s var(--ease) both;
 }
 .report-main-head {
@@ -6314,7 +6325,7 @@ button.contribution-quote:hover {
 .spotlight-main {
   display: grid;
   place-items: center;
-  background: var(--plane);
+  background: var(--surface-well);
 }
 .spotlight-initial {
   font-size: 64px;
