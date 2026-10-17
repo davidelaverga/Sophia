@@ -198,6 +198,12 @@ function PersonTile({ person, camera, holds, onPin, onHide }: TileProps) {
           </span>
         )}
       </span>
+      {/* On a phone's strip the chip has no room for it: the mute shows in the tile's corner (theme.css). */}
+      {mutedMic(person) && (
+        <span className="tile-muted-corner" aria-hidden>
+          <Icon name="micOff" size={10} />
+        </span>
+      )}
       {onHide ? (
         <TileAct label="Hide my tile" icon="eyeOff" onPress={onHide} />
       ) : (

@@ -3048,6 +3048,10 @@ button.contribution-quote:hover {
   margin-right: 5px;
   color: var(--text-2);
 }
+/* Its mark in the tile's corner, for a phone's strip only (below). */
+.tile-muted-corner {
+  display: none;
+}
 .tile-name {
   position: absolute;
   left: 8px;
@@ -4528,6 +4532,26 @@ button.contribution-quote:hover {
   }
   .tile-strip .tile[data-floor] {
     border-color: var(--warm);
+  }
+  /* A fifth of a phone has no room for the mute in the chip (Codex P2 on #411): it takes the tile's top-left corner,
+     clear of the initial's circle even at 320 px, and the chip keeps only its words for a screen reader. */
+  .tile-strip .tile-muted {
+    margin-right: 0;
+  }
+  .tile-strip .tile-muted svg {
+    display: none;
+  }
+  .tile-strip .tile-muted-corner {
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    display: grid;
+    place-items: center;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background: rgb(var(--void-rgb) / 0.62);
+    color: var(--text-2);
   }
 }
 
