@@ -1,9 +1,21 @@
 import assert from 'node:assert/strict'
-import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+} from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { setImmediate as nextTurn } from 'node:timers/promises'
+import { DatabaseSync } from 'node:sqlite'
+import { setImmediate as nextTurn, setTimeout as sleep } from 'node:timers/promises'
 import { describe, it, type TestContext } from 'node:test'
 import {
   BACKUP_OBJECT_MAX_BYTES,
@@ -11,7 +23,9 @@ import {
   ByteBackupError,
   diskByteBackup,
   hasDedicatedDiskMount,
+  type ByteBackup,
 } from './byte-backup.ts'
+import { BACKUP_QUOTA_MS } from './byte-backup-quota.ts'
 import {
   BACKUP_ACTIVE_BYTES,
   ByteStoreError,
@@ -37,6 +51,60 @@ function volume(t: TestContext): string {
 // A labelled mount-table fixture, not a mounted-volume or provider persistence test. File I/O itself is real.
 const mounted = (root: string) => `1 0 0:1 / / rw - overlay overlay rw\n2 1 8:1 / ${root} rw - ext4 /dev/disk rw`
 const backupAt = (root: string) => diskByteBackup(root, mounted(root))
+
+/** A rejection's stage, from the store's own messages; never the message itself (it names the key). */
+function stageOf(error: unknown): string {
+  const message = error instanceof Error ? error.message : ''
+  const stages: [RegExp, string][] = [
+    [/was already written/, 'outer claim 409'],
+    [/already reserved/, 'inner reservation 409'],
+    [/already exists/, 'inner copy or remote 409'],
+    [/capacity unavailable/, 'inner quota 503'],
+    [/timed out/, 'deadline 503'],
+    [/busy/, 'memory admission 503'],
+  ]
+  return stages.find(([pattern]) => pattern.test(message))?.[1] ?? 'other'
+}
+
+/** Each put's outcome and timing, kept to say what happened when an assertion fails. No bytes, path or secret. */
+function outcomes(puts: Promise<void>[]) {
+  const started = performance.now()
+  const ms = () => Math.round(performance.now() - started)
+  return Promise.all(
+    puts.map((put) =>
+      put.then(
+        () => ({ fulfilled: true, stage: 'fulfilled', ms: ms() }),
+        (error: unknown) => ({ fulfilled: false, stage: stageOf(error), ms: ms() }),
+      ),
+    ),
+  )
+}
+
+/** A caller's own 100 ms deadline, as the API's renderer routes hand one in. */
+const callerDeadline100ms = () => ({ signal: new AbortController().signal, deadline: performance.now() + 100 })
+
+/** What the journal, the disk and the remote hold for one key, and the journal's whole accounting. */
+function afterState(root: string, key: string, remote: { objects: Map<string, Uint8Array> }) {
+  const path = join(root, 'budget', 'reservations.sqlite')
+  if (!existsSync(path)) return { journal: 'absent', remote: remote.objects.has(key) }
+  const journal = new DatabaseSync(path, { readOnly: true })
+  try {
+    const mine = journal.prepare('SELECT count(*) AS n FROM reservations WHERE key = ?').get(key)
+    const all = journal.prepare('SELECT count(*) AS n, coalesce(sum(bytes), 0) AS bytes FROM reservations').get()
+    const [project, source] = key.split('/')
+    const directory = join(root, 'objects', String(project))
+    const entries = existsSync(directory) ? readdirSync(directory) : []
+    return {
+      reservedForKey: Number(mine?.n),
+      journal: { count: Number(all?.n), bytes: Number(all?.bytes) },
+      copy: entries.includes(String(source)),
+      temporaries: entries.filter((e) => e.endsWith('.tmp')).length,
+      remote: remote.objects.has(key),
+    }
+  } finally {
+    journal.close()
+  }
+}
 
 describe('private immutable report-byte copies', () => {
   it('flushes the exact bytes before remote upload and retains them across a new store instance', async (t) => {
@@ -68,20 +136,115 @@ describe('private immutable report-byte copies', () => {
     assert.deepEqual(await readdir(join(root, 'objects', PROJECT)), [SOURCE])
   })
 
-  it('allows exactly one concurrent copy and upload without replacing the winning bytes', async (t) => {
+  it('admits exactly one of two concurrent puts of one fresh key through the write-once claim, with the winning bytes', async (t) => {
+    // The shipped composition: writeOnce's claim first (in the API, the 0044 database claim), then the real backup
+    // wrapper, disk copy, quota worker and file system, then the remote. The claim here is a LABELLED TEST FIXTURE:
+    // atomic in this process (its check and its mark run in one turn, after a yield so both callers are in flight). It
+    // stands in for the database claim; it is not a PostgreSQL concurrency test.
+    const root = volume(t)
+    const remote = memoryByteStore()
+    const disk = backupAt(root)
+    const counts = { claims: 0, granted: 0, backups: 0, uploads: 0 }
+    const counted: ByteBackup = (key, bytes, context) => {
+      counts.backups += 1
+      return disk(key, bytes, context)
+    }
+    const claimed = new Set<string>()
+    const claim = async (path: string) => {
+      counts.claims += 1
+      await nextTurn()
+      const fresh = !claimed.has(path)
+      claimed.add(path)
+      if (fresh) counts.granted += 1
+      return fresh
+    }
+    const uploading = {
+      ...remote,
+      put: (key: string, bytes: Uint8Array, mime: string) => {
+        counts.uploads += 1
+        return remote.put(key, bytes, mime)
+      },
+    }
+    const store = writeOnce(withByteBackup(uploading, counted), claim)
+    const payloads = [new Uint8Array([1]), new Uint8Array([2])]
+    const settled = await outcomes(payloads.map((bytes) => store.put(KEY, bytes, MIME)))
+    const record = () => JSON.stringify({ settled, counts, after: afterState(root, KEY, remote) })
+    assert.deepEqual(
+      settled.map((s) => s.stage).toSorted(),
+      ['fulfilled', 'outer claim 409'],
+      `two callers: one admitted, one refused by the claim; ${record()}`,
+    )
+    assert.deepEqual(counts, { claims: 2, granted: 1, backups: 1, uploads: 1 }, record())
+    const winner = payloads[settled.findIndex((s) => s.fulfilled)] ?? new Uint8Array()
+    const file = join(root, 'objects', PROJECT, SOURCE)
+    assert.deepEqual(readFileSync(file), Buffer.from(winner), record())
+    assert.deepEqual(await remote.get(KEY), winner, record())
+    assert.equal(lstatSync(file).mode & 0o777, 0o600)
+    assert.equal(lstatSync(join(root, 'objects', PROJECT)).mode & 0o777, 0o700)
+    const held = { reservedForKey: 1, journal: { count: 1, bytes: 1 }, copy: true, temporaries: 0, remote: true }
+    assert.deepEqual(afterState(root, KEY, remote), held, record())
+    // A later put of the same key is refused at the claim: nothing replaced, nothing more charged or uploaded.
+    await assert.rejects(store.put(KEY, new Uint8Array([3]), MIME), conflict)
+    assert.deepEqual(counts, { claims: 3, granted: 1, backups: 1, uploads: 1 }, record())
+    assert.deepEqual(readFileSync(file), Buffer.from(winner))
+    assert.deepEqual(await remote.get(KEY), winner)
+    assert.deepEqual(afterState(root, KEY, remote), held, record())
+  })
+
+  it('refuses a put whose journal another connection holds, uncharged and untouched, then admits it once', async (t) => {
+    // The DIRECT inner path (no outer claim), on a healthy journal a first put initialized. The competing lock is
+    // INJECTED by a separate connection and held until the put under test has settled, then released in `finally`:
+    // the base worker refuses contention at once (fail closed), and nothing of the refused put may remain.
     const root = volume(t)
     const remote = memoryByteStore()
     const store = withByteBackup(remote, backupAt(root))
-    const writes = await Promise.allSettled([
-      store.put(KEY, new Uint8Array([1]), MIME),
-      store.put(KEY, new Uint8Array([2]), MIME),
-    ])
-    assert.equal(writes.filter((r) => r.status === 'fulfilled').length, 1)
-    const rejected = writes.find((r) => r.status === 'rejected')
-    assert.ok(rejected?.status === 'rejected' && (conflict(rejected.reason) || unavailable(rejected.reason)))
-    // Separate quota workers may meet a busy or initializing journal: fail closed, then recognize the durable key.
-    await assert.rejects(store.put(KEY, new Uint8Array([3]), MIME), conflict)
-    assert.deepEqual(readFileSync(join(root, 'objects', PROJECT, SOURCE)), Buffer.from(await remote.get(KEY)))
+    await store.put(`${PROJECT}/00000000-0000-4000-8000-0000000000aa`, new Uint8Array([9]), MIME)
+    const before = afterState(root, KEY, remote)
+    const lock = new DatabaseSync(join(root, 'budget', 'reservations.sqlite'), { timeout: 0 })
+    t.after(() => lock.close())
+    const untouched = { ...before, reservedForKey: 0, copy: false, temporaries: 0, remote: false }
+    const holding = async (begin: 'BEGIN' | 'BEGIN IMMEDIATE', put: () => Promise<void>, hold = 0) => {
+      lock.exec(begin)
+      // SHARED is taken by a read inside the transaction; RESERVED by BEGIN IMMEDIATE itself.
+      if (begin === 'BEGIN') lock.prepare('SELECT count(*) AS n FROM reservations').get()
+      const started = performance.now()
+      try {
+        const [settled] = await outcomes([put()])
+        // The base 100 ms caller / 300 ms lock control holds for 300 ms. A put the caller's deadline refused before its
+        // worker refused may still have a worker running: hold on past that worker's own bound before releasing.
+        const left = settled?.stage === 'deadline 503' ? BACKUP_QUOTA_MS + 500 : hold
+        await sleep(Math.max(0, left - (performance.now() - started)))
+        return settled
+      } finally {
+        lock.exec(begin === 'BEGIN' ? 'COMMIT' : 'ROLLBACK')
+      }
+    }
+    const cases = [
+      ['SHARED', await holding('BEGIN', () => store.put(KEY, new Uint8Array([1]), MIME))],
+      ['RESERVED', await holding('BEGIN IMMEDIATE', () => store.put(KEY, new Uint8Array([2]), MIME))],
+      [
+        '100 ms caller, 300 ms lock',
+        await holding(
+          'BEGIN IMMEDIATE',
+          () => store.put(KEY, new Uint8Array([3]), MIME, undefined, callerDeadline100ms()),
+          300,
+        ),
+      ],
+    ] as const
+    for (const [held, settled] of cases) {
+      const record = JSON.stringify({ held, settled, after: afterState(root, KEY, remote) })
+      assert.equal(settled?.fulfilled, false, record)
+      assert.ok(settled?.stage === 'inner quota 503' || settled?.stage === 'deadline 503', record)
+      assert.deepEqual(afterState(root, KEY, remote), untouched, record)
+    }
+    assert.equal(cases[2][1]?.stage === 'inner quota 503' ? (cases[2][1]?.ms ?? 0) < 100 : true, true)
+    // Released: the refused key was never charged, so one declared put now goes through, and it is immutable after.
+    await store.put(KEY, new Uint8Array([4]), MIME)
+    await assert.rejects(store.put(KEY, new Uint8Array([5]), MIME), conflict)
+    assert.deepEqual(readFileSync(join(root, 'objects', PROJECT, SOURCE)), Buffer.from([4]))
+    assert.deepEqual(await remote.get(KEY), new Uint8Array([4]))
+    const after = afterState(root, KEY, remote)
+    assert.deepEqual(after, { ...before, reservedForKey: 1, journal: { count: 2, bytes: 2 }, copy: true, remote: true })
   })
 
   it('retains the copy and the write-once claim after an uncertain remote upload', async (t) => {
