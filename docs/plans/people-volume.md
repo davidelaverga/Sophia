@@ -6,8 +6,9 @@
 ## What changes
 
 - **People panel:** each other person's row gets a «Volume for Marco» control.
-  - It shows a speaker, struck through when Off, with «50%» beside it when the level isn't full.
-  - It opens a menu: «Only you hear the change», then 100%, 75%, 50%, 25% and Off.
+  - It shows a speaker at full, the level in its place when turned down («50%»), and a struck speaker when Off. All
+    of it stays inside the square, so nothing reaches the next row.
+  - It opens a menu: «For you alone», then 100%, 75%, 50%, 25% and Off.
   - A guest's row has it too; your own row doesn't.
 - **What a level covers:** everything heard from that person, their voice and their shared screen's sound.
   - Sophia isn't in the panel, so her voice keeps the call's.
@@ -43,5 +44,6 @@
 - **`people-volume.spec.ts`:**
   - the menu and its levels;
   - the level shown and said on the row, with the fixture's connection asked `volume:<identity>:<level>`;
+  - the control inside its row, on a computer and on a phone;
   - no control on your own row;
   - after leaving the call and joining again, everyone is back to full.

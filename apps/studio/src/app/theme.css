@@ -6630,26 +6630,17 @@ button.contribution-quote:hover {
   position: relative;
   grid-column: 5;
 }
-/* Each other person's volume, for you alone (docs/plans/people-volume.md): a speaker before the admin's menu, its
-   level on a tag at its corner when it isn't full. */
+/* Each other person's volume, for you alone (docs/plans/people-volume.md): a speaker before the admin's menu; turned
+   down, the level in its place, inside the square; struck through when Off. */
 .person-volume {
   position: relative;
   grid-column: 4;
 }
 .person-volume-level {
-  position: absolute;
-  right: -5px;
-  bottom: -5px;
-  padding: 1px 3px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-1);
-  background: var(--plane-2);
-  color: var(--text-2);
-  font-size: var(--type-label);
+  color: var(--text);
+  font-size: var(--type-small);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  line-height: 1.2;
-  pointer-events: none;
 }
 .person-pending {
   grid-column: 1 / -1;

@@ -103,7 +103,7 @@ interface VolumeProps {
   onLevel: (level: Level) => void
 }
 
-/** How loud this person is for you alone (people-volume.md): a menu of levels, the level on a tag when it isn't full. */
+/** How loud this person is for you alone (people-volume.md): a menu of levels; turned down, the level is in the speaker's place. */
 function Volume({ name, level, levels, onLevel }: VolumeProps) {
   const row = useRowMenu()
   const label = `Volume for ${name}`
@@ -118,8 +118,9 @@ function Volume({ name, level, levels, onLevel }: VolumeProps) {
         aria-expanded={row.open}
         onClick={row.toggle}
       >
-        <Icon name={level === 0 ? 'speakerOff' : 'speaker'} />
-        {level !== 1 && (
+        {level === 1 || level === 0 ? (
+          <Icon name={level === 0 ? 'speakerOff' : 'speaker'} />
+        ) : (
           <span className="person-volume-level" aria-hidden>
             {levelWords(level)}
           </span>
@@ -128,7 +129,7 @@ function Volume({ name, level, levels, onLevel }: VolumeProps) {
       </button>
       {row.open && (
         <Menu popover={row.menu} label={label} side="bottom" align="end">
-          <MenuHead>Only you hear the change</MenuHead>
+          <MenuHead>For you alone</MenuHead>
           {levels.map((l) => (
             <MenuItem key={l} checked={l === level} onClick={row.choose(() => onLevel(l))}>
               {levelWords(l)}
