@@ -281,11 +281,16 @@ describe('your data', () => {
     // Days are the server's count over the whole conversation (a long one lists only its newest turns).
     assert.deepEqual(factsOf({ ...everything, days: 31 }), { days: 31, notes: 1, carried: 1 })
     const text = exportText(everything, 'Ana', NOW)
-    assert.match(text, /^Ana · personal space with Sophia\n\nNotes:\n- Take a day off/)
+    // A copy is read another day (export-dates.md): its days are dates, its messages say when, and it says when it was
+    // made.
+    assert.match(
+      text,
+      /^Ana · personal space with Sophia\nAs of Wednesday, September 30, 2026, 21:00\n\nNotes:\n- Take/,
+    )
     assert.match(text, /Carried to projects:\n- Ask Luis \(Launch plan\)/)
     assert.match(
       text,
-      /\nYesterday\nYou: I have a pitch\n\nToday\nYou: Still here\nSophia: Glad you are\n {2}Suggested note, not kept: Pitch on Friday$/,
+      /\nTuesday, September 29, 2026\n21:00 You: I have a pitch\n\nWednesday, September 30, 2026\n20:55 You: Still here\n20:56 Sophia: Glad you are\n {2}Suggested note, not kept: Pitch on Friday$/,
     )
     assert.equal(confirmsErasure(' Delete '), true)
     assert.equal(confirmsErasure('del'), false)
