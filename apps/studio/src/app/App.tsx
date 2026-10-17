@@ -19,6 +19,7 @@ import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
 import { useOpening } from './useOpening.ts'
 import { useProjectRoute } from './useProjectRoute.ts'
 import { LoadFailed } from './LoadFailed.tsx'
+import { NewVersion } from './NewVersion.tsx'
 import { loadSignedIn, warmSignedIn } from './signed-in-load.ts'
 
 // Invitation links are a separate door: their page loads only when someone opens one.
@@ -166,7 +167,7 @@ const leaving =
     void signOutForgetting(end, forgetAllDrafts).catch(() => setSignedIn(signedInAs))
   }
 
-export function App() {
+function AppBody() {
   const { state, chooseDev, signOut, signOutEverywhere, acceptLink, declineLink } = useAuth()
   const routing = useProjectRoute()
   const signedInAs = state.status === 'signed_in' ? accountOf(state.identity) : null
@@ -229,5 +230,15 @@ export function App() {
         </Suspense>
       </LoadFailed>
     </QueryClientProvider>
+  )
+}
+
+/** The Studio, and over whatever it shows, a new version said (new-version.md). */
+export function App() {
+  return (
+    <>
+      <AppBody />
+      <NewVersion />
+    </>
   )
 }
