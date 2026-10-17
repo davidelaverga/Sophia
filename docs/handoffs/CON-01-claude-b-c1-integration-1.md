@@ -148,6 +148,21 @@ before C1's own bundle inputs were added. Format, lint, typecheck, contracts and
 drift; unit tests 2961 passed, 0 failed; #400's tests 29 of 29. No SQL, contract, API, worker or bundle source changed,
 so the database and browser checks were not repeated.
 
+## Provider name fallback (FND-B-C1-PROVIDER-NAME-01)
+
+The automatic review of 0186305a (4300538474) found that `providerName` (apps/api/src/auth.ts) gave up at the first
+provider claim that couldn't be a name. A token with an address as `full_name` and a usable `user_name` was seeded with
+no name, and its contributions read as "A member" until the person chose one. It now skips such a claim and takes the
+next usable one in NAME_KEYS. With none usable there is still no name; an address, a name over 60 characters or the
+contact itself is never taken; a chosen name stays chosen. No key, policy, SQL or UI changed.
+
+Before the fix, the new unit case failed (null for `luis`, 7 of 8), and so did the real path: `GET /api/v1/me/profile`
+on the API's restricted role and PostgreSQL seeded `displayName: null` where `luis` was expected (9 of 10). After it:
+8 of 8 and 10 of 10, and the other name-reading DB files (access, conversations, mission) 47 of 47. Unit tests 2963
+passed, 0 failed; the bundle still reproduces (e956, the API is outside it). The review's other finding (4300538470,
+the reply supervisor's sweep before releasing an exhausted lease) is not changed here; its reach in C1 is being mapped
+separately.
+
 ## Remaining obligations
 
 - **#382 (Luis, open; its browser job was failing at packet time)** touches `ConversationsView.tsx`, `OpenConversation.tsx` and `fixtures/room.tsx`. Once its accepted head is on main, B merges main again in the final shared Studio slot. Luis then accepts the shared Studio resolutions. Neither #382 nor Luis's branch was merged or edited here.
