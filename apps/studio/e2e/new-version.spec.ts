@@ -52,13 +52,14 @@ test('version · the notice stands over the opening, its Reload under the pointe
 
 test('version · Not now gives the focus back to where it was (Codex P2 on #415)', async ({ page }) => {
   await page.goto(`${APP}/app.html`)
-  const account = page.getByRole('button', { name: 'Account' }).first()
-  await account.focus()
+  // The sign-in's email field: where the person was when the notice came.
+  const email = page.locator('input[type="email"]')
+  await email.focus()
   await deployed(page)
   await notice(page).getByRole('button', { name: 'Not now' }).focus()
   await page.keyboard.press('Enter')
   await expect(notice(page)).toHaveCount(0)
-  await expect(account).toBeFocused()
+  await expect(email).toBeFocused()
 })
 
 test('version · Reload reloads the page', async ({ page }) => {
