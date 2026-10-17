@@ -2926,6 +2926,9 @@ button.contribution-quote:hover {
   font-size: var(--type-small);
   text-align: center;
 }
+.tile-hidden-self > svg {
+  display: none;
+}
 .tile-more button {
   display: grid;
   place-items: center;
@@ -4528,6 +4531,22 @@ button.contribution-quote:hover {
   }
   .tile-strip .tile[data-floor] {
     border-color: var(--warm);
+  }
+  /* «Your tile is hidden» in a fifth of a phone (65 px): an eye struck through over Show, the words kept for a screen
+     reader; three lines of them didn't fit (Codex P2 follow-up on #380). */
+  .tile-strip .tile-hidden-self {
+    justify-items: center;
+    padding: 6px;
+  }
+  .tile-strip .tile-hidden-self > svg {
+    display: block;
+  }
+  .tile-strip .tile-hidden-words {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
   }
 }
 
