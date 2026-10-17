@@ -18,6 +18,7 @@ import { useCommands } from '../../app/useCommands.ts'
 import { useProjectGo } from '../studio/project-go.tsx'
 import { countdown, nextSession, sessionLabel } from '../access/access-view.ts'
 import { reachesSophia } from '../conversation/chat-view.ts'
+import { useVoiceMeters } from './useVoiceMeters.ts'
 import { SophiaLight, type SophiaLightHandle } from '../light/SophiaLight.tsx'
 import { Presences } from './Presences.tsx'
 import { canShareScreen, RoomDock } from './RoomDock.tsx'
@@ -313,7 +314,8 @@ function useStageModel({ room, snapshot, projectId, identity, presented }: Props
   const doing = useWorkWords(snapshot, projectId, identity, mode === 'light')
   // Who is where, in one word for the stage's geometry: it moves when people or feeds do.
   const layout = [...people.map((p) => p.identity), ...room.feeds.map((f) => f.key)].join(' ')
-  return { people, holder, floor, mode, running, sophia, doing, layout }
+  const live = room.status === 'live' || room.status === 'reconnecting'
+  return { people, holder, floor, mode, running, sophia, doing, layout, live }
 }
 
 export function RoomStage(props: Props) {
@@ -323,10 +325,10 @@ export function RoomStage(props: Props) {
   // The time, again every half minute: enough for "starts in 12 min".
   const now = useNow(30_000)
   const light = useRef<SophiaLightHandle>(null)
-  const { people, holder, floor, mode, running, sophia, doing, layout } = useStageModel(props)
-  const live = room.status === 'live' || room.status === 'reconnecting'
+  const { people, holder, floor, mode, running, sophia, doing, layout, live } = useStageModel(props)
   const geometry = useStageGeometry(stage, floor.holder?.present ? floor.holder.identity : null, mode, layout)
   const passed = useFloorHandoff(stage, light, holder)
+  useVoiceMeters(stage, people, room.voiceLevel)
   useRoomKeys(room)
   return (
     <section

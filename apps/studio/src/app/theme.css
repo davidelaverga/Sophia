@@ -1763,10 +1763,16 @@ img.avatar {
   border-color: rgb(var(--warm-rgb) / 0.7);
   box-shadow: 0 0 0 3px rgb(var(--warm-rgb) / 0.08);
 }
+/* A speaker's ring follows their voice (`--level`, useVoiceMeters; voice-meters.md): wider and brighter as they speak
+   louder. Its shadow takes no transition, so a syllable is not blunted; at rest under reduced motion `--level` is
+   0.34, today's still ring. */
 .presence[data-speaking] .orbit {
   box-shadow:
-    0 0 0 3px rgb(var(--warm-rgb) / 0.12),
-    0 0 24px rgb(var(--warm-rgb) / 0.22);
+    0 0 0 calc(2px + var(--level, 0) * 3px) rgb(var(--warm-rgb) / 0.12),
+    0 0 24px rgb(var(--warm-rgb) / calc(0.1 + var(--level, 0) * 0.36));
+  transition:
+    border-color var(--base) var(--ease),
+    color var(--base) var(--ease);
 }
 .ignite {
   position: absolute;
@@ -1834,31 +1840,17 @@ img.avatar {
   height: 14px;
   border-radius: 1px;
   background: var(--warm);
-  transform: scaleY(0.2);
-}
-.presence[data-speaking] .meter i {
-  animation: voice 0.9s ease-in-out infinite;
+  /* How loud they are now (`--level`), not a loop: the middle bars reach most, so the four never move as one. */
+  transform: scaleY(calc(0.2 + var(--level, 0) * var(--reach, 0.5)));
 }
 .meter i:nth-child(2) {
-  animation-delay: -0.3s !important;
+  --reach: 0.8;
 }
 .meter i:nth-child(3) {
-  animation-delay: -0.55s !important;
+  --reach: 0.7;
 }
 .meter i:nth-child(4) {
-  animation-delay: -0.15s !important;
-}
-@keyframes voice {
-  0%,
-  100% {
-    transform: scaleY(0.2);
-  }
-  30% {
-    transform: scaleY(0.85);
-  }
-  60% {
-    transform: scaleY(0.45);
-  }
+  --reach: 0.4;
 }
 
 .sophia-line {
@@ -3029,10 +3021,12 @@ button.contribution-quote:hover {
 .tile[data-floor] {
   border-color: rgb(var(--warm-rgb) / 0.5);
 }
+/* A speaking tile glows with their voice (`--level`, as the presence's ring), its shadow untransitioned. */
 .tile[data-speaking] {
   box-shadow:
     0 0 0 1px rgb(var(--warm-rgb) / 0.6),
-    0 0 28px rgb(var(--warm-rgb) / 0.16);
+    0 0 calc(16px + var(--level, 0) * 36px) rgb(var(--warm-rgb) / calc(0.08 + var(--level, 0) * 0.24));
+  transition: border-color var(--base) var(--ease);
 }
 .sophia-tile {
   background: transparent;
@@ -4687,6 +4681,12 @@ button.contribution-quote:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* A speaker stands still at today's look (useVoiceMeters doesn't run): the ring and glow as before, the bars at a
+     third of their reach. */
+  .presence[data-speaking],
+  .tile[data-speaking] {
+    --level: 0.34;
+  }
   .arrive,
   .presence,
   .tile,
@@ -4696,7 +4696,6 @@ button.contribution-quote:hover {
   .dock,
   .mini-dock,
   .ignite,
-  .presence[data-speaking] .meter i,
   .sheet,
   .sheet-backdrop,
   .sheet-body,
