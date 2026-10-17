@@ -165,6 +165,26 @@ unobserved.
 - The test passes, and so does its file (266/266).
 - CI's own dynamic cause is not proven beyond this reproduction.
 
+## A conversation read refused at its status (FND-B-SHARED-REFUSAL-FOCUSED-CORRECTION-01)
+
+V's local diagnostic and R's disposition (R-REFUSAL-CLIENT-01, P1 under P's client-denial contract) found the defect.
+A project's conversations or a thread refused with 403 kept their cached content and controls on screen until the
+error body was read.
+- With the body delayed 100 ms, six rendering opportunities came after the client had the 403. The client awaited
+  the body before raising the refusal, and the view fences only on the code `forbidden`.
+- A malformed body became `http_403` and was no refusal at all.
+
+**Now these two protected reads are refused by their status.** `listConversations` and `getConversationMessages` call
+with `protectedRead`, and a 403 is raised at once as `forbidden`, its body cancelled and never consulted. Other calls
+and other statuses are unchanged; the fence, retry, draft and restoration paths are untouched.
+
+**Checks.** `client.test.ts` has four new cases, the list and a thread each with an endless body and a malformed one.
+- Before the fix all four fail: the refusal had not come within 200 ms, or the code was `http_403`. Now 9/9.
+- With the early refusal disabled in the client (not in the test), the four fail again.
+- **Not done here:** the browser case's own measurement correction (R-REFUSAL-MEASURE-01), which counts from the
+  server's marker; its `<= 3` assertion is unchanged.
+- The selected C1 source shares these modules and stays held: this fix is not in its artifact.
+
 ## Next bounded action
 
 B's private handback goes to P; R reviews this integration. No push until P selects one publication.
