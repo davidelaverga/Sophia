@@ -9,9 +9,13 @@
 --   privacy) and every other path, provenance included, is unchanged.
 -- * conversation_ask (0064), replaced: the same, refusing at once (reply blocked, context_assembler_unbound, no attempt
 --   or outbox) when the assembler role has no admitted execution login: a LOGIN member of it alone, itself bare
---   (0070's member rule) and allowed to connect here. Whether that login's worker is running is not knowable here; a
---   bound login whose worker is absent leaves the context unrecorded, and the create is denied context_unavailable by
---   the first dispatch pass that processes it after the wait.
+--   (0070's member rule) and allowed to connect here, through a membership the worker can use as the activation
+--   check requires: SET, without ADMIN (#393 r4300923362), since the worker's SET LOCAL ROLE needs SET. A login the
+--   trusted non-superuser owner admits (D-Q13, conversation_admit_assembler_login) keeps only its recorded creator
+--   edge as a member. Whether that
+--   login's worker is running is not knowable here; a bound login whose worker is absent leaves the context
+--   unrecorded, and the create is denied context_unavailable by the first dispatch pass that processes it after the
+--   wait.
 -- * conversation_context_wait() = 120 s: the deadline until which a create may wait for its context, not a latency
 --   guarantee. It is sized from ONE reply's uncontended worst case under the worker's assembly limits (apps/worker,
 --   ASSEMBLY_LIMITS: deadline 10 s, lease 30 s = checkedLimits' floor of three deadlines, and at least statement +
@@ -32,11 +36,63 @@ CREATE FUNCTION sophia.conversation_assembler_admitted() RETURNS boolean LANGUAG
 SET search_path=pg_catalog AS $$
  SELECT EXISTS(SELECT FROM pg_roles a JOIN pg_auth_members m ON m.roleid=a.oid JOIN pg_roles r ON r.oid=m.member
   WHERE a.rolname='sophia_conversation_assembler' AND NOT a.rolcanlogin AND r.rolcanlogin
+   AND m.set_option AND NOT m.admin_option
    AND NOT (r.rolsuper OR r.rolbypassrls OR r.rolcreatedb OR r.rolcreaterole OR r.rolreplication)
    AND NOT EXISTS(SELECT FROM pg_auth_members o WHERE o.member=r.oid AND o.roleid<>a.oid)
-   AND NOT EXISTS(SELECT FROM pg_auth_members o WHERE o.roleid=r.oid)
+   -- No member, but (D-Q13) the trusted installation owner's own creator edge, made with the login by
+   -- conversation_admit_assembler_login and recorded on it there: ADMIN, granted by the bootstrap superuser, no INHERIT,
+   -- no SET, from postgres still owning this database and schema sophia.
+   AND NOT EXISTS(SELECT FROM pg_auth_members o WHERE o.roleid=r.oid
+    AND NOT (o.grantor=10 AND o.admin_option AND NOT o.inherit_option AND NOT o.set_option
+     AND EXISTS(SELECT FROM pg_roles g WHERE g.oid=o.grantor AND g.rolsuper)
+     AND EXISTS(SELECT FROM pg_roles i WHERE i.oid=o.member AND i.rolname='postgres' AND NOT i.rolsuper
+      AND i.oid=(SELECT datdba FROM pg_database WHERE datname=current_database())
+      AND i.oid=(SELECT nspowner FROM pg_namespace WHERE nspname='sophia'))
+     AND shobj_description(r.oid,'pg_authid') IS NOT DISTINCT FROM
+      'con01-q13-fresh-creator v1 edge='||o.oid||' installer='||o.member))
    AND has_database_privilege(r.oid,current_database(),'CONNECT')) $$;
 REVOKE ALL ON FUNCTION sophia.conversation_assembler_admitted() FROM PUBLIC;
+
+-- D-Q13: the trusted installation owner admits ONE execution login, created here: absent before, so PostgreSQL makes
+-- the owner its creator in this transaction (one ADMIN edge from the bootstrap superuser, no INHERIT, no SET), and that
+-- edge alone is recorded on the login. Then the execution edge (SET, no ADMIN, no INHERIT) and CONNECT on this database,
+-- nothing else. Any other caller, a role that already exists, a non-default createrole_self_grant or any other edge or
+-- dependency is refused before anything is granted. Its password and its use are a separate operator act. A superuser
+-- installation admits its logins as before, without this.
+CREATE FUNCTION sophia.conversation_admit_assembler_login(p_login name) RETURNS oid LANGUAGE plpgsql
+SET search_path=pg_catalog AS $$
+DECLARE i oid; l oid; e oid;
+BEGIN
+ SELECT r.oid INTO i FROM pg_roles r WHERE r.rolname='postgres' AND NOT r.rolsuper AND r.rolcreaterole
+  AND r.oid=(SELECT datdba FROM pg_database WHERE datname=current_database())
+  AND r.oid=(SELECT nspowner FROM pg_namespace WHERE nspname='sophia');
+ IF i IS NULL OR current_user<>'postgres' OR session_user<>'postgres' THEN
+  RAISE EXCEPTION 'only the trusted installation owner admits an assembler login this way' USING ERRCODE='42501';
+ END IF;
+ IF current_setting('createrole_self_grant')<>'' THEN
+  RAISE EXCEPTION 'createrole_self_grant must be its default' USING ERRCODE='42501';
+ END IF;
+ IF NOT EXISTS(SELECT FROM pg_roles WHERE rolname='sophia_conversation_assembler') THEN
+  RAISE EXCEPTION 'no assembler role' USING ERRCODE='42501';
+ END IF;
+ IF EXISTS(SELECT FROM pg_roles WHERE rolname=p_login) THEN
+  RAISE EXCEPTION 'role % exists: a role is never adopted', p_login USING ERRCODE='42501';
+ END IF;
+ EXECUTE format('CREATE ROLE %I LOGIN NOINHERIT NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION', p_login);
+ SELECT oid INTO STRICT l FROM pg_roles WHERE rolname=p_login;
+ SELECT m.oid INTO e FROM pg_auth_members m JOIN pg_roles g ON g.oid=m.grantor
+  WHERE m.roleid=l AND m.member=i AND m.grantor=10 AND g.rolsuper AND m.admin_option AND NOT m.inherit_option
+   AND NOT m.set_option AND m.xmin=pg_current_xact_id()::xid;
+ IF e IS NULL OR (SELECT count(*) FROM pg_auth_members m WHERE m.roleid=l OR m.member=l)<>1
+    OR EXISTS(SELECT FROM pg_shdepend d WHERE d.refclassid='pg_authid'::regclass AND d.refobjid=l) THEN
+  RAISE EXCEPTION 'the new login is not exactly as created' USING ERRCODE='42501';
+ END IF;
+ EXECUTE format('GRANT sophia_conversation_assembler TO %I WITH ADMIN FALSE, INHERIT FALSE, SET TRUE', p_login);
+ EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), p_login);
+ EXECUTE format('COMMENT ON ROLE %I IS %L', p_login, 'con01-q13-fresh-creator v1 edge='||e||' installer='||i);
+ RETURN l;
+END $$;
+REVOKE ALL ON FUNCTION sophia.conversation_admit_assembler_login(name) FROM PUBLIC;
 
 -- conversation_dispatch (0067), replaced as above. Its owner and grants are kept (CREATE OR REPLACE).
 CREATE OR REPLACE FUNCTION sophia.conversation_dispatch(o sophia.outbox) RETURNS jsonb LANGUAGE plpgsql

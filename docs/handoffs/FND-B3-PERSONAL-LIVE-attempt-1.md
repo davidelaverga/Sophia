@@ -95,6 +95,31 @@ Unchanged holds: the companion and B2's service mode stay off. The native reply 
 (4300538470) still blocks native and BYO activation. Davide's Personal data and recipient approval, an admitted payer
 and allowance, the API host's credential custody (D-OPS) and V's route check are still owed.
 
+## Current reviewed B2 carried (FND-B3-CURRENT-REVIEWED-B2-CARRY-02)
+
+One normal merge of #393's reviewed and published `2017330d` into `184c5063`, both parents kept. The merge base is
+`8c18b032`, the B2 head the common integration above carried.
+- What arrives: current C1 (`42f65b5e`: main `21516687`, the 20 s projection read bounds, the LiveKit test contract,
+  failure-only partial stops, the byte-backup test contract), 0071's SET-without-ADMIN admission, and D-Q13's
+  trusted-creator exception.
+- **No conflict.** The one path both sides changed, `packages/persistence/src/index.ts`, combined automatically:
+  Personal's exports plus C1's `ServiceControl` type. Every other path is one side's exactly: Personal's 16, B2's 55.
+- `config/runtime-unit.json` is unchanged from Personal's: B2 changed no runtime input after `8c18b032`.
+- Personal's 0073 and its live files are their reviewed bytes. No migration, contract name, SDK, route or flag was
+  added; the companion and service mode stay off.
+
+**Checks on the merged tree** (Node 24.21.0, pnpm 11.7.0; private PostgreSQL 17.11, two fresh clusters, removed).
+- D-Q13 trusted-creator group: 7/7, on a cluster whose `postgres` is a plain installer. Its installation applied every
+  migration, 0073 included, as that installer.
+- On a superuser cluster:
+  - the exclusive admission and install groups: 7/7, with the four hold stages;
+  - `test:sql`: 68 migrations;
+  - `test:db`: 1008/1008, including the live companion, its configuration, personal routes and a failing companion
+    against the local Responses double. The three gated groups skip there and are not counted.
+- The ordinary `pnpm check` on this head is in B's handback.
+- Not run: the C1 served cases (no served ports for this packet), PostgreSQL 16, Supabase-local auth, any Linux build.
+  The linux-x64 identity stays unqualified, and the two runner instances are still one Node process, not two processes.
+
 ## Next bounded action
 
 B's private handback goes to P; R reviews this head. No push until P sequences it with the common integration.

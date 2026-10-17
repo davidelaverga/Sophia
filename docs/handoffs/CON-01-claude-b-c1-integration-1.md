@@ -182,6 +182,133 @@ Checks on the merge:
   in place, message links, room return and skip link. The failed-send barrier passed 6 of 6, and the new case 3 of 3.
 - Served (normal Studio, real API, restricted PostgreSQL, VISION off): all five cases again, 5 of 5.
 
+## Current main 21516687 and projection read bounds (FND-B-C1-CURRENT-MAIN-03 v2, READ-BOUNDS-01)
+
+**The merge.** One normal merge of main `21516687`, the combined source window Luis acknowledged, onto `2c60b408`, in
+its own worktree. Three conflicts:
+- **AccountMenu:** main's one-sheet-at-a-time model (Settings and its hand-offs, sign out of all devices) with C1's «Your
+  name» as one more sheet. It carries the account it was opened for (`name:<account>`) and shows, keyed by it, only
+  while that account is signed in, so no draft crosses accounts. C1's chosen name stays in the head.
+- **ProjectShell:** C1's conversations layout flag, independent of VISION, inside main's ViewFailed boundary.
+- **fixture-api:** one tokenAnswer, and main's archive answer, closed.
+SignedIn, the room fixture, app-auth.spec and the media-bridge test combined automatically and were inspected: C1's
+account-keyed remount and account cache stay, beside main's sign out of all devices and the view-failure hooks. API,
+SQL, packages, config, worker, execution host, locks, scripts and workflows equal C1's, except main's media-bridge test.
+
+**Projection read bounds.** The snapshot and discussion routes called `withActor` with no control, so a read had no
+server deadline and no cancellation of its own.
+- `withActor` now takes an optional `ServiceControl`, passed to the existing `transaction()`. Every other caller is
+  unchanged, and the verified actor and REPEATABLE READ READ ONLY are as before.
+- The two routes pass a control with a 20 s deadline (`PROJECTION_READ_MS`) and an abort when the response closes
+  before it finishes.
+- With it, the transaction retires its connection (never back to the pool) at the deadline or on the abort. On the
+  server, each statement of the read is bounded by what remains of that deadline (see the correction below).
+- 20 s is under the Studio's 30 s read, so the server answers «unavailable, ask again» first. A timed-out read answers
+  503 `unavailable`, retry `safe_read`, with the existing message.
+
+**One bounded episode, owned test cluster, real API.** An owner session held ACCESS EXCLUSIVE on `contributions` for
+40 s, so the real snapshot read blocked. Request A aborted client-side at 5 s; request B waited. Backend PIDs were
+mapped to the API process by their socket ports.
+- **Before:**
+  - A's backend stayed active in the lock wait at every sample (t+3 to t+32 s), then committed when the lock released
+    (t+39 s).
+  - B got no answer within 35 s, and its backend did the same.
+- **After:**
+  - The API retired A's connection at once: its socket was gone by t+8 s. But A's backend was still active at t+8 s
+    and t+15 s. PostgreSQL cancelled it by `statement_timeout` 20 s after its BEGIN, and it exited, client gone.
+  - B answered 503 at 20.0 s; its backend was cancelled the same way.
+  - Both backends were gone by t+24 s; a fresh snapshot and discussion answered 200.
+- So this is SQL retirement bounded by the 20 s server deadline, not an immediate cancellation caused by the HTTP
+  abort: retiring the socket alone does not settle the database work. At this head the timeout was set once, so a
+  statement started late could run on the server for up to a whole 20 s from its own start (R-C1-READ-BOUNDS-01,
+  corrected below).
+- A DB test covers it: a controlled actor read keeps its actor and read-only mode, a blocked query is retired at its
+  deadline, its backend leaves, and the one-connection pool recovers.
+
+**Checks.**
+- Format, lint, typecheck and contracts (unchanged; no regeneration) pass. Artifacts reproduce C1's `e956becc`; main's
+  runtime record is not taken.
+- Units: 2990 passed, 0 failed, 70 skipped.
+- Focused DB: 119/119 (access, API, media, profile, rooms, runtime, room conversations, service control); saved
+  conversations and their fences 70/70.
+- Served real App: 5/5. Case 1 first failed (run 29) with the list visible before any request was recorded; it now
+  waits for the A33 response before its unchanged assertion.
+- Affected fixture journeys across 37 files: 524/524.
+
+**Still open, not touched:** the discussion query's cost, and C4's 510-message A34 journey; its slowness appeared with
+fresh statistics missing, which is an association, not an established cause. This change bounds a read's lifetime; it
+does not make a slow read usable.
+
+**The remaining budget, statement by statement (FND-B-C1-READ-BOUNDS-CLOSURE-01, R-C1-READ-BOUNDS-01).** The
+`statement_timeout` above was set once, after BEGIN and the actor's setting, to the time left then. That bounds one
+statement, not the read: if an earlier statement used 18 s of the 20, a later one began near 18 s with the same ~20 s
+of its own, and could hold its backend until near 38 s, long after the API had retired its socket.
+- Now a controlled read's client (`budgetedRead`, service-control.ts) checks the deadline before each statement, the
+  actor's setting included, and starts none after it. It sets `statement_timeout` to what remains, less 100 ms
+  (`READ_SETTLE_MS`) for PostgreSQL's cancel, its error and the retirement, before every statement. A statement begun
+  late is ended by PostgreSQL itself within the read's 20 s.
+- BEGIN itself is not bounded on the server: it takes no lock and reads no data. The client-side retirement at the
+  deadline still covers it.
+- Unchanged:
+  - Writes, controlled or not, keep their one bound, and COMMIT uncertainty (`outcome_unknown`) is untouched.
+  - Uncontrolled callers get no new policy. The pool's 10 s acquisition stays inside the 20 s, not added to it.
+  - The actor UUID check, the transaction-local actor, REPEATABLE READ READ ONLY, RLS, the error mapping, and the UI
+    and its name and privacy guards.
+- One restricted-PG case in the service-control test, a 2 s read: the first statement sleeps 1.2 s; the second begins
+  late, at 1204 ms, on a table an owner session holds locked. That session is itself bounded at 5 s idle in
+  transaction. The old backend PID is watched from another session until it leaves, before the lock is released.
+  - Before, at `f2953616`: the backend was seen waiting on the lock and was still on the server 708 ms after the
+    deadline (its own timeout would end it near 3.2 s).
+  - After: seen waiting, then gone 82 ms BEFORE the deadline, ended by PostgreSQL ahead of the API's own retirement.
+    The one-connection pool's next actor read keeps its actor and read-only mode on a new PID.
+  - The earlier 150 ms actor case still starts its statement and sees it cancelled on the server. A first margin of
+    500 ms refused that statement before it began, so the margin is 100 ms.
+- Checks: service control 8/8. Focused DB 234/234 (API access, API, media, profile, rooms, runtime, conversations;
+  persistence service control, persistence, room, conversations, conversation fences, races). Served real App 5/5.
+- `pnpm check` passes: units 2990 passed, 0 failed, 70 skipped; integration 108 passed, 2 skipped. The artifacts
+  reproduce C1's unchanged (`e956becc`, lock `b868da08`, darwin dsh `e24cb887`).
+
+**The real LiveKit job on `85a6db00` (FND-B-C1-LIVEKIT-CONTRACT-FOCUSED-02).** CI's media-bridge job (check 117354277610)
+failed 1 of 6: the screen share stopped again expected `true`. That expectation is main's older contract, kept when
+main's screen case came in with `21516687`. C1's own muteSources returns true only when it muted a track, so a repeated
+or retried act that changes nothing is not recorded (Codex P2 on #385). The microphone case already expected `false`.
+- The test now expects `false` for the repeated stop, and checks that both screen tracks are still muted.
+- The first stop's assertions are unchanged: both tracks muted on the server, and the sharer's client told. So are
+  the other cases. No API code changed.
+- Locally the LiveKit suite is skipped (no server here); its real run is that CI job on the next pushed head.
+
+
+**A partial screen or camera stop on `a871f4d9` (FND-A-C1-SCREEN-PARTIAL-FOCUSED-01, then FND-A-C1-STOP-PARTIAL-NEIGHBOR-02;
+Claude A, session `local_775c886b-f077-43c7-a07c-74868ab14b5c`; Codex P2 r4302170752, R-C1-A871-SCREEN-PARTIAL-01).**
+A stop mutes every publication of its sources: a screen share is its video and its sound, and a member may publish more
+than one camera. When the room server muted one and then refused another, `muteUnmuted` threw `PartialMute`, and
+`recordedIfDone`'s default partial handler (`partly = record`) wrote the whole act, `room.host_screen_off` ("Screen
+sharing stopped by an admin") or `room.host_camera_off` ("Camera turned off by an admin"), while a publication stayed
+live. The failure did still answer the request.
+- Now `routes/host-acts.ts` has `recordedStop(done, record)`, which the stop-camera/stop-screen route in
+  `routes/rooms.ts` calls. A partial stop, camera or screen, records nothing and the original `PartialMute` still
+  propagates. Unchanged: a stop that muted every publication (recorded once), one that changed nothing (not recorded),
+  one that muted nothing and failed (the failure as it was), mute-all's per-member partial record, the microphone mute
+  and removal, authorization and the host guards. No SQL, migration, event, contract or dependency.
+- Source constraint, accepted by P: no existing act can say a camera or screen was partly stopped. 0060's acts are
+  `room.host_camera_off`, `room.host_screen_off` and `room.host_muted_all`; 0057's are the microphone mute and the
+  removal. So the confirmed part (some publications muted) is not in the activity; only the request's failure reports
+  it. Naming it would need a new act and event, separate product work, not invented here.
+- Before, in scratch scripts outside Git, with the real `muteUnmuted` and a controlled room server whose second mute
+  fails: the a871 composition (`recordedIfDone(stop, record)`) wrote `room.host_screen_off` for both screen orders; the
+  first commit `fb797748` fixed the screen but still wrote `room.host_camera_off` for both orders of two camera
+  publications, one of them still live; each then rejected `PartialMute(muted=1)`. With the final regressions and
+  `recordedStop` given `recordedIfDone`'s default: `node --test apps/api/src/routes/host-acts.test.ts` 7 pass, 4 fail
+  (both screen and both camera partial cases).
+- After: `node --test apps/api/src/routes/host-acts.test.ts` 11 pass, 0 fail: both screen orders and both orders of two
+  camera publications record nothing and reject the original `PartialMute` (muted 1, its cause the room server's
+  refusal); a zero-success screen stop fails as it was; all-success and what-was-left-on screen stops record once; a
+  repeated stop records nothing; a one-camera and a two-camera stop record once, a repeated one nothing, a refused one
+  fails as it was; the existing mute-all partial case is unchanged.
+- Limits: a controlled room-server double over the real `muteUnmuted`, `recordedStop` and `recordedIfDone`; the
+  Fastify route and PostgreSQL are not run, and no real LiveKit fault was injected. The real LiveKit suite on
+  `9b93a4e6`/tree `3651b345` (job 117360353690, 6/6) covers the successful and repeated stops, not this failure.
+
 ## Remaining obligations
 
 - **#382 (Luis, open; its browser job was failing at packet time)** touches `ConversationsView.tsx`, `OpenConversation.tsx` and `fixtures/room.tsx`. Once its accepted head is on main, B merges main again in the final shared Studio slot. Luis then accepts the shared Studio resolutions. Neither #382 nor Luis's branch was merged or edited here.

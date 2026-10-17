@@ -132,6 +132,166 @@ Corrections carried here, not in a separate commit:
 - The native reply supervisor's skipped final sweep (review 4300538470) stays open as a native and BYO activation
   blocker. The service executor runs in the bridge process and is mapped separately. Every reply default stays off.
 
+## Admission and bootstrap (FND-B2-ADMISSION-BOOTSTRAP-Q13-01)
+
+Two findings on the published `8c18b032`, reproduced on a private PostgreSQL 17.11 cluster before anything changed.
+
+**An assembler login without SET (#393 r4300923362), corrected in 0071.** 0071 and 0070 are unapplied: P confirmed
+both absent from the applied ledger before this edit. A LOGIN otherwise bare but granted the assembler `WITH SET FALSE`
+counted as admitted, so its Ask went `pending`, while the worker's `SET LOCAL ROLE` is refused (42501) and the reply
+could only wait for `context_unavailable`. `conversation_assembler_admitted()` now also requires the edge to carry SET
+and not ADMIN, exactly what the activation check holds (`assembler edge: admin option or no SET`). New cases in
+`conversation-context-dispatch.db.test.ts`: the login's SET LOCAL ROLE is refused, and its Ask is blocked
+`context_assembler_unbound` with no attempt or outbox. Before the edit that Ask case failed (`pending`); after it, 7/7,
+and the legitimate login still defers and dispatches.
+
+**0070 under a migrator that is not a superuser: not corrected, an owner choice.** CI's local Supabase applies the
+migrations as its `postgres` role, which is not a superuser there, and 0070 fails with `sophia_conversation_assembler
+exists with unexpected memberships` (run 38994941166, job 117285323339), so the auth tests never run. Reproduced with a
+NOSUPERUSER CREATEROLE migrator owning the database: 0001–0069 apply, and 0070 fails the same way. The catalog shows why.
+On PostgreSQL 16 and later, CREATE ROLE by a role that is not a superuser makes its creator a member: ADMIN true,
+INHERIT false, SET false, granted by the bootstrap superuser. So the role 0070 just created is not bare, and its guard
+refuses it. The same edge exists on `sophia_api` and `sophia_worker` (0002) and on every login that migrator makes.
+- The creator cannot revoke it: `permission denied to revoke privileges granted by role "postgres"`.
+- With it, the creator can grant itself SET or INHERIT, and can admit a login.
+- A login it creates carries the same edge (the creator is its member), so 0071's and the activation check's "the
+  login has no member" rule refuses every such login too.
+
+Any remedy changes Q13's boundary, so the owner chooses:
+1. Accept exactly the creator's edge on a role created in the same transaction: member `current_user`, ADMIN, no
+   INHERIT, no SET, granted by the bootstrap superuser. Then the installation owner can become the assembler; it
+   already owns every object the assembler reads or runs. The same rule for a login's creator edge in 0071 and the
+   activation check.
+2. Require a superuser installer for 0070 and for login admission. On hosted Supabase that means the assembler is
+   never installed, and an ordinary Ask stays `context_assembler_unbound`. 0070 would also have to stand aside there
+   rather than fail, or the auth job stays red.
+3. Take 0070 and 0071 out of this source until a hosted bootstrap is designed, leaving Ask unbound everywhere.
+
+None was implemented then. The owner later chose option 1 (D-Q13), implemented in the next section.
+
+**PostgreSQL 16 exclusive qualification: implemented, not yet executed.** `scripts/q13-owned-pg16.sh` (on the runner)
+and `scripts/q13-owned-pg16-inner.sh` (in the container), as one new step after the crossings in the database job.
+- The image is the job's own postgres:16 service image, by id. The container has no network, runs as the image's
+  postgres user, with 1 CPU, 2 GiB and no swap, 128 processes, a 1 GiB /tmp and five minutes. The repository and the
+  job's Node 24.21.0 are mounted read-only. Nothing is pulled or installed, and the ordinary service is untouched.
+- The inner script starts its own cluster on 127.0.0.1:55499 under `/tmp/con01-q13-owned-pg-*`, so the unchanged
+  `requireOwned()` holds for real. It asserts PostgreSQL 16, the data directory, the parent's UID and 0700, and an
+  empty entry census.
+- It runs both exclusive groups and the install group. It requires 7 tests, 7 passed, no skip, the three suites and
+  the four hold stages (admitted; old session open; revoked, old session open; revoked, old session closed `[]`).
+- It ends with an empty census and the assembler role bare.
+- Checked here: both scripts parse under dash. On an owned PostgreSQL 17.11 cluster the same tests produced exactly
+  the required lines, and the exit census was empty, with the assembler role bare. The checklist also catches the
+  skipped groups of an ordinary run. Whether the job's Node runs inside that image is known only when CI runs it.
+
+Checks on this candidate:
+- format, lint, typecheck and contracts are clean; unit 3017 passed, 0 failed, 70 skipped;
+- `pnpm artifacts` reproduces, with the bundle unchanged at `sha256:e516779f…`;
+- private PostgreSQL 17.11: `test:sql` 67 migrations; `test:db` 998/998 (the two exclusive groups skip there and are
+  not counted); crossings 17/17 (synthetic Bearer verifier).
+
+For the Personal record (no Personal commit): its "a companion on two API processes" case runs two runner instances
+in one Node process, not two processes.
+
+## The trusted creator (FND-B-Q13-TRUSTED-CREATOR-SOURCE-01, D-Q13)
+
+Davide approved option 1 above, narrowed: only the trusted installation owner, and only on a role it creates fresh.
+P forwarded V's fresh ledger census (0070 and 0071 still absent from all 51 applied rows) before 0070 or 0071 changed.
+
+**Measured first, on an owned PostgreSQL 17.11 cluster shaped like hosted Supabase.** The bootstrap superuser
+(OID 10) is not `postgres`; `postgres` is a plain CREATEROLE/CREATEDB login owning the database.
+- CREATE ROLE by `postgres` gives the new role exactly one edge: member `postgres`, grantor 10, ADMIN true, INHERIT
+  false, SET false. A new LOGIN gets the same edge.
+- The edge adds no `pg_shdepend` row, so the cluster-wide dependency check needs no exception and stays as it is.
+- The edge's `xmin` is the creating transaction.
+- `postgres` cannot revoke the edge, and can add a second, self-granted SET edge.
+
+**What changed.**
+- **The trusted installer** is `postgres`, not a superuser, with CREATEROLE, owning this database and schema
+  `sophia`: the owner the activation check already binds.
+- **0070.** When 0070 itself has just created the role and that installer runs it (as `current_user` and
+  `session_user`, with the default `createrole_self_grant`), it accepts the one creator edge. The edge must be exact:
+  grantor 10 (a superuser), ADMIN, no INHERIT, no SET, written in this transaction.
+  - It records that edge on the role: `COMMENT ON ROLE … 'con01-q13-fresh-creator v1 edge=<oid> installer=<oid>'`.
+  - Anything else refuses as before, with the same message. That covers a role found already made, even by the owner,
+    even with a forged record; any other installer; another edge or option; and a second installation.
+- **`conversation_admit_assembler_login(name)`, new in 0071.** Only that installer can use it. It refuses a role that
+  already exists or a non-default self-grant. Otherwise it:
+  - creates the login (NOINHERIT, no attribute) and checks the same exact creator edge, made now, with no other edge
+    and no dependency;
+  - grants the assembler with SET, without ADMIN or INHERIT, and CONNECT on this database;
+  - records the creator edge on the login.
+
+  A superuser installation keeps admitting its logins as before.
+- **`conversation_assembler_admitted()` and the activation check** excuse that recorded creator edge, from that owner,
+  and nothing else. The 0071 SET-and-not-ADMIN rule (#393 r4300923362) and every other hold are unchanged.
+- **Limits.**
+  - The owner can still grant itself SET on either role, and could forge a record. A superuser could make an
+    identical edge. The exception trusts this owner; it does not isolate the roles from it.
+  - A role's comment is the record: cluster-wide like the role, readable in any database, writable only by holders
+    of ADMIN on that role (the owner) or superusers. It adds no relation, grant or dependency.
+
+**Proof: `conversation-assembler-trusted-creator.db.test.ts`.** It is gated by its own marker on an owned cluster
+like the one above; ordinary `test:db` skips it, uncounted.
+- Before, at `139f3997`: the owner's fresh install failed with the same error as CI's auth job, and the cases after it
+  could not run.
+- After: 7/7.
+  - Refused before any grant, nothing left: another installer, the owner without the database or the schema, a
+    non-default self-grant, and a found role with or without a forged record.
+  - The fresh install has exactly the recorded edge; the role owns nothing and holds grants here alone; the ledger has
+    0070 and 0071. A second installation is refused.
+  - Admission: never an existing login, another caller or a non-default self-grant. The admitted login has exactly the
+    creator and execution edges, and CONNECT on this database alone.
+  - Its Ask waits for context. The login records the context under `SET LOCAL ROLE`, reading nothing without it, and
+    the create dispatches.
+  - The holds: fresh denial elsewhere, an old session holding after revocation until its client closes, then `[]`.
+  - Drift stops both the holds and admission: another member, the owner's SET grant, an extra role, a missing or
+    wrong record, the owner losing the database, and the edge replaced by another grantor's.
+  - Without the record check, the pre-existing login is admitted: 4 cases fail.
+- Unchanged on a superuser cluster: the exclusive admission and install groups 7/7, `test:sql` (67 migrations),
+  `test:db` 998/998.
+- **CI.** `scripts/q13-owned-pg16-inner.sh` now runs this group on a second owned PostgreSQL 16 cluster shaped the same
+  way. It requires 7/7, the four hold stages, no skip and an empty exit census. That has not run anywhere yet, and
+  neither has the Supabase-local auth job on this source.
+
+## Current C1 f76 carried in (FND-B-Q13-CURRENT-C1-F76-CARRY-01)
+
+One normal merge of #385's `f76f5776` (current main `21516687`, the 20 s projection read bounds, the LiveKit test
+contract and failure-only partial stops) into `94f0434f`, both parents kept. The merge base is `2c60b408`.
+- **No conflict.** The one path both sides changed, `packages/persistence/src/index.ts`, combined automatically: B2's
+  exports plus C1's `ServiceControl` type.
+- Every other path is exactly one side's blob: the 44 C1 paths are f76's, the 42 B2/Q13 paths are 94's.
+- Kept exactly: 0070 `be17d906`, 0071 `3b1ea9b2` and the Q13 guards; C1's `livekit.ts`, `tx.ts`, `host-acts.ts`, the
+  Studio and its 55 guards.
+- No feature, dependency, lock, migration or contract name was added. Ask and paid defaults stay off.
+
+**Checks on the merged tree.**
+- Typecheck and contracts pass.
+- On owned PostgreSQL 17.11:
+  - the trusted-creator group passes 7/7, on a cluster whose `postgres` is a plain installer;
+  - on a superuser cluster: the exclusive groups 7/7, with the four hold stages; `test:sql` 67 migrations; `test:db`
+    1000/1000. The three gated groups skip there and are not counted.
+- PostgreSQL 16 (both helper phases) and the Supabase-local auth job have still not run on any composition.
+
+**Evidence precision (R on `94f0434f`).**
+- The saved COMMENT-negative probe (`03-probe-comment`) fails at `SET ROLE` before its COMMENT. It does not show that
+  COMMENT ON ROLE is denied directly.
+- The creator-edge record is the trusted owner's attestation, not isolation against that owner.
+
+## Byte-backup test contract carried (FND-B-BYTE-BACKUP-ACCEPTED-CARRY-01)
+
+The concurrent-copy case failed 0 of 2 in this line's check above; its cause remains unknown. C's accepted test
+correction (R accepted `ce82b18b`; R-BB-3E76-1 closed) reached this line through current C1 only.
+- On C1 (`f76f5776`): cherry-picked `3e767e96`, then `ce82b18b`, never their B2 parent. The delta is byte-identical
+  to the accepted one: `apps/api/src/byte-backup.test.ts` → `064bd54d`, plus C's handoff.
+- Here: one normal merge of that C1 head, no conflict. Only those two paths change.
+- Unchanged: the backup product code (worker `73cfb030`, backup `e8240713`, quota `1fafb2f1`, store `007396af`), the
+  quota test, 0070/0071 and every Q13 guard.
+- It changes a test, not the product: exactly one admitted put under a real write-once claim, an injected
+  journal-lock refusal, and a fixed 100 ms caller and 300 ms lock control that fails rather than passes when the
+  deadline comes first. It does not explain the original failure.
+- C1's own check on its new head passed; this composition's check is in B's handback.
+
 ## Next bounded action
 
 Check the automatic review on #393's repair head once. Then implement the assembly binding exactly as P/V triage it, in this worktree, with its census-numbered migration.

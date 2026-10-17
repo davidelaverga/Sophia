@@ -3,8 +3,9 @@
 -- this adds what the review-only S3 candidate (db/candidates/con01-s3-conversation-reply-context.sql) grants on top,
 -- by an exact diff against 0064: the NOLOGIN role, EXECUTE on the five entry points and the two claim-bound helpers,
 -- the Q13 read grants, and the claim-bound read policies. No object is created or replaced, no owner is changed, and no
--- login, membership or credential is made: admitting an execution login is a separate, reviewed operator act (Q13
--- activation check, db/candidates/con01-s3-assembler-activation-check.sql).
+-- login or credential is made: admitting an execution login is a separate, reviewed operator act (Q13 activation check,
+-- db/candidates/con01-s3-assembler-activation-check.sql). The one membership made is PostgreSQL's own, for a trusted
+-- non-superuser installer that creates the role (D-Q13, below).
 -- * The role is adopted only bare, exactly as the candidate's guard (Q13, D-8), kept byte for byte: NOLOGIN and no
 --   unsafe attribute, a member of no role and with no member, and holding nothing of its own ANYWHERE in the cluster
 --   (pg_shdepend, every database). So a second installation in the same cluster is refused before anything is granted,
@@ -15,10 +16,11 @@
 BEGIN;
 
 DO $$
-DECLARE a oid;
+DECLARE a oid; fresh boolean:=false; i oid;
 BEGIN
  IF NOT EXISTS(SELECT FROM pg_roles WHERE rolname='sophia_conversation_assembler') THEN
   CREATE ROLE sophia_conversation_assembler NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION INHERIT;
+  fresh:=true;
  END IF;
  IF EXISTS(SELECT FROM pg_roles WHERE rolname='sophia_conversation_assembler'
     AND (rolsuper OR rolbypassrls OR rolcanlogin OR rolcreatedb OR rolcreaterole OR rolreplication)) THEN
@@ -27,7 +29,24 @@ BEGIN
 -- A role found is adopted only bare (Q13, D-8): a member of no role and with no member, so it inherits and assumes
  -- nothing and lends the entry points to no one. Anything else is refused; nothing is revoked.
  SELECT oid INTO STRICT a FROM pg_roles WHERE rolname='sophia_conversation_assembler';
- IF EXISTS(SELECT FROM pg_auth_members m WHERE m.member=a OR m.roleid=a) THEN
+ -- D-Q13, the owner-approved trusted-creator exception: the trusted installation owner (postgres, not a superuser,
+ -- owning this database and schema sophia, as on hosted Supabase) that has just created the role above is made its
+ -- creator by PostgreSQL: one edge, ADMIN, granted by the bootstrap superuser (OID 10), no INHERIT, no SET, which it
+ -- cannot revoke. Exactly that edge, written in this transaction, with the default createrole_self_grant, is accepted
+ -- and recorded on the role (con01-q13-fresh-creator v1). A role found already made, any other installer, any other
+ -- edge or option: refused as before. The owner can still grant itself SET: the role is not isolated from it.
+ SELECT r.oid INTO i FROM pg_roles r WHERE r.rolname='postgres' AND NOT r.rolsuper AND r.rolcreaterole
+  AND r.oid=(SELECT datdba FROM pg_database WHERE datname=current_database())
+  AND r.oid=(SELECT nspowner FROM pg_namespace WHERE nspname='sophia');
+ IF fresh AND i IS NOT NULL AND current_user='postgres' AND session_user='postgres'
+    AND current_setting('createrole_self_grant')=''
+    AND (SELECT count(*) FROM pg_auth_members m WHERE m.member=a OR m.roleid=a)=1
+    AND EXISTS(SELECT FROM pg_auth_members m JOIN pg_roles g ON g.oid=m.grantor
+     WHERE m.roleid=a AND m.member=i AND m.grantor=10 AND g.rolsuper AND m.admin_option AND NOT m.inherit_option
+      AND NOT m.set_option AND m.xmin=pg_current_xact_id()::xid) THEN
+  EXECUTE format('COMMENT ON ROLE sophia_conversation_assembler IS %L', 'con01-q13-fresh-creator v1 edge='||
+   (SELECT m.oid FROM pg_auth_members m WHERE m.roleid=a)||' installer='||i);
+ ELSIF EXISTS(SELECT FROM pg_auth_members m WHERE m.member=a OR m.roleid=a) THEN
   RAISE EXCEPTION 'sophia_conversation_assembler exists with unexpected memberships' USING ERRCODE='42501';
  END IF;
  -- Nor anything of its own anywhere in the cluster (Q13; PR #211 r4242793043, r4242913900): pg_shdepend names the role
