@@ -5197,6 +5197,36 @@ button.contribution-quote:hover {
   flex-direction: column;
   gap: 8px;
 }
+/* The call reconnecting while video is on (reconnecting-on-video.md): the header's amber dot and words, on glass,
+   at the top of the column over the tiles, until the link is back. */
+.stage-reconnecting {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 5px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--type-small);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.stage-reconnecting .connection-dot {
+  background: var(--amber);
+}
+/* Where the corner rises to the stage's top right (a narrow stage), the word keeps to the left, clear of it. */
+@container (max-width: 799.98px) {
+  .stage-reconnecting {
+    align-self: flex-start;
+  }
+}
 .stage-over-video .stage-showing {
   margin: 0;
 }

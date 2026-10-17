@@ -108,11 +108,20 @@ export const joined: { devices: Partial<Record<DeviceKind, string>> | null; back
   background: null,
 }
 
+/** The open connection's callbacks, for what the page makes LiveKit say to the call (`linkLost`). */
+let callbacks: RoomCallbacks | null = null
+
 /** A connection made: recorded, with the devices it opens with (roomOptions in livekit-room.ts reads the same). */
-function connected(): void {
+function connected(cb: RoomCallbacks): void {
   asked.push('connect')
   joined.devices = chosenDevices()
   joined.background = chosenBackground()
+  callbacks = cb
+}
+
+/** The call's link is lost for a while, or back, as LiveKit's Reconnecting and Reconnected events say it. */
+export function linkLost(lost: boolean): void {
+  callbacks?.onStatus(lost ? 'reconnecting' : 'live')
 }
 
 let ended: RoomCallbacks['onEnded'] | null = null
@@ -235,7 +244,7 @@ function deviceSwitch(me: RoomParticipant, changed: () => void) {
 }
 
 export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallbacks): Promise<RoomConnection> {
-  connected()
+  connected(cb)
   said = null // a new connection has said nothing yet, as following-signal.ts starts each one
   const me = viewer()
   let textOnly = false
