@@ -49,7 +49,7 @@ The full `test:db` and `test:sql` results are recorded in B's private handback.
 ## Decisions and changes
 
 - **In-process composition, not a project runtime.** dsh offers no standalone or remote model client (`./remote` exposes only discovery), and B2's executor is built per project. The supported path is the documented composition, in the API, with Sophia owning admission, pricing and settlement. Placing the route's credential in the API process is new custody: a D-OPS decision, not made here.
-- **Settle only completed responses.** The first run showed the adapter reporting counts for a refused and an aborted call. They are held instead, which is stricter than B2's reply service (its `finish` settles from any single usage report); that difference is reported for B2's owner, not changed in B2's sealed source.
+- **Settle only completed responses.** The first run showed the adapter reporting counts for a refused and an aborted call. They are held instead. (The comparison first written here, that B2's reply service settles from any usage report, was wrong and is withdrawn: see Common source integration below.)
 - **Dependencies and identities.** `apps/api` depends on `@deepseek-ai/cordis` 4.0.4, `@deepseek-ai/dsh-llm` and `@deepseek-ai/dsh-llm-pi-ai` 0.2.0-rc.2, all already in the lock; their peers resolve as they do for the runtime.
   - Adding any of them re-keys the profile's `@deepseek-ai/dsh` and `dsh-base` peer hashes in the lock, with identical dependencies.
   - That changes the recorded `workspace_lock_sha256` and the darwin-arm64 dsh tree digest, recorded with `pnpm artifacts:record`.
@@ -62,6 +62,38 @@ The full `test:db` and `test:sql` results are recorded in B's private handback.
 - The linux-x64 dsh tree digest, from CI.
 - Integration into the common branch with Luis's later Personal changes (main's #394 changed `fixtures/personal.tsx`, which C1's barrier also changes).
 - Independent review of this candidate.
+
+## Common source integration (FND-B3-COMMON-SOURCE-INTEGRATION-01)
+
+One normal merge of the published CON-01 B2 `8c18b032` (C1 `2c60b408` with main `14e65afc`, service mode off) into this
+branch at `5c4b1961`, with no conflict. Both sides' intents are kept: B2's and C1's API, SQL, packages, Studio and
+scripts are byte-equal to `8c18b032`, and this branch's 16 Personal paths are its own. `server.ts` and `app.ts` carry
+C1's conversation wiring and the companion's side by side. In `config/runtime-unit.json`, B2's bundle and this
+branch's lock and darwin entries combine unchanged. 0073 is still the one migration added, with no amendment.
+
+Every identity reproduces without recording: the Sophia bundle
+`sha256:e516779f8608b9246ec76f877d8af5fbe54e473dc0a84f9ceb49b3a3c59428dd` (B2's, since dsh-bundle is unchanged), the
+workspace lock `6614784d…` and the darwin-arm64 dsh tree `4f6f256b…` (28,427 entries). The linux-x64 entry still holds
+`4552d08f…` and is unqualified until a Linux build measures it.
+
+Checks on the merged head (Node 24.21.0, pnpm 11.7.0; private PostgreSQL 17.11, UTF8, fresh and removed after):
+- toolchain, format, lint and typecheck pass; contract regeneration has no drift; `pnpm artifacts` reproduces.
+- Unit: 3017 passed, 0 failed, 70 skipped.
+- `test:sql`: 68 migrations, 5 files. `test:db`: 1004 passed, 0 failed, 0 skipped. The two exclusive Q13 groups are
+  skipped suites with no tests, not counted; their PostgreSQL 16 qualification is still owed.
+- Personal, focused: live companion, usage (0073), API and persistence personal suites 71/71, rehearsal 2/2. These
+  run the real Cordis, dsh-llm and pi-ai composition against the local Responses double with a fake test key.
+- B2 crossings: 17/17 (runtime service 5, conversation service 12). They authenticate with a synthetic Bearer
+  test-actor verifier, not signed JWT verification.
+- C1 served cases: 5/5, with VISION and the companion unset, including the outsider's 403 at the closed door.
+
+Correction: this record first said that B2's service executor settles usage after an errored or aborted call. That
+was wrong and is withdrawn. B2 settles only a completed response's usage, as this companion does, and pi-ai's
+synthetic usage on an error or abort stays uncertain in both. No fix was needed or made.
+
+Unchanged holds: the companion and B2's service mode stay off. The native reply supervisor's open review
+(4300538470) still blocks native and BYO activation. Davide's Personal data and recipient approval, an admitted payer
+and allowance, the API host's credential custody (D-OPS) and V's route check are still owed.
 
 ## Next bounded action
 
