@@ -9,7 +9,10 @@ const lightRead = (page: Page) =>
   page.evaluate(() => {
     const light = document.querySelector<HTMLElement>('.light')
     if (!light) return null
-    const running = light.getAnimations({ subtree: true }).filter((a) => a.playState === 'running')
+    // Its loops, not the transitions its states ease through as the page arrives.
+    const running = light
+      .getAnimations({ subtree: true })
+      .filter((a) => a.playState === 'running' && a instanceof CSSAnimation)
     const trace = light.querySelector<HTMLElement>('.light-trace')
     return {
       animations: running.length,

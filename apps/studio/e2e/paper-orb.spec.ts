@@ -112,7 +112,8 @@ test('orb · her voice swells her and lifts her heart while she speaks, and only
   await page.goto('/room.html?call=on&sophia=speaking&theme=light')
   await expect(stage(page)).toHaveAttribute('data-mode', 'speak')
   await voice(page, 0)
-  await expect.poll(async () => (await orbRead(page)).ls).toBe(1)
+  // Her light ignites on arrival (a slow spring, about 4 s to within 1 %): read once it has.
+  await expect.poll(async () => (await orbRead(page)).ls, { timeout: 8000 }).toBeGreaterThanOrEqual(0.99)
   const quiet = (await orbRead(page)).scale
   await voice(page, 0.9)
   await expect.poll(async () => (await orbRead(page)).scale / quiet, { timeout: 2000 }).toBeGreaterThanOrEqual(1.15)
