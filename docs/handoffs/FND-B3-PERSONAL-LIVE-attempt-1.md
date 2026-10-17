@@ -265,6 +265,17 @@ bound it as unmerged and unapplied, since the production ledger has no 0073. No 
   payer").
 - The ordinary check, `test:sql`, `test:db` and the trusted-creator group of this head are in B's handback.
 
+**The Linux runtime identity (CI on #435).** The PostgreSQL 16 and runtime-unit jobs on `82ab58f9` both failed at the
+artifact check.
+- Two clean Ubuntu builds measured the linux-x64 runtime tree as `bff106c3…` (27,747 entries). The record still held
+  B2's `4552d08f…`: Personal's lock changes that tree.
+- No artifact input changes in this repair. The lock, the profile, the runtime package, the artifact scripts, the dsh
+  pin, the toolchain and the reproduced bundle `a27cc50a…` are all those of `82ab58f9`.
+- So, with P's permission, the linux-x64 entry and the primary alias record that measurement. The darwin entry
+  `4f6f256b…` still reproduces.
+- This records what CI observed. It is not a Linux pass for this head: the next CI run must reproduce it and complete
+  the gated crossings, provenance and both PostgreSQL 16 helper phases.
+
 ## Next bounded action
 
 B's private handback goes to P; R reviews this repair. No push.
