@@ -21,6 +21,46 @@ test('version · a part that can’t load after a deploy says Sophia was updated
   await expect(notice(page)).toBeVisible()
 })
 
+test('version · a word that came before the notice was drawn still shows it (Codex P2 on #415)', async ({ page }) => {
+  // As soon as the page's own scripts have run: App's eager imports may hear of a stale part before React draws.
+  await page.addInitScript(() => {
+    document.addEventListener('DOMContentLoaded', () => window.dispatchEvent(new Event('vite:preloadError')))
+  })
+  await page.goto(`${APP}/app.html`)
+  await expect(notice(page)).toBeVisible()
+})
+
+test('version · the notice stands over the opening, its Reload under the pointer (Codex P2 on #415)', async ({
+  page,
+}) => {
+  await page.goto(`${APP}/app.html`)
+  // The opening's overlay, shown, as a sign-in's return shows it.
+  await page.evaluate(() => {
+    const entry = document.getElementById('entry')
+    if (entry) entry.hidden = false
+  })
+  await deployed(page)
+  const reload = notice(page).getByRole('button', { name: 'Reload' })
+  await expect(reload).toBeVisible()
+  const box = await reload.boundingBox()
+  const under = await page.evaluate(
+    ([x, y]) => document.elementFromPoint(x ?? 0, y ?? 0)?.textContent ?? '',
+    [(box?.x ?? 0) + (box?.width ?? 0) / 2, (box?.y ?? 0) + (box?.height ?? 0) / 2],
+  )
+  expect(under).toBe('Reload')
+})
+
+test('version · Not now gives the focus back to where it was (Codex P2 on #415)', async ({ page }) => {
+  await page.goto(`${APP}/app.html`)
+  const account = page.getByRole('button', { name: 'Account' }).first()
+  await account.focus()
+  await deployed(page)
+  await notice(page).getByRole('button', { name: 'Not now' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(notice(page)).toHaveCount(0)
+  await expect(account).toBeFocused()
+})
+
 test('version · Reload reloads the page', async ({ page }) => {
   await page.goto(`${APP}/app.html`)
   await page.evaluate(() => Reflect.set(window, 'beforeReload', true))
