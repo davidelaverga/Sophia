@@ -193,8 +193,9 @@ describe('private immutable report-byte copies', () => {
 
   it('refuses a put whose journal another connection holds, uncharged and untouched, then admits it once', async (t) => {
     // The DIRECT inner path (no outer claim), on a healthy journal a first put initialized. The competing lock is
-    // INJECTED by a separate connection and held until the put under test has settled, then released in `finally`:
-    // the base worker refuses contention at once (fail closed), and nothing of the refused put may remain.
+    // INJECTED by a separate connection and held until the put under test has settled (the base control: for a fixed
+    // 300 ms), then released in `finally`: the base worker refuses contention at once (fail closed), and nothing of the
+    // refused put may remain.
     const root = volume(t)
     const remote = memoryByteStore()
     const store = withByteBackup(remote, backupAt(root))
@@ -203,41 +204,46 @@ describe('private immutable report-byte copies', () => {
     const lock = new DatabaseSync(join(root, 'budget', 'reservations.sqlite'), { timeout: 0 })
     t.after(() => lock.close())
     const untouched = { ...before, reservedForKey: 0, copy: false, temporaries: 0, remote: false }
+    // `hold` 0: held until the put settles. The declared base control holds for exactly 300 ms, whatever its outcome.
     const holding = async (begin: 'BEGIN' | 'BEGIN IMMEDIATE', put: () => Promise<void>, hold = 0) => {
-      lock.exec(begin)
-      // SHARED is taken by a read inside the transaction; RESERVED by BEGIN IMMEDIATE itself.
-      if (begin === 'BEGIN') lock.prepare('SELECT count(*) AS n FROM reservations').get()
       const started = performance.now()
+      lock.exec(begin)
       try {
+        // SHARED is taken by a read inside the transaction; RESERVED by BEGIN IMMEDIATE itself.
+        if (begin === 'BEGIN') lock.prepare('SELECT count(*) AS n FROM reservations').get()
         const [settled] = await outcomes([put()])
-        // The base 100 ms caller / 300 ms lock control holds for 300 ms. A put the caller's deadline refused before its
-        // worker refused may still have a worker running: hold on past that worker's own bound before releasing.
-        const left = settled?.stage === 'deadline 503' ? BACKUP_QUOTA_MS + 500 : hold
-        await sleep(Math.max(0, left - (performance.now() - started)))
+        await sleep(Math.max(0, hold - (performance.now() - started)))
         return settled
       } finally {
         lock.exec(begin === 'BEGIN' ? 'COMMIT' : 'ROLLBACK')
       }
     }
-    const cases = [
-      ['SHARED', await holding('BEGIN', () => store.put(KEY, new Uint8Array([1]), MIME))],
-      ['RESERVED', await holding('BEGIN IMMEDIATE', () => store.put(KEY, new Uint8Array([2]), MIME))],
-      [
-        '100 ms caller, 300 ms lock',
-        await holding(
-          'BEGIN IMMEDIATE',
-          () => store.put(KEY, new Uint8Array([3]), MIME, undefined, callerDeadline100ms()),
-          300,
-        ),
-      ],
-    ] as const
-    for (const [held, settled] of cases) {
+    const refusedUntouched = (held: string, settled: Awaited<ReturnType<typeof holding>>) => {
       const record = JSON.stringify({ held, settled, after: afterState(root, KEY, remote) })
       assert.equal(settled?.fulfilled, false, record)
-      assert.ok(settled?.stage === 'inner quota 503' || settled?.stage === 'deadline 503', record)
+      assert.equal(settled?.stage, 'inner quota 503', record)
       assert.deepEqual(afterState(root, KEY, remote), untouched, record)
     }
-    assert.equal(cases[2][1]?.stage === 'inner quota 503' ? (cases[2][1]?.ms ?? 0) < 100 : true, true)
+    refusedUntouched('SHARED', await holding('BEGIN', () => store.put(KEY, new Uint8Array([1]), MIME)))
+    refusedUntouched('RESERVED', await holding('BEGIN IMMEDIATE', () => store.put(KEY, new Uint8Array([2]), MIME)))
+    // The base control, fixed: a 100 ms caller deadline under a RESERVED lock released at 300 ms. It qualifies only on
+    // the worker's own capacity refusal before the caller's deadline: the quota wrapper answers that only on the
+    // worker's exit (its one other answer is its 5 s timer), so nothing of that worker can follow the release.
+    const fixed = await holding(
+      'BEGIN IMMEDIATE',
+      () => store.put(KEY, new Uint8Array([3]), MIME, undefined, callerDeadline100ms()),
+      300,
+    )
+    if (fixed?.stage !== 'inner quota 503' || fixed.ms >= 100) {
+      // INCONCLUSIVE, so FAILED: the caller's deadline or another stage answered before the worker's refusal was seen,
+      // so whether it reserved or copied after the 300 ms release is unknown. The wait below is cleanup only (the
+      // worker's own bound, before the volume goes) and proves nothing about the worker's exit.
+      await sleep(BACKUP_QUOTA_MS + 500)
+      assert.fail(
+        `inconclusive 100 ms caller / 300 ms lock control: ${JSON.stringify({ fixed, afterCleanup: afterState(root, KEY, remote) })}`,
+      )
+    }
+    refusedUntouched('100 ms caller, 300 ms lock', fixed)
     // Released: the refused key was never charged, so one declared put now goes through, and it is immutable after.
     await store.put(KEY, new Uint8Array([4]), MIME)
     await assert.rejects(store.put(KEY, new Uint8Array([5]), MIME), conflict)

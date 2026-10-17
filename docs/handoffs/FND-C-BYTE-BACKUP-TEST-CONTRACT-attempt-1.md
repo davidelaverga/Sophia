@@ -1,6 +1,7 @@
 # Implementation-session handoff
 
-Goal and attempt: FND-C-BYTE-BACKUP-TEST-CONTRACT-02 (the byte-backup test's progress precondition, corrected), attempt 1
+Goal and attempt: FND-C-BYTE-BACKUP-TEST-CONTRACT-02 (the byte-backup test's progress precondition, corrected), attempt
+1, and FND-C-BYTE-BACKUP-FIXED-CONTROL-03 (R-BB-3E76-1: the fixed base control)
 Human owner / executor resource: Davide (assignment, relayed from P) / Claude Code lane C (transcript
 `2ae2e877-b3cf-44a7-bccc-4db0d9846006`)
 Native session: as above
@@ -48,9 +49,16 @@ Ending commit/tree: the commit this record is in.
      SHARED, RESERVED, and the base control (a 100 ms caller deadline under a 300 ms RESERVED lock).
    - Each case must fail closed: the inner quota 503 (or the caller's deadline 503), with the key's reservation,
      copy, temporaries, remote and the whole journal accounting unchanged.
-   - In the base control, a worker refusal must come before 100 ms.
-   - If the caller's deadline refuses first, the lock is held past the worker's own bound (`BACKUP_QUOTA_MS` + 500 ms)
-     before release. So no expectation depends on whether the lock is released before the worker starts.
+   - The SHARED and RESERVED cases must each be the inner quota 503, checked right after their own release.
+   - The base control is FIXED (R-BB-3E76-1): the lock is released at 300 ms whatever happens.
+     - It qualifies only on the worker's own capacity refusal before the caller's 100 ms deadline. The quota wrapper
+       answers that only on the worker's exit (its one other answer is its 5 s timer), so nothing of that worker can
+       follow the release. The untouched after-state is then checked.
+     - Any other outcome (the caller's deadline first, another stage, 100 ms or more) FAILS as an inconclusive control.
+       Its sanitized record includes an after-state observed after a bounded cleanup wait. That wait (the worker's own
+       bound, before the volume is removed) is cleanup only: never qualification, never proof of the worker's exit.
+     - The earlier version (3e767e96) instead held the lock to 5.5 s on a deadline-first outcome and passed. That was a
+       different control, and it masked a late reservation/copy.
    - Then one declared put of that never-charged key succeeds, and a later one conflicts with the bytes unchanged.
 
 Failures record each outcome's stage and timing, and the key's after-state. Never bytes, private paths, or messages
@@ -64,6 +72,12 @@ closed database.
   assertion: both claims granted, two inner backups, one put fulfilled, one refused by inner quota 503. Restored
   byte-identically. This is a mutant of the claim, not a reproduction of B's failure.
 - One ordinary `pnpm check` on the final tree: see the handback.
+- **Fixed control (03)**, adverse witness: the rejected a5219130 worker (its 1 s wait, blob `47298335`) swapped in
+  temporarily.
+  - The 3e767e96 test PASSES under it (7.9 s, through its 5.5 s fallback): the masking.
+  - The corrected test FAILS at the fixed control: «deadline 503» at 100 ms. Its after-cleanup observation shows a
+    reservation and a local copy, no remote.
+  - Both files were restored byte-identically. A mutant of the worker, not a reproduction of B's failure.
 
 ## Remaining obligations
 
