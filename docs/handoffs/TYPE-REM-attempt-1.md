@@ -51,8 +51,8 @@ commits on the branch merge its base forward or touch only this record). 9 files
     `max(18px, var(--lh-small))`, without wrapping.
   - Unshrinking the Updates kinds made a 320 px phone page 7 px wider (`updates-narrow`, Codex on #239). Their part's
     grid column now may be narrower than its widest row, so the strip scrolls in it.
-- Type-aware lint, typecheck and Prettier are clean, apart from main's own `ProjectBody` length (see Remaining
-  obligations).
+- Type-aware lint, typecheck and Prettier are clean, with main merged in after #423 fixed main's own `ProjectBody`
+  length.
 - **No capture:** nothing moves at the browser's own size, and the fit check measures the larger sizes.
 
 ## Decisions and changes
@@ -73,8 +73,6 @@ commits on the branch merge its base forward or touch only this record). 9 files
 
 ## Remaining obligations
 
-- **Main's lint:** it is red since #368 merged (`ProjectBody`, 63 lines); #423 fixes it. This branch takes main after
-  #423 lands, then lint runs clean here too.
 - Step 2 of the plan (the px font sizes), if Luis wants it.
 
 ## Next bounded action
