@@ -25,6 +25,12 @@ interface Sound {
   muted: boolean
 }
 
+/** A sound at a level; Off mutes it too, until its track stops coming. */
+const put = (sound: Sound, level: Level) => {
+  sound.volume = level
+  sound.muted = level === 0
+}
+
 /** One of a person's tracks, as LiveKit's publication: taken (subscribed) or let go. */
 interface Track {
   readonly kind: string
@@ -39,10 +45,6 @@ export function peopleVolume() {
   const levels = new Map<string, Level>()
   const sounds = new Map<Sound, string>()
   const levelOf = (identity: string) => levels.get(identity) ?? 1
-  const put = (sound: Sound, level: Level) => {
-    sound.volume = level
-    sound.muted = level === 0
-  }
   /** Their sound comes unless they are Off; their video is left alone. */
   const take = (track: Track, identity: string) => {
     const wanted = levelOf(identity) !== 0
