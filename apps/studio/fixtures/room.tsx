@@ -556,6 +556,9 @@ const project = {
   designing: query.get('design') === 'designing',
   pageTampered: query.get('tamper') === 'html',
   work: query.get('place') === 'work',
+  // `reports=1`: the research task in the snapshot's work and the report's current version in its artifacts, as the API
+  // serves them (goal-reports.md).
+  goalReports: query.get('reports') === '1',
   // `notes=off`: the brief allows this person no note.
   showing: noShowing(),
   // A18: the project's conversations (`conversations=1`; `=none`, none; `=fail`, the list fails; `messages=fail`, the
