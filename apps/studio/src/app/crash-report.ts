@@ -33,10 +33,19 @@ function holdEarly(): { stop: () => unknown[] } {
   }
 }
 
-export function startCrashReports(): void {
-  if (!reportsOn() || loading) return
+/**
+ * Sentry, loading or loaded; a load or a set-up that failed is forgotten, so the next ask (a feedback sent) starts it
+ * again (Codex P2 on #367). Without a DSN, nothing.
+ */
+function sentry(): Promise<SentryModule | null> {
+  if (!reportsOn()) return Promise.resolve(null)
+  loading ??= start()
+  return loading
+}
+
+function start(): Promise<SentryModule | null> {
   const early = holdEarly()
-  loading = loadSentry()
+  return loadSentry()
     .then((Sentry) => {
       Sentry.init({
         dsn: CRASH_DSN,
@@ -53,24 +62,46 @@ export function startCrashReports(): void {
     })
     .catch(() => {
       early.stop()
-      // Not loaded or not set up: nothing goes, and a later send says it couldn't (Codex P2 on #367).
+      // Not loaded or not set up: nothing goes now, and the next feedback starts it again (Codex P2 on #367).
       loading = null
       return null
     })
 }
 
-/** What a boundary caught (LoadFailed): reported, never thrown again. */
+export function startCrashReports(): void {
+  void sentry()
+}
+
+/** An answer, or false once `ms` have passed. */
+function within(answer: Promise<boolean>, ms: number): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<boolean>((done) => {
+    timer = setTimeout(() => done(false), ms)
+  })
+  return Promise.race([answer, late]).finally(() => clearTimeout(timer))
+}
+
+/**
+ * What a boundary caught (LoadFailed): reported, never thrown again. A Sentry that failed to start isn't started for it:
+ * each new try of a chunk that won't load would say a new version came (NewVersion), crash after crash.
+ */
 export function reportCrash(error: unknown): void {
   void loading?.then((Sentry) => Sentry?.captureException(error)).catch(() => undefined)
 }
 
-/** Feedback in the person's words; resolves to whether Sentry took it within a few seconds, never throws. */
+/**
+ * Feedback in the person's words; resolves to whether Sentry's ingest took it (a 2xx) within a few seconds, never throws.
+ * A request blocked, refused or rate-limited is not sent (Codex P2 on #367): `flush` only said the queue drained.
+ */
 export async function sendFeedback(message: string): Promise<boolean> {
   try {
-    const Sentry = await loading
+    const Sentry = await sentry()
     if (!Sentry) return false
-    Sentry.captureFeedback({ message, source: 'studio' })
-    return await Sentry.flush(8000)
+    const delivered = Sentry.sendFeedback({ message, source: 'studio' }).then(
+      () => true,
+      () => false,
+    )
+    return await within(delivered, 8000)
   } catch {
     return false
   }
