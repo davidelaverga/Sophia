@@ -1012,6 +1012,9 @@ describe('reconcile: an honest count, and no row starved behind rows it cannot c
   })
 })
 
+/** Pairs sorted by their first member (an attempt id), for comparing target sets in any order. */
+const byFirst = (x: readonly unknown[], y: readonly unknown[]) => String(x[0]).localeCompare(String(y[0]))
+
 describe('completed-goal session retirement (migration 0075, A41)', () => {
   const LIVE = 'stopped; the native driver is idle and the handle is released'
   const RESTOP = 'stopped; the stopped epoch stands'
@@ -1087,6 +1090,18 @@ describe('completed-goal session retirement (migration 0075, A41)', () => {
     })
     return { goalId: admitted.goalId, taskId: admitted.taskId, create, second: { attempt, binding } }
   }
+
+  /** The retirement a member reads in the snapshot's goal (A41): only a current admin is given one. */
+  const retirementOf = async (actor: string, projectId: string, goalId: string) =>
+    (await withActor(pool, actor, 'read', (c) => readSnapshot(c, projectId)))?.goals.find((g) => g.id === goalId)
+      ?.retirement
+  const commandState = async (projectId: string, commandId: string) =>
+    (
+      await one<{ state: string }>('SELECT state FROM sophia.commands WHERE project_id=$1 AND id=$2', [
+        projectId,
+        commandId,
+      ])
+    ).state
 
   /** The runtime's view of a project's bindings, as a restarted bridge would read them. */
   const helloStates = async (w: Awaited<ReturnType<typeof world>>) => {
@@ -1240,11 +1255,165 @@ describe('completed-goal session retirement (migration 0075, A41)', () => {
     })
     const hello = await helloStates(w)
     assert.equal(hello[create.binding.attemptId], 'stopped')
-    // The command row's one state is not per-target truth (unchanged 0064 paths, ordinary Stop alike): the lost
-    // target's settlement marks it checked first. The truth per target is its binding and its own receipt, as above.
+    // R-C75-01: the lost target settled without contact first, then the other one's stop was not confirmed. The
+    // retirement says so as a whole (outcome_unknown), never checked; each target keeps its own class.
+    const cmd = await one<{ state: string }>('SELECT state FROM sophia.commands WHERE project_id=$1 AND id=$2', [
+      p,
+      admitted.commandId,
+    ])
+    assert.equal(cmd.state, 'outcome_unknown')
+    const shown = await retirementOf(A, p, goalId)
+    assert.deepEqual(
+      shown?.targets.map((t) => [t.attemptId, t.result]).toSorted(byFirst),
+      [
+        [create.binding.attemptId, 'outcome_unknown'],
+        [second.attempt, 'no_contact'],
+      ].toSorted(byFirst),
+    )
     assert.deepEqual(
       [(await goalRow(p, goalId)).status, (await goalRow(p, goalId)).revision],
       ['completed', g.revision],
     )
+  })
+
+  it('refuses a body before any effect, and replays an exact request even after its epoch moved, with no new targets', async () => {
+    const w = await world()
+    const p = w.project.projectId
+    const { goalId } = await completedWithTwo(w)
+    const g = await goalRow(p, goalId)
+    const [rev, epoch] = [Number(g.revision), Number(g.authority_epoch)]
+    const withBody = withActor(pool, A, 'write', (c) =>
+      admitGoalCommand(c, p, randomUUID(), {
+        kind: 'retire_sessions',
+        goalId,
+        expectedGoalRevision: rev,
+        expectedAuthorityEpoch: epoch,
+        bodySourceId: w.inputs[0] ?? randomUUID(),
+      }),
+    )
+    assert.equal(await codeOf(withBody), 'invalid_request')
+    assert.deepEqual(await goalRow(p, goalId), g, 'no epoch, state or event moved')
+    const count = async () =>
+      await one<{ commands: number; rows: number }>(
+        `SELECT (SELECT count(*)::int FROM sophia.commands WHERE project_id=$1 AND kind='retire_sessions') AS commands,
+                (SELECT count(*)::int FROM sophia.outbox o JOIN sophia.commands c ON c.project_id=o.project_id AND c.id=o.command_id
+                  WHERE c.project_id=$1 AND c.kind='retire_sessions') AS rows`,
+        [p],
+      )
+    assert.deepEqual(await count(), { commands: 0, rows: 0 })
+    const key = randomUUID()
+    const first = await retire(A, p, goalId, [rev, epoch], key)
+    assert.deepEqual(await retire(A, p, goalId, [rev, epoch], key), first, 'an exact replay after its own epoch move')
+    assert.deepEqual(await count(), { commands: 1, rows: 2 })
+  })
+
+  for (const order of ['live first', 'unknown first'] as const) {
+    it(`never reports a retirement checked while one target is unconfirmed; later matching evidence improves it (${order})`, async () => {
+      const w = await world()
+      const p = w.project.projectId
+      const { goalId, create, second } = await completedWithTwo(w)
+      const g = await goalRow(p, goalId)
+      const admitted = await retire(A, p, goalId, [Number(g.revision), Number(g.authority_epoch)])
+      // Before dispatch: in flight, both pending; the snapshot shows both, to the admin only.
+      assert.deepEqual(
+        (await retirementOf(A, p, goalId))?.targets.map((t) => t.result),
+        ['pending', 'pending'],
+      )
+      for (const actor of [E, V]) assert.equal(await retirementOf(actor, p, goalId), undefined, actor)
+      await dispatchAll(p)
+      const stops = (await withService(pool, (c) => runtimePoll(c, w.who, 0))).commands
+        .map((x) => x.command as RuntimeCommand)
+        .filter((x) => x.kind === 'stop' && x.binding.authorityEpoch === admitted.authorityEpoch)
+      const live = stops.find((x) => x.binding.attemptId === create.binding.attemptId)!
+      const other = stops.find((x) => x.binding.attemptId === second.attempt)!
+      const steps = [
+        () => recordRuntimeReceipts(c0, w.who, [receipt(live, 'checked', { reason: LIVE })]),
+        () =>
+          recordRuntimeReceipts(c0, w.who, [
+            receipt(other, 'outcome_unknown', {
+              reason: 'stopped; cancellation did not settle in time',
+              nativeSessionId: `sophia-${second.attempt}`,
+            }),
+          ]),
+      ]
+      let c0!: Parameters<Parameters<typeof withService>[1]>[0]
+      const run = (step: () => Promise<unknown>) =>
+        withService(pool, (c) => {
+          c0 = c
+          return step()
+        })
+      await run(order === 'live first' ? steps[0]! : steps[1]!)
+      assert.equal(await commandState(p, admitted.commandId), 'dispatching', 'one target still open')
+      await run(order === 'live first' ? steps[1]! : steps[0]!)
+      assert.equal(await commandState(p, admitted.commandId), 'outcome_unknown', 'not every target confirmed')
+      let shown = await retirementOf(A, p, goalId)
+      assert.deepEqual(
+        shown?.targets.map((t) => [t.attemptId, t.result, t.stage]).toSorted(byFirst),
+        [
+          [create.binding.attemptId, 'live_reported', 'checked'],
+          [second.attempt, 'outcome_unknown', 'outcome_unknown'],
+        ].toSorted(byFirst),
+      )
+      // The same delivery's own later checked receipt improves that target; then every target has an answer.
+      await run(() =>
+        recordRuntimeReceipts(c0, w.who, [
+          receipt(other, 'checked', { reason: RESTOP, nativeSessionId: `sophia-${second.attempt}` }),
+        ]),
+      )
+      shown = await retirementOf(A, p, goalId)
+      assert.equal(shown?.state, 'checked')
+      assert.deepEqual(
+        shown?.targets.map((t) => [t.attemptId, t.result]).toSorted(byFirst),
+        [
+          [create.binding.attemptId, 'live_reported'],
+          [second.attempt, 'durable_only'],
+        ].toSorted(byFirst),
+      )
+      // The feed carries each change, so a reader refreshes.
+      const events = await one<{ n: number }>(
+        `SELECT count(*)::int AS n FROM sophia.project_events WHERE project_id=$1 AND type='command.retirement_changed' AND entity_id=$2`,
+        [p, admitted.commandId],
+      )
+      assert.ok(events.n >= 3, `retirement changes on the feed: ${String(events.n)}`)
+    })
+  }
+
+  it('a refused target keeps the retirement denied, and a late old receipt changes neither it nor the fence', async () => {
+    const w = await world()
+    const p = w.project.projectId
+    const { goalId, create, second } = await completedWithTwo(w)
+    const g = await goalRow(p, goalId)
+    const admitted = await retire(A, p, goalId, [Number(g.revision), Number(g.authority_epoch)])
+    await dispatchAll(p)
+    const stops = (await withService(pool, (c) => runtimePoll(c, w.who, 0))).commands
+      .map((x) => x.command as RuntimeCommand)
+      .filter((x) => x.kind === 'stop' && x.binding.authorityEpoch === admitted.authorityEpoch)
+    const live = stops.find((x) => x.binding.attemptId === create.binding.attemptId)!
+    const other = stops.find((x) => x.binding.attemptId === second.attempt)!
+    await withService(pool, (c) =>
+      recordRuntimeReceipts(c, w.who, [
+        receipt(other, 'rejected', { reason: 'unknown attempt', nativeSessionId: `sophia-${second.attempt}` }),
+        receipt(live, 'checked', { reason: LIVE }),
+      ]),
+    )
+    assert.equal(await commandState(p, admitted.commandId), 'denied')
+    // A late receipt of the old create (another command, an older epoch) is recorded as before, and proves nothing here.
+    await withService(pool, (c) => recordRuntimeReceipts(c, w.who, [receipt(create, 'incorporation_observed')]))
+    const shown = await retirementOf(A, p, goalId)
+    assert.deepEqual(
+      shown?.targets.map((t) => [t.attemptId, t.result]).toSorted(byFirst),
+      [
+        [create.binding.attemptId, 'live_reported'],
+        [second.attempt, 'rejected'],
+      ].toSorted(byFirst),
+    )
+    assert.equal(shown?.state, 'denied')
+    assert.equal((await helloStates(w))[second.attempt], 'stopped', 'the fence stands for the refused target')
+    // A demoted admin no longer reads it; the editor never did.
+    await owner((c) =>
+      c.query(`UPDATE sophia.project_members SET role='editor' WHERE project_id=$1 AND actor_id=$2`, [p, A]),
+    )
+    assert.equal(await retirementOf(A, p, goalId), undefined)
+    assert.equal(await retirementOf(E, p, goalId), undefined)
   })
 })

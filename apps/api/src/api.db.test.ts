@@ -266,6 +266,11 @@ describe('command admission', () => {
     } finally {
       await owner.end()
     }
+    // A retirement carries no body: the contract refuses one before the database is reached (R-C75-04).
+    const withBody = await call(A, 'POST', path, retire({ bodySourceId: seed.sourceId }), {
+      'idempotency-key': randomUUID(),
+    })
+    assert.equal(withBody.status, 422) // and nothing moved: the admission below still expects epoch 1
     const editor = await call(B, 'POST', path, retire(), { 'idempotency-key': randomUUID() })
     assert.equal(editor.status, 403, 'an editor may Stop, never retire')
     const key = randomUUID()

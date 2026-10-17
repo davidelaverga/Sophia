@@ -141,7 +141,7 @@ export const RECEIPT_STAGES = [
 export const OUTBOX_DESTINATIONS = ['native.create', 'native.resume', 'native.stop', 'control.settle']
 
 export const EVENT_TYPES = [
-  ...suffixed('command.', ['admitted', 'incorporated', 'outcome_unknown', 'denied']),
+  ...suffixed('command.', ['admitted', 'incorporated', 'outcome_unknown', 'denied', 'retirement_changed']),
   ...suffixed('room.', ['session_scheduled', 'session_canceled', 'lobby_changed', 'input_floor_changed']),
   ...suffixed('room.', ['invitation_created', 'invitation_reissued', 'invitation_revoked']),
   ...suffixed('room.', ['exchange_opened', 'exchange_changed', 'sophia_presence', 'host_muted', 'host_removed']),

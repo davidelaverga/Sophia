@@ -16,11 +16,12 @@ export async function admitGoalCommand(
   idempotencyKey: string,
   cmd: GoalCommand,
 ): Promise<Receipt> {
-  // Retiring a completed goal's sessions is its own admission (0075, A41): admin only, completed only, no body.
+  // Retiring a completed goal's sessions is its own admission (0075, A41): admin only, completed only, no body (a
+  // supplied one is refused there, before any effect).
   if (cmd.kind === 'retire_sessions') {
     const { rows } = await c.query<{ receipt: Receipt }>(
-      `SELECT sophia.admit_session_retirement($1, $2, $3, $4, $5) AS receipt`,
-      [projectId, cmd.goalId, idempotencyKey, cmd.expectedGoalRevision, cmd.expectedAuthorityEpoch],
+      `SELECT sophia.admit_session_retirement($1, $2, $3, $4, $5, $6) AS receipt`,
+      [projectId, cmd.goalId, idempotencyKey, cmd.expectedGoalRevision, cmd.expectedAuthorityEpoch, cmd.bodySourceId],
     )
     return onlyRow(rows, 'admit_session_retirement').receipt
   }

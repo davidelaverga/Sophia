@@ -91,14 +91,49 @@ Ending commit/tree: the commit this record is in.
 - Unit: `session-retirement-source.test.ts` (3) and `commands-for.test.ts` (2).
 - The handback has the logs, the full `.db` suite, the mutation and the ordinary `pnpm check`.
 
+## Truth and qualification repair (FND-C-RETIREMENT-TRUTH-QUALIFICATION-REPAIR-01)
+
+R's initial review (R-C75-01..04) found four defects. This repair, still in the unpublished 0075/A41, addresses each:
+
+- **R-C75-01, an honest aggregate.**
+  - Each admitted target is classified only from its own retirement's cleanup delivery and the runtime's receipts for
+    exactly that delivery (`sophia.retirement_targets`): live_reported, durable_only, checked, no_contact, pending,
+    outcome_unknown, failed, rejected, denied or superseded.
+  - `sophia.retirement_state` reduces the set: in flight while any target is (never past `dispatching`); `checked` only
+    when every target is checked or settled without contact; any unknown or failed target makes it `outcome_unknown`;
+    otherwise a refused one makes it `denied`.
+  - A `BEFORE UPDATE OF state` trigger on `commands`, only `WHEN OLD.kind='retire_sessions'`, applies it whatever path
+    writes the state.
+  - Triggers on cleanup-delivery state changes and on receipt inserts reduce again and emit
+    `command.retirement_changed`, so the feed refreshes readers. A later matching checked receipt improves an unknown
+    target.
+  - The admission receipt is never rewritten. Ordinary commands, and the latest dispatch, receipt and hello functions,
+    are untouched.
+- **R-C75-02, results after refresh, for admins only.** `sophia.goal_retirements` (SECURITY DEFINER) returns, for a
+  CURRENT project admin only (decided per read), each goal's latest retirement:
+  - its command, state, goal revision and epoch;
+  - every admitted target from the durable deliveries, with no truncation and no maxItems;
+  - per target: binding, attempt, native session, runtime command, stage, native sequence, a reason of at most 200
+    characters, observedAt and the result class.
+  - No body, evidence or source text.
+  - The snapshot attaches it to the goal (A41 `Goal.retirement`). Studio's goal controls render it with words that keep
+    a live fence, a durable restop and a settlement without contact apart, and never say «all stopped» while any target
+    is open or refused. Editors, viewers and demoted admins receive none.
+- **R-C75-03, the real crossing.** Two new cases in `tests/integration/runtime-service.test.mjs`, on the real API,
+  database, worker dispatch and pinned dsh bridge with the keyless mock model (completion is a labelled owner write):
+  - a live session is fenced by the bridge (`checked`, «the native driver is idle and the handle is released», epoch 2);
+    nothing runs after it; a SIGKILL restart does not revive it;
+  - a retirement admitted while the runtime is down: the restarted bridge reads the binding stopped (hello's fence, so
+    the session is never loaded), then receives the stop as a durable restop (`checked`, «the stopped epoch stands»).
+  - Both are shown in the admin's snapshot; the editor sees none.
+- **R-C75-04, no body.** The A41 `GoalCommand` rule (`if kind=retire_sessions then bodySourceId null`) refuses a body at
+  the API (422). The SQL refuses one too (22023), before any lock or effect, with exact null-body replay kept.
+
 ## Limits and open items
 
-- **No per-target settlement reader exists** (the snapshot's goal carries status and epoch only). The UI shows the
-  admission and its admitted targets, and says settlement isn't shown. A per-target reader would be a new route or
-  snapshot field: not invented here.
-- **The command row's one `state` is not per-target truth.** With one lost target settled by dispatch and one
-  `outcome_unknown`, it reads `checked`. This comes from unchanged 0064 paths that ordinary multi-binding Stop shares.
-  Per-target truth is each binding and its receipt.
+- Superseded by the repair above: the per-target reader (now the admin snapshot's `Goal.retirement`) and the command
+  row's aggregate (now reduced over every target).
+- The Studio result view has no local browser evidence yet: OWED in a P-granted browser slot.
 - The production pair (goal `d1ebfca7…`) was not touched. Whether the live bridge holds those attempts is UNKNOWN; an
   unknown attempt is answered `rejected`, never a pass.
 - Owed: R's independent review; B's integration (keeping Luis's labels and design); current-head CI (PG16); a V-sealed

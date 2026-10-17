@@ -11,13 +11,15 @@
 
 BEGIN;
 
-CREATE FUNCTION sophia.admit_session_retirement(p_project uuid,p_goal uuid,p_key text,p_expected_revision bigint,p_expected_epoch bigint)
+CREATE FUNCTION sophia.admit_session_retirement(p_project uuid,p_goal uuid,p_key text,p_expected_revision bigint,p_expected_epoch bigint,p_body_source uuid)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.actor_id(); g sophia.goals; prior sophia.commands; semantic jsonb;
  cmd uuid:=gen_random_uuid(); cursor_value bigint; receipt_value jsonb; b record; targets jsonb:='[]'::jsonb;
 BEGIN
  -- The narrowest existing owner predicate: an active project admin, from the verified actor (0010).
  IF NOT sophia.is_admin(p_project) THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;
+ -- A retirement carries no body: one supplied is refused before any lock, record or effect (R-C75-04).
+ IF p_body_source IS NOT NULL THEN RAISE EXCEPTION 'Retiring sessions takes no body' USING ERRCODE='22023'; END IF;
  IF p_key IS NULL OR length(p_key) NOT BETWEEN 1 AND 160 THEN RAISE EXCEPTION 'Invalid idempotency key' USING ERRCODE='22023'; END IF;
  PERFORM 1 FROM sophia.projects WHERE id=p_project FOR UPDATE;
  IF NOT sophia.is_admin(p_project) THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;
@@ -57,8 +59,108 @@ BEGIN
  UPDATE sophia.commands SET receipt=receipt_value WHERE project_id=p_project AND id=cmd;
  RETURN receipt_value;
 END $$;
-REVOKE ALL ON FUNCTION sophia.admit_session_retirement(uuid,uuid,text,bigint,bigint) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION sophia.admit_session_retirement(uuid,uuid,text,bigint,bigint) TO sophia_api;
+REVOKE ALL ON FUNCTION sophia.admit_session_retirement(uuid,uuid,text,bigint,bigint,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION sophia.admit_session_retirement(uuid,uuid,text,bigint,bigint,uuid) TO sophia_api;
+
+-- What each admitted target of a retirement says now (R-C75-01/02): from that command's own cleanup deliveries and the
+-- runtime's receipts for exactly those deliveries, never a binding's current state or another command's evidence. A
+-- checked receipt outranks an earlier unknown one for the same delivery (later matching evidence improves it).
+--   live_reported  checked: «the native driver is idle and the handle is released» (the bridge's live fence)
+--   durable_only   checked: «the stopped epoch stands» (restop: no new idle observation)
+--   checked        checked with another reason
+--   no_contact     settled by dispatch without the runtime (no native session was contacted)
+--   pending, outcome_unknown, failed, rejected, denied, superseded: as named; none is a fence.
+CREATE FUNCTION sophia.retirement_targets(p_project uuid, p_command uuid) RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path=pg_catalog,sophia AS $$
+ SELECT coalesce(jsonb_agg(t ORDER BY t->>'bindingId'),'[]'::jsonb) FROM (
+  SELECT jsonb_build_object(
+   'bindingId',o.binding_id,'attemptId',b.attempt_id,'nativeSessionId',coalesce(r.native_session_id,b.native_session_id),
+   'runtimeCommandId',rc.id,'stage',r.stage,'nativeSequence',r.native_sequence,'reason',left(r.reason,200),
+   'observedAt',r.observed_at,
+   'result',CASE
+     WHEN rc.id IS NULL THEN CASE o.state WHEN 'settled' THEN 'no_contact' WHEN 'denied' THEN 'denied'
+       WHEN 'superseded' THEN 'superseded' WHEN 'outcome_unknown' THEN 'outcome_unknown' ELSE 'pending' END
+     WHEN r.stage='checked' THEN CASE r.reason WHEN 'stopped; the native driver is idle and the handle is released'
+       THEN 'live_reported' WHEN 'stopped; the stopped epoch stands' THEN 'durable_only' ELSE 'checked' END
+     WHEN r.stage IN ('rejected','failed','outcome_unknown') THEN r.stage
+     ELSE 'pending' END) AS t
+  FROM sophia.outbox o
+  JOIN sophia.execution_bindings b ON b.project_id=o.project_id AND b.id=o.binding_id
+  LEFT JOIN sophia.runtime_commands rc ON rc.project_id=o.project_id AND rc.outbox_id=o.id AND rc.command_id=o.command_id
+  LEFT JOIN LATERAL (SELECT x.* FROM sophia.runtime_receipts x WHERE x.project_id=rc.project_id AND x.runtime_command_id=rc.id
+    ORDER BY CASE x.stage WHEN 'checked' THEN 0 WHEN 'rejected' THEN 1 WHEN 'failed' THEN 2 WHEN 'outcome_unknown' THEN 3 ELSE 4 END,
+     x.recorded_at DESC LIMIT 1) r ON true
+  WHERE o.project_id=p_project AND o.command_id=p_command AND o.cleanup AND o.binding_id IS NOT NULL) s $$;
+REVOKE ALL ON FUNCTION sophia.retirement_targets(uuid,uuid) FROM PUBLIC;
+
+-- The retirement's one state, reduced over every admitted target (R-C75-01): in flight while any target is (and then
+-- never past dispatching, so the receipt path keeps reaching it); checked only when every target is checked or settled
+-- without contact; any unknown or failed target makes it outcome_unknown; else a refused one makes it denied.
+CREATE FUNCTION sophia.retirement_state(p_project uuid, p_command uuid, p_given text) RETURNS text LANGUAGE sql STABLE
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+ WITH t AS (SELECT value->>'result' AS r FROM jsonb_array_elements(sophia.retirement_targets(p_project,p_command))),
+ e AS (SELECT state FROM sophia.outbox WHERE project_id=p_project AND command_id=p_command AND cleanup AND binding_id IS NULL)
+ SELECT CASE
+  WHEN EXISTS(SELECT 1 FROM t WHERE r='pending')
+    OR EXISTS(SELECT 1 FROM e WHERE state NOT IN ('settled','denied','superseded','outcome_unknown'))
+   THEN CASE WHEN p_given IN ('admitted','dispatching') THEN p_given ELSE 'dispatching' END
+  WHEN EXISTS(SELECT 1 FROM t WHERE r IN ('outcome_unknown','failed')) OR EXISTS(SELECT 1 FROM e WHERE state='outcome_unknown')
+   THEN 'outcome_unknown'
+  WHEN EXISTS(SELECT 1 FROM t WHERE r IN ('rejected','denied','superseded')) OR EXISTS(SELECT 1 FROM e WHERE state IN ('denied','superseded'))
+   THEN 'denied'
+  ELSE 'checked' END $$;
+REVOKE ALL ON FUNCTION sophia.retirement_state(uuid,uuid,text) FROM PUBLIC;
+
+-- Whatever writes a retirement command's state (dispatch, receipts, reconcile), the reduction decides it. Only rows of
+-- kind retire_sessions: every other command's state is written exactly as before.
+CREATE FUNCTION sophia.retirement_state_guard() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path=pg_catalog,sophia AS $$
+BEGIN
+ NEW.state:=sophia.retirement_state(NEW.project_id,NEW.id,NEW.state);
+ RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION sophia.retirement_state_guard() FROM PUBLIC;
+CREATE TRIGGER retirement_state_guard BEFORE UPDATE OF state ON sophia.commands FOR EACH ROW
+ WHEN (OLD.kind='retire_sessions') EXECUTE FUNCTION sophia.retirement_state_guard();
+
+-- A retirement target moved (its delivery's state, or a receipt for it): reduce again, and say so on the project's feed
+-- so a reader refreshes (command.retirement_changed). A later receipt can then improve an unknown target.
+CREATE FUNCTION sophia.retirement_target_changed() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path=pg_catalog,sophia AS $$
+DECLARE p uuid; cmd uuid;
+BEGIN
+ IF TG_TABLE_NAME='outbox' THEN
+  p:=NEW.project_id; cmd:=NEW.command_id;
+ ELSE
+  SELECT rc.project_id, rc.command_id INTO p, cmd FROM sophia.runtime_commands rc
+   WHERE rc.project_id=NEW.project_id AND rc.id=NEW.runtime_command_id;
+ END IF;
+ IF EXISTS(SELECT 1 FROM sophia.commands WHERE project_id=p AND id=cmd AND kind='retire_sessions') THEN
+  UPDATE sophia.commands SET state=state WHERE project_id=p AND id=cmd;
+  PERFORM sophia.emit_service_event(p,'command.retirement_changed','command',cmd,2,'command.retire_sessions');
+ END IF;
+ RETURN NULL;
+END $$;
+REVOKE ALL ON FUNCTION sophia.retirement_target_changed() FROM PUBLIC;
+CREATE TRIGGER retirement_target_delivery AFTER UPDATE OF state ON sophia.outbox FOR EACH ROW
+ WHEN (NEW.cleanup AND OLD.state IS DISTINCT FROM NEW.state) EXECUTE FUNCTION sophia.retirement_target_changed();
+CREATE TRIGGER retirement_target_receipt AFTER INSERT ON sophia.runtime_receipts FOR EACH ROW
+ EXECUTE FUNCTION sophia.retirement_target_changed();
+
+-- The latest retirement of each goal and its every admitted target, for the project's current ADMINS only (R-C75-02):
+-- checked server side for the acting member on each read, so a member who is not (or no longer) an admin reads none.
+-- Allowlisted fields only: identities, stage, sequence and a bounded reason; no command body, evidence or source text.
+CREATE FUNCTION sophia.goal_retirements(p_project uuid) RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path=pg_catalog,sophia AS $$
+BEGIN
+ IF NOT sophia.is_admin(p_project) THEN RETURN '{}'::jsonb; END IF;
+ RETURN coalesce((SELECT jsonb_object_agg(c.goal_id, jsonb_build_object('commandId',c.id,'state',c.state,
+    'goalRevision',c.goal_revision,'authorityEpoch',c.authority_epoch,'targets',sophia.retirement_targets(c.project_id,c.id)))
+   FROM (SELECT DISTINCT ON (goal_id) * FROM sophia.commands WHERE project_id=p_project AND kind='retire_sessions'
+         ORDER BY goal_id, authority_epoch DESC, id) c),'{}'::jsonb);
+END $$;
+REVOKE ALL ON FUNCTION sophia.goal_retirements(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION sophia.goal_retirements(uuid) TO sophia_api;
 
 -- dispatch_runtime_outbox: latest 0064 byte for byte, plus RETIRE-KIND.
 CREATE OR REPLACE FUNCTION sophia.dispatch_runtime_outbox(p_project uuid, p_outbox uuid, p_lease_token uuid) RETURNS jsonb LANGUAGE plpgsql

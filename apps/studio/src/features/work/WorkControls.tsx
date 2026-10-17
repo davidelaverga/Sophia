@@ -7,7 +7,7 @@ import { ConfirmButton, Tag, Tip } from '@sophia/ui'
 import { admitGoalCommand, type ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
-import { COMMAND, commandsFor, type CommandKind } from './labels.ts'
+import { COMMAND, commandsFor, retirementView, type CommandKind } from './labels.ts'
 
 interface Props {
   goal: Goal
@@ -74,6 +74,7 @@ export function WorkControls({ goal, projectId, identity, token, admin = false }
           ),
         )}
       </div>
+      {goal.retirement && <RetirementResults retirement={goal.retirement} />}
       <p className="outcome" role="status" aria-live="polite">
         <AdmissionOutcome state={admission.state} onRetry={() => void admission.retry()} />
       </p>
@@ -95,6 +96,28 @@ function RetireButton({ disabled, onConfirm }: { disabled: boolean; onConfirm: (
       disabled={disabled}
       onConfirm={onConfirm}
     />
+  )
+}
+
+/**
+ * The goal's latest retirement, as the server says it now (A41; admins only, so it is present only for them): every
+ * admitted session with its own result. It survives a reload; the project feed brings each change.
+ */
+function RetirementResults({ retirement }: { retirement: NonNullable<Goal['retirement']> }) {
+  const view = retirementView(retirement)
+  return (
+    <div className="retirement" aria-label="Session retirement">
+      <p className="muted">{view.summary}</p>
+      {view.lines.length > 0 && (
+        <ul className="retirement-targets">
+          {view.lines.map((line) => (
+            <li key={line.key}>
+              <code>{line.session}</code> <Tag tone={line.tone}>{line.words}</Tag>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
 

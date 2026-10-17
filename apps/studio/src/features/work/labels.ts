@@ -139,3 +139,50 @@ export function summaryLabel(summaryCode: string, type: string): string {
   const words = (last.includes('_') || parts.length === 0 ? last : `${parts.join(' ')} ${last}`).replaceAll('_', ' ')
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
+
+type Retirement = NonNullable<Goal['retirement']>
+type RetirementResult = Retirement['targets'][number]['result']
+
+/**
+ * Each admitted session's own result, in words (A41). Only what the runtime said: a live fence is reported as such; a
+ * durable restop and a settlement without contact say what they are; nothing claims memory freed or a provider quiet.
+ */
+export const RETIREMENT_RESULT: Record<RetirementResult, { words: string; tone: Tone }> = {
+  pending: { words: 'Waiting for the runtime', tone: 'lav' },
+  live_reported: { words: 'Stopped: the runtime reported it idle and its handle released', tone: 'teal' },
+  durable_only: { words: 'Fenced: its stopped state stands; whether it was still busy isn’t known', tone: 'muted' },
+  checked: { words: 'Stopped, as the runtime confirmed', tone: 'teal' },
+  no_contact: { words: 'No session to contact: settled without the runtime', tone: 'muted' },
+  outcome_unknown: { words: 'Not confirmed: the runtime didn’t say', tone: 'amber' },
+  failed: { words: 'Not stopped: the runtime reported a failure', tone: 'rose' },
+  rejected: { words: 'Not stopped: the runtime refused it', tone: 'rose' },
+  denied: { words: 'Not sent: no runtime could take it', tone: 'rose' },
+  superseded: { words: 'Not sent: a later control replaced it', tone: 'muted' },
+}
+
+const SETTLED: ReadonlySet<RetirementResult> = new Set(['live_reported', 'durable_only', 'checked', 'no_contact'])
+
+/** The retirement as a whole: in flight, every session answered, or not all of them (never «all stopped» on faith). */
+export function retirementView(retirement: Retirement): {
+  summary: string
+  lines: { key: string; session: string; words: string; tone: Tone }[]
+} {
+  const results = retirement.targets.map((t) => t.result)
+  const open = results.filter((r) => r === 'pending').length
+  const answered = results.filter((r) => SETTLED.has(r)).length
+  const summary =
+    results.length === 0
+      ? 'No session was left to retire.'
+      : open > 0
+        ? `Retiring ${String(results.length)} sessions: ${String(open)} still waiting for the runtime.`
+        : answered === results.length
+          ? `Every one of the ${String(results.length)} sessions has an answer; each says what it means.`
+          : `Not every session was stopped: ${String(results.length - answered)} of ${String(results.length)} weren’t confirmed.`
+  const lines = retirement.targets.map((t) => ({
+    key: t.bindingId,
+    session: t.nativeSessionId ?? t.attemptId,
+    words: RETIREMENT_RESULT[t.result].words,
+    tone: RETIREMENT_RESULT[t.result].tone,
+  }))
+  return { summary, lines }
+}

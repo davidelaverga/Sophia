@@ -5,7 +5,8 @@
   "why": [
     "A completed goal's native sessions are not fenced by its completion: the runtime's hello reports them active, ordinary Stop refuses a completed goal, and no admitted command reached them (FND-C-TERMINAL-SESSION-RECOVERY, D-RECOVERY).",
     "retire_sessions is its own command kind, request, idempotency and audit, admitted only for a project admin (sophia.is_admin) on a completed goal at its exact revision and authority epoch (migration 0075). The goal stays completed at its revision; its authority epoch moves (the fence). Each still-unsettled binding is stopped by the runtime's existing recorded stop: no new runtime command, protocol or SDK.",
-    "Its receipt names the bindings admitted for retirement (targets). That is admission, never settlement: each target settles only by the runtime's own receipt. Other commands' receipts carry no targets."
+    "Its receipt names the bindings admitted for retirement (targets). That is admission, never settlement: each target settles only by the runtime's own receipt. Other commands' receipts carry no targets.",
+    "R-C75-02/04: the latest retirement of a completed goal, with every admitted target's own result, is part of the goal as the project snapshot shows it, to the project's current admins only (the server decides on each read). A retirement carries no body: bodySourceId must be null for retire_sessions."
   ],
   "patch": [
     {
@@ -47,6 +48,178 @@
           },
           "required": ["bindingId", "attemptId", "nativeSessionId"]
         }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/GoalCommand/allOf",
+      "value": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "retire_sessions"
+              }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "bodySourceId": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/Goal/properties/retirement",
+      "value": {
+        "description": "A41, project admins only (absent for anyone else): this completed goal's latest retire_sessions command and every target it admitted, each with its own result. live_reported: the runtime reported its live fence (driver idle, handle released). durable_only: the stopped epoch stood (no new idle observation). no_contact: settled without the runtime. None of these says the memory is freed or a provider is quiet.",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["admitted", "dispatching", "acknowledged", "checked", "denied", "outcome_unknown", "superseded"]
+          },
+          "goalRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "authorityEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "bindingId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "attemptId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "nativeSessionId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "runtimeCommandId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "stage": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "delivered",
+                        "incorporation_observed",
+                        "checked",
+                        "rejected",
+                        "failed",
+                        "outcome_unknown"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "nativeSequence": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "reason": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 200
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "observedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "result": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "live_reported",
+                    "durable_only",
+                    "checked",
+                    "no_contact",
+                    "outcome_unknown",
+                    "failed",
+                    "rejected",
+                    "denied",
+                    "superseded"
+                  ]
+                }
+              },
+              "required": [
+                "bindingId",
+                "attemptId",
+                "nativeSessionId",
+                "runtimeCommandId",
+                "stage",
+                "nativeSequence",
+                "reason",
+                "observedAt",
+                "result"
+              ]
+            }
+          }
+        },
+        "required": ["commandId", "state", "goalRevision", "authorityEpoch", "targets"]
       }
     }
   ]
