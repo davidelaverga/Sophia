@@ -212,6 +212,26 @@ current main and C's accepted completed-goal session retirement as `1e1c9e3a`. T
 
   Results are in B's handback.
 
+**Paused, then resumed (FND-B3-PAUSE-AFTER-EPISODE1-FOR-393-P2-01).** The automatic review of `1e1c9e3a` found a
+P2 (#393 4303630159). A retirement of more than 1,000 bindings on one goal committed, and then its 202 failed the
+receipt contract.
+- Only the first database episode had run: the ordinary check, `test:sql` and `test:db`, all passed.
+- The trusted-creator group and the served cases were held.
+
+## Published common 9df carried (FND-B3-CURRENT-9DF-FINAL-LOCAL-CARRY-05)
+
+R accepted B's correction, `9df69813`, and it was published: only `Receipt.targets`'s `maxItems` is removed in A41,
+with OpenAPI, the validators and the API test regenerated.
+- One normal merge of `9df69813` into `980567c5`, both parents kept; the merge base is `1e1c9e3a`.
+- No path is changed on both sides. The 5 carried paths are 9df's exact blobs, and Personal's are unchanged.
+- No SQL changed. Contracts regenerate with no drift, and every identity reproduces unrecorded.
+- **This head is checked in separate, sequential owned clusters:**
+  1. the ordinary check and the affected API and Personal database suites, with no served fixture;
+  2. the trusted-creator group;
+  3. the served cases, last, with the whole cluster torn down after.
+
+  Results are in B's handback.
+
 ## Next bounded action
 
 B's private handback goes to P; R reviews this composition. No push.
