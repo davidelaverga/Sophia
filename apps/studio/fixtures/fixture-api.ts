@@ -77,7 +77,8 @@ import {
   type TalkWrites,
 } from './conversation-writes.ts'
 import type { ProjectRelease, ReportList } from '@sophia/contracts'
-import { searchHits, searchPage } from './search-data.ts'
+import { searchHits, searchPage, servedHits } from './search-data.ts'
+import { VISION } from '../src/app/vision.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
 import {
   closed,
@@ -128,6 +129,9 @@ interface Project {
   heldMessages?: (string | Said)[] | undefined
   /** While set, every earlier page's read fails as an unavailable API's (`failEarlierReads`). */
   failEarlierReads?: boolean
+  /** Earlier pages read before these messages wait for `releaseEarlierReads` (a slow read; A38's concurrent reads). */
+  earlierHeldBefore?: ReadonlySet<string> | undefined
+  earlierHeld?: (() => void)[]
   /** The viewer's messages to the room, by their Idempotency-Key: the same key again replays the receipt. */
   contributions?: Map<string, { text: string; receipt: ContributionReceipt }>
   /** The next message lands, but its reply is lost on the way (`window.fixture.loseNextContributionReply`). */
@@ -243,6 +247,10 @@ interface Project {
   showing?: Showing
   /** While set, searches wait for `holdSearch(false)` (A13). */
   searchHeld?: (() => void)[] | null
+  /** While set, searches fail as an unavailable API's (`failSearch`, A38). */
+  failSearch?: boolean
+  /** The next search is answered as the A13 proposal (recaps, meetings) even on the served page (A38's parser refuses). */
+  searchAsProposed?: boolean
   /** While set, reads of the served board wait for `holdBoard(false)` (search-honest.md). */
   boardHeld?: (() => void)[] | null
   /** The versions' reviews (review-data.ts, A16); absent, their requests are unexpected. */
@@ -708,13 +716,23 @@ const discussionRead = (project: Project, url: URL) =>
   url.pathname.endsWith('/replies') ? repliesRead(project) : discussionPage(project, url)
 
 /** A page of the room's discussion (A23): the 50 before `before`, oldest first; `before` again while older ones remain. */
-function discussionPage(project: Project, url: URL): Response {
+function discussionPage(project: Project, url: URL): Response | Promise<Response> {
   const anchor = url.searchParams.get('before')
   served.push(`discussion:${anchor ?? 'newest'}`)
   if (project.failEarlier || project.failEarlierReads) {
     project.failEarlier = false
     return unavailable()
   }
+  // A held read is answered when released, from the discussion as it is then.
+  if (anchor && project.earlierHeldBefore?.has(anchor)) {
+    const held = (project.earlierHeld ??= [])
+    return new Promise<Response>((resolve) => held.push(() => resolve(earlierPage(project, url, anchor))))
+  }
+  return earlierPage(project, url, anchor)
+}
+
+/** The 50 before `anchor` (or the newest), as A23 answers them. */
+function earlierPage(project: Project, url: URL, anchor: string | null): Response {
   const all = (project.heldMessages ?? project.messages).map(said)
   const end = anchor ? all.findIndex((e) => e.id === anchor) : all.length
   if (end < 0) {
@@ -955,10 +973,18 @@ function searchAnswer(project: Project, url: URL): Response | Promise<Response> 
   const meeting = project.meeting
   if (!meeting) return null
   served.push(`search:${q}:${cursor ?? '0'}`)
+  // The request as it was sent, endpoint and query, so a check sees what the Studio asked for.
+  served.push(`search-request:${url.pathname}${url.search}`)
+  if (project.failSearch) return unavailable()
   const held = project.searchHeld
   const kept = project.notes?.kept ?? []
   const report = { versions: project.reportVersions, title: project.reportTitle, pilot: project.pilot }
-  const page = () => json(searchPage(searchHits({ meeting, kept, report }, q), cursor))
+  const messages = project.messages.map(said)
+  const found = searchHits({ meeting, kept, report, messages }, q)
+  // Without the vision flag, the page is served as A38 is (strict); `searchAsProposed` answers once as A13 instead.
+  const strict = !VISION && !project.searchAsProposed
+  project.searchAsProposed = false
+  const page = () => (strict ? json(searchPage(servedHits(found), cursor)) : json(searchPage(found, cursor)))
   return held ? new Promise<Response>((resolve) => held.push(() => resolve(page()))) : page()
 }
 

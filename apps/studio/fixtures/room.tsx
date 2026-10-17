@@ -214,6 +214,10 @@ interface Fixture {
   releaseTaskReads: () => void
   /** While on, searches wait; off, the waiting ones are answered (A13). */
   holdSearch: (on: boolean) => void
+  /** While on, searches fail as an unavailable API's (A38). */
+  failSearch: (on: boolean) => void
+  /** The next search is answered as the A13 proposal (a recap, meetings), which A38's served parser refuses. */
+  searchAsProposed: () => void
   /** Reads of the served board wait while on, as a slow API's do; off, the waiting ones are answered (search-honest.md). */
   holdBoard: (on: boolean) => void
   /** The conversations' list reads fail, or read again (A18). */
@@ -321,6 +325,10 @@ interface Fixture {
   releaseSnapshot: () => void
   /** Every earlier page's read fails until turned off. */
   failEarlierReads: (on: boolean) => void
+  /** Earlier pages read before these messages wait until `releaseEarlierReads` (a slow read). */
+  holdEarlierBefore: (ids: readonly string[]) => void
+  /** The held earlier reads are answered, and no more are held. */
+  releaseEarlierReads: () => void
   /** The next previews list this many running research tasks as reading the words. */
   reachNextPreview: (tasks: number) => void
   /** Acts on messages land, but their replies wait until `releaseActs`. */
@@ -537,6 +545,9 @@ function overTwoDays(): Said[] {
   ]
 }
 
+/** The messages (1-based) that say «heron», a word the search finds (`heron=100,125`). */
+const HERONS = (query.get('heron') ?? '').split(',').filter(Boolean).map(Number)
+
 const project = {
   revision: 1,
   doorShut: false,
@@ -601,10 +612,12 @@ const project = {
   // `discussion=mine`: the viewer's own written message, another member's, and the viewer's own shared report (A36).
   // `discussion=mentioned`: another member's message that mentions the viewer, on its revision 2 (A37).
   // `mentionOld=1` with `discussion=60`: the third message, beyond the chat's 50, mentions the viewer (A37).
+  // `heron=N` (or `N,M`) with `discussion=N…`: message N says a word a search finds (A38, the FND-C4 handoff).
   messages: (query.get('mentionOld') === '1'
-    ? Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) =>
-        i === 2 ? { text: `Message ${i + 1}`, mentions: [ME] } : `Message ${i + 1}`,
-      )
+    ? Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => {
+        const text = HERONS.includes(i + 1) ? `The heron arrived, message ${i + 1}.` : `Message ${i + 1}`
+        return i === 2 ? { text, mentions: [ME] } : text
+      })
     : query.get('discussion') === 'mentioned'
       ? ['Sounds good to me.', MENTIONING]
       : query.get('discussion') === 'mine'
@@ -615,15 +628,17 @@ const project = {
           ]
         : query.get('discussion') === 'days' || query.get('discussion') === 'yesterday'
           ? overTwoDays().slice(0, query.get('discussion') === 'days' ? 4 : 2)
-          : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`)) as (
-    string | Said
-  )[],
+          : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) =>
+              HERONS.includes(i + 1) ? `The heron arrived, message ${i + 1}.` : `Message ${i + 1}`,
+            )) as (string | Said)[],
   contributions: new Map(),
   // `acts=1`: the viewer's messages offer Edit and Withdraw (message-acts.md, A36).
   messageActs: messageActsOf(query),
   membersFail: query.get('members') === 'fail',
   heldMessages: undefined as (string | Said)[] | undefined,
   failEarlierReads: false,
+  earlierHeldBefore: undefined as ReadonlySet<string> | undefined,
+  earlierHeld: [] as (() => void)[],
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
@@ -727,6 +742,8 @@ const project = {
   outsider: query.get('member') === '0',
   // A13: searches held while the page asks (`holdSearch`).
   searchHeld: null as (() => void)[] | null,
+  failSearch: false,
+  searchAsProposed: false,
   boardHeld: null as (() => void)[] | null,
   // `mission=fail`: the brief's reads fail from the first (notes-robust.md); `window.fixture.failMission` turns it.
   missionFails: query.get('mission') === 'fail',
@@ -1054,6 +1071,12 @@ window.fixture = {
     if (!on) for (const answer of project.searchHeld ?? []) answer()
     project.searchHeld = on ? waiting() : null
   },
+  failSearch: (on) => {
+    project.failSearch = on
+  },
+  searchAsProposed: () => {
+    project.searchAsProposed = true
+  },
   holdBoard: (on) => {
     if (!on) for (const answer of project.boardHeld ?? []) answer()
     project.boardHeld = on ? waiting() : null
@@ -1140,6 +1163,15 @@ window.fixture = {
   },
   failEarlierReads: (on) => {
     project.failEarlierReads = on
+  },
+  holdEarlierBefore: (ids) => {
+    project.earlierHeldBefore = new Set(ids)
+  },
+  releaseEarlierReads: () => {
+    const held = project.earlierHeld
+    project.earlierHeldBefore = undefined
+    project.earlierHeld = []
+    for (const answer of held) answer()
   },
   unmentionMeIn: (n) => {
     const m = project.messages[n]

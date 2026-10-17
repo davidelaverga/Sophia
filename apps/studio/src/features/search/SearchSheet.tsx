@@ -1,11 +1,13 @@
 // Search the project (docs/plans/room-search.md): A13's `search`, in a sheet from the project's head (or `/`). Every
-// hit shows its title, the record's own words and where it is from, and opens it: a report at its version (a section
-// at its heading), a meeting's recap, or the brief for a decision or a note. Only under the vision flag.
+// hit shows its title, the record's own words and where it is from, and opens it: a report at its version (a section at
+// its heading), a meeting's recap, the brief for a decision or a note, or the room's chat at a message. Under the
+// vision flag (the proposal), or the search flag (A38, served: docs/handoffs/FND-C4-PROJECT-SEARCH-attempt-1.md).
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { Goal, Membership, Snapshot } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
-import { listMeetings, searchProject, type SearchHit } from '../../api/vision.ts'
+import { searchProject } from '../../api/search.ts'
+import { listMeetings, type SearchHit } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import { Waiting } from '../../app/Waiting.tsx'
@@ -76,6 +78,8 @@ interface Props {
   onClose: () => void
   /** A decision or a note: the room, with the brief open. */
   onBrief: () => void
+  /** A message (A38): the room's chat, at that message. */
+  onMessage: (hit: SearchHit) => void
   /** The project's plans, when read: the search finds tasks in them (search-goals.md). */
   plans: Readonly<Record<string, GoalPlan>> | undefined
   /** The served board's first read is under way: zero found is no answer yet (search-honest.md). */
@@ -105,7 +109,7 @@ function useLocal(props: Props, names: ReadonlyMap<string, string>): SheetProps[
 
 /** The search's sheet, and the meeting a recap hit opens. */
 export function ProjectSearch(props: Props) {
-  const { projectId, identity, snapshot, membership, room, open, onClose, onBrief } = props
+  const { projectId, identity, snapshot, membership, room, open, onClose, onBrief, onMessage } = props
   const names = useKnownNames(room)
   const local = useLocal(props, names)
   const [meeting, setMeeting] = useState<string | null>(null)
@@ -127,7 +131,8 @@ export function ProjectSearch(props: Props) {
     else if (hit.kind === 'report' || hit.kind === 'report_section') {
       const at = hit.cite.anchor ? { section: hit.cite.anchor } : {}
       viewer?.open({ artifactId: hit.id, versionId: hit.cite.recordId, ...at })
-    } else onBrief()
+    } else if (hit.kind === 'message') onMessage(hit)
+    else onBrief()
   }
   return (
     <>
@@ -227,6 +232,8 @@ function SearchSheet({ projectId, identity, onClose, onHit, onAsk, local }: Shee
         className="search-field"
         aria-label="Search this project"
         placeholder="Goals, tasks, decisions, notes, reports, meetings"
+        // The service searches at most 200 characters (A38).
+        maxLength={200}
         value={text}
         onChange={(e) => setText(e.target.value)}
       />

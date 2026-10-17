@@ -24,6 +24,7 @@ import { COORDINATION_ROUTES, coordinationRoutes, REVIEW_RUNTIME_ROUTES } from '
 import { conversationRoutes } from './routes/conversations.ts'
 import { exchangeRoutes } from './routes/exchanges.ts'
 import { knowledgeRoutes } from './routes/knowledge.ts'
+import { searchRoutes } from './routes/search.ts'
 import { MEDIA_ROUTES, mediaRoutes } from './routes/media.ts'
 import { missionRoutes } from './routes/mission.ts'
 import { personalRoutes } from './routes/personal.ts'
@@ -215,6 +216,7 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.list_needs(boolean)') IS NOT NULL
   AND to_regprocedure('sophia.mark_mention_seen(uuid,uuid,bigint,bigint)') IS NOT NULL
   AND to_regprocedure('sophia.contribution_recipients(uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.markdown_section_texts(text)') IS NOT NULL
   AND ${COLUMNS.map(([table, column]) => columnExists(table, column)).join('\n  AND ')} AS ok`
 
 /**
@@ -289,6 +291,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   sourceRoutes(app, { pool: deps.pool, store })
   rendererRoutes(app, { pool: deps.pool, store })
   knowledgeRoutes(app, { pool: deps.pool })
+  searchRoutes(app, { pool: deps.pool })
   coordinationRoutes(app, { pool: deps.pool })
   eventRoutes(app, { pool: deps.pool, hub, heartbeatMs: deps.eventPollMs ?? 10_000 })
   const companion = deps.companion

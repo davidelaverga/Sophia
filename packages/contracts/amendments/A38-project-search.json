@@ -1,0 +1,149 @@
+{
+  "id": "A38",
+  "goal": "E2E",
+  "title": "A member searches the project's current words and opens what was found",
+  "why": [
+    "#365 section 5 (FND-C4-PROJECT-SEARCH-01): nothing searched a report's sections, the brief or the chat. GET /api/v1/projects/{projectId}/search finds, for one member of one project, the words they can read now: each section of each Markdown report's current version (and its title and the text before its first heading), the brief's current notes, its proposed and accepted decisions, and the room's current messages, written or shared. Lexical only: each typed word as a prefix, all required, at most eight; no ranking model, embedding, provider or index.",
+    "Every hit is read as the member, under the same row security as the chat, the brief and the report viewer: a message is found by exactly the words the chat shows this reader (a shared report or file's words included, only while this reader can see them), and nothing of another project, a withdrawn or corrected-away message, an erased source, a withdrawn note or decision, or a superseded version's removed words is found. What a hit opens is read again, and authorized again, when it opens.",
+    "Pages are ordered by time, then kind, then the record, then the section, a total key, so equal times never repeat or drop a hit across pages; the cursor carries the database's microseconds and is bound to its project and query."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/SearchHit",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One place a project search found (A38), with its current words.",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["report", "report_section", "note", "decision", "message"],
+            "description": "report: a report's title or its text before the first heading; report_section: one section of it; note: a current note of the brief; decision: a proposed or accepted decision; message: a current message of the room's chat, written or shared."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The record: the artifact for a report or a section, else the note, decision or message."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "The report's title (a section's: «<report> · <heading>»), a note's or a decision's first words, or the message author's current name; never an address."
+          },
+          "snippet": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "The record's current words around the first match, on one line, as written (no highlight marks added)."
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the version, note, decision or message was made."
+          },
+          "cite": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "recordId": {
+                "type": "string",
+                "format": "uuid",
+                "description": "The report version for a report or a section (it opens that version), else the record's id."
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$",
+                "description": "The current source's hash."
+              },
+              "anchor": {
+                "type": "string",
+                "minLength": 1,
+                "description": "A section's heading anchor, with `#n` for its n-th repeat in the version (0 the first, left out), as the report viewer names it."
+              }
+            },
+            "required": ["recordId", "sha256"]
+          },
+          "before": {
+            "anyOf": [{ "type": "string", "format": "uuid" }, { "type": "null" }],
+            "description": "A message only: the message just after it in the discussion, whatever its state, or null when it is the newest. readDiscussion with before=<this> reads the page that ends at the found message."
+          }
+        },
+        "required": ["kind", "id", "title", "snippet", "at", "cite"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/SearchPage",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A page of a project search (A38), newest first.",
+        "properties": {
+          "hits": {
+            "type": "array",
+            "maxItems": 20,
+            "items": { "$ref": "#/components/schemas/SearchHit" }
+          },
+          "next": {
+            "anyOf": [{ "type": "string", "pattern": "^[A-Za-z0-9_-]{1,512}$" }, { "type": "null" }],
+            "description": "The next page's cursor, or null when this is the last."
+          }
+        },
+        "required": ["hits", "next"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1search",
+      "value": {
+        "get": {
+          "operationId": "searchProject",
+          "summary": "The project's current words the member can read that match every typed word, newest first, 20 a page.",
+          "tags": ["projects"],
+          "security": [{ "supabaseBearer": [] }],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": { "type": "string", "format": "uuid" }
+            },
+            {
+              "name": "q",
+              "in": "query",
+              "required": true,
+              "schema": { "type": "string", "maxLength": 200 },
+              "description": "What the member typed, at most 200 characters. Its first eight runs of letters and digits are searched, each as the start of a word, all required; each at most 64 characters. Under two characters once trimmed, or nothing searchable: no hits."
+            },
+            {
+              "name": "cursor",
+              "in": "query",
+              "required": false,
+              "schema": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,512}$" },
+              "description": "A page's `next`, for the same project and query."
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "The page",
+              "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SearchPage" } } }
+            },
+            "401": { "description": "Unauthenticated" },
+            "403": {
+              "description": "Not an active member of the project, or no such project",
+              "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+            },
+            "422": {
+              "description": "Request fails the declared schema, a searched word is longer than 64 characters, or the cursor is not this project's and query's",
+              "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+            },
+            "503": {
+              "description": "The search couldn't be read in time, or the database is unavailable",
+              "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

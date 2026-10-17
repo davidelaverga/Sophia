@@ -23,6 +23,7 @@ describe('where a hit is from', () => {
     assert.equal(hitSource(hit('report'), words), 'Report · Oct 4')
     assert.equal(hitSource(hit('report_section'), words), 'Report section · Oct 4')
     assert.equal(hitSource(hit('recap'), words), 'Meeting recap · Oct 4, 15:00')
+    assert.equal(hitSource(hit('message'), words), 'Message · Oct 4')
   })
 })
 
