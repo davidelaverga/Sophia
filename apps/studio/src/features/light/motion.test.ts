@@ -7,6 +7,8 @@ import {
   easeInOut,
   envelope,
   handoffFrame,
+  HEAR_ATTACK_S,
+  HEAR_RELEASE_S,
   RELEASE_S,
   settle,
   spring,
@@ -82,5 +84,14 @@ describe('her voice’s envelope (docs/plans/voice-amplitude.md)', () => {
     for (let i = 0; i < 6; i++) fine = envelope(fine, 0.8, 0.005)
     assert.ok(Math.abs(envelope(0, 0.8, 0.03) - fine) < 1e-12)
     assert.equal(envelope(0.4, 1, 0), 0.4)
+  })
+})
+
+describe('what she hears, by its own slower envelope (docs/plans/orb-hears.md)', () => {
+  it('rises over 120 ms and falls over 450 ms: receiving reads calmer than her own voice', () => {
+    assert.deepEqual([HEAR_ATTACK_S, HEAR_RELEASE_S], [0.12, 0.45])
+    assert.ok(Math.abs(envelope(0, 1, 0.12, HEAR_ATTACK_S, HEAR_RELEASE_S) - (1 - Math.exp(-1))) < 1e-9)
+    assert.ok(Math.abs(envelope(1, 0, 0.45, HEAR_ATTACK_S, HEAR_RELEASE_S) - Math.exp(-1)) < 1e-9)
+    assert.ok(envelope(0, 1, 0.05, HEAR_ATTACK_S, HEAR_RELEASE_S) < envelope(0, 1, 0.05))
   })
 })
