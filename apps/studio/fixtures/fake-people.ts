@@ -102,8 +102,12 @@ export function personLeaves(name: string): void {
   changed()
 }
 
-/** Who an admin muted, and who they took out of the call (host-controls.md), by identity. */
-const muted = new Set<string>()
+/**
+ * Who an admin muted, and who they took out of the call (host-controls.md), by identity. `muted=n`: the `n`th other
+ * person came in with their microphone off.
+ */
+const mutedAtFirst = oneOfUs(query.get('muted'), false)
+const muted = new Set<string>(mutedAtFirst === null ? [] : [personId(mutedAtFirst)])
 const removed = new Set<string>()
 
 /** An admin's act lands, as LiveKit's server applies it: the microphone goes off, or the person leaves. */
