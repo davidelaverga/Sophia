@@ -6403,6 +6403,10 @@ button.contribution-quote:hover {
   border-left: 2px solid var(--line-2);
   color: var(--text-2);
 }
+/* A quote's blank line keeps a line's height, so its paragraphs stay apart (Codex P2 on #384). */
+.msg-quote:empty::before {
+  content: '\200b';
+}
 /* A web address in a message (docs/plans/message-links.md): the halo's link colour, underlined, wrapping inside the
    column however long it is. */
 .msg-link {
