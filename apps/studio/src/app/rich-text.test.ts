@@ -21,6 +21,17 @@ describe('a message’s marks', () => {
     ])
   })
 
+  it('keeps an address whole when its path holds marks, and still bolds an address marked around (Codex P2 on #384)', () => {
+    assert.deepEqual(richLines('see https://example.com/**draft** now').at(0)?.pieces, [
+      { kind: 'text', text: 'see https://example.com/**draft** now' },
+    ])
+    assert.deepEqual(richLines('**https://example.com/plan** and **this**').at(0)?.pieces, [
+      { kind: 'bold', text: 'https://example.com/plan' },
+      { kind: 'text', text: ' and ' },
+      { kind: 'bold', text: 'this' },
+    ])
+  })
+
   it('shows a mark that doesn’t close, or holds nothing, as written', () => {
     assert.deepEqual(richLines('2 ** 3 and `open').at(0)?.pieces, [{ kind: 'text', text: '2 ** 3 and `open' }])
     assert.deepEqual(richLines('****').at(0)?.pieces, [{ kind: 'text', text: '****' }])
