@@ -12,12 +12,12 @@ import { projectTitle, useDocumentTitle } from '../../app/document-title.ts'
 import { routePath, type View, viewsShown } from '../../app/route.ts'
 import { CommandsHost } from '../../app/CommandsHost.tsx'
 import { useCommands, useOffered } from '../../app/useCommands.ts'
-import { VISION } from '../../app/vision.ts'
+import { CONVERSATIONS, VISION } from '../../app/vision.ts'
 import { ProjectGoProvider, useArrival } from './project-go.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
 import { ArchivedLine } from './Archive.tsx'
-import { canInvite, useMembership, type SheetContext } from '../access/useAccess.ts'
+import { canInvite, useProjectMembership, type SheetContext } from '../access/useAccess.ts'
 import { DocumentViewerProvider } from '../artifacts/DocumentViewer.tsx'
 import { InPlaceLinks } from './InPlaceLinks.tsx'
 import { KnowledgeReports } from '../artifacts/KnowledgeReports.tsx'
@@ -273,7 +273,7 @@ const VIEW_ALSO: Readonly<Record<View, readonly string[]>> = {
 
 /** The views a person can go to from here, each a command without a key (docs/plans/commands.md). */
 const viewCommands = (view: View, onShow: (view: View) => void) =>
-  viewsShown(VISION)
+  viewsShown(VISION, CONVERSATIONS)
     .filter((v) => v !== view)
     .map((v) => ({
       id: `view-${v}`,
@@ -327,7 +327,7 @@ function useProjectKeys(
 function useProject(projectId: string, identity: Props['identity']) {
   const { snapshot, feed, connection } = useProjectFeed(projectId, identity.name, identity.token)
   const room = useProjectRoom(projectId, identity.token, snapshot.data)
-  const membership = useMembership(projectId, identity.name, identity.token).data
+  const membership = useProjectMembership(projectId, identity.name, identity.token, snapshot.dataUpdatedAt).data
   return { snapshot, feed, connection, room, membership }
 }
 
@@ -722,7 +722,7 @@ function ProjectBody(props: BodyProps) {
   return withViewer(
     <>
       {lobby}
-      <main className={pageClass(work, props.plans, view === 'conversations' && VISION)} data-content>
+      <main className={pageClass(work, props.plans, view === 'conversations' && CONVERSATIONS)} data-content>
         {/* A view that fails to draw says so in its place, its pulse too; the shell and the call stay (view-boundary.md). */}
         <ViewFailed view={view}>
           {resources ?? <PageBody {...props} />}
@@ -829,7 +829,7 @@ function PageBody(props: BodyProps) {
   const { view, projectId, identity, membership, snapshot, onShow } = props
   if (view === 'knowledge') return <Knowledge {...{ projectId, identity, membership, snapshot }} />
   if (view === 'goals' || view === 'work') return <Goals {...props} />
-  if (view === 'conversations' && VISION) {
+  if (view === 'conversations' && CONVERSATIONS) {
     return <ConversationsView {...{ projectId, identity, membership }} cursor={snapshot?.cursor} />
   }
   if (view === 'updates' && VISION) {

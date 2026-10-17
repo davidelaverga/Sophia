@@ -4,23 +4,25 @@
 // its intent are held by the view (held-write.ts): put away and opened again, the form finds them, and with no reply
 // Start sends the same intent again under its key, never a second conversation. Cancel puts the form away.
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useRef, type RefObject } from 'react'
+import { useEffect, useId, useRef, type RefObject } from 'react'
 import { Icon } from '@sophia/ui'
 import {
   startConversation,
   type ConversationAsk,
   type ConversationStarted,
   type ConversationSummary,
-} from '../../api/vision.ts'
+} from '../../api/conversations.ts'
+import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { writeFailure } from './ConversationComposer.tsx'
 import { firstWords } from './conversation-list.ts'
-import { contextQuery } from './decide.ts'
+import { briefNow, contextQuery } from './decide.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
 import { askOf, QUESTION_LIMIT, sameQuestion, startable, startersOf } from './new-conversation.ts'
 import { sameQuestionLine } from './same-question-view.ts'
+import { useKept } from './talk-store.ts'
 
 /** How long a conversation's question may be. */
 export const QUESTION_MAX = QUESTION_LIMIT
@@ -38,6 +40,13 @@ interface Props {
   onRefused: (words: string | null) => void
   onStarted: (started: ConversationStarted, ask: ConversationAsk) => void
   onCancel: () => void
+  /** The saved-text notice, before the reader's first message in the project; null after it. */
+  notice: string | null
+  /**
+   * Sophia answers here now (the list's `capability.ask`). Where she doesn't, «Ask Sophia» still records the request, and
+   * the form says before Start that she won't answer yet, as the open conversation's composer does.
+   */
+  answers: boolean
   /** The conversations here, for the one that already asks the question (docs/plans/same-question.md). */
   conversations: readonly ConversationSummary[]
   /** Opens one of them instead of starting another. */
@@ -69,11 +78,15 @@ function useStartWrite(props: Props) {
   return { busy: write.busy, fixed: write.busy || write.unknown !== null, shown, ready, go, words }
 }
 
-/** The proposals waiting to start from: the brief's pending, the same read as the context beside the conversations. */
+/**
+ * The proposals waiting to start from: the brief's pending, the same read as the context beside the conversations, and
+ * only as it may show now (`briefNow`): none from a read set out before the latest refusal (PR #199 r4239851727).
+ */
 function useStarters(props: Props): string[] {
   const { projectId, identity } = props
   const brief = useQuery(contextQuery(projectId, identity))
-  return startersOf(brief.data?.pending, props.fields.title, QUESTION_MAX)
+  const { kept } = useKept(projectId, accountOf(identity))
+  return startersOf(briefNow(brief.data, kept)?.pending, props.fields.title, QUESTION_MAX)
 }
 
 export function NewConversation(props: Props) {
@@ -97,6 +110,7 @@ export function NewConversation(props: Props) {
       }}
     >
       <h3>New conversation</h3>
+      {props.notice && <p className="conv-note conv-notice">{props.notice}</p>}
       <Fields
         question={question}
         shown={shown}
@@ -104,6 +118,7 @@ export function NewConversation(props: Props) {
         starters={fixed ? [] : starters}
         onChange={(change) => onFields({ ...fields, ...change })}
         same={same && { title: same.title, open: () => props.onOpenExisting(same.id) }}
+        answers={props.answers}
       />
       <div className="conv-compose-acts">
         <button type="submit" className="pill" aria-disabled={!ready || busy || undefined}>
@@ -139,6 +154,7 @@ function Fields(props: {
   onChange: (change: Partial<ConversationAsk>) => void
   /** A conversation here that already asks it, and the press that opens it. */
   same: { title: string; open: () => void } | null
+  answers: boolean
 }) {
   const { question, shown, fixed, onChange } = props
   return (
@@ -176,17 +192,39 @@ function Fields(props: {
         <span className="field-label">Context, if it helps</span>
         <textarea rows={3} value={shown.text} readOnly={fixed} onChange={(e) => onChange({ text: e.target.value })} />
       </label>
+      <AskSophia
+        asked={shown.askSophia}
+        fixed={fixed}
+        answers={props.answers}
+        onAsked={(askSophia) => onChange({ askSophia })}
+      />
+    </>
+  )
+}
+
+/** «Ask Sophia», and where she doesn't answer here yet, saying so before Start (as the open composer's hint does). */
+function AskSophia(props: { asked: boolean; fixed: boolean; answers: boolean; onAsked: (asked: boolean) => void }) {
+  const unanswered = props.asked && !props.answers
+  const note = useId()
+  return (
+    <>
       <label className="conv-ask">
         <input
           type="checkbox"
-          checked={shown.askSophia}
-          disabled={fixed}
-          onChange={(e) => onChange({ askSophia: e.target.checked })}
+          checked={props.asked}
+          disabled={props.fixed}
+          aria-describedby={unanswered ? note : undefined}
+          onChange={(e) => props.onAsked(e.target.checked)}
         />
         <span className="conv-ask-box" aria-hidden />
         <Mark />
         Ask Sophia
       </label>
+      {unanswered && (
+        <p id={note} className="conv-note conv-ask-unanswered">
+          Sophia doesn’t answer here yet: the question goes to the team.
+        </p>
+      )}
     </>
   )
 }

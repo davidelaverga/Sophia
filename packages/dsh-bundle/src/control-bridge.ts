@@ -37,6 +37,7 @@ import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 // Type-only: brings the `ctx.tools` Context augmentation into scope.
 import type { ToolDefinition, ToolGuard } from '@deepseek-ai/dsh-tools'
 import { commandText, parseCommand, ProtocolError } from './protocol.js'
+import { ReplyController, type ReplyControllerSettings } from './reply-child.js'
 import { RetainedQueue } from './retained-queue.js'
 import { wire } from './runtime-wire.generated.js'
 import type { RuntimeCommand, RuntimeReceipt, ReceiptStage } from './protocol.js'
@@ -71,6 +72,7 @@ export type RouteConfig = RouteSpec & { readonly maxTokens: number; readonly pri
 
 /** Row config plus the resolved environment the bridge runs with. */
 export interface BridgeSettings {
+  readonly replies?: ReplyControllerSettings | null
   readonly protocolVersion: 1
   readonly bundle: string
   readonly dshVersion: string
@@ -142,6 +144,9 @@ const REASON_LIMIT = 16_000
 export type BridgeReadiness = { state: 'ready' } | { state: 'not_ready'; reason: string }
 
 export class ControlBridge {
+  private replies: ReplyController | null = null
+  /** Installed only by the enabled CON controller; cancellation is not cleanup proof. */
+  private replySuperseded: (() => void) | null = null
   private readonly attempts = new Map<string, AttemptState>()
   /**
    * Serializes command execution per attempt id, including the command that
@@ -309,6 +314,7 @@ export class ControlBridge {
     void this.connect()
     return async () => {
       this.stopping.abort()
+      this.replies?.dispose()
       offPreStep()
       offGuard()
       offStream()
@@ -330,10 +336,25 @@ export class ControlBridge {
       this.setReadiness({ state: 'not_ready', reason: `Sophia service hello failed: ${(error as Error).message}` })
       return
     }
+    if (this.stopping.signal.aborted) return
+    try {
+      const replySettings = this.settings.replies ?? null
+      this.replies = new ReplyController({ projectId: hello.projectId, runtimeUnitId: this.settings.runtimeUnitId,
+        leaseId: this.instanceId }, replySettings, this.transport)
+      const replies = this.replies
+      if (replySettings) this.replySuperseded = () => replies.dispose()
+    } catch {
+      this.settings.log('reply_controller_configuration_invalid')
+      this.replies = new ReplyController({ projectId: hello.projectId, runtimeUnitId: this.settings.runtimeUnitId,
+        leaseId: this.instanceId }, null, this.transport)
+    }
     this.cursor = hello.cursor
     const unrecovered: UnrecoveredBinding[] = []
     for (const binding of hello.bindings) {
-      const failure = await this.reconcile(binding)
+      if ('conversationReplyId' in binding) this.replies.unrecovered()
+      const failure = 'conversationReplyId' in binding
+        ? { attemptId: binding.attemptId, reason: 'conversation_child_unqualified' }
+        : await this.reconcile(binding)
       if (failure) unrecovered.push(failure)
     }
     // Tell the service first, so the startup line a supervisor keys on
@@ -356,6 +377,17 @@ export class ControlBridge {
     this.settings.log(next.state === 'ready' ? `readiness=ready${failed}` : `readiness=not_ready reason="${next.reason}"`)
   }
 
+  /** The commands endpoint maps a superseded instance lease to 409/invalid_state. */
+  private fenceSupersededReplyPoll(error: unknown): boolean {
+    if (this.replySuperseded === null || !(error instanceof TransportError) ||
+        error.status !== 409 || error.code !== 'invalid_state') return false
+    this.stopping.abort()
+    try { this.replySuperseded() }
+    catch { /* Cancellation failure remains unresolved; never resume polling or assert cleanup. */ }
+    this.setReadiness({ state: 'not_ready', reason: 'conversation_lease_superseded' })
+    return true
+  }
+
   private async pollLoop(): Promise<void> {
     const transport = this.transport!
     while (!this.stopping.signal.aborted) {
@@ -364,6 +396,7 @@ export class ControlBridge {
         batch = await transport.poll(this.cursor, this.settings.pollWaitMs, this.stopping.signal)
       } catch (error) {
         if (this.stopping.signal.aborted) return
+        if (this.fenceSupersededReplyPoll(error)) return
         this.settings.log(`poll failed: ${(error as Error).message}; retrying`)
         await new Promise((resolve) => setTimeout(resolve, 1000))
         continue
@@ -699,6 +732,11 @@ export class ControlBridge {
       return reject(`command targets runtime unit ${command.binding.runtimeUnitId}; this runtime is ${this.settings.runtimeUnitId}`)
     }
     if (!ATTEMPT_ID.test(attemptId)) return reject('attemptId must match [A-Za-z0-9][A-Za-z0-9_-]{0,63}')
+
+    // Reply ownership/transport stay outside goal history. The production reply configuration remains disabled.
+    // Controller admission is retained asynchronously so this serial queue can promptly deliver Stop.
+    if ('conversationReplyId' in command.binding) return this.replies?.execute(command) ?? reject('conversation_child_unqualified')
+    if (command.kind === 'retire') return reject('retire_requires_reply_owner')
 
     const attempt = this.attempts.get(attemptId)
     const prior = attempt?.receipts.get(command.commandId)

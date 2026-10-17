@@ -144,3 +144,38 @@ test('the first recorded execution identity is the attempt\'s; a later record ne
   assert.equal(logged.identity.source, 'create')
   assert.equal(logged.role, 'sophia-review-v1')
 })
+
+import { createServer } from 'node:http'
+import { mkdtemp as mkdtempReplyPoll, rm as rmReplyPoll } from 'node:fs/promises'
+import { ControlBridge } from '../../packages/dsh-bundle/dist/control-bridge.js'
+const replyPollSettings={routeId:'synthetic',route:{provider:'synthetic',model:'synthetic',reasoningEffort:null},maxTokens:10,
+  admissionWaitMs:100,bounds:{deadlineMs:1000,graceMs:2,killMs:5,exitWaitMs:10,settleWaitMs:10},
+  retry:{requestWaitMs:10,retryWaitMs:2,maxAttempts:1},receiptWaitMs:100,verification:null,launch:()=>assert.fail('no launch')}
+async function replyPollCrossing(mode){
+ const scratch=await mkdtempReplyPoll(join(tmpdir(),'independent-poll-refresh-'));let bridge,polls=0,reads=0,timer;const logs=[]
+ const server=createServer((req,res)=>{
+  res.setHeader('content-type','application/json')
+  if(req.url==='/v1/runtime/hello'){res.end(JSON.stringify({projectId:'p',leaseId:'synthetic',authorityEpoch:1,bindings:[],cursor:0}));return}
+  if(req.url==='/v1/runtime/ready'){res.statusCode=204;res.end();return}
+  polls++;if(polls===2)bridge.stopping.abort();res.statusCode=409;res.end(JSON.stringify({code:'invalid_state',message:'synthetic supersession'}))
+ })
+ try{
+  await new Promise(r=>server.listen(0,'127.0.0.1',r))
+  const settings={protocolVersion:1,bundle:'synthetic',dshVersion:'synthetic',runtimeUnitId:'unit',
+   service:{baseUrl:`http://127.0.0.1:${server.address().port}`,token:'synthetic-only'},workspace:scratch,journalDir:scratch,pollWaitMs:1,settleTimeoutMs:1,routes:{},roleRoutes:{},research:null,log:x=>logs.push(x)}
+  Object.defineProperty(settings,'replies',{get(){reads++;if(mode==='toggle-disabled')return reads===1?null:replyPollSettings;if(mode==='toggle-enabled')return reads===1?replyPollSettings:null;return mode==='enabled'?replyPollSettings:mode==='invalid'?{...replyPollSettings,routeId:3}:null}})
+  bridge=new ControlBridge({},settings);bridge.advertisedRoles=async()=>[]
+  const goal={handle:{dispose:()=>assert.fail('must not dispose goal')}};bridge.attempts.set('synthetic-goal',goal)
+  let timeout=false
+  await Promise.race([bridge.connect(),new Promise(r=>{timer=setTimeout(()=>{timeout=true;bridge.stopping.abort();r()},4000)})])
+  assert.equal(timeout,false)
+  assert.equal(bridge.attempts.get('synthetic-goal'),goal)
+  return {mode,polls,reads,controllerEnabled:bridge.replies?.settings!==null,hook:bridge.replySuperseded!==null,readiness:bridge.readiness,logs}
+ }finally{clearTimeout(timer);bridge?.stopping.abort();bridge?.replies?.dispose();server.closeAllConnections();await new Promise(r=>server.close(r));await rmReplyPoll(scratch,{recursive:true,force:true})}
+}
+for(const mode of ['enabled','disabled','invalid','toggle-disabled','toggle-enabled'])test('refreshed actual connect '+mode,async()=>{
+ const r=await replyPollCrossing(mode);process.stdout.write(JSON.stringify(r)+'\n')
+ const expected=mode==='enabled'||mode==='toggle-enabled'
+ assert.equal(r.hook,expected,'hook must match the exact configuration passed to the captured controller')
+ assert.equal(r.polls,expected?1:2,'supersession must fence only the exact enabled controller')
+})
