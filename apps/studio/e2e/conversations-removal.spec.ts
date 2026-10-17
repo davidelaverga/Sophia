@@ -488,6 +488,45 @@ test('removal · its own read refused (403), the list’s reads failing: nothing
   expect((await kept(page))?.erased[C1]).toBeUndefined()
 })
 
+// RichText (#384) on a member's words, composed with C1's read fence: a formatted message shows its marks while it may
+// be read; refused, neither its words nor its marks show; given back, the cached formatted words stay hidden until a
+// read since answers, and only then render with their marks.
+test('removal · formatted words follow the read fence: refused, nothing of them shows, nor from the cache until a read since answers', async ({
+  page,
+}) => {
+  const BOLD = 'SYNTHETIC-BOLD'
+  const CODE = 'SYNTHETIC-CODE'
+  await page.goto(PAGE)
+  await expect(messages(page)).toHaveCount(6)
+  await page.evaluate(
+    ([b, c]) => window.fixture?.conversationMessage('Marco', `A **${b}** point with \`${c}\``),
+    [BOLD, CODE],
+  )
+  await expect(open(page).locator('strong', { hasText: BOLD })).toHaveCount(1)
+  await expect(open(page).locator('code.msg-code', { hasText: CODE })).toHaveCount(1)
+  await page.evaluate(() => window.fixture?.failConversations(true))
+  await page.evaluate((c) => window.fixture?.refuseMessageReads(c), C1)
+  await trip(page)
+  await expect.poll(async () => (await served(page)).includes('messages-refused:c1')).toBe(true)
+  await expect(open(page)).toHaveCount(0)
+  await expect(page.getByText(BOLD)).toHaveCount(0)
+  await expect(page.locator('strong', { hasText: BOLD })).toHaveCount(0)
+  await expect(page.locator('code.msg-code', { hasText: CODE })).toHaveCount(0)
+  // Given back with the reads held: the cache keeps the formatted words, and they don't show while the read is out.
+  await page.evaluate(() => window.fixture?.holdMessageReads())
+  await page.evaluate(() => window.fixture?.refuseMessageReads(null))
+  await page.evaluate(() => window.fixture?.failConversations(false))
+  await readListAgain(page)
+  await expect(open(page)).toContainText('Reading this conversation again…')
+  await page.waitForTimeout(500)
+  expect(await page.evaluate((c) => window.fixture?.cachedMessages(c), C1)).toBe(true)
+  await expect(page.getByText(BOLD)).toHaveCount(0)
+  await expect(page.locator('code.msg-code', { hasText: CODE })).toHaveCount(0)
+  await page.evaluate(() => window.fixture?.releaseMessageReads())
+  await expect(open(page).locator('strong', { hasText: BOLD })).toHaveCount(1)
+  await expect(open(page).locator('code.msg-code', { hasText: CODE })).toHaveCount(1)
+})
+
 /**
  * The list's reads fail as the feed moves (it says it may be out of date, with Try again); then, out of the project, the
  * list is refused, and the thread too though nothing reads it; Try again reads the list alone, and is refused.

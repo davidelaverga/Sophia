@@ -14,6 +14,7 @@ import { createRoot } from 'react-dom/client'
 import type { InvitationPreview, LobbyEntry } from '@sophia/contracts'
 import { JoinFlow } from '../src/features/access/JoinFlow.tsx'
 import { DEMO, DEMO_LABEL, DEMO_PROJECT } from './demo.ts'
+import { signViewerAs } from './fake-livekit.ts'
 import '../src/app/theme.css'
 import { bootTheme } from '../src/app/theme.ts'
 
@@ -110,6 +111,8 @@ window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 const guest = { name: 'Fixture guest', token: 'fixture-guest-token', role: 'guest' as const }
+// The room token the door issues is a guest's, as the API signs it: media only, no data channel (livekit.ts).
+signViewerAs('guest')
 
 const root = document.getElementById('root')
 if (!root) throw new Error('no #root')
