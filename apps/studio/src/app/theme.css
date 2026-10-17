@@ -3268,8 +3268,33 @@ button.contribution-quote:hover {
   color: var(--text-2);
   font-size: var(--type-small);
 }
-/* The toast (Toast.tsx): one line for a result whose place is not on screen, above the floor, so it never covers the
-   dock or a message bar. The time it has left runs along its foot. */
+/* A new version said (new-version.md): the toast's look at the page's top, above everything, and it stays until
+   answered. */
+.new-version {
+  position: fixed;
+  top: 12px;
+  /* Centred on the whole width, not from its middle: from left: 50% a phone gave it half the screen and three lines. */
+  inset-inline: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: fit-content;
+  max-width: calc(100% - 2 * var(--gutter));
+  margin-inline: auto;
+  padding: 9px 14px;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line-2);
+  background: var(--plane-2);
+  box-shadow: 0 12px 40px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  color: var(--text);
+  font-size: 13px;
+}
+/* Its answers keep their words whole; the sentence wraps instead. */
+.new-version .text-button {
+  flex: none;
+  white-space: nowrap;
+}
 /* Skip to content (skip-link.md): out of sight until focused, then at the top left on the raised plane. */
 .skip-link {
   position: fixed;
@@ -3291,6 +3316,8 @@ button.contribution-quote:hover {
 [data-content]:focus {
   outline: none;
 }
+/* The toast (Toast.tsx): one line for a result whose place is not on screen, above the floor, so it never covers the
+   dock or a message bar. The time it has left runs along its foot. */
 .toast {
   position: fixed;
   left: 50%;
