@@ -1433,6 +1433,38 @@ test('live · a session at work says what its tool last reported, and a ring aro
   await expect(s.locator('.resource-session-live')).toContainText('Reading ExportStatus.tsx')
 })
 
+// The ring's emptying is eased (informe-25 M14): its share is a registered number, so a change sweeps over the kit's
+// base duration instead of jumping, and rests long before the next second's tick. With less motion asked, it jumps.
+const ringMoves = (page: Page) =>
+  tile(page, 'Davide · Codex')
+    .locator('.resource-face')
+    .evaluate((e) => {
+      e.style.setProperty('--fresh', '0')
+      const moving = e
+        .getAnimations({ subtree: true })
+        .flatMap((a) =>
+          a instanceof CSSTransition && a.transitionProperty === '--fresh'
+            ? [Number(a.effect?.getTiming().duration)]
+            : [],
+        )
+      return { moving, now: Number(getComputedStyle(e, '::before').getPropertyValue('--fresh')) }
+    })
+
+test('live · the ring’s emptying is eased: a change sweeps, never a jump (informe-25 M14)', async ({ page }) => {
+  await page.goto(PAGE)
+  await expect(tile(page, 'Davide · Codex').locator('.resource-face')).toHaveAttribute('data-live', 'true')
+  const read = await ringMoves(page)
+  expect(read.moving).toEqual([220])
+  expect(read.now).toBeGreaterThan(0.5)
+})
+
+test('live · with less motion asked, the ring’s share changes at once', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto(PAGE)
+  await expect(tile(page, 'Davide · Codex').locator('.resource-face')).toHaveAttribute('data-live', 'true')
+  expect((await ringMoves(page)).moving).toEqual([])
+})
+
 test('one with Tasks · a session’s task opens on the board, as whoever looks, and its doer opens back here', async ({
   page,
 }) => {

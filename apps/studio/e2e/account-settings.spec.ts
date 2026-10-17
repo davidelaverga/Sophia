@@ -1,12 +1,13 @@
 import { expect, test, type Page } from '@playwright/test'
+import { colourOf, lowContrast } from './contrast.ts'
 
 // Settings, in one place (docs/plans/account-settings.md): «Settings…» in the avatar's menu opens a sheet with the
 // account, the theme, a call's defaults, your data and help. Every name is synthetic.
 
 const sheet = (page: Page) => page.getByRole('dialog', { name: 'Settings' })
 
-async function openSettings(page: Page) {
-  await page.goto('/room.html?people=2')
+async function openSettings(page: Page, query = '') {
+  await page.goto(`/room.html?people=2${query}`)
   await page.getByRole('button', { name: 'Account' }).click()
   await page.getByRole('menuitem', { name: 'Settings…' }).click()
   await expect(sheet(page)).toBeVisible()
@@ -104,3 +105,70 @@ test('settings · the account menu’s Sign out is this device’s', async ({ pa
   await page.getByRole('menuitem', { name: 'Sign out' }).click()
   await expect(page).toHaveURL(/signin\.html$/)
 })
+
+/** How many of a box's pixels are within 16 per channel of a colour. */
+async function pixelsNear(page: Page, png: Buffer, rgb: readonly number[]) {
+  return page.evaluate(
+    async ({ data, want }) => {
+      const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${data}`)).blob())
+      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return -1
+      ctx.drawImage(bitmap, 0, 0)
+      const px = ctx.getImageData(0, 0, bitmap.width, bitmap.height).data
+      let near = 0
+      for (let i = 0; i < px.length; i += 4) if (want.every((v, c) => Math.abs((px[i + c] ?? 0) - v) <= 16)) near += 1
+      return near
+    },
+    { data: png.toString('base64'), want: [...rgb] },
+  )
+}
+
+// A checked box is the kit's (informe-25 X8): it fills with the «on» of a pressed square and a primary press, never the
+// browser's blue for the scheme (#99c7fe on a dark page, #0075ff on a light one).
+for (const [theme, query, fill, blue] of [
+  ['dark', '', 'rgb(244, 240, 255)', [153, 199, 254]],
+  ['light', '&theme=light', 'rgb(85, 70, 184)', [0, 117, 255]],
+] as const) {
+  test(`settings · ${theme}: a checked box fills with the kit’s on, never the browser’s blue (informe-25 X8)`, async ({
+    page,
+  }) => {
+    await openSettings(page, query)
+    const box = sheet(page).getByRole('checkbox', { name: 'Join with my microphone on' })
+    await expect(box).toBeChecked()
+    await page.mouse.move(0, 0)
+    expect(await box.evaluate((e) => getComputedStyle(e).accentColor)).toBe(fill)
+    expect(await pixelsNear(page, await box.screenshot({ animations: 'disabled' }), blue)).toBe(0)
+  })
+}
+
+// The destructive answer keeps its rose under the pointer (informe-25 M12): the pill's own hover would grey it.
+for (const [theme, query, rose] of [
+  ['dark', '', [238, 159, 176]],
+  ['light', '&theme=light', [168, 55, 90]],
+] as const) {
+  test(`settings · ${theme}: the destructive answer keeps its rose under the pointer (informe-25 M12)`, async ({
+    page,
+  }) => {
+    await openSettings(page, query)
+    await sheet(page).getByRole('button', { name: 'Sign out of all devices' }).click()
+    const go = sheet(page).getByRole('button', { name: 'Sign out everywhere' })
+    await expect(go).toBeVisible()
+    const look = () =>
+      go.evaluate(async (e) => {
+        await Promise.all(e.getAnimations().map((a) => a.finished.catch(() => undefined)))
+        const s = getComputedStyle(e)
+        return { fill: s.backgroundColor, edge: s.borderTopColor }
+      })
+    await page.mouse.move(0, 0)
+    const rest = await look()
+    await go.hover()
+    const over = await look()
+    const fill = colourOf(over.fill)
+    expect([fill.r, fill.g, fill.b]).toEqual([...rose])
+    expect(over.fill).toBe(rest.fill)
+    expect(colourOf(over.edge).a).toBeCloseTo(0.7, 2)
+    expect(colourOf(over.edge).a).toBeGreaterThan(colourOf(rest.edge).a)
+    expect(await lowContrast(page, '.settings-part .confirm')).toEqual([])
+  })
+}
