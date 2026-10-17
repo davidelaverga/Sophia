@@ -46,7 +46,7 @@ commits on the branch merge its base forward or touch only this record). 9 files
   - after the menu fix, with `room-basics`, `call-devices`, `call-backgrounds`, `host-controls`, `call-reactions` and
     `account-settings`: 34/34;
   - Studio typecheck and Prettier: clean.
-  - Lint: clean, apart from main's own `ProjectBody` length, which #423 fixes (see Remaining obligations).
+  - Lint: clean, with main merged in after #423 fixed main's own `ProjectBody` length.
 - **Captures** (`evaluacion-2026-10-16/capturas/`):
   - `incoming-1-menu.png`: Video settings with both switches as menu rows, each marked on;
   - `incoming-2-off.png`: your camera on, Lucía's and Marco's tiles with their initials and no video.
@@ -65,8 +65,6 @@ commits on the branch merge its base forward or touch only this record). 9 files
 
 ## Remaining obligations
 
-- **Main's lint:** it is red since #368 merged (`ProjectBody`, 63 lines); #423 fixes it. This branch takes main after
-  #423 lands, then lint runs clean here too.
 
 ## Next bounded action
 
