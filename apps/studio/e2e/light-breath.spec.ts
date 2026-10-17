@@ -14,7 +14,7 @@ const lightRead = (page: Page) =>
     return {
       animations: running.length,
       names: running.map((a) => (a instanceof CSSAnimation ? a.animationName : a.constructor.name)),
-      halo: getComputedStyle(light, '::after').backgroundImage.slice(0, 70),
+      halo: getComputedStyle(light, '::after').backgroundImage.slice(0, 100),
       traceZ: trace ? getComputedStyle(trace).zIndex : null,
       haloZ: getComputedStyle(light, '::after').zIndex,
       isolation: getComputedStyle(light).isolation,
@@ -22,9 +22,21 @@ const lightRead = (page: Page) =>
     }
   })
 
-for (const [name, url, parts] of [
-  ['sign-in', '/signin.html?theme=light', DRAWN.signin],
-  ['the room', '/room.html?demo=1&theme=light', DRAWN.room],
+// Sign-in keeps its calibrated halo at 50 % 42 %; the room's follows the light the engine draws (light-room-paper.md):
+// a radius in px at her place.
+for (const [name, url, parts, halo] of [
+  [
+    'sign-in',
+    '/signin.html?theme=light',
+    DRAWN.signin,
+    /^radial-gradient\(circle at 50% 42%, rgba\(255, 255, 255, 0\.96\) 0px/,
+  ],
+  [
+    'the room',
+    '/room.html?demo=1&theme=light',
+    DRAWN.room,
+    /^radial-gradient\((circle )?[\d.]+px at [\d.]+(px|%) [\d.]+px, rgba\(255, 255, 255, 0\.96\) 0px/,
+  ],
 ] as const) {
   test(`light · ${name}: her light breathes on paper, behind what the light holds`, async ({ page }) => {
     await page.goto(url)
@@ -32,7 +44,7 @@ for (const [name, url, parts] of [
     const read = await lightRead(page)
     expect(read?.animations).toBe(1)
     expect(read?.names).toEqual(['paper-breathe'])
-    expect(read?.halo).toMatch(/^radial-gradient\(circle at 50% 42%, rgba\(255, 255, 255, 0\.96\) 0px/)
+    expect(read?.halo).toMatch(halo)
     // The halo at the back of the light's own stacking: the trace and the formed mark paint over it.
     expect(read?.haloZ).toBe('-1')
     expect(read?.isolation).toBe('isolate')
