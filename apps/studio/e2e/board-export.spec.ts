@@ -16,10 +16,12 @@ async function save(page: Page, which: 'Download CSV' | 'Download Markdown') {
   return { name: file.suggestedFilename(), text: readFileSync(await file.path(), 'utf8') }
 }
 
-test('export · the board saves as CSV, a header then a row a task', async ({ page }) => {
+test('export · the board saves as CSV, marked UTF-8 for a sheet, a header then a row a task', async ({ page }) => {
   const { name, text } = await save(page, 'Download CSV')
   expect(name).toMatch(/^tasks-plan-r\d+-\d{4}-\d{2}-\d{2}\.csv$/)
-  const lines = text.trim().split('\r\n')
+  // The mark Excel needs to read the file as UTF-8 (Codex P2 on #397).
+  expect(text.charCodeAt(0)).toBe(0xfeff)
+  const lines = text.slice(1).trim().split('\r\n')
   expect(lines[0]).toBe('Lane,Task,Who,Status')
   const tiles = await board(page).locator('[data-task]').count()
   expect(lines.length - 1).toBeGreaterThanOrEqual(tiles)
