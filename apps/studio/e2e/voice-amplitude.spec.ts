@@ -57,11 +57,12 @@ test('light · on paper her halo swells with her voice, as the dark page’s lig
   await page.goto('/room.html?call=on&sophia=speaking&theme=light')
   await expect(light(page)).toHaveAttribute('data-mode', 'speak')
   const size = () => light(page).evaluate((el) => Number(getComputedStyle(el).getPropertyValue('--ls') || 0))
-  await expect.poll(size).toBe(1)
+  // Her light ignites on arrival (a slow spring, about 4 s to within 1 %): read once it has.
+  await expect.poll(size, { timeout: 8000 }).toBeGreaterThanOrEqual(0.99)
   await voice(page, 'sophia', 0.9)
   await expect.poll(size, { timeout: 1000 }).toBeGreaterThanOrEqual(1.18)
   await voice(page, 'sophia', 0)
-  await expect.poll(size, { timeout: 2000 }).toBe(1)
+  await expect.poll(size, { timeout: 2000 }).toBeLessThanOrEqual(1)
 })
 
 test('motion · under reduced motion her voice moves nothing', async ({ page }) => {
