@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { bezier, controlThrough, easeInOut, handoffFrame, settle, spring, stepSpring } from './motion.ts'
+import {
+  ATTACK_S,
+  bezier,
+  controlThrough,
+  easeInOut,
+  envelope,
+  handoffFrame,
+  RELEASE_S,
+  settle,
+  spring,
+  stepSpring,
+} from './motion.ts'
 
 describe('light motion', () => {
   it('settles a spring on its target without overshoot', () => {
@@ -51,5 +62,25 @@ describe('light motion', () => {
     assert.ok(handoffFrame(a, via, b, 0.8, 1.6).swell > 0.99)
     assert.ok(handoffFrame(a, via, b, 0, 1.6).swell < 0.01)
     assert.equal(handoffFrame(a, via, b, 5, 1.6).progress, 1)
+  })
+})
+
+describe('her voice’s envelope (docs/plans/voice-amplitude.md)', () => {
+  it('rises fast: a time constant of 30 ms, all but there by 150 ms', () => {
+    assert.equal(ATTACK_S, 0.03)
+    assert.ok(Math.abs(envelope(0, 1, 0.03) - (1 - Math.exp(-1))) < 1e-9)
+    assert.ok(envelope(0, 1, 0.15) >= 0.993)
+  })
+  it('falls slower: a time constant of 180 ms, all but quiet by 0.83 s', () => {
+    assert.equal(RELEASE_S, 0.18)
+    assert.ok(Math.abs(envelope(1, 0, 0.18) - Math.exp(-1)) < 1e-9)
+    assert.ok(envelope(1, 0, 0.83) < 0.01)
+    assert.ok(1 - envelope(1, 0, 0.05) < envelope(0, 1, 0.05))
+  })
+  it('is the same at any frame rate, and still when no time passed', () => {
+    let fine = 0
+    for (let i = 0; i < 6; i++) fine = envelope(fine, 0.8, 0.005)
+    assert.ok(Math.abs(envelope(0, 0.8, 0.03) - fine) < 1e-12)
+    assert.equal(envelope(0.4, 1, 0), 0.4)
   })
 })
