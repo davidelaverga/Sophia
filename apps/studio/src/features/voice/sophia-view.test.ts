@@ -133,6 +133,11 @@ describe('her presence, for her light (docs/plans/orb-presence.md)', () => {
     assert.equal(sophiaView(presence({ voice: 'unavailable' }), signal(), ctx()).presence, 'away')
   })
 
+  it('is here at work while her work runs, though not in the conversation: busy, not dormant', () => {
+    assert.equal(sophiaView(presence({ exchange: 'none' }), null, ctx({ working: true })).presence, 'here')
+    assert.equal(sophiaView(presence({ voice: 'unavailable' }), signal(), ctx({ working: true })).presence, 'here')
+  })
+
   it('is joining while her voice gets ready or recovers, or she is not in the room yet', () => {
     assert.equal(sophiaView(presence({ voice: 'not_connected' }), signal(), ctx()).presence, 'joining')
     assert.equal(sophiaView(presence({ voice: 'recovering' }), signal(), ctx()).presence, 'joining')

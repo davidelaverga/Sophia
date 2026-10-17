@@ -39,10 +39,13 @@ export interface SophiaContext {
 
 /**
  * Where she is, for her light (docs/plans/orb-presence.md): here; away (not in the conversation, or her voice
- * unavailable); joining (her voice getting ready or recovering, not in the room yet, or this person's link coming back);
- * or paused (her conversation is).
+ * unavailable, and no work of hers running: working, she is busy, not dormant); joining (her voice getting ready or
+ * recovering, not in the room yet, or this person's link coming back); or paused (her conversation is).
  */
 export type Presence = 'here' | 'away' | 'joining' | 'paused'
+
+/** Away, unless her work runs: then she is here at work. */
+const away = (working: boolean): Presence => (working ? 'here' : 'away')
 
 export interface SophiaView extends SophiaLineView {
   light: LightMode
@@ -92,7 +95,8 @@ function notHearing(presence: SophiaPresence, ctx: SophiaContext): Base | null {
     )
   }
   if (presence.voice === 'unavailable') {
-    return view(rest, 'Sophia’s voice is unavailable', presence.reason ?? 'Work and discussion still work.', 'away')
+    const why = presence.reason ?? 'Work and discussion still work.'
+    return view(rest, 'Sophia’s voice is unavailable', why, away(ctx.working))
   }
   if (presence.voice === 'recovering')
     return view(rest, 'Reconnecting to Sophia…', 'Work carries on meanwhile.', 'joining')
@@ -137,7 +141,7 @@ export function sophiaView(
   const exchange = presence?.exchange ?? 'none'
   const looking = lookingText(presence, ctx.nameOf)
   if (!presence || exchange === 'none') {
-    return { ...view(idle(ctx.working), '', null, 'away'), inConversation: false, exchange, looking }
+    return { ...view(idle(ctx.working), '', null, away(ctx.working)), inConversation: false, exchange, looking }
   }
   const base =
     notHearing(presence, ctx) ??

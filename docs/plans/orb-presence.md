@@ -14,7 +14,8 @@
 
 ## What changes
 
-- **`sophia-view.ts`:** `presence`: `away` (no conversation, or her voice unavailable), `joining` (her voice not ready
+- **`sophia-view.ts`:** `presence`: `away` (no conversation, or her voice unavailable, and no work of hers running:
+  working, she is busy, not dormant), `joining` (her voice not ready
   or recovering, her participant not in the room yet, or this person reconnecting), `paused` (her conversation is), or
   `here`. While this person reconnects her light rests (`work` if work runs): never listening over a dead link.
 - **`SophiaLight`:** `presence` and `sound` become `data-presence` and `data-sound` on the box; its marks come from one

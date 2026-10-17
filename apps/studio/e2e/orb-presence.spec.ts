@@ -74,7 +74,7 @@ test('presence · while this person’s link comes back, she is joining, never l
 test('presence · while her conversation is paused for a guest, she is paused: held, her violet kept', async ({
   page,
 }) => {
-  await page.goto('/room.html?call=on&people=2&floor=1&paused=guest&theme=light')
+  await page.goto('/room.html?call=on&people=2&floor=1&sophia=listening&paused=guest&theme=light')
   await expect(light(page)).toHaveAttribute('data-presence', 'paused')
   await expect.poll(async () => (await presenceRead(page)).saturate, { timeout: 3000 }).toBe(1)
   expect((await presenceRead(page)).running).not.toContain('gc-drift')

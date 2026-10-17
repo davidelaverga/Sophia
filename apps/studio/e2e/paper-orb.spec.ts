@@ -92,7 +92,7 @@ test('orb · the dark page keeps its canvas: no orb is drawn there', async ({ pa
 })
 
 for (const [query, mode, heart] of [
-  ['', 'rest', '24%'],
+  ['&call=on&sophia=here', 'rest', '24%'],
   ['&call=on&people=2&floor=1&sophia=listening', 'listen', '32%'],
   ['&call=on&people=2&floor=1&sophia=answering', 'think', '14%'],
   ['&call=on&sophia=speaking', 'speak', '28%'],

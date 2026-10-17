@@ -97,7 +97,7 @@ test('light · the room’s paper orb follows the light the engine draws: its ce
 // Her state on paper: how large (the orb's scale over her radius's) and how strong (the inner light's saturation,
 // 0.72 + 0.28 of her strength; paper-orb.md).
 for (const [query, mode, size, strength] of [
-  ['', 'rest', 1, 1],
+  ['&call=on&sophia=here', 'rest', 1, 1],
   ['&research=running', 'work', 0.9, 0.93],
   ['&call=on&people=2&floor=1&sophia=answering', 'think', 1, 0.94],
 ] as const) {
