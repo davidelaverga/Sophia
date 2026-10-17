@@ -30,6 +30,9 @@
   --plane: #0b0a0f;
   --plane-2: #121118;
   --glass: rgba(12, 11, 17, 0.74);
+  /* Glass where it floats over the stage, over her orb and the tiles' video: the room's glass; on paper the only glass
+     left, the rest an opaque sheet (docs/plans/light-material.md). */
+  --glass-stage: var(--glass);
   --text: #ecebf1;
   --text-2: rgb(var(--ink-rgb) / 0.66);
   /* The third ink still reads: 4.6:1 or more on the void, the plane and a raised plane (it was 3.8:1 at 0.44). */
@@ -39,6 +42,8 @@
   --line-2: rgb(var(--ink-rgb) / 0.14);
   --line-3: rgb(var(--ink-rgb) / 0.22);
   --lift: inset 0 1px 0 rgb(var(--sheen-rgb) / 0.04);
+  /* A filled press's lower edge, darker than its face as light from above leaves it: in the room, the void. */
+  --bevel: inset 0 -1px 0 rgb(var(--void-rgb) / 0.16);
   --halo: #9c82f5;
   --halo-text: #b9a8ff;
   --core: #f4f0ff;
@@ -141,7 +146,9 @@
   --void: #fbf8f3;
   --plane: #f4f0ea;
   --plane-2: #ffffff;
-  --glass: rgba(251, 248, 243, 0.8);
+  /* Opaque off the stage: glass over paper composed the page's own colour, and a field stood 1.00:1 apart from it. */
+  --glass: var(--plane-2);
+  --glass-stage: rgba(251, 248, 243, 0.8);
   --text: #1d1b22;
   --text-2: rgba(29, 27, 34, 0.74);
   --text-3: rgba(29, 27, 34, 0.64);
@@ -149,7 +156,10 @@
   --line: rgba(29, 27, 34, 0.1);
   --line-2: rgba(29, 27, 34, 0.16);
   --line-3: rgba(29, 27, 34, 0.24);
-  --lift: inset 0 1px 0 rgb(var(--sheen-rgb) / 0.7);
+  /* Light from above, in ink: the lift a line under the face as strong as the room's sheen over it (1.08:1), where
+     white over a white sheet painted nothing; the bevel the room's step (1.42:1), where the paper's void lit it. */
+  --lift: inset 0 -1px 0 rgb(var(--ink-rgb) / 0.04);
+  --bevel: inset 0 -1px 0 rgb(var(--ink-rgb) / 0.36);
   --halo: #6d5bd0;
   --halo-text: #5546b8;
   /* The primary press and Sophia's deepest fill on paper: the brand's violet (6.7:1 under the paper's ink), not a navy. */
@@ -160,6 +170,8 @@
   --rose: #a8375a;
   --ink-rgb: 29 27 34;
   --void-rgb: 251 248 243;
+  /* White over a white sheet, the lit plane already: on paper a sheen paints nothing, by decision. */
+  --sheen-rgb: 255 255 255;
   --halo-rgb: 109 91 208;
   --halo-text-rgb: 85 70 184;
   --core-rgb: 85 70 184;
@@ -505,7 +517,7 @@ button:disabled,
   border-color: transparent;
   background: var(--core);
   color: var(--void);
-  box-shadow: inset 0 -1px 0 rgb(var(--void-rgb) / 0.16);
+  box-shadow: var(--bevel);
 }
 .pill.primary:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--core-hover);
@@ -1985,7 +1997,7 @@ img.avatar {
   padding: 12px;
   border-radius: var(--r-4);
   border: 1px solid var(--line-2);
-  background: var(--glass);
+  background: var(--glass-stage);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow: var(--lift), var(--elev-dock);
@@ -2502,7 +2514,7 @@ button.contribution-quote:hover {
   padding: 5px;
   border-radius: var(--r-4);
   border: 1px solid var(--line-2);
-  background: var(--glass);
+  background: var(--glass-stage);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow: var(--lift), var(--elev-dock);
@@ -2635,7 +2647,7 @@ button.contribution-quote:hover {
   padding: 7px 11px;
   border-radius: var(--r-2);
   border: 1px solid var(--line);
-  background: var(--glass);
+  background: var(--glass-stage);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   color: var(--text-2);
@@ -2857,7 +2869,7 @@ button.contribution-quote:hover {
   padding: 6px 11px;
   border-radius: 999px;
   border: 1px solid rgb(var(--warm-rgb) / 0.28);
-  background: var(--glass);
+  background: var(--glass-stage);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   color: var(--warm);
@@ -5174,7 +5186,7 @@ button.contribution-quote:hover {
   padding: 5px;
   border-radius: var(--r-4);
   border: 1px solid var(--line-2);
-  background: var(--glass);
+  background: var(--glass-stage);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow: var(--lift), var(--elev-dock);
@@ -5293,7 +5305,7 @@ button.contribution-quote:hover {
   padding: 8px 8px 8px 14px;
   border-radius: var(--r-4);
   border: 1px solid var(--line-2);
-  background: var(--glass);
+  background: var(--glass-stage);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow: var(--lift);
@@ -5337,7 +5349,7 @@ button.contribution-quote:hover {
   padding: 5px 12px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-3);
-  background: var(--glass);
+  background: var(--glass-stage);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   color: var(--text);
@@ -6317,7 +6329,7 @@ button.contribution-quote:hover {
   gap: 8px;
   padding: 4px 10px 4px 6px;
   border-radius: var(--r-4);
-  background: var(--glass);
+  background: var(--glass-stage);
   border: 1px solid var(--line);
   font-size: 13px;
   animation: reaction-rise 4s var(--ease) both;
