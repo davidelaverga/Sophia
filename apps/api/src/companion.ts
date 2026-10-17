@@ -50,6 +50,8 @@ export interface CompanionCall {
 
 export interface Companion {
   readonly mode: 'rehearsal' | 'live'
+  /** The one person it answers live (#435 4304103151); none for a companion that serves anyone (the rehearsal). */
+  readonly owner?: string
   /** `call` names the registered call this answer runs in; a live companion reserves and settles its cost under it. */
   answer(context: CompanionContext, signal: AbortSignal, call?: CompanionCall): Promise<CompanionReply>
   /** Sophia's welcome back after a quiet spell, from the conversation so far; `name` is who she greets. */
@@ -216,6 +218,11 @@ export class CompanionRunner {
 
   get mode(): Companion['mode'] {
     return this.companion.mode
+  }
+
+  /** Whether it answers this person's turns live: the payer's one enrolled owner, or anyone for the rehearsal. */
+  serves(actorId: string): boolean {
+    return this.companion.owner === undefined || this.companion.owner === actorId.toLowerCase()
   }
 
   /** Start answering `turnId` for `actorId`; resolves when the reply or the failure is written. */

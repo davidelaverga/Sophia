@@ -39,6 +39,10 @@ const denied = (err: unknown): boolean =>
 const backendPid = async (c: pg.Client) =>
   (await c.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]?.pid
 
+/** FIXTURE: the operator enrolls `payer` for its one owner (0073: one owner per payer, #435 4304103151). */
+const enroll = (payer: string, actor: string) =>
+  owner(`UPDATE sophia.personal_companion_payers SET owner_id=$2 WHERE payer=$1`, [payer, actor])
+
 /** A call registered for `actor`, as CompanionRunner registers one before it asks the companion. */
 const registered = async (actor: string) => {
   const id = randomUUID()
@@ -50,7 +54,8 @@ before(async () => {
   db = await createTestDatabase()
   pool = createPool(db.apiUrl, { max: 4 })
   await owner(
-    `INSERT INTO sophia.personal_companion_payers(payer, allowance_micros) VALUES ('p-one', 1000), ('p-two', 1000)`,
+    `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('p-one', $1, 1000), ('p-two', $1, 1000)`,
+    [randomUUID()],
   )
 })
 
@@ -62,6 +67,7 @@ after(async () => {
 describe('personal companion usage (0073)', () => {
   it('reserves once per registered call of the current epoch, within the admitted allowance', async () => {
     const ana = randomUUID()
+    await enroll('p-one', ana)
     await withActor(pool, ana, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'hello'))
     const reserve = (call: string, payer: string, micros: number) =>
       withActor(pool, ana, 'write', (c) => reservePersonalCompanion(c, call, payer, 'route-a', micros))
@@ -97,7 +103,14 @@ describe('personal companion usage (0073)', () => {
   it('is the owner’s own: another person settles, holds or releases none of it, and the API role reads none', async () => {
     const bea = randomUUID()
     const cal = randomUUID()
+    await enroll('p-two', bea)
     const call = await registered(bea)
+    const strangers = await registered(cal)
+    assert.equal(
+      await withActor(pool, cal, 'write', (c) => reservePersonalCompanion(c, strangers, 'p-two', 'route-a', 1)),
+      'not_admitted',
+      'someone the payer is not enrolled for reserves nothing on it, on the restricted role directly',
+    )
     assert.equal(
       await withActor(pool, bea, 'write', (c) => reservePersonalCompanion(c, call, 'p-two', 'route-a', 50)),
       'reserved',
@@ -138,6 +151,7 @@ describe('personal companion usage (0073)', () => {
 
   it('an uncertain call holds its payer until an operator reconciles it; erasure keeps every cost row', async () => {
     const dan = randomUUID()
+    await enroll('p-two', dan)
     const call = await registered(dan)
     await withActor(pool, dan, 'write', (c) => reservePersonalCompanion(c, call, 'p-two', 'route-a', 50))
     assert.equal(await withActor(pool, dan, 'write', (c) => holdPersonalCompanion(c, call, 'usage_unknown')), true)
@@ -164,9 +178,12 @@ describe('personal companion usage (0073)', () => {
   // settlement failed) is unresolved usage. It holds its payer, for every owner, until an operator settles it from the
   // provider's record once its call is no longer registered. Its full reservation stays counted meanwhile.
   it('an abandoned reserved call holds its payer for every owner until an operator settles it from evidence', async () => {
-    await owner(`INSERT INTO sophia.personal_companion_payers(payer, allowance_micros) VALUES ('p-three', 100000)`)
     const eve = randomUUID()
     const fay = randomUUID()
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('p-three', $1, 100000)`,
+      [eve],
+    )
     const call = await registered(eve)
     assert.equal(
       await withActor(pool, eve, 'write', (c) => reservePersonalCompanion(c, call, 'p-three', 'route-a', 50)),
@@ -180,11 +197,17 @@ describe('personal companion usage (0073)', () => {
     assert.equal(live?.ok, false, 'a registered call is still its runner’s')
     // FIXTURE: the runner is gone; its call registration has ended (0021 deletes it with the call).
     await owner(`DELETE FROM sophia.personal_companion_calls WHERE call_id=$1`, [call])
-    const other = await registered(fay)
+    const other = await registered(eve)
     assert.equal(
-      await withActor(pool, fay, 'write', (c) => reservePersonalCompanion(c, other, 'p-three', 'route-a', 1)),
+      await withActor(pool, eve, 'write', (c) => reservePersonalCompanion(c, other, 'p-three', 'route-a', 1)),
       'held',
-      'another owner on the same payer is held, with ample allowance left',
+      'the owner’s next call is held, with ample allowance left',
+    )
+    const strangers = await registered(fay)
+    assert.equal(
+      await withActor(pool, fay, 'write', (c) => reservePersonalCompanion(c, strangers, 'p-three', 'route-a', 1)),
+      'not_admitted',
+      'and nobody else is asked on it',
     )
     await withActor(pool, eve, 'write', (c) => erasePersonalSpace(c, randomUUID(), 'delete'))
     const [kept] = await owner<{ state: string; reserved_micros: string }>(
@@ -218,9 +241,9 @@ describe('personal companion usage (0073)', () => {
       [call],
     )
     assert.deepEqual([row?.state, row?.used_micros], ['settled', '30'])
-    const later = await registered(fay)
+    const later = await registered(eve)
     assert.equal(
-      await withActor(pool, fay, 'write', (c) => reservePersonalCompanion(c, later, 'p-three', 'route-a', 1)),
+      await withActor(pool, eve, 'write', (c) => reservePersonalCompanion(c, later, 'p-three', 'route-a', 1)),
       'reserved',
     )
   })
@@ -228,9 +251,13 @@ describe('personal companion usage (0073)', () => {
   // #435 4303867352: admission and every usage transition take the payer first. Two independent connections, two
   // owners, one payer; each case waits for the other connection to be seen blocked on a lock, never on a timer.
   it('takes the payer first in both orders: a hold waits for an admission, and an admission for a hold', async () => {
-    await owner(`INSERT INTO sophia.personal_companion_payers(payer, allowance_micros) VALUES ('p-four', 100000)`)
     const gus = randomUUID()
-    const hal = randomUUID()
+    // One owner per payer (#435 4304103151): two independent connections of the payer's one owner.
+    const hal = gus
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('p-four', $1, 100000)`,
+      [gus],
+    )
     const open = async (actor: string) => {
       const c = new pg.Client({ connectionString: db.apiUrl })
       await c.connect()

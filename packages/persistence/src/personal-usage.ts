@@ -65,9 +65,14 @@ export async function releasePersonalCompanion(c: pg.PoolClient, callId: string,
   return onlyRow(rows, 'release_personal_companion').done
 }
 
-export async function personalCompanionAdmitted(c: pg.ClientBase | pg.Pool, payer: string): Promise<boolean> {
-  const { rows } = await c.query<{ admitted: boolean }>('SELECT sophia.personal_companion_admitted($1) AS admitted', [
-    payer,
-  ])
+export async function personalCompanionAdmitted(
+  c: pg.ClientBase | pg.Pool,
+  payer: string,
+  owner: string,
+): Promise<boolean> {
+  const { rows } = await c.query<{ admitted: boolean }>(
+    'SELECT sophia.personal_companion_admitted($1, $2) AS admitted',
+    [payer, owner],
+  )
   return onlyRow(rows, 'personal_companion_admitted').admitted
 }

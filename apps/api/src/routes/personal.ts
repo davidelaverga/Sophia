@@ -236,7 +236,9 @@ function conversationRoutes(app: FastifyInstance, { pool, companion }: Deps): vo
     { schema: writeSchema(null, 'PersonalMessage') },
     async (req, reply) => {
       const key = req.headers['idempotency-key']
-      if (!companion)
+      // Nobody but the payer's enrolled owner is answered live (#435 4304103151): for anyone else, as where no companion
+      // runs, a new message is refused before anything is kept, and a retry gets the receipt its key keeps.
+      if (!companion?.serves(req.actorId))
         return reply.status(202).send(await replayed(pool, req, (c) => replayPersonalTurn(c, key, req.body.text)))
       const receipt = await fenced(pool, req.actorId, req.headers, (c) => sendPersonalTurn(c, key, req.body.text))
       if (receipt.turnId) void companion.answer(req.actorId, receipt.turnId)
@@ -267,7 +269,7 @@ function conversationRoutes(app: FastifyInstance, { pool, companion }: Deps): vo
     async (req, reply) => {
       const key = req.headers['idempotency-key']
       const { turnId } = req.params
-      if (!companion)
+      if (!companion?.serves(req.actorId))
         return reply.status(202).send(await replayed(pool, req, (c) => replayPersonalRetry(c, key, turnId)))
       const receipt = await fenced(pool, req.actorId, req.headers, (c) => retryPersonalTurn(c, key, turnId))
       void companion.answer(req.actorId, turnId)

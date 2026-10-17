@@ -276,6 +276,41 @@ artifact check.
 - This records what CI observed. It is not a Linux pass for this head: the next CI run must reproduce it and complete
   the gated crossings, provenance and both PostgreSQL 16 helper phases.
 
+## Three review findings on `216859f4` (FND-B-PERSONAL-THREE-FINDINGS-FOCUSED-CORRECTION-01)
+
+R confirmed all three. P chose the initial scope: one verified owner per existing payer, pinned by the operator.
+- **The note list's bound (4304097074).** Notes were measured before their `- ` and line breaks were added, so 1,200
+  four-byte notes rendered 8,399 bytes against a 6,000-byte bound.
+  - Now each line is rendered first, and the newest lines are kept within 6,000 bytes as sent, prefixes and breaks
+    included.
+  - The section's fixed label is outside that bound.
+  - The reservation is still measured on the exact prompt sent.
+- **The Note line (4304097082).** A `Note:` inside a sentence or a word cut the answer short. Now a Note is read only
+  from the answer's last line, at its start or after a real line break, with indentation, CRLF and trailing spaces
+  allowed. Anything else stays in the answer. The U+0000 and body checks are unchanged.
+- **One owner per payer (4304103151).**
+  - 0073, corrected in place (still unmerged and unapplied), gives each payer a required `owner_id`. Only the operator
+    enrolls it; no API or worker role can.
+  - Reservation checks the caller is that owner, under the payer's lock, and refuses anyone else as `not_admitted`
+    before anything is reserved.
+  - The companion's settings name the owner. Startup and `/ready` require the payer to be enrolled for exactly that
+    owner, so a missing or mismatched owner never starts, and nothing is enrolled implicitly.
+  - The turn and retry routes answer only the server-verified owner. Anyone else is refused before anything is kept,
+    as where no companion runs.
+  - The one-unresolved-call hold, payer-first transitions and operator-only reconciliation are unchanged. The owner's
+    own erasure still holds its unknown usage.
+
+**Checks** (private PostgreSQL 17.11, en_US.UTF-8).
+- **The four Personal suites: 77/77.** The two new cases cover:
+  - two API instances on one payer, where only the owner is answered and a stranger is refused, with nothing kept,
+    reserved or sent, and cannot start an instance;
+  - the note bound and the parser.
+- **Earlier tests now enroll each payer for its test's owner.** The lock-order case uses two connections of the one
+  owner, and a direct restricted-role reservation by a stranger is refused.
+- **Mutation.** Without the owner check in reservation, three usage cases fail.
+- **Not run:** a before run on `216859f4`. The new tests need the owner column; R's static traces are the before.
+- The ordinary check, `test:sql`, `test:db` and the trusted-creator group are in B's handback.
+
 ## Next bounded action
 
 B's private handback goes to P; R reviews this repair. No push.

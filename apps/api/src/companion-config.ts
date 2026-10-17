@@ -33,8 +33,8 @@ export async function personalCompanionFrom(
   const settings = liveSettings(env.SOPHIA_PERSONAL_COMPANION)
   const reference = settings.credentialRef
   if (!env[reference]?.trim()) throw new Error(`personal companion: its credential reference ${reference} is not set`)
-  if (!(await personalCompanionAdmitted(pool, settings.payer))) {
-    throw new Error('personal companion: its payer is not admitted (0073)')
+  if (!(await personalCompanionAdmitted(pool, settings.payer, settings.owner))) {
+    throw new Error('personal companion: its payer is not admitted for its owner (0073)')
   }
   const service = await composePersonalLlm(settings)
   return { companion: liveCompanion(settings, service.llm, pool), dispose: () => service.dispose() }

@@ -15,12 +15,16 @@
 --   lock the payer's row before the call's, then recheck the call's owner and state, so they are seen in one order.
 -- * A payer is admitted by an operator (personal_companion_payers, written by no API or worker role), with a finite
 --   allowance in micro-USD. The API names its payer in configuration; it cannot admit one or raise an allowance.
+-- * One owner per payer (#435 4304103151, P's initial scope): the operator enrolls each payer for exactly one verified
+--   owner, and only that owner's calls reserve on it (checked under the payer's lock). Nobody else's call is asked on
+--   it, and no API or worker role can enroll, re-enroll or widen a payer.
 -- * Only a call begun in the space's current epoch reserves: one from before an erasure asks nothing more.
 -- 0001–0072 are not edited.
 BEGIN;
 
 CREATE TABLE sophia.personal_companion_payers (
  payer text PRIMARY KEY CHECK (payer ~ '^[a-z][a-z0-9-]{0,62}[a-z0-9]$'),
+ owner_id uuid NOT NULL,
  allowance_micros bigint NOT NULL CHECK (allowance_micros > 0),
  admitted_at timestamptz NOT NULL DEFAULT now()
 );
@@ -56,17 +60,17 @@ SET search_path=pg_catalog AS $$
     OR jsonb_typeof(e.value)<>'number' OR (e.value#>>'{}')!~'^[0-9]{1,15}$') $$;
 REVOKE ALL ON FUNCTION sophia.personal_companion_counts(jsonb) FROM PUBLIC;
 
--- Whether the payer is admitted (the API checks before it starts live, and /ready after).
-CREATE FUNCTION sophia.personal_companion_admitted(p_payer text) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path=pg_catalog,sophia AS $$
- SELECT EXISTS(SELECT FROM sophia.personal_companion_payers WHERE payer=p_payer) $$;
+-- Whether the payer is admitted for this owner (the API checks before it starts live, and /ready after).
+CREATE FUNCTION sophia.personal_companion_admitted(p_payer text, p_owner uuid) RETURNS boolean LANGUAGE sql STABLE
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+ SELECT EXISTS(SELECT FROM sophia.personal_companion_payers WHERE payer=p_payer AND owner_id=p_owner) $$;
 
 -- Reserve `p_micros` for the caller's call `p_call` on `p_payer`, before the provider is asked: 'reserved', or why
--- nothing may be asked ('not_admitted', 'held' while a call of the payer is unresolved, 'exhausted', 'not_current' for a
+-- nothing may be asked ('not_admitted', also for a caller who is not the payer's enrolled owner, 'held' while a call of the payer is unresolved, 'exhausted', 'not_current' for a
 -- call from before an erasure or not begun). A call reserves once.
 CREATE FUNCTION sophia.reserve_personal_companion(p_call uuid, p_payer text, p_route text, p_micros bigint)
 RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
-DECLARE a uuid:=sophia.personal_owner(); e bigint; allowance bigint; spent bigint;
+DECLARE a uuid:=sophia.personal_owner(); e bigint; allowance bigint; enrolled uuid; spent bigint;
 BEGIN
  IF p_micros IS NULL OR p_micros<=0 THEN RAISE EXCEPTION 'A reservation is a positive amount' USING ERRCODE='22023'; END IF;
  SELECT c.epoch INTO e FROM sophia.personal_companion_calls c WHERE c.owner_id=a AND c.call_id=p_call;
@@ -74,8 +78,9 @@ BEGIN
   RETURN 'not_current';
  END IF;
  -- One payer's reservations are taken in turn, so two calls can't both fit the last of an allowance.
- SELECT allowance_micros INTO allowance FROM sophia.personal_companion_payers WHERE payer=p_payer FOR UPDATE;
- IF NOT FOUND THEN RETURN 'not_admitted'; END IF;
+ SELECT allowance_micros, owner_id INTO allowance, enrolled FROM sophia.personal_companion_payers
+  WHERE payer=p_payer FOR UPDATE;
+ IF NOT FOUND OR enrolled<>a THEN RETURN 'not_admitted'; END IF;
  IF EXISTS(SELECT FROM sophia.personal_companion_usage WHERE call_id=p_call) THEN
   RAISE EXCEPTION 'This call already reserved' USING ERRCODE='23505';
  END IF;
@@ -150,10 +155,10 @@ BEGIN
  RETURN FOUND;
 END $$;
 
-REVOKE ALL ON FUNCTION sophia.personal_companion_admitted(text), sophia.reserve_personal_companion(uuid,text,text,bigint),
+REVOKE ALL ON FUNCTION sophia.personal_companion_admitted(text,uuid), sophia.reserve_personal_companion(uuid,text,text,bigint),
  sophia.settle_personal_companion(uuid,bigint,jsonb), sophia.hold_personal_companion(uuid,text),
  sophia.release_personal_companion(uuid,text), sophia.reconcile_personal_companion(uuid,bigint,jsonb) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION sophia.personal_companion_admitted(text), sophia.reserve_personal_companion(uuid,text,text,bigint),
+GRANT EXECUTE ON FUNCTION sophia.personal_companion_admitted(text,uuid), sophia.reserve_personal_companion(uuid,text,text,bigint),
  sophia.settle_personal_companion(uuid,bigint,jsonb), sophia.hold_personal_companion(uuid,text),
  sophia.release_personal_companion(uuid,text) TO sophia_api;
 

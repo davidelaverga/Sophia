@@ -64,6 +64,8 @@ export interface LiveCompanionSettings {
   readonly roleDigest: string
   /** The operator-admitted payer (0073's personal_companion_payers) every call is reserved against. */
   readonly payer: string
+  /** The one owner the operator enrolled that payer for (#435 4304103151): nobody else's turn is answered live. */
+  readonly owner: string
   /** The environment variable the route's credential is resolved from (the profile's apiKeyEnv); never its value. */
   readonly credentialRef: string
   /** The dsh pi-ai provider profile for `call.provider`. */
@@ -80,6 +82,7 @@ export interface PersonalLlm {
 
 const NAME = /^[a-z][a-z0-9-]{0,62}[a-z0-9]$/
 const DIGEST = /^sha256:[0-9a-f]{64}$/
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 const isName = (value: unknown): value is string => typeof value === 'string' && NAME.test(value)
@@ -131,9 +134,10 @@ function parsed(raw: string | undefined): Record<string, unknown> {
 /** The settings in `raw` (SOPHIA_PERSONAL_COMPANION), or an error naming what is missing; nothing is filled in. */
 export function liveSettings(raw: string | undefined): LiveCompanionSettings {
   const value = parsed(raw)
-  const { routeId, payer, roleDigest } = value
+  const { routeId, payer, owner, roleDigest } = value
   if (!isName(routeId)) throw new Error('personal companion: routeId')
   if (!isName(payer)) throw new Error('personal companion: payer')
+  if (typeof owner !== 'string' || !UUID.test(owner)) throw new Error('personal companion: owner')
   if (typeof roleDigest !== 'string' || !DIGEST.test(roleDigest)) throw new Error('personal companion: roleDigest')
   if (roleDigest !== PERSONAL_ROLE_DIGEST) throw new Error('personal companion: roleDigest is not this instruction')
   const { profile, credentialRef } = profileOf(value.profile)
@@ -143,6 +147,7 @@ export function liveSettings(raw: string | undefined): LiveCompanionSettings {
     prices: pricesOf(value.prices),
     roleDigest,
     payer,
+    owner: owner.toLowerCase(),
     credentialRef,
     profile,
   })
@@ -186,11 +191,14 @@ export function personalPrompt(context: CompanionContext): string {
     earlier.map((t) => `${t.author === 'person' ? 'Person' : 'Sophia'}: ${t.text}`),
     TURN_BYTES,
   )
-  const notes = newest(context.notes, NOTE_BYTES)
+  // The note list as sent, each line with its '- ' and the line breaks between, within NOTE_BYTES; its fixed label is
+  // outside that bound (#435 4304097074).
+  const notes = newest(
+    context.notes.map((n) => `- ${n}`),
+    NOTE_BYTES,
+  )
   return [
-    notes.length > 0
-      ? `Notes the person keeps:\n${notes.map((n) => `- ${n}`).join('\n')}`
-      : 'The person keeps no notes.',
+    notes.length > 0 ? `Notes the person keeps:\n${notes.join('\n')}` : 'The person keeps no notes.',
     turns.length > 0
       ? `Your conversation so far, oldest first:\n${turns.join('\n')}`
       : 'This is your first conversation.',
@@ -267,7 +275,9 @@ async function collect(chunks: AsyncIterable<StreamChunk>, signal: AbortSignal):
   return into
 }
 
-const NOTE_LINE = /\n?[ \t]*Note:[ \t]*(.*)\s*$/
+// A Note line is the answer's last line, at its start or after a real line break (#435 4304097082): a "Note:" inside a
+// sentence or a word is part of the answer.
+const NOTE_LINE = /(?:^|\n)[ \t]*Note:[ \t]*([^\n]*?)\s*$/
 
 /** An optional suggestion that can be stored; one that can't (U+0000 among them, #435 4303867360) is dropped. */
 const storableNote = (note: string): boolean =>
@@ -413,6 +423,7 @@ export function liveCompanion(settings: LiveCompanionSettings, llm: PersonalLlm,
     // The fixed welcome (no model call): the same words the Studio already shows for it.
     greet: (_context, name) => Promise.resolve(rehearsalWelcome(name)),
     // Its payer is still admitted (0073 installed, and the operator's row kept).
-    ready: () => personalCompanionAdmitted(pool, settings.payer),
+    owner: settings.owner,
+    ready: () => personalCompanionAdmitted(pool, settings.payer, settings.owner),
   }
 }
