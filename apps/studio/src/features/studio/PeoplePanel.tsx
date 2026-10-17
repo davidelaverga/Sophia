@@ -1,13 +1,15 @@
 // Everyone in the call, in the room's side panel (docs/plans/host-controls.md): you first, then the others, each with
 // their role and whether their microphone is on. For an admin, each other member has a menu: mute their microphone
 // while it is on (only they turn it on again), or take them out of the call (A24). A guest leaves by the door's Deny,
-// so their row offers nothing. What changed shows as the call itself changes; a refusal is said on the row. While a
-// control is on its way its row says so and its menu waits, so one press is one act.
-import { useState } from 'react'
-import { EmptyState, Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
+// so their row offers no such menu. What changed shows as the call itself changes; a refusal is said on the row. While
+// a control is on its way its row says so and its menu waits, so one press is one act. Everyone can turn each other
+// person down for themselves alone (people-volume.md).
+import { useState, type KeyboardEvent } from 'react'
+import { EmptyState, Icon, Menu, MenuHead, MenuItem, Tip, usePopover } from '@sophia/ui'
 import { actInCall } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useMembership } from '../access/useAccess.ts'
+import { levelsHere, levelWords, volumeSettable, type Level } from '../voice/people-volume.ts'
 import { shortName, type RoomParticipant, type Standing } from '../voice/room-view.ts'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 
@@ -42,44 +44,96 @@ interface ActionsProps {
   onAct: (what: Act) => void
 }
 
-/** An admin's menu on one member: Mute while their microphone is on, and Remove. */
-function Actions({ person, name, busy, onAct }: ActionsProps) {
+/** A row's menu (an admin's actions, a person's volume): Esc closes it alone, and a choice hands the focus back first. */
+function useRowMenu() {
   const [open, setOpen] = useState(false)
   const menu = usePopover(open, () => setOpen(false))
-  const label = `Actions for ${name}`
-  // The chosen item leaves with the menu: the focus goes back to the opener first, as Escape's does.
-  const choose = (what: Act) => () => {
-    menu.opener.current?.focus()
-    setOpen(false)
-    onAct(what)
+  return {
+    open,
+    menu,
+    toggle: () => setOpen((o) => !o),
+    // The chosen item leaves with the menu: the focus goes back to the opener first, as Escape's does.
+    choose: (then: () => void) => () => {
+      menu.opener.current?.focus()
+      setOpen(false)
+      then()
+    },
+    // Esc closes this menu only: the side panel closes on an Esc that reaches it.
+    onKeyDown: (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || !open) return
+      e.stopPropagation()
+      setOpen(false)
+    },
   }
+}
+
+/** An admin's menu on one member: Mute while their microphone is on, and Remove. */
+function Actions({ person, name, busy, onAct }: ActionsProps) {
+  const row = useRowMenu()
+  const label = `Actions for ${name}`
   return (
-    <span
-      ref={menu.wrap}
-      className="person-actions"
-      // Esc closes this menu only: the side panel closes on an Esc that reaches it.
-      onKeyDown={(e) => {
-        if (e.key !== 'Escape' || !open) return
-        e.stopPropagation()
-        setOpen(false)
-      }}
-    >
+    <span ref={row.menu.wrap} className="person-actions" onKeyDown={row.onKeyDown}>
       <button
-        ref={menu.opener}
+        ref={row.menu.opener}
         type="button"
         className="round"
         aria-label={label}
         aria-haspopup="menu"
-        aria-expanded={open}
+        aria-expanded={row.open}
         aria-disabled={busy || undefined}
-        onClick={() => !busy && setOpen((o) => !o)}
+        onClick={() => !busy && row.toggle()}
       >
         <Icon name="more" />
       </button>
-      {open && (
-        <Menu popover={menu} label={label} side="bottom" align="end">
-          {person.micOn && <MenuItem onClick={choose('mute')}>Mute microphone</MenuItem>}
-          <MenuItem onClick={choose('remove')}>Remove from call</MenuItem>
+      {row.open && (
+        <Menu popover={row.menu} label={label} side="bottom" align="end">
+          {person.micOn && <MenuItem onClick={row.choose(() => onAct('mute'))}>Mute microphone</MenuItem>}
+          <MenuItem onClick={row.choose(() => onAct('remove'))}>Remove from call</MenuItem>
+        </Menu>
+      )}
+    </span>
+  )
+}
+
+interface VolumeProps {
+  name: string
+  level: Level
+  /** The levels this browser can set (people-volume.ts, `levelsHere`). */
+  levels: readonly Level[]
+  onLevel: (level: Level) => void
+}
+
+/** How loud this person is for you alone (people-volume.md): a menu of levels, the level on a tag when it isn't full. */
+function Volume({ name, level, levels, onLevel }: VolumeProps) {
+  const row = useRowMenu()
+  const label = `Volume for ${name}`
+  return (
+    <span ref={row.menu.wrap} className="person-volume" onKeyDown={row.onKeyDown}>
+      <button
+        ref={row.menu.opener}
+        type="button"
+        className="round has-tip"
+        aria-label={`${label}: ${levelWords(level)}`}
+        aria-haspopup="menu"
+        aria-expanded={row.open}
+        onClick={row.toggle}
+      >
+        <Icon name={level === 0 ? 'speakerOff' : 'speaker'} />
+        {level !== 1 && (
+          <span className="person-volume-level" aria-hidden>
+            {levelWords(level)}
+          </span>
+        )}
+        {!row.open && <Tip label={label} side="bottom" align="end" />}
+      </button>
+      {row.open && (
+        <Menu popover={row.menu} label={label} side="bottom" align="end">
+          <MenuHead>Only you hear the change</MenuHead>
+          {levels.map((l) => (
+            <MenuItem key={l} checked={l === level} onClick={row.choose(() => onLevel(l))}>
+              {levelWords(l)}
+            </MenuItem>
+          ))}
         </Menu>
       )}
     </span>
@@ -90,6 +144,7 @@ export function PeoplePanel({ room, projectId, identity }: Props) {
   const host = useMembership(projectId, identity.name, identity.token).data?.role === 'admin'
   const [failed, setFailed] = useState<{ identity: string; text: string } | null>(null)
   const [pending, setPending] = useState<ReadonlyMap<string, Act>>(new Map())
+  const [levels] = useState(() => levelsHere(volumeSettable(document.createElement('audio'))))
   // You first, then the others as the call lists them.
   const people = room.participants.toSorted((a, b) => Number(b.local) - Number(a.local))
   if (people.length === 0) return <EmptyState>Nobody is in the call yet.</EmptyState>
@@ -119,6 +174,14 @@ export function PeoplePanel({ room, projectId, identity }: Props) {
             <span role="img" className="person-mic" aria-label={p.micOn ? 'Microphone on' : 'Microphone off'}>
               <Icon name={p.micOn ? 'mic' : 'micOff'} />
             </span>
+            {!p.local && (
+              <Volume
+                name={name}
+                level={room.volumes.get(p.identity) ?? 1}
+                levels={levels}
+                onLevel={(level) => room.setVolume(p.identity, level)}
+              />
+            )}
             {acts && <Actions person={p} name={name} busy={pending.has(p.identity)} onAct={act(p, name)} />}
             <Pending what={pending.get(p.identity)} name={name} />
             {failed?.identity === p.identity && (
