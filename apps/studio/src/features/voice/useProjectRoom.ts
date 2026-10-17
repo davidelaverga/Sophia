@@ -85,6 +85,9 @@ export interface ProjectRoom {
   react: (emoji: ReactionEmoji) => void
   /** What this person follows, said to the members in the call (A14, following-signal.ts); null for nothing. */
   setFollowing: (versionId: string | null) => Promise<void>
+  /** Others' cameras come to this browser (incoming-video.md): off for this call only; a shared screen still comes. */
+  incomingVideo: boolean
+  setIncomingVideo: (on: boolean) => void
 }
 
 /** A failed join in words: the API's own refusal, or what to check when the room could not be reached. */
@@ -246,6 +249,19 @@ function useDevices(connection: { current: RoomConnection | null }, refresh: () 
     },
     switchDevice: deviceSwitch(connection, setMediaError),
     setBackground: backgroundSwitch(connection, setMediaError),
+  }
+}
+
+/** Others' cameras, taken or let go for this call (incoming-video.md); out of the call, the next one takes them again. */
+function useIncomingVideo(connection: { current: RoomConnection | null }) {
+  const [incomingVideo, setIncoming] = useState(true)
+  return {
+    incomingVideo,
+    setIncomingVideo: (on: boolean) => {
+      setIncoming(on)
+      connection.current?.setIncomingVideo(on)
+    },
+    resetIncoming: () => setIncoming(true),
   }
 }
 
@@ -498,6 +514,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     )
   }
   const { clearNote, arrive, silence, ...devices } = useDevices(calls, refresh)
+  const { resetIncoming, ...incoming } = useIncomingVideo(calls)
   const typedChat = useConversation(calls, silence)
 
   /**
@@ -513,6 +530,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     joining.current = null
     setPeople(NOBODY)
     clearNote()
+    resetIncoming()
     setStatus(why && CALL_END[why].failed ? 'failed' : 'idle')
     setError(why ? CALL_END[why].note : null)
   }
@@ -540,6 +558,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     ...joined,
     ...people,
     ...devices,
+    ...incoming,
     setMicrophone,
     ...conversationParts(typedChat),
     startAudio,

@@ -257,6 +257,7 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
         onChoose={(kind, id) => void room.switchDevice(kind, id)}
         background={{ supported: room.backgroundsSupported, onChoose: (id) => void room.setBackground(id) }}
         mirror={mirror}
+        incoming={{ on: room.incomingVideo, toggle: () => room.setIncomingVideo(!room.incomingVideo) }}
       />
       {canShareScreen && (
         <Toggle
