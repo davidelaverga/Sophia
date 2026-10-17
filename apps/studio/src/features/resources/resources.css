@@ -120,6 +120,11 @@
   animation: arrive 0.4s var(--ease) both;
   animation-delay: calc(var(--i, 0) * 40ms);
 }
+/* On paper its rim, then the contact a card rests on (light-shadows.md): this list replaces the card's own. As light
+   as the tile's own rule, so its states (waiting, changed) still win. */
+:where(:root[data-theme='light']) .resource-tile {
+  box-shadow: var(--rim), var(--elev-card);
+}
 .resource-tile-head {
   display: flex;
   align-items: center;
@@ -680,7 +685,7 @@
   margin: -8px 0 0 -8px;
   border-radius: 50%;
   background: var(--core);
-  box-shadow: 0 1px 4px rgb(var(--shadow-rgb) / calc(0.45 * var(--shadow-k)));
+  box-shadow: var(--elev-knob);
   transition: left var(--fast) var(--ease);
 }
 .effort-picker-foot {

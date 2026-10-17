@@ -426,7 +426,7 @@
   padding: 4px 3px;
   border-radius: var(--r-1);
   background: #fbf8f3;
-  box-shadow: 0 4px 12px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  box-shadow: var(--elev-thumb);
 }
 .conv-output-page i {
   display: block;
@@ -1110,13 +1110,13 @@
   background: var(--plane-2);
   box-shadow:
     0 0 0 1px var(--line-2),
-    0 18px 50px rgb(var(--shadow-rgb) / calc(0.55 * var(--shadow-k)));
+    var(--elev-composer);
   transition: box-shadow var(--fast) var(--ease);
 }
 .conv-field-box:focus-within {
   box-shadow:
     0 0 0 1px rgb(var(--halo-rgb) / 0.45),
-    0 18px 50px rgb(var(--shadow-rgb) / calc(0.55 * var(--shadow-k))),
+    var(--elev-composer),
     0 0 30px rgb(var(--halo-rgb) / 0.08);
 }
 .conv-compose textarea {
@@ -1347,7 +1347,7 @@
     transition:
       transform var(--base) var(--ease),
       visibility 0s var(--base);
-    box-shadow: -30px 0 80px rgb(var(--shadow-rgb) / calc(0.6 * var(--shadow-k)));
+    box-shadow: var(--elev-context);
   }
   .conversations[data-context] .conv-context {
     visibility: visible;

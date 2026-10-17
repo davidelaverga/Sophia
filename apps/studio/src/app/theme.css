@@ -74,9 +74,32 @@
   --flight-core: rgba(250, 248, 255, 0.95);
   --flight-rim: rgba(214, 204, 255, 0.55);
   --rose-rgb: 238 159 176;
-  /* A shadow's ink and its strength: black at full in the room; on paper the ink, a third as strong. */
+  /* A shadow's ink: black in the room, the paper's ink on paper. */
   --shadow-rgb: 0 0 0;
-  --shadow-k: 1;
+  /* Elevation (docs/plans/light-shadows.md): what each piece casts, by role; no piece writes a shadow of its own. In
+     the room each is one black layer at the depth that piece was drawn with; paper points every role at one of its
+     three levels, the side sheets' level, or the page's upward pair. A card is flat here: a shadow of nothing, which a piece's own list can still carry. */
+  --elev-card: 0 0 transparent;
+  --elev-task: 0 1px 2px rgb(var(--shadow-rgb) / 0.3);
+  --elev-knob: 0 1px 4px rgb(var(--shadow-rgb) / 0.45);
+  --elev-thumb: 0 4px 12px rgb(var(--shadow-rgb) / 0.5);
+  --elev-page: 0 -1px 12px rgb(var(--shadow-rgb) / 0.35);
+  --elev-task-hover: 0 14px 34px rgb(var(--shadow-rgb) / 0.4);
+  --elev-turn: 0 6px 18px rgb(var(--shadow-rgb) / 0.45);
+  --elev-daypill: 0 8px 24px rgb(var(--shadow-rgb) / 0.4);
+  --elev-passage: 0 12px 32px rgb(var(--shadow-rgb) / 0.45);
+  --elev-mini-dock: 0 12px 40px rgb(var(--shadow-rgb) / 0.45);
+  --elev-dock: 0 16px 48px rgb(var(--shadow-rgb) / 0.5);
+  --elev-composer: 0 18px 50px rgb(var(--shadow-rgb) / 0.55);
+  --elev-tip: 0 8px 24px rgb(var(--shadow-rgb) / 0.5);
+  --elev-welcome: 0 12px 32px rgb(var(--shadow-rgb) / 0.32);
+  --elev-toast: 0 12px 40px rgb(var(--shadow-rgb) / 0.5);
+  --elev-lobby: 0 16px 48px rgb(var(--shadow-rgb) / 0.45);
+  --elev-menu: 0 18px 50px rgb(var(--shadow-rgb) / 0.55);
+  --elev-pane: -24px 0 48px rgb(var(--shadow-rgb) / 0.35);
+  --elev-notes: -24px 0 60px rgb(var(--shadow-rgb) / 0.45);
+  --elev-sheet: -24px 0 64px rgb(var(--shadow-rgb) / 0.5);
+  --elev-context: -30px 0 80px rgb(var(--shadow-rgb) / 0.6);
   /* The mark's two inks (Umbral, docs/plans/brand-umbral.md): you warm and Sophia core in the room; on paper the brand's
      ink and halo-deep, the favicon's (docs/plans/light-paper-mark.md). */
   --mark-you: var(--warm);
@@ -156,7 +179,35 @@
   --flight-rim: rgb(132 104 238 / 0.5);
   --rose-rgb: 168 55 90;
   --shadow-rgb: 29 27 34;
-  --shadow-k: 0.35;
+  /* Paper's three levels: resting on the page, at hand over it, over everything. Each is a crisp contact under the
+     edge and a soft ambient, kept under the piece by a negative spread from the second level up: a third of the room's one layer left a grey
+     blotch around what floats (D7, ~1.4:1 under the dock on a phone). A sheet's is turned to its left edge, a page
+     rising from a cover's foot to its top. */
+  --elev-1: 0 1px 2px rgb(var(--shadow-rgb) / 0.1), 0 2px 6px rgb(var(--shadow-rgb) / 0.04);
+  --elev-2: 0 1px 2px rgb(var(--shadow-rgb) / 0.1), 0 6px 16px -2px rgb(var(--shadow-rgb) / 0.08);
+  --elev-3: 0 1px 3px rgb(var(--shadow-rgb) / 0.1), 0 12px 32px -6px rgb(var(--shadow-rgb) / 0.14);
+  --elev-side: -1px 0 2px rgb(var(--shadow-rgb) / 0.08), -16px 0 40px -8px rgb(var(--shadow-rgb) / 0.12);
+  --elev-card: var(--elev-1);
+  --elev-task: var(--elev-1);
+  --elev-knob: var(--elev-1);
+  --elev-thumb: var(--elev-1);
+  --elev-page: 0 -1px 2px rgb(var(--shadow-rgb) / 0.08), 0 -2px 8px rgb(var(--shadow-rgb) / 0.05);
+  --elev-task-hover: var(--elev-2);
+  --elev-turn: var(--elev-2);
+  --elev-daypill: var(--elev-2);
+  --elev-passage: var(--elev-2);
+  --elev-mini-dock: var(--elev-2);
+  --elev-dock: var(--elev-2);
+  --elev-composer: var(--elev-2);
+  --elev-tip: var(--elev-3);
+  --elev-welcome: var(--elev-3);
+  --elev-toast: var(--elev-3);
+  --elev-lobby: var(--elev-3);
+  --elev-menu: var(--elev-3);
+  --elev-pane: var(--elev-side);
+  --elev-notes: var(--elev-side);
+  --elev-sheet: var(--elev-side);
+  --elev-context: var(--elev-side);
   --mark-you: #16151b;
   --mark-sophia: #8468ee;
   /* The tints are the accent at 14 % over the paper, mixed once and opaque: a tag over a cover or a plane keeps the
@@ -710,7 +761,7 @@ input[type='checkbox']:hover:not(:disabled) {
   border-radius: var(--r-2);
   border: 1px solid var(--line-2);
   background: var(--plane-2);
-  box-shadow: 0 8px 24px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  box-shadow: var(--elev-tip);
   color: var(--text);
   font-size: 12px;
   font-weight: 500;
@@ -1025,7 +1076,7 @@ button.mark:hover {
   border-radius: var(--r-3);
   border: 1px solid var(--line-2);
   background: var(--plane-2);
-  box-shadow: 0 18px 50px rgb(var(--shadow-rgb) / calc(0.55 * var(--shadow-k)));
+  box-shadow: var(--elev-menu);
   animation: arrive var(--base) var(--ease) both;
 }
 /* In a field (the resources' sort) the plane's box is the field's padding box, 1 px inside its edge: one more pixel,
@@ -1937,9 +1988,7 @@ img.avatar {
   background: var(--glass);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
-  box-shadow:
-    var(--lift),
-    0 16px 48px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  box-shadow: var(--lift), var(--elev-dock);
 }
 .stage-made.born {
   animation: made-born 0.9s var(--ease) both;
@@ -2456,9 +2505,7 @@ button.contribution-quote:hover {
   background: var(--glass);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
-  box-shadow:
-    var(--lift),
-    0 16px 48px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  box-shadow: var(--lift), var(--elev-dock);
   animation: rise 0.45s var(--ease) 0.1s backwards;
 }
 @keyframes rise {
@@ -2997,6 +3044,12 @@ button.contribution-quote:hover {
   background-color: var(--plane-2);
   color: var(--text);
 }
+/* On paper a card rests on the page on its contact shadow (light-shadows.md); in the room no rule: it is flat, as it
+   was. Named with no weight, so a card that casts its own (a board's tile, a resource's rim) replaces it whatever the
+   sheets' order. */
+:where(:root[data-theme='light'] .card) {
+  box-shadow: var(--elev-card);
+}
 .card-tile {
   padding: 10px 12px;
   border-radius: var(--r-3);
@@ -3155,9 +3208,7 @@ button.contribution-quote:hover {
   background: var(--glass);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
-  box-shadow:
-    var(--lift),
-    0 12px 40px rgb(var(--shadow-rgb) / calc(0.45 * var(--shadow-k)));
+  box-shadow: var(--lift), var(--elev-mini-dock);
   animation: rise 0.4s var(--ease) backwards;
 }
 .mini-dock .pill {
@@ -3252,7 +3303,7 @@ button.contribution-quote:hover {
   border: 1px solid var(--line-2);
   border-radius: 12px;
   background: var(--plane-2);
-  box-shadow: 0 12px 32px rgb(var(--shadow-rgb) / calc(0.32 * var(--shadow-k)));
+  box-shadow: var(--elev-welcome);
 }
 .welcome-words {
   display: grid;
@@ -3341,7 +3392,7 @@ button.contribution-quote:hover {
   border-radius: var(--r-3);
   border: 1px solid var(--line-2);
   background: var(--plane-2);
-  box-shadow: 0 12px 40px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  box-shadow: var(--elev-toast);
   color: var(--text);
   font-size: 13px;
 }
@@ -3387,7 +3438,7 @@ button.contribution-quote:hover {
   border-radius: var(--r-3);
   border: 1px solid var(--line-2);
   background: var(--plane-2);
-  box-shadow: 0 12px 40px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  box-shadow: var(--elev-toast);
   font-size: 13px;
   opacity: 0;
   pointer-events: none;
@@ -3463,9 +3514,7 @@ button.contribution-quote:hover {
   background: var(--glass);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
-  box-shadow:
-    var(--lift),
-    0 16px 48px rgb(var(--shadow-rgb) / calc(0.45 * var(--shadow-k)));
+  box-shadow: var(--lift), var(--elev-lobby);
 }
 /* Who is at the door, in a sentence, after a warm dot that breathes. */
 .lobby-title {
@@ -3651,7 +3700,7 @@ button.contribution-quote:hover {
   border: 1px solid var(--line-2);
   border-radius: var(--r-4);
   background: var(--plane-2);
-  box-shadow: 0 18px 50px rgb(var(--shadow-rgb) / calc(0.55 * var(--shadow-k)));
+  box-shadow: var(--elev-menu);
   outline: none;
 }
 /* In a call the call's row comes first: three rows, the list still the one that shrinks and scrolls (Codex on #238). */
@@ -3738,7 +3787,7 @@ button.contribution-quote:hover {
   padding: var(--sheet-top) 20px 28px;
   border-left: 1px solid var(--line-2);
   background: var(--surface-well);
-  box-shadow: -24px 0 64px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  box-shadow: var(--elev-sheet);
   animation: slide var(--base) var(--ease) both;
 }
 .sheet:focus-visible {
@@ -5128,9 +5177,7 @@ button.contribution-quote:hover {
   background: var(--glass);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
-  box-shadow:
-    var(--lift),
-    0 16px 48px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  box-shadow: var(--lift), var(--elev-dock);
   animation: rise 0.45s var(--ease) 0.1s backwards;
 }
 /* Something new behind a closed panel: a dot of Sophia's violet on its toggle. */
