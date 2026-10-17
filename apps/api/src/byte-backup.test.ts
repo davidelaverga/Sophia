@@ -1,10 +1,23 @@
 import assert from 'node:assert/strict'
-import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import {
+  chmodSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+} from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { setImmediate as nextTurn } from 'node:timers/promises'
 import { describe, it, type TestContext } from 'node:test'
+import { BroadcastChannel, setEnvironmentData } from 'node:worker_threads'
 import {
   BACKUP_OBJECT_MAX_BYTES,
   BACKUP_WRITE_MS,
@@ -12,6 +25,7 @@ import {
   diskByteBackup,
   hasDedicatedDiskMount,
 } from './byte-backup.ts'
+import { BACKUP_DIAGNOSTICS } from './byte-backup-quota.ts'
 import {
   BACKUP_ACTIVE_BYTES,
   ByteStoreError,
@@ -37,6 +51,49 @@ function volume(t: TestContext): string {
 // A labelled mount-table fixture, not a mounted-volume or provider persistence test. File I/O itself is real.
 const mounted = (root: string) => `1 0 0:1 / / rw - overlay overlay rw\n2 1 8:1 / ${root} rw - ext4 /dev/disk rw`
 const backupAt = (root: string) => diskByteBackup(root, mounted(root))
+
+const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex').slice(0, 16)
+const sanitized = (text: string) => text.replace(/\/[^\s'"`]+/gu, '[path]').slice(0, 160)
+/** A settled put as a failure report may say it: its outcome, the error's kind and codes, never a path or content. */
+function settled(result: PromiseSettledResult<void>) {
+  if (result.status === 'fulfilled') return 'fulfilled'
+  const e: unknown = result.reason
+  const fields: Record<string, unknown> = typeof e === 'object' && e !== null ? { ...e } : {}
+  return {
+    name: e instanceof Error ? e.name : typeof e,
+    status: fields.status ?? null,
+    code: fields.code ?? null,
+    message: e instanceof Error ? sanitized(e.message) : null,
+  }
+}
+const list = (dir: string) => {
+  try {
+    return readdirSync(dir)
+  } catch {
+    return null
+  }
+}
+/** What two puts left on the volume, in the journal and at the remote: kinds, sizes and digests, never bytes. */
+function leftBehind(root: string, remote: ReturnType<typeof memoryByteStore>) {
+  const objects = list(join(root, 'objects', PROJECT))?.map((name) => {
+    const bytes = readFileSync(join(root, 'objects', PROJECT, name))
+    return { kind: name === SOURCE ? 'copy' : 'other', size: bytes.byteLength, sha256: digest(bytes) }
+  })
+  const budget = list(join(root, 'budget'))?.map((name) => ({ name, size: lstatSync(join(root, 'budget', name)).size }))
+  let reservations: unknown = null
+  try {
+    const db = new DatabaseSync(join(root, 'budget', 'reservations.sqlite'), { readOnly: true })
+    try {
+      reservations = db.prepare('SELECT key=? AS this, bytes FROM reservations').all(KEY)
+    } finally {
+      db.close()
+    }
+  } catch (error) {
+    reservations = { unreadable: error instanceof Error ? sanitized(error.message) : 'unknown' }
+  }
+  const held = remote.objects.get(KEY)
+  return { objects, budget, reservations, remote: held ? { size: held.byteLength, sha256: digest(held) } : null }
+}
 
 describe('private immutable report-byte copies', () => {
   it('flushes the exact bytes before remote upload and retains them across a new store instance', async (t) => {
@@ -72,10 +129,27 @@ describe('private immutable report-byte copies', () => {
     const root = volume(t)
     const remote = memoryByteStore()
     const store = withByteBackup(remote, backupAt(root))
+    // Failure-only diagnostics (R-C3-BACKUP-01): the reservation stages this case's workers report, kept only to be
+    // said if the puts do not leave exactly one winner. The assertions below are unchanged.
+    const stages: unknown[] = []
+    setEnvironmentData(BACKUP_DIAGNOSTICS, true)
+    const channel = new BroadcastChannel(BACKUP_DIAGNOSTICS)
+    channel.addEventListener('message', (event) => stages.push((event as MessageEvent).data))
+    t.after(() => {
+      channel.close()
+      setEnvironmentData(BACKUP_DIAGNOSTICS, undefined)
+    })
+    const started = performance.now()
     const writes = await Promise.allSettled([
       store.put(KEY, new Uint8Array([1]), MIME),
       store.put(KEY, new Uint8Array([2]), MIME),
     ])
+    const ms = Math.round(performance.now() - started)
+    if (writes.filter((r) => r.status === 'fulfilled').length !== 1) {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      const report = { ms, writes: writes.map(settled), stages, left: leftBehind(root, remote) }
+      t.diagnostic(`R-C3-BACKUP-01 two-put failure: ${JSON.stringify(report)}`)
+    }
     assert.equal(writes.filter((r) => r.status === 'fulfilled').length, 1)
     const rejected = writes.find((r) => r.status === 'rejected')
     assert.ok(rejected?.status === 'rejected' && (conflict(rejected.reason) || unavailable(rejected.reason)))

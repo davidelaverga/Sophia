@@ -16,7 +16,12 @@ import {
 import { isAbsolute, join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { isMainThread, parentPort, workerData } from 'node:worker_threads'
-import { isBackupReservation, type BackupReservation, type BackupQuotaStatus } from './byte-backup-quota.ts'
+import {
+  backupDiagnostic,
+  isBackupReservation,
+  type BackupReservation,
+  type BackupQuotaStatus,
+} from './byte-backup-quota.ts'
 
 function privatePath(path: string, directory: boolean): void {
   const stat = lstatSync(path)
@@ -151,8 +156,10 @@ if (!isMainThread) {
   try {
     const request: unknown = workerData
     if (isBackupReservation(request)) status = run(request)
-  } catch {
+  } catch (error) {
     // A busy, full, corrupt or uncertain journal is unavailable; no path, content or database error leaves the worker.
+    // Only a test that asks sees why, through its own channel (backupDiagnostic; R-C3-BACKUP-01).
+    backupDiagnostic('worker-caught', error)
   }
   // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Node MessagePort, not a browser window.
   parentPort?.postMessage(status)

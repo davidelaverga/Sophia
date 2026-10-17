@@ -1,6 +1,6 @@
 // Durable disk admission runs off the API event loop. A deadline never refunds a possibly committed reservation.
 // The worker receives identities and lengths, never report bytes or storage credentials.
-import { Worker } from 'node:worker_threads'
+import { BroadcastChannel, getEnvironmentData, Worker } from 'node:worker_threads'
 
 export const BACKUP_QUOTA_MS = 5_000
 export const BACKUP_LIMITS = {
@@ -13,6 +13,23 @@ export const BACKUP_LIMITS = {
   freeBytes: 128 * 1024 * 1024,
 }
 export type BackupLimits = typeof BACKUP_LIMITS
+
+/**
+ * Test-only failure diagnostics (R-C3-BACKUP-01): only while a test sets this key with setEnvironmentData, which a
+ * worker inherits, each reservation stage is reported on a channel of this name. Production never sets it. A report is
+ * a stage, an error's name and codes, and a message with paths taken out: never a key, content or credential.
+ */
+export const BACKUP_DIAGNOSTICS = 'sophia.byte-backup.diagnostics'
+export function backupDiagnostic(stage: string, error?: unknown, detail: Record<string, number | string> = {}): void {
+  if (getEnvironmentData(BACKUP_DIAGNOSTICS) !== true) return
+  const e: Record<string, unknown> = typeof error === 'object' && error !== null ? { ...error } : {}
+  const message = error instanceof Error ? error.message.replace(/\/[^\s'"`]+/gu, '[path]').slice(0, 160) : null
+  const name = error instanceof Error ? error.name : null
+  const channel = new BroadcastChannel(BACKUP_DIAGNOSTICS)
+  // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Node BroadcastChannel, not a browser window.
+  channel.postMessage({ stage, name, code: e.code ?? null, errcode: e.errcode ?? null, message, ...detail })
+  channel.close()
+}
 export interface BackupReservation {
   root: string
   key: string
@@ -53,6 +70,7 @@ function awaitWorker(worker: Worker, release: () => void): Promise<BackupQuotaSt
     let status: BackupQuotaStatus = 503
     let messages = 0
     const timer = setTimeout(() => {
+      backupDiagnostic('quota-deadline')
       resolve(503)
       // A committed charge remains charged. Keep the worker counted until its exit, even if termination is slow.
       void worker.terminate().catch(() => undefined)
@@ -61,13 +79,17 @@ function awaitWorker(worker: Worker, release: () => void): Promise<BackupQuotaSt
       messages += 1
       status = message === 200 || message === 409 ? message : 503
     })
-    worker.on('error', () => {
+    worker.on('error', (error) => {
+      backupDiagnostic('quota-worker-error', error)
       status = 503
     })
     worker.once('exit', (code) => {
       clearTimeout(timer)
       release()
-      resolve(code === 0 && messages === 1 && performance.now() < deadline ? status : 503)
+      const late = performance.now() >= deadline
+      const final = code === 0 && messages === 1 && !late ? status : 503
+      backupDiagnostic('quota-exit', undefined, { exitCode: code, messages, status, final, late: late ? 1 : 0 })
+      resolve(final)
     })
   })
 }
@@ -76,14 +98,18 @@ function awaitWorker(worker: Worker, release: () => void): Promise<BackupQuotaSt
 export function quotaAdmission(createWorker: (request: BackupReservation) => Worker) {
   let active = 0
   return (request: BackupReservation): Promise<BackupQuotaStatus> => {
-    if (active >= 2) return Promise.resolve(503)
+    if (active >= 2) {
+      backupDiagnostic('quota-admission-refused', undefined, { active })
+      return Promise.resolve(503)
+    }
     active += 1
     const release = () => {
       active -= 1
     }
     try {
       return awaitWorker(createWorker(request), release)
-    } catch {
+    } catch (error) {
+      backupDiagnostic('quota-worker-start', error)
       release()
       return Promise.resolve(503)
     }
