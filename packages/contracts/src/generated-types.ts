@@ -264,6 +264,8 @@ export type MemberRemoveRequest = {  };
 export type MemberRemoved = { "actorId": string; "cursor": string; };
 export type ProjectArchiveRequest = { "archived": boolean; };
 export type ProjectArchived = { "projectId": string; "archived": boolean; "cursor": string; };
+export type Profile = { "displayName": string | null; "chosen": boolean; "revision": number; };
+export type ProfileUpdate = { "displayName": string; "expectedRevision": number; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
@@ -424,4 +426,6 @@ export interface Operations {
   "stopCameraInCall": { method: "POST"; path: "/api/v1/projects/{projectId}/room/people/{identity}/stop-camera"; request: undefined; response: undefined; };
   "stopScreenInCall": { method: "POST"; path: "/api/v1/projects/{projectId}/room/people/{identity}/stop-screen"; request: undefined; response: undefined; };
   "muteEveryoneInCall": { method: "POST"; path: "/api/v1/projects/{projectId}/room/mute-all"; request: undefined; response: undefined; };
+  "getMyProfile": { method: "GET"; path: "/api/v1/me/profile"; request: undefined; response: Profile; };
+  "updateMyProfile": { method: "PUT"; path: "/api/v1/me/profile"; request: ProfileUpdate; response: Profile; };
 }

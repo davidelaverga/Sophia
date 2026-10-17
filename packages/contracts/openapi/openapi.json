@@ -14285,6 +14285,124 @@
           }
         }
       }
+    },
+    "/api/v1/me/profile": {
+      "get": {
+        "operationId": "getMyProfile",
+        "summary": "The caller's own display name.",
+        "tags": [
+          "me"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "A guest without an account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateMyProfile",
+        "summary": "Set the caller's own display name: compare-and-set on its revision, idempotent per actor and key.",
+        "tags": [
+          "me"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Set, or the same edit again under its key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "A guest without an account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The profile changed since `expectedRevision`, or the key was used for another edit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or a name that is blank, an address, or has a control or invisible character",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -16590,7 +16708,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Who invited: the display name they had when they invited; null when they had none (never an address)."
           },
           "kind": {
             "type": "string",
@@ -17387,7 +17506,7 @@
                 "type": "null"
               }
             ],
-            "description": "Who wrote it, as their account named them then (an address when it gave no other name); null when unknown."
+            "description": "Who wrote it: the author's current display name; null when they have none (never an address)."
           }
         },
         "required": [
@@ -18748,7 +18867,7 @@
                 "type": "null"
               }
             ],
-            "description": "Who wrote it, as their account named them then (an address when it gave no other name); null when unknown."
+            "description": "Who wrote it: the author's current display name; null when they have none (never an address)."
           }
         },
         "required": [
@@ -18952,7 +19071,7 @@
                 "type": "null"
               }
             ],
-            "description": "Who proposed it, as their account named them then; null when unknown."
+            "description": "Who proposed it: their current display name; null when they have none or it is unknown (never an address)."
           },
           "decidedByName": {
             "anyOf": [
@@ -18965,7 +19084,7 @@
                 "type": "null"
               }
             ],
-            "description": "Who decided it, as their account named them then; null while undecided or when unknown."
+            "description": "Who decided it: their current display name; null while undecided, when they have none or it is unknown (never an address)."
           }
         },
         "required": [
@@ -20736,7 +20855,8 @@
             "type": "string"
           },
           "ownerName": {
-            "type": "string"
+            "type": "string",
+            "description": "Who carried the note: their current display name, else «A member» (never an address)."
           },
           "mine": {
             "type": "boolean"
@@ -30022,7 +30142,7 @@
                 "type": "null"
               }
             ],
-            "description": "Who invited, as their account names them (an address when it has no other name)."
+            "description": "Who invited: the display name they had when they invited; null when they had none (never an address)."
           },
           "role": {
             "type": "string",
@@ -30319,7 +30439,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "The member's current display name; null when they have none (never an address)."
           }
         },
         "required": [
@@ -30468,7 +30589,8 @@
                   {
                     "type": "null"
                   }
-                ]
+                ],
+                "description": "The person's current display name, else the name a guest gave at the door; null when neither (never an address)."
               }
             },
             "required": [
@@ -30496,7 +30618,8 @@
                       {
                         "type": "null"
                       }
-                    ]
+                    ],
+                    "description": "The person's current display name, else the name a guest gave at the door; null when neither (never an address)."
                   }
                 },
                 "required": [
@@ -30603,6 +30726,59 @@
           "projectId",
           "archived",
           "cursor"
+        ]
+      },
+      "Profile": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The caller's own display name. `chosen` is true once they set it themself; until then it may be their account provider's name, or null.",
+        "properties": {
+          "displayName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "chosen": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Counts the person's own edits; 0 before the first."
+          }
+        },
+        "required": [
+          "displayName",
+          "chosen",
+          "revision"
+        ]
+      },
+      "ProfileUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "Trimmed by the service; spaces alone, an address ('@'), a control or invisible character are refused (422)."
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The profile's revision as last read (0 before any edit)."
+          }
+        },
+        "required": [
+          "displayName",
+          "expectedRevision"
         ]
       }
     }

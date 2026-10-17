@@ -137,7 +137,8 @@ function missionFrame(p: ProjectRow): { mission: MissionFrame | null; legacy: bo
 
 const DECISION_COLUMNS = `d.id, d.revision, d.kind, d.state, d.proposal, d.proposed_by, d.origin, d.created_at,
   d.base_mission_revision, d.supersedes_decision_id, d.supporting_entry_ids, d.decided_by, d.decided_at, d.decided_via,
-  d.proposed_by_name, d.decided_by_name, d.body_source_id, s.sha256`
+  sophia.actor_label(d.project_id, d.proposed_by, d.proposed_by_name) AS proposed_by_name,
+  sophia.actor_label(d.project_id, d.decided_by, d.decided_by_name) AS decided_by_name, d.body_source_id, s.sha256`
 
 async function readDecisions(c: pg.PoolClient, projectId: string, where: string, order: string, limit: number) {
   const { rows } = await c.query<DecisionRow>(
@@ -180,7 +181,8 @@ function toDecision(r: DecisionRow, missionRevision: number, names: boolean): Mi
   }
 }
 
-const ENTRY_COLUMNS = `e.id, e.kind, e.epistemic, e.state, t.body, e.authored_by, e.actor_id, e.author_name, e.origin,
+const ENTRY_COLUMNS = `e.id, e.kind, e.epistemic, e.state, t.body, e.authored_by, e.actor_id,
+  sophia.actor_label(e.project_id, e.actor_id, e.author_name) AS author_name, e.origin,
   e.exchange_id,
   e.input_epoch, e.related_entry_id, e.supersedes_entry_id,
   (SELECT n.id FROM sophia.mission_entries n WHERE n.project_id = e.project_id AND n.supersedes_entry_id = e.id LIMIT 1) AS superseded_by,

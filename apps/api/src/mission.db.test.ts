@@ -44,10 +44,17 @@ let pool: pg.Pool
 let app: FastifyInstance
 let base: string
 
-/** Each member's token names them by an address, as Supabase's do; the brief keeps it with what they write. */
-const named = (sub: string) => `${sub.slice(0, 8)}@sophia.test`
+/**
+ * Each member's token carries an address and their provider's name, as Supabase's do for a Google account; the brief
+ * names them by that name (their display name, 0062), never by the address.
+ */
+const named = (sub: string) => `Member ${sub.slice(0, 8)}`
 const token = (sub: string) =>
-  new SignJWT({ role: 'authenticated', email: named(sub) })
+  new SignJWT({
+    role: 'authenticated',
+    email: `${sub.slice(0, 8)}@sophia.test`,
+    user_metadata: { full_name: named(sub) },
+  })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(sub)
     .setIssuer(ISSUER)
@@ -428,10 +435,10 @@ describe('the guide’s voice operations over /v1/media/tool-calls', () => {
     return res.json as { status: string; output: ResponseBody }
   }
 
-  it('names the speaker by the name their room token carried: a note, a proposal and a decision by voice', async () => {
-    // The follow-up of #336: a voice write keeps a name too. The API signs each member's room token with their account
-    // name; the database keeps it for the project then, and a voice write by that member takes it from there. The
-    // bridge names no one, so a speaker who never joined through the Studio keeps none.
+  it('names the speaker by their display name: a note, a proposal and a decision by voice', async () => {
+    // The follow-up of #336: a voice write keeps a name too. The bridge names no one; a voice write takes the speaker's
+    // display name (0062), and the brief reads their current one, so a note spoken before they joined through the
+    // Studio is named as well.
     const { projectId } = await project()
     const consent = { method: 'PUT', as: E, body: { state: 'accepted' } }
     await call(`/api/v1/projects/${projectId}/mission/note-policy`, {
@@ -485,7 +492,8 @@ describe('the guide’s voice operations over /v1/media/tool-calls', () => {
     )
     const ctx = parseMissionContext((await call(`/api/v1/projects/${projectId}/mission?names=1`, { as: V })).json)
     const nameOf = (id: string) => ctx.entries.find((e) => e.id === id)?.authorName ?? null
-    assert.deepEqual([nameOf(unjoined.output.entryId), nameOf(noted.output.entryId)], [null, named(E)])
+    // Both name the speaker by their current display name (0062), the note spoken before joining too.
+    assert.deepEqual([nameOf(unjoined.output.entryId), nameOf(noted.output.entryId)], [named(E), named(E)])
     const agreed = [...ctx.constraints, ...ctx.decided].find((d) => d.id === proposal.output.proposalId)
     assert.deepEqual([agreed?.proposedByName, agreed?.decidedByName], [named(E), named(E)])
   })

@@ -24,6 +24,7 @@ import {
   type LiveKitConfig,
 } from '../livekit.ts'
 import { recordedIfDone } from './host-acts.ts'
+import { namesOf } from './profile.ts'
 import { idempotencyHeader, projectParams } from './schemas.ts'
 
 const roomParams = {
@@ -66,20 +67,21 @@ export function roomRoutes(app: FastifyInstance, { pool, livekit }: Deps): void 
     async (req) => {
       if (!livekit) throw new DomainError('unavailable', 'The voice room is not configured on this server')
       const { roomId, expectedAudienceRevision } = req.body
-      // The name the token carries is kept for the member's voice writes (0050), in the same transaction.
-      const access = await withActor(pool, req.actorId, 'write', async (c) => {
+      // The room keeps the member's address for invitations (0050, 0062); the call names them by their display name,
+      // never their address, as everyone in it reads a participant's name.
+      const joining = await withActor(pool, req.actorId, 'write', async (c) => {
         const allowed = await authorizeRoomJoin(c, req.params.projectId, roomId, expectedAudienceRevision)
-        if (allowed) {
-          await nameActor(c, req.actorName)
-          await rememberRoomName(c, req.params.projectId)
-        }
-        return allowed
+        if (!allowed) return null
+        const shown = await nameActor(c, namesOf(req))
+        await rememberRoomName(c, req.params.projectId)
+        return { access: allowed, shown }
       })
-      if (!access) throw new DomainError('forbidden', 'Not permitted')
+      if (!joining) throw new DomainError('forbidden', 'Not permitted')
+      const { access, shown } = joining
       return issueRoomToken(livekit, {
         roomId,
         identity: req.actorId,
-        name: req.actorName,
+        name: shown,
         // Viewers speak in the human room too (amendment A06): talking is not a work grant.
         canPublish: true,
         standing: { role: access.role },

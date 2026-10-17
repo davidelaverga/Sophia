@@ -30,6 +30,7 @@ const EXPORTS = [
   'MemberRoleSet',
   'ActivityPage',
   'MemberRemoved',
+  'Profile',
   'Error',
   'Event',
   'CursorAdvance',
