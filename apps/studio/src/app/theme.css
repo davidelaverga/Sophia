@@ -65,6 +65,10 @@
      ink and halo-deep, the favicon's (docs/plans/light-paper-mark.md). */
   --mark-you: var(--warm);
   --mark-sophia: var(--core);
+  /* A raised panel (a sheet, the report pane) and what dims the page under a modal one: in the room the plane over the
+     void under half the void; on paper white over the page under a veil of ink (docs/plans/light-elevation.md). */
+  --sheet-plane: var(--plane);
+  --veil: rgb(var(--void-rgb) / 0.5);
   /* A box with words painted in an accent (a report's tile, a cover's tag): the accent itself in the room, with the
      void as its ink; on paper a tint of it with the accent as the ink, as the chips do (docs/plans/light-fills.md). */
   --teal-fill: var(--teal);
@@ -132,6 +136,10 @@
   --rose-rgb: 168 55 90;
   --shadow-rgb: 29 27 34;
   --shadow-k: 0.35;
+  /* Paper's plane is darker than its page: a raised panel is white, and the veil is ink, so a sheet rises (informe-25
+     X7: it sat darker than the page it covered). */
+  --sheet-plane: var(--plane-2);
+  --veil: rgb(var(--ink-rgb) / 0.18);
   --mark-you: #16151b;
   --mark-sophia: #8468ee;
   /* The tints are the accent at 14 % over the paper, mixed once and opaque: a tag over a cover or a plane keeps the
@@ -3605,7 +3613,7 @@ button.contribution-quote:hover {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgb(var(--void-rgb) / 0.5);
+  background: var(--veil);
   animation: veil var(--base) var(--ease) both;
 }
 /* The palette (docs/plans/commands.md): a dialog in the middle of the screen, high; the kit's search field over rows
@@ -3712,7 +3720,7 @@ button.contribution-quote:hover {
   overflow-y: auto;
   padding: var(--sheet-top) 20px 28px;
   border-left: 1px solid var(--line-2);
-  background: var(--plane);
+  background: var(--sheet-plane);
   box-shadow: -24px 0 64px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
   animation: slide var(--base) var(--ease) both;
 }
@@ -3727,6 +3735,11 @@ button.contribution-quote:hover {
   z-index: 2;
   margin-top: calc(-1 * var(--sheet-top));
   padding-top: var(--sheet-top);
+  background: var(--sheet-plane);
+}
+/* On paper a borderless box a raised panel holds (a report's comparison, an update's text) would vanish on its white:
+   it sits a step down, in the plane. */
+:root[data-theme='light'] :is(.report-compare, .update-text) {
   background: var(--plane);
 }
 /* A live call's switches under a sheet's head: the sheet covers the room's own (call-in-reach.tsx). */
