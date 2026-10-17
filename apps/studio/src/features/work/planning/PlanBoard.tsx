@@ -31,7 +31,7 @@ import { accountOf } from './account.ts'
 import { useAsks } from './AskSophia.tsx'
 import { NOT_CONNECTED, NOT_READ, type Ask } from './ask.ts'
 import { moveOnBoard } from './board-keys.ts'
-import type { BoardView, ItemView } from './board-view.ts'
+import type { BoardView } from './board-view.ts'
 import { Decision, type Decide, type DecisionAnswer } from './Decision.tsx'
 import { Lens } from './Lens.tsx'
 import { shows, type LensName } from './lenses.ts'
@@ -43,6 +43,7 @@ import {
   laneOf,
   latestDecisions,
   outsideOf,
+  outsideSaid,
   proposed,
   waitsOn,
   type Board,
@@ -354,7 +355,8 @@ const plansOf = (goal: GoalView) => [goal.current_plan, ...goal.proposed_plans].
 const aboutOf = (d: BoardDecision, plans: readonly WorkPlan[]) => {
   const bound = plans.find((p) => p.plan_id === d.plan_id && p.revision === d.plan_revision)
   const purpose = bound?.items.find((i) => i.id === d.work_id)?.purpose
-  const what = purpose ?? `${d.work_id}, in plan r${String(d.plan_revision)}, not shown here`
+  // Its id stays out of the words (version-names.md).
+  const what = purpose ?? `a task in plan r${String(d.plan_revision)}, not shown here`
   return `About ${what}${d.candidate_version_ref ? ` · ${d.candidate_version_ref}` : ''}`
 }
 
@@ -703,12 +705,9 @@ function Slot({ slot, rows, onOpenTask, decisions, onChallenge }: SlotProps) {
   )
 }
 
-/** What an observed item is doing, in a few words: "running", "ready for review". */
-const lifeSaid = (v: ItemView) => v.lifecycle.replaceAll('_', ' ')
-
 /**
  * Work observed for the goal that the plan in force doesn't hold, said rather than hidden: who has it and where it
- * stands, by its work id (the view says no more of it). The goal's own Hold and Stop still reach all of its work.
+ * stands (outsideSaid), its id kept out of the words. The goal's own Hold and Stop still reach all of its work.
  */
 function OutsideWork({ outside }: { outside: readonly Outside[] }) {
   if (outside.length === 0) return null
@@ -716,14 +715,11 @@ function OutsideWork({ outside }: { outside: readonly Outside[] }) {
     <section className="board-outside" aria-label="Observed outside the plan">
       <h4 className="field-label">Observed outside the plan</h4>
       <ul className="task-links">
-        {outside.map(({ work_id, view }) => (
+        {outsideSaid(outside).map(({ work_id, name, where, ambiguous }) => (
           // Each work id once; observed more than once, it is said so, with neither observation (Codex F-045).
-          <li key={work_id} className="task-link" data-work={work_id} data-ambiguous={view ? undefined : true}>
-            <span className="task-link-name">
-              {view ? (view.assignment?.executor.display_name ?? 'No one assigned') : 'Observed more than once'} ·{' '}
-              {work_id}
-            </span>
-            <span className="task-link-where">{view ? lifeSaid(view) : 'which is current isn’t known'}</span>
+          <li key={work_id} className="task-link" data-work={work_id} data-ambiguous={ambiguous || undefined}>
+            <span className="task-link-name">{name}</span>
+            <span className="task-link-where">{where}</span>
           </li>
         ))}
       </ul>

@@ -6,13 +6,29 @@
 import { useEffect, useRef, useState } from 'react'
 import { READ_TIMEOUT_MS } from '../../../api/client.ts'
 import { actionOf, type PlanRow } from './plan.ts'
-import { refOf, resultsOf, reviewSaid, versionSaid, type ReadResult, type ResultRef } from './results.ts'
+import {
+  nameIn,
+  refOf,
+  resultsOf,
+  reviewSaid,
+  versionNames,
+  versionSaid,
+  type ReadResult,
+  type ResultRef,
+} from './results.ts'
 import type { Candidate } from './board-view.ts'
 
+/** A version opened: what it is read by (`ref`), and its name for people (`name`: v1, never its id). */
+interface Asked {
+  ref: ResultRef
+  name: string
+  purpose: 'read' | 'review'
+}
+
 type Opened =
-  | { ref: ResultRef; purpose: 'read' | 'review'; state: 'reading' }
-  | { ref: ResultRef; purpose: 'read' | 'review'; state: 'shown'; text: string; label: string }
-  | { ref: ResultRef; purpose: 'read' | 'review'; state: 'unavailable'; late?: boolean }
+  | (Asked & { state: 'reading' })
+  | (Asked & { state: 'shown'; text: string; label: string })
+  | (Asked & { state: 'unavailable'; late?: boolean })
 
 /**
  * The version opened last, read through the port; a slower earlier read never replaces a later one. No read waits
@@ -24,10 +40,10 @@ function useOpened(readResult: ReadResult | undefined) {
   const latest = useRef(0)
   const deadline = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => () => clearTimeout(deadline.current), [])
-  const open = (ref: ResultRef, purpose: 'read' | 'review') => {
+  const open = (asked: Asked) => {
     if (!readResult) return
     const n = ++latest.current
-    setOpened({ ref, purpose, state: 'reading' })
+    setOpened({ ...asked, state: 'reading' })
     let settled = false
     const settle = (next: Opened) => {
       if (settled) return
@@ -38,10 +54,10 @@ function useOpened(readResult: ReadResult | undefined) {
       }
     }
     clearTimeout(deadline.current)
-    deadline.current = setTimeout(() => settle({ ref, purpose, state: 'unavailable', late: true }), READ_TIMEOUT_MS)
-    readResult(ref, purpose).then(
-      (got) => settle(got ? { ref, purpose, state: 'shown', ...got } : { ref, purpose, state: 'unavailable' }),
-      () => settle({ ref, purpose, state: 'unavailable' }),
+    deadline.current = setTimeout(() => settle({ ...asked, state: 'unavailable', late: true }), READ_TIMEOUT_MS)
+    readResult(asked.ref, asked.purpose).then(
+      (got) => settle(got ? { ...asked, state: 'shown', ...got } : { ...asked, state: 'unavailable' }),
+      () => settle({ ...asked, state: 'unavailable' }),
     )
   }
   return { opened, open }
@@ -49,6 +65,8 @@ function useOpened(readResult: ReadResult | undefined) {
 
 interface VersionProps {
   candidate: Candidate
+  /** Its name for people (versionNames). */
+  name: string
   earlier: boolean
   /** Its current attempt is still at work or failed: the earlier version is what can be used now. */
   standsIn: boolean
@@ -57,12 +75,12 @@ interface VersionProps {
   onOpen: (purpose: 'read' | 'review') => void
 }
 
-function Version({ candidate, earlier, standsIn, canOpen, canReview, onOpen }: VersionProps) {
+function Version({ candidate, name, earlier, standsIn, canOpen, canReview, onOpen }: VersionProps) {
   return (
     <li className="task-result-version" data-earlier={earlier || undefined}>
       <span className="task-result-which">
         <span className="field-label">{earlier ? (standsIn ? 'Last usable' : 'Earlier') : 'Current'}</span>
-        <span className="task-result-id">{versionSaid(candidate)}</span>
+        <span className="task-result-id">{versionSaid(name, candidate)}</span>
       </span>
       <span className="control-row">
         {canOpen && (
@@ -81,20 +99,20 @@ function Version({ candidate, earlier, standsIn, canOpen, canReview, onOpen }: V
 }
 
 function OpenedText({ opened }: { opened: Opened }) {
-  if (opened.state === 'reading') return <p className="task-result-note muted">Reading {opened.ref.version_id}…</p>
+  if (opened.state === 'reading') return <p className="task-result-note muted">Reading {opened.name}…</p>
   if (opened.state === 'unavailable') {
     return (
       <p className="task-result-note">
         {opened.late
-          ? `${opened.ref.version_id} didn’t come in time. Nothing else is shown in its place; open it again to try again.`
-          : `${opened.ref.version_id} can’t be read right now. Nothing else is shown in its place.`}
+          ? `${opened.name} didn’t come in time. Nothing else is shown in its place; open it again to try again.`
+          : `${opened.name} can’t be read right now. Nothing else is shown in its place.`}
       </p>
     )
   }
   return (
     <figure className="task-result-text">
       <figcaption>
-        {opened.purpose === 'review' ? 'Reviewing' : 'Reading'} {opened.ref.version_id} · {opened.label}
+        {opened.purpose === 'review' ? 'Reviewing' : 'Reading'} {opened.name} · {opened.label}
       </figcaption>
       <pre>{opened.text}</pre>
     </figure>
@@ -117,10 +135,13 @@ export function TaskResult({ row, readResult }: { row: PlanRow; readResult?: Rea
   const review = reviewSaid(row.view)
   if (!current && !earlier && !review && !ambiguous) return null
   const { canOpen, canReview, refused } = allowedOf(row, readResult)
-  const at = (c: Candidate) => (purpose: 'read' | 'review') => open(refOf(row.item.id, c), purpose)
+  const names = versionNames(row.view)
+  const named = (c: Candidate) => ({ candidate: c, name: nameIn(names, c.version_id) })
+  const at = (c: Candidate) => (purpose: 'read' | 'review') =>
+    open({ ref: refOf(row.item.id, c), name: nameIn(names, c.version_id), purpose })
   const versions = [
-    current && { candidate: current, earlier: false, standsIn: false, canReview },
-    earlier && { candidate: earlier, earlier: true, standsIn: !current, canReview: false },
+    current && { ...named(current), earlier: false, standsIn: false, canReview },
+    earlier && { ...named(earlier), earlier: true, standsIn: !current, canReview: false },
   ].filter((v) => v !== null)
   return (
     <section className="sheet-section task-result">

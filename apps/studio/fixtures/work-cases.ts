@@ -164,7 +164,7 @@ const native: Change = (g, viewer) => {
         available_actions: [
           ...controls,
           openResult,
-          action('ask_sophia', 'unavailable', 'The task’s conversation isn’t connected in this slice.'),
+          action('ask_sophia', 'unavailable', 'The task’s conversation isn’t connected yet.'),
         ],
       }),
     ],
