@@ -21,7 +21,9 @@ import type { Goal, GoalCommand } from '@sophia/contracts'
 import type { ChatCaption } from '@sophia/contracts/room-chat'
 import { OFFERED } from './invitations-data.ts'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { forgetKept } from '../src/features/conversations/talk-store.ts'
+import { forgetKept, keptAt, type Kept } from '../src/features/conversations/talk-store.ts'
+import { accountOf } from '../src/app/auth-callback.ts'
+import { messagesKey } from '../src/features/conversations/conversation-list.ts'
 import { StrictMode, useEffect, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AccountMenu } from '../src/app/AccountMenu.tsx'
@@ -38,7 +40,15 @@ import { noTasks, taskOf } from './task-data.ts'
 import { finishedAfter, newMeeting, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
 import type { CallEnd } from '../src/features/voice/call-end.ts'
-import { CONVERSATION, conversationMission, conversations, messagesOf, quietConversation } from './conversation-data.ts'
+import {
+  CONVERSATION,
+  conversationMission,
+  conversations,
+  messageId,
+  messagesOf,
+  quietConversation,
+  type FixtureMessage,
+} from './conversation-data.ts'
 import {
   asked,
   deliverCaption,
@@ -66,10 +76,10 @@ import {
   sophiaAsked,
   type SophiaState,
 } from './fake-people.ts'
-import type { ConversationMessage } from '../src/api/vision.ts'
 import {
   installFixtureApi,
   publish,
+  type Conversations,
   releaseSources,
   releaseTask,
   releaseText,
@@ -78,6 +88,7 @@ import {
   unexpected,
 } from './fixture-api.ts'
 import { missionWrites } from './mission-writes.ts'
+import { withdrawnElsewhere } from './conversation-writes.ts'
 import {
   briefNotice,
   LONG_TITLE,
@@ -199,16 +210,61 @@ interface Fixture {
   holdBoard: (on: boolean) => void
   /** The conversations' list reads fail, or read again (A18). */
   failConversations: (on: boolean) => void
+  /** The list's reads are refused (403), as to a reader no longer in the project, the feed not moving; or answer again. */
+  refuseConversations: (on: boolean) => void
   /** The reads of a conversation's older pages fail, or read again. */
   failOlderMessages: (on: boolean) => void
   /** The second conversation gets a message: it is the newest now, and the list says so when read again (A18). */
   conversationMoves: () => void
+  /**
+   * Newer activity pushes this conversation past what the list holds (A33's newest 200, `more`), never erasing it; null
+   * brings it back. The feed moves either way.
+   */
+  capPast: (conversationId: string | null) => void
+  /** Another admin, elsewhere, erases this conversation: it leaves the list and its messages go; the feed moves. */
+  eraseElsewhere: (conversationId: string) => void
+  /**
+   * The same, the feed held up: it doesn't move, so only a read made for another reason learns it. Its read within the
+   * project answers not found (422), to a current member.
+   */
+  eraseQuietly: (conversationId: string) => void
+  /** Every read of this conversation's messages, and of the list, fails from now on (null: they answer again). */
+  failConversationReads: (conversationId: string | null) => void
+  /** Only this conversation's message reads fail from now on (null: they answer again); the list's still answer. */
+  failMessageReads: (conversationId: string | null) => void
+  /**
+   * This conversation's message reads are refused (403) from now on, as to a reader no longer in the project; it stays
+   * listed, and the feed doesn't move (null: they answer again, the project given back).
+   */
+  refuseMessageReads: (conversationId: string | null) => void
+  /** Another admin, elsewhere, withdraws the newest message with these words; the feed moves. */
+  withdrawElsewhere: (conversationId: string, text: string) => void
+  /** The same, the feed held up: it doesn't move, so only a read made for another reason learns it. */
+  withdrawQuietly: (conversationId: string, text: string) => void
+  /** From now on the list's reads wait, each to answer as the list was when asked (A18). */
+  holdListReads: () => void
+  /** The list's reads held are answered, each as it was when asked; the ones after answer at once. */
+  releaseListReads: () => void
+  /** From now on message reads that answer wait, each to answer as it was when asked; refusals answer at once. */
+  holdMessageReads: () => void
+  /** The message reads held are answered, each as it was when asked; the ones after answer at once. */
+  releaseMessageReads: () => void
+  /** The next message is stamped with its conversation's last time (two messages in one millisecond). */
+  sameTimeNext: () => void
+  /** The list says (or stops saying) that it holds the newest only (`more`); the feed moves. */
+  listMore: (on: boolean) => void
+  /** What the view keeps for this project and this page's account (talk-store.ts), as a check reads it. */
+  kept: () => Kept | undefined
+  /** Whether this page holds a read of the conversation's messages (its query's data), as a check reads it. */
+  cachedMessages: (conversationId: string) => boolean
   /** Someone writes in the open conversation (the newest), and the feed moves (conversation-moves.md). */
   conversationMessage: (name: string, text: string) => void
   /** The brief's reads fail, or read again. */
   failMission: (on: boolean) => void
   /** While on, the brief's reads wait; off, the waiting ones are answered. */
   holdMission: (on: boolean) => void
+  /** The brief's reads are refused (403), as to a reader no longer in the project; or answer again. */
+  refuseMission: (on: boolean) => void
   /** The goals' targets reads fail, or read again (targets-robust.md). */
   failTargets: (on: boolean) => void
   /** While on, the goals' targets reads wait; off, the waiting ones are answered. */
@@ -221,6 +277,10 @@ interface Fixture {
   holdProjects: (on: boolean) => void
   /** Lets the held membership reads through, and every later one (`membership=hold`). */
   releaseMembership: () => void
+  /** While on, Sophia is out of reach: every API request fails as a lost connection (`outage=1`). */
+  outage: (on: boolean) => void
+  /** While on, only the membership's reads fail (`membership=fail`). */
+  failMembership: (on: boolean) => void
   /** Marco carries a note to this project, and the feed moves (chapter 1). */
   carryIn: () => void
   /** While on, tasks' writes land but their replies wait for `releaseTasks` (A17). */
@@ -619,11 +679,15 @@ const project = {
   cardAhead: query.get('card') === 'ahead',
   projectsHeld: query.get('projects') === 'hold' ? waiting() : null,
   membershipHeld: query.get('membership') === 'hold' ? waiting() : null,
+  membershipFails: query.get('membership') === 'fail',
+  outage: query.get('outage') === '1',
+  outsider: query.get('member') === '0',
   // A13: searches held while the page asks (`holdSearch`).
   searchHeld: null as (() => void)[] | null,
   boardHeld: null as (() => void)[] | null,
   // `mission=fail`: the brief's reads fail from the first (notes-robust.md); `window.fixture.failMission` turns it.
   missionFails: query.get('mission') === 'fail',
+  missionRefused: false,
   reviews: {
     ...noReviews(query.get('reviews') === 'fail'),
     heldReads: query.get('reviews') === 'hold' ? waiting() : null,
@@ -819,6 +883,9 @@ window.fixture = {
   failConversations: (on) => {
     if (project.conversations) project.conversations.failList = on
   },
+  refuseConversations: (on) => {
+    if (project.conversations) project.conversations.refusedList = on
+  },
   failOlderMessages: (on) => {
     if (project.conversations) project.conversations.failOlder = on
   },
@@ -826,16 +893,77 @@ window.fixture = {
     const moved = project.conversations?.list.find((c) => c.id === CONVERSATION.briefs)
     if (moved) moved.lastAt = '2026-10-06T10:00:00.000Z'
   },
+  capPast: (conversationId) => {
+    if (!project.conversations) return
+    project.conversations.cappedOut = conversationId
+    publish(project)
+  },
+  eraseElsewhere: (conversationId) => {
+    if (!project.conversations) return
+    erasedElsewhere(project.conversations, conversationId)
+    publish(project)
+  },
+  eraseQuietly: (conversationId) => {
+    if (project.conversations) erasedElsewhere(project.conversations, conversationId)
+  },
+  failConversationReads: (conversationId) => {
+    if (!project.conversations) return
+    project.conversations.failList = conversationId !== null
+    project.conversations.failMessagesOf = conversationId
+  },
+  failMessageReads: (conversationId) => {
+    if (project.conversations) project.conversations.failMessagesOf = conversationId
+  },
+  refuseMessageReads: (conversationId) => {
+    if (project.conversations) project.conversations.refusedOf = conversationId
+  },
+  withdrawElsewhere: (conversationId, text) => {
+    if (project.conversations && withdrawnElsewhere(project.conversations, conversationId, text)) publish(project)
+  },
+  withdrawQuietly: (conversationId, text) => {
+    if (project.conversations) withdrawnElsewhere(project.conversations, conversationId, text)
+  },
+  holdListReads: () => {
+    if (project.conversations) project.conversations.heldList ??= []
+  },
+  releaseListReads: () => {
+    const held = project.conversations?.heldList ?? []
+    if (project.conversations) project.conversations.heldList = null
+    for (const answer of held) answer()
+  },
+  holdMessageReads: () => {
+    if (project.conversations) project.conversations.heldMessages ??= []
+  },
+  releaseMessageReads: () => {
+    const held = project.conversations?.heldMessages ?? []
+    if (project.conversations) project.conversations.heldMessages = null
+    for (const answer of held) answer()
+  },
+  sameTimeNext: () => {
+    if (project.conversations) project.conversations.sameTimeNext = true
+  },
+  listMore: (on) => {
+    if (!project.conversations) return
+    project.conversations.more = on
+    publish(project)
+  },
+  kept: () => keptAt(`${PROJECT} ${accountOf(identity)}`),
+  cachedMessages: (conversationId) =>
+    queryClient.getQueryData(messagesKey(conversationId, accountOf(identity))) !== undefined,
   conversationMessage: (name, text) => {
-    const all: Partial<Record<string, ConversationMessage[]>> | undefined = project.conversations?.messages
+    const all: Partial<Record<string, FixtureMessage[]>> | undefined = project.conversations?.messages
     const thread = all?.[CONVERSATION.reading]
     if (!thread) return
     const at = new Date().toISOString()
-    thread.push({ id: `m-${String(thread.length + 1)}`, author: 'member', actorId: personId(1), name, text, at })
+    // A UUID, as A33's message ids are; numbered past the seeded ones.
+    thread.push({ id: messageId(0x900 + thread.length), author: 'member', actorId: personId(1), name, text, at })
     publish(project)
   },
   failMission: (on) => {
     project.missionFails = on
+  },
+  refuseMission: (on) => {
+    project.missionRefused = on
   },
   endMeeting: () => {
     project.meeting.closedAt = new Date().toISOString()
@@ -867,6 +995,12 @@ window.fixture = {
     const held = project.membershipHeld ?? []
     project.membershipHeld = null
     for (const answer of held) answer()
+  },
+  outage: (on) => {
+    project.outage = on
+  },
+  failMembership: (on) => {
+    project.membershipFails = on
   },
   carryIn: () => {
     project.carriedIn = [
@@ -1148,12 +1282,22 @@ function startAsked(which: string | null): 'lost' | 'slow' | null {
   return which === 'lost' || which === 'slow' ? which : null
 }
 
-type Send = 'lost' | 'refused' | 'refusedSlow' | 'slow' | 'thenFail'
+type Send = 'lost' | 'lostSlow' | 'refused' | 'refusedSlow' | 'slow' | 'late' | 'thenFail'
 
 /** Read while the page's project is made, before any module constant below it: the list is its own. */
 function sendAsked(which: string | null): Send | null {
-  const sends: readonly Send[] = ['lost', 'refused', 'refusedSlow', 'slow', 'thenFail']
+  const sends: readonly Send[] = ['lost', 'lostSlow', 'refused', 'refusedSlow', 'slow', 'late', 'thenFail']
   return sends.find((s) => s === which) ?? null
+}
+
+/** How an erasure goes (`erase=`): its feed first, its first try never reaching the API, its reply lost, or at once. */
+function eraseAsked(which: string | null): 'feedFirst' | 'unreached' | 'lost' | null {
+  return which === 'feedFirst' || which === 'unreached' || which === 'lost' ? which : null
+}
+
+/** How a withdrawal's reply and the feed come (`withdraw=`): both late, the feed first, or at once. */
+function withdrawAsked(which: string | null): 'slow' | 'feedFirst' | 'thenFail' | 'unreached' | null {
+  return which === 'slow' || which === 'feedFirst' || which === 'thenFail' || which === 'unreached' ? which : null
 }
 
 /** The conversations a page asks for (A18), with the brief's context beside them; none when it asks for none. */
@@ -1165,11 +1309,23 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       messages: { ...messagesOf(), [CONVERSATION.quiet]: [] },
       failList: which === 'fail',
       lastShown: DEMO || query.get('last') === '1',
-      failMessagesOf: failMessages ? CONVERSATION.briefs : null,
+      more: query.get('more') === '1',
+      cappedOut: null as string | null,
+      refusedOf: null as string | null,
+      refusedList: false,
+      heldList: null as (() => void)[] | null,
+      heldMessages: null as (() => void)[] | null,
+      sameTimeNext: false,
+      failMessagesOf: (failMessages ? CONVERSATION.briefs : null) as string | null,
       failOlder: query.get('older') === 'fail',
+      // `ask=off`: Sophia doesn't answer here, as while replies are off (CON-01 C1).
+      askOff: query.get('ask') === 'off',
       send: sendAsked(query.get('send')),
       start: startAsked(query.get('start')),
       answerMs: query.get('answer') === 'slow' ? 10_000 : 900,
+      answerUnknown: query.get('answer') === 'unknown',
+      withdraw: withdrawAsked(query.get('withdraw')),
+      erase: eraseAsked(query.get('erase')),
       receipts: new Map<string, { body: string; receipt: unknown }>(),
     },
     missionPlus: conversationMission(),
@@ -1264,3 +1420,11 @@ createRoot(root).render(
     </QueryClientProvider>
   </StrictMode>,
 )
+
+/** Erased by another admin: out of the list, its messages gone, and its reads answered not found (fixture-api). */
+function erasedElsewhere(talk: Conversations, conversationId: string) {
+  const at = talk.list.findIndex((c) => c.id === conversationId)
+  if (at >= 0) talk.list.splice(at, 1)
+  delete talk.messages[conversationId]
+  ;(talk.erasedIds ??= new Set()).add(conversationId)
+}

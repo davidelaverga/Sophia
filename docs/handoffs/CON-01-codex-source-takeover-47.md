@@ -1,0 +1,33 @@
+# CON-01 takeover47 — read-only physical home inventory
+
+Same mission/session, Codex sole implementer; Claude stopped. Source authority remains handoff24 and its private approval receipt, through2026-10-14T10:00Z/noon Rome. Before-write shared record198/6159728028. This slice uses only r12 section3.4's three new launcher/test paths. Pending27/36, Q8/profile, shared integration and operation approvals remain separate.
+
+## Candidate and boundaries
+
+Published273 remains457053b3fe619631f0d2e2fcc1e3edc98cfc5348/treeec71aa3a83e6208ff559d075a881b374fdb8593c. Unpublished candidate SHA256:
+
+- apps/execution-host/reply/reply-launch.py: aa4d975292ec39b14b9703717722f1e933e8c78b1edd44e8a0652bfce61daa6b
+- apps/execution-host/reply/test_reply_launch.py: b1345cd7dfdd278714cecd0eacd88b6cec3a340b99babb92266a1f6e448bb624
+- tests/unit/reply-launch.test.mjs: f513bedcf811dbf912e515e0e4205c7e41c07f9f3218eb88d0173aa90b8001e9
+
+Existing reviewed child9ce38b9f/tests4298f074 remain unchanged. No bridge/profile/SQL/contract/artifact edits. The Python module inventories one attempt across every current, older unsealed and sealed generation root. Component-wise no-follow directory opens protect ancestors too; private replies/root/home directories require effective ownership and exact0700. Invalid names, unknown root entries, excessive roots, duplicate homes and observed namespace replacement fail closed. A second anchored scan verifies parent/root/home inode identities. Every descriptor closes on success and refusal.
+
+Results are immutable inventory observations, structurally distinct from Q7 checker reports. Presence or absence is not process settlement or a no-future-writer proof. No lease/content reads, lock/drain/pidfd checks, signals, deletion or runtime spawn are implemented. The internal helper permits bounded synthetic-safe path components; serving identity validators remain unchanged and eventual operational boundaries must validate the trusted attempt UUID. Every CLI invocation, including probe/run/check/sweep/digest, returns69 with empty stdout. No successful placeholder can be consumed as settlement.
+
+## Evidence
+
+Author runs on Darwin, Python3.9.6, Node24.21.0/pnpm11.7.0. Actual filesystem checks cover19 Python cases and the required Node unittest wrapper, all passing. Ordinary pnpm test:2604passed/70existing skips/zero failures or cancellations, session15633terminal0. That ordinary run preceded the final UUID-only regression addition; the final19-case Python suite and wrapper were rerun afterward. Four isolated-copy mutants genuinely assertion-fail exit1: following links, permitting duplicate homes, skipping identity revalidation and ignoring directory mode. No production source or compiled artifact was mutated for these checks. Python function size/arity audit and git diff --check pass. Private evidence: inventory-20261014-0444/author.safe.json, focused.log, ordinary.log and mutations.safe.json.
+
+Independent exact-pin review found no actionable finding. Reviewer independently ran the Node wrapper1/1, Python19/19 and seven private adverse cases: home replaced by an external link between passes, no lease/content opens,50 iterator errors with no partial result or descriptor leak, intermediate ancestor link, exact generation-name boundary, regular-file root and all CLI commands refusing69 without stdout or argument echo. Candidate and existing child pins rechecked unchanged. Owned subprocesses are terminal, temporary tree removed and descriptors stable. Receipt: independent-step4-inventory-20261014/review.safe.json. Source hold released for this component. Verdict is portable inventory locally_verified/reviewed only, not whole-Step4 or pre-push clearance, Linux containment, stable absence, settlement or deletion proof.
+
+## Integration and operational state
+
+Fetched current main16477ca8aff2c166fc5467a43f059e3d31e9be7a/treebf7ac0528e37ec9778936baf52b40355dd86a878. New #306/UIKIT-72 invitation changes require preservation: admin outside a call opens Members, in-call context opens Guests, role descriptions and demo/test changes. Recorded199/6159775118 alongside prior #287/#299–301/#304 requirements. Read-only merge-tree against published457053b3 returns diagnosticcd83ed3e1b3554d3b23ce0abfaf0409e8ad69755, exit1 and11 conflicts; it excludes dirty source and is no integration result. No new handback discovered. No merge/reset/rebase, artifact recording or push. Actual automatic273/6144338846 remains clear only for published457053b3; every future push still requires its own automatic review.
+
+Historical OP0002r6/setup and OP0001r4/Ask were recovered read-only from8af725ea; they are not present at this checkout's documented paths. Both remain draft_not_authorized, approval_readyfalse, null candidate/tree/approval/expiry. Setup needs exact combined artifacts, migration effects, fresh target/credential references, account bindings and owner window/recovery. Ask additionally needs qualified database identity, eligible subscription topology/account/adapter/quota source, payer and finite allowance. No missing value is inferred from the source-only approval.
+
+No hosted migration/configuration/deployment, account/member/grant/connection effects, external credentials, native/provider/subscription execution or product provider use. Product provider use0; assistant/reviewer compute unknown. No real app interaction was performed in this checkpoint. The serving app/API/runtime tuple remains unverified; designated two-account synthetic project and provider answer acceptance remain open. Ask remains disabled. Ledger unchanged36cases:18partial_L1/3passed_L1/15not_run; A30not_run. This filesystem slice cannot promote whole-source_ready, whole-candidate reviewed, operational authorized, deployed, app_verified or owner_accepted. Other missions and the broader product remain open.
+
+Owned author temporary directories and mutation copies were removed by their test contexts; ordinary and focused processes are terminal. Unpublished files are separable and original source/published HEAD remain recoverable. No live rollback needed. Any eventual deployment rollback must preserve governed conversation records, withdrawal and cumulative/uncertain accounting.
+
+Next bounded action: implement the Q7 admission/life-lock and lease observation layer under the same approved source scope; retain unsupported-platform refusal until actual Linux containment/process qualification. Inventory must never substitute for those gates, the receipt/journal barrier, safe deletion/ENOENT or retirement authorization. No autonomous monitoring or promise of work outside this session.
