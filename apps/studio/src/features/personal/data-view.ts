@@ -25,10 +25,12 @@ const FULL_DAY = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'lon
 /**
  * Everything, readable: when it was made, the notes, what was carried and where, then the conversation by day, each
  * message after its time, with each note Sophia suggested and the person hasn't decided on yet (one kept is in the
- * notes; one let go is deleted).
+ * notes; one let go is deleted). When it was made is the export's own time, the first page's, where the notes come
+ * from too; never the device's clock, which may be off (Codex P2 on #405).
  */
-export function exportText(everything: PersonalExport, who: string, now: Date): string {
-  const lines = [`${who} · personal space with Sophia`, `As of ${FULL_DAY.format(now)}, ${clock(now)}`, '', 'Notes:']
+export function exportText(everything: PersonalExport, who: string): string {
+  const made = new Date(everything.exportedAt)
+  const lines = [`${who} · personal space with Sophia`, `As of ${FULL_DAY.format(made)}, ${clock(made)}`, '', 'Notes:']
   lines.push(...everything.notes.map((n) => `- ${n.text}`))
   if (everything.releases.length > 0) {
     lines.push('', 'Carried to projects:')
