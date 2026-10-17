@@ -37,7 +37,7 @@ commits on the branch merge its base forward or touch only this record). 4 files
   - `sophia-voice.test.ts`: 5/5;
   - the room's text-mode specs (`room`, `voice-chat`): 17/17;
   - Studio typecheck and Prettier: clean.
-  - Lint: clean, apart from main's own `ProjectBody` length, which #423 fixes.
+  - Lint: clean, with main merged in after #423 fixed main's own `ProjectBody` length.
 - **No browser check of the fix itself:** the fixture's connection stands in for LiveKit there, so the unit check
   carries it. No capture: nothing changes on screen.
 
@@ -51,8 +51,7 @@ commits on the branch merge its base forward or touch only this record). 4 files
 
 ## Remaining obligations
 
-- **Main's lint:** red since #368 merged (`ProjectBody`); #423 fixes it. This branch takes main after #423 lands.
-- **The per-person volume branch** changes the same `remoteAudio`. Whichever merges second takes the other's lines;
+- **The per-person volume (#425)** changes the same `remoteAudio`. Whichever merges second takes the other's lines;
   both are this session's.
 
 ## Next bounded action
