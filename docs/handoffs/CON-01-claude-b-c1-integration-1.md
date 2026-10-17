@@ -135,6 +135,19 @@ conversation's words show and that every project read this person made was refus
 asks for no conversations read the shell never makes. This is a local served check with synthetic identities,
 not hosted Auth or production acceptance.
 
+## Current main 968631e7 (FND-B-C1-MAIN-ANCESTRY-01)
+
+#389 landed on main as a merge of afbbed33, which C1 already carried, so C1 and main had two best common ancestors
+(afbbed33 and 25f207f0). From the single base 25f207f0, GitHub found the recorded bundle identity in conflict
+(`config/runtime-unit.json` and the profile lock: C1's e956 against main's 730) and could not build the PR's merge.
+One normal merge of exact main 968631e7 now gives C1 that ancestry. With both bases, merge-ort combined it with no
+conflict. It brings only #400 (report page font and windows: `packages/report`, the artifact reader styles, their tests
+and records). `pnpm artifacts` reproduces the same bundle from the combined bytes,
+`sha256:e956becce942134a52d81286709b8d84262a3d80a7c6d96a63ea163673aa0a36`: #400 is outside the bundle, and 730 was R1's
+before C1's own bundle inputs were added. Format, lint, typecheck, contracts and contract regeneration pass with no
+drift; unit tests 2961 passed, 0 failed; #400's tests 29 of 29. No SQL, contract, API, worker or bundle source changed,
+so the database and browser checks were not repeated.
+
 ## Remaining obligations
 
 - **#382 (Luis, open; its browser job was failing at packet time)** touches `ConversationsView.tsx`, `OpenConversation.tsx` and `fixtures/room.tsx`. Once its accepted head is on main, B merges main again in the final shared Studio slot. Luis then accepts the shared Studio resolutions. Neither #382 nor Luis's branch was merged or edited here.
