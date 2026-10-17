@@ -129,6 +129,21 @@ R's initial review (R-C75-01..04) found four defects. This repair, still in the 
 - **R-C75-04, no body.** The A41 `GoalCommand` rule (`if kind=retire_sessions then bodySourceId null`) refuses a body at
   the API (422). The SQL refuses one too (22023), before any lock or effect, with exact null-body replay kept.
 
+## Pulse truth correction (FND-C-RETIREMENT-PULSE-TRUTH-FOCUSED-CORRECTION-01, R-C75-UI-1)
+
+The local browser check showed the Work pulse reading «Retirement of remaining sessions requested ×18» for one admission
+and 17 progress events, and «Stop requested ×2» for an unconfirmed and a refused stop.
+- Cause: `summaryLabel` chose its words by the summary code alone.
+- Fix: a command's later event types now say what they are, in Studio only (`labels.ts`; used by the pulse and the
+  activity sheet):
+  - `command.retirement_changed` → «Retirement of remaining sessions: session results updated»;
+  - `command.outcome_unknown` → «<command> not confirmed»;
+  - `command.denied` → «<command> not carried out».
+- Admissions keep their own «… requested» words. No event, summary code, SQL, contract or sanitizer change; the durable
+  events are untouched.
+- `pulse.test.ts`: the browser's sequence fails before («Stop requested ×2», «… requested ×18») and passes after (one
+  request, 17 updates, one not confirmed, one not carried out).
+
 ## Limits and open items
 
 - Superseded by the repair above: the per-target reader (now the admin snapshot's `Goal.retirement`) and the command

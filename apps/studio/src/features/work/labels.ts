@@ -131,7 +131,27 @@ export const SUMMARY: Record<string, string> = {
  * Words for any event: its summary, or else its type without the code ("room.lobby_changed" → "Lobby changed").
  * A type that ends in one bare word keeps its subject ("contribution.recorded" → "Contribution recorded").
  */
+/**
+ * A command's later events carry its summary code but are not new requests (R-C75-UI-1): a retirement's progress and a
+ * control that was not confirmed or not carried out say what they are, so one admission stays one «requested».
+ */
+const COMMAND_LATER: Record<string, (noun: string) => string> = {
+  'command.retirement_changed': () => 'Retirement of remaining sessions: session results updated',
+  'command.outcome_unknown': (noun) => `${noun} not confirmed`,
+  'command.denied': (noun) => `${noun} not carried out`,
+}
+
+const isCommandKind = (kind: string): kind is CommandKind => Object.hasOwn(COMMAND, kind)
+
+/** The command a summary code names, as a noun («Stop», «Retirement»), or «Command». */
+const commandNoun = (summaryCode: string): string => {
+  const kind = summaryCode.startsWith('command.') ? summaryCode.slice('command.'.length) : ''
+  return isCommandKind(kind) ? COMMAND[kind].noun : 'Command'
+}
+
 export function summaryLabel(summaryCode: string, type: string): string {
+  const later = summaryCode.startsWith('command.') ? COMMAND_LATER[type] : undefined
+  if (later) return later(commandNoun(summaryCode))
   const known = SUMMARY[summaryCode]
   if (known) return known
   const parts = type.split('.')
