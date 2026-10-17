@@ -24,6 +24,8 @@ type Step =
       draft?: string | undefined
       problem?: string | undefined
     }
+  /** The service is asked what the act would do: nothing is written yet, so it can still be called off. */
+  | { at: 'previewing'; act: MessageAct; draft?: string | undefined }
   | { at: 'working'; act: MessageAct; draft?: string | undefined }
 
 /** An act sent and not answered yet: retried with this key and these words. */
@@ -105,6 +107,8 @@ function stepAfter(
 function useMessageAct({ projectId, identity, entry, onActed }: Acting) {
   const [step, setStep] = useState<Step>({ at: 'idle' })
   const pending = useRef<Pending | null>(null)
+  /** Which preview is awaited: one called off (or followed by another) answers to nothing (r4296732968). */
+  const asking = useRef(0)
   const failed = (act: MessageAct, err: unknown, draft?: string, preview?: ContributionActPreview) => {
     const failure = failureOf(codeOf(err))
     if (!failure.sameKey) pending.current = null
@@ -136,23 +140,32 @@ function useMessageAct({ projectId, identity, entry, onActed }: Acting) {
     // A reply lost on the way: the same act, the same words, the same key.
     const again = pending.current
     if (again && again.act === act && again.draft === draft) return send(act, again.preview, draft)
-    setStep({ at: 'working', act, draft })
+    // Only a read so far: nothing is written until the act is sent, so it isn't «working» (r4296732968).
+    const ask = ++asking.current
+    setStep({ at: 'previewing', act, draft })
     try {
       const preview = await previewMessageAct(identity.token, projectId, entry.id, act)
+      if (asking.current !== ask) return undefined
       if (asksFirst(preview)) setStep({ at: 'asking', act, preview, draft })
       else await send(act, preview, draft)
     } catch (err) {
-      failed(act, err, draft)
+      if (asking.current === ask) failed(act, err, draft)
     }
     return undefined
   }
+  /** Called off: an act waiting to be asked again is let go, and a preview still on its way answers to nothing. */
   const forget = () => {
     pending.current = null
+    asking.current += 1
   }
   /** An act was sent and its answer never came: until it is asked again, it may or may not have been done. */
   const unresolved = () => pending.current !== null
   return { step, setStep, send, begin, forget, unresolved }
 }
+
+/** The words in the field: while the member edits, and while their correction is checked or sent. */
+const fieldDraft = (step: Step): string | undefined =>
+  step.at === 'editing' || step.at === 'working' || step.at === 'previewing' ? step.draft : undefined
 
 interface Props extends Acting {
   acts: readonly MessageAct[]
@@ -174,15 +187,15 @@ export function MessageActions({ acts, children, ...acting }: Props) {
     if (draft === entry.text) return setStep({ at: 'idle' })
     return void begin('correct', draft)
   }
-  const draft = step.at === 'idle' ? undefined : step.draft
-  const editing = step.at === 'editing' || (step.at === 'working' && draft !== undefined)
+  const draft = fieldDraft(step)
   return (
     <>
-      {editing && draft !== undefined ? (
+      {draft !== undefined ? (
         <EditForm
           id={entry.id}
           draft={draft}
           working={step.at === 'working'}
+          checking={step.at === 'previewing'}
           problem={step.at === 'editing' ? step.problem : undefined}
           onDraft={(text) => setStep({ at: 'editing', draft: text })}
           onSave={() => save(draft)}
@@ -201,6 +214,7 @@ export function MessageActions({ acts, children, ...acting }: Props) {
         />
       )}
       <ActStatus step={step} />
+      {step.at === 'previewing' && step.draft === undefined && <Checking id={entry.id} onCancel={cancel} />}
       {step.at === 'asking' && (
         <Confirm
           id={entry.id}
@@ -233,6 +247,29 @@ function ActStatus({ step }: { step: Step }) {
   )
 }
 
+/** A withdrawal's preview on its way: said plainly, and it can be called off (Cancel, or Escape on it). */
+function Checking({ id, onCancel }: { id: string; onCancel: () => void }) {
+  const button = useRef<HTMLButtonElement>(null)
+  // The Withdraw pressed is gone while it is asked: the focus goes on to the way back.
+  useEffect(() => button.current?.focus(), [])
+  return (
+    <span className="chat-status" role="status" data-message-acts={id}>
+      Checking first…{' '}
+      <button
+        ref={button}
+        type="button"
+        className="text-button"
+        onClick={onCancel}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onCancel()
+        }}
+      >
+        Cancel
+      </button>
+    </span>
+  )
+}
+
 /** Escape in the field: the edit goes, not the panel. A correction already sent is not undone by it. */
 function escaped(e: KeyboardEvent<HTMLTextAreaElement>, working: boolean, cancel: () => void) {
   if (e.key !== 'Escape' || e.nativeEvent.isComposing) return
@@ -246,6 +283,8 @@ function EditForm(props: {
   id: string
   draft: string
   working: boolean
+  /** The preview is on its way: Save waits for it, nothing is saved yet, and Cancel and Escape still go back. */
+  checking: boolean
   problem: string | undefined
   onDraft: (text: string) => void
   onSave: () => void
@@ -259,7 +298,7 @@ function EditForm(props: {
       data-message-acts={props.id}
       onSubmit={(e) => {
         e.preventDefault()
-        if (!props.working) props.onSave()
+        if (!props.working && !props.checking) props.onSave()
       }}
     >
       <label className="sr-only" htmlFor={`edit-${props.id}`}>
@@ -271,12 +310,12 @@ function EditForm(props: {
         value={props.draft}
         rows={2}
         maxLength={4000}
-        readOnly={props.working}
+        readOnly={props.working || props.checking}
         onChange={(e) => props.onDraft(e.target.value)}
         onKeyDown={(e) => escaped(e, props.working, props.onCancel)}
       />
       <span className="message-edit-actions">
-        <button className="pill primary" type="submit" aria-disabled={props.working || undefined}>
+        <button className="pill primary" type="submit" aria-disabled={props.working || props.checking || undefined}>
           {props.working ? 'Saving…' : 'Save'}
         </button>
         <button
