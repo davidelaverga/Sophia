@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { getConversationMessages, listConversations } from './conversations.ts'
 import { afterEach, describe, it } from 'node:test'
 import {
   admitGoalCommand,
@@ -129,3 +130,38 @@ describe('Studio API client', () => {
     await assert.rejects(cancelled, { name: 'AbortError' })
   })
 })
+
+// R-REFUSAL-CLIENT-01: a protected conversation read is refused at the client's first sight of its 403 status. A slow,
+// endless or malformed error body cannot delay or change that refusal (the view fences on it).
+const pendingBody = () => new ReadableStream<Uint8Array>({ start() {} }) // never sends, never ends
+const withinMs = <T>(ms: number, p: Promise<T>) =>
+  Promise.race([
+    p,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`not settled in ${ms} ms`)), ms)),
+  ])
+const refusal = (p: Promise<unknown>) =>
+  describe('a protected conversation read refused by its status', () => {
+    p.then(
+      () => null,
+      (error: unknown) => error,
+    )
+
+    for (const [label, read] of [
+      ['the list', () => listConversations('t', 'p')],
+      ['a thread', () => getConversationMessages('t', 'p', 'c', null)],
+    ] as const) {
+      it(`${label}: refused as forbidden while its error body never arrives`, async () => {
+        globalThis.fetch = () => Promise.resolve(new Response(pendingBody(), { status: 403 }))
+        const error = await withinMs(200, refusal(read()))
+        assert.ok(error instanceof ApiError)
+        assert.deepEqual([error.status, error.code], [403, 'forbidden'])
+      })
+
+      it(`${label}: refused as forbidden whatever a malformed error body says`, async () => {
+        globalThis.fetch = () => Promise.resolve(new Response('<html>denied</html>', { status: 403 }))
+        const error = await refusal(read())
+        assert.ok(error instanceof ApiError)
+        assert.deepEqual([error.status, error.code], [403, 'forbidden'])
+      })
+    }
+  })
