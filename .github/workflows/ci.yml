@@ -113,6 +113,7 @@ jobs:
       # Q13's exclusive admission and install groups, which the shared service above cannot qualify (they skip there):
       # a PostgreSQL 16 cluster of their own, made in this service's image with no network, as its postgres user, the
       # repository and this Node read-only. Its census, version and stages are printed; a skip or a missing stage fails.
+      # Then D-Q13's trusted-creator group on a second such cluster, whose postgres is a plain installer, as on Supabase.
       - run: scripts/q13-owned-pg16.sh '${{ job.services.postgres.id }}'
         timeout-minutes: 6
 

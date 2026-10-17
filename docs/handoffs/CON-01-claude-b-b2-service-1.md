@@ -167,7 +167,7 @@ Any remedy changes Q13's boundary, so the owner chooses:
    rather than fail, or the auth job stays red.
 3. Take 0070 and 0071 out of this source until a hosted bootstrap is designed, leaving Ask unbound everywhere.
 
-None is implemented; 0070 is unchanged.
+None was implemented then. The owner later chose option 1 (D-Q13), implemented in the next section.
 
 **PostgreSQL 16 exclusive qualification: implemented, not yet executed.** `scripts/q13-owned-pg16.sh` (on the runner)
 and `scripts/q13-owned-pg16-inner.sh` (in the container), as one new step after the crossings in the database job.
@@ -192,6 +192,67 @@ Checks on this candidate:
 
 For the Personal record (no Personal commit): its "a companion on two API processes" case runs two runner instances
 in one Node process, not two processes.
+
+## The trusted creator (FND-B-Q13-TRUSTED-CREATOR-SOURCE-01, D-Q13)
+
+Davide approved option 1 above, narrowed: only the trusted installation owner, and only on a role it creates fresh.
+P forwarded V's fresh ledger census (0070 and 0071 still absent from all 51 applied rows) before 0070 or 0071 changed.
+
+**Measured first, on an owned PostgreSQL 17.11 cluster shaped like hosted Supabase.** The bootstrap superuser
+(OID 10) is not `postgres`; `postgres` is a plain CREATEROLE/CREATEDB login owning the database.
+- CREATE ROLE by `postgres` gives the new role exactly one edge: member `postgres`, grantor 10, ADMIN true, INHERIT
+  false, SET false. A new LOGIN gets the same edge.
+- The edge adds no `pg_shdepend` row, so the cluster-wide dependency check needs no exception and stays as it is.
+- The edge's `xmin` is the creating transaction.
+- `postgres` cannot revoke the edge, and can add a second, self-granted SET edge.
+
+**What changed.**
+- **The trusted installer** is `postgres`, not a superuser, with CREATEROLE, owning this database and schema
+  `sophia`: the owner the activation check already binds.
+- **0070.** When 0070 itself has just created the role and that installer runs it (as `current_user` and
+  `session_user`, with the default `createrole_self_grant`), it accepts the one creator edge. The edge must be exact:
+  grantor 10 (a superuser), ADMIN, no INHERIT, no SET, written in this transaction.
+  - It records that edge on the role: `COMMENT ON ROLE … 'con01-q13-fresh-creator v1 edge=<oid> installer=<oid>'`.
+  - Anything else refuses as before, with the same message. That covers a role found already made, even by the owner,
+    even with a forged record; any other installer; another edge or option; and a second installation.
+- **`conversation_admit_assembler_login(name)`, new in 0071.** Only that installer can use it. It refuses a role that
+  already exists or a non-default self-grant. Otherwise it:
+  - creates the login (NOINHERIT, no attribute) and checks the same exact creator edge, made now, with no other edge
+    and no dependency;
+  - grants the assembler with SET, without ADMIN or INHERIT, and CONNECT on this database;
+  - records the creator edge on the login.
+
+  A superuser installation keeps admitting its logins as before.
+- **`conversation_assembler_admitted()` and the activation check** excuse that recorded creator edge, from that owner,
+  and nothing else. The 0071 SET-and-not-ADMIN rule (#393 r4300923362) and every other hold are unchanged.
+- **Limits.**
+  - The owner can still grant itself SET on either role, and could forge a record. A superuser could make an
+    identical edge. The exception trusts this owner; it does not isolate the roles from it.
+  - A role's comment is the record: cluster-wide like the role, readable in any database, writable only by holders
+    of ADMIN on that role (the owner) or superusers. It adds no relation, grant or dependency.
+
+**Proof: `conversation-assembler-trusted-creator.db.test.ts`.** It is gated by its own marker on an owned cluster
+like the one above; ordinary `test:db` skips it, uncounted.
+- Before, at `139f3997`: the owner's fresh install failed with the same error as CI's auth job, and the cases after it
+  could not run.
+- After: 7/7.
+  - Refused before any grant, nothing left: another installer, the owner without the database or the schema, a
+    non-default self-grant, and a found role with or without a forged record.
+  - The fresh install has exactly the recorded edge; the role owns nothing and holds grants here alone; the ledger has
+    0070 and 0071. A second installation is refused.
+  - Admission: never an existing login, another caller or a non-default self-grant. The admitted login has exactly the
+    creator and execution edges, and CONNECT on this database alone.
+  - Its Ask waits for context. The login records the context under `SET LOCAL ROLE`, reading nothing without it, and
+    the create dispatches.
+  - The holds: fresh denial elsewhere, an old session holding after revocation until its client closes, then `[]`.
+  - Drift stops both the holds and admission: another member, the owner's SET grant, an extra role, a missing or
+    wrong record, the owner losing the database, and the edge replaced by another grantor's.
+  - Without the record check, the pre-existing login is admitted: 4 cases fail.
+- Unchanged on a superuser cluster: the exclusive admission and install groups 7/7, `test:sql` (67 migrations),
+  `test:db` 998/998.
+- **CI.** `scripts/q13-owned-pg16-inner.sh` now runs this group on a second owned PostgreSQL 16 cluster shaped the same
+  way. It requires 7/7, the four hold stages, no skip and an empty exit census. That has not run anywhere yet, and
+  neither has the Supabase-local auth job on this source.
 
 ## Next bounded action
 

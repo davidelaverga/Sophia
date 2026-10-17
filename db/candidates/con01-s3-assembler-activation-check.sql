@@ -8,6 +8,16 @@
 WITH l AS (SELECT * FROM pg_roles WHERE rolname=:'login'),
      a AS (SELECT * FROM pg_roles WHERE rolname='sophia_conversation_assembler'),
      t AS (SELECT oid FROM pg_database WHERE datname=current_database()),
+     -- D-Q13: the one membership a trusted non-superuser installer cannot avoid, on a role it created fresh (0070's
+     -- assembler, a login admitted by conversation_admit_assembler_login): its creator edge, ADMIN, granted by the
+     -- bootstrap superuser, no INHERIT, no SET, from postgres owning this database and schema sophia, and recorded on
+     -- that role as it was made. No other edge is excused anywhere below.
+     fresh(edge) AS (SELECT m.oid FROM pg_auth_members m JOIN pg_roles i ON i.oid=m.member JOIN pg_roles g ON g.oid=m.grantor
+       WHERE m.grantor=10 AND g.rolsuper AND m.admin_option AND NOT m.inherit_option AND NOT m.set_option
+        AND i.rolname='postgres' AND NOT i.rolsuper AND i.oid=(SELECT datdba FROM pg_database WHERE datname=current_database())
+        AND EXISTS(SELECT FROM pg_namespace n WHERE n.nspname='sophia' AND n.nspowner=i.oid)
+        AND shobj_description(m.roleid,'pg_authid') IS NOT DISTINCT FROM
+         'con01-q13-fresh-creator v1 edge='||m.oid||' installer='||m.member),
      -- What the assembler may hold, by name, and nothing else (§3.2, §3.3 and the five entry points). Matched by
      -- schema and name, never by a cast, so a database without schema sophia neither errors nor admits.
      rels(r) AS (VALUES ('commands'),('contributions'),('conversation_messages'),('conversations'),('decisions'),
@@ -165,6 +175,7 @@ UNION ALL SELECT 'hold', 'assembler edge: admin option or no SET' FROM pg_auth_m
 UNION ALL SELECT 'hold', 'not a member of the assembler' FROM l
  WHERE NOT EXISTS(SELECT FROM pg_auth_members m WHERE m.member=l.oid AND m.roleid=(SELECT oid FROM a))
 UNION ALL SELECT 'hold', 'the login has a member: '||m.member::regrole FROM pg_auth_members m, l WHERE m.roleid=l.oid
+ AND m.oid NOT IN (SELECT edge FROM fresh)
 UNION ALL SELECT 'hold', 'the assembler is a member of '||m.roleid::regrole FROM pg_auth_members m, a WHERE m.member=a.oid
 -- The login's own dependencies: none, except one ACL entry on the target database itself (checked exactly below).
 UNION ALL SELECT 'hold', 'the login '||CASE dep.deptype WHEN 'o' THEN 'owns something in ' ELSE 'holds something in ' END||dep.place
@@ -238,9 +249,10 @@ UNION ALL SELECT 'hold', 'PUBLIC may '||x.privilege_type||' on '||n.nspname||'.'
 -- Every identity that can act as the assembler, not only this login: each member must be a bare login.
 UNION ALL SELECT 'hold', 'a member of the assembler is not a bare login: '||r.rolname
  FROM pg_auth_members m JOIN pg_roles r ON r.oid=m.member, a
- WHERE m.roleid=a.oid AND (NOT r.rolcanlogin OR r.rolsuper OR r.rolbypassrls OR r.rolcreatedb OR r.rolcreaterole
+ WHERE m.roleid=a.oid AND m.oid NOT IN (SELECT edge FROM fresh)
+  AND (NOT r.rolcanlogin OR r.rolsuper OR r.rolbypassrls OR r.rolcreatedb OR r.rolcreaterole
    OR r.rolreplication OR m.admin_option OR EXISTS(SELECT FROM pg_auth_members o WHERE o.member=r.oid AND o.roleid<>a.oid)
-   OR EXISTS(SELECT FROM pg_auth_members o WHERE o.roleid=r.oid))
+   OR EXISTS(SELECT FROM pg_auth_members o WHERE o.roleid=r.oid AND o.oid NOT IN (SELECT edge FROM fresh)))
 UNION ALL SELECT 'hold', 'session open in '||coalesce(s.datname,'?')||' (pid '||s.pid||')'
  FROM pg_stat_activity s, l WHERE s.usesysid=l.oid AND s.pid<>pg_backend_pid()
 UNION ALL SELECT 'hold', 'admitted to '||d.datname||CASE WHEN has_database_privilege('public', d.oid, 'CONNECT')
