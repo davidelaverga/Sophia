@@ -51,3 +51,30 @@ describe('finding in the conversation (personal-moments.md §3)', () => {
     assert.deepEqual(foundIn(rows, ''), [])
   })
 })
+
+describe('finding whatever the accents (find-accents.md)', () => {
+  it('matches as the notes’ search does: no case, no accents, the words cut as written', () => {
+    assert.deepEqual(pieces('Un café y una mañana', 'cafe'), [
+      { text: 'Un ', n: null },
+      { text: 'café', n: 0 },
+      { text: ' y una mañana', n: null },
+    ])
+    assert.deepEqual(pieces('Un cafe', 'café'), [
+      { text: 'Un ', n: null },
+      { text: 'cafe', n: 0 },
+    ])
+    assert.deepEqual(pieces('MAÑANA temprano', 'manana'), [
+      { text: 'MAÑANA', n: 0 },
+      { text: ' temprano', n: null },
+    ])
+  })
+
+  it('keeps an accent typed as its own mark with its letter', () => {
+    assert.deepEqual(pieces('Un café aquí', 'cafe'), [
+      { text: 'Un ', n: null },
+      { text: 'café', n: 0 },
+      { text: ' aquí', n: null },
+    ])
+    assert.deepEqual(foundIn([said('a', 'Café o te')], 'CAFÉ'), [{ key: 'a', n: 0 }])
+  })
+})

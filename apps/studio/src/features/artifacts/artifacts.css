@@ -357,11 +357,10 @@
 
 /* The Markdown body, read as its HTML page reads it (html-report-v2, SPEC §4b): a serif reading voice at 17/1.6 in the
    pane's one measure, the apparatus in the Studio's sans (tables, code, citation numbers, list markers). The faces are
-   the system's own: nothing is loaded for them. */
+   the system's own, nothing loaded for them, and the page's own (reader-stack.test.ts): no Sitka Text, which set the
+   measure under 60 characters on Windows (report-page-windows.md). */
 .md {
-  --serif:
-    Charter, 'Bitstream Charter', 'Sitka Text', Cambria, 'Iowan Old Style', 'Noto Serif', 'Liberation Serif', Georgia,
-    serif;
+  --serif: Charter, 'Bitstream Charter', Cambria, 'Iowan Old Style', 'Noto Serif', 'Liberation Serif', Georgia, serif;
   max-width: var(--measure);
   color: var(--text);
   font: 400 17px/1.6 var(--serif);
