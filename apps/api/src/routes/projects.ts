@@ -1,14 +1,22 @@
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
-import type { ProjectCreate, ProjectLeaveRequest, ProjectRenameRequest, ProjectSummary } from '@sophia/contracts'
+import type {
+  ProjectArchiveRequest,
+  ProjectCreate,
+  ProjectLeaveRequest,
+  ProjectRenameRequest,
+  ProjectSummary,
+} from '@sophia/contracts'
 import {
   createProject,
   leaveProject,
   pendingDeparture,
   listProjects,
+  PROJECT_LIST_BOUNDS,
   readPersonalEpoch,
   renameProject,
+  setProjectArchived,
   settleRoomRemoval,
   withActor,
   withService,
@@ -117,6 +125,7 @@ export function projectRoutes(
   )
 
   leaveRoute(app, { pool, livekit })
+  archiveRoutes(app, { pool, livekit })
 
   app.get('/api/v1/projects', { schema: { response: { 200: { $ref: 'ProjectList#' } } } }, async (req) => {
     // With the reader's personal epoch: Work's writes to their notes (taking one back) are fenced to it too.
@@ -146,6 +155,37 @@ async function leavesTheCall(
   if (!open) return
   const result = await removeParticipant(livekit, open.roomId, open.identity)
   await withService(deps.pool, (c) => settleRoomRemoval(c, open.id, `api:${randomUUID()}`, result))
+}
+
+/**
+ * archiveProject and listArchivedProjects (A30): an admin archives a project or brings it back, idempotent per actor
+ * and key; the default list leaves archived projects out, and this one lists them, rooms asked as for the other.
+ */
+function archiveRoutes(app: FastifyInstance, { pool, livekit }: { pool: pg.Pool; livekit: LiveKitConfig | undefined }) {
+  app.post<{ Params: { projectId: string }; Headers: { 'idempotency-key': string }; Body: ProjectArchiveRequest }>(
+    '/api/v1/projects/:projectId/archive',
+    {
+      schema: {
+        params: projectParams,
+        headers: idempotencyHeader,
+        body: { $ref: 'ProjectArchiveRequest#' },
+        response: { 200: { $ref: 'ProjectArchived#' } },
+      },
+    },
+    async (req) =>
+      withActor(pool, req.actorId, 'write', (c) =>
+        setProjectArchived(c, req.params.projectId, req.headers['idempotency-key'], req.body.archived),
+      ),
+  )
+  app.get('/api/v1/projects/archived', { schema: { response: { 200: { $ref: 'ProjectList#' } } } }, async (req) => {
+    const { listed, personalEpoch } = await withActor(pool, req.actorId, 'read', async (c) => ({
+      listed: await listProjects(c, PROJECT_LIST_BOUNDS, true),
+      personalEpoch: await readPersonalEpoch(c),
+    }))
+    const rooms = await roomsNow(livekit, listed)
+    const projects = listed.map(({ roomId: _room, ...rest }, i) => ({ ...rest, room: rooms[i] ?? null }))
+    return { projects, personalEpoch }
+  })
 }
 
 /** leaveProject (A22): any member but the project's only admin, idempotent per actor and key; out of the call too. */

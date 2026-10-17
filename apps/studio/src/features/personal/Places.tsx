@@ -59,6 +59,7 @@ import { usePlaceMotion } from './usePlaceMotion.ts'
 import type { Handed } from './handed.ts'
 import { Welcome } from './Welcome.tsx'
 import { WorkSpace } from './WorkSpace.tsx'
+import { useArchivedProjects, useUnarchive } from '../studio/Archive.tsx'
 import { personalFailure } from './write-words.ts'
 import { useNow } from '../../app/use-now.ts'
 import './personal.css'
@@ -85,6 +86,7 @@ export interface PlacesProps {
   onOpenView: (projectId: string, view: ProjectView, at: NeedAt) => void
   onChooseDev: (identity: Identity | null) => void
   onSignOut: () => void
+  onSignOutEverywhere: () => void
 }
 
 const ANNOUNCE: Record<Place, string> = {
@@ -485,12 +487,18 @@ function Personal({ v }: { v: View }) {
 function Work({ v }: { v: View }) {
   const { props, layers, nav } = v
   const presses = usePresses()
+  const archived = useArchivedProjects(props.identity)
+  const unarchive = useUnarchive(props.identity)
   return (
     <WorkSpace
       hidden={!v.shown.includes('work')}
       token={props.identity.token}
       projects={v.projects.data?.projects}
       invited={<InvitedBand identity={props.identity} onOpen={(id) => props.onOpenProject(id, false)} />}
+      archived={{
+        projects: archived,
+        onUnarchive: (id) => void unarchive(id).catch(() => props.toast('Couldn’t bring the project back. Try again.')),
+      }}
       read={projectsRead(v)}
       fresh={v.carried.fresh}
       inCallProject={props.call?.projectId ?? null}
@@ -531,6 +539,7 @@ function Bar({ v }: { v: View }) {
         data: () => layers.setData(true),
         chooseDev: props.onChooseDev,
         signOut: props.onSignOut,
+        signOutEverywhere: props.onSignOutEverywhere,
       }}
     />
   )

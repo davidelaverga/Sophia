@@ -44,8 +44,10 @@ import {
   deliverCaption,
   deliverNotice,
   dropCall,
+  enabling,
   joined,
   leaving,
+  linkLost,
   reactFrom,
   sophiaLeaves,
   speakWhileMuted,
@@ -240,8 +242,13 @@ interface Fixture {
   loseNextCloseReply: () => void
   /** A note is kept in the brief, as by this viewer's Keep in another tab: the project moves. */
   keep: (text: string) => void
+  /** The Resources view draws again (`resources=crash` healed; view-boundary.md). */
+  healView: () => void
   /** The next «Mark as seen» lands, but its reply is lost. */
   loseNextSeenReply: () => void
+  /** Turning the microphone on waits until `releaseMicrophone`, as a browser still asking for it. */
+  holdMicrophone: () => void
+  releaseMicrophone: () => void
   /** Leaving the call waits until `releaseLeave`, as a slow disconnect. */
   holdLeave: () => void
   /** Leaving the call fails on LiveKit's side, as a disconnect that rejects. */
@@ -264,6 +271,8 @@ interface Fixture {
   sophiaLeaves: () => void
   /** Speech is heard on this person's muted microphone (muted-speech.md). */
   speakMuted: () => void
+  /** The call's link is lost for a while (true), or back (false), as LiveKit reconnects (reconnecting-on-video.md). */
+  linkLost: (lost: boolean) => void
   /** A teammate edits the report's description elsewhere (the page learns of it when it reads the cards again). */
   describeElsewhere: (text: string) => void
   /** Reads of the report's versions fail from now on: unavailable, or refused (`not_found`); given false, they succeed. */
@@ -310,6 +319,14 @@ declare global {
 }
 
 const query = new URLSearchParams(window.location.search)
+
+/** `resources=crash`: the Resources view fails to draw until `healView`, as a bug in a view would (view-boundary.md). */
+let viewBroken = query.get('resources') === 'crash'
+
+function MaybeBroken({ children }: { children: ReactNode }) {
+  if (viewBroken) throw new Error('A view that fails to draw (fixture)')
+  return children
+}
 bootTheme(query.get('theme'))
 // As main.tsx starts them: on here only with `?sentry=1` (fixtures/crash-dsn.ts, crash-feedback.md).
 startCrashReports()
@@ -506,6 +523,8 @@ const project = {
   failEarlier: false,
   failHost: false,
   staleTarget: false,
+  // `archived=1`: the project is archived (archive-project.md).
+  archived: query.get('archived') === '1',
   // `targets=1`: the rollout is Marco's, due 30 October 2026 (goal-owner-date.md); `targets=mine` adds the admin change
   // as the viewer's, due 20 November, and the completed pilot as theirs, due 1 October (goal-overdue.md).
   goalTargets: new Map(goalTargetsAsked(query.get('targets'))),
@@ -549,6 +568,9 @@ const project = {
   designing: query.get('design') === 'designing',
   pageTampered: query.get('tamper') === 'html',
   work: query.get('place') === 'work',
+  // `reports=1`: the research task in the snapshot's work and the report's current version in its artifacts, as the API
+  // serves them (goal-reports.md).
+  goalReports: query.get('reports') === '1',
   // `notes=off`: the brief allows this person no note.
   showing: noShowing(),
   // A18: the project's conversations (`conversations=1`; `=none`, none; `=fail`, the list fails; `messages=fail`, the
@@ -906,8 +928,18 @@ window.fixture = {
     )
     publish(project)
   },
+  healView: () => {
+    viewBroken = false
+  },
   loseNextSeenReply: () => {
     project.meeting.seen.loseReply = true
+  },
+  holdMicrophone: () => {
+    enabling.held = true
+  },
+  releaseMicrophone: () => {
+    enabling.held = false
+    for (const done of enabling.waiting.splice(0)) done()
   },
   holdLeave: () => {
     leaving.held = true
@@ -940,6 +972,7 @@ window.fixture = {
   caption: deliverCaption,
   sophiaLeaves,
   speakMuted: speakWhileMuted,
+  linkLost,
   describeElsewhere: (text) => {
     project.description = { text, revision: project.description.revision + 1, author: TEAMMATE }
   },
@@ -1141,6 +1174,8 @@ const demoAccount = (privacy: () => void) => ({
   privacy,
   chooseDev: nothing,
   signOut: () => window.location.assign(`signin.html${DEMO ? '?demo=1' : ''}`),
+  // Every device: the sign-in, saying so, so a check can tell the two apart (sign-out-scope.md).
+  signOutEverywhere: () => window.location.assign(`signin.html?everywhere=1${DEMO ? '&demo=1' : ''}`),
 })
 
 function Project({ background }: { background: boolean }) {
@@ -1162,7 +1197,13 @@ function Project({ background }: { background: boolean }) {
         onSignOut={nothing}
         joinOnOpen={query.get('call') === 'on'}
         background={background}
-        resources={DEMO ? <DemoResources /> : undefined}
+        resources={
+          DEMO ? (
+            <MaybeBroken>
+              <DemoResources />
+            </MaybeBroken>
+          ) : undefined
+        }
       />
     </>
   )

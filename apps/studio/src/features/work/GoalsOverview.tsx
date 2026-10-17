@@ -3,7 +3,7 @@
 // sheet. Done goals fold to one line; past six goals, a search. One accent, amber, only where something waits. Each
 // goal's latest note is read from the project's ledger (goal-notes.md).
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import type { Goal, GoalTarget } from '@sophia/contracts'
+import type { ArtifactVersion, Goal, GoalTarget } from '@sophia/contracts'
 import { Button, EmptyState, Search } from '@sophia/ui'
 import { useCommands } from '../../app/useCommands.ts'
 import { DECISION, GOAL, showInAddress, TASK } from '../resources/link.ts'
@@ -40,6 +40,8 @@ interface Props {
   notes: NotesFor
   /** Tasks, with the goal, or a task or decision of it, named in the address; undefined where Tasks can't take it. */
   onOpenGoal: ((id: string, address?: string) => void) | undefined
+  /** A goal's reports, from the snapshot (goal-reports.md). */
+  reports?: (goalId: string) => readonly ArtifactVersion[]
 }
 
 /**
@@ -220,7 +222,7 @@ function NotesFailed({ ledger }: { ledger: ReturnType<typeof useLedger> }) {
 const lateMine = (goals: readonly Goal[], plans: Plans, targets: ReadonlyMap<string, GoalTarget>, me: string) =>
   goals.filter((g) => plans?.[g.id]?.overdue && targets.get(g.id)?.ownerId === me).length
 
-export function GoalsOverview({ goals, plans: served, notes, onOpenGoal }: Props) {
+export function GoalsOverview({ goals, plans: served, notes, onOpenGoal, reports }: Props) {
   const ledger = useLedger(notes)
   const [targets, members] = [useGoalTargets(notes), useMembers(notes)]
   const today = todayOf(new Date(useNow(60 * 60_000)))
@@ -268,6 +270,7 @@ export function GoalsOverview({ goals, plans: served, notes, onOpenGoal }: Props
           onClose={() => setOpen(null)}
           onOpenAsk={openAsk}
           notes={notes}
+          reports={reports?.(opened.id) ?? []}
           onOpenTasks={canOpenInTasks(plans[opened.id]) && onOpenGoal ? () => onOpenGoal(opened.id) : undefined}
         />
       )}

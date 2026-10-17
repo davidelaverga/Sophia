@@ -19,6 +19,7 @@ import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
 import { useOpening } from './useOpening.ts'
 import { useProjectRoute } from './useProjectRoute.ts'
 import { LoadFailed } from './LoadFailed.tsx'
+import { NewVersion } from './NewVersion.tsx'
 import { loadSignedIn, warmSignedIn } from './signed-in-load.ts'
 
 // Invitation links are a separate door: their page loads only when someone opens one.
@@ -150,8 +151,24 @@ const forgetAllDrafts = () => {
   forgetViewerDrafts()
 }
 
-export function App() {
-  const { state, chooseDev, signOut, acceptLink, declineLink } = useAuth()
+/**
+ * Signing out leaves nothing personal on this device: the cache, every message being written to Sophia, what was under
+ * way in a project's conversations (talk-store.ts) and any review proposal still unanswered. `end` is this device's
+ * sign-out or every device's (sign-out-scope.md); what stays here goes either way. One callback each, never a
+ * parameter: the join page hands Sign out straight to a button, whose click would read as «everywhere».
+ */
+const leaving =
+  (queryClient: ReturnType<typeof useAccountCache>, signedInAs: string | null) => (end: () => Promise<void>) => () => {
+    setSignedIn(null)
+    queryClient.clear()
+    forgetUnderWay()
+    forgetPendingUnlock()
+    // A sign-out that fails leaves the person in: their writes are theirs again.
+    void signOutForgetting(end, forgetAllDrafts).catch(() => setSignedIn(signedInAs))
+  }
+
+function AppBody() {
+  const { state, chooseDev, signOut, signOutEverywhere, acceptLink, declineLink } = useAuth()
   const routing = useProjectRoute()
   const signedInAs = state.status === 'signed_in' ? accountOf(state.identity) : null
   const queryClient = useAccountCache(signedInAs)
@@ -171,16 +188,9 @@ export function App() {
     // The same identity again is no change App's effect would see: it is in, as it was.
     setSignedIn(identity ? accountOf(identity) : null)
   }
-  // Signing out leaves nothing personal on this device: the cache, every message being written to Sophia, what was
-  // under way in a project's conversations (talk-store.ts) and any review proposal still unanswered.
-  const leaveSession = () => {
-    setSignedIn(null)
-    queryClient.clear()
-    forgetUnderWay()
-    forgetPendingUnlock()
-    // A sign-out that fails leaves the person in: their writes are theirs again.
-    void signOutForgetting(signOut, forgetAllDrafts).catch(() => setSignedIn(signedInAs))
-  }
+  const leave = leaving(queryClient, signedInAs)
+  const leaveSession = leave(signOut)
+  const leaveEverywhere = leave(signOutEverywhere)
 
   if (legal) return <LegalPage doc={legal} />
   // An invitation link works before, during and after sign-in: it handles its own. A sign-in link's question
@@ -215,9 +225,20 @@ export function App() {
             routing={routing}
             onChooseDev={switchIdentity}
             onSignOut={leaveSession}
+            onSignOutEverywhere={leaveEverywhere}
           />
         </Suspense>
       </LoadFailed>
     </QueryClientProvider>
+  )
+}
+
+/** The Studio, and over whatever it shows, a new version said (new-version.md). */
+export function App() {
+  return (
+    <>
+      <AppBody />
+      <NewVersion />
+    </>
   )
 }

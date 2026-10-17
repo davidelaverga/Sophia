@@ -38,6 +38,33 @@ All runs are kept; none were selected. Raw logs are kept privately by P's coordi
 
 Other checks on `5dc65fa8`: format, lint, typecheck and contracts pass; unit tests 2367 pass, 0 fail. On `355039d9`: studio typecheck, oxlint and prettier pass on the spec.
 
+### Ancillary commands, exits and cleanup
+
+Added in #389's integration, after the automatic review of `7730cd09` (comment 4299108398). The record at `355039d9` and `7730cd09` does not carry this section, and this addendum does not make those heads complete. Every command below is copied from the session's command log. A detail that was not captured is marked unavailable.
+
+- **Gates on `5dc65fa8`**, from the worktree root with a clean tree:
+  - `pnpm -s format:check`, `pnpm -s lint`, `pnpm -s typecheck`: each exit 0.
+  - `pnpm --filter ./packages/dsh-bundle build`: its exit status is unavailable (the output was discarded and the status was not printed).
+  - `pnpm test`: exit 0. 2437 tests: 2367 pass, 0 fail, 70 skipped.
+  - `pnpm -s contracts:check`: exit 0.
+- **Slot entry**, from the worktree root:
+  - `lsof -nP -iTCP:5198 -iTCP:5199 -sTCP:LISTEN`: exit 1, no listener;
+  - `pgrep -fl "vite|playwright"`: empty output.
+- **Probe:** a Python edit replaced the case's body in `apps/studio/e2e/project-activity.spec.ts` with the probed body, which was never staged or committed. `PROBE_OUT` was a private scratch file, later copied to P's journal with the digests above. Before the candidate run, the same `lsof` exited 1; no process query was run at that point.
+- **Runs:** the Playwright commands 1–3 above each exited 0, with Playwright's summaries reading 10 passed (37.2 s), 10 passed (11.3 s) and 5 passed. Each command gives one aggregate exit status, so a per-repeat exit status is unavailable. Per-repeat outcomes are the probe's `outcome` fields.
+- **Probe removal and the change,** from `apps/studio`:
+  - `git checkout -- e2e/project-activity.spec.ts`, then a Python edit of the one clock call and its comment.
+  - `git diff` then showed only that change: one line removed, three added.
+  - `pnpm -s exec prettier --check e2e/project-activity.spec.ts`: "All matched files use Prettier code style!".
+  - `pnpm -s exec oxlint e2e/project-activity.spec.ts`: exit 0.
+  - Then run 3.
+- **Slot exit**, after run 3:
+  - `lsof -nP -iTCP:5198 -iTCP:5199 -sTCP:LISTEN`: exit 1, no listener;
+  - `pgrep -fl "vite|playwright"`: empty output;
+  - from the worktree root, `pnpm -s --filter @sophia/studio typecheck`: exit 0.
+  - Then the commit of `355039d9`. No process was killed. The CI=1 web servers were Playwright's own, started and stopped by each command.
+- **Unavailable:** wall-clock start and end times per command, beyond the commit times of `5dc65fa8` (19:21:51 UTC) and `355039d9` (19:52:55 UTC). The idle state of the Mac was not measured during the runs.
+
 ## Decisions and changes
 
 - **The test's clock, not the product's timer.** `useSlow` and the room page's timers are not changed. The case asserts one timeout, which `fastForward` serves exactly.

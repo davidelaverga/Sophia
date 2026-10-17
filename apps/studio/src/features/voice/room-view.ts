@@ -244,9 +244,12 @@ export function roomLine(
   return aboutWork(lineOf(status, floor, work, sophia), work)
 }
 
+/** A call coming back, said on the room's line and over the video (RoomStage's OnVideo; Codex P1 on #403). */
+export const RECONNECTING = 'Reconnecting…'
+
 function lineOf(status: DockStatus, floor: FloorView, work: string | null, sophia: SophiaLineView | null): RoomLine {
   if (status === 'joining') return { text: 'Joining the room…', note: null }
-  if (status === 'reconnecting') return { text: 'Reconnecting…', note: work }
+  if (status === 'reconnecting') return { text: RECONNECTING, note: work }
   if (sophia?.inConversation) return { text: sophia.label, note: sophia.note ?? work ?? floorLine(floor) }
   if (status === 'live') return { text: floorLine(floor), note: work }
   return { text: 'The room is ready', note: work ?? VOICE_NOTE }

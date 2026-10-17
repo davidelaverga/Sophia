@@ -40,6 +40,7 @@ import { withQuote } from './message-acts.ts'
 import type { NextAskSource } from './useNextAsk.ts'
 import { clock, dayOf, sameDay, when } from '../../app/time-words.ts'
 import { LinkedText } from '../../app/LinkedText.tsx'
+import { RichText } from '../../app/RichText.tsx'
 import { CopyLink } from '../resources/CopyLink.tsx'
 import { CONVERSATION, linkHash } from '../resources/link.ts'
 
@@ -620,7 +621,7 @@ function Turn({ m, side, acts }: { m: ConversationMessage; side: boolean; acts: 
           <SophiaText text={m.text} />
         ) : (
           <p>
-            <LinkedText text={m.text} />
+            <RichText text={m.text} />
           </p>
         )}
         {sophia && at}

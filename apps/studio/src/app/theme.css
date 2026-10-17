@@ -3270,8 +3270,63 @@ button.contribution-quote:hover {
   color: var(--text-2);
   font-size: var(--type-small);
 }
-/* The toast (Toast.tsx): one line for a result whose place is not on screen, above the floor, so it never covers the
-   dock or a message bar. The time it has left runs along its foot. */
+/* What a view's boundary holds draws as if it weren't there: its children stay the page's own boxes (view-boundary.md). */
+.view-body {
+  display: contents;
+}
+/* A view that failed to draw (view-boundary.md): its place says so, quietly, with its two ways on; the shell stays. */
+.view-failed {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  max-width: 520px;
+  margin: 48px auto;
+  padding: 0 var(--gutter);
+}
+.view-failed-title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: 600;
+}
+.view-failed-note {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.view-failed-acts {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+/* A new version said (new-version.md): the toast's look at the page's top, above everything, and it stays until
+   answered. */
+.new-version {
+  position: fixed;
+  top: 12px;
+  /* Centred on the whole width, not from its middle: from left: 50% a phone gave it half the screen and three lines. */
+  inset-inline: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: fit-content;
+  max-width: calc(100% - 2 * var(--gutter));
+  margin-inline: auto;
+  padding: 9px 14px;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line-2);
+  background: var(--plane-2);
+  box-shadow: 0 12px 40px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  color: var(--text);
+  font-size: 13px;
+}
+/* Its answers keep their words whole; the sentence wraps instead. */
+.new-version .text-button {
+  flex: none;
+  white-space: nowrap;
+}
 /* Skip to content (skip-link.md): out of sight until focused, then at the top left on the raised plane. */
 .skip-link {
   position: fixed;
@@ -3293,6 +3348,8 @@ button.contribution-quote:hover {
 [data-content]:focus {
   outline: none;
 }
+/* The toast (Toast.tsx): one line for a result whose place is not on screen, above the floor, so it never covers the
+   dock or a message bar. The time it has left runs along its foot. */
 .toast {
   position: fixed;
   left: 50%;
@@ -5199,6 +5256,36 @@ button.contribution-quote:hover {
   flex-direction: column;
   gap: 8px;
 }
+/* The call reconnecting while video is on (reconnecting-on-video.md): the header's amber dot and words, on glass,
+   at the top of the column over the tiles, until the link is back. */
+.stage-reconnecting {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 5px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--type-small);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.stage-reconnecting .connection-dot {
+  background: var(--amber);
+}
+/* Where the corner rises to the stage's top right (a narrow stage), the word keeps to the left, clear of it. */
+@container (max-width: 799.98px) {
+  .stage-reconnecting {
+    align-self: flex-start;
+  }
+}
 .stage-over-video .stage-showing {
   margin: 0;
 }
@@ -5994,6 +6081,19 @@ button.contribution-quote:hover {
   display: grid;
   gap: 8px;
 }
+.goal-reports ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* The report's version after its title, quiet (goal-reports.md). */
+.goal-report-version {
+  margin-left: 8px;
+  color: var(--text-3);
+  font: var(--type-label) / var(--lh-small) var(--mono);
+}
 .goal-sheet-section .field-label {
   margin: 0;
 }
@@ -6228,6 +6328,83 @@ button.contribution-quote:hover {
   }
 }
 
+/* Settings, in one place (docs/plans/account-settings.md): a part a heading and its choices, one under another. */
+.settings-part {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.settings-part:last-child {
+  border-bottom: 0;
+}
+.settings-who {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+/* As the account menu's head: the picture beside the name, then the email and how they signed in, a line each. */
+.settings-who > .avatar {
+  width: 32px;
+  height: 32px;
+}
+.settings-who .account-names {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.settings-who .account-name {
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: 500;
+}
+/* A box beside its words, as Invite's from other projects: the global input's width and height are a field's. */
+.settings-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  color: var(--text);
+  font-size: var(--type-small);
+}
+.settings-check input {
+  width: 16px;
+  height: 24px;
+  margin: 0;
+}
+/* A question in Settings reads from the left, as its part does (sign-out-scope.md): its words on their own line, then
+   the two answers. */
+.settings-part .confirm {
+  justify-content: flex-start;
+}
+.settings-part .confirm-note {
+  flex-basis: 100%;
+}
+.settings-links {
+  display: flex;
+  gap: 16px;
+  font-size: var(--type-small);
+}
+/* A message's marks (docs/plans/message-format.md): code in the mono face on a faint plane, a quote under an edge. */
+.msg-code {
+  padding: 1px 4px;
+  border-radius: var(--r-1);
+  background: rgb(var(--ink-rgb) / 0.08);
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+.msg-quote {
+  display: block;
+  margin: 2px 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--line-2);
+  color: var(--text-2);
+}
 /* A web address in a message (docs/plans/message-links.md): the halo's link colour, underlined, wrapping inside the
    column however long it is. */
 .msg-link {
@@ -6616,4 +6793,15 @@ button.contribution-quote:hover {
   margin: 0;
   color: var(--text-3);
   font-size: var(--type-small);
+}
+
+/* An archived project, said under the header on every view (docs/plans/archive-project.md). */
+.archived-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-2);
 }

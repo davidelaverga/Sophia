@@ -90,6 +90,8 @@ interface Project {
   soleAdmin?: boolean
   /** The viewer left the project (A22): it leaves their list. */
   left?: boolean
+  /** The project is archived (A30, `archived=1`): out of the list, in the archived one. */
+  archived?: boolean
   exchange: boolean
   /** The door shut under the shell (`window.fixture.shutDoor`): every snapshot read from now on is refused (403). */
   doorShut?: boolean
@@ -167,6 +169,8 @@ interface Project {
   pageTampered?: boolean
   /** The research task is in the project's work (`place=work`): its card lists the report's outputs. */
   work: boolean
+  /** The snapshot carries the research task and the report's current version (`reports=1`, goal-reports.md). */
+  goalReports?: boolean
   /** The project's goals (the work fixture's one, LFE-07). */
   goals?: Snapshot['goals']
   /** What Sophia offers for a source review (WBC-02); absent, the pilot is not enabled. */
@@ -302,8 +306,20 @@ function snapshotOf(project: Project) {
     : project.work
       ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing).task] }
       : now
-  const titled = project.title ? { ...work, title: project.title } : work
+  const reported = project.goalReports ? withGoalReports(project, work) : work
+  const titled = project.title ? { ...reported, title: project.title } : reported
   return withFocus(project, project.waiting ? { ...titled, lobby: lobbyOf(project.lobbyAsked) } : titled)
+}
+
+/** The research task in the snapshot's work and the report's current version in its artifacts (goal-reports.md). */
+function withGoalReports(project: Project, now: Snapshot): Snapshot {
+  const task = researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing).task
+  const current = versions(project.reportVersions, project.reportTitle, project.pilot)[0]
+  return {
+    ...now,
+    work: now.work.some((t) => t.id === task.id) ? now.work : [...now.work, task],
+    artifacts: current ? [current] : now.artifacts,
+  }
 }
 
 /** What the room shows, as the snapshot carries it, with the report's current version among its artifacts. */
@@ -374,6 +390,15 @@ function departed(project: Project): Response {
   return json({ projectId: PROJECT, cursor: String(project.revision) })
 }
 
+/** An admin archives the project, or brings it back (A30): recorded, and the lists read it so. */
+function archived(project: Project, init: RequestInit | undefined): Response {
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  const wanted = typeof body === 'object' && body !== null && Reflect.get(body, 'archived') === true
+  project.archived = wanted
+  served.push(`archive:${String(wanted)}`)
+  return json({ projectId: PROJECT, archived: wanted, cursor: String(project.revision) })
+}
+
 /** A room token, unless the next one is to fail (`failToken`). */
 function tokenAnswer(project: Project): Response {
   if (!project.failToken) return json(roomToken)
@@ -429,6 +454,7 @@ function projectWritten(
   if (path === `${base}/title`) return renamed(project, init)
   if (path === `${base}/html-edits`) return designEdited(project, init)
   if (path === `${base}/leave`) return departed(project)
+  if (path === `${base}/archive`) return archived(project, init)
   const removal = MEMBER_REMOVAL.exec(path)?.[1]
   if (removal) return memberRemoved(project, removal)
   const host = HOST_ACT.exec(path)
@@ -717,9 +743,18 @@ export function needsAnswer(now = Date.now()) {
   }
 }
 
+/** The person's archived projects (A30): this one, when it is. */
+function archivedListAnswer(project: Project): Response {
+  served.push('projects:archived')
+  const listed = { projectId: PROJECT, title: 'Fixture project', role: project.role ?? membership.role, members: 3 }
+  const projects = project.archived && !project.left ? [{ ...listed, room: null, nextSession: null, releases: [] }] : []
+  return json({ projects, personalEpoch: 1 })
+}
+
 /** The person's own reads (the projects they are in, what needs them); undefined for any other request. */
 function ownRead(project: Project, url: URL) {
   if (url.pathname === '/api/v1/projects') return projectListAnswer(project)
+  if (url.pathname === '/api/v1/projects/archived') return archivedListAnswer(project)
   if (url.pathname === '/api/v1/me/needs') return json(needsAnswer())
   return undefined
 }
@@ -900,7 +935,7 @@ function projectListAnswer(project: Project): Response | Promise<Response> {
     releases: project.carriedIn ?? [],
   }
   const other = { ...listed, projectId: '00000000-0000-4000-8000-0000000000a9', title: 'Another project', releases: [] }
-  const mine = project.left ? [] : [listed]
+  const mine = project.left || project.archived ? [] : [listed]
   return json({ projects: project.carriedElsewhere ? [other] : mine, personalEpoch: 1 })
 }
 

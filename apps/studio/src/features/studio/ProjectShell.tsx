@@ -16,8 +16,10 @@ import { VISION } from '../../app/vision.ts'
 import { ProjectGoProvider, useArrival } from './project-go.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
+import { ArchivedLine } from './Archive.tsx'
 import { canInvite, useMembership, type SheetContext } from '../access/useAccess.ts'
 import { DocumentViewerProvider } from '../artifacts/DocumentViewer.tsx'
+import { InPlaceLinks } from './InPlaceLinks.tsx'
 import { KnowledgeReports } from '../artifacts/KnowledgeReports.tsx'
 import { CarriedIn } from '../artifacts/CarriedIn.tsx'
 import { sendingOf } from '../voice/CallSwitches.tsx'
@@ -54,6 +56,7 @@ import { useServedWork, type ServedWork } from '../work/planning/ServedWork.tsx'
 import type { Feed } from '../../projectors/projection.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { ProjectName } from './ProjectName.tsx'
+import { ViewFailed } from './ViewFailed.tsx'
 
 // The Invite sheet (and its QR encoder) loads the first time someone opens it.
 const InviteSheet = lazy(() => import('../access/InviteSheet.tsx').then((m) => ({ default: m.InviteSheet })))
@@ -671,14 +674,18 @@ function ProjectBody(props: BodyProps) {
       </WithViewer>
     </ProjectGoProvider>
   )
+  // The door, and an archived project's line under it (archive-project.md): on every view, as the lobby is.
   const lobby = (
-    <LobbyPanel
-      projectId={projectId}
-      identity={identity}
-      lobby={snapshot?.lobby}
-      canDecide={canInvite(membership)}
-      projectTitle={snapshot?.title}
-    />
+    <>
+      <ArchivedLine projectId={projectId} identity={identity} membership={membership} />
+      <LobbyPanel
+        projectId={projectId}
+        identity={identity}
+        lobby={snapshot?.lobby}
+        canDecide={canInvite(membership)}
+        projectTitle={snapshot?.title}
+      />
+    </>
   )
   if (view === 'studio') {
     return withViewer(
@@ -707,8 +714,11 @@ function ProjectBody(props: BodyProps) {
     <>
       {lobby}
       <main className={pageClass(work, props.plans, view === 'conversations' && VISION)} data-content>
-        {resources ?? <PageBody {...props} />}
-        {work && pulse}
+        {/* A view that fails to draw says so in its place, its pulse too; the shell and the call stay (view-boundary.md). */}
+        <ViewFailed view={view}>
+          {resources ?? <PageBody {...props} />}
+          {work && pulse}
+        </ViewFailed>
       </main>
       {props.floating}
     </>,
@@ -764,9 +774,10 @@ interface ViewerProps extends BodyProps {
 /**
  * The report viewer around a view: opening a report closes the side panel, and opening the panel closes the report. In
  * the room the pane covers the panel's toggles, so its head offers the chat. Where it covers the dock or the mini dock
- * (a phone, the full page), its head carries the call's switches and note, as the side panel's does (LFE-02.1).
+ * (a phone, the full page), its head carries the call's switches and note, as the side panel's does (LFE-02.1). Inside
+ * it, a link to this project in a message is followed here, a report's in the viewer (studio-links-in-place.md).
  */
-function WithViewer({ projectId, identity, view, room, panel, looking, snapshot, children }: ViewerProps) {
+function WithViewer({ projectId, identity, view, room, panel, looking, snapshot, onShow, children }: ViewerProps) {
   const studio = view === 'studio'
   return (
     <DocumentViewerProvider
@@ -786,7 +797,9 @@ function WithViewer({ projectId, identity, view, room, panel, looking, snapshot,
       call={<PanelCallSwitches room={room} looking={looking} />}
       note={room.mediaError ?? room.error}
     >
-      {children}
+      <InPlaceLinks projectId={projectId} view={view} onShow={onShow}>
+        {children}
+      </InPlaceLinks>
     </DocumentViewerProvider>
   )
 }

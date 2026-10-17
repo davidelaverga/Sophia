@@ -102,23 +102,34 @@ export interface TransportOptions {
 
 /**
  * Transport failures carry the HTTP status when the service answered, and the contract error code when its body was
- * a contract Error (`research_limit_reached`, `invalid_state`, …). The service's message is never kept: it is not
- * the bridge's to repeat to a model.
+ * a contract Error (`research_limit_reached`, `invalid_state`, …). The service's message is kept only for an
+ * `invalid_request` refusal, as `detail`: there the service says what to fix in the request the bridge sent (a source
+ * review's missing section, an unread source, an unknown criterion; R1-F02), bounded and on one line. Any other message
+ * is never kept: it is not the bridge's to repeat to a model.
  */
 export class TransportError extends Error {
-  constructor(message: string, readonly status?: number, readonly code?: string) {
+  constructor(message: string, readonly status?: number, readonly code?: string, readonly detail?: string) {
     super(message)
   }
 }
 
-/** The contract error code of a failed reply's body, if it carries one. */
-async function errorCodeOf(response: Response): Promise<string | undefined> {
+/** The most of an `invalid_request` refusal's message a TransportError keeps. */
+export const DETAIL_CHARS = 300
+
+/** The contract error code of a failed reply's body, if it carries one, and an `invalid_request` refusal's message. */
+async function errorOf(response: Response): Promise<{ code?: string; detail?: string }> {
   try {
     const body: unknown = await response.json()
-    const code = typeof body === 'object' && body !== null && 'code' in body ? body.code : undefined
-    return typeof code === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(code) ? code : undefined
+    const field = (key: string): unknown => (typeof body === 'object' && body !== null && key in body ? (body as Record<string, unknown>)[key] : undefined)
+    const code = field('code')
+    if (typeof code !== 'string' || !/^[a-z][a-z0-9_]{0,63}$/.test(code)) return {}
+    const message = field('message')
+    if (code !== 'invalid_request' || typeof message !== 'string') return { code }
+    const printable = [...message].map((ch) => ((ch.codePointAt(0) ?? 0) < 0x20 || ch === '\u007f' ? ' ' : ch)).join('')
+    const detail = printable.replace(/\s+/g, ' ').trim().slice(0, DETAIL_CHARS)
+    return detail ? { code, detail } : { code }
   } catch {
-    return undefined
+    return {}
   }
 }
 
@@ -151,8 +162,8 @@ export class ServiceTransport {
       signal,
     })
     if (!response.ok) {
-      const code = await errorCodeOf(response)
-      throw new TransportError(`${method} ${path} answered ${response.status}${code ? ` ${code}` : ''}`, response.status, code)
+      const { code, detail } = await errorOf(response)
+      throw new TransportError(`${method} ${path} answered ${response.status}${code ? ` ${code}` : ''}`, response.status, code, detail)
     }
     if (response.status === 204) return undefined
     try {

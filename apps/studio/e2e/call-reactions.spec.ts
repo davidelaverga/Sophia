@@ -60,3 +60,18 @@ test('@phone · reactions · on a phone React is one more square in the dock’s
   const box = await react.boundingBox()
   expect([Math.round(box?.width ?? 0), Math.round(box?.height ?? 0)]).toEqual([42, 42])
 })
+
+// A guest's room token carries media only (apps/api/src/livekit.ts), so a reaction would reach nobody: their dock
+// doesn't offer React (docs/plans/guest-reactions.md).
+test('reactions · a guest let in through the door is not offered React; a member in the call is', async ({ page }) => {
+  await page.goto('/join.html')
+  await page.getByPlaceholder('Your name').fill('Ana Ruiz')
+  await page.getByRole('button', { name: 'Ask to come in' }).click()
+  await page.evaluate(() => window.joinFixture?.answer('admit'))
+  await expect(page.getByText('You’ve been let in')).toBeVisible({ timeout: 8000 })
+  await page.getByRole('button', { name: 'Join the room' }).click()
+  await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  await expect(dock(page).getByRole('button', { name: 'React', exact: true })).toHaveCount(0)
+  await enter(page)
+  await expect(dock(page).getByRole('button', { name: 'React', exact: true })).toBeVisible()
+})

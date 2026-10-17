@@ -590,6 +590,11 @@
   align-items: center;
   gap: 8px 12px;
 }
+/* «Export» (docs/plans/board-export.md): at the bar's end, its menu under it. */
+.board-export {
+  position: relative;
+  margin-left: auto;
+}
 /* Next up (docs/plans/next-up.md): one line under the bar after an answer; its press a text press with an arrow, in the
    halo's ink, as a way on. */
 .next-up {
