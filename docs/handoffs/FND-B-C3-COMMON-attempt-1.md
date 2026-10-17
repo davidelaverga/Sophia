@@ -78,6 +78,28 @@ Node 24.21.0, pnpm 11.7.0, private PostgreSQL 17.11 UTF8 (fresh, removed after).
 - C3 covers live room contributions only. Saved conversations keep their own withdraw and erase, with no mentions or
   correction: the CON alignment and its Q13 structural pin remain open, not completed by this.
 
+## Account boundary (FND-B-C3-ACCOUNT-DIAG-01, R-C3-ACT-01)
+
+A correction whose preview reaches no work goes as soon as the preview answers. If the account that pressed Save
+left the page while that preview was on its way (another account in the tab, or signing out), the answer still sent
+the correction, under the token that account left behind.
+- Before, reproduced on the normal App against the listening API: the preview was held in the browser and let through
+  after leaving. In both cases a correction POST went, and the message was corrected to revision 2 in the database.
+  The token was still valid at the API, so only the browser could hold the line.
+- Now the act remembers the account that began it (`accountOf`). Before anything new, it asks `stillSignedIn`, as a
+  write that outlives its part already does (`signed-in.ts`, usePersonal's carry): acting on the preview's answer,
+  saying it failed, or sending. An account that left starts nothing.
+  - Unchanged: same-account work keeps going across views, and a write already sent is not called back.
+  - Unchanged: Cancel, Escape, the late answer, a fresh retry, can't-cancel-once-sent, the v2 proof and the lost
+    reply's same key.
+- The room fixture renders the room without App, so it now sets its one account the way App does (`setSignedIn`).
+  That is in the fixture only; the guard itself is not bypassed.
+- After: nothing is written and the message stays at revision 1, in both orders; 6/6 over three repeats. The served
+  suite passes 20/20, the C3 fixture specs 31/31 and the neighbours 283/283.
+
+The byte-backup failure is diagnosed apart, in B's private receipt, with no product or test change: not reproduced
+in 100 two-put pairs, idle or loaded, so its cause is unknown.
+
 ## Remaining obligations
 
 - R's review of this head; Luis's acceptance of the combined Studio. Then P sequences any publication.

@@ -23,6 +23,7 @@ import { OFFERED } from './invitations-data.ts'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { forgetKept, keptAt, type Kept } from '../src/features/conversations/talk-store.ts'
 import { accountOf } from '../src/app/auth-callback.ts'
+import { setSignedIn } from '../src/app/signed-in.ts'
 import { messagesKey } from '../src/features/conversations/conversation-list.ts'
 import { StrictMode, useEffect, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -122,6 +123,10 @@ import { demoResources, demoServedGoals } from './demo-work.ts'
 import { bootTheme } from '../src/app/theme.ts'
 import { startCrashReports } from '../src/app/crash-report.ts'
 import { SkipLink } from '../src/app/SkipLink.tsx'
+
+// As App sets for whoever is signed in (signed-in.ts): this page's one account, so a write that outlives its part (a
+// message act's preview, R-C3-ACT-01) sees it as still signed in.
+setSignedIn(accountOf(identity))
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */

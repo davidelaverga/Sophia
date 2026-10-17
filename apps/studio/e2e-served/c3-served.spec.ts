@@ -283,3 +283,58 @@ test.describe('mentions in the room, on the real API (A37)', () => {
   }) => staleRevision(page))
   test('served · withdrawn, the message leaves only its place, and the mention ends', ({ page }) => withdrawnEnds(page))
 })
+
+/** Luis's room message's current words, as the API reads it to him (A36 revisions). */
+async function wordsNow(id: string): Promise<{ text: string; revision: number } | undefined> {
+  const page = await api('Luis', 'GET', `/api/v1/projects/${PROJECT}/discussion?revisions=1`)
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the API's DiscussionPage, read by key
+  const entries = page.entries as { id: string; text: string; revision: number }[]
+  return entries.find((e) => e.id === id)
+}
+
+/**
+ * Luis presses Save on a correction whose preview reaches no work, and leaves (another account in the tab, or signing
+ * out) while that preview is on its way. Its answer, valid and let through to the real API, must start nothing under
+ * the account that left: Luis's token is still valid at the API, so only the browser can hold the line (R-C3-ACT-01).
+ */
+async function previewOutlivesAccount(page: Page, leave: (page: Page) => Promise<void>): Promise<void> {
+  const words = `Leave before the answer, run ${RUN} ${randomUUID().slice(0, 4)}`
+  const id = String((await say(words)).contributionId)
+  const calls = await as(page, 'Luis')
+  await room(page)
+  const { promise: held, resolve: release } = Promise.withResolvers<void>()
+  await page.route(PREVIEW, async (r) => {
+    await held
+    await r.continue()
+  })
+  await line(page, words).getByRole('button', { name: 'Edit' }).click()
+  await page.getByRole('textbox', { name: 'Edit your message' }).fill(`${words}, corrected`)
+  const asked = page.waitForRequest((r) => r.url().includes('/preview?action=correct'))
+  await page.getByRole('button', { name: 'Save' }).click()
+  await asked
+  await leave(page)
+  const late = page.waitForResponse((r) => r.url().includes('/preview?action=correct'))
+  release()
+  expect((await late).status()).toBe(200)
+  // Given time to act on it: nothing is written for the account that left, and the message is as it was.
+  await page.waitForTimeout(1500)
+  expect(acts(calls)).toEqual([])
+  expect((await wordsNow(id))?.text).toBe(words)
+}
+
+const switchToDavide = async (page: Page) => {
+  await page.getByRole('button', { name: 'Account' }).first().click()
+  await page.getByRole('combobox', { name: 'Acting as' }).selectOption('Davide')
+}
+const signOut = async (page: Page) => {
+  await page.getByRole('button', { name: 'Account' }).first().click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
+}
+
+test.describe('an act’s preview outliving its account (R-C3-ACT-01)', () => {
+  test('served · another account in the tab before the preview answers: nothing is written for the one that left', ({
+    page,
+  }) => previewOutlivesAccount(page, switchToDavide))
+  test('served · signed out before the preview answers: nothing is written for the one that left', ({ page }) =>
+    previewOutlivesAccount(page, signOut))
+})

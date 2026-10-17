@@ -7,6 +7,8 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type R
 import type { ContributionActPreview, ContributionActReceipt, DiscussionEntry, WithdrawnEntry } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
 import { correctMessage, previewMessageAct, proofOf, withdrawMessage } from '../../api/message-acts.ts'
+import { accountOf } from '../../app/auth-callback.ts'
+import { stillSignedIn } from '../../app/signed-in.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { asksFirst, effectWords, failureOf, type MessageAct } from './message-acts.ts'
 
@@ -116,6 +118,8 @@ function useMessageAct({ projectId, identity, entry, onActed }: Acting) {
     setStep(stepAfter(act, failure, draft, preview))
   }
   const send = async (act: MessageAct, preview: ContributionActPreview, draft?: string) => {
+    // Nothing new goes under an account that has left this page (signed-in.ts; R-C3-ACT-01).
+    if (!stillSignedIn(accountOf(identity))) return
     const again = pending.current
     const key = again && again.act === act && again.draft === draft ? again.key : crypto.randomUUID()
     pending.current = { act, key, draft, preview }
@@ -142,14 +146,18 @@ function useMessageAct({ projectId, identity, entry, onActed }: Acting) {
     if (again && again.act === act && again.draft === draft) return send(act, again.preview, draft)
     // Only a read so far: nothing is written until the act is sent, so it isn't «working» (r4296732968).
     const ask = ++asking.current
+    // The account that asked: if it leaves this page while the preview is on its way (another account, or signing
+    // out), the answer starts nothing for it (signed-in.ts; R-C3-ACT-01).
+    const account = accountOf(identity)
+    const current = () => asking.current === ask && stillSignedIn(account)
     setStep({ at: 'previewing', act, draft })
     try {
       const preview = await previewMessageAct(identity.token, projectId, entry.id, act)
-      if (asking.current !== ask) return undefined
+      if (!current()) return undefined
       if (asksFirst(preview)) setStep({ at: 'asking', act, preview, draft })
       else await send(act, preview, draft)
     } catch (err) {
-      if (asking.current === ask) failed(act, err, draft)
+      if (current()) failed(act, err, draft)
     }
     return undefined
   }
