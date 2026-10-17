@@ -108,6 +108,10 @@ export async function exportPersonalSpace(token: string, epoch: number, signal: 
 export const listProjects = (token: string, signal?: AbortSignal): Promise<ProjectList> =>
   read(token, '/api/v1/projects', parseProjectList, signal)
 
+/** The person's archived projects (A30): out of the list above, here instead. */
+export const listArchivedProjects = (token: string, signal?: AbortSignal): Promise<ProjectList> =>
+  read(token, '/api/v1/projects/archived', parseProjectList, signal)
+
 export const sendPersonalTurn = (token: string, key: string, epoch: number, text: string) =>
   write(token, '/api/v1/personal/turns', key, epoch, { text })
 
