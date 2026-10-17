@@ -7,7 +7,7 @@ import { useState } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { Button, Icon, Menu, MenuItem, Segmented, usePopover, type SegmentedItem } from '@sophia/ui'
 import { ApiError } from '../../api/client.ts'
-import { getSince, listMeetings, markSeen, type Digest, type MeetingSummary } from '../../api/vision.ts'
+import { getSince, listMeetings, markSeen, type MeetingSummary, type Since } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { canInvite } from '../access/useAccess.ts'
 import { Waiting } from '../../app/Waiting.tsx'
@@ -118,13 +118,15 @@ function useLineGo(): LineGo | undefined {
     : undefined
 }
 
-function DigestBody({ digest, projectId, identity, me }: Omit<SinceProps, 'cursor'> & { digest: Digest }) {
+function DigestBody({ digest, projectId, identity, me }: Omit<SinceProps, 'cursor'> & { digest: Since }) {
   const nameOf = namers(me, NO_NAMES, digest.names).shown
   const [by, setBy] = useState<Narrowing>({ kind: 'all', person: null })
   const shown = narrowRecords(digest, by)
   // Since you last looked, when is half the news: each decided and kept line says it (updates-when.md).
   const sections = recapSections(shown, nameOf, false, (at) => ago(at, Date.now()))
   const any = recapSections(digest, nameOf).length > 0
+  // A window with more after it is marked seen even with nothing listed in it: that is how the next one is read (A34).
+  const markable = any || digest.more === true
   const lead = digestLead(digest)
   const seen = useMarkSeen(projectId, identity)
   const go = useLineGo()
@@ -138,7 +140,7 @@ function DigestBody({ digest, projectId, identity, me }: Omit<SinceProps, 'curso
       {any && sections.length === 0 && (
         <p className="sheet-lead">Nothing of that kind, or by them, since you last looked.</p>
       )}
-      {any && (
+      {markable && (
         <div className="recap-acts">
           <button
             type="button"
@@ -158,7 +160,7 @@ function DigestBody({ digest, projectId, identity, me }: Omit<SinceProps, 'curso
 }
 
 interface NarrowProps {
-  digest: Digest
+  digest: Since
   me: string
   by: Narrowing
   onChange: (by: Narrowing) => void

@@ -45,8 +45,26 @@ export interface RecapSection {
 const keptBy = (n: MeetingRecap['noted'][number], nameOf: NameOf) =>
   n.authoredBy === 'sophia' ? 'Sophia’s paraphrase' : `kept by ${nameOf(n.actorId)}`
 
+/** A record whose `K` may be null: A34 names nobody it cannot show, and keeps no moment it does not have. */
+type OrNull<T, K extends keyof T> = Omit<T, K> & { [P in K]: T[P] | null }
+
 /** What a recap or a digest lists (A12's items), the same builder for both. */
-export type Records = Pick<MeetingRecap, 'decided' | 'made' | 'noted' | 'open' | 'work'>
+export interface Records {
+  decided: readonly OrNull<MeetingRecap['decided'][number], 'proposedBy' | 'decidedBy' | 'at'>[]
+  made: readonly OrNull<MeetingRecap['made'][number], 'askedBy'>[]
+  noted: MeetingRecap['noted']
+  open: MeetingRecap['open']
+  work: MeetingRecap['work']
+}
+
+/** Who proposed and who decided, as far as they are named: nobody named is said as no one, never «a member». */
+const decidedBy = (d: Records['decided'][number], nameOf: NameOf) =>
+  [
+    d.proposedBy === null ? '' : `proposed by ${nameOf(d.proposedBy)}`,
+    d.decidedBy === null ? '' : `decided by ${nameOf(d.decidedBy)}`,
+  ]
+    .filter((words) => words !== '')
+    .join(', ')
 
 /** The sections with something in them, in the order the sheet (or Updates) shows them. */
 /** Work not finished yet: queued or running. */
@@ -62,14 +80,16 @@ export function recapSections(
   closed = false,
   when?: (at: string) => string,
 ): RecapSection[] {
-  const at = (by: string, moment: string) => (when ? `${by} · ${when(moment)}` : by)
+  // A moment not kept (A34's null) is not said; nor is an empty «by» before it.
+  const at = (by: string, moment: string | null) =>
+    when && moment !== null ? [by, when(moment)].filter((words) => words !== '').join(' · ') : by
   const sections: RecapSection[] = [
     {
       title: 'Decided',
       lines: recap.decided.map((d) => ({
         key: d.decisionId,
         text: d.statement,
-        by: at(`proposed by ${nameOf(d.proposedBy)}, decided by ${nameOf(d.decidedBy)}`, d.at),
+        by: at(decidedBy(d, nameOf), d.at),
         to: 'brief',
       })),
     },
@@ -78,7 +98,7 @@ export function recapSections(
       lines: recap.made.map((m) => ({
         key: m.artifactVersionId,
         text: `${m.title} · v${String(m.versionNumber)}`,
-        by: `asked by ${nameOf(m.askedBy)}`,
+        by: m.askedBy === null ? '' : `asked by ${nameOf(m.askedBy)}`,
       })),
     },
     {

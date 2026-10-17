@@ -1,11 +1,20 @@
 // Updates' words (docs/plans/room-updates.md): the digest's lead, and a meeting's row. Pure, so they are unit-tested;
 // the dates' own formats come from the page (Intl), as the reader's locale says them.
-import type { Digest, MeetingSummary } from '../../api/vision.ts'
+import type { MeetingSummary, Since } from '../../api/vision.ts'
 import { lasted } from '../../app/time-words.ts'
 import type { Records } from '../voice/recap-view.ts'
 
-/** The lead over the digest's sections: never looked, or nothing new; null when the sections say it all. */
-export function digestLead(digest: Digest): string | null {
+/**
+ * The lead over the digest's sections: never looked, or nothing new; null when the sections say it all. A window with
+ * more after it (A34's `more`) is said to be only its first part, never everything nor nothing new: the next part is
+ * read once this one is marked seen.
+ */
+export function digestLead(digest: Pick<Since, 'fromSequence' | 'more'> & Records): string | null {
+  if (digest.more === true) {
+    return digest.fromSequence === null
+      ? 'You haven’t looked before. This is only the first part: mark it as seen to read on.'
+      : 'This is only the first part of what changed: mark it as seen to read on.'
+  }
   if (digest.fromSequence === null) return 'You haven’t looked before: this is everything so far.'
   const lists = [digest.decided, digest.made, digest.noted, digest.open, digest.work]
   return lists.every((l) => l.length === 0) ? 'Nothing new since you last looked.' : null
@@ -67,7 +76,8 @@ export interface Narrowing {
  */
 export function narrowRecords(r: Records, by: Narrowing): Records {
   const of = (kind: Kind) => by.kind === 'all' || by.kind === kind
-  const named = (...ids: string[]) => by.person === null || ids.includes(by.person)
+  // Nobody named (A34's null) is never the person narrowed to.
+  const named = (...ids: (string | null)[]) => by.person === null || ids.includes(by.person)
   return {
     decided: of('decided') ? r.decided.filter((d) => named(d.proposedBy, d.decidedBy)) : [],
     made: of('made') ? r.made.filter((m) => named(m.askedBy)) : [],
@@ -96,7 +106,7 @@ export function peopleOf(
     ...r.decided.flatMap((d) => [d.proposedBy, d.decidedBy]),
     ...r.made.map((m) => m.askedBy),
     ...r.noted.map((n) => n.actorId),
-  ]
+  ].filter((who): who is string => who !== null)
   const named = [...new Set(ids)].map((id) => ({ id, name: id === me ? 'You' : (names[id] ?? 'Someone') }))
   // Two people with one name (two unnamed, or two members called alike) are told apart by their order: «Someone»,
   // «Someone (2)» (Codex on #239). A label made so never takes a name someone already has («Alex (2)» a member's
