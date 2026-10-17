@@ -352,6 +352,67 @@ password, so a SCRAM server refused its connection before the SET.
   `e24cb887` and the workspace lock `b868da08` are unchanged.
 - PostgreSQL 16, both helper phases, and Supabase-local auth have still not run on this source.
 
+## The complete executor identity (FND-B2-COMPLETE-EXECUTOR-IDENTITY-REPAIR-01)
+
+The automatic review of `d0c46d5f` found a P1 (#393 discussion 4302689994), and R confirmed it. The executor digest a
+runtime advertised was whatever 64-hex value the operator's variable held; the crossing used the bundle archive's.
+That digest names none of the dsh runtime, LLM adapter, SDK, profile or overlays a reply actually runs on.
+
+**Before, on unmodified `d0c46d5f`.** Real dsh ran from a private copy of the recorded runtime whose loaded
+`dsh-llm-pi-ai` entry was altered: it printed a marker, so it is the file dsh loaded. The copy carried its own correct
+runtime record, which `assertRecordedArtifacts` accepted. With the unchanged archive pin, the bridge's hello still
+advertised the conversation role with the archive digest `3c2b1d43…` as its executor.
+
+**Now the executor digest is the installed closure, verified before the role exists.**
+- `executor-identity.ts` (bundle) holds one recipe, `sophia-executor-closure-v1`. It hashes the recipe's name and the
+  canonical JSON of these components:
+  - the dsh runtime this process was launched from (`argv[1]` is its declared bin), with dsh-base, the adapters, pi-ai
+    and the OpenAI SDK, as `sophia-tree-v2`, the recorded scheme, with no new exclusion;
+  - the installed bundle's own files, the same way;
+  - the profile's four inputs and its archive;
+  - each `--patch` overlay;
+  - the bin, the profile name, and Node's version and platform.
+- **Refusals.** A symlink out of its root, an unreadable launch shape (anything but one `--profile` and `--patch`
+  files), a bundle outside its profile and an unsupported platform each leave the closure unverifiable.
+- **The pin is only an expectation.** The operator's variable is the EXPECTED digest. The bundle derives the closure
+  only when a pin is set, and serves only when the two are equal. Otherwise service mode is unavailable with a fixed
+  reason (`executor_closure_mismatch`, `executor_closure_unverifiable <reason>`), and no role is advertised. There is no
+  fallback.
+- **No credential and no new API surface.** No credential value is read or hashed. With service mode off, nothing is
+  derived. There is no new contract, migration, endpoint, dependency or flag. A40's field keeps its meaning, now
+  derived from the installation.
+- **The host side.** `executorClosureDigest` (scripts/lib/profile.mjs) gives the expected pin with the same built
+  recipe, only after the runtime is the recorded artifact and the profile runs exactly the recorded bundle.
+- **The pin is per launch.** It covers its overlays, so an overlay naming another endpoint is another executor.
+- **Limits.** This guards against accidental substitution among owned installations, not against a hostile host
+  administrator. A file replaced after startup is outside it, and there is no watcher.
+
+**Identities.** `pnpm artifacts:record`: bundle `3c2b1d43…` → `250a96ef…`, and the profile lock. The darwin dsh tree
+`e24cb887`, the workspace lock `b868da08` and linux-x64 `4552d08f` (unqualified) are unchanged.
+
+**Checks** (private PostgreSQL 17.11, en_US.UTF-8).
+- **Unit, `executor-identity` 5/5:**
+  - the tree component equals `sophia-tree-v2`;
+  - an escaping or absolute symlink is refused;
+  - every component changes the digest;
+  - the launch parse is strict;
+  - the settings decision: matched, mismatched, unverifiable without a path in the log, no derivation without a pin or
+    with service mode off.
+- **The conversation-service crossing: 19/19.** The 12 earlier cases now run under each launch's derived pin. Seven
+  are new:
+  - the altered loaded adapter, an installed profile input changed by one comment line, and an overlay naming another
+    endpoint, each under the old pin. Each leaves service mode unavailable: no role, the Ask refused, no request to
+    either endpoint;
+  - the archive digest alone, and an arbitrary digest, expected and pinned alike: refused the same way;
+  - the altered runtime under its own new pin and a new lineage serves once, retired under its tuple;
+  - a restart mid-call under a different verified closure reports the old attempt unrecovered. One create, one request,
+    no answer, the reservation still counted, and no receipt under the new closure.
+- **Mutation.** With the closure replaced by the operator's pin and packed (`1d88133b…`), 5 of 6 identity cases fail
+  at the bundle's refusal. The restart case passes: non-adoption rests on the tuples differing, not on derivation.
+  - Two earlier mutation runs were invalid and are kept in B's logs: the mutant did not build, so the repaired bundle
+    ran.
+- PostgreSQL 16, both helper phases, Supabase-local auth and Linux have not run on this source.
+
 ## Next bounded action
 
-Check the automatic review on #393's repair head once. Then implement the assembly binding exactly as P/V triage it, in this worktree, with its census-numbered migration.
+B's private handback goes to P, and R reviews this identity correction. No push until P selects a publication.

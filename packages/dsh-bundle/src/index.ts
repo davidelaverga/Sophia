@@ -13,9 +13,11 @@
 import { lookup } from 'node:dns/promises'
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { isAbsolute, join } from 'node:path'
+import { dirname, isAbsolute, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import { ControlBridge } from './control-bridge.js'
+import { ClosureUnverifiable, executorClosure, loadedClosureInputs } from './executor-identity.js'
 import type { BridgeReadiness, RouteConfig, RoutePrices } from './control-bridge.js'
 import type { ReplyServiceSettings } from './reply-service.js'
 import type { ResearchSources } from './research-tools.js'
@@ -213,26 +215,42 @@ function parseReplies(value: unknown, routes: Readonly<Record<string, RouteConfi
 const REPLY_SERVICE_BOUNDS = { retry: { requestWaitMs: 10_000, retryWaitMs: 1_000, maxAttempts: 3 }, deadlineMs: 120_000 } as const
 
 /**
- * The service-mode settings the bridge runs with, or null with the reason logged: an unpriced route or an unset
- * artifact digest leaves the mode unavailable (the role is not advertised, so the server dispatches nothing).
+ * The service-mode settings the bridge runs with, or null with the reason logged: an unpriced route, an unset expected
+ * digest, or an installed closure that cannot be verified or is not the expected one leaves the mode unavailable (the
+ * role is not advertised, so the server dispatches nothing). The operator's variable names the EXPECTED executor; the
+ * tuple advertised is the closure `closure` derives from what this process loaded (executor-identity.ts), and only
+ * when the two are equal. There is no fallback to the archive digest, a version or another route.
  */
 export function replyServiceSettings(
   replies: ControlBridgeConfig['replies'],
   routes: Readonly<Record<string, RouteConfig>>,
   env: Readonly<Record<string, string | undefined>>,
   report: (line: string) => void,
+  closure: () => string,
 ): ReplyServiceSettings | null {
   if (replies === null) return null
   const route = routes[replies.routeId]
-  const digest = env[replies.executorDigestEnv]
+  const expected = env[replies.executorDigestEnv]
   if (!route?.prices) {
     report(`reply_service_unavailable route_unpriced`)
     return null
   }
-  if (digest === undefined || !/^[0-9a-f]{64}$/.test(digest)) {
+  if (expected === undefined || !/^[0-9a-f]{64}$/.test(expected)) {
     report(`reply_service_unavailable executor_digest_unset`)
     return null
   }
+  let digest: string
+  try {
+    digest = closure()
+  } catch (error) {
+    report(`reply_service_unavailable executor_closure_unverifiable${error instanceof ClosureUnverifiable ? ` ${error.reason}` : ''}`)
+    return null
+  }
+  if (digest !== expected) {
+    report(`reply_service_unavailable executor_closure_mismatch`)
+    return null
+  }
+  report(`reply_service executor_closure_verified`)
   return {
     mode: 'service',
     routeId: replies.routeId,
@@ -278,6 +296,16 @@ export function parseConfig(config: unknown): ControlBridgeConfig {
   }
 }
 
+/** This process's executor closure (executor-identity.ts): its runtime, this installed bundle, its profile and overlays. */
+const loadedClosure = (): string =>
+  executorClosure(
+    loadedClosureInputs(process.argv, process.env, join(dirname(fileURLToPath(import.meta.url)), '..'), `sophia-dsh-bundle-${BUNDLE.version}.tgz`, {
+      node: process.version,
+      platform: process.platform,
+      arch: process.arch,
+    }),
+  ).digest
+
 const log = (line: string): void => {
   process.stderr.write(`[${name}] ${line}\n`)
 }
@@ -317,7 +345,7 @@ export function apply(ctx: Context, config: unknown): void {
     roleRoutes: settings.roleRoutes,
     research: researchSources(settings.sources),
     replies: null, // The native child composition is not qualified; only service mode may run, when configured.
-    replyService: replyServiceSettings(settings.replies, settings.routes, process.env, log),
+    replyService: replyServiceSettings(settings.replies, settings.routes, process.env, log, loadedClosure),
     log,
   })
   current = bridge
