@@ -49,6 +49,7 @@ import {
   leaving,
   linkLost,
   reactFrom,
+  setVoiceLevel,
   sophiaLeaves,
   speakWhileMuted,
 } from './fake-livekit.ts'
@@ -293,6 +294,8 @@ interface Fixture {
   sophia: (state: SophiaState) => void
   /** Who speak now: 0 the viewer, `n` the `n`th other person, several at once as a list; null no one. */
   speaking: (who: number | readonly number[] | null) => void
+  /** How loud a voice is from now on, 0…1: `sophia`, the viewer (0) or the `n`th other person (voice-amplitude.md). */
+  voiceLevel: (who: 'sophia' | number, level: number) => void
   /** Another member's change reaches the API just before the page's next pass: that pass is refused as stale. */
   moveRoom: () => void
   /** Whom the floor was passed to, by name, in order. */
@@ -995,6 +998,7 @@ window.fixture = {
   },
   sophia: setSophia,
   speaking: setSpeaking,
+  voiceLevel: setVoiceLevel,
   leaves: personLeaves,
   moveRoom: () => {
     project.roomMoves = true

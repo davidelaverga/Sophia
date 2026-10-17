@@ -1,7 +1,16 @@
 // The light's loop, outside React: springs follow what the room says (mode, where she sits, whom she
 // attends to, whether work runs), and each frame is drawn by the WebGL renderer and the 2D trace.
 // It never decides anything about the room; it only shows it.
-import { handoffFrame, settle, spring, stepSpring, type HandoffFrame, type Point, type Spring } from './motion.ts'
+import {
+  envelope,
+  handoffFrame,
+  settle,
+  spring,
+  stepSpring,
+  type HandoffFrame,
+  type Point,
+  type Spring,
+} from './motion.ts'
 import { createLightRenderer, type LightFrame, type LightRenderer } from './renderer.ts'
 import { paperHalo } from './shape.ts'
 import { aimOf, BEHIND, lightBehind } from './threshold.ts'
@@ -33,6 +42,8 @@ export interface LightInput {
   working: boolean
   /** A mark formed in front of the light: it blocks her and she pours past its edges. */
   mark?: MarkAt | null
+  /** How loud she is now, 0…1, read once a frame while she speaks (voice-levels.ts); absent, her voice moves nothing. */
+  voice?: (() => number) | null
 }
 
 type SpringName =
@@ -48,7 +59,6 @@ type SpringName =
   | 'intensity'
   | 'ignite'
   | 'swell'
-  | 'amp'
   | 'lean'
   | 'workLine'
   | 'occlude'
@@ -74,7 +84,6 @@ function createSprings(reduced: boolean): Springs {
     intensity: spring(reduced ? 1 : 0.55, 1.2),
     ignite: spring(reduced ? 1 : 0.42, 1.25),
     swell: spring(0, 7),
-    amp: spring(0, 18),
     lean: spring(1, 3),
     workLine: spring(0, 1.6),
     occlude: spring(0, reduced ? 12 : 1.9),
@@ -125,7 +134,7 @@ function aimAt(s: Springs, look: Point | null): void {
   s.dirY.target = len > 1 ? dy / len : dy
 }
 
-function toFrame(s: Springs, time: number, flow: number, mark: MarkAt | null): LightFrame {
+function toFrame(s: Springs, time: number, flow: number, mark: MarkAt | null, amp: number): LightFrame {
   const v = (name: SpringName) => s[name].value
   return {
     markX: mark?.x ?? 0,
@@ -146,7 +155,7 @@ function toFrame(s: Springs, time: number, flow: number, mark: MarkAt | null): L
     think: v('think'),
     speak: v('speak'),
     work: v('work'),
-    amp: v('amp'),
+    amp,
     swell: v('swell'),
     lean: v('lean'),
     ignite: v('ignite'),
@@ -189,6 +198,10 @@ export class LightEngine {
   private paper = false
   /** The paper halo's properties as last written, so a light at rest writes nothing. */
   private halo = ''
+  /** Her voice now, followed by its envelope (motion.ts): 0 unless she speaks, under full motion. */
+  private amp = 0
+  /** Her voice's level as last written for the checks (`--amp`): a light that never hears her writes nothing. */
+  private heard = '0.00'
   private readonly box: HTMLElement
 
   /** The WebGL canvas: not displayed on paper (theme.css), when its frames are not drawn (Codex on #234). */
@@ -323,14 +336,30 @@ export class LightEngine {
     aimSource(s, this.input.mark ?? null, this.aim())
     s.swell.target = flight && !this.reduced ? flight.frame.swell : 0
     for (const sp of Object.values(s)) stepSpring(sp, dt)
-    if (!this.reduced)
-      this.flow += dt * (0.34 * s.think.value - 0.9 * s.amp.value * s.speak.value - 0.05 * s.listen.value)
+    this.hear(dt)
+    if (!this.reduced) this.flow += dt * (0.34 * s.think.value - 0.9 * this.amp * s.speak.value - 0.05 * s.listen.value)
     if (flight && flight.frame.progress >= 1) this.handoffState = null
     return flight
   }
 
+  /** Her voice, while she speaks and motion is full, through the envelope; a reader that fails is silence. */
+  private hear(dt: number): void {
+    const level = this.input.mode === 'speak' && !this.reduced ? this.level() : 0
+    this.amp = envelope(this.amp, level, dt)
+  }
+
+  private level(): number {
+    try {
+      const v = this.input.voice?.() ?? 0
+      return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0
+    } catch {
+      return 0
+    }
+  }
+
   private draw(t: number, flight: HandoffStep | null): void {
-    const frame = toFrame(this.springs, t, this.flow, this.input.mark ?? null)
+    const frame = toFrame(this.springs, t, this.flow, this.input.mark ?? null, this.amp)
+    this.report(frame.amp)
     // A canvas not displayed (on paper the halo is CSS) has no parent box to lay out in: no frame is drawn into it.
     if (this.glCanvas.offsetParent !== null) this.gl?.draw(frame)
     if (this.paper) this.publish(frame)
@@ -351,6 +380,14 @@ export class LightEngine {
     if (key === this.halo) return
     this.halo = key
     for (const [name, value] of Object.entries(halo)) this.box.style.setProperty(name, value)
+  }
+
+  /** The level the shader is given, for the checks (`--amp`), written only when it changes. */
+  private report(amp: number): void {
+    const heard = amp.toFixed(2)
+    if (heard === this.heard) return
+    this.heard = heard
+    this.box.style.setProperty('--amp', heard)
   }
 
   /** Frames slower than ~28 fps for a second step the resolution down; a 30 Hz display is not load. */

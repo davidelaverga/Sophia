@@ -311,7 +311,9 @@ function useStageModel({ room, snapshot, projectId, identity, presented }: Props
   const running = runningWork(snapshot)
   const sophia = observedSophia(room, snapshot, floor, running > 0)
   const doing = useWorkWords(snapshot, projectId, identity, mode === 'light')
-  return { people, holder, floor, mode, running, sophia, doing }
+  // Who is where, in one word for the stage's geometry: it moves when people or feeds do.
+  const layout = [...people.map((p) => p.identity), ...room.feeds.map((f) => f.key)].join(' ')
+  return { people, holder, floor, mode, running, sophia, doing, layout }
 }
 
 export function RoomStage(props: Props) {
@@ -321,9 +323,8 @@ export function RoomStage(props: Props) {
   // The time, again every half minute: enough for "starts in 12 min".
   const now = useNow(30_000)
   const light = useRef<SophiaLightHandle>(null)
-  const { people, holder, floor, mode, running, sophia, doing } = useStageModel(props)
+  const { people, holder, floor, mode, running, sophia, doing, layout } = useStageModel(props)
   const live = room.status === 'live' || room.status === 'reconnecting'
-  const layout = [...people.map((p) => p.identity), ...room.feeds.map((f) => f.key)].join(' ')
   const geometry = useStageGeometry(stage, floor.holder?.present ? floor.holder.identity : null, mode, layout)
   const passed = useFloorHandoff(stage, light, holder)
   useRoomKeys(room)
@@ -342,6 +343,7 @@ export function RoomStage(props: Props) {
         target={geometry.target}
         attention={geometry.attention}
         working={running > 0}
+        voice={room.sophiaLevel}
       />
       {mode === 'light' ? (
         <>
