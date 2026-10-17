@@ -16192,6 +16192,41 @@
                 "type": "null"
               }
             ]
+          },
+          "targets": {
+            "description": "retire_sessions only (A41): the bindings admitted for retirement, each stopped by the runtime's recorded stop. Admission, not settlement. Empty: nothing was left to retire.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "bindingId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "attemptId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "nativeSessionId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "bindingId",
+                "attemptId",
+                "nativeSessionId"
+              ]
+            }
           }
         },
         "required": [
@@ -16335,6 +16370,163 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 9007199254740991
+          },
+          "retirement": {
+            "description": "A41, project admins only (absent for anyone else): this completed goal's latest retire_sessions command and every target it admitted, each with its own result. live_reported: the runtime reported its live fence (driver idle, handle released). durable_only: the stopped epoch stood (no new idle observation). no_contact: settled without the runtime. None of these says the memory is freed or a provider is quiet.",
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "commandId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "admitted",
+                  "dispatching",
+                  "acknowledged",
+                  "checked",
+                  "denied",
+                  "outcome_unknown",
+                  "superseded"
+                ]
+              },
+              "goalRevision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "authorityEpoch": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "targets": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "bindingId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "attemptId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "nativeSessionId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "runtimeCommandId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "stage": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "delivered",
+                            "incorporation_observed",
+                            "checked",
+                            "rejected",
+                            "failed",
+                            "outcome_unknown"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "nativeSequence": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "reason": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "observedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "result": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "live_reported",
+                        "durable_only",
+                        "checked",
+                        "no_contact",
+                        "outcome_unknown",
+                        "failed",
+                        "rejected",
+                        "denied",
+                        "superseded"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "bindingId",
+                    "attemptId",
+                    "nativeSessionId",
+                    "runtimeCommandId",
+                    "stage",
+                    "nativeSequence",
+                    "reason",
+                    "observedAt",
+                    "result"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "commandId",
+              "state",
+              "goalRevision",
+              "authorityEpoch",
+              "targets"
+            ]
           }
         },
         "required": [
@@ -17055,7 +17247,8 @@
               "request_review",
               "hold",
               "stop",
-              "resume"
+              "resume",
+              "retire_sessions"
             ]
           },
           "goalId": {
@@ -17090,6 +17283,29 @@
           "expectedGoalRevision",
           "expectedAuthorityEpoch",
           "bodySourceId"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "retire_sessions"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "type": "object",
+              "properties": {
+                "bodySourceId": {
+                  "type": "null"
+                }
+              }
+            }
+          }
         ]
       },
       "Contribution": {
@@ -18956,6 +19172,29 @@
                           "calls_tokens",
                           "usd"
                         ]
+                      },
+                      "execution": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "execution": {
+                            "const": "service"
+                          },
+                          "routeId": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$"
+                          },
+                          "executorArtifactDigest": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{64}$"
+                          }
+                        },
+                        "required": [
+                          "execution",
+                          "routeId",
+                          "executorArtifactDigest"
+                        ],
+                        "description": "A service attempt's original execution tuple, from the server's provenance (0067). Absent for a native attempt."
                       }
                     },
                     "required": [
@@ -19167,6 +19406,45 @@
                 "type": "null"
               }
             ]
+          },
+          "executor": {
+            "description": "The executor sending this receipt, as it claims to be; the server checks it against its stored provenance for a conversation attempt. Absent: as before this amendment.",
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "execution": {
+                    "const": "service"
+                  },
+                  "routeId": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$"
+                  },
+                  "executorArtifactDigest": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "execution",
+                  "routeId",
+                  "executorArtifactDigest"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "execution": {
+                    "const": "native"
+                  }
+                },
+                "required": [
+                  "execution"
+                ]
+              }
+            ]
           }
         },
         "required": [
@@ -19363,6 +19641,29 @@
                     "type": "null"
                   }
                 ]
+              },
+              "provenance": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "execution": {
+                    "const": "service"
+                  },
+                  "routeId": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$"
+                  },
+                  "executorArtifactDigest": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "execution",
+                  "routeId",
+                  "executorArtifactDigest"
+                ],
+                "description": "A service attempt's original execution tuple, as the server kept it at dispatch. Absent: native or unknown."
               }
             },
             "required": [
@@ -23427,6 +23728,45 @@
           "presetDigest": {
             "type": "string",
             "pattern": "^[A-Za-z0-9:+/=_-]{1,120}$"
+          },
+          "executor": {
+            "description": "The executor serving this role, as the runtime claims it (A35's shapes). Absent: legacy or unknown, never eligible for a pinned service grant.",
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "execution": {
+                    "const": "service"
+                  },
+                  "routeId": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$"
+                  },
+                  "executorArtifactDigest": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "execution",
+                  "routeId",
+                  "executorArtifactDigest"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "execution": {
+                    "const": "native"
+                  }
+                },
+                "required": [
+                  "execution"
+                ]
+              }
+            ]
           }
         },
         "required": [

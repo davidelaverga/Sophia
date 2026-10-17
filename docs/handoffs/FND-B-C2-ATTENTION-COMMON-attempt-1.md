@@ -127,6 +127,23 @@ the old window again (R's source counterexample: a read at 2000, a refusal at 10
   - the strict A34 reader and the fixture adapter are unchanged.
 - A page loaded afresh starts the count again with an empty cache, so the first read there shows only what it reads.
 
+## Current common carried (FND-B-NEEDS-CURRENT-COMMON-INTEGRATION-01)
+
+One normal merge of the published common `9df69813` into `44cf0b03`, both parents kept; the merge base is `2c60b408`.
+`9df69813` is #393: saved conversations, service replies with the verified executor identity, completed-goal
+retirement, the receipt correction and current main.
+- **Seven paths changed on both sides.** Six merged automatically: `SignedIn.tsx` (C1's account actions beside the
+  attention wiring), `ProjectShell.tsx`, `app-auth.spec.ts`, persistence `index.ts`, the OpenAPI and the types.
+- **One conflict, the generated validators.** It was resolved by regenerating every contract output from the combined
+  amendments (A15/A34 with A33/A35/A40/A41). The regenerated OpenAPI and types equal the automatic merge, and
+  `contracts:check` has no drift.
+- **Everything else keeps its own side's bytes:** 9df's 101 paths and the attention branch's 43.
+- **No Personal content was carried.** The lock, runtime record and profile lock are common's. Every identity
+  reproduces unrecorded; linux-x64 stays whatever common's CI qualifies.
+- **Names.** 0065/0066 and A15/A34 are this branch's. 0075/A41 and every current main file are unchanged.
+- **Unchanged.** The strict A34 reader, the fixture adapter and the READ/WIRE closures are unchanged.
+- **Checks.** The ordinary check, SQL, DB and served cases of this head are in B's handback.
+
 ## Next bounded action
 
-B's private handback goes to P; R reviews this head. No push until P selects one publication.
+B's private handback goes to P; R reviews this integration. No push until P selects one publication.

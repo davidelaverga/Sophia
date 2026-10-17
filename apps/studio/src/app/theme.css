@@ -3376,6 +3376,36 @@ button.contribution-quote:hover {
   color: var(--text-2);
   font-size: var(--type-small);
 }
+/* What a view's boundary holds draws as if it weren't there: its children stay the page's own boxes (view-boundary.md). */
+.view-body {
+  display: contents;
+}
+/* A view that failed to draw (view-boundary.md): its place says so, quietly, with its two ways on; the shell stays. */
+.view-failed {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  max-width: 520px;
+  margin: 48px auto;
+  padding: 0 var(--gutter);
+}
+.view-failed-title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: 600;
+}
+.view-failed-note {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.view-failed-acts {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
 /* A new version said (new-version.md): the toast's look at the page's top, above everything, and it stays until
    answered. */
 .new-version {
@@ -6404,6 +6434,68 @@ button.contribution-quote:hover {
   }
 }
 
+/* Settings, in one place (docs/plans/account-settings.md): a part a heading and its choices, one under another. */
+.settings-part {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.settings-part:last-child {
+  border-bottom: 0;
+}
+.settings-who {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+/* As the account menu's head: the picture beside the name, then the email and how they signed in, a line each. */
+.settings-who > .avatar {
+  width: 32px;
+  height: 32px;
+}
+.settings-who .account-names {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.settings-who .account-name {
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: 500;
+}
+/* A box beside its words, as Invite's from other projects: the global input's width and height are a field's. */
+.settings-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  color: var(--text);
+  font-size: var(--type-small);
+}
+.settings-check input {
+  width: 16px;
+  height: 24px;
+  margin: 0;
+}
+/* A question in Settings reads from the left, as its part does (sign-out-scope.md): its words on their own line, then
+   the two answers. */
+.settings-part .confirm {
+  justify-content: flex-start;
+}
+.settings-part .confirm-note {
+  flex-basis: 100%;
+}
+.settings-links {
+  display: flex;
+  gap: 16px;
+  font-size: var(--type-small);
+}
 /* A message's marks (docs/plans/message-format.md): code in the mono face on a faint plane, a quote under an edge. */
 .msg-code {
   padding: 1px 4px;

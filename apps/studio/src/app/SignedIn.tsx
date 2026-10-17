@@ -27,6 +27,8 @@ interface SignedInProps {
   routing: ReturnType<typeof useProjectRoute>
   onChooseDev: (identity: Identity | null) => void
   onSignOut: () => void
+  /** Every device the account is on (sign-out-scope.md): Settings' «Sign out of all devices». */
+  onSignOutEverywhere: () => void
 }
 
 /** Told when a call ends: the call as it was, and why when this person didn't leave it (call-end.ts). */
@@ -214,7 +216,28 @@ function ProjectShells(props: ShellsProps) {
  * project. The personal padlock lives here, above both, so a room shuts it wherever the person is; so does the toast,
  * so a result is said the same way in a project and in the places, and a call that ends out of sight says why.
  */
-function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedInProps) {
+/** A project opened from the places: the call joined with it when asked (the join request), then the project. */
+const opening =
+  (ask: (projectId: string | null) => void, open: (projectId: string) => void) =>
+  (projectId: string, joins: boolean) => {
+    ask(joins ? projectId : null)
+    open(projectId)
+  }
+
+/** The account menu's actions, wherever it shows: here over a project, in the places their own (Places). */
+const accountActions = (
+  sheets: { data: () => void; privacy: () => void },
+  props: Pick<SignedInProps, 'onChooseDev' | 'onSignOut' | 'onSignOutEverywhere'>,
+) => ({
+  data: sheets.data,
+  privacy: sheets.privacy,
+  chooseDev: props.onChooseDev,
+  signOut: props.onSignOut,
+  signOutEverywhere: props.onSignOutEverywhere,
+})
+
+function SignedIn(props: SignedInProps) {
+  const { identity, notice, routing, onChooseDev, onSignOut } = props
   const { route, open, openAt, leave, goTo } = routing
   const toast = useToast()
   const ended = useRef<OnEnded | null>(null)
@@ -227,15 +250,12 @@ function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedI
   useForgetWhileLocked(lock.locked)
   useSayings({ ended, say: toast.show, project, notice })
   const sheets = useSheetsAtHome(leave)
-  const actions = { data: sheets.data, privacy: sheets.privacy, chooseDev: onChooseDev, signOut: onSignOut }
+  const actions = accountActions(sheets, props)
   const onScreen = projectOnScreen(project, call?.projectId ?? null)
   const ids = [onScreen, call && call.projectId !== onScreen ? call.projectId : null].filter(
     (id): id is string => id !== null,
   )
-  const openProject = (projectId: string, joins: boolean) => {
-    join.ask(joins ? projectId : null)
-    open(projectId)
-  }
+  const openProject = opening(join.ask, open)
   return (
     <>
       <ProjectShells
@@ -269,6 +289,7 @@ function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedI
           }}
           onChooseDev={onChooseDev}
           onSignOut={onSignOut}
+          onSignOutEverywhere={props.onSignOutEverywhere}
         />
       )}
       <Toast notice={toast.notice} onHide={toast.hide} />

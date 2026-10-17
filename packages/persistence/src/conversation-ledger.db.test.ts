@@ -205,6 +205,8 @@ describe('S2 promoted by the complete migration', () => {
         'conversation_grant_approvals.used_by',
         'conversation_grants.approval_ref',
         'conversation_grants.credential_ref',
+        'conversation_grants.execution', // 0067: native or service
+        'conversation_grants.executor_artifact_digest', // 0067: 64 hex
         'conversation_grants.owner_resource_ref',
         'conversation_grants.route_id',
         'conversation_grants.state',

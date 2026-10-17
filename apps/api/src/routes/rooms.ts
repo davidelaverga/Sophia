@@ -24,7 +24,7 @@ import {
   type LiveKitConfig,
   type PartialMute,
 } from '../livekit.ts'
-import { recordedIfDone } from './host-acts.ts'
+import { recordedIfDone, recordedStop } from './host-acts.ts'
 import { namesOf } from './profile.ts'
 import { idempotencyHeader, projectParams } from './schemas.ts'
 
@@ -140,7 +140,7 @@ function moreHostControls(app: FastifyInstance, deps: Deps): void {
         if (req.params.identity === req.actorId) throw new DomainError('invalid_request', 'Your own call is yours')
         if (!(await memberInRoom(lk, roomId, req.params.identity)))
           throw new DomainError('invalid_request', 'They aren’t a member in the call')
-        await recordedIfDone(stop(lk, roomId, req.params.identity), () =>
+        await recordedStop(stop(lk, roomId, req.params.identity), () =>
           withActor(deps.pool, req.actorId, 'write', (c) =>
             recordRoomAct(c, req.params.projectId, req.params.identity, act),
           ),

@@ -104,6 +104,21 @@ in 100 two-put pairs, idle or loaded, so its cause is unknown.
 
 - R's review of this head; Luis's acceptance of the combined Studio. Then P sequences any publication.
 
+## Current common carried (FND-B-MENTIONS-CURRENT-COMMON-INTEGRATION-01)
+
+One normal merge of `ffb4f05c` (Needs and Updates on the published common `9df69813`, the tree main now carries) into
+`7a7c43e7`, both parents kept; the merge base is `44cf0b03`.
+- **Ten paths changed on both sides.** Seven merged automatically: diagnostics `sanitize.ts`, the room fixture,
+  `theme.css`, `link.ts`, persistence `index.ts`, `snapshot.ts` and the OpenAPI.
+- **`routes/projections.ts` is resolved as a union.** A36's `revisions=1` query option stays on the snapshot and
+  discussion reads, and common's read bounds (`readControl`, 20 s) wrap both.
+- **The generated types and validators** are regenerated as one union from every amendment (A34/A36/A37 with
+  A33/A35/A40/A41). `contracts:check` has no drift.
+- **Every other path keeps its own side's bytes:** the donor's 99 and this branch's 55.
+- **The lock, runtime record and profile lock are common's.** Every identity reproduces unrecorded. 0058, 0068/0069
+  and A36/A37 are unchanged, and 0065-0075 come from the donor; no new name.
+- **Checks.** The ordinary check, SQL, DB and served cases of this head are in B's handback.
+
 ## Next bounded action
 
 B's private handback goes to P; R reviews this head. No push until P selects one publication.

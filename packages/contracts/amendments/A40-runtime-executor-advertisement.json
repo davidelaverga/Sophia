@@ -1,0 +1,49 @@
+{
+  "id": "A40",
+  "goal": "CON-01",
+  "title": "Runtime executor advertisement: the executor a runtime role is served by, so a reply is dispatched only to a runtime that can execute its grant",
+  "why": [
+    "A grant pinned to service mode names one exact executor tuple (A35, migration 0067). A runtime advertising the conversation role on that route said nothing of its executor, so the newest ready runtime was chosen even when only an older one ran the pinned executor; the chosen one refused the command (reply_executor_mismatch) and the reply failed although a compatible runtime was available (#393 discussion 4302482626).",
+    "A role may now state the executor that serves it, with exactly A35's RuntimeReceipt.executor shapes: service {execution, routeId, executorArtifactDigest}, or native {execution}. A service executor's routeId is the role's route. id, route and presetDigest keep their meanings: presetDigest stays the role's instruction identity and is never an executor digest.",
+    "It is a claim the server keeps with the runtime's hello and uses before binding a reply and again before dispatching its create: a pinned service grant is dispatched only to a runtime advertising its exact tuple. A role without the field is legacy or unknown: it keeps native behaviour and is never eligible for a pinned service grant."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/RuntimeRole/properties/executor",
+      "value": {
+        "description": "The executor serving this role, as the runtime claims it (A35's shapes). Absent: legacy or unknown, never eligible for a pinned service grant.",
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "execution": {
+                "const": "service"
+              },
+              "routeId": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$"
+              },
+              "executorArtifactDigest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": ["execution", "routeId", "executorArtifactDigest"]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "execution": {
+                "const": "native"
+              }
+            },
+            "required": ["execution"]
+          }
+        ]
+      }
+    }
+  ]
+}
