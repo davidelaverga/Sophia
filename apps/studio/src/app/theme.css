@@ -3305,7 +3305,8 @@ button.contribution-quote:hover {
   top: 12px;
   /* Centred on the whole width, not from its middle: from left: 50% a phone gave it half the screen and three lines. */
   inset-inline: 0;
-  z-index: 70;
+  /* Over the opening's overlay too (#entry, 100): a sign-in's return can meet a part gone (Codex P2 on #415). */
+  z-index: 110;
   display: flex;
   align-items: center;
   gap: 12px;

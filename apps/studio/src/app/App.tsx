@@ -1,3 +1,5 @@
+// First: the ear for a new version, before the eager imports below can ask for a part that is gone (new-version.md).
+import { newVersion } from './new-version-early.ts'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { draftsOnlyOf, forgetDrafts } from '../features/personal/draft.ts'
@@ -238,7 +240,7 @@ export function App() {
   return (
     <>
       <AppBody />
-      <NewVersion />
+      <NewVersion signal={newVersion} />
     </>
   )
 }
