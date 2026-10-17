@@ -37,7 +37,12 @@ test('leave · an editor leaves from the project’s menu: the leave is recorded
 test('leave · the only admin is told why, and stays', async ({ page }) => {
   await page.goto('/room.html?admins=1')
   await header(page).getByRole('button', { name: 'Fixture project' }).click()
-  await expect(menu(page).getByRole('menuitem')).toHaveText(['Rename…', 'Activity', 'Leave project…'])
+  await expect(menu(page).getByRole('menuitem')).toHaveText([
+    'Rename…',
+    'Activity',
+    'Archive project…',
+    'Leave project…',
+  ])
   await menu(page).getByRole('menuitem', { name: 'Leave project…' }).click()
   await sheet(page).getByRole('button', { name: 'Leave project' }).click()
   await expect(sheet(page).getByRole('alert')).toContainText('only admin')

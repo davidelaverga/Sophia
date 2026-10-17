@@ -6792,3 +6792,14 @@ button.contribution-quote:hover {
   color: var(--text-3);
   font-size: var(--type-small);
 }
+
+/* An archived project, said under the header on every view (docs/plans/archive-project.md). */
+.archived-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-2);
+}

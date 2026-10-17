@@ -16,6 +16,7 @@ import { VISION } from '../../app/vision.ts'
 import { ProjectGoProvider, useArrival } from './project-go.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
+import { ArchivedLine } from './Archive.tsx'
 import { canInvite, useMembership, type SheetContext } from '../access/useAccess.ts'
 import { DocumentViewerProvider } from '../artifacts/DocumentViewer.tsx'
 import { InPlaceLinks } from './InPlaceLinks.tsx'
@@ -673,14 +674,18 @@ function ProjectBody(props: BodyProps) {
       </WithViewer>
     </ProjectGoProvider>
   )
+  // The door, and an archived project's line under it (archive-project.md): on every view, as the lobby is.
   const lobby = (
-    <LobbyPanel
-      projectId={projectId}
-      identity={identity}
-      lobby={snapshot?.lobby}
-      canDecide={canInvite(membership)}
-      projectTitle={snapshot?.title}
-    />
+    <>
+      <ArchivedLine projectId={projectId} identity={identity} membership={membership} />
+      <LobbyPanel
+        projectId={projectId}
+        identity={identity}
+        lobby={snapshot?.lobby}
+        canDecide={canInvite(membership)}
+        projectTitle={snapshot?.title}
+      />
+    </>
   )
   if (view === 'studio') {
     return withViewer(

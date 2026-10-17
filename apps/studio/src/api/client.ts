@@ -7,6 +7,7 @@ import type {
   FloorRequest,
   GoalCommand,
   ProjectCreated,
+  ProjectArchived,
   ProjectRenamed,
   ProjectLeft,
   DiscussionPage,
@@ -27,6 +28,7 @@ import {
   parseExchangeReceipt,
   parseProjectCreated,
   parseProjectRenamed,
+  parseProjectArchived,
   parseProjectLeft,
   parseDiscussionPage,
   parseGoalTargetList,
@@ -310,6 +312,15 @@ export const createProject = (token: string, key: string, title: string): Promis
 /** renameProject (A21): an admin only, idempotent per person and key; reuse the key when retrying an unknown outcome. */
 export const renameProject = (token: string, projectId: string, key: string, title: string): Promise<ProjectRenamed> =>
   postIdempotent(token, `/api/v1/projects/${projectId}/title`, key, { title }, parseProjectRenamed)
+
+/** archiveProject (A30): an admin archives a project or brings it back, idempotent per person and key. */
+export const archiveProject = (
+  token: string,
+  projectId: string,
+  key: string,
+  archived: boolean,
+): Promise<ProjectArchived> =>
+  postIdempotent(token, `/api/v1/projects/${projectId}/archive`, key, { archived }, parseProjectArchived)
 
 /** leaveProject (A22): any member but the only admin, idempotent per person and key. */
 export const leaveProject = (token: string, projectId: string, key: string): Promise<ProjectLeft> =>

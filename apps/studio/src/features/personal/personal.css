@@ -2463,3 +2463,27 @@
   margin: 0;
   color: var(--text-2);
 }
+
+/* Archived projects, folded after Work's list (docs/plans/archive-project.md). */
+.places .c3-archived {
+  margin-top: 8px;
+  padding: 0 4px;
+}
+.places .c3-archived-fold {
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.places .c3-archived-list {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.places .c3-archived-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+}
