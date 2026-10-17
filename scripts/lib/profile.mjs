@@ -187,7 +187,7 @@ export function bootProfile({ unit, runtimeDir, layout, seconds }) {
 
 /**
  * The service executor's expected digest for one install (#393 4302689994): the bundle's own recipe
- * (packages/dsh-bundle/src/executor-identity.ts, `sophia-executor-closure-v1`) over this runtime, this profile, the
+ * (packages/dsh-bundle/src/executor-identity.ts, `sophia-executor-closure-v2`) over this runtime, this profile, the
  * overlays the launch will pass and this Node, computed only after the runtime is the recorded artifact and the profile
  * runs exactly the recorded bundle. The operator pins this value; the running bundle derives its own and serves only
  * when they are equal. `overlays` are the `--patch` texts, in launch order. The recipe's service composition applies

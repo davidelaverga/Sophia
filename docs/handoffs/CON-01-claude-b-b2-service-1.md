@@ -471,6 +471,41 @@ helper and the loaded bootstrap:
 - Dynamic expressions, includes, a replaced name and groups are refused by the unit cases, not by a real dsh launch.
 - PostgreSQL 16, both helper phases, Supabase-local auth and Linux have not run on this source.
 
+## The canonical bundle placement (FND-B2-CANONICAL-IMPORT-LAYOUT-FOCUSED-CORRECTION-01)
+
+R's review of `40dfd8bc` closed the home patch and the Node modifiers, but kept one P1, R-B2-A868-02-NESTED-PEER. The
+bootstrap admitted any bundle placement inside the profile, and the pinned loader prefers a local package found on the
+importer's Node search paths inside the profile (dsh-app-boot `routeScoped`, its `localPrefix` the profile directory)
+over the verified installation.
+
+**Before, on `40dfd8bc` (executed, with a capture-only double).** The installed bundle moved to
+`<profile>/.nested/node_modules/@sophia/dsh-bundle`, with the canonical entry a relative link to it. A same-version
+`@deepseek-ai/dsh-llm` sat beside it, printing a marker and re-exporting the runtime's own package.
+- The host derived the same pin as for the canonical layout (`c4ab20ef…`).
+- The peer loaded (marker), and the bridge logged `executor_closure_verified` and advertised that pin.
+
+**Now only the canonical hoisted placement is admitted.** The installed bundle's realpath must be the profile's
+`node_modules/@sophia/dsh-bundle`, a real directory and not a link. Otherwise the closure is refused with
+`profile_unsupported`, in the host helper and the bootstrap alike.
+- From that place, the importer's search paths inside the profile are the bundle's own `node_modules` (hashed), its
+  scope's and the profile's (both held to the one package already). So no unmeasured peer can be chosen.
+- The normal recorded hoisted install is unchanged.
+- A peer may still run before the bootstrap refuses. The claim is that no service executor or role exists, not that
+  Node never ran it.
+- The host helper's comment now names recipe v2.
+
+**Identities.** Bundle `30cf3bdc…` → `ddd2ce41…`, and the profile lock; the darwin tree, workspace lock and linux-x64
+(unqualified) are unchanged.
+
+**Checks** (private PostgreSQL 17.11, en_US.UTF-8).
+- **Unit, `executor-identity` 10/10**, adding the nested-link and other-place cases.
+- **The crossing.** The nested-peer case: the host refuses to derive a pin, the peer loads (marker), and service mode
+  is refused, with no role, a blocked Ask with no attempt or outbox, and no request. The normal answer passes.
+  - The whole crossing, now 24 cases, runs in the ordinary check.
+- **Mutation.** With the placement check disabled and packed (`52eb196c…`), the nested-peer case fails, first at the
+  host helper's refusal.
+- PostgreSQL 16, both helper phases, Supabase-local auth and Linux have not run on this source.
+
 ## Next bounded action
 
-B's private handback goes to P, and R reviews this boundary correction. No push until P selects a publication.
+B's private handback goes to P, and R checks this residual. No push until P selects a publication.

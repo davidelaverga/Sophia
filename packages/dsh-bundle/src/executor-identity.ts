@@ -20,7 +20,11 @@
  * patch's `name`, `group`, `inject`, `intercept`, `isolate` and `!!js` fields, and Node honours preload and resolution
  * modifiers. None of that is covered by the trees above, so a service executor admits only this reviewed shape:
  * - no home patch (any entry there, readable or not, refuses);
- * - the reviewed base profile: its two bundles, its one installed package, nothing else in its node_modules;
+ * - the reviewed base profile: its two bundles, its one installed package, nothing else in its node_modules, and that
+ *   package in its canonical hoisted place (a real directory at `node_modules/@sophia/dsh-bundle`, not a link). The
+ *   pinned loader prefers a local package found on the importer's Node search paths inside the profile over the
+ *   installation's (dsh-app-boot routeScoped); from the canonical place those paths are the bundle's own (hashed), its
+ *   scope's and the profile's node_modules (both held to the one package), so no unmeasured peer can be chosen;
  * - the profile patch and every overlay are strict JSON arrays of `{ id, config }` overrides of the reviewed config
  *   rows (the LLM providers, the default model, the bridge), with a mapping as config and no inline `apiKey`: no insert,
  *   plugin name, group, include or expression (JSON cannot carry a YAML tag);
@@ -199,6 +203,10 @@ export function executorClosure(inputs: ClosureInputs): { digest: string; compon
   const bundleDir = realpathSync(inputs.bundleDir)
   const within = relative(profileDir, bundleDir)
   if (within === '' || within.startsWith('..') || isAbsolute(within)) throw new ClosureUnverifiable('bundle_outside_profile')
+  // The canonical hoisted placement only: another place inside the profile puts other node_modules on the importer's
+  // search paths (R-B2-A868-02-NESTED-PEER).
+  const hoisted = join(profileDir, 'node_modules', '@sophia', 'dsh-bundle')
+  if (bundleDir !== hoisted || !lstatSync(hoisted).isDirectory()) throw new ClosureUnverifiable('profile_unsupported')
   let profile: Record<string, string>
   try {
     profile = Object.fromEntries([...PROFILE_INPUTS, inputs.archive].map((file) => [file, sha256(readFileSync(join(profileDir, file)))]))

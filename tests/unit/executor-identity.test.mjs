@@ -5,7 +5,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
@@ -157,6 +157,21 @@ test('only the reviewed base profile: no other package, dependency or bundle', (
     change(inputs.profileDir)
     assert.throws(() => executorClosure(inputs), unverifiable('profile_unsupported'))
   }
+})
+
+test('only the canonical hoisted bundle placement: a nested or linked placement refuses (R-B2-A868-02-NESTED-PEER)', () => {
+  const linked = install()
+  const nested = join(linked.profileDir, '.nested', 'node_modules', '@sophia')
+  mkdirSync(nested, { recursive: true })
+  renameSync(linked.bundleDir, join(nested, 'dsh-bundle'))
+  symlinkSync(join('..', '..', '.nested', 'node_modules', '@sophia', 'dsh-bundle'), linked.bundleDir)
+  mkdirSync(join(linked.profileDir, '.nested', 'node_modules', '@deepseek-ai', 'dsh-llm'), { recursive: true })
+  assert.throws(() => executorClosure(linked), unverifiable('profile_unsupported'))
+  const elsewhere = install()
+  mkdirSync(join(elsewhere.profileDir, 'other'), { recursive: true })
+  renameSync(elsewhere.bundleDir, join(elsewhere.profileDir, 'other', 'dsh-bundle'))
+  mkdirSync(elsewhere.bundleDir)
+  assert.throws(() => executorClosure({ ...elsewhere, bundleDir: join(elsewhere.profileDir, 'other', 'dsh-bundle') }), unverifiable('profile_unsupported'))
 })
 
 test('a patch is strict JSON overrides of reviewed config rows; no insert, name, group, include, expression or inline key', () => {

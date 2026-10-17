@@ -17,9 +17,10 @@
 
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { after, before, describe, test } from 'node:test'
 import { DSH_ENTRY, REPO_ROOT, RUNTIME_DIR, platformKey, sanitizedEnv } from '../../scripts/lib/common.mjs'
 import { parseCordisYaml } from '../../scripts/lib/patch-lint.mjs'
@@ -61,6 +62,30 @@ function serviceOverlay(baseURL) {
 
 const PLUGIN_MARKER = '[crossing] external relative plugin loaded'
 const PRELOAD_MARKER = '[crossing] node preloader ran'
+const PEER_MARKER = '[crossing] nested local dsh-llm peer loaded'
+
+/**
+ * R-B2-A868-02-NESTED-PEER: the same installed bundle bytes moved to `<profile>/.nested/node_modules/@sophia/dsh-bundle`,
+ * the canonical entry a relative symlink to it, and a same-version `@deepseek-ai/dsh-llm` beside it. The peer prints a
+ * marker and re-exports the runtime's own package, so dsh still boots; the pinned loader prefers it, as a local
+ * candidate on the importer's ancestry inside the profile, over the verified runtime installation.
+ */
+function nestBundleWithPeer(layout) {
+  const profile = join(layout.dshHome, 'profiles', unit.dsh.profile)
+  const canonical = join(profile, 'node_modules', '@sophia', 'dsh-bundle')
+  const nested = join(profile, '.nested', 'node_modules')
+  mkdirSync(join(nested, '@sophia'), { recursive: true })
+  renameSync(canonical, join(nested, '@sophia', 'dsh-bundle'))
+  symlinkSync(join('..', '..', '.nested', 'node_modules', '@sophia', 'dsh-bundle'), canonical)
+  const pnpmDir = join(RUNTIME_DIR, 'node_modules', '.pnpm')
+  const real = realpathSync(join(pnpmDir, readdirSync(pnpmDir).find((name) => name.startsWith('@deepseek-ai+dsh-llm@0.')), 'node_modules', '@deepseek-ai', 'dsh-llm'))
+  const peer = join(nested, '@deepseek-ai', 'dsh-llm')
+  mkdirSync(join(peer, 'lib'), { recursive: true })
+  const manifest = JSON.parse(readFileSync(join(real, 'package.json'), 'utf8'))
+  writeFileSync(join(peer, 'package.json'), JSON.stringify({ name: manifest.name, version: manifest.version, type: 'module', exports: { '.': './lib/index.js' } }))
+  writeFileSync(join(peer, 'lib', 'index.js'), `process.stderr.write(${JSON.stringify(`${PEER_MARKER}\n`)})\nexport * from ${JSON.stringify(pathToFileURL(join(real, 'lib', 'index.js')).href)}\n`)
+  return { profile, canonical, nested: dirname(nested) }
+}
 
 async function modules() {
   const [{ buildApp }, persistence, testSupport, worker] = await Promise.all([
@@ -595,6 +620,16 @@ describe('conversation service crossing (real dsh service executor, API, worker,
       await assertNoExecutor(w, 'executor_closure_unverifiable launch_modifier')
     })
   }
+
+  test('a nested bundle placement with a same-version local dsh-llm peer, under the old pin, is no executor', async (t) => {
+    const w = await world(t)
+    nestBundleWithPeer(w.layout)
+    await assert.rejects(executorClosureDigest({ unit, runtimeDir: RUNTIME_DIR, layout: w.layout, overlays: [w.overlay] }), /profile_unsupported/,
+      'the host derives no expected pin for it')
+    await w.start()
+    assert.ok(w.stderr().includes(PEER_MARKER), 'the loader selected the nested local peer')
+    await assertNoExecutor(w, 'executor_closure_unverifiable profile_unsupported')
+  })
 
   test('a reviewed changed closure under its own new pin serves a new lineage: its tuple, one request, retired', async (t) => {
     const w = await world(t, { runtime: 'altered' })
