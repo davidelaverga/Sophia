@@ -12,6 +12,15 @@ const row = (page: Page, name: string) => list(page).locator('li', { hasText: na
 const volume = (page: Page, name: string) => list(page).getByRole('button', { name: new RegExp(`^Volume for ${name}`) })
 const menu = (page: Page, name: string) => page.getByRole('menu', { name: `Volume for ${name}` })
 const asked = (page: Page) => page.evaluate(() => [...(window.fixture?.asked ?? [])])
+/** Every part of a row's volume control stays inside its row: nothing of it reaches the next one. */
+const inside = (page: Page, name: string) =>
+  row(page, name).evaluate((li) => {
+    const box = li.getBoundingClientRect()
+    return [...li.querySelectorAll('.person-volume, .person-volume button, .person-volume-level')].every((el) => {
+      const part = el.getBoundingClientRect()
+      return part.top >= box.top - 0.5 && part.bottom <= box.bottom + 0.5 && part.right <= box.right + 0.5
+    })
+  })
 
 async function enter(page: Page, query = '') {
   await page.goto(`/room.html?call=on&people=2${query}`)
@@ -42,7 +51,7 @@ test('volume · each other person’s row turns their sound down for you alone, 
   await expect(row(page, 'Fixture · you').getByRole('button', { name: /^Volume for/ })).toHaveCount(0)
   await expect(volume(page, 'Marco')).toHaveAccessibleName('Volume for Marco: 100%')
   await volume(page, 'Marco').click()
-  await expect(menu(page, 'Marco')).toContainText('Only you hear the change')
+  await expect(menu(page, 'Marco')).toContainText('For you alone')
   const levels = menu(page, 'Marco').getByRole('menuitemradio')
   await expect(levels).toHaveText(['100%', '75%', '50%', '25%', 'Off'])
   await expect(levels.first()).toHaveAttribute('aria-checked', 'true')
@@ -50,6 +59,7 @@ test('volume · each other person’s row turns their sound down for you alone, 
   await expect.poll(() => asked(page)).toContain(`volume:${MARCO}:0.5`)
   await expect(volume(page, 'Marco')).toHaveAccessibleName('Volume for Marco: 50%')
   await expect(row(page, 'Marco').locator('.person-volume-level')).toHaveText('50%')
+  expect(await inside(page, 'Marco')).toBe(true)
   // Lucía's stays full, with nothing shown beside her speaker.
   await expect(volume(page, 'Lucía')).toHaveAccessibleName('Volume for Lucía: 100%')
   await expect(row(page, 'Lucía').locator('.person-volume-level')).toHaveCount(0)
@@ -87,6 +97,9 @@ test('@phone · volume · on a phone the levels are in reach, and the row keeps 
   await expect(off).toBeInViewport()
   await off.click()
   await expect(volume(page, 'Marco')).toHaveAccessibleName('Volume for Marco: Off')
+  expect(await inside(page, 'Marco')).toBe(true)
+  await choose(page, 'Lucía', '25%')
+  expect(await inside(page, 'Lucía')).toBe(true)
   await expect(row(page, 'Marco').locator('.person-name')).toHaveText('Marco')
   const name = await row(page, 'Marco').locator('.person-name').boundingBox()
   expect(name?.width ?? 0).toBeGreaterThan(40)
