@@ -299,7 +299,7 @@ export function parseConfig(config: unknown): ControlBridgeConfig {
 /** This process's executor closure (executor-identity.ts): its runtime, this installed bundle, its profile and overlays. */
 const loadedClosure = (): string =>
   executorClosure(
-    loadedClosureInputs(process.argv, process.env, join(dirname(fileURLToPath(import.meta.url)), '..'), `sophia-dsh-bundle-${BUNDLE.version}.tgz`, {
+    loadedClosureInputs(process.argv, process.execArgv, process.env, join(dirname(fileURLToPath(import.meta.url)), '..'), `sophia-dsh-bundle-${BUNDLE.version}.tgz`, {
       node: process.version,
       platform: process.platform,
       arch: process.arch,

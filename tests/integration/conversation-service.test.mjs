@@ -16,12 +16,12 @@
  */
 
 import assert from 'node:assert/strict'
-import { appendFileSync, cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { spawn } from 'node:child_process'
+import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, describe, test } from 'node:test'
-import { stringify } from 'yaml'
-import { REPO_ROOT, RUNTIME_DIR, platformKey } from '../../scripts/lib/common.mjs'
+import { DSH_ENTRY, REPO_ROOT, RUNTIME_DIR, platformKey, sanitizedEnv } from '../../scripts/lib/common.mjs'
 import { parseCordisYaml } from '../../scripts/lib/patch-lint.mjs'
 import { assertRecordedArtifacts, executorClosureDigest, homeLayout, installProfile } from '../../scripts/lib/profile.mjs'
 import { launchRuntime } from '../../scripts/lib/runtime.mjs'
@@ -47,14 +47,20 @@ const ANSWER_CANARY = 'CANARY-ANSWER-91c2'
 const OTHER_CANARY = 'CANARY-OTHER-CONVERSATION-5d0e'
 const bundlePatch = readFileSync(join(REPO_ROOT, 'packages', 'dsh-bundle', 'cordis.patch.yml'), 'utf8')
 
-/** Test overlay: the conversation alias pointed at the double, and the bridge row restated whole with service mode on. */
+/**
+ * Test overlay: the conversation alias pointed at the double, and the bridge row restated whole with service mode on.
+ * A service overlay is a strict JSON patch list of config-only overrides (executor-identity.ts), so it is written so.
+ */
 function serviceOverlay(baseURL) {
   const rows = parseCordisYaml(bundlePatch)
   const bridge = rows.flatMap((row) => row.insert ?? []).find((row) => row.id === 'sophia-control-bridge')?.config
   assert.ok(bridge && !('replies' in bridge), 'the committed bridge row enables no reply mode')
   const replies = { mode: 'service', routeId: ROUTE, executorDigestEnv: 'SOPHIA_EXECUTOR_DIGEST' }
-  return `${conversationRouteOverlay(bundlePatch, baseURL)}\n${stringify([{ id: 'sophia-control-bridge', config: { ...bridge, replies } }])}`
+  return JSON.stringify([...parseCordisYaml(conversationRouteOverlay(bundlePatch, baseURL)), { id: 'sophia-control-bridge', config: { ...bridge, replies } }])
 }
+
+const PLUGIN_MARKER = '[crossing] external relative plugin loaded'
+const PRELOAD_MARKER = '[crossing] node preloader ran'
 
 async function modules() {
   const [{ buildApp }, persistence, testSupport, worker] = await Promise.all([
@@ -203,6 +209,28 @@ describe('conversation service crossing (real dsh service executor, API, worker,
           overlays,
           extraEnv: { OPENAI_API_KEY: DUMMY_KEY, SOPHIA_EXECUTOR_DIGEST: expected },
         })
+        await w.until(() => /readiness=ready/.test(w.stderr()), 'bridge readiness')
+      },
+      /**
+       * A launch the launcher refuses to make (it rejects Node modifiers): the same argv, overlay and sanitized
+       * environment, plus `nodeArgs` before the dsh bin and `env` added, spawned directly.
+       */
+      async startModified({ nodeArgs = [], env = {} }) {
+        const file = join(layout.root, 'overlay-modified.yml')
+        writeFileSync(file, overlay)
+        mkdirSync(layout.cwd, { recursive: true })
+        mkdirSync(join(layout.root, 'workspace'), { recursive: true })
+        const child = spawn(process.execPath, [...nodeArgs, join(launch.dir, DSH_ENTRY), '--profile', unit.dsh.profile, '--patch', file], {
+          cwd: layout.cwd,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: { ...sanitizedEnv({ dshHome: layout.dshHome, home: layout.home }), SOPHIA_RUNTIME_UNIT: unit.id, SOPHIA_WORKSPACE: join(layout.root, 'workspace'),
+            SOPHIA_BRIDGE_URL: base, SOPHIA_BRIDGE_TOKEN: rt.token, OPENAI_API_KEY: DUMMY_KEY, SOPHIA_EXECUTOR_DIGEST: runtimeDigest, ...env },
+        })
+        let err = ''
+        child.stderr.on('data', (chunk) => { err += chunk })
+        child.stdout.on('data', (chunk) => { err += chunk })
+        const exited = new Promise((resolve) => child.on('exit', resolve))
+        runtime = { stderr: () => err, stop: async () => { if (child.exitCode === null) child.kill('SIGTERM'); return exited } }
         await w.until(() => /readiness=ready/.test(w.stderr()), 'bridge readiness')
       },
       stop: (signal) => runtime?.stop(signal),
@@ -502,7 +530,9 @@ describe('conversation service crossing (real dsh service executor, API, worker,
 
   test('a changed installed profile input under the old pin is no executor', async (t) => {
     const w = await world(t)
-    appendFileSync(join(w.layout.dshHome, 'profiles', unit.dsh.profile, 'cordis.patch.yml'), '# changed after the pin\n')
+    // The installed lock, an input the closure hashes but the composition policy does not parse (the profile patch is
+    // held to strict JSON, so a comment there is refused as patch_unsupported instead).
+    appendFileSync(join(w.layout.dshHome, 'profiles', unit.dsh.profile, 'pnpm-lock.yaml'), '# changed after the pin\n')
     await w.start()
     await assertNoExecutor(w)
   })
@@ -521,6 +551,48 @@ describe('conversation service crossing (real dsh service executor, API, worker,
       const w = await world(t, { pin: fixed, runtimeDigest: fixed })
       await w.start()
       await assertNoExecutor(w)
+    })
+  }
+
+  // #393 R-B2-A868-01..03: startup inputs the closure does not cover are refused, not hashed around.
+  test('a material home patch added under the old pin is no executor (the loader composes it; the service admits none)', async (t) => {
+    const w = await world(t)
+    const elsewhere = await startMockResponses()
+    t.after(() => elsewhere.close())
+    writeFileSync(join(w.layout.dshHome, 'cordis.patch.yml'), conversationRouteOverlay(bundlePatch, elsewhere.baseURL))
+    await assert.rejects(executorClosureDigest({ unit, runtimeDir: RUNTIME_DIR, layout: w.layout, overlays: [w.overlay] }), /home_patch_present/,
+      'the host derives no expected pin for it either')
+    await w.start()
+    await assertNoExecutor(w, 'executor_closure_unverifiable home_patch_present')
+    assert.equal(elsewhere.requests.length, 0)
+  })
+
+  test('an external relative plugin inserted by an overlay is no executor, whatever its implementation or base', async (t) => {
+    const w = await world(t)
+    const inserted = JSON.stringify([...JSON.parse(w.overlay), { insert: [{ id: 'crossing-external', name: './crossing-plugin.mjs' }] }])
+    writeFileSync(join(w.layout.root, 'crossing-plugin.mjs'),
+      `export const name = 'crossing-external'\nexport function apply() { process.stderr.write(${JSON.stringify(`${PLUGIN_MARKER}\n`)}) }\n`)
+    for (const layout of [w.layout, homeLayout(join(scratch, `elsewhere-${counter++}`))]) {
+      if (layout !== w.layout) cpSync(pristine.root, layout.root, { recursive: true, verbatimSymlinks: true })
+      await assert.rejects(executorClosureDigest({ unit, runtimeDir: RUNTIME_DIR, layout, overlays: [inserted] }), /patch_unsupported/,
+        'no expected pin is derived for it, at either base')
+    }
+    await w.start({ overlays: [inserted] })
+    assert.ok(w.stderr().includes(PLUGIN_MARKER), 'the loader mounted the external plugin')
+    await assertNoExecutor(w, 'executor_closure_unverifiable patch_unsupported')
+  })
+
+  for (const [label, launch] of [['--import', { nodeArgs: ['--import'] }], ['NODE_OPTIONS', { env: 'NODE_OPTIONS' }]]) {
+    test(`a Node preloader by ${label}, same argv, profile and overlay under the old pin, is no executor; the launcher refuses it`, async (t) => {
+      const w = await world(t)
+      const preload = join(w.layout.root, 'crossing-preload.mjs')
+      writeFileSync(preload, `process.stderr.write(${JSON.stringify(`${PRELOAD_MARKER}\n`)})\n`)
+      assert.throws(() => launchRuntime({ unit, runtimeDir: RUNTIME_DIR, layout: w.layout, extraEnv: { NODE_OPTIONS: `--import=${preload}` } }),
+        /not a supported launch/)
+      await w.startModified(launch.env ? { env: { NODE_OPTIONS: `--import=${preload}` } } : { nodeArgs: [...launch.nodeArgs, preload] })
+      assert.ok(w.stderr().includes(PRELOAD_MARKER), 'the preloader ran')
+      assert.ok(!w.stderr().includes(preload), 'the refusal names no path')
+      await assertNoExecutor(w, 'executor_closure_unverifiable launch_modifier')
     })
   }
 

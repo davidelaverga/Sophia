@@ -13,6 +13,19 @@
  * - `overlays`: the SHA-256 of each `--patch` file, in order: the effective configuration over the profile, such as a
  *   route's provider, model, effort, caps, compat, retry and credential reference (a name, never a value).
  * - `launcher` and `toolchain`: the declared bin, the profile name, and Node's version, platform and architecture.
+ * - `composition`: the enforced service composition policy below, by name.
+ *
+ * The service composition (#393 R-B2-A868-01..03): the loader also composes a home patch (`DSH_HOME/cordis.patch.yml`,
+ * after the profile's and before the overlays), mounts plugins that a patch inserts by path beside that patch, honours a
+ * patch's `name`, `group`, `inject`, `intercept`, `isolate` and `!!js` fields, and Node honours preload and resolution
+ * modifiers. None of that is covered by the trees above, so a service executor admits only this reviewed shape:
+ * - no home patch (any entry there, readable or not, refuses);
+ * - the reviewed base profile: its two bundles, its one installed package, nothing else in its node_modules;
+ * - the profile patch and every overlay are strict JSON arrays of `{ id, config }` overrides of the reviewed config
+ *   rows (the LLM providers, the default model, the bridge), with a mapping as config and no inline `apiKey`: no insert,
+ *   plugin name, group, include or expression (JSON cannot carry a YAML tag);
+ * - no Node `execArgv` and no NODE_OPTIONS, NODE_PATH or symlink-preservation variable.
+ * Anything else is refused with a fixed reason, before any role exists.
  *
  * Every component is read from what this process loaded, so a changed adapter, SDK, bundle, profile input or overlay
  * changes the digest. A symlink that resolves outside its root, a launch this recipe cannot read, or an unsupported
@@ -25,7 +38,16 @@ import { lstatSync, readdirSync, readFileSync, readlinkSync, realpathSync } from
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
-export const EXECUTOR_CLOSURE_RECIPE = 'sophia-executor-closure-v1'
+export const EXECUTOR_CLOSURE_RECIPE = 'sophia-executor-closure-v2'
+/** The enforced service composition policy (above), recorded in the closure. */
+export const SERVICE_COMPOSITION_POLICY = 'sophia-service-composition-v1'
+/** The config rows a service overlay may override: config-only rows, none of them a group or an include. */
+const OVERRIDABLE_ROWS = new Set(['llm-pi-ai', 'agent-default-model', 'sophia-control-bridge'])
+/** The reviewed base profile: its bundles, in order, and its one installed package. */
+const PROFILE_BUNDLES = ['@deepseek-ai/dsh-base', '@sophia/dsh-bundle']
+const PROFILE_PACKAGE = '@sophia/dsh-bundle'
+/** Node's code-loading and resolution environment (the launcher passes none of them). */
+const NODE_MODIFIER_ENV = ['NODE_OPTIONS', 'NODE_PATH', 'NODE_PRESERVE_SYMLINKS', 'NODE_PRESERVE_SYMLINKS_MAIN']
 /** The dsh package's declared bin, relative to the runtime root (scripts/lib/common.mjs DSH_ENTRY). */
 export const DSH_ENTRY = 'node_modules/@deepseek-ai/dsh/lib/bin.js'
 /** The profile's installed inputs (scripts/lib/artifacts.mjs PROFILE_FILES plus its lock). */
@@ -37,7 +59,18 @@ const VOLATILE_PATHS = new Set(['pnpm-lock.yaml', 'node_modules/.modules.yaml', 
 
 /** The closure cannot be established from what is loaded; `reason` is fixed and carries no path or content. */
 export class ClosureUnverifiable extends Error {
-  constructor(readonly reason: 'launch_unreadable' | 'unsupported_platform' | 'symlink_escapes_root' | 'component_unreadable' | 'bundle_outside_profile') {
+  constructor(
+    readonly reason:
+      | 'launch_unreadable'
+      | 'unsupported_platform'
+      | 'symlink_escapes_root'
+      | 'component_unreadable'
+      | 'bundle_outside_profile'
+      | 'home_patch_present'
+      | 'profile_unsupported'
+      | 'patch_unsupported'
+      | 'launch_modifier',
+  ) {
     super(`executor closure unverifiable: ${reason}`)
   }
 }
@@ -82,6 +115,7 @@ export function treeDigestWithin(root: string): string {
 /** Where the closure's components are, and the launch they ran with. */
 export interface ClosureInputs {
   readonly runtimeDir: string
+  readonly dshHome: string
   readonly profileDir: string
   readonly bundleDir: string
   readonly archive: string
@@ -100,11 +134,68 @@ function canonical(value: unknown): string {
   return JSON.stringify(value)
 }
 
+const isMapping = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/** True when `value` holds an inline credential field anywhere (`apiKey`); references (`apiKeyEnv`) are names. */
+function hasInlineCredential(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(hasInlineCredential)
+  if (!isMapping(value)) return false
+  return Object.entries(value).some(([key, inner]) => key === 'apiKey' || hasInlineCredential(inner))
+}
+
+/** Refuse a patch list outside the service composition: strict JSON, `{ id, config }` overrides of reviewed rows only. */
+export function assertConfigOnlyPatch(bytes: Buffer): void {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(bytes.toString('utf8'))
+  } catch {
+    throw new ClosureUnverifiable('patch_unsupported')
+  }
+  if (!Array.isArray(parsed)) throw new ClosureUnverifiable('patch_unsupported')
+  for (const entry of parsed) {
+    if (!isMapping(entry) || Object.keys(entry).some((key) => key !== 'id' && key !== 'config')) throw new ClosureUnverifiable('patch_unsupported')
+    if (typeof entry.id !== 'string' || !OVERRIDABLE_ROWS.has(entry.id)) throw new ClosureUnverifiable('patch_unsupported')
+    if (!isMapping(entry.config) || hasInlineCredential(entry.config)) throw new ClosureUnverifiable('patch_unsupported')
+  }
+}
+
+/** Refuse anything but the reviewed base profile: its bundles, its one package, and nothing else installed. */
+function assertBaseProfile(profileDir: string): void {
+  let manifest: unknown
+  let modules: string[]
+  let scoped: string[]
+  try {
+    manifest = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8'))
+    modules = readdirSync(join(profileDir, 'node_modules')).filter((name) => !name.startsWith('.'))
+    scoped = readdirSync(join(profileDir, 'node_modules', '@sophia')).filter((name) => !name.startsWith('.'))
+  } catch {
+    throw new ClosureUnverifiable('profile_unsupported')
+  }
+  const dependencies = isMapping(manifest) && isMapping(manifest.dependencies) ? Object.keys(manifest.dependencies) : null
+  const dsh = isMapping(manifest) && isMapping(manifest.dsh) && isMapping(manifest.dsh.profile) ? manifest.dsh.profile.bundles : null
+  const same = (a: unknown, b: readonly string[]): boolean => Array.isArray(a) && a.length === b.length && a.every((v, i) => v === b[i])
+  if (!same(dependencies, [PROFILE_PACKAGE]) || !same(dsh, PROFILE_BUNDLES) || !same(modules, ['@sophia']) || !same(scoped, ['dsh-bundle'])) {
+    throw new ClosureUnverifiable('profile_unsupported')
+  }
+}
+
+/** Refuse a home patch: the loader composes it, and the service composition admits none. */
+function assertNoHomePatch(dshHome: string): void {
+  try {
+    lstatSync(join(dshHome, 'cordis.patch.yml'))
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+  }
+  throw new ClosureUnverifiable('home_patch_present')
+}
+
 /** The closure's components and its digest (64 lowercase hex), or ClosureUnverifiable. */
 export function executorClosure(inputs: ClosureInputs): { digest: string; components: Record<string, unknown> } {
   const platform = `${inputs.toolchain.platform}-${inputs.toolchain.arch}`
   if (!SUPPORTED_PLATFORMS.has(platform)) throw new ClosureUnverifiable('unsupported_platform')
+  assertNoHomePatch(inputs.dshHome)
   const profileDir = realpathSync(inputs.profileDir)
+  assertBaseProfile(profileDir)
   const bundleDir = realpathSync(inputs.bundleDir)
   const within = relative(profileDir, bundleDir)
   if (within === '' || within.startsWith('..') || isAbsolute(within)) throw new ClosureUnverifiable('bundle_outside_profile')
@@ -114,6 +205,8 @@ export function executorClosure(inputs: ClosureInputs): { digest: string; compon
   } catch {
     throw new ClosureUnverifiable('component_unreadable')
   }
+  assertConfigOnlyPatch(readFileSync(join(profileDir, 'cordis.patch.yml')))
+  for (const overlay of inputs.overlays) assertConfigOnlyPatch(overlay)
   const components = {
     recipe: EXECUTOR_CLOSURE_RECIPE,
     runtime: treeDigestWithin(inputs.runtimeDir),
@@ -122,22 +215,30 @@ export function executorClosure(inputs: ClosureInputs): { digest: string; compon
     overlays: inputs.overlays.map((bytes) => sha256(bytes)),
     launcher: { entry: DSH_ENTRY, profile: inputs.profile },
     toolchain: { node: inputs.toolchain.node, platform },
+    composition: SERVICE_COMPOSITION_POLICY,
   }
   return { digest: sha256(`${EXECUTOR_CLOSURE_RECIPE}\n${canonical(components)}`), components }
 }
 
+/** Refuse Node code-loading or resolution modifiers: any `execArgv`, or a modifier variable that is set. */
+export function assertNoLaunchModifiers(execArgv: readonly string[], env: Readonly<Record<string, string | undefined>>): void {
+  if (execArgv.length > 0 || NODE_MODIFIER_ENV.some((name) => (env[name] ?? '') !== '')) throw new ClosureUnverifiable('launch_modifier')
+}
+
 /**
  * The closure inputs of THIS dsh process: its runtime from `argv[1]`, its profile from `--profile` under DSH_HOME, the
- * installed bundle `bundleDir`, and every `--patch` file. Any other launch shape is unreadable, so no closure is
- * claimed for it.
+ * installed bundle `bundleDir`, and every `--patch` file. Any other launch shape, or a Node launch modifier, is refused,
+ * so no closure is claimed for it.
  */
 export function loadedClosureInputs(
   argv: readonly string[],
+  execArgv: readonly string[],
   env: Readonly<Record<string, string | undefined>>,
   bundleDir: string,
   archive: string,
   toolchain: ClosureInputs['toolchain'],
 ): ClosureInputs {
+  assertNoLaunchModifiers(execArgv, env)
   const entry = argv[1] === undefined ? '' : resolve(argv[1])
   const suffix = `${sep}${DSH_ENTRY.split('/').join(sep)}`
   if (!entry.endsWith(suffix)) throw new ClosureUnverifiable('launch_unreadable')
@@ -161,6 +262,7 @@ export function loadedClosureInputs(
   const dshHome = env.DSH_HOME ?? join(homedir(), '.dsh')
   return {
     runtimeDir: entry.slice(0, -suffix.length),
+    dshHome,
     profileDir: join(dshHome, 'profiles', profile),
     bundleDir,
     archive,

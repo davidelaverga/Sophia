@@ -9,7 +9,16 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync }
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
-import { ClosureUnverifiable, DSH_ENTRY, executorClosure, loadedClosureInputs, treeDigestWithin } from '../../packages/dsh-bundle/dist/executor-identity.js'
+import {
+  ClosureUnverifiable,
+  DSH_ENTRY,
+  assertConfigOnlyPatch,
+  assertNoLaunchModifiers,
+  executorClosure,
+  loadedClosureInputs,
+  treeDigestWithin,
+} from '../../packages/dsh-bundle/dist/executor-identity.js'
+import { launchRuntime } from '../../scripts/lib/runtime.mjs'
 import { replyServiceSettings } from '../../packages/dsh-bundle/dist/index.js'
 import { treeDigest } from '../../scripts/lib/tree-digest.mjs'
 
@@ -44,11 +53,15 @@ test('a symlink out of its root, or absolute, leaves the closure unverifiable', 
   assert.throws(() => treeDigestWithin(absolute), unverifiable('symlink_escapes_root'))
 })
 
+const MANIFEST = JSON.stringify({ dependencies: { '@sophia/dsh-bundle': 'file:./b.tgz' }, dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@sophia/dsh-bundle'] } } })
+const OVERRIDE = (config = {}) => Buffer.from(JSON.stringify([{ id: 'llm-pi-ai', config }]))
+
 function install() {
   const runtimeDir = dir({ [DSH_ENTRY]: 'dsh', 'node_modules/pi-ai/index.js': 'adapter' })
-  const profileDir = dir({ 'package.json': '{}', 'pnpm-workspace.yaml': 'a', 'cordis.patch.yml': '[]', 'pnpm-lock.yaml': 'l', 'b.tgz': 'z',
-    'node_modules/.pnpm/b/node_modules/b/dist/index.js': 'bundle' })
-  return { runtimeDir, profileDir, bundleDir: join(profileDir, 'node_modules/.pnpm/b/node_modules/b'), archive: 'b.tgz', overlays: [Buffer.from('o')],
+  const dshHome = dir({ 'profiles/.keep': '' })
+  const profileDir = dir({ 'package.json': MANIFEST, 'pnpm-workspace.yaml': 'a', 'cordis.patch.yml': '[]\n', 'pnpm-lock.yaml': 'l', 'b.tgz': 'z',
+    'node_modules/.modules.yaml': 'm', 'node_modules/@sophia/dsh-bundle/dist/index.js': 'bundle' })
+  return { runtimeDir, dshHome, profileDir, bundleDir: join(profileDir, 'node_modules/@sophia/dsh-bundle'), archive: 'b.tgz', overlays: [OVERRIDE()],
     profile: 'sophia-runtime', toolchain: { node: 'v24.21.0', platform: 'darwin', arch: 'arm64' } }
 }
 
@@ -69,7 +82,7 @@ test('the closure changes with every component: adapter, bundle, profile input, 
     assert.notEqual(next, last)
     last = next
   }
-  assert.notEqual(executorClosure({ ...inputs, overlays: [Buffer.from('o2')] }).digest, last)
+  assert.notEqual(executorClosure({ ...inputs, overlays: [OVERRIDE({ maxRetries: 0 })] }).digest, last)
   assert.notEqual(executorClosure({ ...inputs, toolchain: { ...inputs.toolchain, node: 'v24.22.0' } }).digest, last)
   assert.throws(() => executorClosure({ ...inputs, toolchain: { ...inputs.toolchain, platform: 'win32' } }), unverifiable('unsupported_platform'))
   assert.throws(() => executorClosure({ ...inputs, bundleDir: inputs.runtimeDir }), unverifiable('bundle_outside_profile'))
@@ -80,10 +93,11 @@ test('only the launch dsh is given is read: its bin, one --profile and --patch f
   const patch = join(dir({ 'p.yml': 'overlay' }), 'p.yml')
   const bin = join(runtime, DSH_ENTRY)
   const toolchain = { node: 'v24.21.0', platform: 'darwin', arch: 'arm64' }
-  const read = (argv, env = { DSH_HOME: '/h' }) => loadedClosureInputs(['node', ...argv], env, '/b', 'b.tgz', toolchain)
+  const read = (argv, env = { DSH_HOME: '/h' }) => loadedClosureInputs(['node', ...argv], [], env, '/b', 'b.tgz', toolchain)
   const ok = read([bin, '--profile', 'sophia-runtime', '--patch', patch])
   assert.equal(ok.runtimeDir, runtime)
   assert.equal(ok.profileDir, '/h/profiles/sophia-runtime')
+  assert.equal(ok.dshHome, '/h')
   assert.deepEqual(ok.overlays.map(String), ['overlay'])
   for (const argv of [
     ['/elsewhere/dsh.js', '--profile', 'sophia-runtime'],
@@ -116,4 +130,66 @@ test('the advertised tuple is the verified closure, only when it equals the expe
   assert.equal(called, false, 'no closure is derived without an expected pin')
   assert.deepEqual(lines.splice(0), ['reply_service_unavailable executor_digest_unset'])
   assert.equal(replyServiceSettings(null, ROUTES, { PIN }, () => {}, () => { throw new Error('never') }), null, 'service mode off derives nothing')
+})
+
+// #393 R-B2-A868-01..03: the service composition admits only the reviewed shape; everything else refuses before a role.
+test('a home patch in any form refuses: a file, a directory, a dangling link', () => {
+  for (const make of [
+    (home) => writeFileSync(join(home, 'cordis.patch.yml'), '[]'),
+    (home) => mkdirSync(join(home, 'cordis.patch.yml')),
+    (home) => symlinkSync(join(home, 'missing'), join(home, 'cordis.patch.yml')),
+  ]) {
+    const inputs = install()
+    executorClosure(inputs)
+    make(inputs.dshHome)
+    assert.throws(() => executorClosure(inputs), unverifiable('home_patch_present'))
+  }
+})
+
+test('only the reviewed base profile: no other package, dependency or bundle', () => {
+  for (const change of [
+    (p) => mkdirSync(join(p, 'node_modules', 'extra-plugin')),
+    (p) => mkdirSync(join(p, 'node_modules', '@sophia', 'other')),
+    (p) => writeFileSync(join(p, 'package.json'), MANIFEST.replace('"@sophia/dsh-bundle":"file:./b.tgz"', '"@sophia/dsh-bundle":"file:./b.tgz","x":"1"')),
+    (p) => writeFileSync(join(p, 'package.json'), MANIFEST.replace('"@deepseek-ai/dsh-base",', '')),
+  ]) {
+    const inputs = install()
+    change(inputs.profileDir)
+    assert.throws(() => executorClosure(inputs), unverifiable('profile_unsupported'))
+  }
+})
+
+test('a patch is strict JSON overrides of reviewed config rows; no insert, name, group, include, expression or inline key', () => {
+  for (const ok of ['[]', '[{"id":"llm-pi-ai","config":{"providers":{"p":{"apiKeyEnv":"OPENAI_API_KEY","baseURL":"http://127.0.0.1:1/v1"}}}}]',
+    '[{"id":"sophia-control-bridge","config":{"protocolVersion":1}},{"id":"agent-default-model","config":{"provider":"p"}}]']) {
+    assertConfigOnlyPatch(Buffer.from(ok))
+  }
+  for (const bad of [
+    '- id: llm-pi-ai\n  config: {}\n',
+    '- id: llm-pi-ai\n  config: !!js/function "() => 1"\n',
+    '[{"insert":[{"id":"x","name":"./plugin.mjs"}]}]',
+    '[{"id":"llm-pi-ai","name":"./plugin.mjs","config":{}}]',
+    '[{"id":"llm-pi-ai","config":{},"group":true}]',
+    '[{"id":"llm-pi-ai","config":{},"disabled":true}]',
+    '[{"id":"include-row","config":{"path":"./more.yml"}}]',
+    '[{"id":"llm-pi-ai","config":[{"name":"./plugin.mjs"}]}]',
+    '[{"id":"llm-pi-ai","config":{"providers":{"p":{"apiKey":"inline"}}}}]',
+    '{"id":"llm-pi-ai","config":{}}',
+  ]) assert.throws(() => assertConfigOnlyPatch(Buffer.from(bad)), unverifiable('patch_unsupported'), bad)
+  const inputs = install()
+  writeFileSync(join(inputs.profileDir, 'cordis.patch.yml'), '[{"insert":[{"id":"x","name":"./plugin.mjs"}]}]')
+  assert.throws(() => executorClosure(inputs), unverifiable('patch_unsupported'), 'the profile patch is held to the same shape')
+})
+
+test('Node code-loading or resolution modifiers refuse, in the bundle and in the launcher; an empty one is none', () => {
+  assertNoLaunchModifiers([], { NODE_OPTIONS: '', PATH: '/bin' })
+  assert.throws(() => assertNoLaunchModifiers(['--import', 'x.mjs'], {}), unverifiable('launch_modifier'))
+  for (const name of ['NODE_OPTIONS', 'NODE_PATH', 'NODE_PRESERVE_SYMLINKS', 'NODE_PRESERVE_SYMLINKS_MAIN']) {
+    assert.throws(() => assertNoLaunchModifiers([], { [name]: '1' }), unverifiable('launch_modifier'), name)
+  }
+  const bin = join(dir({ [DSH_ENTRY]: 'dsh' }), DSH_ENTRY)
+  assert.throws(() => loadedClosureInputs(['node', bin, '--profile', 'sophia-runtime'], ['--require', 'x.cjs'], {}, '/b', 'b.tgz',
+    { node: 'v24.21.0', platform: 'darwin', arch: 'arm64' }), unverifiable('launch_modifier'))
+  assert.throws(() => launchRuntime({ unit: { id: 'u', dsh: { profile: 'sophia-runtime' } }, runtimeDir: '/r', layout: {}, extraEnv: { NODE_OPTIONS: '--import=x.mjs' } }),
+    (error) => error.message === 'launchRuntime: a Node code-loading or resolution modifier is not a supported launch')
 })

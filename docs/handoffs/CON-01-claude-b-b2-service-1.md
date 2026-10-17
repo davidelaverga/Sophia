@@ -413,6 +413,64 @@ advertised the conversation role with the archive digest `3c2b1d43…` as its ex
     ran.
 - PostgreSQL 16, both helper phases, Supabase-local auth and Linux have not run on this source.
 
+## The enforced service load boundary (FND-B2-ENFORCED-SERVICE-LOAD-BOUNDARY-REPAIR-01)
+
+R's review of `a868530b` (R-B2-A868-01..03) found supported startup inputs that the closure did not cover:
+- the home patch `DSH_HOME/cordis.patch.yml`, which the loader composes after the profile's patch and before the
+  overlays;
+- plugins a patch inserts by path, which the loader mounts from beside that patch, outside both hashed trees;
+- Node preload and resolution modifiers.
+
+**Before, on `a868530b` (executed, with a capture-only double).** Each of these kept `executor_closure_verified`, and
+the hello advertised the unchanged pin:
+- a material home patch added after the pin;
+- an external relative plugin whose implementation changed under the same pin, with both markers loaded;
+- a preloader by `--import` and by `NODE_OPTIONS`, whose marker ran.
+
+The home patch's own load effect was not separately observed.
+
+**Now the service admits only the reviewed composition** (executor-identity.ts, recipe `sophia-executor-closure-v2`,
+policy `sophia-service-composition-v1`, recorded in the closure). These checks are shared by the host's expected-pin
+helper and the loaded bootstrap:
+- **No home patch.** Any entry there refuses: a file, a directory or a dangling link. Nothing in the home is read or
+  hashed, and the launcher removes nothing.
+- **The reviewed base profile only.** Its two bundles, its one dependency, and nothing else in its `node_modules`.
+- **Config-only overrides.** The profile patch and every overlay must be strict JSON arrays of `{ id, config }`
+  overrides of the reviewed config rows: `llm-pi-ai`, `agent-default-model` and `sophia-control-bridge`. The config
+  must be a mapping with no inline `apiKey`.
+  - That refuses `insert`, a replaced plugin `name`, `group`, `disabled`, `inject`, `intercept`, `isolate`, a
+    group's child list, an include row and any `!!js` expression (JSON cannot carry a tag).
+  - The loader's own YAML reading of a JSON text is the same data.
+- **No Node modifiers.** No `execArgv`, and none of NODE_OPTIONS, NODE_PATH, NODE_PRESERVE_SYMLINKS or
+  NODE_PRESERVE_SYMLINKS_MAIN set. `launchRuntime` refuses them in its `extraEnv` too.
+- **Fixed reasons** (`home_patch_present`, `profile_unsupported`, `patch_unsupported`, `launch_modifier`), with no
+  path, flag, value or credential in the log.
+- The crossing's service overlay is now written as JSON, the same data as before.
+
+**Identities.** `pnpm artifacts:record`: bundle `250a96ef…` → `30cf3bdc…`, and the profile lock. The darwin dsh
+`e24cb887`, the workspace lock `b868da08` and linux-x64 `4552d08f` (unqualified) are unchanged.
+
+**Checks** (private PostgreSQL 17.11, en_US.UTF-8).
+- **Unit, `executor-identity` 9/9:** the four new cases are the home patch's forms, the profile, the patch shapes and
+  the modifiers, the launcher's refusal included.
+- **The conversation-service crossing: 23/23.** The 19 earlier cases, the standard launch and both restarts included,
+  plus four new ones:
+  - a material home patch under the old pin;
+  - an external relative plugin inserted by an overlay. It is mounted (marker), yet refused, and no expected pin is
+    derived for it at either of two bases;
+  - a preloader by `--import`, and one by `NODE_OPTIONS`. Each ran (marker), yet is refused, and the launcher refuses
+    the variable.
+  - Each leaves no conversation role, a blocked Ask with no attempt or outbox, and no provider request.
+  - The profile-input case now changes the installed lock: a comment in the profile patch is now refused as
+    unsupported rather than mismatched.
+- **Mutation.** With the four boundary checks returning at once, built and packed (`638bcbd1…`), the four new crossing
+  cases fail.
+  - The home-patch and plugin cases fail first at the host helper's refusal, which shares the module. The preloader
+    cases fail at the bundle's.
+  - A first attempt was not run: its marker pattern missed tsc's line break, and it is kept.
+- Dynamic expressions, includes, a replaced name and groups are refused by the unit cases, not by a real dsh launch.
+- PostgreSQL 16, both helper phases, Supabase-local auth and Linux have not run on this source.
+
 ## Next bounded action
 
-B's private handback goes to P, and R reviews this identity correction. No push until P selects a publication.
+B's private handback goes to P, and R reviews this boundary correction. No push until P selects a publication.

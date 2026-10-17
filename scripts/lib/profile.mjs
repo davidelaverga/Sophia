@@ -190,7 +190,8 @@ export function bootProfile({ unit, runtimeDir, layout, seconds }) {
  * (packages/dsh-bundle/src/executor-identity.ts, `sophia-executor-closure-v1`) over this runtime, this profile, the
  * overlays the launch will pass and this Node, computed only after the runtime is the recorded artifact and the profile
  * runs exactly the recorded bundle. The operator pins this value; the running bundle derives its own and serves only
- * when they are equal. `overlays` are the `--patch` texts, in launch order.
+ * when they are equal. `overlays` are the `--patch` texts, in launch order. The recipe's service composition applies
+ * here too: a home patch, an unreviewed profile package, or an overlay beyond config-only overrides refuses.
  * @param {{ unit: any, runtimeDir: string, layout: ReturnType<typeof homeLayout>, overlays?: string[] }} input
  * @returns {Promise<{ digest: string, components: Record<string, unknown> }>}
  */
@@ -203,6 +204,7 @@ export async function executorClosureDigest({ unit, runtimeDir, layout, overlays
   const profileDir = profileDirOf(unit, layout)
   return executorClosure({
     runtimeDir,
+    dshHome: layout.dshHome,
     profileDir,
     bundleDir: join(profileDir, 'node_modules', ...unit.sophia_bundle.name.split('/')),
     archive: unit.sophia_bundle.archive,
