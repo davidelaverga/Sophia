@@ -22,6 +22,7 @@ import { linkAcceptance, type LinkAcceptance } from './link-accept.ts'
 import { passkeysWorkOn } from './passkey-domain.ts'
 import { profileFromMetadata, providerOf } from './profile.ts'
 import { forgetPendingUnlock, pendingUnlock, refuseOtherAccount } from './provider-leave.ts'
+import { keepReturnAnchor, takeReturnAnchor } from './return-anchor.ts'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
@@ -102,6 +103,15 @@ async function linkOutcome(
 }
 
 /**
+ * The address once a callback is handled: its own parameters gone, and back from a magic link or a provider, signed in,
+ * the link's place in its view (return-anchor.ts).
+ */
+function addressAfter(kind: typeof callback.kind, signedIn: boolean): string {
+  const place = kind === 'code' && signedIn ? takeReturnAnchor() : ''
+  return withoutAuthParams(window.location.href) + place
+}
+
+/**
  * The session after an Auth redirect, with a notice when the redirect did not sign in: an expired link, a link for
  * another account than the one signed in here, or a magic link opened in a browser other than the one that asked.
  */
@@ -120,7 +130,8 @@ async function sessionAfterRedirect(client: SupabaseClient): Promise<AuthState> 
   }
   const { data } = await client.auth.getSession() // waits for the client's own ?code= exchange
   if (callback.kind === 'code' && !data.session) notice = OTHER_BROWSER_NOTICE
-  if (callback.kind !== 'none') window.history.replaceState(null, '', withoutAuthParams(window.location.href))
+  if (callback.kind !== 'none')
+    window.history.replaceState(null, '', addressAfter(callback.kind, data.session !== null))
   // Back from a provider an unlock left for, as another account: nobody is signed in, and nothing of it opens.
   if (await refuseOtherAccount(client.auth, data.session?.user.id ?? null)) {
     return { status: 'signed_out', notice: UNLOCK_OTHER_ACCOUNT_NOTICE }
@@ -225,6 +236,7 @@ const sendError = (error: AuthError, email: string) => new Error(sendFailure(err
 /** Magic link to the current page; locally the email lands in Mailpit. A new email gets an account. */
 export async function sendMagicLink(email: string): Promise<void> {
   if (!supabase) throw new Error('Supabase Auth is not configured')
+  keepReturnAnchor() // the link comes back to this path only: its place in the view waits here (return-anchor.ts)
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
@@ -323,6 +335,7 @@ export async function removePasskey(id: string): Promise<void> {
 export async function signInWithProvider(provider: OAuthProvider): Promise<void> {
   if (!supabase) throw new Error('Supabase Auth is not configured')
   forgetPendingUnlock() // a sign-in of the person's own: no unlock's check refuses the account it brings back
+  keepReturnAnchor() // the provider comes back to this path only: its place in the view waits here
   const { error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
