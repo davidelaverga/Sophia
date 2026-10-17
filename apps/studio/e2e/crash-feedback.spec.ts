@@ -103,3 +103,42 @@ test('feedback · the words hold still while they go (Codex P2 on #367)', async 
   await sheet(page).getByRole('button', { name: 'Send' }).click()
   await expect(sheet(page).getByLabel('What would you like us to know?')).toHaveAttribute('readonly', '')
 })
+
+// Sent only once Sentry's ingest takes it (Codex P2 on #367): a request that never arrives, or is refused, is not sent.
+for (const [how, answer] of [
+  ['never gets', 'abort'],
+  ['refuses', 'refuse'],
+] as const) {
+  test(`feedback · a send the ingest ${how} says it couldn’t, never «Sent» (Codex P2 on #367)`, async ({ page }) => {
+    await page.route(
+      (url) => url.hostname.endsWith('ingest.sentry.io'),
+      (route) => (answer === 'abort' ? route.abort() : route.fulfill({ status: 500, body: '{}' })),
+    )
+    await page.goto('/room.html?sentry=1')
+    await account(page).click()
+    await page.getByRole('menuitem', { name: 'Send feedback' }).click()
+    await sheet(page).getByLabel('What would you like us to know?').fill('Words that never arrive.')
+    await sheet(page).getByRole('button', { name: 'Send' }).click()
+    await expect(sheet(page).getByRole('alert')).toHaveText('Couldn’t send it. Try again.', { timeout: 15_000 })
+    await expect(sheet(page).getByRole('status')).not.toHaveText('Sent. Thank you.')
+  })
+}
+
+test('feedback · a Sentry that failed to start starts again for the next send (Codex P2 on #367)', async ({ page }) => {
+  const sent = await ingest(page)
+  await page.goto('/room.html?sentry=1&sentryFlaky=1')
+  await expect(page.locator('html')).toHaveAttribute('data-sentry-flaky', 'thrown')
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Send feedback' }).click()
+  await sheet(page).getByLabel('What would you like us to know?').fill('After a start that failed.')
+  await sheet(page).getByRole('button', { name: 'Send' }).click()
+  await expect(sheet(page).getByRole('status')).toHaveText('Sent. Thank you.')
+  expect(sent.some((e) => e.includes('"type":"feedback"') && e.includes('After a start that failed.'))).toBe(true)
+  // Started again, it reports on its own too.
+  await page.evaluate(() =>
+    setTimeout(() => {
+      throw new Error('After the restart')
+    }),
+  )
+  await expect.poll(() => sent.some((e) => e.includes('After the restart'))).toBe(true)
+})

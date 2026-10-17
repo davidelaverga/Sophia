@@ -4,6 +4,7 @@
 // crash-scrub.ts first.
 import type * as SentryApi from '@sentry/react'
 import { CRASH_DSN } from './crash-dsn.ts'
+import { loadSentry } from './crash-sentry.ts'
 import { scrubBreadcrumb, scrubEvent } from './crash-scrub.ts'
 
 type SentryModule = typeof SentryApi
@@ -35,7 +36,7 @@ function holdEarly(): { stop: () => unknown[] } {
 export function startCrashReports(): void {
   if (!reportsOn() || loading) return
   const early = holdEarly()
-  loading = import('@sentry/react')
+  loading = loadSentry()
     .then((Sentry) => {
       Sentry.init({
         dsn: CRASH_DSN,
