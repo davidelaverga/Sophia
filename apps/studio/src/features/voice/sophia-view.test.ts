@@ -24,6 +24,7 @@ const presence = (over: Partial<SophiaPresence> = {}): SophiaPresence => ({
 
 const ctx = (over: Partial<SophiaContext> = {}): SophiaContext => ({
   inCall: true,
+  reconnecting: false,
   audioBlocked: false,
   holderName: 'Luis',
   holderIsMe: false,
@@ -122,5 +123,40 @@ describe('Sophia in the room', () => {
       ],
       ['think', 'Handing over to Luis…'],
     )
+  })
+})
+
+describe('her presence, for her light (docs/plans/orb-presence.md)', () => {
+  it('is away while she is not in the conversation, or her voice is unavailable', () => {
+    assert.equal(sophiaView(presence({ exchange: 'none' }), null, ctx()).presence, 'away')
+    assert.equal(sophiaView(undefined, null, ctx()).presence, 'away')
+    assert.equal(sophiaView(presence({ voice: 'unavailable' }), signal(), ctx()).presence, 'away')
+  })
+
+  it('is joining while her voice gets ready or recovers, or she is not in the room yet', () => {
+    assert.equal(sophiaView(presence({ voice: 'not_connected' }), signal(), ctx()).presence, 'joining')
+    assert.equal(sophiaView(presence({ voice: 'recovering' }), signal(), ctx()).presence, 'joining')
+    assert.equal(sophiaView(presence(), null, ctx()).presence, 'joining')
+  })
+
+  it('is joining while this person reconnects, and never listens over a dead link', () => {
+    const v = sophiaView(presence(), signal({ input: 'admitted' }), ctx({ reconnecting: true }))
+    assert.deepEqual([v.presence, v.light], ['joining', 'rest'])
+    assert.equal(sophiaView(presence(), signal(), ctx({ reconnecting: true, working: true })).light, 'work')
+  })
+
+  it('is paused while her conversation is, for a guest or the holder gone', () => {
+    assert.equal(sophiaView(presence({ exchange: 'paused', pauseReason: 'guest' }), signal(), ctx()).presence, 'paused')
+    assert.equal(sophiaView(presence(), signal({ input: 'paused' }), ctx()).presence, 'paused')
+  })
+
+  it('is here otherwise: listening, speaking, at rest, or outside the call', () => {
+    for (const s of [
+      signal({ input: 'admitted' }),
+      signal({ output: 'playing', audible: true }),
+      signal({ input: 'open' }),
+    ])
+      assert.equal(sophiaView(presence(), s, ctx()).presence, 'here')
+    assert.equal(sophiaView(presence(), null, ctx({ inCall: false })).presence, 'here')
   })
 })
