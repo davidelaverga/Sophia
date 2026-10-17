@@ -288,6 +288,16 @@
   min-width: 0;
   min-height: 0;
 }
+/* «New messages ↓» (docs/plans/conversation-moves.md): over the thread's foot, above the field, in the flow. */
+.pill.conv-new-pill {
+  position: relative;
+  z-index: 2;
+  align-self: center;
+  margin: -44px 0 12px;
+  /* Opaque: it lies over the thread's last words. */
+  background: var(--plane-2);
+  box-shadow: var(--lift);
+}
 /* Sophia's light, faint, from above the thread. */
 .conv-open::before {
   content: '';

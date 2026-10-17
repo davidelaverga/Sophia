@@ -15,8 +15,10 @@
     "vite.fixtures.config.ts",
     "vite.app.config.ts",
     "playwright.config.ts",
+    "playwright.served.config.ts",
     "fixtures/**/*.ts",
     "fixtures/**/*.tsx",
-    "e2e/**/*.ts"
+    "e2e/**/*.ts",
+    "e2e-served/**/*.ts"
   ]
 }

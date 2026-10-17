@@ -19,6 +19,7 @@ import { LobbyPanel } from '../access/LobbyPanel.tsx'
 import { ArchivedLine } from './Archive.tsx'
 import { canInvite, useProjectMembership, type SheetContext } from '../access/useAccess.ts'
 import { DocumentViewerProvider } from '../artifacts/DocumentViewer.tsx'
+import { InPlaceLinks } from './InPlaceLinks.tsx'
 import { KnowledgeReports } from '../artifacts/KnowledgeReports.tsx'
 import { CarriedIn } from '../artifacts/CarriedIn.tsx'
 import { sendingOf } from '../voice/CallSwitches.tsx'
@@ -32,6 +33,7 @@ import { showRenderOf } from '../voice/StagePresent.tsx'
 import { ProjectSearch, SearchButton } from '../search/SearchSheet.tsx'
 import { VIEW_LABEL } from './ViewNav.tsx'
 import { useCatchUp } from '../voice/CatchUp.tsx'
+import { useUnseenWhileHidden } from '../conversation/unread-title.ts'
 import { MeetingRecapOnLeave } from '../voice/MeetingRecap.tsx'
 import { useProjectRoom, type LeaveHow, type ProjectRoom } from '../voice/useProjectRoom.ts'
 import { useMedia, WIDE } from '../../app/useMedia.ts'
@@ -83,11 +85,13 @@ function useLeaveBehindClosedDoor(blocked: Blocked | null, room: ProjectRoom) {
 }
 
 /**
- * The tab names the project and counts what waits: who is at its door, and the requests waiting on this person in
- * their tools (`resourcesWaiting`), so a tab in the background still calls.
+ * The tab names the project and counts what waits: who is at its door, the messages written in the room while the tab
+ * was hidden (unread-title.md), and the requests waiting on this person in their tools (`resourcesWaiting`), so a tab
+ * in the background still calls.
  */
-function useTabTitle(snapshot: Snapshot | undefined, resourcesWaiting = 0) {
-  const waiting = (snapshot?.lobby.filter((e) => e.status === 'waiting').length ?? 0) + resourcesWaiting
+function useTabTitle(snapshot: Snapshot | undefined, me: string | null, resourcesWaiting = 0) {
+  const unseen = useUnseenWhileHidden(snapshot?.discussion, me)
+  const waiting = (snapshot?.lobby.filter((e) => e.status === 'waiting').length ?? 0) + resourcesWaiting + unseen
   useDocumentTitle(snapshot ? projectTitle(snapshot.title, waiting) : null)
 }
 
@@ -241,9 +245,15 @@ function useJoinOnOpen(room: ProjectRoom, joinOnOpen: boolean, onHandled: (() =>
  * What the shell does for the rest of the app: its tab title while on screen, its call reported, a join on arrival,
  * and no call kept behind a closed door.
  */
-function useBeyondTheView(props: Props, snapshot: Snapshot | undefined, room: ProjectRoom, blocked: Blocked | null) {
+function useBeyondTheView(
+  props: Props,
+  snapshot: Snapshot | undefined,
+  room: ProjectRoom,
+  blocked: Blocked | null,
+  me: string | null,
+) {
   useLeaveBehindClosedDoor(blocked, room)
-  useTabTitle(props.background ? undefined : snapshot, props.resourcesWaiting)
+  useTabTitle(props.background ? undefined : snapshot, me, props.resourcesWaiting)
   const looking = lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))
   useReportCall(props.projectId, snapshot?.title, room, looking, props.onCall)
   useJoinOnOpen(room, props.joinOnOpen ?? false, props.onJoinHandled)
@@ -469,7 +479,7 @@ export function ProjectShell(props: Props) {
   const { loaded, blocked, shown } = doorOf(snapshot)
   const dockAt = useDockPlace(room, snapshot.data, () => onShow('studio'), dockShown(view, blocked))
   const work = useTasksWork(props, feed, membership, blocked, searching)
-  useBeyondTheView(props, snapshot.data, room, blocked)
+  useBeyondTheView(props, snapshot.data, room, blocked, membership?.actorId ?? null)
   const at = { view, inviting, mayInvite: !!shown && canInvite(membership), shown: !!shown, blocked: !!blocked }
   useProjectKeys({ onLeave, onWork, invite, search, show: onShow }, at)
   return (
@@ -702,7 +712,7 @@ function ProjectBody(props: BodyProps) {
   return withViewer(
     <>
       {lobby}
-      <main className={pageClass(work, props.plans, view === 'conversations' && CONVERSATIONS)}>
+      <main className={pageClass(work, props.plans, view === 'conversations' && CONVERSATIONS)} data-content>
         {resources ?? <PageBody {...props} />}
         {work && pulse}
       </main>
@@ -760,9 +770,10 @@ interface ViewerProps extends BodyProps {
 /**
  * The report viewer around a view: opening a report closes the side panel, and opening the panel closes the report. In
  * the room the pane covers the panel's toggles, so its head offers the chat. Where it covers the dock or the mini dock
- * (a phone, the full page), its head carries the call's switches and note, as the side panel's does (LFE-02.1).
+ * (a phone, the full page), its head carries the call's switches and note, as the side panel's does (LFE-02.1). Inside
+ * it, a link to this project in a message is followed here, a report's in the viewer (studio-links-in-place.md).
  */
-function WithViewer({ projectId, identity, view, room, panel, looking, snapshot, children }: ViewerProps) {
+function WithViewer({ projectId, identity, view, room, panel, looking, snapshot, onShow, children }: ViewerProps) {
   const studio = view === 'studio'
   return (
     <DocumentViewerProvider
@@ -782,7 +793,9 @@ function WithViewer({ projectId, identity, view, room, panel, looking, snapshot,
       call={<PanelCallSwitches room={room} looking={looking} />}
       note={room.mediaError ?? room.error}
     >
-      {children}
+      <InPlaceLinks projectId={projectId} view={view} onShow={onShow}>
+        {children}
+      </InPlaceLinks>
     </DocumentViewerProvider>
   )
 }
@@ -939,7 +952,7 @@ interface NoticeProps {
 function AccessNotice({ blocked, identityName, actions }: NoticeProps) {
   const notice = NOTICE[blocked]
   return (
-    <main className="page notice">
+    <main className="page notice" data-content>
       <h2>{notice.title}</h2>
       <p>{notice.body(identityName)}</p>
       <button type="button" className="pill" onClick={actions[notice.action]}>

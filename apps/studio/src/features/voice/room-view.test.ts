@@ -4,9 +4,11 @@ import type { Goal, NativeTask } from '@sophia/contracts'
 import {
   floorView,
   mediaMessage,
+  mutedMic,
   orderParticipants,
   presenceRole,
   presenceSlots,
+  RECONNECTING,
   roomLine,
   runningWork,
   soleWorkingTask,
@@ -117,6 +119,13 @@ describe('floor view', () => {
 describe('what sets someone apart', () => {
   const guest = { ...person('g', 'Luis'), standing: 'guest' as const }
 
+  it('says a microphone is muted when it is off, and never for a listener, who has none (muted-on-tiles.md)', () => {
+    assert.equal(mutedMic({ ...davide, micOn: false }), true)
+    assert.equal(mutedMic({ ...guest, micOn: false }), true)
+    assert.equal(mutedMic(davide), false)
+    assert.equal(mutedMic({ ...davide, micOn: false, standing: 'viewer' }), false)
+  })
+
   it('says one thing about a person, or nothing', () => {
     assert.equal(presenceRole(davide, true), 'has the floor')
     assert.equal(presenceRole({ ...davide, speaking: true }, false), 'speaking')
@@ -182,6 +191,11 @@ describe('room stage', () => {
     assert.equal(roomLine('live', floorView('b', [luis]), 0).text, 'Someone has the floor but isn’t here')
     assert.equal(roomLine('live', free, 2).note, 'Working on 2 tasks in the background')
     assert.equal(roomLine('idle', free, 1).note, 'Working on 1 task in the background')
+  })
+
+  it('one word for a call coming back, on the line and over the video (Codex P1 on #403)', () => {
+    assert.equal(RECONNECTING, 'Reconnecting…')
+    assert.equal(roomLine('reconnecting', floorView(null, [luis, davide]), 0).text, RECONNECTING)
   })
 
   it('says what she is doing in place of the count, and never over her own note', () => {

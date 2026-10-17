@@ -80,6 +80,7 @@ import type { ProjectRelease, ReportList } from '@sophia/contracts'
 import { searchHits, searchPage } from './search-data.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
 import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
+import { profileAnswer } from './profile-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
 
@@ -180,6 +181,8 @@ interface Project {
   pageTampered?: boolean
   /** The research task is in the project's work (`place=work`): its card lists the report's outputs. */
   work: boolean
+  /** The snapshot carries the research task and the report's current version (`reports=1`, goal-reports.md). */
+  goalReports?: boolean
   /** The project's goals (the work fixture's one, LFE-07). */
   goals?: Snapshot['goals']
   /** What Sophia offers for a source review (WBC-02); absent, the pilot is not enabled. */
@@ -338,8 +341,20 @@ function snapshotOf(project: Project) {
     : project.work
       ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing).task] }
       : now
-  const titled = project.title ? { ...work, title: project.title } : work
+  const reported = project.goalReports ? withGoalReports(project, work) : work
+  const titled = project.title ? { ...reported, title: project.title } : reported
   return withFocus(project, project.waiting ? { ...titled, lobby: lobbyOf(project.lobbyAsked) } : titled)
+}
+
+/** The research task in the snapshot's work and the report's current version in its artifacts (goal-reports.md). */
+function withGoalReports(project: Project, now: Snapshot): Snapshot {
+  const task = researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing).task
+  const current = versions(project.reportVersions, project.reportTitle, project.pilot)[0]
+  return {
+    ...now,
+    work: now.work.some((t) => t.id === task.id) ? now.work : [...now.work, task],
+    artifacts: current ? [current] : now.artifacts,
+  }
 }
 
 /** What the room shows, as the snapshot carries it, with the report's current version among its artifacts. */
@@ -1837,6 +1852,9 @@ export function installFixtureApi(project: Project): void {
     const url = new URL(hrefOf(input), window.location.href)
     if (project.outage && url.pathname.startsWith('/api/')) return Promise.reject(new TypeError('Failed to fetch'))
     if (project.outsider && url.pathname.startsWith(`/api/v1/projects/${PROJECT}/`)) return Promise.resolve(outside())
+    // The person's own profile (A32): one per token, whatever the page shows (profile-data.ts).
+    const profile = profileAnswer(method, url.pathname, init)
+    if (profile) return Promise.resolve(profile)
     const response = answer(project, method, url, init)
     if (response) return Promise.resolve(response)
     unexpected.push(`${method} ${url.pathname}`)

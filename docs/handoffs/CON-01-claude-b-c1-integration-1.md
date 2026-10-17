@@ -100,6 +100,88 @@ What this does not establish:
 - **Activity.** The file passed once on the integrated source: 6/6, with case 59 at 1.6 s. No new timing campaign. The earlier 10+10 measurement shows lower clock cost; it is not a reproduction of the CI timeout.
 - **Not shown:** the full browser suite was not run locally. The required CI on the integrated head is still owed.
 
+## Served path (FND-B-C1-SERVED-PATH-01)
+
+The fixture pages run with VISION on and answer from the Studio's fixture API. This check runs the served path instead:
+the normal Studio dev server (`vite.config.ts`, VISION unset, `VITE_SOPHIA_CONVERSATIONS=1`) through its `/api` proxy
+to the real API (`apps/api/src/server.ts` on its restricted role, `SOPHIA_CONVERSATIONS=on`, no companion, no reply
+grant) over a local PostgreSQL 17.11. The data comes from `apps/api/scripts/dev-db.ts --json` (synthetic HS256
+identities, one project), with that project's conversation setting enabled by `set_conversation_settings`.
+`apps/studio/playwright.served.config.ts` starts both servers; `e2e-served/c1-served.spec.ts` holds 5 cases, run by hand
+(not in the default suite):
+
+- VISION off: the tab reads the real A33 list (`GET /api/v1/projects/<id>/conversations`), and the project search, a
+  VISION control, is absent.
+- A conversation started with Ask checked is kept and found again after a reload. No reply is awaited, and no replies
+  or runtime path is called. The database recorded the ask as a blocked reply (`no_grant`).
+- An admin erases a conversation: it leaves the list and stays gone after a reload.
+- «Your name» is saved (`PUT /api/v1/me/profile`) and read back after a reload. Another member sees the chosen name; a
+  member without one shows as A member; no address appears on either page.
+- Someone outside the project: corrected after R-C1-SERVED-01, see below.
+
+The first two runs failed in the test itself: a row shows its words twice, and the database outlives a run (the same
+name already saved leaves Save unavailable). The third run passed 5 of 5 with a row locator and words of its own.
+Conversations have no rename in the Studio, so none is checked.
+
+The outsider case as first written could pass without any denial (R-C1-SERVED-01). It checked
+`responses.every(403|404)` over a list that could still be empty, since an empty list's every is true, and checked a
+title's absence while the page could still be loading. So its pass in the third run, 162 ms, is not a served denial
+witness, and that run's served acceptance is four positive cases. No access bypass was found or claimed: the API and
+fixture permission tests keep their scope. The case now waits for the project's own refusal, `GET
+/api/v1/projects/<id>/snapshot` answered 403, which is the read the shell makes first and denies on before any
+conversation mounts. It then waits for the settled closed door ("No access to this project", "Outsider isn't a
+member.", Back to projects), with no conversation list or open conversation behind it. Only then does it check that no
+conversation's words show and that every project read this person made was refused (at least one, none answered). It
+asks for no conversations read the shell never makes. This is a local served check with synthetic identities,
+not hosted Auth or production acceptance.
+
+## Current main 968631e7 (FND-B-C1-MAIN-ANCESTRY-01)
+
+#389 landed on main as a merge of afbbed33, which C1 already carried, so C1 and main had two best common ancestors
+(afbbed33 and 25f207f0). From the single base 25f207f0, GitHub found the recorded bundle identity in conflict
+(`config/runtime-unit.json` and the profile lock: C1's e956 against main's 730) and could not build the PR's merge.
+One normal merge of exact main 968631e7 now gives C1 that ancestry. With both bases, merge-ort combined it with no
+conflict. It brings only #400 (report page font and windows: `packages/report`, the artifact reader styles, their tests
+and records). `pnpm artifacts` reproduces the same bundle from the combined bytes,
+`sha256:e956becce942134a52d81286709b8d84262a3d80a7c6d96a63ea163673aa0a36`: #400 is outside the bundle, and 730 was R1's
+before C1's own bundle inputs were added. Format, lint, typecheck, contracts and contract regeneration pass with no
+drift; unit tests 2961 passed, 0 failed; #400's tests 29 of 29. No SQL, contract, API, worker or bundle source changed,
+so the database and browser checks were not repeated.
+
+## Provider name fallback (FND-B-C1-PROVIDER-NAME-01)
+
+The automatic review of 0186305a (4300538474) found that `providerName` (apps/api/src/auth.ts) gave up at the first
+provider claim that couldn't be a name. A token with an address as `full_name` and a usable `user_name` was seeded with
+no name, and its contributions read as "A member" until the person chose one. It now skips such a claim and takes the
+next usable one in NAME_KEYS. With none usable there is still no name; an address, a name over 60 characters or the
+contact itself is never taken; a chosen name stays chosen. No key, policy, SQL or UI changed.
+
+Before the fix, the new unit case failed (null for `luis`, 7 of 8), and so did the real path: `GET /api/v1/me/profile`
+on the API's restricted role and PostgreSQL seeded `displayName: null` where `luis` was expected (9 of 10). After it:
+8 of 8 and 10 of 10, and the other name-reading DB files (access, conversations, mission) 47 of 47. Unit tests 2963
+passed, 0 failed; the bundle still reproduces (e956, the API is outside it). The review's other finding (4300538470,
+the reply supervisor's sweep before releasing an exhausted lease) is not changed here; its reach in C1 is being mapped
+separately.
+
+## Current main 14e65afc (FND-B-C1-CHAT-INTEGRATION-02)
+
+One normal merge of main 14e65afc (Luis's #381, #384, #397, #401, #403, #404, #406, #414, #415 and #419: Studio and
+docs). Only `OpenConversation.tsx` conflicted. #384 renders a member's words with RichText (bold, code, quotes and
+links, in place); C1 renders them through MessageWords, which also shows a withdrawn message as withdrawn. MessageWords
+now uses RichText for a member's words, and main's Turn layout was already inline in C1's message item. The held-read
+gate still decides whether any words render. A new case in `conversations-removal.spec.ts` composes the two:
+- a formatted message shows its marks;
+- refused, neither its words nor its bold or code show;
+- given back with the reads held, the cached formatted words stay hidden until a read since answers, then render with
+  their marks.
+
+Checks on the merge:
+- Source: format, lint, typecheck and contracts pass, and contract regeneration has no drift. Unit tests 2984 passed,
+  0 failed. The bundle reproduces unchanged (e956).
+- Fixture browser: 262 of 262 for the conversation specs, the profile editor, the account menu, message format, links
+  in place, message links, room return and skip link. The failed-send barrier passed 6 of 6, and the new case 3 of 3.
+- Served (normal Studio, real API, restricted PostgreSQL, VISION off): all five cases again, 5 of 5.
+
 ## Remaining obligations
 
 - **#382 (Luis, open; its browser job was failing at packet time)** touches `ConversationsView.tsx`, `OpenConversation.tsx` and `fixtures/room.tsx`. Once its accepted head is on main, B merges main again in the final shared Studio slot. Luis then accepts the shared Studio resolutions. Neither #382 nor Luis's branch was merged or edited here.
