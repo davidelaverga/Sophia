@@ -706,14 +706,19 @@ input[type='checkbox']:hover:not(:disabled) {
   right: 0;
   transform: translate(0, 2px);
 }
+/* At a left edge (your tile's Switch camera, camera-flip.md): from the control's start, never past the edge. */
+.tip[data-align='start'] {
+  left: 0;
+  transform: translate(0, 2px);
+}
 .has-tip:hover .tip,
 .has-tip:focus-visible .tip {
   opacity: 1;
   transform: translate(-50%, 0);
   transition-delay: 320ms;
 }
-.has-tip:hover .tip[data-align='end'],
-.has-tip:focus-visible .tip[data-align='end'] {
+.has-tip:hover .tip:is([data-align='end'], [data-align='start']),
+.has-tip:focus-visible .tip:is([data-align='end'], [data-align='start']) {
   transform: translate(0, 0);
 }
 /* The next ask's reason with the focus in its field too: the keyboard's way to see why, the cap being no stop of its
@@ -6323,6 +6328,18 @@ button.contribution-quote:hover {
   .stage-acts,
   .tile-pin {
     opacity: 1;
+  }
+}
+/* Switch camera, on your own tile (camera-flip.md): the other corner, and only on a phone, where the dock's device
+   menus aren't there; on a computer Video settings chooses. */
+.tile-pin.tile-flip {
+  display: none;
+  right: auto;
+  left: 8px;
+}
+@media (max-width: 600px) {
+  .tile-pin.tile-flip {
+    display: inline-grid;
   }
 }
 
