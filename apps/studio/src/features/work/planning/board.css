@@ -1060,7 +1060,7 @@
   padding: 0 12px;
   border: 1px solid var(--line-2);
   border-radius: 999px;
-  background: rgb(var(--ink-rgb) / 0.04);
+  background: var(--control);
   color: var(--text-2);
   font-size: var(--type-body);
   transition:

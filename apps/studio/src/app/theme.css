@@ -147,6 +147,23 @@
   --glow-threshold-from: drop-shadow(0 0 4px rgb(var(--halo-rgb) / 0.45));
   --glow-threshold-to: drop-shadow(0 0 12px rgb(var(--halo-rgb) / 0.85));
   --glow-threshold-still: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.6));
+  /* The states (docs/plans/light-states.md): what a field, a control and the one chosen lay under their words, in the
+     room at the alphas their rules wrote by hand. On paper a field, a control at rest and the one chosen on its track
+     are white pieces over what holds them, where the ink sank them (informe-claro D20); hover, selection and the focus
+     ring are the ink in both, their channels carrying the theme. A quiet step is the square's and the conversations'
+     quiet page's: its own alpha in the room, its sibling's white on paper. */
+  --field: rgb(var(--ink-rgb) / 0.03);
+  --field-focus: rgb(var(--ink-rgb) / 0.05);
+  --control: rgb(var(--ink-rgb) / 0.04);
+  --control-quiet: rgb(var(--ink-rgb) / 0.03);
+  --control-selected: rgb(var(--ink-rgb) / 0.08);
+  --control-selected-quiet: rgb(var(--ink-rgb) / 0.075);
+  /* Under the one chosen: nothing in the room (no room rule reads it), where the ink lifts it; on paper a level. */
+  --control-selected-shadow: 0 0 transparent;
+  --control-track: var(--glass);
+  --state-hover: rgb(var(--ink-rgb) / 0.06);
+  --state-selected: rgb(var(--ink-rgb) / 0.06);
+  --focus-ring: rgb(var(--halo-text-rgb) / 0.7);
   --sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Consolas, monospace;
   --r-1: 4px;
@@ -292,6 +309,16 @@
   --glow-threshold-from: drop-shadow(0 0 4px rgb(var(--halo-rgb) / 0.45));
   --glow-threshold-to: drop-shadow(0 0 12px rgb(var(--halo-rgb) / 0.85));
   --glow-threshold-still: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.6));
+  /* A field, a control at rest and the one chosen: the white sheet, over the paper and its wells; the chosen one
+     grounded by a contact shadow (the lens thumb stood 1.18:1 under its track, an open conversation under its list). */
+  --field: var(--plane-2);
+  --field-focus: var(--field);
+  --control: var(--plane-2);
+  --control-quiet: var(--control);
+  --control-selected: var(--plane-2);
+  --control-selected-quiet: var(--control-selected);
+  --control-selected-shadow: var(--elev-1);
+  --control-track: rgb(var(--ink-rgb) / 0.04);
 }
 :root[data-theme='light'] body::after {
   display: none;
@@ -431,7 +458,7 @@ a {
   text-underline-offset: 3px;
 }
 :focus-visible {
-  outline: 2px solid rgb(var(--halo-text-rgb) / 0.7);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 /* `hidden` always hides. A rule that sets `display` would otherwise win over the browser's own, and the element
@@ -556,7 +583,7 @@ button:disabled,
   padding: 0 12px;
   border-radius: var(--r-2);
   border: 1px solid var(--line-2);
-  background: rgb(var(--ink-rgb) / 0.04);
+  background: var(--control);
   color: var(--text);
   font-size: 13px;
   font-weight: 500;
@@ -658,7 +685,7 @@ select option {
 }
 .ghost:hover {
   color: var(--text);
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 /* Pressed, the kit's kinds sink half a pixel, as the pill does (docs/plans/press-answers.md). */
 .ghost:active:not(:disabled, [aria-disabled='true']),
@@ -675,7 +702,7 @@ select option {
   flex: none;
   border-radius: var(--r-3);
   border: 1px solid var(--line);
-  background: rgb(var(--ink-rgb) / 0.03);
+  background: var(--control-quiet);
   color: var(--text-2);
   transition:
     background var(--fast) var(--ease),
@@ -685,7 +712,7 @@ select option {
 .round:hover {
   color: var(--text);
   border-color: var(--line-2);
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 .round[aria-pressed='true'] {
   color: var(--void);
@@ -760,7 +787,7 @@ textarea {
   padding: 0 11px;
   border-radius: var(--r-2);
   border: 1px solid var(--line-2);
-  background: rgb(var(--ink-rgb) / 0.03);
+  background: var(--field);
   color: var(--text);
   font-size: var(--type-body);
   transition:
@@ -780,7 +807,7 @@ input:focus-visible,
 textarea:focus-visible {
   outline: none;
   border-color: rgb(var(--halo-text-rgb) / 0.6);
-  background: rgb(var(--ink-rgb) / 0.05);
+  background: var(--field-focus);
   box-shadow: 0 0 0 3px rgb(var(--halo-rgb) / 0.14);
 }
 /* On paper the focus edge is the halo's ink whole: the only sign of the keyboard's place, at 3:1 and more (Codex on
@@ -794,7 +821,7 @@ select {
   padding: 0 10px;
   border-radius: var(--r-2);
   border: 1px solid var(--line-2);
-  background: rgb(var(--ink-rgb) / 0.03);
+  background: var(--field);
   color: var(--text-2);
   font-size: 13px;
 }
@@ -1216,7 +1243,7 @@ button.mark:hover {
 }
 .menu :is([role='menuitem'], [role='menuitemradio']):is(:hover, :focus-visible):not([aria-disabled='true']) {
   outline: none;
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 .menu [aria-disabled='true'] {
   color: var(--text-3);
@@ -1725,7 +1752,7 @@ img.avatar {
   transition: background var(--fast) var(--ease);
 }
 .recent button:hover {
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 .home-hint {
   margin-top: -8px;
@@ -1790,7 +1817,7 @@ img.avatar {
   padding: 3px;
   border-radius: var(--r-3);
   border: 1px solid var(--line);
-  background: var(--glass);
+  background: var(--control-track);
   box-shadow: var(--lift);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
@@ -1804,8 +1831,14 @@ img.avatar {
   height: var(--thumb-h, 0);
   transform: translate(var(--thumb-x, 0), var(--thumb-y, 0));
   border-radius: var(--r-2);
-  background: rgb(var(--ink-rgb) / 0.08);
+  background: var(--control-selected);
   box-shadow: inset 0 0 0 1px rgb(var(--ink-rgb) / 0.08);
+}
+/* On paper the chosen piece rests on its level (light-states.md): paper's rule alone, as light as the thumb's. */
+:where(:root[data-theme='light']) .segmented::before {
+  box-shadow:
+    inset 0 0 0 1px rgb(var(--ink-rgb) / 0.08),
+    var(--control-selected-shadow);
 }
 .segmented[data-thumb-ready]::before {
   transition:
@@ -2788,7 +2821,7 @@ button.contribution-quote:hover {
 .device-open:hover,
 .device-open[aria-expanded='true'] {
   color: var(--text);
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 .device-open svg {
   width: 14px;
@@ -2879,7 +2912,7 @@ button.contribution-quote:hover {
   padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: var(--r-2);
-  background: rgb(var(--ink-rgb) / 0.03);
+  background: var(--field);
   color: var(--text);
   font-size: 13px;
   text-align: left;
@@ -2887,7 +2920,7 @@ button.contribution-quote:hover {
 .device-choice-open:hover,
 .device-choice-open[aria-expanded='true'] {
   border-color: var(--line-2);
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 .device-choice-name {
   flex: 1;
@@ -3287,7 +3320,7 @@ button.contribution-quote:hover {
   box-shadow: none;
 }
 .mini-dock .pill:hover {
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 .mini-dock .round {
   width: 32px;
@@ -3801,7 +3834,7 @@ button.contribution-quote:hover {
   cursor: pointer;
 }
 .palette-row[aria-selected='true'] {
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-selected);
 }
 .palette-group {
   flex: none;
@@ -3908,7 +3941,7 @@ button.contribution-quote:hover {
   background: transparent;
 }
 .sheet-head .round:hover {
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 /* Tabs as a line under words, on the panel's own hairline. */
 /* A tab strip (`Tabs` in @sophia/ui, docs/plans/tabs-scale.md): 36 px tabs on the field scale, the third ink at rest,
@@ -5016,7 +5049,7 @@ button.contribution-quote:hover {
   background: transparent;
 }
 .side-panel-head > .round:hover {
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 /* The panel's top: its head, then (where the panel covers the room) the call's switches and the note. Someone at the
    door is shown under it there (--panel-top), never over the tabs or Close. */
@@ -5534,7 +5567,7 @@ button.contribution-quote:hover {
   cursor: pointer;
 }
 .message-bar button.bar-target:hover {
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 .message-bar button.bar-target:focus-visible {
   outline: 2px solid var(--halo);
@@ -6115,7 +6148,7 @@ button.contribution-quote:hover {
   outline: none;
 }
 .goal-press:focus-visible::after {
-  box-shadow: 0 0 0 2px rgb(var(--halo-text-rgb) / 0.7);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 .goal-row-line {
   margin: 0;
@@ -6592,7 +6625,7 @@ button.contribution-quote:hover {
 }
 .project-name-open:hover,
 .project-name-open[aria-expanded='true'] {
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 .project-name-text {
   min-width: 0;
