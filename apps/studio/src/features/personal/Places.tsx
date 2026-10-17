@@ -86,6 +86,7 @@ export interface PlacesProps {
   onOpenView: (projectId: string, view: ProjectView, at: NeedAt) => void
   onChooseDev: (identity: Identity | null) => void
   onSignOut: () => void
+  onSignOutEverywhere: () => void
 }
 
 const ANNOUNCE: Record<Place, string> = {
@@ -538,6 +539,7 @@ function Bar({ v }: { v: View }) {
         data: () => layers.setData(true),
         chooseDev: props.onChooseDev,
         signOut: props.onSignOut,
+        signOutEverywhere: props.onSignOutEverywhere,
       }}
     />
   )

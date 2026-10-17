@@ -10,7 +10,13 @@ import { after, before, describe, it } from 'node:test'
 import pg from 'pg'
 import { DomainError } from '@sophia/domain'
 import type { MissionProposalRequest } from '@sophia/contracts'
-import { createTestDatabase, registerRuntime, seedProject, type TestDatabase } from '@sophia/test-support'
+import {
+  createTestDatabase,
+  registerRuntime,
+  seedProject,
+  withClusterMigrationLock,
+  type TestDatabase,
+} from '@sophia/test-support'
 import { createConversationCandidateDatabase } from './conversation-candidate-fixture.ts'
 import { renderBound, recordPayload, type Binding } from './conversation-assembly.ts'
 import {
@@ -159,19 +165,40 @@ describe('CON reply ownership (L1 SQL, no runtime execution)', () => {
     assert.ok(constraints.rows.every((r) => r.convalidated))
   })
 
-  it('does not install an assembler role or give the API assembly privileges', async () => {
-    assert.equal(
-      (await owner.query("SELECT count(*)::int AS n FROM pg_roles WHERE rolname='sophia_conversation_assembler'"))
-        .rows[0]?.n,
-      0,
+  it('0064 installs no assembler role; 0070 adds it bare, and the API and worker still have no assembly privilege', async () => {
+    // 0064's own footprint: no role and no grant to one (its source, unchanged).
+    const runtime = readFileSync(
+      new URL('../../../db/migrations/0064_conversation_runtime.sql', import.meta.url),
+      'utf8',
     )
-    assert.equal(
-      (
-        await owner.query(`SELECT has_function_privilege('sophia_api',
-          'sophia.conversation_assembly_claim(uuid,integer)','EXECUTE') AS allowed`)
-      ).rows[0]?.allowed,
-      false,
-    )
+    assert.doesNotMatch(runtime, /CREATE ROLE|TO sophia_conversation_assembler/)
+    // 0070's: NOLOGIN, a member of no role, and here only this fixture's synthetic login as its member.
+    const role = (
+      await owner.query<{ login: boolean; memberOf: number; members: string[] }>(
+        `SELECT r.rolcanlogin AS login,
+           (SELECT count(*)::int FROM pg_auth_members m WHERE m.member=r.oid) AS "memberOf",
+           coalesce((SELECT array_agg(x.rolname::text ORDER BY x.rolname) FROM pg_auth_members m
+             JOIN pg_roles x ON x.oid=m.member WHERE m.roleid=r.oid),'{}'::text[]) AS members
+         FROM pg_roles r WHERE r.rolname='sophia_conversation_assembler'`,
+      )
+    ).rows[0]
+    assert.deepEqual(role, { login: false, memberOf: 0, members: [db.assemblerRole] })
+    for (const login of ['sophia_api', 'sophia_worker'])
+      for (const entry of [
+        'sophia.conversation_assembly_claim(uuid,integer)',
+        'sophia.conversation_record_context(uuid,integer,uuid,jsonb)',
+        'sophia.conversation_assembly_project()',
+      ])
+        assert.equal(
+          (
+            await owner.query<{ allowed: boolean }>(`SELECT has_function_privilege($1,$2,'EXECUTE') AS allowed`, [
+              login,
+              entry,
+            ])
+          ).rows[0]?.allowed,
+          false,
+          `${login} ${entry}`,
+        )
   })
 
   it('enforces the runtime-entrypoint-only grants through the actual API and worker logins', async () => {
@@ -2299,7 +2326,7 @@ const sharedInsertions: Record<string, string[]> = {
   dispatch_runtime_outbox: ['D1', 'D2'],
   native_delivery_ineligible: ['N1'],
   capture_native_result: ['C1', 'C3'],
-  runtime_hello: ['HELLO-LOSS', 'HELLO-BINDINGS'],
+  runtime_hello: ['HELLO-LOSS', 'HELLO-BINDINGS', 'HELLO-EXECUTOR'],
   apply_runtime_receipt: ['RECEIPT'],
   runtime_record_observations: ['OBS-LOCKS', 'OBS-REPLY'],
   runtime_cursor: [],
@@ -2313,8 +2340,22 @@ function removeInsertion(body: string, marker: string) {
   assert.match(body, pattern, `marked ${marker}`)
   return body.replace(pattern, '')
 }
+/** 0075's own marked insertions (A41, session retirement), removed as CON's are; named apart from CON's. */
+const retirementInsertions: Record<string, string> = {
+  dispatch_runtime_outbox: 'RETIRE-KIND',
+  runtime_hello: 'RETIRE-HELLO',
+}
 function restoredShared(identity: FunctionIdentity) {
   let definition = identity.definition
+  const retirement = retirementInsertions[identity.proname]
+  if (retirement) {
+    const pattern = new RegExp(
+      String.raw`^[ \t]*-- ${retirement}-BEGIN[^\n]*\n[\s\S]*?^[ \t]*-- ${retirement}-END[^\n]*\n`,
+      'm',
+    )
+    assert.match(definition, pattern, `marked ${retirement}`)
+    definition = definition.replace(pattern, '')
+  }
   for (const marker of sharedInsertions[identity.proname] ?? []) definition = removeInsertion(definition, marker)
   if (identity.proname === 'runtime_cursor') {
     definition = definition
@@ -2326,6 +2367,17 @@ function restoredShared(identity: FunctionIdentity) {
 
 // Immutable 7d8f415f S1-S4 function bodies (S4 deliberately supersedes S3 context_kept).
 // These hashes come from the approved frozen inputs, not the authored migration.
+/** What 0070 lets the assembler execute, of 0064's functions: the S3 candidate's own grants. */
+const ASSEMBLER_EXECUTES = new Set([
+  'conversation_assembly_claim',
+  'conversation_assembly_begin',
+  'conversation_assembly_close',
+  'conversation_assembly_fail',
+  'conversation_record_context',
+  'conversation_assembly_project',
+  'conversation_actor_label',
+])
+
 const frozenFunctions: Record<string, readonly [string, boolean, string]> = {
   conversation_withdrawn_from: [
     '789e613fb43a412d792ac32734ab0e080fa63a86483752429f4ee0ca00c1505d',
@@ -2649,28 +2701,51 @@ async function assertGoalOnlyErrors(urls: TestDatabase) {
   }
 }
 
+/**
+ * What 0067 (FND-B2 provenance, A35) adds after 0064's promotion, set aside when the promotion is compared with the sealed
+ * candidates: its own table, the grants' pinned execution, its guard, and the approvals' widened use (now including
+ * pin_execution). 0067's own tests cover them.
+ */
+const LATER_0067 = {
+  relations: ['conversation_dispatch_provenance'],
+  columns: [
+    'conversation_grants.execution',
+    'conversation_grants.executor_artifact_digest',
+    'conversation_grants.execution_pinned_at',
+  ],
+  constraints: [
+    'conversation_grants.conversation_grants_execution_check',
+    'conversation_grants.conversation_grants_executor_artifact_digest_check',
+    'conversation_grants.conversation_grants_execution_pinned',
+    'conversation_grant_approvals.conversation_grant_approvals_used_by_check',
+  ],
+  triggers: ['conversation_grants.conversation_grants_execution_kept'],
+}
+const notLater = (kind: 'columns' | 'constraints' | 'triggers', name: string) => (row: Record<string, unknown>) =>
+  !LATER_0067[kind].includes(`${String(row.relname)}.${String(row[name])}`)
+
 async function promotedRelations(c: pg.Client) {
   const selected = `n.nspname='sophia' AND t.relname LIKE 'conversation_%'
-    AND t.relname NOT IN ('conversation_executions','conversation_cancellations')`
+    AND t.relname NOT IN ('conversation_executions','conversation_cancellations',${LATER_0067.relations.map((r) => `'${r}'`).join(',')})`
   const result: Record<string, unknown> = {}
   result.constraints = (
     await c.query(`SELECT t.relname,k.conname,k.contype,k.convalidated,
     pg_get_constraintdef(k.oid,true) AS definition FROM pg_constraint k
     JOIN pg_class t ON t.oid=k.conrelid JOIN pg_namespace n ON n.oid=t.relnamespace
     WHERE ${selected} ORDER BY t.relname,k.conname`)
-  ).rows
+  ).rows.filter(notLater('constraints', 'conname'))
   result.columns = (
     await c.query(`SELECT t.relname,a.attname,a.attnum,a.atttypid::regtype::text AS type,
     a.attnotnull,pg_get_expr(d.adbin,d.adrelid) AS default FROM pg_attribute a
     JOIN pg_class t ON t.oid=a.attrelid JOIN pg_namespace n ON n.oid=t.relnamespace
     LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum
     WHERE ${selected} AND t.relkind='r' AND a.attnum>0 AND NOT a.attisdropped ORDER BY t.relname,a.attnum`)
-  ).rows
+  ).rows.filter(notLater('columns', 'attname'))
   result.triggers = (
     await c.query(`SELECT t.relname,g.tgname,pg_get_triggerdef(g.oid,true) AS definition
     FROM pg_trigger g JOIN pg_class t ON t.oid=g.tgrelid JOIN pg_namespace n ON n.oid=t.relnamespace
     WHERE ${selected} AND NOT g.tgisinternal ORDER BY t.relname,g.tgname`)
-  ).rows
+  ).rows.filter(notLater('triggers', 'tgname'))
   result.indexes = (
     await c.query(`SELECT t.relname,i.relname AS name,pg_get_indexdef(k.indexrelid) AS definition
     FROM pg_index k JOIN pg_class t ON t.oid=k.indrelid JOIN pg_namespace n ON n.oid=t.relnamespace
@@ -2738,20 +2813,23 @@ describe('CON migration preservation (real PostgreSQL)', () => {
     const baseline = await createConversationCandidateDatabase()
     const c = new pg.Client({ connectionString: baseline.ownerUrl })
     await c.connect()
-    let roleWasAbsent = false
     try {
-      assert.equal(
-        (await roleLock.query("SELECT count(*)::int AS n FROM pg_roles WHERE rolname='sophia_conversation_assembler'"))
-          .rows[0]?.n,
-        0,
-      )
-      roleWasAbsent = true
-      await applySealedCandidates(c)
-      assert.deepEqual(await promotedRelations(owner), await promotedRelations(c))
+      // Q13 forbids adopting the installed role's authority in another database: this cluster's role (0070, with this
+      // file's synthetic login) is parked under a test-only name, and the sealed candidate creates a fresh bare role,
+      // all in one transaction rolled back before the case ends (the pattern of conversation-fences.db.test.ts).
+      await withClusterMigrationLock(async () => {
+        await c.query('BEGIN')
+        try {
+          await c.query('ALTER ROLE sophia_conversation_assembler RENAME TO con01_runtime_installed')
+          await applySealedCandidates(c)
+          assert.deepEqual(await promotedRelations(owner), await promotedRelations(c))
+        } finally {
+          await c.query('ROLLBACK')
+        }
+      })
     } finally {
       await c.end()
       await baseline.drop()
-      if (roleWasAbsent) await roleLock.query('DROP ROLE IF EXISTS sophia_conversation_assembler')
     }
   })
 
@@ -2837,7 +2915,11 @@ describe('CON migration preservation (real PostgreSQL)', () => {
       assert.equal(identity.secdef, frozen[1], identity.proname)
       assert.deepEqual(identity.config, [`search_path=${frozen[2]}`], identity.proname)
       assert.equal(identity.owner, currentUser, identity.proname)
-      assert.deepEqual(identity.acl, [`${currentUser}=X/${currentUser}`], identity.proname)
+      // 0070 grants the assembler exactly the five entry points and the two claim-bound helpers; nothing else.
+      const assembler = ASSEMBLER_EXECUTES.has(identity.proname)
+        ? [`sophia_conversation_assembler=X/${currentUser}`]
+        : []
+      assert.deepEqual(identity.acl, [`${currentUser}=X/${currentUser}`, ...assembler], identity.proname)
     }
   })
 
@@ -3372,5 +3454,347 @@ describe('trusted CON hello contradictory predispatch evidence', () => {
     } finally {
       await owner.query('ROLLBACK')
     }
+  })
+})
+
+// --- 0067 / A35: a reply attempt's original execution, kept as dispatched (FND-B2, V's provenance disposition) -------
+
+const ARTIFACT = 'a'.repeat(64)
+const OTHER_ARTIFACT = 'b'.repeat(64)
+const SERVICE = { execution: 'service', routeId: 'route-test', executorArtifactDigest: ARTIFACT }
+
+async function lineageOf(projectId: string) {
+  const row = (
+    await owner.query<{ lineage_id: string }>(
+      'SELECT lineage_id FROM sophia.conversation_grants WHERE project_id=$1 AND current',
+      [projectId],
+    )
+  ).rows[0]
+  assert.ok(row)
+  return row.lineage_id
+}
+
+const pin = async (projectId: string, spec: Record<string, unknown> = {}) =>
+  owner.query('SELECT sophia.conversation_pin_execution($1,$2::jsonb)', [
+    projectId,
+    { lineageId: await lineageOf(projectId), approvalRef: `pin-${randomUUID()}`, ...SERVICE, ...spec },
+  ])
+
+/**
+ * The runtime's hello and ready again, its conversation role naming `executor` (A40): a pinned service grant is bound
+ * and dispatched only to a runtime advertising its exact tuple.
+ */
+async function advertise(rt: RuntimeSetup, executor: unknown) {
+  await call(rt, 'hello', {
+    protocolVersion: 1,
+    roles: [{ id: 'sophia-conversation-v1', route: 'route-test', presetDigest: 'synthetic', executor }],
+  })
+  await call(rt, 'record_ready', { state: 'ready', reason: null, unrecovered: [] })
+}
+
+async function serviceScene() {
+  const rt = await runtimeProject()
+  await advertise(rt, SERVICE)
+  await pin(rt.projectId)
+  return nativeScene(rt)
+}
+
+async function provenanceOf(s: NativeScene) {
+  return (
+    await owner.query<Record<string, unknown>>(
+      `SELECT execution,route_id,executor_artifact_digest,runtime_command_id,lineage_id FROM sophia.conversation_dispatch_provenance
+        WHERE project_id=$1 AND attempt_id=$2`,
+      [s.projectId, s.attempt_id],
+    )
+  ).rows[0]
+}
+
+/** A reply ended before it ran, its create scrubbed, and its retire dispatched to the runtime. */
+async function toRetire(s: NativeScene) {
+  assert.equal((await dispatch(s))?.result, 'dispatched')
+  await receipt(s, 'create', 'failed')
+  assert.equal((await dispatch(s, 'native.retire'))?.result, 'dispatched')
+}
+
+async function retireReceipt(s: NativeScene, executor?: unknown) {
+  const c = await command(s, 'retire')
+  return call<number>(s.rt, 'record_receipts', [
+    {
+      commandId: c.id,
+      attemptId: s.attempt_id,
+      nativeSessionId: s.native_session_id,
+      stage: 'checked',
+      observedAt: new Date().toISOString(),
+      ...(executor === undefined ? {} : { executor }),
+    },
+  ])
+}
+
+const bindingState = async (s: NativeScene) =>
+  (await owner.query<{ state: string }>('SELECT state FROM sophia.execution_bindings WHERE id=$1', [s.binding_id]))
+    .rows[0]?.state
+
+async function helloBinding(s: NativeScene) {
+  const hello = await call<{ bindings: Record<string, unknown>[] }>(s.rt, 'hello', {
+    protocolVersion: 1,
+    roles: [{ id: 'sophia-conversation-v1', route: 'route-test', presetDigest: 'synthetic' }],
+  })
+  return hello.bindings.find((b) => b.attemptId === s.attempt_id)
+}
+
+/** Whether `p` settles within `ms`: a transaction waiting on a lock does not. */
+const settledWithin = async (p: Promise<unknown>, ms: number) =>
+  Promise.race([
+    p.then(
+      () => true,
+      () => true,
+    ),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), ms)),
+  ])
+
+describe('conversation execution provenance (0067, A35)', () => {
+  it('pins a lineage to service once, before it dispatches; the tuple and a service route never change after', async () => {
+    const rt = await runtimeProject()
+    await assert.rejects(
+      api.query('SELECT sophia.conversation_pin_execution($1,$2::jsonb)', [rt.projectId, {}]),
+      denied('42501'),
+    )
+    await assert.rejects(pin(rt.projectId, { executorArtifactDigest: 'short' }), denied('22023'))
+    await assert.rejects(pin(rt.projectId, { routeId: 'another-route' }), denied('22023'))
+    await assert.rejects(
+      owner.query(
+        "UPDATE sophia.conversation_grants SET execution='service',executor_artifact_digest=$2,execution_pinned_at=now() WHERE project_id=$1",
+        [rt.projectId, ARTIFACT],
+      ),
+      denied('42501'),
+      'only the pin function pins',
+    )
+    const approvalRef = `pin-${randomUUID()}`
+    await pin(rt.projectId, { approvalRef })
+    await pin(rt.projectId, { approvalRef }) // the same pin, replayed
+    await assert.rejects(pin(rt.projectId, { executorArtifactDigest: OTHER_ARTIFACT }), denied('55000'))
+    await assert.rejects(
+      owner.query('UPDATE sophia.conversation_grants SET executor_artifact_digest=$2 WHERE project_id=$1', [
+        rt.projectId,
+        OTHER_ARTIFACT,
+      ]),
+      denied('55000'),
+    )
+    await assert.rejects(
+      owner.query('SELECT sophia.conversation_set_grant($1,$2::jsonb)', [rt.projectId, { routeId: 'another-route' }]),
+      denied('55000'),
+      'a service lineage keeps its route',
+    )
+    // A native lineage that has dispatched is not pinned afterwards.
+    const native = await nativeScene()
+    assert.equal((await dispatch(native))?.result, 'dispatched')
+    await assert.rejects(pin(native.projectId), denied('55000'))
+  })
+
+  it('serializes a pin with a dispatch of its lineage, either way round (Codex P1 on #393)', async () => {
+    // A pin first, uncommitted: the dispatch waits for it, then records the service tuple the lineage now has. The bound
+    // runtime advertises that executor (A40), so only the pin decides the outcome.
+    const first = await nativeScene()
+    await advertise(first.rt, SERVICE)
+    const pinning = new pg.Client({ connectionString: db.ownerUrl })
+    await pinning.connect()
+    try {
+      await pinning.query('BEGIN')
+      await pinning.query('SELECT sophia.conversation_pin_execution($1,$2::jsonb)', [
+        first.projectId,
+        { lineageId: await lineageOf(first.projectId), approvalRef: `pin-${randomUUID()}`, ...SERVICE },
+      ])
+      const dispatching = dispatch(first)
+      assert.equal(await settledWithin(dispatching, 400), false, 'the dispatch waits for the pin')
+      await pinning.query('COMMIT')
+      assert.equal((await dispatching)?.result, 'dispatched')
+      assert.equal((await provenanceOf(first))?.execution, 'service')
+    } finally {
+      await pinning.end()
+    }
+    // A dispatch first, uncommitted: the pin waits for it, then finds the lineage has dispatched.
+    const second = await nativeScene()
+    const lease = await dispatchLease(second)
+    const dispatcher = await worker.connect()
+    try {
+      await dispatcher.query('BEGIN')
+      await dispatcher.query('SELECT sophia.dispatch_runtime_outbox($1,$2,$3)', [
+        second.projectId,
+        lease.id,
+        lease.lease,
+      ])
+      const pinned = pin(second.projectId)
+      assert.equal(await settledWithin(pinned, 400), false, 'the pin waits for the dispatch')
+      await dispatcher.query('COMMIT')
+      await assert.rejects(pinned, denied('55000'))
+      assert.equal((await provenanceOf(second))?.execution, 'native')
+    } finally {
+      dispatcher.release()
+    }
+  })
+
+  it('copies the tuple at dispatch, before anything runs; a service create carries it, a native one does not', async () => {
+    const s = await serviceScene()
+    assert.equal(await provenanceOf(s), undefined, 'nothing before dispatch')
+    assert.equal((await dispatch(s))?.result, 'dispatched')
+    const c = await command(s)
+    assert.deepEqual(await provenanceOf(s), {
+      execution: 'service',
+      route_id: 'route-test',
+      executor_artifact_digest: ARTIFACT,
+      runtime_command_id: c.id,
+      lineage_id: await lineageOf(s.projectId),
+    })
+    const body = (await owner.query('SELECT body FROM sophia.runtime_commands WHERE id=$1', [c.id])).rows[0]?.body
+    assert.deepEqual(body.payload.conversation.execution, SERVICE)
+    const n = await nativeScene()
+    assert.equal((await dispatch(n))?.result, 'dispatched')
+    assert.deepEqual(
+      { ...(await provenanceOf(n)), runtime_command_id: null, lineage_id: null },
+      {
+        execution: 'native',
+        route_id: 'route-test',
+        executor_artifact_digest: null,
+        runtime_command_id: null,
+        lineage_id: null,
+      },
+    )
+    const nativeBody = (
+      await owner.query('SELECT body FROM sophia.runtime_commands WHERE id=$1', [(await command(n)).id])
+    ).rows[0]?.body
+    assert.equal('execution' in nativeBody.payload.conversation, false)
+  })
+
+  it('is kept as dispatched: no update, delete or truncate, and no login reads or writes it', async () => {
+    const s = await serviceScene()
+    assert.equal((await dispatch(s))?.result, 'dispatched')
+    const where = [s.projectId, s.attempt_id]
+    await assert.rejects(
+      owner.query(
+        "UPDATE sophia.conversation_dispatch_provenance SET execution='native',executor_artifact_digest=NULL WHERE project_id=$1 AND attempt_id=$2",
+        where,
+      ),
+      denied('55000'),
+    )
+    await assert.rejects(
+      owner.query('DELETE FROM sophia.conversation_dispatch_provenance WHERE project_id=$1 AND attempt_id=$2', where),
+      denied('55000'),
+    )
+    await owner.query('BEGIN')
+    try {
+      await assert.rejects(owner.query('TRUNCATE sophia.conversation_dispatch_provenance CASCADE'), denied('55000'))
+    } finally {
+      await owner.query('ROLLBACK')
+    }
+    for (const pool of [api, worker]) {
+      await assert.rejects(pool.query('SELECT * FROM sophia.conversation_dispatch_provenance'), denied('42501'))
+      await assert.rejects(
+        pool.query(
+          "INSERT INTO sophia.conversation_dispatch_provenance(project_id,attempt_id,reply_id,runtime_command_id,lineage_id,execution,route_id) VALUES($1,$2,$2,$2,$2,'native','route-test')",
+          [s.projectId, randomUUID()],
+        ),
+        denied('42501'),
+      )
+    }
+    assert.equal((await provenanceOf(s))?.execution, 'service')
+  })
+
+  it('survives the scrub of its create, and only a service attempt projects it in hello; grant changes never follow', async () => {
+    const s = await serviceScene()
+    await toRetire(s)
+    const c = await command(s)
+    const body = (await owner.query('SELECT body FROM sophia.runtime_commands WHERE id=$1', [c.id])).rows[0]?.body
+    assert.deepEqual(body.payload, { scrubbed: true })
+    assert.deepEqual((await helloBinding(s))?.provenance, SERVICE)
+    // A new grant lineage (no outstanding reservation) with another route cannot reclassify the dispatched attempt.
+    await owner.query('SELECT sophia.conversation_new_lineage($1,$2::jsonb)', [
+      s.projectId,
+      {
+        unit: 'calls_tokens',
+        routeId: 'route-other',
+        credentialRef: 'synthetic-credential-ref',
+        ownerResourceRef: 'synthetic-owner-resource-ref',
+        approvalRef: `lineage-${randomUUID()}`,
+        expiresAt: new Date(Date.now() + 600_000).toISOString(),
+        maxCallsPerReply: 1,
+        totalCallCap: 1,
+        replyTokenCap: 10,
+        totalTokenCap: 10,
+        subjects: [E],
+      },
+    ])
+    assert.deepEqual((await helloBinding(s))?.provenance, SERVICE)
+    const n = await nativeScene()
+    await toRetire(n)
+    assert.equal('provenance' in ((await helloBinding(n)) ?? {}), false)
+  })
+
+  it('retires a service attempt only on its exact service claim: omission, native, wrong route or digest refuse', async () => {
+    const s = await serviceScene()
+    await toRetire(s)
+    for (const executor of [
+      undefined,
+      { execution: 'native' },
+      { ...SERVICE, routeId: 'route-other' },
+      { ...SERVICE, executorArtifactDigest: OTHER_ARTIFACT },
+      { execution: 'service', routeId: 'route-test' },
+      { ...SERVICE, extra: true },
+    ]) {
+      await assert.rejects(retireReceipt(s, executor), (e: unknown) => denied('42501')(e) || denied('22023')(e))
+      assert.notEqual(await bindingState(s), 'retired', JSON.stringify(executor))
+    }
+    assert.equal(await retireReceipt(s, SERVICE), 1)
+    assert.equal(await bindingState(s), 'retired')
+    assert.equal(await retireReceipt(s, SERVICE), 0, 'the same receipt again changes nothing')
+    await assert.rejects(retireReceipt(s, undefined), denied('42501'), 'a replay cannot drop its claim')
+  })
+
+  it('refuses a service claim for a native or unknown attempt, whose own cleanup is unchanged', async () => {
+    const n = await nativeScene()
+    await toRetire(n)
+    await assert.rejects(retireReceipt(n, SERVICE), denied('42501'))
+    assert.notEqual(await bindingState(n), 'retired')
+    assert.equal(await retireReceipt(n), 1)
+    assert.equal(await bindingState(n), 'retired')
+    const k = await nativeScene()
+    await toRetire(k)
+    assert.equal(await retireReceipt(k, { execution: 'native' }), 1, 'a native claim on a native attempt')
+    // A replay under the same command and stage keeps the claim it was recorded with.
+    await assert.rejects(retireReceipt(k), denied('23505'))
+    assert.equal(await retireReceipt(k, { execution: 'native' }), 0)
+  })
+
+  it('a service attempt with an uncertain reservation: no redispatch, retired with its cost unchanged', async () => {
+    const s = await serviceScene()
+    await go(s)
+    await receipt(s, 'create', 'delivered')
+    await call(s.rt, 'conversation_reserve', { ...(await request(s)), ordinal: 1, call: callBound })
+    await receipt(s, 'create', 'outcome_unknown')
+    assert.equal((await reply(s))?.state, 'outcome_unknown')
+    const counted = await counters(s)
+    const reservations = async () =>
+      (
+        await owner.query<{ call_ordinal: number; state: string; amount_tokens: string }>(
+          'SELECT call_ordinal,state,amount_tokens FROM sophia.conversation_reservations WHERE reply_id=$1',
+          [s.replyId],
+        )
+      ).rows
+    const reserved = await reservations()
+    assert.equal(reserved[0]?.state, 'uncertain')
+    const creates = async () =>
+      (
+        await owner.query<{ n: number }>(
+          "SELECT count(*)::int AS n FROM sophia.runtime_commands WHERE project_id=$1 AND binding_id=$2 AND kind='create'",
+          [s.projectId, s.binding_id],
+        )
+      ).rows[0]?.n
+    assert.equal(await creates(), 1)
+    assert.deepEqual((await helloBinding(s))?.provenance, SERVICE)
+    assert.equal((await dispatch(s, 'native.retire'))?.result, 'dispatched')
+    assert.equal(await retireReceipt(s, SERVICE), 1)
+    assert.equal(await bindingState(s), 'retired')
+    assert.deepEqual(await counters(s), counted, 'reserved, spent and uncertain counters unchanged')
+    assert.deepEqual(await reservations(), reserved)
+    assert.equal(await creates(), 1, 'nothing dispatched again')
   })
 })
