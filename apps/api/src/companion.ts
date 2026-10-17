@@ -42,11 +42,22 @@ export interface CompanionReply {
  * Each call is given a signal that aborts once its time is up, or once the space is erased: it must stop then (and
  * settle), so nothing is asked again, and no erasure is acknowledged, while it still runs.
  */
+/** The registered call an answer runs in (begin_companion_call): whose space, and the call's own id. */
+export interface CompanionCall {
+  readonly actorId: string
+  readonly callId: string
+}
+
 export interface Companion {
   readonly mode: 'rehearsal' | 'live'
-  answer(context: CompanionContext, signal: AbortSignal): Promise<CompanionReply>
+  /** The one person it answers live (#435 4304103151); none for a companion that serves anyone (the rehearsal). */
+  readonly owner?: string
+  /** `call` names the registered call this answer runs in; a live companion reserves and settles its cost under it. */
+  answer(context: CompanionContext, signal: AbortSignal, call?: CompanionCall): Promise<CompanionReply>
   /** Sophia's welcome back after a quiet spell, from the conversation so far; `name` is who she greets. */
   greet(context: Omit<CompanionContext, 'asked'>, name: string | null, signal: AbortSignal): Promise<string>
+  /** Whether what it needs outside this process is in place (/ready); none means nothing is needed. */
+  ready?(): Promise<boolean>
 }
 
 /**
@@ -178,7 +189,7 @@ export class CompanionRunner {
   private async withCall<T>(
     actorId: string,
     holds: (c: pg.PoolClient) => Promise<boolean>,
-    body: (stop: AbortSignal) => Promise<T>,
+    body: (stop: AbortSignal, callId: string) => Promise<T>,
   ): Promise<T> {
     const id = randomUUID()
     const epoch = await withActor(this.pool, actorId, 'write', (c) => beginCompanionCall(c, id))
@@ -195,7 +206,7 @@ export class CompanionRunner {
       )
     }, this.watchMs)
     try {
-      return await body(call.stop.signal)
+      return await body(call.stop.signal, call.id)
     } finally {
       clearInterval(watch)
       mine.delete(call)
@@ -207,6 +218,11 @@ export class CompanionRunner {
 
   get mode(): Companion['mode'] {
     return this.companion.mode
+  }
+
+  /** Whether it answers this person's turns live: the payer's one enrolled owner, or anyone for the rehearsal. */
+  serves(actorId: string): boolean {
+    return this.companion.owner === undefined || this.companion.owner === actorId.toLowerCase()
   }
 
   /** Start answering `turnId` for `actorId`; resolves when the reply or the failure is written. */
@@ -311,10 +327,12 @@ export class CompanionRunner {
       reply = await this.withCall(
         actorId,
         (c) => renewPersonalReply(c, turnId, claim),
-        async (stop) => {
+        async (stop, callId) => {
           // Its lease is renewed as the context goes to the companion: no other attempt takes the turn meanwhile.
           const context = await withActor(this.pool, actorId, 'write', (c) => readCompanionContext(c, turnId, claim))
-          return context ? withinLimit((signal) => this.companion.answer(context, signal), this.limitMs, stop) : null
+          return context
+            ? withinLimit((signal) => this.companion.answer(context, signal, { actorId, callId }), this.limitMs, stop)
+            : null
         },
       )
     } catch (err: unknown) {
