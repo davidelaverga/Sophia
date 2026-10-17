@@ -5064,8 +5064,8 @@ button.contribution-quote:hover {
 /* The chat and the brief in the stage's corner, level with the dock and dressed like it. The stage's own width
    decides where the corner sits, not the window's: the stage narrows when the panel opens beside it. */
 .room-stage {
-  /* What the dock leaves free on each side for the corner: its two buttons and a gap. */
-  --corner-room: 104px;
+  /* What the dock leaves free on each side for the corner: its three toggles (Chat, People, Brief) and a gap. */
+  --corner-room: 144px;
 }
 .stage-corner {
   position: absolute;
@@ -5110,7 +5110,7 @@ button.contribution-quote:hover {
    lens size), and the corner here and the panel's tabs line up with them. */
 @media (pointer: coarse) {
   .room-stage {
-    --corner-room: 112px;
+    --corner-room: 156px;
   }
   @container (max-width: 799.98px) {
     .stage-corner {
@@ -6784,22 +6784,27 @@ button.contribution-quote:hover {
 }
 .activity-list {
   display: grid;
-  gap: 2px;
+  /* One set of columns for every row (subgrid), so the acts and the times line up; a long unbroken name (an email, up
+     to 320 characters) takes at most 40 % and wraps (Codex P2 on #355). */
+  grid-template-columns: fit-content(40%) minmax(0, 1fr) auto;
+  gap: 2px 12px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .activity-list li {
   display: grid;
-  grid-template-columns: minmax(80px, auto) minmax(0, 1fr) auto;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: baseline;
-  gap: 12px;
   padding: 6px 0;
   border-bottom: 1px solid var(--line);
   font-size: var(--type-small);
 }
 .activity-who {
+  min-width: 0;
   color: var(--text);
+  overflow-wrap: anywhere;
 }
 .activity-what {
   color: var(--text-2);
@@ -6826,4 +6831,15 @@ button.contribution-quote:hover {
   padding: 8px 16px;
   border-bottom: 1px solid var(--line);
   color: var(--text-2);
+}
+
+/* «Mute everyone» at the People panel's head, for an admin (docs/plans/host-more.md). */
+.people-head {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  padding: 12px 0 8px;
+}
+.people-head .confirm {
+  justify-self: stretch;
 }

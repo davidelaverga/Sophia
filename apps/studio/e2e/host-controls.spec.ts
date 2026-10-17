@@ -96,3 +96,76 @@ test('host · while a control is on its way, its row waits; the menu hands focus
   await expect(actions(page, 'Marco')).not.toHaveAttribute('aria-disabled', 'true')
   expect((await served(page)).filter((s) => s === `mute:${MARCO}`)).toHaveLength(1)
 })
+
+test('host · an admin turns a member’s camera off, and stops a member’s screen', async ({ page }) => {
+  await enter(page, '&video=camera')
+  await actions(page, 'Marco').click()
+  await expect(menu(page, 'Marco').getByRole('menuitem')).toHaveText([
+    'Mute microphone',
+    'Turn off camera',
+    'Remove from call',
+  ])
+  await menu(page, 'Marco').getByRole('menuitem', { name: 'Turn off camera' }).click()
+  await expect.poll(() => served(page)).toContain(`stop-camera:${MARCO}`)
+  await page.goto('/room.html?call=on&people=2&video=screen')
+  await page.locator('.panel-toggles [data-panel="people"]').click()
+  await actions(page, 'Marco').click()
+  await menu(page, 'Marco').getByRole('menuitem', { name: 'Stop screen sharing' }).click()
+  await expect.poll(() => served(page)).toContain(`stop-screen:${MARCO}`)
+})
+
+test('host · «Mute everyone» asks first, then every other microphone is off', async ({ page }) => {
+  await enter(page)
+  await page.getByRole('button', { name: 'Mute everyone' }).click()
+  await expect(page.getByText('Everyone else’s microphone goes off')).toBeVisible()
+  await page.getByRole('button', { name: 'Mute them' }).click()
+  await expect.poll(() => served(page)).toContain('mute-all')
+  await expect(
+    list(page).locator('li', { hasText: 'Marco' }).getByRole('img', { name: 'Microphone off' }),
+  ).toBeVisible()
+  await expect(
+    list(page).locator('li', { hasText: 'Lucía' }).getByRole('img', { name: 'Microphone off' }),
+  ).toBeVisible()
+})
+
+test('host · an editor has no «Mute everyone»', async ({ page }) => {
+  await enter(page, '&role=editor')
+  await expect(list(page)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Mute everyone' })).toHaveCount(0)
+})
+
+test('host · a control past six seconds says it is slow, as every Studio write does (Codex P2 on #351)', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.holdHost(true))
+  await actions(page, 'Marco').click()
+  await menu(page, 'Marco').getByRole('menuitem', { name: 'Mute microphone' }).click()
+  const row = list(page).locator('li', { hasText: 'Marco' })
+  await expect(row.getByRole('status')).toContainText('Taking longer than usual', { timeout: 9000 })
+  await page.evaluate(() => window.fixture?.holdHost(false))
+})
+
+test('host · removed by keyboard, the focus goes to the list, never the page (Codex P2 on #351)', async ({ page }) => {
+  await enter(page)
+  await actions(page, 'Lucía').focus()
+  await page.keyboard.press('Enter')
+  await menu(page, 'Lucía').getByRole('menuitem', { name: 'Remove from call' }).press('Enter')
+  await expect(list(page).locator('.person-name')).toHaveText(['Fixture · you', 'Marco'])
+  await expect(list(page)).toBeFocused()
+})
+
+test('host · the corner keeps room for its three toggles beside the dock (Codex P2 on #351)', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/room.html?call=on&people=2')
+  await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
+  const fits = await page.evaluate(() => {
+    const corner = document.querySelector<HTMLElement>('.panel-toggles')
+    const stage = document.querySelector<HTMLElement>('.room-stage')
+    if (!corner || !stage) return null
+    const room = Number.parseFloat(getComputedStyle(stage).getPropertyValue('--corner-room'))
+    return { room, corner: corner.getBoundingClientRect().width }
+  })
+  expect(fits).not.toBeNull()
+  expect(fits?.room ?? 0).toBeGreaterThanOrEqual((fits?.corner ?? 0) + 12)
+})

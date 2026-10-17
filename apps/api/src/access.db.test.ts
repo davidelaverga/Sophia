@@ -12,6 +12,7 @@ import { after, before, describe, it } from 'node:test'
 import {
   parseInvitation,
   parseInvitationPreview,
+  parseActivityPage,
   parseLobbyEntry,
   parseMembership,
   parseRoomSession,
@@ -103,6 +104,26 @@ describe('guest invitations', () => {
       key: true,
     })
     assert.equal(res.status, 503)
+  })
+
+  it('name a guest in the activity: their knock under the name they gave, and the decision on them (activity-followups.md)', async () => {
+    const link = { token: tokenOf(parseInvitation((await invite(B, { kind: 'guest' })).json).url) }
+    const G = randomUUID()
+    const knocked = parseLobbyEntry(
+      (await call('/api/v1/join/knock', { bearer: await guestToken(G), body: { ...link, displayName: 'Rosa' } })).json,
+    )
+    await call(`/api/v1/lobby/${knocked.id}/decision`, { bearer: await token(B), body: { decision: 'admit' } })
+    const read = parseActivityPage(
+      (await call(`/api/v1/projects/${seed.projectId}/activity`, { method: 'GET', bearer: await token(A) })).json,
+    )
+    const lobby = read.entries.filter((e) => e.type === 'room.lobby_changed').slice(0, 2)
+    assert.deepEqual(
+      lobby.map((e) => [e.actor.id, e.actor.name, e.target?.id ?? null, e.target?.name ?? null]),
+      [
+        [B, lobby[0]?.actor.name ?? null, G, 'Rosa'],
+        [G, 'Rosa', null, null],
+      ],
+    )
   })
 
   it('let an anonymous guest knock, wait, and join only after an editor admits them', async () => {

@@ -45,6 +45,37 @@ export async function readProjectActivity(
 }
 
 /** Record an admin's act on a member in the call (A24, 0057); returns the event's cursor. Inside withActor("write"). */
+/**
+ * An admin's camera stop, screen stop, or everyone muted (A31, 0060), recorded once the room server has done it; the
+ * target is the member, or null for everyone. Call inside withActor(..., "write").
+ */
+export async function recordRoomAct(
+  c: pg.PoolClient,
+  projectId: string,
+  target: string | null,
+  act: 'camera' | 'screen' | 'mute_all',
+): Promise<string> {
+  const { rows } = await c.query<{ cursor: string }>(`SELECT sophia.record_room_act($1, $2, $3)::text AS cursor`, [
+    projectId,
+    target,
+    act,
+  ])
+  return onlyRow(rows, 'record_room_act').cursor
+}
+
+/**
+ * Whether this admin took `target` out of the call in the last ten minutes (Codex P2 on #351): a retry of a removal
+ * whose answer was lost finds them gone, and is answered as done. Call inside withActor(..., "read").
+ */
+export async function removedJustNow(c: pg.PoolClient, projectId: string, target: string): Promise<boolean> {
+  const { rows } = await c.query<{ done: boolean }>(
+    `SELECT EXISTS(SELECT 1 FROM sophia.project_events WHERE project_id = $1 AND type = 'room.host_removed'
+       AND entity_id = $2 AND actor_id = sophia.actor_id() AND occurred_at > now() - interval '10 minutes') AS done`,
+    [projectId, target],
+  )
+  return onlyRow(rows, 'removed_just_now').done
+}
+
 export async function recordHostAct(
   c: pg.PoolClient,
   projectId: string,

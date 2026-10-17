@@ -183,6 +183,8 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.project_activity(uuid,bigint,integer)') IS NOT NULL
   AND to_regprocedure('sophia.remove_member(uuid,uuid,text)') IS NOT NULL
   AND to_regprocedure('sophia.set_project_archived(uuid,boolean,text)') IS NOT NULL
+  AND to_regprocedure('sophia.record_room_act(uuid,uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.activity_name(uuid,uuid)') IS NOT NULL
   AND to_regprocedure('sophia.name_from_room(uuid)') IS NOT NULL
   AND ${COLUMNS.map(([table, column]) => columnExists(table, column)).join('\n  AND ')} AS ok`
 
