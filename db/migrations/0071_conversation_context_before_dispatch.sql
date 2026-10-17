@@ -9,9 +9,11 @@
 --   privacy) and every other path, provenance included, is unchanged.
 -- * conversation_ask (0064), replaced: the same, refusing at once (reply blocked, context_assembler_unbound, no attempt
 --   or outbox) when the assembler role has no admitted execution login: a LOGIN member of it alone, itself bare
---   (0070's member rule) and allowed to connect here. Whether that login's worker is running is not knowable here; a
---   bound login whose worker is absent leaves the context unrecorded, and the create is denied context_unavailable by
---   the first dispatch pass that processes it after the wait.
+--   (0070's member rule) and allowed to connect here, through a membership the worker can use as the activation
+--   check requires: SET, without ADMIN (#393 r4300923362), since the worker's SET LOCAL ROLE needs SET. Whether that
+--   login's worker is running is not knowable here; a bound login whose worker is absent leaves the context
+--   unrecorded, and the create is denied context_unavailable by the first dispatch pass that processes it after the
+--   wait.
 -- * conversation_context_wait() = 120 s: the deadline until which a create may wait for its context, not a latency
 --   guarantee. It is sized from ONE reply's uncontended worst case under the worker's assembly limits (apps/worker,
 --   ASSEMBLY_LIMITS: deadline 10 s, lease 30 s = checkedLimits' floor of three deadlines, and at least statement +
@@ -32,6 +34,7 @@ CREATE FUNCTION sophia.conversation_assembler_admitted() RETURNS boolean LANGUAG
 SET search_path=pg_catalog AS $$
  SELECT EXISTS(SELECT FROM pg_roles a JOIN pg_auth_members m ON m.roleid=a.oid JOIN pg_roles r ON r.oid=m.member
   WHERE a.rolname='sophia_conversation_assembler' AND NOT a.rolcanlogin AND r.rolcanlogin
+   AND m.set_option AND NOT m.admin_option
    AND NOT (r.rolsuper OR r.rolbypassrls OR r.rolcreatedb OR r.rolcreaterole OR r.rolreplication)
    AND NOT EXISTS(SELECT FROM pg_auth_members o WHERE o.member=r.oid AND o.roleid<>a.oid)
    AND NOT EXISTS(SELECT FROM pg_auth_members o WHERE o.roleid=r.oid)

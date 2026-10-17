@@ -138,6 +138,54 @@ describe('0071, no admitted assembler login', () => {
   })
 })
 
+describe('0071, an assembler login whose membership cannot SET the role (#393 r4300923362)', () => {
+  let w: World
+  const login = `sophia_assembler_noset_${randomUUID().replaceAll('-', '').slice(0, 12)}`
+  before(async () => {
+    w = await open(false)
+    // Otherwise bare (LOGIN, no attribute, no other membership, CONNECT through PUBLIC), but the worker's
+    // SET LOCAL ROLE needs SET on this edge, and the activation check holds 'assembler edge: ... no SET'.
+    await w.owner.query(`CREATE ROLE ${login} LOGIN`)
+    await w.owner.query(`GRANT sophia_conversation_assembler TO ${login} WITH SET FALSE`)
+  })
+  after(async () => {
+    await close(w)
+    const admin = new pg.Client({ connectionString: process.env.SOPHIA_DISPOSABLE_DATABASE_URL })
+    await admin.connect()
+    try {
+      await admin.query(`DROP ROLE IF EXISTS ${login}`)
+    } finally {
+      await admin.end()
+    }
+  })
+
+  it('cannot act as the assembler: its SET LOCAL ROLE is refused', async () => {
+    const u = new URL(w.db.ownerUrl)
+    u.username = login
+    u.password = ''
+    const c = new pg.Client({ connectionString: u.toString() })
+    await c.connect()
+    try {
+      await c.query('BEGIN')
+      await assert.rejects(c.query('SET LOCAL ROLE sophia_conversation_assembler'), { code: '42501' })
+      await c.query('ROLLBACK')
+    } finally {
+      await c.end()
+    }
+  })
+
+  it('refuses the Ask at once (blocked, context_assembler_unbound): no attempt, no outbox, nothing dispatched', async () => {
+    const s = await ask(w, await project(w))
+    assert.deepEqual(await reply(w, s.replyId), { state: 'blocked', reason: 'context_assembler_unbound' })
+    const rows = await w.owner.query(
+      `SELECT (SELECT count(*)::int FROM sophia.work_attempts WHERE conversation_reply_id=$1) AS attempts,
+         (SELECT count(*)::int FROM sophia.outbox WHERE conversation_reply_id=$1) AS outbox`,
+      [s.replyId],
+    )
+    assert.deepEqual(rows.rows[0], { attempts: 0, outbox: 0 })
+  })
+})
+
 describe('0071, an admitted (synthetic) assembler login', () => {
   let w: World
   before(async () => {
