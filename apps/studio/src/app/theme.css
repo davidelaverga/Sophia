@@ -3268,6 +3268,36 @@ button.contribution-quote:hover {
   color: var(--text-2);
   font-size: var(--type-small);
 }
+/* What a view's boundary holds draws as if it weren't there: its children stay the page's own boxes (view-boundary.md). */
+.view-body {
+  display: contents;
+}
+/* A view that failed to draw (view-boundary.md): its place says so, quietly, with its two ways on; the shell stays. */
+.view-failed {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  max-width: 520px;
+  margin: 48px auto;
+  padding: 0 var(--gutter);
+}
+.view-failed-title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: 600;
+}
+.view-failed-note {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.view-failed-acts {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
 /* A new version said (new-version.md): the toast's look at the page's top, above everything, and it stays until
    answered. */
 .new-version {
