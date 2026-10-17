@@ -26,7 +26,8 @@ test('served names · the demo’s board names who decides, who chose and who a 
   const pill = board(page).locator('.decision-pill')
   await expect(pill).toHaveText('1 decision for Marco')
   // The task waiting on Marco's permission says whose it is.
-  await expect(board(page).locator('[data-task]').filter({ hasText: TASK })).toContainText('Waiting on Marco')
+  await expect(board(page).locator('[data-task="work-1"]')).toContainText(TASK)
+  await expect(board(page).locator('[data-task="work-1"]')).toContainText('Waiting on Marco')
   await pill.click()
   const decision = board(page).locator('[data-decision]')
   await expect(decision).toHaveAttribute('aria-label', 'Marco decides')
@@ -46,9 +47,11 @@ test('@phone · served names · on a phone the pill names Marco on one line, who
   await page.goto('/room.html?demo=1&place=work')
   const pill = board(page).locator('.decision-pill')
   await expect(pill).toHaveText('1 decision for Marco')
+  // The words alone, not the dot or the chevron beside them: one line box each line they take.
   const fit = await pill.evaluate((el) => {
+    const words = [...el.childNodes].find((n) => n.nodeType === Node.TEXT_NODE)
     const range = document.createRange()
-    range.selectNodeContents(el)
+    if (words) range.selectNodeContents(words)
     const lines = new Set([...range.getClientRects()].map((r) => Math.round(r.top)))
     return { whole: el.scrollWidth <= el.clientWidth, lines: lines.size }
   })

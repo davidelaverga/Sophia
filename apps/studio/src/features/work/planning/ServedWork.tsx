@@ -5,13 +5,15 @@
 // Paperclip, and nothing derives a grant: each action is as the board's view allows it to the viewer.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { Goal } from '@sophia/contracts'
+import type { Goal, ProjectMember } from '@sophia/contracts'
+import { getProjectMembers } from '../../../api/client.ts'
 import { answerDecision, commandWork, operationReceipt, readBoard, workResult } from '../../../api/work.ts'
 import { tokenSubject } from '../../../app/auth-callback.ts'
 import type { Identity } from '../../../app/dev-identity.ts'
 import type { Feed } from '../../../projectors/projection.ts'
 import type { Resource } from '../../resources/resource.ts'
 import type { GoalPlan } from '../GoalList.tsx'
+import { boardPeople, viewerOf } from './board-people.ts'
 import { readBoardView, type BoardView } from './board-view.ts'
 import { Decision, type Decide } from './Decision.tsx'
 import { PlanBoard } from './PlanBoard.tsx'
@@ -132,12 +134,21 @@ export interface ServedFor {
   enabled: boolean
 }
 
-/** The viewer as the board names them; nobody else's name is known here, so others read as "someone". */
-function peopleOf(identity: Identity, viewerId: string | null): Record<string, Person> {
-  if (!viewerId) return {}
-  return {
-    [viewerId]: { id: viewerId, name: identity.displayName ?? identity.name, avatarUrl: identity.avatarUrl ?? null },
-  }
+const NO_MEMBERS: readonly ProjectMember[] = []
+
+/**
+ * The project's members, to name the board's people (board-people.ts): the board's own `enabled`, so a page that brings
+ * its plans or a closed door reads nothing. The key is Goals' (GoalTargets.tsx `useMembers`), which InProject.tsx
+ * invalidates after a removal or a role change: one read names both views.
+ */
+function useMembersNamed(projectId: string, identity: Identity, enabled: boolean): readonly ProjectMember[] {
+  const read = useQuery({
+    queryKey: ['members', projectId, identity.name],
+    queryFn: () => getProjectMembers(identity.token, projectId),
+    staleTime: 60_000,
+    enabled,
+  })
+  return read.data?.members ?? NO_MEMBERS
 }
 
 /**
@@ -189,7 +200,8 @@ export function useServedWork({ projectId, identity, feed, canAct, enabled }: Se
   const queryClient = useQueryClient()
   const viewerId = tokenSubject(identity.token) ?? null
   const ports = useMemo(() => portsOf(identity.token, projectId), [identity.token, projectId])
-  const people = useMemo(() => peopleOf(identity, viewerId), [identity, viewerId])
+  const members = useMembersNamed(projectId, identity, enabled)
+  const people = useMemo(() => boardPeople(viewerOf(identity, viewerId), members), [identity, viewerId, members])
   const plans = useMemo(() => {
     if (!board) return undefined
     const shared: Shared = { board, people, viewerId, now, ports }
