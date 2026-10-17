@@ -10,7 +10,7 @@ import type { Records } from '../voice/recap-view.ts'
  * read once this one is marked seen.
  */
 export function digestLead(digest: Pick<Since, 'fromSequence' | 'more'> & Records): string | null {
-  if (digest.more === true) {
+  if (digest.more) {
     return digest.fromSequence === null
       ? 'You haven’t looked before. This is only the first part: mark it as seen to read on.'
       : 'This is only the first part of what changed: mark it as seen to read on.'
@@ -18,6 +18,23 @@ export function digestLead(digest: Pick<Since, 'fromSequence' | 'more'> & Record
   if (digest.fromSequence === null) return 'You haven’t looked before: this is everything so far.'
   const lists = [digest.decided, digest.made, digest.noted, digest.open, digest.work]
   return lists.every((l) => l.length === 0) ? 'Nothing new since you last looked.' : null
+}
+
+/** A window as it was read, and when that read was set out (this browser's clock, Date.now()). */
+export interface SinceRead {
+  window: Since
+  readFrom: number
+}
+
+/**
+ * The window Updates may show (R-C2-READ-01), as C1's read fences do: none while this person's own read is refused (401,
+ * 403), and none read before the last refusal (`refusedAt`, 0 when never), whatever fails after it, a later ordinary
+ * failure or an older read answering late. Only a read set out since the refusal shows it again. An ordinary failure
+ * keeps the window read before (said as possibly out of date).
+ */
+export function shownSince(read: SinceRead | undefined, refusedNow: boolean, refusedAt: number): Since | undefined {
+  if (!read || refusedNow) return undefined
+  return read.readFrom > refusedAt ? read.window : undefined
 }
 
 /** How a date is said: its day ("Oct 4", with the year when it isn't this one), its time ("15:00"), and if it's today. */

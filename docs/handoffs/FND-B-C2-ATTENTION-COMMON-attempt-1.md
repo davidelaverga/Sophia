@@ -48,7 +48,8 @@ Node 24.21.0, pnpm 11.7.0, private PostgreSQL 17.11 UTF8 (fresh, removed after).
   - Home lists the real A15 need of a guest knocking through an editor's link. Its title is the one `/me/needs` gives
     for that entry.
   - Switching to another account in the tab lists only that account's needs.
-  - A project with 505 messages, then a kept note and an accepted decision. The first window (500 events, `more`,
+  - A project with 510 messages (34 batches of 15; first written here as 505), then a kept note and an accepted
+    decision. The first window (500 events, `more`,
     `fromSequence` null) says it is a first part and shows neither line. Mark as seen writes `/seen` and the next
     window shows both; marking that one leaves «Nothing new since you last looked.».
   - Someone not in that project gets 403 on its snapshot and the closed door, and no read of it succeeds.
@@ -73,6 +74,36 @@ Node 24.21.0, pnpm 11.7.0, private PostgreSQL 17.11 UTF8 (fresh, removed after).
 - R's review of this head; Luis's acceptance of the combined Studio. P then selects any publication (#391).
 - Unchanged: the return-anchor allowlist for `#message-`/`#todo-` (not in this slice), «For: Anyone» (C5, not in this
   slice), Places' «the vision flag» comment, and the R1 D-OPS question.
+
+## Read and wire repair (FND-B-C2-READ-WIRE-REPAIR-01, R-C2-READ-01 and R-C2-WIRE-01)
+
+Both findings were reproduced before anything changed.
+
+- **A refused read hid nothing (P1).**
+  - Before: Updates had read its window; then this person's own `/since` answered 403 while the project's snapshot
+    answered 503 (the shell's door stays open). On a refocus refetch, the page still showed the old lines, Mark as
+    seen, «This may be out of date.» and even «this is everything so far».
+  - The repair, as C1's read fences do:
+    - each read keeps when it was set out (`readFrom`);
+    - a refusal (401, 403) of this person's own read is kept in the account's query cache (`since-refused`, per
+      project);
+    - `shownSince` shows a window only while no refusal stands and only if its read was set out after the last one.
+  - Consequences: nothing shows while refused; a later ordinary failure, another view and back, or an older read
+    answering late shows nothing either; only a read set out since (Try again, a refocus) shows it again, and Mark
+    as seen goes with the window. An ordinary failure alone still keeps the window, said as possibly out of date.
+  - Real App against the listening API, the refusal stubbed in the browser:
+    - before: the refusal case failed at its first check (old lines and Mark as seen on screen);
+    - after: both cases pass, 6/6 repeated. Five units cover the rule's orders.
+- **Malformed A34 fell through to the older reader (P2).**
+  - Before: under the vision flag, a window the contract refuses was read by the older digest's reader. Four
+    windows got through: R's counterexample (no `more`, so it read as complete), `more` as a word, `more` as a
+    number, and one whose ids, moments and sequences are all malformed strings.
+  - Now `/since` is read by the contract's parser alone, whatever the build (`parseSince = parseProjectUpdates`), and
+    the older digest is refused too.
+  - The VISION fixture pages keep their intent at their own answer: `updatesWindowOf` makes their digest a window,
+    complete (`more: false`), in `fixtures/meeting-data.ts`.
+  - The VISION regression set gives the same 74/75 (the time-zone case on C1's base). No contract, API or generated
+    file changed.
 
 ## Next bounded action
 

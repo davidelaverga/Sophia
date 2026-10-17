@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { Digest } from '../../api/vision.ts'
-import { digestLead, lengthShares, meetingRow } from './updates-view.ts'
+import type { Since } from '../../api/vision.ts'
+import { digestLead, lengthShares, meetingRow, shownSince } from './updates-view.ts'
 
-const digest = (over: Partial<Digest> = {}): Digest => ({
+/** A complete A34 window (nothing after it), as the fixture pages answer one too. */
+const digest = (over: Partial<Since> = {}): Since => ({
   fromSequence: '12',
   toSequence: '20',
+  more: false,
   decided: [],
   made: [],
   noted: [],
@@ -64,5 +66,28 @@ describe('a meeting’s row', () => {
       meetingRow({ startedAt: at, endedAt: '2026-10-04T15:00:20.000Z' }, fmt),
       'Oct 4, 15:00 · under a minute',
     )
+  })
+})
+
+describe('the window Updates may show (R-C2-READ-01)', () => {
+  const read = (readFrom: number) => ({ window: digest(), readFrom })
+
+  it('shows a read when nothing was refused, and keeps it through an ordinary failure', () => {
+    assert.equal(shownSince(read(10), false, 0)?.toSequence, '20')
+    assert.equal(shownSince(undefined, false, 0), undefined)
+  })
+
+  it('shows nothing while this person’s own read is refused, cached or not', () => {
+    assert.equal(shownSince(read(10), true, 0), undefined)
+    assert.equal(shownSince(read(30), true, 20), undefined)
+  })
+
+  it('after a refusal, shows no read set out before it: a later failure or an older read answering late', () => {
+    assert.equal(shownSince(read(10), false, 20), undefined)
+    assert.equal(shownSince(read(20), false, 20), undefined)
+  })
+
+  it('shows again only a read set out since the refusal', () => {
+    assert.equal(shownSince(read(21), false, 20)?.toSequence, '20')
   })
 })

@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { parseProjectUpdates } from '@sophia/contracts/validate'
 import { afterEach, describe, it } from 'node:test'
 import { ApiError } from '../../api/client.ts'
-import { getSince, sinceParser } from '../../api/vision.ts'
+import { getSince, parseSince } from '../../api/vision.ts'
 import { recapSections } from '../voice/recap-view.ts'
 import { digestLead, narrowRecords, peopleOf } from './updates-view.ts'
 
@@ -134,31 +137,74 @@ describe('Updates served (A34)', () => {
   })
 })
 
-describe('the A34 window under either flag (the wire does not change with the build)', () => {
-  /** The fixture pages' older shape: everyone named, every moment kept, no `more`. */
-  const digest = () => {
-    const { more: _more, ...rest } = window34({
+/** R-C2-WIRE-01's counterexample: a window with every list empty and no `more` (complete, if it were believed). */
+const counterexample = () => ({
+  fromSequence: null,
+  toSequence: '12',
+  decided: [],
+  made: [],
+  noted: [],
+  open: [],
+  work: [],
+  names: {},
+})
+
+describe('the A34 window, whatever the build (R-C2-WIRE-01)', () => {
+  afterEach(() => {
+    globalThis.fetch = realFetch
+  })
+
+  it('is read by the contract’s own parser alone: no build flag chooses another reader', () => {
+    assert.equal(parseSince, parseProjectUpdates)
+    const source = readFileSync(fileURLToPath(new URL('../../api/vision.ts', import.meta.url)), 'utf8')
+    const reader = source.slice(source.indexOf('export const parseSince'), source.indexOf('export const getSince'))
+    assert.doesNotMatch(reader, /\b(VISION|parseDigest|catch)\b/)
+  })
+
+  it('reads the served window, nulls and more included', () => {
+    const got = parseSince(window34())
+    assert.equal(got.more, true)
+    assert.equal(got.decided[0]?.decidedBy, null)
+    assert.equal(got.made[0]?.askedBy, null)
+  })
+
+  /** A valid A34 window naming everyone, with every moment kept: each case below breaks it in one way only. */
+  const named = (over: Record<string, unknown> = {}) =>
+    window34({
       decided: [{ ...window34().decided[1], proposedBy: MARCO }],
       made: [{ ...window34().made[0], askedBy: MARCO }],
+      ...over,
     })
-    return rest
-  }
-
-  for (const vision of [false, true]) {
-    it(`reads the served window, nulls and more included, with the vision flag ${vision ? 'on' : 'off'}`, () => {
-      const got = sinceParser(vision)(window34())
-      assert.equal(got.more, true)
-      assert.equal(got.decided[0]?.decidedBy, null)
-      assert.equal(got.made[0]?.askedBy, null)
+  /** A window whose every field is a string, each one malformed for A34: no id, no moment, no sequence. */
+  const allStrings = () =>
+    named({
+      fromSequence: 'seven',
+      toSequence: 'twelve',
+      decided: [{ ...named().decided[0], decisionId: 'not-an-id', proposedBy: 'nobody', at: 'yesterday' }],
+      made: [{ ...named().made[0], artifactVersionId: 'v2', askedBy: 'someone' }],
     })
-  }
-
-  it('still reads the fixture pages’ older shape under the vision flag, and only there', () => {
-    assert.equal(sinceParser(true)(digest()).more, undefined)
-    assert.throws(() => sinceParser(false)(digest()), /ProjectUpdates/)
+  const malformed: [string, () => unknown][] = [
+    ['without more (R-C2-WIRE-01)', counterexample],
+    ['with more as a word', () => named({ more: 'yes' })],
+    ['with more as a number', () => named({ more: 1 })],
+    ['with every id, moment and sequence a malformed string', allStrings],
+    ['with a null statement', () => named({ decided: [{ ...named().decided[0], statement: null }] })],
+    ['with a null names map', () => named({ names: null })],
+    ['with a null toSequence', () => named({ toSequence: null })],
+    [
+      'in the fixture pages’ older digest (no more)',
+      () => {
+        const { more: _more, ...older } = named()
+        return older
+      },
+    ],
+  ]
+  it('reads the fully named window each refusal below starts from', () => {
+    assert.equal(parseSince(named()).more, true)
   })
-
-  it('refuses under the vision flag what neither shape is', () => {
-    assert.throws(() => sinceParser(true)({ ...window34(), toSequence: 12 }))
-  })
+  for (const [what, value] of malformed)
+    it(`refuses a served window ${what}`, async () => {
+      assert.throws(() => parseSince(value()), /ProjectUpdates/)
+      await refused(value())
+    })
 })

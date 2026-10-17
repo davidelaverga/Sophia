@@ -3,7 +3,6 @@
 // (app/vision.ts); the fixture pages answer them.
 import type { ProjectUpdates } from '@sophia/contracts'
 import { parseProjectUpdates } from '@sophia/contracts/validate'
-import { VISION } from '../app/vision.ts'
 import { ApiError, callApi } from './client.ts'
 
 /** A14: what showing (or stopping) answers once the room's focus is committed. */
@@ -101,9 +100,10 @@ export interface Digest extends Pick<MeetingRecap, 'decided' | 'made' | 'noted' 
 
 /**
  * What changed since this viewer last looked, as Updates shows it: A34's window, where a person or a moment may be null
- * (nobody readable to name, none kept) and `more` says events lie after it; or, on the fixture pages, a Digest.
+ * (nobody readable to name, none kept) and `more` says events lie after it. The fixture pages answer the same window
+ * (fixtures/meeting-data.ts, updatesWindowOf).
  */
-export type Since = Omit<ProjectUpdates, 'more'> & { more?: boolean }
+export type Since = ProjectUpdates
 
 export interface MeetingReceipt {
   meetingId: string
@@ -175,21 +175,10 @@ const parseDigest = checked<Digest>(
   'digest',
 )
 /**
- * «Since» as it is answered: A34's own parser (the contract, nulls and `more` included, nothing else), whatever the
- * build, since the served window does not change with a flag. Under the vision flag the fixture pages' older proposed
- * shape is still read when the answer is not A34's; the contract's parser drops unknown fields, so it reads a copy.
+ * «Since» as it is answered: A34's own parser, the contract and nothing else, whatever the build; a build flag never
+ * chooses another reader (R-C2-WIRE-01). The fixture pages' older digest is made an A34 window where they answer it.
  */
-export const sinceParser =
-  (vision: boolean) =>
-  (value: unknown): Since => {
-    if (!vision) return parseProjectUpdates(value)
-    try {
-      return parseProjectUpdates(structuredClone(value))
-    } catch {
-      return parseDigest(value)
-    }
-  }
-const parseSince = sinceParser(VISION)
+export const parseSince: (value: unknown) => Since = parseProjectUpdates
 const nothing = (value: unknown): undefined => {
   if (value === null) return undefined
   throw new ApiError(200, 'contract_violation', 'Sophia’s reply couldn’t be read.', 'never')

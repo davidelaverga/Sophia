@@ -178,3 +178,77 @@ test.describe('Updates on a project of its own', () => {
     expect(reads.filter((r) => r.includes(' PUT '))).toEqual([])
   })
 })
+
+const CANARY = `The canary line of run ${RUN}`
+const SINCE = '**/api/v1/projects/*/since'
+const SNAPSHOT = '**/api/v1/projects/*/snapshot'
+/** The window comes back into view: the query core reads again what is stale (its own focus refetch). */
+const lookAgain = (page: Page) => page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+const answer = (status: number) => ({
+  status,
+  contentType: 'application/json',
+  body: JSON.stringify({ code: status === 403 ? 'forbidden' : 'unavailable', message: 'Not now', retry: 'never' }),
+})
+
+test.describe('a refusal of this reader’s own Updates read (R-C2-READ-01)', () => {
+  let project = ''
+
+  test.beforeAll(async () => {
+    project = String((await api('Luis', 'POST', '/api/v1/projects', { title: `Refused ${RUN}` })).projectId)
+    await api('Luis', 'POST', `/api/v1/projects/${project}/mission/entries`, {
+      kind: 'observation',
+      epistemic: 'observed',
+      text: CANARY,
+    })
+  })
+
+  // The real window first; then this reader's own read is refused (stubbed in the browser, as the API refuses a
+  // removed member) while the project's snapshot is unavailable, so the shell's door stays as it was.
+  test('served · refused, the window read before and Mark as seen go, through a later failure and a remount, until a read answers', async ({
+    page,
+  }) => {
+    const calls = await as(page, 'Luis')
+    await page.goto(`/p/${project}/updates`)
+    await expect(since(page)).toContainText(CANARY)
+    await expect(markSeen(page)).toBeVisible()
+    await page.route(SNAPSHOT, (r) => r.fulfill(answer(503)))
+    await page.route(SINCE, (r) => r.fulfill(answer(403)))
+    await lookAgain(page)
+    await expect(since(page).getByRole('alert')).toContainText('What changed couldn’t be read.')
+    await expect(since(page)).not.toContainText(CANARY)
+    await expect(markSeen(page)).toHaveCount(0)
+
+    await page.unroute(SINCE)
+    await page.route(SINCE, (r) => r.fulfill(answer(503)))
+    await lookAgain(page)
+    await expect(since(page).getByRole('alert')).toBeVisible()
+    await expect(since(page)).not.toContainText(CANARY)
+    await expect(markSeen(page)).toHaveCount(0)
+
+    await views(page).filter({ hasText: 'Studio' }).click()
+    const remountRead = page.waitForResponse((r) => new URL(r.url()).pathname.endsWith('/since'))
+    await views(page).filter({ hasText: 'Updates' }).click()
+    expect((await remountRead).status()).toBe(503)
+    await expect(since(page).getByRole('alert')).toBeVisible()
+    await expect(since(page)).not.toContainText(CANARY)
+    await expect(markSeen(page)).toHaveCount(0)
+    expect(calls.filter((c) => c.startsWith('PUT ') && c.endsWith('/seen'))).toEqual([])
+
+    // A read set out since the refusal, and answered, shows it again: here the person's own Try again.
+    await page.unroute(SINCE)
+    await since(page).getByRole('button', { name: 'Try again' }).click()
+    await expect(since(page)).toContainText(CANARY)
+    await expect(markSeen(page)).toBeVisible()
+  })
+
+  test('served · an ordinary failure keeps the window read before, said as possibly out of date', async ({ page }) => {
+    await as(page, 'Luis')
+    await page.goto(`/p/${project}/updates`)
+    await expect(since(page)).toContainText(CANARY)
+    await page.route(SINCE, (r) => r.fulfill(answer(503)))
+    await lookAgain(page)
+    await expect(since(page)).toContainText('This may be out of date.')
+    await expect(since(page)).toContainText(CANARY)
+    await expect(markSeen(page)).toBeVisible()
+  })
+})
