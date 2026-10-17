@@ -2159,6 +2159,19 @@ img.avatar {
 }
 /* The message bar: the words and their Send in one field, as a chat has it. Built like the dock (5 px around 36 px
    controls), so one line of text makes it the dock's height. */
+/* How full the bar is, on its own line over it, once it nears the most one message holds (room-message-length.md):
+   Personal's count, in the Studio's third ink; at the most and past it, warm. */
+.bar-count {
+  margin: 0 6px;
+  text-align: right;
+  color: var(--text-3);
+  font: var(--type-label) / var(--lh-small) var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bar-count.full {
+  color: var(--warm);
+}
 .message-bar {
   display: flex;
   align-items: flex-end;
@@ -2645,6 +2658,11 @@ button.contribution-quote:hover {
   .device-menu {
     display: none;
   }
+  /* Before joining the dock has only Join and its check, so the check stands there on a phone too (phone-devices.md):
+     its sheet chooses the microphone and the camera, a phone's front or back. */
+  .device-menu.device-check-open {
+    display: inline-flex;
+  }
 }
 /* The check before joining (docs/plans/device-check.md): the camera's picture over a row per device, the voice's meter
    beside the microphone, and Join at its foot. The picture is mirrored, as a person expects to see themselves. */
@@ -3022,6 +3040,14 @@ button.contribution-quote:hover {
   font-size: 20px;
   font-weight: 600;
 }
+/* A muted microphone on the tile (muted-on-tiles.md): first in its name's chip, as Meet's, never cut with the name. */
+.tile-muted {
+  display: inline-flex;
+  flex: none;
+  order: -1;
+  margin-right: 5px;
+  color: var(--text-2);
+}
 .tile-name {
   position: absolute;
   left: 8px;
@@ -3244,6 +3270,27 @@ button.contribution-quote:hover {
 }
 /* The toast (Toast.tsx): one line for a result whose place is not on screen, above the floor, so it never covers the
    dock or a message bar. The time it has left runs along its foot. */
+/* Skip to content (skip-link.md): out of sight until focused, then at the top left on the raised plane. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 90;
+  padding: 8px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--plane-2);
+  color: var(--text);
+  font-size: 13px;
+  transform: translateY(calc(-100% - 16px));
+}
+.skip-link:focus {
+  transform: none;
+}
+/* The content it lands on takes the focus without a ring around the whole page. */
+[data-content]:focus {
+  outline: none;
+}
 .toast {
   position: fixed;
   left: 50%;
