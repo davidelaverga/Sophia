@@ -2159,6 +2159,19 @@ img.avatar {
 }
 /* The message bar: the words and their Send in one field, as a chat has it. Built like the dock (5 px around 36 px
    controls), so one line of text makes it the dock's height. */
+/* How full the bar is, on its own line over it, once it nears the most one message holds (room-message-length.md):
+   Personal's count, in the Studio's third ink; at the most and past it, warm. */
+.bar-count {
+  margin: 0 6px;
+  text-align: right;
+  color: var(--text-3);
+  font: var(--type-label) / var(--lh-small) var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bar-count.full {
+  color: var(--warm);
+}
 .message-bar {
   display: flex;
   align-items: flex-end;
@@ -2514,7 +2527,8 @@ button.contribution-quote:hover {
     clip: rect(0 0 0 0);
     white-space: nowrap;
   }
-  .dock :is(.floor-label, .dock-sep) {
+  /* The phone's one row of squares: no separators, and no clock (room-basics.md), as Meet's phone dock. */
+  .dock :is(.floor-label, .dock-sep, .dock-time) {
     display: none;
   }
   /* Who holds the floor stays said to a screen reader; the eye finds it in the room. */
@@ -2532,6 +2546,16 @@ button.contribution-quote:hover {
   height: 20px;
   margin: 0 4px;
   background: var(--line-2);
+  flex: none;
+}
+/* How long the call has run, before Leave (docs/plans/room-basics.md): quiet, its digits not moving the dock. */
+.dock-time {
+  min-width: 4ch;
+  padding: 0 4px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
   flex: none;
 }
 .dock-note {
@@ -2634,6 +2658,11 @@ button.contribution-quote:hover {
   .device-menu {
     display: none;
   }
+  /* Before joining the dock has only Join and its check, so the check stands there on a phone too (phone-devices.md):
+     its sheet chooses the microphone and the camera, a phone's front or back. */
+  .device-menu.device-check-open {
+    display: inline-flex;
+  }
 }
 /* The check before joining (docs/plans/device-check.md): the camera's picture over a row per device, the voice's meter
    beside the microphone, and Join at its foot. The picture is mirrored, as a person expects to see themselves. */
@@ -2658,11 +2687,25 @@ button.contribution-quote:hover {
   margin: 0;
   padding: 16px;
 }
+/* The picture, the words over it while the camera is off, and the switches at its foot share one cell. */
+.device-preview > * {
+  grid-area: 1 / 1;
+}
 .device-preview-video {
   width: 100%;
   height: 100%;
   object-fit: cover;
   transform: scaleX(-1);
+}
+.device-preview[data-camera='off'] .device-preview-video {
+  visibility: hidden;
+}
+/* The microphone and the camera for the join (docs/plans/prejoin-toggles.md), on the picture as Meet has them. */
+.device-preview-switches {
+  align-self: end;
+  display: flex;
+  gap: 12px;
+  padding-bottom: 12px;
 }
 .device-rows {
   display: grid;
@@ -2874,6 +2917,15 @@ button.contribution-quote:hover {
 .tile-more {
   padding: 0;
 }
+/* Your tile, hidden for this call (docs/plans/room-basics.md): where it was, what it is, and Show. */
+.tile-hidden-self {
+  align-content: center;
+  gap: 4px;
+  padding: 12px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+  text-align: center;
+}
 .tile-more button {
   display: grid;
   place-items: center;
@@ -2988,6 +3040,14 @@ button.contribution-quote:hover {
   font-size: 20px;
   font-weight: 600;
 }
+/* A muted microphone on the tile (muted-on-tiles.md): first in its name's chip, as Meet's, never cut with the name. */
+.tile-muted {
+  display: inline-flex;
+  flex: none;
+  order: -1;
+  margin-right: 5px;
+  color: var(--text-2);
+}
 .tile-name {
   position: absolute;
   left: 8px;
@@ -3043,9 +3103,12 @@ button.contribution-quote:hover {
   left: 10px;
   bottom: 10px;
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  height: 22px;
-  padding: 0 7px;
+  max-width: calc(100% - 20px);
+  /* At least a line, and as many as the other screens' offers wrap to (Codex P2 on #358). */
+  min-height: 22px;
+  padding: 2px 7px;
   border-radius: var(--r-1);
   background: rgb(var(--void-rgb) / 0.66);
   font-size: 12px;
@@ -3204,6 +3267,54 @@ button.contribution-quote:hover {
   backdrop-filter: blur(20px) saturate(140%);
   color: var(--text-2);
   font-size: var(--type-small);
+}
+/* A new version said (new-version.md): the toast's look at the page's top, above everything, and it stays until
+   answered. */
+.new-version {
+  position: fixed;
+  top: 12px;
+  /* Centred on the whole width, not from its middle: from left: 50% a phone gave it half the screen and three lines. */
+  inset-inline: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: fit-content;
+  max-width: calc(100% - 2 * var(--gutter));
+  margin-inline: auto;
+  padding: 9px 14px;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line-2);
+  background: var(--plane-2);
+  box-shadow: 0 12px 40px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  color: var(--text);
+  font-size: 13px;
+}
+/* Its answers keep their words whole; the sentence wraps instead. */
+.new-version .text-button {
+  flex: none;
+  white-space: nowrap;
+}
+/* Skip to content (skip-link.md): out of sight until focused, then at the top left on the raised plane. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 90;
+  padding: 8px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--plane-2);
+  color: var(--text);
+  font-size: 13px;
+  transform: translateY(calc(-100% - 16px));
+}
+.skip-link:focus {
+  transform: none;
+}
+/* The content it lands on takes the focus without a ring around the whole page. */
+[data-content]:focus {
+  outline: none;
 }
 /* The toast (Toast.tsx): one line for a result whose place is not on screen, above the floor, so it never covers the
    dock or a message bar. The time it has left runs along its foot. */
@@ -5113,6 +5224,36 @@ button.contribution-quote:hover {
   flex-direction: column;
   gap: 8px;
 }
+/* The call reconnecting while video is on (reconnecting-on-video.md): the header's amber dot and words, on glass,
+   at the top of the column over the tiles, until the link is back. */
+.stage-reconnecting {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 5px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--type-small);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.stage-reconnecting .connection-dot {
+  background: var(--amber);
+}
+/* Where the corner rises to the stage's top right (a narrow stage), the word keeps to the left, clear of it. */
+@container (max-width: 799.98px) {
+  .stage-reconnecting {
+    align-self: flex-start;
+  }
+}
 .stage-over-video .stage-showing {
   margin: 0;
 }
@@ -5738,6 +5879,10 @@ button.contribution-quote:hover {
 .goals-list-head .field-label {
   margin: 0;
 }
+/* «Mine», before the search, at the head's end (goal-overdue.md). */
+.goals-mine {
+  margin-left: auto;
+}
 .goals-search {
   width: min(280px, 100%);
 }
@@ -5903,6 +6048,19 @@ button.contribution-quote:hover {
 .goal-sheet-section {
   display: grid;
   gap: 8px;
+}
+.goal-reports ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* The report's version after its title, quiet (goal-reports.md). */
+.goal-report-version {
+  margin-left: 8px;
+  color: var(--text-3);
+  font: var(--type-label) / var(--lh-small) var(--mono);
 }
 .goal-sheet-section .field-label {
   margin: 0;
@@ -6138,6 +6296,21 @@ button.contribution-quote:hover {
   }
 }
 
+/* A message's marks (docs/plans/message-format.md): code in the mono face on a faint plane, a quote under an edge. */
+.msg-code {
+  padding: 1px 4px;
+  border-radius: var(--r-1);
+  background: rgb(var(--ink-rgb) / 0.08);
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+.msg-quote {
+  display: block;
+  margin: 2px 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--line-2);
+  color: var(--text-2);
+}
 /* A web address in a message (docs/plans/message-links.md): the halo's link colour, underlined, wrapping inside the
    column however long it is. */
 .msg-link {
@@ -6240,6 +6413,90 @@ button.contribution-quote:hover {
   font-size: var(--type-small);
 }
 
+/* What continuing means, under the sign-in (docs/plans/terms-privacy.md): small, quiet, its links underlined. */
+/* Above `.screen-body p`, which sets the screen's paragraphs in the second ink. */
+.screen-body p.signin-legal {
+  margin-top: 12px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.signin-legal a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* Under the pointer the link answers in the full ink (press-answers.spec). */
+.signin-legal a:hover {
+  color: var(--text);
+}
+
+/* The terms and the privacy notice: a reading column on the page's ground, the mark above, the way on below. */
+.legal {
+  min-height: 100dvh;
+  padding: 32px 16px 48px;
+  background: var(--bg);
+  color: var(--text);
+}
+.legal-head,
+.legal-doc,
+.legal-foot {
+  max-width: 680px;
+  margin-inline: auto;
+}
+.legal-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  text-decoration: none;
+}
+.legal-doc h1 {
+  margin: 40px 0 4px;
+  font-size: var(--type-view);
+  letter-spacing: -0.025em;
+}
+.legal-updated {
+  margin: 0 0 24px;
+  color: var(--text-3);
+  font: var(--type-label) / var(--lh-small) var(--mono);
+}
+.legal-doc h2 {
+  margin: 28px 0 8px;
+  font-size: var(--type-head);
+  font-weight: 600;
+}
+.legal-doc p,
+.legal-doc li {
+  color: var(--text-2);
+  font-size: var(--type-title);
+  line-height: 1.6;
+}
+.legal-doc p {
+  margin: 0 0 10px;
+}
+.legal-doc ul {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+.legal-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: var(--type-small);
+}
+.legal-foot a {
+  color: var(--text-2);
+}
+
+/* Room to write feedback (docs/plans/crash-feedback.md). */
+.feedback-words textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
 /* Everyone in the call, in the side panel (docs/plans/host-controls.md): a row each, the admin's menu at its end. */
 .people {
   display: grid;
@@ -6303,6 +6560,10 @@ button.contribution-quote:hover {
   margin: 2px 0 0;
   color: var(--text-3);
   font-size: var(--type-small);
+}
+/* A date that has passed, on a goal not completed (docs/plans/goal-overdue.md). */
+.goal-row-target[data-due='overdue'] {
+  color: var(--rose);
 }
 .goal-target-form {
   display: grid;

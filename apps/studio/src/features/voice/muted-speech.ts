@@ -32,6 +32,30 @@ export function mutedSpeech(): (level: number, at: number) => boolean {
 }
 
 /**
+ * When to listen (Codex P2s on #357): from any moment the microphone is off, a call that begins muted included; on the
+ * microphone in use, so one switched while muted is listened to instead; never past the call's end. `listen` opens the
+ * listening on a device and returns the way to let it go.
+ */
+export function mutedWatch(listen: (deviceId: string | undefined) => () => void) {
+  let stop: (() => void) | null = null
+  let device: string | undefined
+  const end = () => {
+    stop?.()
+    stop = null
+  }
+  return {
+    set(off: boolean, deviceId: string | undefined) {
+      if (!off || deviceId !== device) end()
+      if (off && !stop) {
+        device = deviceId
+        stop = listen(deviceId)
+      }
+    },
+    end,
+  }
+}
+
+/**
  * Listen on the microphone while it is off in the call, for speech only: a stream of its own, analysed here and never
  * sent. Returns the way to let it go.
  */

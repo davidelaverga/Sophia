@@ -100,6 +100,89 @@ test('check · before joining, the camera’s picture, a meter that moves with t
   expect(await page.evaluate(() => window.fixture?.devicesOnJoin)).toMatchObject({ audioinput: 'usb-mic' })
 })
 
+test('check · the microphone and the camera are chosen on the picture, and Join enters with them', async ({ page }) => {
+  await page.goto('/room.html')
+  await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()
+  const mic = sheet(page).getByRole('button', { name: 'Microphone', exact: true })
+  const camera = sheet(page).getByRole('button', { name: 'Camera', exact: true })
+  // As the join would start: the microphone as last chosen here (on by default), the camera off.
+  await expect(mic).toHaveAttribute('aria-pressed', 'true')
+  await expect(camera).toHaveAttribute('aria-pressed', 'false')
+  await expect(sheet(page).locator('.device-preview')).toContainText('Your camera is off')
+  const meter = sheet(page).getByRole('meter', { name: 'Microphone level' })
+  await expect.poll(async () => Number(await meter.getAttribute('aria-valuenow'))).toBeGreaterThan(0)
+  // The microphone off rests the meter; the camera on shows its picture. Nothing is asked of the browser again.
+  const asked = await page.evaluate(() => window.checkMedia?.asked.length ?? 0)
+  await mic.click()
+  await expect(mic).toHaveAttribute('aria-pressed', 'false')
+  await expect.poll(async () => Number(await meter.getAttribute('aria-valuenow'))).toBe(0)
+  await camera.click()
+  await expect(camera).toHaveAttribute('aria-pressed', 'true')
+  await expect(sheet(page).locator('.device-preview')).not.toContainText('Your camera is off')
+  await expect
+    .poll(() =>
+      sheet(page)
+        .locator('video.device-preview-video')
+        .evaluate(
+          (v: HTMLVideoElement) => v.srcObject instanceof MediaStream && v.srcObject.getVideoTracks()[0]?.enabled,
+        ),
+    )
+    .toBe(true)
+  expect(await page.evaluate(() => window.checkMedia?.asked.length ?? 0)).toBe(asked)
+  // Join enters muted, with the camera on.
+  await sheet(page).getByRole('button', { name: 'Join the room' }).click()
+  await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  await expect(dock(page).getByRole('button', { name: 'Microphone', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  )
+  await expect(dock(page).getByRole('button', { name: 'Camera', exact: true })).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('check · where nothing can be kept on this device, the microphone chosen off still joins off', async ({
+  page,
+}) => {
+  // Storage refusing writes: the choice can't be remembered, so the join must carry it (Codex P1 on #361).
+  await page.addInitScript(() => {
+    Storage.prototype.setItem = () => {
+      throw new DOMException('Blocked', 'SecurityError')
+    }
+  })
+  await page.goto('/room.html')
+  await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()
+  await sheet(page).getByRole('button', { name: 'Microphone', exact: true }).click()
+  await sheet(page).getByRole('button', { name: 'Join the room' }).click()
+  await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  await expect(dock(page).getByRole('button', { name: 'Microphone', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  )
+})
+
+test('check · a join that fails keeps the choices for Try again: muted, the camera on', async ({ page }) => {
+  // Storage refusing writes, so the retry can't fall back on a kept microphone choice (Codex P1 on #361).
+  await page.addInitScript(() => {
+    Storage.prototype.setItem = () => {
+      throw new DOMException('Blocked', 'SecurityError')
+    }
+  })
+  await page.goto('/room.html')
+  await page.evaluate(() => window.fixture?.failToken())
+  await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()
+  await sheet(page).getByRole('button', { name: 'Microphone', exact: true }).click()
+  await sheet(page).getByRole('button', { name: 'Camera', exact: true }).click()
+  await sheet(page).getByRole('button', { name: 'Join the room' }).click()
+  await dock(page)
+    .getByRole('button', { name: /^Try again/ })
+    .click()
+  await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  await expect(dock(page).getByRole('button', { name: 'Microphone', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  )
+  await expect(dock(page).getByRole('button', { name: 'Camera', exact: true })).toHaveAttribute('aria-pressed', 'true')
+})
+
 test('check · closed without joining, the camera and the microphone are let go', async ({ page }) => {
   await page.goto('/room.html')
   await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()

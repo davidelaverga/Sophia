@@ -13,6 +13,10 @@ interface ImportMetaEnv {
   readonly VITE_API_URL?: string
   /** "1" where the APIs proposed in issue #105 are answered (the fixture pages): their controls show (app/vision.ts). */
   readonly VITE_SOPHIA_VISION?: string
+  /** The Sentry project crash reports and feedback go to; unset, there are none (docs/plans/crash-feedback.md). */
+  readonly VITE_SENTRY_DSN?: string
+  /** Sentry's environment for this deploy; «production» unless set. */
+  readonly VITE_SENTRY_ENVIRONMENT?: string
 }
 
 interface ImportMeta {
