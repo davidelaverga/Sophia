@@ -204,6 +204,70 @@ async function reportSection(page: Page): Promise<void> {
   expect(after).toContain(`a hide for the ${word}`)
 }
 
+const SEARCHES = '**/api/v1/projects/*/search?*'
+const answer = (status: number) => ({
+  status,
+  contentType: 'application/json',
+  body: JSON.stringify({ code: status === 403 ? 'forbidden' : 'unavailable', message: 'Not now', retry: 'never' }),
+})
+
+/**
+ * R-C4-SEARCH-READ-01: page 1 is read (20 hits, More); then this reader's own next search read is refused (403,
+ * replaced in the browser: synthetic over the real App, API and PostgreSQL) while the project's snapshot stays healthy.
+ * Nothing read before shows again: through a later 503, the sheet closed and reopened, or the query typed again. Only a
+ * read set out since, and allowed, shows the current results.
+ */
+async function refusedAfterPages(page: Page): Promise<void> {
+  const word = `heron${RUN}g`
+  for (let n = 0; n < 25; n += 5)
+    await Promise.all(Array.from({ length: 5 }, (_, i) => say(`Tally ${String(n + i)}: one ${word}.`)))
+  await as(page, 'Luis')
+  await search(page, word)
+  await expect(hits(page)).toHaveCount(20)
+  const more = sheet(page).getByRole('button', { name: 'More results' })
+  await expect(more).toBeVisible()
+  await page.route(SEARCHES, (r) => r.fulfill(answer(403)))
+  await more.click()
+  await expect(sheet(page).getByRole('alert')).toContainText('The search couldn’t be read.')
+  await expect(hits(page)).toHaveCount(0)
+  await expect(more).toHaveCount(0)
+
+  // A later ordinary failure: still nothing read before.
+  await page.unroute(SEARCHES)
+  await page.route(SEARCHES, (r) => r.fulfill(answer(503)))
+  await sheet(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(sheet(page).getByRole('alert')).toBeVisible()
+  await expect(hits(page)).toHaveCount(0)
+  // The sheet closed and opened again, the same query typed again: nothing read before.
+  await page.keyboard.press('Escape')
+  await expect(sheet(page)).toHaveCount(0)
+  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  await field(page).fill(word)
+  await expect(sheet(page).getByRole('alert')).toBeVisible()
+  await expect(hits(page)).toHaveCount(0)
+  await expect(more).toHaveCount(0)
+  // The project itself stays open and readable: the room's head is there.
+  await expect(page.getByRole('navigation', { name: 'Project views' })).toBeVisible()
+
+  // A read set out now, and allowed, shows the current results.
+  await page.unroute(SEARCHES)
+  await sheet(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(hits(page)).toHaveCount(20)
+  await expect(more).toBeVisible()
+}
+
+/** Without a refusal, an ordinary failure of the next page keeps what was read, and says the search failed. */
+async function ordinaryFailureKeeps(page: Page): Promise<void> {
+  const word = `heron${RUN}g`
+  await as(page, 'Luis')
+  await search(page, word)
+  await expect(hits(page)).toHaveCount(20)
+  await page.route(SEARCHES, (r) => r.fulfill(answer(503)))
+  await sheet(page).getByRole('button', { name: 'More results' }).click()
+  await expect(sheet(page).getByRole('alert')).toContainText('The search couldn’t be read.')
+  await expect(hits(page)).toHaveCount(20)
+}
+
 test.describe('the project’s search on the real API (A38)', () => {
   test('served · a message, a note and a decision are found; the message opens in the room', ({ page }) =>
     foundAndOpened(page))
@@ -213,6 +277,11 @@ test.describe('the project’s search on the real API (A38)', () => {
   test('served · a page at a time: More results reads the next page by its cursor', ({ page }) => paged(page))
   test('served · an answer that isn’t A38 is refused, and asked again it reads', ({ page }) => malformedRefused(page))
   test('served · someone outside the project is refused by the API', () => outsiderRefused())
+  test('served · refused after reading pages, the search shows nothing read before until an allowed read answers (R-C4-SEARCH-READ-01)', ({
+    page,
+  }) => refusedAfterPages(page))
+  test('served · without a refusal, a failed next page keeps the pages read, and says so', ({ page }) =>
+    ordinaryFailureKeeps(page))
   test('served · a report section’s hit opens the report at that section, the second of its name', ({ page }) => {
     test.skip(!process.env.SOPHIA_SERVED_REPORT_WORD, 'needs the report seeded on the owned database (seed-report.sql)')
     return reportSection(page)

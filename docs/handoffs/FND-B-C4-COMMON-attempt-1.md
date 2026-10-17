@@ -85,6 +85,39 @@ Node 24.21.0, pnpm 11.7.0, private PostgreSQL 17.11 UTF8 (fresh, removed after).
 - No viewer identity in dev-db.
 - PostgreSQL 16 exclusive groups are unchanged and not run.
 
+## Search read fence (FND-B-C4-SEARCH-READ-02, R-C4-SEARCH-READ-01)
+
+The sheet's infinite query kept its pages cached when this person's own next read was refused (401, 403). The hits'
+words, their presses and More results rendered from that cache next to the alert, while the project itself stayed
+healthy.
+- Before, reproduced on `113c` with the normal App, listening API and restricted PostgreSQL: page 1 was read (20 hits,
+  More). Only the next search read was then refused 403, replaced in the browser by `page.route` (synthetic over the
+  real App, API and database). The sheet said «The search couldn’t be read.» and still showed all 20 hits.
+- Now each page carries when its read was set out (`searchOrder`, a page-local counter, as Updates' `sinceOrder`;
+  never the clock). A refusal seen is kept in the account's query cache, per project (`['vision', 'search-refused',
+  id]`), as later than every read set out before it.
+  - The sheet shows no page, no press and no More while refused, and none read before the last refusal, whatever
+    comes next: a later 503, an older read answering late, the sheet opened again, the query typed again, another
+    query's answer (`shownPages`). Nothing found is not said over them either.
+  - A read set out since the refusal, and allowed (Try again, or a new query's own read), shows its current results.
+- Unchanged:
+  - Without a refusal, a failed page keeps the pages read, with the alert and Try again.
+  - The project shell; other projects and accounts; A38's parser, cursor, pages and opening paths. The real nonmember
+    403 stays its own API case.
+- After:
+  - The served case passes: hidden after the 403, through a 503, Escape and Search again, and the query typed again;
+    then a fresh allowed read gives 20 hits and More. A served case without a refusal keeps its 20 hits.
+  - Unit and state checks run TanStack's own infinite observer on one account's cache: 403 on the next page; 401 with
+    an older read answering 200 after it; another query; another project; another account's cache; the clock set
+    back. With the fence removed, 5 of them fail.
+- Checks:
+  - `pnpm check` passes: units 3056 passed, 0 failed, 70 skipped; integration 108 passed, 2 skipped; the artifacts
+    reproduce unchanged.
+  - Served C4 9/9 (the report section seeded as before), with the two new cases repeated once. The segregated search
+    config passes 8/8, and C4 and its neighbours 103/103. The other served journeys were not rerun.
+  - The first lint failed on the sheet's complexity: the fence now sits in its own hook. Everything above ran after
+    that change.
+
 ## Next bounded action
 
 B's private handback goes to P; R reviews the composition and the SQL closure. No push until P selects one
