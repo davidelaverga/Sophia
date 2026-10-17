@@ -41,6 +41,7 @@ import type { ProjectRoom } from './useProjectRoom.ts'
 type Participant = ProjectRoom['participants'][number]
 import { useWorkWords } from './useWorkWords.ts'
 import { VideoStage } from './VideoStage.tsx'
+import { useCameraFlip } from './camera-flip.ts'
 import { useNow } from '../../app/use-now.ts'
 
 interface Props {
@@ -271,10 +272,16 @@ function conversationLine(
 }
 
 /** With video on the stage: the gallery, a shared screen or a report presented, and the card over it. */
-function OnVideo({ showing, ...stage }: ComponentProps<typeof VideoStage> & { showing: ReactNode }) {
+function OnVideo({
+  showing,
+  room,
+  ...stage
+}: Omit<ComponentProps<typeof VideoStage>, 'feeds' | 'flip'> & { showing: ReactNode; room: ProjectRoom }) {
+  // On a phone, your own tile switches cameras (camera-flip.md): the dock's device menus aren't there.
+  const flip = useCameraFlip(room, !!room.participants.find((p) => p.local)?.cameraOn)
   return (
     <>
-      <VideoStage {...stage} />
+      <VideoStage {...stage} feeds={room.feeds} flip={flip} />
       {showing && <div className="stage-over-video">{showing}</div>}
     </>
   )
@@ -340,7 +347,7 @@ export function RoomStage(props: Props) {
           </div>
         </>
       ) : (
-        <OnVideo mode={mode} people={people} feeds={room.feeds} floor={floor} shown={presented} showing={showing} />
+        <OnVideo mode={mode} people={people} floor={floor} shown={presented} showing={showing} room={room} />
       )}
       {captions}
       <RoomDock
