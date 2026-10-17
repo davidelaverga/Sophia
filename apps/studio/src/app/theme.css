@@ -457,6 +457,12 @@ button:disabled,
   background: rgb(var(--rose-rgb) / 0.08);
   color: var(--rose);
 }
+/* Under the pointer the destructive answer keeps its rose (the pill's own hover, 0,3,0, greyed it: informe-25 M12): its
+   edge wakes and its fill stays, so its words keep 4.5:1 on paper, a rose zone under it or not (Delete everything). */
+.pill.danger:hover:not(:disabled, [aria-disabled='true']) {
+  border-color: rgb(var(--rose-rgb) / 0.7);
+  background: rgb(var(--rose-rgb) / 0.08);
+}
 .pill-dot {
   width: 6px;
   height: 6px;
@@ -653,7 +659,11 @@ select:hover:not(:disabled) {
   border-color: var(--line-3);
   color: var(--text);
 }
-/* A checkbox answers the pointer: a step brighter (its box is the browser's). */
+/* A checkbox is the kit's: checked, it fills with the «on» of a pressed square and a primary press (--core), never the
+   browser's blue (informe-25 X8); under the pointer, a step brighter. */
+input[type='checkbox'] {
+  accent-color: var(--core);
+}
 input[type='checkbox']:hover:not(:disabled) {
   filter: brightness(1.2);
 }

@@ -110,12 +110,15 @@ test('settings · the account menu’s Sign out is this device’s', async ({ pa
 async function pixelsNear(page: Page, png: Buffer, rgb: readonly number[]) {
   return page.evaluate(
     async ({ data, want }) => {
-      const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${data}`)).blob())
-      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+      // Decoded as an image, not fetched: the room's fixture answers every fetch itself.
+      const image = new Image()
+      image.src = `data:image/png;base64,${data}`
+      await image.decode()
+      const canvas = new OffscreenCanvas(image.naturalWidth, image.naturalHeight)
       const ctx = canvas.getContext('2d')
       if (!ctx) return -1
-      ctx.drawImage(bitmap, 0, 0)
-      const px = ctx.getImageData(0, 0, bitmap.width, bitmap.height).data
+      ctx.drawImage(image, 0, 0)
+      const px = ctx.getImageData(0, 0, image.naturalWidth, image.naturalHeight).data
       let near = 0
       for (let i = 0; i < px.length; i += 4) if (want.every((v, c) => Math.abs((px[i + c] ?? 0) - v) <= 16)) near += 1
       return near
