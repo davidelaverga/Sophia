@@ -648,6 +648,27 @@ interface BodyProps {
   floating: React.ReactNode
 }
 
+/** The door, and an archived project's line over it (archive-project.md): on every view, as the lobby is. */
+function ProjectDoor({
+  projectId,
+  identity,
+  membership,
+  snapshot,
+}: Pick<BodyProps, 'projectId' | 'identity' | 'membership' | 'snapshot'>) {
+  return (
+    <>
+      <ArchivedLine projectId={projectId} identity={identity} membership={membership} />
+      <LobbyPanel
+        projectId={projectId}
+        identity={identity}
+        lobby={snapshot?.lobby}
+        canDecide={canInvite(membership)}
+        projectTitle={snapshot?.title}
+      />
+    </>
+  )
+}
+
 /**
  * Studio is the room itself; every other view is a page, with the room one click away in the mini dock.
  * The lobby shows on every view: someone waiting at the door should never depend on which page you read.
@@ -674,19 +695,7 @@ function ProjectBody(props: BodyProps) {
       </WithViewer>
     </ProjectGoProvider>
   )
-  // The door, and an archived project's line under it (archive-project.md): on every view, as the lobby is.
-  const lobby = (
-    <>
-      <ArchivedLine projectId={projectId} identity={identity} membership={membership} />
-      <LobbyPanel
-        projectId={projectId}
-        identity={identity}
-        lobby={snapshot?.lobby}
-        canDecide={canInvite(membership)}
-        projectTitle={snapshot?.title}
-      />
-    </>
-  )
+  const lobby = <ProjectDoor projectId={projectId} identity={identity} membership={membership} snapshot={snapshot} />
   if (view === 'studio') {
     return withViewer(
       <>
