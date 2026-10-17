@@ -27,10 +27,10 @@ const lightRead = (page: Page) =>
 
 // Sign-in and the room alike: the orb's glass begins with its glint (paper-orb.md), and it drifts and breathes.
 const GLINT = /^radial-gradient\(13% 8% at 34% 24%, rgba?\(255,? 255,? 255,? \/? ?0\.92\)/
-// In the room before anyone asks her in she is away (orb-presence.md): she breathes, her clouds still.
+// The demo's room has her work running, so she is here at work (orb-presence.md): she drifts and breathes there too.
 for (const [name, url, parts, loops] of [
   ['sign-in', '/signin.html?theme=light', DRAWN.signin, ['gc-drift', 'gc-breathe']],
-  ['the room', '/room.html?demo=1&theme=light', DRAWN.room, ['gc-breathe']],
+  ['the room', '/room.html?demo=1&theme=light', DRAWN.room, ['gc-drift', 'gc-breathe']],
 ] as const) {
   test(`light · ${name}: her light breathes on paper, behind what the light holds`, async ({ page }) => {
     await page.goto(url)
