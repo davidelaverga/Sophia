@@ -146,53 +146,279 @@
 :root[data-theme='light'] body::after {
   display: none;
 }
-/* Her light on paper: a violet halo, not the screen-blended canvas. */
+/* Her light on paper: an orb drawn in CSS, not the screen-blended canvas (docs/plans/paper-orb.md). */
 :root[data-theme='light'] .light-gl {
   display: none;
 }
-/* A light with a bright heart on paper, as the canvas has in the room: white at the centre, the halo around it; and
-   it breathes, as the canvas does (docs/plans/light-breath.md). The light isolates its stacking, and the halo sits at
-   the back of it: the formed mark and the trace are its children and paint over the heart (Codex on #251). */
+/* On paper Sophia is a solid orb, glass with a heart of clouds (docs/plans/paper-orb.md; Luis, 2026-10-17: «un orbe
+   sólido, tipo ChatGPT»). It stands where the engine draws her (--lx, --ly), 0.6 of her radius (--lr) across times her
+   size now (--ls, at most 1.2, so a swell on a loud voice never reaches the words under her), and the room moves it:
+   her state (data-mode), her voice while she is heard (--amp), whom she attends to (--ldx, --ldy). Two layers on the
+   light, which isolates its stacking so the trace and the formed mark paint over her: the clouds (::before) and the
+   glass (::after). Without WebGL the engine marks a fallback, and the room's radial stays off the paper (Codex on #251). */
+@property --gc-turn {
+  syntax: '<angle>';
+  inherits: true;
+  initial-value: 0deg;
+}
+@property --gc-b {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+@property --gc-ponder {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+@property --gc-swirl {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+/* Her scale, a number from her radius: 0.6 of it across a 200 px glass (registered: a bad --lr falls back, never breaks). */
+@property --gc-k {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0.78;
+}
+/* What her state sets, eased over 1.4 s: how far the clouds roam and stir, her heart, her breath, how far it dims while
+   she thinks, her glow, how far she leans, whether she shows, and the clouds' tint. */
+@property --gc-reach {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
+}
+@property --gc-stir {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+@property --gc-heart {
+  syntax: '<percentage>';
+  inherits: true;
+  initial-value: 24%;
+}
+@property --gc-depth {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0.012;
+}
+@property --gc-dim {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+@property --gc-glow {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0.5;
+}
+@property --gc-lean {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
+}
+@property --gc-op {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
+}
+@property --gc-tint {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgb(168 176 255 / 0.8);
+}
 :root[data-theme='light'] .light {
   isolation: isolate;
-  /* Without WebGL the engine marks a fallback and the room paints its radial on the element; on paper the halo is the
-     pseudo-element's alone (Codex on #251). */
   background: none;
+  --gc-k: max(0.01, 3 * tan(atan2(var(--lr, min(32vmin, 300px)), 1000px)));
+  --gc-px: calc(1px / var(--gc-k));
+  --gc-voice: var(--amp, 0);
+  --gc-breath: calc(var(--gc-depth) * (2 * var(--gc-b) - 1));
+  animation:
+    gc-drift 48s linear infinite,
+    gc-breathe 6.5s ease-in-out infinite alternate;
+  transition: 1.4s ease;
+  transition-property:
+    --gc-reach, --gc-stir, --gc-heart, --gc-depth, --gc-dim, --gc-glow, --gc-lean, --gc-op, --gc-tint;
 }
+/* Listening she opens; thinking she gathers inward and dims, slowly; speaking her voice opens her heart; at work she is
+   smaller (--ls) with a warm ember among the clouds, still lit. Rest is the defaults. */
+:root[data-theme='light'] .light[data-mode='listen'] {
+  --gc-reach: 1.15;
+  --gc-stir: 0.4;
+  --gc-heart: 32%;
+  --gc-depth: 0.018;
+  --gc-glow: 0.72;
+}
+:root[data-theme='light'] .light[data-mode='think'] {
+  --gc-reach: 0.45;
+  --gc-heart: 14%;
+  --gc-depth: 0.004;
+  --gc-dim: 0.14;
+  --gc-glow: 0.34;
+}
+:root[data-theme='light'] .light[data-mode='speak'] {
+  --gc-reach: 1.05;
+  --gc-stir: 0.3;
+  --gc-heart: 28%;
+  --gc-depth: 0.006;
+  --gc-glow: 0.7;
+}
+:root[data-theme='light'] .light[data-mode='work'] {
+  --gc-reach: 0.8;
+  --gc-heart: 20%;
+  --gc-depth: 0.01;
+  --gc-glow: 0.4;
+  --gc-tint: rgb(232 172 128 / 0.5);
+}
+/* Where the light forms the mark (sign-in once through, Home, Talk), the mark is her: the orb steps back, and still. */
+:root[data-theme='light'] .light[data-mark] {
+  --gc-op: 0;
+  animation-play-state: paused;
+  transition-duration: 0.6s;
+}
+/* Read, not heard: her voice moves nothing inside her (its level is cut at the source too, RoomStage). */
+:root[data-theme='light'] .room-stage[data-conversation-mode='text'] > .light {
+  --gc-voice: 0;
+}
+:root[data-theme='light'] .light::before,
 :root[data-theme='light'] .light::after {
   content: '';
   position: absolute;
-  inset: 0;
   z-index: -1;
-  /* A soft heart and a deeper ring (Luis, 2026-10-11: the halo lost itself against the white): the heart fades to
-     the deep violet at the rim, then the halo thins to nothing by 48 %. Where the room says (`--halo-at`), it stands
-     where the engine draws her; elsewhere at 50 % 42 % of the page. */
-  background: radial-gradient(
-    var(--halo-at, circle at 50% 42%),
-    rgb(255 255 255 / 0.96) 0,
-    rgb(255 255 255 / 0.86) 4%,
-    rgb(85 70 184 / 0.4) 8.5%,
-    rgb(var(--halo-rgb) / 0.44) 11.5%,
-    rgb(var(--halo-rgb) / 0.24) 18%,
-    rgb(var(--halo-rgb) / 0.1) 28%,
-    transparent 48%
+  top: 0;
+  left: 0;
+  translate: var(--lx, 50vw) var(--ly, 42vh);
+  scale: calc(var(--gc-k) * min(var(--ls, 1), 1.2));
+  transform-origin: 50% 50%;
+  opacity: var(--gc-op);
+}
+/* The clouds: a square past the glass by the blur's reach, blurred, then cut to the circle, so the inside is soft and
+   the edge clean. They turn and stir (her voice swirls them, smoothed over 0.3 s), lean toward whom she attends to (6 px
+   of the glass's 100: the glint and the rim stay put), and her strength (--le) whitens and saturates them. */
+:root[data-theme='light'] .light::before {
+  --gc-swirl: calc(0.6 * var(--gc-voice));
+  --gc-s: calc(var(--gc-stir) + var(--gc-swirl));
+  --gc-sx: calc(var(--gc-s) * 4.5% * cos(var(--gc-turn) * 8));
+  --gc-sy: calc(var(--gc-s) * 4.5% * sin(var(--gc-turn) * 8));
+  --gc-pull: calc(var(--gc-lean) * 6px);
+  --gc-white: calc(
+    (0.3 + 0.55 * var(--gc-reach)) * (0.55 + 0.45 * var(--le, 1)) * (1 + 8 * var(--gc-breath)) *
+      (1 - var(--gc-dim) * (0.5 + 0.5 * var(--gc-ponder)))
   );
-  transform-origin: var(--halo-origin, 50% 42%);
-  animation: paper-breathe 6s ease-in-out infinite alternate;
+  --gc-h: calc(var(--gc-heart) + 16% * var(--gc-voice) + 250% * var(--gc-breath));
+  width: 260px;
+  height: 260px;
+  margin: -130px;
+  clip-path: circle(98.5px);
+  filter: blur(max(8px, var(--gc-px))) saturate(calc(0.72 + 0.28 * var(--le, 1)))
+    brightness(calc(1 + 0.1 * var(--gc-voice)));
+  background-position: calc(var(--ldx, 0) * var(--gc-pull)) calc(var(--ldy, 0) * var(--gc-pull));
+  background-image:
+    radial-gradient(
+      26% 18% at calc(50% + 12% * var(--gc-reach) * cos(var(--gc-turn)) + var(--gc-sx))
+        calc(42% + 7% * var(--gc-reach) * sin(var(--gc-turn)) + var(--gc-sy)),
+      rgb(255 255 255 / var(--gc-white)),
+      40%,
+      transparent
+    ),
+    radial-gradient(
+      16% 11% at calc(52% + 15% * var(--gc-reach) * cos(140deg - var(--gc-turn) * 2) + var(--gc-sy))
+        calc(55% + 11% * var(--gc-reach) * sin(140deg - var(--gc-turn) * 2) + var(--gc-sx)),
+      rgb(255 255 255 / calc(var(--gc-white) * 0.8)),
+      transparent
+    ),
+    radial-gradient(
+      20% 14% at calc(48% + 14% * var(--gc-reach) * cos(var(--gc-turn) * 3 + 230deg) - var(--gc-sx))
+        calc(47% + 12% * var(--gc-reach) * sin(var(--gc-turn) * 3 + 230deg) - var(--gc-sy)),
+      var(--gc-tint),
+      transparent
+    ),
+    radial-gradient(
+      24% 15% at calc(50% + 15% * var(--gc-reach) * cos(300deg - var(--gc-turn)) - var(--gc-sy))
+        calc(64% + 6% * var(--gc-reach) * sin(300deg - var(--gc-turn)) - var(--gc-sx)),
+      rgb(var(--core-rgb) / 0.5),
+      transparent
+    ),
+    conic-gradient(
+      from calc(var(--gc-turn) * -1) at 48% 52%,
+      rgb(255 255 255 / 0.16),
+      rgb(var(--core-rgb) / 0.14),
+      rgb(255 255 255 / 0.1),
+      rgb(var(--halo-rgb) / 0.16),
+      rgb(255 255 255 / 0.16)
+    ),
+    radial-gradient(
+      circle 100px at 50% 54%,
+      rgb(250 248 255),
+      rgb(206 195 255) var(--gc-h),
+      rgb(148 122 242) calc(var(--gc-h) + 32%),
+      rgb(106 86 212) 84%,
+      rgb(var(--core-rgb))
+    );
+  transition: --gc-swirl 0.3s linear;
 }
-@keyframes paper-breathe {
-  from {
-    transform: scale(1);
-    opacity: 0.92;
-  }
+/* Thinking, a slow dim and clear over 11 s, from the start each time. */
+:root[data-theme='light'] .light[data-mode='think']::before {
+  animation: gc-ponder 11s ease-in-out infinite alternate;
+}
+/* The glass: its glint, a soft sheen above and below, a translucent rim; a grounding shadow and her glow, which her
+   breath and her voice lift. */
+:root[data-theme='light'] .light::after {
+  width: 200px;
+  height: 200px;
+  margin: -100px;
+  border-radius: 50%;
+  background-image:
+    radial-gradient(ellipse 13% 8% at 34% 24%, rgb(255 255 255 / 0.92), rgb(255 255 255 / 0.85) 62%, transparent 86%),
+    radial-gradient(ellipse 66% 38% at 46% 7%, rgb(255 255 255 / 0.18), transparent 72%),
+    radial-gradient(ellipse 44% 17% at 55% 88%, rgb(255 248 240 / 0.5), transparent),
+    radial-gradient(
+      closest-side,
+      transparent 44%,
+      rgb(var(--core-rgb) / 0.22) 72%,
+      rgb(var(--core-rgb) / 0.66) min(93%, 100% - 2.5 * var(--gc-px)),
+      rgb(222 214 255 / 0.85) min(98.4%, 100% - var(--gc-px)),
+      rgb(var(--core-rgb) / 0.4)
+    );
+  box-shadow:
+    inset 0 4px 7px rgb(255 255 255 / 0.42),
+    0 16px 36px -12px rgb(var(--core-rgb) / 0.3),
+    0 2px 5px rgb(var(--ink-rgb) / 0.08),
+    0 0 calc(50px + 40px * var(--gc-glow)) 3px
+      rgb(var(--halo-rgb) / calc((0.26 * var(--gc-glow) + 0.12 * var(--gc-voice)) * (1 + 12 * var(--gc-breath))));
+}
+@keyframes gc-drift {
   to {
-    transform: scale(1.04);
-    opacity: 1;
+    --gc-turn: 1turn;
   }
 }
+@keyframes gc-breathe {
+  to {
+    --gc-b: 1;
+  }
+}
+@keyframes gc-ponder {
+  to {
+    --gc-ponder: 1;
+  }
+}
+/* Under reduced motion she stands still, her states told apart by their values alone: no voice, no lean. */
 @media (prefers-reduced-motion: reduce) {
-  :root[data-theme='light'] .light::after {
+  :root[data-theme='light'] .light {
+    --gc-voice: 0;
+    --gc-lean: 0;
+    --gc-b: 0.5;
     animation: none;
+    transition: none;
+  }
+  :root[data-theme='light'] .light::before,
+  :root[data-theme='light'] .light[data-mode]::before {
+    --gc-ponder: 0.5;
+    animation: none;
+    transition: none;
   }
 }
 /* The bar's mark on paper carries no glow at rest (the brand's paper mark); live, a soft halo-deep still says so. Only
@@ -1619,16 +1845,10 @@ img.avatar {
     radial-gradient(ellipse closest-side at 50% 50%, transparent 55%, rgb(var(--warm-rgb) / 0.05) 100%);
   pointer-events: none;
 }
-/* In the room the paper halo follows the light the engine draws (docs/plans/light-room-paper.md; informe-25 X1): its
-   centre is hers (in her tile in a video call), its radius three of hers times her size now, and its strength hers,
-   as the canvas's on the dark page. Before the engine's first frame, the stage's own place for her. */
+/* In the room the paper orb follows the light the engine draws (docs/plans/light-room-paper.md, paper-orb.md): its centre
+   is hers (in her tile in a video call), its size her radius's times hers now, over the stage's words and tiles. */
 :root[data-theme='light'] .room-stage > .light {
   z-index: 1;
-  --halo-at: circle calc(var(--lr) * 3 * var(--ls, 1)) at var(--lx, 50%) var(--ly);
-  --halo-origin: var(--lx, 50%) var(--ly);
-}
-:root[data-theme='light'] .room-stage > .light::after {
-  filter: opacity(var(--le, 1));
 }
 .stage-top {
   position: absolute;

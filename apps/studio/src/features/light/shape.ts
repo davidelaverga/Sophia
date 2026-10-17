@@ -28,11 +28,30 @@ export function shapeOf(s: Shaping): { size: number; strength: number } {
 const px = (v: number) => `${String(Math.round(v))}px`
 const k = (v: number) => String(Math.round(v * 100) / 100)
 
+/** Where she is, her direction and how far she leans: what the paper orb reads beside her shape. */
+interface Placing {
+  x: number
+  y: number
+  radius: number
+  dirX: number
+  dirY: number
+  lean: number
+}
+
 /**
- * The paper halo's properties (theme.css): where she is and her radius in the light's box, and how large and how strong
- * she is now, never stronger than the halo's own ink.
+ * The paper orb's properties (theme.css; docs/plans/paper-orb.md): where she is and her radius in the light's box, how
+ * large and how strong she is now (never stronger than her own ink), and whom she attends to, her direction times how
+ * far she leans.
  */
-export function paperHalo(f: Shaping & { x: number; y: number; radius: number }): Record<string, string> {
+export function paperHalo(f: Shaping & Placing): Record<string, string> {
   const { size, strength } = shapeOf(f)
-  return { '--lx': px(f.x), '--ly': px(f.y), '--lr': px(f.radius), '--ls': k(size), '--le': k(Math.min(1, strength)) }
+  return {
+    '--lx': px(f.x),
+    '--ly': px(f.y),
+    '--lr': px(f.radius),
+    '--ls': k(size),
+    '--le': k(Math.min(1, strength)),
+    '--ldx': k(f.dirX * f.lean),
+    '--ldy': k(f.dirY * f.lean),
+  }
 }

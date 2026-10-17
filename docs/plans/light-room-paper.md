@@ -44,3 +44,5 @@
   (about 1.07:1 today).
 - On a phone the paper halo at rest is about 17 % tighter than the farthest-corner radial it replaces (desktop is the
   same within a pixel). In a video call the halo spills up to 0.09 alpha above her tile; it isn't clipped.
+
+> 2026-10-17: on paper the halo became a solid orb; see `paper-orb.md`.

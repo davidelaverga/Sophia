@@ -343,7 +343,7 @@ export function RoomStage(props: Props) {
         target={geometry.target}
         attention={geometry.attention}
         working={running > 0}
-        voice={room.sophiaLevel}
+        voice={room.textMode ? null : room.sophiaLevel}
       />
       {mode === 'light' ? (
         <>
