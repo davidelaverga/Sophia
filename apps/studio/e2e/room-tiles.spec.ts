@@ -178,10 +178,22 @@ test('tiles · on a phone beside a shown screen, your tile hidden: five tiles on
   await hideMine(page)
   await expect(tiles(page)).toHaveCount(5)
   await expect(more(page)).toHaveText('+7')
-  const tops = await tiles(page).evaluateAll((all) => [
-    ...new Set(all.map((el) => Math.round(el.getBoundingClientRect().top))),
-  ])
-  expect(tops).toHaveLength(1)
+  // At rest (a tile arriving rises a few px): one row.
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished),
+    ),
+  )
+  const tops = await tiles(page).evaluateAll((all) => all.map((el) => el.getBoundingClientRect().top))
+  expect(Math.max(...tops) - Math.min(...tops)).toBeLessThanOrEqual(1)
+  // «Your tile is hidden» fits a fifth of a phone: nothing of it cut, Show whole, its words still said.
+  const place = room(page).locator('.tile-hidden-self')
+  expect(await place.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1)
+  await expect(place.getByRole('button', { name: 'Show' })).toBeInViewport({ ratio: 1 })
+  await expect(place).toContainText('Your tile is hidden')
 })
 
 /** What a screen reader is given for a tile's label (its accessibility tree, not its text nodes). */
