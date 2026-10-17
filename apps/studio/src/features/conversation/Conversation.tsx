@@ -18,7 +18,7 @@ import { EarlierLine, useEarlierDiscussion } from './EarlierDiscussion.tsx'
 import { NoticeCard } from './NoticeCard.tsx'
 import { quoteOf } from './replies.ts'
 import type { Replying } from './ReplyingTo.tsx'
-import { LinkedText } from '../../app/LinkedText.tsx'
+import { RichText } from '../../app/RichText.tsx'
 import { clock } from '../../app/time-words.ts'
 import { useNow } from '../../app/use-now.ts'
 import { dayBreaks, todayAfter } from './chat-days.ts'
@@ -225,12 +225,12 @@ function Turn({ turn }: { turn: ChatTurn }) {
       <div className="chat-message user">
         <strong>You</strong> <At at={new Date(turn.sentAt)} className="chat-at" />
         <p>
-          <LinkedText text={turn.text} />
+          <RichText text={turn.text} />
         </p>
       </div>
       <div className="chat-message sophia">
         <strong>Sophia</strong>
-        <p>{turn.reply ? <LinkedText text={turn.reply} /> : waiting}</p>
+        <p>{turn.reply ? <RichText text={turn.reply} /> : waiting}</p>
         {turn.reason && (
           <p className="chat-status" role="status">
             {turn.reason}
@@ -273,7 +273,7 @@ function Discussion({ entries, me, names: known, replies, onReply }: DiscussionP
             <span className="contribution-author">{author}</span>
             <At at={new Date(entry.createdAt)} className="contribution-at" />
             <span className="contribution-text">
-              <LinkedText text={entry.text} />
+              <RichText text={entry.text} />
             </span>
             {onReply && (
               <button

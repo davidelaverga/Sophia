@@ -46,6 +46,7 @@ import { useWithdrawHere } from './WithdrawHere.tsx'
 import type { NextAskSource } from './useNextAsk.ts'
 import { clock, dayOf, sameDay, when } from '../../app/time-words.ts'
 import { LinkedText } from '../../app/LinkedText.tsx'
+import { RichText } from '../../app/RichText.tsx'
 import { CopyLink } from '../resources/CopyLink.tsx'
 import { CONVERSATION, linkHash } from '../resources/link.ts'
 
@@ -832,8 +833,9 @@ function MessageLead({
 }
 
 /**
- * A message's words: hers with their shape, a member's as written, or that it was withdrawn (where the focus lands when
- * it is withdrawn here: WithdrawHere.tsx).
+ * A message's words: hers with their shape, a member's as written with its marks (RichText: bold, code, quotes and
+ * links, docs/plans/message-format.md), or that it was withdrawn (where the focus lands when it is withdrawn here:
+ * WithdrawHere.tsx).
  */
 function MessageWords({ words, sophia }: { words: string | null; sophia: boolean }) {
   if (words === null) {
@@ -847,7 +849,7 @@ function MessageWords({ words, sophia }: { words: string | null; sophia: boolean
     <SophiaText text={words} />
   ) : (
     <p>
-      <LinkedText text={words} />
+      <RichText text={words} />
     </p>
   )
 }

@@ -19,6 +19,7 @@ import { LobbyPanel } from '../access/LobbyPanel.tsx'
 import { ArchivedLine } from './Archive.tsx'
 import { canInvite, useProjectMembership, type SheetContext } from '../access/useAccess.ts'
 import { DocumentViewerProvider } from '../artifacts/DocumentViewer.tsx'
+import { InPlaceLinks } from './InPlaceLinks.tsx'
 import { KnowledgeReports } from '../artifacts/KnowledgeReports.tsx'
 import { CarriedIn } from '../artifacts/CarriedIn.tsx'
 import { sendingOf } from '../voice/CallSwitches.tsx'
@@ -769,9 +770,10 @@ interface ViewerProps extends BodyProps {
 /**
  * The report viewer around a view: opening a report closes the side panel, and opening the panel closes the report. In
  * the room the pane covers the panel's toggles, so its head offers the chat. Where it covers the dock or the mini dock
- * (a phone, the full page), its head carries the call's switches and note, as the side panel's does (LFE-02.1).
+ * (a phone, the full page), its head carries the call's switches and note, as the side panel's does (LFE-02.1). Inside
+ * it, a link to this project in a message is followed here, a report's in the viewer (studio-links-in-place.md).
  */
-function WithViewer({ projectId, identity, view, room, panel, looking, snapshot, children }: ViewerProps) {
+function WithViewer({ projectId, identity, view, room, panel, looking, snapshot, onShow, children }: ViewerProps) {
   const studio = view === 'studio'
   return (
     <DocumentViewerProvider
@@ -791,7 +793,9 @@ function WithViewer({ projectId, identity, view, room, panel, looking, snapshot,
       call={<PanelCallSwitches room={room} looking={looking} />}
       note={room.mediaError ?? room.error}
     >
-      {children}
+      <InPlaceLinks projectId={projectId} view={view} onShow={onShow}>
+        {children}
+      </InPlaceLinks>
     </DocumentViewerProvider>
   )
 }

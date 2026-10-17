@@ -181,6 +181,8 @@ interface Project {
   pageTampered?: boolean
   /** The research task is in the project's work (`place=work`): its card lists the report's outputs. */
   work: boolean
+  /** The snapshot carries the research task and the report's current version (`reports=1`, goal-reports.md). */
+  goalReports?: boolean
   /** The project's goals (the work fixture's one, LFE-07). */
   goals?: Snapshot['goals']
   /** What Sophia offers for a source review (WBC-02); absent, the pilot is not enabled. */
@@ -339,8 +341,20 @@ function snapshotOf(project: Project) {
     : project.work
       ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing).task] }
       : now
-  const titled = project.title ? { ...work, title: project.title } : work
+  const reported = project.goalReports ? withGoalReports(project, work) : work
+  const titled = project.title ? { ...reported, title: project.title } : reported
   return withFocus(project, project.waiting ? { ...titled, lobby: lobbyOf(project.lobbyAsked) } : titled)
+}
+
+/** The research task in the snapshot's work and the report's current version in its artifacts (goal-reports.md). */
+function withGoalReports(project: Project, now: Snapshot): Snapshot {
+  const task = researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing).task
+  const current = versions(project.reportVersions, project.reportTitle, project.pilot)[0]
+  return {
+    ...now,
+    work: now.work.some((t) => t.id === task.id) ? now.work : [...now.work, task],
+    artifacts: current ? [current] : now.artifacts,
+  }
 }
 
 /** What the room shows, as the snapshot carries it, with the report's current version among its artifacts. */
