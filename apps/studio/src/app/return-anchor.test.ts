@@ -101,3 +101,13 @@ test('an anchor longer than the helpers can make is still not kept', () => {
   keepAnchor(store, { pathname: PATH, hash: '#task-' + 'a'.repeat(7204) }, AT)
   assert.equal(store.kept.has(RETURN_ANCHOR_KEY), false)
 })
+
+test('any letter in an anchor’s body is kept; a space, a #, & or = is not', () => {
+  const store = memory()
+  keepAnchor(store, { pathname: PATH, hash: '#resource-specs' }, AT)
+  assert.equal(takeAnchor(store, PATH, AT), '#resource-specs')
+  for (const hash of ['#task-a b', '#task-a#b', '#task-a&b', '#task-a=b']) {
+    keepAnchor(store, { pathname: PATH, hash }, AT)
+    assert.equal(store.kept.has(RETURN_ANCHOR_KEY), false, hash)
+  }
+})
