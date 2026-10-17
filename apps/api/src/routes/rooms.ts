@@ -7,11 +7,22 @@ import {
   hostedRoom,
   nameActor,
   recordHostAct,
+  recordRoomAct,
+  removedJustNow,
   rememberRoomName,
   transferInputFloor,
   withActor,
 } from '@sophia/persistence'
-import { issueRoomToken, memberInRoom, muteMicrophone, removeFromCall, type LiveKitConfig } from '../livekit.ts'
+import {
+  issueRoomToken,
+  memberInRoom,
+  muteEveryone,
+  muteMicrophone,
+  removeFromCall,
+  stopCamera,
+  stopScreen,
+  type LiveKitConfig,
+} from '../livekit.ts'
 import { idempotencyHeader, projectParams } from './schemas.ts'
 
 const roomParams = {
@@ -94,12 +105,64 @@ export function roomRoutes(app: FastifyInstance, { pool, livekit }: Deps): void 
   )
 }
 
+/** The room this admin hosts, and the room server, or why not (A24, A31). */
+async function hostRoom(
+  deps: Deps,
+  actorId: string,
+  projectId: string,
+): Promise<{ roomId: string; lk: LiveKitConfig }> {
+  const roomId = await withActor(deps.pool, actorId, 'read', (c) => hostedRoom(c, projectId))
+  if (!roomId) throw new DomainError('forbidden', 'Not permitted')
+  if (!deps.livekit) throw new DomainError('unavailable', 'The voice room is not configured on this server')
+  return { roomId, lk: deps.livekit }
+}
+
+const STOPS = {
+  'stop-camera': { stop: stopCamera, act: 'camera' },
+  'stop-screen': { stop: stopScreen, act: 'screen' },
+} as const
+
+/**
+ * More for the host (A31, docs/plans/host-more.md): stop a member's camera or screen share, or mute everyone else. As
+ * A24's acts: the database says who may, the room server who is in the call; recorded once done; twice is once.
+ */
+function moreHostControls(app: FastifyInstance, deps: Deps): void {
+  for (const [path, { stop, act }] of Object.entries(STOPS)) {
+    app.post<{ Params: { projectId: string; identity: string } }>(
+      `/api/v1/projects/:projectId/room/people/:identity/${path}`,
+      { schema: { params: personParams } },
+      async (req, reply) => {
+        const { roomId, lk } = await hostRoom(deps, req.actorId, req.params.projectId)
+        if (req.params.identity === req.actorId) throw new DomainError('invalid_request', 'Your own call is yours')
+        if (!(await memberInRoom(lk, roomId, req.params.identity)))
+          throw new DomainError('invalid_request', 'They aren’t a member in the call')
+        await stop(lk, roomId, req.params.identity)
+        await withActor(deps.pool, req.actorId, 'write', (c) =>
+          recordRoomAct(c, req.params.projectId, req.params.identity, act),
+        )
+        return reply.code(204).send()
+      },
+    )
+  }
+  app.post<{ Params: { projectId: string } }>(
+    '/api/v1/projects/:projectId/room/mute-all',
+    { schema: { params: projectParams } },
+    async (req, reply) => {
+      const { roomId, lk } = await hostRoom(deps, req.actorId, req.params.projectId)
+      await muteEveryone(lk, roomId, req.actorId)
+      await withActor(deps.pool, req.actorId, 'write', (c) => recordRoomAct(c, req.params.projectId, null, 'mute_all'))
+      return reply.code(204).send()
+    },
+  )
+}
+
 /**
  * An admin mutes or removes a member in the call (A24, docs/plans/host-controls.md). Who may is the database's answer;
  * who is in the call, and as what, is the room server's, from the standing the API signed into each token. Neither act
  * changes a record, so neither needs a key: twice is the same as once.
  */
 function hostControls(app: FastifyInstance, { pool, livekit }: Deps): void {
+  moreHostControls(app, { pool, livekit })
   for (const what of ['mute', 'remove'] as const) {
     app.post<{ Params: { projectId: string; identity: string } }>(
       `/api/v1/projects/:projectId/room/people/:identity/${what}`,
@@ -109,8 +172,16 @@ function hostControls(app: FastifyInstance, { pool, livekit }: Deps): void {
         if (!roomId) throw new DomainError('forbidden', 'Not permitted')
         if (req.params.identity === req.actorId) throw new DomainError('invalid_request', 'Your own call is yours')
         if (!livekit) throw new DomainError('unavailable', 'The voice room is not configured on this server')
-        if (!(await memberInRoom(livekit, roomId, req.params.identity)))
+        if (!(await memberInRoom(livekit, roomId, req.params.identity))) {
+          // A removal retried after its answer was lost finds them gone: done, as the first said (Codex P2 on #351).
+          const gone =
+            what === 'remove' &&
+            (await withActor(pool, req.actorId, 'read', (c) =>
+              removedJustNow(c, req.params.projectId, req.params.identity),
+            ))
+          if (gone) return reply.code(204).send()
           throw new DomainError('invalid_request', 'They aren’t a member in the call')
+        }
         await (what === 'mute' ? muteMicrophone : removeFromCall)(livekit, roomId, req.params.identity)
         // Evidence of who did it, once it is done (project-activity.md): the project's activity lists it.
         await withActor(pool, req.actorId, 'write', (c) =>

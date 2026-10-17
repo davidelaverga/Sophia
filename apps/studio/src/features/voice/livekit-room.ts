@@ -194,6 +194,17 @@ function remoteAudio(room: Room, textOnly: () => boolean): Set<HTMLMediaElement>
   return mine
 }
 
+/**
+ * A screen share the host stopped (A31, host-more.md) stops here too: the server can only mute it, so this person's
+ * share ends, and the browser's capture with it, rather than sending a black screen.
+ */
+function stopsWhenHostStops(room: Room): void {
+  room.on(RoomEvent.TrackMuted, (publication, participant) => {
+    if (participant !== room.localParticipant || publication.source !== Track.Source.ScreenShare) return
+    void room.localParticipant.setScreenShareEnabled(false).catch(() => undefined)
+  })
+}
+
 const CHANGES = [
   RoomEvent.ParticipantConnected,
   RoomEvent.ParticipantDisconnected,
@@ -408,6 +419,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
   room.on(RoomEvent.Reconnected, () => cb.onStatus('live'))
   let textOnly = false
   const audio = remoteAudio(room, () => textOnly)
+  stopsWhenHostStops(room)
   room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
     for (const el of audio) el.remove()
     audio.clear()
