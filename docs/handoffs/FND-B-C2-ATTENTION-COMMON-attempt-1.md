@@ -185,6 +185,24 @@ and other statuses are unchanged; the fence, retry, draft and restoration paths 
   server's marker; its `<= 3` assertion is unchanged.
 - The selected C1 source shares these modules and stays held: this fix is not in its artifact.
 
+## FND-B-REFUSAL-SEMANTIC-UI-REGRESSION-01 (R-REFUSAL-MEASURE-01)
+
+- Four semantic browser cases in `apps/studio/e2e/conversations-removal.spec.ts` (list and open thread, each with a
+  delayed and a malformed 403 body). The page's fetch is wrapped after load; each conversations list/thread 403 is
+  stamped (sequence, path, `performance.now`) as its Response is handed to the app, with the status app-visible before
+  the delayed body can decode. From that stamp on, every `requestAnimationFrame` callback records protected rows, the
+  open thread's messages or composer, or New conversation that are laid out and visible. Zero is required. This
+  measures rAF-callback DOM geometry and computed visibility, not compositor paint. The legacy `<=3` cases are kept
+  byte-for-byte as historical evidence.
+- Causal failure on 527d (kept first): 1-3 frames 0.4-66 ms after the client saw the 403. query-core 5.103.2
+  notifies observers with `setTimeout(0)`, so the fence committed by the view's layout effect came a task late.
+- Correction (same privacy behavior): the list read (`ConversationsView` `useList`) fences and the thread read
+  (`OpenConversation` `useTranscript`) calls `onDenied` in their query functions as the client learns the refusal; the
+  layout effects stay for the rest. The talk-store write re-renders in React's sync lane, before the next frame.
+- Proof: the fixed source passes all 46 cases in the spec. A declared `protectedRead` guard mutant fails all 4
+  semantic cases: ~20 frames over ~310-344 ms for delayed bodies, and malformed bodies are never classed as a refusal.
+  Restored blob 2044ed49. The prior source fails 3-4 of 4.
+
 ## Next bounded action
 
 B's private handback goes to P; R reviews this integration. No push until P selects one publication.
