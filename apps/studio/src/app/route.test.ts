@@ -81,6 +81,17 @@ describe('viewsShown (docs/plans/served-views.md)', () => {
     assert.equal(shownView('resources', false), 'studio')
     assert.equal(shownView('updates', true), 'updates')
   })
+
+  it('adds only Updates under the attention flag without the vision flag (A34)', () => {
+    assert.deepEqual(viewsShown(false, false), ['studio', 'goals', 'work', 'knowledge'])
+    assert.deepEqual(viewsShown(false, true), ['studio', 'goals', 'work', 'knowledge', 'updates'])
+    assert.deepEqual(viewsShown(true, true), VIEWS)
+    assert.deepEqual(viewsShown(true, false), VIEWS)
+    assert.equal(shownView('updates', false, true), 'updates')
+    assert.equal(shownView('conversations', false, true), 'studio')
+    assert.equal(shownView('resources', false, true), 'studio')
+    assert.equal(shownView('updates', false, false), 'studio')
+  })
 })
 
 describe('whose address it is (Codex on #242)', () => {

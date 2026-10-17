@@ -1,6 +1,7 @@
 // Updates (docs/plans/room-updates.md): what changed since this person last looked (A13's digest, built as A12's recap)
-// and the project's meetings, each opening its recap in the same sheet as on leaving. Shown only under the vision flag,
-// where the fixture pages answer; elsewhere Updates is still «Coming» (PendingView).
+// and the project's meetings, each opening its recap in the same sheet as on leaving. Shown under the vision flag, where
+// the fixture pages answer, or the attention flag, where A34 serves the digest: the meetings only under the vision flag
+// (ProjectShell decides); elsewhere Updates is still «Coming» (PendingView).
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
@@ -34,6 +35,8 @@ interface Props {
   membership: Membership | undefined
   /** The call this person is in, if any: joining or leaving starts or ends a meeting, so the list is read again. */
   inCall: boolean
+  /** Whether the meetings and their recaps (A12, not served) show under the digest. */
+  meetings: boolean
 }
 
 /** Updates: the digest first, then the meetings. Both are read again as the project's feed moves. */
@@ -43,13 +46,13 @@ const runningOf = (meetings: readonly MeetingSummary[], id: string): boolean | u
   return row ? row.endedAt === null : undefined
 }
 
-export function UpdatesView({ projectId, identity, snapshot, membership, inCall }: Props) {
+export function UpdatesView({ projectId, identity, snapshot, membership, inCall, meetings }: Props) {
   const me = membership?.actorId ?? ''
   return (
     <section className="updates" aria-labelledby="updates-title">
       <h2 id="updates-title">Updates</h2>
       {snapshot && <SinceYouLooked projectId={projectId} identity={identity} cursor={snapshot.cursor} me={me} />}
-      {snapshot && (
+      {snapshot && meetings && (
         <Meetings
           projectId={projectId}
           identity={identity}
