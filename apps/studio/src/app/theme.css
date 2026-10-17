@@ -58,6 +58,14 @@
   --on-warm: #1a1512;
   --soon: #e8c48d;
   --claude-ink: #b3a3f5;
+  /* Claude's ink as channels, for its alphas; Ultracode's glint and sparks over its dots, and a light that flies (a note
+     kept, the glow leaving Home's light): white and pale lavender in the room, on paper the paper mark's violet, as a
+     light there is an ink (docs/plans/light-room-literals.md). */
+  --claude-ink-rgb: 179 163 245;
+  --claude-glint: var(--core);
+  --claude-spark: #e4dcff;
+  --flight-core: rgba(250, 248, 255, 0.95);
+  --flight-rim: rgba(214, 204, 255, 0.55);
   --rose-rgb: 238 159 176;
   /* A shadow's ink and its strength: black at full in the room; on paper the ink, a third as strong. */
   --shadow-rgb: 0 0 0;
@@ -130,6 +138,11 @@
   --on-warm: #fbf8f3;
   --soon: #8f5717;
   --claude-ink: #5546b8;
+  --claude-ink-rgb: 85 70 184;
+  --claude-glint: #8468ee;
+  --claude-spark: #8468ee;
+  --flight-core: #8468ee;
+  --flight-rim: rgb(132 104 238 / 0.5);
   --rose-rgb: 168 55 90;
   --shadow-rgb: 29 27 34;
   --shadow-k: 0.35;
@@ -3228,7 +3241,7 @@ button.contribution-quote:hover {
   border: 1px solid var(--line-2);
   border-radius: 12px;
   background: var(--plane-2);
-  box-shadow: 0 12px 32px rgb(0 0 0 / 0.32);
+  box-shadow: 0 12px 32px rgb(var(--shadow-rgb) / calc(0.32 * var(--shadow-k)));
 }
 .welcome-words {
   display: grid;

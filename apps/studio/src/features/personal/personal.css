@@ -847,8 +847,8 @@
   pointer-events: none;
   background: radial-gradient(
     circle,
-    rgba(250, 248, 255, 0.95) 0 9%,
-    rgba(214, 204, 255, 0.55) 16%,
+    var(--flight-core) 0 9%,
+    var(--flight-rim) 16%,
     rgb(var(--halo-rgb) / 0.22) 38%,
     rgb(var(--halo-rgb) / 0) 70%
   );
@@ -2203,7 +2203,7 @@
   height: 10px;
   border-radius: 50%;
   pointer-events: none;
-  background: radial-gradient(circle, rgba(250, 248, 255, 0.95) 0 25%, rgb(var(--halo-rgb) / 0.5) 60%, transparent 75%);
+  background: radial-gradient(circle, var(--flight-core) 0 25%, rgb(var(--halo-rgb) / 0.5) 60%, transparent 75%);
   transform: translate(-50%, -50%);
 }
 .places .c3-notes-toggle {
