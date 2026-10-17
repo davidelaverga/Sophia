@@ -30,9 +30,13 @@ export function settle(s: Spring): void {
 export const ATTACK_S = 0.03
 export const RELEASE_S = 0.18
 
+/** What she hears, by its own slower envelope: receiving reads calmer than her own voice (docs/plans/orb-hears.md). */
+export const HEAR_ATTACK_S = 0.12
+export const HEAR_RELEASE_S = 0.45
+
 /** One step of the envelope toward the level heard now: fast up, slower down, exact at any frame rate. */
-export function envelope(value: number, level: number, dt: number): number {
-  const tau = level > value ? ATTACK_S : RELEASE_S
+export function envelope(value: number, level: number, dt: number, attack = ATTACK_S, release = RELEASE_S): number {
+  const tau = level > value ? attack : release
   return level + (value - level) * Math.exp(-dt / tau)
 }
 

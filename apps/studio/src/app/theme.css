@@ -267,6 +267,7 @@
   --gc-k: max(0.01, 3 * tan(atan2(var(--lr, min(32vmin, 300px)), 1000px)));
   --gc-px: calc(1px / var(--gc-k));
   --gc-voice: var(--amp, 0);
+  --gc-ear: var(--hear, 0);
   --gc-breath: calc(var(--gc-depth) * (2 * var(--gc-b) - 1));
   animation:
     gc-drift 48s linear infinite,
@@ -313,6 +314,7 @@
    forming, fading between 0.9 and 0.55 of itself. Paused: the clouds drawn in and held, her violet kept. */
 :root[data-theme='light'] .light[data-presence] {
   --gc-voice: 0;
+  --gc-ear: 0;
   --gc-lean: 0;
 }
 :root[data-theme='light'] .light[data-presence='away'] {
@@ -341,6 +343,7 @@
    allowed (Allow audio). */
 :root[data-theme='light'] .light[data-sound='blocked'] {
   --gc-voice: 0;
+  --gc-ear: 0;
   --gc-calling: 1;
   animation-play-state: running;
 }
@@ -350,9 +353,10 @@
   animation-play-state: paused;
   transition-duration: 0.6s;
 }
-/* Read, not heard: her voice moves nothing inside her (its level is cut at the source too, RoomStage). */
+/* Read, not heard: no voice moves anything inside her (the levels are cut at the source too, RoomStage). */
 :root[data-theme='light'] .room-stage[data-conversation-mode='text'] > .light {
   --gc-voice: 0;
+  --gc-ear: 0;
 }
 :root[data-theme='light'] .light::before,
 :root[data-theme='light'] .light::after {
@@ -370,17 +374,17 @@
    the edge clean. They turn and stir (her voice swirls them, smoothed over 0.3 s), lean toward whom she attends to (6 px
    of the glass's 100: the glint and the rim stay put), and her strength (--le) whitens and saturates them. */
 :root[data-theme='light'] .light::before {
-  --gc-swirl: calc(0.6 * var(--gc-voice));
+  --gc-swirl: calc(0.6 * var(--gc-voice) + 0.3 * var(--gc-ear));
   --gc-s: calc(var(--gc-stir) + var(--gc-swirl));
   --gc-sx: calc(var(--gc-s) * 4.5% * cos(var(--gc-turn) * 8));
   --gc-sy: calc(var(--gc-s) * 4.5% * sin(var(--gc-turn) * 8));
-  --gc-pull: calc(var(--gc-lean) * 6px);
+  --gc-pull: calc(var(--gc-lean) * (1 + 0.7 * var(--gc-ear)) * 6px);
   --gc-l: calc(var(--gc-lit) * (1 - var(--gc-forming) * (0.1 + 0.35 * var(--gc-wave))));
   --gc-white: calc(
     var(--gc-l) * (0.3 + 0.55 * var(--gc-reach)) * (0.55 + 0.45 * var(--le, 1)) * (1 + 8 * var(--gc-breath)) *
-      (1 - var(--gc-dim) * (0.5 + 0.5 * var(--gc-ponder)))
+      (1 - var(--gc-dim) * (0.5 + 0.5 * var(--gc-ponder))) + 0.08 * var(--gc-ear)
   );
-  --gc-h: calc(var(--gc-heart) + 16% * var(--gc-voice) + 250% * var(--gc-breath));
+  --gc-h: calc(var(--gc-heart) + 16% * var(--gc-voice) + 3% * var(--gc-ear) + 250% * var(--gc-breath));
   width: 260px;
   height: 260px;
   margin: -130px;
@@ -507,6 +511,7 @@
 @media (prefers-reduced-motion: reduce) {
   :root[data-theme='light'] .light {
     --gc-voice: 0;
+    --gc-ear: 0;
     --gc-lean: 0;
     --gc-b: 0.5;
     --gc-call: 0.6;

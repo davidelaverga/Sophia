@@ -3,6 +3,8 @@
 // It never decides anything about the room; it only shows it.
 import {
   envelope,
+  HEAR_ATTACK_S,
+  HEAR_RELEASE_S,
   handoffFrame,
   settle,
   spring,
@@ -44,6 +46,8 @@ export interface LightInput {
   mark?: MarkAt | null
   /** How loud she is now, 0…1, read once a frame while she speaks (voice-levels.ts); absent, her voice moves nothing. */
   voice?: (() => number) | null
+  /** How loud the one she listens to is, 0…1, read once a frame while she listens (orb-hears.md); absent, nothing. */
+  hearing?: (() => number) | null
 }
 
 type SpringName =
@@ -175,6 +179,16 @@ interface HandoffStep {
   to: Point
 }
 
+/** A voice's level now, 0…1; one that can't be read is silence. */
+function level(read: (() => number) | null | undefined): number {
+  try {
+    const v = read?.() ?? 0
+    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0
+  } catch {
+    return 0
+  }
+}
+
 export class LightEngine {
   private readonly reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   private readonly springs = createSprings(this.reduced)
@@ -200,8 +214,10 @@ export class LightEngine {
   private halo = ''
   /** Her voice now, followed by its envelope (motion.ts): 0 unless she speaks, under full motion. */
   private amp = 0
-  /** Her voice's level as last written for the checks (`--amp`): a light that never hears her writes nothing. */
-  private heard = '0.00'
+  /** What she hears, by its own slower envelope: 0 unless she listens, under full motion (orb-hears.md). */
+  private ear = 0
+  /** The levels as last written (`--amp`, `--hear`): a light that never hears a voice writes nothing. */
+  private readonly written = { '--amp': '0.00', '--hear': '0.00' }
   private readonly box: HTMLElement
 
   /** The WebGL canvas: not displayed on paper (theme.css), when its frames are not drawn (Codex on #234). */
@@ -342,24 +358,21 @@ export class LightEngine {
     return flight
   }
 
-  /** Her voice, while she speaks and motion is full, through the envelope; a reader that fails is silence. */
+  /**
+   * Her voice while she speaks, and the voice she listens to while she listens, each through its envelope, under full
+   * motion only; a reader that fails is silence.
+   */
   private hear(dt: number): void {
-    const level = this.input.mode === 'speak' && !this.reduced ? this.level() : 0
-    this.amp = envelope(this.amp, level, dt)
-  }
-
-  private level(): number {
-    try {
-      const v = this.input.voice?.() ?? 0
-      return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0
-    } catch {
-      return 0
-    }
+    const { mode, voice, hearing } = this.input
+    this.amp = envelope(this.amp, mode === 'speak' && !this.reduced ? level(voice) : 0, dt)
+    const heard = mode === 'listen' && !this.reduced ? level(hearing) : 0
+    this.ear = envelope(this.ear, heard, dt, HEAR_ATTACK_S, HEAR_RELEASE_S)
   }
 
   private draw(t: number, flight: HandoffStep | null): void {
     const frame = toFrame(this.springs, t, this.flow, this.input.mark ?? null, this.amp)
-    this.report(frame.amp)
+    this.report('--amp', frame.amp)
+    this.report('--hear', this.ear)
     // A canvas not displayed (on paper the halo is CSS) has no parent box to lay out in: no frame is drawn into it.
     if (this.glCanvas.offsetParent !== null) this.gl?.draw(frame)
     if (this.paper) this.publish(frame)
@@ -382,12 +395,12 @@ export class LightEngine {
     for (const [name, value] of Object.entries(halo)) this.box.style.setProperty(name, value)
   }
 
-  /** The level the shader is given, for the checks (`--amp`), written only when it changes. */
-  private report(amp: number): void {
-    const heard = amp.toFixed(2)
-    if (heard === this.heard) return
-    this.heard = heard
-    this.box.style.setProperty('--amp', heard)
+  /** A level the shader or the paper orb is given (`--amp`, `--hear`), for the checks too, written only when it changes. */
+  private report(name: '--amp' | '--hear', value: number): void {
+    const said = value.toFixed(2)
+    if (said === this.written[name]) return
+    this.written[name] = said
+    this.box.style.setProperty(name, said)
   }
 
   /** Frames slower than ~28 fps for a second step the resolution down; a 30 Hz display is not load. */

@@ -127,11 +127,12 @@ export function SophiaLight({
   attention,
   working,
   voice = null,
+  hearing = null,
   screen = false,
   pull = null,
   formed = null,
-  presence = null,
-  sound = null,
+  presence,
+  sound,
   ref,
 }: Props) {
   const box = useRef<HTMLDivElement>(null)
@@ -168,9 +169,9 @@ export function SophiaLight({
     const shaped = base ? shapedTarget(base, pull, formed !== null) : placed
     const through = formed ? base : null
     const mark = through ? { x: through.x, y: through.y, size: markSize(through.radius) } : null
-    engine.current?.update({ mode, target: shaped, attention, working, mark, voice })
+    engine.current?.update({ mode, target: shaped, attention, working, mark, voice, hearing })
     setRestsAt((was) => (sameRest(was, through) ? was : through))
-  }, [mode, target, rest, attention, working, voice, pull, formed, shaping, size])
+  }, [mode, target, rest, attention, working, voice, hearing, pull, formed, shaping, size])
 
   useImperativeHandle(ref, () => ({ handoff: (from, to) => engine.current?.handoff(from, to) }), [])
 

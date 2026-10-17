@@ -323,13 +323,18 @@ interface StageLightProps {
   sophia: SophiaView
   geometry: StageGeometry
   working: boolean
+  holder: FloorView['holder']
 }
 
 /**
- * Her light on the stage: what she does, where and toward whom, her voice while she is heard (in text mode she is read,
- * not heard), and where she is (orb-presence.md).
+ * Her light on the stage: what she does, where and toward whom, her voice while she is heard and the holder's while she
+ * listens (in text mode neither: she is read, not heard; orb-hears.md), and where she is (orb-presence.md).
  */
-function StageLight({ light, room, sophia, geometry, working }: StageLightProps) {
+function StageLight({ light, room, sophia, geometry, working, holder }: StageLightProps) {
+  const heard = holder?.present ? holder.identity : null
+  const { voiceLevel, sophiaLevel, textMode } = room
+  // Stable while the holder is: the engine's update doesn't run again on every render.
+  const hearing = useCallback(() => (heard ? voiceLevel(heard) : 0), [heard, voiceLevel])
   return (
     <SophiaLight
       ref={light}
@@ -337,7 +342,8 @@ function StageLight({ light, room, sophia, geometry, working }: StageLightProps)
       target={geometry.target}
       attention={geometry.attention}
       working={working}
-      voice={room.textMode ? null : room.sophiaLevel}
+      voice={textMode ? null : sophiaLevel}
+      hearing={textMode ? null : hearing}
       presence={sophia.presence === 'here' ? null : sophia.presence}
       sound={sophia.needsAudio ? 'blocked' : null}
     />
@@ -365,7 +371,7 @@ export function RoomStage(props: Props) {
       data-live={live || undefined}
       aria-label="Project room"
     >
-      <StageLight light={light} room={room} sophia={sophia} geometry={geometry} working={running > 0} />
+      <StageLight {...{ light, room, sophia, geometry }} working={running > 0} holder={floor.holder} />
       {mode === 'light' ? (
         <>
           {/* Lenses shape what sits under the light; with video on the stage there is nothing for them to change. */}
