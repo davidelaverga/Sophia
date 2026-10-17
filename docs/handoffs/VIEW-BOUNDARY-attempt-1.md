@@ -33,7 +33,8 @@ commits on the branch merge its base forward or touch only this record). 6 files
 
 ## Decisions and changes
 
-- **`ViewFailed` wraps the page body, keyed by the view,** so moving to another view starts it clean.
+- **`ViewFailed` wraps the page body,** and moving to another view starts it clean. It first did so keyed by the view;
+  see the CI catch below for why it no longer is.
 - **The Studio's own view keeps the outer boundary for now:** its stage holds the dock, and the dock must stay outside a
   boundary that could replace it.
 - **`LoadFailed` stays** for what loads before any view.
@@ -50,6 +51,13 @@ commits on the branch merge its base forward or touch only this record). 6 files
   - The unit check came first (`70ee86f2`) and failed.
   - The fix (`1eabc87b`): `ViewFailed` draws `VIEW_FAILED`.
   - `view-boundary`, `skip-link` and `view-titles`: 18/18.
+- **CI caught `goal-address.spec.ts` failing:** keyed by the view, the boundary remounted the page on every move. Goals
+  and Tasks share one `GoalList`, and the goal chosen in its rail must hold across a visit to Goals.
+  - The existing check is the failing one; nothing new was needed.
+  - The fix (`59441112`): the boundary takes the view as a prop. `getDerivedStateFromProps` lets a failure go when the
+    view moves, before it draws, and nothing that draws well is remounted.
+  - **Not run locally:** AION2 was open, so no browser runs on Luis's machine. CI is the run on record for this push.
+    Typecheck and type-aware lint are clean.
 
 ## Remaining obligations
 
