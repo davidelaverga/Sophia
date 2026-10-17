@@ -165,9 +165,10 @@
   inset: 0;
   z-index: -1;
   /* A soft heart and a deeper ring (Luis, 2026-10-11: the halo lost itself against the white): the heart fades to
-     the deep violet at the rim, then the halo thins to nothing by 48 %. */
+     the deep violet at the rim, then the halo thins to nothing by 48 %. Where the room says (`--halo-at`), it stands
+     where the engine draws her; elsewhere at 50 % 42 % of the page. */
   background: radial-gradient(
-    circle at 50% 42%,
+    var(--halo-at, circle at 50% 42%),
     rgb(255 255 255 / 0.96) 0,
     rgb(255 255 255 / 0.86) 4%,
     rgb(85 70 184 / 0.4) 8.5%,
@@ -176,7 +177,7 @@
     rgb(var(--halo-rgb) / 0.1) 28%,
     transparent 48%
   );
-  transform-origin: 50% 42%;
+  transform-origin: var(--halo-origin, 50% 42%);
   animation: paper-breathe 6s ease-in-out infinite alternate;
 }
 @keyframes paper-breathe {
@@ -1618,8 +1619,16 @@ img.avatar {
     radial-gradient(ellipse closest-side at 50% 50%, transparent 55%, rgb(var(--warm-rgb) / 0.05) 100%);
   pointer-events: none;
 }
+/* In the room the paper halo follows the light the engine draws (docs/plans/light-room-paper.md; informe-25 X1): its
+   centre is hers (in her tile in a video call), its radius three of hers times her size now, and its strength hers,
+   as the canvas's on the dark page. Before the engine's first frame, the stage's own place for her. */
 :root[data-theme='light'] .room-stage > .light {
   z-index: 1;
+  --halo-at: circle calc(var(--lr) * 3 * var(--ls, 1)) at var(--lx, 50%) var(--ly);
+  --halo-origin: var(--lx, 50%) var(--ly);
+}
+:root[data-theme='light'] .room-stage > .light::after {
+  filter: opacity(var(--le, 1));
 }
 .stage-top {
   position: absolute;

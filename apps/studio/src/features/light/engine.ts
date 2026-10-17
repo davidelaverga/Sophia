@@ -3,6 +3,7 @@
 // It never decides anything about the room; it only shows it.
 import { handoffFrame, settle, spring, stepSpring, type HandoffFrame, type Point, type Spring } from './motion.ts'
 import { createLightRenderer, type LightFrame, type LightRenderer } from './renderer.ts'
+import { paperHalo } from './shape.ts'
 import { aimOf, BEHIND, lightBehind } from './threshold.ts'
 import { drawHandoff, drawWorkLine, inksFor, perimeter } from './trace.ts'
 
@@ -184,8 +185,10 @@ export class LightEngine {
   private relayoutUntil = 0
   /** The pointer on the page while a mark is shown (fine pointers, full motion only); placed in the box per frame. */
   private pointer: Point | null = null
-  /** The page on paper: the trace writes in the paper's inks (trace.ts). */
+  /** The page on paper: the trace writes in the paper's inks (trace.ts), and the halo reads the springs (paperHalo). */
   private paper = false
+  /** The paper halo's properties as last written, so a light at rest writes nothing. */
+  private halo = ''
   private readonly box: HTMLElement
 
   /** The WebGL canvas: not displayed on paper (theme.css), when its frames are not drawn (Codex on #234). */
@@ -212,6 +215,7 @@ export class LightEngine {
   /** Told by the component as the root's theme changes. */
   setPaper(paper: boolean): void {
     this.paper = paper
+    this.halo = ''
   }
 
   update(input: LightInput): void {
@@ -326,13 +330,27 @@ export class LightEngine {
   }
 
   private draw(t: number, flight: HandoffStep | null): void {
+    const frame = toFrame(this.springs, t, this.flow, this.input.mark ?? null)
     // A canvas not displayed (on paper the halo is CSS) has no parent box to lay out in: no frame is drawn into it.
-    if (this.glCanvas.offsetParent !== null) this.gl?.draw(toFrame(this.springs, t, this.flow, this.input.mark ?? null))
+    if (this.glCanvas.offsetParent !== null) this.gl?.draw(frame)
+    if (this.paper) this.publish(frame)
     if (!this.trace) return
     this.trace.clearRect(0, 0, this.size.width, this.size.height)
     const inks = inksFor(this.paper)
     drawWorkLine(this.trace, this.edge, this.springs.workLine.value, inks)
     if (flight && !this.reduced) drawHandoff(this.trace, flight.from, flight.to, flight.frame, inks)
+  }
+
+  /**
+   * On paper the halo is CSS: it reads her place, radius, size and strength from the same springs the canvas draws
+   * (light-room-paper.md), written only when they change.
+   */
+  private publish(frame: LightFrame): void {
+    const halo = paperHalo(frame)
+    const key = Object.values(halo).join(' ')
+    if (key === this.halo) return
+    this.halo = key
+    for (const [name, value] of Object.entries(halo)) this.box.style.setProperty(name, value)
   }
 
   /** Frames slower than ~28 fps for a second step the resolution down; a 30 Hz display is not load. */
