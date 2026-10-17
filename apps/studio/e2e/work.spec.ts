@@ -872,8 +872,10 @@ test('wbc · UI-05 · a check that passed for v1 says nothing of v2: the task st
   await expect(tile(page, 'work-1').locator('.task-chip')).toHaveText('Ready for review')
   expect(await titles(lane(page, 'Complete'))).not.toContain('Implement the PDF retry')
   const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
-  await expect(sheet.locator('.task-result-review')).toHaveText('Review passed for retry-v1, not this version')
-  await expect(sheet.locator('.task-result-version').first()).toContainText('retry-v2')
+  // Versions by their names in the order made, never their ids (version-names.md).
+  await expect(sheet.locator('.task-result-review')).toHaveText('Review passed for v1, not this version')
+  await expect(sheet.locator('.task-result-version').first()).toContainText('v2 · Markdown')
+  await expect(sheet.locator('.task-result')).not.toContainText('retry-v')
   await expect(sheet.getByRole('button', { name: 'Review candidate' })).toBeVisible()
   await sheet.getByRole('button', { name: 'Open earlier result' }).click()
   await expect(sheet.locator('.task-result-text')).toContainText('Retry v1')
@@ -1160,8 +1162,9 @@ test('wbc · UI-16 · Sophia’s own source reviewer is itself, with no subscrip
   await sheet.getByRole('textbox', { name: 'Ask Sophia about this task' }).fill('Are the sources complete?')
   await sheet.getByRole('button', { name: 'Ask', exact: true }).click()
   await expect(sheet.locator('.ask-none')).toContainText(
-    'Not answered here: The task’s conversation isn’t connected in this slice.',
+    'Not answered here: The task’s conversation isn’t connected yet.',
   )
+  await expect(sheet).not.toContainText(/slice/i)
   await expect(sheet.getByRole('button', { name: 'Open the conversation' })).toBeVisible()
   await expect(sheet.getByRole('textbox', { name: 'Ask Sophia about this task' })).toHaveValue(
     'Are the sources complete?',
@@ -1189,8 +1192,8 @@ test('wbc · UI-18 · a revision that failed keeps the last usable version opena
   const versions = sheet.locator('.task-result-version')
   await expect(versions).toHaveCount(1)
   await expect(versions).toContainText('Last usable')
-  await expect(versions).toContainText('retry-v1')
-  await expect(sheet).not.toContainText('retry-v2') // the withdrawn one isn't offered as a result
+  await expect(versions).toContainText('v1 · Markdown')
+  await expect(versions).not.toContainText('v2') // the withdrawn one isn't offered as a result
   await sheet.getByRole('button', { name: 'Open earlier result' }).click()
   await expect(sheet.locator('.task-result-text')).toContainText('Retry v1')
 })
@@ -1345,7 +1348,8 @@ test('pre-push · work observed outside the plan in force is said, never hidden'
   await page.goto(`${PAGE}?viewer=davide&case=outside`)
   await expect(board(page).locator('.board-notice')).toContainText('1 observed task isn’t in the plan in force')
   const outside = board(page).getByRole('region', { name: 'Observed outside the plan' })
-  await expect(outside.locator('[data-work="work-old"]')).toContainText('Davide’s Claude Code · work-old')
+  // Who has it and where it stands, never its id (version-names.md): the id stays in data-work.
+  await expect(outside.locator('[data-work="work-old"] .task-link-name')).toHaveText('Davide’s Claude Code')
   await expect(outside.locator('[data-work="work-old"]')).toContainText('running')
 })
 
@@ -1852,7 +1856,7 @@ test('codex · F-009 · complete with evidence, but two versions claim to be cur
     'Its check can’t be matched to a single current version: two claim to be current, or none is.',
   )
   await expect(sheet.locator('.task-result-review')).toHaveText(
-    'Review passed for retry-v2, no single current version to match it to',
+    'Review passed for v1, no single current version to match it to',
   )
 })
 
@@ -2088,11 +2092,11 @@ test('codex · F-017 · a result that never comes is said so in time; a reply af
   const sheet = await openTask(page, 'work-1-review', 'Review the retry’s candidate')
   const note = sheet.locator('.task-result-note')
   await sheet.getByRole('button', { name: 'Open result' }).click()
-  await expect(note).toHaveText('Reading findings-v1…')
+  await expect(note).toHaveText('Reading v1…')
   await page.clock.runFor(29_000)
-  await expect(note).toHaveText('Reading findings-v1…')
+  await expect(note).toHaveText('Reading v1…')
   await page.clock.runFor(2_000) // past the Studio's 30 s read limit
-  const late = 'findings-v1 didn’t come in time. Nothing else is shown in its place; open it again to try again.'
+  const late = 'v1 didn’t come in time. Nothing else is shown in its place; open it again to try again.'
   await expect(note).toHaveText(late)
   await page.clock.runFor(10_000) // its reply comes at 40 s, after the limit: nothing changes
   await expect(note).toHaveText(late)
@@ -2861,7 +2865,7 @@ test('codex · F-026 · a question or a result offered twice is unavailable, sai
   const sheet = await openTask(page, 'work-1-review', 'Review the retry’s candidate')
   await expect(sheet.getByRole('button', { name: 'Open result' })).toHaveCount(0)
   await expect(sheet.locator('.task-result')).toContainText(ambiguous)
-  await expect(sheet.locator('.task-result')).toContainText('findings-v1') // its version still shown
+  await expect(sheet.locator('.task-result')).toContainText('v1 · Markdown') // its version still shown
   await sheet.getByRole('textbox', { name: 'Ask Sophia about this task' }).fill('Is it done?')
   await sheet.getByRole('button', { name: 'Ask', exact: true }).click()
   await expect(sheet.locator('.ask-none')).toContainText(ambiguous)
@@ -2920,7 +2924,7 @@ test('codex · F-029 · a decision names its task from the plan it is bound to, 
   // Bound to plan-1-alt r4, which keeps work-2's id for a new task: that task, not the one shown under the id.
   await expect(about('d-alt')).toHaveText('About Rebuild the report pane from its sources')
   // Bound to a revision held nowhere here: which plan, and no task's words borrowed.
-  await expect(about('d-r9')).toHaveText('About work-1, in plan r9, not shown here')
+  await expect(about('d-r9')).toHaveText('About a task in plan r9, not shown here')
   // Its decider still answers it, bound as it is.
   await board(page).locator('[data-decision="d-alt"]').getByRole('button', { name: 'Ship it now' }).click()
   await expect.poll(async () => (await answeredOf(page)).length).toBe(1)
@@ -3078,11 +3082,15 @@ test('codex · F-043 · two goals with one id are refused with their view: neith
 
 // ---- CX-0039 (Codex; GitHub 4183052368): work outside the plan observed twice, listed once. ----
 
-/** A work id listed once in `list`, said observed more than once, with no lifecycle of either observation. */
+/**
+ * A work id listed once in `list`, said observed more than once, with no lifecycle of either observation, and not by
+ * its id (version-names.md).
+ */
 const listedOnceUnknown = async (list: Locator, id: string) => {
   const row = list.locator(`[data-work="${id}"]`)
   await expect(row).toHaveCount(1)
-  await expect(row).toContainText(`Observed more than once · ${id}`)
+  await expect(row).toContainText('Observed more than once')
+  await expect(row).not.toContainText(id)
   await expect(row).toContainText('which is current isn’t known')
   await expect(row).not.toContainText(/running|planned/)
 }
@@ -3099,7 +3107,12 @@ test('codex · F-045 · work outside the plan observed twice is listed once, sai
   await expect(outside.locator('[data-work]')).toHaveCount(3, { timeout: 15_000 })
   await listedOnceUnknown(outside, 'work-old') // running and planned
   await listedOnceUnknown(outside, 'work-same') // the same, twice
-  await expect(outside.locator('[data-work="work-extra"]')).toContainText('Davide’s Claude Code · work-extra')
+  // The two that would read alike are told apart by their order.
+  await expect(outside.locator('[data-work] .task-link-name')).toHaveText([
+    'Observed more than once (1 of 2)',
+    'Observed more than once (2 of 2)',
+    'Davide’s Claude Code',
+  ])
   await expect(outside.locator('[data-work="work-extra"]')).toContainText('running')
   const notice = board(page).locator('.board-notice')
   await expect(notice).toContainText('A task is observed twice')
