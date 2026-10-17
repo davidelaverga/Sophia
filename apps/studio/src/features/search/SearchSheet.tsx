@@ -20,9 +20,9 @@ import type { View } from '../../app/route.ts'
 import { GOAL, TASK } from '../resources/link.ts'
 import type { GoalPlan } from '../work/GoalList.tsx'
 import { useLedger, type NotesFor } from '../work/GoalNotes.tsx'
-import { notesRead, withNotes } from '../work/goal-notes.ts'
+import { known, notesRead, withNotes } from '../work/goal-notes.ts'
 import { HEALTH_LABEL, healthOf, withDue } from '../work/goals-glance.ts'
-import { useGoalTargets } from '../work/GoalTargets.tsx'
+import { useTargetsRead } from '../work/GoalTargets.tsx'
 import { todayOf } from '../work/goal-due.ts'
 import { useNow } from '../../app/use-now.ts'
 import { around, hitRunning, hitSource, localHits, marked, TASK_LEAD, type LocalHit } from './search-view.ts'
@@ -192,18 +192,19 @@ interface SheetProps {
 }
 
 /**
- * The goals and tasks found, each goal's health as Goals reads it, with its latest note; until the notes are read, or
- * when they can't be, no health is said: one missing a difficulty is not (search-honest.md).
+ * The goals and tasks found, each goal's health as Goals reads it, with its latest note; until the notes and the dates
+ * are read, or when either can't be, no health is said: one missing a difficulty or a date is not (search-honest.md,
+ * targets-robust.md).
  */
 function useFound(local: SheetProps['local'], q: string): LocalHit[] {
   const ledger = useLedger(local.notes)
-  const known = notesRead(ledger) === 'read' || notesRead(ledger) === 'stale'
-  const targets = useGoalTargets(local.notes)
+  const { targets, state } = useTargetsRead(local.notes)
+  const healthKnown = known(notesRead(ledger), state)
   const today = todayOf(new Date(useNow(60 * 60_000)))
   const noted = withNotes(local.goals, local.plans, ledger.data?.entries ?? [], local.notes.me, local.notes.names)
   // A goal past its date reads as its row does (goal-overdue-health.md).
   const plans = withDue(local.goals, noted, targets, today)
-  return localHits(local.goals, local.plans, q, (g) => (known ? HEALTH_LABEL[healthOf(g, plans[g.id])] : null))
+  return localHits(local.goals, local.plans, q, (g) => (healthKnown ? HEALTH_LABEL[healthOf(g, plans[g.id])] : null))
 }
 
 function SearchSheet({ projectId, identity, onClose, onHit, onAsk, local }: SheetProps) {
