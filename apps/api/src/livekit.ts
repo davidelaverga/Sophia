@@ -187,6 +187,33 @@ export async function muteMicrophone(cfg: LiveKitConfig, roomId: string, identit
   return true
 }
 
+/** Mute every published track of these sources of theirs (A31); only they turn them on again. False when they publish none. */
+async function muteSources(cfg: LiveKitConfig, roomId: string, identity: string, sources: readonly TrackSource[]) {
+  const rooms = new RoomServiceClient(apiUrl(cfg), cfg.apiKey, cfg.apiSecret)
+  const tracks = (await rooms.getParticipant(roomId, identity)).tracks.filter((t) => sources.includes(t.source))
+  for (const t of tracks) if (!t.muted) await rooms.mutePublishedTrack(roomId, identity, t.sid, true)
+  return tracks.length > 0
+}
+
+/** Stop someone's camera (A31): their published camera track, muted. */
+export const stopCamera = (cfg: LiveKitConfig, roomId: string, identity: string) =>
+  muteSources(cfg, roomId, identity, [TrackSource.CAMERA])
+
+/** Stop someone's screen share (A31): the share and its sound, muted; their Studio then stops sharing. */
+export const stopScreen = (cfg: LiveKitConfig, roomId: string, identity: string) =>
+  muteSources(cfg, roomId, identity, [TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO])
+
+/** Mute everyone else's microphone (A31): members and guests, never Sophia's participant. Says how many. */
+export async function muteEveryone(cfg: LiveKitConfig, roomId: string, except: string): Promise<number> {
+  const people = await roomParticipants(cfg, roomId)
+  let muted = 0
+  for (const p of people) {
+    if (p.identity === except || p.standing === 'sophia' || p.standing === 'unknown') continue
+    if (await muteMicrophone(cfg, roomId, p.identity)) muted += 1
+  }
+  return muted
+}
+
 /** Take a member out of the call (A24): disconnected now; as a member, they may join again. */
 export async function removeFromCall(cfg: LiveKitConfig, roomId: string, identity: string): Promise<void> {
   await new RoomServiceClient(apiUrl(cfg), cfg.apiKey, cfg.apiSecret).removeParticipant(roomId, identity)

@@ -764,6 +764,19 @@ describe('project activity (A28)', () => {
     const second = await activity(A, projectId, first.json.before)
     assert.deepEqual([(second.json.entries as Entry[]).length, second.json.before], [5, null])
   })
+
+  it('a member who leaves is not their own target; a page past a bigint is refused (activity-followups.md)', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [] })
+    assert.equal(
+      (await call(B, 'POST', `/api/v1/projects/${projectId}/leave`, {}, { 'idempotency-key': randomUUID() })).status,
+      200,
+    )
+    const left = ((await activity(A, projectId)).json.entries as Entry[]).find((e) => e.type === 'project.member_left')
+    assert.deepEqual([left?.actor.id, left?.target], [B, null])
+    const past = await activity(A, projectId, '9999999999999999999')
+    assert.deepEqual([past.status, past.json.code], [422, 'invalid_request'])
+    assert.equal((await activity(A, projectId, '9223372036854775807')).status, 200, 'the largest bigint reads')
+  })
 })
 
 describe('removing a member (A29)', () => {
