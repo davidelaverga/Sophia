@@ -700,7 +700,7 @@ function ProjectBody(props: BodyProps) {
       {lobby}
       <main className={pageClass(work, props.plans, view === 'conversations' && VISION)} data-content>
         {/* A view that fails to draw says so in its place, its pulse too; the shell and the call stay (view-boundary.md). */}
-        <ViewFailed key={view}>
+        <ViewFailed view={view}>
           {resources ?? <PageBody {...props} />}
           {work && pulse}
         </ViewFailed>
