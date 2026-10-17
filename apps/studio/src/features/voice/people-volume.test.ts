@@ -50,17 +50,19 @@ describe('people volume', () => {
     assert.deepEqual(camera.asked, [])
   })
 
-  it('lets go of a track an Off person publishes, and asks nothing of a track already as it should be', () => {
+  it('lets go of a track an Off person publishes, and leaves anyone else’s new track to LiveKit', () => {
     const volume = peopleVolume()
     volume.set('marco', 0, [])
     const screenSound = track('audio')
-    volume.take(screenSound, 'marco')
+    volume.published(screenSound, 'marco')
     assert.deepEqual(screenSound.asked, [false])
-    volume.take(screenSound, 'marco')
-    assert.deepEqual(screenSound.asked, [false])
-    const hers = track('audio')
-    volume.take(hers, 'lucia')
+    // Lucía is heard: her new voice, not taken yet, is LiveKit's to take, so nothing is asked of it here.
+    const hers = { ...track('audio'), isSubscribed: false }
+    volume.published(hers, 'lucia')
     assert.deepEqual(hers.asked, [])
+    const camera = track('video')
+    volume.published(camera, 'marco')
+    assert.deepEqual(camera.asked, [])
   })
 
   it('lets a sound that ended go: a level set later doesn’t reach it', () => {
