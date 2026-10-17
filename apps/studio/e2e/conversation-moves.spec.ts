@@ -45,9 +45,10 @@ test('moves · a refused Copy link hands over the conversation’s own address, 
   const field = open(page).getByRole('textbox', { name: 'Link', exact: true })
   await expect(field).toBeFocused()
   await expect(field).toHaveValue(new RegExp(`#conversation-${READING}$`))
-  expect(await field.evaluate((el: HTMLInputElement) => el.selectionEnd - el.selectionStart)).toBe(
-    await field.evaluate((el: HTMLInputElement) => el.value.length),
-  )
+  // Selected whole, ready for a copy by hand.
+  expect(
+    await field.evaluate((el: HTMLInputElement) => el.selectionStart === 0 && el.selectionEnd === el.value.length),
+  ).toBe(true)
   await expect(open(page).getByRole('button', { name: /address bar/ })).toHaveCount(0)
   await page.waitForTimeout(4500) // past the failure's own few seconds: the link stays until it is let go
   await expect(field).toBeVisible()
