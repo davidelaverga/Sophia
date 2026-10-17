@@ -35,7 +35,8 @@ test.afterEach(async ({ page }) => {
 test('result · when her research finishes, she blooms once, then rests', async ({ page }) => {
   await page.goto('/room.html?research=running&theme=light')
   await expect(light(page)).toHaveAttribute('data-mode', 'work')
-  await expect.poll(() => size(page), { timeout: 3000 }).toBe(0.9)
+  // Her light ignites on arrival (about 4 s to within 1 %): read her working size once it has.
+  await expect.poll(() => size(page), { timeout: 8000 }).toBe(0.9)
   const peak = peakSize(page)
   await page.evaluate(() => window.fixture?.researchDone())
   // Out of work she grows back to 1; the bloom takes her past it, and she settles.
