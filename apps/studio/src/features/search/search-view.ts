@@ -1,7 +1,9 @@
 // Where a search hit is from (docs/plans/room-search.md): its kind and when, a meeting's with its time. Pure, so the
 // words are unit-tested; the dates' formats come from the page (Intl).
+import type { QueryClient } from '@tanstack/react-query'
 import type { Goal } from '@sophia/contracts'
 import type { MeetingSummary, SearchHit, SearchPage } from '../../api/vision.ts'
+import { closedDoor } from '../studio/project-door.ts'
 import type { DateWords } from '../updates/updates-view.ts'
 
 const KIND: Record<SearchHit['kind'], string> = {
@@ -147,6 +149,44 @@ export const searchRefusedKey = (projectId: string) => ['vision', 'search-refuse
 
 /** A refusal seen: later than every read set out before it, and never earlier than the one kept. */
 export const refusalSeen = (at = 0): number => Math.max(at, searchOrder())
+
+/**
+ * Keep this person's own refusal (401, 403) of the project's search in the account's query cache that ran the read, as
+ * it settles. Kept for as long as that cache lives, observed or not: the account's cache goes with the account.
+ */
+export function keepRefusal(client: QueryClient, projectId: string): void {
+  client.setQueryDefaults(searchRefusedKey(projectId), { gcTime: Infinity, staleTime: Infinity })
+  client.setQueryData<number>(searchRefusedKey(projectId), refusalSeen)
+}
+
+/**
+ * The sheet's query function (R-C4-SEARCH-READ-01): each page stamped when its read is set out, and a refusal of the
+ * read kept where it settles, in the query's own client (its account's cache) for its project, before the query's error
+ * reaches anything that renders it. A sheet closed or a query changed in between loses nothing; another account's
+ * cache, signed in since, is not touched. A read cancelled by its signal (the last observer gone while pending) is
+ * no refusal and keeps none.
+ */
+export function searchPages(
+  projectId: string,
+  read: (cursor: string | null, signal: AbortSignal) => Promise<SearchPage>,
+) {
+  return async ({
+    pageParam,
+    signal,
+    client,
+  }: {
+    pageParam: string | null
+    signal: AbortSignal
+    client: QueryClient
+  }): Promise<SearchRead> => {
+    try {
+      return await readSearch(() => read(pageParam, signal))
+    } catch (error) {
+      if (closedDoor(error)) keepRefusal(client, projectId)
+      throw error
+    }
+  }
+}
 
 /**
  * The pages the search may show (R-C4-SEARCH-READ-01), as Updates' window (`shownSince`): none while this person's own

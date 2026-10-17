@@ -2,7 +2,7 @@
 // hit shows its title, the record's own words and where it is from, and opens it: a report at its version (a section at
 // its heading), a meeting's recap, the brief for a decision or a note, or the room's chat at a message. Under the
 // vision flag (the proposal), or the search flag (A38, served: docs/handoffs/FND-C4-PROJECT-SEARCH-attempt-1.md).
-import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { Goal, Membership, Snapshot } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
@@ -34,8 +34,7 @@ import {
   hitSource,
   localHits,
   marked,
-  readSearch,
-  refusalSeen,
+  searchPages,
   searchRefusedKey,
   shownPages,
   TASK_LEAD,
@@ -71,8 +70,8 @@ function useSettled(text: string, ms = 250): string {
 function useSearch(projectId: string, token: string, q: string) {
   return useInfiniteQuery({
     queryKey: ['vision', 'search', projectId, q],
-    // Each page with when its read was set out (`searchOrder`): a refusal after it hides it (R-C4-SEARCH-READ-01).
-    queryFn: ({ pageParam, signal }) => readSearch(() => searchProject(token, projectId, q, pageParam, signal)),
+    // Each page with when its read was set out; a refusal kept as it settles (searchPages, R-C4-SEARCH-READ-01).
+    queryFn: searchPages(projectId, (cursor, signal) => searchProject(token, projectId, q, cursor, signal)),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.next,
     enabled: q.length >= MIN_QUERY,
@@ -83,12 +82,12 @@ function useSearch(projectId: string, token: string, q: string) {
 
 /**
  * When this person's own search of the project was last refused (401, 403), in this page's order (`searchOrder`, taken
- * when the refusal is seen; never the clock); 0 when never. Kept in the account's query cache (one per account,
- * app/account-cache.ts), for every query of the project: the sheet closed and opened again keeps it.
+ * as the refused read settles, by searchPages; never the clock); 0 when never. Kept in the account's query cache (one
+ * per account, app/account-cache.ts), for every query of the project, whether or not a sheet saw it. Only read here: a
+ * refusal recorded later, when a render sees it, could hide a read set out in between.
  */
-function useSearchRefused(projectId: string, search: { error: unknown; errorUpdateCount: number }): number {
-  const client = useQueryClient()
-  const refusedAt = useQuery({
+function useSearchRefused(projectId: string): number {
+  return useQuery({
     queryKey: searchRefusedKey(projectId),
     queryFn: () => 0,
     initialData: 0,
@@ -96,18 +95,12 @@ function useSearchRefused(projectId: string, search: { error: unknown; errorUpda
     staleTime: Infinity,
     gcTime: Infinity,
   }).data
-  const refused = closedDoor(search.error)
-  useEffect(() => {
-    // Each refusal seen (the count only tells one from the next): later than every read set out before it.
-    if (refused) client.setQueryData<number>(searchRefusedKey(projectId), refusalSeen)
-  }, [client, projectId, refused, search.errorUpdateCount])
-  return refusedAt
 }
 
 /** The search, and the hits it may show: none read before this person's own refusal (R-C4-SEARCH-READ-01). */
 function useShownSearch(projectId: string, token: string, q: string) {
   const search = useSearch(projectId, token, q)
-  const refusedAt = useSearchRefused(projectId, search)
+  const refusedAt = useSearchRefused(projectId)
   // Nothing read before the refusal, its words or its hits' presses, until a read set out since answers.
   const pages = shownPages(search.data?.pages, search.isError && closedDoor(search.error), refusedAt)
   return { search, current: pages !== undefined, hits: pages?.flatMap((p) => p.hits) ?? [] }

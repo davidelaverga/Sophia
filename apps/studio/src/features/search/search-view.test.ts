@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { InfiniteQueryObserver, QueryClient, type InfiniteData } from '@tanstack/react-query'
+import { InfiniteQueryObserver, notifyManager, QueryClient, type InfiniteData } from '@tanstack/react-query'
 import type { Goal } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
 import type { SearchHit, SearchPage } from '../../api/vision.ts'
@@ -14,6 +14,7 @@ import {
   readSearch,
   refusalSeen,
   searchOrder,
+  searchPages,
   searchRefusedKey,
   shownPages,
   type SearchRead,
@@ -315,5 +316,150 @@ describe('the search through a refusal, in the account’s query cache (R-C4-SEA
     sheet.reads.answer = ok('heron')
     await sheet.observer.fetchNextPage()
     assert.deepEqual(sheet.titles(), ['heron', 'heron 2'])
+  })
+})
+
+/**
+ * R-C4-SEARCH-READ-01, the refusal's lifecycle: the sheet's own query function (searchPages), on real TanStack queries,
+ * with every observer notification (what makes React render, and run its effects) held back. Nothing here reads a
+ * refusal and records it: only the product's query function may. Each read takes and honours the query's AbortSignal.
+ */
+const LIFE = 'p1'
+const held: (() => void)[] = []
+const hold = () => notifyManager.setScheduler((run) => void held.push(run))
+const release = () => {
+  notifyManager.setScheduler((run) => setTimeout(run, 0))
+  held.length = 0
+}
+const wordPage = (word: string, next: string | null = null): SearchPage => ({
+  hits: [{ ...hit('message'), id: word, title: word }],
+  next,
+})
+const refusal = (status: number) => new ApiError(status, status === 503 ? 'unavailable' : 'refused', 'No.', 'never')
+type Answer2 = (q: string, cursor: string | null) => SearchPage | Promise<SearchPage> | Error
+type Observer = InfiniteQueryObserver<SearchRead, Error, InfiniteData<SearchRead>, string[], string | null>
+
+/** The search's server: each read answered as `answer` says, unless its signal ends first. */
+function server(answer: Answer2 = () => wordPage('x')) {
+  const s = {
+    answer,
+    signals: [] as AbortSignal[],
+    read:
+      (q: string) =>
+      (cursor: string | null, signal: AbortSignal): Promise<SearchPage> => {
+        s.signals.push(signal)
+        return new Promise<SearchPage>((resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
+          const a = s.answer(q, cursor)
+          if (a instanceof Error) reject(a)
+          else void Promise.resolve(a).then(resolve, reject)
+        })
+      },
+  }
+  return s
+}
+
+/** The sheet's query for `q`, as useSearch makes it (key, the product's query function, page params, no retry). */
+function sheetQuery(client: QueryClient, s: ReturnType<typeof server>, q: string, project = LIFE) {
+  const observer: Observer = new InfiniteQueryObserver(client, {
+    queryKey: ['vision', 'search', project, q],
+    queryFn: searchPages(project, s.read(q)),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last: SearchRead) => last.next,
+    retry: false,
+  })
+  const leave = observer.subscribe(() => undefined)
+  return { observer, leave }
+}
+
+/** What the sheet would show for a query's result: read only; nothing recorded. */
+function shownTitles(client: QueryClient, observer: Observer, project = LIFE) {
+  const result = observer.getCurrentResult()
+  const refusedAt = client.getQueryData<number>(searchRefusedKey(project)) ?? 0
+  return shownPages(result.data?.pages, result.isError && closedDoor(result.error), refusedAt)?.flatMap((p) =>
+    p.hits.map((h) => h.title),
+  )
+}
+
+const markerOf = (client: QueryClient, project = LIFE) => client.getQueryData<number>(searchRefusedKey(project))
+
+describe('a settled refusal is kept when nothing renders it (R-C4-SEARCH-READ-01)', () => {
+  it('q1’s 403 settles, the sheet leaves before rendering it; q2’s cached pages stay hidden through 503 and a remount', async () => {
+    const client = new QueryClient()
+    const s = server((q, cursor) => (cursor ? wordPage(`${q} 2`) : wordPage(q, 'c2')))
+    hold()
+    try {
+      const q2 = sheetQuery(client, s, 'egret')
+      await q2.observer.refetch()
+      q2.leave()
+      const q1 = sheetQuery(client, s, 'heron')
+      await q1.observer.refetch()
+      s.answer = () => refusal(403)
+      // The next page is refused: settled in the cache, its notification held, so no render and no effect.
+      await q1.observer.fetchNextPage()
+      assert.equal(client.getQueryState(['vision', 'search', LIFE, 'heron'])?.status, 'error', 'the 403 settled')
+      q1.leave()
+      // The sheet opened again on q2: its cached pages, read before the refusal, through a later 503.
+      s.answer = () => refusal(503)
+      const again = sheetQuery(client, s, 'egret')
+      assert.equal(shownTitles(client, again.observer), undefined, 'cached, before the refusal: hidden at once')
+      await again.observer.refetch()
+      assert.equal(again.observer.getCurrentResult().isError, true)
+      assert.equal(shownTitles(client, again.observer), undefined, 'through a later 503')
+      assert.ok(
+        (markerOf(client) ?? 0) > 0,
+        'the refusal is kept in the account’s cache for its project, though nothing rendered it',
+      )
+      // An allowed read begun since: its own pages.
+      s.answer = (q) => wordPage(`${q} now`)
+      await again.observer.refetch()
+      assert.deepEqual(shownTitles(client, again.observer), ['egret now'])
+      again.leave()
+      assert.ok(s.signals.length >= 5, 'each read took its signal')
+    } finally {
+      release()
+    }
+  })
+
+  it('a read of the account left, refused after another account signed in, is kept in the account left only', async () => {
+    const left = new QueryClient()
+    const later: { refuse?: (e: Error) => void } = {}
+    const s = server(() => new Promise<SearchPage>((_resolve, reject) => (later.refuse = reject)))
+    hold()
+    try {
+      const old = sheetQuery(left, s, 'heron')
+      const pending = old.observer.refetch()
+      // Another account signs in: its own cache, its own sheet.
+      const now = new QueryClient()
+      const theirs = sheetQuery(now, server(), 'heron')
+      await theirs.observer.refetch()
+      later.refuse?.(refusal(401))
+      await pending
+      assert.ok((markerOf(left) ?? 0) > 0, 'kept for the account whose read it was')
+      assert.equal(markerOf(now), undefined, 'the account now signed in keeps none')
+      assert.deepEqual(shownTitles(now, theirs.observer), ['x'])
+      assert.equal(markerOf(left, 'p2'), undefined, 'nor another project of the account left')
+      old.leave()
+      theirs.leave()
+    } finally {
+      release()
+    }
+  })
+
+  it('an ordinary 503 keeps nothing; a read still pending when the sheet leaves is cancelled by its signal, not a refusal', async () => {
+    const client = new QueryClient()
+    const s = server(() => refusal(503))
+    const failed = sheetQuery(client, s, 'heron')
+    await failed.observer.refetch()
+    assert.equal(failed.observer.getCurrentResult().isError, true)
+    assert.equal(markerOf(client), undefined, 'a 503 is no refusal')
+    failed.leave()
+    s.answer = () => new Promise<SearchPage>(() => undefined)
+    const pending = sheetQuery(client, s, 'egret')
+    const fetching = pending.observer.refetch()
+    pending.leave()
+    await fetching
+    assert.equal(s.signals.at(-1)?.aborted, true, 'the last observer left: TanStack cancelled the read by its signal')
+    assert.equal(markerOf(client), undefined, 'a cancelled read records no refusal')
   })
 })

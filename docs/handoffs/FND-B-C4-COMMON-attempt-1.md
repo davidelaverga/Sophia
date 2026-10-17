@@ -94,8 +94,9 @@ healthy.
   More). Only the next search read was then refused 403, replaced in the browser by `page.route` (synthetic over the
   real App, API and database). The sheet said «The search couldn’t be read.» and still showed all 20 hits.
 - Now each page carries when its read was set out (`searchOrder`, a page-local counter, as Updates' `sinceOrder`;
-  never the clock). A refusal seen is kept in the account's query cache, per project (`['vision', 'search-refused',
-  id]`), as later than every read set out before it.
+  never the clock). A refusal is kept in the account's query cache, per project (`['vision', 'search-refused',
+  id]`), as later than every read set out before it. It is kept as the refused read settles (see the completion
+  correction below), not when a render sees it.
   - The sheet shows no page, no press and no More while refused, and none read before the last refusal, whatever
     comes next: a later 503, an older read answering late, the sheet opened again, the query typed again, another
     query's answer (`shownPages`). Nothing found is not said over them either.
@@ -117,6 +118,24 @@ healthy.
     config passes 8/8, and C4 and its neighbours 103/103. The other served journeys were not rerun.
   - The first lint failed on the sheet's complexity: the fence now sits in its own hook. Everything above ran after
     that change.
+
+**Kept as it settles (FND-B-C4-REFUSAL-COMPLETION-FOCUSED-01).** The refusal above was recorded only by the mounted
+sheet's effect, after a render had seen the error. TanStack settles the error in the cache first, then notifies React
+on a later tick. A sheet closed, or its query changed, in that interval kept no refusal. Another query's cached pages,
+read before it, then showed through a later 503.
+- Now the sheet's query function (`searchPages`, search-view.ts) keeps a 401 or 403 where it settles, before the
+  error reaches anything that renders it:
+  - in the query's own client (TanStack's `client` in the query context: the account's cache that ran the read, never
+    one signed in since);
+  - for its project, with the same order (`refusalSeen`), kept for as long as that cache lives.
+- The effect is gone. Recording the refusal again when a render saw it could hide a read set out in between.
+- Unchanged: the page stamps and `shownPages`, an ordinary 503's kept pages, and other projects and accounts. A read
+  still pending when the last observer leaves is cancelled by its signal: it is no refusal, and keeps none.
+- Before, on `e5493edf`: the same test, with e549's query function transcribed, failed. q2's cached `egret` showed
+  after q1's settled 403, and nothing was kept (account case too).
+  - The test runs real TanStack queries with every observer notification held back, so no render and no effect.
+  - Each read honours its signal, and nothing in the test records a refusal.
+- After: the three cases pass, and with the capture removed, 2 fail. The served refusal cases pass again (2/2).
 
 ## Next bounded action
 
