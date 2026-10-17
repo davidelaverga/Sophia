@@ -69,19 +69,17 @@ test('light · the favicon switches to the same two paper inks', async ({ page, 
   expect(tokens).toEqual(['#16151b', '#8468ee'])
 })
 
-test('light · her light on paper has a white heart; in the room the mark keeps the warm and the core', async ({
+test('light · her light on paper is an orb with a glint; in the room the mark keeps the warm and the core', async ({
   page,
 }) => {
   await page.goto('/signin.html?theme=light')
   await drawn(page, DRAWN.signin)
   const light = await page.evaluate(() => {
     const el = document.querySelector('.light')
-    // The halo on paper is the light's `::after`, which breathes (docs/plans/light-breath.md).
+    // The orb's glass on paper is the light's `::after`, its glint first (docs/plans/paper-orb.md).
     return el ? getComputedStyle(el, '::after').backgroundImage : ''
   })
-  expect(light).toMatch(
-    /^radial-gradient\(circle at 50% 42%, rgba\(255, 255, 255, 0\.96\) 0px, rgba\(255, 255, 255, 0\.86\) 4%, rgba\(85, 70, 184, 0\.4\) 8\.5%/,
-  )
+  expect(light).toMatch(/^radial-gradient\(13% 8% at 34% 24%, rgba?\(255,? 255,? 255,? \/? ?0\.92\)/)
   await page.goto('/signin.html')
   await drawn(page, DRAWN.signin)
   const [m] = await marks(page)

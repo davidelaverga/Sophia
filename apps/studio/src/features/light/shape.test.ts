@@ -6,7 +6,7 @@ import { paperHalo, shapeOf, WORK } from './shape.ts'
 // Her light's shape (docs/plans/light-room-paper.md; informe-25 X1, X2): busy, never out; the canvas and the paper halo
 // read the same springs.
 
-const still = { work: 0, think: 0, speak: 0, amp: 0, swell: 0, ignite: 1 }
+const still = { work: 0, think: 0, speak: 0, amp: 0, swell: 0, ignite: 1, dirX: 0, dirY: 0, lean: 0 }
 const at = { x: 266.4, y: 325.6, radius: 155.7 }
 
 describe('her light’s shape', () => {
@@ -30,6 +30,8 @@ describe('her light’s shape', () => {
       '--lr': '156px',
       '--ls': '1',
       '--le': '1',
+      '--ldx': '0',
+      '--ldy': '0',
     })
     const of = (over: Partial<typeof still>) => paperHalo({ ...still, ...at, ...over })
     assert.deepEqual([of({ work: 1 })['--ls'], of({ work: 1 })['--le']], ['0.9', '0.75'])
@@ -37,5 +39,16 @@ describe('her light’s shape', () => {
     // Never brighter than its ink: paper can't be lighter than white.
     assert.deepEqual([of({ swell: 1 })['--ls'], of({ swell: 1 })['--le']], ['1.16', '1'])
     assert.equal(of({ ignite: 0.42 })['--ls'], '0.42')
+  })
+
+  it('gives the paper orb whom she attends to: her direction times how far she leans (docs/plans/paper-orb.md)', () => {
+    const of = (over: Partial<typeof still>) => paperHalo({ ...still, ...at, ...over })
+    assert.deepEqual(
+      [of({ dirX: -0.8, dirY: 0.25, lean: 1 })['--ldx'], of({ dirX: -0.8, dirY: 0.25, lean: 1 })['--ldy']],
+      ['-0.8', '0.25'],
+    )
+    // At rest she leans a fifth as far; not leaning, no direction.
+    assert.equal(of({ dirX: -0.8, lean: 0.2 })['--ldx'], '-0.16')
+    assert.deepEqual([of({ dirX: 0.9, lean: 0 })['--ldx'], of({ dirY: -0.5, lean: 0 })['--ldy']], ['0', '0'])
   })
 })
