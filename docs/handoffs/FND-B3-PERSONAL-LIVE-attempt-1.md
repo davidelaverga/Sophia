@@ -170,6 +170,21 @@ The two inherited P1s are closed at source level by R's acceptance of d0c4. Thei
 phases) and on Auth is still owed. Personal's data and recipient approval, an admitted payer and allowance, the API
 host's credential custody and V's route check are still owed.
 
+**Paused, qualification INCOMPLETE (FND-B3-PAUSE-FOR-EXECUTOR-IDENTITY-P1-01).**
+- **A new inherited P1.** The automatic review of `d0c46d5f` raised it (#393 discussion 4302689994, `index.ts:227`): the
+  configured executor digest covers only the Sophia archive, not the installed dsh, profile and adapter closure. R
+  triages it, and there is no repair scope yet.
+- **The ordinary `pnpm check` on `7f6960e7` FAILED** (exit 1). Toolchain, format, lint, build, typecheck and contracts
+  pass. Units: 3038 passed, 0 failed, 70 skipped. Artifacts: 7 reproduce.
+- **The integration run** had 108 passed, 0 failed, 17 cancelled and 2 skipped. Both B2 crossings, the conversation
+  service (12) and the runtime service (5), stopped while creating their database: 0070's guard refused
+  `sophia_conversation_assembler`, which "exists with unexpected memberships" (42501).
+  - The cluster still held the served cases' dev-db database. A census before its removal also found a login role,
+    `sophia_assembler_t_becdb9862402`, a member of `sophia_conversation_assembler`.
+  - This is an association, not a proof: the cause is UNKNOWN.
+  - Neither crossing passed on this head, and nothing was run again.
+- **This checkpoint commit** changes this record only. The product tree is `7f6960e7`'s.
+
 ## Next bounded action
 
-B's private handback goes to P; R reviews this composition. No push until P selects a publication.
+Stopped for P's focused repair packet after R's triage. No push.
