@@ -49,13 +49,24 @@ test('order · a note’s day stands under its words, and Carry and Forget side 
   page,
 }) => {
   await page.goto('/personal.html?notes=open&ready=1&notes=lots')
-  const first = panel(page).locator('.c2-t').first()
-  const box = async (locator: ReturnType<Page['locator']>) =>
-    (await locator.boundingBox()) ?? { x: 0, y: 0, width: 0, height: 0 }
-  const words = await box(first.locator('p'))
-  const day = await box(first.locator('time'))
-  const carry = await box(first.getByRole('button', { name: 'Carry' }))
-  const forget = await box(first.getByRole('button', { name: 'Forget' }))
+  // Read in one frame: the notes slide in from the edge, so boxes read one by one may each catch another moment.
+  const { words, day, carry, forget } = await panel(page)
+    .locator('.c2-t')
+    .first()
+    .evaluate((row) => {
+      // oxlint-disable-next-line unicorn/consistent-function-scoping -- page.evaluate sends only this function to the page
+      const rect = (el: Element | null | undefined) => {
+        const r = el?.getBoundingClientRect()
+        return { x: r?.x ?? 0, y: r?.y ?? 0, width: r?.width ?? 0, height: r?.height ?? 0 }
+      }
+      const buttons = [...row.querySelectorAll('button')]
+      return {
+        words: rect(row.querySelector('p')),
+        day: rect(row.querySelector('time')),
+        carry: rect(buttons.find((b) => b.textContent === 'Carry')),
+        forget: rect(buttons.find((b) => b.textContent === 'Forget')),
+      }
+    })
   expect(day.y).toBeGreaterThanOrEqual(words.y + words.height - 1)
   expect(Math.abs(day.x - words.x)).toBeLessThanOrEqual(1)
   expect(Math.abs(carry.y - forget.y)).toBeLessThanOrEqual(1)
