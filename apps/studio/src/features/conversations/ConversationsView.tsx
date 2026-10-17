@@ -110,12 +110,21 @@ const refusedRead = (read: { isError: boolean; error: unknown }) => read.isError
 
 /** The project's conversations, newest activity first, read again as the feed moves. */
 function useList(projectId: string, identity: Identity, cursor: string | undefined) {
+  const { change } = useTalk(projectId, accountOf(identity))
   const list = useQuery({
     queryKey: listKey(projectId, accountOf(identity)),
     // Where in this view's order the read set out: a withdrawal seen after it may be one it didn't know.
     queryFn: ({ signal }) => {
       const readFrom = listReadSetsOut()
-      return listConversations(identity.token, projectId, signal).then((answer) => ({ ...answer, readFrom }))
+      // Refused (403, known from the status alone): fenced as the client learns it, before the query tells the view a
+      // task later, so no frame between shows what it held (R-REFUSAL-MEASURE-01).
+      return listConversations(identity.token, projectId, signal).then(
+        (answer) => ({ ...answer, readFrom }),
+        (error: unknown) => {
+          if (isRefusal(error)) change((k) => withFence(k, orderNow()))
+          throw error
+        },
+      )
     },
     select: sorted,
     // Refused, it is not asked again: what it held never shows meanwhile (PR #199 r4239350130).

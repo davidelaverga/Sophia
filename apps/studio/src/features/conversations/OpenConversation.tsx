@@ -442,8 +442,14 @@ function useTranscript(
       // Where in this view's order each page's read set out: a wait noted before it is judged by the page holding its
       // ask (replyWait, readFromOf; PR #199 r4238633935).
       const readFrom = orderNow()
-      return getConversationMessages(identity.token, projectId, conversationId, pageParam, signal).then((page) =>
-        pageParam === null && readAt !== undefined ? { ...page, readFrom, readAt } : { ...page, readFrom },
+      // Refused (403, known from the status alone): denied as the client learns it, before the query tells the view a
+      // task later, so no frame between shows the thread (R-REFUSAL-MEASURE-01); the effect below stays for the rest.
+      return getConversationMessages(identity.token, projectId, conversationId, pageParam, signal).then(
+        (page) => (pageParam === null && readAt !== undefined ? { ...page, readFrom, readAt } : { ...page, readFrom }),
+        (error: unknown) => {
+          if (isRefusal(error)) on.onDenied()
+          throw error
+        },
       )
     },
     initialPageParam: null as string | null,
