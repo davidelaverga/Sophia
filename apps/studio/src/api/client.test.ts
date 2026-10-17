@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { getConversationMessages, listConversations } from './conversations.ts'
+import { getSince } from './vision.ts'
 import { afterEach, describe, it } from 'node:test'
 import {
   admitGoalCommand,
@@ -164,4 +165,34 @@ describe('a protected conversation read refused by its status', () => {
       assert.deepEqual([error.status, error.code], [403, 'forbidden'])
     })
   }
+})
+
+// R-391-UPDATES-01: Updates' own «since» read is refused at the client's first sight of its 401 or 403 status, with that
+// status (closedDoor), whatever its error body does.
+describe('Updates’ «since» read refused by its status', () => {
+  for (const status of [401, 403]) {
+    it(`${status}: refused while its error body never arrives`, async () => {
+      globalThis.fetch = () => Promise.resolve(new Response(pendingBody(), { status }))
+      const error = await withinMs(200, refusal(getSince('t', 'p')))
+      assert.ok(error instanceof ApiError)
+      assert.equal(error.status, status)
+    })
+
+    it(`${status}: refused with its status whatever a malformed error body says`, async () => {
+      globalThis.fetch = () => Promise.resolve(new Response('<html>denied</html>', { status }))
+      const error = await refusal(getSince('t', 'p'))
+      assert.ok(error instanceof ApiError)
+      assert.equal(error.status, status)
+    })
+  }
+
+  it('another failure (503) still waits for its body, as before', async () => {
+    globalThis.fetch = () =>
+      Promise.resolve(
+        Response.json({ code: 'unavailable', message: 'Busy', requestId: G, retry: 'never' }, { status: 503 }),
+      )
+    const error = await refusal(getSince('t', 'p'))
+    assert.ok(error instanceof ApiError)
+    assert.deepEqual([error.status, error.code], [503, 'unavailable'])
+  })
 })

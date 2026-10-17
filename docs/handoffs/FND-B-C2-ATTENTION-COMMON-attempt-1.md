@@ -203,6 +203,21 @@ and other statuses are unchanged; the fence, retry, draft and restoration paths 
   semantic cases: ~20 frames over ~310-344 ms for delayed bodies, and malformed bodies are never classed as a refusal.
   Restored blob 2044ed49. The prior source fails 3-4 of 4.
 
+## FND-B-391-409-THREE-FINDINGS-FOCUSED-01 (Updates refusal, 391 P2 4304920481)
+
+- `getSince` is a `doorRead`: its 401 or 403 is raised at once with that status (`refusedByStatus` in `client.ts`),
+  never after an error body that may be slow, endless or malformed. Other `/since` failures (503) still read their
+  body as before. Updates keeps the refusal as its read learns it (`sinceRefusedNow`) and reads the fence from the
+  account's query cache as it changes (`useSyncExternalStore`). The per-account cache, project key, `sinceOrder` and
+  `shownSince` rules are unchanged.
+- `e2e/updates-refusal.spec.ts` covers 401 and 403, each with a delayed and a malformed body, and requires zero frames
+  showing a cached line or Mark as seen after the client sees the refusal. It measures DOM layout and visibility in
+  rAF callbacks, not compositor paint. It also checks that a later 503 does not restore the window, that a read since
+  does, and that reading never writes seen.
+- On 586327ce the delayed cases fail with 18 frames up to ~290 ms after the refusal; the malformed cases pass. A
+  `doorRead` mutant fails the same way. A mutant that removes the view-side keep still passes 4/4: this fixture does not
+  measure that keep as needed. A held older 200 and a view trip are not covered by this spec.
+
 ## Next bounded action
 
 B's private handback goes to P; R reviews this integration. No push until P selects one publication.
