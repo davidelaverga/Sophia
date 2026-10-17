@@ -4372,6 +4372,13 @@ button.contribution-quote:hover {
   .segmented button {
     min-height: 36px;
   }
+  /* The box holds its 36 px presses on touch: 36, its 3 + 3 of padding and 1 + 1 of edge. Stated, not left to its
+     content: a box whose min-height is its own is shrunk to it in a column that overflows (Personal's notes), and its
+     thumb hung 8 px out of it (informe-25 P-01). */
+  .segmented,
+  .segmented.sz-sm {
+    min-height: 44px;
+  }
   /* An inline action's target reaches past its words, so the line around it keeps its height. */
   .text-button {
     position: relative;
