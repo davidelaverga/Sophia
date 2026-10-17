@@ -126,6 +126,50 @@ delivery deadline (#393 discussion 4302482622), and 0071 chooses the newest read
 execution provenance or artifact digest (4302482626). R triages them before any repair. This merge is sealed as a
 local checkpoint; no further Personal check or change until a new scope.
 
+## Reviewed B2 repair carried (FND-B3-CURRENT-D0C4-LOCAL-CARRY-03)
+
+One normal merge of #393's reviewed and published `d0c46d5f` into the paused checkpoint `a617c6d6`, both parents
+kept. The merge base is `2017330d`. This brings the repair of the two P1s above into Personal:
+- one reply deadline, shared by the call, delivery and settlement;
+- A40: a reply goes only to a runtime that advertises the grant's executor;
+- the PostgreSQL 16 fixture.
+
+**No conflict.** The one shared path, `config/runtime-unit.json`, merged automatically. Each side changed its own
+fields: B2's bundle `3c2b1d43…` beside Personal's workspace lock `6614784d…` and darwin-arm64 dsh tree `4f6f256b…`.
+- Every other path is one side's exactly: d0c4's 15 and Personal's 16.
+- 0067 and 0070 are unchanged, 0071 is d0c4's, and Personal's 0073 is its reviewed bytes. 0073 names no 0071 object.
+- No migration, amendment, endpoint, SDK, flag or dependency was added. The companion and service mode stay off.
+
+**Every identity reproduces without recording:** the bundle, the workspace lock, the darwin tree, the release
+integrity and the profile lock. The linux-x64 entry still holds `4552d08f…`, unqualified until a Linux build measures
+it.
+
+**Checks on the merged tree** (Node 24.21.0, pnpm 11.7.0; private PostgreSQL 17.11).
+- **A first database run was invalid.** Its cluster was made with `--no-locale`, against this record's
+  `--locale=en_US.UTF-8`.
+  - `test:db` failed one case, 0036's section split, which neither side changed. A test heading's `é` was dropped
+    from its anchor.
+  - On that cluster, 0036's own anchor expression gives `b---aa` collated "C" and `b-é---aa` collated en_US.UTF-8.
+    The test expects the second.
+  - The run is kept, and the cluster was removed.
+- **On an en_US.UTF-8 cluster:**
+  - `test:sql`: 68 migrations and 5 files.
+  - `test:db`: 1013/1013. This includes A40's selection, refusal, legacy, hello and no-retarget cases, and the
+    Personal live companion, usage, routes, erasure, exhaustion and missing-configuration suites against the local
+    Responses double with a fake key. The three gated Q13 groups skip there and are not counted.
+- **C1 served cases: 5/5**, run with the normal App, the listening API, restricted PostgreSQL and synthetic HS256
+  identities. VISION and the companion were unset, and the outsider got the project's real 403.
+- **Q13 helpers not repeated.** Their tests, scripts and test support are byte-equal to the accepted d0c4 and `690aa2c9`
+  runs, and so are 0070 and 0071's admission function. The migration set differs from `690aa2c9`'s only by 0071, which
+  d0c4's own run installed as the same plain installer. Installing this exact set as that installer was not run.
+- The ordinary `pnpm check` on this head is in B's handback. It runs the B2 service and runtime crossings.
+- **Not run:** PostgreSQL 16, Supabase-local auth, any Linux build, the automatic review of this head, and any real
+  provider or payer. The two runner instances are still one Node process, not two processes.
+
+The two inherited P1s are closed at source level by R's acceptance of d0c4. Their CI on PostgreSQL 16 (both helper
+phases) and on Auth is still owed. Personal's data and recipient approval, an admitted payer and allowance, the API
+host's credential custody and V's route check are still owed.
+
 ## Next bounded action
 
-B's private handback goes to P; R reviews this head. No push until P sequences it with the common integration.
+B's private handback goes to P; R reviews this composition. No push until P selects a publication.
