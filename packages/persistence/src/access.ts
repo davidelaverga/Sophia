@@ -4,6 +4,7 @@
 import type pg from 'pg'
 import type { InvitationPreview, LobbyDecision, LobbyEntry, Membership, RoomSession } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
+import { shownName } from './profiles.ts'
 import { onlyRow } from './rows.ts'
 
 const iso = (value: Date | string) => new Date(value).toISOString()
@@ -60,7 +61,7 @@ const toInvitation = (r: InvitationRow): InvitationRecord => ({
   emailStatus: r.email_status,
   createdAt: iso(r.created_at),
   tokenVersion: r.token_version,
-  inviterName: r.inviter_name,
+  inviterName: shownName(r.inviter_name),
 })
 
 export interface InvitationRequest {
@@ -153,6 +154,7 @@ export async function previewRoomInvitation(c: pg.PoolClient, tokenSha256: Buffe
   const p = onlyRow(rows, 'preview_room_invitation').preview
   return {
     ...p,
+    inviterName: shownName(p.inviterName),
     expiresAt: iso(p.expiresAt),
     session: p.session ? { ...p.session, startsAt: iso(p.session.startsAt), endsAt: iso(p.session.endsAt) } : null,
   }
@@ -248,7 +250,7 @@ export async function listPendingInvitations(c: pg.PoolClient, email: string): P
     id: r.id,
     projectId: r.project_id,
     projectTitle: r.project_title,
-    inviterName: r.inviter_name,
+    inviterName: shownName(r.inviter_name),
     role: r.member_role,
     expiresAt: iso(r.expires_at),
     tokenVersion: r.token_version,

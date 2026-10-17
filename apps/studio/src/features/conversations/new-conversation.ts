@@ -1,7 +1,7 @@
 // Starting a conversation as writing (docs/plans/conversations-start.md, C8): the question is what matters; the first
 // message is optional and, left empty, is the question; the project's proposals waiting are offered to start from.
 import type { MissionDecision } from '@sophia/contracts'
-import type { ConversationAsk } from '../../api/vision.ts'
+import type { ConversationAsk } from '../../api/conversations.ts'
 
 /** What A18's start sends: the words trimmed, an empty first message being the question itself. */
 export function askOf(fields: ConversationAsk): ConversationAsk {

@@ -211,6 +211,19 @@ Read in a checkout of `paperclipai/paperclip@5edf55d7350c7f08c9dd132c7e0f1421fa0
 | UML-612-OPTIMIZATION | Linux `v6.12.101`, `init/Kconfig`, compiler optimization choice, read from the same SHA-256-verified kernel archive | Upstream defaults to `CC_OPTIMIZE_FOR_PERFORMANCE` (`-O2`); the preceding candidate explicitly chose `CC_OPTIMIZE_FOR_SIZE` (`-Os`). The runtime candidate now uses the upstream performance setting. Same-host full-fixture comparisons retain the size setting as a control; neither setting is native Render acceptance by itself. | `renderers/web/pdf/uml/kernel.config`, `Dockerfile`, `.github/workflows/uml-fixture.yml` |
 | LINUX-PARENT-DEATH | [Linux man-pages, `PR_SET_PDEATHSIG(2const)`](https://man7.org/linux/man-pages/man2/PR_SET_PDEATHSIG.2const.html), read 2026-10-08 | Parent-death signaling persists across ordinary exec but does not signal for a parent that has already died. The driver supplies its PID before spawning; the child arms `SIGKILL` and checks its parent identity before exec. Existing namespace descendants rearm after fork and UID changes. | `renderers/web/pdf/uml/owned-exec.py`, `host-qa.py`, `test_owned_exec.py` |
 
+## 2i. CON-01 reply containment references
+
+| Source id | Upstream reference | Used for | Sophia files |
+|---|---|---|---|
+| CON-LINUX-SYSCALL-X64 | [Linux v6.12 x86_64 syscall table](https://github.com/torvalds/linux/blob/v6.12/arch/x86/entry/syscalls/syscall_64.tbl), read2026-10-14 | Q7 process creation, signal, socket, pidfd, seccomp and Landlock syscall numbers; native x86_64 only | apps/execution-host/reply/reply-launch.py, test_reply_launch.py |
+| CON-LINUX-SECCOMP | [Linux v6.12 seccomp UAPI](https://github.com/torvalds/linux/blob/v6.12/include/uapi/linux/seccomp.h) and [seccomp(2)](https://www.man7.org/linux/man-pages/man2/seccomp.2.html), read2026-10-14 | seccomp_data layout/action values, GET_ACTION_AVAIL, x32 separation and integer truncation; legacy dispatch comparison: [v5.3 common.c](https://github.com/torvalds/linux/blob/v5.3/arch/x86/entry/common.c) and [v5.4 common.c](https://github.com/torvalds/linux/blob/v5.4/arch/x86/entry/common.c); pure bytecode/injected queries are not kernel enforcement | same |
+| CON-LINUX-LANDLOCK | [Kernel Landlock documentation](https://cdn.kernel.org/doc/html/latest/userspace-api/landlock.html) and [Landlock UAPI](https://github.com/torvalds/linux/blob/master/include/uapi/linux/landlock.h), observed2026-10-14 | ABI4 filesystem bits0–14; ABI5 adds15(IOCTL_DEV), ABI9 adds16(RESOLVE_UNIX); documented throughABI11. Dynamic references are dated observations, not pinned runtime artifacts; later/unknown ABI refuses pending new source review and actual qualification | same |
+| CON-LINUX-IO-URING | Linux v6.12 [opdef.c](https://github.com/torvalds/linux/blob/v6.12/io_uring/opdef.c), [net.c](https://github.com/torvalds/linux/blob/v6.12/io_uring/net.c), [io_uring.c](https://github.com/torvalds/linux/blob/v6.12/io_uring/io_uring.c) and [net/socket.c](https://github.com/torvalds/linux/blob/v6.12/net/socket.c), read2026-10-14 | IORING_OP_SOCKET dispatches io_socket to __sys_socket_file with the SQE domain. Inference from source: syscall41/53 argument predicates do not cover that path. No target-host exploit demonstrated. Deny425/426/427, exclude inherited ring descriptors and qualify pinned Node/dsh on actual Linux before acceptance | same |
+
+Approved provenance addition under CON01-FILTER-AMENDMENT,14October2026; no upstream code copied.
+
+No claim of actual Linux qualification. All local capability/syscall/pidfd/signal0 paths used injected operations. Actual topology, runtime installation and physical isolation remain held.
+
 ## 3. Facts learned at the pin (not in the pack)
 
 These are observed behaviors of the pinned release, recorded so later goals
