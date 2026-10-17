@@ -144,6 +144,27 @@ retirement, the receipt correction and current main.
 - **Unchanged.** The strict A34 reader, the fixture adapter and the READ/WIRE closures are unchanged.
 - **Checks.** The ordinary check, SQL, DB and served cases of this head are in B's handback.
 
+## Readiness and the journal-preflight test (FND-B-COMMON-READINESS-AND-TEST-FOCUSED-CORRECTION-01)
+
+Two findings on this head.
+
+**Readiness (R-C6E-READY-01).** The snapshot always calls 0075's `goal_retirements`, whatever the flags, but `/ready`
+did not require it. A database short of 0075 read ready, then failed every snapshot.
+- Now `/ready` requires it.
+- The staged readiness case adds the adverse step. Short of 0075, the API is not ready and a member's snapshot fails;
+  with 0075, it is ready and that snapshot reads.
+- With the new requirement removed, the case fails.
+
+**The journal-preflight test (#391's failed check, job 117485430739).** `tests/unit/reply-child.test.mjs`'s timeout case
+created the 10 ms preflight and attached its rejection handler only after a tick. So a refusal could arrive first,
+unobserved.
+- With the old order and consumption delayed 20 ms, the test fails as CI did: `reply_recovery_unconfirmed` at about
+  11 ms, with `PromiseRejectionHandledWarning`.
+- Now the outcome is observed the moment the preflight exists, as a value that never rejects. It is asserted after the
+  same delay, and both modes keep their abort, late-read, single-ACK, no-observe and no-settle checks.
+- The test passes, and so does its file (266/266).
+- CI's own dynamic cause is not proven beyond this reproduction.
+
 ## Next bounded action
 
 B's private handback goes to P; R reviews this integration. No push until P selects one publication.
