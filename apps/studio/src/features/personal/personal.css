@@ -542,7 +542,7 @@
   color: var(--text-3);
 }
 .places .hw-say kbd {
-  font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  font: 500 var(--type-label) / 1 var(--mono);
   color: var(--text-3);
 }
 /* A key only where there are keys: a touch screen has none to press. */

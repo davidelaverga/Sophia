@@ -312,12 +312,14 @@ kbd {
   font-size: var(--type-small);
   color: var(--text-3);
 }
+/* A key: 18 px at least, and taller when its letters are (a larger browser text, type-rem-fit.spec.ts). */
 kbd {
   display: inline-grid;
   place-items: center;
   min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
+  min-height: 18px;
+  padding: 1px 4px;
+  line-height: 1;
   border-radius: var(--r-1);
   border: 1px solid var(--line-2);
   background: rgb(var(--ink-rgb) / 0.04);
@@ -5492,6 +5494,8 @@ button.contribution-quote:hover {
 }
 .updates-part {
   display: grid;
+  /* One column that may be narrower than its widest row: the kinds' strip scrolls in it, the page doesn't. */
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: 16px;
 }
@@ -5829,8 +5833,15 @@ button.contribution-quote:hover {
    page does not (Codex on #239). */
 .updates-narrow .segmented {
   max-width: 100%;
+  /* Its presses don't shrink (below): the strip itself may, and scrolls. */
+  min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
+}
+/* Its presses keep their words on one line: the row scrolls instead (a phone, larger text). */
+.updates-narrow .segmented button {
+  flex: none;
+  white-space: nowrap;
 }
 /* A presented report's version and its following count: data, on the 10.5 px scale beside the «Shown by» label (Codex
    on #241). */
