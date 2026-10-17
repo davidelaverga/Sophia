@@ -140,28 +140,28 @@ const withinMs = <T>(ms: number, p: Promise<T>) =>
     new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`not settled in ${ms} ms`)), ms)),
   ])
 const refusal = (p: Promise<unknown>) =>
-  describe('a protected conversation read refused by its status', () => {
-    p.then(
-      () => null,
-      (error: unknown) => error,
-    )
+  p.then(
+    () => null,
+    (error: unknown) => error,
+  )
 
-    for (const [label, read] of [
-      ['the list', () => listConversations('t', 'p')],
-      ['a thread', () => getConversationMessages('t', 'p', 'c', null)],
-    ] as const) {
-      it(`${label}: refused as forbidden while its error body never arrives`, async () => {
-        globalThis.fetch = () => Promise.resolve(new Response(pendingBody(), { status: 403 }))
-        const error = await withinMs(200, refusal(read()))
-        assert.ok(error instanceof ApiError)
-        assert.deepEqual([error.status, error.code], [403, 'forbidden'])
-      })
+describe('a protected conversation read refused by its status', () => {
+  for (const [label, read] of [
+    ['the list', () => listConversations('t', 'p')],
+    ['a thread', () => getConversationMessages('t', 'p', 'c', null)],
+  ] as const) {
+    it(`${label}: refused as forbidden while its error body never arrives`, async () => {
+      globalThis.fetch = () => Promise.resolve(new Response(pendingBody(), { status: 403 }))
+      const error = await withinMs(200, refusal(read()))
+      assert.ok(error instanceof ApiError)
+      assert.deepEqual([error.status, error.code], [403, 'forbidden'])
+    })
 
-      it(`${label}: refused as forbidden whatever a malformed error body says`, async () => {
-        globalThis.fetch = () => Promise.resolve(new Response('<html>denied</html>', { status: 403 }))
-        const error = await refusal(read())
-        assert.ok(error instanceof ApiError)
-        assert.deepEqual([error.status, error.code], [403, 'forbidden'])
-      })
-    }
-  })
+    it(`${label}: refused as forbidden whatever a malformed error body says`, async () => {
+      globalThis.fetch = () => Promise.resolve(new Response('<html>denied</html>', { status: 403 }))
+      const error = await refusal(read())
+      assert.ok(error instanceof ApiError)
+      assert.deepEqual([error.status, error.code], [403, 'forbidden'])
+    })
+  }
+})
