@@ -43,6 +43,8 @@ commits on the branch merge its base forward or touch only this record). 9 files
   - a `flip` icon;
   - a start-aligned tip, so a control at a left edge never pushes its tip past it.
 - **The tile's 30 px press** stays as the tile's other press (Hide my tile, Pin) has it.
+- **Main merged in (`c320d500b`), after #403 landed:** `OnVideo` keeps #403's reconnecting word over the video and adds the
+  flip beside it. Typecheck and lint are clean; CI is the run on record for the merge.
 
 ## Remaining obligations
 
