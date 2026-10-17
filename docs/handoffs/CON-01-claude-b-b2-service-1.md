@@ -278,6 +278,20 @@ contract and failure-only partial stops) into `94f0434f`, both parents kept. The
   COMMENT ON ROLE is denied directly.
 - The creator-edge record is the trusted owner's attestation, not isolation against that owner.
 
+## Byte-backup test contract carried (FND-B-BYTE-BACKUP-ACCEPTED-CARRY-01)
+
+The concurrent-copy case failed 0 of 2 in this line's check above; its cause remains unknown. C's accepted test
+correction (R accepted `ce82b18b`; R-BB-3E76-1 closed) reached this line through current C1 only.
+- On C1 (`f76f5776`): cherry-picked `3e767e96`, then `ce82b18b`, never their B2 parent. The delta is byte-identical
+  to the accepted one: `apps/api/src/byte-backup.test.ts` → `064bd54d`, plus C's handoff.
+- Here: one normal merge of that C1 head, no conflict. Only those two paths change.
+- Unchanged: the backup product code (worker `73cfb030`, backup `e8240713`, quota `1fafb2f1`, store `007396af`), the
+  quota test, 0070/0071 and every Q13 guard.
+- It changes a test, not the product: exactly one admitted put under a real write-once claim, an injected
+  journal-lock refusal, and a fixed 100 ms caller and 300 ms lock control that fails rather than passes when the
+  deadline comes first. It does not explain the original failure.
+- C1's own check on its new head passed; this composition's check is in B's handback.
+
 ## Next bounded action
 
 Check the automatic review on #393's repair head once. Then implement the assembly binding exactly as P/V triage it, in this worktree, with its census-numbered migration.
