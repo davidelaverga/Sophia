@@ -278,31 +278,33 @@ or retried act that changes nothing is not recorded (Codex P2 on #385). The micr
 - Locally the LiveKit suite is skipped (no server here); its real run is that CI job on the next pushed head.
 
 
-**A partial screen stop on `a871f4d9` (FND-A-C1-SCREEN-PARTIAL-FOCUSED-01; Claude A, session
-`local_775c886b-f077-43c7-a07c-74868ab14b5c`; Codex P2 r4302170752, R-C1-A871-SCREEN-PARTIAL-01).** A screen share is
-its video and its sound. When the room server muted one of them and then refused the other, `muteUnmuted` threw
-`PartialMute`, and `recordedIfDone`'s default partial handler (`partly = record`) wrote `room.host_screen_off`, "Screen
-sharing stopped by an admin", while the other publication stayed live. The failure did still answer the request.
-- Now `routes/host-acts.ts` has `recordedStop(act, done, record)`, which the stop-camera/stop-screen route in
-  `routes/rooms.ts` calls. A partial screen stop records nothing and the original `PartialMute` still propagates.
-  Unchanged: a stop that muted every publication (recorded once), one that changed nothing (not recorded), one that
-  muted nothing and failed (the failure as it was), the camera stop, mute-all's per-member partial record, the
-  microphone mute and removal, authorization and the host guards. No SQL, migration, event, contract or dependency.
-- Source constraint for P: no existing act can say a screen was partly stopped. 0060's acts are `room.host_camera_off`,
-  `room.host_screen_off` and `room.host_muted_all`; 0057's are the microphone mute and the removal. So the confirmed part
-  (one publication muted) is not in the activity; only the request's failure reports it. Naming it would need a new
-  act and event, which this correction does not invent.
-- The camera stop keeps `recordedIfDone`'s default: a partial camera stop, possible only with more than one camera
-  publication, would still record `room.host_camera_off`. Not changed here; it is the same class, for P to decide.
-- Before, the a871 composition (`recordedIfDone(stop, record)`) over the real `muteUnmuted` with a controlled room
-  server whose second mute fails, in a scratch script outside Git: for both publication orders, one muted, the other
-  still live, and `room.host_screen_off` written, then `PartialMute(muted=1)` rejected. With the new regressions and
-  `recordedStop` given that a871 composition: `node --test apps/api/src/routes/host-acts.test.ts` 7 pass, 2 fail (both
-  partial screen orders: "never Screen sharing stopped").
-- After: `node --test apps/api/src/routes/host-acts.test.ts` 9 pass, 0 fail: both orders record nothing and reject
-  the original `PartialMute` (muted 1, its cause the room server's refusal); a zero-success screen stop fails as it
-  was; all-success and what-was-left-on stops record once; a repeated stop records nothing; the camera cases are
-  as before; the existing mute-all partial case is unchanged.
+**A partial screen or camera stop on `a871f4d9` (FND-A-C1-SCREEN-PARTIAL-FOCUSED-01, then FND-A-C1-STOP-PARTIAL-NEIGHBOR-02;
+Claude A, session `local_775c886b-f077-43c7-a07c-74868ab14b5c`; Codex P2 r4302170752, R-C1-A871-SCREEN-PARTIAL-01).**
+A stop mutes every publication of its sources: a screen share is its video and its sound, and a member may publish more
+than one camera. When the room server muted one and then refused another, `muteUnmuted` threw `PartialMute`, and
+`recordedIfDone`'s default partial handler (`partly = record`) wrote the whole act, `room.host_screen_off` ("Screen
+sharing stopped by an admin") or `room.host_camera_off` ("Camera turned off by an admin"), while a publication stayed
+live. The failure did still answer the request.
+- Now `routes/host-acts.ts` has `recordedStop(done, record)`, which the stop-camera/stop-screen route in
+  `routes/rooms.ts` calls. A partial stop, camera or screen, records nothing and the original `PartialMute` still
+  propagates. Unchanged: a stop that muted every publication (recorded once), one that changed nothing (not recorded),
+  one that muted nothing and failed (the failure as it was), mute-all's per-member partial record, the microphone mute
+  and removal, authorization and the host guards. No SQL, migration, event, contract or dependency.
+- Source constraint, accepted by P: no existing act can say a camera or screen was partly stopped. 0060's acts are
+  `room.host_camera_off`, `room.host_screen_off` and `room.host_muted_all`; 0057's are the microphone mute and the
+  removal. So the confirmed part (some publications muted) is not in the activity; only the request's failure reports
+  it. Naming it would need a new act and event, separate product work, not invented here.
+- Before, in scratch scripts outside Git, with the real `muteUnmuted` and a controlled room server whose second mute
+  fails: the a871 composition (`recordedIfDone(stop, record)`) wrote `room.host_screen_off` for both screen orders; the
+  first commit `fb797748` fixed the screen but still wrote `room.host_camera_off` for both orders of two camera
+  publications, one of them still live; each then rejected `PartialMute(muted=1)`. With the final regressions and
+  `recordedStop` given `recordedIfDone`'s default: `node --test apps/api/src/routes/host-acts.test.ts` 7 pass, 4 fail
+  (both screen and both camera partial cases).
+- After: `node --test apps/api/src/routes/host-acts.test.ts` 11 pass, 0 fail: both screen orders and both orders of two
+  camera publications record nothing and reject the original `PartialMute` (muted 1, its cause the room server's
+  refusal); a zero-success screen stop fails as it was; all-success and what-was-left-on screen stops record once; a
+  repeated stop records nothing; a one-camera and a two-camera stop record once, a repeated one nothing, a refused one
+  fails as it was; the existing mute-all partial case is unchanged.
 - Limits: a controlled room-server double over the real `muteUnmuted`, `recordedStop` and `recordedIfDone`; the
   Fastify route and PostgreSQL are not run, and no real LiveKit fault was injected. The real LiveKit suite on
   `9b93a4e6`/tree `3651b345` (job 117360353690, 6/6) covers the successful and repeated stops, not this failure.

@@ -80,7 +80,7 @@ function stopping(act: 'camera' | 'screen', tracks: { sid: string; muted: boolea
     },
   }
   const done = muteUnmuted(rooms, 'room', 'member', tracks).then((n) => n > 0)
-  const ran = recordedStop(act, done, () => {
+  const ran = recordedStop(done, () => {
     events.push(act === 'screen' ? 'room.host_screen_off' : 'room.host_camera_off')
     return Promise.resolve()
   })
@@ -88,14 +88,17 @@ function stopping(act: 'camera' | 'screen', tracks: { sid: string; muted: boolea
 }
 
 // Codex P2 on #385 (r4302170752): a screen share is its video and its sound. One muted and the other refused left the
-// other live, yet a871 wrote room.host_screen_off ("Screen sharing stopped by an admin").
+// other live, yet a871 wrote room.host_screen_off ("Screen sharing stopped by an admin"). A member publishing two cameras
+// is the same: fb797748 still wrote room.host_camera_off with one of them live (FND-A-C1-STOP-PARTIAL-NEIGHBOR-02).
 describe('a screen or camera stop’s evidence (A31)', () => {
-  for (const order of [
-    ['screen-video', 'screen-audio'],
-    ['screen-audio', 'screen-video'],
-  ]) {
-    it(`a screen stop that muted ${order[0] ?? ''} and then failed records nothing, and the failure answers`, async () => {
-      const { ran, muted, events } = stopping('screen', unmuted(...order), 1)
+  for (const [act, order] of [
+    ['screen', ['screen-video', 'screen-audio']],
+    ['screen', ['screen-audio', 'screen-video']],
+    ['camera', ['camera-a', 'camera-b']],
+    ['camera', ['camera-b', 'camera-a']],
+  ] as const) {
+    it(`a ${act} stop that muted ${order[0]} and then failed records nothing, and the failure answers`, async () => {
+      const { ran, muted, events } = stopping(act, unmuted(...order), 1)
       const failure = await ran.then(
         () => null,
         (err: unknown) => err,
@@ -104,7 +107,7 @@ describe('a screen or camera stop’s evidence (A31)', () => {
       assert.equal(failure.muted, 1)
       assert.match((failure.cause as Error).message, /refused the mute/u)
       assert.deepEqual(muted, [order[0]], 'one publication was muted; the other stays live')
-      assert.deepEqual(events, [], 'never "Screen sharing stopped"')
+      assert.deepEqual(events, [], 'never "Screen sharing stopped" or "Camera turned off"')
     })
   }
 
@@ -133,10 +136,13 @@ describe('a screen or camera stop’s evidence (A31)', () => {
     assert.deepEqual([none.muted, none.events], [[], []], 'a repeated stop changes nothing and says so')
   })
 
-  it('a camera stop is recorded as before: once done, nothing for nothing', async () => {
+  it('a camera stop that muted every camera records it once; nothing for nothing; a refused one fails as it was', async () => {
     const one = stopping('camera', unmuted('camera'), null)
     await one.ran
     assert.deepEqual(one.events, ['room.host_camera_off'])
+    const both = stopping('camera', unmuted('camera-a', 'camera-b'), null)
+    await both.ran
+    assert.deepEqual([both.muted, both.events], [['camera-a', 'camera-b'], ['room.host_camera_off']])
     const again = stopping('camera', [{ sid: 'camera', muted: true }], null)
     await again.ran
     assert.deepEqual(again.events, [])
