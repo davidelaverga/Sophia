@@ -1551,3 +1551,18 @@ test('personal · a day divider’s day is data at the label size, as dates and 
   await expect(day).toBeVisible()
   expect(await day.evaluate((el) => getComputedStyle(el).fontSize)).toBe('10.5px')
 })
+
+// Find matches whatever the accents, as the notes' search does (docs/plans/find-accents.md), and marks the words as
+// they were written.
+test('ease · Find matches whatever the accents, and marks the words as written', async ({ page }) => {
+  await page.goto(PAGE)
+  await field(page).fill('Un café con Lucía, mañana temprano.')
+  await field(page).press('Enter')
+  await expect(page.locator('.msg.me .body').last()).toHaveText('Un café con Lucía, mañana temprano.')
+  await page.getByRole('button', { name: 'Find', exact: true }).click()
+  await finder(page).fill('cafe')
+  await expect(findCount(page)).toHaveText('1 of 1')
+  await expect(page.locator('.msgs mark.current')).toHaveText('café')
+  await finder(page).fill('MANANA')
+  await expect(page.locator('.msgs mark.current')).toHaveText('mañana')
+})

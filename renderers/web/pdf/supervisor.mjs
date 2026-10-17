@@ -63,15 +63,23 @@ const UML_LOG_LINES = 400
 export const UML_MARGIN_MS = 90_000
 /** What the launchers and the guest may print before the job is refused: their records, boot and kernel logs. */
 const UML_LOG_BYTES = 8 * 1024 * 1024
+/**
+ * What a synthetic check's diagnostic (UmlConfig.diagnostics) keeps of a guest's console before the guest is entered (its
+ * first UML_GUEST_ or UML_JOB_ line): the last `lines` lines, each made printable and cut at `lineChars`, within `bytes`
+ * in all. Production keeps none of it (R1-UML-BOOT-EVIDENCE).
+ */
+export const BOOT_EVIDENCE = Object.freeze({ lines: 16, lineChars: 256, bytes: 4096 })
 /** The guest's artifacts, each root-owned and writable by no one else (namespace-launch.py checks them again). */
 const UML_ARTIFACTS = ['namespace-launch.py', 'landlock-launch.py', 'linux.uml', 'initrd.gz', 'guest.raw']
 /** Where a job's paths lie inside the guest (uml/guest-job). */
 const GUEST = { dir: '/work/job', sourceRoot: '/work/job/src', outputDir: '/work/job/out' }
 
 /**
- * @typedef {{ root?: string, command?: (dir: string) => string[], marginMs?: number, goneMs?: number }} UmlConfig the
- *   guest's artifacts; `command`, `marginMs` and `goneMs` replace the launchers, the margin and the reap's wait in tests
- *   only
+ * @typedef {{ root?: string, command?: (dir: string) => string[], marginMs?: number, goneMs?: number,
+ *   diagnostics?: (evidence: BootEvidence) => void }} UmlConfig the guest's artifacts; `command`, `marginMs` and `goneMs`
+ *   replace the launchers, the margin and the reap's wait in tests only; `diagnostics` is set only by a synthetic check
+ *   (uml/supervisor-e2e.mjs, tests), never from the environment or a configuration: it is told how each run ended and,
+ *   when the guest was never entered, what the console printed last (BOOT_EVIDENCE)
  * @typedef {{ apiUrl: string, token: string, workDir: string, env?: NodeJS.ProcessEnv, heartbeatMs?: number,
  *   pollMs?: number, beforeRender?: (job: RenderJob) => Promise<void>, log?: (line: string) => void,
  *   isolation?: 'native' | 'uml', uml?: UmlConfig, tokenFile?: string, apiMs?: number }} SupervisorConfig `apiMs`
@@ -80,8 +88,19 @@ const GUEST = { dir: '/work/job', sourceRoot: '/work/job/src', outputDir: '/work
  *   files: { path: string, role: 'entry' | 'asset', sha256: string, byteLength: number }[], format: 'pdf' | 'png',
  *   targets: string[], sections: string[] | null }} RenderJob
  * @typedef {{ claimed: false } | { claimed: true, jobId: string, outcome: string }} RunOutcome
- * @typedef {{ cancelled: boolean, timedOut: boolean, lingering: boolean, failed: string | null }} RunEnd how a
- *   kernel's run ended: stopped, past its time, with processes that outlived the wait, or never started
+ * @typedef {{ exitCode: number | null, signal: string | null }} LeaderExit how the process this supervisor started
+ *   exited, as Node saw it. For a UML job that process is namespace-launch.py, the OUTER launcher: its code or signal is
+ *   the launcher's own end, which maps its child's wait status through sys.exit — never the guest kernel's raw status.
+ * @typedef {{ cancelled: boolean, timedOut: boolean, lingering: boolean, failed: string | null,
+ *   leader: LeaderExit | null }} RunEnd how a kernel's run ended: stopped, past its time, with processes that outlived
+ *   the wait, or never started; and how its leader exited (null: it never started, or never exited)
+ * @typedef {{ lines: string[], seen: number, dropped: number, truncated: boolean }} BootConsole the console a guest
+ *   printed before it was entered: its last lines (BOOT_EVIDENCE), how many lines there were, how many were dropped,
+ *   and whether anything was dropped or cut
+ * @typedef {{ event: 'UML_BOOT_EVIDENCE', qualification: false, jobId: string, launcherLeader: LeaderExit | null,
+ *   cancelled: boolean, timedOut: boolean, lingering: boolean, failed: string | null, guestEntered: boolean,
+ *   console: BootConsole | null }} BootEvidence what a synthetic check's diagnostic is told of one UML run: the console
+ *   only when the guest was never entered
  */
 
 /** A job's processes outlived it: its directory is kept, and this host claims nothing more until it restarts. */
@@ -465,17 +484,20 @@ function onLeaderEnd(child, limits, finish) {
     child.once('close', resolve)
   })
   child.on('error', (error) => {
-    if (child.pid === undefined) finish({ lingering: false, failed: `the kernel did not start: ${error.message}` })
+    if (child.pid === undefined)
+      finish({ lingering: false, failed: `the kernel did not start: ${error.message}`, leader: null })
   })
-  child.once('exit', () => {
+  child.once('exit', (exitCode, signal) => {
     const pgid = child.pid
     if (pgid === undefined) return
+    /** @type {LeaderExit} */
+    const leader = { exitCode, signal }
     reap(pgid, limits.uid, limits.goneMs)
       .then(async (gone) => {
         await Promise.race([closed, new Promise((r) => setTimeout(r, CLOSE_MS).unref())])
-        finish({ lingering: !gone, failed: null })
+        finish({ lingering: !gone, failed: null, leader })
       })
-      .catch(() => finish({ lingering: true, failed: null }))
+      .catch(() => finish({ lingering: true, failed: null, leader }))
   })
 }
 
@@ -514,7 +536,7 @@ function supervised(cfg, job, child, limits) {
       if (!running()) return
       signalGroup(group, 'SIGKILL')
       // A leader that outlives its SIGKILL never exits for us: the run ends as lingering, and the host is tainted.
-      setTimeout(() => running() && finish({ lingering: true, failed: null }), limits.goneMs).unref()
+      setTimeout(() => running() && finish({ lingering: true, failed: null, leader: null }), limits.goneMs).unref()
     }, KILL_GRACE_MS).unref()
   }
   const stop = () => {
@@ -563,15 +585,24 @@ function umlCommand(cfg, dir) {
 /**
  * What the launchers reported before the guest started, read from the group's output within UML_LOG_BYTES: the first
  * record of each kind counts, and a second (which only the guest could print) refuses the job. Lines the launchers or
- * the guest mark (`UML_`) are logged; the rest of the guest's console is counted, not kept.
+ * the guest mark (`UML_`) are logged; the rest of the guest's console is counted, not kept — except, for a synthetic
+ * check's diagnostic only (UmlConfig.diagnostics), its last lines before the guest is entered (bootConsole). `entered`
+ * says whether the guest printed its first line (UML_GUEST_ or UML_JOB_).
  * @param {SupervisorConfig} cfg
  * @param {RenderJob} job
  * @param {import('node:child_process').ChildProcess} child
  * @param {() => void} stop
  */
 function launcherRecords(cfg, job, child, stop) {
-  /** @type {{ adverse: object | null, policy: object | null, refused: string | null }} */
-  const seen = { adverse: null, policy: null, refused: null }
+  /** @type {{ adverse: object | null, policy: object | null, refused: string | null, entered: boolean,
+   *   boot: ReturnType<typeof bootConsole> | null }} */
+  const seen = {
+    adverse: null,
+    policy: null,
+    refused: null,
+    entered: false,
+    boot: cfg.uml?.diagnostics ? bootConsole() : null,
+  }
   let bytes = 0
   let logged = 0
   /** @param {string} line */
@@ -581,7 +612,10 @@ function launcherRecords(cfg, job, child, stop) {
       cfg.log?.(`[uml ${job.jobId}] ${line.slice(0, 300).replaceAll(/[^\x20-\x7e]/gu, '?')}`)
     }
     const record = recordOf(line)
-    if (!record) return
+    if (!record) {
+      onConsole(seen, line)
+      return
+    }
     const event = fieldOf(record, 'event')
     const key =
       event === 'UML_HOST_ADVERSE_CONTROLS' ? 'adverse' : event === 'UML_HOST_POLICY_APPLIED' ? 'policy' : null
@@ -610,6 +644,51 @@ function launcherRecords(cfg, job, child, stop) {
   child.stdout?.on('data', reader())
   child.stderr?.on('data', reader())
   return seen
+}
+
+/**
+ * A console line that is no launcher record: the guest's first line (UML_GUEST_ or UML_JOB_) says it was entered; before
+ * that, a synthetic check's boot console (bootConsole) keeps the line.
+ * @param {{ entered: boolean, boot: ReturnType<typeof bootConsole> | null }} seen
+ * @param {string} line
+ */
+function onConsole(seen, line) {
+  if (line.startsWith('UML_GUEST_') || line.startsWith('UML_JOB_')) seen.entered = true
+  else if (seen.boot && !seen.entered && line !== '') seen.boot.take(line)
+}
+
+/**
+ * The last lines a guest's console printed, within BOOT_EVIDENCE: each made printable (anything but ASCII 0x20–0x7e
+ * becomes '?') and cut at `lineChars` with " [cut]"; the oldest dropped past `lines` lines or `bytes` in all. Nothing is
+ * kept unboundedly; `read` says how many lines there were and whether any were dropped or cut.
+ * @param {{ lines: number, lineChars: number, bytes: number }} [limits]
+ */
+export function bootConsole(limits = BOOT_EVIDENCE) {
+  /** @type {string[]} */
+  const kept = []
+  let bytes = 0
+  let seen = 0
+  let dropped = 0
+  let cut = false
+  return {
+    /** @param {string} line */
+    take(line) {
+      seen += 1
+      let shown = line.replaceAll(/[^\x20-\x7e]/gu, '?')
+      if (shown.length > limits.lineChars) {
+        shown = `${shown.slice(0, limits.lineChars)} [cut]`
+        cut = true
+      }
+      kept.push(shown)
+      bytes += shown.length
+      while (kept.length > limits.lines || bytes > limits.bytes) {
+        bytes -= kept.shift()?.length ?? 0
+        dropped += 1
+      }
+    },
+    /** @returns {BootConsole} */
+    read: () => ({ lines: [...kept], seen, dropped, truncated: cut || dropped > 0 }),
+  }
 }
 
 /**
@@ -707,12 +786,58 @@ async function runUml(cfg, job, where) {
     const run = supervised(cfg, job, child, { wallMs, uid, goneMs: cfg.uml?.goneMs ?? GONE_MS })
     const seen = launcherRecords(cfg, job, child, run.stop)
     const result = await run.done
+    reportBoot(cfg, job, result, seen)
     if (result.failed || result.lingering || result.cancelled) return result
     refuseGuest(result, seen)
     takeOutput(disk, where.outputDir)
     return result
   } finally {
     fs.closeSync(disk)
+  }
+}
+
+/**
+ * How the launchers' leader exited, in words that say whose status it is: namespace-launch.py's own, never the guest
+ * kernel's (LeaderExit).
+ * @param {LeaderExit | null} leader
+ */
+function leaderWords(leader) {
+  const how = !leader
+    ? 'no exit seen'
+    : leader.signal
+      ? `signal ${leader.signal}`
+      : `exit code ${String(leader.exitCode)}`
+  return `the outer launcher (namespace-launch.py) ended: ${how}, its own status, not the guest kernel's`
+}
+
+/**
+ * Log how the outer launcher ended (metadata only: its code or signal, and whether the guest was entered), and tell a
+ * synthetic check's diagnostic (UmlConfig.diagnostics) how the run ended, with the console only when the guest was never
+ * entered. A diagnostic's failure changes nothing of the run: the job's outcome is decided without it.
+ * @param {SupervisorConfig} cfg
+ * @param {RenderJob} job
+ * @param {RunEnd} result
+ * @param {ReturnType<typeof launcherRecords>} seen
+ */
+function reportBoot(cfg, job, result, seen) {
+  cfg.log?.(`[uml ${job.jobId}] ${leaderWords(result.leader)}; guest entered: ${seen.entered ? 'yes' : 'no'}`)
+  const diagnostics = cfg.uml?.diagnostics
+  if (!diagnostics) return
+  try {
+    diagnostics({
+      event: 'UML_BOOT_EVIDENCE',
+      qualification: false,
+      jobId: job.jobId,
+      launcherLeader: result.leader,
+      cancelled: result.cancelled,
+      timedOut: result.timedOut,
+      lingering: result.lingering,
+      failed: result.failed,
+      guestEntered: seen.entered,
+      console: seen.entered || !seen.boot ? null : seen.boot.read(),
+    })
+  } catch {
+    // A diagnostic that fails tells nothing; the run goes on as it would without it.
   }
 }
 

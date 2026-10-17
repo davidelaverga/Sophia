@@ -44,8 +44,10 @@ import {
   deliverCaption,
   deliverNotice,
   dropCall,
+  enabling,
   joined,
   leaving,
+  linkLost,
   reactFrom,
   sophiaLeaves,
   speakWhileMuted,
@@ -64,6 +66,7 @@ import {
   sophiaAsked,
   type SophiaState,
 } from './fake-people.ts'
+import type { ConversationMessage } from '../src/api/vision.ts'
 import {
   installFixtureApi,
   publish,
@@ -104,6 +107,7 @@ import { DEMO_GOALS, goalsAdmitted, goalsSettled } from './demo-goals.ts'
 import { demoResources, demoServedGoals } from './demo-work.ts'
 import { bootTheme } from '../src/app/theme.ts'
 import { startCrashReports } from '../src/app/crash-report.ts'
+import { SkipLink } from '../src/app/SkipLink.tsx'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
@@ -199,6 +203,8 @@ interface Fixture {
   failOlderMessages: (on: boolean) => void
   /** The second conversation gets a message: it is the newest now, and the list says so when read again (A18). */
   conversationMoves: () => void
+  /** Someone writes in the open conversation (the newest), and the feed moves (conversation-moves.md). */
+  conversationMessage: (name: string, text: string) => void
   /** The brief's reads fail, or read again. */
   failMission: (on: boolean) => void
   /** While on, the brief's reads wait; off, the waiting ones are answered. */
@@ -238,6 +244,9 @@ interface Fixture {
   keep: (text: string) => void
   /** The next «Mark as seen» lands, but its reply is lost. */
   loseNextSeenReply: () => void
+  /** Turning the microphone on waits until `releaseMicrophone`, as a browser still asking for it. */
+  holdMicrophone: () => void
+  releaseMicrophone: () => void
   /** Leaving the call waits until `releaseLeave`, as a slow disconnect. */
   holdLeave: () => void
   /** Leaving the call fails on LiveKit's side, as a disconnect that rejects. */
@@ -260,6 +269,8 @@ interface Fixture {
   sophiaLeaves: () => void
   /** Speech is heard on this person's muted microphone (muted-speech.md). */
   speakMuted: () => void
+  /** The call's link is lost for a while (true), or back (false), as LiveKit reconnects (reconnecting-on-video.md). */
+  linkLost: (lost: boolean) => void
   /** A teammate edits the report's description elsewhere (the page learns of it when it reads the cards again). */
   describeElsewhere: (text: string) => void
   /** Reads of the report's versions fail from now on: unavailable, or refused (`not_found`); given false, they succeed. */
@@ -545,6 +556,9 @@ const project = {
   designing: query.get('design') === 'designing',
   pageTampered: query.get('tamper') === 'html',
   work: query.get('place') === 'work',
+  // `reports=1`: the research task in the snapshot's work and the report's current version in its artifacts, as the API
+  // serves them (goal-reports.md).
+  goalReports: query.get('reports') === '1',
   // `notes=off`: the brief allows this person no note.
   showing: noShowing(),
   // A18: the project's conversations (`conversations=1`; `=none`, none; `=fail`, the list fails; `messages=fail`, the
@@ -793,6 +807,14 @@ window.fixture = {
     const moved = project.conversations?.list.find((c) => c.id === CONVERSATION.briefs)
     if (moved) moved.lastAt = '2026-10-06T10:00:00.000Z'
   },
+  conversationMessage: (name, text) => {
+    const all: Partial<Record<string, ConversationMessage[]>> | undefined = project.conversations?.messages
+    const thread = all?.[CONVERSATION.reading]
+    if (!thread) return
+    const at = new Date().toISOString()
+    thread.push({ id: `m-${String(thread.length + 1)}`, author: 'member', actorId: personId(1), name, text, at })
+    publish(project)
+  },
   failMission: (on) => {
     project.missionFails = on
   },
@@ -897,6 +919,13 @@ window.fixture = {
   loseNextSeenReply: () => {
     project.meeting.seen.loseReply = true
   },
+  holdMicrophone: () => {
+    enabling.held = true
+  },
+  releaseMicrophone: () => {
+    enabling.held = false
+    for (const done of enabling.waiting.splice(0)) done()
+  },
   holdLeave: () => {
     leaving.held = true
   },
@@ -928,6 +957,7 @@ window.fixture = {
   caption: deliverCaption,
   sophiaLeaves,
   speakMuted: speakWhileMuted,
+  linkLost,
   describeElsewhere: (text) => {
     project.description = { text, revision: project.description.revision + 1, author: TEAMMATE }
   },
@@ -1186,6 +1216,8 @@ const queryClient = new QueryClient()
 
 createRoot(root).render(
   <StrictMode>
+    {/* As main.tsx renders it beside the App (skip-link.md). */}
+    <SkipLink />
     <QueryClientProvider client={queryClient}>
       <p className="fixture-label" role="note" data-demo={DEMO || undefined}>
         {DEMO ? DEMO_LABEL : 'Fixture — no API, no call'}
