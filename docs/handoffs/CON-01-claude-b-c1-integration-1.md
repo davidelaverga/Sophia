@@ -163,6 +163,25 @@ passed, 0 failed; the bundle still reproduces (e956, the API is outside it). The
 the reply supervisor's sweep before releasing an exhausted lease) is not changed here; its reach in C1 is being mapped
 separately.
 
+## Current main 14e65afc (FND-B-C1-CHAT-INTEGRATION-02)
+
+One normal merge of main 14e65afc (Luis's #381, #384, #397, #401, #403, #404, #406, #414, #415 and #419: Studio and
+docs). Only `OpenConversation.tsx` conflicted. #384 renders a member's words with RichText (bold, code, quotes and
+links, in place); C1 renders them through MessageWords, which also shows a withdrawn message as withdrawn. MessageWords
+now uses RichText for a member's words, and main's Turn layout was already inline in C1's message item. The held-read
+gate still decides whether any words render. A new case in `conversations-removal.spec.ts` composes the two:
+- a formatted message shows its marks;
+- refused, neither its words nor its bold or code show;
+- given back with the reads held, the cached formatted words stay hidden until a read since answers, then render with
+  their marks.
+
+Checks on the merge:
+- Source: format, lint, typecheck and contracts pass, and contract regeneration has no drift. Unit tests 2984 passed,
+  0 failed. The bundle reproduces unchanged (e956).
+- Fixture browser: 262 of 262 for the conversation specs, the profile editor, the account menu, message format, links
+  in place, message links, room return and skip link. The failed-send barrier passed 6 of 6, and the new case 3 of 3.
+- Served (normal Studio, real API, restricted PostgreSQL, VISION off): all five cases again, 5 of 5.
+
 ## Remaining obligations
 
 - **#382 (Luis, open; its browser job was failing at packet time)** touches `ConversationsView.tsx`, `OpenConversation.tsx` and `fixtures/room.tsx`. Once its accepted head is on main, B merges main again in the final shared Studio slot. Luis then accepts the shared Studio resolutions. Neither #382 nor Luis's branch was merged or edited here.
