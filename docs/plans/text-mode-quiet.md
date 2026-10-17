@@ -1,6 +1,6 @@
 # Text mode stays quiet
 
-> 2026-10-17 · a fault found while building each person's volume (#424's branch). In text mode Sophia is read, not
+> 2026-10-17 · a fault found while building each person's volume. In text mode Sophia is read, not
 > heard, and her voice was silenced by muting its element. LiveKit's `startAudio` unmutes every element it has, so her
 > voice came back in text mode. Studio only.
 
