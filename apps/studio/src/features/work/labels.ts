@@ -55,7 +55,21 @@ export const COMMAND: Record<CommandKind, Command> = {
     hint: 'End the work for good',
     allowed: ['ready', 'running', 'checking', 'holding', 'held'],
   },
+  // A completed goal's sessions still attached (0075, A41): project admins only; the goal stays completed.
+  retire_sessions: {
+    verb: 'Retire remaining sessions',
+    noun: 'Retirement',
+    requested: 'Retirement requested',
+    hint: 'Stop the sessions still attached to this completed goal; it stays completed',
+    allowed: ['completed'],
+  },
 }
+
+const ORDER: readonly CommandKind[] = ['request_review', 'hold', 'resume', 'stop', 'retire_sessions']
+
+/** The controls a goal offers, in order: by its status; Retire remaining sessions to a project admin only (A41). */
+export const commandsFor = (status: Goal['status'], admin: boolean): CommandKind[] =>
+  ORDER.filter((kind) => COMMAND[kind].allowed.includes(status) && (kind !== 'retire_sessions' || admin))
 
 /**
  * Command summaries describe what was *requested* (admission is not completion); room and membership

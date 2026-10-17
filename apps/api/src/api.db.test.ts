@@ -247,6 +247,44 @@ describe('command admission', () => {
     assert.equal(await countCommands(key), 1)
   })
 
+  it('retires a completed goal’s sessions for an admin only, with its own receipt (0075, A41)', async () => {
+    const fresh = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    const path = `/api/v1/projects/${fresh.projectId}/commands`
+    const retire = (over: Record<string, unknown> = {}) =>
+      command({ kind: 'retire_sessions', goalId: fresh.goalId, ...over })
+    // Not completed yet: the command is refused, and Stop and Hold remain the goal's.
+    const early = await call(A, 'POST', path, retire(), { 'idempotency-key': randomUUID() })
+    assert.deepEqual([early.status, asErrorBody(early.json)?.code], [409, 'invalid_state'])
+    // FIXTURE: the goal completed, as the review flow completes it (this file has no runtime).
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    try {
+      await owner.query(`UPDATE sophia.goals SET status='completed' WHERE project_id=$1 AND id=$2`, [
+        fresh.projectId,
+        fresh.goalId,
+      ])
+    } finally {
+      await owner.end()
+    }
+    const editor = await call(B, 'POST', path, retire(), { 'idempotency-key': randomUUID() })
+    assert.equal(editor.status, 403, 'an editor may Stop, never retire')
+    const key = randomUUID()
+    const first = await call(A, 'POST', path, retire(), { 'idempotency-key': key })
+    assert.equal(first.status, 202)
+    const receipt = parseReceipt(first.json) // the A41 receipt meets the contract
+    assert.deepEqual(
+      [receipt.stage, receipt.goalRevision, receipt.authorityEpoch, receipt.targets],
+      ['admitted', 1, 2, []],
+    )
+    assert.deepEqual(await call(A, 'POST', path, retire(), { 'idempotency-key': key }), first)
+    const other = await call(A, 'POST', path, retire({ expectedAuthorityEpoch: 2 }), { 'idempotency-key': key })
+    assert.equal(asErrorBody(other.json)?.code, 'idempotency_conflict')
+    const goal = parseSnapshot((await call(A, 'GET', `/api/v1/projects/${fresh.projectId}/snapshot`)).json).goals.find(
+      (g) => g.id === fresh.goalId,
+    )
+    assert.deepEqual([goal?.status, goal?.revision, goal?.authorityEpoch], ['completed', 1, 2])
+  })
+
   it('recovers the existing command after a disconnect between commit and acknowledgement', async () => {
     const key = randomUUID()
     const path = `/api/v1/projects/${seed.projectId}/commands`

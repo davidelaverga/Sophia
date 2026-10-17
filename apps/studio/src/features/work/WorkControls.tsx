@@ -7,18 +7,18 @@ import { ConfirmButton, Tag, Tip } from '@sophia/ui'
 import { admitGoalCommand, type ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
-import { COMMAND, type CommandKind } from './labels.ts'
-
-const ORDER: CommandKind[] = ['request_review', 'hold', 'resume', 'stop']
+import { COMMAND, commandsFor, type CommandKind } from './labels.ts'
 
 interface Props {
   goal: Goal
   projectId: string
   identity: string
   token: string
+  /** A project admin: only they are offered Retire remaining sessions (the API refuses anyone else, A41). */
+  admin?: boolean
 }
 
-export function WorkControls({ goal, projectId, identity, token }: Props) {
+export function WorkControls({ goal, projectId, identity, token, admin = false }: Props) {
   const queryClient = useQueryClient()
   const admission = useAdmission<CommandKind, Receipt>(async (key, kind) => {
     try {
@@ -35,13 +35,15 @@ export function WorkControls({ goal, projectId, identity, token }: Props) {
     }
   })
   const busy = admission.state.status === 'sending'
-  const available = ORDER.filter((kind) => COMMAND[kind].allowed.includes(goal.status))
+  const available = commandsFor(goal.status, admin)
 
   return (
     <div className="controls">
       <div className="control-row">
         {available.map((kind) =>
-          kind === 'stop' ? (
+          kind === 'retire_sessions' ? (
+            <RetireButton key={kind} disabled={busy} onConfirm={() => void admission.submit('retire_sessions')} />
+          ) : kind === 'stop' ? (
             // Stopping is final, so it asks, says so, and waits: no timer takes the question away.
             <ConfirmButton
               key={kind}
@@ -79,6 +81,23 @@ export function WorkControls({ goal, projectId, identity, token }: Props) {
   )
 }
 
+/** An owner's explicit fence for a completed goal's sessions (A41): it asks, says what stays, and waits. */
+function RetireButton({ disabled, onConfirm }: { disabled: boolean; onConfirm: () => void }) {
+  return (
+    <ConfirmButton
+      label={COMMAND.retire_sessions.verb}
+      warning="The goal stays completed and its review stays closed; nothing restarts. Whether a session was still busy, or its memory is freed, isn’t known."
+      confirm="Retire the sessions"
+      keep="Keep them"
+      className="text-button"
+      tip={COMMAND.retire_sessions.hint}
+      tipAlign="end"
+      disabled={disabled}
+      onConfirm={onConfirm}
+    />
+  )
+}
+
 function rejectionMessage(error: ApiError): string {
   if (error.code === 'stale_revision' || error.code === 'invalid_state') {
     return 'The goal changed meanwhile. Showing its current state.'
@@ -92,6 +111,7 @@ function AdmissionOutcome({ state, onRetry }: { state: AdmissionState<CommandKin
   if (state.status === 'sending') {
     return <span className="muted">Sending {COMMAND[state.args].noun.toLowerCase()}…</span>
   }
+  if (state.status === 'done' && state.args === 'retire_sessions') return <RetirementSent receipt={state.result} />
   if (state.status === 'done') {
     return (
       <>
@@ -116,6 +136,31 @@ function AdmissionOutcome({ state, onRetry }: { state: AdmissionState<CommandKin
     <>
       <Tag tone="rose">Not accepted</Tag>
       <span>{rejectionMessage(state.error)}</span>
+    </>
+  )
+}
+
+/**
+ * What a retirement's admission says (A41): how many sessions were sent a stop, never that they stopped. Each one is
+ * retired only when its runtime confirms, which this view doesn't read.
+ */
+function RetirementSent({ receipt }: { receipt: Receipt }) {
+  const count = receipt.targets?.length ?? 0
+  if (count === 0) {
+    return (
+      <>
+        <Tag tone="teal">Sent</Tag>
+        <span>No session was left to retire.</span>
+      </>
+    )
+  }
+  return (
+    <>
+      <Tag tone="teal">Sent</Tag>
+      <span>
+        Retirement requested for {count === 1 ? 'one session' : `${String(count)} sessions`}. Each is retired only when
+        its runtime confirms; that isn’t shown here.
+      </span>
     </>
   )
 }
