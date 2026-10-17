@@ -4,7 +4,7 @@
 // moves. A task named in the address (#todo-<id>) is brought into view once for each time it is followed; one not
 // among those read is read on its own, and the brief says so when it can't be shown.
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { useEffect, useRef, type ComponentProps } from 'react'
+import { useCallback, useEffect, useRef, type ComponentProps } from 'react'
 import { getProjectTask, listProjectTasks } from '../../api/tasks.ts'
 import type { ProjectTask } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -105,8 +105,15 @@ function useNamedTask(
     enabled: TASKS && alone,
     retry: false,
   })
-  // Read again as the feed moves, as the list is: its owner, state and origin are this reader's now (R-C5-03).
-  useFeedRefetch(TASKS && alone ? cursor : undefined, one)
+  // Read again as the feed moves, as the list is: its owner, state and origin are this reader's now (R-C5-03). Only
+  // while a task is named and read alone: a forced refetch ignores `enabled`, and the feed's step reads a task no
+  // longer named (the address cleared, or Back) as a move, which would read an empty id (R-C5-04).
+  const refetchNamed = one.refetch
+  const follow = useCallback(
+    (o: { cancelRefetch: boolean }) => (alone ? refetchNamed(o) : undefined),
+    [alone, refetchNamed],
+  )
+  useFeedRefetch(TASKS && alone ? cursor : undefined, { isFetching: one.isFetching, refetch: follow })
   useBroughtIntoView(named, among || one.isSuccess)
   return { ...namedView(alone, one), refetch: () => (alone ? one.refetch() : undefined) }
 }

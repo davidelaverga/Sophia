@@ -280,3 +280,30 @@ test('served tasks · R-C5-03: an off-page task opened by #todo- is read again a
   await expect(page.locator(`#todo-${taskId(2)}`)).toHaveCount(0)
   await expect(page.getByText('The task you opened isn’t available.')).toBeVisible()
 })
+
+test('served tasks · R-C5-04: an off-page task named, then no task named (the address cleared, or Back), with the brief open: no task is read without an id', async ({
+  page,
+}) => {
+  await page.goto('/room.html?people=2&humantasks=many')
+  await expect(page.locator('.room-stage')).toBeVisible()
+  // Followed within the page: the address names an off-page task; the brief opens on it, read on its own.
+  await page.evaluate((id) => {
+    window.location.hash = `#todo-${id}`
+  }, taskId(2))
+  const named = page.locator(`#todo-${taskId(2)}`)
+  await expect(named).toBeFocused()
+  // No task named any more, the brief still open: by clearing the address, then by Back.
+  await page.evaluate(() => {
+    window.location.hash = ''
+  })
+  await expect(page.locator(`#todo-${taskId(2)}`)).toHaveCount(0)
+  await page.goBack()
+  await expect(named).toBeFocused()
+  await page.goBack()
+  await expect(page.locator(`#todo-${taskId(2)}`)).toHaveCount(0)
+  // The feed moves meanwhile: still nothing is read without a task id.
+  await page.evaluate(() => window.fixture?.withdrawTaskOrigin('00000000-0000-4000-8000-0000000c0003'))
+  await expect(brief(page)).toBeVisible()
+  await page.waitForTimeout(400)
+  expect((await reads(page)).filter((r) => r === `${TASKS}/` || r.startsWith(`${TASKS}/?`))).toEqual([])
+})

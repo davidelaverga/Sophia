@@ -195,6 +195,21 @@ the routes and the generated contract are unchanged from `7caf2f35`.
 - **Still open, not changed:** the Task form's «For» offers «Anyone», which A39 records as nobody yet. It is not covered
   by a failing case here; it is left for an owner or wording decision.
 
+## Named-task transition (FND-C5-NAMED-TRANSITION-01; R-C5-04)
+
+The evidence below is for the commit that carries this section. This is the final consolidated exchange: one call-site
+change in `ProjectTasks.tsx` and one served case. The shared `useFeedRefetch` and `feedStep` are unchanged.
+
+- **R-C5-04.** An off-page task named by `#todo-`, then no task named while the brief stayed open (the address cleared,
+  or Back). The feed helper read the cursor going from defined to undefined as a move, and the disabled named query's
+  forced refetch, which ignores `enabled`, read an empty id.
+  - Reproduced first on `753ee354`: `GET /api/v1/projects/…/tasks/` twice, as unexpected requests (log
+    `served-rc5-04-before.keep.log`).
+- **The correction.** At the call site, the feed helper is handed a `refetch` that reads only while a task is named
+  and read alone. The named re-reads on feed moves and on stale actions are unchanged (R-C5-03's case passes).
+- **After.** The served config gives 20/20: human tasks 12 (with the new case) and C4 search 8. Repeated twice: 40/40.
+  No unexpected request and no unhandled rejection. Units, format, lint, types and contracts are clean.
+
 ## Limits
 
 - **Not deployed.** The flag is off. Nothing is pushed, and no CI, automatic review or browser run has happened on
