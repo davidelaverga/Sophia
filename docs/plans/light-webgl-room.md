@@ -5,10 +5,10 @@
 
 ## What was measured
 
-- `LightEngine`'s constructor creates the renderer on every page (engine.ts:197): `getContext('webgl', { powerPreference:
-  'high-performance' })` (renderer.ts:107), the light's program compiled, a buffer filled. On paper the canvas is
-  `display: none` (theme.css:150) and `draw` skips it (no `offsetParent`, engine.ts:330), so that context never
-  draws a frame. It is asked for on sign-in, Home, Talk and the room alike.
+- `LightEngine`'s constructor creates the renderer on every page (engine.ts:197): `getContext('webgl', {
+  powerPreference: 'high-performance' })` (renderer.ts:107), the light's program compiled, a buffer filled. On paper the
+  canvas is `display: none` (theme.css:150) and `draw` skips it (no `offsetParent`, engine.ts:330), so that context
+  never draws a frame. It is asked for on sign-in, Home, Talk and the room alike.
 - Turned paper, a running light keeps its context live: `setPaper` only switches the trace's inks, and `dispose`
   only unbinds a buffer. That is on purpose for `stop()`: StrictMode and fast refresh start a second engine on the
   same canvas, and a lost context could not draw there (renderer.ts:145).
