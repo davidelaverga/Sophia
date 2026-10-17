@@ -104,3 +104,25 @@ test('goals · «Copy link» in the sheet copies the address that opens that goa
   await other.goto(link)
   await expect(other.getByRole('dialog', { name: ROLLOUT })).toBeVisible()
 })
+
+// A goal lists the reports its work made (docs/plans/goal-reports.md): the demo's research task, the rollout's, made its
+// report; the title opens it in the viewer. Without them in the snapshot, no «Reports».
+test('goals · a goal lists the reports its work made, and a title opens it in the viewer', async ({ page }) => {
+  await page.goto('/room.html?demo=1&place=goals&reports=1')
+  await page.getByRole('button', { name: ROLLOUT, exact: true }).click()
+  const reports = page.getByRole('dialog', { name: ROLLOUT }).getByRole('region', { name: 'Reports' })
+  await expect(reports.getByRole('button')).toHaveCount(1)
+  await reports.getByRole('button').click()
+  await expect(page).toHaveURL(/[?&]report=00000000-0000-4000-8000-0000000000b1/)
+  // The sheet hands over to the report, one at a time: nothing is left over it (Codex P1 on #414).
+  await expect(page.getByRole('dialog', { name: ROLLOUT })).toHaveCount(0)
+  const pane = page.locator('.report-pane')
+  await expect(pane).toBeVisible()
+  const box = await pane.boundingBox()
+  if (!box) throw new Error('the report has no box')
+  const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+  expect(await pane.evaluate((el, p) => el.contains(document.elementFromPoint(p.x, p.y)), middle)).toBe(true)
+  await page.goto('/room.html?demo=1&place=goals')
+  await page.getByRole('button', { name: ROLLOUT, exact: true }).click()
+  await expect(page.getByRole('dialog', { name: ROLLOUT }).getByRole('region', { name: 'Reports' })).toHaveCount(0)
+})

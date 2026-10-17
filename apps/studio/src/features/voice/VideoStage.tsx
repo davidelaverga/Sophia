@@ -8,6 +8,7 @@ import { Icon, Tip } from '@sophia/ui'
 import type { VideoFeed } from './livekit-room.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import {
+  mutedMic,
   presenceRole,
   screenCaption,
   showScreenLabel,
@@ -189,6 +190,13 @@ function PersonTile({ person, camera, holds, onPin, onHide }: TileProps) {
         {person.local && <TileMark mark="you" />}
         {person.standing === 'guest' && <TileMark mark="guest" />}
         {holds && <TileMark mark="floor" />}
+        {/* First in the chip, as Meet's (order in theme.css); heard after the name and its marks. */}
+        {mutedMic(person) && (
+          <span className="tile-muted">
+            <Icon name="micOff" size={12} />
+            <span className="sr-only">muted</span>
+          </span>
+        )}
       </span>
       {onHide ? (
         <TileAct label="Hide my tile" icon="eyeOff" onPress={onHide} />

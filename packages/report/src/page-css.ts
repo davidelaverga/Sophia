@@ -30,7 +30,7 @@ export const PAGE_CSS = `/* Sophia html-report-v2. A research report set as a mo
   --shade: rgba(31, 27, 24, 0.2);
 
   /* Faces: system stacks only. */
-  --font-text: Charter, "Bitstream Charter", "Sitka Text", Cambria, "Iowan Old Style", "Noto Serif", "Liberation Serif", Georgia, serif;
+  --font-text: Charter, "Bitstream Charter", Cambria, "Iowan Old Style", "Noto Serif", "Liberation Serif", Georgia, serif;
   --font-ui: Seravek, "Avenir Next", "Segoe UI", Ubuntu, Cantarell, "Noto Sans", "Liberation Sans", Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, "Cascadia Mono", Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace;
 

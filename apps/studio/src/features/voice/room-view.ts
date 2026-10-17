@@ -71,6 +71,12 @@ export function standingOf(metadata: string | undefined): Standing {
 }
 
 /**
+ * A muted microphone, as the list and the tiles show it (muted-on-tiles.md): off, and not a listener's, who has none to
+ * mute.
+ */
+export const mutedMic = (person: RoomParticipant): boolean => !person.micOn && person.standing !== 'viewer'
+
+/**
  * Members hold the input floor; guests never do. Changed by amendment A06 (S1-05A, for Luis's review): viewers
  * may hold it and publish too, since talking with Sophia is not a work grant (work still needs an editor).
  */
@@ -238,9 +244,12 @@ export function roomLine(
   return aboutWork(lineOf(status, floor, work, sophia), work)
 }
 
+/** A call coming back, said on the room's line and over the video (RoomStage's OnVideo; Codex P1 on #403). */
+export const RECONNECTING = 'Reconnecting…'
+
 function lineOf(status: DockStatus, floor: FloorView, work: string | null, sophia: SophiaLineView | null): RoomLine {
   if (status === 'joining') return { text: 'Joining the room…', note: null }
-  if (status === 'reconnecting') return { text: 'Reconnecting…', note: work }
+  if (status === 'reconnecting') return { text: RECONNECTING, note: work }
   if (sophia?.inConversation) return { text: sophia.label, note: sophia.note ?? work ?? floorLine(floor) }
   if (status === 'live') return { text: floorLine(floor), note: work }
   return { text: 'The room is ready', note: work ?? VOICE_NOTE }
