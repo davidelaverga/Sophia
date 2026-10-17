@@ -182,6 +182,61 @@ Checks on the merge:
   in place, message links, room return and skip link. The failed-send barrier passed 6 of 6, and the new case 3 of 3.
 - Served (normal Studio, real API, restricted PostgreSQL, VISION off): all five cases again, 5 of 5.
 
+## Current main 21516687 and projection read bounds (FND-B-C1-CURRENT-MAIN-03 v2, READ-BOUNDS-01)
+
+**The merge.** One normal merge of main `21516687`, the combined source window Luis acknowledged, onto `2c60b408`, in
+its own worktree. Three conflicts:
+- **AccountMenu:** main's one-sheet-at-a-time model (Settings and its hand-offs, sign out of all devices) with C1's «Your
+  name» as one more sheet. It carries the account it was opened for (`name:<account>`) and shows, keyed by it, only
+  while that account is signed in, so no draft crosses accounts. C1's chosen name stays in the head.
+- **ProjectShell:** C1's conversations layout flag, independent of VISION, inside main's ViewFailed boundary.
+- **fixture-api:** one tokenAnswer, and main's archive answer, closed.
+SignedIn, the room fixture, app-auth.spec and the media-bridge test combined automatically and were inspected: C1's
+account-keyed remount and account cache stay, beside main's sign out of all devices and the view-failure hooks. API,
+SQL, packages, config, worker, execution host, locks, scripts and workflows equal C1's, except main's media-bridge test.
+
+**Projection read bounds.** The snapshot and discussion routes called `withActor` with no control, so a read had no
+server deadline and no cancellation of its own.
+- `withActor` now takes an optional `ServiceControl`, passed to the existing `transaction()`. Every other caller is
+  unchanged, and the verified actor and REPEATABLE READ READ ONLY are as before.
+- The two routes pass a control with a 20 s deadline (`PROJECTION_READ_MS`) and an abort when the response closes
+  before it finishes.
+- With it, the transaction sets `statement_timeout` on the server to the remaining time, and retires its connection
+  (never back to the pool) at the deadline or on the abort.
+- 20 s is under the Studio's 30 s read, so the server answers «unavailable, ask again» first. A timed-out read answers
+  503 `unavailable`, retry `safe_read`, with the existing message.
+
+**One bounded episode, owned test cluster, real API.** An owner session held ACCESS EXCLUSIVE on `contributions` for
+40 s, so the real snapshot read blocked. Request A aborted client-side at 5 s; request B waited. Backend PIDs were
+mapped to the API process by their socket ports.
+- **Before:**
+  - A's backend stayed active in the lock wait at every sample (t+3 to t+32 s), then committed when the lock released
+    (t+39 s).
+  - B got no answer within 35 s, and its backend did the same.
+- **After:**
+  - The API retired A's connection at once: its socket was gone by t+8 s. But A's backend was still active at t+8 s
+    and t+15 s. PostgreSQL cancelled it by `statement_timeout` 20 s after its BEGIN, and it exited, client gone.
+  - B answered 503 at 20.0 s; its backend was cancelled the same way.
+  - Both backends were gone by t+24 s; a fresh snapshot and discussion answered 200.
+- So this is SQL retirement bounded by the 20 s server deadline, not an immediate cancellation caused by the HTTP
+  abort: retiring the socket alone does not settle the database work. A statement started late in the read can run on
+  the server up to the deadline set at its start.
+- A DB test covers it: a controlled actor read keeps its actor and read-only mode, a blocked query is retired at its
+  deadline, its backend leaves, and the one-connection pool recovers.
+
+**Checks.**
+- Format, lint, typecheck and contracts (unchanged; no regeneration) pass. Artifacts reproduce C1's `e956becc`; main's
+  runtime record is not taken.
+- Units: 2990 passed, 0 failed, 70 skipped.
+- Focused DB: 119/119 (access, API, media, profile, rooms, runtime, room conversations, service control); saved
+  conversations and their fences 70/70.
+- Served real App: 5/5. Case 1 first failed (run 29) with the list visible before any request was recorded; it now
+  waits for the A33 response before its unchanged assertion.
+- Affected fixture journeys across 37 files: 524/524.
+
+**Still open, not touched:** the discussion query's cost under stale statistics, and C4's 510-message A34 journey. This
+change bounds a read's lifetime; it does not make a slow read usable.
+
 ## Remaining obligations
 
 - **#382 (Luis, open; its browser job was failing at packet time)** touches `ConversationsView.tsx`, `OpenConversation.tsx` and `fixtures/room.tsx`. Once its accepted head is on main, B merges main again in the final shared Studio slot. Luis then accepts the shared Studio resolutions. Neither #382 nor Luis's branch was merged or edited here.

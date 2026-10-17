@@ -175,14 +175,17 @@ export async function nameFromRoom(c: pg.PoolClient, projectId: string): Promise
 
 /**
  * One connection, one transaction, the verified actor set transaction-locally
- * (`set_config(..., true)`), so a pooled connection never carries a previous actor.
+ * (`set_config(..., true)`), so a pooled connection never carries a previous actor. A `control` bounds it as it bounds
+ * a service transaction: a deadline (statement_timeout on the server too) and an abort, either of which retires the
+ * connection instead of returning it to the pool (READ-BOUNDS-01; the projection reads pass one).
  */
 export function withActor<T>(
   pool: pg.Pool,
   actorId: string,
   mode: TxMode,
   fn: (c: pg.PoolClient) => Promise<T>,
+  control?: ServiceControl,
 ): Promise<T> {
   if (!ACTOR_ID.test(actorId)) throw new DomainError('actor_context_required', 'A verified actor is required')
-  return transaction(pool, { mode, actorId }, fn)
+  return transaction(pool, { mode, actorId }, fn, control)
 }

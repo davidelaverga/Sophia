@@ -4,7 +4,7 @@ import { after, before, it } from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
 import { createTestDatabase, type TestDatabase } from '@sophia/test-support'
 import { DomainError } from '@sophia/domain'
-import { createPool, withService } from './tx.ts'
+import { createPool, withActor, withService } from './tx.ts'
 import type pg from 'pg'
 
 let db: TestDatabase
@@ -156,4 +156,35 @@ it('preserves outcome_unknown when a deferred trigger stalls an already-sent COM
   const pending = withService(pool, (c) => c.query('INSERT INTO public.upload_deadline_probe VALUES (1)'), control)
   assert.equal(await beforeSentinel(errorCode(pending)), 'outcome_unknown')
   assert.equal((await beforeSentinel(pool.query('SELECT 1'))).rowCount, 1, 'retired COMMIT client is replaced')
+})
+
+// READ-BOUNDS-01: the projection reads pass the same control to withActor.
+it('bounds a verified actor read: its actor and read-only mode kept, a blocked query retired on the server at its deadline', async () => {
+  const actor = '00000000-0000-4000-8000-0000000000a1'
+  const kept = await withActor(
+    pool,
+    actor,
+    'read',
+    async (c) =>
+      (
+        await c.query<{ actor: string; ro: string }>(
+          `SELECT current_setting('sophia.actor_id') AS actor, current_setting('transaction_read_only') AS ro`,
+        )
+      ).rows[0],
+    { signal: new AbortController().signal, deadline: performance.now() + 5000 },
+  )
+  assert.deepEqual(kept, { actor, ro: 'on' })
+  const old = await pool.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
+  const control = { signal: new AbortController().signal, deadline: performance.now() + 150 }
+  const pending = withActor(pool, actor, 'read', (c) => c.query('SELECT pg_sleep(2)'), control)
+  assert.equal(await beforeSentinel(errorCode(pending)), 'unavailable')
+  let present = true
+  for (let i = 0; i < 25 && present; i += 1) {
+    const observed = await observer.query(`SELECT 1 FROM pg_stat_activity WHERE pid=$1`, [old.rows[0]?.pid])
+    present = observed.rows.length !== 0
+    if (present) await delay(20)
+  }
+  assert.equal(present, false, 'the old backend settled and left, not idle in the pool')
+  const fresh = await beforeSentinel(pool.query<{ pid: number }>('SELECT pg_backend_pid() AS pid'))
+  assert.notEqual(fresh.rows[0]?.pid, old.rows[0]?.pid, 'the expired connection never returned to the idle pool')
 })

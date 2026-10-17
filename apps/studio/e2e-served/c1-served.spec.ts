@@ -46,7 +46,13 @@ test('served · VISION off: the conversations tab is the real A33 list, and noth
   page,
 }) => {
   const calls = await as(page, 'Luis')
+  // Synchronized on the A33 read itself (seen in B-C4 run 42 and B-C1-current-main run 29: the list visible before any
+  // API request was recorded): the list's answer, then the required record of the request.
+  const listed = page.waitForResponse(
+    (r) => new URL(r.url()).pathname === `/api/v1/projects/${PROJECT}/conversations` && r.request().method() === 'GET',
+  )
   await page.goto(VIEW)
+  expect((await listed).status()).toBe(200)
   await expect(list(page)).toBeVisible()
   expect(calls).toContain(`GET /api/v1/projects/${PROJECT}/conversations`)
   // VISION-only controls (ProjectShell): the project search is absent from a served build.

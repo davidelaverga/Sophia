@@ -13,6 +13,7 @@ export {
   type PoolOptions,
   type TxMode,
 } from './tx.ts'
+export type { ServiceControl } from './service-control.ts'
 export { readMyProfile, setMyProfile } from './profiles.ts'
 export { classifyDbError } from './errors.ts'
 export { migrate, readMigrations, MigrationDrift, type MigrationReport } from './migrate.ts'
