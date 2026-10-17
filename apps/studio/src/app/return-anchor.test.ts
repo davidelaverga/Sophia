@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { RETURN_ANCHOR_KEY, RETURN_ANCHOR_MS, keepAnchor, takeAnchor } from './return-anchor.ts'
+import { REQUEST, TASK, linkHash, requestAddress } from '../features/resources/link.ts'
+import { RETURN_ANCHOR_KEY, RETURN_ANCHOR_MS, anchorAfter, keepAnchor, takeAnchor } from './return-anchor.ts'
 
 const memory = () => {
   const kept = new Map<string, string>()
@@ -45,4 +46,58 @@ test('unreadable storage gives nothing back', () => {
   assert.equal(takeAnchor(store, PATH, AT), null)
   store.setItem(RETURN_ANCHOR_KEY, JSON.stringify({ path: PATH, hash: 'javascript:alert(1)', at: AT }))
   assert.equal(takeAnchor(store, PATH, AT), null)
+})
+
+test('a failed return puts the place back and keeps it, so the next try still finds it (Codex P2 on #404)', () => {
+  const store = memory()
+  keepAnchor(store, { pathname: PATH, hash: '#task-t1' }, AT) // asked for two links, or left for a provider
+  // An older link (otp_expired) or a provider's refusal: the address carries the place again, and it stays kept.
+  assert.equal(anchorAfter(store, { kind: 'error', signedIn: false, path: PATH }, AT + 1_000), '#task-t1')
+  // A link whose session didn't follow (opened in another browser, say): the same.
+  assert.equal(anchorAfter(store, { kind: 'code', signedIn: false, path: PATH }, AT + 2_000), '#task-t1')
+  // The newer link, in another tab, signs in: the place is given back once, then gone.
+  assert.equal(anchorAfter(store, { kind: 'code', signedIn: true, path: PATH }, AT + 3_000), '#task-t1')
+  assert.equal(store.kept.size, 0)
+})
+
+test('a try again from the address given back keeps the place afresh', () => {
+  const store = memory()
+  keepAnchor(store, { pathname: PATH, hash: '#task-t1' }, AT)
+  const back = anchorAfter(store, { kind: 'error', signedIn: false, path: PATH }, AT + 20 * 60_000)
+  keepAnchor(store, { pathname: PATH, hash: back ?? '' }, AT + 20 * 60_000)
+  assert.equal(anchorAfter(store, { kind: 'code', signedIn: true, path: PATH }, AT + 45 * 60_000), '#task-t1')
+})
+
+test('a failed return on another path gives nothing back and leaves the place kept', () => {
+  const store = memory()
+  keepAnchor(store, { pathname: PATH, hash: '#task-t1' }, AT)
+  assert.equal(anchorAfter(store, { kind: 'error', signedIn: false, path: '/' }, AT + 1_000), null)
+  assert.equal(anchorAfter(store, { kind: 'code', signedIn: true, path: PATH }, AT + 2_000), '#task-t1')
+})
+
+test('an invitation, or no sign-in at all, never left from here: nothing comes back, and a kept place waits', () => {
+  const store = memory()
+  keepAnchor(store, { pathname: PATH, hash: '#task-t1' }, AT)
+  assert.equal(anchorAfter(store, { kind: 'tokens', signedIn: true, path: PATH }, AT), null)
+  assert.equal(anchorAfter(store, { kind: 'none', signedIn: true, path: PATH }, AT), null)
+  assert.equal(store.kept.has(RETURN_ANCHOR_KEY), true)
+})
+
+test('the longest anchors the link helpers make from the contract’s ids are kept and given back (Codex P2 on #404)', () => {
+  const store = memory()
+  for (const hash of [
+    // A request named with its resource, encoded twice: a realistic id with a colon (body 203).
+    linkHash(requestAddress('00000000-0000-4000-8000-000000000001', 'perm:' + 'a'.repeat(155)), REQUEST),
+    linkHash('é'.repeat(160), TASK), // a work item's id at its 160 bound (body 960)
+    linkHash(requestAddress('\u{1F600}'.repeat(160), '\u{1F600}'.repeat(200)), REQUEST), // the contract's worst (7203)
+  ]) {
+    keepAnchor(store, { pathname: PATH, hash }, AT)
+    assert.equal(takeAnchor(store, PATH, AT + 60_000), hash)
+  }
+})
+
+test('an anchor longer than the helpers can make is still not kept', () => {
+  const store = memory()
+  keepAnchor(store, { pathname: PATH, hash: '#task-' + 'a'.repeat(7204) }, AT)
+  assert.equal(store.kept.has(RETURN_ANCHOR_KEY), false)
 })
