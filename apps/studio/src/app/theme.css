@@ -1,6 +1,7 @@
 /* A dark room lit by Sophia, drawn with the restraint of a precise tool. One typeface (Geist; Geist Mono
    for data), small radii, one-pixel lines, fast transitions. Sophia's light is the only soft thing on the
-   screen: people are warm, she is violet, everything else is quiet. The Studio is dark-only. */
+   screen: people are warm, she is violet, everything else is quiet. Two themes: the room here, the default, and
+   paper after it (`data-theme='light'`); what each role is in each is in docs/plans/light-paper.md. */
 :root {
   /* The type scale of the work views (Resources, the plan's board): four steps under a view's title.
      Titles name a thing; body says it; small is what follows it; labels are mono, often in capitals. A view's
