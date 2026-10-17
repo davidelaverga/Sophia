@@ -16,15 +16,17 @@
  */
 
 import assert from 'node:assert/strict'
-import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { spawn } from 'node:child_process'
+import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { after, before, describe, test } from 'node:test'
-import { stringify } from 'yaml'
-import { REPO_ROOT, RUNTIME_DIR } from '../../scripts/lib/common.mjs'
+import { DSH_ENTRY, REPO_ROOT, RUNTIME_DIR, platformKey, sanitizedEnv } from '../../scripts/lib/common.mjs'
 import { parseCordisYaml } from '../../scripts/lib/patch-lint.mjs'
-import { assertRecordedArtifacts, homeLayout, installProfile } from '../../scripts/lib/profile.mjs'
+import { assertRecordedArtifacts, executorClosureDigest, homeLayout, installProfile } from '../../scripts/lib/profile.mjs'
 import { launchRuntime } from '../../scripts/lib/runtime.mjs'
+import { treeDigest } from '../../scripts/lib/tree-digest.mjs'
 import { sleep, unit } from '../support/harness.mjs'
 import { conversationRouteOverlay, startMockResponses } from '../support/mock-responses.mjs'
 
@@ -33,21 +35,81 @@ const skip = enabled ? false : 'needs SOPHIA_DISPOSABLE_DATABASE_URL (a disposab
 
 const ROUTE = 'conversation-service-luna-high-v1'
 const DUMMY_KEY = 'sk-sophia-conversation-service-dummy'
-/** The operator's pin: the recorded bundle archive digest, a build receipt from outside the running bundle. */
-const DIGEST = unit.sophia_bundle.archive_sha256
+/**
+ * The operator's pin is each launch's complete executor closure (executor-identity.ts), derived on the host from the
+ * recorded runtime, the installed profile, the launch's overlays and this Node (`closure` below). The bundle archive
+ * digest alone is not an executor identity (#393 4302689994): it is pinned only in the cases that prove it refused.
+ */
+const ARCHIVE_DIGEST = unit.sophia_bundle.archive_sha256
 const OTHER_DIGEST = 'b'.repeat(64)
+const ADAPTER_MARKER = '[crossing] altered dsh-llm-pi-ai adapter loaded'
 const CONTEXT_CANARY = 'CANARY-CONTEXT-7f3a'
 const ANSWER_CANARY = 'CANARY-ANSWER-91c2'
 const OTHER_CANARY = 'CANARY-OTHER-CONVERSATION-5d0e'
 const bundlePatch = readFileSync(join(REPO_ROOT, 'packages', 'dsh-bundle', 'cordis.patch.yml'), 'utf8')
 
-/** Test overlay: the conversation alias pointed at the double, and the bridge row restated whole with service mode on. */
+/**
+ * Test overlay: the conversation alias pointed at the double, and the bridge row restated whole with service mode on.
+ * A service overlay is a strict JSON patch list of config-only overrides (executor-identity.ts), so it is written so.
+ */
 function serviceOverlay(baseURL) {
   const rows = parseCordisYaml(bundlePatch)
   const bridge = rows.flatMap((row) => row.insert ?? []).find((row) => row.id === 'sophia-control-bridge')?.config
   assert.ok(bridge && !('replies' in bridge), 'the committed bridge row enables no reply mode')
   const replies = { mode: 'service', routeId: ROUTE, executorDigestEnv: 'SOPHIA_EXECUTOR_DIGEST' }
-  return `${conversationRouteOverlay(bundlePatch, baseURL)}\n${stringify([{ id: 'sophia-control-bridge', config: { ...bridge, replies } }])}`
+  return JSON.stringify([...parseCordisYaml(conversationRouteOverlay(bundlePatch, baseURL)), { id: 'sophia-control-bridge', config: { ...bridge, replies } }])
+}
+
+const PLUGIN_MARKER = '[crossing] external relative plugin loaded'
+const PRELOAD_MARKER = '[crossing] node preloader ran'
+const PEER_MARKER = '[crossing] nested local dsh-llm peer loaded'
+const BIN_PEER_MARKER = '[crossing] bundle .bin-link dsh-llm peer loaded'
+
+/** A same-version `@deepseek-ai/dsh-llm` at `dir` that prints `marker` and re-exports the runtime's own package. */
+function writeLocalPeer(dir, marker) {
+  const pnpmDir = join(RUNTIME_DIR, 'node_modules', '.pnpm')
+  const real = realpathSync(join(pnpmDir, readdirSync(pnpmDir).find((name) => name.startsWith('@deepseek-ai+dsh-llm@0.')), 'node_modules', '@deepseek-ai', 'dsh-llm'))
+  const manifest = JSON.parse(readFileSync(join(real, 'package.json'), 'utf8'))
+  mkdirSync(join(dir, 'lib'), { recursive: true })
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: manifest.name, version: manifest.version, type: 'module', exports: { '.': './lib/index.js' } }))
+  writeFileSync(join(dir, 'lib', 'index.js'), `process.stderr.write(${JSON.stringify(`${marker}\n`)})\nexport * from ${JSON.stringify(pathToFileURL(join(real, 'lib', 'index.js')).href)}\n`)
+}
+
+/**
+ * R-B2-R02-CANONICAL-BIN-LINK: the canonical real bundle directory kept, with `node_modules/.bin` a link to
+ * `<profile>/.peer-root` and `node_modules/@deepseek-ai/dsh-llm` a link to `../.bin/dsh-llm`, and a same-version peer
+ * there. The tree scheme skipped `.bin` and hashed the second link's text only, so the peer's bytes were in no pin.
+ */
+function binLinkPeer(layout) {
+  const profile = join(layout.dshHome, 'profiles', unit.dsh.profile)
+  const bundle = join(profile, 'node_modules', '@sophia', 'dsh-bundle')
+  mkdirSync(join(bundle, 'node_modules', '@deepseek-ai'), { recursive: true })
+  symlinkSync(join(profile, '.peer-root'), join(bundle, 'node_modules', '.bin'))
+  symlinkSync(join('..', '.bin', 'dsh-llm'), join(bundle, 'node_modules', '@deepseek-ai', 'dsh-llm'))
+  writeLocalPeer(join(profile, '.peer-root', 'dsh-llm'), BIN_PEER_MARKER)
+}
+
+/**
+ * R-B2-A868-02-NESTED-PEER: the same installed bundle bytes moved to `<profile>/.nested/node_modules/@sophia/dsh-bundle`,
+ * the canonical entry a relative symlink to it, and a same-version `@deepseek-ai/dsh-llm` beside it. The peer prints a
+ * marker and re-exports the runtime's own package, so dsh still boots; the pinned loader prefers it, as a local
+ * candidate on the importer's ancestry inside the profile, over the verified runtime installation.
+ */
+function nestBundleWithPeer(layout) {
+  const profile = join(layout.dshHome, 'profiles', unit.dsh.profile)
+  const canonical = join(profile, 'node_modules', '@sophia', 'dsh-bundle')
+  const nested = join(profile, '.nested', 'node_modules')
+  mkdirSync(join(nested, '@sophia'), { recursive: true })
+  renameSync(canonical, join(nested, '@sophia', 'dsh-bundle'))
+  symlinkSync(join('..', '..', '.nested', 'node_modules', '@sophia', 'dsh-bundle'), canonical)
+  const pnpmDir = join(RUNTIME_DIR, 'node_modules', '.pnpm')
+  const real = realpathSync(join(pnpmDir, readdirSync(pnpmDir).find((name) => name.startsWith('@deepseek-ai+dsh-llm@0.')), 'node_modules', '@deepseek-ai', 'dsh-llm'))
+  const peer = join(nested, '@deepseek-ai', 'dsh-llm')
+  mkdirSync(join(peer, 'lib'), { recursive: true })
+  const manifest = JSON.parse(readFileSync(join(real, 'package.json'), 'utf8'))
+  writeFileSync(join(peer, 'package.json'), JSON.stringify({ name: manifest.name, version: manifest.version, type: 'module', exports: { '.': './lib/index.js' } }))
+  writeFileSync(join(peer, 'lib', 'index.js'), `process.stderr.write(${JSON.stringify(`${PEER_MARKER}\n`)})\nexport * from ${JSON.stringify(pathToFileURL(join(real, 'lib', 'index.js')).href)}\n`)
+  return { profile, canonical, nested: dirname(nested) }
 }
 
 async function modules() {
@@ -131,7 +193,40 @@ describe('conversation service crossing (real dsh service executor, API, worker,
    * A project with conversations on, a runtime registered, a grant lineage on the service route pinned (unless `pin`
    * is null) to `pin`, a fresh profile home, the Responses double and the runtime process.
    */
-  async function world(t, { pin = DIGEST, runtimeDigest = DIGEST, grant = {} } = {}) {
+  /**
+   * A private copy of the recorded runtime whose LOADED adapter (dsh-llm-pi-ai's entry) is altered, with its own
+   * locally correct runtime record: the recorded-artifact check accepts it, and only the executor closure tells it apart.
+   */
+  let altered = null
+  function alteredRuntime() {
+    if (altered) return altered
+    const dir = join(scratch, 'altered-runtime')
+    cpSync(RUNTIME_DIR, dir, { recursive: true, verbatimSymlinks: true })
+    const pnpmDir = join(dir, 'node_modules', '.pnpm')
+    const adapter = readdirSync(pnpmDir).find((name) => name.startsWith('@deepseek-ai+dsh-llm-pi-ai@'))
+    appendFileSync(join(pnpmDir, adapter, 'node_modules', '@deepseek-ai', 'dsh-llm-pi-ai', 'lib', 'index.js'),
+      `\nprocess.stderr.write(${JSON.stringify(`${ADAPTER_MARKER}\n`)})\n`)
+    const local = structuredClone(unit)
+    local.dsh.artifacts_by_platform[platformKey()].digest = treeDigest(dir).digest
+    assertRecordedArtifacts(local, dir)
+    altered = { dir, unit: local }
+    return altered
+  }
+
+  /**
+   * `pin` and `runtimeDigest` are 'closure' (this launch's complete executor closure, derived on the host), a fixed
+   * value, or null (no pin). `runtime` is the runtime the process launches from ('recorded' or 'altered').
+   */
+  async function world(t, { pin = 'closure', runtimeDigest = 'closure', grant = {}, runtime: runtimeKind = 'recorded' } = {}) {
+    const layout = homeLayout(join(scratch, `case-${counter++}`))
+    cpSync(pristine.root, layout.root, { recursive: true, verbatimSymlinks: true })
+    const llm = await startMockResponses()
+    const launch = runtimeKind === 'altered' ? alteredRuntime() : { dir: RUNTIME_DIR, unit }
+    const overlay = serviceOverlay(llm.baseURL)
+    const closure = (await executorClosureDigest({ unit: launch.unit, runtimeDir: launch.dir, layout, overlays: [overlay] })).digest
+    assert.notEqual(closure, ARCHIVE_DIGEST, 'the closure is not the archive digest')
+    pin = pin === 'closure' ? closure : pin
+    runtimeDigest = runtimeDigest === 'closure' ? closure : runtimeDigest
     const project = await m.testSupport.seedProject(db.ownerUrl, { admin: A, editors: [E] })
     const projectId = project.projectId
     await owner("SELECT sophia.set_conversation_settings($1,'enabled','con01-b2-crossing')", [projectId])
@@ -148,21 +243,44 @@ describe('conversation service crossing (real dsh service executor, API, worker,
         lineageId, execution: 'service', routeId: ROUTE, executorArtifactDigest: pin, approvalRef: `b2-pin-${crypto.randomUUID()}`,
       }])
     }
-    const layout = homeLayout(join(scratch, `case-${counter++}`))
-    cpSync(pristine.root, layout.root, { recursive: true, verbatimSymlinks: true })
-    const llm = await startMockResponses()
     let runtime = null
     const extra = []
     const w = {
       projectId,
       layout,
       llm,
-      async start() {
+      closure,
+      overlay,
+      tuple: { execution: 'service', routeId: ROUTE, executorArtifactDigest: closure },
+      /** Launch from `runtimeDir` with `overlays` (default: this world's), the operator's expected pin `expected`. */
+      async start({ runtimeDir = launch.dir, overlays = [overlay], expected = runtimeDigest } = {}) {
         runtime = launchRuntime({
-          unit, runtimeDir: RUNTIME_DIR, layout, bridge: { url: base, token: rt.token },
-          overlays: [serviceOverlay(llm.baseURL)],
-          extraEnv: { OPENAI_API_KEY: DUMMY_KEY, SOPHIA_EXECUTOR_DIGEST: runtimeDigest },
+          unit, runtimeDir, layout, bridge: { url: base, token: rt.token },
+          overlays,
+          extraEnv: { OPENAI_API_KEY: DUMMY_KEY, SOPHIA_EXECUTOR_DIGEST: expected },
         })
+        await w.until(() => /readiness=ready/.test(w.stderr()), 'bridge readiness')
+      },
+      /**
+       * A launch the launcher refuses to make (it rejects Node modifiers): the same argv, overlay and sanitized
+       * environment, plus `nodeArgs` before the dsh bin and `env` added, spawned directly.
+       */
+      async startModified({ nodeArgs = [], env = {} }) {
+        const file = join(layout.root, 'overlay-modified.yml')
+        writeFileSync(file, overlay)
+        mkdirSync(layout.cwd, { recursive: true })
+        mkdirSync(join(layout.root, 'workspace'), { recursive: true })
+        const child = spawn(process.execPath, [...nodeArgs, join(launch.dir, DSH_ENTRY), '--profile', unit.dsh.profile, '--patch', file], {
+          cwd: layout.cwd,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: { ...sanitizedEnv({ dshHome: layout.dshHome, home: layout.home }), SOPHIA_RUNTIME_UNIT: unit.id, SOPHIA_WORKSPACE: join(layout.root, 'workspace'),
+            SOPHIA_BRIDGE_URL: base, SOPHIA_BRIDGE_TOKEN: rt.token, OPENAI_API_KEY: DUMMY_KEY, SOPHIA_EXECUTOR_DIGEST: runtimeDigest, ...env },
+        })
+        let err = ''
+        child.stderr.on('data', (chunk) => { err += chunk })
+        child.stdout.on('data', (chunk) => { err += chunk })
+        const exited = new Promise((resolve) => child.on('exit', resolve))
+        runtime = { stderr: () => err, stop: async () => { if (child.exitCode === null) child.kill('SIGTERM'); return exited } }
         await w.until(() => /readiness=ready/.test(w.stderr()), 'bridge readiness')
       },
       stop: (signal) => runtime?.stop(signal),
@@ -171,8 +289,8 @@ describe('conversation service crossing (real dsh service executor, API, worker,
         const second = homeLayout(join(scratch, `case-${counter++}`))
         cpSync(pristine.root, second.root, { recursive: true, verbatimSymlinks: true })
         const other = launchRuntime({
-          unit, runtimeDir: RUNTIME_DIR, layout: second, bridge: { url: base, token: rt.token },
-          overlays: [serviceOverlay(llm.baseURL)],
+          unit, runtimeDir: launch.dir, layout: second, bridge: { url: base, token: rt.token },
+          overlays: [overlay],
           extraEnv: { OPENAI_API_KEY: DUMMY_KEY, SOPHIA_EXECUTOR_DIGEST: runtimeDigest },
         })
         extra.push(other)
@@ -248,8 +366,6 @@ describe('conversation service crossing (real dsh service executor, API, worker,
     return w
   }
 
-  const SERVICE_TUPLE = { execution: 'service', routeId: ROUTE, executorArtifactDigest: DIGEST }
-
   test('a complete allowed answer: one request on the pinned route, no session or tools, settled, published once, retired', async (t) => {
     const w = await world(t)
     w.llm.script({ text: `The summary. ${ANSWER_CANARY}`, usage: { input_tokens: 900, output_tokens: 40 } })
@@ -257,8 +373,8 @@ describe('conversation service crossing (real dsh service executor, API, worker,
     assert.match(w.stderr(), /readiness=ready/)
     // A40: the real bridge's hello named its configured executor with the conversation role, and the server kept it.
     const [stored] = await owner('SELECT roles FROM sophia.runtime_instances WHERE project_id=$1', [w.projectId])
-    assert.deepEqual(stored.roles.find((role) => role.id === 'sophia-conversation-v1')?.executor,
-      { execution: 'service', routeId: ROUTE, executorArtifactDigest: DIGEST })
+    assert.deepEqual(stored.roles.find((role) => role.id === 'sophia-conversation-v1')?.executor, w.tuple)
+    assert.match(w.stderr(), /reply_service executor_closure_verified/)
     const other = await api(E, 'POST', `/api/v1/projects/${w.projectId}/conversations`, { title: 'Elsewhere', text: `Another thread. ${OTHER_CANARY}`, askSophia: false })
     assert.equal(other.status, 202)
     const r = await w.ask()
@@ -292,7 +408,7 @@ describe('conversation service crossing (real dsh service executor, API, worker,
     await w.until(async () => (await w.binding(r)) === 'retired', 'the retired binding')
     const stages = await w.stages(r)
     assert.deepEqual(stages.map((s) => `${s.kind}:${s.stage}`), ['create:delivered', 'retire:checked'])
-    assert.deepEqual(stages.at(-1).executor, SERVICE_TUPLE)
+    assert.deepEqual(stages.at(-1).executor, w.tuple)
     assert.equal(await w.creates(r), 1)
     w.assertPrivate()
     await sleep(1000)
@@ -388,7 +504,7 @@ describe('conversation service crossing (real dsh service executor, API, worker,
     assert.equal(await w.creates(r), 1, 'one create, ever')
     assert.equal(w.llm.requests.length, 1, 'no redispatch to the provider')
     const retire = (await w.stages(r)).find((s) => s.kind === 'retire')
-    assert.deepEqual(retire.executor, SERVICE_TUPLE)
+    assert.deepEqual(retire.executor, w.tuple)
     assert.doesNotMatch(w.stderr().split('readiness=ready').at(-1), new RegExp(`unrecovered=.*${r.attempt_id}`), 'adopted, not unrecovered')
     w.assertPrivate()
   })
@@ -411,7 +527,7 @@ describe('conversation service crossing (real dsh service executor, API, worker,
     assert.deepEqual((await w.reservations(r)).map((v) => v.state), ['uncertain'], 'the cost stays counted')
     assert.equal(w.llm.requests.length, 1, 'no second provider call, by either process')
     assert.equal(await w.creates(r), 1)
-    assert.deepEqual((await w.stages(r)).find((s) => s.kind === 'retire').executor, SERVICE_TUPLE)
+    assert.deepEqual((await w.stages(r)).find((s) => s.kind === 'retire').executor, w.tuple)
     assert.match(second.stderr(), /readiness=ready/)
     assert.doesNotMatch(w.stderr(), /reply_service_receipt_retained/, 'the fenced process keeps no receipt for a lease it lost')
     w.assertPrivate()
@@ -432,12 +548,163 @@ describe('conversation service crossing (real dsh service executor, API, worker,
 
   test('a runtime under another artifact digest is never chosen: the Ask is refused, nothing is bound or sent', async (t) => {
     const w = await world(t, { runtimeDigest: OTHER_DIGEST })
-    // Pinned to DIGEST, run under OTHER_DIGEST, which its hello now names (A40). Adoption across a restart stays the
-    // restart cases'; here no attempt is ever bound to a runtime that could not run it.
+    // Pinned to the closure, expected under OTHER_DIGEST, which is not the closure it runs: service mode stays
+    // unavailable, so no role is advertised and no attempt is ever bound to a runtime that could not run it.
     await w.start()
+    assert.match(w.stderr(), /reply_service_unavailable executor_closure_mismatch/)
     const r = await w.askRefused()
     assert.deepEqual([r.reply.state, r.reply.reason], ['blocked', 'runtime_unavailable'])
     assert.deepEqual(r.admitted, { attempts: 0, outbox: 0 })
     assert.equal(w.llm.requests.length, 0)
+  })
+
+  /** Service mode refused before its role exists: no conversation role advertised, the Ask refused, nothing sent. */
+  async function assertNoExecutor(w, reason = 'executor_closure_mismatch') {
+    assert.match(w.stderr(), new RegExp(`reply_service_unavailable ${reason}`))
+    assert.doesNotMatch(w.stderr(), /executor_closure_verified/)
+    const [stored] = await owner('SELECT roles FROM sophia.runtime_instances WHERE project_id=$1', [w.projectId])
+    assert.equal((stored?.roles ?? []).find((role) => role.id === 'sophia-conversation-v1'), undefined, 'no conversation role is advertised')
+    const r = await w.askRefused()
+    assert.deepEqual([r.reply.state, r.reply.reason], ['blocked', 'runtime_unavailable'])
+    assert.deepEqual(r.admitted, { attempts: 0, outbox: 0 })
+    assert.equal(w.llm.requests.length, 0, 'no provider request')
+  }
+
+  // #393 4302689994: the advertised executor is the installed closure, verified at startup, not an operator's string.
+  test('an altered runtime adapter under the old pin is no executor: unavailable before its role; the Ask refused, nothing sent', async (t) => {
+    const w = await world(t)
+    await w.start({ runtimeDir: alteredRuntime().dir })
+    assert.ok(w.stderr().includes(ADAPTER_MARKER), 'the altered adapter is the one dsh loaded')
+    await assertNoExecutor(w)
+  })
+
+  test('a changed installed profile input under the old pin is no executor', async (t) => {
+    const w = await world(t)
+    // The installed lock, an input the closure hashes but the composition policy does not parse (the profile patch is
+    // held to strict JSON, so a comment there is refused as patch_unsupported instead).
+    appendFileSync(join(w.layout.dshHome, 'profiles', unit.dsh.profile, 'pnpm-lock.yaml'), '# changed after the pin\n')
+    await w.start()
+    await assertNoExecutor(w)
+  })
+
+  test('a changed effective overlay under the old pin is no executor: another provider endpoint is never called', async (t) => {
+    const w = await world(t)
+    const elsewhere = await startMockResponses()
+    t.after(() => elsewhere.close())
+    await w.start({ overlays: [serviceOverlay(elsewhere.baseURL)] })
+    await assertNoExecutor(w)
+    assert.equal(elsewhere.requests.length, 0)
+  })
+
+  for (const [label, fixed] of [['the bundle archive digest alone', ARCHIVE_DIGEST], ['an arbitrary digest', 'c'.repeat(64)]]) {
+    test(`${label}, expected and pinned alike, is no executor`, async (t) => {
+      const w = await world(t, { pin: fixed, runtimeDigest: fixed })
+      await w.start()
+      await assertNoExecutor(w)
+    })
+  }
+
+  // #393 R-B2-A868-01..03: startup inputs the closure does not cover are refused, not hashed around.
+  test('a material home patch added under the old pin is no executor (the loader composes it; the service admits none)', async (t) => {
+    const w = await world(t)
+    const elsewhere = await startMockResponses()
+    t.after(() => elsewhere.close())
+    writeFileSync(join(w.layout.dshHome, 'cordis.patch.yml'), conversationRouteOverlay(bundlePatch, elsewhere.baseURL))
+    await assert.rejects(executorClosureDigest({ unit, runtimeDir: RUNTIME_DIR, layout: w.layout, overlays: [w.overlay] }), /home_patch_present/,
+      'the host derives no expected pin for it either')
+    await w.start()
+    await assertNoExecutor(w, 'executor_closure_unverifiable home_patch_present')
+    assert.equal(elsewhere.requests.length, 0)
+  })
+
+  test('an external relative plugin inserted by an overlay is no executor, whatever its implementation or base', async (t) => {
+    const w = await world(t)
+    const inserted = JSON.stringify([...JSON.parse(w.overlay), { insert: [{ id: 'crossing-external', name: './crossing-plugin.mjs' }] }])
+    writeFileSync(join(w.layout.root, 'crossing-plugin.mjs'),
+      `export const name = 'crossing-external'\nexport function apply() { process.stderr.write(${JSON.stringify(`${PLUGIN_MARKER}\n`)}) }\n`)
+    for (const layout of [w.layout, homeLayout(join(scratch, `elsewhere-${counter++}`))]) {
+      if (layout !== w.layout) cpSync(pristine.root, layout.root, { recursive: true, verbatimSymlinks: true })
+      await assert.rejects(executorClosureDigest({ unit, runtimeDir: RUNTIME_DIR, layout, overlays: [inserted] }), /patch_unsupported/,
+        'no expected pin is derived for it, at either base')
+    }
+    await w.start({ overlays: [inserted] })
+    assert.ok(w.stderr().includes(PLUGIN_MARKER), 'the loader mounted the external plugin')
+    await assertNoExecutor(w, 'executor_closure_unverifiable patch_unsupported')
+  })
+
+  for (const [label, launch] of [['--import', { nodeArgs: ['--import'] }], ['NODE_OPTIONS', { env: 'NODE_OPTIONS' }]]) {
+    test(`a Node preloader by ${label}, same argv, profile and overlay under the old pin, is no executor; the launcher refuses it`, async (t) => {
+      const w = await world(t)
+      const preload = join(w.layout.root, 'crossing-preload.mjs')
+      writeFileSync(preload, `process.stderr.write(${JSON.stringify(`${PRELOAD_MARKER}\n`)})\n`)
+      assert.throws(() => launchRuntime({ unit, runtimeDir: RUNTIME_DIR, layout: w.layout, extraEnv: { NODE_OPTIONS: `--import=${preload}` } }),
+        /not a supported launch/)
+      await w.startModified(launch.env ? { env: { NODE_OPTIONS: `--import=${preload}` } } : { nodeArgs: [...launch.nodeArgs, preload] })
+      assert.ok(w.stderr().includes(PRELOAD_MARKER), 'the preloader ran')
+      assert.ok(!w.stderr().includes(preload), 'the refusal names no path')
+      await assertNoExecutor(w, 'executor_closure_unverifiable launch_modifier')
+    })
+  }
+
+  test('a nested bundle placement with a same-version local dsh-llm peer, under the old pin, is no executor', async (t) => {
+    const w = await world(t)
+    nestBundleWithPeer(w.layout)
+    await assert.rejects(executorClosureDigest({ unit, runtimeDir: RUNTIME_DIR, layout: w.layout, overlays: [w.overlay] }), /profile_unsupported/,
+      'the host derives no expected pin for it')
+    await w.start()
+    assert.ok(w.stderr().includes(PEER_MARKER), 'the loader selected the nested local peer')
+    await assertNoExecutor(w, 'executor_closure_unverifiable profile_unsupported')
+  })
+
+  test('a canonical bundle with a .bin-link local dsh-llm peer is no executor: the bundle is not closed', async (t) => {
+    const w = await world(t)
+    binLinkPeer(w.layout)
+    await assert.rejects(executorClosureDigest({ unit, runtimeDir: RUNTIME_DIR, layout: w.layout, overlays: [w.overlay] }), /profile_unsupported/,
+      'the host derives no expected pin for it')
+    await w.start()
+    assert.ok(w.stderr().includes(BIN_PEER_MARKER), 'the loader selected the linked local peer')
+    await assertNoExecutor(w, 'executor_closure_unverifiable profile_unsupported')
+  })
+
+  test('a reviewed changed closure under its own new pin serves a new lineage: its tuple, one request, retired', async (t) => {
+    const w = await world(t, { runtime: 'altered' })
+    const recorded = (await executorClosureDigest({ unit, runtimeDir: RUNTIME_DIR, layout: w.layout, overlays: [w.overlay] })).digest
+    assert.notEqual(w.closure, recorded, 'the altered adapter changes the closure')
+    w.llm.script({ text: `The summary. ${ANSWER_CANARY}`, usage: { input_tokens: 900, output_tokens: 40 } })
+    await w.start()
+    assert.ok(w.stderr().includes(ADAPTER_MARKER))
+    assert.match(w.stderr(), /reply_service executor_closure_verified/)
+    const [stored] = await owner('SELECT roles FROM sophia.runtime_instances WHERE project_id=$1', [w.projectId])
+    assert.deepEqual(stored.roles.find((role) => role.id === 'sophia-conversation-v1')?.executor, w.tuple)
+    const r = await w.ask()
+    await w.until(async () => (await w.reply(r)).state === 'answered', 'the published answer')
+    assert.equal(w.llm.requests.length, 1)
+    await w.until(async () => (await w.binding(r)) === 'retired', 'the retired binding')
+    assert.deepEqual((await w.stages(r)).at(-1).executor, w.tuple)
+  })
+
+  test('a restart under a DIFFERENT verified closure never adopts the old tuple: no Stop, retire or redispatch; uncertain kept', async (t) => {
+    const w = await world(t)
+    w.llm.script({ text: `before the crash ${ANSWER_CANARY}`, delayMs: 20_000 })
+    await w.start()
+    const r = await w.ask()
+    await w.until(() => w.llm.active > 0, 'the provider call in flight')
+    await w.until(async () => (await w.reservations(r)).length === 1, 'the reservation')
+    await w.stop('SIGKILL')
+    const other = alteredRuntime()
+    const otherClosure = (await executorClosureDigest({ unit: other.unit, runtimeDir: other.dir, layout: w.layout, overlays: [w.overlay] })).digest
+    assert.notEqual(otherClosure, w.closure)
+    await w.start({ runtimeDir: other.dir, expected: otherClosure })
+    assert.match(w.stderr(), /reply_service executor_closure_verified/)
+    await w.until(() => new RegExp(`unrecovered=.*${r.attempt_id}`).test(w.stderr()), 'the old attempt reported unrecovered, not adopted')
+    await sleep(2000)
+    assert.equal(await w.creates(r), 1, 'one create, ever')
+    assert.equal(w.llm.requests.length, 1, 'no redispatch to the provider')
+    assert.deepEqual(await w.answers(r), [])
+    assert.ok((await w.reservations(r)).every((v) => v.state !== 'settled' && v.state !== 'released'), 'the reservation stays counted')
+    assert.equal((await w.grant()).spent_calls, '0')
+    for (const stage of await w.stages(r)) {
+      assert.notEqual(stage.executor?.executorArtifactDigest, otherClosure, 'no receipt under the other closure')
+    }
   })
 })

@@ -352,6 +352,211 @@ password, so a SCRAM server refused its connection before the SET.
   `e24cb887` and the workspace lock `b868da08` are unchanged.
 - PostgreSQL 16, both helper phases, and Supabase-local auth have still not run on this source.
 
+## The complete executor identity (FND-B2-COMPLETE-EXECUTOR-IDENTITY-REPAIR-01)
+
+The automatic review of `d0c46d5f` found a P1 (#393 discussion 4302689994), and R confirmed it. The executor digest a
+runtime advertised was whatever 64-hex value the operator's variable held; the crossing used the bundle archive's.
+That digest names none of the dsh runtime, LLM adapter, SDK, profile or overlays a reply actually runs on.
+
+**Before, on unmodified `d0c46d5f`.** Real dsh ran from a private copy of the recorded runtime whose loaded
+`dsh-llm-pi-ai` entry was altered: it printed a marker, so it is the file dsh loaded. The copy carried its own correct
+runtime record, which `assertRecordedArtifacts` accepted. With the unchanged archive pin, the bridge's hello still
+advertised the conversation role with the archive digest `3c2b1d43…` as its executor.
+
+**Now the executor digest is the installed closure, verified before the role exists.**
+- `executor-identity.ts` (bundle) holds one recipe, `sophia-executor-closure-v1`. It hashes the recipe's name and the
+  canonical JSON of these components:
+  - the dsh runtime this process was launched from (`argv[1]` is its declared bin), with dsh-base, the adapters, pi-ai
+    and the OpenAI SDK, as `sophia-tree-v2`, the recorded scheme, with no new exclusion;
+  - the installed bundle's own files, the same way;
+  - the profile's four inputs and its archive;
+  - each `--patch` overlay;
+  - the bin, the profile name, and Node's version and platform.
+- **Refusals.** A symlink out of its root, an unreadable launch shape (anything but one `--profile` and `--patch`
+  files), a bundle outside its profile and an unsupported platform each leave the closure unverifiable.
+- **The pin is only an expectation.** The operator's variable is the EXPECTED digest. The bundle derives the closure
+  only when a pin is set, and serves only when the two are equal. Otherwise service mode is unavailable with a fixed
+  reason (`executor_closure_mismatch`, `executor_closure_unverifiable <reason>`), and no role is advertised. There is no
+  fallback.
+- **No credential and no new API surface.** No credential value is read or hashed. With service mode off, nothing is
+  derived. There is no new contract, migration, endpoint, dependency or flag. A40's field keeps its meaning, now
+  derived from the installation.
+- **The host side.** `executorClosureDigest` (scripts/lib/profile.mjs) gives the expected pin with the same built
+  recipe, only after the runtime is the recorded artifact and the profile runs exactly the recorded bundle.
+- **The pin is per launch.** It covers its overlays, so an overlay naming another endpoint is another executor.
+- **Limits.** This guards against accidental substitution among owned installations, not against a hostile host
+  administrator. A file replaced after startup is outside it, and there is no watcher.
+
+**Identities.** `pnpm artifacts:record`: bundle `3c2b1d43…` → `250a96ef…`, and the profile lock. The darwin dsh tree
+`e24cb887`, the workspace lock `b868da08` and linux-x64 `4552d08f` (unqualified) are unchanged.
+
+**Checks** (private PostgreSQL 17.11, en_US.UTF-8).
+- **Unit, `executor-identity` 5/5:**
+  - the tree component equals `sophia-tree-v2`;
+  - an escaping or absolute symlink is refused;
+  - every component changes the digest;
+  - the launch parse is strict;
+  - the settings decision: matched, mismatched, unverifiable without a path in the log, no derivation without a pin or
+    with service mode off.
+- **The conversation-service crossing: 19/19.** The 12 earlier cases now run under each launch's derived pin. Seven
+  are new:
+  - the altered loaded adapter, an installed profile input changed by one comment line, and an overlay naming another
+    endpoint, each under the old pin. Each leaves service mode unavailable: no role, the Ask refused, no request to
+    either endpoint;
+  - the archive digest alone, and an arbitrary digest, expected and pinned alike: refused the same way;
+  - the altered runtime under its own new pin and a new lineage serves once, retired under its tuple;
+  - a restart mid-call under a different verified closure reports the old attempt unrecovered. One create, one request,
+    no answer, the reservation still counted, and no receipt under the new closure.
+- **Mutation.** With the closure replaced by the operator's pin and packed (`1d88133b…`), 5 of 6 identity cases fail
+  at the bundle's refusal. The restart case passes: non-adoption rests on the tuples differing, not on derivation.
+  - Two earlier mutation runs were invalid and are kept in B's logs: the mutant did not build, so the repaired bundle
+    ran.
+- PostgreSQL 16, both helper phases, Supabase-local auth and Linux have not run on this source.
+
+## The enforced service load boundary (FND-B2-ENFORCED-SERVICE-LOAD-BOUNDARY-REPAIR-01)
+
+R's review of `a868530b` (R-B2-A868-01..03) found supported startup inputs that the closure did not cover:
+- the home patch `DSH_HOME/cordis.patch.yml`, which the loader composes after the profile's patch and before the
+  overlays;
+- plugins a patch inserts by path, which the loader mounts from beside that patch, outside both hashed trees;
+- Node preload and resolution modifiers.
+
+**Before, on `a868530b` (executed, with a capture-only double).** Each of these kept `executor_closure_verified`, and
+the hello advertised the unchanged pin:
+- a material home patch added after the pin;
+- an external relative plugin whose implementation changed under the same pin, with both markers loaded;
+- a preloader by `--import` and by `NODE_OPTIONS`, whose marker ran.
+
+The home patch's own load effect was not separately observed.
+
+**Now the service admits only the reviewed composition** (executor-identity.ts, recipe `sophia-executor-closure-v2`,
+policy `sophia-service-composition-v1`, recorded in the closure). These checks are shared by the host's expected-pin
+helper and the loaded bootstrap:
+- **No home patch.** Any entry there refuses: a file, a directory or a dangling link. Nothing in the home is read or
+  hashed, and the launcher removes nothing.
+- **The reviewed base profile only.** Its two bundles, its one dependency, and nothing else in its `node_modules`.
+- **Config-only overrides.** The profile patch and every overlay must be strict JSON arrays of `{ id, config }`
+  overrides of the reviewed config rows: `llm-pi-ai`, `agent-default-model` and `sophia-control-bridge`. The config
+  must be a mapping with no inline `apiKey`.
+  - That refuses `insert`, a replaced plugin `name`, `group`, `disabled`, `inject`, `intercept`, `isolate`, a
+    group's child list, an include row and any `!!js` expression (JSON cannot carry a tag).
+  - The loader's own YAML reading of a JSON text is the same data.
+- **No Node modifiers.** No `execArgv`, and none of NODE_OPTIONS, NODE_PATH, NODE_PRESERVE_SYMLINKS or
+  NODE_PRESERVE_SYMLINKS_MAIN set. `launchRuntime` refuses them in its `extraEnv` too.
+- **Fixed reasons** (`home_patch_present`, `profile_unsupported`, `patch_unsupported`, `launch_modifier`), with no
+  path, flag, value or credential in the log.
+- The crossing's service overlay is now written as JSON, the same data as before.
+
+**Identities.** `pnpm artifacts:record`: bundle `250a96ef…` → `30cf3bdc…`, and the profile lock. The darwin dsh
+`e24cb887`, the workspace lock `b868da08` and linux-x64 `4552d08f` (unqualified) are unchanged.
+
+**Checks** (private PostgreSQL 17.11, en_US.UTF-8).
+- **Unit, `executor-identity` 9/9:** the four new cases are the home patch's forms, the profile, the patch shapes and
+  the modifiers, the launcher's refusal included.
+- **The conversation-service crossing: 23/23.** The 19 earlier cases, the standard launch and both restarts included,
+  plus four new ones:
+  - a material home patch under the old pin;
+  - an external relative plugin inserted by an overlay. It is mounted (marker), yet refused, and no expected pin is
+    derived for it at either of two bases;
+  - a preloader by `--import`, and one by `NODE_OPTIONS`. Each ran (marker), yet is refused, and the launcher refuses
+    the variable.
+  - Each leaves no conversation role, a blocked Ask with no attempt or outbox, and no provider request.
+  - The profile-input case now changes the installed lock: a comment in the profile patch is now refused as
+    unsupported rather than mismatched.
+- **Mutation.** With the four boundary checks returning at once, built and packed (`638bcbd1…`), the four new crossing
+  cases fail.
+  - The home-patch and plugin cases fail first at the host helper's refusal, which shares the module. The preloader
+    cases fail at the bundle's.
+  - A first attempt was not run: its marker pattern missed tsc's line break, and it is kept.
+- Dynamic expressions, includes, a replaced name and groups are refused by the unit cases, not by a real dsh launch.
+- PostgreSQL 16, both helper phases, Supabase-local auth and Linux have not run on this source.
+
+## The canonical bundle placement (FND-B2-CANONICAL-IMPORT-LAYOUT-FOCUSED-CORRECTION-01)
+
+R's review of `40dfd8bc` closed the home patch and the Node modifiers, but kept one P1, R-B2-A868-02-NESTED-PEER. The
+bootstrap admitted any bundle placement inside the profile, and the pinned loader prefers a local package found on the
+importer's Node search paths inside the profile (dsh-app-boot `routeScoped`, its `localPrefix` the profile directory)
+over the verified installation.
+
+**Before, on `40dfd8bc` (executed, with a capture-only double).** The installed bundle moved to
+`<profile>/.nested/node_modules/@sophia/dsh-bundle`, with the canonical entry a relative link to it. A same-version
+`@deepseek-ai/dsh-llm` sat beside it, printing a marker and re-exporting the runtime's own package.
+- The host derived the same pin as for the canonical layout (`c4ab20ef…`).
+- The peer loaded (marker), and the bridge logged `executor_closure_verified` and advertised that pin.
+
+**Now only the canonical hoisted placement is admitted.** The installed bundle's realpath must be the profile's
+`node_modules/@sophia/dsh-bundle`, a real directory and not a link. Otherwise the closure is refused with
+`profile_unsupported`, in the host helper and the bootstrap alike.
+- From that place, the importer's search paths inside the profile are the bundle's own `node_modules` (hashed), its
+  scope's and the profile's (both held to the one package already). So no unmeasured peer can be chosen.
+- The normal recorded hoisted install is unchanged.
+- A peer may still run before the bootstrap refuses. The claim is that no service executor or role exists, not that
+  Node never ran it.
+- The host helper's comment now names recipe v2.
+
+**Identities.** Bundle `30cf3bdc…` → `ddd2ce41…`, and the profile lock; the darwin tree, workspace lock and linux-x64
+(unqualified) are unchanged.
+
+**Checks** (private PostgreSQL 17.11, en_US.UTF-8).
+- **Unit, `executor-identity` 10/10**, adding the nested-link and other-place cases.
+- **The crossing.** The nested-peer case: the host refuses to derive a pin, the peer loads (marker), and service mode
+  is refused, with no role, a blocked Ask with no attempt or outbox, and no request. The normal answer passes.
+  - The whole crossing, now 24 cases, runs in the ordinary check.
+- **Mutation.** With the placement check disabled and packed (`52eb196c…`), the nested-peer case fails, first at the
+  host helper's refusal.
+- PostgreSQL 16, both helper phases, Supabase-local auth and Linux have not run on this source.
+
+## The closed service bundle (FND-B2-CLOSED-BUNDLE-SHAPE-FOCUSED-CORRECTION-01)
+
+R's review of `59658927` closed the nested placement but kept one residual on the same guarantee,
+R-B2-R02-CANONICAL-BIN-LINK. The canonical real bundle directory could hold `node_modules/.bin` as a link to another
+place in the profile, and `node_modules/@deepseek-ai/dsh-llm` as a link to `../.bin/dsh-llm`.
+- The tree scheme skips `.bin` before lstat, and hashes only the second link's text.
+- `profileDrift` ignores links.
+- The pinned loader follows both links to a peer whose bytes were in no pin.
+
+**Before, on `59658927` (executed, with a capture-only double).** The links change the pristine pin, `ccbe9a33…` →
+`b88ba5b8…`. But peers A and B, of the same name and version with different bytes, gave the same link-layout pin,
+`b88ba5b8…`. Each loaded (marker) and was verified and advertised under it.
+
+**Now the service bundle is closed.** The recorded archive is 89 regular files, with no link and no `node_modules`. An
+installed one is those files in 13 directories.
+- The host helper and the bootstrap now walk the canonical bundle with lstat and no exclusion. Anything but a regular
+  file or a directory, or any `node_modules` at any depth, is `profile_unsupported`.
+- The hash and the drift checks are unchanged. The normal hoisted install passes.
+- A peer may still load before the bootstrap refuses; no service executor or role exists.
+
+**Identities.** Bundle `ddd2ce41…` → `a27cc50a…`, and the profile lock; the darwin tree, workspace lock and linux-x64
+(unqualified) are unchanged.
+
+**Checks** (private PostgreSQL 17.11, en_US.UTF-8).
+- **Unit 11/11:** a `.bin` link pair, a bare `node_modules`, a nested `node_modules/.bin`, and an in-bundle link each
+  refuse.
+- **The crossing.** The `.bin`-link case: the host refuses to derive a pin, the peer loads (marker), and service mode
+  is refused, with no role, a blocked Ask with no attempt or outbox, and no request. The nested case and the normal
+  answer pass.
+  - All 25 cases run in the ordinary check.
+- **Mutation.** With `assertClosedBundle` not called and packed (`b11858f8…`), the `.bin`-link case fails, first at the
+  host helper's refusal.
+- PostgreSQL 16, both helper phases, Supabase-local auth and Linux have not run on this source.
+
+## Common integration: main and C262 (FND-B-COMMON-MAIN-C262-INTEGRATION-01)
+
+After R accepted the closed service bundle (`c7cbc3aa`), this line carries current main and C's accepted
+completed-goal session retirement (`c26273d9`, 0075 and A41: the recovery API, admin results and pulse truth, over
+`d0c46d5f`). There are two normal merges, with every parent kept.
+- **Main `f3700656`.** Its tree is con-c1 `42f65b5e`'s, already in this line, so the merge changes no file.
+- **C262 `c26273d9`.** No path changed on both sides since `d0c46d5f`. The merge is automatic.
+  - All 21 of C's paths are C's exact blobs, its Studio work files included. All 9 of B's paths are `c7cbc3aa`'s.
+  - Contracts regenerate with no drift, and every runtime identity reproduces unrecorded: bundle `a27cc50a…`, darwin
+    `e24cb887`, workspace lock `b868da08`, profile lock. linux-x64 is still unqualified.
+- **Names.** 0075 and A41 are C's, and no migration or amendment was added. 0067, 0070 and 0071 are unchanged.
+- **Behaviour.** Service mode, Ask and the native and BYO paths stay off and held. A completed goal stays completed,
+  with its review closed and its controls fenced.
+- **Checks.** The ordinary check of this head is in B's handback.
+- **Still owed:** PostgreSQL 16 (both helper phases), Supabase-local auth, Linux identity, and the current-head CI and
+  automatic review, in one publication after P accepts this carry. Merging B and C into main remains Luis's.
+
 ## Next bounded action
 
-Check the automatic review on #393's repair head once. Then implement the assembly binding exactly as P/V triage it, in this worktree, with its census-numbered migration.
+B's private handback goes to P. No push until P's next packet.

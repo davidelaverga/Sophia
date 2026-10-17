@@ -6,7 +6,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { gunzipSync } from 'node:zlib'
-import { PROFILE_SOURCE_DIR, bundleArchivePath, platformKey, runDsh, sanitizedEnv } from './common.mjs'
+import { DSH_ENTRY, PROFILE_SOURCE_DIR, bundleArchivePath, platformKey, runDsh, sanitizedEnv } from './common.mjs'
 import { PROFILE_FILES, profileLockPath } from './artifacts.mjs'
 import { fileIntegrity, treeDigest } from './tree-digest.mjs'
 
@@ -183,4 +183,33 @@ export function bootProfile({ unit, runtimeDir, layout, seconds }) {
   const logs = join(layout.dshHome, 'logs')
   const diagnostics = existsSync(logs) ? readdirSync(logs).filter((f) => f.startsWith('startup-')).map((f) => join(logs, f)) : []
   return { ...result, bridgeLine, diagnostics }
+}
+
+/**
+ * The service executor's expected digest for one install (#393 4302689994): the bundle's own recipe
+ * (packages/dsh-bundle/src/executor-identity.ts, `sophia-executor-closure-v2`) over this runtime, this profile, the
+ * overlays the launch will pass and this Node, computed only after the runtime is the recorded artifact and the profile
+ * runs exactly the recorded bundle. The operator pins this value; the running bundle derives its own and serves only
+ * when they are equal. `overlays` are the `--patch` texts, in launch order. The recipe's service composition applies
+ * here too: a home patch, an unreviewed profile package, or an overlay beyond config-only overrides refuses.
+ * @param {{ unit: any, runtimeDir: string, layout: ReturnType<typeof homeLayout>, overlays?: string[] }} input
+ * @returns {Promise<{ digest: string, components: Record<string, unknown> }>}
+ */
+export async function executorClosureDigest({ unit, runtimeDir, layout, overlays = [] }) {
+  assertRecordedArtifacts(unit, runtimeDir)
+  const drift = profileDrift({ unit, layout })
+  if (drift.length > 0) throw new Error(`the installed profile differs from the recorded one: ${drift.join('; ')}`)
+  const { DSH_ENTRY: BUNDLE_DSH_ENTRY, executorClosure } = await import('../../packages/dsh-bundle/dist/executor-identity.js')
+  if (BUNDLE_DSH_ENTRY !== DSH_ENTRY) throw new Error('the bundle and the launcher name different dsh entries')
+  const profileDir = profileDirOf(unit, layout)
+  return executorClosure({
+    runtimeDir,
+    dshHome: layout.dshHome,
+    profileDir,
+    bundleDir: join(profileDir, 'node_modules', ...unit.sophia_bundle.name.split('/')),
+    archive: unit.sophia_bundle.archive,
+    overlays: overlays.map((text) => Buffer.from(text)),
+    profile: unit.dsh.profile,
+    toolchain: { node: process.version, platform: process.platform, arch: process.arch },
+  })
 }

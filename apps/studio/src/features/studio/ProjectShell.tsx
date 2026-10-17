@@ -851,6 +851,7 @@ function Goals(props: BodyProps) {
       identity={identity}
       controls={work}
       canAct={canInvite(membership)}
+      admin={membership?.role === 'admin'}
       plans={plans}
       summary={!work}
       me={membership?.actorId}

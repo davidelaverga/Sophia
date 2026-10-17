@@ -2340,8 +2340,22 @@ function removeInsertion(body: string, marker: string) {
   assert.match(body, pattern, `marked ${marker}`)
   return body.replace(pattern, '')
 }
+/** 0075's own marked insertions (A41, session retirement), removed as CON's are; named apart from CON's. */
+const retirementInsertions: Record<string, string> = {
+  dispatch_runtime_outbox: 'RETIRE-KIND',
+  runtime_hello: 'RETIRE-HELLO',
+}
 function restoredShared(identity: FunctionIdentity) {
   let definition = identity.definition
+  const retirement = retirementInsertions[identity.proname]
+  if (retirement) {
+    const pattern = new RegExp(
+      String.raw`^[ \t]*-- ${retirement}-BEGIN[^\n]*\n[\s\S]*?^[ \t]*-- ${retirement}-END[^\n]*\n`,
+      'm',
+    )
+    assert.match(definition, pattern, `marked ${retirement}`)
+    definition = definition.replace(pattern, '')
+  }
   for (const marker of sharedInsertions[identity.proname] ?? []) definition = removeInsertion(definition, marker)
   if (identity.proname === 'runtime_cursor') {
     definition = definition
