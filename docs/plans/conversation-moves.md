@@ -16,6 +16,11 @@
 - **Alt+↑ and Alt+↓** open the conversation above or below the open one in the list as shown (its filter applied),
   from anywhere in the view but a sheet. The focus goes where it was: a field to the new field, else the new row.
 
+## Follow-up (Codex P2 on #382)
+
+- **From the view, or around it** (the page, its main), never from a report or a bar beside it: a report open
+  beside the conversation keeps Alt+↑/↓ to itself.
+
 ## Checks
 
 `conversation-moves.spec.ts`, on the fixture's conversations:

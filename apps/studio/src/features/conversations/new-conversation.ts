@@ -48,9 +48,9 @@ const fold = (title: string) => title.normalize('NFD').replace(/\p{M}/gu, '').to
  * A folded title's words, split at anything not a letter or a digit; a number's thousands separators dropped first, so
  * «1,000» and «1000» are one number (Codex on #274).
  */
-const wordsOf = (title: string) =>
+const wordsOf = (folded: string) =>
   spelledNumbers(
-    fold(title)
+    folded
       // A comma between thousands only: a point is a decimal («1.234» seconds is not 1234: Codex on #274).
       .replace(/(\p{N}),(?=\p{N}{3}(?!\p{N}))/gu, '$1')
       // A decimal is one number: «1.2» is not «1 and 2» (Codex on #274).
@@ -272,12 +272,12 @@ const signed = (words: readonly string[]): string[] =>
   })
 
 /**
- * A title's own words: folded, accents off, three letters or more, common words left out, an action as its plain form,
- * a final «s» dropped.
+ * A title's own words, from its folded words (readTitle): three letters or more, common words left out, an action as its
+ * plain form, a final «s» dropped.
  */
-function ownWords(title: string): Set<string> {
+function ownWords(words: readonly string[]): Set<string> {
   return new Set(
-    wordsOf(title)
+    words
       // A figure counts whatever its length: «one» read as «1» is still a word of the question (Codex on #274).
       .filter((w) => /\p{N}/u.test(w) || (w.length >= 3 && !COMMON.has(w)))
       .map(plainWord),
@@ -386,9 +386,9 @@ const FILLER = new Set(
 const turns = (words: readonly string[]) =>
   words.some((w) => NEGATIONS.has(w)) || Object.values(turnsOf).some((of) => of(words).length > 0)
 
-/** Whether a title negates: a negating word, or a «n't». */
-const negates = (words: readonly string[], title: string) =>
-  words.some((s) => NEGATIONS.has(s)) || /n['\u2019]t\b/u.test(fold(title))
+/** Whether a title negates: a negating word, or a «n't» in its folded words. */
+const negates = (words: readonly string[], folded: string) =>
+  words.some((s) => NEGATIONS.has(s)) || /n['\u2019]t\b/u.test(folded)
 
 /** A title read once for comparing: its words, whether it negates, its prefixes, whether it turns, its ordered words. */
 interface ReadTitle {
@@ -399,12 +399,16 @@ interface ReadTitle {
   order: string
 }
 
-/** Reads a title once (Codex P2 on #274): the question is read once per draft, not once per conversation compared. */
+/**
+ * Reads a title once (Codex P2s on #274 and #376): folded once, the question once per draft and each title once, not
+ * once per conversation compared or per thing read from it.
+ */
 function readTitle(title: string): ReadTitle {
-  const words = wordsOf(title)
+  const folded = fold(title)
+  const words = wordsOf(folded)
   return {
     words,
-    negates: negates(words, title),
+    negates: negates(words, folded),
     prefixes: prefixesOf(words),
     turns: turns(words),
     order: ownOrder(words),
@@ -441,13 +445,14 @@ export function sameQuestion<C extends { id: string; title: string; lastAt: stri
   question: string,
   conversations: readonly C[],
 ): C | null {
-  const asked = ownWords(question)
-  if (asked.size < SHARED_LEAST) return null
   const read = readTitle(question)
+  const asked = ownWords(read.words)
+  if (asked.size < SHARED_LEAST) return null
   const scored = conversations
-    .filter((c) => turnsAgree(read, readTitle(c.title)))
-    .map((c) => {
-      const own = ownWords(c.title)
+    .map((c) => ({ c, title: readTitle(c.title) }))
+    .filter(({ title }) => turnsAgree(read, title))
+    .map(({ c, title }) => {
+      const own = ownWords(title.words)
       return { c, shared: [...asked].filter((w) => own.has(w)).length }
     })
     .filter((s) => s.shared >= SHARED_LEAST && s.shared / asked.size >= SHARE_LEAST)
