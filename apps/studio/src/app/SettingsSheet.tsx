@@ -1,12 +1,13 @@
 // Settings, in one place (docs/plans/account-settings.md): the account, the theme, a call's defaults, your data and
 // help, gathered from where the Studio already keeps each choice. The avatar's menu opens it; nothing here is new state.
 import { useState } from 'react'
-import { Segmented } from '@sophia/ui'
+import { ConfirmButton, Segmented } from '@sophia/ui'
 import { authMode, passkeysOffered } from './auth.ts'
 import { Avatar } from './Avatar.tsx'
 import { reportsOn } from './crash-report.ts'
 import type { Identity } from './dev-identity.ts'
 import { signedInWith } from './profile.ts'
+import { EVERYWHERE } from './sign-out.ts'
 import { Sheet } from './Sheet.tsx'
 import { type Theme, useTheme } from './theme.ts'
 import { micOnJoin, rememberMic } from '../features/voice/mic-preference.ts'
@@ -18,6 +19,8 @@ interface Props {
   onPrivacy: () => void
   onPasskeys: () => void
   onFeedback: () => void
+  /** Every device the account is on, after asking (sign-out-scope.md). */
+  onSignOutEverywhere: () => void
   /** The index of keys, handed over to: Settings closes first, one sheet at a time (Codex P1 on #398). */
   onShortcuts: () => void
   onClose: () => void
@@ -67,7 +70,11 @@ function Calls() {
   )
 }
 
-function Account({ identity, onPasskeys }: Pick<Props, 'identity' | 'onPasskeys'>) {
+function Account({
+  identity,
+  onPasskeys,
+  onSignOutEverywhere,
+}: Pick<Props, 'identity' | 'onPasskeys' | 'onSignOutEverywhere'>) {
   const how = signedInWith(identity.provider)
   return (
     <Part title="Account">
@@ -84,6 +91,8 @@ function Account({ identity, onPasskeys }: Pick<Props, 'identity' | 'onPasskeys'
           Passkeys
         </button>
       )}
+      {/* The menu's Sign out is this device's; every device is asked for here, and asked about (sign-out-scope.md). */}
+      <ConfirmButton {...EVERYWHERE} className="text-button" onConfirm={onSignOutEverywhere} />
     </Part>
   )
 }
@@ -92,7 +101,11 @@ export function SettingsSheet(props: Props) {
   const [theme, setTheme] = useTheme()
   return (
     <Sheet id="settings-title" title="Settings" onClose={props.onClose} className="settings-sheet">
-      <Account identity={props.identity} onPasskeys={props.onPasskeys} />
+      <Account
+        identity={props.identity}
+        onPasskeys={props.onPasskeys}
+        onSignOutEverywhere={props.onSignOutEverywhere}
+      />
       <Part title="Appearance">
         <Segmented role="group" label="Theme" size="sm" items={THEMES} value={theme} onChange={setTheme} />
       </Part>

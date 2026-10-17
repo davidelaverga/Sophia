@@ -78,3 +78,29 @@ test('settings · a choice is a small box beside its words on one line, and the 
   if (!first || !last) throw new Error('the account says nothing')
   expect(last.y).toBeGreaterThanOrEqual(first.y + first.height - 1)
 })
+
+// Sign out signs out this device; all of them only when asked, in Settings, and after asking (sign-out-scope.md). On
+// the fixture page both go to the sign-in, the second saying so (?everywhere=1).
+test('settings · Sign out of all devices asks first; staying keeps you; confirmed, it signs out everywhere', async ({
+  page,
+}) => {
+  await openSettings(page)
+  const everywhere = sheet(page).getByRole('button', { name: 'Sign out of all devices' })
+  await everywhere.click()
+  await expect(
+    sheet(page).getByText('This one signs out now. Your other devices are signed out within an hour', { exact: false }),
+  ).toBeVisible()
+  await expect(sheet(page).getByRole('button', { name: 'Stay signed in' })).toBeFocused()
+  await sheet(page).getByRole('button', { name: 'Stay signed in' }).click()
+  await expect(everywhere).toBeFocused()
+  await everywhere.click()
+  await sheet(page).getByRole('button', { name: 'Sign out everywhere' }).click()
+  await expect(page).toHaveURL(/signin\.html\?everywhere=1$/)
+})
+
+test('settings · the account menu’s Sign out is this device’s', async ({ page }) => {
+  await page.goto('/room.html?people=2')
+  await page.getByRole('button', { name: 'Account' }).click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
+  await expect(page).toHaveURL(/signin\.html$/)
+})

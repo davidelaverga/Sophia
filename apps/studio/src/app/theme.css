@@ -6375,6 +6375,14 @@ button.contribution-quote:hover {
   height: 24px;
   margin: 0;
 }
+/* A question in Settings reads from the left, as its part does (sign-out-scope.md): its words on their own line, then
+   the two answers. */
+.settings-part .confirm {
+  justify-content: flex-start;
+}
+.settings-part .confirm-note {
+  flex-basis: 100%;
+}
 .settings-links {
   display: flex;
   gap: 16px;

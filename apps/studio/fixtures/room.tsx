@@ -1172,6 +1172,8 @@ const demoAccount = (privacy: () => void) => ({
   privacy,
   chooseDev: nothing,
   signOut: () => window.location.assign(`signin.html${DEMO ? '?demo=1' : ''}`),
+  // Every device: the sign-in, saying so, so a check can tell the two apart (sign-out-scope.md).
+  signOutEverywhere: () => window.location.assign(`signin.html?everywhere=1${DEMO ? '&demo=1' : ''}`),
 })
 
 function Project({ background }: { background: boolean }) {
