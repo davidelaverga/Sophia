@@ -142,6 +142,10 @@
   border-color: transparent;
   background: transparent;
 }
+/* Leave keeps its rose ink here at rest (theme.css), so the pointer's answer is its plane (room-dock-people.md). */
+.places .room-pill .round.leave:hover {
+  background: rgb(var(--rose-rgb) / 0.12);
+}
 /* Under the bar's call: what Sophia is looking at and what stopped a device, as the dock says them. */
 .places .room-pill-notes {
   position: absolute;

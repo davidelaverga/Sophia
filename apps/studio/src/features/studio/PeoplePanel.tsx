@@ -4,7 +4,7 @@
 // so their row offers nothing. What changed shows as the call itself changes; a refusal is said on the row. While a
 // control is on its way its row says so and its menu waits, so one press is one act.
 import { useRef, useState } from 'react'
-import { ConfirmButton, EmptyState, Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
+import { Button, buttonClass, ConfirmButton, EmptyState, Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
 import { actInCall, muteEveryoneInCall } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
@@ -76,10 +76,11 @@ function Actions({ person, name, busy, onAct }: ActionsProps) {
         setOpen(false)
       }}
     >
-      <button
+      {/* The kit's 32 px square: it fills its column and ends where Close does (room-dock-people.md). */}
+      <Button
         ref={menu.opener}
-        type="button"
-        className="round"
+        kind="icon"
+        size="md"
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -87,7 +88,7 @@ function Actions({ person, name, busy, onAct }: ActionsProps) {
         onClick={() => !busy && setOpen((o) => !o)}
       >
         <Icon name="more" />
-      </button>
+      </Button>
       {open && (
         <Menu popover={menu} label={label} side="bottom" align="end">
           {person.micOn && <MenuItem onClick={choose('mute')}>Mute microphone</MenuItem>}
@@ -179,7 +180,9 @@ function MuteEveryone({
   }
   return (
     <div className="people-head">
+      {/* A press, not a heading: the kit's small pill (room-dock-people.md). */}
       <ConfirmButton
+        className={buttonClass({ size: 'sm' })}
         label={state === 'sending' ? 'Muting everyone…' : 'Mute everyone'}
         warning="Everyone else’s microphone goes off; each turns their own back on."
         confirm="Mute them"

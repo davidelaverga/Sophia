@@ -90,7 +90,8 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M8.5 20h7M12 16.5V20" />
     </>
   ),
-  leave: <path d="M14.5 4.5h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3M10 16.5l4.5-4.5L10 7.5M14.5 12H4" />,
+  // The way out: the door behind, the arrow leaving it (room-dock-people.md).
+  leave: <path d="M9.5 4.5h-3a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h3M15.5 7.5 20 12l-4.5 4.5M20 12H9.5" />,
   link: (
     <path d="M10.5 13.5a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1 1M13.5 10.5a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1-1" />
   ),
