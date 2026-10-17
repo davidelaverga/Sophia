@@ -33,7 +33,7 @@ export function ProjectTasks({ projectId, identity, cursor }: Props) {
   })
   useFeedRefetch(TASKS ? cursor : undefined, read)
   const listed = read.data?.pages.flatMap((p) => p.tasks) ?? []
-  const named = useNamedTask(projectId, identity, listed.length > 0 || read.isSuccess ? listed : undefined)
+  const named = useNamedTask(projectId, identity, cursor, listed.length > 0 || read.isSuccess ? listed : undefined)
   if (!TASKS) return null
   return (
     <section className="project-tasks" aria-labelledby="project-tasks-title">
@@ -48,7 +48,7 @@ export function ProjectTasks({ projectId, identity, cursor }: Props) {
       ) : (
         <Rows
           tasks={[...(named.task ? [named.task] : []), ...listed]}
-          row={{ me, projectId, identity, artifactId: null, onStale: () => void read.refetch() }}
+          row={{ me, projectId, identity, artifactId: null, onStale: () => [read.refetch(), named.refetch()] }}
         />
       )}
       {read.hasNextPage && (
@@ -72,22 +72,10 @@ function Rows({ tasks, row }: { tasks: readonly ProjectTask[]; row: Omit<Compone
   )
 }
 
-/**
- * The task the address names (#todo-<id>): when it isn't among those read, it is read on its own (one read); brought
- * into view and given the focus once for each time the address is followed.
- */
-function useNamedTask(projectId: string, identity: Identity, listed: readonly { taskId: string }[] | undefined) {
-  const named = useAddressed(TODO)
-  const among = named.id !== null && listed?.some((t) => t.taskId === named.id)
-  const alone = useQuery({
-    queryKey: ['tasks', 'one', projectId, named.id, identity.name],
-    queryFn: ({ signal }) => getProjectTask(identity.token, projectId, named.id ?? '', signal),
-    enabled: TASKS && named.id !== null && listed !== undefined && !among,
-    retry: false,
-  })
+/** The named task's row, brought into view and given the focus once it is shown, once each time it is followed. */
+function useBroughtIntoView(named: { id: string | null; seq: number }, ready: boolean) {
   const shown = useRef<string | null>(null)
   const key = named.id ? `${named.id}#${String(named.seq)}` : null
-  const ready = among || alone.isSuccess
   useEffect(() => {
     if (!key || !ready || shown.current === key) return
     shown.current = key
@@ -95,8 +83,37 @@ function useNamedTask(projectId: string, identity: Identity, listed: readonly { 
     row?.scrollIntoView({ block: 'center' })
     row?.focus({ preventScroll: true })
   }, [key, ready, named.id])
-  return {
-    task: !among && alone.data ? alone.data : null,
-    words: named.id !== null && alone.isError ? 'The task you opened isn’t available.' : null,
-  }
+}
+
+/**
+ * The task the address names (#todo-<id>): when it isn't among those read, it is read on its own (one read); brought
+ * into view and given the focus once for each time the address is followed.
+ */
+function useNamedTask(
+  projectId: string,
+  identity: Identity,
+  cursor: string | undefined,
+  listed: readonly { taskId: string }[] | undefined,
+) {
+  const named = useAddressed(TODO)
+  const among = named.id !== null && listed?.some((t) => t.taskId === named.id)
+  // Read alone only when named and not among the tasks read; never otherwise, not even as the feed moves.
+  const alone = named.id !== null && listed !== undefined && !among
+  const one = useQuery({
+    queryKey: ['tasks', 'one', projectId, named.id, identity.name],
+    queryFn: ({ signal }) => getProjectTask(identity.token, projectId, named.id ?? '', signal),
+    enabled: TASKS && alone,
+    retry: false,
+  })
+  // Read again as the feed moves, as the list is: its owner, state and origin are this reader's now (R-C5-03).
+  useFeedRefetch(TASKS && alone ? cursor : undefined, one)
+  useBroughtIntoView(named, among || one.isSuccess)
+  return { ...namedView(alone, one), refetch: () => (alone ? one.refetch() : undefined) }
+}
+
+/** What the named task shows: itself while read; once a read is refused, not what was read before (R-C5-03). */
+function namedView(alone: boolean, one: { data: ProjectTask | undefined; isError: boolean }) {
+  if (!alone) return { task: null, words: null }
+  if (one.isError) return { task: null, words: 'The task you opened isn’t available.' }
+  return { task: one.data ?? null, words: null }
 }

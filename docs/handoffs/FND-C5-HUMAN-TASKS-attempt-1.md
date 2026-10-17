@@ -121,10 +121,10 @@ A project's members can give people things to do, and say they are done.
     darwin)», 4 «SOPHIA_TEST_LIVEKIT_URL not set», and the Linux-only /proc and tar scans.
 - **Browser: prepared, NOT run** (see below).
 
-## Served browser checks (FND-C5-SERVED-BROWSER-PREP-01: prepared, NOT run)
+## Served browser checks (FND-C5-SERVED-BROWSER-PREP-01; run in FND-C5-UI-REPAIR-01)
 
-Written while 5198/5199 are B's; nothing has been launched. They run with `playwright test -c
-playwright.served.config.ts` once P grants the ports.
+Written while 5198/5199 were B's, and run once P granted them (below). They run with `playwright test -c
+playwright.served.config.ts`.
 
 - **The served page.** `vite.served.config.ts` now also sets `VITE_SOPHIA_TASKS=1` (vision off, search on), so the
   Studio reads and writes tasks through `api/tasks.ts` and the generated A39 parsers.
@@ -140,7 +140,7 @@ playwright.served.config.ts` once P grants the ports.
     from a passage the reader may not follow.
   - `bumpTask` is another member's change meanwhile; `tasksAsProposed` answers once in A17's shape.
   - Without a seed, the served page answers an empty A39 list.
-- **`e2e-served/human-tasks-served.spec.ts`, 8 cases:**
+- **`e2e-served/human-tasks-served.spec.ts`, 8 prepared cases (and 3 more below):**
   - the brief's list (a link-only passage, an unavailable one redacted, no quote);
   - an admin claims, releases, assigns and finishes, with each request's exact path and body;
   - a viewer: no Claim, Release or Assign, Done only on their own, with its body;
@@ -155,6 +155,45 @@ playwright.served.config.ts` once P grants the ports.
   unchanged and run under the vision fixture.
 - **An observation to confirm in the browser first.** The Task form's «For» still offers «Anyone», which A39 records
   as nobody yet (only an editor or an admin may finish it). No product change is made in this preparation.
+
+## UI repair (FND-C5-UI-REPAIR-01; R-C5-01, 02 and 03)
+
+The evidence below is for the commit that carries this section. Studio and fixture only: 0074, A39, the persistence,
+the routes and the generated contract are unchanged from `7caf2f35`.
+
+- **First run of the prepared cases:** 15 of 16 served cases passed (the 8 tasks and C4's 8 search). The one failure
+  was a harness flaw: the A17-shaped negative control answered once, and the query's own retry then read the strict
+  list. It now answers that way until turned off, from the first read when `proposedtasks=1`.
+- **R-C5-01 was happening, not only possible.** The dev server logged «Unhandled rejection: TypeError: Cannot read
+  properties of undefined (reading 'map')» during the passing cases. The feed's later read had hidden it.
+- **Each finding reproduced in the browser before any change** (`served-ui-rc5-before.keep.log`):
+  - **01.** With the project's pages and one deep-linked task read, a Claim that landed («For you») also said «Not
+    sent.», and the Done threw. `taskChanged` mapped a flat `tasks` array over the infinite pages and the single task.
+  - **02.** A Done whose answer was lost, retried after Marco took the task and the feed moved, marked it done: «For
+    Marco · Done by you.». The retry kept its key but sent the row's new revision.
+  - **03.** An off-page task opened by `#todo-` kept its available link after its origin was withdrawn and the feed
+    moved.
+- **The repairs:**
+  - **01.** `taskChanged` updates each cache in its own shape: a report's flat list, the project's infinite pages and
+    the one task.
+  - **02.** Done's admission carries `{taskId, revision}` as its arguments, so a retry sends exactly the first body
+    with its key.
+  - **03.** The named task follows the feed. It is read again after a stale action, and once its read is refused it
+    is not shown from what was read before.
+- **A regression of my own, caught and fixed.** My first 03 change refetched the named task with none named (`GET
+  …/tasks/`), because a forced refetch ignores `enabled`. Every served case caught it. The feed follow now uses the
+  query's own condition. Log `served-ui-rc5-repair1-regression.keep.log`.
+- **New fixture hooks:** `humantasks=many` (60 newer tasks, so a deep link is off-page), list paging by cursor,
+  `dropNextTaskWrite`, `bumpTask(…, moveFeed)`, `withdrawTaskOrigin` and `hideTask`. The keys sent are recorded as
+  `task-key:`.
+- **After, on the final bytes:**
+  - the served spec ×2: 38/38 (human tasks 11, C4 search 8), with no unhandled rejection;
+  - the neighbors under the vision fixture: 345/345 (A17's room-passage-task, room-passage, room-passage-link,
+    project-activity, project-search, room-search, search-goals, mentions, discussion-earlier, message-acts,
+    room-discussion, chat-times, message-links, room-chat-replies, ask-instead, work, room-work and task-keys);
+  - units 2387 pass, 0 fail; format, lint, typecheck and contracts clean.
+- **Still open, not changed:** the Task form's «For» offers «Anyone», which A39 records as nobody yet. It is not covered
+  by a failing case here; it is left for an owner or wording decision.
 
 ## Limits
 

@@ -194,10 +194,16 @@ interface Fixture {
   holdSearch: (on: boolean) => void
   /** While on, searches fail as an unavailable API's (A38). */
   failSearch: (on: boolean) => void
-  /** Another member changes a human task meanwhile (A39): its owner, its revision moved; the feed doesn't move. */
-  bumpTask: (taskId: string, ownerId: string | null) => void
-  /** The next report's tasks are answered as the A17 proposal, which A39's served parser refuses. */
-  tasksAsProposed: () => void
+  /** Another member changes a human task meanwhile (A39): its owner, its revision moved; the feed moves if asked. */
+  bumpTask: (taskId: string, ownerId: string | null, moveFeed?: boolean) => void
+  /** The next task write never reaches the API, and its answer is lost (A39). */
+  dropNextTaskWrite: () => void
+  /** A task's origin is no longer this reader's to follow (made private, ineligible or erased); the feed moves. */
+  withdrawTaskOrigin: (taskId: string) => void
+  /** A task this reader can no longer read (A39 answers not_found); the feed moves. */
+  hideTask: (taskId: string) => void
+  /** While on, a report's tasks are answered as the A17 proposal, which A39's served parser refuses (its retry too). */
+  tasksAsProposed: (on: boolean) => void
   /** The next search is answered as the A13 proposal (a recap, meetings), which A38's served parser refuses. */
   searchAsProposed: () => void
   /** Reads of the served board wait while on, as a slow API's do; off, the waiting ones are answered (search-honest.md). */
@@ -643,7 +649,7 @@ const project = {
   },
   // A39 on the served page (`humantasks=seed`, human-tasks-data.ts): the project's human tasks.
   humanTasks:
-    query.get('humantasks') === 'seed'
+    query.get('humantasks') === 'seed' || query.get('humantasks') === 'many'
       ? seededTasks(
           {
             projectId: PROJECT,
@@ -657,6 +663,8 @@ const project = {
           personId(2),
           personId(1),
           versionId(1),
+          // `proposedtasks=1`: a report's tasks are answered as the A17 proposal from the first read.
+          { proposed: query.get('proposedtasks') === '1', many: query.get('humantasks') === 'many' },
         )
       : undefined,
   // A17: the report's tasks (task-data.ts).
@@ -900,12 +908,24 @@ window.fixture = {
   failSearch: (on) => {
     project.failSearch = on
   },
-  bumpTask: (id, ownerId) => {
+  bumpTask: (id, ownerId, moveFeed) => {
     const t = project.humanTasks?.list.find((x) => x.taskId === id)
     if (t) Object.assign(t, { ownerId, revision: t.revision + 1 })
+    if (moveFeed) publish(project)
   },
-  tasksAsProposed: () => {
-    if (project.humanTasks) project.humanTasks.proposedOnce = true
+  dropNextTaskWrite: () => {
+    if (project.humanTasks) project.humanTasks.dropNext = true
+  },
+  withdrawTaskOrigin: (id) => {
+    project.humanTasks?.unavailable.add(id)
+    publish(project)
+  },
+  hideTask: (id) => {
+    if (project.humanTasks) project.humanTasks.list = project.humanTasks.list.filter((x) => x.taskId !== id)
+    publish(project)
+  },
+  tasksAsProposed: (on) => {
+    if (project.humanTasks) project.humanTasks.proposed = on
   },
   searchAsProposed: () => {
     project.searchAsProposed = true

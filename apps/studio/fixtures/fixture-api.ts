@@ -73,7 +73,7 @@ import { TASKS } from '../src/app/tasks.ts'
 import {
   createAnswer,
   doneAnswer,
-  listed as tasksListed,
+  projectPage,
   noHumanTasks,
   ownerAnswer,
   reportTasks,
@@ -1917,9 +1917,15 @@ function humanTasksAnswer(project: Project, method: string, url: URL, init: Requ
   const tasks = (project.humanTasks ??= noHumanTasks())
   const world = taskWorld(project)
   if (method === 'GET') return humanRead(tasks, world, url, route)
-  const result = humanWrite(tasks, world, { method, path, init, one: route.one })
-  if (result && result.status < 300) publish(project)
-  return result ? answerOf(result) : undefined
+  return writeAnswered(project, humanWrite(tasks, world, { method, path, init, one: route.one }))
+}
+
+/** A write's answer: lost when dropped (status 0), the feed moved when it landed. */
+function writeAnswered(project: Project, result: Answer | undefined) {
+  if (!result) return undefined
+  if (result.status === 0) return Promise.reject(new TypeError('Failed to fetch'))
+  if (result.status < 300) publish(project)
+  return answerOf(result)
 }
 
 /** A39's reads: a report's tasks, the project's, or one. */
@@ -1931,13 +1937,33 @@ function humanRead(
 ): Response {
   served.push(`task-read:${url.pathname}${url.search}`)
   if (route.report) return answerOf(reportTasks(tasks, world, route.report))
-  if (route.list) return json({ tasks: tasksListed(tasks).map((t) => servedOf(tasks, world, t)), next: null })
+  if (route.list) return json(projectPage(tasks, world, url.searchParams.get('cursor')))
   const t = tasks.list.find((x) => x.taskId === route.one?.[1])
   if (t) return json(servedOf(tasks, world, t))
   return answerOf({
     status: 422,
     body: { code: 'not_found', message: 'Task not found', requestId: PROJECT, retry: 'never' },
   })
+}
+
+/**
+ * A write as it reached the fixture: recorded as sent, with its key (`task-request:`, `task-key:`); or, when the page
+ * asked (`dropNextTaskWrite`), dropped before reaching it (`task-dropped:`), its answer lost. True when dropped.
+ */
+function dropped(
+  tasks: HumanTasks,
+  req: { method: string; path: string; init: RequestInit | undefined },
+  text: string,
+) {
+  const keyed = new Headers(req.init?.headers).get('idempotency-key') ?? ''
+  if (tasks.dropNext) {
+    tasks.dropNext = false
+    served.push(`task-dropped:${req.method} ${req.path} ${text} key=${keyed}`)
+    return true
+  }
+  served.push(`task-request:${req.method} ${req.path} ${text}`)
+  if (keyed) served.push(`task-key:${keyed}`)
+  return false
 }
 
 /** A39's writes: create, owner, done; undefined for any other method on these paths. */
@@ -1947,13 +1973,14 @@ function humanWrite(
   req: { method: string; path: string; init: RequestInit | undefined; one: RegExpExecArray | null },
 ): Answer | undefined {
   const text = typeof req.init?.body === 'string' ? req.init.body : ''
-  served.push(`task-request:${req.method} ${req.path} ${text}`)
+  if (dropped(tasks, req, text)) return { status: 0, body: null }
   const body: unknown = text ? JSON.parse(text) : null
   const key = new Headers(req.init?.headers).get('idempotency-key') ?? ''
   const [, id = '', tail = ''] = req.one ?? [undefined, '', 'list']
-  const act = `${req.method} ${tail}`
-  if (act === 'POST list') return createAnswer(tasks, world, key, body)
-  if (act === 'PUT /owner') return ownerAnswer(tasks, world, id, body)
-  if (act === 'POST /done') return doneAnswer(tasks, world, id, key, body)
-  return undefined
+  const acts: Record<string, (() => Answer) | undefined> = {
+    'POST list': () => createAnswer(tasks, world, key, body),
+    'PUT /owner': () => ownerAnswer(tasks, world, id, body),
+    'POST /done': () => doneAnswer(tasks, world, id, key, body),
+  }
+  return acts[`${req.method} ${tail}`]?.()
 }

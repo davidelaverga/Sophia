@@ -195,13 +195,88 @@ test('served tasks · the report’s tab lists only the tasks whose passage this
 test('served tasks · an answer in the A17 proposal’s shape (a quote, no revision) is refused by the generated parser', async ({
   page,
 }) => {
-  await page.goto(`/room.html?call=on&exchange=open&people=3&guest&report=${REPORT}&humantasks=seed`)
-  await page.evaluate(() => window.fixture?.tasksAsProposed())
+  await page.goto(`/room.html?call=on&exchange=open&people=3&guest&report=${REPORT}&humantasks=seed&proposedtasks=1`)
   await expect(pane(page).locator('.md p', { hasText: 'The fixture holds.' })).toBeVisible()
   await pane(page)
     .getByRole('tab', { name: /^Tasks/ })
     .click()
   await expect(pane(page).getByRole('alert')).toContainText('Tasks can’t be read now.')
+  await page.evaluate(() => window.fixture?.tasksAsProposed(false))
   await pane(page).getByRole('button', { name: 'Try again' }).click()
   await expect(tabRows(page)).toHaveCount(1)
+})
+
+/** A row by its exact title (`Later task 6` is not `Later task 60`). */
+const titled = (page: Page, title: string) =>
+  rows(page).filter({ has: page.locator('.task-text', { hasText: new RegExp(`^${title}$`) }) })
+
+const STALE = 'This task changed meanwhile. It’s shown as it is now.'
+
+/** Sixty tasks newer than the seeded four, so they are past the first page; the address names one of those. */
+async function openOffPage(page: Page, id: string) {
+  await page.goto(`/room.html?people=2&humantasks=many#todo-${id}`)
+  const named = page.locator(`#todo-${id}`)
+  await expect(named).toBeFocused()
+  return named
+}
+
+test('served tasks · R-C5-01: with the project’s pages and one task read, a Claim and a Done that land say so, and nothing throws', async ({
+  page,
+}) => {
+  const errors: string[] = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  const named = await openOffPage(page, taskId(2))
+  const later = titled(page, 'Later task 60')
+  await later.getByRole('button', { name: 'Claim' }).click()
+  await expect(later).toContainText('For you')
+  await expect(later).not.toContainText('Not sent.')
+  await named.getByRole('button', { name: 'Done' }).click()
+  await expect(named).toContainText('Done by you.')
+  expect(errors).toEqual([])
+})
+
+test('served tasks · R-C5-02: a Done whose answer is lost, retried after the task moved, keeps its key and the revision first sent', async ({
+  page,
+}) => {
+  await openBrief(page)
+  const room = row(page, 'Book the room')
+  await page.evaluate(() => window.fixture?.dropNextTaskWrite())
+  await room.getByRole('button', { name: 'Done' }).click()
+  await expect(room).toContainText('Not confirmed. Try again.')
+  const dropped = (await served(page)).find((s) => s.startsWith('task-dropped:')) ?? ''
+  expect(dropped).toMatch(
+    new RegExp(`^task-dropped:POST ${TASKS}/${taskId(1)}/done \\{"expectedRevision":1\\} key=.+$`),
+  )
+  const key = dropped.split(' key=')[1]
+  // Marco takes it meanwhile, and the feed moves: the row is now at revision 2.
+  await page.evaluate(([id, marco]) => window.fixture?.bumpTask(id, marco, true), [taskId(1), MARCO] as const)
+  await expect(room).toContainText('For Marco')
+  await room.getByRole('button', { name: 'Try again' }).click()
+  await expect(room).toContainText(STALE)
+  expect(await lastRequest(page)).toBe(`POST ${TASKS}/${taskId(1)}/done {"expectedRevision":1}`)
+  expect((await served(page)).filter((s) => s.startsWith('task-key:')).at(-1)).toBe(`task-key:${key}`)
+  await expect(room).not.toContainText('Done by you.')
+})
+
+test('served tasks · R-C5-03: an off-page task opened by #todo- is read again as the feed moves, and after a stale action; once unreadable it is no longer shown', async ({
+  page,
+}) => {
+  const named = await openOffPage(page, taskId(2))
+  await expect(named.getByRole('link', { name: 'v1' })).toBeVisible()
+  const one = `${TASKS}/${taskId(2)}`
+  const readsOf = async () => (await reads(page)).filter((r) => r === one).length
+  const first = await readsOf()
+  // Its origin is no longer this reader's to follow; the feed moves.
+  await page.evaluate((id) => window.fixture?.withdrawTaskOrigin(id), taskId(2))
+  await expect(named).toContainText('The passage it came from isn’t available to you')
+  await expect(named.getByRole('link')).toHaveCount(0)
+  expect(await readsOf()).toBeGreaterThan(first)
+  // Changed meanwhile without the feed moving: its Done answers 409, and it is read again.
+  await page.evaluate(([id, marco]) => window.fixture?.bumpTask(id, marco), [taskId(2), MARCO] as const)
+  await named.getByRole('button', { name: 'Done' }).click()
+  await expect(named).toContainText('For Marco')
+  // No longer readable: the task is not shown from what was read before.
+  await page.evaluate((id) => window.fixture?.hideTask(id), taskId(2))
+  await expect(page.locator(`#todo-${taskId(2)}`)).toHaveCount(0)
+  await expect(page.getByText('The task you opened isn’t available.')).toBeVisible()
 })

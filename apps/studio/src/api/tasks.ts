@@ -86,7 +86,12 @@ export function createTask(token: string, projectId: string, key: string, ask: T
 }
 
 /** Done, once per key; served, against the revision shown. */
-export const finishTask = (token: string, projectId: string, task: ProjectTask, key: string): Promise<ProjectTask> =>
+export const finishTask = (
+  token: string,
+  projectId: string,
+  task: Pick<ProjectTask, 'taskId' | 'revision'>,
+  key: string,
+): Promise<ProjectTask> =>
   SERVED_TASKS
     ? callApi(
         `/api/v1/projects/${projectId}/tasks/${task.taskId}/done`,

@@ -4,7 +4,7 @@
 // through the proposed A17; under the tasks flag, A39 served (api/tasks.ts, docs/handoffs/FND-C5-HUMAN-TASKS-attempt-
 // 1.md): D-TASKS decides who finishes, editors and admins also claim, assign and release, a task's passage is a link
 // only (never its words), and one this reader may not follow says so.
-import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { Membership } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
@@ -34,12 +34,28 @@ export const taskRecorded = (queryClient: QueryClient, artifactId: string, viewe
     tasks: byTime(was?.tasks ?? [], task, (t) => t.taskId),
   }))
 
-/** A task changed: in every read of tasks that holds it (a report's, the project's), in its place. */
+/** A page of tasks as a read keeps it: a report's list, or one of the project's pages. */
+interface TaskPage {
+  tasks: readonly ProjectTask[]
+}
+
+/**
+ * A task changed: in every read of tasks that holds it, each kept in its own shape (R-C5-01): a report's list (flat),
+ * the project's pages (infinite), and one task read alone (a deep link's).
+ */
 export function taskChanged(queryClient: QueryClient, task: ProjectTask) {
-  const swap = (was: { tasks: readonly ProjectTask[] } | undefined) =>
-    was && { ...was, tasks: was.tasks.map((t) => (t.taskId === task.taskId ? task : t)) }
-  queryClient.setQueriesData<{ tasks: readonly ProjectTask[] }>({ queryKey: ['vision', 'tasks'] }, swap)
-  queryClient.setQueriesData<{ tasks: readonly ProjectTask[] }>({ queryKey: ['tasks'] }, swap)
+  const swap = (list: readonly ProjectTask[]) => list.map((t) => (t.taskId === task.taskId ? task : t))
+  queryClient.setQueriesData<TaskPage>(
+    { queryKey: ['vision', 'tasks'] },
+    (was) => was && { ...was, tasks: swap(was.tasks) },
+  )
+  queryClient.setQueriesData<InfiniteData<TaskPage>>(
+    { queryKey: ['tasks', 'project'] },
+    (was) => was && { ...was, pages: was.pages.map((p) => ({ ...p, tasks: swap(p.tasks) })) },
+  )
+  queryClient.setQueriesData<ProjectTask>({ queryKey: ['tasks', 'one'] }, (was) =>
+    was?.taskId === task.taskId ? task : was,
+  )
 }
 
 /** A report's tasks, read again as the feed moves (a task is a record); none read without tasks offered. */
@@ -123,6 +139,9 @@ const doneLabel = (sending: boolean, lost: boolean) => {
   return lost ? 'Try again' : 'Done'
 }
 
+/** A task as a press saw it: which, and at which revision. */
+type Shown = Pick<ProjectTask, 'taskId' | 'revision'>
+
 interface RowProps {
   task: ProjectTask
   me: Membership
@@ -146,7 +165,7 @@ function hrefOf(task: ProjectTask, artifactId: string | null): string | null {
 const STALE = 'This task changed meanwhile. It’s shown as it is now.'
 
 /** What a write says: nothing while it waits; with no reply, so; a stale task, that it moved; a refusal, its words. */
-function rowWords(state: ReturnType<typeof useAdmission<void, ProjectTask>>['state']): string | null {
+function rowWords(state: ReturnType<typeof useAdmission<Shown, ProjectTask>>['state']): string | null {
   if (state.status === 'unknown') return 'Not confirmed. Try again.'
   if (state.status !== 'rejected') return null
   if (state.error instanceof ApiError && state.error.code === 'stale_revision') return STALE
@@ -174,14 +193,18 @@ const versionWords = (task: ProjectTask) =>
 
 export function TaskRow({ task, me, projectId, identity, artifactId, onStale }: RowProps) {
   const queryClient = useQueryClient()
-  const write = useAdmission<void, ProjectTask>((key) => finishTask(identity.token, projectId, task, key))
+  // The task and the revision it was shown at go with the press, so a retry after no answer sends exactly what the
+  // first did, with its key, whatever the row shows by then (R-C5-02).
+  const write = useAdmission<Shown, ProjectTask>((key, shown) => finishTask(identity.token, projectId, shown, key))
   const sending = write.state.status === 'sending'
   const slow = useSlow(sending)
   const lost = write.state.status === 'unknown'
   const said = rowWords(write.state)
   const done = async () => {
     if (sending) return
-    const result = await write.send(undefined)
+    const shown =
+      task.revision === undefined ? { taskId: task.taskId } : { taskId: task.taskId, revision: task.revision }
+    const result = await write.send(shown)
     if (result) taskChanged(queryClient, result)
     // Served, a refusal may be a task changed meanwhile: it is read again (A17's proposal keeps its row as it was).
     else if (SERVED_TASKS) onStale()

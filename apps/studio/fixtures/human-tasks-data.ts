@@ -28,8 +28,10 @@ export interface HumanTasks {
   byKey: Map<string, string>
   /** The tasks whose origin this reader may not follow (another's private source, made ineligible, erased). */
   unavailable: Set<string>
-  /** The next report's tasks are answered as the A17 proposal (with a quote), which A39's parser refuses. */
-  proposedOnce: boolean
+  /** While set, a report's tasks are answered as the A17 proposal (with a quote), which A39's parser refuses. */
+  proposed: boolean
+  /** The next write never reaches the API: the page can't tell whether it landed (`dropNextTaskWrite`). */
+  dropNext?: boolean
 }
 
 export interface TaskWorld {
@@ -45,14 +47,14 @@ export interface TaskWorld {
 }
 
 /** The seeded tasks' times, a minute apart. */
-const seededAt = (n: number) => new Date(Date.UTC(2026, 9, 16, 9, n)).toISOString()
+const seededAt = (n: number) => new Date(Date.UTC(2026, 9, 16, 9, 0, n)).toISOString()
 
 /** No human task yet (the served page without `humantasks=seed`). */
 export const noHumanTasks = (): HumanTasks => ({
   list: [],
   byKey: new Map(),
   unavailable: new Set(),
-  proposedOnce: false,
+  proposed: false,
 })
 
 export const taskId = (n: number) => `00000000-0000-4000-8000-0000000c${String(n).padStart(4, '0')}`
@@ -61,7 +63,14 @@ export const taskId = (n: number) => `00000000-0000-4000-8000-0000000c${String(n
  * `humantasks=seed`: one for nobody yet, one for the reader from a passage of the report's first version, one for
  * Lucía, one for the reader from a passage they may not follow.
  */
-export function seededTasks(world: TaskWorld, lucia: string, marco: string, firstVersion: string): HumanTasks {
+export function seededTasks(
+  world: TaskWorld,
+  lucia: string,
+  marco: string,
+  firstVersion: string,
+  options: { proposed?: boolean; many?: boolean } = {},
+): HumanTasks {
+  const { proposed = false, many = false } = options
   const task = (n: number, over: Partial<HumanTask>): HumanTask => ({
     taskId: taskId(n),
     title: `Task ${String(n)}`,
@@ -76,8 +85,11 @@ export function seededTasks(world: TaskWorld, lucia: string, marco: string, firs
     ...over,
   })
   const passage = { artifactId: world.report.artifactId, versionId: firstVersion, block: 2, word: 0, count: 3 }
+  // `humantasks=many`: sixty more, newer, so the four above are past the first page of 50.
+  const more = many ? Array.from({ length: 60 }, (_, i) => task(10 + i, { title: `Later task ${String(i + 1)}` })) : []
   return {
     list: [
+      ...more,
       task(4, { title: 'Read the private draft', ownerId: world.me, origin: { ...passage, block: 5 } }),
       task(3, { title: 'Call the venue', ownerId: lucia }),
       task(2, { title: 'Check the March figure', ownerId: world.me, origin: passage }),
@@ -85,7 +97,7 @@ export function seededTasks(world: TaskWorld, lucia: string, marco: string, firs
     ],
     byKey: new Map(),
     unavailable: new Set([taskId(4)]),
-    proposedOnce: false,
+    proposed,
   }
 }
 
@@ -139,6 +151,17 @@ const onlyKeys = (v: Record<string, unknown>, keys: readonly string[]) => Object
 const isInt = (v: unknown, least: number, most: number) =>
   Number.isInteger(v) && Number(v) >= least && Number(v) <= most
 const mayAssign = (role: Membership['role']) => role === 'admin' || role === 'editor'
+
+/** A page of the project's tasks, 50 a page from an offset cursor (`o50`), as A39 pages them. */
+export function projectPage(tasks: HumanTasks, world: TaskWorld, cursor: string | null) {
+  const from = cursor && /^o[0-9]{1,6}$/.test(cursor) ? Number(cursor.slice(1)) : 0
+  const all = listed(tasks)
+  const page = all.slice(from, from + 50)
+  return {
+    tasks: page.map((t) => servedOf(tasks, world, t)),
+    next: from + 50 < all.length ? `o${String(from + 50)}` : null,
+  }
+}
 
 /** Open first, newest first. */
 export const listed = (tasks: HumanTasks) =>
@@ -245,8 +268,7 @@ export function doneAnswer(tasks: HumanTasks, world: TaskWorld, id: string, key:
 
 /** A report's tasks: those whose origin is that report and is available to this reader. */
 export function reportTasks(tasks: HumanTasks, world: TaskWorld, artifactId: string): Answer {
-  if (tasks.proposedOnce) {
-    tasks.proposedOnce = false
+  if (tasks.proposed) {
     // The A17 proposal's shape (a quote, no revision): A39's generated parser refuses it.
     return {
       status: 200,
