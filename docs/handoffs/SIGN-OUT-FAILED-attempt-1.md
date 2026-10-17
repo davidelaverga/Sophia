@@ -31,7 +31,7 @@ commits on the branch merge its base forward or touch only this record). 7 files
     `toast-over-sheet`, `resources` and `room-passage`: 159/159;
   - `sign-out.test.ts`: 8/8;
   - Studio typecheck and Prettier: clean.
-  - Lint: clean, apart from main's own `ProjectBody` length, which #423 fixes (see Remaining obligations).
+  - Lint: clean, with main merged in after #423 fixed main's own `ProjectBody` length.
 - **Capture** (`evaluacion-2026-10-16/capturas/signout-1-toast.png`): the toast at the foot of Home with its «Try
   again», and the account still at the top right.
 
@@ -47,8 +47,6 @@ commits on the branch merge its base forward or touch only this record). 7 files
 
 ## Remaining obligations
 
-- **Main's lint:** it is red since #368 merged (`ProjectBody`, 63 lines); #423 fixes it. This branch takes main after
-  #423 lands, then lint runs clean here too.
 
 ## Next bounded action
 
