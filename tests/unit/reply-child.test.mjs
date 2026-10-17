@@ -3214,9 +3214,14 @@ test('journal preflight timeout and cancellation abort observation without retry
     let resolveRead, readSignal
     f.operations.read = signal => { readSignal = signal; return new Promise(resolve => { resolveRead = resolve }) }
     const pending = verifyReplyJournal({ ...recoveryOptions, timeoutMs: mode === 'timeout' ? 10 : 1000, signal: controller.signal }, f.operations)
+    // Observed the moment it exists (it may refuse before the next tick), as a value that never rejects; asserted later.
+    const outcome = pending.then(() => null, error => error)
     await tick(); assert.ok(readSignal)
     if (mode === 'cancel') controller.abort()
-    await assert.rejects(pending, /reply_recovery_unconfirmed/)
+    await new Promise(resolve => setTimeout(resolve, 20)) // consumption delayed past the 10 ms timeout
+    const refusal = await outcome
+    assert.ok(refusal instanceof Error, 'refused, never a proof')
+    assert.match(refusal.message, /reply_recovery_unconfirmed/)
     assert.equal(readSignal.aborted, true)
     resolveRead(f.bytes); await tick()
     assert.equal(f.acks.length, 1)
