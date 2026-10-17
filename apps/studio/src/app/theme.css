@@ -2659,9 +2659,16 @@ button.contribution-quote:hover {
     display: none;
   }
   /* Before joining the dock has only Join and its check, so the check stands there on a phone too (phone-devices.md):
-     its sheet chooses the microphone and the camera, a phone's front or back. */
+     its sheet chooses the microphone and the camera, a phone's front or back. It is one of the dock's 42 px squares, a
+     finger's size (Codex P2 on #412), its chevron still the only mark. */
   .device-menu.device-check-open {
     display: inline-flex;
+    margin-left: 0;
+  }
+  .device-check-open .device-open {
+    width: 42px;
+    height: 42px;
+    border-radius: var(--r-3);
   }
 }
 /* The check before joining (docs/plans/device-check.md): the camera's picture over a row per device, the voice's meter
