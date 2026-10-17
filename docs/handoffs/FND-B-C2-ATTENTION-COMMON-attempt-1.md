@@ -93,7 +93,8 @@ Both findings were reproduced before anything changed.
     as seen goes with the window. An ordinary failure alone still keeps the window, said as possibly out of date.
   - Real App against the listening API, the refusal stubbed in the browser:
     - before: the refusal case failed at its first check (old lines and Mark as seen on screen);
-    - after: both cases pass, 6/6 repeated. Five units cover the rule's orders.
+    - after: both cases pass, 6/6 repeated. Four pure cases cover the rule's orders; an older read answering late is
+      proven by those units only, not in the browser.
 - **Malformed A34 fell through to the older reader (P2).**
   - Before: under the vision flag, a window the contract refuses was read by the older digest's reader. Four
     windows got through: R's counterexample (no `more`, so it read as complete), `more` as a word, `more` as a
@@ -104,6 +105,27 @@ Both findings were reproduced before anything changed.
     complete (`more: false`), in `fixtures/meeting-data.ts`.
   - The VISION regression set gives the same 74/75 (the time-zone case on C1's base). No contract, API or generated
     file changed.
+
+## Read order (FND-B-C2-READ-ORDER-02, R-C2-READ-01's residual)
+
+The fence above stamped a read with `Date.now()` and a refusal with the query core's `errorUpdatedAt`, both the wall
+clock. Set back between them, the clock put a refusal before the read it refused, and a later ordinary failure showed
+the old window again (R's source counterexample: a read at 2000, a refusal at 1000).
+- Before, reproduced:
+  - in a unit, with those very stamps;
+  - in the real App against the listening API, using Playwright's page clock in the browser only (the API and its
+    tokens keep real time): this person's own read succeeded; the browser clock moved back an hour while their
+    refused read (403, the snapshot 503) was on its way; then a Try again that failed (503) showed the old lines, Mark
+    as seen, «This may be out of date.» and «everything so far».
+- Now both stamps come from `sinceOrder()`, a count in this page that only goes up, as C1's fences count
+  (`withdrawn-purge.ts`). The refusal takes its count when it is seen. `errorUpdateCount` only tells one refusal from
+  the next and orders nothing.
+- After:
+  - the case passes: nothing read before shows, no seen is written, and a read set out since restores it, the clock
+    still back;
+  - with the three other refusal cases, 9/9 over three repeats; the served suite 12/12;
+  - the strict A34 reader and the fixture adapter are unchanged.
+- A page loaded afresh starts the count again with an empty cache, so the first read there shows only what it reads.
 
 ## Next bounded action
 

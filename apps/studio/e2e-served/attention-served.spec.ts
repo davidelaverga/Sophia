@@ -190,6 +190,46 @@ const answer = (status: number) => ({
   body: JSON.stringify({ code: status === 403 ? 'forbidden' : 'unavailable', message: 'Not now', retry: 'never' }),
 })
 
+// The browser's clock moves back an hour while this reader's refusal is on its way (Playwright's page clock, in the
+// browser only: the API and its tokens keep real time). A later ordinary failure must still show nothing read before.
+async function clockMovedBack(page: Page, project: string): Promise<void> {
+  const calls = await as(page, 'Luis')
+  await page.goto(`/p/${project}/updates`)
+  await expect(since(page)).toContainText(CANARY)
+  await expect(markSeen(page)).toBeVisible()
+  const { promise: held, resolve: release } = Promise.withResolvers<void>()
+  await page.route(SNAPSHOT, (r) => r.fulfill(answer(503)))
+  await page.route(SINCE, async (r) => {
+    await held
+    await r.fulfill(answer(403))
+  })
+  const asked = page.waitForRequest((r) => new URL(r.url()).pathname.endsWith('/since'))
+  await lookAgain(page)
+  await asked
+  const now = await page.evaluate(() => Date.now())
+  await page.clock.setFixedTime(new Date(now - 3_600_000))
+  release()
+  await expect(since(page).getByRole('alert')).toContainText('What changed couldn’t be read.')
+  await expect(since(page)).not.toContainText(CANARY)
+
+  // A read set out since the refusal that fails the ordinary way (503): nothing read before shows, no seen is written.
+  await page.unroute(SINCE)
+  await page.route(SINCE, (r) => r.fulfill(answer(503)))
+  const failed = page.waitForResponse((r) => new URL(r.url()).pathname.endsWith('/since'))
+  await since(page).getByRole('button', { name: 'Try again' }).click()
+  expect((await failed).status()).toBe(503)
+  await expect(since(page).getByRole('alert')).toBeVisible()
+  await expect(since(page)).not.toContainText(CANARY)
+  await expect(markSeen(page)).toHaveCount(0)
+  expect(calls.filter((c) => c.startsWith('PUT ') && c.endsWith('/seen'))).toEqual([])
+
+  // A read set out since that answers shows it again, the clock still back.
+  await page.unroute(SINCE)
+  await since(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(since(page)).toContainText(CANARY)
+  await expect(markSeen(page)).toBeVisible()
+}
+
 test.describe('a refusal of this reader’s own Updates read (R-C2-READ-01)', () => {
   let project = ''
 
@@ -240,6 +280,9 @@ test.describe('a refusal of this reader’s own Updates read (R-C2-READ-01)', ()
     await expect(since(page)).toContainText(CANARY)
     await expect(markSeen(page)).toBeVisible()
   })
+
+  test('served · refused with the clock moved back, a later failure still shows nothing read before', ({ page }) =>
+    clockMovedBack(page, project))
 
   test('served · an ordinary failure keeps the window read before, said as possibly out of date', async ({ page }) => {
     await as(page, 'Luis')

@@ -20,17 +20,25 @@ export function digestLead(digest: Pick<Since, 'fromSequence' | 'more'> & Record
   return lists.every((l) => l.length === 0) ? 'Nothing new since you last looked.' : null
 }
 
-/** A window as it was read, and when that read was set out (this browser's clock, Date.now()). */
+/** A window as it was read, and when that read was set out, in this page's order (`sinceOrder`). */
 export interface SinceRead {
   window: Since
   readFrom: number
 }
 
+let order = 0
+/**
+ * This page's order of Updates' reads and refusals: each call is later than every call before it. Never the clock,
+ * which can be set back (R-C2-READ-01): as C1's read fences count (conversations/withdrawn-purge.ts), a read set out
+ * before a refusal stays before it. A page loaded afresh starts again, with an empty cache.
+ */
+export const sinceOrder = (): number => ++order
+
 /**
  * The window Updates may show (R-C2-READ-01), as C1's read fences do: none while this person's own read is refused (401,
- * 403), and none read before the last refusal (`refusedAt`, 0 when never), whatever fails after it, a later ordinary
- * failure or an older read answering late. Only a read set out since the refusal shows it again. An ordinary failure
- * keeps the window read before (said as possibly out of date).
+ * 403), and none read before the last refusal (`refusedAt`, in `sinceOrder`, 0 when never), whatever fails after it, a
+ * later ordinary failure or an older read answering late. Only a read set out since the refusal shows it again. An
+ * ordinary failure keeps the window read before (said as possibly out of date).
  */
 export function shownSince(read: SinceRead | undefined, refusedNow: boolean, refusedAt: number): Since | undefined {
   if (!read || refusedNow) return undefined

@@ -23,6 +23,7 @@ import {
   narrowRecords,
   peopleOf,
   shownSince,
+  sinceOrder,
   type SinceRead,
   type DateWords,
   type Kind,
@@ -79,10 +80,11 @@ interface SinceProps {
 const sinceRefusedKey = (projectId: string) => ['vision', 'since-refused', projectId]
 
 /**
- * When this person's own read of the project's window was last refused (401, 403); 0 when never. Kept in the account's
- * query cache (one per account, app/account-cache.ts), so another view and back keeps it (R-C2-READ-01).
+ * When this person's own read of the project's window was last refused (401, 403), in this page's order (`sinceOrder`,
+ * taken when the refusal is seen; never the clock); 0 when never. Kept in the account's query cache (one per account,
+ * app/account-cache.ts), so another view and back keeps it (R-C2-READ-01).
  */
-function useSinceRefused(projectId: string, since: { error: unknown; errorUpdatedAt: number }): number {
+function useSinceRefused(projectId: string, since: { error: unknown; errorUpdateCount: number }): number {
   const client = useQueryClient()
   const refusedAt = useQuery({
     queryKey: sinceRefusedKey(projectId),
@@ -94,8 +96,9 @@ function useSinceRefused(projectId: string, since: { error: unknown; errorUpdate
   }).data
   const refused = closedDoor(since.error)
   useEffect(() => {
-    if (refused) client.setQueryData<number>(sinceRefusedKey(projectId), (at = 0) => Math.max(at, since.errorUpdatedAt))
-  }, [client, projectId, refused, since.errorUpdatedAt])
+    // Each refusal seen (the count only tells one from the next): later than every read set out before it.
+    if (refused) client.setQueryData<number>(sinceRefusedKey(projectId), (at = 0) => Math.max(at, sinceOrder()))
+  }, [client, projectId, refused, since.errorUpdateCount])
   return refusedAt
 }
 
@@ -104,7 +107,7 @@ function SinceYouLooked({ projectId, identity, cursor, me }: SinceProps) {
   const since = useQuery({
     queryKey: ['vision', 'since', projectId, cursor],
     queryFn: async ({ signal }): Promise<SinceRead> => {
-      const readFrom = Date.now()
+      const readFrom = sinceOrder()
       return { window: await getSince(identity.token, projectId, signal), readFrom }
     },
     placeholderData: keepPreviousData,
