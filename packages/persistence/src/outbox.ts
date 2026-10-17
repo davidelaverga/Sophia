@@ -9,7 +9,7 @@ export interface OutboxRow {
   id: string
   command_id: string
   destination: string
-  goal_id: string
+  goal_id: string | null
   state: string
   cleanup: boolean
   lease_owner: string | null

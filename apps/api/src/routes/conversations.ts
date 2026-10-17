@@ -9,6 +9,7 @@ import {
   submitContribution,
   withActor,
 } from '@sophia/persistence'
+import { namesOf } from './profile.ts'
 import { idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
 
 const taskParams = {
@@ -51,9 +52,9 @@ export function conversationRoutes(app: FastifyInstance, { pool }: { pool: pg.Po
     },
     async (req, reply) => {
       const receipt = await withActor(pool, req.actorId, 'write', (c) =>
-        // The author's name from their token, kept with the message: the room names them outside a call too.
+        // The author's display name (0062), kept with the message: the room names them outside a call too.
         submitContribution(c, req.params.projectId, req.headers['idempotency-key'], req.body, {
-          authorName: req.actorName ?? null,
+          names: namesOf(req),
         }),
       )
       return reply.status(202).send(receipt)

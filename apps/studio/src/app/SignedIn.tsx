@@ -15,7 +15,7 @@ import { accountOf } from './auth-callback.ts'
 import { OpeningPrepares } from './opening-prepares.ts'
 import type { Identity } from './dev-identity.ts'
 import { joinStands, projectOnScreen, shownView, type Place } from './route.ts'
-import { VISION } from './vision.ts'
+import { CONVERSATIONS, VISION } from './vision.ts'
 import { ShortcutScope } from './shortcuts.ts'
 import { Toast, useToast, type ShowToast } from './Toast.tsx'
 import type { useProjectRoute } from './useProjectRoute.ts'
@@ -190,7 +190,7 @@ function ProjectShells(props: ShellsProps) {
             <ProjectShell
               key={`${accountOf(identity)}:${id}`}
               projectId={id}
-              view={id === route.projectId ? shownView(route.view, VISION) : 'studio'}
+              view={id === route.projectId ? shownView(route.view, VISION, CONVERSATIONS) : 'studio'}
               identity={identity}
               account={account}
               onShow={show}

@@ -33,6 +33,16 @@ import { describeFailure } from './protocol.js'
 import { wire } from './runtime-wire.generated.js'
 import type { WireValidator } from './runtime-wire.generated.js'
 import type {
+  RuntimeConversationClaimRequest,
+  RuntimeConversationClaimReply,
+  RuntimeConversationGoRequest,
+  RuntimeConversationGoReply,
+  RuntimeConversationReserveRequest,
+  RuntimeConversationReservation,
+  RuntimeConversationSettleRequest,
+  RuntimeConversationSettlement,
+  RuntimeConversationAcknowledgedRequest,
+  RuntimeConversationAcknowledgement,
   DesignCaptureReply,
   DesignDeliveryAck,
   DesignDeliveryReceipt,
@@ -188,14 +198,40 @@ export class ServiceTransport {
     await this.request('POST', '/v1/runtime/receipts', { receipts })
   }
 
-  async observations(observations: readonly Observation[]): Promise<void> {
+  async observations(observations: readonly Observation[], signal?: AbortSignal): Promise<void> {
     for (const observation of observations) checked('observation', wire.RuntimeObservation, observation)
-    await this.request('POST', '/v1/runtime/observations', { observations })
+    await this.request('POST', '/v1/runtime/observations', { observations }, signal)
   }
 
   async ready(state: 'ready' | 'not_ready', reason: string | null, unrecovered: readonly UnrecoveredBinding[] = []): Promise<void> {
     const body = checked('ready report', wire.RuntimeReady, { state, reason, unrecovered })
     await this.request('POST', '/v1/runtime/ready', body)
+  }
+
+  // CON-only calls: their caller owns the cumulative deadline and resends the identical body after a lost answer.
+  async conversationClaim(body: RuntimeConversationClaimRequest, signal?: AbortSignal): Promise<RuntimeConversationClaimReply> {
+    checked('conversation claim request', wire.RuntimeConversationClaimRequest, body)
+    return checked('conversation claim', wire.RuntimeConversationClaimReply, await this.request('POST', '/v1/runtime/conversation/claim', body, signal))
+  }
+
+  async conversationGo(body: RuntimeConversationGoRequest, signal?: AbortSignal): Promise<RuntimeConversationGoReply> {
+    checked('conversation go request', wire.RuntimeConversationGoRequest, body)
+    return checked('conversation go', wire.RuntimeConversationGoReply, await this.request('POST', '/v1/runtime/conversation/go', body, signal))
+  }
+
+  async conversationReserve(body: RuntimeConversationReserveRequest, signal?: AbortSignal): Promise<RuntimeConversationReservation> {
+    checked('conversation reserve request', wire.RuntimeConversationReserveRequest, body)
+    return checked('conversation reservation', wire.RuntimeConversationReservation, await this.request('POST', '/v1/runtime/conversation/reserve', body, signal))
+  }
+
+  async conversationSettle(body: RuntimeConversationSettleRequest, signal?: AbortSignal): Promise<RuntimeConversationSettlement> {
+    checked('conversation settle request', wire.RuntimeConversationSettleRequest, body)
+    return checked('conversation settlement', wire.RuntimeConversationSettlement, await this.request('POST', '/v1/runtime/conversation/settle', body, signal))
+  }
+
+  async conversationAcknowledged(body: RuntimeConversationAcknowledgedRequest, signal?: AbortSignal): Promise<RuntimeConversationAcknowledgement> {
+    checked('conversation acknowledgement request', wire.RuntimeConversationAcknowledgedRequest, body)
+    return checked('conversation acknowledgement', wire.RuntimeConversationAcknowledgement, await this.request('POST', '/v1/runtime/conversation/acknowledged', body, signal))
   }
 
   // The research tools' operations (SMC-M03 S4, A11): each request and reply checked against the contract.
