@@ -181,7 +181,10 @@ function incomingCameras(room: Room, onChange: () => void): Pick<RoomConnection,
   const apply = (pub: RemoteTrackPublication) => {
     if (pub.source === Track.Source.Camera && pub.isSubscribed !== on) pub.setSubscribed(on)
   }
-  room.on(RoomEvent.TrackPublished, apply)
+  // A camera published while they're off isn't taken; one published while they're on is LiveKit's to take, as ever.
+  room.on(RoomEvent.TrackPublished, (pub: RemoteTrackPublication) => {
+    if (!on) apply(pub)
+  })
   return {
     setIncomingVideo: (next) => {
       on = next
