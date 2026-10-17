@@ -254,6 +254,30 @@ like the one above; ordinary `test:db` skips it, uncounted.
   way. It requires 7/7, the four hold stages, no skip and an empty exit census. That has not run anywhere yet, and
   neither has the Supabase-local auth job on this source.
 
+## Current C1 f76 carried in (FND-B-Q13-CURRENT-C1-F76-CARRY-01)
+
+One normal merge of #385's `f76f5776` (current main `21516687`, the 20 s projection read bounds, the LiveKit test
+contract and failure-only partial stops) into `94f0434f`, both parents kept. The merge base is `2c60b408`.
+- **No conflict.** The one path both sides changed, `packages/persistence/src/index.ts`, combined automatically: B2's
+  exports plus C1's `ServiceControl` type.
+- Every other path is exactly one side's blob: the 44 C1 paths are f76's, the 42 B2/Q13 paths are 94's.
+- Kept exactly: 0070 `be17d906`, 0071 `3b1ea9b2` and the Q13 guards; C1's `livekit.ts`, `tx.ts`, `host-acts.ts`, the
+  Studio and its 55 guards.
+- No feature, dependency, lock, migration or contract name was added. Ask and paid defaults stay off.
+
+**Checks on the merged tree.**
+- Typecheck and contracts pass.
+- On owned PostgreSQL 17.11:
+  - the trusted-creator group passes 7/7, on a cluster whose `postgres` is a plain installer;
+  - on a superuser cluster: the exclusive groups 7/7, with the four hold stages; `test:sql` 67 migrations; `test:db`
+    1000/1000. The three gated groups skip there and are not counted.
+- PostgreSQL 16 (both helper phases) and the Supabase-local auth job have still not run on any composition.
+
+**Evidence precision (R on `94f0434f`).**
+- The saved COMMENT-negative probe (`03-probe-comment`) fails at `SET ROLE` before its COMMENT. It does not show that
+  COMMENT ON ROLE is denied directly.
+- The creator-edge record is the trusted owner's attestation, not isolation against that owner.
+
 ## Next bounded action
 
 Check the automatic review on #393's repair head once. Then implement the assembly binding exactly as P/V triage it, in this worktree, with its census-numbered migration.
