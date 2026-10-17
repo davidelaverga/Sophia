@@ -67,6 +67,11 @@ export interface ProjectRoom {
   /** When this person's latest call went live (ms): what a late join is measured from; null before any. */
   liveSince: number | null
   setMicrophone: (on: boolean) => Promise<void>
+  /**
+   * A fence on the microphone choices: true until the next one is made, or the call is another. Push to talk's late
+   * turn-off answers to it (Codex P2s on #381).
+   */
+  chosenStill: () => () => boolean
   setCamera: (on: boolean) => Promise<void>
   setScreenShare: (on: boolean) => Promise<void>
   /** The person's choice of microphone, speaker or camera: kept for their next call, and this one switched to it. */
@@ -202,6 +207,8 @@ function deviceSwitch(connection: { current: RoomConnection | null }, say: (note
  */
 function useDevices(connection: { current: RoomConnection | null }, refresh: () => void) {
   const [mediaError, setMediaError] = useState<string | null>(null)
+  /** The microphone choices made, counted as each is asked (before its first wait). */
+  const choices = useRef(0)
   /** One device in call `c` turned on or off; the note says why it failed, for the way it was going. */
   const change = async (c: RoomConnection | null, device: Device, on: boolean): Promise<Outcome> => {
     if (!c) return 'took'
@@ -235,8 +242,13 @@ function useDevices(connection: { current: RoomConnection | null }, refresh: () 
     silence: async () => (await media('microphone', false)) !== 'failed',
     /** The person's own choice, remembered for their next join; true when it took in this call. */
     setMicrophone: async (on: boolean): Promise<boolean> => {
+      choices.current += 1
       rememberMic(on)
       return (await media('microphone', on)) === 'took'
+    },
+    chosenStill: () => {
+      const [c, n] = [connection.current, choices.current]
+      return () => c !== null && connection.current === c && choices.current === n
     },
     setCamera: async (on: boolean) => {
       await media('camera', on)
