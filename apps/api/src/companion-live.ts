@@ -179,8 +179,11 @@ function newest(items: readonly string[], budget: number): string[] {
 
 /** The one user input: the person's notes, their recent turns and the turn asked, bounded before anything is sent. */
 export function personalPrompt(context: CompanionContext): string {
+  // History is read up to the asked turn (readCompanionContext), so it ends with that turn: drop it by that position,
+  // never by its text, so it is sent once and an earlier identical message stays (#435 4303867356).
+  const earlier = context.history.slice(0, -1)
   const turns = newest(
-    context.history.map((t) => `${t.author === 'person' ? 'Person' : 'Sophia'}: ${t.text}`),
+    earlier.map((t) => `${t.author === 'person' ? 'Person' : 'Sophia'}: ${t.text}`),
     TURN_BYTES,
   )
   const notes = newest(context.notes, NOTE_BYTES)
@@ -266,6 +269,10 @@ async function collect(chunks: AsyncIterable<StreamChunk>, signal: AbortSignal):
 
 const NOTE_LINE = /\n?[ \t]*Note:[ \t]*(.*)\s*$/
 
+/** An optional suggestion that can be stored; one that can't (U+0000 among them, #435 4303867360) is dropped. */
+const storableNote = (note: string): boolean =>
+  note.length > 0 && characters(note) <= MAX_NOTE_CHARS && note.isWellFormed() && !note.includes('\u0000')
+
 /** The answer and at most one suggestion (its last "Note:" line, at most 90 characters), or null if not storable. */
 export function personalReply(text: string): CompanionReply | null {
   const match = NOTE_LINE.exec(text)
@@ -274,8 +281,7 @@ export function personalReply(text: string): CompanionReply | null {
   if (body.length === 0 || !body.isWellFormed() || body.includes('\u0000') || characters(body) > MAX_ANSWER_CHARS) {
     return null
   }
-  const kept = note.length > 0 && characters(note) <= MAX_NOTE_CHARS && note.isWellFormed()
-  return { text: body, suggestion: kept ? note : null }
+  return { text: body, suggestion: storableNote(note) ? note : null }
 }
 
 type Refusal = Exclude<PersonalReservation, 'reserved'> | 'unstorable' | 'no_answer' | 'route_mismatch'

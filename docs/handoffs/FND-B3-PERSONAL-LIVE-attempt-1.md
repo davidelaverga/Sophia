@@ -232,6 +232,39 @@ with OpenAPI, the validators and the API test regenerated.
 
   Results are in B's handback.
 
+## Four review findings on #435 (FND-B3-435-FOCUSED-FOUR-FINDING-REPAIR-01)
+
+The automatic review of `82ab58f9` found four defects, and R confirmed all of them. 0073 is corrected in place: P
+bound it as unmerged and unapplied, since the production ledger has no 0073. No new name or migration was added.
+- **A reserved call that never settles (P1, 4303867348).** If a runner died after asking the provider, or its
+  settlement failed, the call stayed reserved, and other calls kept being admitted on its payer.
+  - Now any reserved or uncertain call holds its payer, whoever owns it: **one unresolved call per payer**.
+  - An operator settles a reserved call from the provider's record, but only once its call is no longer registered.
+    The full bound stays counted until then, and nothing unknown is released as zero.
+  - The API role cannot reconcile, and cannot raise an allowance.
+- **The payer lock (P1, 4303867352).** Only admission locked the payer. Now hold, settle, release and reconcile lock
+  the payer's row first, then recheck the call's owner and state, so every transition is seen in one order.
+- **The asked turn sent twice (P2, 4303867356).** History is read up to the asked turn, so it ended with it, and the
+  turn was also sent again on its own.
+  - Now that history tail is dropped by its position, not by its text, so an earlier identical message stays.
+  - The reservation is measured on the prompt that is actually sent.
+- **A Note with U+0000 (P2, 4303867360).** The note made the whole answer unstorable after its cost had settled. Now
+  such a note is dropped and the answer is kept.
+
+**Checks** (private PostgreSQL 17.11, en_US.UTF-8).
+- **Before, on `82ab58f9` source:**
+  - the first turn already listed itself as history;
+  - the NUL-note turn never settled;
+  - another owner was reserved on a payer whose call was abandoned;
+  - an admission was granted while a call was unresolved.
+- **After:** the four Personal suites pass 75/75, with the two-client ordering case observed through lock waits, not
+  timers.
+- **Two earlier expectations were updated to the new policy.** A second reservation is now held, and a test now
+  releases its reserved call.
+- **Mutation.** Without hold's payer lock, the two-client case fails ("the hold waits for the admission holding the
+  payer").
+- The ordinary check, `test:sql`, `test:db` and the trusted-creator group of this head are in B's handback.
+
 ## Next bounded action
 
-B's private handback goes to P; R reviews this composition. No push.
+B's private handback goes to P; R reviews this repair. No push.

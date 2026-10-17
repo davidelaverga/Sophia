@@ -230,6 +230,61 @@ describe('the live personal companion (local provider double)', () => {
     assert.equal(recorded().length, welcomed, 'no provider request for a welcome')
   })
 
+  // #435 4303867356: the turn being answered is sent once. History ends with it (it is read up to the asked turn), so
+  // it is dropped from history by that guaranteed position, never by its text: an earlier identical message stays.
+  it('sends the turn being answered once, and keeps an earlier identical message as history', async () => {
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, allowance_micros) VALUES ('prompt-payer', 1000000)`,
+    )
+    const at = await liveApi('prompt-payer')
+    const BEA = randomUUID()
+    const MARK = 'MARKER-5d3a-ask'
+    const count = (r: Recorded) => sentText(r).split(MARK).length - 1
+    const start = recorded().length
+    double.script({ text: 'First answer.', usage: { input_tokens: 10, output_tokens: 5 } })
+    await write(at, '/api/v1/personal/turns', BEA, { text: MARK })
+    await settled(at, BEA)
+    double.script({ text: 'Second answer.', usage: { input_tokens: 10, output_tokens: 5 } })
+    await write(at, '/api/v1/personal/turns', BEA, { text: MARK })
+    await settled(at, BEA)
+    const sent = recorded().slice(start)
+    assert.equal(sent.length, 2)
+    assert.ok(
+      sent[0] && sentText(sent[0]).includes('This is your first conversation.'),
+      'the first turn has no history',
+    )
+    assert.equal(sent[0] && count(sent[0]), 1, 'the first turn is sent once')
+    assert.equal(
+      sent[1] && count(sent[1]),
+      2,
+      'the second: the earlier identical message as history, and the turn once',
+    )
+  })
+
+  // #435 4303867360: a Note carrying U+0000 is not storable; the answer is kept without it, from one paid request.
+  it('keeps the answer and drops a Note that carries U+0000, with one request and one settled cost', async () => {
+    await owner(`INSERT INTO sophia.personal_companion_payers(payer, allowance_micros) VALUES ('note-payer', 1000000)`)
+    const at = await liveApi('note-payer')
+    const CAL = randomUUID()
+    const start = recorded().length
+    double.script({ text: 'The answer stands.\nNote: bad\u0000note', usage: { input_tokens: 12, output_tokens: 6 } })
+    await write(at, '/api/v1/personal/turns', CAL, { text: 'Help me plan.' })
+    const page = await settled(at, CAL)
+    const reply = page.turns.find((t) => t.author === 'sophia')
+    assert.equal(reply?.text, 'The answer stands.')
+    assert.equal(reply.suggestion ?? null, null, 'no suggestion')
+    assert.equal(page.turns.find((t) => t.author === 'person')?.reply, 'answered')
+    // Reading again asks nothing more.
+    await settled(at, CAL)
+    assert.equal(recorded().length - start, 1, 'one provider request')
+    const rows = await usage('note-payer')
+    assert.deepEqual(
+      rows.map((r) => r.state),
+      ['settled'],
+      'one settled cost',
+    )
+  })
+
   it('a provider refusal fails the turn, holds its unknown cost, and holds the payer until an operator reconciles', async () => {
     const at = await liveApi('held-payer')
     const BEA = randomUUID()

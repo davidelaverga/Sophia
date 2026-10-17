@@ -6,7 +6,13 @@
 -- * Reserved before the provider is asked, from a bound on everything the call can use (its input bytes and its full
 --   output ceiling at the configured prices): the payer's settled, reserved and uncertain amounts plus this one must fit
 --   its admitted allowance, or nothing is asked. A call whose usage is unknown (it was cut off, or reported none) stays
---   uncertain at its reservation, and no further call is asked on that payer until an operator reconciles it.
+--   uncertain at its reservation.
+-- * One unresolved call per payer (#435 4303867348): while a call of the payer is reserved or uncertain, no further
+--   call is asked on it, whoever owns it. A reserved call whose runner is gone (its process died after the provider was
+--   asked, or its settlement failed) stays reserved, its full bound counted, until an operator settles it from the
+--   provider's record once its call is no longer registered. No unknown usage is ever released as nothing.
+-- * The payer first (#435 4303867352): admission and every transition of a call (settle, hold, release, reconcile)
+--   lock the payer's row before the call's, then recheck the call's owner and state, so they are seen in one order.
 -- * A payer is admitted by an operator (personal_companion_payers, written by no API or worker role), with a finite
 --   allowance in micro-USD. The API names its payer in configuration; it cannot admit one or raise an allowance.
 -- * Only a call begun in the space's current epoch reserves: one from before an erasure asks nothing more.
@@ -56,7 +62,7 @@ SET search_path=pg_catalog,sophia AS $$
  SELECT EXISTS(SELECT FROM sophia.personal_companion_payers WHERE payer=p_payer) $$;
 
 -- Reserve `p_micros` for the caller's call `p_call` on `p_payer`, before the provider is asked: 'reserved', or why
--- nothing may be asked ('not_admitted', 'held' while a call of the payer is uncertain, 'exhausted', 'not_current' for a
+-- nothing may be asked ('not_admitted', 'held' while a call of the payer is unresolved, 'exhausted', 'not_current' for a
 -- call from before an erasure or not begun). A call reserves once.
 CREATE FUNCTION sophia.reserve_personal_companion(p_call uuid, p_payer text, p_route text, p_micros bigint)
 RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
@@ -73,7 +79,9 @@ BEGIN
  IF EXISTS(SELECT FROM sophia.personal_companion_usage WHERE call_id=p_call) THEN
   RAISE EXCEPTION 'This call already reserved' USING ERRCODE='23505';
  END IF;
- IF EXISTS(SELECT FROM sophia.personal_companion_usage WHERE payer=p_payer AND state='uncertain') THEN RETURN 'held'; END IF;
+ IF EXISTS(SELECT FROM sophia.personal_companion_usage WHERE payer=p_payer AND state IN ('reserved','uncertain')) THEN
+  RETURN 'held';
+ END IF;
  SELECT coalesce(sum(CASE state WHEN 'settled' THEN used_micros WHEN 'released' THEN 0 ELSE reserved_micros END),0)
   INTO spent FROM sophia.personal_companion_usage WHERE payer=p_payer;
  IF spent+p_micros>allowance THEN RETURN 'exhausted'; END IF;
@@ -86,10 +94,14 @@ END $$;
 -- off, or reported none), or released (the provider was never asked). Each happens once; true if it did here.
 CREATE FUNCTION sophia.settle_personal_companion(p_call uuid, p_used bigint, p_usage jsonb) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE pp text;
 BEGIN
  IF p_used IS NULL OR p_used<0 OR NOT sophia.personal_companion_counts(p_usage) THEN
   RAISE EXCEPTION 'A settlement is a used amount and the reported token counts' USING ERRCODE='22023';
  END IF;
+ SELECT payer INTO pp FROM sophia.personal_companion_usage WHERE call_id=p_call;
+ IF NOT FOUND THEN RETURN false; END IF;
+ PERFORM FROM sophia.personal_companion_payers WHERE payer=pp FOR UPDATE;
  UPDATE sophia.personal_companion_usage SET state='settled', used_micros=p_used, usage=p_usage, settled_at=now()
   WHERE call_id=p_call AND owner_id=sophia.personal_owner() AND state='reserved';
  RETURN FOUND;
@@ -97,7 +109,11 @@ END $$;
 
 CREATE FUNCTION sophia.hold_personal_companion(p_call uuid, p_reason text) RETURNS boolean LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE pp text;
 BEGIN
+ SELECT payer INTO pp FROM sophia.personal_companion_usage WHERE call_id=p_call;
+ IF NOT FOUND THEN RETURN false; END IF;
+ PERFORM FROM sophia.personal_companion_payers WHERE payer=pp FOR UPDATE;
  UPDATE sophia.personal_companion_usage SET state='uncertain', reason=p_reason, settled_at=now()
   WHERE call_id=p_call AND owner_id=sophia.personal_owner() AND state='reserved';
  RETURN FOUND;
@@ -105,22 +121,32 @@ END $$;
 
 CREATE FUNCTION sophia.release_personal_companion(p_call uuid, p_reason text) RETURNS boolean LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE pp text;
 BEGIN
+ SELECT payer INTO pp FROM sophia.personal_companion_usage WHERE call_id=p_call;
+ IF NOT FOUND THEN RETURN false; END IF;
+ PERFORM FROM sophia.personal_companion_payers WHERE payer=pp FOR UPDATE;
  UPDATE sophia.personal_companion_usage SET state='released', reason=p_reason, settled_at=now()
   WHERE call_id=p_call AND owner_id=sophia.personal_owner() AND state='reserved';
  RETURN FOUND;
 END $$;
 
--- An operator settles an uncertain call from the provider's own record (no API or worker grant): the payer's next
--- call may then be asked, if its allowance still fits.
+-- An operator settles an unresolved call from the provider's own record (no API or worker grant): an uncertain one,
+-- or a reserved one whose call is no longer registered (its runner is gone; a registered call is still its runner's).
+-- The payer's next call may then be asked, if its allowance still fits. Once only.
 CREATE FUNCTION sophia.reconcile_personal_companion(p_call uuid, p_used bigint, p_usage jsonb) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE pp text;
 BEGIN
  IF p_used IS NULL OR p_used<0 OR NOT sophia.personal_companion_counts(p_usage) THEN
   RAISE EXCEPTION 'A settlement is a used amount and the reported token counts' USING ERRCODE='22023';
  END IF;
+ SELECT payer INTO pp FROM sophia.personal_companion_usage WHERE call_id=p_call;
+ IF NOT FOUND THEN RETURN false; END IF;
+ PERFORM FROM sophia.personal_companion_payers WHERE payer=pp FOR UPDATE;
  UPDATE sophia.personal_companion_usage SET state='settled', used_micros=p_used, usage=p_usage, settled_at=now()
-  WHERE call_id=p_call AND state='uncertain';
+  WHERE call_id=p_call AND (state='uncertain' OR (state='reserved'
+   AND NOT EXISTS(SELECT FROM sophia.personal_companion_calls c WHERE c.call_id=p_call)));
  RETURN FOUND;
 END $$;
 
