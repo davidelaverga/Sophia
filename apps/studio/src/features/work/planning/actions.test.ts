@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { boundaries, notOffered, offered, targetOf, writable } from './actions.ts'
+import { boundaries, notOffered, offered, sheetKeys, targetOf, writable } from './actions.ts'
 import { assignment, goal, item, plan, view } from './board-samples.ts'
 import type { ItemAction, ItemView } from './board-view.ts'
 import { askBlocked } from './ask.ts'
@@ -140,5 +140,38 @@ describe('what a task’s sheet offers to send (G3)', () => {
       session_id: 's-build',
     })
     assert.equal(targetOf(rowOf({ assignment: null }), 'project-1'), null)
+  })
+})
+
+describe('the sheet’s keys beside their presses (informe-25 DL-12)', () => {
+  const port = { project: 'project-1', canSend: true }
+  const all = [allowed('hold'), allowed('resume'), allowed('stop')]
+  it('names H and S while Hold (or Resume) and Stop are drawn', () => {
+    assert.deepEqual(sheetKeys(rowOf({ available_actions: all }), port), { hold: true, stop: true })
+    assert.deepEqual(sheetKeys(rowOf({ lifecycle: 'held', available_actions: all }), port), { hold: true, stop: true })
+    assert.deepEqual(sheetKeys(rowOf({ available_actions: [allowed('stop')] }), port), { hold: false, stop: true })
+    assert.deepEqual(
+      sheetKeys(rowOf({ lifecycle: 'held', available_actions: [allowed('hold'), allowed('stop')] }), port),
+      {
+        hold: false,
+        stop: true,
+      },
+    )
+  })
+
+  it('names neither when nothing is pressable: denied, a question only, no port, no target, no acts', () => {
+    const none = { hold: false, stop: false }
+    assert.deepEqual(
+      sheetKeys(rowOf({ available_actions: [denied('hold', 'No.'), denied('stop', 'No.')] }), port),
+      none,
+    )
+    assert.deepEqual(sheetKeys(rowOf({ available_actions: [allowed('ask_sophia')] }), port), none)
+    assert.deepEqual(sheetKeys(rowOf({ available_actions: [allowed('guidance')] }), port), none)
+    assert.deepEqual(sheetKeys(rowOf({ available_actions: all }), { ...port, canSend: false }), none)
+    assert.deepEqual(sheetKeys(rowOf({ available_actions: all }), undefined), none)
+    // Offered, but with no assignment there is no target: TaskActions draws no press (the target clause on its own).
+    const untargeted = rowOf({ lifecycle: 'planned', assignment: null, available_actions: all })
+    assert.ok(offered(untargeted).length > 0)
+    assert.deepEqual(sheetKeys(untargeted, port), none)
   })
 })
