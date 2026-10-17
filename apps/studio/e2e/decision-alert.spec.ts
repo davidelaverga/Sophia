@@ -78,7 +78,7 @@ test('decisions · a decision waiting on you counts in the tab, and goes once an
   const ask = page.getByRole('region', { name: 'Davide decides' }).first()
   await ask.getByRole('group', { name: 'Your choice' }).getByRole('button', { name: 'Ship it now' }).click()
   await expect(ask.getByRole('status')).toContainText('Your choice is recorded')
-  await page.evaluate(() => window.workFixture?.settle('d1'))
+  await page.evaluate(() => window.workFixture?.settle?.('d1'))
   await expect(page).toHaveTitle(QUIET)
 })
 
@@ -151,7 +151,11 @@ test('decisions · the last look moves on: an answered one leaving notifies noth
   await expect(page).toHaveTitle(ONE)
   await arrives(page, 'davide')
   await expect.poll(async () => (await notified(page)).length).toBe(1)
-  await page.evaluate(() => window.workFixture?.settle('d1'))
+  // d1 answered and settled: its leaving changes the look, and is no news.
+  const ask = page.getByRole('region', { name: 'Davide decides' }).first()
+  await ask.getByRole('group', { name: 'Your choice' }).getByRole('button', { name: 'Ship it now' }).click()
+  await expect(ask.getByRole('status')).toContainText('Your choice is recorded')
+  await page.evaluate(() => window.workFixture?.settle?.('d1'))
   await expect(page).toHaveTitle(ONE)
   await page.waitForTimeout(300)
   expect(await notified(page)).toHaveLength(1)

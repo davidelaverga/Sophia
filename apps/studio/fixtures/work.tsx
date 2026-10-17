@@ -100,6 +100,7 @@ import type { Ask, Question } from '../src/features/work/planning/ask.ts'
 import type { Reviewed } from '../src/features/work/planning/review.ts'
 import { bootTheme } from '../src/app/theme.ts'
 import { ADDRESS_MOVED } from '../src/app/route.ts'
+import { openDecisions } from '../src/features/work/planning/decision-alert.ts'
 
 declare global {
   interface Window {
@@ -838,6 +839,7 @@ function slot(g: GoalView, shared: Shared, onCommand: SendCommand | undefined) {
     tasks: rows.map((r) => r.item.id),
     decisions: g.decisions.map((d) => d.decision_id),
     attention: (shown?.operable ?? false) && forYou(rows, g.decisions, viewerId, now),
+    toDecide: openDecisions(g.decisions, viewerId, now),
     ...glancedOf(g, rows, shown?.operable ?? false, viewerId, now),
   }
 }

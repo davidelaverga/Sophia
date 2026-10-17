@@ -14,6 +14,7 @@ import { answers, SearchQuery, TaskSearch } from './TaskSearch.tsx'
 import { GoalsOverview } from './GoalsOverview.tsx'
 import type { GoalGlance } from './goals-glance.ts'
 import type { Ask } from './planning/plan.ts'
+import type { OpenDecision } from './planning/decision-alert.ts'
 
 /** A goal's plan from the lead: its view, and the few marks that stand for it in the goals' rail. */
 export interface GoalPlan {
@@ -29,6 +30,11 @@ export interface GoalPlan {
   decisions?: readonly string[]
   /** Whether something in it waits on the viewer: another goal's board then links to it, without switching to it. */
   attention?: boolean
+  /**
+   * The decisions in it waiting on the viewer, a proposed plan's included: counted in the tab and heard while it is
+   * hidden (decision-alert.md).
+   */
+  toDecide?: readonly OpenDecision[]
   /** Goals: its tasks' lanes, who is on it and what is in its way (`glanceOf`, goals-overview.md). */
   glance?: GoalGlance
   /** Goals: its plan's next checkpoint, in words. */
