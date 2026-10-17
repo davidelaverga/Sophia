@@ -268,6 +268,15 @@ of its own, and could hold its backend until near 38 s, long after the API had r
 - `pnpm check` passes: units 2990 passed, 0 failed, 70 skipped; integration 108 passed, 2 skipped. The artifacts
   reproduce C1's unchanged (`e956becc`, lock `b868da08`, darwin dsh `e24cb887`).
 
+**The real LiveKit job on `85a6db00` (FND-B-C1-LIVEKIT-CONTRACT-FOCUSED-02).** CI's media-bridge job (check 117354277610)
+failed 1 of 6: the screen share stopped again expected `true`. That expectation is main's older contract, kept when
+main's screen case came in with `21516687`. C1's own muteSources returns true only when it muted a track, so a repeated
+or retried act that changes nothing is not recorded (Codex P2 on #385). The microphone case already expected `false`.
+- The test now expects `false` for the repeated stop, and checks that both screen tracks are still muted.
+- The first stop's assertions are unchanged: both tracks muted on the server, and the sharer's client told. So are
+  the other cases. No API code changed.
+- Locally the LiveKit suite is skipped (no server here); its real run is that CI job on the next pushed head.
+
 
 ## Remaining obligations
 
