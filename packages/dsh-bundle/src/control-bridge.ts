@@ -54,7 +54,7 @@ import { foldLog, Journal, strongestFence } from './session-events.js'
 import type { CommandEntry, DeliveryTarget, ExecutionIdentity, FenceState, StashedMessage } from './session-events.js'
 import { ServiceTransport, TransportError } from './transport.js'
 import type { HelloReply, Observation, ServiceBinding, UnrecoveredBinding } from './transport.js'
-import type { ResearchReserveRequest, RuntimeCommandBatch } from './runtime-wire-types.generated.js'
+import type { ResearchReserveRequest, RuntimeCommandBatch, RuntimeRole } from './runtime-wire-types.generated.js'
 
 /** One model route: the provider route, the model and the reasoning effort (null: the model's default). */
 export type RouteSpec = ExecutionIdentity['route']
@@ -156,9 +156,17 @@ function validServiceSettings(value: ReplyServiceSettings | null, log: (line: st
   }
 }
 
-/** The conversation role a service-mode runtime advertises: the server dispatches replies only on its route. */
-function serviceRole(settings: ReplyServiceSettings): { id: string; route: string; presetDigest: string } {
-  return { id: SERVICE_ROLE, route: settings.routeId, presetDigest: SERVICE_ROLE_DIGEST }
+/**
+ * The conversation role a service-mode runtime advertises: the server dispatches replies only on its route, and only
+ * for a grant pinned to the executor it names (A40): this bridge's configured, running service tuple.
+ */
+function serviceRole(settings: ReplyServiceSettings): RuntimeRole {
+  return {
+    id: SERVICE_ROLE,
+    route: settings.routeId,
+    presetDigest: SERVICE_ROLE_DIGEST,
+    executor: { execution: 'service', routeId: settings.routeId, executorArtifactDigest: settings.executorArtifactDigest },
+  }
 }
 
 /** Readiness as reported to the Sophia service and to the startup log. */
@@ -497,8 +505,8 @@ export class ControlBridge {
    * route. The preset registry loads its definitions while the bridge connects, so each preset gets a bounded wait to
    * become resolvable; a role whose preset still cannot be activated is not advertised.
    */
-  private async advertisedRoles(): Promise<Array<{ id: string; route: string; presetDigest: string }>> {
-    const roles: Array<{ id: string; route: string; presetDigest: string }> = []
+  private async advertisedRoles(): Promise<RuntimeRole[]> {
+    const roles: RuntimeRole[] = []
     if (this.replyServiceSettings) roles.push(serviceRole(this.replyServiceSettings))
     for (const [roleId, routeId] of Object.entries(this.settings.roleRoutes).sort(([a], [b]) => a.localeCompare(b))) {
       const role = roleOf(roleId)

@@ -15,7 +15,7 @@
 import { createHash } from 'node:crypto'
 import type { GenerateOptions, LlmCallConfig, ReasoningEffortId, StreamChunk, TokenUsage } from '@deepseek-ai/dsh-llm'
 import type { RoutePrices } from './control-bridge.js'
-import { ReplyDelivery, ReplySettlements, type ReplySettlementPolicy } from './reply-child.js'
+import { ReplyDelivery, ReplySettlements, type ReplySettlementPolicy, type ReplyStopClock } from './reply-child.js'
 import { TransportError } from './transport.js'
 import { wire } from './runtime-wire.generated.js'
 import type {
@@ -257,6 +257,21 @@ interface Owned {
   drained: Promise<void>
 }
 
+/**
+ * What every admitted call leaves inside its reply's one deadline for the settlement and delivery tail: settling its
+ * usage, then observing its answer and turn end (#393 discussion 4302482622). The call is bounded so this tail remains;
+ * the tail is the delivery deadline's existing 30 s, not an extension of it.
+ */
+export const REPLY_TAIL_MS = 30_000
+
+const monotonicClock: ReplyStopClock = {
+  now: () => performance.now(),
+  after: (milliseconds, callback) => {
+    const timer = setTimeout(callback, milliseconds)
+    return () => clearTimeout(timer)
+  },
+}
+
 export class ReplyServiceExecutor {
   private readonly settings: ReplyServiceSettings
   private readonly tuple: ServiceTuple
@@ -276,6 +291,8 @@ export class ReplyServiceExecutor {
      * and sent until the service acknowledges it, because the command cursor has already moved past its command.
      */
     private readonly retain: (receipt: RuntimeReceipt) => void = () => {},
+    /** The reply's clock: one deadline for the call and its tail, on one clock (tests drive a virtual one). */
+    private readonly clock: ReplyStopClock = monotonicClock,
   ) {
     this.settings = serviceSettings(settings)
     this.tuple = Object.freeze({
@@ -285,9 +302,12 @@ export class ReplyServiceExecutor {
     })
   }
 
-  /** The role advertised at hello: the server dispatches a reply only to a runtime offering it on the grant's route. */
-  role(): { id: string; route: string; presetDigest: string } {
-    return { id: SERVICE_ROLE, route: this.settings.routeId, presetDigest: SERVICE_ROLE_DIGEST }
+  /**
+   * The role advertised at hello: the server dispatches a reply only to a runtime offering it on the grant's route,
+   * with this executor's exact tuple (A40).
+   */
+  role(): { id: string; route: string; presetDigest: string; executor: ServiceTuple } {
+    return { id: SERVICE_ROLE, route: this.settings.routeId, presetDigest: SERVICE_ROLE_DIGEST, executor: this.tuple }
   }
 
   /**
@@ -397,11 +417,21 @@ export class ReplyServiceExecutor {
     if (!(await this.admit(command, stopped))) return
     const { text, conversation } = command.payload
     const unit = conversation.unit
-    const policy = { ...this.settings.retry, deadlineAt: performance.now() + this.settings.deadlineMs + 30_000 }
-    const delivery = new ReplyDelivery(command, this.owner.leaseId, policy, {
-      observations: (values, signal) => this.transport.observations(values, signal),
-      conversationReserve: (body, signal) => this.transport.conversationReserve(body, signal),
-    })
+    // One finite plan for the whole reply: the call, then its settlement and delivery tail, inside one deadline that no
+    // stage resets. The call may use what remains of it less the tail (REPLY_TAIL_MS), and never more than deadlineMs.
+    const deadlineAt = this.clock.now() + this.settings.deadlineMs + REPLY_TAIL_MS
+    const callBudget = (): number => Math.min(this.settings.deadlineMs, deadlineAt - REPLY_TAIL_MS - this.clock.now())
+    const policy = { ...this.settings.retry, deadlineAt }
+    const delivery = new ReplyDelivery(
+      command,
+      this.owner.leaseId,
+      policy,
+      {
+        observations: (values, signal) => this.transport.observations(values, signal),
+        conversationReserve: (body, signal) => this.transport.conversationReserve(body, signal),
+      },
+      this.clock,
+    )
     const next = this.sequence(command)
     const failed = async (reason: string): Promise<void> => {
       if (!stopped.aborted) await this.post(command, 'failed', reason, { session: true })
@@ -416,12 +446,23 @@ export class ReplyServiceExecutor {
     // refused here, before anything is reserved.
     const prepared = await this.prepare(this.bounded(stopped))
     if (prepared === null) return failed('call_unprepared')
+    // No time left for a call and its tail: nothing is reserved or called.
+    if (callBudget() <= 0) return failed('call_deadline')
     const reserved = await delivery.reserve({ t: 'reserve', n: 1, ...reservationOf(text, unit, this.settings) }, stopped)
     // Nothing was called. A refused reservation ends the turn; an unconfirmed one may exist, and stays counted.
     if (!reserved.allowed) return failed(reserved.code ?? 'reserve_refused')
-    const callSignal = AbortSignal.any([stopped, AbortSignal.timeout(this.settings.deadlineMs)])
-    const result = await this.call(prepared, text, callSignal)
-    await this.finish(command, { delivery, next, result, unit }, stopped)
+    // Checked again after the reservation: with no budget left, no call starts, and the reservation stays counted.
+    const budget = callBudget()
+    if (budget <= 0) return failed('call_deadline')
+    const timeout = new AbortController()
+    const cancel = this.clock.after(budget, () => timeout.abort())
+    let result: CallResult
+    try {
+      result = await this.call(prepared, text, AbortSignal.any([stopped, timeout.signal]))
+    } finally {
+      cancel()
+    }
+    await this.finish(command, { delivery, next, result, unit, deadlineAt }, stopped)
   }
 
   private async prepare(signal: AbortSignal): Promise<Prepared | null> {
@@ -478,15 +519,21 @@ export class ReplyServiceExecutor {
    */
   private async finish(
     command: CreateCommand,
-    step: { delivery: ReplyDelivery; next: ReturnType<ReplyServiceExecutor['sequence']>; result: CallResult; unit: Unit },
+    step: {
+      delivery: ReplyDelivery
+      next: ReturnType<ReplyServiceExecutor['sequence']>
+      result: CallResult
+      unit: Unit
+      deadlineAt: number
+    },
     stopped: AbortSignal,
   ): Promise<void> {
-    const { delivery, next, result, unit } = step
+    const { delivery, next, result, unit, deadlineAt } = step
     // Usage is evidence only from a response the provider completed: an error or an abort may report counts the
     // adapter made up (a refused 429 reports zeros), so its reservation stays uncertain rather than settled from them.
     const completed = result.finish === 'stop' || result.finish === 'max-tokens' || result.finish === 'tool-calls'
     const used = completed && !result.ambiguousUsage ? usedOf(result.usage, unit, this.settings.prices) : null
-    const settled = used !== null && (await this.settle(command, used)) === 'settled'
+    const settled = used !== null && (await this.settle(command, used, deadlineAt)) === 'settled'
     if (stopped.aborted) return
     if (used === null || !settled) {
       const reason =
@@ -523,9 +570,13 @@ export class ReplyServiceExecutor {
     }
   }
 
-  private async settle(command: CreateCommand, used: ServiceUsed): Promise<'settled' | 'settle_unknown'> {
+  private async settle(command: CreateCommand, used: ServiceUsed, replyDeadlineAt: number): Promise<'settled' | 'settle_unknown'> {
     const { requestWaitMs, retryWaitMs, maxAttempts } = this.settings.retry
-    const deadlineAt = performance.now() + Math.min(120_000, (requestWaitMs + retryWaitMs) * maxAttempts)
+    // Within the reply's one deadline: the settlement shares the tail with the answer, it does not start a fresh one.
+    const deadlineAt = Math.min(
+      this.clock.now() + Math.min(120_000, (requestWaitMs + retryWaitMs) * maxAttempts),
+      replyDeadlineAt,
+    )
     let settlements: ReplySettlements | null = null
     try {
       settlements = new ReplySettlements(
@@ -533,6 +584,7 @@ export class ReplyServiceExecutor {
         { replyId: command.binding.conversationReplyId, unit: command.payload.conversation.unit },
         { ...this.settings.retry, deadlineAt },
         (body, signal) => this.transport.conversationSettle(body, signal),
+        this.clock,
       )
       const totals = { calls: 1 as const, tokens: used.tokens, priceMicros: used.priceMicros }
       return await settlements.settle({ t: 'settle', n: 1, outcome: 'settled', used: totals, usage: { ...used.usage } })

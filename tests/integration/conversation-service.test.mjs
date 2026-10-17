@@ -204,6 +204,18 @@ describe('conversation service crossing (real dsh service executor, API, worker,
         assert.ok(attempt, 'the Ask admits one reply-owned attempt')
         return { conversationId, messageId: sent.json.message.id, replyId, ...attempt }
       },
+      /** An Ask no runtime here can serve (A40): refused at once, with nothing admitted. */
+      async askRefused(text = `Please summarize. ${CONTEXT_CANARY}`) {
+        const started = await api(E, 'POST', `/api/v1/projects/${projectId}/conversations`, { title: 'Crossing', text: 'Opening note.', askSophia: false })
+        assert.equal(started.status, 202, JSON.stringify(started.json))
+        const sent = await api(E, 'POST', `/api/v1/conversations/${started.json.conversation.id}/messages`, { text, askSophia: true })
+        assert.equal(sent.status, 202, JSON.stringify(sent.json))
+        const replyId = sent.json.reply.id
+        const [admitted] = await owner(
+          `SELECT (SELECT count(*)::int FROM sophia.work_attempts WHERE conversation_reply_id=$1) AS attempts,
+             (SELECT count(*)::int FROM sophia.outbox WHERE conversation_reply_id=$1) AS outbox`, [replyId])
+        return { replyId, reply: sent.json.reply, admitted }
+      },
       reply: async (r) => (await owner('SELECT state,reason,answer_id FROM sophia.conversation_replies WHERE id=$1', [r.replyId]))[0],
       reservations: async (r) => owner(
         'SELECT call_ordinal,state,amount_calls,amount_tokens,used_calls,used_tokens FROM sophia.conversation_reservations WHERE reply_id=$1 ORDER BY call_ordinal', [r.replyId]),
@@ -243,6 +255,10 @@ describe('conversation service crossing (real dsh service executor, API, worker,
     w.llm.script({ text: `The summary. ${ANSWER_CANARY}`, usage: { input_tokens: 900, output_tokens: 40 } })
     await w.start()
     assert.match(w.stderr(), /readiness=ready/)
+    // A40: the real bridge's hello named its configured executor with the conversation role, and the server kept it.
+    const [stored] = await owner('SELECT roles FROM sophia.runtime_instances WHERE project_id=$1', [w.projectId])
+    assert.deepEqual(stored.roles.find((role) => role.id === 'sophia-conversation-v1')?.executor,
+      { execution: 'service', routeId: ROUTE, executorArtifactDigest: DIGEST })
     const other = await api(E, 'POST', `/api/v1/projects/${w.projectId}/conversations`, { title: 'Elsewhere', text: `Another thread. ${OTHER_CANARY}`, askSophia: false })
     assert.equal(other.status, 202)
     const r = await w.ask()
@@ -305,24 +321,24 @@ describe('conversation service crossing (real dsh service executor, API, worker,
     })
   }
 
-  test('wrong scope: a grant pinned to another executor artifact dispatches nothing to the provider', async (t) => {
+  // A40: the runtime advertises the executor it runs, so a grant it cannot execute is refused at the Ask, before any
+  // attempt, binding or create (it used to be bound, dispatched and refused by the executor: reply_executor_mismatch).
+  test('wrong scope: a grant pinned to another executor artifact is refused at the Ask; nothing reaches a runtime or the provider', async (t) => {
     const w = await world(t, { pin: OTHER_DIGEST })
     await w.start()
-    const r = await w.ask()
-    await w.until(async () => (await w.reply(r)).state === 'failed', 'the refused reply')
-    assert.equal((await w.reply(r)).reason, 'runtime_rejected')
-    assert.equal(await w.claims(r), 0, 'never claimed')
+    const r = await w.askRefused()
+    assert.deepEqual([r.reply.state, r.reply.reason], ['blocked', 'runtime_unavailable'])
+    assert.deepEqual(r.admitted, { attempts: 0, outbox: 0 })
     assert.deepEqual(await w.reservations(r), [])
     assert.equal(w.llm.requests.length, 0, 'zero provider requests')
-    assert.deepEqual((await w.stages(r)).map((s) => `${s.kind}:${s.stage}:${s.reason ?? ''}`).slice(0, 1), ['create:rejected:reply_executor_mismatch'])
   })
 
-  test('an unpinned (native) lineage is not served by the service executor either', async (t) => {
+  test('an unpinned (native) lineage is not served by the service executor either: refused at the Ask', async (t) => {
     const w = await world(t, { pin: null })
     await w.start()
-    const r = await w.ask()
-    await w.until(async () => (await w.reply(r)).state === 'failed', 'the refused reply')
-    assert.equal(await w.claims(r), 0)
+    const r = await w.askRefused()
+    assert.deepEqual([r.reply.state, r.reply.reason], ['blocked', 'runtime_unavailable'])
+    assert.deepEqual(r.admitted, { attempts: 0, outbox: 0 })
     assert.equal(w.llm.requests.length, 0)
   })
 
@@ -414,15 +430,14 @@ describe('conversation service crossing (real dsh service executor, API, worker,
     assert.equal(await w.creates(r), 1)
   })
 
-  test('a restarted runtime under another artifact digest adopts nothing and answers no retire', async (t) => {
+  test('a runtime under another artifact digest is never chosen: the Ask is refused, nothing is bound or sent', async (t) => {
     const w = await world(t, { runtimeDigest: OTHER_DIGEST })
-    // Pinned to DIGEST, run under OTHER_DIGEST: the create is refused before claim; its retire is left unanswered.
+    // Pinned to DIGEST, run under OTHER_DIGEST, which its hello now names (A40). Adoption across a restart stays the
+    // restart cases'; here no attempt is ever bound to a runtime that could not run it.
     await w.start()
-    const r = await w.ask()
-    await w.until(async () => (await w.reply(r)).state === 'failed', 'the refused reply')
-    await sleep(3000)
-    assert.notEqual(await w.binding(r), 'retired', 'the cleanup obligation stays')
-    assert.equal((await w.stages(r)).filter((s) => s.kind === 'retire').length, 0)
+    const r = await w.askRefused()
+    assert.deepEqual([r.reply.state, r.reply.reason], ['blocked', 'runtime_unavailable'])
+    assert.deepEqual(r.admitted, { attempts: 0, outbox: 0 })
     assert.equal(w.llm.requests.length, 0)
   })
 })

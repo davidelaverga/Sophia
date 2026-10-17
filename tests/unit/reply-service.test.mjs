@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { setTimeout as sleep } from 'node:timers/promises'
 import {
+  REPLY_TAIL_MS,
   ReplyServiceExecutor,
   SERVICE_ROLE,
   SERVICE_ROLE_DIGEST,
@@ -194,9 +195,9 @@ describe('ReplyServiceExecutor (CON-01 B2)', () => {
     assert.equal(llm.streamed.length, 1)
   })
 
-  test('the role advertised names the fixed instruction and the route', () => {
+  test('the role advertised names the fixed instruction, the route and this executor (A40)', () => {
     const { executor } = scene()
-    assert.deepEqual(executor.role(), { id: SERVICE_ROLE, route: ROUTE, presetDigest: SERVICE_ROLE_DIGEST })
+    assert.deepEqual(executor.role(), { id: SERVICE_ROLE, route: ROUTE, presetDigest: SERVICE_ROLE_DIGEST, executor: TUPLE })
     assert.match(SERVICE_ROLE_DIGEST, /^sha256:[0-9a-f]{64}$/)
   })
 
@@ -535,5 +536,158 @@ describe('service settings and accounting', () => {
     await until(() => kinds(s.transport).includes('obs:turn/end'), 'turn end')
     const settle = s.transport.calls.find(([kind]) => kind === 'settle')[1]
     assert.deepEqual(settle.used, { calls: 1, tokens: 0, priceMicros: Math.ceil(120 * 0.1 + 30 * 0.5 + 10 * 0.01) })
+  })
+})
+
+/**
+ * #393 discussion 4302482622: one finite plan per reply on one clock. A virtual clock (the ReplyStopClock seam) runs
+ * the production bounds (each request 10 s, 3 attempts, the call 120 s; the reply's deadline the call plus
+ * REPLY_TAIL_MS). Scripted stages advance the clock and nothing waits for real. A slow opening is scripted as slow
+ * preparation, which no per-request timer bounds; the opening's own observations are bounded by their requests.
+ */
+function virtualClock() {
+  let now = 1_000
+  const timers = []
+  return {
+    now: () => now,
+    after(ms, callback) {
+      const timer = { at: now + Math.max(0, ms), callback, done: false }
+      timers.push(timer)
+      return () => {
+        timer.done = true
+      }
+    },
+    advance(ms) {
+      now += ms
+      for (const timer of [...timers].sort((a, b) => a.at - b.at)) {
+        if (!timer.done && timer.at <= now) {
+          timer.done = true
+          timer.callback()
+        }
+      }
+    },
+  }
+}
+const PRODUCTION = { ...SETTINGS, retry: { requestWaitMs: 10_000, retryWaitMs: 1_000, maxAttempts: 3 }, deadlineMs: 120_000 }
+
+function slowScene({ prepare = 0, reserve = 0, call = 0, settle = 0, settleFails = false, usage = true } = {}) {
+  const clock = virtualClock()
+  const command = createCommand()
+  const transport = scriptedTransport({
+    replyId: command.binding.conversationReplyId,
+    reserve: (body) => {
+      clock.advance(reserve)
+      return {
+        replyId: command.binding.conversationReplyId, ordinal: body.ordinal, state: 'reserved', lineageId: uuid(), grantRevision: 1,
+        unit: body.call.unit, amount: { calls: 1, tokens: body.call.tokens, priceMicros: body.call.priceMicros }, used: null,
+      }
+    },
+    settle: (body) => {
+      clock.advance(settle)
+      if (settleFails) throw new Error('settle not confirmed')
+      return { replyId: command.binding.conversationReplyId, ordinal: body.ordinal, state: 'settled', lineageId: uuid(), grantRevision: 1,
+        unit: 'calls_tokens', amount: { calls: 1, tokens: body.used.tokens, priceMicros: 0 }, used: body.used }
+    },
+  })
+  const llm = scriptedLlm({
+    prepare: (config) => {
+      clock.advance(prepare)
+      return {
+        config,
+        stream(options) {
+          llm.streamed.push(options)
+          return (async function* () {
+            clock.advance(call)
+            if (options.signal.aborted) throw new Error('aborted')
+            yield { type: 'text-delta', index: 0, text: ANSWER }
+            if (usage) yield { type: 'usage', usage: USAGE }
+            yield { type: 'finish', reason: { kind: 'stop' } }
+          })()
+        },
+      }
+    },
+  })
+  const executor = new ReplyServiceExecutor(OWNER, PRODUCTION, llm, transport, () => {}, () => {}, clock)
+  return { command, transport, llm, executor, clock }
+}
+const ended = (transport) => kinds(transport).some((k) => k === 'obs:turn/end' || k.startsWith('receipt:failed'))
+const count = (transport, kind) => transport.calls.filter(([k]) => k === kind).length
+
+describe('one finite call, settlement and delivery plan (#393 discussion 4302482622)', () => {
+  test('a slow opening and a call that fits what remains: settled and published once, inside the one deadline', async () => {
+    const s = slowScene({ prepare: 42_000, call: 70_000 })
+    s.executor.execute(s.command)
+    await until(() => ended(s.transport), 'the end')
+    assert.deepEqual(kinds(s.transport), [
+      'claim', 'go', 'receipt:delivered', 'obs:turn/start', 'obs:user/message', 'reserve', 'settle', 'obs:assistant/message', 'obs:turn/end',
+    ])
+    assert.equal(s.llm.streamed.length, 1)
+  })
+
+  test('the witness: 42 s before the call, then a call that would end past the deadline, is cut where the tail begins', async () => {
+    // Unbounded by what remained, this call settled at 161 s of a 150 s deadline and its answer failed (BEFORE log).
+    const s = slowScene({ prepare: 42_000, call: 119_000 })
+    s.executor.execute(s.command)
+    await until(() => ended(s.transport), 'the end')
+    const k = kinds(s.transport)
+    assert.deepEqual(k.slice(-1), ['receipt:failed:call_deadline'])
+    assert.ok(!k.includes('settle'), 'aborted: its usage is not evidence; the reservation stays counted (uncertain)')
+    assert.ok(!k.includes('obs:assistant/message'), 'no answer')
+    assert.equal(s.llm.streamed.length, 1, 'one call, no retry')
+    assert.equal(count(s.transport, 'reserve'), 1, 'one reservation')
+    assert.equal(s.llm.streamed[0].signal.aborted, true, 'its signal ended at 42 s + 78 s = 120 s, the tail\'s start')
+  })
+
+  test('no budget left before the call: nothing reserved, nothing called', async () => {
+    const s = slowScene({ prepare: 125_000 })
+    s.executor.execute(s.command)
+    await until(() => ended(s.transport), 'the end')
+    assert.deepEqual(kinds(s.transport).slice(-1), ['receipt:failed:call_deadline'])
+    assert.equal(count(s.transport, 'reserve'), 0)
+    assert.equal(s.llm.streamed.length, 0, 'zero provider calls')
+  })
+
+  test('no budget left after a slow reservation: no call; the reservation stays counted', async () => {
+    const s = slowScene({ prepare: 112_000, reserve: 9_000 })
+    s.executor.execute(s.command)
+    await until(() => ended(s.transport), 'the end')
+    const k = kinds(s.transport)
+    assert.deepEqual(k.slice(-2), ['reserve', 'receipt:failed:call_deadline'])
+    assert.ok(!k.includes('settle'), 'no synthetic zero, no release')
+    assert.equal(s.llm.streamed.length, 0, 'zero provider calls')
+  })
+
+  test('the tail is the deadline\'s: a settlement that uses part of it still leaves the answer room', async () => {
+    const s = slowScene({ prepare: 42_000, call: 77_999, settle: 9_000 })
+    s.executor.execute(s.command)
+    await until(() => ended(s.transport), 'the end')
+    assert.deepEqual(kinds(s.transport).slice(-3), ['settle', 'obs:assistant/message', 'obs:turn/end'])
+  })
+
+  test('a settlement never runs past the reply\'s deadline: unconfirmed by then, it fails, and no answer follows', async () => {
+    // Each settle attempt takes its full 10 s and fails; three of them and their backoffs would end at 32 s of a 30 s tail.
+    const s = slowScene({ call: 119_999, settle: 10_000, settleFails: true })
+    s.executor.execute(s.command)
+    // Virtual time passes while the settlement backs off between attempts (nothing else would advance it).
+    const pump = setInterval(() => s.clock.advance(250), 1)
+    try {
+      await until(() => ended(s.transport), 'the end')
+    } finally {
+      clearInterval(pump)
+    }
+    assert.ok(count(s.transport, 'settle') <= 3, 'at most its bounded attempts')
+    const k = kinds(s.transport)
+    assert.deepEqual(k.slice(-1), ['receipt:failed:settle_unconfirmed'])
+    assert.ok(!k.includes('obs:assistant/message'))
+    assert.equal(s.llm.streamed.length, 1)
+  })
+
+  test('unknown usage from a call that fits is still never settled as zero', async () => {
+    const s = slowScene({ prepare: 42_000, call: 10_000, usage: false })
+    s.executor.execute(s.command)
+    await until(() => ended(s.transport), 'the end')
+    const k = kinds(s.transport)
+    assert.deepEqual(k.slice(-1), ['receipt:failed:usage_unknown'])
+    assert.ok(!k.includes('settle'))
   })
 })

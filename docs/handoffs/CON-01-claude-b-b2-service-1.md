@@ -292,6 +292,66 @@ correction (R accepted `ce82b18b`; R-BB-3E76-1 closed) reached this line through
   deadline comes first. It does not explain the original failure.
 - C1's own check on its new head passed; this composition's check is in B's handback.
 
+## Two P1s on `2017330d`, and the PostgreSQL 16 fixture (FND-B2-TWO-P1-FOCUSED-REPAIR-01)
+
+R found both of #393's new P1s valid, and found CI's PostgreSQL 16 failure to be a fixture authenticating without a
+password. Each was reproduced on unmodified `2017330d` before any change (B's logs).
+
+**A call that outlived its delivery (4302482622).**
+- **Before:** the reply's delivery deadline (call 120 s + 30 s) started before the opening observations and
+  preparation, but the call got a fresh 120 s of its own, and the settlement a fresh allowance.
+  - Scripted with a virtual clock and the production bounds: the call began at 42 s and completed at 161 s.
+  - Its usage was settled at 161 s; its answer then failed against the expired deadline (`observation_unconfirmed`).
+- **Now:** one deadline per reply, on one clock (`ReplyStopClock`, injectable for tests):
+  - the call may use what remains less the 30 s tail (`REPLY_TAIL_MS`), and never more than `deadlineMs`;
+  - with nothing left before the reservation or after it, no call starts;
+  - the settlement shares the same deadline instead of a fresh one.
+- **Unchanged:** no new cap, wait, retry, refund or release. A reservation left without a call stays counted, and
+  aborted, errored or unknown usage stays uncertain.
+- **Limit:** the tail is the existing 30 s. A settlement and two observations that each exhaust their retries can
+  still exceed it; they then fail at the deadline, never past it.
+
+**The newest runtime instead of an eligible one (4302482626).**
+- **Before:** two distinct runtime units with the same role and route, both ready. The Ask bound the newer B; the
+  create went to B under the grant's tuple (digest a…). B's executor (digest b…) refused it `reply_executor_mismatch`,
+  though the older A ran the pinned executor.
+- **Now (A40, P's scope decision):** `RuntimeRole` gains an optional `executor` with A35's exact shapes.
+  - The bridge's service role names its configured `{execution, routeId, executorArtifactDigest}`.
+  - 0071's `runtime_hello` validates and keeps it, as one named insertion, `CON-HELLO-EXECUTOR`: the rest is 0067's
+    body byte for byte, and the preservation test names the insertion.
+  - The Ask binds a pinned service grant only to the newest runtime advertising its exact tuple. A native grant takes
+    a role with no executor, or the native one.
+  - The create's dispatch checks the same rule again. A drifted runtime makes it wait, and it is never retargeted.
+  - With no eligible runtime the Ask is refused at once (`runtime_unavailable`), with no attempt and no outbox.
+- `presetDigest` and the bundle keep their meanings. No migration number, endpoint or dependency was added.
+
+**The PostgreSQL 16 fixture (job 117383125250).** The case for a login without SET created the login without a
+password, so a SCRAM server refused its connection before the SET.
+- It now has its own synthetic password (hex, as test-support's logins) and authenticates first: `current_user` is
+  asserted, then the `SET LOCAL ROLE` gets 42501.
+- Connect and close are in awaited guards. On an owned PostgreSQL 17 cluster with SCRAM it passes; that is not a
+  PostgreSQL 16 run.
+
+**Changed tests, in their meaning.**
+- Three crossing cases, a grant pinned to another digest, an unpinned lineage and a runtime under another digest,
+  are now refused at the Ask instead of by the executor after dispatch.
+- The provenance cases' runtimes now advertise the executor they are pinned to.
+
+**Checks.**
+- Unit: `reply-service` 38/38, including seven cases on the call plan. Giving the call a fresh budget again fails 3 of
+  them.
+- Private PostgreSQL 17.11:
+  - context dispatch 12/12, on a SCRAM cluster;
+  - `conversation-runtime` 129/129;
+  - `test:sql` 67 migrations, 5 files;
+  - `test:db` 1005/1005. A first run, before the named insertion and the scene changes, failed 7, kept in B's logs;
+  - the D-Q13 trusted-creator group 7/7, and the exclusive groups 7/7, each with the four hold stages.
+- The conversation-service crossing, real bridge to API to PostgreSQL: 12/12. Its stored runtime role carries the
+  configured executor.
+- Identities, with `pnpm artifacts:record`: bundle `e516779f…` → `3c2b1d43…` and the profile lock. The darwin dsh tree
+  `e24cb887` and the workspace lock `b868da08` are unchanged.
+- PostgreSQL 16, both helper phases, and Supabase-local auth have still not run on this source.
+
 ## Next bounded action
 
 Check the automatic review on #393's repair head once. Then implement the assembly binding exactly as P/V triage it, in this worktree, with its census-numbered migration.

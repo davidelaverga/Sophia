@@ -22984,6 +22984,45 @@
           "presetDigest": {
             "type": "string",
             "pattern": "^[A-Za-z0-9:+/=_-]{1,120}$"
+          },
+          "executor": {
+            "description": "The executor serving this role, as the runtime claims it (A35's shapes). Absent: legacy or unknown, never eligible for a pinned service grant.",
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "execution": {
+                    "const": "service"
+                  },
+                  "routeId": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$"
+                  },
+                  "executorArtifactDigest": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "execution",
+                  "routeId",
+                  "executorArtifactDigest"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "execution": {
+                    "const": "native"
+                  }
+                },
+                "required": [
+                  "execution"
+                ]
+              }
+            ]
           }
         },
         "required": [
