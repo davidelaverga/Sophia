@@ -250,9 +250,10 @@ describe('home, as a place that knows where you’ll go', () => {
 })
 
 describe('your data', () => {
-  it('counts days with Sophia by the days the person wrote, and copies everything as text', () => {
+  it('counts days with Sophia by the days the person wrote, and copies everything as text', (t) => {
     const everything: PersonalExport = {
-      exportedAt: NOW.toISOString(),
+      // The export's own time, after every turn, not the device's (Codex P2 on #405).
+      exportedAt: inMin(3),
       next: null,
       turns: [
         turn('I have a pitch', 60 * 24),
@@ -280,12 +281,15 @@ describe('your data', () => {
     }
     // Days are the server's count over the whole conversation (a long one lists only its newest turns).
     assert.deepEqual(factsOf({ ...everything, days: 31 }), { days: 31, notes: 1, carried: 1 })
-    const text = exportText(everything, 'Ana', NOW)
+    // The device's clock is years off: the copy never reads it.
+    t.mock.timers.enable({ apis: ['Date'], now: new Date(2030, 0, 1) })
+    const text = exportText(everything, 'Ana')
+    t.mock.timers.reset()
     // A copy is read another day (export-dates.md): its days are dates, its messages say when, and it says when it was
-    // made.
+    // made, by the export's own time.
     assert.match(
       text,
-      /^Ana · personal space with Sophia\nAs of Wednesday, September 30, 2026, 21:00\n\nNotes:\n- Take/,
+      /^Ana · personal space with Sophia\nAs of Wednesday, September 30, 2026, 21:03\n\nNotes:\n- Take/,
     )
     assert.match(text, /Carried to projects:\n- Ask Luis \(Launch plan\)/)
     assert.match(
