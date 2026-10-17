@@ -120,6 +120,12 @@ One normal merge of #393's reviewed and published `2017330d` into `184c5063`, bo
 - Not run: the C1 served cases (no served ports for this packet), PostgreSQL 16, Supabase-local auth, any Linux build.
   The linux-x64 identity stays unqualified, and the two runner instances are still one Node process, not two processes.
 
+**Paused, qualification INCOMPLETE (FND-B-B2-NEW-P1-TRIAGE-PAUSE-01).** The automatic review of `2017330d` raised two
+new P1s, which this composition inherits unrepaired: `reply-service.ts:422`'s call timer can outlast the shared
+delivery deadline (#393 discussion 4302482622), and 0071 chooses the newest ready runtime without matching its
+execution provenance or artifact digest (4302482626). R triages them before any repair. This merge is sealed as a
+local checkpoint; no further Personal check or change until a new scope.
+
 ## Next bounded action
 
 B's private handback goes to P; R reviews this head. No push until P sequences it with the common integration.
