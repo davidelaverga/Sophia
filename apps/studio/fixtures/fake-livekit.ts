@@ -37,6 +37,21 @@ export const leaving: { held: boolean; fails: boolean; waiting: (() => void)[] }
   waiting: [],
 }
 
+/** Turning the microphone on waits while held, as a browser still asking for it does (push-to-talk checks). */
+export const enabling: { held: boolean; waiting: (() => void)[] } = { held: false, waiting: [] }
+
+/**
+ * A microphone on its way while held arrives when released (`window.fixture.holdMicrophone`), whatever came meanwhile:
+ * LiveKit still publishes a late enable after a turn-off stopped waiting for it.
+ */
+const arrival = (apply: () => void) =>
+  new Promise<void>((resolve) =>
+    enabling.waiting.push(() => {
+      apply()
+      resolve()
+    }),
+  )
+
 /** `refuse=camera`: the browser refuses the camera, as a blocked permission does; `refuse=switch`, a device switch. */
 const refused = new URLSearchParams(window.location.search).get('refuse')
 /** `backgrounds=unsupported`: the device can't draw a camera background (call-backgrounds.md). */
@@ -193,6 +208,24 @@ function fakeRoom(): Pick<Room, 'on'> {
   return room as unknown as Pick<Room, 'on'>
 }
 
+/**
+ * The viewer's devices, switched as LiveKit does: what is asked is recorded, a refused one rejects, and a microphone
+ * held on its way (`window.fixture.holdMicrophone`) arrives when released.
+ */
+function deviceSwitch(me: RoomParticipant, changed: () => void) {
+  return (name: 'microphone' | 'camera' | 'screen', key: 'micOn' | 'cameraOn' | 'screenOn') => (on: boolean) => {
+    asked.push(`${name}:${on ? 'on' : 'off'}`)
+    if (on && refused === name) return Promise.reject(blocked())
+    const apply = () => {
+      me[key] = on
+      changed()
+    }
+    if (on && name === 'microphone' && enabling.held) return arrival(apply)
+    apply()
+    return Promise.resolve()
+  }
+}
+
 export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallbacks): Promise<RoomConnection> {
   connected()
   said = null // a new connection has said nothing yet, as following-signal.ts starts each one
@@ -214,14 +247,7 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     open = false
     cb.onEnded(why)
   }
-  const device =
-    (name: 'microphone' | 'camera' | 'screen', key: 'micOn' | 'cameraOn' | 'screenOn') => (on: boolean) => {
-      asked.push(`${name}:${on ? 'on' : 'off'}`)
-      if (on && refused === name) return Promise.reject(blocked())
-      me[key] = on
-      cb.onChange()
-      return Promise.resolve()
-    }
+  const device = deviceSwitch(me, () => cb.onChange())
   return Promise.resolve({
     sendChat,
     setTextMode: (on) => {
