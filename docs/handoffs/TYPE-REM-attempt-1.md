@@ -8,8 +8,8 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-e2e`, branch `ui/type-re
 Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`); no API.
 Runtime unit: Luis's Windows host (Playwright through `.claude-guards/safe-run.ps1`, two workers); CI as the run on
 record.
-Existing authority: Luis 2026-10-17, «Procede» (step 1 only, as the proposal recommended). Merges to main are paused for
-Davide's R1 integration window (#365): this PR waits for it to close.
+Existing authority: Luis 2026-10-17, «Procede» (step 1 only, as the proposal recommended); merges on green with no open
+P1.
 Ending commit/tree: `61c83a924a7d` (tree `da8a2d90b938`), the last commit of `ui/type-rem`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 4 files changed against
 `origin/main` at that commit: `e2e/section-heads.spec.ts`, `e2e/type-rem.spec.ts`, `src/app/theme.css`, `docs/plans/type-rem.md`. The review notes below name the commit of each later change.
@@ -50,5 +50,5 @@ commits on the branch merge its base forward or touch only this record). 4 files
 
 ## Next bounded action
 
-- Luis: once Davide's R1 window closes, merge on green with no open P1.
+- Luis: merge on green with no open P1.
 - Source IDs consulted: none from the source register; the work read this repository only.
