@@ -22,3 +22,20 @@ export async function recordedIfDone(
   }
   if (result === true || (typeof result === 'number' && result > 0)) await record()
 }
+
+/**
+ * A camera or screen stop's evidence (A31). A screen share is its video and its sound: a stop that muted one and then
+ * failed leaves the other live, which neither "Screen sharing stopped" (0060's room.host_screen_off) nor any other act
+ * the project's activity knows can say truthfully. So a partial screen stop records nothing, and its failure still
+ * answers the request (Codex P2 on #385, r4302170752). A camera stop keeps recordedIfDone's default.
+ */
+export function recordedStop(
+  act: 'camera' | 'screen',
+  done: Promise<boolean | number>,
+  record: () => Promise<unknown>,
+): Promise<void> {
+  return recordedIfDone(done, record, act === 'screen' ? nothingRecorded : record)
+}
+
+/** A partial effect no existing act names: nothing is written. */
+const nothingRecorded = (): Promise<void> => Promise.resolve()
