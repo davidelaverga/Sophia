@@ -171,7 +171,19 @@ export const EVENT_TYPES = [
   ...suffixed('goal.', ['held', 'stopped', 'target_set']),
 ]
 
-const COMMAND_KINDS = ['steer', 'request_review', 'hold', 'stop', 'resume', 'native_task', 'create', 'input', 'inspect']
+const COMMAND_KINDS = [
+  'steer',
+  'request_review',
+  'hold',
+  'stop',
+  'resume',
+  'native_task',
+  'create',
+  'input',
+  'inspect',
+  // A completed goal's sessions retired by a project admin (0075, A41).
+  'retire_sessions',
+]
 const EXCHANGE_CHANGES = [
   'opened',
   'end',

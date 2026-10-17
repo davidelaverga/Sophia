@@ -80,6 +80,7 @@ export const SUMMARY: Record<string, string> = {
   'command.hold': 'Hold requested',
   'command.stop': 'Stop requested',
   'command.resume': 'Resume requested',
+  'command.retire_sessions': 'Retirement of remaining sessions requested',
   'command.steer': 'Steer sent to the lead',
   'room.input_floor': 'Input to Sophia passed',
   'room.session': 'Session scheduled',
