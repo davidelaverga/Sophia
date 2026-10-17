@@ -11,6 +11,8 @@ import { Threshold } from './Threshold.tsx'
 export interface SophiaLightHandle {
   /** The floor travels from one person, through Sophia, to the next. */
   handoff: (from: Point, to: Point) => void
+  /** A result arrived: one soft bloom (orb-result.md). */
+  arrive: () => void
 }
 
 interface Props extends LightInput {
@@ -173,7 +175,11 @@ export function SophiaLight({
     setRestsAt((was) => (sameRest(was, through) ? was : through))
   }, [mode, target, rest, attention, working, voice, hearing, pull, formed, shaping, size])
 
-  useImperativeHandle(ref, () => ({ handoff: (from, to) => engine.current?.handoff(from, to) }), [])
+  useImperativeHandle(
+    ref,
+    () => ({ handoff: (from, to) => engine.current?.handoff(from, to), arrive: () => engine.current?.arrive() }),
+    [],
+  )
 
   return (
     <div ref={box} className="light" aria-hidden {...boxData(mode, attention, markAt, presence, sound)}>

@@ -110,6 +110,9 @@ function aimSource(s: Springs, mark: MarkAt | null, pointer: Point | null): void
  */
 const RELAYOUT_S = 0.25
 
+/** How long a result's bloom lasts, up and down (orb-result.md). */
+const BLOOM_S = 0.9
+
 /** Where the light sits when the room gives no target: centered, in the upper part of the box. */
 export function defaultTarget(width: number, height: number): LightTarget {
   return { x: width / 2, y: height * 0.42, radius: Math.min(Math.min(width, height) * 0.34, 320) }
@@ -200,6 +203,8 @@ export class LightEngine {
   private size = { width: 0, height: 0 }
   private edge: Point[] = []
   private handoffState: Handoff | null = null
+  /** When a result last arrived (`arrive`), for her one soft bloom. */
+  private bloomAt = Number.NEGATIVE_INFINITY
   private frameId = 0
   private last = performance.now() / 1000
   private slowFor = 0
@@ -278,6 +283,18 @@ export class LightEngine {
   }
 
   /** The floor travels from one person, through Sophia, to the next. */
+  /** A result arrived (orb-result.md): one soft bloom, under full motion only. */
+  arrive(): void {
+    if (!this.reduced) this.bloomAt = performance.now() / 1000
+  }
+
+  /** The bloom's swell now: 0.9 s up and down, none while she speaks (her voice already moves her). */
+  private bloom(t: number): number {
+    const at = t - this.bloomAt
+    if (at < 0 || at > BLOOM_S || this.springs.speak.value > 0.5) return 0
+    return 0.6 * Math.sin((Math.PI * at) / BLOOM_S)
+  }
+
   handoff(from: Point, to: Point): void {
     this.handoffState = { from, to, started: performance.now() / 1000 }
   }
@@ -350,7 +367,7 @@ export class LightEngine {
     aimAt(s, flight ? flight.frame.head : this.input.attention)
     s.occlude.target = this.input.mark ? 1 : 0
     aimSource(s, this.input.mark ?? null, this.aim())
-    s.swell.target = flight && !this.reduced ? flight.frame.swell : 0
+    s.swell.target = flight && !this.reduced ? flight.frame.swell : this.bloom(t)
     for (const sp of Object.values(s)) stepSpring(sp, dt)
     this.hear(dt)
     if (!this.reduced) this.flow += dt * (0.34 * s.think.value - 0.9 * this.amp * s.speak.value - 0.05 * s.listen.value)

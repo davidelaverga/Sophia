@@ -24,6 +24,7 @@ import { canShareScreen, RoomDock } from './RoomDock.tsx'
 import { ROOM_KEYS } from './room-keys.ts'
 import {
   type FloorView,
+  arrivedResults,
   floorView,
   orderParticipants,
   RECONNECTING,
@@ -317,6 +318,16 @@ function useStageModel({ room, snapshot, projectId, identity, presented }: Props
   return { people, holder, floor, mode, running, sophia, doing, layout }
 }
 
+/** A task's result arriving blooms her light once (orb-result.md); the first snapshot only sets what was there. */
+function useResultArrival(work: Snapshot['work'] | undefined, light: RefObject<SophiaLightHandle | null>) {
+  const before = useRef<Snapshot['work'] | null>(null)
+  useEffect(() => {
+    if (!work) return
+    if (arrivedResults(before.current, work).length > 0) light.current?.arrive()
+    before.current = work
+  }, [work, light])
+}
+
 interface StageLightProps {
   light: RefObject<SophiaLightHandle | null>
   room: ProjectRoom
@@ -361,6 +372,7 @@ export function RoomStage(props: Props) {
   const live = room.status === 'live' || room.status === 'reconnecting'
   const geometry = useStageGeometry(stage, floor.holder?.present ? floor.holder.identity : null, mode, layout)
   const passed = useFloorHandoff(stage, light, holder)
+  useResultArrival(snapshot?.work, light)
   useRoomKeys(room)
   return (
     <section
