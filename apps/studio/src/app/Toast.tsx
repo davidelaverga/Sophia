@@ -9,6 +9,8 @@ export interface Notice {
   id: number
   message: string
   undo: (() => void) | null
+  /** The words on its press: Undo, unless the notice offers something else (Try again). */
+  act: string
   /** The control the focus was on when it appeared: Undo, which goes with the toast, hands the focus back there. */
   from: HTMLElement | null
 }
@@ -29,9 +31,9 @@ function handBack(el: HTMLElement | null) {
 export function useToast() {
   const [notice, setNotice] = useState<Notice | null>(null)
   const next = useRef(0)
-  const show = useCallback((message: string, undo?: () => void) => {
+  const show = useCallback((message: string, undo?: () => void, act = 'Undo') => {
     next.current += 1
-    setNotice({ id: next.current, message, undo: undo ?? null, from: focused() })
+    setNotice({ id: next.current, message, undo: undo ?? null, act, from: focused() })
   }, [])
   const hide = useCallback(() => setNotice(null), [])
   useEffect(() => {
@@ -58,7 +60,7 @@ export function Toast({ notice, onHide }: { notice: Notice | null; onHide: () =>
             handBack(notice.from)
           }}
         >
-          Undo
+          {notice.act}
         </button>
       )}
       {/* A new notice restarts the line. */}
