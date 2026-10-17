@@ -38,8 +38,28 @@ commits on the branch merge its base forward or touch only this record). 4 files
   - the room's text-mode specs (`room`, `voice-chat`): 17/17;
   - Studio typecheck and Prettier: clean.
   - Lint: clean, with main merged in after #423 fixed main's own `ProjectBody` length.
-- **No browser check of the fix itself:** the fixture's connection stands in for LiveKit there, so the unit check
-  carries it. No capture: nothing changes on screen.
+- **On the real stack, in a real browser (Codex P1, 2026-10-17):**
+  - Setup:
+    - the dev stack from this branch's head `e61918d3` (`node scripts/dev-stack.ts --voice rehearse`), with the local
+      LiveKit server on :7880 and real `livekit-client`, so Sophia publishes a real audio track;
+    - Chromium through `.claude-guards/safe-browser.cjs`;
+    - Davide in the call as the positive control: his voice's element is the one `startAudio` must leave playing.
+  - Each step counts Sophia's `audio[data-sophia-room-audio="sophia"]` elements that have a live source, and whether
+    their time moves (`evaluacion-2026-10-17/real-427/log.json`, script `scratchpad/real/20-text-mode-quiet.cjs`):
+
+    | Step | Sophia: elements with a source | Davide |
+    | --- | --- | --- |
+    | Heard | 1, playing | playing |
+    | Text mode on | 0 | playing |
+    | Text mode off | 1, playing again | playing |
+
+  - **The same on an iPhone user agent.** There LiveKit takes its iOS path, and its dummy element shows that
+    `startAudio` ran. The page is then hidden and shown in text mode, so LiveKit's own `visibilitychange` listener calls
+    `startAudio` again: Sophia's elements with a source stay at 0, and Davide keeps playing.
+  - **«Allow audio» can't be forced in Chromium during a call.** A tab that is capturing the microphone may play
+    audio, even with `--autoplay-policy=document-user-activation-required` and only scripted presses. The iOS path
+    above runs the same `Room.startAudio` over the real attached elements.
+  - No capture: nothing changes on screen.
 
 ## Decisions and changes
 
@@ -53,6 +73,12 @@ commits on the branch merge its base forward or touch only this record). 4 files
 
 - **The per-person volume (#425)** changes the same `remoteAudio`. Whichever merges second takes the other's lines;
   both are this session's.
+- **Found on the real stack, older than this branch:** each time Sophia's exchange ends, one of her audio elements
+  stays in the page with no source. LiveKit detaches it before `TrackUnsubscribed` fires, so the handler's
+  `track.detach()` finds nothing to remove (main's handler is the same).
+  - It plays nothing, and `startAudio` never sees it.
+  - It is one more element per exchange, until the call ends.
+  - It goes to the follow-up list.
 
 ## Next bounded action
 
