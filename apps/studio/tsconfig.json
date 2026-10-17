@@ -14,11 +14,14 @@
     "mediapipe-assets.ts",
     "vite.fixtures.config.ts",
     "vite.app.config.ts",
+    "vite.attention.config.ts",
     "playwright.config.ts",
     "playwright.served.config.ts",
+    "playwright.attention.config.ts",
     "fixtures/**/*.ts",
     "fixtures/**/*.tsx",
     "e2e/**/*.ts",
-    "e2e-served/**/*.ts"
+    "e2e-served/**/*.ts",
+    "e2e-attention/**/*.ts"
   ]
 }

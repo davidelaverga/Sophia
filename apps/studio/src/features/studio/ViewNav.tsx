@@ -4,6 +4,7 @@
 import { useEffect, type RefObject } from 'react'
 import { useSlidingThumb } from '@sophia/ui'
 import { routePath, viewsShown, type View } from '../../app/route.ts'
+import { ATTENTION } from '../../app/attention.ts'
 import { CONVERSATIONS, VISION } from '../../app/vision.ts'
 
 export const VIEW_LABEL: Record<View, string> = {
@@ -16,8 +17,11 @@ export const VIEW_LABEL: Record<View, string> = {
   resources: 'Resources',
 }
 
-/** Only the served views (app/route.ts): saved conversations where the build turns them on, the rest under the vision flag. */
-const SHOWN = viewsShown(VISION, CONVERSATIONS)
+/**
+ * Only the served views (app/route.ts): saved conversations where the build turns them on, Updates under the attention
+ * flag, the rest under the vision flag.
+ */
+const SHOWN = viewsShown(VISION, CONVERSATIONS, ATTENTION)
 
 interface Props {
   projectId: string

@@ -14,6 +14,8 @@ export {
   type TxMode,
 } from './tx.ts'
 export { readMyProfile, setMyProfile } from './profiles.ts'
+export { markReplySeen, readNeeds } from './needs.ts'
+export { markProjectSeen, readProjectUpdates } from './updates.ts'
 export { classifyDbError } from './errors.ts'
 export { migrate, readMigrations, MigrationDrift, type MigrationReport } from './migrate.ts'
 export { readSnapshot } from './snapshot.ts'

@@ -98,6 +98,7 @@ declare global {
       proposals: readonly { key: string; body: unknown }[]
       asked: readonly string[]
       unexpected: readonly string[]
+      attention: readonly string[]
       hold: (by: string, path: string, method?: string) => void
       release: () => void
     }
