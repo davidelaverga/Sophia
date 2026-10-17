@@ -23,6 +23,7 @@ import {
   stopScreen,
   type LiveKitConfig,
 } from '../livekit.ts'
+import { recordedIfDone } from './host-acts.ts'
 import { idempotencyHeader, projectParams } from './schemas.ts'
 
 const roomParams = {
@@ -136,9 +137,10 @@ function moreHostControls(app: FastifyInstance, deps: Deps): void {
         if (req.params.identity === req.actorId) throw new DomainError('invalid_request', 'Your own call is yours')
         if (!(await memberInRoom(lk, roomId, req.params.identity)))
           throw new DomainError('invalid_request', 'They aren’t a member in the call')
-        await stop(lk, roomId, req.params.identity)
-        await withActor(deps.pool, req.actorId, 'write', (c) =>
-          recordRoomAct(c, req.params.projectId, req.params.identity, act),
+        await recordedIfDone(stop(lk, roomId, req.params.identity), () =>
+          withActor(deps.pool, req.actorId, 'write', (c) =>
+            recordRoomAct(c, req.params.projectId, req.params.identity, act),
+          ),
         )
         return reply.code(204).send()
       },
@@ -149,8 +151,9 @@ function moreHostControls(app: FastifyInstance, deps: Deps): void {
     { schema: { params: projectParams } },
     async (req, reply) => {
       const { roomId, lk } = await hostRoom(deps, req.actorId, req.params.projectId)
-      await muteEveryone(lk, roomId, req.actorId)
-      await withActor(deps.pool, req.actorId, 'write', (c) => recordRoomAct(c, req.params.projectId, null, 'mute_all'))
+      await recordedIfDone(muteEveryone(lk, roomId, req.actorId), () =>
+        withActor(deps.pool, req.actorId, 'write', (c) => recordRoomAct(c, req.params.projectId, null, 'mute_all')),
+      )
       return reply.code(204).send()
     },
   )
@@ -182,10 +185,16 @@ function hostControls(app: FastifyInstance, { pool, livekit }: Deps): void {
           if (gone) return reply.code(204).send()
           throw new DomainError('invalid_request', 'They aren’t a member in the call')
         }
-        await (what === 'mute' ? muteMicrophone : removeFromCall)(livekit, roomId, req.params.identity)
+        // A removal is done once the room server answers; a mute only when there was a microphone to mute.
+        const done =
+          what === 'mute'
+            ? muteMicrophone(livekit, roomId, req.params.identity)
+            : removeFromCall(livekit, roomId, req.params.identity).then(() => true)
         // Evidence of who did it, once it is done (project-activity.md): the project's activity lists it.
-        await withActor(pool, req.actorId, 'write', (c) =>
-          recordHostAct(c, req.params.projectId, req.params.identity, what),
+        await recordedIfDone(done, () =>
+          withActor(pool, req.actorId, 'write', (c) =>
+            recordHostAct(c, req.params.projectId, req.params.identity, what),
+          ),
         )
         return reply.code(204).send()
       },

@@ -68,3 +68,25 @@ test('activity · a slow read says it is reading, then why it takes long (Codex 
     'Taking longer than usual. After a quiet spell, the first answer can take up to a minute.',
   )
 })
+
+test('activity · a long unbroken name wraps inside its row; the act and its time stay in the sheet (Codex P2 on #355)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await open(page)
+  // Every row shares the columns: the acts start at one edge, whatever the name before them.
+  const lefts = await sheet(page)
+    .locator('.activity-what')
+    .evaluateAll((all) => all.slice(0, 8).map((w) => Math.round(w.getBoundingClientRect().left)))
+  expect(new Set(lefts).size).toBe(1)
+  const row = rows(page).first()
+  await row.locator('.activity-who').evaluate((w) => {
+    w.textContent = `${'a'.repeat(60)}@${'example'.repeat(6)}.test`
+  })
+  const fits = await row.evaluate((li) => {
+    const box = li.getBoundingClientRect()
+    const when = li.querySelector('.activity-when')?.getBoundingClientRect()
+    return li.scrollWidth <= li.clientWidth && when !== undefined && when.right <= box.right + 0.5
+  })
+  expect(fits).toBe(true)
+})

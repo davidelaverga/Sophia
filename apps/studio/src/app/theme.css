@@ -6760,22 +6760,27 @@ button.contribution-quote:hover {
 }
 .activity-list {
   display: grid;
-  gap: 2px;
+  /* One set of columns for every row (subgrid), so the acts and the times line up; a long unbroken name (an email, up
+     to 320 characters) takes at most 40 % and wraps (Codex P2 on #355). */
+  grid-template-columns: fit-content(40%) minmax(0, 1fr) auto;
+  gap: 2px 12px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .activity-list li {
   display: grid;
-  grid-template-columns: minmax(80px, auto) minmax(0, 1fr) auto;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: baseline;
-  gap: 12px;
   padding: 6px 0;
   border-bottom: 1px solid var(--line);
   font-size: var(--type-small);
 }
 .activity-who {
+  min-width: 0;
   color: var(--text);
+  overflow-wrap: anywhere;
 }
 .activity-what {
   color: var(--text-2);

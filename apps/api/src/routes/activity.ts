@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
+import { DomainError } from '@sophia/domain'
 import {
   pendingMemberRemoval,
   readProjectActivity,
@@ -75,9 +76,15 @@ export function activityRoutes(app: FastifyInstance, { pool, livekit }: Deps): v
         response: { 200: { $ref: 'ActivityPage#' } },
       },
     },
-    async (req) =>
-      withActor(pool, req.actorId, 'read', (c) =>
-        readProjectActivity(c, req.params.projectId, req.query.before ?? null),
-      ),
+    async (req) => {
+      const before = req.query.before ?? null
+      // Nineteen digits may still pass a bigint: refused here, not overflowed into a 503 (Codex P2 on #355).
+      if (before !== null && BigInt(before) > MOST_SEQUENCE)
+        throw new DomainError('invalid_request', 'That page is past any activity')
+      return withActor(pool, req.actorId, 'read', (c) => readProjectActivity(c, req.params.projectId, before))
+    },
   )
 }
+
+/** The largest sequence a bigint holds. */
+const MOST_SEQUENCE = 9223372036854775807n
