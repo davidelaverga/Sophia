@@ -1047,10 +1047,9 @@ button.mark:hover {
   height: 28px;
   border-color: var(--line);
 }
-/* Its rows: 32 px in the body type, the one under the pointer or the focus lit; one that waits (aria-disabled) in
-   the third ink, unlit. */
-.menu [role='menuitem'],
-.menu [role='menuitemradio'] {
+/* Its rows, each kind (an act, one of a set, a switch): 32 px in the body type, the one under the pointer or the focus
+   lit; one that waits (aria-disabled) in the third ink, unlit. */
+.menu [role^='menuitem'] {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1064,7 +1063,7 @@ button.mark:hover {
   font-size: var(--type-body);
   text-align: left;
 }
-.menu :is([role='menuitem'], [role='menuitemradio']):is(:hover, :focus-visible):not([aria-disabled='true']) {
+.menu [role^='menuitem']:is(:hover, :focus-visible):not([aria-disabled='true']) {
   outline: none;
   background: rgb(var(--ink-rgb) / 0.06);
 }
@@ -4390,8 +4389,7 @@ button.contribution-quote:hover {
     min-width: 40px;
     min-height: 40px;
   }
-  .menu [role='menuitem'],
-  .menu [role='menuitemradio'] {
+  .menu [role^='menuitem'] {
     height: 44px;
   }
   .sheet-head .round {
