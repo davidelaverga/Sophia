@@ -152,6 +152,38 @@ for (const width of [320, 390, 820]) {
   })
 }
 
+/** Your own tile, and hiding it from your view (room-basics.md): «Your tile is hidden» stands in its place. */
+const mine = (page: Page) => room(page).locator('li.tile', { has: page.locator('[data-mark="you"]') })
+async function hideMine(page: Page) {
+  await mine(page).hover()
+  await mine(page).getByRole('button', { name: 'Hide my tile' }).click()
+  await expect(room(page).locator('.tile-hidden-self')).toBeVisible()
+}
+
+test('tiles · a gallery of eleven others, your tile hidden: still nine tiles, its place one of them (Codex P2 on #380)', async ({
+  page,
+}) => {
+  await enter(page, 'people=11&video=camera')
+  await hideMine(page)
+  await expect(tiles(page)).toHaveCount(9)
+  await expect(room(page)).toHaveAttribute('data-count', '9')
+  await expect(more(page)).toHaveText('+5')
+})
+
+test('tiles · on a phone beside a shown screen, your tile hidden: five tiles on one row (Codex P2 on #380)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await enter(page, 'people=9&video=screen')
+  await hideMine(page)
+  await expect(tiles(page)).toHaveCount(5)
+  await expect(more(page)).toHaveText('+7')
+  const tops = await tiles(page).evaluateAll((all) => [
+    ...new Set(all.map((el) => Math.round(el.getBoundingClientRect().top))),
+  ])
+  expect(tops).toHaveLength(1)
+})
+
 /** What a screen reader is given for a tile's label (its accessibility tree, not its text nodes). */
 const said = (page: Page, name: string) => room(page).locator('.tile-name').filter({ hasText: name }).ariaSnapshot()
 
