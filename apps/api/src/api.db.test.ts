@@ -290,6 +290,101 @@ describe('command admission', () => {
     assert.deepEqual([goal?.status, goal?.revision, goal?.authorityEpoch], ['completed', 1, 2])
   })
 
+  // #393 4303630159: a retirement names every unsettled binding of the goal, and its 202 must parse whatever their
+  // number. Synthetic fixture rows on one completed goal; no runtime, worker or native session runs here.
+  for (const count of [1000, 1001]) {
+    it(`acknowledges a retirement of ${count} bindings on one goal in full, and replays it safely`, async (t) => {
+      const fresh = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+      const path = `/api/v1/projects/${fresh.projectId}/commands`
+      const owner = new pg.Client({ connectionString: db.ownerUrl })
+      await owner.connect()
+      const counts = async () => {
+        const [row] = (
+          await owner.query<{ epoch: string; revision: string; events: string; outbox: string; commands: string }>(
+            `SELECT (SELECT authority_epoch FROM sophia.goals WHERE project_id=$1 AND id=$2)::text AS epoch,
+                    (SELECT state_revision FROM sophia.goals WHERE project_id=$1 AND id=$2)::text AS revision,
+                    (SELECT count(*) FROM sophia.project_events WHERE project_id=$1)::text AS events,
+                    (SELECT count(*) FROM sophia.outbox WHERE project_id=$1)::text AS outbox,
+                    (SELECT count(*) FROM sophia.commands WHERE project_id=$1 AND kind='retire_sessions')::text AS commands`,
+            [fresh.projectId, fresh.goalId],
+          )
+        ).rows
+        if (!row) throw new Error('no goal row')
+        return row
+      }
+      let bindings: string[]
+      try {
+        // FIXTURE: one resource, then `count` attempts of the goal, each with one unsettled binding (half without a
+        // native session id), and one settled binding that is no target. Then the goal completes.
+        const [resourceRow] = (
+          await owner.query<{ id: string }>(
+            `INSERT INTO sophia.executor_resources(project_id,owner_id,harness,label,repository_root,state)
+             VALUES ($1,$2,'dsh','fixture','/fixture','active') RETURNING id`,
+            [fresh.projectId, A],
+          )
+        ).rows
+        const resource = resourceRow?.id
+        bindings = (
+          await owner.query<{ id: string }>(
+            `WITH a AS (
+               INSERT INTO sophia.work_attempts(project_id,goal_id,goal_revision,authority_epoch,state)
+               SELECT $1,$2,1,1,'failed' FROM generate_series(1,$4::int + 1) RETURNING id)
+             INSERT INTO sophia.execution_bindings(project_id,attempt_id,resource_id,native_session_id,runtime_unit_id,continuation_owner,state)
+             SELECT $1,a.id,$3,CASE WHEN row_number() OVER () % 2 = 0 THEN 'fixture-' || a.id ELSE NULL END,'fixture-unit','sophia_episode',
+                    CASE WHEN row_number() OVER () > $4::int THEN 'settled' ELSE 'idle' END
+               FROM a RETURNING id, state`,
+            [fresh.projectId, fresh.goalId, resource, count],
+          )
+        ).rows
+          .filter((row) => (row as unknown as { state: string }).state !== 'settled')
+          .map((row) => row.id)
+        await owner.query(`UPDATE sophia.goals SET status='completed' WHERE project_id=$1 AND id=$2`, [
+          fresh.projectId,
+          fresh.goalId,
+        ])
+        assert.equal(bindings.length, count)
+        const start = await counts()
+        const key = randomUUID()
+        const first = await call(A, 'POST', path, command({ kind: 'retire_sessions', goalId: fresh.goalId }), {
+          'idempotency-key': key,
+        })
+        assert.equal(first.status, 202)
+        // What the admission committed, read before the response is parsed.
+        const admitted = await counts()
+        t.diagnostic(
+          `committed before parse: ${JSON.stringify({ count, start, admitted, responseTargets: (first.json as { targets?: unknown[] }).targets?.length })}`,
+        )
+        const receipt = parseReceipt(first.json) // the shared parser the Studio uses on this response
+        assert.equal(receipt.targets?.length, count)
+        assert.deepEqual(
+          receipt.targets?.map((target) => target.bindingId).toSorted(),
+          bindings.toSorted(),
+          'every binding, once',
+        )
+        assert.deepEqual(
+          [admitted.epoch, admitted.revision, admitted.commands],
+          [String(Number(start.epoch) + 1), String(Number(start.revision) + 1), '1'],
+          'the authority epoch and state revision move once',
+        )
+        // The same key, after the epoch moved, returns the same acknowledgement and admits nothing more.
+        assert.deepEqual(
+          await call(A, 'POST', path, command({ kind: 'retire_sessions', goalId: fresh.goalId }), {
+            'idempotency-key': key,
+          }),
+          first,
+        )
+        assert.deepEqual(await counts(), admitted, 'no further epoch, event, outbox delivery or command')
+        const goal = parseSnapshot(
+          (await call(A, 'GET', `/api/v1/projects/${fresh.projectId}/snapshot`)).json,
+        ).goals.find((g) => g.id === fresh.goalId)
+        assert.deepEqual([goal?.status, goal?.revision], ['completed', 1], 'the goal stays completed at its revision')
+        assert.equal(goal?.retirement?.targets.length, count, 'the admin projection carries every target')
+      } finally {
+        await owner.end()
+      }
+    })
+  }
+
   it('recovers the existing command after a disconnect between commit and acknowledgement', async () => {
     const key = randomUUID()
     const path = `/api/v1/projects/${seed.projectId}/commands`
