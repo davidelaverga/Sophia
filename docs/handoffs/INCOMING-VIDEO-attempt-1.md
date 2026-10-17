@@ -10,9 +10,9 @@ Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`
 Runtime unit: Luis's Windows host (Playwright through `.claude-guards/safe-run.ps1`, two workers); CI as the run on
 record.
 Existing authority: Luis 2026-10-16, «Sigue con lo que queda en la cola»; merges on green with no open P1.
-Ending commit/tree: `f4ca5cdc845d` (tree `5157a43d0e57`), the last commit of `room/incoming-video-off`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 8 files changed against
-`origin/main` at that commit: `e2e/incoming-video.spec.ts`, `fixtures/fake-livekit.ts`, `src/app/theme.css`, `src/features/voice/DeviceMenu.tsx`, `src/features/voice/RoomDock.tsx`, `src/features/voice/livekit-room.ts`, `src/features/voice/useProjectRoom.ts`, `docs/plans/incoming-video.md`. The review notes below name the commit of each later change.
+Ending commit/tree: `bb5100254570` (tree `970b63e43e69`), the last commit of `room/incoming-video-off`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 9 files changed against
+`origin/main` at that commit: `e2e/incoming-video.spec.ts`, `fixtures/fake-livekit.ts`, `src/app/theme.css`, `src/features/voice/DeviceMenu.tsx`, `src/features/voice/RoomDock.tsx`, `src/features/voice/livekit-room.ts`, `src/features/voice/useProjectRoom.ts`, `docs/handoffs/INCOMING-VIDEO-attempt-1.md`, `docs/plans/incoming-video.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -53,7 +53,9 @@ commits on the branch merge its base forward or touch only this record). 8 files
 
 ## Decisions and changes
 
-- **Unsubscribed, not hidden:** hiding the video would still spend the data.
+- **Unsubscribed, not hidden:** hiding the video would still spend the data. At publish time only a camera published
+  while they're off is let go; one published while they're on is LiveKit's to take, with no request more from here
+  (review before push).
 - **Cameras only:** a shared screen is what the call is looking at.
 - **For this call only:** a switch kept from call to call would leave someone wondering where everyone's video went.
 - **The menu fix is here** because this switch is the second item it hit. One prefix selector, `[role^='menuitem']`,
