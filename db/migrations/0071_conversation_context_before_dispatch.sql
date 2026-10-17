@@ -16,6 +16,12 @@
 --   login's worker is running is not knowable here; a bound login whose worker is absent leaves the context
 --   unrecorded, and the create is denied context_unavailable by the first dispatch pass that processes it after the
 --   wait.
+-- * runtime_hello (0067), replaced, and the Ask's runtime choice and the create's dispatch (#393 discussion
+--   4302482626, A40): a role may name the executor that serves it, validated and kept with the role. A pinned service
+--   grant is bound only to a runtime advertising its exact executor tuple, the newest such one, and its create is
+--   dispatched only while that runtime still advertises it (otherwise it waits; it is never retargeted). A native grant
+--   takes a role naming no executor or the native one. With no such runtime the Ask is refused at once
+--   (runtime_unavailable), before any attempt or outbox.
 -- * conversation_context_wait() = 120 s: the deadline until which a create may wait for its context, not a latency
 --   guarantee. It is sized from ONE reply's uncontended worst case under the worker's assembly limits (apps/worker,
 --   ASSEMBLY_LIMITS: deadline 10 s, lease 30 s = checkedLimits' floor of three deadlines, and at least statement +
@@ -94,6 +100,135 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION sophia.conversation_admit_assembler_login(name) FROM PUBLIC;
 
+-- runtime_hello (0067), replaced (A40): a role may name the executor that serves it, which is validated and kept with
+-- the role, in one named insertion (CON-HELLO-EXECUTOR). Everything else is 0067's body byte for byte. Its owner and
+-- grants are kept (CREATE OR REPLACE).
+CREATE OR REPLACE FUNCTION sophia.runtime_hello(p_token_sha256 bytea, p_unit text, p_bridge text, p_hello jsonb) RETURNS jsonb LANGUAGE plpgsql
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE rt sophia.runtime_instances:=sophia.runtime_authenticate(p_token_sha256,p_unit); bindings jsonb; advertised jsonb:='[]';
+BEGIN
+ IF p_bridge IS NULL OR length(p_bridge) NOT BETWEEN 1 AND 64 THEN RAISE EXCEPTION 'Invalid bridge instance' USING ERRCODE='22023'; END IF;
+ IF (p_hello->>'protocolVersion')::integer IS DISTINCT FROM 1 THEN RAISE EXCEPTION 'Unsupported runtime protocol' USING ERRCODE='22023'; END IF;
+ IF p_hello ? 'roles' THEN
+  IF jsonb_typeof(p_hello->'roles')<>'array' OR jsonb_array_length(p_hello->'roles')>32 OR EXISTS(
+    SELECT 1 FROM jsonb_array_elements(p_hello->'roles') r
+    WHERE jsonb_typeof(r)<>'object' OR NOT coalesce(r->>'id' ~ '^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$',false)
+     OR NOT coalesce(r->>'route' ~ '^[a-z][a-z0-9-]{0,62}[a-z0-9]$',false)
+     OR NOT coalesce(r->>'presetDigest' ~ '^[A-Za-z0-9:+/=_-]{1,120}$',false)) THEN
+   RAISE EXCEPTION 'Invalid runtime roles' USING ERRCODE='22023'; END IF;
+  SELECT coalesce(jsonb_agg(jsonb_build_object('id',r->>'id','route',r->>'route','presetDigest',r->>'presetDigest') ORDER BY r->>'id'),'[]')
+   INTO advertised FROM jsonb_array_elements(p_hello->'roles') r;
+  -- CON-HELLO-EXECUTOR-BEGIN (0071, A40): a role may name the executor that serves it, exactly one of A35's two shapes,
+  -- a service one on the role's own route; it is kept with the role as claimed. Absent stays absent (legacy or unknown).
+  IF EXISTS(SELECT 1 FROM jsonb_array_elements(p_hello->'roles') r WHERE r ? 'executor' AND NOT CASE
+    WHEN r->'executor'='{"execution":"native"}'::jsonb THEN true
+    WHEN jsonb_typeof(r->'executor')<>'object' THEN false
+    ELSE coalesce((SELECT array_agg(k ORDER BY k COLLATE "C") FROM jsonb_object_keys(r->'executor') k)
+      =ARRAY['execution','executorArtifactDigest','routeId'] AND r->'executor'->>'execution'='service'
+     AND r->'executor'->>'routeId' IS NOT DISTINCT FROM r->>'route'
+     AND r->'executor'->>'executorArtifactDigest' ~ '^[0-9a-f]{64}$',false) END) THEN
+   RAISE EXCEPTION 'Invalid runtime roles' USING ERRCODE='22023'; END IF;
+  SELECT coalesce(jsonb_agg(jsonb_build_object('id',r->>'id','route',r->>'route','presetDigest',r->>'presetDigest')
+    ||CASE WHEN r ? 'executor' THEN jsonb_build_object('executor',r->'executor') ELSE '{}'::jsonb END ORDER BY r->>'id'),'[]')
+   INTO advertised FROM jsonb_array_elements(p_hello->'roles') r;
+  -- CON-HELLO-EXECUTOR-END
+ END IF;
+ PERFORM 1 FROM sophia.projects WHERE id=rt.project_id FOR UPDATE;
+ UPDATE sophia.runtime_instances SET lease_id=gen_random_uuid(), lease_epoch=lease_epoch+1, bridge_instance_id=p_bridge,
+  protocol_version=1, bundle=left(p_hello->>'bundle',200), dsh_version=left(p_hello->>'dshVersion',100), hello_at=now(),
+  ready_state='not_ready', ready_reason='hello received; waiting for the ready report', ready_at=NULL, seen_at=now(), roles=advertised
+  WHERE id=rt.id RETURNING * INTO rt;
+ -- CON-HELLO-LOSS-BEGIN
+ DECLARE item record; e sophia.conversation_executions; marker jsonb;
+ BEGIN
+  FOR item IN SELECT r.id AS reply_id,a.id AS attempt_id,b.id AS binding_id,r.state AS reply_state
+   FROM sophia.execution_bindings b JOIN sophia.work_attempts a ON a.project_id=b.project_id AND a.id=b.attempt_id
+   JOIN sophia.conversation_replies r ON r.project_id=a.project_id AND r.id=a.conversation_reply_id
+   WHERE b.project_id=rt.project_id AND b.resource_id=rt.resource_id AND b.runtime_unit_id=rt.runtime_unit_id AND b.state<>'retired'
+   ORDER BY r.id FOR UPDATE OF r LOOP
+   SELECT * INTO e FROM sophia.conversation_executions WHERE project_id=rt.project_id AND attempt_id=item.attempt_id;
+   IF e.outcome IN ('claimed','running') AND e.lease_id IS DISTINCT FROM p_bridge AND item.reply_state IN ('pending','running','cancelled') THEN
+    UPDATE sophia.conversation_executions SET outcome='lost',lost_at=clock_timestamp(),lost_by_lease=p_bridge,lost_lease_epoch=rt.lease_epoch
+     WHERE project_id=rt.project_id AND attempt_id=item.attempt_id;
+    IF item.reply_state IN ('pending','running') THEN
+     UPDATE sophia.conversation_replies SET state='outcome_unknown',reason='runtime_lease_lost',settled_at=clock_timestamp()
+      WHERE project_id=rt.project_id AND id=item.reply_id;
+     UPDATE sophia.work_attempts SET state='outcome_unknown' WHERE project_id=rt.project_id AND id=item.attempt_id;
+     UPDATE sophia.execution_bindings SET state='lost' WHERE project_id=rt.project_id AND id=item.binding_id;
+     PERFORM sophia.conversation_mark_uncertain(rt.project_id,item.reply_id);
+     marker:=jsonb_build_object('kind','hello','attemptId',item.attempt_id,'leaseId',p_bridge,'leaseEpoch',rt.lease_epoch);
+     UPDATE sophia.commands SET receipt=coalesce(receipt,'{}'::jsonb)||jsonb_build_object('terminalWriter',marker)
+      WHERE project_id=rt.project_id AND id=(SELECT command_id FROM sophia.runtime_commands WHERE project_id=rt.project_id
+       AND binding_id=item.binding_id AND kind='create') AND NOT coalesce(receipt ? 'terminalWriter',false);
+     UPDATE sophia.runtime_commands SET body=jsonb_set(body,'{payload}','{"scrubbed":true}'::jsonb)
+      WHERE project_id=rt.project_id AND binding_id=item.binding_id AND kind='create';
+     UPDATE sophia.native_observations SET data=jsonb_strip_nulls(jsonb_build_object('scrubbed',true,
+       'provider',CASE WHEN jsonb_typeof(data->'provider')='string' THEN left(data->>'provider',200) END,
+      'model',CASE WHEN jsonb_typeof(data->'model')='string' THEN left(data->>'model',200) END,
+      'inputTokens',sophia.usage_count(data->'inputTokens'),'outputTokens',sophia.usage_count(data->'outputTokens'),
+      'cacheReadTokens',sophia.usage_count(data->'cacheReadTokens'),'cacheWriteTokens',sophia.usage_count(data->'cacheWriteTokens'),
+      'ordinal',CASE WHEN data->'ordinal' IN ('1'::jsonb,'2'::jsonb) THEN data->'ordinal' END,
+      'textLength',coalesce(sophia.usage_count(data->'textLength'),sophia.usage_count(data->'length'),CASE WHEN jsonb_typeof(data->'text')='string' THEN length(data->>'text') END)))
+      WHERE project_id=rt.project_id AND binding_id=item.binding_id;
+    END IF;
+   END IF;
+   PERFORM sophia.conversation_retire(rt.project_id,item.attempt_id);
+  END LOOP;
+ END;
+ -- CON-HELLO-LOSS-END
+
+ SELECT coalesce(jsonb_agg(jsonb_build_object('attemptId',b.attempt_id,'nativeSessionId',b.native_session_id,'authorityEpoch',g.authority_epoch,
+   'state',CASE WHEN wa.state='revoked' THEN 'stopped' WHEN g.status IN ('holding','held') THEN 'held'
+    WHEN g.status IN ('stopping','stopped') THEN 'stopped' ELSE 'active' END)
+   ORDER BY b.attempt_id),'[]') INTO bindings
+  FROM sophia.execution_bindings b JOIN sophia.work_attempts wa ON wa.project_id=b.project_id AND wa.id=b.attempt_id
+  JOIN sophia.goals g ON g.project_id=wa.project_id AND g.id=wa.goal_id
+  WHERE b.project_id=rt.project_id AND b.resource_id=rt.resource_id AND b.runtime_unit_id=rt.runtime_unit_id
+   AND b.state IN ('running','idle','stopping');
+ -- CON-HELLO-BINDINGS-BEGIN
+ bindings:=bindings||coalesce((SELECT jsonb_agg(jsonb_build_object('attemptId',b.attempt_id,'nativeSessionId',b.native_session_id,
+  'authorityEpoch',a.authority_epoch,'state',CASE WHEN r.state IN ('pending','running') THEN 'active' ELSE 'stopped' END,
+  'conversationReplyId',a.conversation_reply_id,'create',CASE
+   WHEN EXISTS(SELECT 1 FROM sophia.runtime_commands rc WHERE rc.project_id=b.project_id AND rc.binding_id=b.id AND rc.kind='create') THEN (
+    SELECT CASE WHEN (rc.attempt_id=a.id AND o.command_id=rc.command_id AND o.binding_id=b.id AND o.authority_epoch=rc.authority_epoch
+      AND o.conversation_reply_id=a.conversation_reply_id AND o.destination='native.create' AND NOT o.cleanup
+      AND c.kind='create' AND c.semantic_request->>'operation'='conversation-create'
+      AND c.semantic_request->>'replyId'=r.id::text AND c.semantic_request->>'attemptId'=a.id::text
+      AND c.actor_id=r.asked_by AND c.authority_epoch=rc.authority_epoch) IS NOT TRUE
+     THEN jsonb_build_object('state','unresolved','reason','correlation_invalid')
+     WHEN rc.runtime_id IS DISTINCT FROM rt.id THEN jsonb_build_object('state','unresolved','reason','different_runtime')
+     ELSE jsonb_build_object('state','current','commandId',rc.id,'authorityEpoch',rc.authority_epoch) END
+    FROM sophia.runtime_commands rc LEFT JOIN sophia.outbox o ON o.project_id=rc.project_id AND o.id=rc.outbox_id
+     LEFT JOIN sophia.commands c ON c.project_id=rc.project_id AND c.id=rc.command_id
+    WHERE rc.project_id=b.project_id AND rc.binding_id=b.id AND rc.kind='create')
+   ELSE coalesce((SELECT CASE WHEN (o.conversation_reply_id=a.conversation_reply_id AND NOT o.cleanup
+     AND c.kind='create' AND c.semantic_request->>'operation'='conversation-create'
+     AND c.semantic_request->>'replyId'=r.id::text AND c.semantic_request->>'attemptId'=a.id::text
+     AND c.actor_id=r.asked_by AND c.authority_epoch=o.authority_epoch
+     AND o.state IN ('pending','dispatching','outcome_unknown','superseded','denied')
+     AND NOT EXISTS(SELECT 1 FROM sophia.runtime_commands rc WHERE rc.project_id=b.project_id AND rc.binding_id=b.id)
+     AND NOT EXISTS(SELECT 1 FROM sophia.conversation_reservations cr WHERE cr.project_id=b.project_id AND cr.reply_id=a.conversation_reply_id)
+     AND NOT EXISTS(SELECT 1 FROM sophia.conversation_executions e WHERE e.project_id=b.project_id AND e.attempt_id=a.id)
+     AND NOT EXISTS(SELECT 1 FROM sophia.native_observations n WHERE n.project_id=b.project_id AND n.binding_id=b.id)
+     AND NOT EXISTS(SELECT 1 FROM sophia.usage_records u WHERE u.project_id=b.project_id AND u.attempt_id=a.id)) IS TRUE
+     THEN 'null'::jsonb ELSE jsonb_build_object('state','unresolved','reason','correlation_invalid') END
+    FROM sophia.outbox o JOIN sophia.commands c ON c.project_id=o.project_id AND c.id=o.command_id
+    WHERE o.project_id=b.project_id AND o.binding_id=b.id AND o.destination='native.create'),
+    jsonb_build_object('state','unresolved','reason','correlation_invalid')) END)
+  -- 0067: a service attempt's original execution tuple; absent for a native or unknown one.
+  ||coalesce((SELECT jsonb_build_object('provenance',jsonb_build_object('execution','service','routeId',p.route_id,
+    'executorArtifactDigest',p.executor_artifact_digest)) FROM sophia.conversation_dispatch_provenance p
+    WHERE p.project_id=b.project_id AND p.attempt_id=a.id AND p.execution='service'),'{}'::jsonb)
+  ORDER BY b.attempt_id) FROM sophia.execution_bindings b JOIN sophia.work_attempts a ON a.project_id=b.project_id AND a.id=b.attempt_id
+  JOIN sophia.conversation_replies r ON r.project_id=a.project_id AND r.id=a.conversation_reply_id
+  WHERE b.project_id=rt.project_id AND b.resource_id=rt.resource_id AND b.runtime_unit_id=rt.runtime_unit_id AND b.state<>'retired'),'[]');
+ -- CON-HELLO-BINDINGS-END
+ PERFORM sophia.emit_service_event(rt.project_id,'runtime.hello','executor_resource',rt.resource_id,rt.lease_epoch,'runtime.hello');
+ RETURN jsonb_build_object('projectId',rt.project_id,'leaseId',rt.lease_id,'authorityEpoch',rt.lease_epoch,'bindings',bindings,
+  'cursor',sophia.runtime_cursor(rt.id));
+END $$;
+
+
 -- conversation_dispatch (0067), replaced as above. Its owner and grants are kept (CREATE OR REPLACE).
 CREATE OR REPLACE FUNCTION sophia.conversation_dispatch(o sophia.outbox) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
@@ -170,7 +305,12 @@ BEGIN
     ||CASE WHEN g.execution='service' THEN jsonb_build_object('execution',jsonb_build_object('execution','service',
      'routeId',g.route_id,'executorArtifactDigest',g.executor_artifact_digest)) ELSE '{}'::jsonb END,
    'text',sophia.conversation_reply_statement(o.project_id,r.id));
-  IF NOT rt.roles @> jsonb_build_array(jsonb_build_object('id','sophia-conversation-v1','route',payload->>'route')) THEN
+  -- A40: the bound runtime must still advertise the role for this grant's execution, as the Ask's selection required;
+  -- otherwise the create waits, as for a changed role. It is never retargeted, and no provenance is written yet.
+  IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(rt.roles) x WHERE x->>'id'='sophia-conversation-v1' AND x->>'route'=g.route_id
+    AND CASE WHEN g.execution='service' THEN x->'executor'=jsonb_build_object('execution','service','routeId',g.route_id,
+      'executorArtifactDigest',g.executor_artifact_digest)
+     ELSE (NOT x ? 'executor' OR x->'executor'='{"execution":"native"}'::jsonb) END) THEN
    RETURN sophia.defer_native_delivery(o,NULL::sophia.commands,'waiting for compatible reply role'); END IF;
  END IF;
  UPDATE sophia.runtime_instances SET command_sequence=command_sequence+1 WHERE id=rt.id RETURNING command_sequence INTO next_seq;
@@ -223,7 +363,12 @@ BEGIN
   -- The grant binds the route and requesting subjects. Its native owner-resource reference is not a host executor id.
   SELECT ri.* INTO rt FROM sophia.runtime_instances ri JOIN sophia.executor_resources er ON er.project_id=ri.project_id AND er.id=ri.resource_id
    WHERE ri.project_id=p_project AND ri.state='active' AND er.state='active'
-    AND ri.roles @> jsonb_build_array(jsonb_build_object('id','sophia-conversation-v1','route',g.route_id))
+    -- A40: only a runtime that can execute this grant: a pinned service grant needs its exact executor tuple; a native
+    -- grant a role naming no executor (legacy) or the native one. The newest such runtime, never a newer one that cannot.
+    AND EXISTS(SELECT 1 FROM jsonb_array_elements(ri.roles) x WHERE x->>'id'='sophia-conversation-v1' AND x->>'route'=g.route_id
+     AND CASE WHEN g.execution='service' THEN x->'executor'=jsonb_build_object('execution','service','routeId',g.route_id,
+       'executorArtifactDigest',g.executor_artifact_digest)
+      ELSE (NOT x ? 'executor' OR x->'executor'='{"execution":"native"}'::jsonb) END)
     AND sophia.runtime_unavailable(ri) IS NULL ORDER BY ri.seen_at DESC,ri.id LIMIT 1;
   IF rt.id IS NULL THEN why:='runtime_unavailable';
   ELSIF (SELECT count(*) FROM sophia.execution_bindings eb JOIN sophia.work_attempts wa ON wa.project_id=eb.project_id AND wa.id=eb.attempt_id

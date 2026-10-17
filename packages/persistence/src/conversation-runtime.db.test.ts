@@ -2326,7 +2326,7 @@ const sharedInsertions: Record<string, string[]> = {
   dispatch_runtime_outbox: ['D1', 'D2'],
   native_delivery_ineligible: ['N1'],
   capture_native_result: ['C1', 'C3'],
-  runtime_hello: ['HELLO-LOSS', 'HELLO-BINDINGS'],
+  runtime_hello: ['HELLO-LOSS', 'HELLO-BINDINGS', 'HELLO-EXECUTOR'],
   apply_runtime_receipt: ['RECEIPT'],
   runtime_record_observations: ['OBS-LOCKS', 'OBS-REPLY'],
   runtime_cursor: [],
@@ -3466,8 +3466,21 @@ const pin = async (projectId: string, spec: Record<string, unknown> = {}) =>
     { lineageId: await lineageOf(projectId), approvalRef: `pin-${randomUUID()}`, ...SERVICE, ...spec },
   ])
 
+/**
+ * The runtime's hello and ready again, its conversation role naming `executor` (A40): a pinned service grant is bound
+ * and dispatched only to a runtime advertising its exact tuple.
+ */
+async function advertise(rt: RuntimeSetup, executor: unknown) {
+  await call(rt, 'hello', {
+    protocolVersion: 1,
+    roles: [{ id: 'sophia-conversation-v1', route: 'route-test', presetDigest: 'synthetic', executor }],
+  })
+  await call(rt, 'record_ready', { state: 'ready', reason: null, unrecovered: [] })
+}
+
 async function serviceScene() {
   const rt = await runtimeProject()
+  await advertise(rt, SERVICE)
   await pin(rt.projectId)
   return nativeScene(rt)
 }
@@ -3565,8 +3578,10 @@ describe('conversation execution provenance (0067, A35)', () => {
   })
 
   it('serializes a pin with a dispatch of its lineage, either way round (Codex P1 on #393)', async () => {
-    // A pin first, uncommitted: the dispatch waits for it, then records the service tuple the lineage now has.
+    // A pin first, uncommitted: the dispatch waits for it, then records the service tuple the lineage now has. The bound
+    // runtime advertises that executor (A40), so only the pin decides the outcome.
     const first = await nativeScene()
+    await advertise(first.rt, SERVICE)
     const pinning = new pg.Client({ connectionString: db.ownerUrl })
     await pinning.connect()
     try {
