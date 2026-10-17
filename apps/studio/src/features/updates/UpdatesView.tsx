@@ -2,8 +2,8 @@
 // and the project's meetings, each opening its recap in the same sheet as on leaving. Shown under the vision flag, where
 // the fixture pages answer, or the attention flag, where A34 serves the digest: the meetings only under the vision flag
 // (ProjectShell decides); elsewhere Updates is still «Coming» (PendingView).
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { Button, Icon, Menu, MenuItem, Segmented, usePopover, type SegmentedItem } from '@sophia/ui'
 import { ApiError } from '../../api/client.ts'
@@ -86,29 +86,45 @@ const sinceRefusedKey = (projectId: string) => ['vision', 'since-refused', proje
  */
 function useSinceRefused(projectId: string, since: { error: unknown; errorUpdateCount: number }): number {
   const client = useQueryClient()
-  const refusedAt = useQuery({
+  useQuery({
     queryKey: sinceRefusedKey(projectId),
     queryFn: () => 0,
     initialData: 0,
     enabled: false,
     staleTime: Infinity,
     gcTime: Infinity,
-  }).data
+  })
+  // Read from the cache as it changes (its listeners are told at once), not as the query's observer is told a task
+  // later: a refusal its read keeps (sinceRefusedNow) hides the window before the next frame (R-391-UPDATES-01).
+  const refusedAt = useSyncExternalStore(
+    useCallback((changed: () => void) => client.getQueryCache().subscribe(changed), [client]),
+    () => client.getQueryData<number>(sinceRefusedKey(projectId)) ?? 0,
+  )
   const refused = closedDoor(since.error)
   useEffect(() => {
     // Each refusal seen (the count only tells one from the next): later than every read set out before it.
-    if (refused) client.setQueryData<number>(sinceRefusedKey(projectId), (at = 0) => Math.max(at, sinceOrder()))
+    if (refused) sinceRefusedNow(client, projectId)
   }, [client, projectId, refused, since.errorUpdateCount])
   return refusedAt
 }
 
+/** A refusal of this person's own read, kept as it is learnt: later than every read set out before it. */
+const sinceRefusedNow = (client: QueryClient, projectId: string) =>
+  client.setQueryData<number>(sinceRefusedKey(projectId), (at = 0) => Math.max(at, sinceOrder()))
+
 /** «Since you last looked»: the digest, and Mark as seen. */
 function SinceYouLooked({ projectId, identity, cursor, me }: SinceProps) {
+  const client = useQueryClient()
   const since = useQuery({
     queryKey: ['vision', 'since', projectId, cursor],
     queryFn: async ({ signal }): Promise<SinceRead> => {
       const readFrom = sinceOrder()
-      return { window: await getSince(identity.token, projectId, signal), readFrom }
+      // Refused (401, 403, known from the status alone): kept at once, before the query tells this view (R-391-UPDATES-01).
+      const window = await getSince(identity.token, projectId, signal).catch((error: unknown) => {
+        if (closedDoor(error)) sinceRefusedNow(client, projectId)
+        throw error
+      })
+      return { window, readFrom }
     },
     placeholderData: keepPreviousData,
     retry: false,
