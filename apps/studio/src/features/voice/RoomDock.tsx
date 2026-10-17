@@ -288,7 +288,8 @@ function LiveControls({ room, floor, projectId, identity, snapshot, sophia, onPa
   return (
     <>
       <MediaToggles room={room} me={me} />
-      <ReactMenu onReact={room.react} />
+      {/* A guest's token carries media only (livekit.ts): a reaction would reach nobody (guest-reactions.md). */}
+      {me?.standing !== 'guest' && <ReactMenu onReact={room.react} />}
       <span className="dock-sep" aria-hidden />
       {snapshot && me && (
         <FloorControl floor={floor} me={me.identity} context={{ projectId, identity, snapshot }} onPassed={onPassed} />
