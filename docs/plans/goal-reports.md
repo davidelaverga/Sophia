@@ -19,6 +19,12 @@
 - **The limit is the snapshot's:** a goal whose tasks are older than the latest 50 lists the reports those tasks made
   only while they are among them.
 
+## Follow-ups (Codex P2s on #414)
+
+- **A title opens the version its row names;** a newer one is offered by the pane's head («v2 is here»), as elsewhere.
+- **Closing the report gives the focus back to the goal's row.** The sheet closed for the report and took its button
+  with it, so the viewer falls back to what had the focus as it came (`returnFrom`), read once, never its own title.
+
 ## Checks
 
 - **`goal-reports.test.ts`:** by the task's artifact; by the version's trigger; another goal's report is not listed;
