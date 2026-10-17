@@ -185,6 +185,33 @@ host's credential custody and V's route check are still owed.
   - Neither crossing passed on this head, and nothing was run again.
 - **This checkpoint commit** changes this record only. The product tree is `7f6960e7`'s.
 
+## Published common 1e1c carried (FND-B3-CURRENT-1E1C-LOCAL-CARRY-04)
+
+The executor-identity P1 above was repaired in B2, and R accepted the repair (`c7cbc3aa`). It was published with
+current main and C's accepted completed-goal session retirement as `1e1c9e3a`. This is one normal merge of
+`1e1c9e3a` into the paused checkpoint `549c4896`, both parents kept; the merge base is `d0c46d5f`.
+- **What arrives:**
+  - the verified installed executor closure, refused outside the reviewed composition: no home patch, config-only
+    JSON overlays, no Node modifiers, and the canonical closed bundle;
+  - current main;
+  - C's 0075 and A41.
+- **No conflict.** The one shared path, `config/runtime-unit.json`, merged automatically: B's bundle `a27cc50a…` beside
+  Personal's workspace lock `6614784d…` and darwin tree `4f6f256b…`.
+  - Every other path is one side's exactly: 1e1c's 29 and Personal's 15.
+- **Unchanged.** Contracts regenerate with no drift, and every identity reproduces unrecorded. linux-x64 `4552d08f` is
+  still unqualified.
+  - Personal's 0073 is its reviewed bytes, with 0071, A40, 0075 and A41 as published. No migration, amendment,
+    endpoint, dependency or flag was added.
+  - The companion, service mode, Ask, native and BYO stay off.
+- **The earlier failure stays as it was.** `7f6960e7`'s check failed, with 17 cancelled crossings, after a served
+  fixture kept its roles on the same cluster. It is not rerun.
+- **This head is checked in separate, sequential owned clusters:**
+  1. the ordinary check and the database sweep, with no served fixture;
+  2. the trusted-creator group;
+  3. the served cases, last.
+
+  Results are in B's handback.
+
 ## Next bounded action
 
-Stopped for P's focused repair packet after R's triage. No push.
+B's private handback goes to P; R reviews this composition. No push.
