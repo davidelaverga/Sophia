@@ -557,6 +557,38 @@ completed-goal session retirement (`c26273d9`, 0075 and A41: the recovery API, a
 - **Still owed:** PostgreSQL 16 (both helper phases), Supabase-local auth, Linux identity, and the current-head CI and
   automatic review, in one publication after P accepts this carry. Merging B and C into main remains Luis's.
 
+## Retirement receipt cap (FND-B-393-4303630159-RECEIPT-CAP-FOCUSED-CORRECTION-01)
+
+The automatic review of `1e1c9e3a` found a P2 (#393 discussion 4303630159), and R confirmed it.
+- 0075 admits every unsettled binding of a completed goal and stores them all in the receipt.
+- A41 declared `Receipt.targets` with `maxItems: 1000`.
+- So at 1,001 bindings on one goal, the admission committed, and then the shared `parseReceipt` rejected its 202.
+- A same-key retry returned the same stored receipt and failed again.
+
+**Before, on `1e1c` contracts (executed).** A real owned PostgreSQL 17, the authenticated API with its default
+serializer, and the shared parser; synthetic attempts and bindings on one completed goal; no runtime or worker.
+- 1,000 bindings: the receipt parses with every target.
+- 1,001: the admission committed first. The authority epoch moved 1→2 and the state revision 1→2, with 1 event, 1,001
+  outbox deliveries and 1 command. The 202 carried 1,001 targets, and `parseReceipt` threw `/targets must NOT have
+  more than 1000 items`.
+
+**Now `maxItems` is removed from `Receipt.targets` in A41, and nothing else.** The canonical OpenAPI and the validators
+are regenerated; types and the runtime wire are unchanged.
+- Unchanged: every target, the item shapes, the UUID, null and string limits, `Goal.retirement`, every request limit,
+  guard and default.
+- There is no SQL, no new name and no new cap.
+- A stored oversized receipt now parses on replay without being rewritten.
+
+**Checks.** `apps/api/src/api.db.test.ts`: 37/37.
+- **1,000 and 1,001:** each receipt parses with every binding, once.
+- **Epoch and revision:** the authority epoch and the state revision move once; the goal stays completed at revision 1.
+- **Replay:** the same key after the epoch moved returns the same acknowledgement, with no further epoch, event,
+  outbox delivery or command.
+- **Projection:** the admin's `Goal.retirement` carries every target.
+- **Guards:** C's admin-only, body and idempotency cases still pass.
+- **Identities:** all reproduce unchanged.
+- The ordinary check of this head is in B's handback.
+
 ## Next bounded action
 
-B's private handback goes to P. No push until P's next packet.
+B's private handback goes to P; R reviews this correction. No push until P's next packet.

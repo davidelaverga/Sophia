@@ -15726,7 +15726,6 @@
           "targets": {
             "description": "retire_sessions only (A41): the bindings admitted for retirement, each stopped by the runtime's recorded stop. Admission, not settlement. Empty: nothing was left to retire.",
             "type": "array",
-            "maxItems": 1000,
             "items": {
               "type": "object",
               "additionalProperties": false,
