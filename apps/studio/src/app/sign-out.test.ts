@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { draftKey, forgetDrafts } from '../features/personal/draft.ts'
-import { endSession, EVERYWHERE, NOT_EVERYWHERE, signedOutAfter, signOutForgetting } from './sign-out.ts'
+import {
+  endSession,
+  EVERYWHERE,
+  NOT_EVERYWHERE,
+  SIGN_OUT_FAILED,
+  signedOutAfter,
+  signOutForgetting,
+} from './sign-out.ts'
 
 /** A browser's localStorage, as forgetDrafts lists it. */
 function storage() {
@@ -101,5 +108,14 @@ describe('what «Sign out of all devices» says (Codex P1 on #410, third)', () =
       confirm: 'Sign out everywhere',
       keep: 'Stay signed in',
     })
+  })
+})
+
+describe('a sign-out that fails (Codex P2 on #410, sign-out-failed.md)', () => {
+  it('says this device is still signed in, and what to do', () => {
+    assert.equal(
+      SIGN_OUT_FAILED,
+      'Couldn’t sign out: this device is still signed in. Check your connection and try again.',
+    )
   })
 })
