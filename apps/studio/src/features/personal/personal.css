@@ -449,7 +449,7 @@
   margin-left: 3px;
   border-radius: 50%;
   background: var(--core);
-  box-shadow: 0 0 10px 2px rgb(var(--halo-rgb) / 0.55);
+  box-shadow: var(--glow-her);
 }
 .places .hw-her.locked {
   width: auto;
@@ -661,7 +661,7 @@
   flex: none;
   border-radius: 50%;
   background: var(--core);
-  box-shadow: 0 0 8px 2px rgb(var(--halo-rgb) / 0.5);
+  box-shadow: var(--glow-sdot);
 }
 .places .pdot {
   width: 20px;
@@ -949,7 +949,7 @@
   width: 5.5px;
   height: 8.6px;
   fill: var(--core);
-  filter: drop-shadow(0 0 5px rgb(var(--halo-rgb) / 0.7));
+  filter: var(--glow-who);
 }
 /* Her turns' first line is taller (17 px at 1.55): her half sits a pixel lower to stay centred on it. */
 .places .msg.sophia:not(.typing) .c3-who {
@@ -1463,7 +1463,7 @@
   height: 5px;
   border-radius: 50%;
   background: var(--core);
-  box-shadow: 0 0 6px 1px rgb(var(--halo-rgb) / 0.6);
+  box-shadow: var(--glow-by);
 }
 .places .c2-to {
   grid-column: 1 / -1;
@@ -2213,7 +2213,7 @@
 }
 .places .c3-notes-toggle.ticked {
   color: var(--text);
-  text-shadow: 0 0 12px rgb(var(--halo-text-rgb) / 0.8);
+  text-shadow: var(--glow-ticked);
 }
 
 /* ---------- Moments (docs/plans/personal-moments.md §2) ---------- */

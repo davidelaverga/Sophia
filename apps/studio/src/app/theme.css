@@ -117,6 +117,36 @@
   --on-amber: var(--void);
   --rose-fill: var(--rose);
   --on-rose: var(--void);
+  /* Glows (docs/plans/light-live.md): what a live or lit piece casts around it, by role; no piece writes a glow of its
+     own. In the room each is the light the piece was drawn with; paper rings a large live piece and lets a small light
+     be its own fill. */
+  --glow-dot: 0 0 8px 1px rgb(var(--halo-rgb) / 0.8);
+  --glow-her: 0 0 10px 2px rgb(var(--halo-rgb) / 0.55);
+  --glow-sdot: 0 0 8px 2px rgb(var(--halo-rgb) / 0.5);
+  --glow-by: 0 0 6px 1px rgb(var(--halo-rgb) / 0.6);
+  --glow-spark: 0 0 10px var(--halo);
+  --glow-spark-peak: 0 0 16px var(--halo);
+  --glow-section: 0 0 8px var(--halo);
+  --glow-worker: 0 0 10px rgb(var(--halo-rgb) / 0.35);
+  --glow-rail: 0 0 12px rgb(var(--halo-rgb) / 0.6);
+  --glow-running: 0 0 8px rgb(var(--teal-rgb) / 0.6);
+  --glow-mine: 0 0 8px rgb(var(--amber-rgb) / 0.7);
+  --glow-full: 0 0 8px color-mix(in srgb, var(--rose) 45%, transparent);
+  --glow-ticked: 0 0 12px rgb(var(--halo-text-rgb) / 0.8);
+  --glow-composer: 0 0 30px rgb(var(--halo-rgb) / 0.08);
+  --glow-speaking: 0 0 0 1px rgb(var(--warm-rgb) / 0.6), 0 0 28px rgb(var(--warm-rgb) / 0.16);
+  --glow-orbit: 0 0 0 3px rgb(var(--warm-rgb) / 0.12), 0 0 24px rgb(var(--warm-rgb) / 0.22);
+  --glow-lit: 0 0 0 4px rgb(var(--halo-rgb) / 0.14), 0 0 28px rgb(var(--halo-rgb) / 0.2);
+  --glow-asked: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.8));
+  --glow-who: drop-shadow(0 0 5px rgb(var(--halo-rgb) / 0.7));
+  --glow-thread: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.85));
+  --glow-thread-spark: drop-shadow(0 0 6px var(--halo));
+  --glow-qr: drop-shadow(0 0 32px rgb(var(--halo-rgb) / 0.24));
+  --glow-mark: drop-shadow(0 0 2px rgb(var(--halo-rgb) / 0.45));
+  --glow-mark-live: drop-shadow(0 0 4px rgb(var(--halo-rgb) / 0.85));
+  --glow-threshold-from: drop-shadow(0 0 4px rgb(var(--halo-rgb) / 0.45));
+  --glow-threshold-to: drop-shadow(0 0 12px rgb(var(--halo-rgb) / 0.85));
+  --glow-threshold-still: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.6));
   --sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Consolas, monospace;
   --r-1: 4px;
@@ -230,6 +260,38 @@
   --on-amber: var(--amber);
   --rose-fill: #efddde;
   --on-rose: var(--rose);
+  /* Paper's two answers to a glow, which the roles point at: a small light is its own opaque fill and casts nothing (a
+     halo of colour only darkened the paper around it, D21); a large live piece is ringed, two solid pixels of the
+     accent its role names after it. Her mark keeps its soft light (docs/plans/light-paper-mark.md). */
+  --glow-sm: 0 0 transparent;
+  --glow-lg: 0 0 0 2px;
+  --glow-dot: var(--glow-sm);
+  --glow-her: var(--glow-sm);
+  --glow-sdot: var(--glow-sm);
+  --glow-by: var(--glow-sm);
+  --glow-spark: var(--glow-sm);
+  --glow-spark-peak: var(--glow-sm);
+  --glow-section: var(--glow-sm);
+  --glow-worker: var(--glow-sm);
+  --glow-rail: var(--glow-sm);
+  --glow-running: var(--glow-sm);
+  --glow-mine: var(--glow-sm);
+  --glow-full: var(--glow-sm);
+  --glow-ticked: var(--glow-sm);
+  --glow-composer: var(--glow-sm);
+  --glow-speaking: var(--glow-lg) var(--warm);
+  --glow-orbit: var(--glow-lg) var(--warm);
+  --glow-lit: var(--glow-lg) var(--halo);
+  --glow-asked: none;
+  --glow-who: none;
+  --glow-thread: none;
+  --glow-thread-spark: none;
+  --glow-qr: none;
+  --glow-mark: drop-shadow(0 0 2px rgb(var(--halo-rgb) / 0.45));
+  --glow-mark-live: drop-shadow(0 0 3px rgb(132 104 238 / 0.5));
+  --glow-threshold-from: drop-shadow(0 0 4px rgb(var(--halo-rgb) / 0.45));
+  --glow-threshold-to: drop-shadow(0 0 12px rgb(var(--halo-rgb) / 0.85));
+  --glow-threshold-still: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.6));
 }
 :root[data-theme='light'] body::after {
   display: none;
@@ -288,7 +350,7 @@
   filter: none;
 }
 :root[data-theme='light'] .umbral[data-live] .umbral-sophia {
-  filter: drop-shadow(0 0 3px rgb(132 104 238 / 0.5));
+  filter: var(--glow-mark-live);
 }
 
 *,
@@ -553,7 +615,7 @@ button:disabled,
 }
 .pill-dot[data-live] {
   background: var(--core);
-  box-shadow: 0 0 8px 1px rgb(var(--halo-rgb) / 0.8);
+  box-shadow: var(--glow-dot);
 }
 /* Keys inside buttons: quiet until they matter; on the light primary they are ink. */
 .pill kbd {
@@ -892,11 +954,11 @@ button.mark:hover {
 }
 .umbral-sophia {
   fill: var(--mark-sophia);
-  filter: drop-shadow(0 0 2px rgb(var(--halo-rgb) / 0.45));
+  filter: var(--glow-mark);
   transition: filter 1s var(--ease);
 }
 .umbral[data-live] .umbral-sophia {
-  filter: drop-shadow(0 0 4px rgb(var(--halo-rgb) / 0.85));
+  filter: var(--glow-mark-live);
 }
 .mark-word {
   font-weight: 600;
@@ -1303,16 +1365,16 @@ img.avatar {
 }
 @keyframes threshold-breathe {
   from {
-    filter: drop-shadow(0 0 4px rgb(var(--halo-rgb) / 0.45));
+    filter: var(--glow-threshold-from);
   }
   to {
-    filter: drop-shadow(0 0 12px rgb(var(--halo-rgb) / 0.85));
+    filter: var(--glow-threshold-to);
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .threshold .umbral-sophia {
     animation: none;
-    filter: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.6));
+    filter: var(--glow-threshold-still);
   }
 }
 .light[data-fallback] .light-gl {
@@ -1843,9 +1905,7 @@ img.avatar {
   box-shadow: 0 0 0 3px rgb(var(--warm-rgb) / 0.08);
 }
 .presence[data-speaking] .orbit {
-  box-shadow:
-    0 0 0 3px rgb(var(--warm-rgb) / 0.12),
-    0 0 24px rgb(var(--warm-rgb) / 0.22);
+  box-shadow: var(--glow-orbit);
 }
 .ignite {
   position: absolute;
@@ -3111,9 +3171,7 @@ button.contribution-quote:hover {
   border-color: rgb(var(--warm-rgb) / 0.5);
 }
 .tile[data-speaking] {
-  box-shadow:
-    0 0 0 1px rgb(var(--warm-rgb) / 0.6),
-    0 0 28px rgb(var(--warm-rgb) / 0.16);
+  box-shadow: var(--glow-speaking);
 }
 .sophia-tile {
   background: transparent;
@@ -3928,7 +3986,7 @@ button.contribution-quote:hover {
 .qr {
   margin: 0;
   width: min(200px, 64%);
-  filter: drop-shadow(0 0 32px rgb(var(--halo-rgb) / 0.24));
+  filter: var(--glow-qr);
 }
 .qr svg {
   display: block;
@@ -5201,7 +5259,7 @@ button.contribution-quote:hover {
   height: 7px;
   border-radius: 50%;
   background: var(--core);
-  box-shadow: 0 0 8px 1px rgb(var(--halo-rgb) / 0.8);
+  box-shadow: var(--glow-dot);
 }
 .chat-show-room {
   display: none;
@@ -5439,7 +5497,7 @@ button.contribution-quote:hover {
 /* Her mark: the dot takes her colour and glows, where she is speaking. */
 .report-sections a[data-sophia]::before {
   background: var(--halo-text);
-  box-shadow: 0 0 8px var(--halo);
+  box-shadow: var(--glow-section);
 }
 .report-sections a:focus-visible {
   outline: 2px solid var(--halo);

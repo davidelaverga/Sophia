@@ -1117,7 +1117,7 @@
   box-shadow:
     0 0 0 1px rgb(var(--halo-rgb) / 0.45),
     var(--elev-composer),
-    0 0 30px rgb(var(--halo-rgb) / 0.08);
+    var(--glow-composer);
 }
 .conv-compose textarea {
   flex: 1;
@@ -1270,7 +1270,7 @@
 }
 .conv-ask:has(input:checked) .umbral {
   opacity: 1;
-  filter: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.8));
+  filter: var(--glow-asked);
 }
 .conv-ask:has(input:checked) .conv-ask-box {
   border-color: var(--halo);

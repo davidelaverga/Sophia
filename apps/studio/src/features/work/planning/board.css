@@ -76,7 +76,7 @@
   height: 2px;
   border-radius: 2px;
   background: linear-gradient(90deg, transparent, var(--halo), transparent);
-  box-shadow: 0 0 12px rgb(var(--halo-rgb) / 0.6);
+  box-shadow: var(--glow-rail);
   transform: translateX(var(--thumb-x, 0));
 }
 .goal-rail[data-thumb-ready]::after {
@@ -143,7 +143,7 @@
 }
 .goal-tab-dot[data-status='running'] {
   background: var(--teal);
-  box-shadow: 0 0 8px rgb(var(--teal-rgb) / 0.6);
+  box-shadow: var(--glow-running);
 }
 .goal-tab-dot[data-status='holding'],
 .goal-tab-dot[data-status='held'] {
@@ -187,7 +187,7 @@
   height: 6px;
   border-radius: 50%;
   background: var(--amber);
-  box-shadow: 0 0 8px rgb(var(--amber-rgb) / 0.7);
+  box-shadow: var(--glow-mine);
 }
 
 /* ---- The board ---- */
@@ -410,9 +410,7 @@
 /* What the hovered tile waits on: a lavender ring, with a soft glow around it. */
 .task-tile[data-lit] {
   --edge: rgb(var(--halo-rgb) / 0.7);
-  box-shadow:
-    0 0 0 4px rgb(var(--halo-rgb) / 0.14),
-    0 0 28px rgb(var(--halo-rgb) / 0.2);
+  box-shadow: var(--glow-lit);
 }
 
 .task-who {
@@ -654,7 +652,7 @@
   height: 6px;
   border-radius: 50%;
   background: var(--halo-text);
-  box-shadow: 0 0 10px var(--halo);
+  box-shadow: var(--glow-spark);
   animation: changed-breathe 2.4s var(--ease) infinite alternate;
 }
 @keyframes changed-breathe {
@@ -701,7 +699,7 @@
   height: 100%;
   border-radius: 50%;
   background: radial-gradient(circle at 50% 45%, var(--core), var(--halo) 58%, rgb(var(--halo-rgb) / 0.18) 72%);
-  box-shadow: 0 0 10px rgb(var(--halo-rgb) / 0.35);
+  box-shadow: var(--glow-worker);
 }
 .task-sheet-who .plan-sophia {
   width: 40px;
@@ -918,7 +916,7 @@
   stroke-linecap: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  filter: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.85));
+  filter: var(--glow-thread);
   animation: thread-draw 0.5s var(--ease) forwards;
 }
 @keyframes thread-draw {
@@ -928,7 +926,7 @@
 }
 .thread-spark {
   fill: var(--core);
-  filter: drop-shadow(0 0 6px var(--halo));
+  filter: var(--glow-thread-spark);
   offset-distance: 0%;
   offset-rotate: 0deg;
   animation: thread-spark 1.4s var(--ease) 0.35s infinite;

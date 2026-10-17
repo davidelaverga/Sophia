@@ -1488,12 +1488,12 @@
   height: 8px;
   border-radius: 50%;
   background: radial-gradient(circle, var(--core), var(--halo) 70%);
-  box-shadow: 0 0 10px var(--halo);
+  box-shadow: var(--glow-spark);
   animation: ask-light 2.8s var(--ease) infinite alternate;
 }
 @keyframes ask-light {
   to {
-    box-shadow: 0 0 16px var(--halo);
+    box-shadow: var(--glow-spark-peak);
     transform: scale(1.12);
   }
 }
@@ -1507,7 +1507,7 @@
   height: 6px;
   border-radius: 50%;
   background: var(--halo-text);
-  box-shadow: 0 0 10px var(--halo);
+  box-shadow: var(--glow-spark);
   animation: away-breathe 2.4s var(--ease) infinite alternate;
 }
 @keyframes away-breathe {
@@ -1591,7 +1591,7 @@
   height: 3px;
   border-radius: 999px;
   background: var(--teal);
-  box-shadow: 0 0 8px rgb(var(--teal-rgb) / 0.6);
+  box-shadow: var(--glow-running);
   transition: width 0.5s var(--ease);
 }
 .act-steps li[data-reached] {
@@ -1760,7 +1760,7 @@
   }
 }
 .capacity-meter.is-full .capacity-meter-fill {
-  box-shadow: 0 0 8px color-mix(in srgb, var(--rose) 45%, transparent);
+  box-shadow: var(--glow-full);
 }
 .tool-logo.lg {
   transition: transform var(--fast) var(--ease);
