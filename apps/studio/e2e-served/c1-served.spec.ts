@@ -121,13 +121,36 @@ test('served · «Your name» is saved and read back; others see the chosen name
   await luis.close()
 })
 
-test('served · someone outside the project reads none of its conversations', async ({ page }) => {
-  const responses: number[] = []
+// R-C1-SERVED-01: this case once checked `responses.every(…)` over a list that could still be empty (an empty list's
+// every is true) and the absence of a title while the page was still loading, so it could pass without any denial.
+// Now it waits for the project's own refusal, the snapshot the shell reads first, then for the settled closed door,
+// and only then looks for protected content. The shell denies before the conversations mount: no conversations read
+// is required, but any that is made must be refused too.
+test('served · someone outside the project is refused by the project itself, then sees none of its conversations', async ({
+  page,
+}) => {
+  const project: string[] = []
   page.on('response', (r) => {
-    if (new URL(r.url()).pathname === `/api/v1/projects/${PROJECT}/conversations`) responses.push(r.status())
+    const path = new URL(r.url()).pathname
+    if (path.startsWith(`/api/v1/projects/${PROJECT}/`))
+      project.push(`${String(r.status())} ${r.request().method()} ${path}`)
   })
   await as(page, 'Outsider')
+  const refused = page.waitForResponse(
+    (r) => new URL(r.url()).pathname === `/api/v1/projects/${PROJECT}/snapshot` && r.request().method() === 'GET',
+  )
   await page.goto(VIEW)
-  await expect(page.getByText(ASKED)).toHaveCount(0)
-  await expect.poll(() => responses.every((s) => s === 403 || s === 404)).toBe(true)
+  // The witness: the project's own read, refused as to someone who isn't a member.
+  expect((await refused).status()).toBe(403)
+  // Settled: the closed door, in the shell's words, with its way out; no project view behind it.
+  const door = page.locator('main.notice')
+  await expect(door.getByRole('heading', { name: 'No access to this project' })).toBeVisible()
+  await expect(door).toContainText('Outsider isn’t a member.')
+  await expect(door.getByRole('button', { name: 'Back to projects' })).toBeVisible()
+  await expect(list(page)).toHaveCount(0)
+  await expect(open(page)).toHaveCount(0)
+  for (const words of [ASKED, NAMED, NAMELESS]) await expect(page.getByText(words)).toHaveCount(0)
+  // Every project read this person made was refused: none answered with content.
+  expect(project.length).toBeGreaterThan(0)
+  expect(project.filter((r) => !/^(403|404) /.test(r))).toEqual([])
 })

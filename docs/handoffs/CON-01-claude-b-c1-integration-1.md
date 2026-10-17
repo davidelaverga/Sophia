@@ -117,11 +117,22 @@ identities, one project), with that project's conversation setting enabled by `s
 - An admin erases a conversation: it leaves the list and stays gone after a reload.
 - «Your name» is saved (`PUT /api/v1/me/profile`) and read back after a reload. Another member sees the chosen name; a
   member without one shows as A member; no address appears on either page.
-- Someone outside the project gets 403 and sees none of its conversations.
+- Someone outside the project: corrected after R-C1-SERVED-01, see below.
 
 The first two runs failed in the test itself: a row shows its words twice, and the database outlives a run (the same
 name already saved leaves Save unavailable). The third run passed 5 of 5 with a row locator and words of its own.
-Conversations have no rename in the Studio, so none is checked. This is a local served check with synthetic identities,
+Conversations have no rename in the Studio, so none is checked.
+
+The outsider case as first written could pass without any denial (R-C1-SERVED-01). It checked
+`responses.every(403|404)` over a list that could still be empty, since an empty list's every is true, and checked a
+title's absence while the page could still be loading. So its pass in the third run, 162 ms, is not a served denial
+witness, and that run's served acceptance is four positive cases. No access bypass was found or claimed: the API and
+fixture permission tests keep their scope. The case now waits for the project's own refusal, `GET
+/api/v1/projects/<id>/snapshot` answered 403, which is the read the shell makes first and denies on before any
+conversation mounts. It then waits for the settled closed door ("No access to this project", "Outsider isn't a
+member.", Back to projects), with no conversation list or open conversation behind it. Only then does it check that no
+conversation's words show and that every project read this person made was refused (at least one, none answered). It
+asks for no conversations read the shell never makes. This is a local served check with synthetic identities,
 not hosted Auth or production acceptance.
 
 ## Remaining obligations
