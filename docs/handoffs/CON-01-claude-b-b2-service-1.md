@@ -540,6 +540,23 @@ installed one is those files in 13 directories.
   host helper's refusal.
 - PostgreSQL 16, both helper phases, Supabase-local auth and Linux have not run on this source.
 
+## Common integration: main and C262 (FND-B-COMMON-MAIN-C262-INTEGRATION-01)
+
+After R accepted the closed service bundle (`c7cbc3aa`), this line carries current main and C's accepted
+completed-goal session retirement (`c26273d9`, 0075 and A41: the recovery API, admin results and pulse truth, over
+`d0c46d5f`). There are two normal merges, with every parent kept.
+- **Main `f3700656`.** Its tree is con-c1 `42f65b5e`'s, already in this line, so the merge changes no file.
+- **C262 `c26273d9`.** No path changed on both sides since `d0c46d5f`. The merge is automatic.
+  - All 21 of C's paths are C's exact blobs, its Studio work files included. All 9 of B's paths are `c7cbc3aa`'s.
+  - Contracts regenerate with no drift, and every runtime identity reproduces unrecorded: bundle `a27cc50a…`, darwin
+    `e24cb887`, workspace lock `b868da08`, profile lock. linux-x64 is still unqualified.
+- **Names.** 0075 and A41 are C's, and no migration or amendment was added. 0067, 0070 and 0071 are unchanged.
+- **Behaviour.** Service mode, Ask and the native and BYO paths stay off and held. A completed goal stays completed,
+  with its review closed and its controls fenced.
+- **Checks.** The ordinary check of this head is in B's handback.
+- **Still owed:** PostgreSQL 16 (both helper phases), Supabase-local auth, Linux identity, and the current-head CI and
+  automatic review, in one publication after P accepts this carry. Merging B and C into main remains Luis's.
+
 ## Next bounded action
 
-B's private handback goes to P, and R checks this residual. No push until P selects a publication.
+B's private handback goes to P. No push until P's next packet.
