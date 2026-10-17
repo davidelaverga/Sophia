@@ -44,7 +44,9 @@ describe('the attention flag (A15, A34)', () => {
   })
 
   it('opens the Updates view, in the nav, the commands and the address, and nothing else of the project', () => {
-    assert.deepEqual(uses('features/studio/ViewNav.tsx'), ['const SHOWN = viewsShown(VISION, CONVERSATIONS, ATTENTION)'])
+    assert.deepEqual(uses('features/studio/ViewNav.tsx'), [
+      'const SHOWN = viewsShown(VISION, CONVERSATIONS, ATTENTION)',
+    ])
     assert.deepEqual(uses('app/SignedIn.tsx'), [
       "view={id === route.projectId ? shownView(route.view, VISION, CONVERSATIONS, ATTENTION) : 'studio'}",
     ])

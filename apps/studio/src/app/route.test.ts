@@ -101,7 +101,14 @@ describe('viewsShown (docs/plans/served-views.md)', () => {
   })
 
   it('shows saved conversations and Updates together where both are served, and still no resources', () => {
-    assert.deepEqual(viewsShown(false, true, true), ['studio', 'conversations', 'goals', 'work', 'knowledge', 'updates'])
+    assert.deepEqual(viewsShown(false, true, true), [
+      'studio',
+      'conversations',
+      'goals',
+      'work',
+      'knowledge',
+      'updates',
+    ])
     assert.equal(shownView('resources', false, true, true), 'studio')
   })
 })

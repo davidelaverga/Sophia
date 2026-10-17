@@ -175,10 +175,21 @@ const parseDigest = checked<Digest>(
   'digest',
 )
 /**
- * «Since» as it is answered: served, A34's own parser (the contract, nulls and `more` included, nothing else); under the
- * vision flag, the fixture pages' proposed shape, as before.
+ * «Since» as it is answered: A34's own parser (the contract, nulls and `more` included, nothing else), whatever the
+ * build, since the served window does not change with a flag. Under the vision flag the fixture pages' older proposed
+ * shape is still read when the answer is not A34's; the contract's parser drops unknown fields, so it reads a copy.
  */
-const parseSince = (value: unknown): Since => (VISION ? parseDigest(value) : parseProjectUpdates(value))
+export const sinceParser =
+  (vision: boolean) =>
+  (value: unknown): Since => {
+    if (!vision) return parseProjectUpdates(value)
+    try {
+      return parseProjectUpdates(structuredClone(value))
+    } catch {
+      return parseDigest(value)
+    }
+  }
+const parseSince = sinceParser(VISION)
 const nothing = (value: unknown): undefined => {
   if (value === null) return undefined
   throw new ApiError(200, 'contract_violation', 'Sophia’s reply couldn’t be read.', 'never')

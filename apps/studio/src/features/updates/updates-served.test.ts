@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
 import { ApiError } from '../../api/client.ts'
-import { getSince } from '../../api/vision.ts'
+import { getSince, sinceParser } from '../../api/vision.ts'
 import { recapSections } from '../voice/recap-view.ts'
 import { digestLead, narrowRecords, peopleOf } from './updates-view.ts'
 
@@ -131,5 +131,34 @@ describe('Updates served (A34)', () => {
     )
     assert.equal(digestLead(window34()), 'This is only the first part of what changed: mark it as seen to read on.')
     assert.equal(digestLead(window34({ more: false, decided: [], made: [] })), 'Nothing new since you last looked.')
+  })
+})
+
+describe('the A34 window under either flag (the wire does not change with the build)', () => {
+  /** The fixture pages' older shape: everyone named, every moment kept, no `more`. */
+  const digest = () => {
+    const { more: _more, ...rest } = window34({
+      decided: [{ ...window34().decided[1], proposedBy: MARCO }],
+      made: [{ ...window34().made[0], askedBy: MARCO }],
+    })
+    return rest
+  }
+
+  for (const vision of [false, true]) {
+    it(`reads the served window, nulls and more included, with the vision flag ${vision ? 'on' : 'off'}`, () => {
+      const got = sinceParser(vision)(window34())
+      assert.equal(got.more, true)
+      assert.equal(got.decided[0]?.decidedBy, null)
+      assert.equal(got.made[0]?.askedBy, null)
+    })
+  }
+
+  it('still reads the fixture pages’ older shape under the vision flag, and only there', () => {
+    assert.equal(sinceParser(true)(digest()).more, undefined)
+    assert.throws(() => sinceParser(false)(digest()), /ProjectUpdates/)
+  })
+
+  it('refuses under the vision flag what neither shape is', () => {
+    assert.throws(() => sinceParser(true)({ ...window34(), toSequence: 12 }))
   })
 })
