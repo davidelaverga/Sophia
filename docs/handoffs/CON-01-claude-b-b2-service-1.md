@@ -113,6 +113,25 @@ Existing authority: P's FND-B2 packets (implementation, phase 2, service review 
   - PostgreSQL 16: only the ordinary suites through CI. The exclusive admission on 16 is not run (no local 16 binary; the CI service is not an owned cluster).
 - **Limits:** the CI database job keeps its 20-minute deadline; serialized `test:db` took about 4–5 min locally. The production login, its activation and service mode stay off.
 
+## C1 carried with main 14e65afc (FND-B2-C1-CHAT-CARRY-01)
+
+One normal merge of the qualified C1 2c60b408 into 71e2c935, with no conflict. It inherits 71 Studio and docs paths, each
+byte-equal to C1's. Main 14e65afc changed 69 paths: 63 taken whole, 6 combined, and only OpenConversation resolved by
+hand in C1. The rest are C1's read-fence case for formatted words and its records. The API, SQL, packages, root lock,
+native host, worker, service executor, bridge, assembler, scripts, tests and CI are byte-equal to 71e2c935. The bundle
+reproduces unchanged (sha256:e516779f8608b9246ec76f877d8af5fbe54e473dc0a84f9ceb49b3a3c59428dd), and contract
+regeneration has no drift. Unit tests 3017 passed, 0 failed.
+
+Corrections carried here, not in a separate commit:
+- The 17 listening API/worker/restricted PostgreSQL/SDK crossings inject a synthetic Bearer test-actor verifier, not
+  signed JWT verification.
+- The 404 focused DB tests exclude the two empty gated exclusive Q13 groups. PostgreSQL 16 exclusive qualification is
+  still owed.
+- An earlier claim that the service executor settles usage after an errored or aborted call was wrong and is withdrawn.
+  It settles only a completed response, and pi-ai's zero usage on error or abort stays uncertain.
+- The native reply supervisor's skipped final sweep (review 4300538470) stays open as a native and BYO activation
+  blocker. The service executor runs in the bridge process and is mapped separately. Every reply default stays off.
+
 ## Next bounded action
 
 Check the automatic review on #393's repair head once. Then implement the assembly binding exactly as P/V triage it, in this worktree, with its census-numbered migration.
