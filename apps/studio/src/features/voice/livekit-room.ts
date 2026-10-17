@@ -199,7 +199,7 @@ function remoteAudio(room: Room, textOnly: () => boolean, volume: PeopleVolume):
   })
   // A sound someone Off publishes (their screen's, or their voice after a rejoin) isn't taken (people-volume.md).
   room.on(RoomEvent.TrackPublished, (publication, participant) => {
-    if (!isSophia(participant)) volume.take(publication, participant.identity)
+    if (!isSophia(participant)) volume.published(publication, participant.identity)
   })
   return mine
 }

@@ -59,8 +59,10 @@ export function peopleVolume() {
     remove: (sound: Sound) => {
       sounds.delete(sound)
     },
-    /** A track of theirs is published: taken or let go by their level. */
-    take,
+    /** A track of theirs is published: let go if they are Off; anyone else's is LiveKit's to take, as ever. */
+    published: (track: Track, identity: string) => {
+      if (track.kind === 'audio' && levelOf(identity) === 0) track.setSubscribed(false)
+    },
     /** Their level, put on their sounds and their tracks. */
     set: (identity: string, level: Level, tracks: Iterable<Track>) => {
       levels.set(identity, level)
