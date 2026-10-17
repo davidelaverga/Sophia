@@ -40,7 +40,7 @@ commits on the branch merge its base forward or touch only this record). 10 file
   - `people-volume` again after the fix: 3/3;
   - `people-volume.test.ts`: 6/6;
   - Studio typecheck and Prettier: clean.
-  - Lint: clean, apart from main's own `ProjectBody` length, which #423 fixes (see Remaining obligations).
+  - Lint: clean, with main merged in after #423 fixed main's own `ProjectBody` length.
 - **Captures** (`evaluacion-2026-10-16/capturas/`):
   - `volume-1-menu-desktop.png` and `-phone.png`: the menu, «For you alone» on one line, 100% marked;
   - `volume-2-rows-desktop.png` and `-phone.png`: Marco Off with a struck speaker, Lucía at «50%» in her square, rows
@@ -65,8 +65,6 @@ commits on the branch merge its base forward or touch only this record). 10 file
 
 ## Remaining obligations
 
-- **Main's lint:** it is red since #368 merged (`ProjectBody`, 63 lines); #423 fixes it. This branch takes main after
-  #423 lands, then lint runs clean here too.
 - **#369** rewrites the People panel (stop camera and screen, Mute everyone). Whichever of the two merges second takes
   the other's rows. Both are this session's.
 - **On a phone,** «Show others’ cameras» (the incoming-video PR) is in the dock's Video settings, which a phone in a
