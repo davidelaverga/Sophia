@@ -15,6 +15,7 @@ const GLYPH: Readonly<Record<NeedKind, IconName>> = {
   review: 'brief',
   guest: 'invite',
   reply: 'sophia',
+  mention: 'chat',
 }
 
 interface Props {

@@ -14,7 +14,7 @@ export {
   type TxMode,
 } from './tx.ts'
 export { readMyProfile, setMyProfile } from './profiles.ts'
-export { markReplySeen, readNeeds } from './needs.ts'
+export { markMentionSeen, markReplySeen, readNeeds } from './needs.ts'
 export { markProjectSeen, readProjectUpdates } from './updates.ts'
 export { classifyDbError } from './errors.ts'
 export { migrate, readMigrations, MigrationDrift, type MigrationReport } from './migrate.ts'
@@ -86,10 +86,12 @@ export {
   runtimeResearchRender,
   runtimeResearchRenderResult,
 } from './research-render.ts'
+export { correctContribution, previewContributionAct, withdrawContribution } from './contribution-acts.ts'
 export {
   admitNativeTask,
   readDiscussion,
   readDiscussionPage,
+  readRevisedDiscussion,
   readNativeTask,
   readNativeTasks,
   readResearchVersion,
@@ -97,6 +99,7 @@ export {
   readTaskStandings,
   submitContribution,
   type ContributionOrigin,
+  type RevisedDiscussion,
   type ReportVersion,
   type ReportVersionText,
   type ResearchVersions,

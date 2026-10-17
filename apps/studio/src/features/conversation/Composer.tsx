@@ -20,8 +20,9 @@ import {
 } from './chat-view.ts'
 import { ContinuityChoice } from './ContinuityChoice.tsx'
 import { HELD_WORDS, TARGET_WORDS, type Target } from './discussion-view.ts'
+import { MentionPicker, useMentions } from './MentionPicker.tsx'
 import { ReplyingTo, useReplyBar, type Replying } from './ReplyingTo.tsx'
-import { useBarTarget, useRoomMessage } from './useRoomMessage.ts'
+import { useBarTarget, useRoomMessage, type ReplyUnderWay } from './useRoomMessage.ts'
 import { getSnapshot } from '../../api/client.ts'
 import { startExchange } from '../../api/exchange.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -355,6 +356,29 @@ function FootLine({ words, unknown, onRetry, held, onMove }: FootLineProps) {
   )
 }
 
+/** The room's message (useRoomMessage), with the members it names when it goes to the room (A37). */
+function useToRoom(props: Props, reply: ReplyUnderWay, roomBound: boolean) {
+  const { projectId, identity, draft, onDraft } = props
+  const mentions = useMentions(projectId, identity, roomBound)
+  return {
+    mentions,
+    toRoom: useRoomMessage(projectId, identity, draft, onDraft, { reply, mentions: mentions.underWay }),
+  }
+}
+
+/** Just above the bar: what is being answered (A20), and whom the message will name (A37). */
+function AboveBar(props: {
+  reply: { replying: Replying | null; stopHere: () => void }
+  mentions: ReturnType<typeof useMentions>
+}) {
+  return (
+    <>
+      <ReplyingTo replying={props.reply.replying} onStop={props.reply.stopHere} />
+      {props.mentions.offered && <MentionPicker {...props.mentions} />}
+    </>
+  )
+}
+
 /**
  * Typed turns use the same admitted exchange and lifecycle handlers as voice, with no microphone required. The same
  * bar writes to the room's discussion, always (useRoomMessage).
@@ -370,7 +394,7 @@ export function Composer(props: Props) {
   const bar = entry === 'bar'
   const target = useBarTarget(bar && chat.mine, draft, field)
   const reply = useReply(props, target, field)
-  const toRoom = useRoomMessage(projectId, identity, draft, onDraft, reply.underWay)
+  const { mentions, toRoom } = useToRoom(props, reply.underWay, bar ? target.target === 'room' : true)
   const begin = async () => {
     asked.current = true
     if (!(await start())) asked.current = false
@@ -408,7 +432,7 @@ export function Composer(props: Props) {
       {!bar && (
         <ChatStart starting={starting} ready={room.ready && room.status !== 'joining'} onStart={() => void begin()} />
       )}
-      <ReplyingTo replying={reply.replying} onStop={reply.stopHere} />
+      <AboveBar reply={reply} mentions={mentions} />
       <MessageBar
         field={field}
         draft={draft}

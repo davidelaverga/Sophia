@@ -156,7 +156,7 @@ export const EVENT_TYPES = [
     'archived',
     'unarchived',
   ]),
-  'contribution.recorded',
+  ...suffixed('contribution.', ['recorded', 'corrected', 'withdrawn', 'mentioned']),
   ...suffixed('native_task.', [
     'admitted',
     'waiting',
@@ -230,7 +230,7 @@ export const SUMMARY_CODES = [
     'archived',
     'unarchived',
   ]),
-  ...suffixed('contribution.', ['discuss', 'ask_sophia', 'propose_work']),
+  ...suffixed('contribution.', ['discuss', 'ask_sophia', 'propose_work', 'corrected', 'withdrawn', 'mentioned']),
   ...suffixed('native_task.', [...TASK_SUMMARIES, ...TASK_ENDINGS]),
   ...suffixed('runtime.', ['hello', 'ready', 'not_ready', 'unrecovered']),
   ...suffixed('goal.', ['held', 'stopped', 'target']),

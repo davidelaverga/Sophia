@@ -6,6 +6,12 @@ import { defineConfig, type Plugin } from 'vite'
 // The vision flag (src/app/vision.ts): the fixture pages answer the APIs proposed in issue #105, so they show them.
 // Vite hands VITE_ variables of its own process to import.meta.env.
 process.env.VITE_SOPHIA_VISION = '1'
+// The message acts flag (src/app/message-acts.ts): the fixture pages answer A36, so the chat reads revisions=1; only
+// `acts=1` gives the viewer's messages their kind, so only then are Edit and Withdraw offered.
+process.env.VITE_SOPHIA_MESSAGE_ACTS = '1'
+// The mentions flag (src/app/mentions.ts): the fixture pages answer A37, so the chat offers mentions to an editor or an
+// admin, and Home lists them (with its needs flag).
+process.env.VITE_SOPHIA_MENTIONS = '1'
 
 const fakeLiveKit = fileURLToPath(new URL('./fixtures/fake-livekit.ts', import.meta.url))
 const fixtureCrashDsn = fileURLToPath(new URL('./fixtures/crash-dsn.ts', import.meta.url))

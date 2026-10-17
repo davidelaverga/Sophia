@@ -16,8 +16,8 @@ import type { Identity } from '../src/app/dev-identity.ts'
 import { DEMO, DEMO_STATEMENT, PROJECT_NAME } from './demo.ts'
 
 export const PROJECT = '00000000-0000-4000-8000-0000000000aa'
-const ME = '00000000-0000-4000-8000-0000000000a1'
-const OTHER = '00000000-0000-4000-8000-0000000000a2'
+export const ME = '00000000-0000-4000-8000-0000000000a1'
+export const OTHER = '00000000-0000-4000-8000-0000000000a2'
 export const ROOM = '00000000-0000-4000-8000-0000000000ab'
 const SOURCE = '00000000-0000-4000-8000-0000000000ac'
 export const EXCHANGE = '00000000-0000-4000-8000-0000000000ae'
@@ -45,6 +45,17 @@ export interface Said {
   replyTo?: { id: string; actorId: string; excerpt: string }
   /** When it was said; absent, the fixture's fixed moment (chat-times.md). */
   at?: string
+  /** What it is made of (A36, message-acts.md): written, or sharing a report; absent, written. */
+  kind?: 'text' | 'reference'
+  /** Its revision and when its words were last corrected (A36); absent, 1 and never. */
+  revision?: number
+  correctedAt?: string
+  /** When its author withdrew it (A36): then only its place shows, never its words. */
+  withdrawnAt?: string
+  /** The members it mentions (A37), by actor id. */
+  mentions?: string[]
+  /** Which asking of the viewer this is (A37): one more each time they are named again after being removed. */
+  occurrence?: number
 }
 
 /** The `n`th message's entry id in the discussion (0-based), as the snapshot lists it. */
