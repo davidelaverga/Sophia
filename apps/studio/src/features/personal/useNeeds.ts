@@ -1,13 +1,14 @@
-// What needs the person, read for Home (docs/plans/needs-api.md): the proposed read (A15), under the vision flag, every
-// 20 s as the projects are; and the way to each need, where it lives. Undefined while the flag is off, the padlock is
-// shut (the read carries Sophia's replies: nothing personal is read or kept while it is), the read is on its way or
-// failed: Home is then as it was, her light alone.
+// What needs the person, read for Home (docs/plans/needs-api.md): the read (A15), under the vision or the attention
+// flag, every 20 s as the projects are; and the way to each need, where it lives. Undefined while both flags are off,
+// the padlock is shut (the read carries Sophia's replies: nothing personal is read or kept while it is), the read is on
+// its way or failed: Home is then as it was, her light alone.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Need as WireNeed } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
 import { tokenSubject } from '../../app/auth-callback.ts'
 import { clockSkew, listNeeds, markNeedSeen, needsOf, whereOf, type NeedAt } from '../../api/needs.ts'
 import type { View } from '../../app/route.ts'
+import { ATTENTION } from '../../app/attention.ts'
 import { VISION } from '../../app/vision.ts'
 import type { Need } from './needs-you.ts'
 import { READ_FAILED, readState } from './places-view.ts'
@@ -27,7 +28,7 @@ export interface NeedsGo {
 export type NeedsSeen = { items: readonly Need[]; open: (need: Need) => void; skew: number }
 
 export interface NeedsOptions {
-  /** The vision flag by default; the fixture decides for itself. */
+  /** The vision or attention flag by default; the fixture decides for itself. */
   enabled?: boolean
   /** The personal padlock: shut, nothing is read and nothing read is shown. */
   locked?: boolean
@@ -53,8 +54,11 @@ export interface NeedsRead {
   read: Read | null
 }
 
+/** Home reads what needs the person under either flag: the vision flag's fixtures, or A15 served (attention). */
+const NEEDS_SHOWN = VISION || ATTENTION
+
 export function useNeeds(token: string, go: NeedsGo, options: NeedsOptions = {}): NeedsRead {
-  const { enabled = VISION, locked = false } = options
+  const { enabled = NEEDS_SHOWN, locked = false } = options
   const client = useQueryClient()
   // Keyed by the account, not the token: a refreshed token is the same person, and their rows stay while it reads
   // again (Codex on #245).

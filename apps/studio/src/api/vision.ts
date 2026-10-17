@@ -1,6 +1,8 @@
 // Requests to APIs proposed in issue #105 and not built yet: each shape is the proposal's, checked at runtime as the
 // contract's parsers check theirs, so a different answer is an error, never a cast. Called only under the vision flag
 // (app/vision.ts); the fixture pages answer them.
+import type { ProjectUpdates } from '@sophia/contracts'
+import { parseProjectUpdates } from '@sophia/contracts/validate'
 import { ApiError, callApi } from './client.ts'
 
 /** A14: what showing (or stopping) answers once the room's focus is committed. */
@@ -96,6 +98,13 @@ export interface Digest extends Pick<MeetingRecap, 'decided' | 'made' | 'noted' 
   toSequence: string
 }
 
+/**
+ * What changed since this viewer last looked, as Updates shows it: A34's window, where a person or a moment may be null
+ * (nobody readable to name, none kept) and `more` says events lie after it. The fixture pages answer the same window
+ * (fixtures/meeting-data.ts, updatesWindowOf).
+ */
+export type Since = ProjectUpdates
+
 export interface MeetingReceipt {
   meetingId: string
   revision: number
@@ -165,6 +174,11 @@ const parseDigest = checked<Digest>(
   { fromSequence: isStrOrNull, toSequence: isStr, decided, made, noted, open, work, names },
   'digest',
 )
+/**
+ * «Since» as it is answered: A34's own parser, the contract and nothing else, whatever the build; a build flag never
+ * chooses another reader (R-C2-WIRE-01). The fixture pages' older digest is made an A34 window where they answer it.
+ */
+export const parseSince: (value: unknown) => Since = parseProjectUpdates
 const nothing = (value: unknown): undefined => {
   if (value === null) return undefined
   throw new ApiError(200, 'contract_violation', 'Sophia’s reply couldn’t be read.', 'never')
@@ -232,9 +246,9 @@ export const listSourceOrigins = (token: string, artifactId: string, versionId: 
 export const closeMeeting = (token: string, roomId: string, meetingId: string, key: string): Promise<MeetingReceipt> =>
   callApi(`/api/v1/rooms/${roomId}/meetings/${meetingId}/close`, { token, method: 'POST', key }, parseMeetingReceipt)
 
-/** A13: what changed since this viewer last looked (their own attention, kept by the API). */
-export const getSince = (token: string, projectId: string, signal?: AbortSignal): Promise<Digest> =>
-  callApi(`/api/v1/projects/${projectId}/since`, { token, method: 'GET', ...(signal ? { signal } : {}) }, parseDigest)
+/** A34 (A13's «since»): what changed since this viewer last looked (their own attention, kept by the API). */
+export const getSince = (token: string, projectId: string, signal?: AbortSignal): Promise<Since> =>
+  callApi(`/api/v1/projects/${projectId}/since`, { token, method: 'GET', ...(signal ? { signal } : {}) }, parseSince)
 
 /** A13: this viewer has seen up to `sequence`; the API never lowers it, so a second write is harmless. */
 export const markSeen = (token: string, projectId: string, sequence: string): Promise<undefined> =>
