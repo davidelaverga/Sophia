@@ -40,6 +40,7 @@ import {
   validatePersonalTurnPage,
   validateProjectCreated,
   validateProjectRenamed,
+  validateProjectArchived,
   validateProjectLeft,
   validateDiscussionPage,
   validateGoalTargetList,
@@ -91,6 +92,7 @@ export const parseSnapshot = parser('Snapshot', validateSnapshot)
 export const parseReceipt = parser('Receipt', validateReceipt)
 export const parseProjectCreated = parser('ProjectCreated', validateProjectCreated)
 export const parseProjectRenamed = parser('ProjectRenamed', validateProjectRenamed)
+export const parseProjectArchived = parser('ProjectArchived', validateProjectArchived)
 export const parseProjectLeft = parser('ProjectLeft', validateProjectLeft)
 export const parseDiscussionPage = parser('DiscussionPage', validateDiscussionPage)
 export const parseGoalTargetList = parser('GoalTargetList', validateGoalTargetList)

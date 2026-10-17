@@ -1,5 +1,6 @@
 import type pg from 'pg'
 import type {
+  ProjectArchived,
   ProjectCreate,
   ProjectCreated,
   ProjectLeft,
@@ -23,6 +24,23 @@ export async function createProject(
     idempotencyKey,
   ])
   return onlyRow(rows, 'create_project').receipt
+}
+
+/**
+ * Archive a project or bring it back (A30): an admin only, idempotent per actor and key; asking for the state it has
+ * changes nothing. Call inside withActor(..., "write").
+ */
+export async function setProjectArchived(
+  c: pg.PoolClient,
+  projectId: string,
+  idempotencyKey: string,
+  archived: boolean,
+): Promise<ProjectArchived> {
+  const { rows } = await c.query<{ receipt: ProjectArchived }>(
+    `SELECT sophia.set_project_archived($1, $2, $3) AS receipt`,
+    [projectId, archived, idempotencyKey],
+  )
+  return onlyRow(rows, 'set_project_archived').receipt
 }
 
 /** Rename a project (A21): an admin only, idempotent per actor and key. Call inside withActor(..., "write"). */

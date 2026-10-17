@@ -242,6 +242,8 @@ interface Fixture {
   loseNextCloseReply: () => void
   /** A note is kept in the brief, as by this viewer's Keep in another tab: the project moves. */
   keep: (text: string) => void
+  /** The Resources view draws again (`resources=crash` healed; view-boundary.md). */
+  healView: () => void
   /** The next «Mark as seen» lands, but its reply is lost. */
   loseNextSeenReply: () => void
   /** Turning the microphone on waits until `releaseMicrophone`, as a browser still asking for it. */
@@ -317,6 +319,14 @@ declare global {
 }
 
 const query = new URLSearchParams(window.location.search)
+
+/** `resources=crash`: the Resources view fails to draw until `healView`, as a bug in a view would (view-boundary.md). */
+let viewBroken = query.get('resources') === 'crash'
+
+function MaybeBroken({ children }: { children: ReactNode }) {
+  if (viewBroken) throw new Error('A view that fails to draw (fixture)')
+  return children
+}
 bootTheme(query.get('theme'))
 // As main.tsx starts them: on here only with `?sentry=1` (fixtures/crash-dsn.ts, crash-feedback.md).
 startCrashReports()
@@ -513,6 +523,8 @@ const project = {
   failEarlier: false,
   failHost: false,
   staleTarget: false,
+  // `archived=1`: the project is archived (archive-project.md).
+  archived: query.get('archived') === '1',
   // `targets=1`: the rollout is Marco's, due 30 October 2026 (goal-owner-date.md); `targets=mine` adds the admin change
   // as the viewer's, due 20 November, and the completed pilot as theirs, due 1 October (goal-overdue.md).
   goalTargets: new Map(goalTargetsAsked(query.get('targets'))),
@@ -916,6 +928,9 @@ window.fixture = {
     )
     publish(project)
   },
+  healView: () => {
+    viewBroken = false
+  },
   loseNextSeenReply: () => {
     project.meeting.seen.loseReply = true
   },
@@ -1159,6 +1174,8 @@ const demoAccount = (privacy: () => void) => ({
   privacy,
   chooseDev: nothing,
   signOut: () => window.location.assign(`signin.html${DEMO ? '?demo=1' : ''}`),
+  // Every device: the sign-in, saying so, so a check can tell the two apart (sign-out-scope.md).
+  signOutEverywhere: () => window.location.assign(`signin.html?everywhere=1${DEMO ? '&demo=1' : ''}`),
 })
 
 function Project({ background }: { background: boolean }) {
@@ -1180,7 +1197,13 @@ function Project({ background }: { background: boolean }) {
         onSignOut={nothing}
         joinOnOpen={query.get('call') === 'on'}
         background={background}
-        resources={DEMO ? <DemoResources /> : undefined}
+        resources={
+          DEMO ? (
+            <MaybeBroken>
+              <DemoResources />
+            </MaybeBroken>
+          ) : undefined
+        }
       />
     </>
   )

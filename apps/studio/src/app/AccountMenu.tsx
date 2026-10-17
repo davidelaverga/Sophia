@@ -16,12 +16,16 @@ import { signedInWith } from './profile.ts'
 import { type Theme, useTheme } from './theme.ts'
 import { reportsOn } from './crash-report.ts'
 import { FeedbackSheet } from './FeedbackSheet.tsx'
+import { SettingsSheet } from './SettingsSheet.tsx'
 
 export interface AccountActions {
   data: () => void
   privacy: () => void
   chooseDev: (identity: Identity | null) => void
+  /** This device only (sign-out-scope.md). */
   signOut: () => void
+  /** Every device the account is on: Settings asks first. */
+  signOutEverywhere: () => void
 }
 
 /** Where the menu is: in the places D opens your data; in a project it takes you home first. */
@@ -106,10 +110,40 @@ interface Props {
   actions: AccountActions
 }
 
+/** The sheet the menu opened, one at a time: Settings hands over to Passkeys or feedback, your data or privacy, the keys. */
+type SheetName = 'passkeys' | 'feedback' | 'settings' | null
+
+function AccountSheet(props: {
+  which: Exclude<SheetName, null>
+  identity: Identity
+  actions: AccountActions
+  onSheet: (sheet: SheetName) => void
+}) {
+  const { which, actions, onSheet } = props
+  const close = () => onSheet(null)
+  if (which === 'passkeys') return <PasskeySheet onClose={close} />
+  if (which === 'feedback') return <FeedbackSheet onClose={close} />
+  const leaveFor = (run: () => void) => () => {
+    close()
+    run()
+  }
+  return (
+    <SettingsSheet
+      identity={props.identity}
+      onData={leaveFor(actions.data)}
+      onPrivacy={leaveFor(actions.privacy)}
+      onSignOutEverywhere={leaveFor(actions.signOutEverywhere)}
+      onPasskeys={() => onSheet('passkeys')}
+      onFeedback={() => onSheet('feedback')}
+      onShortcuts={leaveFor(() => askCommands('index'))}
+      onClose={close}
+    />
+  )
+}
+
 export function AccountMenu({ identity, where, actions }: Props) {
   const [open, setOpen] = useState(false)
-  const [passkeys, setPasskeys] = useState(false)
-  const [feedback, setFeedback] = useState(false)
+  const [sheet, setSheet] = useState<SheetName>(null)
   const menu = usePopover(open, () => setOpen(false))
   // The item goes with the menu: its button takes the focus first, so a sheet the item opens gives it back there.
   const pick = (run: () => void) => () => {
@@ -141,22 +175,26 @@ export function AccountMenu({ identity, where, actions }: Props) {
           </MenuItem>
           <MenuItem onClick={pick(actions.privacy)}>How privacy works</MenuItem>
           <Appearance />
+          <MenuItem onClick={pick(() => setSheet('settings'))}>Settings…</MenuItem>
           <MenuSep />
           <MenuItem detail={keyLabel('mod+/', onMac)} onClick={pick(() => askCommands('index'))}>
             Keyboard shortcuts
           </MenuItem>
           {/* Only where it goes somewhere: a Studio with no crash service offers no dead end (crash-feedback.md). */}
-          {reportsOn() && <MenuItem onClick={pick(() => setFeedback(true))}>Send feedback</MenuItem>}
+          {reportsOn() && <MenuItem onClick={pick(() => setSheet('feedback'))}>Send feedback</MenuItem>}
           <MenuSep />
           {passkeysOffered && authMode !== 'dev' && (
-            <MenuItem onClick={pick(() => setPasskeys(true))}>Passkeys</MenuItem>
+            <MenuItem onClick={pick(() => setSheet('passkeys'))}>Passkeys</MenuItem>
           )}
           <MenuItem onClick={pick(actions.signOut)}>Sign out</MenuItem>
         </Menu>
       )}
-      {/* Both sheets go over the page, not inside the bar, whose blur would hold a fixed sheet within its own box. */}
-      {passkeys && createPortal(<PasskeySheet onClose={() => setPasskeys(false)} />, document.body)}
-      {feedback && createPortal(<FeedbackSheet onClose={() => setFeedback(false)} />, document.body)}
+      {/* The sheets go over the page, not inside the bar, whose blur would hold a fixed sheet within its own box. */}
+      {sheet &&
+        createPortal(
+          <AccountSheet which={sheet} identity={identity} actions={actions} onSheet={setSheet} />,
+          document.body,
+        )}
     </div>
   )
 }

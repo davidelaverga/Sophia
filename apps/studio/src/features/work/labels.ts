@@ -101,6 +101,8 @@ export const SUMMARY: Record<string, string> = {
   'room.host_removed': 'Taken out of the call by an admin',
   'goal.target': 'Goal owner or date set',
   'project.renamed': 'Project renamed',
+  'project.archived': 'Project archived',
+  'project.unarchived': 'Project brought back',
   // What someone sent from the composer, by its intent (the composer says "Shared with the project" too).
   'contribution.discuss': 'Shared with the project',
   'contribution.ask_sophia': 'Question for Sophia',
