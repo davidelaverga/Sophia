@@ -16,6 +16,12 @@ const MENTIONED_IN = '00000000-0000-4000-8000-00000000003a'
 const PROJECT = '00000000-0000-4000-8000-0000000000aa'
 const NEED = `mention:${PROJECT}:2.1:${MENTIONED_IN}`
 const entryIdOf = (n: number) => `00000000-0000-4000-8000-${String(n + 1).padStart(12, '0')}`
+declare global {
+  interface Window {
+    /** A message to the room held until released, and what each named (the held-send case below). */
+    heldSends?: { held: (() => void)[]; bodies: { mentions: string[] | undefined }[]; hold: boolean }
+  }
+}
 const seenOf = async (page: Page) => (await served(page)).filter((s) => s.startsWith('seen:'))
 
 /** In the call, out of Sophia's conversation: the bar writes to the room (room-discussion.spec.ts). */
@@ -372,4 +378,58 @@ test('mentions · an earlier page that fails stops the look: the failure and Try
   await page.getByRole('button', { name: 'Try again' }).click()
   await expect(discussion(page).locator(`[data-message="${old}"]`)).toBeInViewport()
   await expect.poll(() => seenOf(page)).toEqual([`seen:mention:${PROJECT}:1.1:${old}`])
+})
+
+test('mentions · chosen again while a message goes: its success clears only what it named; the next choice and words stay, and go with the next message', async ({
+  page,
+}) => {
+  await enter(page)
+  // Each message to the room is held until released, and what it named is kept.
+  await page.evaluate(() => {
+    const inner = window.fetch
+    const held: (() => void)[] = []
+    const bodies: { mentions: string[] | undefined }[] = []
+    const sendsHeld = { held, bodies, hold: true }
+    window.heldSends = sendsHeld
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(input instanceof Request ? input.url : String(input), location.href).pathname
+      if (init?.method !== 'POST' || !path.endsWith('/contributions')) return inner(input, init)
+      const sent: unknown = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      const named = sent && typeof sent === 'object' && 'mentions' in sent ? sent.mentions : undefined
+      bodies.push({ mentions: Array.isArray(named) ? named.map(String) : undefined })
+      if (sendsHeld.hold) await new Promise<void>((resolve) => held.push(resolve))
+      return inner(input, init)
+    }
+  })
+  const sends = () =>
+    page.evaluate(() => ({ bodies: window.heldSends?.bodies ?? [], held: window.heldSends?.held.length ?? 0 }))
+  await page.getByRole('button', { name: 'Mention' }).click()
+  const options = page.getByRole('group', { name: /Mention members/ })
+  await options.getByRole('checkbox', { name: 'Marco' }).check()
+  await page.getByRole('button', { name: 'Done' }).click()
+  await bar(page).fill('SYNTHETIC first words for Marco')
+  await bar(page).press('Enter')
+  await expect.poll(async () => (await sends()).held).toBe(1)
+  // While it goes: Lucía instead of Marco, and the next words.
+  await page.getByRole('button', { name: 'Mention' }).click()
+  await options.getByRole('checkbox', { name: 'Marco' }).uncheck()
+  await options.getByRole('checkbox', { name: 'Lucía' }).check()
+  await page.getByRole('button', { name: 'Done' }).click()
+  await expect(page.getByText('Mentions Lucía')).toBeVisible()
+  await bar(page).fill('SYNTHETIC next words for Lucía')
+  await page.evaluate(() => {
+    const sendsHeld = window.heldSends
+    if (!sendsHeld) return
+    sendsHeld.hold = false
+    for (const release of sendsHeld.held.splice(0)) release()
+  })
+  await expect(line(page, 'SYNTHETIC first words for Marco').locator('.contribution-mentions')).toHaveText('to Marco')
+  // The first message's success leaves the next choice and words as they are.
+  await expect(page.getByText('Mentions Lucía')).toBeVisible()
+  await expect(bar(page)).toHaveValue('SYNTHETIC next words for Lucía')
+  await bar(page).press('Enter')
+  await expect(line(page, 'SYNTHETIC next words for Lucía').locator('.contribution-mentions')).toHaveText('to Lucía')
+  await expect(page.getByText('Mentions Lucía')).toHaveCount(0) // what it named, unchanged, clears on its success
+  const { bodies } = await sends()
+  expect(bodies.map((b) => b.mentions)).toEqual([[MARCO], [expect.not.stringMatching(MARCO)]])
 })

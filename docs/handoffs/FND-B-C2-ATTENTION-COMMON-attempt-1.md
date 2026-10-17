@@ -218,6 +218,16 @@ and other statuses are unchanged; the fence, retry, draft and restoration paths 
   `doorRead` mutant fails the same way. A mutant that removes the view-side keep still passes 4/4: this fixture does not
   measure that keep as needed. A held older 200 and a view trip are not covered by this spec.
 
+## FND-B-391-409 on mentions (409 P2 4304921244)
+
+- A confirmed room message clears the mention choice only while that choice is still what it named (`sameMembers`,
+  compared by members, not by array). A choice made while it went stays for the next message. An unchanged choice
+  clears as before, and draft and reply matching are unchanged.
+- `e2e/mentions.spec.ts` "chosen again while a message goes" holds the send, switches from Marco to Lucía and writes the
+  next words. The first success leaves Lucía and the words; the request bodies are `[Marco]` then `[Lucía]`. The
+  original unconditional clear, restored as a mutant, fails that case. Definite-failure and unknown-retry cases are not
+  in this spec.
+
 ## Next bounded action
 
 B's private handback goes to P; R reviews this integration. No push until P selects one publication.
