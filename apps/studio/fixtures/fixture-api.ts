@@ -30,7 +30,7 @@ import {
   idOf,
   said,
 } from './data.ts'
-import { hostActed, personId } from './fake-people.ts'
+import { hostActed, others, personId } from './fake-people.ts'
 import { missionWritten } from './mission-writes.ts'
 import { DEMO, DEMO_ORIGINS, PROJECT_NAME, VIEWER_NAME } from './demo.ts'
 import { exchangeWritten, type ExchangeAction } from './exchange-writes.ts'
@@ -458,13 +458,31 @@ function projectWritten(
   const removal = MEMBER_REMOVAL.exec(path)?.[1]
   if (removal) return memberRemoved(project, removal)
   const host = HOST_ACT.exec(path)
-  return host?.[1] && (host[2] === 'mute' || host[2] === 'remove') ? hostAct(project, host[2], host[1]) : null
+  if (path === `${base}/room/mute-all`) return mutedAll(project)
+  return host?.[1] && isHostAct(host[2]) ? hostAct(project, host[2], host[1]) : null
 }
 
-const HOST_ACT = new RegExp(`^/api/v1/projects/${PROJECT}/room/people/([0-9a-f-]+)/(mute|remove)$`)
+const HOST_ACT = new RegExp(
+  `^/api/v1/projects/${PROJECT}/room/people/([0-9a-f-]+)/(mute|remove|stop-camera|stop-screen)$`,
+)
 
-/** An admin mutes or removes someone (A24): recorded, and LiveKit's server applies it to the fake room. */
-function hostAct(project: Project, what: 'mute' | 'remove', identity: string): Response | Promise<Response> {
+type HostAct = 'mute' | 'remove' | 'stop-camera' | 'stop-screen'
+const isHostAct = (what: string | undefined): what is HostAct =>
+  what === 'mute' || what === 'remove' || what === 'stop-camera' || what === 'stop-screen'
+
+/** An admin mutes everyone else (A31): recorded, and every other microphone in the fake room goes off. */
+function mutedAll(project: Project): Response {
+  if (project.failHost) {
+    project.failHost = false
+    return unavailable()
+  }
+  served.push('mute-all')
+  for (const p of others()) hostActed('mute', p.identity)
+  return new Response(null, { status: 204 })
+}
+
+/** An admin acts on someone (A24, A31): recorded, and LiveKit's server applies it to the fake room. */
+function hostAct(project: Project, what: HostAct, identity: string): Response | Promise<Response> {
   if (project.failHost) {
     project.failHost = false
     return unavailable()
