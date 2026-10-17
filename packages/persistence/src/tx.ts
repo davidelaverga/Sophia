@@ -1,7 +1,13 @@
 import pg from 'pg'
 import { DomainError } from '@sophia/domain'
 import { classifyDbError } from './errors.ts'
-import { checkServiceControl, controlledQueryTimedOut, serviceClient, type ServiceControl } from './service-control.ts'
+import {
+  budgetedRead,
+  checkServiceControl,
+  controlledQueryTimedOut,
+  serviceClient,
+  type ServiceControl,
+} from './service-control.ts'
 
 export interface PoolOptions {
   max?: number
@@ -69,6 +75,30 @@ function acquiredClient(client: pg.PoolClient, control?: ServiceControl): pg.Poo
 }
 
 /**
+ * BEGIN and the actor's setting. A controlled transaction is bounded on the server as well as the client: a read
+ * statement by statement (`read`, budgetedRead), a write once, here, by what remains of its deadline.
+ */
+async function begin(
+  client: pg.PoolClient,
+  read: pg.PoolClient | null,
+  opts: TxOptions,
+  lease: ReturnType<typeof serviceClient>,
+  control?: ServiceControl,
+): Promise<void> {
+  await client.query(opts.mode === 'read' ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN')
+  if (opts.actorId !== null)
+    await (read ?? client).query("SELECT set_config('sophia.actor_id', $1, true)", [opts.actorId])
+  lease.check()
+  if (control && !read) {
+    // Closing pg's socket alone need not stop server-side SQL. Bound it on the server as well as the client.
+    await client.query("SELECT set_config('statement_timeout', $1, true)", [
+      String(Math.max(1, Math.floor(control.deadline - performance.now()))),
+    ])
+    lease.check()
+  }
+}
+
+/**
  * One connection, one transaction. Reads use REPEATABLE READ READ ONLY so a snapshot and its cursor are
  * consistent. A failure while committing a write leaves its outcome unknown: the client must retry with
  * the same Idempotency-Key, never a new one.
@@ -87,19 +117,13 @@ async function transaction<T>(
     control,
   )
   const lease = serviceClient(client, control)
+  // A controlled read bounds each statement by what remains of its absolute budget (R-C1-READ-BOUNDS-01): the actor's
+  // setting and every statement of the read. A controlled write keeps its one bound, set once in begin.
+  const read = control && opts.mode === 'read' ? budgetedRead(client, control, lease) : null
   let committing = false
   try {
-    await client.query(opts.mode === 'read' ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN')
-    if (opts.actorId !== null) await client.query("SELECT set_config('sophia.actor_id', $1, true)", [opts.actorId])
-    lease.check()
-    if (control) {
-      // Closing pg's socket alone need not stop server-side SQL. Bound it on the server as well as the client.
-      await client.query("SELECT set_config('statement_timeout', $1, true)", [
-        String(Math.max(1, Math.floor(control.deadline - performance.now()))),
-      ])
-      lease.check()
-    }
-    const result = await fn(client)
+    await begin(client, read, opts, lease, control)
+    const result = await fn(read ?? client)
     lease.check()
     committing = true
     await client.query('COMMIT')
@@ -176,8 +200,9 @@ export async function nameFromRoom(c: pg.PoolClient, projectId: string): Promise
 /**
  * One connection, one transaction, the verified actor set transaction-locally
  * (`set_config(..., true)`), so a pooled connection never carries a previous actor. A `control` bounds it as it bounds
- * a service transaction: a deadline (statement_timeout on the server too) and an abort, either of which retires the
- * connection instead of returning it to the pool (READ-BOUNDS-01; the projection reads pass one).
+ * a service transaction: a deadline and an abort, either of which retires the connection instead of returning it to the
+ * pool (READ-BOUNDS-01; the projection reads pass one). A controlled read is bounded on the server too, each statement
+ * by what remains of the absolute deadline (budgetedRead), so none outlives it.
  */
 export function withActor<T>(
   pool: pg.Pool,

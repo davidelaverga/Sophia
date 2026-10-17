@@ -201,8 +201,8 @@ server deadline and no cancellation of its own.
   unchanged, and the verified actor and REPEATABLE READ READ ONLY are as before.
 - The two routes pass a control with a 20 s deadline (`PROJECTION_READ_MS`) and an abort when the response closes
   before it finishes.
-- With it, the transaction sets `statement_timeout` on the server to the remaining time, and retires its connection
-  (never back to the pool) at the deadline or on the abort.
+- With it, the transaction retires its connection (never back to the pool) at the deadline or on the abort. On the
+  server, each statement of the read is bounded by what remains of that deadline (see the correction below).
 - 20 s is under the Studio's 30 s read, so the server answers «unavailable, ask again» first. A timed-out read answers
   503 `unavailable`, retry `safe_read`, with the existing message.
 
@@ -219,8 +219,9 @@ mapped to the API process by their socket ports.
   - B answered 503 at 20.0 s; its backend was cancelled the same way.
   - Both backends were gone by t+24 s; a fresh snapshot and discussion answered 200.
 - So this is SQL retirement bounded by the 20 s server deadline, not an immediate cancellation caused by the HTTP
-  abort: retiring the socket alone does not settle the database work. A statement started late in the read can run on
-  the server up to the deadline set at its start.
+  abort: retiring the socket alone does not settle the database work. At this head the timeout was set once, so a
+  statement started late could run on the server for up to a whole 20 s from its own start (R-C1-READ-BOUNDS-01,
+  corrected below).
 - A DB test covers it: a controlled actor read keeps its actor and read-only mode, a blocked query is retired at its
   deadline, its backend leaves, and the one-connection pool recovers.
 
@@ -234,8 +235,39 @@ mapped to the API process by their socket ports.
   waits for the A33 response before its unchanged assertion.
 - Affected fixture journeys across 37 files: 524/524.
 
-**Still open, not touched:** the discussion query's cost under stale statistics, and C4's 510-message A34 journey. This
-change bounds a read's lifetime; it does not make a slow read usable.
+**Still open, not touched:** the discussion query's cost, and C4's 510-message A34 journey; its slowness appeared with
+fresh statistics missing, which is an association, not an established cause. This change bounds a read's lifetime; it
+does not make a slow read usable.
+
+**The remaining budget, statement by statement (FND-B-C1-READ-BOUNDS-CLOSURE-01, R-C1-READ-BOUNDS-01).** The
+`statement_timeout` above was set once, after BEGIN and the actor's setting, to the time left then. That bounds one
+statement, not the read: if an earlier statement used 18 s of the 20, a later one began near 18 s with the same ~20 s
+of its own, and could hold its backend until near 38 s, long after the API had retired its socket.
+- Now a controlled read's client (`budgetedRead`, service-control.ts) checks the deadline before each statement, the
+  actor's setting included, and starts none after it. It sets `statement_timeout` to what remains, less 100 ms
+  (`READ_SETTLE_MS`) for PostgreSQL's cancel, its error and the retirement, before every statement. A statement begun
+  late is ended by PostgreSQL itself within the read's 20 s.
+- BEGIN itself is not bounded on the server: it takes no lock and reads no data. The client-side retirement at the
+  deadline still covers it.
+- Unchanged:
+  - Writes, controlled or not, keep their one bound, and COMMIT uncertainty (`outcome_unknown`) is untouched.
+  - Uncontrolled callers get no new policy. The pool's 10 s acquisition stays inside the 20 s, not added to it.
+  - The actor UUID check, the transaction-local actor, REPEATABLE READ READ ONLY, RLS, the error mapping, and the UI
+    and its name and privacy guards.
+- One restricted-PG case in the service-control test, a 2 s read: the first statement sleeps 1.2 s; the second begins
+  late, at 1204 ms, on a table an owner session holds locked. That session is itself bounded at 5 s idle in
+  transaction. The old backend PID is watched from another session until it leaves, before the lock is released.
+  - Before, at `f2953616`: the backend was seen waiting on the lock and was still on the server 708 ms after the
+    deadline (its own timeout would end it near 3.2 s).
+  - After: seen waiting, then gone 82 ms BEFORE the deadline, ended by PostgreSQL ahead of the API's own retirement.
+    The one-connection pool's next actor read keeps its actor and read-only mode on a new PID.
+  - The earlier 150 ms actor case still starts its statement and sees it cancelled on the server. A first margin of
+    500 ms refused that statement before it began, so the margin is 100 ms.
+- Checks: service control 8/8. Focused DB 234/234 (API access, API, media, profile, rooms, runtime, conversations;
+  persistence service control, persistence, room, conversations, conversation fences, races). Served real App 5/5.
+- `pnpm check` passes: units 2990 passed, 0 failed, 70 skipped; integration 108 passed, 2 skipped. The artifacts
+  reproduce C1's unchanged (`e956becc`, lock `b868da08`, darwin dsh `e24cb887`).
+
 
 ## Remaining obligations
 
