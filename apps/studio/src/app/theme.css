@@ -224,6 +224,38 @@
   inherits: true;
   initial-value: 1;
 }
+/* Where she is (orb-presence.md): her inner light's saturation and brightness, forming while she joins, and a call on her
+   rim while her sound is blocked. */
+@property --gc-sat {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
+}
+@property --gc-lit {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
+}
+@property --gc-forming {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+@property --gc-calling {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+@property --gc-call {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+@property --gc-wave {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
 @property --gc-tint {
   syntax: '<color>';
   inherits: true;
@@ -238,10 +270,12 @@
   --gc-breath: calc(var(--gc-depth) * (2 * var(--gc-b) - 1));
   animation:
     gc-drift 48s linear infinite,
-    gc-breathe 6.5s ease-in-out infinite alternate;
+    gc-breathe 6.5s ease-in-out infinite alternate,
+    gc-call 2.4s ease-in-out infinite alternate paused;
   transition: 1.4s ease;
   transition-property:
-    --gc-reach, --gc-stir, --gc-heart, --gc-depth, --gc-dim, --gc-glow, --gc-lean, --gc-op, --gc-tint;
+    --gc-reach, --gc-stir, --gc-heart, --gc-depth, --gc-dim, --gc-glow, --gc-lean, --gc-op, --gc-tint, --gc-sat,
+    --gc-lit, --gc-forming, --gc-calling;
 }
 /* Listening she opens; thinking she gathers inward and dims, slowly; speaking her voice opens her heart; at work she is
    smaller (--ls) with a warm ember among the clouds, still lit. Rest is the defaults. */
@@ -272,6 +306,43 @@
   --gc-depth: 0.01;
   --gc-glow: 0.4;
   --gc-tint: rgb(232 172 128 / 0.5);
+}
+/* Where she is when not simply here (orb-presence.md), none of it moved by a voice or leaning toward anyone. Away (not in
+   the conversation, or her voice unavailable): dormant, her violet greyed and her inner light low, nothing turning but a
+   shallow breath. Joining (her voice getting ready, or a link coming back): gathered and still, the light inside her
+   forming, fading between 0.9 and 0.55 of itself. Paused: the clouds drawn in and held, her violet kept. */
+:root[data-theme='light'] .light[data-presence] {
+  --gc-voice: 0;
+  --gc-lean: 0;
+}
+:root[data-theme='light'] .light[data-presence='away'] {
+  --gc-sat: 0.6;
+  --gc-lit: 0.45;
+  --gc-heart: 16%;
+  --gc-glow: 0;
+  --gc-depth: 0.006;
+  animation-play-state: paused, running, paused;
+}
+:root[data-theme='light'] .light[data-presence='joining'] {
+  --gc-forming: 1;
+  --gc-reach: 0.6;
+  --gc-glow: 0.2;
+  --gc-depth: 0;
+  animation-play-state: paused;
+}
+:root[data-theme='light'] .light[data-presence='paused'] {
+  --gc-reach: 0.7;
+  --gc-stir: 0;
+  --gc-glow: 0.22;
+  --gc-depth: 0;
+  animation-play-state: paused;
+}
+/* She speaks but this browser blocked her sound: no voice in her, a slow call on her rim and in her glow until it is
+   allowed (Allow audio). */
+:root[data-theme='light'] .light[data-sound='blocked'] {
+  --gc-voice: 0;
+  --gc-calling: 1;
+  animation-play-state: running;
 }
 /* Where the light forms the mark (sign-in once through, Home, Talk), the mark is her: the orb steps back, and still. */
 :root[data-theme='light'] .light[data-mark] {
@@ -304,8 +375,9 @@
   --gc-sx: calc(var(--gc-s) * 4.5% * cos(var(--gc-turn) * 8));
   --gc-sy: calc(var(--gc-s) * 4.5% * sin(var(--gc-turn) * 8));
   --gc-pull: calc(var(--gc-lean) * 6px);
+  --gc-l: calc(var(--gc-lit) * (1 - var(--gc-forming) * (0.1 + 0.35 * var(--gc-wave))));
   --gc-white: calc(
-    (0.3 + 0.55 * var(--gc-reach)) * (0.55 + 0.45 * var(--le, 1)) * (1 + 8 * var(--gc-breath)) *
+    var(--gc-l) * (0.3 + 0.55 * var(--gc-reach)) * (0.55 + 0.45 * var(--le, 1)) * (1 + 8 * var(--gc-breath)) *
       (1 - var(--gc-dim) * (0.5 + 0.5 * var(--gc-ponder)))
   );
   --gc-h: calc(var(--gc-heart) + 16% * var(--gc-voice) + 250% * var(--gc-breath));
@@ -313,7 +385,7 @@
   height: 260px;
   margin: -130px;
   clip-path: circle(98.5px);
-  filter: blur(max(8px, var(--gc-px))) saturate(calc(0.72 + 0.28 * var(--le, 1)))
+  filter: blur(max(8px, var(--gc-px))) saturate(calc(var(--gc-sat) * (0.72 + 0.28 * var(--le, 1))))
     brightness(calc(1 + 0.1 * var(--gc-voice)));
   background-position: calc(var(--ldx, 0) * var(--gc-pull)) calc(var(--ldy, 0) * var(--gc-pull));
   background-image:
@@ -352,7 +424,7 @@
     ),
     radial-gradient(
       circle 100px at 50% 54%,
-      rgb(250 248 255),
+      color-mix(in oklab, rgb(250 248 255) calc(var(--gc-l) * 100%), rgb(176 160 246)),
       rgb(206 195 255) var(--gc-h),
       rgb(148 122 242) calc(var(--gc-h) + 32%),
       rgb(106 86 212) 84%,
@@ -360,9 +432,12 @@
     );
   transition: --gc-swirl 0.3s linear;
 }
-/* Thinking, a slow dim and clear over 11 s, from the start each time. */
+/* Thinking, a slow dim and clear over 11 s, from the start each time; joining, the light inside her forming. */
 :root[data-theme='light'] .light[data-mode='think']::before {
   animation: gc-ponder 11s ease-in-out infinite alternate;
+}
+:root[data-theme='light'] .light[data-presence='joining']::before {
+  animation: gc-form 2.8s ease-in-out infinite alternate;
 }
 /* The glass: its glint, a soft sheen above and below, a translucent rim; a grounding shadow and her glow, which her
    breath and her voice lift. */
@@ -371,10 +446,17 @@
   height: 200px;
   margin: -100px;
   border-radius: 50%;
+  filter: saturate(calc(0.5 + 0.5 * var(--gc-sat)));
   background-image:
     radial-gradient(ellipse 13% 8% at 34% 24%, rgb(255 255 255 / 0.92), rgb(255 255 255 / 0.85) 62%, transparent 86%),
     radial-gradient(ellipse 66% 38% at 46% 7%, rgb(255 255 255 / 0.18), transparent 72%),
     radial-gradient(ellipse 44% 17% at 55% 88%, rgb(255 248 240 / 0.5), transparent),
+    radial-gradient(
+      closest-side,
+      transparent 80%,
+      rgb(var(--halo-rgb) / calc(0.35 * var(--gc-calling) * var(--gc-call))) 95%,
+      transparent
+    ),
     radial-gradient(
       closest-side,
       transparent 44%,
@@ -388,7 +470,13 @@
     0 16px 36px -12px rgb(var(--core-rgb) / 0.3),
     0 2px 5px rgb(var(--ink-rgb) / 0.08),
     0 0 calc(50px + 40px * var(--gc-glow)) 3px
-      rgb(var(--halo-rgb) / calc((0.26 * var(--gc-glow) + 0.12 * var(--gc-voice)) * (1 + 12 * var(--gc-breath))));
+      rgb(
+        var(--halo-rgb) /
+          calc(
+            (0.26 * var(--gc-glow) + 0.12 * var(--gc-voice)) * (1 + 12 * var(--gc-breath)) + 0.12 * var(--gc-calling) *
+              var(--gc-call)
+          )
+      );
 }
 @keyframes gc-drift {
   to {
@@ -405,18 +493,31 @@
     --gc-ponder: 1;
   }
 }
+@keyframes gc-call {
+  to {
+    --gc-call: 1;
+  }
+}
+@keyframes gc-form {
+  to {
+    --gc-wave: 1;
+  }
+}
 /* Under reduced motion she stands still, her states told apart by their values alone: no voice, no lean. */
 @media (prefers-reduced-motion: reduce) {
   :root[data-theme='light'] .light {
     --gc-voice: 0;
     --gc-lean: 0;
     --gc-b: 0.5;
+    --gc-call: 0.6;
     animation: none;
     transition: none;
   }
   :root[data-theme='light'] .light::before,
-  :root[data-theme='light'] .light[data-mode]::before {
+  :root[data-theme='light'] .light[data-mode]::before,
+  :root[data-theme='light'] .light[data-presence]::before {
     --gc-ponder: 0.5;
+    --gc-wave: 0.6;
     animation: none;
     transition: none;
   }

@@ -241,6 +241,7 @@ function observedSophia(
   const names = new Map(room.participants.map((p) => [p.identity, p.local ? 'you' : shortName(p.name)]))
   return sophiaView(snapshot?.room.sophia, room.sophia, {
     inCall: room.status === 'live' || room.status === 'reconnecting',
+    reconnecting: room.status === 'reconnecting',
     audioBlocked: room.audioBlocked,
     holderName: floor.holder ? shortName(floor.holder.name) : null,
     holderIsMe: floor.mine,
@@ -316,6 +317,33 @@ function useStageModel({ room, snapshot, projectId, identity, presented }: Props
   return { people, holder, floor, mode, running, sophia, doing, layout }
 }
 
+interface StageLightProps {
+  light: RefObject<SophiaLightHandle | null>
+  room: ProjectRoom
+  sophia: SophiaView
+  geometry: StageGeometry
+  working: boolean
+}
+
+/**
+ * Her light on the stage: what she does, where and toward whom, her voice while she is heard (in text mode she is read,
+ * not heard), and where she is (orb-presence.md).
+ */
+function StageLight({ light, room, sophia, geometry, working }: StageLightProps) {
+  return (
+    <SophiaLight
+      ref={light}
+      mode={sophia.light}
+      target={geometry.target}
+      attention={geometry.attention}
+      working={working}
+      voice={room.textMode ? null : room.sophiaLevel}
+      presence={sophia.presence === 'here' ? null : sophia.presence}
+      sound={sophia.needsAudio ? 'blocked' : null}
+    />
+  )
+}
+
 export function RoomStage(props: Props) {
   const { room, snapshot, projectId, identity, lensBar, lensBody, line, corner, captions, presented, showing } = props
   const onWork = useWorkGo(snapshot)
@@ -337,14 +365,7 @@ export function RoomStage(props: Props) {
       data-live={live || undefined}
       aria-label="Project room"
     >
-      <SophiaLight
-        ref={light}
-        mode={sophia.light}
-        target={geometry.target}
-        attention={geometry.attention}
-        working={running > 0}
-        voice={room.textMode ? null : room.sophiaLevel}
-      />
+      <StageLight light={light} room={room} sophia={sophia} geometry={geometry} working={running > 0} />
       {mode === 'light' ? (
         <>
           {/* Lenses shape what sits under the light; with video on the stage there is nothing for them to change. */}
