@@ -39,6 +39,20 @@ for (const [state, words] of [
   })
 }
 
+test('join · an invited member reads what continuing means before the code is sent (Codex P2 on #366)', async ({
+  page,
+}) => {
+  await page.goto('/join.html?kind=member')
+  await expect(page.getByRole('button', { name: 'Email me a sign-in code' })).toBeVisible()
+  await expect(page.getByText(/Sign in with ana@sophia\.test/)).toBeVisible()
+  const line = page.locator('.signin-legal')
+  await expect(line).toHaveText('By continuing you agree to the Terms and acknowledge the Privacy notice.')
+  await expect(line.getByRole('link', { name: 'Terms' })).toHaveAttribute('href', '/terms')
+  await expect(line.getByRole('link', { name: 'Privacy notice' })).toHaveAttribute('href', '/privacy')
+  // Nothing was sent to read it: the page only asked for the preview.
+  expect(await asked(page)).toEqual(['/api/v1/join/preview'])
+})
+
 test('join · a knock waits, by name, until someone lets them in; then the room', async ({ page }) => {
   await page.goto('/join.html')
   await knockAs(page, 'Ana Ruiz')
