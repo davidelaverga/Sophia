@@ -1,22 +1,25 @@
 /* A dark room lit by Sophia, drawn with the restraint of a precise tool. One typeface (Geist; Geist Mono
    for data), small radii, one-pixel lines, fast transitions. Sophia's light is the only soft thing on the
-   screen: people are warm, she is violet, everything else is quiet. The Studio is dark-only. */
+   screen: people are warm, she is violet, everything else is quiet. Two themes: the room here, the default, and
+   paper after it (`data-theme='light'`); what each role is in each is in docs/plans/light-paper.md. */
 :root {
   /* The type scale of the work views (Resources, the plan's board): four steps under a view's title.
      Titles name a thing; body says it; small is what follows it; labels are mono, often in capitals. A view's
-     title is one step above the headings' ramp, on the grid's 32 (docs/plans/view-titles.md). */
-  --type-view: 28px;
+     title is one step above the headings' ramp, on the grid's 32 (docs/plans/view-titles.md). In rem, so a person's
+     larger browser text grows the scale and its leading together; at the browser's own 16 px they are the px in the
+     comments (docs/plans/type-rem.md). */
+  --type-view: 1.75rem; /* 28 */
   /* The heads of a view's sections and tiles: one step above the body's title, under the view's (docs/plans/section-heads.md). */
-  --type-head: 15px;
-  --type-title: 14px;
-  --type-body: 13px;
-  --type-small: 12px;
-  --type-label: 10.5px;
+  --type-head: 0.9375rem; /* 15 */
+  --type-title: 0.875rem; /* 14 */
+  --type-body: 0.8125rem; /* 13 */
+  --type-small: 0.75rem; /* 12 */
+  --type-label: 0.65625rem; /* 10.5 */
   /* Their leadings, on the 4 px grid: labels and small 16, body and titles 20, a lead and a heading 24. */
-  --lh-small: 16px;
-  --lh-body: 20px;
-  --lh-head: 24px;
-  --lh-view: 32px;
+  --lh-small: 1rem; /* 16 */
+  --lh-body: 1.25rem; /* 20 */
+  --lh-head: 1.5rem; /* 24 */
+  --lh-view: 2rem; /* 32 */
   color-scheme: dark;
   --void: #050408;
   --plane: #0b0a0f;
@@ -310,12 +313,14 @@ kbd {
   font-size: var(--type-small);
   color: var(--text-3);
 }
+/* A key: 18 px at least, and taller when its letters are (a larger browser text, type-rem-fit.spec.ts). */
 kbd {
   display: inline-grid;
   place-items: center;
   min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
+  min-height: 18px;
+  padding: 1px 4px;
+  line-height: 1;
   border-radius: var(--r-1);
   border: 1px solid var(--line-2);
   background: rgb(var(--ink-rgb) / 0.04);
@@ -706,14 +711,19 @@ input[type='checkbox']:hover:not(:disabled) {
   right: 0;
   transform: translate(0, 2px);
 }
+/* At a left edge (your tile's Switch camera, camera-flip.md): from the control's start, never past the edge. */
+.tip[data-align='start'] {
+  left: 0;
+  transform: translate(0, 2px);
+}
 .has-tip:hover .tip,
 .has-tip:focus-visible .tip {
   opacity: 1;
   transform: translate(-50%, 0);
   transition-delay: 320ms;
 }
-.has-tip:hover .tip[data-align='end'],
-.has-tip:focus-visible .tip[data-align='end'] {
+.has-tip:hover .tip:is([data-align='end'], [data-align='start']),
+.has-tip:focus-visible .tip:is([data-align='end'], [data-align='start']) {
   transform: translate(0, 0);
 }
 /* The next ask's reason with the focus in its field too: the keyboard's way to see why, the cap being no stop of its
@@ -1047,10 +1057,9 @@ button.mark:hover {
   height: 28px;
   border-color: var(--line);
 }
-/* Its rows: 32 px in the body type, the one under the pointer or the focus lit; one that waits (aria-disabled) in
-   the third ink, unlit. */
-.menu [role='menuitem'],
-.menu [role='menuitemradio'] {
+/* Its rows, each kind (an act, one of a set, a switch): 32 px in the body type, the one under the pointer or the focus
+   lit; one that waits (aria-disabled) in the third ink, unlit. */
+.menu [role^='menuitem'] {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1064,7 +1073,7 @@ button.mark:hover {
   font-size: var(--type-body);
   text-align: left;
 }
-.menu :is([role='menuitem'], [role='menuitemradio']):is(:hover, :focus-visible):not([aria-disabled='true']) {
+.menu [role^='menuitem']:is(:hover, :focus-visible):not([aria-disabled='true']) {
   outline: none;
   background: rgb(var(--ink-rgb) / 0.06);
 }
@@ -2659,9 +2668,16 @@ button.contribution-quote:hover {
     display: none;
   }
   /* Before joining the dock has only Join and its check, so the check stands there on a phone too (phone-devices.md):
-     its sheet chooses the microphone and the camera, a phone's front or back. */
+     its sheet chooses the microphone and the camera, a phone's front or back. It is one of the dock's 42 px squares, a
+     finger's size (Codex P2 on #412), its chevron still the only mark. */
   .device-menu.device-check-open {
     display: inline-flex;
+    margin-left: 0;
+  }
+  .device-check-open .device-open {
+    width: 42px;
+    height: 42px;
+    border-radius: var(--r-3);
   }
 }
 /* The check before joining (docs/plans/device-check.md): the camera's picture over a row per device, the voice's meter
@@ -3048,6 +3064,10 @@ button.contribution-quote:hover {
   margin-right: 5px;
   color: var(--text-2);
 }
+/* Its mark in the tile's corner, for a phone's strip only (below). */
+.tile-muted-corner {
+  display: none;
+}
 .tile-name {
   position: absolute;
   left: 8px;
@@ -3305,7 +3325,8 @@ button.contribution-quote:hover {
   top: 12px;
   /* Centred on the whole width, not from its middle: from left: 50% a phone gave it half the screen and three lines. */
   inset-inline: 0;
-  z-index: 70;
+  /* Over the opening's overlay too (#entry, 100): a sign-in's return can meet a part gone (Codex P2 on #415). */
+  z-index: 110;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -4390,8 +4411,7 @@ button.contribution-quote:hover {
     min-width: 40px;
     min-height: 40px;
   }
-  .menu [role='menuitem'],
-  .menu [role='menuitemradio'] {
+  .menu [role^='menuitem'] {
     height: 44px;
   }
   .sheet-head .round {
@@ -4528,6 +4548,26 @@ button.contribution-quote:hover {
   }
   .tile-strip .tile[data-floor] {
     border-color: var(--warm);
+  }
+  /* A fifth of a phone has no room for the mute in the chip (Codex P2 on #411): it takes the tile's top-left corner,
+     clear of the initial's circle even at 320 px, and the chip keeps only its words for a screen reader. */
+  .tile-strip .tile-muted {
+    margin-right: 0;
+  }
+  .tile-strip .tile-muted svg {
+    display: none;
+  }
+  .tile-strip .tile-muted-corner {
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    display: grid;
+    place-items: center;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background: rgb(var(--void-rgb) / 0.62);
+    color: var(--text-2);
   }
 }
 
@@ -5490,6 +5530,8 @@ button.contribution-quote:hover {
 }
 .updates-part {
   display: grid;
+  /* One column that may be narrower than its widest row: the kinds' strip scrolls in it, the page doesn't. */
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: 16px;
 }
@@ -5827,8 +5869,15 @@ button.contribution-quote:hover {
    page does not (Codex on #239). */
 .updates-narrow .segmented {
   max-width: 100%;
+  /* Its presses don't shrink (below): the strip itself may, and scrolls. */
+  min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
+}
+/* Its presses keep their words on one line: the row scrolls instead (a phone, larger text). */
+.updates-narrow .segmented button {
+  flex: none;
+  white-space: nowrap;
 }
 /* A presented report's version and its following count: data, on the 10.5 px scale beside the «Shown by» label (Codex
    on #241). */
@@ -6325,6 +6374,18 @@ button.contribution-quote:hover {
     opacity: 1;
   }
 }
+/* Switch camera, on your own tile (camera-flip.md): the other corner, and only on a phone, where the dock's device
+   menus aren't there; on a computer Video settings chooses. */
+.tile-pin.tile-flip {
+  display: none;
+  right: auto;
+  left: 8px;
+}
+@media (max-width: 600px) {
+  .tile-pin.tile-flip {
+    display: inline-grid;
+  }
+}
 
 /* Settings, in one place (docs/plans/account-settings.md): a part a heading and its choices, one under another. */
 .settings-part {
@@ -6402,6 +6463,10 @@ button.contribution-quote:hover {
   padding-left: 10px;
   border-left: 2px solid var(--line-2);
   color: var(--text-2);
+}
+/* A quote's blank line keeps a line's height, so its paragraphs stay apart (Codex P2 on #384). */
+.msg-quote:empty::before {
+  content: '\200b';
 }
 /* A web address in a message (docs/plans/message-links.md): the halo's link colour, underlined, wrapping inside the
    column however long it is. */
@@ -6599,7 +6664,7 @@ button.contribution-quote:hover {
 }
 .person {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto 20px 32px;
+  grid-template-columns: minmax(0, 1fr) auto 20px 36px 32px;
   align-items: center;
   gap: 8px;
   min-height: 40px;
@@ -6628,7 +6693,19 @@ button.contribution-quote:hover {
 }
 .person-actions {
   position: relative;
+  grid-column: 5;
+}
+/* Each other person's volume, for you alone (docs/plans/people-volume.md): a speaker before the admin's menu; turned
+   down, the level in its place, inside the square; struck through when Off. */
+.person-volume {
+  position: relative;
   grid-column: 4;
+}
+.person-volume-level {
+  color: var(--text);
+  font-size: var(--type-small);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .person-pending {
   grid-column: 1 / -1;

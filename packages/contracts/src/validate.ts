@@ -50,12 +50,19 @@ import {
   validateMemberRoleSet,
   validateActivityPage,
   validateMemberRemoved,
+  validateProfile,
   validateProjectList,
   validateWorkBoardView,
   validateWorkReceipt,
   validateWorkResult,
   validateSourceReviewProposal,
   validateSourceReviewAvailability,
+  validateConversationList,
+  validateConversationMessagePage,
+  validateConversationStarted,
+  validateConversationMessageSent,
+  validateConversationWithdrawal,
+  validateConversationErasure,
   validateDesignEditReceipt,
   validateReceipt,
   validateRoomSession,
@@ -102,6 +109,7 @@ export const parseInvitablePeople = parser('InvitablePeople', validateInvitableP
 export const parseMemberRoleSet = parser('MemberRoleSet', validateMemberRoleSet)
 export const parseActivityPage = parser('ActivityPage', validateActivityPage)
 export const parseMemberRemoved = parser('MemberRemoved', validateMemberRemoved)
+export const parseProfile = parser('Profile', validateProfile)
 export const parseEvent = parser('Event', validateEvent)
 export const parseCursorAdvance = parser('CursorAdvance', validateCursorAdvance)
 export const parseRoomToken = parser('RoomToken', validateRoomToken)
@@ -143,6 +151,12 @@ export const parseWorkReceipt = parser('WorkReceipt', validateWorkReceipt)
 export const parseWorkResult = parser('WorkResult', validateWorkResult)
 export const parseSourceReviewProposal = parser('SourceReviewProposal', validateSourceReviewProposal)
 export const parseSourceReviewAvailability = parser('SourceReviewAvailability', validateSourceReviewAvailability)
+export const parseConversationList = parser('ConversationList', validateConversationList)
+export const parseConversationMessagePage = parser('ConversationMessagePage', validateConversationMessagePage)
+export const parseConversationStarted = parser('ConversationStarted', validateConversationStarted)
+export const parseConversationMessageSent = parser('ConversationMessageSent', validateConversationMessageSent)
+export const parseConversationWithdrawal = parser('ConversationWithdrawal', validateConversationWithdrawal)
+export const parseConversationErasure = parser('ConversationErasure', validateConversationErasure)
 export const parseDesignEditReceipt = parser('DesignEditReceipt', validateDesignEditReceipt)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */

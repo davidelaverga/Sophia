@@ -26,6 +26,48 @@ test('format · in the room’s chat, **bold**, `code` and an address read as su
   await expect(last.locator('b')).toHaveCount(0)
 })
 
+test('format · an address whose path holds **marks** is one link; one marked around is a bold link (Codex P2 on #384)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?call=on&people=2&floor=1')
+  await expect(page.getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  await page.getByRole('button', { name: /^Chat/ }).first().click()
+  const bar = page.locator('#converse-draft')
+  await bar.fill('see https://example.com/**draft** and **https://example.com/plan**')
+  await bar.press('Enter')
+  const last = page.getByRole('list', { name: 'Recent discussion' }).locator('.contribution').last()
+  await expect(last.getByRole('link', { name: 'https://example.com/**draft**', exact: true })).toBeVisible()
+  await expect(
+    last.locator('strong').getByRole('link', { name: 'https://example.com/plan', exact: true }),
+  ).toBeVisible()
+})
+
+test('format · a blank line before a quote stays, and a quote’s blank line keeps its height (Codex P2s on #384)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?place=conversations&conversations=1')
+  const open = page.getByRole('region', { name: 'Open conversation' })
+  const field = open.getByRole('textbox', { name: 'Continue this question with the team' })
+  await field.fill('My draft\n\n> First paragraph\n> \n> Second paragraph')
+  await field.press('Enter')
+  const message = open.locator('.conv-msg').last()
+  await expect(message.locator('.msg-quote')).toHaveCount(3)
+  const gap = await message.evaluate((el) => {
+    const draft = [...el.querySelectorAll('*')]
+      .flatMap((n) => [...n.childNodes])
+      .find((n) => n.nodeValue?.includes('My draft'))
+    const range = document.createRange()
+    if (draft) range.selectNodeContents(draft)
+    const quote = el.querySelector('.msg-quote')
+    const line = parseFloat(getComputedStyle(el).lineHeight)
+    return { between: (quote?.getBoundingClientRect().top ?? 0) - range.getBoundingClientRect().bottom, line }
+  })
+  // The blank line is a line's height between the draft and the quote, not just the quote's margin.
+  expect(gap.between).toBeGreaterThan(gap.line / 2)
+  const empty = await message.locator('.msg-quote').nth(1).boundingBox()
+  expect(empty?.height ?? 0).toBeGreaterThan(gap.line / 2)
+})
+
 test('format · in Conversations, Quote’s «> » line shows as a quote', async ({ page }) => {
   await page.goto('/room.html?place=conversations&conversations=1')
   const open = page.getByRole('region', { name: 'Open conversation' })

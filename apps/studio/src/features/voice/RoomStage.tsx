@@ -42,6 +42,7 @@ import type { ProjectRoom } from './useProjectRoom.ts'
 type Participant = ProjectRoom['participants'][number]
 import { useWorkWords } from './useWorkWords.ts'
 import { VideoStage } from './VideoStage.tsx'
+import { useCameraFlip } from './camera-flip.ts'
 import { useNow } from '../../app/use-now.ts'
 
 interface Props {
@@ -279,11 +280,13 @@ function OnVideo({
   showing,
   room,
   ...stage
-}: Omit<ComponentProps<typeof VideoStage>, 'feeds'> & { showing: ReactNode; room: ProjectRoom }) {
+}: Omit<ComponentProps<typeof VideoStage>, 'feeds' | 'flip'> & { showing: ReactNode; room: ProjectRoom }) {
   const reconnecting = room.status === 'reconnecting'
+  // On a phone, your own tile switches cameras (camera-flip.md): the dock's device menus aren't there.
+  const flip = useCameraFlip(room, !!room.participants.find((p) => p.local)?.cameraOn)
   return (
     <>
-      <VideoStage {...stage} feeds={room.feeds} />
+      <VideoStage {...stage} feeds={room.feeds} flip={flip} />
       {(showing || reconnecting) && (
         <div className="stage-over-video">
           {reconnecting && (

@@ -179,8 +179,11 @@ function DevIdentityPicker({ onChoose }: { onChoose: (identity: Identity) => voi
   )
 }
 
-/** What continuing means, one press from the door (terms-privacy.md). */
-function LegalLine() {
+/**
+ * What continuing means, one press from the door (terms-privacy.md): under the sign-in, and under an invited member's
+ * «Email me a sign-in code» at /join, which may create the account too (Codex P2 on #366).
+ */
+export function LegalLine() {
   return (
     <p className="signin-legal">
       By continuing you agree to the <a href="/terms">Terms</a> and acknowledge the{' '}
