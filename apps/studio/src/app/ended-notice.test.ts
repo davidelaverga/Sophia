@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import { endedAtLoad, endedNotice, endedWhileIn, ENDED_WORDS } from './ended-notice.ts'
 
 const ELSEWHERE = 'You were signed out in another tab or on another device, so this tab signed out too.'
+const REFUSED = 'Your sign-in on this device ended, so this tab signed out.'
 const AWAY = 'Your sign-in on this device ended while you were away.'
 const CLEARED = 'Unsent words here were cleared.'
 
@@ -10,6 +11,8 @@ describe('the line a sign-out this tab did not start leaves (signed-out-elsewher
   it('says each cause, and the cleared words only when some went here', () => {
     assert.equal(endedNotice('elsewhere', false), ELSEWHERE)
     assert.equal(endedNotice('elsewhere', true), `${ELSEWHERE} ${CLEARED}`)
+    assert.equal(endedNotice('refused', false), REFUSED)
+    assert.equal(endedNotice('refused', true), `${REFUSED} ${CLEARED}`)
     assert.equal(endedNotice('away', false), AWAY)
     assert.equal(endedNotice('away', true), `${AWAY} ${CLEARED}`)
   })
@@ -27,17 +30,31 @@ describe('the line a sign-out this tab did not start leaves (signed-out-elsewher
 })
 
 describe('a sign-out heard while the tab was open', () => {
-  it('came from elsewhere when an account was in and this tab was not signing out', () => {
-    assert.equal(endedWhileIn(true, false), 'elsewhere')
+  it('came from another tab when an account was in, this tab was not signing out and no refusal came before it', () => {
+    assert.equal(endedWhileIn(true, false, null), 'elsewhere')
   })
 
-  it('is this tab’s own Sign out while it is under way: nothing to say', () => {
-    assert.equal(endedWhileIn(true, true), null)
+  it('after this tab’s refresh was refused, was signed out elsewhere only when the session is gone from Auth', () => {
+    // «Sign out of all devices» (or of the others) elsewhere: the Auth service no longer has the session.
+    assert.equal(endedWhileIn(true, false, 'refresh_token_not_found'), 'elsewhere')
+    assert.equal(endedWhileIn(true, false, 'session_not_found'), 'elsewhere')
+  })
+
+  it('after any other refusal ended here, and blames no one elsewhere (review round)', () => {
+    // A refresh token used twice (an answer lost on the way), an expired session, a rate limit, a barred account, none.
+    for (const code of ['refresh_token_already_used', 'session_expired', 'over_request_rate_limit', 'user_banned', ''])
+      assert.equal(endedWhileIn(true, false, code), 'refused', code)
+  })
+
+  it('is this tab’s own Sign out while it is under way: nothing to say, refused or not', () => {
+    assert.equal(endedWhileIn(true, true, null), null)
+    assert.equal(endedWhileIn(true, true, 'refresh_token_already_used'), null)
   })
 
   it('ends no account when none was in: a guest’s session, the page still finding out, already signed out', () => {
-    assert.equal(endedWhileIn(false, false), null)
-    assert.equal(endedWhileIn(false, true), null)
+    assert.equal(endedWhileIn(false, false, null), null)
+    assert.equal(endedWhileIn(false, true, null), null)
+    assert.equal(endedWhileIn(false, false, 'refresh_token_already_used'), null)
   })
 })
 

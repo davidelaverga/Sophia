@@ -114,11 +114,14 @@ declare global {
 const elsewhere = new WeakMap<BrowserContext, string[]>()
 test.afterEach(({ context }) => expect(elsewhere.get(context) ?? []).toEqual([]))
 
+/** The code the synthetic Auth refuses a refresh with, when a check sets one (`serve`). */
+const refusedWith = new WeakMap<BrowserContext, string>()
+
 /**
  * The synthetic Auth service, and an API that answers nothing (the checks need none of its reads). `logout` waits for
- * `release` when given one, and answers `logoutStatus` (a 503: the service unavailable); a refresh is refused, as Auth
- * refuses a refresh token it no longer knows (every device signed out elsewhere); every call to the Auth service is
- * counted.
+ * `release` when given one, and answers `logoutStatus` (a 503: the service unavailable); a refresh is refused as Auth
+ * refuses one (API 2024-01-01: a 400 whose body names the cause), a refresh token it no longer knows (every device
+ * signed out elsewhere) unless the check set another code (`refusedWith`); every call to the Auth service is counted.
  */
 async function serve(context: BrowserContext, logout?: Promise<void>, logoutStatus = 204) {
   const calls: string[] = []
@@ -138,8 +141,9 @@ async function serve(context: BrowserContext, logout?: Promise<void>, logoutStat
       return route.fulfill({ status: 204 })
     }
     if (pathname.endsWith('/auth/v1/token')) {
-      const refused = { error: 'invalid_grant', error_description: 'Invalid Refresh Token: Refresh Token Not Found' }
-      return route.fulfill({ status: 400, json: refused })
+      const code = refusedWith.get(context) ?? 'refresh_token_not_found'
+      const refused = { code, message: `Invalid Refresh Token (synthetic Auth: ${code})` }
+      return route.fulfill({ status: 400, headers: { 'x-supabase-api-version': '2024-01-01' }, json: refused })
     }
     return route.fulfill({ status: 404, json: { code: 404, msg: 'Synthetic Auth: nothing here' } })
   })
@@ -865,6 +869,7 @@ test('legal · a sign-out in another tab forgets the views’ unsent words here 
 // --- Signed out by a cause this tab did not start: the sign-in says so, once (docs/plans/signed-out-elsewhere.md). ---
 
 const ENDED_ELSEWHERE = 'You were signed out in another tab or on another device, so this tab signed out too.'
+const ENDED_REFUSED = 'Your sign-in on this device ended, so this tab signed out.'
 const ENDED_AWAY = 'Your sign-in on this device ended while you were away.'
 const WORDS_CLEARED = 'Unsent words here were cleared.'
 /** A first visit's line under the title, which the sign-in says when nothing else happened. */
@@ -920,6 +925,53 @@ test('seam · a sign-in that ended while the page was closed: said once as it lo
   await expect(page.getByText(LEDE)).toBeVisible()
   await expect(page.getByText(ENDED_AWAY)).toHaveCount(0)
   await expect(page.getByRole('status')).toHaveCount(0)
+})
+
+/**
+ * In an open tab, the access token runs out: the session kept here as supabase-js finds it then, expired, and the tab
+ * shown again, which has the client refresh at once (`visibilitychange`) instead of at its next 30 s tick.
+ */
+const tokenRunsOut = (page: Page, person: Person) =>
+  page.evaluate(
+    ([key, kept]) => {
+      localStorage.setItem(key, JSON.stringify(kept))
+      window.dispatchEvent(new Event('visibilitychange'))
+    },
+    [SESSION_KEY, session(person, -60)] as const,
+  )
+
+test('seam · an open tab’s refresh refused for another cause: its sign-in ended, and no one elsewhere is blamed', async ({
+  context,
+}) => {
+  const calls = await serve(context)
+  // A refresh token used twice: an earlier refresh's answer was lost on the way, and the client tried the old token.
+  refusedWith.set(context, 'refresh_token_already_used')
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await tokenRunsOut(page, DAVIDE)
+  await expect(emailField(page)).toBeVisible()
+  await expect(page.getByRole('status')).toHaveText(ENDED_REFUSED)
+  await expect(page.getByText(ENDED_ELSEWHERE)).toHaveCount(0)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(emailField(page)).toBeFocused()
+  expect(calls).toContain('POST /synthetic-auth/auth/v1/token')
+})
+
+test('seam · every device signed out elsewhere: an open tab’s refused refresh says it was signed out elsewhere', async ({
+  context,
+}) => {
+  // The Auth service no longer knows the refresh token: «Sign out of all devices» ran on another device.
+  const calls = await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await tokenRunsOut(page, DAVIDE)
+  await expect(emailField(page)).toBeVisible()
+  await expect(page.getByRole('status')).toHaveText(ENDED_ELSEWHERE)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(emailField(page)).toBeFocused()
+  expect(calls).toContain('POST /synthetic-auth/auth/v1/token')
 })
 
 test('seam · this tab’s own Sign out says nothing of it: the sign-in is a first visit’s (control)', async ({
