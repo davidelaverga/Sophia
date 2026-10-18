@@ -104,3 +104,30 @@ test('@phone · volume · on a phone the levels are in reach, and the row keeps 
   const name = await row(page, 'Marco').locator('.person-name').boundingBox()
   expect(name?.width ?? 0).toBeGreaterThan(40)
 })
+
+test('@phone · volume · on touch each volume is a finger’s 40 px square inside its row, at 390 and 320 px (Codex P2 on #425)', async ({
+  page,
+}) => {
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 })
+    await enter(page)
+    // Lucía's turned down: the level stands in the square, Marco's keeps the speaker.
+    await choose(page, 'Lucía', '25%')
+    const squares = await list(page)
+      .locator('.person-volume .round')
+      .evaluateAll((all) =>
+        all.map((el) => {
+          const box = el.getBoundingClientRect()
+          return box.width >= 40 && box.height >= 40
+        }),
+      )
+    expect({ width, squares }).toEqual({ width, squares: [true, true] })
+    expect({ width, marco: await inside(page, 'Marco'), lucia: await inside(page, 'Lucía') }).toEqual({
+      width,
+      marco: true,
+      lucia: true,
+    })
+    const name = await row(page, 'Marco').locator('.person-name').boundingBox()
+    expect(name?.width ?? 0).toBeGreaterThan(40)
+  }
+})

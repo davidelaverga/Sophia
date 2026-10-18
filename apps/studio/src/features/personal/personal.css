@@ -494,13 +494,15 @@
   animation: hw-in 520ms var(--ease) calc(var(--d, 220ms) + 160ms) both;
 }
 /* Where Sophia can't answer, the line's place says so and offers a note; while that is unknown, the place is held.
-   Neither is a field, so no hairline; the line's box and words, so nothing below moves (home-no-companion.md). */
+   Neither is a field, so no hairline; the line's box and words, so nothing below moves (home-no-companion.md). Where
+   the reason and its note take two rows (a narrow phone, a scrollbar, a wider fallback font), the words' 20 px, a 2 px
+   gap and «Write a note»'s 24 px are the line's 46 still; a 4 px gap made 48 (Codex P2 on #460). */
 .places .hw-off,
 .places .hw-held {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
+  gap: 2px 8px;
   min-height: 46px;
   margin: 14px 0 0;
   color: var(--text-3);
