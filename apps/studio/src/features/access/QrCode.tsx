@@ -1,5 +1,5 @@
 // The room link as a QR code: dark modules on a light card with the standard quiet border, the one form
-// every phone camera reads. The card is the only light surface in the Studio, and it is there to be scanned.
+// every phone camera reads. Its inks are fixed, not the theme's: on paper as in the room, it is there to be scanned.
 import { encode } from 'uqr'
 import { qrPath } from './access-view.ts'
 

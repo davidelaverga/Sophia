@@ -11,7 +11,7 @@ import { authMode, currentToken, guestAccessToken, sendInvitedSignIn, type AuthS
 import { EMAIL_NOT_CONFIRMED, FIRST_EMAIL_NOT_CONFIRMED } from '../../app/auth-words.ts'
 import { useDocumentTitle } from '../../app/document-title.ts'
 import { devIdentities, type Identity } from '../../app/dev-identity.ts'
-import { Centered, CodeForm, HomeLink, sendInTime, SlowNote } from '../../app/SignIn.tsx'
+import { Centered, CodeForm, HomeLink, LegalLine, sendInTime, SlowNote } from '../../app/SignIn.tsx'
 import { askAgainIn, clock, countdown, freshJoinToken, readJoinToken, sessionLabel } from './access-view.ts'
 import { GuestRoom, VisitEnd } from './GuestRoom.tsx'
 import { useNow } from '../../app/use-now.ts'
@@ -544,6 +544,7 @@ function InvitedSignIn({ email }: { email: string }) {
         </button>
         {sending && <SlowNote />}
         {refused}
+        <LegalLine />
       </>
     )
   }
