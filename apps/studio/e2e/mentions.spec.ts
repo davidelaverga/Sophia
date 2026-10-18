@@ -28,6 +28,11 @@ declare global {
     needsGets?: number
     holdNeeds?: boolean
     releaseNeeds?: () => void
+    /** The one seen write held before it reaches the fixture (its need id), those held, and their release. */
+    holdSeenNeed?: string
+    heldSeen?: string[]
+    seenPosts?: string[]
+    releaseHeldSeen?: () => void
   }
 }
 const seenOf = async (page: Page) => (await served(page)).filter((s) => s.startsWith('seen:'))
@@ -701,16 +706,32 @@ test('mentions · covered and revealed again and again, a failing seen write kee
 // read on its way refills nothing; opened, it is read afresh.
 async function countedNeeds(page: Page) {
   await page.addInitScript(() => {
+    // One controller for the page's fetch: GET /me/needs counted (and the next held when asked), and the seen write of
+    // exactly `holdSeenNeed` held before it reaches the fixture's handler, until released.
+    const control = { gets: 0, seen: [] as string[], held: [] as string[] }
     window.needsGets = 0
+    window.seenPosts = control.seen
+    window.heldSeen = control.held
     const wrap =
       (f: typeof fetch): typeof fetch =>
       async (input, init) => {
         const url = new URL(input instanceof Request ? input.url : String(input), location.href)
-        if ((init?.method ?? 'GET') === 'GET' && url.pathname === '/api/v1/me/needs') {
-          window.needsGets = (window.needsGets ?? 0) + 1
+        const method = init?.method ?? 'GET'
+        if (method === 'GET' && url.pathname === '/api/v1/me/needs') {
+          control.gets += 1
+          window.needsGets = control.gets
           if (window.holdNeeds) {
             window.holdNeeds = false
             await new Promise<void>((resolve) => (window.releaseNeeds = resolve))
+          }
+        }
+        const seen = /^\/api\/v1\/me\/needs\/([^/]+)\/seen$/.exec(url.pathname)
+        if (method === 'POST' && seen?.[1]) {
+          const need = decodeURIComponent(seen[1])
+          control.seen.push(need)
+          if (need === window.holdSeenNeed) {
+            control.held.push(need)
+            await new Promise<void>((resolve) => (window.releaseHeldSeen = resolve))
           }
         }
         return f(input, init)
@@ -745,10 +766,25 @@ test('mentions · padlock shut from the start: the hidden room and its chat read
   expect(await kept(page)).toBe('[]')
   await expect(discussion(page).locator('[data-mention-need]')).toHaveCount(0)
   expect(await seenOf(page)).toEqual([])
+  // Positive control: the current Need's seen write is held before it reaches the fixture, so its marker can't leave
+  // before it is checked; released, it is written exactly once and the Need leaves the list.
+  await page.evaluate((need) => (window.holdSeenNeed = need), NEED)
   await setPadlock(page, false)
   await expect.poll(() => needsGets(page)).toBeGreaterThan(0)
-  await expect(discussion(page).locator(`[data-mention-need="${NEED}"]`)).toHaveAttribute('data-message', MENTIONED_IN)
   await expect.poll(() => kept(page)).toContain(NEED)
+  const marked = discussion(page).locator(`[data-mention-need="${NEED}"]`)
+  await expect(marked).toHaveAttribute('data-message', MENTIONED_IN)
+  await marked.scrollIntoViewIfNeeded()
+  await expect.poll(() => page.evaluate(() => window.heldSeen ?? [])).toEqual([NEED]) // pending, exactly this one
+  expect(await page.evaluate(() => window.seenPosts ?? [])).toEqual([NEED]) // no other seen write
+  expect(await seenOf(page)).toEqual([])
+  await expect(marked).toHaveAttribute('data-message', MENTIONED_IN) // still on its message while held
+  await page.evaluate(() => window.releaseHeldSeen?.())
+  await expect.poll(() => seenOf(page)).toEqual([`seen:${NEED}`])
+  await expect(marked).toHaveCount(0)
+  await page.waitForTimeout(1000)
+  expect(await seenOf(page)).toEqual([`seen:${NEED}`])
+  expect(await page.evaluate(() => window.seenPosts ?? [])).toEqual([NEED])
 })
 
 test('mentions · a read on its way, kept under two cursors, then the padlock shut: stopped, forgotten, its late answer refills nothing, nothing read while shut (P1 4309009938)', async ({
@@ -763,7 +799,8 @@ test('mentions · a read on its way, kept under two cursors, then the padlock sh
   await page.evaluate(() => (window.holdNeeds = true))
   await page.evaluate(() => window.fixture?.say('SYNTHETIC: the project moves on, its cursor with it.'))
   await expect.poll(() => needsGets(page)).toBe(before + 1) // read again under the new cursor, held
-  expect(JSON.parse(await kept(page)).length).toBeGreaterThanOrEqual(2) // the earlier cursor's, and the held one's
+  const variants: unknown = JSON.parse(await kept(page))
+  expect(Array.isArray(variants) ? variants.length : 0).toBeGreaterThanOrEqual(2) // the earlier cursor's, and the held one's
   await setPadlock(page, true)
   await expect.poll(() => kept(page)).toBe('[]')
   const shut = await needsGets(page)
