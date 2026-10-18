@@ -20,16 +20,17 @@ export function TaskRefused({
   const again = () => {
     if (reading) return
     setReading(true)
-    // The task's own readers read again (so what shows is the fresh answer); with none, one task GET is set out.
+    // The task's own readers read again (what shows is the fresh answer), and one wrapped task GET is always set out
+    // too, so recovery never depends on a reader being mounted or enabled (R-C1-2bf).
     const ofTask = taskQueryOf(projectId, taskId)
-    const read =
-      client.getQueryCache().findAll({ predicate: ofTask }).length > 0
-        ? client.refetchQueries({ predicate: ofTask })
-        : client.fetchQuery({
-            queryKey: ['native-task', projectId, taskId, 'again', identity.name],
-            queryFn: taskRead(projectId, taskId, () => getNativeTask(identity.token, projectId, taskId)),
-            staleTime: 0,
-          })
+    const read = Promise.all([
+      client.refetchQueries({ predicate: ofTask }),
+      client.fetchQuery({
+        queryKey: ['native-task', projectId, taskId, 'again', identity.name],
+        queryFn: taskRead(projectId, taskId, () => getNativeTask(identity.token, projectId, taskId)),
+        staleTime: 0,
+      }),
+    ])
     void read.catch(() => undefined).finally(() => setReading(false))
   }
   return (
