@@ -8,6 +8,7 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { listNeeds, markNeedSeen } from '../../api/needs.ts'
 import { tokenSubject } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { modalOnScreen } from '../../app/shortcuts.ts'
 import { MENTIONS } from '../../app/mentions.ts'
 import { MESSAGE } from '../resources/link.ts'
 import { useAddressed } from '../resources/useAddressed.ts'
@@ -102,6 +103,45 @@ function seenRetries(again: (id: string) => void) {
 }
 
 /**
+ * Calls `look` once a frame as the chat's scroll moves (`false`), and when the last visible modal over the page closes
+ * (`true`, 4308744385): the page's modals watched as they change. Returns its stop.
+ */
+function watchShown(root: HTMLElement, look: (uncovered: boolean) => void): () => void {
+  let frame = 0
+  const onScroll = () => {
+    if (frame) return
+    frame = requestAnimationFrame(() => {
+      frame = 0
+      look(false)
+    })
+  }
+  root.addEventListener('scroll', onScroll, { passive: true })
+  let covered = modalOnScreen()
+  let check = 0
+  const cover = new MutationObserver(() => {
+    if (check) return
+    check = requestAnimationFrame(() => {
+      check = 0
+      const now = modalOnScreen()
+      if (covered && !now) look(true)
+      covered = now
+    })
+  })
+  cover.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['aria-modal', 'hidden', 'inert', 'open'],
+  })
+  return () => {
+    root.removeEventListener('scroll', onScroll)
+    cancelAnimationFrame(frame)
+    cover.disconnect()
+    cancelAnimationFrame(check)
+  }
+}
+
+/**
  * The waiting mentions the reader was shown are seen: the chat on screen (`inView`) and the message readable in its
  * view (mention-view `readable`), as the observer reports it or as the chat's scroll moves it. Each occurrence once; a
  * write that fails is tried again, a few times, while it stays readable, and again the next time it is shown.
@@ -138,11 +178,15 @@ export function useMentionsSeen(
       if (el) seen(shownNeed(el, root))
     })
     retryOwner.current = retries
+    const failed = new Set<string>()
+    // A message under a visible modal (a sheet, a dialog) is not shown to the reader: nothing is marked or sent while one
+    // covers the page (4308744385); the last one closing looks again at what the chat shows, as it stands.
     const seen = (id: string | undefined) => {
-      if (!id || marked.current.has(id)) return
+      if (!id || marked.current.has(id) || modalOnScreen()) return
       marked.current.add(id)
       void markNeedSeen(identity.token, id).then(again, () => {
         marked.current.delete(id)
+        failed.add(id)
         retryOwner.current?.retry(id)
       })
     }
@@ -152,21 +196,20 @@ export function useMentionsSeen(
     })
     const waitingEls = () => root.querySelectorAll('[data-mention-need]')
     for (const el of waitingEls()) observer.observe(el)
-    let frame = 0
-    const onScroll = () => {
-      if (frame) return
-      frame = requestAnimationFrame(() => {
-        frame = 0
-        for (const el of waitingEls()) seen(shownNeed(el, root))
-      })
+    // What the chat shows, read again as its scroll moves it, or as it stands once the last visible modal closes; an
+    // occurrence whose write failed stays with its bounded retry, never sent again by the modal closing.
+    const look = (uncovered: boolean) => {
+      for (const el of waitingEls()) {
+        const id = shownNeed(el, root)
+        if (!uncovered || !id || !failed.has(id)) seen(id)
+      }
     }
-    root.addEventListener('scroll', onScroll, { passive: true })
+    const stopLooking = watchShown(root, look)
     return () => {
+      stopLooking()
       retries.cancel()
       if (retryOwner.current === retries) retryOwner.current = null
       observer.disconnect()
-      root.removeEventListener('scroll', onScroll)
-      cancelAnimationFrame(frame)
     }
   }, [client, identity.token, history, inView, ids, shown])
 }
