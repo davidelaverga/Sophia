@@ -1,0 +1,368 @@
+{
+  "id": "A34",
+  "goal": "E2E",
+  "title": "What changed in a project since a member last looked, and their seen mark",
+  "why": [
+    "#365 section 2 and #105 (A13's «since»): the Studio's Updates view (behind the vision flag, on fixture data) reads what changed since this member last looked and marks it seen, through GET /projects/{id}/since and PUT /projects/{id}/seen, which no contract named. The Studio proposed a digest shaped as A12's meeting recap (apps/studio/src/api/vision.ts, Digest); this contract serves that shape, with what the service can say truthfully: nullable people and a `more` flag.",
+    "The window is the member's own: the project's events after their seen sequence, up to an upper bound the service pins (toSequence, at most 500 events on), as the current records those events name. A line whose record has since been withdrawn, superseded or made unreadable is not listed, so it is in no count. An event private to another person is never read. People are named by their display names (A32), never an address.",
+    "PUT /seen takes the toSequence the member was shown: the mark moves only forward, never past the project's newest event, and only through this write. Reading, polling or opening a line acknowledges nothing; events after the shown toSequence stay new. Seen is not an answer: a decision the work board waits on (A15's Needs) is untouched by it. Active members only (viewers included); anyone else 403."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectUpdates",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "What changed in a project since the member last looked: the current records the window's events name.",
+        "properties": {
+          "fromSequence": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]{0,18})$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The member's seen sequence before this window; null when they never marked one."
+          },
+          "toSequence": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "description": "The window's upper bound, pinned by the service: what PUT /seen sends to mark this window seen."
+          },
+          "more": {
+            "type": "boolean",
+            "description": "Events lie after toSequence: the next window, read once this one is seen."
+          },
+          "decided": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "decisionId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "statement": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "proposedBy": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "decidedBy": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "at": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "undoable": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["decisionId", "statement", "proposedBy", "decidedBy", "at", "undoable"]
+            },
+            "description": "Decisions accepted in the window and still accepted."
+          },
+          "made": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "artifactId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "artifactVersionId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "versionNumber": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "askedBy": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["artifactId", "artifactVersionId", "title", "versionNumber", "askedBy"]
+            },
+            "description": "Report versions a task made in the window, whose source is still readable."
+          },
+          "noted": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "entryId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "authoredBy": {
+                  "type": "string",
+                  "enum": ["member", "sophia"]
+                },
+                "actorId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": ["entryId", "kind", "text", "authoredBy", "actorId", "at"]
+            },
+            "description": "Brief notes kept in the window, still current and readable."
+          },
+          "open": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "proposalId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "statement": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": ["proposalId", "statement"]
+            },
+            "description": "Proposals made in the window and still open."
+          },
+          "work": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "taskId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                }
+              },
+              "required": ["taskId", "kind", "state"]
+            },
+            "description": "Tasks that moved in the window, with their state now."
+          },
+          "names": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "description": "Each named person's current display name, by actor id; someone without one is absent (the Studio says «A member»)."
+          }
+        },
+        "required": ["fromSequence", "toSequence", "more", "decided", "made", "noted", "open", "work", "names"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectSeenRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sequence": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "description": "The toSequence of the window the member was shown."
+          }
+        },
+        "required": ["sequence"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1since",
+      "value": {
+        "get": {
+          "operationId": "readProjectUpdates",
+          "summary": "What changed since the calling member last looked: a bounded window after their seen mark, as current records.",
+          "tags": ["projects"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "The window",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProjectUpdates"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not an active member of the project",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1seen",
+      "value": {
+        "put": {
+          "operationId": "markProjectSeen",
+          "summary": "The calling member has seen the project up to a window's toSequence: forward only, never past the newest event; idempotent.",
+          "tags": ["projects"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSeenRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "204": {
+              "description": "Seen (or already seen past it)"
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not an active member of the project",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or a sequence past the project's newest event",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

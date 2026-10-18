@@ -79,7 +79,16 @@ import {
 import type { ProjectRelease, ReportList } from '@sophia/contracts'
 import { searchHits, searchPage } from './search-data.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
-import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
+import {
+  closed,
+  MEETING,
+  markSeen,
+  meetingList,
+  recapOf,
+  soFarOf,
+  updatesWindowOf,
+  type Meeting,
+} from './meeting-data.ts'
 import { profileAnswer } from './profile-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
@@ -846,7 +855,7 @@ function recordsAnswer(project: Project, method: string, url: URL, init: Request
   if (path.startsWith(`${base}/mission`)) return missionAnswer(project, method, path, init)
   if (method === 'GET' && path.startsWith(`${base}/meetings`)) return meetingAnswer(project, path)
   if (method === 'GET' && path === `${base}/since` && project.meeting)
-    return json(digestOf(project.meeting, project.revision))
+    return json(updatesWindowOf(project.meeting, project.revision))
   if (project.invitations) return invitationsAnswer(project.invitations, method, path, init, base) ?? undefined
   if (method === 'GET' && path === `${base}/invitations`) return json({ invitations: [] })
   return undefined
