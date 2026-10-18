@@ -57,6 +57,7 @@ export function NoticeCard(props: Props) {
   const status = useTransientStatus()
   const delivered = useDelivered(props)
   const refused = useReportFence(delivered.artifactId ?? '')
+  const masked = refused || delivered.taskRefused
   const title = noticeTitle(notice.taskKind)
   return (
     <div className="chat-notice" role="group" aria-label={title}>
@@ -72,9 +73,10 @@ export function NoticeCard(props: Props) {
         <NoticeActions delivered={delivered} identity={identity} show={status.show} />
       )}
       {/* There before it speaks: a live region added with its words is often not read. */}
-      {/* A refused report keeps no saved filename/size or error of its own, even one that lands late. */}
-      <p className="chat-status" role="status" data-error={(!refused && status.error) || undefined}>
-        {refused ? null : status.text}
+      {/* A refused report OR a refused task (whose withheld detail no longer names the report) keeps no saved
+          filename/size or error of its own, even one that lands late (R-C1-NOTICE-TASK-REPORT-STATUS-01). */}
+      <p className="chat-status" role="status" data-error={(!masked && status.error) || undefined}>
+        {masked ? null : status.text}
       </p>
     </div>
   )
