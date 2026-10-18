@@ -333,6 +333,8 @@ interface Fixture {
   loseNextReply: () => void
   /** Reads of the research task fail from now on; given false, they succeed again. */
   failTask: (fails?: boolean) => void
+  /** The research task's reads are refused (403) from now on; given false, they are answered. */
+  refuseTask: (on?: boolean) => void
   /** A live caption packet reaches this member, as the bridge sends what is said aloud (CX-0023): synthetic text. */
   caption: (packet: ChatCaption) => void
   /** Sophia's participant leaves the room (her bridge lost its link, or restarted). */
@@ -1141,6 +1143,9 @@ window.fixture = {
   },
   failTask: (fails = true) => {
     project.taskFails = fails
+  },
+  refuseTask: (on = true) => {
+    project.taskRefused = on
   },
   caption: deliverCaption,
   sophiaLeaves,
