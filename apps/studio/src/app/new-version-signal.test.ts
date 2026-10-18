@@ -26,4 +26,20 @@ describe('a new version heard', () => {
     page.dispatchEvent(new Event('vite:preloadError'))
     assert.equal(words, 2)
   })
+
+  // The notice reads `heard()` as it is drawn and listens only after (Codex P2 on #432): a word between the two must
+  // still reach it, so a listener that comes after a word is told of it as it starts listening, once.
+  it('tells a listener that comes after a word of that word, once', () => {
+    const page = new EventTarget()
+    const signal = newVersionSignal(page)
+    page.dispatchEvent(new Event('vite:preloadError'))
+    page.dispatchEvent(new Event('vite:preloadError'))
+    let words = 0
+    signal.onHeard(() => {
+      words += 1
+    })
+    assert.equal(words, 1)
+    page.dispatchEvent(new Event('vite:preloadError'))
+    assert.equal(words, 2)
+  })
 })
