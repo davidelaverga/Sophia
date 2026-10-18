@@ -2,7 +2,8 @@
 // (search-view.ts, R-C4-SEARCH-READ-01): each read stamped when it is set out, a 401/403 kept in the account's query
 // cache that ran the read, as it settles, for its project and resource (the project's list, or one report's), and
 // nothing read before the last refusal shown again, whatever answers later. Only a read set out since shows again.
-import { useQuery, type QueryClient } from '@tanstack/react-query'
+import { useCallback, useSyncExternalStore } from 'react'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { ApiError } from '../../api/client.ts'
 import { closedDoor } from '../studio/project-door.ts'
 
@@ -88,14 +89,24 @@ export function shownTaskReads<R extends { readFrom: number }>(
   return reads.every((r) => r.readFrom > refusedAt) ? reads : undefined
 }
 
-/** When this person's own read of these tasks was last refused, in `taskOrder`; 0 when never. Only read here. */
+/**
+ * When this person's own read of these tasks was last refused, in `taskOrder`; 0 when never. Only read here. Read from
+ * the query cache as it changes (as useReportFence and useNeedsRefused do), not through a query observer's scheduled
+ * notification, so a refusal kept in the cache withholds the tasks in the same render pass, never a frame later.
+ */
 export function useTasksRefused(projectId: string, resource: string): number {
-  return useQuery({
+  const client = useQueryClient()
+  // Registered and kept (never fetched) so the cache holds the key with its defaults, as before.
+  useQuery({
     queryKey: tasksRefusedKey(projectId, resource),
     queryFn: () => 0,
     initialData: 0,
     enabled: false,
     staleTime: Infinity,
     gcTime: Infinity,
-  }).data
+  })
+  return useSyncExternalStore(
+    useCallback((changed: () => void) => client.getQueryCache().subscribe(changed), [client]),
+    () => client.getQueryData<number>(tasksRefusedKey(projectId, resource)) ?? 0,
+  )
 }
