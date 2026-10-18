@@ -21,7 +21,8 @@
   when that is what is offered; `S` presses Stop, which asks first and gives the safe answer the focus, so a second
   Enter never stops by accident, and `S` again while it asks does nothing. A key held down repeats; a repeat is not a press
   (`e.repeat`, as `shortcuts.ts` does), so a Hold never meets the Resume it brings. The foot says «J K the next and the one
-  before · H hold or resume · S stop» while the plan is in force. A decision's choices are buttons already: Enter on
+  before · H hold or resume · S stop» while the plan is in force, H and S only while their press is offered: a reader, a
+  stale read, the demo and a task with nothing to send have none (informe-25 DL-12, task-sheet-links-keys.md). A decision's choices are buttons already: Enter on
   one answers it.
 - **Labels at 12** (`--type-small`), mono, uppercase as before: `.field-label`; Updates' heads; the palette's group
   word; Home's date and labels; Personal's labels, day marks and notes (`c3-label`, `c3-day`, `c3-way-note`,
