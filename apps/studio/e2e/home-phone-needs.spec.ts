@@ -93,7 +93,11 @@ test('home · a need that came ahead, then crossing 860 px: the focus stays on t
   await expect(page.locator('.hw-needs-here button', { hasText: 'Marco Pereira is in the lobby' })).toBeFocused()
 })
 
-test('home · a need that left is not stood in for by its neighbour after crossing 860 px', async ({ page }) => {
+// A need that left hands the focus to the list's heading, not to its neighbour, and never leaves it on the page
+// (Codex P2 on #442).
+test('home · a need that left, then crossing 860 px: the list’s heading has the focus, not its neighbour', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1000, height: 900 })
   await page.goto('/home.html?needs=api')
   const side = page.locator('.hw-side button')
@@ -103,7 +107,10 @@ test('home · a need that left is not stood in for by its neighbour after crossi
   await expect(side).toHaveCount(3)
   await page.setViewportSize({ width: 800, height: 900 })
   await expect(page.locator('.hw-needs-here button')).toHaveCount(3)
-  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true)
+  await expect(page.locator('.hw-needs-here').getByRole('heading', { name: 'Needs you' })).toBeFocused()
+  // The heading keeps it across the next crossing, as a need does.
+  await page.setViewportSize({ width: 1000, height: 900 })
+  await expect(page.locator('.hw-side').getByRole('heading', { name: 'Needs you' })).toBeFocused()
 })
 
 test('home · crossing 860 px leaves a focus outside the list where it was', async ({ page }) => {
