@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { ConversationMessage } from '../../api/vision.ts'
+import type { ConversationMessage } from '../../api/conversations.ts'
 import {
   asksNow,
   briefAsks,
@@ -100,6 +100,10 @@ const msg = (id: string, author: 'member' | 'sophia', actorId: string | null, te
   name: null,
   text,
   at: `2026-10-06T05:${id}:00Z`,
+  seq: Number(id),
+  withdrawn: null,
+  ask: null,
+  replyTo: null,
 })
 
 describe('the thread, as the next ask reads it', () => {

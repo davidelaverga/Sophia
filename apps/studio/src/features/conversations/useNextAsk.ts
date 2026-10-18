@@ -3,7 +3,7 @@
 // per conversation while the page lives.
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
-import { getConversationMessages, type ConversationMessage } from '../../api/vision.ts'
+import { getConversationMessages, type ConversationMessage } from '../../api/conversations.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { contextQuery } from './decide.ts'
@@ -45,7 +45,12 @@ function useOlderAsks(source: NextAskSource, conversationId: string, identity: I
   const older = useQuery({
     queryKey: ['vision', 'next-ask-older', accountOf(identity), conversationId, before, need],
     queryFn: ({ signal }) =>
-      olderAsks((at) => getConversationMessages(identity.token, conversationId, at, signal), before, source.me, need),
+      olderAsks(
+        (at) => getConversationMessages(identity.token, source.projectId, conversationId, at, signal),
+        before,
+        source.me,
+        need,
+      ),
     enabled,
     staleTime: Number.POSITIVE_INFINITY,
     retry: 1,

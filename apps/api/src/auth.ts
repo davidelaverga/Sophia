@@ -12,10 +12,16 @@ export interface AuthConfig {
   secret?: string | undefined
 }
 
-/** The verified token subject, and a display name taken from the verified token (never from the client). */
+/** The verified token subject, and what the verified token says about them (never the client). */
 export interface Actor {
   id: string
+  /**
+   * The account provider's name for them (Google's full name, GitHub's user name), to seed a display name they haven't
+   * chosen (0062). Never an address, so never their email. Shown to others only through their profile.
+   */
   name: string | null
+  /** The verified email: the contact an invitation is matched by (A16), never shown to others as a name. */
+  contact: string | null
   /**
    * A Supabase anonymous sign-in (`is_anonymous`): someone who came in by a guest link without an account.
    * They may only knock, wait and join a room they were admitted to (app.ts GUEST_ROUTES).
@@ -59,15 +65,42 @@ export function createActorVerifier(cfg: AuthConfig): VerifyActor {
       if (payload.role !== 'authenticated' || typeof payload.sub !== 'string' || !UUID.test(payload.sub)) {
         throw new Error('not an authenticated user token')
       }
+      const contact = typeof payload.email === 'string' && payload.email ? payload.email : null
       return {
         id: payload.sub.toLowerCase(),
-        name: typeof payload.email === 'string' && payload.email ? payload.email : null,
+        name: providerName(payload.user_metadata, contact),
+        contact,
         anonymous: payload.is_anonymous === true,
       }
     } catch (err: unknown) {
       throw new DomainError('actor_context_required', 'Invalid or expired token', { cause: err })
     }
   }
+}
+
+/** The provider metadata keys that carry a person's name, in the Studio's order (apps/studio/src/app/profile.ts). */
+const NAME_KEYS = ['full_name', 'name', 'user_name', 'preferred_username'] as const
+
+/** At most what a display name may hold (0062), in code points; a longer provider name seeds nothing, not a cut one. */
+const FITS = /^.{1,60}$/su
+
+/**
+ * The account provider's name for a person, from the verified token's user_metadata: the first of NAME_KEYS that is a
+ * non-blank string, trimmed, at most 60 characters, and not an address. A claim that can't be one is skipped for the
+ * next (an address as full_name, a usable user_name after it); none usable, no name. The database checks it again.
+ */
+export function providerName(metadata: unknown, contact: string | null): string | null {
+  if (typeof metadata !== 'object' || metadata === null) return null
+  const m = new Map<string, unknown>(Object.entries(metadata))
+  for (const key of NAME_KEYS) {
+    const value = m.get(key)
+    if (typeof value !== 'string') continue
+    const name = value.trim()
+    if (!name) continue
+    if (name.includes('@') || !FITS.test(name) || name.toLowerCase() === contact?.toLowerCase()) continue
+    return name
+  }
+  return null
 }
 
 /** The verification failure behind a DomainError (jose error or our own). */

@@ -28,8 +28,13 @@ let noVoice: FastifyInstance
 let seed: SeededProject
 let roomId: string
 
+/** Every token carries an address; B's account also gives a name (a Google account's full name). */
 const token = (sub: string) =>
-  new SignJWT({ role: 'authenticated', email: `${sub.slice(0, 8)}@sophia.test` })
+  new SignJWT({
+    role: 'authenticated',
+    email: `${sub.slice(0, 8)}@sophia.test`,
+    ...(sub === B ? { user_metadata: { full_name: 'Bea Ortiz' } } : {}),
+  })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(sub)
     .setIssuer(ISSUER)
@@ -93,8 +98,11 @@ describe('room tokens', () => {
     const grant = await grantOf(issued.token)
     assert.deepEqual(
       { room: issued.roomId, url: issued.serverUrl, sub: grant.sub, name: grant.name },
-      { room: roomId, url: LIVEKIT.url, sub: B, name: `${B.slice(0, 8)}@sophia.test` },
+      { room: roomId, url: LIVEKIT.url, sub: B, name: 'Bea Ortiz' },
     )
+    // Everyone in the call reads a participant's name: one whose account gives none is named by no address (0062).
+    const unnamed = await grantOf(parseRoomToken((await roomToken(A)).json).token)
+    assert.deepEqual([unnamed.sub, unnamed.name], [A, undefined])
     assert.deepEqual(grant.video, {
       roomJoin: true,
       room: roomId,
