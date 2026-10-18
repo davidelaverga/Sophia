@@ -203,31 +203,43 @@ function incomingCameras(room: Room, onChange: () => void): Pick<RoomConnection,
  * The room's voices, as audio elements this room owns: a room that ends removes its own, never another's (a join that
  * was superseded and left must not silence the call that replaced it).
  */
-function remoteAudio(room: Room, textOnly: () => boolean, volume: PeopleVolume): Set<HTMLMediaElement> {
+function remoteAudio(
+  room: Room,
+  textOnly: () => boolean,
+): { audio: Set<HTMLMediaElement>; volume: PeopleVolume<HTMLMediaElement> } {
   const mine = new Set<HTMLMediaElement>()
+  const trackOf = new Map<HTMLMediaElement, RemoteTrack>()
+  const drop = (el: HTMLMediaElement) => {
+    trackOf.get(el)?.detach(el)
+    trackOf.delete(el)
+    el.remove()
+    mine.delete(el)
+  }
+  // Off lets a member's sound go at once: detached, startAudio can't unmute it before their track stops coming.
+  const volume = peopleVolume<HTMLMediaElement>(drop)
   room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant) => {
     if (track.kind !== Track.Kind.Audio) return
     const el = track.attach()
     el.dataset.sophiaRoomAudio = isSophia(participant) ? 'sophia' : 'member'
     el.muted = isSophia(participant) && textOnly()
-    // A member's sound plays at the level given them here (people-volume.md); Sophia's keeps the call's.
-    if (!isSophia(participant)) volume.add(el, participant.identity)
     document.body.append(el)
     mine.add(el)
+    trackOf.set(el, track)
+    // A member's sound plays at the level given them here (people-volume.md); Sophia's keeps the call's.
+    if (!isSophia(participant)) volume.add(el, participant.identity)
   })
   room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
     if (track.kind !== Track.Kind.Audio) return
     for (const el of track.detach()) {
-      el.remove()
-      mine.delete(el)
       volume.remove(el)
+      drop(el)
     }
   })
   // A sound someone Off publishes (their screen's, or their voice after a rejoin) isn't taken (people-volume.md).
   room.on(RoomEvent.TrackPublished, (publication, participant) => {
     if (!isSophia(participant)) volume.published(publication, participant.identity)
   })
-  return mine
+  return { audio: mine, volume }
 }
 
 /**
@@ -454,8 +466,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
   room.on(RoomEvent.Reconnecting, () => cb.onStatus('reconnecting'))
   room.on(RoomEvent.Reconnected, () => cb.onStatus('live'))
   let textOnly = false
-  const volume = peopleVolume()
-  const audio = remoteAudio(room, () => textOnly, volume)
+  const { audio, volume } = remoteAudio(room, () => textOnly)
   stopsWhenHostStops(room)
   room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
     for (const el of audio) el.remove()

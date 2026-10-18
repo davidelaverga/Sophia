@@ -38,12 +38,16 @@ interface Track {
   setSubscribed: (on: boolean) => void
 }
 
-export type PeopleVolume = ReturnType<typeof peopleVolume>
+export type PeopleVolume<S extends Sound = Sound> = ReturnType<typeof peopleVolume<S>>
 
-/** The sounds and tracks of each person, and the level each was given here: full until set. */
-export function peopleVolume() {
+/**
+ * The sounds and tracks of each person, and the level each was given here: full until set. `release` lets a sound go
+ * at once (the room detaches and removes it): Off only asks for their track to stop, and until it has, LiveKit's
+ * startAudio unmutes every element still attached (Codex P1 on #425).
+ */
+export function peopleVolume<S extends Sound>(release: (sound: S) => void = () => undefined) {
   const levels = new Map<string, Level>()
-  const sounds = new Map<Sound, string>()
+  const sounds = new Map<S, string>()
   const levelOf = (identity: string) => levels.get(identity) ?? 1
   /**
    * Their sound comes unless they are Off; their video is left alone. Compared with what was asked for, not with what
@@ -54,12 +58,13 @@ export function peopleVolume() {
     if (track.kind === 'audio' && track.isDesired !== wanted) track.setSubscribed(wanted)
   }
   return {
-    /** A sound of theirs begins: it plays at the level they were given. */
-    add: (sound: Sound, identity: string) => {
-      sounds.set(sound, identity)
+    /** A sound of theirs begins: it plays at the level they were given; while they are Off it goes as it begins. */
+    add: (sound: S, identity: string) => {
       put(sound, levelOf(identity))
+      if (levelOf(identity) === 0) release(sound)
+      else sounds.set(sound, identity)
     },
-    remove: (sound: Sound) => {
+    remove: (sound: S) => {
       sounds.delete(sound)
     },
     /** A track of theirs is published: let go if they are Off; anyone else's is LiveKit's to take, as ever. */
@@ -69,7 +74,13 @@ export function peopleVolume() {
     /** Their level, put on their sounds and their tracks. */
     set: (identity: string, level: Level, tracks: Iterable<Track>) => {
       levels.set(identity, level)
-      for (const [sound, who] of sounds) if (who === identity) put(sound, level)
+      for (const [sound, who] of sounds) {
+        if (who !== identity) continue
+        put(sound, level)
+        if (level !== 0) continue
+        sounds.delete(sound)
+        release(sound)
+      }
       for (const track of tracks) take(track, identity)
     },
   }
