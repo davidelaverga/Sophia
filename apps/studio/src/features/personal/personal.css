@@ -1445,6 +1445,12 @@
 .places .c2-t p {
   font-size: 13px;
 }
+/* Carry, and Forget beside it (personal-forget-note.md): one cell, after the words. */
+.places .c2-t .c2-acts {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 .places .c3-notes .c2-t.crossing {
   transform: translateX(120px);
   opacity: 0;
