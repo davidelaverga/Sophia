@@ -15,6 +15,7 @@ import type { Resource } from '../../resources/resource.ts'
 import type { GoalPlan } from '../GoalList.tsx'
 import { boardPeople, viewerOf } from './board-people.ts'
 import { readBoardView, type BoardView } from './board-view.ts'
+import { openDecisions } from './decision-alert.ts'
 import { Decision, type Decide } from './Decision.tsx'
 import { PlanBoard } from './PlanBoard.tsx'
 import { PlanNext } from './PlanNext.tsx'
@@ -112,6 +113,7 @@ function slotOf(goal: GoalView, { board, people, viewerId, now, ports }: Shared)
     ...glancedOf(goal, rows, shown?.operable ?? false, viewerId, now),
     decisions: goal.decisions.map((d) => d.decision_id),
     attention: (shown?.operable ?? false) && forYou(rows, goal.decisions, viewerId, now),
+    toDecide: openDecisions(goal.decisions, viewerId, now),
   }
 }
 
