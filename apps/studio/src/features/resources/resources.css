@@ -555,12 +555,17 @@
   transform: rotate(180deg);
 }
 /* In the session's column: its dot under the model chip's and the work tag's, its text where theirs starts, as tall as
-   the chip, and as far from the tag below as from the chip above. */
+   the chip at the default size (taller when the text is larger: Codex P1 on #421), and as far from the tag below as
+   from the chip above. */
 .effort-asked {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 18px;
+  /* Its own line: 18 px at the default size, as the chip, and a line of larger text past it. Its press (24 px) may
+     reach over it, as before; its words never wrap under it. */
+  height: max(18px, var(--lh-small));
+  line-height: var(--lh-small);
+  white-space: nowrap;
   margin-bottom: 2px;
   padding-left: 6px;
   color: var(--text-2);
@@ -823,7 +828,8 @@
 }
 .resource-session {
   display: grid;
-  grid-template-columns: 84px minmax(0, 1fr);
+  /* The role's column grows with the text: 84 px at the default size. */
+  grid-template-columns: 5.25rem minmax(0, 1fr);
   align-items: baseline;
   gap: 2px 12px;
 }
@@ -1962,5 +1968,59 @@
   }
   .resource-tile:hover .tool-logo.lg {
     transform: none;
+  }
+}
+
+/* A refused copy's link, to copy by hand (CopyLink; Codex P2 on #382): under its press, aligned to its end, on the
+   menus' raised plane, as wide as a phone's sheet leaves beside the head's other presses. */
+.copy-link-at {
+  position: relative;
+  display: inline-flex;
+}
+.copy-link-hand {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(360px, calc(100vw - 96px));
+  padding: 8px 10px;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line-2);
+  background: var(--plane-2);
+  box-shadow: 0 18px 50px rgb(var(--shadow-rgb) / calc(0.55 * var(--shadow-k)));
+  color: var(--text-2);
+  font-size: var(--type-small);
+  white-space: nowrap;
+  animation: arrive var(--base) var(--ease) both;
+}
+.copy-link-hand input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--plane);
+  color: var(--text);
+  font: 400 var(--type-small) / var(--lh-small) var(--mono);
+}
+/* On a phone the words go above the field, so the link has the plane's whole width. */
+@media (max-width: 600px) {
+  .copy-link-hand {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .copy-link-hand input {
+    flex: none;
+  }
+}
+/* Less motion asked for: it is there at once. Here, not in the list above, which its own rule would follow and undo
+   (Codex P2 on #441). */
+@media (prefers-reduced-motion: reduce) {
+  .copy-link-hand {
+    animation: none;
   }
 }

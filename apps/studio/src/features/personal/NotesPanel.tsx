@@ -11,7 +11,7 @@ import { notesFile, notesFileName, orderNotes, type NotesOrder } from './notes-e
 import type { Memory as Remembered } from './extras.ts'
 import { focusSoon } from './focus.ts'
 import { Memory } from './Memory.tsx'
-import { FIND_FROM, findNotes, membersLabel } from './places-view.ts'
+import { FIND_FROM, findNotes, membersLabel, nextShown } from './places-view.ts'
 import type { Read } from './ReadNotes.tsx'
 import { CarryPackage, type PackWrites } from './CarryPackage.tsx'
 
@@ -179,20 +179,22 @@ function useCarry(panel: RefObject<HTMLElement | null>, onCarry: Props['onCarry'
 
 /**
  * A note forgotten: once it is gone the focus goes on to the next note's Carry (the one before it when it was the
- * last), or to the notes when none is left, never dropped to the page.
+ * last), or to the notes when none is left, never dropped to the page. Next in the order chosen at the press, among
+ * the notes shown once it is gone (`nextShown`): one note fewer may take Find away.
  */
 function useForget(
   panel: React.RefObject<HTMLElement | null>,
-  notes: readonly PersonalNote[] | undefined,
+  ordered: readonly PersonalNote[],
   onForget: Props['onForget'],
 ) {
   return async (noteId: string) => {
-    const at = notes?.findIndex((n) => n.id === noteId) ?? -1
-    const next = notes?.[at + 1]?.id ?? notes?.[at - 1]?.id ?? null
+    const around = ordered.map((n) => n.id)
     if (!(await onForget(noteId))) return
     requestAnimationFrame(() => {
-      const carry = next ? panel.current?.querySelector<HTMLElement>(`[data-carry="${next}"]`) : null
-      ;(carry ?? panel.current)?.focus({ preventScroll: true })
+      const carries = [...(panel.current?.querySelectorAll<HTMLElement>('[data-carry]') ?? [])]
+      const shown = carries.map((c) => c.dataset.carry ?? '')
+      const next = nextShown(around, noteId, shown)
+      ;(carries.find((c) => c.dataset.carry === next) ?? panel.current)?.focus({ preventScroll: true })
     })
   }
 }
@@ -202,12 +204,13 @@ export function NotesPanel(props: Props) {
   const panel = useRef<HTMLElement>(null)
   const { carrying, setCarrying, crossing, carry } = useCarry(panel, onCarry)
   const crossed = (id: string) => crossing === id || props.carrying(id)
-  const forget = useForget(panel, notes, props.onForget)
+  const find = useFind(notes)
+  // The next note is the next one shown once it is gone, in the order chosen (Codex P2s on #394 and #431).
+  const forget = useForget(panel, find.ordered, props.onForget)
   // The package, open: it replaces the notes' own Carry, so one writer carries at a time; while a step of it runs
   // (carrying, taking back), the notes stay open, so what it says stays in sight.
   const [packing, setPacking] = useState(false)
   const [packBusy, setPackBusy] = useState(false)
-  const find = useFind(notes)
   // Focus the panel itself: a tip should appear when you reach a control, not the moment the notes open.
   useEffect(() => panel.current?.focus({ preventScroll: true }), [])
   return (
@@ -226,14 +229,17 @@ export function NotesPanel(props: Props) {
       {!packing &&
         find.shown.map((note) => (
           <div key={note.id} className={`c2-t${crossed(note.id) ? ' crossing' : ''}`} inert={crossed(note.id)}>
-            <p>
-              {note.text}
-              {note.keptBy === 'sophia' && <span className="by">from Sophia</span>}
-            </p>
-            {/* Its day, beside the words, not in them: Find and the notes read the words alone. */}
-            <time className="c2-day" dateTime={note.createdAt}>
-              {dayOf(note.createdAt, Date.now())}
-            </time>
+            {/* The words with their day under them, then Carry and Forget beside them (Codex P2 on #394). */}
+            <div className="c2-words">
+              <p>
+                {note.text}
+                {note.keptBy === 'sophia' && <span className="by">from Sophia</span>}
+              </p>
+              {/* Its day, after the words, not in them: Find and the notes read the words alone. */}
+              <time className="c2-day" dateTime={note.createdAt}>
+                {dayOf(note.createdAt, Date.now())}
+              </time>
+            </div>
             <NoteActs
               noteId={note.id}
               open={carrying === note.id}
@@ -263,14 +269,14 @@ type Find = ReturnType<typeof useFind>
 
 /**
  * What is typed in Find, and the notes it leaves (from six notes only, all of them before), in the order chosen,
- * newest first unless Oldest is (notes-order-export.md).
+ * newest first unless Oldest is (notes-order-export.md); `ordered` is every note in that order.
  */
 function useFind(notes: readonly PersonalNote[] | undefined) {
   const [typed, setTyped] = useState('')
   const [order, setOrder] = useState<NotesOrder>('newest')
-  const all = notes ?? []
-  const offered = all.length >= FIND_FROM
-  return { offered, typed, setTyped, order, setOrder, shown: orderNotes(findNotes(all, offered ? typed : ''), order) }
+  const ordered = orderNotes(notes ?? [], order)
+  const offered = ordered.length >= FIND_FROM
+  return { offered, typed, setTyped, order, setOrder, ordered, shown: findNotes(ordered, offered ? typed : '') }
 }
 
 const ORDERS = [
@@ -282,7 +288,7 @@ const ORDERS = [
 function OrderNotes({ find }: { find: Find }) {
   return (
     <Segmented
-      role="group"
+      role="radiogroup"
       label="Order"
       size="sm"
       className="c3-order"
@@ -347,7 +353,7 @@ function FindNotes(props: { typed: string; onTyped: (typed: string) => void; fou
 /** A note's acts: Carry, and Forget, which asks first since its words go for good (personal-forget-note.md). */
 function NoteActs(props: { noteId: string; open: boolean; onCarry: () => void; onForget: () => void }) {
   return (
-    <>
+    <span className="c2-acts">
       <button
         className="ghost"
         type="button"
@@ -364,7 +370,7 @@ function NoteActs(props: { noteId: string; open: boolean; onCarry: () => void; o
         keep="Keep it"
         onConfirm={props.onForget}
       />
-    </>
+    </span>
   )
 }
 

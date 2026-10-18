@@ -7,6 +7,7 @@ import { shortName } from '../voice/room-view.ts'
 import type { Way } from './arrive.ts'
 import { dayLabel, topicOf } from './conversation-view.ts'
 import { clock, dayInSentence, inTime } from '../../app/time-words.ts'
+import { foldForSearch } from '../../app/search-fold.ts'
 
 const MINUTE = 60_000
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
@@ -302,17 +303,24 @@ export function workOrder(projects: readonly ProjectSummary[], now: Date): Proje
 /** From how many projects Work offers finding one and ordering them (find-projects.md). */
 export const FIND_FROM = 6
 
-/** A title as a search compares it: no case, no accents. */
-const plain = (text: string) =>
-  text
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
+/** A title as a search compares it: no case, no accents, as every search folds (search-fold.ts). */
+const plain = foldForSearch
 
 /** The notes whose words hold what is typed, whatever its case or accents, in their order (personal-notes-write-find.md). */
 export function findNotes<T extends { text: string }>(notes: readonly T[], typed: string): T[] {
   const wanted = plain(typed.trim())
   return wanted ? notes.filter((n) => plain(n.text).includes(wanted)) : [...notes]
+}
+
+/**
+ * The note that takes the focus once one is forgotten: the nearest after it in the order chosen (`ordered`, ids) among
+ * those shown once it is gone, else the nearest before it; null when none is shown. Shown after, not before: forgetting
+ * one of six takes Find away, and every note is shown again (Codex P2 on #431).
+ */
+export function nextShown(ordered: readonly string[], gone: string, shown: readonly string[]): string | null {
+  const at = ordered.indexOf(gone)
+  const isShown = (id: string) => shown.includes(id)
+  return ordered.slice(at + 1).find(isShown) ?? ordered.slice(0, at).findLast(isShown) ?? null
 }
 
 /** The projects whose title holds what is typed, whatever its case or accents; all of them for nothing typed. */

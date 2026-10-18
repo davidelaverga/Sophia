@@ -17,7 +17,7 @@ import {
   type RoomParticipant,
   type StageMode,
 } from './room-view.ts'
-import { arrivalOrder, GALLERY_TILES, STRIP_TILES, tilesFor } from './tile-view.ts'
+import { arrivalOrder, peopleTiles, tilesFor } from './tile-view.ts'
 import { useMirror } from './mirror-preference.ts'
 
 function VideoView({ feed, fit }: { feed: VideoFeed; fit: 'cover' | 'contain' }) {
@@ -42,14 +42,25 @@ interface TileProps {
   onPin?: (() => void) | undefined
   /** Your own tile: hide it from your own gallery, for this call (room-basics.md). */
   onHide?: (() => void) | undefined
+  /** Your own tile, on a phone with two cameras: switch to the next (camera-flip.md). */
+  onFlip?: (() => void) | null | undefined
 }
 
-/** A round press at a tile's corner, shown under the pointer or the focus: Pin on others', Hide on yours. */
-function TileAct({ label, icon, onPress }: { label: string; icon: 'expand' | 'eyeOff'; onPress: () => void }) {
+/**
+ * A round press at a tile's corner, shown under the pointer or the focus: Pin on others', Hide on yours; Switch camera on
+ * yours too, at the other corner (`left`).
+ */
+function TileAct(props: { label: string; icon: 'expand' | 'eyeOff' | 'flip'; onPress: () => void; left?: boolean }) {
+  const { label, icon, onPress, left = false } = props
   return (
-    <button type="button" className="round tile-pin has-tip" aria-label={label} onClick={onPress}>
+    <button
+      type="button"
+      className={`round tile-pin has-tip${left ? ' tile-flip' : ''}`}
+      aria-label={label}
+      onClick={onPress}
+    >
       <Icon name={icon} />
-      <Tip label={label} align="end" />
+      <Tip label={label} align={left ? 'start' : 'end'} />
     </button>
   )
 }
@@ -58,7 +69,9 @@ function TileAct({ label, icon, onPress }: { label: string; icon: 'expand' | 'ey
 function HiddenSelf({ onShow }: { onShow: () => void }) {
   return (
     <li className="tile tile-hidden-self">
-      <span>Your tile is hidden</span>
+      {/* In a fifth of a phone the words give way to an eye struck through; a screen reader still hears them. */}
+      <Icon name="eyeOff" size={14} />
+      <span className="tile-hidden-words">Your tile is hidden</span>
       <button type="button" className="text-button" onClick={onShow}>
         Show
       </button>
@@ -171,7 +184,7 @@ function TileMark({ mark }: { mark: 'you' | 'guest' | 'floor' }) {
   )
 }
 
-function PersonTile({ person, camera, holds, onPin, onHide }: TileProps) {
+function PersonTile({ person, camera, holds, onPin, onHide, onFlip }: TileProps) {
   return (
     <li
       className="tile"
@@ -198,11 +211,18 @@ function PersonTile({ person, camera, holds, onPin, onHide }: TileProps) {
           </span>
         )}
       </span>
+      {/* On a phone's strip the chip has no room for it: the mute shows in the tile's corner (theme.css). */}
+      {mutedMic(person) && (
+        <span className="tile-muted-corner" aria-hidden>
+          <Icon name="micOff" size={10} />
+        </span>
+      )}
       {onHide ? (
         <TileAct label="Hide my tile" icon="eyeOff" onPress={onHide} />
       ) : (
         onPin && <TileAct label={`Pin ${shortName(person.name)}`} icon="expand" onPress={onPin} />
       )}
+      {onFlip && <TileAct label="Switch camera" icon="flip" onPress={onFlip} left />}
     </li>
   )
 }
@@ -214,6 +234,8 @@ interface Props {
   floor: FloorView
   /** A report shown to everyone, where a shared screen goes when none is shared. */
   shown?: ReactNode
+  /** Your camera's switch, on a phone with two (camera-flip.md): on your own tile. */
+  flip?: (() => void) | null
 }
 
 /**
@@ -253,6 +275,8 @@ function Tiles(props: {
   floor: FloorView
   onPin: ((identity: string) => void) | undefined
   self: { hidden: boolean; hide: () => void; show: () => void }
+  /** Your camera's switch, on a phone with two (camera-flip.md); null otherwise. */
+  flip: (() => void) | null | undefined
   more: number
   onMore: () => void
 }) {
@@ -270,6 +294,7 @@ function Tiles(props: {
           holds={props.floor.holder?.identity === p.identity}
           onPin={onPin && (() => onPin(p.identity))}
           onHide={p.local ? self.hide : undefined}
+          onFlip={p.local ? props.flip : undefined}
         />
       ))}
       {self.hidden && <HiddenSelf onShow={self.show} />}
@@ -278,7 +303,7 @@ function Tiles(props: {
   )
 }
 
-export function VideoStage({ mode, people: everyoneHere, feeds, floor, shown }: Props) {
+export function VideoStage({ mode, people: everyoneHere, feeds, floor, shown, flip }: Props) {
   const { tiled: people, ...self } = useSelfHidden(everyoneHere)
   const { screen, others, choose } = useScreenChoice(feeds)
   const cameraOf = (identity: string) => feeds.find((f) => f.identity === identity && f.source === 'camera')
@@ -295,6 +320,7 @@ export function VideoStage({ mode, people: everyoneHere, feeds, floor, shown }: 
     people.filter((p) => p !== pinned),
     stage,
     strip,
+    self.hidden,
   )
   // Held here, not in «+N»: the tiles move between the strip and the gallery, and the sheet stays open across.
   const [everyone, setEveryone] = useState(false)
@@ -305,6 +331,7 @@ export function VideoStage({ mode, people: everyoneHere, feeds, floor, shown }: 
       floor={floor}
       onPin={present ? undefined : setPinned}
       self={self}
+      flip={flip}
       more={more.length}
       onMore={() => setEveryone(true)}
     />
@@ -312,7 +339,7 @@ export function VideoStage({ mode, people: everyoneHere, feeds, floor, shown }: 
   const sheet = everyone && <InTheCall people={everyoneHere} floor={floor} onClose={() => setEveryone(false)} />
   if (!strip) {
     return (
-      <ul className="gallery" data-count={count + (self.hidden ? 1 : 0)} aria-label="In the room">
+      <ul className="gallery" data-count={count} aria-label="In the room">
         {tiles}
         {sheet}
       </ul>
@@ -361,11 +388,15 @@ function usePin(people: readonly RoomParticipant[], present: boolean) {
   return [pinned, setPinned] as const
 }
 
-/** The people with a tile, the rest past them («+N»), and how many tiles the gallery lays out (Sophia's too). */
+/**
+ * The people with a tile, the rest past them («+N»), and how many tiles the gallery lays out: Sophia's, «Your tile is
+ * hidden» when it stands in your place, and «+N» too.
+ */
 function useKeptTiles(
   people: RoomParticipant[],
   stage: { floor: FloorView; showing: string | null; arrived: readonly string[]; pinned: string | undefined },
   present: boolean,
+  selfHidden: boolean,
 ) {
   const spokeAt = useSpokeAt(people)
   const order = {
@@ -375,8 +406,8 @@ function useKeptTiles(
     arrived: stage.arrived,
     pinned: stage.pinned ?? null,
   }
-  const { shown: kept, more } = tilesFor(people, order, present ? STRIP_TILES : GALLERY_TILES)
-  return { kept, more, count: kept.length + 1 + (more.length > 0 ? 1 : 0) }
+  const { shown: kept, more } = tilesFor(people, order, peopleTiles(present, selfHidden))
+  return { kept, more, count: kept.length + 1 + (selfHidden ? 1 : 0) + (more.length > 0 ? 1 : 0) }
 }
 
 /** Who spoke when, in turns (each change in who speaks is one): who spoke last keeps a tile next (tile-view.ts). */

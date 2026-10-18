@@ -30,6 +30,34 @@ test('moves · Copy link copies the open conversation’s own address', async ({
   expect(copied.endsWith(`#conversation-${READING}`)).toBe(true)
 })
 
+// The address bar doesn't hold the conversation opened by default: a refused copy hands over its own address, selected
+// to copy by hand, until Escape or a press elsewhere (Codex P2 on #382).
+test('moves · a refused Copy link hands over the conversation’s own address, not the address bar', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: () => Promise.reject(new DOMException('Denied', 'NotAllowedError')) },
+    })
+  })
+  await page.goto(PAGE)
+  await expect(heading(page)).toHaveText('What makes a report worth reading?')
+  expect(new URL(page.url()).hash).not.toMatch(/^#conversation-/)
+  await open(page).getByRole('button', { name: 'Copy link' }).click()
+  const field = open(page).getByRole('textbox', { name: 'Link', exact: true })
+  await expect(field).toBeFocused()
+  await expect(field).toHaveValue(new RegExp(`#conversation-${READING}$`))
+  // Selected whole, ready for a copy by hand.
+  expect(
+    await field.evaluate((el: HTMLInputElement) => el.selectionStart === 0 && el.selectionEnd === el.value.length),
+  ).toBe(true)
+  await expect(open(page).getByRole('button', { name: /address bar/ })).toHaveCount(0)
+  await page.waitForTimeout(4500) // past the failure's own few seconds: the link stays until it is let go
+  await expect(field).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(field).toHaveCount(0)
+  await expect(open(page).getByRole('button', { name: /^Copy link|copy the link/ })).toBeFocused()
+  await expect(heading(page)).toHaveText('What makes a report worth reading?')
+})
+
 test('moves · scrolled up, a new message is said; the pill takes the thread to its end', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 480 })
   await page.goto(PAGE)
@@ -66,4 +94,23 @@ test('moves · Alt+↓ and Alt+↑ go along the list as shown', async ({ page })
   await rows(page).first().click()
   await page.keyboard.press('Alt+ArrowDown')
   await expect(heading(page)).toHaveText('Test data for the first release')
+})
+
+test('moves · a report beside the conversation keeps Alt+↓ to itself; from the view the move still goes (Codex P2 on #382)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 800 })
+  await page.goto(PAGE)
+  await expect(heading(page)).toHaveText('What makes a report worth reading?')
+  await open(page).locator('.conv-output').first().click()
+  const title = page.locator('.report-pane #report-pane-title')
+  await expect(title).toBeFocused()
+  await page.keyboard.press('Alt+ArrowDown')
+  // Two frames: where a move would have handed the focus to the row.
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
+  await expect(heading(page)).toHaveText('What makes a report worth reading?')
+  await expect(title).toBeFocused()
+  await rows(page).first().focus()
+  await page.keyboard.press('Alt+ArrowDown')
+  await expect(heading(page)).toHaveText('Short or long briefs?')
 })

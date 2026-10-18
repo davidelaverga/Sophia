@@ -79,7 +79,16 @@ import {
 import type { ProjectRelease, ReportList } from '@sophia/contracts'
 import { searchHits, searchPage } from './search-data.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
-import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
+import {
+  closed,
+  MEETING,
+  markSeen,
+  meetingList,
+  recapOf,
+  soFarOf,
+  updatesWindowOf,
+  type Meeting,
+} from './meeting-data.ts'
 import { profileAnswer } from './profile-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
@@ -261,6 +270,10 @@ interface Project {
   missionRefused?: boolean
   /** While set, the brief's reads wait for these (`mission=hold`, `window.fixture.holdMission`). */
   missionHeld?: (() => void)[] | null
+  /** The goals' targets read fails (`targetsRead=fail`, `window.fixture.failTargets`). */
+  targetsFail?: boolean
+  /** While set, the goals' targets reads wait for these (`targetsRead=hold`, `window.fixture.holdTargets`). */
+  targetsHeld?: (() => void)[] | null
 }
 
 /** The conversations as the fixtures keep them (A33 serves them, conversation-wire.ts), and the reads that fail. */
@@ -573,8 +586,21 @@ function projectRead(project: Project, url: URL): Response | Promise<Response> |
   if (url.pathname === `${base}/activity`)
     return project.activityHeld ? new Promise<Response>(() => undefined) : activityRead(url)
   if (url.pathname.startsWith(`${base}/discussion`)) return discussionRead(project, url)
-  if (url.pathname === `${base}/goal-targets`) return goalTargetsRead(project)
+  if (url.pathname === `${base}/goal-targets`) return targetsAnswer(project)
   return url.pathname === `${base}/members` ? membersRead(project) : null
+}
+
+/** The goals' targets as read: held while asked (`holdTargets`), refused while they fail (`failTargets`). */
+function targetsAnswer(project: Project): Response | Promise<Response> {
+  const held = project.targetsHeld
+  if (held) return new Promise<Response>((resolve) => held.push(() => resolve(targetsNow(project))))
+  return targetsNow(project)
+}
+
+/** The goals' targets once let through: refused while they fail, else read. */
+function targetsNow(project: Project): Response {
+  if (project.targetsFail) return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
+  return goalTargetsRead(project)
 }
 
 /** The goals' owners and dates (A25). */
@@ -846,7 +872,7 @@ function recordsAnswer(project: Project, method: string, url: URL, init: Request
   if (path.startsWith(`${base}/mission`)) return missionAnswer(project, method, path, init)
   if (method === 'GET' && path.startsWith(`${base}/meetings`)) return meetingAnswer(project, path)
   if (method === 'GET' && path === `${base}/since` && project.meeting)
-    return json(digestOf(project.meeting, project.revision))
+    return json(updatesWindowOf(project.meeting, project.revision))
   if (project.invitations) return invitationsAnswer(project.invitations, method, path, init, base) ?? undefined
   if (method === 'GET' && path === `${base}/invitations`) return json({ invitations: [] })
   return undefined

@@ -49,7 +49,7 @@ export type MessagePage = ConversationMessagePage
 export const listConversations = (token: string, projectId: string, signal?: AbortSignal) =>
   callApi(
     `/api/v1/projects/${projectId}/conversations`,
-    { token, method: 'GET', ...(signal ? { signal } : {}) },
+    { token, method: 'GET', protectedRead: true, ...(signal ? { signal } : {}) },
     parseConversationList,
   )
 
@@ -68,7 +68,7 @@ export const getConversationMessages = (
 ) =>
   callApi(
     `/api/v1/projects/${projectId}/conversations/${conversationId}/messages${before ? `?before=${encodeURIComponent(before)}` : ''}`,
-    { token, method: 'GET', ...(signal ? { signal } : {}) },
+    { token, method: 'GET', protectedRead: true, ...(signal ? { signal } : {}) },
     parseConversationMessagePage,
   )
 

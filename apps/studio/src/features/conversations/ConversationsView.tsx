@@ -110,12 +110,21 @@ const refusedRead = (read: { isError: boolean; error: unknown }) => read.isError
 
 /** The project's conversations, newest activity first, read again as the feed moves. */
 function useList(projectId: string, identity: Identity, cursor: string | undefined) {
+  const { change } = useTalk(projectId, accountOf(identity))
   const list = useQuery({
     queryKey: listKey(projectId, accountOf(identity)),
     // Where in this view's order the read set out: a withdrawal seen after it may be one it didn't know.
     queryFn: ({ signal }) => {
       const readFrom = listReadSetsOut()
-      return listConversations(identity.token, projectId, signal).then((answer) => ({ ...answer, readFrom }))
+      // Refused (403, known from the status alone): fenced as the client learns it, before the query tells the view a
+      // task later, so no frame between shows what it held (R-REFUSAL-MEASURE-01).
+      return listConversations(identity.token, projectId, signal).then(
+        (answer) => ({ ...answer, readFrom }),
+        (error: unknown) => {
+          if (isRefusal(error)) change((k) => withFence(k, orderNow()))
+          throw error
+        },
+      )
     },
     select: sorted,
     // Refused, it is not asked again: what it held never shows meanwhile (PR #199 r4239350130).
@@ -227,7 +236,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
   const reader = useReader(projectId, identity, membership, cursor)
   const { talk, all, fenced } = useShown(projectId, identity, reader)
   const { list, capability, notice, settled, me, writer } = reader
-  const { open, choose, ask, missing, picked } = useChosen(all, settled)
+  const { open, choose, ask, missing, picked, waiting } = useChosen(all, settled)
   const panes = usePanes()
   const erased = useErased(talk, panes, { ...reader, seen: list.isSuccess, projectId }, identity)
   const feedAt = useLatest(cursor)
@@ -240,7 +249,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
   useArrivals(ask, writer, talk, start, panes)
   // The one open, unless the form for a new one is in its place; neither while fenced (its fields kept meanwhile).
   const shown = start.starting ? undefined : open
-  useInAddress({ shown, picked, screen: panes.screen }, ask, panes.show)
+  useInAddress({ shown, picked, screen: panes.screen, waiting, starting: start.starting }, ask, panes.show)
   // Opened from the form (the same question), its title takes the focus the form had (Codex on #266).
   const openOne = (id: string, fromForm = false) => {
     start.close()
@@ -336,27 +345,37 @@ const STEP: Readonly<Record<string, number>> = { ArrowDown: 1, ArrowUp: -1 }
 
 /**
  * Alt+↑/↓ (conversation-moves.md): the conversation above or below the open one, in the list as shown, its filter
- * applied; from anywhere in the view but a sheet. The focus goes where it was: a field to the new field, else the row.
+ * applied; from anywhere in the view (or around it: the page, its main) but a sheet. A report beside it keeps its keys
+ * (Codex P2 on #382). The focus goes where it was: a field to the new field, else the row.
  */
 function useAltMoves(view: RefObject<HTMLElement | null>) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const step = STEP[e.key]
       if (!step || !e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || modalOnScreen()) return
-      const rows = [...(view.current?.querySelectorAll<HTMLButtonElement>('.conv-row') ?? [])]
-      const at = rows.findIndex((r) => r.getAttribute('aria-pressed') === 'true')
-      const next = at < 0 ? undefined : rows[at + step]
-      if (!next) return
-      e.preventDefault()
-      const writing = document.activeElement?.closest('.conv-open textarea') instanceof HTMLTextAreaElement
-      next.click()
-      requestAnimationFrame(() =>
-        (writing ? view.current?.querySelector<HTMLElement>('.conv-open textarea') : next)?.focus(),
-      )
+      if (fromTheView(view.current, e.target) && moveBy(view.current, step)) e.preventDefault()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [view])
+}
+
+/** A key from the view, or from around it (the page, its main), never from a report or a bar beside it. */
+function fromTheView(view: HTMLElement | null, target: EventTarget | null): boolean {
+  const from = target instanceof Element ? target : null
+  return !from || !view || view.contains(from) || from.contains(view)
+}
+
+/** Opens the conversation `step` rows from the open one, the focus where it was; false when there is none. */
+function moveBy(view: HTMLElement | null, step: number): boolean {
+  const rows = [...(view?.querySelectorAll<HTMLButtonElement>('.conv-row') ?? [])]
+  const at = rows.findIndex((r) => r.getAttribute('aria-pressed') === 'true')
+  const next = at < 0 ? undefined : rows[at + step]
+  if (!next) return false
+  const writing = document.activeElement?.closest('.conv-open textarea') instanceof HTMLTextAreaElement
+  next.click()
+  requestAnimationFrame(() => (writing ? view?.querySelector<HTMLElement>('.conv-open textarea') : next)?.focus())
+  return true
 }
 
 /** What the list pane shows (ListPane). */
@@ -736,6 +755,8 @@ function useChosen(all: readonly ConversationSummary[], settled: boolean) {
       setPicked(true)
     },
     missing: wanted !== null && settled && !all.some((c) => c.id === wanted),
+    // The one asked for isn't in the list yet while it is still on its way (pending, failed, read again).
+    waiting: wanted !== null && !settled && !all.some((c) => c.id === wanted),
     picked,
   }
 }
@@ -743,10 +764,18 @@ function useChosen(all: readonly ConversationSummary[], settled: boolean) {
 /**
  * The open conversation in the address (conversation-address.md): an address naming one opens it, on a phone too; one a
  * person opened is written there while it is on screen, and taken away for the list or the form. The newest open by
- * default never writes it, and a fragment under another prefix is left alone.
+ * default never writes it, and a fragment under another prefix is left alone. While the one named waits for the list
+ * (still coming, or unreadable for now), the address keeps it (Codex P2 on #375).
  */
 function useInAddress(
-  open: { shown: ConversationSummary | undefined; picked: boolean; screen: 'list' | 'thread' },
+  open: {
+    shown: ConversationSummary | undefined
+    picked: boolean
+    screen: 'list' | 'thread'
+    waiting: boolean
+    /** The form for a new one stands in the thread's place: the address goes, waiting or not. */
+    starting: boolean
+  },
   ask: (id: string) => void,
   show: () => void,
 ) {
@@ -761,10 +790,11 @@ function useInAddress(
     follow.current.show()
   }, [named.id, named.seq])
   const written = open.picked && open.screen === 'thread' ? (open.shown?.id ?? null) : null
+  const kept = open.waiting && !open.starting && open.screen === 'thread'
   useEffect(() => {
-    if (!open.picked || (written === null && !window.location.hash.startsWith(CONVERSATION))) return
+    if (!open.picked || kept || (written === null && !window.location.hash.startsWith(CONVERSATION))) return
     showInAddress(written, CONVERSATION)
-  }, [open.picked, written])
+  }, [open.picked, written, kept])
 }
 
 /**

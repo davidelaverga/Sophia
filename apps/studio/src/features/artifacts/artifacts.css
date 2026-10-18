@@ -1151,7 +1151,7 @@
 }
 /* The designed page only (the body keeps `data-html` on the other tabs, which keep the full page's centred measure). No
    auto margins either: in this flex column they would shrink the page to its frame's default 300 px. */
-.report-pane[data-size='full'] .report-pane-body[data-html] > .report-html {
+.report-pane[data-size='full'] .report-pane-body[data-html] > :is(.report-html, .report-origin) {
   max-width: none;
   margin-inline: 0;
 }
@@ -1225,6 +1225,15 @@
   display: flex;
   padding: 0;
   overflow: hidden;
+}
+/* What it was made for, above the toolbar and the pages (Codex P2 on #383): the column only on the Document tab, where
+   the origin is. */
+.report-pane-body[data-pdf]:has(> .report-origin) {
+  flex-direction: column;
+}
+.report-pane-body[data-pdf] > .report-origin {
+  margin: 0;
+  padding: 12px 16px 0;
 }
 .report-pane[data-size='full'] .report-pane-body[data-pdf] > * {
   max-width: none;

@@ -19,6 +19,10 @@ the form starts a second conversation on it without a word. The team's answers t
   that says «about the same thing»; under that, nothing is said.
 - Not while the form is held (its words are on their way), and never the conversation just started.
 
+## Follow-up (Codex P2 on #376)
+
+- **Folded once:** the draft once, and each conversation's title once, whatever is read from them.
+
 ## Checks (written first)
 
 - `new-conversation.test.ts`: «Should briefs be short or long?» finds «Short or long briefs?»; «What makes a good

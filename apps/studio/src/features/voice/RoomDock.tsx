@@ -71,7 +71,7 @@ export function RoomDock(props: Props) {
   const wrap = useRef<HTMLDivElement>(null)
   useDockHeight(wrap)
   const micOn = !!room.participants.find((p) => p.local)?.micOn
-  const talking = usePushToTalk(micOn, room.setMicrophone, live)
+  const talking = usePushToTalk(micOn, room, live)
   return (
     <>
       {/* Beside the dock, not in it: the dock's measured height (--dock-h) is the dock's alone. */}
@@ -257,6 +257,7 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
         onChoose={(kind, id) => void room.switchDevice(kind, id)}
         background={{ supported: room.backgroundsSupported, onChoose: (id) => void room.setBackground(id) }}
         mirror={mirror}
+        incoming={{ on: room.incomingVideo, toggle: () => room.setIncomingVideo(!room.incomingVideo) }}
       />
       {canShareScreen && (
         <Toggle

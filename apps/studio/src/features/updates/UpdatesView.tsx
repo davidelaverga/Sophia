@@ -1,14 +1,16 @@
 // Updates (docs/plans/room-updates.md): what changed since this person last looked (A13's digest, built as A12's recap)
-// and the project's meetings, each opening its recap in the same sheet as on leaving. Shown only under the vision flag,
-// where the fixture pages answer; elsewhere Updates is still «Coming» (PendingView).
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+// and the project's meetings, each opening its recap in the same sheet as on leaving. Shown under the vision flag, where
+// the fixture pages answer, or the attention flag, where A34 serves the digest: the meetings only under the vision flag
+// (ProjectShell decides); elsewhere Updates is still «Coming» (PendingView).
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useCallback, useState, useSyncExternalStore } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { Button, Icon, Menu, MenuItem, Segmented, usePopover, type SegmentedItem } from '@sophia/ui'
 import { ApiError } from '../../api/client.ts'
-import { getSince, listMeetings, markSeen, type Digest, type MeetingSummary } from '../../api/vision.ts'
+import { getSince, listMeetings, markSeen, type MeetingSummary, type Since } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { canInvite } from '../access/useAccess.ts'
+import { closedDoor } from '../studio/project-door.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { RecapPart, RecapSheet, type LineGo } from '../voice/MeetingRecap.tsx'
 import { namers, recapSections } from '../voice/recap-view.ts'
@@ -20,6 +22,9 @@ import {
   meetingRow,
   narrowRecords,
   peopleOf,
+  shownSince,
+  sinceOrder,
+  type SinceRead,
   type DateWords,
   type Kind,
   type Narrowing,
@@ -34,6 +39,8 @@ interface Props {
   membership: Membership | undefined
   /** The call this person is in, if any: joining or leaving starts or ends a meeting, so the list is read again. */
   inCall: boolean
+  /** Whether the meetings and their recaps (A12, not served) show under the digest. */
+  meetings: boolean
 }
 
 /** Updates: the digest first, then the meetings. Both are read again as the project's feed moves. */
@@ -43,13 +50,13 @@ const runningOf = (meetings: readonly MeetingSummary[], id: string): boolean | u
   return row ? row.endedAt === null : undefined
 }
 
-export function UpdatesView({ projectId, identity, snapshot, membership, inCall }: Props) {
+export function UpdatesView({ projectId, identity, snapshot, membership, inCall, meetings }: Props) {
   const me = membership?.actorId ?? ''
   return (
     <section className="updates" aria-labelledby="updates-title">
       <h2 id="updates-title">Updates</h2>
       {snapshot && <SinceYouLooked projectId={projectId} identity={identity} cursor={snapshot.cursor} me={me} />}
-      {snapshot && (
+      {snapshot && meetings && (
         <Meetings
           projectId={projectId}
           identity={identity}
@@ -70,19 +77,62 @@ interface SinceProps {
   me: string
 }
 
+const sinceRefusedKey = (projectId: string) => ['vision', 'since-refused', projectId]
+
+/**
+ * When this person's own read of the project's window was last refused (401, 403), in this page's order (`sinceOrder`,
+ * taken when the refusal is seen; never the clock); 0 when never. Kept in the account's query cache (one per account,
+ * app/account-cache.ts), so another view and back keeps it (R-C2-READ-01).
+ */
+function useSinceRefused(projectId: string): number {
+  const client = useQueryClient()
+  useQuery({
+    queryKey: sinceRefusedKey(projectId),
+    queryFn: () => 0,
+    initialData: 0,
+    enabled: false,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  })
+  // Read from the cache as it changes (its listeners are told at once), not as the query's observer is told a task
+  // later: a refusal its read keeps (sinceRefusedNow) hides the window before the next frame (R-391-UPDATES-01).
+  const refusedAt = useSyncExternalStore(
+    useCallback((changed: () => void) => client.getQueryCache().subscribe(changed), [client]),
+    () => client.getQueryData<number>(sinceRefusedKey(projectId)) ?? 0,
+  )
+  // A refusal is kept once, as its own read learns it (the query function, sinceRefusedNow): never again from a cached
+  // error a remount observes, which would come after the remount's own recovery read and hide its answer (#391 4305867088).
+  return refusedAt
+}
+
+/** A refusal of this person's own read, kept as it is learnt: later than every read set out before it. */
+const sinceRefusedNow = (client: QueryClient, projectId: string) =>
+  client.setQueryData<number>(sinceRefusedKey(projectId), (at = 0) => Math.max(at, sinceOrder()))
+
 /** «Since you last looked»: the digest, and Mark as seen. */
 function SinceYouLooked({ projectId, identity, cursor, me }: SinceProps) {
+  const client = useQueryClient()
   const since = useQuery({
     queryKey: ['vision', 'since', projectId, cursor],
-    queryFn: ({ signal }) => getSince(identity.token, projectId, signal),
+    queryFn: async ({ signal }): Promise<SinceRead> => {
+      const readFrom = sinceOrder()
+      // Refused (401, 403, known from the status alone): kept at once, before the query tells this view (R-391-UPDATES-01).
+      const window = await getSince(identity.token, projectId, signal).catch((error: unknown) => {
+        if (closedDoor(error)) sinceRefusedNow(client, projectId)
+        throw error
+      })
+      return { window, readFrom }
+    },
     placeholderData: keepPreviousData,
     retry: false,
   })
+  const refusedAt = useSinceRefused(projectId)
+  const shown = shownSince(since.data, since.isError && closedDoor(since.error), refusedAt)
   return (
     <section className="updates-part" aria-labelledby="since-title">
       <h3 id="since-title">Since you last looked</h3>
       <Waiting words="Reading what changed…" waiting={since.isPending} />
-      {since.isError && since.data === undefined && (
+      {since.isError && shown === undefined && (
         <p className="sheet-lead" role="alert">
           What changed couldn’t be read.{' '}
           <button type="button" className="text-button" onClick={() => void since.refetch()}>
@@ -90,14 +140,14 @@ function SinceYouLooked({ projectId, identity, cursor, me }: SinceProps) {
           </button>
         </p>
       )}
-      {since.isError && since.data !== undefined && <p className="sheet-lead">This may be out of date.</p>}
+      {since.isError && shown !== undefined && <p className="sheet-lead">This may be out of date.</p>}
       {/* Keyed by its range: what a Mark as seen said goes with the digest it was pressed on. */}
-      {since.data && (
+      {shown && (
         // Keyed by both ends of the range: one seen elsewhere moves its start, and a narrowing to a kind or a person no
         // longer in it starts afresh (Codex on #239).
         <DigestBody
-          key={`${since.data.fromSequence ?? 'start'}-${since.data.toSequence}`}
-          digest={since.data}
+          key={`${shown.fromSequence ?? 'start'}-${shown.toSequence}`}
+          digest={shown}
           projectId={projectId}
           identity={identity}
           me={me}
@@ -115,13 +165,15 @@ function useLineGo(): LineGo | undefined {
     : undefined
 }
 
-function DigestBody({ digest, projectId, identity, me }: Omit<SinceProps, 'cursor'> & { digest: Digest }) {
+function DigestBody({ digest, projectId, identity, me }: Omit<SinceProps, 'cursor'> & { digest: Since }) {
   const nameOf = namers(me, NO_NAMES, digest.names).shown
   const [by, setBy] = useState<Narrowing>({ kind: 'all', person: null })
   const shown = narrowRecords(digest, by)
   // Since you last looked, when is half the news: each decided and kept line says it (updates-when.md).
   const sections = recapSections(shown, nameOf, false, (at) => ago(at, Date.now()))
   const any = recapSections(digest, nameOf).length > 0
+  // A window with more after it is marked seen even with nothing listed in it: that is how the next one is read (A34).
+  const markable = any || digest.more
   const lead = digestLead(digest)
   const seen = useMarkSeen(projectId, identity)
   const go = useLineGo()
@@ -135,7 +187,7 @@ function DigestBody({ digest, projectId, identity, me }: Omit<SinceProps, 'curso
       {any && sections.length === 0 && (
         <p className="sheet-lead">Nothing of that kind, or by them, since you last looked.</p>
       )}
-      {any && (
+      {markable && (
         <div className="recap-acts">
           <button
             type="button"
@@ -155,7 +207,7 @@ function DigestBody({ digest, projectId, identity, me }: Omit<SinceProps, 'curso
 }
 
 interface NarrowProps {
-  digest: Digest
+  digest: Since
   me: string
   by: Narrowing
   onChange: (by: Narrowing) => void

@@ -40,4 +40,13 @@ describe('notes by date', () => {
     )
     assert.equal(notesFileName(now), 'sophia-notes-2026-10-16.md')
   })
+
+  it('keeps one line a note when a note holds line breaks (Codex P2 on #394)', () => {
+    const now = new Date('2026-10-16T09:00:00.000Z')
+    const lines = notesFile([note('d', 'First line\n- not a note\r\nthird', 13)], now).split('\n')
+    assert.deepEqual(
+      lines.filter((l) => l.startsWith('- ')),
+      ['- First line - not a note third · 13 Oct 2026'],
+    )
+  })
 })

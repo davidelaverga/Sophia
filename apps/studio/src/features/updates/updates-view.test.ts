@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { Digest } from '../../api/vision.ts'
-import { digestLead, lengthShares, meetingRow } from './updates-view.ts'
+import type { Since } from '../../api/vision.ts'
+import { digestLead, lengthShares, meetingRow, shownSince, sinceOrder } from './updates-view.ts'
 
-const digest = (over: Partial<Digest> = {}): Digest => ({
+/** A complete A34 window (nothing after it), as the fixture pages answer one too. */
+const digest = (over: Partial<Since> = {}): Since => ({
   fromSequence: '12',
   toSequence: '20',
+  more: false,
   decided: [],
   made: [],
   noted: [],
@@ -64,5 +66,58 @@ describe('a meeting’s row', () => {
       meetingRow({ startedAt: at, endedAt: '2026-10-04T15:00:20.000Z' }, fmt),
       'Oct 4, 15:00 · under a minute',
     )
+  })
+})
+
+describe('the window Updates may show (R-C2-READ-01)', () => {
+  const read = (readFrom: number) => ({ window: digest(), readFrom })
+
+  it('shows a read when nothing was refused, and keeps it through an ordinary failure', () => {
+    assert.equal(shownSince(read(10), false, 0)?.toSequence, '20')
+    assert.equal(shownSince(undefined, false, 0), undefined)
+  })
+
+  it('shows nothing while this person’s own read is refused, cached or not', () => {
+    assert.equal(shownSince(read(10), true, 0), undefined)
+    assert.equal(shownSince(read(30), true, 20), undefined)
+  })
+
+  it('after a refusal, shows no read set out before it: a later failure or an older read answering late', () => {
+    assert.equal(shownSince(read(10), false, 20), undefined)
+    assert.equal(shownSince(read(20), false, 20), undefined)
+  })
+
+  it('shows again only a read set out since the refusal', () => {
+    assert.equal(shownSince(read(21), false, 20)?.toSequence, '20')
+  })
+})
+
+const realNow = Date.now
+
+describe('the read and refusal order, with the clock moved back (R-C2-READ-01, exchange 2)', () => {
+  it('keeps a read set out before a refusal hidden, though the clock went back between them', () => {
+    try {
+      Date.now = () => 2000
+      const read = { window: digest(), readFrom: sinceOrder() }
+      Date.now = () => 1000
+      const refusedAt = sinceOrder()
+      assert.equal(shownSince(read, true, refusedAt), undefined, 'hidden while refused')
+      assert.equal(shownSince(read, false, refusedAt), undefined, 'still hidden through a later ordinary failure')
+      const since = { window: digest(), readFrom: sinceOrder() }
+      assert.equal(shownSince(since, false, refusedAt)?.toSequence, '20', 'a read set out since shows')
+    } finally {
+      Date.now = realNow
+    }
+  })
+
+  it('orders each call after every one before it, whatever the clock says', () => {
+    try {
+      const first = sinceOrder()
+      Date.now = () => 0
+      const second = sinceOrder()
+      assert.ok(second > first)
+    } finally {
+      Date.now = realNow
+    }
   })
 })
