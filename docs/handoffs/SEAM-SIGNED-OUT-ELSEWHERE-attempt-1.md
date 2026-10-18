@@ -9,19 +9,24 @@ Runtime unit: Luis's Windows host (Playwright through `.claude-guards/safe-run.p
 record.
 Existing authority: Luis 2026-10-18, «¿cómo vamos con las mejoras de seam?»; local only, nothing pushed; merges on green
 with no open P1 once pushed.
-Ending commit/tree: `23eca0f0f0fb` (tree `bdb3f5475d87`), the last commit of `seams/signed-out-elsewhere`'s own that
-changes code (the next touches only this record). 14 files changed against `origin/main` at that commit:
-`e2e/app-auth.spec.ts`, `src/app/App.tsx`, `src/app/SignIn.tsx`, `src/app/auth.ts`, `src/app/ended-notice.ts`,
-`src/app/ended-notice.test.ts`, `src/app/kept-session.ts`, `src/app/kept-session.test.ts`, `src/app/signed-in-load.ts`,
-`src/features/personal/draft.ts`, `src/features/personal/draft.test.ts`, `src/features/studio/viewer-state.ts`,
-`src/features/studio/viewer-drafts.test.ts`, `docs/plans/signed-out-elsewhere.md`.
+Ending commit/tree: `0c4d063fda7c` (tree `e80464f55fb3`), the last commit of `seams/signed-out-elsewhere`'s own that
+changes code, after the review round (the next ones touch only the plan note and this record). 16 files changed
+against `origin/main` at that commit besides this record: `e2e/app-auth.spec.ts`, `src/app/App.tsx`,
+`src/app/SignIn.tsx`, `src/app/auth.ts`, `src/app/ended-notice.ts`, `src/app/ended-notice.test.ts`,
+`src/app/kept-session.ts`, `src/app/kept-session.test.ts`, `src/app/refresh-refusal.ts`,
+`src/app/refresh-refusal.test.ts`, `src/app/signed-in-load.ts`, `src/features/personal/draft.ts`,
+`src/features/personal/draft.test.ts`, `src/features/studio/viewer-state.ts`,
+`src/features/studio/viewer-drafts.test.ts`, `docs/plans/signed-out-elsewhere.md`. The first round ended at
+`23eca0f0f0fb`.
 
 ## Outcome
 
 - Signed out by a cause this tab did not start, the sign-in says why in the first visit's lede's place, as a polite
   status that never takes the focus from the email field and never names the account:
-  - another tab's sign-out, or a refresh the Auth service refused: «You were signed out in another tab or on another
-    device, so this tab signed out too.»
+  - another tab's sign-out, or a refresh the Auth service refused because the session is gone from it (every device
+    signed out elsewhere): «You were signed out in another tab or on another device, so this tab signed out too.»
+  - a refresh the Auth service refused for any other cause (a refresh token used twice, an expired session, a rate
+    limit, a barred account): «Your sign-in on this device ended, so this tab signed out.» (review round)
   - as the page loads, a kept session the Auth service no longer knows: «Your sign-in on this device ended while you
     were away.»
   - either adds «Unsent words here were cleared.» only when this tab's clearing removed some.
@@ -47,7 +52,23 @@ changes code (the next touches only this record). 14 files changed against `orig
   - whole-repo `oxlint --type-aware`, `tsc --noEmit -p apps/studio` and Prettier on every touched file: clean.
 - **Captures** (a scratch spec, not committed), 1280 and a 390 px phone, dark and light: the line wraps to two lines in
   the lede's place with no horizontal overflow; on the phone the light sits behind the words as it does behind the
-  lede on a first visit. In the session's scratchpad, `seam2/`.
+  lede on a first visit. In the session's scratchpad, `seam2/`. The review round's line takes the same place and is
+  shorter than the elsewhere one; it was not captured again.
+- **Review round** (one P2: the elsewhere line blamed another tab or device for any refused refresh):
+  - plan note first (`6d5101d01`): what was checked in supabase-js and the local Auth service, the split, the checks;
+  - **written first and failing** (`ce8f8873d`): unit, 3 of 12 failing: `endedNotice('refused', false)` gave
+    `actual: undefined` for «Your sign-in on this device ended, so this tab signed out.»; `endedWhileIn(true, false,
+    'refresh_token_already_used')` gave `actual: 'elsewhere', expected: 'refused'`; `refresh-refusal.test.ts` on the
+    missing module (`ERR_MODULE_NOT_FOUND`). E2E `app-auth.spec.ts --grep seam`, through the guard: 1 failed, 4 passed;
+    the failure «an open tab's refresh refused for another cause…» expected «Your sign-in on this device ended, so this
+    tab signed out.» and received «You were signed out in another tab or on another device, so this tab signed out
+    too.», so the new lever reached the sign-in. Its twin (refused as `refresh_token_not_found`) passed already: it
+    guards the line the fix keeps;
+  - **after the fix** (`0c4d063fd`): unit, the two files 18/18; the whole Studio suite 1746/1748, the two failures the
+    known Windows ones; e2e through the guard, two workers, the same eight specs 92/92, and the other specs that load
+    the real app's Auth client (`profile-editor`, `new-version`, `skip-link`, `light-mode`) 39/39; whole-repo
+    `oxlint --type-aware` (a probe file confirmed it reports), `tsc --noEmit -p apps/studio` and Prettier on every
+    touched file: clean.
 
 ## Decisions and changes
 
@@ -63,6 +84,19 @@ changes code (the next touches only this record). 14 files changed against `orig
 - **The load case** reads the kept session before the client starts and again after its check: gone means the Auth
   service refused it (supabase-js 2.117.1 removes it only then); still kept means a refresh that failed on the network,
   which ended nothing and says nothing.
+- **Review round, the refusal's code decides** (`refresh-refusal.ts`): the app's Auth client fetches through a watch
+  (`global.fetch`) that notes the code of each 4xx answer to the refresh grant, read from a copy of the body before
+  supabase-js gets the response, so the note is there before the client removes the session and says SIGNED_OUT. The
+  listener takes the note with the next word, whatever it is. `refresh_token_not_found` and `session_not_found` (the
+  session is gone from the Auth service) and no note at all (another tab's word) keep the elsewhere line; any other
+  code says «Your sign-in on this device ended, so this tab signed out.» The codes and the refusals' messages are both
+  in the local Auth service's binary (gotrue v2.196.0); a raw request to it (a malformed token, `validation_failed`)
+  showed both body shapes (`code` with API 2024-01-01, `error_code` without), and the watch reads either. The
+  synthetic Auth now refuses with the real shape.
+- **Review round, a case that doesn't happen:** a «Sign out of all devices» whose answer was lost doesn't leave the
+  session for a later refusal: `_signOut` (auth-js 2.117.1) removes it whatever the logout's answer, while `leave` is
+  under way, so the sign-in shows that only this device signed out, never this line. A `getUser()` answered
+  `session_not_found` (the padlock's `unlockWays`) leaves no note and says elsewhere, which is its cause.
 - **The clause follows the clearing's own answer:** `draftsOnlyOf` and `forgetViewerDrafts` now return whether they
   removed unsent words; what they clear is unchanged. `kept-session.ts` takes the kept-session read out of
   `signed-in-load.ts` unchanged, so `auth.ts` reads it without an import cycle through `SignedIn.tsx`.
@@ -72,12 +106,17 @@ changes code (the next touches only this record). 14 files changed against `orig
 - Another tab's Sign out forgets the device's drafts before this tab hears it, so the clause is then usually absent,
   though words written in this tab went too; a project conversation's unsent words (`talk-store.ts`, in memory) are not
   counted. It errs towards silence.
-- An open tab hearing a refused refresh (every device signed out elsewhere) shares the listener with another tab's
-  word; no e2e drives it, since supabase-js's refresh ticks run every 30 s. The unit covers the decision.
+- Another tab's refused refresh reaches this tab as that tab's sign-out (the broadcast carries no cause), so this tab
+  says another tab, which is where it happened, not why; that tab says why.
+- A refusal noted while the access token still worked (supabase-js keeps the session then) waits for the next word; if
+  that is another tab's Sign out, the line is the plain one, which blames nobody.
+- An account removed in the Auth service takes its sessions with it, so its tabs say elsewhere; the Studio removes no
+  account.
 - The join page (`/join`) has its own sign-in and says nothing new.
 
 ## Next bounded action
 
 - Luis: say when to push; then merge on green with no open P1.
 - Source IDs consulted: none from the source register; the work read this repository and
-  `evaluacion-2026-10-18/experiencia/costuras.md` only.
+  `evaluacion-2026-10-18/experiencia/costuras.md`; the review round also read auth-js 2.117.1 in `node_modules` and
+  asked the local Auth container (`supabase_auth_sophia-next`) directly, without creating any account.
