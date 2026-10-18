@@ -73,6 +73,9 @@ RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia
 DECLARE a uuid:=sophia.personal_owner(); e bigint; allowance bigint; enrolled uuid; spent bigint;
 BEGIN
  IF p_micros IS NULL OR p_micros<=0 THEN RAISE EXCEPTION 'A reservation is a positive amount' USING ERRCODE='22023'; END IF;
+ -- The owner's space first, as an erasure takes it (#435 4304290365): the epoch read here stays current until this
+ -- reservation commits, so an erasure is wholly before it (not_current) or after it; then the payer (space, payer).
+ PERFORM sophia.personal_hold();
  SELECT c.epoch INTO e FROM sophia.personal_companion_calls c WHERE c.owner_id=a AND c.call_id=p_call;
  IF NOT FOUND OR e<>coalesce((SELECT s.epoch FROM sophia.personal_spaces s WHERE s.owner_id=a),0) THEN
   RETURN 'not_current';

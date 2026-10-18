@@ -155,7 +155,8 @@ function readRoutes(app: FastifyInstance, { pool, companion }: Deps): void {
     async (req) => {
       const timeZone = req.query.timeZone ?? 'UTC'
       const space = await withActor(pool, req.actorId, 'read', (c) => readPersonalSpace(c, timeZone))
-      return { companion: companion?.mode ?? 'unavailable', ...space }
+      // Live only to whom it answers live (#435 4304290370): anyone else's own space reads as without a companion.
+      return { companion: companion?.serves(req.actorId) ? companion.mode : 'unavailable', ...space }
     },
   )
 
@@ -253,7 +254,8 @@ function conversationRoutes(app: FastifyInstance, { pool, companion }: Deps): vo
     async (req, reply) => {
       const { headers } = req
       const name = req.body.name?.trim() || null
-      if (!companion) {
+      // A welcome is the companion's: whom it doesn't answer live gets only the receipt their key keeps (#435 4304290370).
+      if (!companion?.serves(req.actorId)) {
         return reply
           .status(202)
           .send(await replayed(pool, req, (c) => replayPersonalGreeting(c, headers['idempotency-key'], name)))

@@ -314,6 +314,30 @@ describe('the live personal companion (local provider double)', () => {
     }
     const page = parsePersonalTurnPage((await call(one, '/api/v1/personal/turns?after=0', STRANGER)).json)
     assert.deepEqual(page.turns, [], 'nothing of the stranger’s is kept')
+    // #435 4304290370: live only to the owner; the stranger's own space reads as without a companion, and a welcome
+    // back is not the companion's to write for them under a new key, even with a quiet hour behind their own turns.
+    assert.equal((await space(one, OWN)).companion, 'live')
+    assert.equal((await space(one, STRANGER)).companion, 'unavailable')
+    const earlier = randomUUID()
+    await owner(
+      `INSERT INTO sophia.personal_turns(owner_id,id,seq,author,body,reply,asked_at,created_at)
+       VALUES($1,$2,1,'person','Earlier words.','answered',now()-interval '2 hours',now()-interval '2 hours')`,
+      [STRANGER, earlier],
+    )
+    await owner(
+      `INSERT INTO sophia.personal_turns(owner_id,seq,author,body,reply_to,created_at)
+       VALUES($1,2,'sophia','An earlier answer.',$2,now()-interval '2 hours')`,
+      [STRANGER, earlier],
+    )
+    const { epoch: strangerEpoch } = await space(one, STRANGER)
+    const resumed = await call(one, '/api/v1/personal/resume', STRANGER, {}, strangerEpoch)
+    assert.equal(resumed.status, 503, JSON.stringify(resumed.json))
+    const kept = parsePersonalTurnPage((await call(one, '/api/v1/personal/turns?after=0', STRANGER)).json)
+    assert.deepEqual(
+      kept.turns.map((t) => t.author),
+      ['person', 'sophia'],
+      'no welcome written for the stranger',
+    )
     assert.equal(recorded().length - start, 1, 'one provider request: the owner’s')
     const rows = await usage('owner-payer')
     assert.deepEqual(

@@ -314,3 +314,19 @@ R confirmed all three. P chose the initial scope: one verified owner per existin
 ## Next bounded action
 
 B's private handback goes to P; R reviews this repair. No push.
+
+## FND-B-PERSONAL-EPOCH-AND-AVAILABILITY-FOCUSED-01 (#435 4304290365, 4304290370)
+
+- `reserve_personal_companion` (0073, unapplied) now takes the owner's space first (`personal_hold`, the lock erasure
+  takes), then the payer. An erasure is therefore wholly before a reservation (`not_current`) or after it; the order is
+  space, then payer, and nothing takes the payer and then the space. An admission that already won keeps the existing
+  abort, drain and uncertainty semantics.
+- Availability and a new resume use the same predicate as send and retry, `companion.serves(actor)`. Anyone the
+  companion does not answer live reads `unavailable`, and a resume under a new key gets only the replay path (503
+  without a receipt). Rehearsal serves everyone, as before.
+- Tests: in `personal-usage.db.test.ts`, "takes the space before the payer" uses two independent connections in both
+  orders while a third connection holds the payer, and waits on locks observed in `pg_stat_activity`. In
+  `personal-live.db.test.ts`, the owner/stranger case checks the stranger's `unavailable`, a 503 resume and no welcome.
+  Both fail on 2b0c7718's SQL and route and pass after.
+- These lock-observing DB tests need a superuser server (as CI's), because a non-superuser owner cannot see others'
+  lock waits.

@@ -39,6 +39,17 @@ const denied = (err: unknown): boolean =>
 const backendPid = async (c: pg.Client) =>
   (await c.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]?.pid
 
+/** A transaction on its own connection, as `actor` when given (the migration owner's when not). */
+const openTx = async (url: string, actor?: string) => {
+  const c = new pg.Client({ connectionString: url })
+  await c.connect()
+  await c.query('BEGIN')
+  // A statement that waits past this fails, never hangs the test.
+  await c.query("SET LOCAL statement_timeout = '20s'")
+  if (actor) await c.query("SELECT set_config('sophia.actor_id', $1, true)", [actor])
+  return c
+}
+
 /** FIXTURE: the operator enrolls `payer` for its one owner (0073: one owner per payer, #435 4304103151). */
 const enroll = (payer: string, actor: string) =>
   owner(`UPDATE sophia.personal_companion_payers SET owner_id=$2 WHERE payer=$1`, [payer, actor])
@@ -333,5 +344,81 @@ describe('personal companion usage (0073)', () => {
       await c1.end()
       await c2.end()
     }
+  })
+
+  // #435 4304290365: an erasure and an admission are taken in turn on the owner's space, in both orders, also while a
+  // third connection holds the payer. Each case waits for the other connection to be seen blocked on a lock.
+  it('takes the space before the payer: an erasure waits for an admission, and an admission for an erasure', async () => {
+    const ivy = randomUUID()
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('p-five', $1, 100000)`,
+      [ivy],
+    )
+    const blocked = async (pid: number | undefined) => {
+      for (let i = 0; i < 200; i++) {
+        const [row] = await owner<{ n: string }>(
+          `SELECT count(*) AS n FROM pg_stat_activity WHERE pid=$1 AND wait_event_type='Lock'`,
+          [pid],
+        )
+        if (row?.n === '1') return true
+        await new Promise((r) => setTimeout(r, 25))
+      }
+      return false
+    }
+    const usageOf = async (call: string) =>
+      owner<{ state: string; epoch: string }>(
+        `SELECT state, epoch::text FROM sophia.personal_companion_usage WHERE call_id=$1`,
+        [call],
+      )
+    // An admission first, waiting on a payer a third connection holds: the erasure waits for it, so the admission is
+    // wholly before the erasure (its cost stays, for the erasure to drain), never after it.
+    const old = await registered(ivy)
+    const payer = await openTx(db.ownerUrl)
+    await payer.query(`SELECT 1 FROM sophia.personal_companion_payers WHERE payer='p-five' FOR UPDATE`)
+    const admit = await openTx(db.apiUrl, ivy)
+    const erase = await openTx(db.apiUrl, ivy)
+    // Each pid is read before its connection is given a statement that may wait (a client runs one at a time).
+    const [admitPid, erasePid] = [await backendPid(admit), await backendPid(erase)]
+    try {
+      const reserving = admit.query<{ r: string }>(
+        `SELECT sophia.reserve_personal_companion($1,'p-five','route-a',1) AS r`,
+        [old],
+      )
+      assert.equal(await blocked(admitPid), true, 'the admission waits for the payer')
+      const erasing = erase.query(`SELECT sophia.erase_personal_space($1,'delete')`, [randomUUID()])
+      assert.equal(await blocked(erasePid), true, 'the erasure waits for the admission holding the space')
+      await payer.query('COMMIT')
+      assert.equal((await reserving).rows[0]?.r, 'reserved')
+      await admit.query('COMMIT')
+      await erasing
+      await erase.query('COMMIT')
+    } finally {
+      await Promise.all([payer, admit, erase].map((c) => c.end().catch(() => undefined)))
+    }
+    assert.deepEqual(
+      (await usageOf(old)).map((u) => u.state),
+      ['reserved'],
+    )
+    await owner(`UPDATE sophia.personal_companion_usage SET state='released' WHERE call_id=$1`, [old])
+    // An erasure first: the admission waits for it, then finds its call from before the erasure (not_current), and
+    // nothing is reserved.
+    const earlier = await registered(ivy)
+    const erase2 = await openTx(db.apiUrl, ivy)
+    const admit2 = await openTx(db.apiUrl, ivy)
+    const admit2Pid = await backendPid(admit2)
+    try {
+      await erase2.query(`SELECT sophia.erase_personal_space($1,'delete')`, [randomUUID()])
+      const reserving = admit2.query<{ r: string }>(
+        `SELECT sophia.reserve_personal_companion($1,'p-five','route-a',1) AS r`,
+        [earlier],
+      )
+      assert.equal(await blocked(admit2Pid), true, 'the admission waits for the erasure holding the space')
+      await erase2.query('COMMIT')
+      assert.equal((await reserving).rows[0]?.r, 'not_current')
+      await admit2.query('COMMIT')
+    } finally {
+      await Promise.all([erase2, admit2].map((c) => c.end().catch(() => undefined)))
+    }
+    assert.deepEqual(await usageOf(earlier), [])
   })
 })
