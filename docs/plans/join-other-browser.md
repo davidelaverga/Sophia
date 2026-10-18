@@ -1,6 +1,6 @@
 # A sign-in link opened in another browser, on the join page
 
-> 2026-10-18 · costuras.md seam #3, 2026-10-18, Luis «¿cómo vamos con las mejoras de seam?»
+> 2026-10-18 · costuras.md seam #3, 2026-10-18, Luis «OK y como vamos con las mejoras de seam?»
 > (`evaluacion-2026-10-18/experiencia/costuras.md`). Studio only; one line in place of the closed door.
 
 ## What was measured
