@@ -53,6 +53,7 @@ import {
   versionReadFailure,
   viewerFormats,
 } from './report-view.ts'
+import { reportRead, useReportFence } from './report-read.ts'
 import { ReportHistory } from './ReportHistory.tsx'
 import { ReviewRow } from './ReviewRow.tsx'
 import { TaskList, useTasks } from './TaskList.tsx'
@@ -111,9 +112,13 @@ const pick = (versions: readonly ArtifactVersion[] | undefined, id: string | nul
 
 /** The data on screen: the report's versions, the one shown, its checked text and its sources. */
 function usePaneData(identity: Identity, link: ReportLink, cursor: string | undefined, tab: ViewerTab) {
+  // This person's own refusal of the report (its versions or cited sources) since its newest allowed read: nothing read
+  // before shows, the version, its text, renditions, sources and history all go with the list (report-read.ts).
+  const refused = useReportFence(link.artifactId)
   const versions = useQuery({
     queryKey: ['report-versions', link.artifactId, identity.name],
-    queryFn: () => listArtifactVersions(identity.token, link.artifactId),
+    queryFn: reportRead(link.artifactId, () => listArtifactVersions(identity.token, link.artifactId)),
+    select: (list: readonly ArtifactVersion[]) => (refused ? undefined : list),
   })
   const version = pick(versions.data, link.versionId)
   // A link to a version the list does not hold (one published since it was read) reads the list again, once per
@@ -141,7 +146,7 @@ function usePaneData(identity: Identity, link: ReportLink, cursor: string | unde
   })
   const sources = useQuery({
     queryKey: ['report-sources', link.artifactId, version?.id, identity.name],
-    queryFn: () => listReportSources(identity.token, link.artifactId, version?.id ?? ''),
+    queryFn: reportRead(link.artifactId, () => listReportSources(identity.token, link.artifactId, version?.id ?? '')),
     enabled: version !== undefined,
   })
   // A link to a source's id is a citation only when the version cites that source (CX-0019), never a link to any other
@@ -162,6 +167,7 @@ function usePaneData(identity: Identity, link: ReportLink, cursor: string | unde
   // A linked passage is decided for the pane, so the Sources tab and back keep it (usePassageArrival).
   const arrival = usePassageArrival(version, parsed, shown.sourcesSettled, tab === 'document')
   return {
+    refused,
     versions,
     version,
     versionSettled,
@@ -566,7 +572,9 @@ interface BodyProps {
  * current one, when the report has one, is a press away).
  */
 function unavailable(data: PaneData): Blocked | null {
-  const failure = versionReadFailure(data.versions, data.version !== undefined, data.versionSettled)
+  const failure = data.refused
+    ? 'refused'
+    : versionReadFailure(data.versions, data.version !== undefined, data.versionSettled)
   if (failure === 'refused') return { text: 'This report isn’t available to you.' }
   if (failure === 'failed') {
     // Nothing of the report was read, or its list was, but without this version.
