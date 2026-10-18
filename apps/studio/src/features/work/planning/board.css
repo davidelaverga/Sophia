@@ -266,10 +266,12 @@
 .lane-head .plan-mark::after {
   display: none;
 }
-/* Under the Blocked lane's head: what it waits on, each a press (docs/plans/board-why-blocked.md). */
+/* Under the Blocked lane's head: what it waits on, each a press (docs/plans/board-why-blocked.md). On one baseline:
+   a press's words sit in its 24 px box, the word «Waiting on» at the top of its own line otherwise (Luis, 2026-10-17). */
 .lane-why {
   display: flex;
   flex-wrap: wrap;
+  align-items: baseline;
   gap: 2px 8px;
   margin: -4px 0 0;
   padding: 0 4px;
