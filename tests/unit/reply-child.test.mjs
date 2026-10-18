@@ -4530,16 +4530,75 @@ test('live-home reader rejects renamed roots and changed journal or lease after 
   }
 })
 
+// The journal read is reached only after read() verifies every retained node (async descriptor stats and path lstats),
+// so a slow host can take more event-loop turns than until()'s budget. These cases wait on an explicit signal from the
+// journal read itself, within a wall-clock bound, raced against the read ending first; on timeout they say which stage
+// was last seen and which handles are open. The held read is always released and settled (run 39100260766, job
+// 117595744173: until(() => entered) ran out of turns; no ownership assertion had failed).
+async function journalReadReached(f, reading, stages, ms = 5000) {
+  const reached = deferred()
+  const outcome = reading.then(() => 'fulfilled', error => `rejected: ${error.message}`)
+  const prior = f.fixture.beforeRead
+  f.fixture.beforeRead = path => { stages.push(`read ${path.split('/').pop()}`); if (path.endsWith('sophia-reply.jsonl')) reached.resolve(); return prior?.(path) }
+  let timer
+  const first = await Promise.race([
+    reached.promise.then(() => 'entered'),
+    outcome.then(o => `ended before the journal read: ${o}`),
+    new Promise(resolve => { timer = setTimeout(() => resolve('timeout'), ms) }),
+  ])
+  clearTimeout(timer)
+  return { first, outcome, describe: () => `${first}; stages ${stages.join(', ') || 'none'}; open handles ${[...f.fixture.handles].length}` }
+}
+
 test('live-home reader keeps ownership through pending I/O and close prevents subsequent reads', async t => {
   const f = await liveHomeFixture(t), reader = await f.openHome(f.scope, () => {})
-  const held = deferred(); let entered = false
-  f.fixture.beforeRead = path => { if (path.endsWith('sophia-reply.jsonl')) { entered = true; return held.promise } }
-  const reading = reader.read(); await until(() => entered)
-  await assert.rejects(reader.read(), /unavailable/)
-  const closing = reader.close()
-  assert.equal(await Promise.race([closing.then(() => 'closed'), tick().then(() => 'waiting')]), 'waiting')
-  assert.ok(f.fixture.handles.size > 0)
-  held.resolve(); await assert.rejects(reading, /reply_live_home_unconfirmed/); await closing
+  const held = deferred(), stages = []
+  f.fixture.beforeStat = path => { stages.push(`stat ${path?.split('/').pop()}`) }
+  f.fixture.beforeRead = path => { if (path.endsWith('sophia-reply.jsonl')) return held.promise }
+  const reading = reader.read()
+  const journal = await journalReadReached(f, reading, stages)
+  try {
+    assert.equal(journal.first, 'entered', journal.describe())
+    await assert.rejects(reader.read(), /unavailable/)
+    const closing = reader.close()
+    assert.equal(await Promise.race([closing.then(() => 'closed'), tick().then(() => 'waiting')]), 'waiting')
+    assert.ok(f.fixture.handles.size > 0)
+    held.resolve(); await assert.rejects(reading, /reply_live_home_unconfirmed/); await closing
+    assert.equal(f.fixture.handles.size, 0)
+  } finally {
+    held.resolve(); await journal.outcome; await reader.close().catch(() => undefined)
+  }
+})
+
+test('live-home reader: a slow pre-read verification still reaches the journal read by its signal, not a turn count', async t => {
+  const f = await liveHomeFixture(t), reader = await f.openHome(f.scope, () => {})
+  const held = deferred(), stages = []
+  // Each descriptor stat of the verification waits 30 ms: far more than 200 event-loop turns in all.
+  f.fixture.beforeStat = path => { stages.push(`stat ${path?.split('/').pop()}`); return new Promise(resolve => setTimeout(resolve, 30)) }
+  f.fixture.beforeRead = path => { if (path.endsWith('sophia-reply.jsonl')) return held.promise }
+  const reading = reader.read()
+  const journal = await journalReadReached(f, reading, stages)
+  try {
+    assert.equal(journal.first, 'entered', journal.describe())
+    assert.ok(stages.some(s => s.startsWith('stat')), 'the verification ran first')
+  } finally {
+    held.resolve(); await journal.outcome; f.fixture.beforeStat = null; await reader.close()
+  }
+  assert.equal(f.fixture.handles.size, 0)
+})
+
+test('live-home reader: a verification refusal ends the read before the journal read, and every handle closes', async t => {
+  const f = await liveHomeFixture(t), reader = await f.openHome(f.scope, () => {})
+  const stages = []
+  f.fixture.beforeStat = path => { stages.push(`stat ${path?.split('/').pop()}`); throw new Error('synthetic verification refusal') }
+  const reading = reader.read()
+  const journal = await journalReadReached(f, reading, stages)
+  try {
+    assert.match(journal.first, /^ended before the journal read: rejected: .*reply_live_home_unconfirmed/, journal.describe())
+    assert.ok(!stages.some(s => s.startsWith('read sophia-reply')), 'the journal was never read')
+  } finally {
+    await journal.outcome; f.fixture.beforeStat = null; await reader.close().catch(() => undefined)
+  }
   assert.equal(f.fixture.handles.size, 0)
 })
 
