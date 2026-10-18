@@ -636,8 +636,23 @@ function PaneBody(props: BodyProps) {
  */
 function DocumentView(props: Pick<BodyProps, 'data' | 'full' | 'onCite' | 'changes' | 'revise' | 'identity'>) {
   const { data, full, onCite, changes } = props
-  if (data.showPdf) return <PdfTab data={data} full={full} />
-  if (data.showHtml) return <HtmlTab data={data} full={full} revise={props.revise} />
+  // What it was made for stands above the PDF and the designed page too (Codex P2 on #383); the Markdown says it in its
+  // own flow, after the note on a missing format.
+  const origin = data.version && <ReportOrigin version={data.version} identity={props.identity} />
+  if (data.showPdf)
+    return (
+      <>
+        {origin}
+        <PdfTab data={data} full={full} />
+      </>
+    )
+  if (data.showHtml)
+    return (
+      <>
+        {origin}
+        <HtmlTab data={data} full={full} revise={props.revise} />
+      </>
+    )
   return <DocumentTab data={data} onCite={onCite} changes={changes} identity={props.identity} />
 }
 
