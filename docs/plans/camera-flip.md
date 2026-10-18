@@ -22,3 +22,8 @@
   - on a phone with the camera on, «Switch camera» on your tile switches to the next camera, then back;
   - with the camera off there's none;
   - on a computer there's none.
+
+## Follow-ups (Codex P2s on #422)
+
+In `phone-tiles-follow-ups.md`: the switch follows the call's own camera, is 40 px wide on a touch screen, is a
+phone's strip tile's one press, and «In the call» has it while your tile is in «+N».

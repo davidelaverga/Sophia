@@ -14,7 +14,8 @@ The numbers are a phone's strip at 390 and 320 px (tiles of 65 and 51 px, `room-
 2. **On a touch screen the switch is 30 × 40 px (#422, `theme.css`).** It takes `.tile-pin`'s 30 px width; the shared
    touch rule raises only the height.
 3. **On a phone's strip the two presses overlap (#422, `VideoStage.tsx`).** Switch camera at the left and Hide my tile at
-   the right, each 30 px and 8 px in: on a 51 px tile they share 25 px, and the switch, drawn later, takes the press.
+   the right, each 30 px and 8 px in: they share 27 px of a 51 px tile, 13 of a 65 px one, and the switch, drawn
+   later, takes the press.
 4. **The mute mark lies under the switch (#430, `theme.css`).** On a phone's strip the 12 px mark sits at (1, 1) to
    (13, 13) of your tile and the switch at (8, 8). At 320 px no 40 px square fits beside the mark: it would cover all
    but 9 px of the tile's width.
@@ -37,7 +38,7 @@ The numbers are a phone's strip at 390 and 320 px (tiles of 65 and 51 px, `room-
    otherwise. Hide my tile stays in the gallery, where both fit.
 4. **That press draws a 28 px square, clear of the mute mark** at the top-left corner, as the strip's smaller initial
    and chip are. Its target is still 40 px, from the tile's corner, reaching over the mark and the chip, which aren't
-   presses.
+   presses. Pin, on others' tiles beside a person pinned, is the same press.
 5. **«In the call» gives your line Switch camera** when your tile isn't on the stage, on a phone only, as on the tile.
 6. **On a touch screen the check is 40 px square,** as Join is beside it; on a phone, still one of the dock's 42 px
    squares.
