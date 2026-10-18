@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { BoardDecision } from './board-view.ts'
-import { decisionNote, newSince, openAcross, openDecisions } from './decision-alert.ts'
+import { decisionNote, newSince, openAcross, openDecisions, openKey } from './decision-alert.ts'
 
 // A decision waiting on the viewer, heard beyond the view (docs/plans/decision-alert.md; informe-25 DL-07).
 
@@ -24,6 +24,8 @@ const decision = (id: string, over: Partial<BoardDecision> = {}): BoardDecision 
   plan_reaction: 'not_needed',
   ...over,
 })
+/** Open decisions by their ids alone. */
+const openOf = (...ids: string[]) => ids.map((id) => ({ id, question: 'Keep it?', due: 'expires in 2 h' }))
 
 describe('decisions waiting on the viewer', () => {
   it('are the latest revision of each, still answerable, theirs to decide', () => {
@@ -54,6 +56,12 @@ describe('decisions waiting on the viewer', () => {
     const y = { id: 'y', question: 'Y?', due: 'expires in 1 h' }
     assert.deepEqual(newSince(new Set(['x']), [x, y]), [y])
     assert.deepEqual(newSince(new Set(['x', 'y']), [x]), [])
+  })
+
+  it('are told apart by their ids, whatever an id holds: one with a comma is not two (Codex P2 on #458)', () => {
+    assert.notEqual(openKey(openOf('a,b')), openKey(openOf('a', 'b')))
+    assert.equal(openKey(openOf('a', 'b')), openKey(openOf('a', 'b')))
+    assert.equal(openKey(undefined), undefined)
   })
 
   it('are said in the notification: one by its question and when it ends, several by how many', () => {

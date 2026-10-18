@@ -50,6 +50,37 @@ test('home · the line’s place is held while it is unknown whether she answers
   expect(Math.abs(held - shown)).toBeLessThanOrEqual(1)
 })
 
+test('home · on a narrow phone the reason and its note take two rows inside the line’s 46 px: nothing below moves (Codex P2 on #460)', async ({
+  page,
+}) => {
+  // 320 px, the narrowest phone. «Sophia can’t answer here yet · Write a note» is 287 px in Geist, so with the gutters
+  // one row needs 319: 304 px stands for a 320 px window with a scrollbar beside Home, or a fallback font a few px
+  // wider, where the note takes a second row.
+  for (const width of [320, 304]) {
+    await page.setViewportSize({ width, height: 800 })
+    const shown = await projectsAt(page, '')
+    const cannot = await projectsAt(page, '?companion=unavailable')
+    const off = await page.locator('.hw-off').evaluate((el) => {
+      const words = el.querySelector('span')?.getBoundingClientRect()
+      const note = el.querySelector('button')?.getBoundingClientRect()
+      const box = el.getBoundingClientRect()
+      return {
+        height: Math.round(box.height),
+        twoRows: !!words && !!note && note.top >= words.bottom,
+        noteInside: !!note && note.bottom <= box.bottom + 0.5,
+      }
+    })
+    const held = await projectsAt(page, '?companion=reading')
+    expect({ width, height: off.height, noteInside: off.noteInside }).toEqual({ width, height: 46, noteInside: true })
+    if (width === 304) expect(off.twoRows).toBe(true)
+    expect({ width, cannot: Math.abs(cannot - shown) <= 1, held: Math.abs(held - shown) <= 1 }).toEqual({
+      width,
+      cannot: true,
+      held: true,
+    })
+  }
+})
+
 test('home · with no projects where she can’t answer, she doesn’t offer to talk', async ({ page }) => {
   await page.goto('/home.html?companion=unavailable&projects=none')
   await expect(page.locator('.hw-says')).toHaveText('Start a project when you’re ready.')

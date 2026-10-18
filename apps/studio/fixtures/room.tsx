@@ -158,6 +158,8 @@ interface Fixture {
   holdHost: (on: boolean) => void
   /** Another member writes in the room's discussion, and the event saying so goes out. */
   say: (text: string) => void
+  /** The viewer writes in it from another device, a phone, and the event saying so goes out (unread-title.md). */
+  sayElsewhere: (text: string) => void
   /** Someone starts waiting at the door, and the event saying so goes out (knock-alert.md). */
   knock: () => void
   /** The call's connection is lost. */
@@ -745,6 +747,10 @@ window.fixture = {
   },
   say: (text) => {
     project.messages.push(text)
+    publish(project)
+  },
+  sayElsewhere: (text) => {
+    project.messages.push({ text, me: true })
     publish(project)
   },
   knock: () => {
