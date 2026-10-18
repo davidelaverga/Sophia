@@ -229,7 +229,11 @@ export function useMessageAddressed(
   const before = beforeOf(named.id)
   // The jump's read while the search's page is still the one waited on; once a stale latest-page hint (null) was read
   // without it and the look goes on earlier (jumpOf "none"), the earlier pages' own read is (R on 4307870144).
-  const reading = before !== undefined && jumpOf(before, jumped) !== 'none' ? earlier.jumping(key) : earlier.reading
+  // A jump requested is not a jump read: while this follow's own jump is under way or failed, that read is the one
+  // waited on (and retried); only once it settled without the message does the earlier lookup's own read govern.
+  const jumpRead = before !== undefined ? earlier.jumping(key) : 'idle'
+  const reading =
+    before !== undefined && (jumpOf(before, jumped) !== 'none' || jumpRead !== 'idle') ? jumpRead : earlier.reading
   useEffect(() => {
     const id = named.id
     if (!inView || !loaded || !id || at !== 'looking') return
