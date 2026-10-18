@@ -47,11 +47,30 @@ commits on the branch merge its base forward or touch only this record). 22 file
   - captures checked the menu and the confirmation. The head first sat flush against the tabs, so it gained padding.
 - **DB tests** run in CI only.
 
+## Decisions and changes
+
+- **Stopping is muting:** a host's stop mutes the published tracks on the server (`muteSources`); only their owner
+  turns them on again, and their Studio stops sharing when its screen is muted.
+- **Codex P1 on #369, after the ending commit: the screen stop on a real server.** The crossing from the server to the
+  sharer's own client was covered by the fixture only.
+  - `host-controls.livekit.test.ts` (`90b3fd32`) has a member share a screen with its sound through rtc-node, with
+    frames and samples flowing.
+  - A host's `stopScreen` mutes both on the server, and the sharer's client hears `TrackMuted` for both publications.
+  - Stopped again, nothing changes. Someone with no screen has nothing to stop, and their microphone stays as it was.
+  - `pnpm test:livekit` on the pinned image, locally: 6/6. It passed on the code as it was: the check adds the
+    coverage, not a fix.
+
 ## Remaining obligations
 
 - #368 merges first.
-- The screen stop in a real call (LiveKit's remote mute reaching the local publication) is covered by the fixture
-  only. A real-stack check belongs to the next real-stack video pass.
+- The browser SDK's own answer to that mute (the Studio stopping its share, `livekit-room.ts`) is the fixture's check,
+  and the next real-stack video pass's.
+
+## Next bounded action
+
+- Luis: once #368 merges, merge this one on green with no open P1.
+- Source IDs consulted: none from the source register. The work read this repository and the pinned
+  `@livekit/rtc-node` 1.1.0's room events.
 
 ## Later change: #351's Codex P2s (same panel, same routes)
 

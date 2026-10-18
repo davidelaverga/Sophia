@@ -1214,7 +1214,7 @@ const BATCH = 32
  * read, or the sweep's time running out fails the sweep, never a width left out. The time decides, never a forecast:
  * a sweep whose first batches are slow (a cold browser) but which reads every width before its time runs out passes,
  * and one still reading when its time runs out fails then, its unread widths never passed (SDD-01, the owner accepts
- * the latency; the 60 s deadline stays).
+ * the latency; the sweep's time is SWEEP.maxMs, 150 s since D-WIDTH).
  * @param {Probe} probe
  * @param {number[]} ends the band ends the media conditions make (bandEnds)
  * @param {number} until Date.now() by which to stop

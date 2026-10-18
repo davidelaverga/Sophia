@@ -26,3 +26,11 @@ test('screens · one shared: nothing else is offered', async ({ page }) => {
   await expect(stage(page).locator('figcaption')).toContainText('Marco’s screen')
   await expect(also(page)).toHaveCount(0)
 })
+
+test('screens · the focus stays on the offer, and a guest’s screen is offered as one (Codex P2s on #358)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?call=on&people=2&video=screens&guest=1')
+  await also(page).getByRole('button', { name: 'Show Marco’s screen' }).click()
+  await expect(also(page).getByRole('button', { name: 'Show Lucía’s screen · guest' })).toBeFocused()
+})

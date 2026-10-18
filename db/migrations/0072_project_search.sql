@@ -6,7 +6,8 @@
 --   section is searched by its own words and named as the viewer names it (`costs`, `costs#1` for the second). It is
 --   0036's markdown_outline loop, copied (0036 is not edited): the same splitter, fences, headings, whitespace and
 --   preamble (heading NULL, anchor '', only when it has words). IMMUTABLE and SECURITY INVOKER; it reads no relation.
--- * heading_anchor (0036), which it calls, may now be executed by the API's role: it is pure, as this is.
+--   Each heading's anchor is 0036's heading_anchor expression, copied byte for byte and computed here, so the private
+--   helper stays its owner's alone (0036's security test) and the API's search needs no grant of it (R-C4-SQL-01).
 BEGIN;
 
 CREATE FUNCTION sophia.markdown_section_texts(p_text text)
@@ -33,7 +34,10 @@ BEGIN
    END IF;
    EXIT WHEN line IS NULL;
    cur_heading:=t; cur_lines:='{}';
-   cur_anchor:=sophia.heading_anchor(cur_heading);
+   -- 0036's heading_anchor(cur_heading), the same expression.
+   cur_anchor:=btrim(regexp_replace(regexp_replace(lower(cur_heading),
+     '[^[:alnum:]\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff-]','','g'),
+     '[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+','-','g'),'-');
   ELSE
    cur_lines:=array_append(cur_lines,line);
   END IF;
@@ -41,6 +45,5 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION sophia.markdown_section_texts(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.markdown_section_texts(text) TO sophia_api;
-GRANT EXECUTE ON FUNCTION sophia.heading_anchor(text) TO sophia_api;
 
 COMMIT;

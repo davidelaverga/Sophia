@@ -26,6 +26,7 @@ import {
   type FloorView,
   floorView,
   orderParticipants,
+  RECONNECTING,
   type RoomLine,
   roomLine,
   runningWork,
@@ -41,6 +42,7 @@ import type { ProjectRoom } from './useProjectRoom.ts'
 type Participant = ProjectRoom['participants'][number]
 import { useWorkWords } from './useWorkWords.ts'
 import { VideoStage } from './VideoStage.tsx'
+import { useCameraFlip } from './camera-flip.ts'
 import { useNow } from '../../app/use-now.ts'
 
 interface Props {
@@ -270,12 +272,32 @@ function conversationLine(
     : roomLine(room.status, floor, work.running, sophia, work.doing)
 }
 
-/** With video on the stage: the gallery, a shared screen or a report presented, and the card over it. */
-function OnVideo({ showing, ...stage }: ComponentProps<typeof VideoStage> & { showing: ReactNode }) {
+/**
+ * With video on the stage: the gallery, a shared screen or a report presented, and over it the card shown and, while
+ * the call reconnects, the word (reconnecting-on-video.md): Sophia's line says it only without video.
+ */
+function OnVideo({
+  showing,
+  room,
+  ...stage
+}: Omit<ComponentProps<typeof VideoStage>, 'feeds' | 'flip'> & { showing: ReactNode; room: ProjectRoom }) {
+  const reconnecting = room.status === 'reconnecting'
+  // On a phone, your own tile switches cameras (camera-flip.md): the dock's device menus aren't there.
+  const flip = useCameraFlip(room, !!room.participants.find((p) => p.local)?.cameraOn)
   return (
     <>
-      <VideoStage {...stage} />
-      {showing && <div className="stage-over-video">{showing}</div>}
+      <VideoStage {...stage} feeds={room.feeds} flip={flip} />
+      {(showing || reconnecting) && (
+        <div className="stage-over-video">
+          {reconnecting && (
+            <p className="stage-reconnecting" role="status">
+              <span className="connection-dot" aria-hidden />
+              {RECONNECTING}
+            </p>
+          )}
+          {showing}
+        </div>
+      )}
     </>
   )
 }
@@ -340,7 +362,7 @@ export function RoomStage(props: Props) {
           </div>
         </>
       ) : (
-        <OnVideo mode={mode} people={people} feeds={room.feeds} floor={floor} shown={presented} showing={showing} />
+        <OnVideo mode={mode} people={people} room={room} floor={floor} shown={presented} showing={showing} />
       )}
       {captions}
       <RoomDock

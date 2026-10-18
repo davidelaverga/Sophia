@@ -13,7 +13,7 @@ import { callApi } from './client.ts'
 export const listNeeds = (token: string, signal?: AbortSignal): Promise<NeedList> =>
   callApi(
     MENTIONS ? '/api/v1/me/needs?mentions=1' : '/api/v1/me/needs',
-    { token, method: 'GET', ...(signal ? { signal } : {}) },
+    { token, method: 'GET', doorRead: true, ...(signal ? { signal } : {}) },
     parseNeedList,
   )
 

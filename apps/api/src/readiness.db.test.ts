@@ -14,8 +14,8 @@ import type { FastifyInstance } from 'fastify'
 import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { createPool } from '@sophia/persistence'
-import { createTestDatabase, type TestDatabase } from '@sophia/test-support'
+import { createPool, readSnapshot, withActor } from '@sophia/persistence'
+import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
 import { memoryByteStore } from './byte-store.ts'
@@ -43,6 +43,7 @@ const MESSAGE_ACTS = '0068_contribution_revisions.sql'
 const MENTIONS = '0069_contribution_mentions.sql'
 const SEARCH = '0072_project_search.sql'
 const TASKS = '0074_project_human_tasks.sql'
+const RETIREMENTS = '0075_completed_goal_session_retirement.sql'
 
 let dir: string
 let db: TestDatabase
@@ -205,8 +206,20 @@ describe('readiness across 0043', () => {
     await through(TASKS)
     assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0074')
     await migrate(TASKS)
+    // The snapshot reads goal_retirements (0075) unconditionally, whatever the flags: without it, not ready.
+    await through(RETIREMENTS)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0075')
+    const admin = randomUUID()
+    const { projectId } = await seedProject(db.ownerUrl, { admin })
+    await assert.rejects(
+      withActor(pool, admin, 'read', (c) => readSnapshot(c, projectId)),
+      'its snapshot needs 0075',
+    )
+    await migrate(RETIREMENTS)
     await current()
     assert.deepEqual(await ready(), [200, { ready: true }], 'with all')
+    const snapshot = await withActor(pool, admin, 'read', (c) => readSnapshot(c, projectId))
+    assert.equal(snapshot?.projectId, projectId, 'and its snapshot reads')
   })
 
   it('with a byte store, is not ready until 0044 lets every write claim its key; without one, needs no 0044', async () => {

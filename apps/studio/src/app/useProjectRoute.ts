@@ -6,6 +6,7 @@ import { DECISION, MESSAGE, REQUEST, requestAddress, TASK, showInAddress } from 
 import { lensKept } from '../features/studio/viewer-state.ts'
 import { ADDRESS_NAMED } from '../features/resources/useAddressed.ts'
 import { ADDRESS_MOVED, HOME, isJoinPath, parseRoute, routePath, type Place, type Route, type View } from './route.ts'
+import { legalDoc } from './legal.ts'
 
 const current = (): Route => parseRoute(window.location.pathname)
 
@@ -14,9 +15,9 @@ export function useProjectRoute() {
 
   useEffect(() => {
     // Normalize legacy and unknown addresses once, without adding a history entry. An invitation link
-    // (/join#token) is left exactly as it came.
+    // (/join#token) is left exactly as it came, and so are the terms and the privacy notice (Codex P1 on #366).
     const path = window.location.pathname
-    if (!isJoinPath(path) && path !== routePath(route)) {
+    if (!isJoinPath(path) && legalDoc(path) === null && path !== routePath(route)) {
       // The report goes along, and the Studio's lens a shared link named (Codex on #242).
       const search = window.location.search
       window.history.replaceState(null, '', routePath(route) + lensKept(search, reportSearch(search)))

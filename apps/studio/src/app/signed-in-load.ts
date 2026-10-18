@@ -1,6 +1,7 @@
 // The signed-in Studio's chunk (docs/plans/signed-in-later.md), fetched once: with the session's check when an
 // account's session is likely, once one is there, or as someone starts to sign in, so it is there by the time they are.
 import { readAuthCallback } from './auth-callback.ts'
+import { legalDoc } from './legal.ts'
 import type { Studio } from './SignedIn.tsx'
 
 let loading: Promise<{ Studio: typeof Studio }> | null = null
@@ -58,4 +59,5 @@ export function warmSignedIn(): void {
 
 // An account's session likely as the page loads: the chunk goes as the app starts, beside the session's check, never
 // after the first render (one more round of requests, which a slow connection or a dev server's modules pay in full).
-if (sessionLikely()) warmSignedIn()
+// Not for the terms and the privacy notice: they read on their own and load nothing of the Studio (Codex on #366).
+if (sessionLikely() && legalDoc(window.location.pathname) === null) warmSignedIn()

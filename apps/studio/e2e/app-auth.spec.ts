@@ -98,6 +98,7 @@ declare global {
       proposals: readonly { key: string; body: unknown }[]
       asked: readonly string[]
       unexpected: readonly string[]
+      attention: readonly string[]
       hold: (by: string, path: string, method?: string) => void
       release: () => void
     }
@@ -112,9 +113,10 @@ test.afterEach(({ context }) => expect(elsewhere.get(context) ?? []).toEqual([])
 
 /**
  * The synthetic Auth service, and an API that answers nothing (the checks need none of its reads). `logout` waits for
- * `release` when given one; every call to the Auth service is counted.
+ * `release` when given one, and answers `logoutStatus` (a 503: the service unavailable); every call to the Auth service
+ * is counted.
  */
-async function serve(context: BrowserContext, logout?: Promise<void>) {
+async function serve(context: BrowserContext, logout?: Promise<void>, logoutStatus = 204) {
   const calls: string[] = []
   const left: string[] = []
   elsewhere.set(context, left)
@@ -127,6 +129,8 @@ async function serve(context: BrowserContext, logout?: Promise<void>) {
     calls.push(`${route.request().method()} ${pathname}`)
     if (pathname.endsWith('/auth/v1/logout')) {
       await logout
+      if (logoutStatus !== 204)
+        return route.fulfill({ status: logoutStatus, json: { code: logoutStatus, msg: 'Synthetic Auth: unavailable' } })
       return route.fulfill({ status: 204 })
     }
     return route.fulfill({ status: 404, json: { code: 404, msg: 'Synthetic Auth: nothing here' } })
@@ -396,6 +400,34 @@ test('codex · a06db118 · the next account’s first render reads nothing the l
   expect(await unexpectedOf(page)).toEqual([])
 })
 
+test('sign out · one that fails says so, the person still in; Try again signs out (Codex P2 on #410)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  // The browser's storage refuses to let the session go while the root says so: the sign-out fails, the session stays.
+  await page.evaluate((key) => {
+    const removeItem = Storage.prototype.removeItem.bind(localStorage)
+    Storage.prototype.removeItem = (name: string) => {
+      if (name === key && document.documentElement.dataset['refuse'] === 'yes') throw new Error('Storage refused')
+      removeItem(name)
+    }
+    document.documentElement.dataset['refuse'] = 'yes'
+  }, SESSION_KEY)
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
+  const toast = page.locator('.toast')
+  await expect(toast).toContainText('Couldn’t sign out: this device is still signed in.')
+  await expect(account(page)).toBeVisible()
+  await page.evaluate(() => {
+    delete document.documentElement.dataset['refuse']
+  })
+  await toast.getByRole('button', { name: 'Try again' }).click()
+  await expect(page.locator('input[type="email"]')).toBeVisible()
+})
+
 test('codex · 6e9e2a9b · signing out forgets every proposal at once, before the Auth service answers', async ({
   context,
 }) => {
@@ -414,6 +446,22 @@ test('codex · 6e9e2a9b · signing out forgets every proposal at once, before th
   held.resolve()
   await expect(page.locator('input[type="email"]')).toBeVisible()
   expect(await tabHolds(page)).toEqual(only(OTHER_PART))
+})
+
+test('sign out everywhere · a logout that fails signs out here, and the sign-in says the others may still be in (Codex P1 on #410)', async ({
+  context,
+}) => {
+  const calls = await serve(context, undefined, 503)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Settings…' }).click()
+  const settings = page.getByRole('dialog', { name: 'Settings' })
+  await settings.getByRole('button', { name: 'Sign out of all devices' }).click()
+  await settings.getByRole('button', { name: 'Sign out everywhere' }).click()
+  await expect.poll(() => calls.filter((c) => c.endsWith('/auth/v1/logout')).length).toBe(1)
+  await expect(page.locator('input[type="email"]')).toBeVisible()
+  await expect(page.getByText('Your other devices may still be signed in', { exact: false })).toBeVisible()
 })
 
 test('codex · 6e9e2a9b · a sign-out in another tab forgets every proposal here', async ({ context }) => {
@@ -650,7 +698,7 @@ test('browser-account · at Home the palette and the index know the places’ ke
   const page = await signedInTab(context, DAVIDE)
   await page.goto(`${APP}/`)
   await expect(account(page)).toBeVisible()
-  await page.keyboard.press('Control+k')
+  await page.keyboard.press('ControlOrMeta+k')
   const palette = page.getByRole('dialog', { name: 'Commands' })
   await expect(palette).toBeVisible()
   const words = (await palette.getByRole('option').allInnerTexts()).join('\n')
@@ -658,7 +706,7 @@ test('browser-account · at Home the palette and the index know the places’ ke
     expect(words).toContain(w)
   }
   await page.keyboard.press('Escape')
-  await page.keyboard.press('Control+/')
+  await page.keyboard.press('ControlOrMeta+/')
   const index = page.getByRole('dialog', { name: 'Keyboard shortcuts' })
   await expect(index).toBeVisible()
   await expect(index.locator('.keys-list li')).toContainText([/Home\s*H$/, /Personal\s*P$/, /Your projects\s*W$/])
@@ -679,7 +727,7 @@ test('browser-account · at Home the palette’s veil covers the page, not the b
   const page = await signedInTab(context, DAVIDE)
   await page.goto(`${APP}/`)
   await expect(account(page)).toBeVisible()
-  await page.keyboard.press('Control+k')
+  await page.keyboard.press('ControlOrMeta+k')
   await expect(page.getByRole('dialog', { name: 'Commands' })).toBeVisible()
   const veil = await page.locator('.palette-veil').boundingBox()
   const size = page.viewportSize()
@@ -773,7 +821,7 @@ test('browser-account · ⌘K opens a project by its name (find-projects.md)', a
   const page = await signedInTab(context, DAVIDE)
   await page.goto(`${APP}/app.html`)
   await expect(account(page)).toBeVisible()
-  await page.keyboard.press('Control+k')
+  await page.keyboard.press('ControlOrMeta+k')
   const palette = page.getByRole('dialog', { name: 'Commands' })
   // Blank, the palette names no project.
   expect((await palette.getByRole('option').allInnerTexts()).join('\n')).not.toContain('Open Fixture project')
@@ -781,4 +829,62 @@ test('browser-account · ⌘K opens a project by its name (find-projects.md)', a
   await expect(palette.getByRole('option').first()).toContainText('Open Fixture project')
   await page.keyboard.press('Enter')
   await expect(page).toHaveURL(new RegExp(WORK_PROJECT))
+})
+
+test('legal · a sign-out in another tab forgets the views’ unsent words here too (Codex P1 on #366)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  const key = viewerKeyOf(DAVIDE.id, WORK_PROJECT)
+  await page.evaluate(
+    (k) => localStorage.setItem(k, JSON.stringify({ lens: 'build', drafts: { build: 'secret plan' } })),
+    key,
+  )
+  await anotherTab(context, null)
+  await expect(page.locator('input[type="email"]')).toBeVisible()
+  await expect
+    .poll(() => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? '{}') as unknown, key))
+    .toEqual({ lens: 'build', drafts: {} })
+})
+
+test('legal · /terms and /privacy keep their address and their page, signed out or in (Codex P1 on #366)', async ({
+  context,
+}) => {
+  await serve(context)
+  const out = await context.newPage()
+  await out.goto(`${APP}/terms`)
+  await expect(out.getByRole('heading', { level: 1 })).toHaveText('Terms of use')
+  await out.waitForTimeout(1500)
+  expect(new URL(out.url()).pathname).toBe('/terms')
+  await expect(out.getByRole('heading', { level: 1 })).toHaveText('Terms of use')
+  const signedIn = await signedInTab(context, DAVIDE)
+  await signedIn.goto(`${APP}/privacy`)
+  await expect(signedIn.getByRole('heading', { level: 1 })).toHaveText('Privacy notice')
+  await signedIn.waitForTimeout(1500)
+  expect(new URL(signedIn.url()).pathname).toBe('/privacy')
+  await expect(signedIn.getByRole('heading', { level: 1 })).toHaveText('Privacy notice')
+})
+
+test('feedback · opened from Home during a call, the call’s switches stay in reach (Codex P1 on #367)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/p/${WORK_PROJECT}/studio?work=lost&sentry=1`)
+  await page
+    .getByRole('navigation', { name: 'Room controls' })
+    .getByRole('button', { name: /^Join the room/ })
+    .click()
+  await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
+  await page.keyboard.press('h')
+  await expect(page.locator('div.places[data-place="home"]')).toBeVisible()
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Send feedback' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Send feedback' })
+  await expect(
+    sheet.getByRole('group', { name: 'Your call' }).getByRole('button', { name: 'Leave the room' }),
+  ).toBeVisible()
 })

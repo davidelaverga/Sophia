@@ -1,7 +1,9 @@
 // Where a search hit is from (docs/plans/room-search.md): its kind and when, a meeting's with its time. Pure, so the
 // words are unit-tested; the dates' formats come from the page (Intl).
+import type { QueryClient } from '@tanstack/react-query'
 import type { Goal } from '@sophia/contracts'
-import type { MeetingSummary, SearchHit } from '../../api/vision.ts'
+import type { MeetingSummary, SearchHit, SearchPage } from '../../api/vision.ts'
+import { closedDoor } from '../studio/project-door.ts'
 import type { DateWords } from '../updates/updates-view.ts'
 
 const KIND: Record<SearchHit['kind'], string> = {
@@ -123,4 +125,81 @@ export function around(text: string, query: string, size = 160): string {
   const start = Math.max(0, Math.min(at - Math.floor(size / 3), text.length - size))
   const end = Math.min(text.length, start + size)
   return `${start > 0 ? '…' : ''}${text.slice(start, end).trim()}${end < text.length ? '…' : ''}`
+}
+
+/** A page of hits as it was read, and when that read was set out, in this page's order (`searchOrder`). */
+export type SearchRead = SearchPage & { readFrom: number }
+
+let order = 0
+/**
+ * This page's order of the search's reads and refusals: each call is later than every call before it. Never the clock,
+ * which can be set back (R-C4-SEARCH-READ-01): as Updates' (`sinceOrder`) and C1's read fences count, a read set out
+ * before a refusal stays before it. A page loaded afresh starts again, with an empty cache.
+ */
+export const searchOrder = (): number => ++order
+
+/** One page read, with when it was set out: before its answer, however late that comes. */
+export async function readSearch(read: () => Promise<SearchPage>): Promise<SearchRead> {
+  const readFrom = searchOrder()
+  return { ...(await read()), readFrom }
+}
+
+/** Where the account's query cache keeps when this person's own search of the project was last refused. */
+export const searchRefusedKey = (projectId: string) => ['vision', 'search-refused', projectId]
+
+/** A refusal seen: later than every read set out before it, and never earlier than the one kept. */
+export const refusalSeen = (at = 0): number => Math.max(at, searchOrder())
+
+/**
+ * Keep this person's own refusal (401, 403) of the project's search in the account's query cache that ran the read, as
+ * it settles. Kept for as long as that cache lives, observed or not: the account's cache goes with the account.
+ */
+export function keepRefusal(client: QueryClient, projectId: string): void {
+  client.setQueryDefaults(searchRefusedKey(projectId), { gcTime: Infinity, staleTime: Infinity })
+  client.setQueryData<number>(searchRefusedKey(projectId), refusalSeen)
+}
+
+/**
+ * The sheet's query function (R-C4-SEARCH-READ-01): each page stamped when its read is set out, and a refusal of the
+ * read kept where it settles, in the query's own client (its account's cache) for its project, before the query's error
+ * reaches anything that renders it. A sheet closed or a query changed in between loses nothing; another account's
+ * cache, signed in since, is not touched. A read cancelled by its signal (the last observer gone while pending) is
+ * no refusal and keeps none.
+ */
+export function searchPages(
+  projectId: string,
+  read: (cursor: string | null, signal: AbortSignal) => Promise<SearchPage>,
+) {
+  return async ({
+    pageParam,
+    signal,
+    client,
+  }: {
+    pageParam: string | null
+    signal: AbortSignal
+    client: QueryClient
+  }): Promise<SearchRead> => {
+    try {
+      return await readSearch(() => read(pageParam, signal))
+    } catch (error) {
+      if (closedDoor(error)) keepRefusal(client, projectId)
+      throw error
+    }
+  }
+}
+
+/**
+ * The pages the search may show (R-C4-SEARCH-READ-01), as Updates' window (`shownSince`): none while this person's own
+ * read is refused (401, 403), and none read before the last refusal (`refusedAt`, in `searchOrder`, 0 when never),
+ * whatever comes after it: a later ordinary failure, an older read answering late, the sheet opened again, the query
+ * typed again, another query's answer. Only pages all set out since the refusal show again. Without a refusal, an
+ * ordinary failure keeps the pages read (and the sheet says the search failed).
+ */
+export function shownPages(
+  pages: readonly SearchRead[] | undefined,
+  refusedNow: boolean,
+  refusedAt: number,
+): readonly SearchRead[] | undefined {
+  if (!pages || refusedNow) return undefined
+  return pages.every((p) => p.readFrom > refusedAt) ? pages : undefined
 }

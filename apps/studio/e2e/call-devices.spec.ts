@@ -107,9 +107,49 @@ test('devices · a switch the browser refuses says so in the dock', async ({ pag
   )
 })
 
-test('@phone · devices · on a phone the dock keeps its one row: no device openers', async ({ page }) => {
+test('@phone · devices · in the call the dock keeps its one row of squares: no device openers', async ({ page }) => {
   await page.goto('/room.html?call=on')
   await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
   await expect(dock(page).getByRole('button', { name: 'Audio settings', exact: true })).toBeHidden()
   await expect(dock(page).getByRole('button', { name: 'Video settings', exact: true })).toBeHidden()
+})
+
+// Before joining the dock has only Join and its check: on a phone the check stands there too (phone-devices.md), and its
+// sheet chooses the camera, a phone's front or back, that the call opens with.
+test('@phone · devices · before joining, the check beside Join is a finger-sized 42 px square on its row (Codex P2 on #412)', async ({
+  page,
+}) => {
+  await page.goto('/room.html')
+  const check = dock(page).getByRole('button', { name: 'Check audio and video', exact: true })
+  await expect(check).toBeVisible()
+  // Once the dock has risen (its arrival moves it 8 px), so both boxes are read at rest.
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished),
+    ),
+  )
+  const c = await check.boundingBox()
+  const j = await dock(page)
+    .getByRole('button', { name: /^Join the room/ })
+    .boundingBox()
+  expect(Math.round(c?.width ?? 0), 'its width').toBe(42)
+  expect(Math.round(c?.height ?? 0), 'its height').toBe(42)
+  expect(Math.round(c?.y ?? 0), 'on Join’s row').toBe(Math.round(j?.y ?? -1))
+})
+
+test('@phone · devices · before joining, the check stands beside Join and chooses the camera the call opens with', async ({
+  page,
+}) => {
+  await page.goto('/room.html')
+  await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()
+  const check = page.getByRole('dialog', { name: 'Check your audio and video' })
+  await expect(check).toBeVisible()
+  await check.getByRole('button', { name: 'Camera: FaceTime HD Camera' }).click()
+  await menu(page, 'Camera').getByRole('menuitemradio', { name: 'Desk camera' }).click()
+  await check.getByRole('button', { name: 'Join the room' }).click()
+  await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  expect(await page.evaluate(() => window.fixture?.devicesOnJoin)).toEqual({ videoinput: 'cam-desk' })
 })

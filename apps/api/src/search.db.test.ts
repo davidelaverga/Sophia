@@ -557,6 +557,10 @@ describe('project search (A38)', () => {
       ' \n# Only\nbody',
       '   \n\n## x\n\n## x\n## y',
       '#NoSpace\n#  Spaced  ##  \n',
+      // JavaScript's whitespace in a heading (a byte order mark, no-break spaces, a tab), punctuation and edge hyphens,
+      // and an anchor repeated by different words: each anchor as 0036 and the viewer make it (R-C4-SQL-01).
+      '# Fast\uFEFFhosts\u00A0\u00A02026\nbody\n#\tTabbed\theading\nx',
+      '# Costs: €, $ & (approx.)!\none\n# Costs\ntwo\n# -Edge hyphens-\nthree\n# costs!!\nfour',
     ]
     for (const text of texts) {
       const ours = await owner<{
@@ -606,6 +610,15 @@ describe('project search (A38)', () => {
     )
     assert.deepEqual([fn?.secdef, fn?.volatile, fn?.public, fn?.api], [false, 'i', false, true])
     assert.doesNotMatch(fn?.src ?? '', /\b(from|join|into|update|delete)\s+sophia\./i, 'it reads no relation')
+    // It computes its anchors itself: 0036's heading_anchor stays its owner's alone (0036's own test), and the API's
+    // search depends on no grant of it (R-C4-SQL-01).
+    assert.doesNotMatch(fn?.src ?? '', /sophia\.heading_anchor\s*\(/, 'it calls no private helper')
+    const [helper] = await owner<{ api: boolean; worker: boolean; public: boolean }>(
+      `SELECT has_function_privilege('sophia_api', 'sophia.heading_anchor(text)', 'EXECUTE') AS api,
+              has_function_privilege('sophia_worker', 'sophia.heading_anchor(text)', 'EXECUTE') AS worker,
+              has_function_privilege('public', 'sophia.heading_anchor(text)', 'EXECUTE') AS public`,
+    )
+    assert.deepEqual(helper, { api: false, worker: false, public: false })
     // The migration adds nothing else: no definer, table, index, trigger or write.
     const sql = readFileSync(new URL('../../../db/migrations/0072_project_search.sql', import.meta.url), 'utf8')
       .split('\n')

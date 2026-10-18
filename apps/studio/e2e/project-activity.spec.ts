@@ -61,7 +61,9 @@ test('activity · a slow read says it is reading, then why it takes long (Codex 
   await open(page, '?hold=activity')
   const status = sheet(page).getByRole('status')
   await expect(status).toHaveText('Reading the activity…')
-  await page.clock.runFor(6500)
+  // fastForward fires the note's one 6 s timer as runFor does, without running every frame and interval of the room
+  // page in between: runFor(6500) took about 5 s of real time per case here, fastForward a few ms (2026-10-16).
+  await page.clock.fastForward(6500)
   await expect(status).toHaveText(
     'Taking longer than usual. After a quiet spell, the first answer can take up to a minute.',
   )

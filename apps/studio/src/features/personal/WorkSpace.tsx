@@ -340,7 +340,7 @@ export function WorkSpace(props: Props) {
   const finder = useFinder(projects, now)
   const list = finder.list
   return (
-    <section className="c3-space job" data-place-view="work" hidden={props.hidden} aria-labelledby="c-w-h">
+    <section className="c3-space job" data-place-view="work" data-content hidden={props.hidden} aria-labelledby="c-w-h">
       <Edge lock={personalLock} onCross={actions.cross} />
       <header className="c3-head">
         <h2 id="c-w-h" tabIndex={-1}>

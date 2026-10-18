@@ -58,6 +58,21 @@
   font-size: var(--type-small);
   overflow-wrap: anywhere;
 }
+/* A message withdrawn keeps its place and says so; a request that ended unanswered says why, under the message (A33). */
+.conv-withdrawn {
+  color: var(--text-2);
+  font-style: italic;
+}
+/* Where the focus lands once a message is withdrawn here (WithdrawHere.tsx): its press and confirmation went with it. */
+.conv-withdrawn:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+}
+.conv-msg-body .conv-ask-ended {
+  margin: 4px 0 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
 .conv-note .text-button,
 .conv-earlier .text-button {
   min-height: 24px;
@@ -272,6 +287,16 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+}
+/* «New messages ↓» (docs/plans/conversation-moves.md): over the thread's foot, above the field, in the flow. */
+.pill.conv-new-pill {
+  position: relative;
+  z-index: 2;
+  align-self: center;
+  margin: -44px 0 12px;
+  /* Opaque: it lies over the thread's last words. */
+  background: var(--plane-2);
+  box-shadow: var(--lift);
 }
 /* Sophia's light, faint, from above the thread. */
 .conv-open::before {
@@ -672,6 +697,17 @@
   margin: 0;
   font-size: var(--type-body);
 }
+/* An admin's Erase this conversation: quiet, at the foot of «This conversation», its confirmation under it. */
+.conv-this .conv-erase {
+  justify-self: start;
+  min-height: 24px;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.conv-erase-form {
+  display: grid;
+  gap: 8px;
+}
 .conv-mission {
   display: grid;
   gap: 4px;
@@ -820,6 +856,28 @@
   font-size: var(--type-small);
   white-space: nowrap;
 }
+/* Withdraw (one's own) and Remove (an admin's): a second press at the corner, beside «Propose as decision». Its
+   confirmation, when open, is in the flow under the message. */
+.conv-withdraw {
+  position: absolute;
+  top: -12px;
+  right: 22px;
+  z-index: 1;
+}
+/* In the acts row (Copy, Quote, Propose, Withdraw) the withdraw press flows with the rest. */
+.conv-acts .conv-withdraw {
+  position: static;
+}
+.conv-withdraw-form {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 480px);
+  margin-top: 8px;
+}
+/* With the confirmation open, the message's time steps aside, as with «Propose as decision». */
+.conv-msg:has(.conv-withdraw-form) .conv-msg-at {
+  display: none;
+}
 @media (hover: hover) {
   .conv-msg:not(:hover, :focus-within) :is(.conv-propose-press, .conv-act) {
     opacity: 0;
@@ -829,6 +887,8 @@
    a keyboard and a screen reader, taking no tap meant for the message. */
 @media (hover: none) {
   .conv-msg:not([data-pressed], :focus-within) .conv-acts,
+  .conv-msg:not([data-pressed], :focus-within) .conv-propose,
+  .conv-msg:not([data-pressed], :focus-within) .conv-withdraw,
   .conv-msg:not([data-pressed], :focus-within) :is(.conv-propose-press, .conv-act) {
     pointer-events: none;
   }

@@ -1,22 +1,25 @@
 /* A dark room lit by Sophia, drawn with the restraint of a precise tool. One typeface (Geist; Geist Mono
    for data), small radii, one-pixel lines, fast transitions. Sophia's light is the only soft thing on the
-   screen: people are warm, she is violet, everything else is quiet. The Studio is dark-only. */
+   screen: people are warm, she is violet, everything else is quiet. Two themes: the room here, the default, and
+   paper after it (`data-theme='light'`); what each role is in each is in docs/plans/light-paper.md. */
 :root {
   /* The type scale of the work views (Resources, the plan's board): four steps under a view's title.
      Titles name a thing; body says it; small is what follows it; labels are mono, often in capitals. A view's
-     title is one step above the headings' ramp, on the grid's 32 (docs/plans/view-titles.md). */
-  --type-view: 28px;
+     title is one step above the headings' ramp, on the grid's 32 (docs/plans/view-titles.md). In rem, so a person's
+     larger browser text grows the scale and its leading together; at the browser's own 16 px they are the px in the
+     comments (docs/plans/type-rem.md). */
+  --type-view: 1.75rem; /* 28 */
   /* The heads of a view's sections and tiles: one step above the body's title, under the view's (docs/plans/section-heads.md). */
-  --type-head: 15px;
-  --type-title: 14px;
-  --type-body: 13px;
-  --type-small: 12px;
-  --type-label: 10.5px;
+  --type-head: 0.9375rem; /* 15 */
+  --type-title: 0.875rem; /* 14 */
+  --type-body: 0.8125rem; /* 13 */
+  --type-small: 0.75rem; /* 12 */
+  --type-label: 0.65625rem; /* 10.5 */
   /* Their leadings, on the 4 px grid: labels and small 16, body and titles 20, a lead and a heading 24. */
-  --lh-small: 16px;
-  --lh-body: 20px;
-  --lh-head: 24px;
-  --lh-view: 32px;
+  --lh-small: 1rem; /* 16 */
+  --lh-body: 1.25rem; /* 20 */
+  --lh-head: 1.5rem; /* 24 */
+  --lh-view: 2rem; /* 32 */
   color-scheme: dark;
   --void: #050408;
   --plane: #0b0a0f;
@@ -310,12 +313,14 @@ kbd {
   font-size: var(--type-small);
   color: var(--text-3);
 }
+/* A key: 18 px at least, and taller when its letters are (a larger browser text, type-rem-fit.spec.ts). */
 kbd {
   display: inline-grid;
   place-items: center;
   min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
+  min-height: 18px;
+  padding: 1px 4px;
+  line-height: 1;
   border-radius: var(--r-1);
   border: 1px solid var(--line-2);
   background: rgb(var(--ink-rgb) / 0.04);
@@ -706,14 +711,19 @@ input[type='checkbox']:hover:not(:disabled) {
   right: 0;
   transform: translate(0, 2px);
 }
+/* At a left edge (your tile's Switch camera, camera-flip.md): from the control's start, never past the edge. */
+.tip[data-align='start'] {
+  left: 0;
+  transform: translate(0, 2px);
+}
 .has-tip:hover .tip,
 .has-tip:focus-visible .tip {
   opacity: 1;
   transform: translate(-50%, 0);
   transition-delay: 320ms;
 }
-.has-tip:hover .tip[data-align='end'],
-.has-tip:focus-visible .tip[data-align='end'] {
+.has-tip:hover .tip:is([data-align='end'], [data-align='start']),
+.has-tip:focus-visible .tip:is([data-align='end'], [data-align='start']) {
   transform: translate(0, 0);
 }
 /* The next ask's reason with the focus in its field too: the keyboard's way to see why, the cap being no stop of its
@@ -1047,10 +1057,9 @@ button.mark:hover {
   height: 28px;
   border-color: var(--line);
 }
-/* Its rows: 32 px in the body type, the one under the pointer or the focus lit; one that waits (aria-disabled) in
-   the third ink, unlit. */
-.menu [role='menuitem'],
-.menu [role='menuitemradio'] {
+/* Its rows, each kind (an act, one of a set, a switch): 32 px in the body type, the one under the pointer or the focus
+   lit; one that waits (aria-disabled) in the third ink, unlit. */
+.menu [role^='menuitem'] {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1064,7 +1073,7 @@ button.mark:hover {
   font-size: var(--type-body);
   text-align: left;
 }
-.menu :is([role='menuitem'], [role='menuitemradio']):is(:hover, :focus-visible):not([aria-disabled='true']) {
+.menu [role^='menuitem']:is(:hover, :focus-visible):not([aria-disabled='true']) {
   outline: none;
   background: rgb(var(--ink-rgb) / 0.06);
 }
@@ -2159,6 +2168,19 @@ img.avatar {
 }
 /* The message bar: the words and their Send in one field, as a chat has it. Built like the dock (5 px around 36 px
    controls), so one line of text makes it the dock's height. */
+/* How full the bar is, on its own line over it, once it nears the most one message holds (room-message-length.md):
+   Personal's count, in the Studio's third ink; at the most and past it, warm. */
+.bar-count {
+  margin: 0 6px;
+  text-align: right;
+  color: var(--text-3);
+  font: var(--type-label) / var(--lh-small) var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bar-count.full {
+  color: var(--warm);
+}
 .message-bar {
   display: flex;
   align-items: flex-end;
@@ -2622,7 +2644,8 @@ button.contribution-quote:hover {
     clip: rect(0 0 0 0);
     white-space: nowrap;
   }
-  .dock :is(.floor-label, .dock-sep) {
+  /* The phone's one row of squares: no separators, and no clock (room-basics.md), as Meet's phone dock. */
+  .dock :is(.floor-label, .dock-sep, .dock-time) {
     display: none;
   }
   /* Who holds the floor stays said to a screen reader; the eye finds it in the room. */
@@ -2640,6 +2663,16 @@ button.contribution-quote:hover {
   height: 20px;
   margin: 0 4px;
   background: var(--line-2);
+  flex: none;
+}
+/* How long the call has run, before Leave (docs/plans/room-basics.md): quiet, its digits not moving the dock. */
+.dock-time {
+  min-width: 4ch;
+  padding: 0 4px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
   flex: none;
 }
 .dock-note {
@@ -2742,6 +2775,18 @@ button.contribution-quote:hover {
   .device-menu {
     display: none;
   }
+  /* Before joining the dock has only Join and its check, so the check stands there on a phone too (phone-devices.md):
+     its sheet chooses the microphone and the camera, a phone's front or back. It is one of the dock's 42 px squares, a
+     finger's size (Codex P2 on #412), its chevron still the only mark. */
+  .device-menu.device-check-open {
+    display: inline-flex;
+    margin-left: 0;
+  }
+  .device-check-open .device-open {
+    width: 42px;
+    height: 42px;
+    border-radius: var(--r-3);
+  }
 }
 /* The check before joining (docs/plans/device-check.md): the camera's picture over a row per device, the voice's meter
    beside the microphone, and Join at its foot. The picture is mirrored, as a person expects to see themselves. */
@@ -2766,11 +2811,25 @@ button.contribution-quote:hover {
   margin: 0;
   padding: 16px;
 }
+/* The picture, the words over it while the camera is off, and the switches at its foot share one cell. */
+.device-preview > * {
+  grid-area: 1 / 1;
+}
 .device-preview-video {
   width: 100%;
   height: 100%;
   object-fit: cover;
   transform: scaleX(-1);
+}
+.device-preview[data-camera='off'] .device-preview-video {
+  visibility: hidden;
+}
+/* The microphone and the camera for the join (docs/plans/prejoin-toggles.md), on the picture as Meet has them. */
+.device-preview-switches {
+  align-self: end;
+  display: flex;
+  gap: 12px;
+  padding-bottom: 12px;
 }
 .device-rows {
   display: grid;
@@ -2982,6 +3041,15 @@ button.contribution-quote:hover {
 .tile-more {
   padding: 0;
 }
+/* Your tile, hidden for this call (docs/plans/room-basics.md): where it was, what it is, and Show. */
+.tile-hidden-self {
+  align-content: center;
+  gap: 4px;
+  padding: 12px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+  text-align: center;
+}
 .tile-more button {
   display: grid;
   place-items: center;
@@ -3096,6 +3164,18 @@ button.contribution-quote:hover {
   font-size: 20px;
   font-weight: 600;
 }
+/* A muted microphone on the tile (muted-on-tiles.md): first in its name's chip, as Meet's, never cut with the name. */
+.tile-muted {
+  display: inline-flex;
+  flex: none;
+  order: -1;
+  margin-right: 5px;
+  color: var(--text-2);
+}
+/* Its mark in the tile's corner, for a phone's strip only (below). */
+.tile-muted-corner {
+  display: none;
+}
 .tile-name {
   position: absolute;
   left: 8px;
@@ -3151,9 +3231,12 @@ button.contribution-quote:hover {
   left: 10px;
   bottom: 10px;
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  height: 22px;
-  padding: 0 7px;
+  max-width: calc(100% - 20px);
+  /* At least a line, and as many as the other screens' offers wrap to (Codex P2 on #358). */
+  min-height: 22px;
+  padding: 2px 7px;
   border-radius: var(--r-1);
   background: rgb(var(--void-rgb) / 0.66);
   font-size: 12px;
@@ -3312,6 +3395,85 @@ button.contribution-quote:hover {
   backdrop-filter: blur(20px) saturate(140%);
   color: var(--text-2);
   font-size: var(--type-small);
+}
+/* What a view's boundary holds draws as if it weren't there: its children stay the page's own boxes (view-boundary.md). */
+.view-body {
+  display: contents;
+}
+/* A view that failed to draw (view-boundary.md): its place says so, quietly, with its two ways on; the shell stays. */
+.view-failed {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  max-width: 520px;
+  margin: 48px auto;
+  padding: 0 var(--gutter);
+}
+.view-failed-title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: 600;
+}
+.view-failed-note {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.view-failed-acts {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+/* A new version said (new-version.md): the toast's look at the page's top, above everything, and it stays until
+   answered. */
+.new-version {
+  position: fixed;
+  top: 12px;
+  /* Centred on the whole width, not from its middle: from left: 50% a phone gave it half the screen and three lines. */
+  inset-inline: 0;
+  /* Over the opening's overlay too (#entry, 100): a sign-in's return can meet a part gone (Codex P2 on #415). */
+  z-index: 110;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: fit-content;
+  max-width: calc(100% - 2 * var(--gutter));
+  margin-inline: auto;
+  padding: 9px 14px;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line-2);
+  background: var(--plane-2);
+  box-shadow: 0 12px 40px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  color: var(--text);
+  font-size: 13px;
+}
+/* Its answers keep their words whole; the sentence wraps instead. */
+.new-version .text-button {
+  flex: none;
+  white-space: nowrap;
+}
+/* Skip to content (skip-link.md): out of sight until focused, then at the top left on the raised plane. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 90;
+  padding: 8px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--plane-2);
+  color: var(--text);
+  font-size: 13px;
+  transform: translateY(calc(-100% - 16px));
+}
+.skip-link:focus {
+  transform: none;
+}
+/* The content it lands on takes the focus without a ring around the whole page. */
+[data-content]:focus {
+  outline: none;
 }
 /* The toast (Toast.tsx): one line for a result whose place is not on screen, above the floor, so it never covers the
    dock or a message bar. The time it has left runs along its foot. */
@@ -4357,8 +4519,7 @@ button.contribution-quote:hover {
     min-width: 40px;
     min-height: 40px;
   }
-  .menu [role='menuitem'],
-  .menu [role='menuitemradio'] {
+  .menu [role^='menuitem'] {
     height: 44px;
   }
   .sheet-head .round {
@@ -4495,6 +4656,26 @@ button.contribution-quote:hover {
   }
   .tile-strip .tile[data-floor] {
     border-color: var(--warm);
+  }
+  /* A fifth of a phone has no room for the mute in the chip (Codex P2 on #411): it takes the tile's top-left corner,
+     clear of the initial's circle even at 320 px, and the chip keeps only its words for a screen reader. */
+  .tile-strip .tile-muted {
+    margin-right: 0;
+  }
+  .tile-strip .tile-muted svg {
+    display: none;
+  }
+  .tile-strip .tile-muted-corner {
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    display: grid;
+    place-items: center;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background: rgb(var(--void-rgb) / 0.62);
+    color: var(--text-2);
   }
 }
 
@@ -5221,6 +5402,36 @@ button.contribution-quote:hover {
   flex-direction: column;
   gap: 8px;
 }
+/* The call reconnecting while video is on (reconnecting-on-video.md): the header's amber dot and words, on glass,
+   at the top of the column over the tiles, until the link is back. */
+.stage-reconnecting {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 5px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--type-small);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.stage-reconnecting .connection-dot {
+  background: var(--amber);
+}
+/* Where the corner rises to the stage's top right (a narrow stage), the word keeps to the left, clear of it. */
+@container (max-width: 799.98px) {
+  .stage-reconnecting {
+    align-self: flex-start;
+  }
+}
 .stage-over-video .stage-showing {
   margin: 0;
 }
@@ -5427,6 +5638,8 @@ button.contribution-quote:hover {
 }
 .updates-part {
   display: grid;
+  /* One column that may be narrower than its widest row: the kinds' strip scrolls in it, the page doesn't. */
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: 16px;
 }
@@ -5764,8 +5977,15 @@ button.contribution-quote:hover {
    page does not (Codex on #239). */
 .updates-narrow .segmented {
   max-width: 100%;
+  /* Its presses don't shrink (below): the strip itself may, and scrolls. */
+  min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
+}
+/* Its presses keep their words on one line: the row scrolls instead (a phone, larger text). */
+.updates-narrow .segmented button {
+  flex: none;
+  white-space: nowrap;
 }
 /* A presented report's version and its following count: data, on the 10.5 px scale beside the «Shown by» label (Codex
    on #241). */
@@ -5845,6 +6065,10 @@ button.contribution-quote:hover {
 }
 .goals-list-head .field-label {
   margin: 0;
+}
+/* «Mine», before the search, at the head's end (goal-overdue.md). */
+.goals-mine {
+  margin-left: auto;
 }
 .goals-search {
   width: min(280px, 100%);
@@ -6011,6 +6235,19 @@ button.contribution-quote:hover {
 .goal-sheet-section {
   display: grid;
   gap: 8px;
+}
+.goal-reports ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* The report's version after its title, quiet (goal-reports.md). */
+.goal-report-version {
+  margin-left: 8px;
+  color: var(--text-3);
+  font: var(--type-label) / var(--lh-small) var(--mono);
 }
 .goal-sheet-section .field-label {
   margin: 0;
@@ -6245,7 +6482,100 @@ button.contribution-quote:hover {
     opacity: 1;
   }
 }
+/* Switch camera, on your own tile (camera-flip.md): the other corner, and only on a phone, where the dock's device
+   menus aren't there; on a computer Video settings chooses. */
+.tile-pin.tile-flip {
+  display: none;
+  right: auto;
+  left: 8px;
+}
+@media (max-width: 600px) {
+  .tile-pin.tile-flip {
+    display: inline-grid;
+  }
+}
 
+/* Settings, in one place (docs/plans/account-settings.md): a part a heading and its choices, one under another. */
+.settings-part {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.settings-part:last-child {
+  border-bottom: 0;
+}
+.settings-who {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+/* As the account menu's head: the picture beside the name, then the email and how they signed in, a line each. */
+.settings-who > .avatar {
+  width: 32px;
+  height: 32px;
+}
+.settings-who .account-names {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.settings-who .account-name {
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: 500;
+}
+/* A box beside its words, as Invite's from other projects: the global input's width and height are a field's. */
+.settings-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  color: var(--text);
+  font-size: var(--type-small);
+}
+.settings-check input {
+  width: 16px;
+  height: 24px;
+  margin: 0;
+}
+/* A question in Settings reads from the left, as its part does (sign-out-scope.md): its words on their own line, then
+   the two answers. */
+.settings-part .confirm {
+  justify-content: flex-start;
+}
+.settings-part .confirm-note {
+  flex-basis: 100%;
+}
+.settings-links {
+  display: flex;
+  gap: 16px;
+  font-size: var(--type-small);
+}
+/* A message's marks (docs/plans/message-format.md): code in the mono face on a faint plane, a quote under an edge. */
+.msg-code {
+  padding: 1px 4px;
+  border-radius: var(--r-1);
+  background: rgb(var(--ink-rgb) / 0.08);
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+.msg-quote {
+  display: block;
+  margin: 2px 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--line-2);
+  color: var(--text-2);
+}
+/* A quote's blank line keeps a line's height, so its paragraphs stay apart (Codex P2 on #384). */
+.msg-quote:empty::before {
+  content: '\200b';
+}
 /* A web address in a message (docs/plans/message-links.md): the halo's link colour, underlined, wrapping inside the
    column however long it is. */
 .msg-link {
@@ -6355,6 +6685,90 @@ button.contribution-quote:hover {
   margin: 8px 0;
 }
 
+/* What continuing means, under the sign-in (docs/plans/terms-privacy.md): small, quiet, its links underlined. */
+/* Above `.screen-body p`, which sets the screen's paragraphs in the second ink. */
+.screen-body p.signin-legal {
+  margin-top: 12px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.signin-legal a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* Under the pointer the link answers in the full ink (press-answers.spec). */
+.signin-legal a:hover {
+  color: var(--text);
+}
+
+/* The terms and the privacy notice: a reading column on the page's ground, the mark above, the way on below. */
+.legal {
+  min-height: 100dvh;
+  padding: 32px 16px 48px;
+  background: var(--bg);
+  color: var(--text);
+}
+.legal-head,
+.legal-doc,
+.legal-foot {
+  max-width: 680px;
+  margin-inline: auto;
+}
+.legal-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  text-decoration: none;
+}
+.legal-doc h1 {
+  margin: 40px 0 4px;
+  font-size: var(--type-view);
+  letter-spacing: -0.025em;
+}
+.legal-updated {
+  margin: 0 0 24px;
+  color: var(--text-3);
+  font: var(--type-label) / var(--lh-small) var(--mono);
+}
+.legal-doc h2 {
+  margin: 28px 0 8px;
+  font-size: var(--type-head);
+  font-weight: 600;
+}
+.legal-doc p,
+.legal-doc li {
+  color: var(--text-2);
+  font-size: var(--type-title);
+  line-height: 1.6;
+}
+.legal-doc p {
+  margin: 0 0 10px;
+}
+.legal-doc ul {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+.legal-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: var(--type-small);
+}
+.legal-foot a {
+  color: var(--text-2);
+}
+
+/* Room to write feedback (docs/plans/crash-feedback.md). */
+.feedback-words textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
 /* Everyone in the call, in the side panel (docs/plans/host-controls.md): a row each, the admin's menu at its end. */
 .people {
   display: grid;
@@ -6365,7 +6779,7 @@ button.contribution-quote:hover {
 }
 .person {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto 20px 32px;
+  grid-template-columns: minmax(0, 1fr) auto 20px 36px 32px;
   align-items: center;
   gap: 8px;
   min-height: 40px;
@@ -6394,7 +6808,19 @@ button.contribution-quote:hover {
 }
 .person-actions {
   position: relative;
+  grid-column: 5;
+}
+/* Each other person's volume, for you alone (docs/plans/people-volume.md): a speaker before the admin's menu; turned
+   down, the level in its place, inside the square; struck through when Off. */
+.person-volume {
+  position: relative;
   grid-column: 4;
+}
+.person-volume-level {
+  color: var(--text);
+  font-size: var(--type-small);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .person-pending {
   grid-column: 1 / -1;
@@ -6418,6 +6844,10 @@ button.contribution-quote:hover {
   margin: 2px 0 0;
   color: var(--text-3);
   font-size: var(--type-small);
+}
+/* A date that has passed, on a goal not completed (docs/plans/goal-overdue.md). */
+.goal-row-target[data-due='overdue'] {
+  color: var(--rose);
 }
 .goal-target-form {
   display: grid;

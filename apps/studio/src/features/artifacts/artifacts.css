@@ -304,6 +304,35 @@
   color: var(--text-2);
   font-size: 13px;
 }
+/* What it was made for (docs/plans/report-origin.md): the goal, a press, then what was asked, on one line each. */
+.report-origin {
+  display: grid;
+  gap: 4px;
+  max-width: var(--measure);
+  margin: 0 0 16px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+.report-origin-goal,
+.report-origin-asked {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+.report-origin-asked {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.report-origin-label {
+  margin-right: 8px;
+  color: var(--text-3);
+}
+.report-origin-goal .report-origin-label {
+  margin-right: 0;
+}
 /* The version's limitations above its text: under an amber rule, as the page sets a report's limitations, never a
    tinted card. */
 .report-limits {
@@ -328,11 +357,10 @@
 
 /* The Markdown body, read as its HTML page reads it (html-report-v2, SPEC §4b): a serif reading voice at 17/1.6 in the
    pane's one measure, the apparatus in the Studio's sans (tables, code, citation numbers, list markers). The faces are
-   the system's own: nothing is loaded for them. */
+   the system's own, nothing loaded for them, and the page's own (reader-stack.test.ts): no Sitka Text, which set the
+   measure under 60 characters on Windows (report-page-windows.md). */
 .md {
-  --serif:
-    Charter, 'Bitstream Charter', 'Sitka Text', Cambria, 'Iowan Old Style', 'Noto Serif', 'Liberation Serif', Georgia,
-    serif;
+  --serif: Charter, 'Bitstream Charter', Cambria, 'Iowan Old Style', 'Noto Serif', 'Liberation Serif', Georgia, serif;
   max-width: var(--measure);
   color: var(--text);
   font: 400 17px/1.6 var(--serif);
@@ -1123,7 +1151,7 @@
 }
 /* The designed page only (the body keeps `data-html` on the other tabs, which keep the full page's centred measure). No
    auto margins either: in this flex column they would shrink the page to its frame's default 300 px. */
-.report-pane[data-size='full'] .report-pane-body[data-html] > .report-html {
+.report-pane[data-size='full'] .report-pane-body[data-html] > :is(.report-html, .report-origin) {
   max-width: none;
   margin-inline: 0;
 }
@@ -1197,6 +1225,15 @@
   display: flex;
   padding: 0;
   overflow: hidden;
+}
+/* What it was made for, above the toolbar and the pages (Codex P2 on #383): the column only on the Document tab, where
+   the origin is. */
+.report-pane-body[data-pdf]:has(> .report-origin) {
+  flex-direction: column;
+}
+.report-pane-body[data-pdf] > .report-origin {
+  margin: 0;
+  padding: 12px 16px 0;
 }
 .report-pane[data-size='full'] .report-pane-body[data-pdf] > * {
   max-width: none;

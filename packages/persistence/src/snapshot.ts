@@ -123,17 +123,28 @@ async function readGoals(c: pg.PoolClient, projectId: string): Promise<Goal[]> {
       ORDER BY created_at, id`,
     [projectId],
   )
-  return rows.map((g) => ({
-    id: g.id,
-    projectId,
-    title: g.title,
-    revision: safeInt(g.revision, 'goal.revision'),
-    authorityEpoch: safeInt(g.authority_epoch, 'goal.authorityEpoch'),
-    status: g.status,
-    outcome: g.outcome,
-    criteria: g.criteria,
-    stateRevision: safeInt(g.state_revision, 'goal.stateRevision'),
-  }))
+  // A completed goal's latest session retirement, with each admitted target's own result (0075, A41): the function
+  // answers only for a current project admin, deciding on this read; anyone else gets none.
+  const { rows: retired } = await c.query<{ r: Record<string, Goal['retirement']> }>(
+    'SELECT sophia.goal_retirements($1) AS r',
+    [projectId],
+  )
+  const retirements = retired[0]?.r ?? {}
+  return rows.map((g) => {
+    const retirement = retirements[g.id]
+    return {
+      id: g.id,
+      projectId,
+      title: g.title,
+      revision: safeInt(g.revision, 'goal.revision'),
+      authorityEpoch: safeInt(g.authority_epoch, 'goal.authorityEpoch'),
+      status: g.status,
+      outcome: g.outcome,
+      criteria: g.criteria,
+      stateRevision: safeInt(g.state_revision, 'goal.stateRevision'),
+      ...(retirement ? { retirement } : {}),
+    }
+  })
 }
 
 /**

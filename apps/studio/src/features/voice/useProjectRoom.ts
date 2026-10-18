@@ -17,6 +17,7 @@ import { rememberDevice, type DeviceKind, type MediaDevice } from './device-pref
 import { micOnJoin, rememberMic } from './mic-preference.ts'
 import type { Heard } from './reaction-channel.ts'
 import { paced, shownAfter, SHOWN_FOR_MS, type Reaction, type ReactionEmoji } from './reactions.ts'
+import type { Level } from './people-volume.ts'
 import { mediaMessage, type Device, type DockStatus, type RoomParticipant } from './room-view.ts'
 import type { SophiaSignal } from './sophia-view.ts'
 
@@ -55,7 +56,8 @@ export interface ProjectRoom {
   /** The project has loaded, so Join can run. Until then the room says it is opening and Join waits. */
   ready: boolean
   /** Resolves to whether this person is in the call once it settles. */
-  join: (options?: { textOnly?: boolean }) => Promise<boolean>
+  /** `mic`: the microphone this join starts with, as chosen before it (prejoin-toggles.md); else as last left here. */
+  join: (options?: JoinOptions) => Promise<boolean>
   /**
    * Out of the call. `pressed`: the person's own Leave, which counts in `leftByPress`; any other leave (another
    * project's call, the project closing) is quiet.
@@ -84,6 +86,12 @@ export interface ProjectRoom {
   react: (emoji: ReactionEmoji) => void
   /** What this person follows, said to the members in the call (A14, following-signal.ts); null for nothing. */
   setFollowing: (versionId: string | null) => Promise<void>
+  /** How loud each other person is here alone, by identity, full when not listed (people-volume.md). */
+  volumes: ReadonlyMap<string, Level>
+  setVolume: (identity: string, level: Level) => void
+  /** Others' cameras come to this browser (incoming-video.md): off for this call only; a shared screen still comes. */
+  incomingVideo: boolean
+  setIncomingVideo: (on: boolean) => void
 }
 
 /** A failed join in words: the API's own refusal, or what to check when the room could not be reached. */
@@ -128,6 +136,14 @@ async function backgroundsSupported(): Promise<boolean> {
  * publish too, so no one is left without a microphone.
  */
 const micOnArrival = () => micOnJoin()
+
+/** How a new join starts: in text mode or not, and with the microphone chosen before it. */
+export interface JoinOptions {
+  textOnly?: boolean
+  mic?: boolean
+  /** The camera on once in, as chosen before joining (prejoin-toggles.md). */
+  camera?: boolean
+}
 
 /** A member's room: the token names this project's room and the audience revision the member saw. */
 export function useProjectRoom(projectId: string, token: string, snapshot: Snapshot | undefined): ProjectRoom {
@@ -240,6 +256,19 @@ function useDevices(connection: { current: RoomConnection | null }, refresh: () 
   }
 }
 
+/** Others' cameras, taken or let go for this call (incoming-video.md); out of the call, the next one takes them again. */
+function useIncomingVideo(connection: { current: RoomConnection | null }) {
+  const [incomingVideo, setIncoming] = useState(true)
+  return {
+    incomingVideo,
+    setIncomingVideo: (on: boolean) => {
+      setIncoming(on)
+      connection.current?.setIncomingVideo(on)
+    },
+    resetIncoming: () => setIncoming(true),
+  }
+}
+
 interface JoinPorts {
   calls: CallFence<RoomConnection>
   issue: IssueToken | null
@@ -258,7 +287,7 @@ interface JoinPorts {
  * Resolves to whether this person is in the call once it settles. `textOnly` is how a new join starts; a call already
  * under way keeps its text mode, which only its own switches change.
  */
-async function joinConnection(ports: JoinPorts, options?: { textOnly?: boolean }): Promise<boolean> {
+async function joinConnection(ports: JoinPorts, options?: JoinOptions): Promise<boolean> {
   const { calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall, onLive } = ports
   // Already in the call: a second connection would be a second microphone nobody sees.
   if (calls.current) return true
@@ -305,7 +334,8 @@ async function joinConnection(ports: JoinPorts, options?: { textOnly?: boolean }
         onLive()
         refresh()
       },
-      micOnArrival,
+      // The choice made before joining is carried, not only kept: a device that keeps nothing still honours it.
+      micOnArrival: options?.mic === undefined ? micOnArrival : () => options.mic === true,
       arrive,
       leaveTextMode: () => typedChat.setTextMode(false),
     })
@@ -331,18 +361,31 @@ export const newCall = (): number => (callsNumbered += 1)
  * then let go: a join still settling, its microphone still arriving, answers for its own call and no later one).
  * `call` moves with each call begun.
  */
-function useJoin(ports: Omit<JoinPorts, 'onLive'>, joining: { current: Promise<boolean> | null }) {
+function useJoin(
+  ports: Omit<JoinPorts, 'onLive'>,
+  joining: { current: Promise<boolean> | null },
+  startCamera: () => Promise<void>,
+) {
   const [call, setCall] = useState(newCall)
   const [liveSince, setLiveSince] = useState<number | null>(null)
-  const join = (options?: { textOnly?: boolean }) => {
+  // The choices of a join that failed stand for the next one asked without its own (Try again; Codex P1 on #361).
+  const failedWith = useRef<JoinOptions | undefined>(undefined)
+  const join = (options?: JoinOptions) => {
     if (joining.current) return joining.current
     const onLive = () => {
       setCall(newCall())
       setLiveSince(Date.now())
     }
-    const attempt: Promise<boolean> = joinConnection({ ...ports, onLive }, options).finally(() => {
-      if (joining.current === attempt) joining.current = null
-    })
+    const used = options ?? failedWith.current
+    const attempt: Promise<boolean> = joinConnection({ ...ports, onLive }, used)
+      .then(async (inCall) => {
+        failedWith.current = inCall ? undefined : used
+        if (inCall && used?.camera) await startCamera()
+        return inCall
+      })
+      .finally(() => {
+        if (joining.current === attempt) joining.current = null
+      })
     joining.current = attempt
     return attempt
   }
@@ -364,6 +407,8 @@ function useConversation(connection: { current: RoomConnection | null }, silence
     typedChat.interrupted()
     live.interrupted()
     reacting.clear()
+    // The hint is its call's: out of it, nothing is muted (Codex P2 on #357).
+    muted.clear()
   }
   return {
     ...typedChat,
@@ -392,7 +437,11 @@ function useMutedHint() {
     setShown(true)
     timer.current = setTimeout(() => setShown(false), MUTED_HINT_MS)
   }
-  return { shown, heard }
+  const clear = () => {
+    clearTimeout(timer.current)
+    setShown(false)
+  }
+  return { shown, heard, clear }
 }
 
 /** What the conversation gives the room: the chat, the notices, the captions, the reactions, and text mode. */
@@ -424,6 +473,30 @@ function useReactions(connection: { current: RoomConnection | null }) {
     },
     clear: () => setReactions([]),
   }
+}
+
+/** Each person's volume, here alone (people-volume.md): kept by person for the call; out of it, everyone is full again. */
+function usePeopleVolume(connection: { current: RoomConnection | null }) {
+  const [volumes, setVolumes] = useState<ReadonlyMap<string, Level>>(() => new Map())
+  return {
+    volumes,
+    setVolume: (identity: string, level: Level) => {
+      setVolumes((now) => new Map(now).set(identity, level))
+      connection.current?.setVolume(identity, level)
+    },
+    resetVolumes: () => setVolumes(new Map()),
+  }
+}
+
+/** What this person chose for this call alone: each person's volume and others' cameras. Out of it, both reset. */
+function useCallChoices(connection: { current: RoomConnection | null }) {
+  const { resetVolumes, ...volume } = usePeopleVolume(connection)
+  const { resetIncoming, ...incoming } = useIncomingVideo(connection)
+  const resetChoices = () => {
+    resetVolumes()
+    resetIncoming()
+  }
+  return { choices: { ...volume, ...incoming }, resetChoices }
 }
 
 /** Leaving, and how many calls the person was in and left by their own press (ProjectRoom.leftByPress). */
@@ -469,6 +542,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     )
   }
   const { clearNote, arrive, silence, ...devices } = useDevices(calls, refresh)
+  const { choices, resetChoices } = useCallChoices(calls)
   const typedChat = useConversation(calls, silence)
 
   /**
@@ -484,11 +558,14 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     joining.current = null
     setPeople(NOBODY)
     clearNote()
+    resetChoices()
     setStatus(why && CALL_END[why].failed ? 'failed' : 'idle')
     setError(why ? CALL_END[why].note : null)
   }
 
-  const joined = useJoin({ calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall }, joining)
+  const joined = useJoin({ calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall }, joining, () =>
+    devices.setCamera(true),
+  )
 
   const { leave, leftByPress } = useLeave(calls, outOfCall)
 
@@ -509,6 +586,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     ...joined,
     ...people,
     ...devices,
+    ...choices,
     setMicrophone,
     ...conversationParts(typedChat),
     startAudio,

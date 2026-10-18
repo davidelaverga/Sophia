@@ -30,6 +30,24 @@ export function viewerReducer(state: ViewerState, action: ViewerAction): ViewerS
   return { ...state, drafts }
 }
 
+/**
+ * Signing out forgets every view's unsent words on this device, whoever's, and keeps each view's lens: words written
+ * and not sent are personal, which lens was open is not (terms-privacy.md; Codex P1 on #366).
+ */
+export function forgetViewerDrafts(store: Storage = localStorage): void {
+  try {
+    const keys = Array.from({ length: store.length }, (_, i) => store.key(i)).filter(
+      (k): k is string => k?.startsWith('sophia.viewer.v1.') === true,
+    )
+    for (const key of keys) {
+      const { lens } = readViewerState(store.getItem(key))
+      store.setItem(key, JSON.stringify({ lens, drafts: {} }))
+    }
+  } catch {
+    // Storage refused: there is nothing kept to forget.
+  }
+}
+
 /** Storage key: per viewer and project, so two people on one browser never share a view. */
 export const viewerKey = (viewer: string, projectId: string) => `sophia.viewer.v1.${viewer}.${projectId}`
 

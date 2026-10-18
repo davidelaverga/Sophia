@@ -50,7 +50,7 @@ export function Centered({
   light?: ScreenLight
 }) {
   return (
-    <main className="screen" aria-busy={busy}>
+    <main className="screen" aria-busy={busy} data-content>
       <SophiaLight
         mode={light.mode}
         target={null}
@@ -176,6 +176,19 @@ function DevIdentityPicker({ onChoose }: { onChoose: (identity: Identity) => voi
           ))}
       </div>
     </Centered>
+  )
+}
+
+/**
+ * What continuing means, one press from the door (terms-privacy.md): under the sign-in, and under an invited member's
+ * «Email me a sign-in code» at /join, which may create the account too (Codex P2 on #366).
+ */
+export function LegalLine() {
+  return (
+    <p className="signin-legal">
+      By continuing you agree to the <a href="/terms">Terms</a> and acknowledge the{' '}
+      <a href="/privacy">Privacy notice</a>.
+    </p>
   )
 }
 
@@ -341,6 +354,7 @@ export function EmailSignIn({ notice, send = sendMagicLink, verify }: { notice: 
       )}
       <p className="muted">New here? The same link creates your account.</p>
       <PasskeyLink {...passkey} />
+      <LegalLine />
     </Centered>
   )
 }

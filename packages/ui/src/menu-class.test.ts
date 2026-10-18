@@ -15,6 +15,11 @@ describe('menuClass', () => {
     assert.equal(itemRole(true), 'menuitemradio')
   })
 
+  it('an item that turns one thing on or off is a checkbox item (room-basics.md)', () => {
+    assert.equal(itemRole(true, true), 'menuitemcheckbox')
+    assert.equal(itemRole(false, true), 'menuitemcheckbox')
+  })
+
   it('a menu’s rows stand on the control scale, 6 px from their control', () => {
     assert.equal(MENU.row, 32)
     assert.equal(MENU.touchRow, 44)

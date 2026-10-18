@@ -1,0 +1,331 @@
+{
+  "schema": "sophia.con01.acceptance-plan.v1",
+  "mission": "CON-01",
+  "evidence_status": "planning_only",
+  "cases": [
+    {
+      "id": "CON-01-T01",
+      "name": "Separate conversations",
+      "expected": "Two conversations share current accepted project context while retaining different history and source/request origins; no automatic new computer.",
+      "required_evidence": "PostgreSQL + native/context tests + actual app",
+      "gate": "G2/G5",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON-01-T02",
+      "name": "Correct authorship",
+      "expected": "Contributor list contains actual eligible human writers; Sophia appears only after a published reply; attendance or project membership alone adds nobody.",
+      "required_evidence": "Database + UI + actual app",
+      "gate": "G1/G5",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON-01-T03",
+      "name": "Retention boundary",
+      "expected": "Previously unsaved room/voice/caption history is absent; only explicit named-conversation text is saved under the accepted policy.",
+      "required_evidence": "Policy review + database + app",
+      "gate": "G0/G5",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON-01-T04",
+      "name": "Current eligibility",
+      "expected": "Withdrawal removes the body from eligible reads and dependent summaries, question projections and cached native context; a late dependent reply cannot publish.",
+      "required_evidence": "Database + native race test + app",
+      "gate": "G1/G5",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON-01-T05",
+      "name": "Account isolation",
+      "expected": "Different subjects with the same display email cannot read each other's browser state. Same subject with renamed email retains its own state, including pending callback results.",
+      "required_evidence": "Auth/browser regression",
+      "gate": "G1/G5",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A01",
+      "name": "Atomic start",
+      "expected": "Failure between conversation creation and first message leaves no partial accepted start; successful start has one first message and consistent receipt.",
+      "required_evidence": "PostgreSQL transaction test",
+      "gate": "G1",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A02",
+      "name": "Lost create reply",
+      "expected": "Retry of a committed start with the same intent key returns the same conversation/message; no second native response obligation.",
+      "required_evidence": "Database + real HTTP/browser adverse test",
+      "gate": "G1/G5",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A03",
+      "name": "Lost send reply",
+      "expected": "Retry preserves one human message and one response request, even after changing conversations and reopening the composer.",
+      "required_evidence": "Database + browser + app",
+      "gate": "G1/G5",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A04",
+      "name": "Changed payload same key",
+      "expected": "Changing text, title, ask flag or target under an old key is rejected as a conflict, not silently reused or executed again.",
+      "required_evidence": "API/database negative test",
+      "gate": "G1",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A05",
+      "name": "Current membership",
+      "expected": "Viewers can read only eligible project content and cannot post; outsiders/guests and revoked members cannot read through IDs, cursors, summaries or idempotent receipt replay.",
+      "required_evidence": "Authenticated API + RLS + app spot check",
+      "gate": "G1/G5",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A06",
+      "name": "Forged author",
+      "expected": "Supplying an actor, name, assistant author, project or response target cannot impersonate a member or publish an assistant message.",
+      "required_evidence": "Schema/API negative test",
+      "gate": "G1",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A07",
+      "name": "Ordering and pagination",
+      "expected": "Concurrent equal-timestamp messages appear once in a stable conversation order; pages have no duplicates/gaps; another conversation's cursor is refused.",
+      "required_evidence": "Database concurrency + browser",
+      "gate": "G1",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A08",
+      "name": "No implicit invocation",
+      "expected": "askSophia=false stores text but performs no inference, paid summary, operational issue, external action or worker wake. Verify counters/state, not just UI silence.",
+      "required_evidence": "Database + runtime/provider-call spy",
+      "gate": "G1/G2",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A09",
+      "name": "Exact response correlation",
+      "expected": "Two pending asks and an unrelated assistant message do not settle one another; every completed reply identifies its actual request.",
+      "required_evidence": "Native/API + browser",
+      "gate": "G2/G5",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A10",
+      "name": "Runtime unavailable",
+      "expected": "Human text persists according to policy; absent native readiness or grant yields a truthful blocked/not-admitted answer state and no false progress.",
+      "required_evidence": "Local runtime fault + UI",
+      "gate": "G2",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A11",
+      "name": "Original destination",
+      "expected": "Switching tabs/projects while a reply runs does not move its publication, cancel unrelated work or destroy the other draft.",
+      "required_evidence": "Concurrent browser + native",
+      "gate": "G2/G5",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A12",
+      "name": "Restart after admission",
+      "expected": "An admitted request survives API/execution-host restart; observation or replay cannot independently start a duplicate response attempt.",
+      "required_evidence": "Controlled native/service restart",
+      "gate": "G2",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A13",
+      "name": "Uncertain inference",
+      "expected": "Timeout after dispatch remains unresolved until reconciled; retries keep request and allowance lineage and do not silently spend through another payer.",
+      "required_evidence": "Native adverse test + accounting",
+      "gate": "G2",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A14",
+      "name": "Current mission",
+      "expected": "An accepted constraint changed through A08 appears in both conversations' current context; old proposals stay distinguishable and no transcript is rewritten.",
+      "required_evidence": "Database + native + app",
+      "gate": "G2/G5",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A15",
+      "name": "Real quick answers",
+      "expected": "Three quick asks produce substantively appropriate answers from actual source context, not a fixed fixture. Include attributed views, undecided proposals and accepted decisions.",
+      "required_evidence": "Pinned native stub integration + separately real provider/app",
+      "gate": "G2/G5",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A16",
+      "name": "No mutation from conversation answer",
+      "expected": "Requests in chat to approve, schedule, edit or deploy cannot cross the read-only responder boundary; no hidden Paperclip issue or source mutation.",
+      "required_evidence": "Effective tool inspection + hostile prompt tests",
+      "gate": "G2",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A17",
+      "name": "Summary coverage",
+      "expected": "Missing and partial summaries/question counts are labeled; new messages mark coverage stale; list/open refresh does not itself trigger paid work.",
+      "required_evidence": "Database + UI + inference counter",
+      "gate": "G3",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A18",
+      "name": "Projection race",
+      "expected": "An old summary completion cannot overwrite a newer eligible projection or restore content invalidated by erasure/changed scope.",
+      "required_evidence": "Database/native race test",
+      "gate": "G2/G3",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A19",
+      "name": "Source injection",
+      "expected": "Text resembling system instructions or actor IDs remains untrusted content; source snippets cannot add tools, alter audience or accept decisions.",
+      "required_evidence": "Prompt boundary + API negative tests",
+      "gate": "G2",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A20",
+      "name": "Decision actions retained",
+      "expected": "Propose/Accept/Decline still use the existing authorized A08 path with the observed revision and one intent key; a stale decision is refreshed/refused.",
+      "required_evidence": "Existing decision tests + browser",
+      "gate": "G3",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A21",
+      "name": "Output identity",
+      "expected": "An actually linked eligible report opens its exact version; unavailable source stays unavailable; no output remains null rather than inventing a candidate.",
+      "required_evidence": "Source/reader integration + browser",
+      "gate": "G3",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A22",
+      "name": "Draft and held write",
+      "expected": "A delayed receipt clears only the submitted text; newer text and per-conversation drafts survive navigation; unsent drafts are not stored server-side by this feature.",
+      "required_evidence": "Browser adverse test",
+      "gate": "G3",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A23",
+      "name": "Read errors independently",
+      "expected": "Failure of list, thread or context is honest and retryable independently; no error is rendered as an empty successful history.",
+      "required_evidence": "Browser/API fault test",
+      "gate": "G3",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A24",
+      "name": "Mobile and accessibility",
+      "expected": "Desktop three panes; tablet context drawer; phone list/thread and context sheet. Send stays reachable, keyboard focus returns and history scroll does not jump on passive updates.",
+      "required_evidence": "Actual browser at 390, 900/1000 and 1440 widths",
+      "gate": "G3/G5",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A25",
+      "name": "Privacy during read/stream",
+      "expected": "Revoked access or withdrawn content is rechecked on rehydrate/next read and before publication; old events cannot repopulate ineligible content.",
+      "required_evidence": "API/replay/native + browser",
+      "gate": "G2/G5",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A26",
+      "name": "Partial and cancelled replies",
+      "expected": "Interrupted text is not silently finalized; cancelled/failed requests show their true outcome, preserve the human question and cannot publish from a stale generation.",
+      "required_evidence": "Native/result/API test",
+      "gate": "G2",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A27",
+      "name": "No collateral regression",
+      "expected": "Room speech/focus, Personal isolation, existing source review controls and native HTML outputs retain their semantics on the combined source.",
+      "required_evidence": "Existing relevant suites + smoke app checks",
+      "gate": "G4/G5",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A28",
+      "name": "Bounded context and spending",
+      "expected": "Long transcript uses eligible coverage/recent windows with limits; no infinite retries, budget reset on new session, auxiliary unapproved provider or logged transcript body.",
+      "required_evidence": "Long-context fixture + request/accounting inspection",
+      "gate": "G2/G4",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A29",
+      "name": "Rollback and erasure continuity",
+      "expected": "Disabling new asks/writes preserves governed reads/erase/control access and stored data; rollback does not revert to ephemeral storage or revive old asks.",
+      "required_evidence": "Release rehearsal + operator evidence",
+      "gate": "G4/G5",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A30",
+      "name": "Actual app non-fixture proof",
+      "expected": "Two accounts use the real application/API and at least one real provider-backed Sophia reply, with durable server records and observed deployment identity. Synthetic routes are excluded.",
+      "required_evidence": "Codex app/browser + authorized provider evidence",
+      "gate": "G5",
+      "status": "not_run",
+      "evidence_refs": []
+    },
+    {
+      "id": "CON01-A31",
+      "name": "Parallel ownership",
+      "expected": "Final contracts/runtime include all already accepted WBC/SDD roles; reserved migrations and shared writer order are recorded; no unrelated deployment is replayed.",
+      "required_evidence": "Diff/artifact/coordination inspection",
+      "gate": "G4",
+      "status": "not_run",
+      "evidence_refs": []
+    }
+  ]
+}

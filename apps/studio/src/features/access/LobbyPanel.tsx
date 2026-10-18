@@ -143,8 +143,29 @@ function LobbyHead({ names, count, canDecide, busy, onDeclineAll, onAdmitAll }: 
 }
 
 /** While notifications have never been asked for, one offer to hear of the next knock in another tab. */
+/** Where a dismissed prompt is remembered on this device: the browser's choice stays «default», and the offer away. */
+const NOTIFY_ASKED = 'sophia.knock.notify.asked'
+
+const askedBefore = () => {
+  try {
+    return localStorage.getItem(NOTIFY_ASKED) === '1'
+  } catch {
+    return false
+  }
+}
+
+const rememberAsked = () => {
+  try {
+    localStorage.setItem(NOTIFY_ASKED, '1')
+  } catch {
+    // Storage refused: the offer may come back after a reload, nothing worse.
+  }
+}
+
 function NotifyOffer() {
-  const [asked, setAsked] = useState(() => typeof Notification === 'undefined' || Notification.permission !== 'default')
+  const [asked, setAsked] = useState(
+    () => typeof Notification === 'undefined' || Notification.permission !== 'default' || askedBefore(),
+  )
   if (asked) return null
   return (
     <button
@@ -152,6 +173,8 @@ function NotifyOffer() {
       className="text-button lobby-notify"
       onClick={() => {
         setAsked(true)
+        // Asked once, the browser's answer is final here, even a prompt closed with no choice (Codex P2 on #362).
+        rememberAsked()
         void Notification.requestPermission()
       }}
     >

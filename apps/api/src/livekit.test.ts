@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { it } from 'node:test'
 import { jwtVerify } from 'jose'
-import { issueRoomToken, issueBridgeToken } from './livekit.ts'
+import { issueRoomToken, issueBridgeToken, muteUnmuted, PartialMute } from './livekit.ts'
 
 const cfg = {
   url: 'wss://synthetic.livekit.test',
@@ -36,4 +36,47 @@ it('permits actual member and bridge data grants while preserving the guest deni
     standing: { guest: true },
   })
   assert.equal(await dataGrant(guest.token), false)
+})
+
+it('a host mute counts only the tracks it muted: one already muted is neither muted again nor counted (Codex on #385)', async () => {
+  const calls: string[] = []
+  const rooms = {
+    mutePublishedTrack: (_room: string, _who: string, sid: string) => {
+      calls.push(sid)
+      return Promise.resolve({} as never)
+    },
+  }
+  assert.equal(await muteUnmuted(rooms, 'r', 'p', []), 0, 'nothing published')
+  assert.equal(await muteUnmuted(rooms, 'r', 'p', [{ sid: 'mic', muted: true }]), 0, 'already muted')
+  assert.deepEqual(calls, [])
+  const tracks = [
+    { sid: 'cam', muted: false },
+    { sid: 'screen', muted: true },
+    { sid: 'audio', muted: false },
+  ]
+  assert.equal(await muteUnmuted(rooms, 'r', 'p', tracks), 2)
+  assert.deepEqual(calls, ['cam', 'audio'])
+})
+
+/** A room client whose mutes succeed `after` times, then fail. */
+const failing = (after: number) => {
+  let n = 0
+  return {
+    mutePublishedTrack: () => {
+      n += 1
+      return n > after ? Promise.reject(new Error('room server down')) : Promise.resolve({} as never)
+    },
+  }
+}
+
+it('a batch the room server fails partway says how many it muted; one that muted none fails as it was', async () => {
+  const screen = [
+    { sid: 'video', muted: false },
+    { sid: 'audio', muted: false },
+  ]
+  const partly = await muteUnmuted(failing(1), 'r', 'p', screen).catch((err: unknown) => err)
+  assert.ok(partly instanceof PartialMute)
+  assert.equal(partly.muted, 1)
+  const none = await muteUnmuted(failing(0), 'r', 'p', screen).catch((err: unknown) => err)
+  assert.ok(none instanceof Error && !(none instanceof PartialMute))
 })

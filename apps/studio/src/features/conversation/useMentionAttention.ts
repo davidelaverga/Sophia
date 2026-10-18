@@ -17,6 +17,10 @@ import { nextLook, readable, waitingRevision, type AddressState, type Waiting } 
 
 const NONE: ReadonlyMap<string, Waiting> = new Map()
 
+/** A seen write that fails is tried again while its message stays readable: at most this many times, waiting longer each. */
+const SEEN_RETRIES = 3
+const SEEN_RETRY_MS = 1000
+
 /**
  * The mentions waiting for the reader in this project, by message: each one's need id exactly as the service lists it
  * (`mention:<project>:<revision>.<occurrence>:<message>`) and the message revision it is for, so it is attached only to
@@ -72,9 +76,36 @@ function shownNeed(el: Element, root: Element): string | undefined {
 }
 
 /**
+ * Failed seen writes, tried again: at most SEEN_RETRIES times each, later each time, and only while the view lives (its
+ * cleanup cancels them: hidden, another account, the occurrence changed). `again` checks the occurrence is still
+ * readable before it writes.
+ */
+function seenRetries(again: (id: string) => void) {
+  let live = true
+  const attempts = new Map<string, number>()
+  const timers = new Set<ReturnType<typeof setTimeout>>()
+  return {
+    retry: (id: string) => {
+      const n = (attempts.get(id) ?? 0) + 1
+      if (!live || n > SEEN_RETRIES) return
+      attempts.set(id, n)
+      const timer = setTimeout(() => {
+        timers.delete(timer)
+        if (live) again(id)
+      }, SEEN_RETRY_MS * n)
+      timers.add(timer)
+    },
+    cancel: () => {
+      live = false
+      for (const timer of timers) clearTimeout(timer)
+    },
+  }
+}
+
+/**
  * The waiting mentions the reader was shown are seen: the chat on screen (`inView`) and the message readable in its
  * view (mention-view `readable`), as the observer reports it or as the chat's scroll moves it. Each occurrence once; a
- * write that fails is tried again the next time it is shown.
+ * write that fails is tried again, a few times, while it stays readable, and again the next time it is shown.
  */
 export function useMentionsSeen(
   identity: Identity,
@@ -85,6 +116,9 @@ export function useMentionsSeen(
 ) {
   const client = useQueryClient()
   const marked = useRef(new Set<string>())
+  // The retries of the effect that is current: a write that fails after its effect was replaced (the chat moved on, the
+  // same occurrence still waiting) is retried by the current one, never by a cancelled one (#409 4305869903).
+  const retryOwner = useRef<ReturnType<typeof seenRetries> | null>(null)
   const ids = [...waiting.values()]
     .map((w) => w.need)
     .toSorted()
@@ -99,10 +133,19 @@ export function useMentionsSeen(
       void client.invalidateQueries({ queryKey: ['mentions', 'needs', subject] })
       void client.invalidateQueries({ queryKey: ['vision', 'needs', subject] })
     }
+    // A write that failed is tried again while the same occurrence stays readable where it is (#409 4305869903).
+    const retries = seenRetries((id) => {
+      const el = [...waitingEls()].find((e) => e instanceof HTMLElement && e.dataset.mentionNeed === id)
+      if (el) seen(shownNeed(el, root))
+    })
+    retryOwner.current = retries
     const seen = (id: string | undefined) => {
       if (!id || marked.current.has(id)) return
       marked.current.add(id)
-      void markNeedSeen(identity.token, id).then(again, () => marked.current.delete(id))
+      void markNeedSeen(identity.token, id).then(again, () => {
+        marked.current.delete(id)
+        retryOwner.current?.retry(id)
+      })
     }
     const observer = new IntersectionObserver((changes) => changes.forEach((change) => seen(readNeed(change))), {
       root,
@@ -120,6 +163,8 @@ export function useMentionsSeen(
     }
     root.addEventListener('scroll', onScroll, { passive: true })
     return () => {
+      retries.cancel()
+      if (retryOwner.current === retries) retryOwner.current = null
       observer.disconnect()
       root.removeEventListener('scroll', onScroll)
       cancelAnimationFrame(frame)

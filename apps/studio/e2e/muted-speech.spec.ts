@@ -20,12 +20,20 @@ test('muted · talking with the microphone off is said in the dock, and goes onc
   await mic(page).click()
   await expect(mic(page)).toHaveAttribute('aria-pressed', 'false')
   await page.evaluate(() => window.fixture?.speakMuted())
-  await expect(hint(page)).toHaveText('You’re muted. Turn the microphone on to be heard.')
+  await expect(hint(page)).toHaveText('You’re muted. Hold Space to talk, or turn the microphone on.')
   await mic(page).click()
   await expect(hint(page)).toHaveCount(0)
 })
 
 test('muted · with the microphone on, nothing is said', async ({ page }) => {
   await page.evaluate(() => window.fixture?.speakMuted())
+  await expect(hint(page)).toHaveCount(0)
+})
+
+test('muted · the hint goes with its call (Codex P2 on #357)', async ({ page }) => {
+  await mic(page).click()
+  await page.evaluate(() => window.fixture?.speakMuted())
+  await expect(hint(page)).toBeVisible()
+  await page.evaluate(() => window.fixture?.drop())
   await expect(hint(page)).toHaveCount(0)
 })

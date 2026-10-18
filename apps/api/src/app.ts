@@ -30,6 +30,7 @@ import { MEDIA_ROUTES, mediaRoutes } from './routes/media.ts'
 import { missionRoutes } from './routes/mission.ts'
 import { personalRoutes } from './routes/personal.ts'
 import { needsRoutes } from './routes/needs.ts'
+import { CONVERSATION_SCHEMA, projectConversationRoutes } from './routes/project-conversations.ts'
 import { updatesRoutes } from './routes/updates.ts'
 import { contributionActRoutes } from './routes/contribution-acts.ts'
 import { profileRoutes } from './routes/profile.ts'
@@ -41,7 +42,7 @@ import { activityRoutes } from './routes/activity.ts'
 import { roomRoutes } from './routes/rooms.ts'
 import { designRoutes } from './routes/design.ts'
 import { RENDERER_ROUTES, rendererRoutes } from './routes/renderer.ts'
-import { RUNTIME_ROUTES, researchRoutes, runtimeRoutes } from './routes/runtime.ts'
+import { RUNTIME_ROUTES, conversationRuntimeRoutes, researchRoutes, runtimeRoutes } from './routes/runtime.ts'
 import { sourceRoutes } from './routes/sources.ts'
 import type { LiveKitConfig } from './livekit.ts'
 import { NotificationHub } from './notification-hub.ts'
@@ -94,6 +95,11 @@ export interface AppDeps {
    * agent later. Without one, a personal message is refused (503) before anything is kept.
    */
   companion?: Companion | null
+  /**
+   * Saved project conversations (CON-01, amendment A33): served only when on (SOPHIA_CONVERSATIONS=on). Off, no A33 route
+   * exists and /ready requires nothing of migration 0063, so this API and the previous one run on either database.
+   */
+  conversations?: boolean
 }
 
 /**
@@ -215,6 +221,7 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.create_project_task(uuid,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.set_project_task_owner(uuid,uuid,uuid,bigint)') IS NOT NULL
   AND to_regprocedure('sophia.finish_project_task(uuid,uuid,text,bigint)') IS NOT NULL
+  AND to_regprocedure('sophia.goal_retirements(uuid)') IS NOT NULL
   AND ${COLUMNS.map(([table, column]) => columnExists(table, column)).join('\n  AND ')} AS ok`
 
 /**
@@ -263,7 +270,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   registerCors(app, deps.corsOrigins ?? [])
   registerAuthentication(app, deps.verifyActor, deps.mediaBridgeTokenSha256 ?? null)
   app.setErrorHandler(handleError)
-  registerHealth(app, deps.pool, Boolean(deps.byteStore))
+  registerHealth(app, deps.pool, Boolean(deps.byteStore), Boolean(deps.conversations))
   const store = writeOnceStore(deps.pool, deps.byteStore)
 
   projectRoutes(app, { pool: deps.pool, livekit: deps.livekit })
@@ -279,6 +286,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   missionRoutes(app, { pool: deps.pool })
   runtimeRoutes(app, { pool: deps.pool, hub: runtimeHub })
   researchRoutes(app, deps.pool)
+  // The reply runtime's routes call 0064's functions: served, and checked by /ready, only with conversations on.
+  if (deps.conversations) conversationRuntimeRoutes(app, deps.pool)
   designRoutes(app, { pool: deps.pool, store })
   roomRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   exchangeRoutes(app, { pool: deps.pool, livekit: deps.livekit })
@@ -297,6 +306,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       )
     : null
   personalRoutes(app, { pool: deps.pool, companion })
+  if (deps.conversations) projectConversationRoutes(app, { pool: deps.pool })
   return app
 }
 
@@ -419,14 +429,15 @@ function handleError(err: FastifyError | DomainError, req: FastifyRequest, reply
   return sendError(req, reply, 503, { code: 'unavailable', message: 'Unavailable', retry: 'safe_read' })
 }
 
-function registerHealth(app: FastifyInstance, pool: pg.Pool, stores: boolean): void {
+function registerHealth(app: FastifyInstance, pool: pg.Pool, stores: boolean, conversations: boolean): void {
   app.get('/health', () => ({ ok: true }))
   app.get('/ready', async (_req, reply) => {
     try {
       await checkRoleSafety(pool)
       const { rows } = await pool.query<{ ok: boolean }>(REQUIRED_SCHEMA)
       const store = stores ? (await pool.query<{ ok: boolean }>(STORE_SCHEMA)).rows[0]?.ok : true
-      if (!rows[0]?.ok || !store) return await reply.status(503).send({ ready: false, reason: 'schema' })
+      const talk = conversations ? (await pool.query<{ ok: boolean }>(CONVERSATION_SCHEMA)).rows[0]?.ok : true
+      if (!rows[0]?.ok || !store || !talk) return await reply.status(503).send({ ready: false, reason: 'schema' })
       return { ready: true }
     } catch {
       return reply.status(503).send({ ready: false, reason: 'database' })

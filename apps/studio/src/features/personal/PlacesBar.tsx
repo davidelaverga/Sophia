@@ -14,6 +14,7 @@ import { CallSwitches, type Sending } from '../voice/CallSwitches.tsx'
 import { LookingIndicator } from '../voice/SophiaControls.tsx'
 import { LOCK_TIP, WHO_SEES } from './places-view.ts'
 import { Mark } from '../../app/Mark.tsx'
+import { CallInReach } from '../../app/call-in-reach.tsx'
 
 export interface InCall {
   title: string
@@ -132,6 +133,25 @@ function useFocusAfterCall(pill: RefObject<HTMLDivElement | null>) {
   }, [pill])
 }
 
+/** The call's switches inside a sheet opened here, as the pill's (their keys are the pill's). */
+function SheetSwitches({ call }: { call: InCall }) {
+  const controls = {
+    setMicrophone: call.onMicrophone,
+    setCamera: call.onCamera,
+    setScreenShare: call.onScreen,
+    leave: call.onLeave,
+  }
+  return (
+    <CallSwitches
+      sending={call.sending}
+      controls={controls}
+      textMode={{ on: call.textMode, onVoice: call.onVoice }}
+      keys={false}
+      side="bottom"
+    />
+  )
+}
+
 function CallPill({ call }: { call: InCall }) {
   const pill = useRef<HTMLDivElement>(null)
   useFocusAfterCall(pill)
@@ -236,7 +256,10 @@ function PlacesHeader(props: Props) {
       <div className="topbar-end">
         {call && <RoomPill call={call} />}
         <PrivacyChip place={place} chip={chip} onLock={actions.lockNow} onPrivacy={actions.privacy} />
-        <AccountMenu identity={identity} where="places" actions={actions} />
+        {/* A sheet the account menu opens covers the room pill: the call's switches go with it (Codex P1 on #367). */}
+        <CallInReach.Provider value={call && <SheetSwitches call={call} />}>
+          <AccountMenu identity={identity} where="places" actions={actions} />
+        </CallInReach.Provider>
       </div>
     </header>
   )

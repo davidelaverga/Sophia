@@ -4,6 +4,7 @@
 // its PDF (S5b); one with a designed HTML page (SDD-01) also shows that page, in an isolated frame (HtmlView). Every
 // file is checked against its hash before it is shown, so what is read is what downloads. A non-modal complementary
 // region: focus moves to its title on open and back to the opener on close; Esc steps down, F toggles the full page.
+import { ReportOrigin } from './ReportOrigin.tsx'
 import { useQuery } from '@tanstack/react-query'
 import { lazy, Suspense, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
@@ -634,17 +635,34 @@ function PaneBody(props: BodyProps) {
  * an isolated frame, never in MarkdownView or the Studio's own DOM, or the Markdown read in the reading voice (with
  * what changed in a version that arrived live).
  */
-function DocumentView(props: Pick<BodyProps, 'data' | 'full' | 'onCite' | 'changes' | 'revise'>) {
+function DocumentView(props: Pick<BodyProps, 'data' | 'full' | 'onCite' | 'changes' | 'revise' | 'identity'>) {
   const { data, full, onCite, changes } = props
-  if (data.showPdf) return <PdfTab data={data} full={full} />
-  if (data.showHtml) return <HtmlTab data={data} full={full} revise={props.revise} />
-  return <DocumentTab data={data} onCite={onCite} changes={changes} />
+  // What it was made for stands above the PDF and the designed page too (Codex P2 on #383); the Markdown says it in its
+  // own flow, after the note on a missing format.
+  const origin = data.version && <ReportOrigin version={data.version} identity={props.identity} />
+  if (data.showPdf)
+    return (
+      <>
+        {origin}
+        <PdfTab data={data} full={full} />
+      </>
+    )
+  if (data.showHtml)
+    return (
+      <>
+        {origin}
+        <HtmlTab data={data} full={full} revise={props.revise} />
+      </>
+    )
+  return <DocumentTab data={data} onCite={onCite} changes={changes} identity={props.identity} />
 }
 
 function TabContent({ tab, data, full, identity, focusSource, onCite, onVersion, changes, tasks, revise }: BodyProps) {
   return (
     <>
-      {tab === 'document' && <DocumentView data={data} full={full} onCite={onCite} changes={changes} revise={revise} />}
+      {tab === 'document' && (
+        <DocumentView data={data} full={full} onCite={onCite} changes={changes} revise={revise} identity={identity} />
+      )}
       {tab === 'sources' && (
         <SourcesTab
           identity={identity}
@@ -1004,6 +1022,7 @@ interface DocumentTabProps {
   data: PaneData
   onCite: (sourceId: string) => void
   changes: LiveChanges
+  identity: Identity
 }
 
 /** Why the Markdown is on screen though another format was asked for, or null. */
@@ -1012,7 +1031,7 @@ const formatNote = (data: PaneData): string | null => {
   return data.noHtml ? 'This version has no designed HTML page, so its Markdown is shown.' : null
 }
 
-function DocumentTab({ data, onCite, changes }: DocumentTabProps) {
+function DocumentTab({ data, onCite, changes, identity }: DocumentTabProps) {
   const { arrival } = data
   if (data.text.isError) {
     return (
@@ -1031,6 +1050,7 @@ function DocumentTab({ data, onCite, changes }: DocumentTabProps) {
           {formatNote(data)}
         </p>
       )}
+      <ReportOrigin version={data.version} identity={identity} />
       <Limitations items={data.version.limitations ?? []} />
       {arrival === 'missing' && (
         <p className="report-passage-note" role="status">

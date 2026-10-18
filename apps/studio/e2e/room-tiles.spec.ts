@@ -186,6 +186,35 @@ test('tiles · on a phone, a guest’s tile says «guest» whole, and still some
   expect(await said(page, 'Noor')).toBe('- text: Noor · guest')
 })
 
+test('tiles · on a phone, muting takes nothing from a guest’s chip: the mute is the tile’s corner mark (Codex P2 on #411)', async ({
+  page,
+}) => {
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 })
+    await enter(page, 'people=3&video=screen&guest=1')
+    const before = await label(page, 'Noor')
+    await enter(page, 'people=3&video=screen&guest=1&muted=3')
+    const tile = tiles(page).filter({ hasText: 'Noor' })
+    await expect(tile.locator('.tile-muted-corner')).toBeVisible()
+    // The chip as it was: the name as long, «guest» whole; and still said muted to a screen reader.
+    expect({ width, ...(await label(page, 'Noor')) }).toEqual({ width, ...before })
+    expect(await said(page, 'Noor')).toContain('muted')
+    // The corner's mark inside the tile, clear of the initial's circle and of the chip.
+    const clear = await tile.evaluate((el) => {
+      const t = el.getBoundingClientRect()
+      const m = el.querySelector('.tile-muted-corner')?.getBoundingClientRect()
+      const i = el.querySelector('.tile-initial')?.getBoundingClientRect()
+      const c = el.querySelector('.tile-name')?.getBoundingClientRect()
+      if (!m || !i || !c) return false
+      const r = i.width / 2
+      const [cx, cy] = [i.left + r, i.top + r]
+      const near = Math.hypot(Math.max(m.left - cx, 0, cx - m.right), Math.max(m.top - cy, 0, cy - m.bottom))
+      return m.left >= t.left && m.top >= t.top && near >= r - 0.5 && m.bottom <= c.top
+    })
+    expect({ width, clear }).toEqual({ width, clear: true })
+  }
+})
+
 test('tiles · on a phone, the floor’s holder has the warm edge; « · floor» is said, not shown', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await enter(page, 'people=9&video=screen&floor=9')
@@ -221,4 +250,27 @@ test('tiles · on a phone, a strip of a few keeps each tile a fifth of the width
   const widths = await tiles(page).evaluateAll((all) => all.map((el) => el.getBoundingClientRect().width))
   expect(widths.length).toBeGreaterThan(1)
   for (const w of widths) expect(w).toBeLessThan(80)
+})
+
+// A muted microphone shows on the tile (docs/plans/muted-on-tiles.md), as it does beside a name without video: yours
+// once you mute it, another's once the host mutes them.
+test('tiles · a muted microphone shows on the tile: yours, and another’s the host muted', async ({ page }) => {
+  await enter(page, 'people=2&video=camera')
+  const muted = (name: string) => tiles(page).filter({ hasText: name }).locator('.tile-muted')
+  const mic = page
+    .getByRole('navigation', { name: 'Room controls' })
+    .getByRole('button', { name: 'Microphone', exact: true })
+  await expect(muted('Fixture')).toHaveCount(0)
+  await mic.click()
+  await expect(muted('Fixture')).toBeVisible()
+  await expect(muted('Fixture')).toContainText('muted')
+  await mic.click()
+  await expect(muted('Fixture')).toHaveCount(0)
+  await page.locator('.panel-toggles [data-panel="people"]').click()
+  await page
+    .getByRole('list', { name: 'People in the call' })
+    .getByRole('button', { name: 'Actions for Marco' })
+    .click()
+  await page.getByRole('menu', { name: 'Actions for Marco' }).getByRole('menuitem', { name: 'Mute microphone' }).click()
+  await expect(muted('Marco')).toBeVisible()
 })

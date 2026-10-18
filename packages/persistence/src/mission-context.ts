@@ -135,14 +135,34 @@ function missionFrame(p: ProjectRow): { mission: MissionFrame | null; legacy: bo
   }
 }
 
-const DECISION_COLUMNS = `d.id, d.revision, d.kind, d.state, d.proposal, d.proposed_by, d.origin, d.created_at,
-  d.base_mission_revision, d.supersedes_decision_id, d.supporting_entry_ids, d.decided_by, d.decided_at, d.decided_via,
-  sophia.actor_label(d.project_id, d.proposed_by, d.proposed_by_name) AS proposed_by_name,
-  sophia.actor_label(d.project_id, d.decided_by, d.decided_by_name) AS decided_by_name, d.body_source_id, s.sha256`
+/**
+ * Who names a person here, fixed in code and never chosen by a caller: the API's reader (0062 actor_label), or the
+ * reply assembler's, which answers only for the project of the claim it has begun (con01-s3
+ * conversation_actor_label: the assembler may not execute actor_label itself).
+ */
+type Labels = 'api' | 'assembly'
+const LABEL: Readonly<Record<Labels, string>> = {
+  api: 'sophia.actor_label',
+  assembly: 'sophia.conversation_actor_label',
+}
 
-async function readDecisions(c: pg.PoolClient, projectId: string, where: string, order: string, limit: number) {
+const decisionColumns = (
+  labels: Labels,
+) => `d.id, d.revision, d.kind, d.state, d.proposal, d.proposed_by, d.origin, d.created_at,
+  d.base_mission_revision, d.supersedes_decision_id, d.supporting_entry_ids, d.decided_by, d.decided_at, d.decided_via,
+  ${LABEL[labels]}(d.project_id, d.proposed_by, d.proposed_by_name) AS proposed_by_name,
+  ${LABEL[labels]}(d.project_id, d.decided_by, d.decided_by_name) AS decided_by_name, d.body_source_id, s.sha256`
+
+/** Where a ledger read runs: its connection, who names people (Labels) and the project. */
+interface LedgerRead {
+  c: pg.PoolClient
+  labels: Labels
+  projectId: string
+}
+
+async function readDecisions({ c, labels, projectId }: LedgerRead, where: string, order: string, limit: number) {
   const { rows } = await c.query<DecisionRow>(
-    `SELECT * FROM (SELECT ${DECISION_COLUMNS} FROM sophia.decisions d
+    `SELECT * FROM (SELECT ${decisionColumns(labels)} FROM sophia.decisions d
         JOIN sophia.source_objects s ON s.project_id = d.project_id AND s.id = d.body_source_id
        WHERE d.project_id = $1 AND d.proposal IS NOT NULL AND ${where}
        ORDER BY ${order} DESC, d.id DESC LIMIT ${String(limit)}) latest
@@ -181,18 +201,18 @@ function toDecision(r: DecisionRow, missionRevision: number, names: boolean): Mi
   }
 }
 
-const ENTRY_COLUMNS = `e.id, e.kind, e.epistemic, e.state, t.body, e.authored_by, e.actor_id,
-  sophia.actor_label(e.project_id, e.actor_id, e.author_name) AS author_name, e.origin,
+const entryColumns = (labels: Labels) => `e.id, e.kind, e.epistemic, e.state, t.body, e.authored_by, e.actor_id,
+  ${LABEL[labels]}(e.project_id, e.actor_id, e.author_name) AS author_name, e.origin,
   e.exchange_id,
   e.input_epoch, e.related_entry_id, e.supersedes_entry_id,
   (SELECT n.id FROM sophia.mission_entries n WHERE n.project_id = e.project_id AND n.supersedes_entry_id = e.id LIMIT 1) AS superseded_by,
   e.goal_id, e.decision_id, e.source_id, s.sha256, e.ledger_revision, e.observed_at, e.recorded_at, e.changed_at`
 
 /** The newest entries matching `states`, oldest first, and how many more there are. */
-async function readEntries(c: pg.PoolClient, projectId: string, states: string[], limit: number) {
+async function readEntries(c: pg.PoolClient, labels: Labels, projectId: string, states: string[], limit: number) {
   const { rows } = await c.query<EntryRow>(
     // LEFT JOINs: a withdrawn note's source is deleted and hidden by RLS, and its tombstone still belongs in history.
-    `SELECT * FROM (SELECT ${ENTRY_COLUMNS} FROM sophia.mission_entries e
+    `SELECT * FROM (SELECT ${entryColumns(labels)} FROM sophia.mission_entries e
         LEFT JOIN sophia.source_objects s ON s.project_id = e.project_id AND s.id = e.source_id
         LEFT JOIN sophia.source_texts t ON t.project_id = s.project_id AND t.source_id = s.id
        WHERE e.project_id = $1 AND e.state = ANY($2)
@@ -361,17 +381,23 @@ function withDigest(body: Omit<MissionContext, 'digest'>): MissionContext {
   return { ...body, digest: createHash('sha256').update(JSON.stringify(body)).digest('hex') }
 }
 
-async function readLedger(c: pg.PoolClient, projectId: string, missionRevision: number, names: boolean) {
+async function readLedger(
+  c: pg.PoolClient,
+  labels: Labels,
+  projectId: string,
+  missionRevision: number,
+  names: boolean,
+) {
   const decisions = (where: string, order: string, limit: number) =>
-    readDecisions(c, projectId, where, order, limit).then((rows) =>
+    readDecisions({ c, labels, projectId }, where, order, limit).then((rows) =>
       rows.map((r) => toDecision(r, missionRevision, names)),
     )
   // Sequential on purpose: one connection, one REPEATABLE READ snapshot.
   const constraints = await decisions(`d.state = 'accepted' AND d.kind IN ('constraint', 'lesson')`, 'd.created_at', 50)
   const pending = await decisions(`d.state = 'proposed'`, 'd.created_at', 50)
   const decided = await decisions(`d.state IN ('rejected', 'superseded', 'accepted')`, 'd.decided_at', DECIDED_LIMIT)
-  const current = await readEntries(c, projectId, ['current'], ENTRY_LIMIT)
-  const past = await readEntries(c, projectId, ['superseded', 'withdrawn'], HISTORY_LIMIT)
+  const current = await readEntries(c, labels, projectId, ['current'], ENTRY_LIMIT)
+  const past = await readEntries(c, labels, projectId, ['superseded', 'withdrawn'], HISTORY_LIMIT)
   return { constraints, pending, decided, current, past }
 }
 
@@ -379,8 +405,30 @@ async function readLedger(c: pg.PoolClient, projectId: string, missionRevision: 
  * The mission context for one reader. Call inside withActor(..., "read"): RLS limits every table to the reader's
  * projects, so a non-member gets `null`.
  */
-export async function readMissionContext(
+export function readMissionContext(
   c: pg.PoolClient,
+  projectId: string,
+  reader: MissionReader,
+): Promise<MissionContext | null> {
+  return missionContext(c, 'api', projectId, reader)
+}
+
+/**
+ * The same mission context as the reply assembler reads it (conversation-assembly.ts): identical, but people are named
+ * through the claim-bound conversation_actor_label. Only for a transaction under the assembler role with its claim
+ * begun; not part of the package's API.
+ */
+export function readMissionContextForAssembly(
+  c: pg.PoolClient,
+  projectId: string,
+  reader: MissionReader,
+): Promise<MissionContext | null> {
+  return missionContext(c, 'assembly', projectId, reader)
+}
+
+async function missionContext(
+  c: pg.PoolClient,
+  labels: Labels,
   projectId: string,
   reader: MissionReader,
 ): Promise<MissionContext | null> {
@@ -389,7 +437,7 @@ export async function readMissionContext(
   const missionRevision = safeInt(project.mission_revision, 'missionRevision')
   const { mission, legacy } = missionFrame(project)
   const names = reader.names === true
-  const ledger = await readLedger(c, projectId, missionRevision, names)
+  const ledger = await readLedger(c, labels, projectId, missionRevision, names)
   const work = await readWork(c, projectId)
   const policy = notePolicy(await readNotePolicy(c, projectId, reader.actorId))
   const entries = ledger.current.rows.map((r) => toEntry(r, names))

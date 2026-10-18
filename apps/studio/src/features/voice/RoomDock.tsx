@@ -15,6 +15,10 @@ import type { DeviceKind } from './device-preference.ts'
 import { DeviceCheck } from './DeviceCheck.tsx'
 import { DeviceMenu } from './DeviceMenu.tsx'
 import { micOnJoin } from './mic-preference.ts'
+import { usePushToTalk } from './usePushToTalk.ts'
+import { useMirror } from './mirror-preference.ts'
+import { callClock, callClockWords } from './call-clock.ts'
+import { useNow } from '../../app/use-now.ts'
 import { PassMenu } from './PassMenu.tsx'
 import { ReactMenu } from './ReactMenu.tsx'
 import { Reactions } from './Reactions.tsx'
@@ -66,6 +70,8 @@ export function RoomDock(props: Props) {
   const live = room.status === 'live' || room.status === 'reconnecting'
   const wrap = useRef<HTMLDivElement>(null)
   useDockHeight(wrap)
+  const micOn = !!room.participants.find((p) => p.local)?.micOn
+  const talking = usePushToTalk(micOn, room.setMicrophone, live)
   return (
     <>
       {/* Beside the dock, not in it: the dock's measured height (--dock-h) is the dock's alone. */}
@@ -79,9 +85,15 @@ export function RoomDock(props: Props) {
           </p>
         )}
         {/* Speech on a muted microphone (muted-speech.md): said while it is still off. */}
-        {live && room.mutedHint && !room.participants.find((p) => p.local)?.micOn && (
+        {live && room.mutedHint && !micOn && (
           <p className="dock-note" role="status">
-            You’re muted. Turn the microphone on to be heard.
+            You’re muted. Hold Space to talk, or turn the microphone on.
+          </p>
+        )}
+        {/* Space held while muted (push-to-talk.md): said while it lasts. */}
+        {talking && (
+          <p className="dock-note" role="status">
+            Talking. Let go of Space to mute again.
           </p>
         )}
         <nav className="dock" aria-label="Room controls">
@@ -115,7 +127,7 @@ export const joinTip = (textMode: boolean) =>
 function CheckOpener({ room }: { room: ProjectRoom }) {
   const [open, setOpen] = useState(false)
   return (
-    <span className="device-menu">
+    <span className="device-menu device-check-open">
       <button
         type="button"
         className="device-open has-tip"
@@ -132,9 +144,9 @@ function CheckOpener({ room }: { room: ProjectRoom }) {
             list={room.listDevices}
             onChoose={(kind, id) => void room.switchDevice(kind, id)}
             onClose={() => setOpen(false)}
-            onJoin={() => {
+            onJoin={(chosen) => {
               setOpen(false)
-              void room.join()
+              void room.join(chosen)
             }}
           />,
           document.body,
@@ -213,6 +225,7 @@ export function TextMode({ on, onVoice }: { on: boolean; onVoice: () => void }) 
 }
 
 function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | undefined }) {
+  const mirror = useMirror()
   return (
     <>
       <Toggle
@@ -243,6 +256,8 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
         list={room.listDevices}
         onChoose={(kind, id) => void room.switchDevice(kind, id)}
         background={{ supported: room.backgroundsSupported, onChoose: (id) => void room.setBackground(id) }}
+        mirror={mirror}
+        incoming={{ on: room.incomingVideo, toggle: () => room.setIncomingVideo(!room.incomingVideo) }}
       />
       {canShareScreen && (
         <Toggle
@@ -257,12 +272,25 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
   )
 }
 
+/** How long this person's call has run, before Leave (room-basics.md): its time, and in words for a screen reader. */
+function CallClock({ since }: { since: number | null }) {
+  const now = useNow(1000)
+  if (since === null) return null
+  const ran = now - since
+  return (
+    <span className="dock-time" role="timer" aria-label={callClockWords(ran)}>
+      {callClock(ran)}
+    </span>
+  )
+}
+
 function LiveControls({ room, floor, projectId, identity, snapshot, sophia, onPassed }: Props) {
   const me = room.participants.find((p) => p.local)
   return (
     <>
       <MediaToggles room={room} me={me} />
-      <ReactMenu onReact={room.react} />
+      {/* A guest's token carries media only (livekit.ts): a reaction would reach nobody (guest-reactions.md). */}
+      {me?.standing !== 'guest' && <ReactMenu onReact={room.react} />}
       <span className="dock-sep" aria-hidden />
       {snapshot && me && (
         <FloorControl floor={floor} me={me.identity} context={{ projectId, identity, snapshot }} onPassed={onPassed} />
@@ -281,6 +309,7 @@ function LiveControls({ room, floor, projectId, identity, snapshot, sophia, onPa
         </>
       )}
       <span className="dock-sep" aria-hidden />
+      <CallClock since={room.liveSince} />
       <button
         type="button"
         className="round leave has-tip"

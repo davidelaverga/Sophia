@@ -541,8 +541,11 @@
 .places .hw-say input::placeholder {
   color: var(--text-3);
 }
+/* The line's key keeps the 16 px leading (in rem, it grows with a larger browser text) and no padding above or below:
+   18 px with its edge, as before, on the 4 px grid (type-scale.spec.ts). */
 .places .hw-say kbd {
   font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  padding-block: 0;
   color: var(--text-3);
 }
 /* A key only where there are keys: a touch screen has none to press. */
@@ -1445,6 +1448,12 @@
 .places .c2-t p {
   font-size: 13px;
 }
+/* Carry, and Forget beside it (personal-forget-note.md): one cell, after the words. */
+.places .c2-t .c2-acts {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 .places .c3-notes .c2-t.crossing {
   transform: translateX(120px);
   opacity: 0;
@@ -2313,6 +2322,29 @@
 .places .c3-find-notes {
   width: 100%;
   margin: 6px 0 4px;
+}
+/* Your notes, by date (docs/plans/notes-order-export.md): each one's day under its words, Newest or Oldest above them,
+   and the file beside Close. */
+.places .c2-t .c2-day {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-3);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.places .c3-order {
+  justify-self: start;
+  margin: 6px 0 2px;
+}
+.places .c3-notes .sheet-head .c3-download {
+  margin-left: auto;
+  margin-right: 6px;
+}
+.places .c3-write-status {
+  flex: none;
+  padding-right: 10px;
+  color: var(--text-3);
+  font-size: var(--type-small);
 }
 .places .c3-find-none {
   margin: 4px 0;

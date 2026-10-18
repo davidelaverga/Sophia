@@ -67,14 +67,20 @@ test('digest · in the demo, the meeting left now made nothing: the readout is t
   await expect(recap.getByRole('region', { name: 'Made' })).toHaveCount(0)
 })
 
-test('digest · each decided and kept line says when; a meeting’s recap does not (docs/plans/updates-when.md)', async ({
-  page,
-}) => {
-  await page.goto(PAGE)
-  await expect(part(page, 'Kept')).toContainText(/kept by Noor · \d+ days? ago/)
-  await expect(part(page, 'Decided')).toContainText(/decided by you · (\d+ (days?|h|min) ago|just now)/)
-  await page.getByRole('button', { name: /Oct 2, 09:30|Oct 2, 05:30/ }).click()
-  const recap = page.getByRole('dialog', { name: 'This meeting' })
-  await expect(recap).toContainText('kept by Noor')
-  await expect(recap).not.toContainText('kept by Noor ·')
+test.describe('the meeting’s time, read as the fixture’s clock names it (2026-10-02T09:30Z)', () => {
+  // The fixture's meeting starts at 09:30 UTC; the page shows it in the browser's zone, so the zone is the test's own,
+  // never the machine's (a CEST machine shows 11:30): the CI runner's, UTC.
+  test.use({ timezoneId: 'UTC' })
+
+  test('digest · each decided and kept line says when; a meeting’s recap does not (docs/plans/updates-when.md)', async ({
+    page,
+  }) => {
+    await page.goto(PAGE)
+    await expect(part(page, 'Kept')).toContainText(/kept by Noor · \d+ days? ago/)
+    await expect(part(page, 'Decided')).toContainText(/decided by you · (\d+ (days?|h|min) ago|just now)/)
+    await page.getByRole('button', { name: /Oct 2, 09:30|Oct 2, 05:30/ }).click()
+    const recap = page.getByRole('dialog', { name: 'This meeting' })
+    await expect(recap).toContainText('kept by Noor')
+    await expect(recap).not.toContainText('kept by Noor ·')
+  })
 })

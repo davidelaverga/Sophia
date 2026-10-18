@@ -20,6 +20,11 @@ CREATE TABLE sophia.project_seen (
 );
 ALTER TABLE sophia.project_seen ENABLE ROW LEVEL SECURITY;
 
+-- A task's admitting event, found from the task (update_asker, version_asker) rather than by reading the project's whole
+-- history once per report line: exactly their predicates, in their order (FND-B-UPDATES-INDEX-AND-CAUSAL-QUALIFICATION-01).
+CREATE INDEX project_events_job_admission_idx ON sophia.project_events(project_id,entity_id,sequence)
+ WHERE entity_type='job' AND type='native_task.admitted';
+
 -- Who asked for a task: the actor of its admitting event, when the reader may read that event; else null.
 CREATE FUNCTION sophia.update_asker(p_project uuid, p_job uuid, p_reader uuid) RETURNS uuid LANGUAGE sql STABLE
 SET search_path=pg_catalog,sophia AS $$

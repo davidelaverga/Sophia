@@ -86,6 +86,7 @@ export interface PlacesProps {
   onOpenView: (projectId: string, view: ProjectView, at: NeedAt) => void
   onChooseDev: (identity: Identity | null) => void
   onSignOut: () => void
+  onSignOutEverywhere: () => void
 }
 
 const ANNOUNCE: Record<Place, string> = {
@@ -416,7 +417,7 @@ function Home({ v }: { v: View }) {
   const projects = v.projects.data?.projects
   const fresh = !!data && data.turns.length === 0 && data.notes.length === 0
   return (
-    <div className="c-home" data-place-view="home" hidden={!v.shown.includes('home')}>
+    <div className="c-home" data-place-view="home" data-content hidden={!v.shown.includes('home')}>
       <Welcome
         hello={greeting(now.getHours(), null, fresh)}
         name={firstName(props.identity)}
@@ -538,6 +539,7 @@ function Bar({ v }: { v: View }) {
         data: () => layers.setData(true),
         chooseDev: props.onChooseDev,
         signOut: props.onSignOut,
+        signOutEverywhere: props.onSignOutEverywhere,
       }}
     />
   )

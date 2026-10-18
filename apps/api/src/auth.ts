@@ -86,7 +86,8 @@ const FITS = /^.{1,60}$/su
 
 /**
  * The account provider's name for a person, from the verified token's user_metadata: the first of NAME_KEYS that is a
- * non-blank string, trimmed, at most 60 characters, and not an address. The database checks it again.
+ * non-blank string, trimmed, at most 60 characters, and not an address. A claim that can't be one is skipped for the
+ * next (an address as full_name, a usable user_name after it); none usable, no name. The database checks it again.
  */
 export function providerName(metadata: unknown, contact: string | null): string | null {
   if (typeof metadata !== 'object' || metadata === null) return null
@@ -96,7 +97,7 @@ export function providerName(metadata: unknown, contact: string | null): string 
     if (typeof value !== 'string') continue
     const name = value.trim()
     if (!name) continue
-    if (name.includes('@') || !FITS.test(name) || name.toLowerCase() === contact?.toLowerCase()) return null
+    if (name.includes('@') || !FITS.test(name) || name.toLowerCase() === contact?.toLowerCase()) continue
     return name
   }
   return null

@@ -4,7 +4,7 @@
 // suggested: saying nothing beats guessing. The quick asks under the field drop what was asked lately and the
 // suggestion. Pure, so a node test holds the order; never presented as Sophia's words.
 import type { MissionContext } from '@sophia/contracts'
-import type { ConversationMessage } from '../../api/vision.ts'
+import type { ConversationMessage } from '../../api/conversations.ts'
 import { acceptedOf, pendingOf } from './conversation-list.ts'
 
 /** What everyone asks: Sophia, in one press. */
@@ -112,7 +112,9 @@ export function threadOf(
   const all = read?.pages.toReversed().flatMap((p) => p.messages) ?? []
   const last = all.at(-1)
   const newest = !last ? null : last.author === 'sophia' ? 'sophia' : last.actorId === me ? 'mine' : 'theirs'
-  return { newest, asked: all.filter((m) => m.author === 'member' && m.actorId === me).map((m) => m.text) }
+  // A withdrawn message has no words (A18 on CON-01): it asked nothing.
+  const asked = all.flatMap((m) => (m.author === 'member' && m.actorId === me && m.text !== null ? [m.text] : []))
+  return { newest, asked }
 }
 
 /** A page of the thread as the API gives it: oldest first, and the page before it. */
@@ -137,7 +139,10 @@ export async function olderAsks(
   if (before === null || need <= 0) return { asks: [], complete: true }
   if (pages <= 0) return { asks: [], complete: false }
   const page = await read(before)
-  const mine = page.messages.filter((m) => m.author === 'member' && m.actorId === me).map((m) => m.text)
+  // A withdrawn message has no words: nothing it asked counts.
+  const mine = page.messages.flatMap((m) =>
+    m.author === 'member' && m.actorId === me && m.text !== null ? [m.text] : [],
+  )
   const earlier = await olderAsks(read, page.before, me, need - mine.length, pages - 1)
   return { asks: [...earlier.asks, ...mine], complete: earlier.complete }
 }

@@ -4,7 +4,10 @@
 // (personal-notes-write-find.md).
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { PersonalNote, ProjectSummary } from '@sophia/contracts'
-import { ConfirmButton, EmptyState, Field, Icon, Search, Tip } from '@sophia/ui'
+import { ConfirmButton, EmptyState, Field, Icon, Search, Segmented, Tip } from '@sophia/ui'
+import { saveBlob } from '../artifacts/download.ts'
+import { dayOf } from '../../app/time-words.ts'
+import { notesFile, notesFileName, orderNotes, type NotesOrder } from './notes-export.ts'
 import type { Memory as Remembered } from './extras.ts'
 import { focusSoon } from './focus.ts'
 import { Memory } from './Memory.tsx'
@@ -74,6 +77,12 @@ function WriteNote({ onWrite }: { onWrite: (text: string) => Promise<boolean> })
         readOnly={sending}
         onChange={(e) => setText(e.target.value)}
       />
+      {/* While it goes, said: the field alone, read-only, doesn't say why (Codex P2 on #363). */}
+      {sending && (
+        <span className="c3-write-status" role="status">
+          Keeping…
+        </span>
+      )}
     </Field>
   )
 }
@@ -193,18 +202,20 @@ export function NotesPanel(props: Props) {
   const panel = useRef<HTMLElement>(null)
   const { carrying, setCarrying, crossing, carry } = useCarry(panel, onCarry)
   const crossed = (id: string) => crossing === id || props.carrying(id)
-  const forget = useForget(panel, notes, props.onForget)
+  const find = useFind(notes)
+  // The next note is the next one shown, in the order chosen and as Find leaves them (Codex P2 on #394).
+  const forget = useForget(panel, find.shown, props.onForget)
   // The package, open: it replaces the notes' own Carry, so one writer carries at a time; while a step of it runs
   // (carrying, taking back), the notes stay open, so what it says stays in sight.
   const [packing, setPacking] = useState(false)
   const [packBusy, setPackBusy] = useState(false)
-  const find = useFind(notes)
   // Focus the panel itself: a tip should appear when you reach a control, not the moment the notes open.
   useEffect(() => panel.current?.focus({ preventScroll: true }), [])
   return (
     <aside ref={panel} id="c-notes" className="c3-notes" aria-labelledby="c-notes-h" tabIndex={-1} inert={props.under}>
       <header className="sheet-head">
         <h2 id="c-notes-h">Notes</h2>
+        <DownloadNotes notes={notes} />
         <CloseNotes waits={packBusy} onClose={onClose} />
       </header>
       {props.memory && <Memory {...props.memory} />}
@@ -216,10 +227,17 @@ export function NotesPanel(props: Props) {
       {!packing &&
         find.shown.map((note) => (
           <div key={note.id} className={`c2-t${crossed(note.id) ? ' crossing' : ''}`} inert={crossed(note.id)}>
-            <p>
-              {note.text}
-              {note.keptBy === 'sophia' && <span className="by">from Sophia</span>}
-            </p>
+            {/* The words with their day under them, then Carry and Forget beside them (Codex P2 on #394). */}
+            <div className="c2-words">
+              <p>
+                {note.text}
+                {note.keptBy === 'sophia' && <span className="by">from Sophia</span>}
+              </p>
+              {/* Its day, after the words, not in them: Find and the notes read the words alone. */}
+              <time className="c2-day" dateTime={note.createdAt}>
+                {dayOf(note.createdAt, Date.now())}
+              </time>
+            </div>
             <NoteActs
               noteId={note.id}
               open={carrying === note.id}
@@ -247,12 +265,51 @@ export function NotesPanel(props: Props) {
 
 type Find = ReturnType<typeof useFind>
 
-/** What is typed in Find, and the notes it leaves; from six notes only, all of them before. */
+/**
+ * What is typed in Find, and the notes it leaves (from six notes only, all of them before), in the order chosen,
+ * newest first unless Oldest is (notes-order-export.md).
+ */
 function useFind(notes: readonly PersonalNote[] | undefined) {
   const [typed, setTyped] = useState('')
+  const [order, setOrder] = useState<NotesOrder>('newest')
   const all = notes ?? []
   const offered = all.length >= FIND_FROM
-  return { offered, typed, setTyped, shown: findNotes(all, offered ? typed : '') }
+  return { offered, typed, setTyped, order, setOrder, shown: orderNotes(findNotes(all, offered ? typed : ''), order) }
+}
+
+const ORDERS = [
+  { id: 'newest', label: 'Newest' },
+  { id: 'oldest', label: 'Oldest' },
+] as const
+
+/** Newest or Oldest first, from two notes up (notes-order-export.md). */
+function OrderNotes({ find }: { find: Find }) {
+  return (
+    <Segmented
+      role="radiogroup"
+      label="Order"
+      size="sm"
+      className="c3-order"
+      items={ORDERS}
+      value={find.order}
+      onChange={find.setOrder}
+    />
+  )
+}
+
+/** «Download notes»: a Markdown file of every note, oldest first, once there is one (notes-order-export.md). */
+function DownloadNotes({ notes }: { notes: readonly PersonalNote[] | undefined }) {
+  if (!notes || notes.length === 0) return null
+  const save = () => {
+    const now = new Date()
+    saveBlob(new Blob([notesFile(notes, now)], { type: 'text/markdown' }), notesFileName(now))
+  }
+  return (
+    <button type="button" className="round has-tip c3-download" aria-label="Download notes" onClick={save}>
+      <Icon name="download" />
+      <Tip label="Download notes" side="bottom" align="end" />
+    </button>
+  )
 }
 
 /** Above the notes: the line to write one, none yet said, and Find; out of the way while a package is reviewed. */
@@ -265,8 +322,10 @@ function NotesTop(props: {
   const { packing, notes, find } = props
   return (
     <>
-      {!packing && <WriteNote onWrite={props.onWrite} />}
+      {/* Once the notes are read: a note is written against the space they came with (Codex P2 on #363). */}
+      {!packing && notes !== undefined && <WriteNote onWrite={props.onWrite} />}
       {notes?.length === 0 && <EmptyState className="ps-empty">{NOTES_EMPTY}</EmptyState>}
+      {!packing && notes !== undefined && notes.length >= 2 && <OrderNotes find={find} />}
       {!packing && find.offered && <FindNotes typed={find.typed} onTyped={find.setTyped} found={find.shown.length} />}
     </>
   )
@@ -292,7 +351,7 @@ function FindNotes(props: { typed: string; onTyped: (typed: string) => void; fou
 /** A note's acts: Carry, and Forget, which asks first since its words go for good (personal-forget-note.md). */
 function NoteActs(props: { noteId: string; open: boolean; onCarry: () => void; onForget: () => void }) {
   return (
-    <>
+    <span className="c2-acts">
       <button
         className="ghost"
         type="button"
@@ -309,7 +368,7 @@ function NoteActs(props: { noteId: string; open: boolean; onCarry: () => void; o
         keep="Keep it"
         onConfirm={props.onForget}
       />
-    </>
+    </span>
   )
 }
 

@@ -14,6 +14,7 @@ process.env.VITE_SOPHIA_MESSAGE_ACTS = '1'
 process.env.VITE_SOPHIA_MENTIONS = '1'
 
 const fakeLiveKit = fileURLToPath(new URL('./fixtures/fake-livekit.ts', import.meta.url))
+const fixtureCrashDsn = fileURLToPath(new URL('./fixtures/crash-dsn.ts', import.meta.url))
 const studioPage = fileURLToPath(new URL('./index.html', import.meta.url))
 /** index.html's early script (signed-in-load.ts), and the path these servers serve it at: their root is fixtures/. */
 const EARLY = '/src/app/signed-in-load.ts'
@@ -32,6 +33,14 @@ const noLiveKit: Plugin = {
   resolveId: (source, importer) =>
     // Vite's ids use forward slashes on every platform.
     source === './livekit-room.ts' && importer?.endsWith('/src/features/voice/useProjectRoom.ts') ? fakeLiveKit : null,
+}
+
+/** The crash reports' DSN on the fixture pages: `?sentry=1` turns them on (fixtures/crash-dsn.ts, crash-feedback.md). */
+const crashDsn: Plugin = {
+  name: 'sophia-fixture-crash-dsn',
+  enforce: 'pre',
+  resolveId: (source, importer) =>
+    source === './crash-dsn.ts' && importer?.endsWith('/src/app/crash-report.ts') ? fixtureCrashDsn : null,
 }
 
 /**
@@ -66,7 +75,7 @@ const openingPage = studioPageAs('/opening.html', '/opening.tsx')
 // directory serves them.
 export default defineConfig({
   root: fileURLToPath(new URL('./fixtures', import.meta.url)),
-  plugins: [noLiveKit, openingPage, react()],
+  plugins: [noLiveKit, crashDsn, openingPage, react()],
   // The Studio's own public files (the opening's stylesheet and script, the brand).
   publicDir: fileURLToPath(new URL('./public', import.meta.url)),
   server: {

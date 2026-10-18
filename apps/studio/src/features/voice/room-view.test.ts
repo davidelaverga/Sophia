@@ -4,13 +4,16 @@ import type { Goal, NativeTask } from '@sophia/contracts'
 import {
   floorView,
   mediaMessage,
+  mutedMic,
   orderParticipants,
   presenceRole,
   presenceSlots,
+  RECONNECTING,
   roomLine,
   runningWork,
   soleWorkingTask,
   screenCaption,
+  showScreenLabel,
   shortName,
   stageMode,
   standingOf,
@@ -116,6 +119,13 @@ describe('floor view', () => {
 describe('what sets someone apart', () => {
   const guest = { ...person('g', 'Luis'), standing: 'guest' as const }
 
+  it('says a microphone is muted when it is off, whoever’s: a viewer speaks too (A06; Codex P2 on #411)', () => {
+    assert.equal(mutedMic({ ...davide, micOn: false }), true)
+    assert.equal(mutedMic({ ...guest, micOn: false }), true)
+    assert.equal(mutedMic(davide), false)
+    assert.equal(mutedMic({ ...davide, micOn: false, standing: 'viewer' }), true)
+  })
+
   it('says one thing about a person, or nothing', () => {
     assert.equal(presenceRole(davide, true), 'has the floor')
     assert.equal(presenceRole({ ...davide, speaking: true }, false), 'speaking')
@@ -132,6 +142,12 @@ describe('what sets someone apart', () => {
     assert.equal(screenCaption(davide), 'Davide’s screen')
     assert.equal(screenCaption(guest), 'Luis’s screen · guest')
     assert.equal(screenCaption(undefined), 'Shared screen')
+  })
+
+  it('offers another screen in the caption’s words, a guest still one (Codex P2 on #358)', () => {
+    assert.equal(showScreenLabel(davide), 'Show Davide’s screen')
+    assert.equal(showScreenLabel(guest), 'Show Luis’s screen · guest')
+    assert.equal(showScreenLabel(undefined), 'Show the other shared screen')
   })
 })
 
@@ -175,6 +191,11 @@ describe('room stage', () => {
     assert.equal(roomLine('live', floorView('b', [luis]), 0).text, 'Someone has the floor but isn’t here')
     assert.equal(roomLine('live', free, 2).note, 'Working on 2 tasks in the background')
     assert.equal(roomLine('idle', free, 1).note, 'Working on 1 task in the background')
+  })
+
+  it('one word for a call coming back, on the line and over the video (Codex P1 on #403)', () => {
+    assert.equal(RECONNECTING, 'Reconnecting…')
+    assert.equal(roomLine('reconnecting', floorView(null, [luis, davide]), 0).text, RECONNECTING)
   })
 
   it('says what she is doing in place of the count, and never over her own note', () => {

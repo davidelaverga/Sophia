@@ -505,17 +505,50 @@ function Light({
 /** Home's one column (personal.css, ≤ 860 px): there what needs you comes right after the greeting. */
 const ONE_COLUMN = '(max-width: 860px)'
 
+/** «What needs you», wherever it is mounted. */
+const NEEDS = '[aria-label="What needs you"]'
+
+/**
+ * The focus kept on a need when the list moves across 860 px (home-needs-focus.md; Codex P2 on #289): which need had
+ * it is remembered by its id, forgotten once the focus goes elsewhere, and that need takes it again after the move if
+ * the focus fell to the page. By the need, not its place: the list is read again every 20 s, and a need may come ahead
+ * or leave (Codex P2 on #377). One that left takes nothing with it.
+ */
+function useNeedsFocus(home: RefObject<HTMLDivElement | null>, oneColumn: boolean) {
+  const kept = useRef<string | null>(null)
+  useEffect(() => {
+    const el = home.current
+    const onFocus = (e: FocusEvent) => {
+      const target = e.target instanceof Element ? e.target : null
+      const row = target?.closest(NEEDS) ? target.closest<HTMLElement>('[data-need]') : null
+      kept.current = row?.dataset.need ?? null
+    }
+    el?.addEventListener('focusin', onFocus)
+    return () => el?.removeEventListener('focusin', onFocus)
+  }, [home])
+  useLayoutEffect(() => {
+    const need = kept.current
+    const fell = document.activeElement === null || document.activeElement === document.body
+    if (need === null || !fell) return
+    const rows = home.current?.querySelector(NEEDS)?.querySelectorAll<HTMLElement>('[data-need]') ?? []
+    // By the dataset, so an id such as permission:wait-w1 needs no escaping in a selector.
+    for (const row of rows) if (row.dataset.need === need) row.focus()
+  }, [home, oneColumn])
+}
+
 export function Welcome(props: Props) {
   const [talk, setTalk] = useState<Talk>({ writing: false })
   const line = useRef<HTMLElement | null>(null)
   // Mounted where it is read: on one column right after the greeting, in the document as on the screen, so a keyboard
   // and a screen reader meet it where the eye does (docs/plans/home-phone-needs.md); beside the words otherwise.
   const oneColumn = useMedia(ONE_COLUMN)
+  const home = useRef<HTMLDivElement>(null)
+  useNeedsFocus(home, oneColumn)
   const needs = props.needs && (
     <NeedsYou needs={props.needs.items} now={onService(props.now, props.needs.skew)} onOpen={props.needs.open} />
   )
   return (
-    <div className="hw">
+    <div className="hw" ref={home}>
       <div className="hw-col">
         <Greeting hello={props.hello} name={props.name} date={props.date} says={props.says} />
         {props.invited}

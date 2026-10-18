@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type pg from 'pg'
 import type { FloorRequest, RoomTokenRequest } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
@@ -22,8 +22,9 @@ import {
   stopCamera,
   stopScreen,
   type LiveKitConfig,
+  type PartialMute,
 } from '../livekit.ts'
-import { recordedIfDone } from './host-acts.ts'
+import { recordedIfDone, recordedStop } from './host-acts.ts'
 import { namesOf } from './profile.ts'
 import { idempotencyHeader, projectParams } from './schemas.ts'
 
@@ -139,7 +140,7 @@ function moreHostControls(app: FastifyInstance, deps: Deps): void {
         if (req.params.identity === req.actorId) throw new DomainError('invalid_request', 'Your own call is yours')
         if (!(await memberInRoom(lk, roomId, req.params.identity)))
           throw new DomainError('invalid_request', 'They aren’t a member in the call')
-        await recordedIfDone(stop(lk, roomId, req.params.identity), () =>
+        await recordedStop(stop(lk, roomId, req.params.identity), () =>
           withActor(deps.pool, req.actorId, 'write', (c) =>
             recordRoomAct(c, req.params.projectId, req.params.identity, act),
           ),
@@ -153,12 +154,40 @@ function moreHostControls(app: FastifyInstance, deps: Deps): void {
     { schema: { params: projectParams } },
     async (req, reply) => {
       const { roomId, lk } = await hostRoom(deps, req.actorId, req.params.projectId)
-      await recordedIfDone(muteEveryone(lk, roomId, req.actorId), () =>
-        withActor(deps.pool, req.actorId, 'write', (c) => recordRoomAct(c, req.params.projectId, null, 'mute_all')),
+      await recordedIfDone(
+        muteEveryone(lk, roomId, req.actorId),
+        () =>
+          withActor(deps.pool, req.actorId, 'write', (c) => recordRoomAct(c, req.params.projectId, null, 'mute_all')),
+        (partial) => recordMembersMuted(deps, req, partial),
       )
       return reply.code(204).send()
     },
   )
+}
+
+const MEMBER_STANDINGS: ReadonlySet<string> = new Set(['admin', 'editor', 'viewer'])
+
+/**
+ * A mute-all the room server failed partway (Codex P2 on #385): never «muted everyone». Each member it did mute is
+ * recorded as that member muted (record_host_act, 0057), one by one; the request still fails. A guest it muted has no
+ * activity the project can name (0057 names members only): not recorded, never written as a member's or everyone's.
+ * A member the database no longer admits is not recorded either; the failure says so in the log.
+ */
+async function recordMembersMuted(
+  deps: Deps,
+  req: FastifyRequest<{ Params: { projectId: string } }>,
+  partial: PartialMute,
+) {
+  for (const p of partial.participants) {
+    if (!MEMBER_STANDINGS.has(p.standing)) continue
+    try {
+      await withActor(deps.pool, req.actorId, 'write', (c) =>
+        recordHostAct(c, req.params.projectId, p.identity, 'mute'),
+      )
+    } catch (err: unknown) {
+      req.log.warn({ target: p.identity, err }, 'a member muted by a partial mute-all could not be recorded')
+    }
+  }
 }
 
 /**

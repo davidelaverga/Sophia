@@ -1334,16 +1334,19 @@ test('codex · a send that fails comes back beside words another tab kept meanwh
   page,
   context,
 }) => {
-  // Tab A sends slowly, and fails; it hears no other tab (their storage events haven't reached it yet).
-  await page.goto(`${PAGE}?slow=1&sendFails=1`)
+  // Tab A sends, held on its way until B has kept its words, then fails; it hears no other tab (their storage events
+  // haven't reached it yet). The hold orders the two tabs: a timed delay let A fail before B's words were checked.
+  await page.goto(`${PAGE}?holdSend=1&sendFails=1`)
   await page.evaluate(() => window.addEventListener('storage', (e) => e.stopImmediatePropagation(), true))
   await field(page).fill('From A.')
   await page.keyboard.press('Enter')
+  await page.waitForFunction(() => window.personalFixture?.releaseSend !== undefined)
   // Tab B, meanwhile: words from Home that can't go while A sends, kept in the field and on the device.
   const other = await context.newPage()
   await other.goto(`${PAGE}?handed=${encodeURIComponent('From B.')}`)
   await expect(field(other)).toHaveValue('From B.')
   // A's send fails: its words come back, and B's stay.
+  await page.evaluate(() => window.personalFixture?.releaseSend?.())
   await expect(field(page)).toHaveValue('From A.\nFrom B.', { timeout: 5000 })
   const kept = await page.evaluate(() => localStorage.getItem('sophia.personal.draft.v2.fixture') ?? '')
   expect(kept).toContain('From A.')
@@ -1550,4 +1553,19 @@ test('personal · a day divider’s day is data at the label size, as dates and 
   const day = page.locator('.places .c3-day').first()
   await expect(day).toBeVisible()
   expect(await day.evaluate((el) => getComputedStyle(el).fontSize)).toBe('10.5px')
+})
+
+// Find matches whatever the accents, as the notes' search does (docs/plans/find-accents.md), and marks the words as
+// they were written.
+test('ease · Find matches whatever the accents, and marks the words as written', async ({ page }) => {
+  await page.goto(PAGE)
+  await field(page).fill('Un café con Lucía, mañana temprano.')
+  await field(page).press('Enter')
+  await expect(page.locator('.msg.me .body').last()).toHaveText('Un café con Lucía, mañana temprano.')
+  await page.getByRole('button', { name: 'Find', exact: true }).click()
+  await finder(page).fill('cafe')
+  await expect(findCount(page)).toHaveText('1 of 1')
+  await expect(page.locator('.msgs mark.current')).toHaveText('café')
+  await finder(page).fill('MANANA')
+  await expect(page.locator('.msgs mark.current')).toHaveText('mañana')
 })

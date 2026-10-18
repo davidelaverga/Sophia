@@ -2,8 +2,8 @@
 // (JoinFlow), its four requests answered here instead of the API, and the call over the fake LiveKit every fixture
 // page uses. The link's token is in the fragment, as an invitation link carries it.
 //
-// A guest's invitation (a member's needs the sign-in the fixture pages don't have); `state=expired|revoked|used_up`: a
-// closed link;
+// A guest's invitation, or with `kind=member` a member's, whose sign-in is drawn up to the send (sending needs the Auth
+// the fixture pages don't have); `state=expired|revoked|used_up`: a closed link;
 // `session=1`: the invitation names a session; `answer=admit|deny|block`: how the room answers the knock (otherwise
 // it waits until `window.joinFixture.answer(…)`). `window.joinFixture.asked` lists each request, in order.
 import '@fontsource-variable/geist/wght.css'
@@ -14,6 +14,7 @@ import { createRoot } from 'react-dom/client'
 import type { InvitationPreview, LobbyEntry } from '@sophia/contracts'
 import { JoinFlow } from '../src/features/access/JoinFlow.tsx'
 import { DEMO, DEMO_LABEL, DEMO_PROJECT } from './demo.ts'
+import { signViewerAs } from './fake-livekit.ts'
 import '../src/app/theme.css'
 import { bootTheme } from '../src/app/theme.ts'
 
@@ -35,12 +36,15 @@ if (!window.location.hash) window.location.hash = 'fixtureInvitationTokenAbcdefg
 const asked: string[] = []
 const at = (msAgo: number) => new Date(Date.now() - msAgo).toISOString()
 
+/** `kind=member`: an editor's invitation by email, as an admin sends one to a new teammate. */
+const member = query.get('kind') === 'member'
+
 const preview: InvitationPreview = {
   projectTitle: DEMO ? DEMO_PROJECT : 'Fixture project',
   inviterName: DEMO ? 'lucia.marin@sophia.test' : 'host@sophia.test',
-  kind: 'guest',
-  role: null,
-  email: null,
+  kind: member ? 'member' : 'guest',
+  role: member ? 'editor' : null,
+  email: member ? 'ana@sophia.test' : null,
   expiresAt: at(-86_400_000),
   session:
     query.get('session') === '1'
@@ -110,13 +114,15 @@ window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 const guest = { name: 'Fixture guest', token: 'fixture-guest-token', role: 'guest' as const }
+// The room token the door issues is a guest's, as the API signs it: media only, no data channel (livekit.ts).
+signViewerAs('guest')
 
 const root = document.getElementById('root')
 if (!root) throw new Error('no #root')
 createRoot(root).render(
   <StrictMode>
     <p className="fixture-label" role="note" data-demo={DEMO || undefined}>
-      {DEMO ? DEMO_LABEL : 'Fixture · the guest’s side of the door'}
+      {DEMO ? DEMO_LABEL : member ? 'Fixture · an invited member’s sign-in' : 'Fixture · the guest’s side of the door'}
     </p>
     <QueryClientProvider client={queryClient}>
       <JoinFlow

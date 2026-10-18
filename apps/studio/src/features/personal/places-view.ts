@@ -7,6 +7,7 @@ import { shortName } from '../voice/room-view.ts'
 import type { Way } from './arrive.ts'
 import { dayLabel, topicOf } from './conversation-view.ts'
 import { clock, dayInSentence, inTime } from '../../app/time-words.ts'
+import { foldForSearch } from '../../app/search-fold.ts'
 
 const MINUTE = 60_000
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
@@ -302,12 +303,8 @@ export function workOrder(projects: readonly ProjectSummary[], now: Date): Proje
 /** From how many projects Work offers finding one and ordering them (find-projects.md). */
 export const FIND_FROM = 6
 
-/** A title as a search compares it: no case, no accents. */
-const plain = (text: string) =>
-  text
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
+/** A title as a search compares it: no case, no accents, as every search folds (search-fold.ts). */
+const plain = foldForSearch
 
 /** The notes whose words hold what is typed, whatever its case or accents, in their order (personal-notes-write-find.md). */
 export function findNotes<T extends { text: string }>(notes: readonly T[], typed: string): T[] {

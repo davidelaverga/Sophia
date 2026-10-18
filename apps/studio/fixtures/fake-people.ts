@@ -102,8 +102,12 @@ export function personLeaves(name: string): void {
   changed()
 }
 
-/** Who an admin muted, took out of the call, or whose camera or screen they stopped (host-controls.md, host-more.md). */
-const muted = new Set<string>()
+/**
+ * Who an admin muted, took out of the call, or whose camera or screen they stopped (host-controls.md, host-more.md).
+ * `muted=n`: the `n`th other person came in with their microphone off.
+ */
+const mutedAtFirst = oneOfUs(query.get('muted'), false)
+const muted = new Set<string>(mutedAtFirst === null ? [] : [personId(mutedAtFirst)])
 const removed = new Set<string>()
 const cameraOff = new Set<string>()
 const screenOff = new Set<string>()
@@ -242,6 +246,28 @@ function feed(n: number, source: 'camera' | 'screen'): VideoFeed {
     identity: personId(n),
     source,
     local: false,
+    attach: (el) => {
+      el.srcObject = media
+    },
+    detach: (el) => {
+      el.srcObject = null
+    },
+  }
+  kept.set(key, made)
+  return made
+}
+
+/** The viewer's own camera, once they turn it on: local, as LiveKit's own track is (room-basics.md). */
+export function ownFeed(identity: string): VideoFeed {
+  const key = `${identity}:camera`
+  const known = kept.get(key)
+  if (known) return known
+  const media = stream('You', false)
+  const made: VideoFeed = {
+    key,
+    identity,
+    source: 'camera',
+    local: true,
     attach: (el) => {
       el.srcObject = media
     },

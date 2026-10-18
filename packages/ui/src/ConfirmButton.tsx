@@ -1,6 +1,6 @@
 // A button whose action cuts someone off asks first, in place: what will happen, then the choice. Focus goes
 // to the safe answer, so a second Enter never confirms by accident.
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Tip } from './Tip.tsx'
 
 interface Props {
@@ -28,8 +28,34 @@ interface Props {
   tipAlign?: 'center' | 'end'
 }
 
+/** The button at rest. Waiting, it keeps the focus it was given back (Codex P1 on #356): said, not natively disabled. */
+function AtRest({
+  props,
+  rest,
+  onPress,
+}: {
+  props: Props
+  rest: RefObject<HTMLButtonElement | null>
+  onPress: () => void
+}) {
+  const { label, className = 'ghost', disabled = false } = props
+  const tipped = Boolean(props.keys || props.tip)
+  return (
+    <button
+      ref={rest}
+      type="button"
+      className={tipped ? `${className} has-tip` : className}
+      aria-disabled={disabled || undefined}
+      onClick={() => !disabled && onPress()}
+    >
+      {label}
+      {tipped && <Tip label={props.tip ?? label} keys={props.keys} side="top" align={props.tipAlign ?? 'center'} />}
+    </button>
+  )
+}
+
 export function ConfirmButton(props: Props) {
-  const { label, warning, confirm, keep = 'Keep', className = 'ghost', disabled = false, onAsk, onConfirm } = props
+  const { label, warning, confirm, keep = 'Keep', onAsk, onConfirm } = props
   const confirmDisabled = props.confirmDisabled ?? false
   const [asking, setAsking] = useState(false)
   const safe = useRef<HTMLButtonElement>(null)
@@ -48,21 +74,14 @@ export function ConfirmButton(props: Props) {
   }, [asking])
   if (!asking) {
     return (
-      <button
-        ref={rest}
-        type="button"
-        className={props.keys || props.tip ? `${className} has-tip` : className}
-        disabled={disabled}
-        onClick={() => {
+      <AtRest
+        props={props}
+        rest={rest}
+        onPress={() => {
           setAsking(true)
           onAsk?.()
         }}
-      >
-        {label}
-        {(props.keys || props.tip) && (
-          <Tip label={props.tip ?? label} keys={props.keys} side="top" align={props.tipAlign ?? 'center'} />
-        )}
-      </button>
+      />
     )
   }
   return (

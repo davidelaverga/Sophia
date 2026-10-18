@@ -36,3 +36,16 @@ test('notes · with fewer than six, there is nothing to find', async ({ page }) 
   await expect(listed(page).first()).toBeVisible()
   await expect(find(page)).toHaveCount(0)
 })
+
+test('notes · the field waits for the notes, and says Keeping… while a note goes (Codex P2s on #363)', async ({
+  page,
+}) => {
+  await page.goto('/personal.html?notes=open&ready=1&spaceAfter=1200&keepSlow=1')
+  await expect(field(page)).toHaveCount(0)
+  await expect(field(page)).toBeVisible()
+  await field(page).fill('Ask Bea about Friday')
+  await field(page).press('Enter')
+  await expect(panel(page).getByRole('status').filter({ hasText: 'Keeping…' })).toBeVisible()
+  await expect(listed(page).filter({ hasText: 'Ask Bea about Friday' })).toHaveCount(1)
+  await expect(panel(page).getByText('Keeping…')).toHaveCount(0)
+})

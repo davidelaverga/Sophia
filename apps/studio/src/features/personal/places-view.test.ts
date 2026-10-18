@@ -250,9 +250,10 @@ describe('home, as a place that knows where you’ll go', () => {
 })
 
 describe('your data', () => {
-  it('counts days with Sophia by the days the person wrote, and copies everything as text', () => {
+  it('counts days with Sophia by the days the person wrote, and copies everything as text', (t) => {
     const everything: PersonalExport = {
-      exportedAt: NOW.toISOString(),
+      // The export's own time, after every turn, not the device's (Codex P2 on #405).
+      exportedAt: inMin(3),
       next: null,
       turns: [
         turn('I have a pitch', 60 * 24),
@@ -280,12 +281,20 @@ describe('your data', () => {
     }
     // Days are the server's count over the whole conversation (a long one lists only its newest turns).
     assert.deepEqual(factsOf({ ...everything, days: 31 }), { days: 31, notes: 1, carried: 1 })
-    const text = exportText(everything, 'Ana', NOW)
-    assert.match(text, /^Ana · personal space with Sophia\n\nNotes:\n- Take a day off/)
+    // The device's clock is years off: the copy never reads it.
+    t.mock.timers.enable({ apis: ['Date'], now: new Date(2030, 0, 1) })
+    const text = exportText(everything, 'Ana')
+    t.mock.timers.reset()
+    // A copy is read another day (export-dates.md): its days are dates, its messages say when, and it says when it was
+    // made, by the export's own time.
+    assert.match(
+      text,
+      /^Ana · personal space with Sophia\nAs of Wednesday, September 30, 2026, 21:03\n\nNotes:\n- Take/,
+    )
     assert.match(text, /Carried to projects:\n- Ask Luis \(Launch plan\)/)
     assert.match(
       text,
-      /\nYesterday\nYou: I have a pitch\n\nToday\nYou: Still here\nSophia: Glad you are\n {2}Suggested note, not kept: Pitch on Friday$/,
+      /\nTuesday, September 29, 2026\n21:00 You: I have a pitch\n\nWednesday, September 30, 2026\n20:55 You: Still here\n20:56 Sophia: Glad you are\n {2}Suggested note, not kept: Pitch on Friday$/,
     )
     assert.equal(confirmsErasure(' Delete '), true)
     assert.equal(confirmsErasure('del'), false)
@@ -452,5 +461,17 @@ describe('finding a note (personal-notes-write-find.md)', () => {
 
   it('keeps them all for nothing typed', () => {
     assert.equal(findNotes(notes, '  ').length, 3)
+  })
+
+  it('folds case as Unicode does, and finds a standalone mark as written (Codex P2s on #406)', () => {
+    const more = [note('d', 'ΟΔΟΣ'), note('e', 'Ship 2^8'), note('f', 'Ship 28')]
+    assert.deepEqual(
+      findNotes(more, 'οδος').map((n) => n.id),
+      ['d'],
+    )
+    assert.deepEqual(
+      findNotes(more, '^').map((n) => n.id),
+      ['e'],
+    )
   })
 })

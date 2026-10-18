@@ -171,3 +171,38 @@ test('discussion · a message moved to the room, then Sophia’s conversation ag
   await page.getByRole('button', { name: 'Chat with Sophia' }).click()
   await expect(target(page)).toHaveText(/^To Sophia/)
 })
+
+// Nothing written is cut (docs/plans/room-message-length.md): past the most a message holds, the count says how far
+// over and Send waits. The room takes 4000 characters (A05); Sophia's typed turn, a chat packet of 2000.
+const count = (page: Page) => page.locator('#bar-count')
+const send = (page: Page) => page.locator('.message-bar').getByRole('button', { name: 'Send', exact: true })
+
+test('discussion · a long message for the room is never cut: the count says how far over, and Send waits', async ({
+  page,
+}) => {
+  await enter(page, 'people=2&floor=1')
+  await bar(page).focus()
+  await page.keyboard.insertText('a'.repeat(4100))
+  await expect(bar(page)).toHaveValue('a'.repeat(4100))
+  await expect(count(page)).toHaveText('4,100 / 4,000 · 100 over')
+  await expect(send(page)).toBeDisabled()
+  await bar(page).press('Enter')
+  expect(await toRoom(page)).toEqual([])
+  await bar(page).fill('a'.repeat(4000))
+  await expect(count(page)).toHaveText('4,000 / 4,000 · the most one message holds')
+  await bar(page).press('Enter')
+  await expect.poll(() => toRoom(page)).toEqual(['contribution:discuss'])
+})
+
+test('discussion · to Sophia the most is 2000; switched to the room, the same words fit', async ({ page }) => {
+  await enter(page, 'exchange=open')
+  await expect(target(page)).toHaveText(/^To Sophia/)
+  await bar(page).focus()
+  await page.keyboard.insertText('a'.repeat(2100))
+  await expect(count(page)).toHaveText('2,100 / 2,000 · 100 over')
+  await expect(send(page)).toBeDisabled()
+  await target(page).click()
+  await expect(target(page)).toHaveText(/^To the room/)
+  await expect(count(page)).toHaveCount(0)
+  await expect(send(page)).toBeEnabled()
+})

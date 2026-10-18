@@ -16,7 +16,9 @@
 //   other (ReviewResult.tsx). The review is the goal's own read, beside the view (review.ts), never part of the plan.
 // Everything the viewer did here (commands, drafts, questions, the lens) is theirs: another viewer starts afresh.
 import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { EmptyState, Icon } from '@sophia/ui'
+import { EmptyState, Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
+import { saveBlob } from '../../artifacts/download.ts'
+import { boardCsv, boardFileName, boardMarkdown, type ExportRow } from './board-export.ts'
 import { DECISION, linkedId, showInAddress, TASK } from '../../resources/link.ts'
 import { useAddressed } from '../../resources/useAddressed.ts'
 import type { QuotaObservation, Resource } from '../../resources/resource.ts'
@@ -838,6 +840,8 @@ function useNextUp(
 interface BarProps {
   view: ReturnType<typeof useBoard>
   rows: readonly PlanRow[]
+  /** The plan shown: its revision names an export. */
+  plan: WorkPlan
   viewerId: string | null
   slot: ReturnType<typeof useSlot>
   people: Record<string, Person>
@@ -851,7 +855,7 @@ interface BarProps {
  * The board's bar: the lenses, what waits on a decision, a review that proposes a change, and what changed while the
  * viewer was away.
  */
-function Bar({ view, rows, viewerId, slot, people, away, onSeen, onPill }: BarProps) {
+function Bar({ view, rows, plan, viewerId, slot, people, away, onSeen, onPill }: BarProps) {
   const { asks } = slot
   return (
     <div className="board-bar">
@@ -871,6 +875,54 @@ function Bar({ view, rows, viewerId, slot, people, away, onSeen, onPill }: BarPr
       />
       <ReviewPill slot={slot} onPress={onPill} />
       <AwayLine away={away} onSeen={onSeen} className="board-return" />
+      <ExportMenu rows={rows} revision={plan.revision} />
+    </div>
+  )
+}
+
+/** The board's tasks as an export reads them (board-export.md): lane by lane in the board's order, then closed. */
+const exportRows = (rows: readonly PlanRow[]): ExportRow[] =>
+  [...LANES, { key: 'closed' as const, label: 'Closed' }].flatMap((lane) =>
+    inLane(rows, lane.key).map((r) => ({
+      lane: lane.label,
+      task: r.item.purpose,
+      who: r.doer.name,
+      status: r.status.text,
+    })),
+  )
+
+/** «Export»: the board as CSV or Markdown, saved by the plan's revision and the day (board-export.md). */
+function ExportMenu({ rows, revision }: { rows: readonly PlanRow[]; revision: number }) {
+  const [open, setOpen] = useState(false)
+  const menu = usePopover(open, () => setOpen(false))
+  const save = (kind: 'csv' | 'md') => () => {
+    menu.opener.current?.focus()
+    setOpen(false)
+    const now = new Date()
+    const text = kind === 'csv' ? boardCsv(exportRows(rows)) : boardMarkdown(exportRows(rows), revision, now)
+    saveBlob(
+      new Blob([text], { type: kind === 'csv' ? 'text/csv;charset=utf-8' : 'text/markdown;charset=utf-8' }),
+      boardFileName(revision, now, kind),
+    )
+  }
+  return (
+    <div ref={menu.wrap} className="board-export">
+      <button
+        ref={menu.opener}
+        type="button"
+        className="pill"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        Export
+      </button>
+      {open && (
+        <Menu popover={menu} label="Export" side="bottom" align="end">
+          <MenuItem onClick={save('csv')}>Download CSV</MenuItem>
+          <MenuItem onClick={save('md')}>Download Markdown</MenuItem>
+        </Menu>
+      )}
     </div>
   )
 }
@@ -934,7 +986,7 @@ function BoardBody(props: BodyProps) {
   const after = useNextUp(rows, viewerId, slot, view.setOpen, ports.onDecide)
   const decisionProps = { plan, plans: plansOf(goal), people, now, viewerId, onDecide: after.decide }
   const away = whileAway(rows, goal.decisions, seen, { viewerId, people, now })
-  const bar = { view, rows, viewerId, slot, people, away, onSeen: markSeen, onPill: after.close }
+  const bar = { view, rows, plan, viewerId, slot, people, away, onSeen: markSeen, onPill: after.close }
   return (
     <section className="board" aria-label={`Plan r${String(plan.revision)}`} data-lens={view.lens}>
       <Bar {...bar} />

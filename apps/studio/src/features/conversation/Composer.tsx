@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Snapshot, SophiaPresence } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
+import { barCount, barFits } from './bar-length.ts'
 import { startChat } from './chat-start.ts'
 import {
   chatEntry,
@@ -185,36 +186,60 @@ function TargetSwitch({ target, other, onSwitch }: Pick<BarProps, 'target' | 'ot
   )
 }
 
-function MessageBar({ field, draft, onDraft, canSend, send, target, other, onSwitch }: BarProps) {
+/** How full the bar is once it nears the most one message holds, and past it by how much (as Personal's Count). */
+function BarCount({ count }: { count: { length: number; most: number } }) {
+  const over = count.length - count.most
   return (
-    <div className="message-bar" data-target={target}>
-      <TargetSwitch target={target} other={other} onSwitch={onSwitch} />
-      <label htmlFor="converse-draft" className="sr-only">
-        {TARGET_WORDS[target].placeholder.replace('…', '')}
-      </label>
-      <textarea
-        ref={field}
-        id="converse-draft"
-        data-chat-entry
-        // Stray typing lands here (shortcuts.ts): a message begun without clicking the bar is still a message.
-        data-typing-sink
-        rows={1}
-        maxLength={2000}
-        value={draft}
-        placeholder={TARGET_WORDS[target].placeholder}
-        onChange={(e) => onDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-            e.preventDefault()
-            if (canSend) void send()
-          }
-        }}
-      />
-      <button type="button" className="send has-tip" aria-label="Send" disabled={!canSend} onClick={() => void send()}>
-        <Icon name="send" />
-        <Tip label="Send" keys="Enter" side="top" align="end" />
-      </button>
-    </div>
+    <p id="bar-count" className={`bar-count${over >= 0 ? ' full' : ''}`}>
+      {count.length.toLocaleString('en-US')} / {count.most.toLocaleString('en-US')}
+      {over > 0 ? ` · ${over.toLocaleString('en-US')} over` : over === 0 && ' · the most one message holds'}
+    </p>
+  )
+}
+
+function MessageBar({ field, draft, onDraft, canSend, send, target, other, onSwitch }: BarProps) {
+  const count = barCount(target, draft)
+  return (
+    <>
+      {/* Its own line over the bar: beside Send it would squeeze the field in the chat's narrow panel. */}
+      {count && <BarCount count={count} />}
+      <div className="message-bar" data-target={target}>
+        <TargetSwitch target={target} other={other} onSwitch={onSwitch} />
+        <label htmlFor="converse-draft" className="sr-only">
+          {TARGET_WORDS[target].placeholder.replace('…', '')}
+        </label>
+        <textarea
+          ref={field}
+          id="converse-draft"
+          data-chat-entry
+          // Stray typing lands here (shortcuts.ts): a message begun without clicking the bar is still a message.
+          data-typing-sink
+          rows={1}
+          // No maxLength: it counts UTF-16 units, not characters, and cuts a paste without a word. Past the most, the
+          // count over the bar says how far over (room-message-length.md).
+          aria-describedby={count ? 'bar-count' : undefined}
+          value={draft}
+          placeholder={TARGET_WORDS[target].placeholder}
+          onChange={(e) => onDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault()
+              if (canSend) void send()
+            }
+          }}
+        />
+        <button
+          type="button"
+          className="send has-tip"
+          aria-label="Send"
+          disabled={!canSend}
+          onClick={() => void send()}
+        >
+          <Icon name="send" />
+          <Tip label="Send" keys="Enter" side="top" align="end" />
+        </button>
+      </div>
+    </>
   )
 }
 
@@ -287,7 +312,8 @@ function sendingTo(
     draft: string
   },
 ) {
-  const written = !!at.draft.trim()
+  // Past the most a message holds, nothing goes: the count over the bar says how far over (bar-length.ts).
+  const written = !!at.draft.trim() && barFits(bar.target, at.draft)
   if (bar.held) return { can: false, send: () => Promise.resolve() }
   if (bar.target === 'sophia') {
     return { can: at.chat.ready && !at.chat.busy && !at.starting && written, send: at.chat.send }

@@ -1,0 +1,21 @@
+# CON-01 takeover59 — renewed source window and child environment
+
+Davide explicitly renewed the existing source-only window to2026-10-14T18:00Z/20:00Rome. Exact request CON-01-SOURCE-WINDOW-20261014-R1 and renewal-approval.safe.json are retained in filter-amendment-20261014-1145. Only expiry changes; the r12/handoff24 approved amendments and filter/provenance scope remain as before. Pending27/36/Q8/shared integration, owner handbacks and every operational restriction stay held. Codex sole implementer; Claude stopped. Checkpoint198/6165820505.
+
+## Candidate
+
+Published HEAD457053b3fe619631f0d2e2fcc1e3edc98cfc5348/treeec71aa3a83e6208ff559d075a881b374fdb8593c unchanged. Unpublished launcher555c2292c464652432b61df4acdaee293344cb111a43cd5f26d36d4159f4d161/testsf9e82e7b4abfc75fc1656d5e7903903a054a5746fb5a2d90575f4b5ee4664c89; wrapperf513bedcf811dbf912e515e0e4205c7e41c07f9f3218eb88d0173aa90b8001e9 unchanged. Only one pure helper and three tests added after handoff58's descriptor helpers; no installed caller.
+
+reply_child_environment validates the immutable RunArguments and constructs a fresh ten-key mapping: attempt-private HOME/TMPDIR/DSH_HOME/workspace, fixed telemetry/LANG/PATH, and original runtime-unit/fd3/nonce. It never reads or forwards the ambient environment or changes the process-global home. Provider credentials are absent: D-4 exact route/name/lifecycle remains unbound and there is no extraEnv or credential-copy parameter. Future exec must independently establish current admission, descriptor roles, private home and containment before using this mapping. This function is not provider readiness, filesystem confinement or native execution. CLI69/Askoff.
+
+## Checks
+
+Author151 Python and wrapper pass. Hostile ambient environment includes synthetic API keys, proxy, Node options, wrong homes/unit/nonce/fd; exact mapping excludes them and ambient mapping is unchanged. Returned maps are fresh across calls/roots; mutation cannot contaminate another call. Invalid requests refuse, and replacing os.environ with None still permits valid pure construction. Two isolated mutants assertion-fail: copying host environment and sharing DSH_HOME at generation level. Owned temporary mutant trees removed; no actual credentials accessed. AST size/arity and git diff --check pass, not complete structural/artifact gate.
+
+Commands: python3 -I -m unittest discover -s apps/execution-host/reply -p 'test_*.py'; node --test tests/unit/reply-launch.test.mjs; pnpm test; isolated mutation scripts. Ordinary97789 terminal0:2604passed/70existing skips/0failed/cancelled. Independent exact-pin151 Python/wrapper/four pure adverse groups pass, no actionable finding. Throwing sentinels verify no ambient mapping/getenv/filesystem/exec access; prior descriptor source exactly preserved. Final independent-step4-environment-20261014/review.safe.json read in full; all runs terminal, no retained resources; source/test hold released. Private environment-20261014-1203/author.safe.json, ordinary.log and mutant logs retain evidence. Actual kernel/native/provider/hosted/account/credential effects0. Assistant compute unknown.
+
+## Remaining work
+
+Descriptor role binding, actual containment installation, fork/exec/status/settlement assembly and real Linux/P7 qualification remain incomplete. Q8/profile/artifact/shared integration and source amendments27/36 are not opened by renewal. No push; latest actual automatic273/6144338846 still covers only published457053b3fe. Whole-diff independent review/gates before and automatic review after each future push remain mandatory.
+
+Last main/Studio preservation checkpoint is handoff58, maine2da7d89/tree930c188b, same11 held conflicts; no new serving tuple or handback inferred. OP0002r6 setup/human-chat and OP0001r4 Ask remain unapproved/not ready.36-case ledger unchanged18partial_L1/3passed_L1/15not_run,A30not_run. No source_ready/whole-Step4/combinedreviewed/operationalauthorized/deployed/app_verified/owneraccepted promotion. Governed data unchanged, no live rollback needed; prior source pins preserve recovery. Next bounded action after component review is descriptor-role and containment assembly under the renewed window, with actual target execution separately authorized and qualified. No broader mission completion or autonomous monitor.

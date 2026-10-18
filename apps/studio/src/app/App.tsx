@@ -1,5 +1,7 @@
+// First: the ear for a new version, before the eager imports below can ask for a part that is gone (new-version.md).
+import { newVersion } from './new-version-early.ts'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState, type ComponentProps } from 'react'
 import { draftsOnlyOf, forgetDrafts } from '../features/personal/draft.ts'
 import { cacheFor, cacheOf } from './account-cache.ts'
 import { accountOf } from './auth-callback.ts'
@@ -11,11 +13,15 @@ import type { Identity } from './dev-identity.ts'
 import { forgetRecent, recentFor } from './palette-recent.ts'
 import { forgetPendingUnlock } from './provider-leave.ts'
 import { opensJoinPage } from './route.ts'
+import { legalDoc } from './legal.ts'
+import { forgetViewerDrafts } from '../features/studio/viewer-state.ts'
+import { LegalPage } from './Legal.tsx'
 import { signOutForgetting } from './sign-out.ts'
 import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
 import { useOpening } from './useOpening.ts'
 import { useProjectRoute } from './useProjectRoute.ts'
 import { LoadFailed } from './LoadFailed.tsx'
+import { NewVersion } from './NewVersion.tsx'
 import { loadSignedIn, warmSignedIn } from './signed-in-load.ts'
 
 // Invitation links are a separate door: their page loads only when someone opens one.
@@ -38,6 +44,8 @@ function useDraftsOnlyOfWhoIsIn(state: AuthState) {
   const who = draftsKeptFor(state)
   useEffect(() => {
     if (who !== undefined) draftsOnlyOf(who)
+    // Signed out, here or in another tab: the views' unsent words go too (Codex P1 on #366).
+    if (who === null) forgetViewerDrafts()
   }, [who])
 }
 
@@ -125,8 +133,69 @@ function useSignedInAhead(state: AuthState, door: boolean) {
   }, [status, member, door])
 }
 
-export function App() {
-  const { state, chooseDev, signOut, acceptLink, declineLink } = useAuth()
+/**
+ * The pages that are their own: the join page, and the terms and the privacy notice, which anyone reads, signed in or
+ * not (terms-privacy.md). None prepares the Studio.
+ */
+function useOwnPage(state: AuthState) {
+  const joinPage = opensJoinPage(window.location.pathname, state.status)
+  const legal = legalDoc(window.location.pathname)
+  const ownPage = joinPage || legal !== null
+  useSignedInAhead(state, ownPage)
+  // The opening hands off once all is ready: the Studio's once it has prepared what the person opens first.
+  useOpening(state.status, state.status === 'signed_in' && state.identity.role !== 'guest' && !ownPage)
+  return { joinPage, legal }
+}
+
+/** Every unsent word this device keeps: Personal's, and each project view's (terms-privacy.md). */
+const forgetAllDrafts = () => {
+  forgetDrafts()
+  forgetViewerDrafts()
+}
+
+/**
+ * Signing out leaves nothing personal on this device: the cache, every message being written to Sophia, what was under
+ * way in a project's conversations (talk-store.ts) and any review proposal still unanswered. `end` is this device's
+ * sign-out or every device's (sign-out-scope.md); what stays here goes either way. One callback each, never a
+ * parameter: the join page hands Sign out straight to a button, whose click would read as «everywhere».
+ */
+const leaving =
+  (queryClient: ReturnType<typeof useAccountCache>, signedInAs: string | null) =>
+  (end: () => Promise<void>) =>
+  async (): Promise<boolean> => {
+    setSignedIn(null)
+    queryClient.clear()
+    forgetUnderWay()
+    forgetPendingUnlock()
+    // A sign-out that fails leaves the person in: their writes are theirs again, and SignedIn says so (false).
+    try {
+      await signOutForgetting(end, forgetAllDrafts)
+      return true
+    } catch {
+      setSignedIn(signedInAs)
+      return false
+    }
+  }
+
+/** An invitation's page, which handles its own sign-in (JoinFlow), with the app's reads and its failure guard. */
+function JoinPage(props: {
+  queryClient: ReturnType<typeof useAccountCache>
+  join: Omit<ComponentProps<typeof JoinFlow>, 'onSignOut'>
+  onSignOut: () => void
+}) {
+  return (
+    <QueryClientProvider client={props.queryClient}>
+      <LoadFailed>
+        <Suspense fallback={<Centered title="Opening the room…" busy />}>
+          <JoinFlow {...props.join} onSignOut={props.onSignOut} />
+        </Suspense>
+      </LoadFailed>
+    </QueryClientProvider>
+  )
+}
+
+function AppBody() {
+  const { state, chooseDev, signOut, signOutEverywhere, acceptLink, declineLink } = useAuth()
   const routing = useProjectRoute()
   const signedInAs = state.status === 'signed_in' ? accountOf(state.identity) : null
   const queryClient = useAccountCache(signedInAs)
@@ -135,10 +204,7 @@ export function App() {
   // Who is in, for writes that outlive their part (signed-in.ts): set as it changes, cleared at once on leaving.
   useEffect(() => setSignedIn(signedInAs), [signedInAs])
   useDraftsOnlyOfWhoIsIn(state)
-  const joinPage = opensJoinPage(window.location.pathname, state.status)
-  useSignedInAhead(state, joinPage)
-  // The opening hands off once all is ready: the Studio's once it has prepared what the person opens first.
-  useOpening(state.status, state.status === 'signed_in' && state.identity.role !== 'guest' && !joinPage)
+  const { joinPage, legal } = useOwnPage(state)
 
   // Cached server state belongs to one identity; drop it whenever the identity changes.
   const switchIdentity = (identity: Identity | null) => {
@@ -149,29 +215,16 @@ export function App() {
     // The same identity again is no change App's effect would see: it is in, as it was.
     setSignedIn(identity ? accountOf(identity) : null)
   }
-  // Signing out leaves nothing personal on this device: the cache, every message being written to Sophia, what was
-  // under way in a project's conversations (talk-store.ts) and any review proposal still unanswered.
-  const leaveSession = () => {
-    setSignedIn(null)
-    queryClient.clear()
-    forgetUnderWay()
-    forgetPendingUnlock()
-    // A sign-out that fails leaves the person in: their writes are theirs again.
-    void signOutForgetting(signOut, forgetDrafts).catch(() => setSignedIn(signedInAs))
-  }
+  const leave = leaving(queryClient, signedInAs)
+  const leaveSession = leave(signOut)
+  const leaveEverywhere = leave(signOutEverywhere)
 
+  if (legal) return <LegalPage doc={legal} />
   // An invitation link works before, during and after sign-in: it handles its own. A sign-in link's question
   // ("Continue as …?") still comes first there, so the session it carries is accepted or declined, never lost.
   if (joinPage) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <LoadFailed>
-          <Suspense fallback={<Centered title="Opening the room…" busy />}>
-            <JoinFlow auth={state} onChooseDev={switchIdentity} onSignOut={leaveSession} onOpenProject={routing.open} />
-          </Suspense>
-        </LoadFailed>
-      </QueryClientProvider>
-    )
+    const join = { auth: state, onChooseDev: switchIdentity, onOpenProject: routing.open }
+    return <JoinPage queryClient={queryClient} join={join} onSignOut={() => void leaveSession()} />
   }
   if (state.status === 'loading') return <Centered title="Sophia" busy />
   if (state.status === 'link_offer') {
@@ -192,9 +245,20 @@ export function App() {
             routing={routing}
             onChooseDev={switchIdentity}
             onSignOut={leaveSession}
+            onSignOutEverywhere={leaveEverywhere}
           />
         </Suspense>
       </LoadFailed>
     </QueryClientProvider>
+  )
+}
+
+/** The Studio, and over whatever it shows, a new version said (new-version.md). */
+export function App() {
+  return (
+    <>
+      <AppBody />
+      <NewVersion signal={newVersion} />
+    </>
   )
 }

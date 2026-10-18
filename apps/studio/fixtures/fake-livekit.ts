@@ -17,6 +17,7 @@ import { listenToSophia } from '../src/features/voice/sophia-channel.ts'
 import {
   allowSound,
   feeds,
+  ownFeed,
   onPeopleChange,
   others,
   setSophia,
@@ -35,6 +36,21 @@ export const leaving: { held: boolean; fails: boolean; waiting: (() => void)[] }
   fails: false,
   waiting: [],
 }
+
+/** Turning the microphone on waits while held, as a browser still asking for it does (push-to-talk checks). */
+export const enabling: { held: boolean; waiting: (() => void)[] } = { held: false, waiting: [] }
+
+/**
+ * A microphone on its way while held arrives when released (`window.fixture.holdMicrophone`), whatever came meanwhile:
+ * LiveKit still publishes a late enable after a turn-off stopped waiting for it.
+ */
+const arrival = (apply: () => void) =>
+  new Promise<void>((resolve) =>
+    enabling.waiting.push(() => {
+      apply()
+      resolve()
+    }),
+  )
 
 /** `refuse=camera`: the browser refuses the camera, as a blocked permission does; `refuse=switch`, a device switch. */
 const refused = new URLSearchParams(window.location.search).get('refuse')
@@ -92,11 +108,20 @@ export const joined: { devices: Partial<Record<DeviceKind, string>> | null; back
   background: null,
 }
 
+/** The open connection's callbacks, for what the page makes LiveKit say to the call (`linkLost`). */
+let callbacks: RoomCallbacks | null = null
+
 /** A connection made: recorded, with the devices it opens with (roomOptions in livekit-room.ts reads the same). */
-function connected(): void {
+function connected(cb: RoomCallbacks): void {
   asked.push('connect')
   joined.devices = chosenDevices()
   joined.background = chosenBackground()
+  callbacks = cb
+}
+
+/** The call's link is lost for a while, or back, as LiveKit's Reconnecting and Reconnected events say it. */
+export function linkLost(lost: boolean): void {
+  callbacks?.onStatus(lost ? 'reconnecting' : 'live')
 }
 
 let ended: RoomCallbacks['onEnded'] | null = null
@@ -158,6 +183,14 @@ export function sophiaLeaves(): void {
 
 const blocked = () => new DOMException('Permission denied', 'NotAllowedError')
 
+/** The standing the API signed into this viewer's token: a member's, unless the page says (the guest's, join.tsx). */
+let signed: RoomParticipant['standing'] = 'admin'
+
+/** The viewer's token is signed with this standing from the next connection on, as the API signs a guest's. */
+export function signViewerAs(standing: RoomParticipant['standing']): void {
+  signed = standing
+}
+
 /** The viewer as LiveKit lists the local participant, devices off until the call turns them on. */
 const viewer = (): RoomParticipant => ({
   identity: '00000000-0000-4000-8000-0000000000a1',
@@ -167,11 +200,14 @@ const viewer = (): RoomParticipant => ({
   cameraOn: false,
   screenOn: false,
   local: true,
-  standing: 'admin',
+  standing: signed,
 })
 
 /** What the page said it follows, last (following-signal.ts sends only a change). */
 let said: string | null = null
+/** Others' cameras come to this page, or not (incoming-video.md): as the connection records it. */
+let incoming = true
+const theirs = () => feeds().filter((f) => incoming || f.source !== 'camera')
 
 /** What the page says it follows, as the room's connection records it: only a change is sent. */
 function sayFollowing(versionId: string | null): Promise<void> {
@@ -192,8 +228,26 @@ function fakeRoom(): Pick<Room, 'on'> {
   return room as unknown as Pick<Room, 'on'>
 }
 
+/**
+ * The viewer's devices, switched as LiveKit does: what is asked is recorded, a refused one rejects, and a microphone
+ * held on its way (`window.fixture.holdMicrophone`) arrives when released.
+ */
+function deviceSwitch(me: RoomParticipant, changed: () => void) {
+  return (name: 'microphone' | 'camera' | 'screen', key: 'micOn' | 'cameraOn' | 'screenOn') => (on: boolean) => {
+    asked.push(`${name}:${on ? 'on' : 'off'}`)
+    if (on && refused === name) return Promise.reject(blocked())
+    const apply = () => {
+      me[key] = on
+      changed()
+    }
+    if (on && name === 'microphone' && enabling.held) return arrival(apply)
+    apply()
+    return Promise.resolve()
+  }
+}
+
 export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallbacks): Promise<RoomConnection> {
-  connected()
+  connected(cb)
   said = null // a new connection has said nothing yet, as following-signal.ts starts each one
   const me = viewer()
   let textOnly = false
@@ -213,14 +267,7 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     open = false
     cb.onEnded(why)
   }
-  const device =
-    (name: 'microphone' | 'camera' | 'screen', key: 'micOn' | 'cameraOn' | 'screenOn') => (on: boolean) => {
-      asked.push(`${name}:${on ? 'on' : 'off'}`)
-      if (on && refused === name) return Promise.reject(blocked())
-      me[key] = on
-      cb.onChange()
-      return Promise.resolve()
-    }
+  const device = deviceSwitch(me, () => cb.onChange())
   return Promise.resolve({
     sendChat,
     setTextMode: (on) => {
@@ -235,14 +282,22 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
       allowSound()
       return Promise.resolve()
     },
-    feeds,
+    feeds: () => (me.cameraOn ? [ownFeed(me.identity), ...theirs()] : theirs()),
     setMicrophone: device('microphone', 'micOn'),
     setCamera: device('camera', 'cameraOn'),
     setScreenShare: device('screen', 'screenOn'),
     switchDevice,
     setBackground,
     sendReaction,
+    setIncomingVideo: (on) => {
+      asked.push(`incoming:${on ? 'on' : 'off'}`)
+      incoming = on
+      cb.onChange()
+    },
     setFollowing: sayFollowing,
+    setVolume: (identity, level) => {
+      asked.push(`volume:${identity}:${String(level)}`)
+    },
     leave: () => {
       asked.push('leave')
       open = false

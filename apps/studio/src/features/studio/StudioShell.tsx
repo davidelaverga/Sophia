@@ -309,7 +309,7 @@ export function StudioShell(props: Props) {
   const stageExtras = { snapshot, room, made, panel, common, who, spoken: latestSpoken(held), catchUp, background }
   const { present, under, showing } = useUnderTheLine(stageExtras, chatOpen)
   return (
-    <div className="studio">
+    <div className="studio" data-content>
       <RoomStage
         room={room}
         snapshot={snapshot}

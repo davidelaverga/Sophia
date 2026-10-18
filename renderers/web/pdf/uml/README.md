@@ -28,8 +28,8 @@ CI (`.github/workflows/uml-supervisor.yml`) builds the render host and runs
 `supervisor-e2e.mjs` in it: a PDF job, a capture job at both targets and a job
 stopped while its guest renders, through the real launchers, kernel and browser,
 against a loopback stand-in of the renderer API. That is CI evidence on a GitHub
-host, not Render acceptance. The width sweep's own 60-second deadline decides its
-outcome; the earlier forecast from the first batch is gone (placement.mjs).
+host, not Render acceptance. The width sweep's own deadline (150 seconds since D-WIDTH; 60 before) decides
+its outcome; the earlier forecast from the first batch is gone (placement.mjs).
 
 ## Qualification fixture
 
@@ -58,7 +58,7 @@ remain available to UML. No host mount or `/dev/kvm` is required.
 The guest calls the existing `confine.mjs` and `bin/confine-chromium` unchanged.
 Its first diagnostic takes two screenshots and prints a PDF with the normal
 30-second launch limit. It then runs the unchanged `probeHost` entry point,
-including the actual PDF/capture kernels and normal 60-second width sweep. Its API
+including the actual PDF/capture kernels and normal width sweep (`SWEEP.maxMs`). Its API
 positive control and token are explicitly synthetic, inside the guest. Those
 controls do **not** prove production API isolation. Actual host/API isolation,
 whole-tree cancellation, memory bounds, output protocol validation and independent
@@ -114,9 +114,16 @@ a descendant. The worker was suspended after collecting its complete log.
 If the original suite reports a failed capture check, the diagnostic now runs
 one additional capture of its exact fixture through the unchanged kernel and
 prints each receipt check's detail. The original suite still determines failure;
-this diagnostic receipt never promotes it to success. The launch, width sweep,
-host wall time and output limits stay unchanged. This logging extension has not
-been run on Render and needs a fresh bounded test authorization.
+this diagnostic receipt never promotes it to success. Its sweep gets only the time
+the QA host's 240-second wall watchdog (`host-qa.py`) leaves after a 60-second
+reserve (at most `SWEEP.maxMs`). The separate timing diagnostic runs only when its
+whole budget remains before that reserve: a 30-second browser launch, a 30-second
+page load, a 60-second measurement window and a 5-second close, 125 seconds. The
+detail is printed before either. These are the QA fixture's bounds: a production
+job's wall time is the supervisor's 270 seconds (the 180-second PNG claim plus its
+90-second UML margin), and the 240-second CPU limit (`landlock-launch.py`) applies
+to both. The launch, host wall time and output limits stay unchanged. This logging extension has not been run on Render and needs a
+fresh bounded test authorization.
 
 The namespace supervisor's cancellation path was exercised separately in the
 private Linux lab with an owned init and descendant. Both `SIGTERM` and

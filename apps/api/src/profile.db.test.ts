@@ -171,6 +171,32 @@ describe('my profile (A32)', () => {
     assert.equal(guest.status, 403)
   })
 
+  // Codex 4300538474: a provider claim that can't be a name is skipped for a later one that can (NAME_KEYS order).
+  it('seeds a later usable provider claim past an unusable early one; none usable seeds no name', async () => {
+    const seeded = async (sub: string, m: Record<string, unknown>) =>
+      parseProfile(
+        (await call('/api/v1/me/profile', { bearer: await token(sub, undefined, { user_metadata: m }) })).json,
+      )
+    const github = randomUUID()
+    assert.deepEqual(await seeded(github, { full_name: address(github), user_name: 'luis' }), {
+      displayName: 'luis',
+      chosen: false,
+      revision: 0,
+    })
+    const long = randomUUID()
+    assert.equal((await seeded(long, { full_name: 'x'.repeat(61), name: 'Luis Prieto' })).displayName, 'Luis Prieto')
+    const none = randomUUID()
+    assert.equal((await seeded(none, { full_name: address(none), user_name: 'x'.repeat(61) })).displayName, null)
+    // A chosen name stays chosen, whatever usable claim a later token carries.
+    const chooser = randomUUID()
+    assert.equal((await rename(chooser, 'Chosen', 0)).status, 200)
+    assert.deepEqual(await seeded(chooser, { full_name: address(chooser), user_name: 'provider' }), {
+      displayName: 'Chosen',
+      chosen: true,
+      revision: 1,
+    })
+  })
+
   it('keeps a chosen name when the provider’s name changes; an unchosen one follows the provider', async () => {
     const [chooser, follower] = [randomUUID(), randomUUID()]
     await profile(chooser, 'Carla From Google')

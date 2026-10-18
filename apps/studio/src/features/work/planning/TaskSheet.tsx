@@ -11,6 +11,8 @@ import { Sheet } from '../../../app/Sheet.tsx'
 import { isTopDialog } from '../../../app/useDialog.ts'
 import { Avatar } from '../../../app/Avatar.tsx'
 import { ToolLogo } from '../../resources/ToolLogo.tsx'
+import { CopyLink } from '../../resources/CopyLink.tsx'
+import { addressOf, TASK } from '../../resources/link.ts'
 import { observedAgo, type Resource } from '../../resources/resource.ts'
 import type { Room } from '../../resources/room.ts'
 import type { Acts } from '../../resources/SessionActs.tsx'
@@ -285,7 +287,13 @@ export function TaskSheet(props: Props) {
   const next = props.next?.item_id === item.id
   // Over the whole page, not inside the board: a moving ancestor would hold a fixed sheet inside itself.
   return createPortal(
-    <Sheet id={`task-${item.id}`} title={item.purpose} onClose={onClose} returnTo={() => backTo(item.id)}>
+    <Sheet
+      id={`task-${item.id}`}
+      title={item.purpose}
+      onClose={onClose}
+      returnTo={() => backTo(item.id)}
+      actions={<CopyLink key={item.id} href={() => addressOf(item.id, TASK)} />}
+    >
       <div className="task-sheet">
         <Who row={row} viewerId={viewerId} onOpenResource={onOpenResource} />
         <Detail row={row} />
