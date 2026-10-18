@@ -16,11 +16,14 @@ interface Trace {
   denials: { id: number; path: string; at: number }[]
   hits: { afterMs: number; what: string }[]
   frames: number
+  /** rAF callbacks after the first refusal reached the app. */
+  postFrames: number
   seenWrites: number
 }
 declare global {
   interface Window {
     updatesTrace?: Trace & { stop: boolean; control: Control }
+    heldDelivery?: { held: (() => void)[]; release: () => void }
   }
 }
 
@@ -31,6 +34,7 @@ async function observe(page: Page, control: Control) {
         denials: [],
         hits: [],
         frames: 0,
+        postFrames: 0,
         seenWrites: 0,
         stop: false,
         control: first,
@@ -66,6 +70,7 @@ async function observe(page: Page, control: Control) {
         trace.frames++
         const firstDenial = trace.denials[0]
         if (firstDenial) {
+          trace.postFrames++
           const now = performance.now()
           for (const selector of selectors) {
             const shown = [...document.querySelectorAll(selector)].some((el) => {
@@ -91,9 +96,9 @@ const setControl = (page: Page, control: Control) =>
 const readTrace = (page: Page) =>
   page.evaluate(() => {
     const t = window.updatesTrace
-    if (!t) return { denials: [], hits: [], frames: 0, seenWrites: 0 }
+    if (!t) return { denials: [], hits: [], frames: 0, postFrames: 0, seenWrites: 0 }
     t.stop = true
-    return { denials: t.denials, hits: t.hits, frames: t.frames, seenWrites: t.seenWrites }
+    return { denials: t.denials, hits: t.hits, frames: t.frames, postFrames: t.postFrames, seenWrites: t.seenWrites }
   })
 
 const seenWrites = (page: Page) => page.evaluate(() => window.updatesTrace?.seenWrites ?? -1)
@@ -137,4 +142,65 @@ for (const status of [401, 403] as const) {
       expect(await seenWrites(page), 'reading never marks seen').toBe(0)
     })
   }
+}
+
+/**
+ * The query's observers are told on TanStack's scheduler (notifyManager, a task later by default); the query cache's
+ * own listeners are told at once. Holding that scheduler (the app's own module instance, the URL the page loaded) holds
+ * every observer delivery, so frames are drawn after the refusal reached the app and before the query tells the view:
+ * only what this view keeps from the cache as it changes (sinceRefusedNow, useSyncExternalStore) can hide the window then.
+ */
+async function holdObserverDelivery(page: Page) {
+  await page.evaluate(async () => {
+    const url = performance
+      .getEntriesByType('resource')
+      .map((e) => e.name)
+      .find((name) => name.includes('/.vite/deps/@tanstack_react-query.js'))
+    if (!url) throw new Error('the page loaded no @tanstack/react-query module')
+    const query: unknown = await import(/* @vite-ignore */ url)
+    const manager = query && typeof query === 'object' && 'notifyManager' in query ? query.notifyManager : undefined
+    if (!manager || typeof manager !== 'object' || !('setScheduler' in manager)) throw new Error('no notifyManager')
+    const set = manager.setScheduler
+    if (typeof set !== 'function') throw new Error('no setScheduler')
+    const held: (() => void)[] = []
+    window.heldDelivery = {
+      held,
+      release: () => {
+        Reflect.apply(set, manager, [(cb: () => void) => setTimeout(cb, 0)])
+        for (const cb of held.splice(0)) cb()
+      },
+    }
+    Reflect.apply(set, manager, [(cb: () => void) => held.push(cb)])
+  })
+}
+
+for (const status of [401, 403] as const) {
+  test(`updates · semantic, observer delivery held: its own read refused (${status}): frames come after the refusal and before the query tells the view, and none shows a cached line or Mark as seen`, async ({
+    page,
+  }, info) => {
+    await page.goto(PAGE)
+    const since = page.locator(SINCE)
+    await expect(since.locator('li').first()).toBeVisible()
+    await observe(page, { status, body: 'malformed' })
+    await holdObserverDelivery(page)
+    await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+    // At least a few frames after the refusal reached the app, with every observer delivery still held.
+    await expect.poll(() => page.evaluate(() => window.updatesTrace?.postFrames ?? 0)).toBeGreaterThanOrEqual(5)
+    const held = await page.evaluate(() => window.heldDelivery?.held.length ?? 0)
+    const trace = await readTrace(page)
+    await info.attach(`updates-held-trace-${status}.json`, {
+      body: JSON.stringify({ ...trace, heldDeliveries: held }, null, 1),
+      contentType: 'application/json',
+    })
+    expect(
+      trace.denials.some((d) => d.path.endsWith('/since')),
+      'its own read refused, as the client saw',
+    ).toBe(true)
+    expect(held, 'observer deliveries held past the refusal').toBeGreaterThan(0)
+    expect(trace.postFrames).toBeGreaterThanOrEqual(5)
+    expect(trace.hits, 'a cached line or Mark as seen while the query had not told the view').toEqual([])
+    await page.evaluate(() => window.heldDelivery?.release())
+    await expect(since).toContainText('What changed couldn’t be read.')
+    expect(await seenWrites(page), 'reading never marks seen').toBe(0)
+  })
 }

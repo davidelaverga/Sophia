@@ -552,3 +552,109 @@ describe('what changed since a member last looked (A34)', () => {
     )
   })
 })
+
+/**
+ * The asker of many reports after a long history (FND-B-UPDATES-INDEX-AND-CAUSAL-QUALIFICATION-01): a bounded probe,
+ * run on purpose (SOPHIA_UPDATES_SCALE=1). 10,000 unrelated events, then 500 report tasks admitted before the reader's
+ * mark, then their 500 results in the window: GetSince names each report's asker, and the admitting event is found from
+ * the task (project_events_job_admission_idx), not by reading the whole history once per report. The same read with the
+ * index dropped (rolled back) is the old access path, measured on the same rows.
+ */
+const SCALE = process.env.SOPHIA_UPDATES_SCALE === '1'
+describe(
+  'many reports after a long history (bounded probe)',
+  { skip: !SCALE && 'run on purpose: SOPHIA_UPDATES_SCALE=1' },
+  () => {
+    it('500 reports admitted before the window: each names its asker; the admission is found from its task', async (t) => {
+      const [admin, viewer] = [randomUUID(), randomUUID()]
+      const seed = await seedProject(db.ownerUrl, { admin, viewers: [viewer] })
+      const REPORTS = 500
+      const PREFIX = 10_000
+      const jobs = await owned(async (c) => {
+        await c.query(
+          `SELECT sophia.emit_project_event($1,'goal.updated','goal',$2,1,'goal.updated') FROM generate_series(1,$3)`,
+          [seed.projectId, seed.goalId, PREFIX],
+        )
+        const out: string[] = []
+        for (let i = 0; i < REPORTS; i++) out.push(await admitted(c, seed, admin, 'research'))
+        return out
+      })
+      // The viewer has seen all of it: every admission lies before the window.
+      await asOwner(
+        `INSERT INTO sophia.project_seen(project_id,actor_id,sequence)
+       SELECT id,$2,event_sequence FROM sophia.projects WHERE id=$1`,
+        [seed.projectId, viewer],
+      )
+      await owned(async (c) => {
+        for (const [i, job] of jobs.entries()) {
+          const artifact = await row<{ id: string }>(
+            c,
+            `INSERT INTO sophia.artifacts(project_id,title,format) VALUES($1,$2,'markdown') RETURNING id`,
+            [seed.projectId, `Scale report ${i}`],
+          )
+          const source = await row<{ id: string; sha256: string }>(
+            c,
+            `SELECT (s).id, (s).sha256 FROM (SELECT sophia.put_text_source($1,$2,'text/markdown',$3) AS s) x`,
+            [seed.projectId, admin, `# Scale report ${i} by ${job}`],
+          )
+          await current(c, seed, {
+            artifact: artifact.id,
+            parent: null,
+            source,
+            number: 1,
+            job,
+            facts: { versionNumber: 1 },
+            trigger: { kind: 'research', taskId: job },
+          })
+          await resultReady(c, seed, job)
+        }
+      })
+      const started = performance.now()
+      const u = await updatesOf(viewer, seed.projectId)
+      const sinceMs = performance.now() - started
+      const askers = new Set(u.made.map((m) => m.askedBy))
+      const measured = await owned(async (c) => {
+        await c.query(`SELECT set_config('sophia.actor_id', $1, false)`, [viewer])
+        const last = jobs.at(-1)
+        const lookup = `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT x.actor_id FROM sophia.project_events x
+        WHERE x.project_id=$1 AND x.entity_type='job' AND x.entity_id=$2 AND x.type='native_task.admitted'
+          AND (x.visibility_owner IS NULL OR x.visibility_owner=$3) ORDER BY x.sequence LIMIT 1`
+        const read = async () => {
+          const plan = (await c.query<{ 'QUERY PLAN': unknown }>(lookup, [seed.projectId, last, viewer])).rows[0]?.[
+            'QUERY PLAN'
+          ]
+          const at = performance.now()
+          const window = await row<{ u: { made: unknown[] } }>(c, `SELECT sophia.project_updates($1) AS u`, [
+            seed.projectId,
+          ])
+          return { plan, projectUpdatesMs: Math.round((performance.now() - at) * 10) / 10, made: window.u.made.length }
+        }
+        const withIndex = await read()
+        await c.query('BEGIN')
+        await c.query('DROP INDEX sophia.project_events_job_admission_idx')
+        const withoutIndex = await read()
+        await c.query('ROLLBACK')
+        const events = await row<{ n: string }>(
+          c,
+          `SELECT count(*) AS n FROM sophia.project_events WHERE project_id=$1`,
+          [seed.projectId],
+        )
+        return { events: Number(events.n), withIndex, withoutIndex }
+      })
+      t.diagnostic(
+        JSON.stringify({
+          reports: REPORTS,
+          prefix: PREFIX,
+          sinceMs: Math.round(sinceMs),
+          made: u.made.length,
+          more: u.more,
+          ...measured,
+        }),
+      )
+      assert.equal(u.made.length, REPORTS)
+      assert.deepEqual([...askers], [admin])
+      assert.equal(measured.withIndex.made, REPORTS)
+      assert.equal(measured.withoutIndex.made, REPORTS)
+    })
+  },
+)
