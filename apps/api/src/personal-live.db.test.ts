@@ -99,12 +99,17 @@ async function liveApi(payer: string, ownerId: string, enroll = true): Promise<s
   return `http://127.0.0.1:${String((app.server.address() as AddressInfo).port)}`
 }
 
-async function call(at: string, path: string, as: string, body?: unknown, epoch?: number) {
+/** A write's epoch, and its idempotency key when a test sends one again (else a fresh key). */
+type Against = number | { epoch: number; key: string }
+
+async function call(at: string, path: string, as: string, body?: unknown, against?: Against) {
+  const epoch = typeof against === 'number' ? against : against?.epoch
+  const key = typeof against === 'object' ? against.key : randomUUID()
   const res = await fetch(`${at}${path}`, {
     method: body === undefined ? 'GET' : 'POST',
     headers: {
       authorization: `Bearer ${await token(as)}`,
-      ...(body === undefined ? {} : { 'content-type': 'application/json', 'idempotency-key': randomUUID() }),
+      ...(body === undefined ? {} : { 'content-type': 'application/json', 'idempotency-key': key }),
       ...(epoch === undefined ? {} : { 'x-sophia-personal-epoch': String(epoch) }),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -329,6 +334,8 @@ describe('the live personal companion (local provider double)', () => {
        VALUES($1,2,'sophia','An earlier answer.',$2,now()-interval '2 hours')`,
       [STRANGER, earlier],
     )
+    // FIXTURE: the space's turn order moves past the two turns written directly above, as writing them would.
+    await owner(`UPDATE sophia.personal_spaces SET turn_seq=2 WHERE owner_id=$1`, [STRANGER])
     const { epoch: strangerEpoch } = await space(one, STRANGER)
     const resumed = await call(one, '/api/v1/personal/resume', STRANGER, {}, strangerEpoch)
     assert.equal(resumed.status, 503, JSON.stringify(resumed.json))
@@ -338,11 +345,61 @@ describe('the live personal companion (local provider double)', () => {
       ['person', 'sophia'],
       'no welcome written for the stranger',
     )
-    assert.equal(recorded().length - start, 1, 'one provider request: the owner’s')
+    // The owner's welcome back under one key, then that same key again (a retry after a lost reply): the receipt it
+    // keeps, never a second welcome. The stranger under the owner's very key, on either API, gets nothing of the owner's.
+    await owner(`UPDATE sophia.personal_turns SET created_at=now()-interval '2 hours' WHERE owner_id=$1`, [OWN])
+    const ownEpoch = (await space(one, OWN)).epoch
+    const resumeKey = randomUUID()
+    const first = await call(one, '/api/v1/personal/resume', OWN, {}, { epoch: ownEpoch, key: resumeKey })
+    assert.equal(first.status, 202, JSON.stringify(first.json))
+    const again = await call(two, '/api/v1/personal/resume', OWN, {}, { epoch: ownEpoch, key: resumeKey })
+    assert.equal(again.status, 202, JSON.stringify(again.json))
+    assert.deepEqual(again.json, first.json, 'the same key replays its receipt')
+    const ownTurns = parsePersonalTurnPage((await call(one, '/api/v1/personal/turns?after=0', OWN)).json).turns
+    assert.equal(ownTurns.filter((t) => t.author === 'sophia' && t.text !== 'For the owner.').length, 1, 'one welcome')
+    for (const at of [one, two]) {
+      const crossed = await call(at, '/api/v1/personal/resume', STRANGER, {}, { epoch: strangerEpoch, key: resumeKey })
+      assert.equal(crossed.status, 503, JSON.stringify(crossed.json))
+      assert.ok(!JSON.stringify(crossed.json).includes('owner'), 'nothing of the owner’s in the answer')
+    }
+    // The stranger retries the owner's turn under the owner's own send key, on the second API: refused, nothing kept.
+    const sendKey = randomUUID()
+    double.script({ text: 'Second for the owner.', usage: { input_tokens: 10, output_tokens: 5 } })
+    const sent = await call(
+      one,
+      '/api/v1/personal/turns',
+      OWN,
+      { text: 'Owner asks again.' },
+      { epoch: ownEpoch, key: sendKey },
+    )
+    assert.equal(sent.status, 202, JSON.stringify(sent.json))
+    const ownerTurns = (await settled(one, OWN)).turns
+    const asked = ownerTurns.findLast((t) => t.author === 'person')
+    assert.ok(asked)
+    const retried = await call(
+      two,
+      `/api/v1/personal/turns/${asked.id}/retry`,
+      STRANGER,
+      {},
+      { epoch: strangerEpoch, key: sendKey },
+    )
+    assert.equal(retried.status, 503, JSON.stringify(retried.json))
+    assert.ok(!JSON.stringify(retried.json).includes('Owner asks again'), 'no owner words in the answer')
+    assert.deepEqual(
+      parsePersonalTurnPage((await call(one, '/api/v1/personal/turns?after=0', STRANGER)).json).turns.map(
+        (t) => t.author,
+      ),
+      ['person', 'sophia'],
+      'nothing new for the stranger',
+    )
+    assert.equal(recorded().length - start, 2, 'provider requests: the owner’s two only')
     const rows = await usage('owner-payer')
     assert.deepEqual(
       rows.map((r) => [r.owner_id, r.state]),
-      [[OWN, 'settled']],
+      [
+        [OWN, 'settled'],
+        [OWN, 'settled'],
+      ],
       'no reservation for the stranger',
     )
   })
