@@ -69,7 +69,8 @@ export function WorkControls({ goal, projectId, identity, token, admin = false }
               onClick={() => void admission.submit(kind)}
             >
               {COMMAND[kind].verb}
-              <Tip label={COMMAND[kind].hint} />
+              {/* After the first press, the row reaches the content's edge: the tips align to their ends, as Stop's. */}
+              <Tip label={COMMAND[kind].hint} align={kind === 'request_review' ? 'center' : 'end'} />
             </button>
           ),
         )}

@@ -41,10 +41,11 @@ import { followingSignal } from './following-signal.ts'
 import { VISION } from '../../app/vision.ts'
 import { standingOf, type RoomParticipant } from './room-view.ts'
 import { MEDIAPIPE_BASE, SEGMENTER_FILE } from './mediapipe-path.ts'
-import { peopleVolume, type Level, type PeopleVolume } from './people-volume.ts'
+import { peopleVolume, type Level } from './people-volume.ts'
 import { listenToReactions, type Heard } from './reaction-channel.ts'
 import { encodeReaction, REACTION_TOPIC, type ReactionEmoji } from './reactions.ts'
 import { isSophia, listenToSophia } from './sophia-channel.ts'
+import { sophiaVoice } from './sophia-voice.ts'
 import type { SophiaSignal } from './sophia-view.ts'
 
 // LiveKit logs every connection step at info level. A deployed Studio keeps warnings and errors in the
@@ -201,12 +202,10 @@ function incomingCameras(room: Room, onChange: () => void): Pick<RoomConnection,
 /** Remote voices (and a shared screen's sound) play through hidden audio elements, removed with the track. */
 /**
  * The room's voices, as audio elements this room owns: a room that ends removes its own, never another's (a join that
- * was superseded and left must not silence the call that replaced it).
+ * was superseded and left must not silence the call that replaced it). While the call reads Sophia, her voice has no
+ * element at all (text-mode-quiet.md): LiveKit's startAudio would unmute one.
  */
-function remoteAudio(
-  room: Room,
-  textOnly: () => boolean,
-): { audio: Set<HTMLMediaElement>; volume: PeopleVolume<HTMLMediaElement> } {
+function remoteAudio(room: Room) {
   const mine = new Set<HTMLMediaElement>()
   const trackOf = new Map<HTMLMediaElement, RemoteTrack>()
   const drop = (el: HTMLMediaElement) => {
@@ -217,29 +216,37 @@ function remoteAudio(
   }
   // Off lets a member's sound go at once: detached, startAudio can't unmute it before their track stops coming.
   const volume = peopleVolume<HTMLMediaElement>(drop)
-  room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant) => {
-    if (track.kind !== Track.Kind.Audio) return
+  const play = (track: RemoteTrack, whose: 'sophia' | 'member') => {
     const el = track.attach()
-    el.dataset.sophiaRoomAudio = isSophia(participant) ? 'sophia' : 'member'
-    el.muted = isSophia(participant) && textOnly()
+    el.dataset.sophiaRoomAudio = whose
     document.body.append(el)
     mine.add(el)
     trackOf.set(el, track)
-    // A member's sound plays at the level given them here (people-volume.md); Sophia's keeps the call's.
-    if (!isSophia(participant)) volume.add(el, participant.identity)
-  })
-  room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
-    if (track.kind !== Track.Kind.Audio) return
+    return el
+  }
+  const stop = (track: RemoteTrack) => {
     for (const el of track.detach()) {
       volume.remove(el)
       drop(el)
     }
+  }
+  const sophia = sophiaVoice<RemoteTrack>({ attach: (track) => play(track, 'sophia'), detach: stop })
+  room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant) => {
+    if (track.kind !== Track.Kind.Audio) return
+    if (isSophia(participant)) sophia.add(track)
+    // A member's sound plays at the level given them here (people-volume.md); Sophia's keeps the call's.
+    else volume.add(play(track, 'member'), participant.identity)
+  })
+  room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+    if (track.kind !== Track.Kind.Audio) return
+    sophia.remove(track)
+    stop(track)
   })
   // A sound someone Off publishes (their screen's, or their voice after a rejoin) isn't taken (people-volume.md).
   room.on(RoomEvent.TrackPublished, (publication, participant) => {
     if (!isSophia(participant)) volume.published(publication, participant.identity)
   })
-  return { audio: mine, volume }
+  return { mine, setRead: sophia.setRead, volume }
 }
 
 /**
@@ -466,11 +473,11 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
   room.on(RoomEvent.Reconnecting, () => cb.onStatus('reconnecting'))
   room.on(RoomEvent.Reconnected, () => cb.onStatus('live'))
   let textOnly = false
-  const { audio, volume } = remoteAudio(room, () => textOnly)
+  const audio = remoteAudio(room)
   stopsWhenHostStops(room)
   room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
-    for (const el of audio) el.remove()
-    audio.clear()
+    for (const el of audio.mine) el.remove()
+    audio.mine.clear()
     cb.onEnded((reason !== undefined && ENDS[reason]) || 'dropped')
   })
   listenToSophia(room, cb)
@@ -494,7 +501,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
       }),
     setTextMode: (on) => {
       textOnly = on
-      for (const el of audio) if (el.dataset.sophiaRoomAudio === 'sophia') el.muted = on
+      audio.setRead(on)
       signalMode()
     },
     textMode: () => textOnly,
@@ -512,7 +519,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     sendReaction: (emoji) =>
       room.localParticipant.publishData(encodeReaction(emoji), { reliable: true, topic: REACTION_TOPIC }),
     setVolume: (identity, level) =>
-      volume.set(identity, level, room.remoteParticipants.get(identity)?.trackPublications.values() ?? []),
+      audio.volume.set(identity, level, room.remoteParticipants.get(identity)?.trackPublications.values() ?? []),
     ...incomingCameras(room, cb.onChange),
     leave: () => room.disconnect(),
   }

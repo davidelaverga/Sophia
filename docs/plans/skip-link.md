@@ -6,8 +6,11 @@
 
 ## What changes
 
-- **«Skip to content»,** the first press on every page, shows once focused (at the top left, on the raised plane) and
-  takes the focus past the header to the page's content.
+- **«Skip to content»,** first in the tab order on every page, shows once focused (at the top left, on the raised
+  plane) and takes the focus past the header to the page's content.
+- **On the sign-in,** with a pointer, the address field already holds the focus on arrival (signin-frictions.md): the
+  focus is in the content, where the link would take it, so the link stands behind it. Shift+Tab reaches it, past the
+  provider row when one shows (Codex P2 on #417).
 - **It moves the focus, never the address.** The Studio's anchors (`#conversation-…`, `#task-…`) live in the address,
   and a jump to `#content` there would close what they opened.
 - **Each screen marks its content** (`data-content`): the sign-in and the room's door (`Centered`), the terms, a
@@ -19,6 +22,7 @@
 ## Checks
 
 - **`skip-link.spec.ts`:**
-  - signed out, the first Tab shows «Skip to content», and Enter puts the focus on the sign-in's content, the address
-    unchanged;
+  - signed out, the address field holds the focus on arrival; «Skip to content» is reached back from it, nothing
+    stands before it (one more Shift+Tab leaves the page, the next Tab comes back to it), and Enter puts the focus on
+    the sign-in's content, the address unchanged;
   - in a project's view, it goes to that view's content, past the header.
