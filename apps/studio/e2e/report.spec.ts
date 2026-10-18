@@ -474,7 +474,11 @@ test('M03-RF-0021 · a report the API refuses is said as refused, never as a rea
   await page.evaluate(() => window.fixture?.failVersions('not_found')) // the person may no longer read it (a 422)
   await follow(page, V2)
   await expect(untitled(page).getByText('This report isn’t available to you.')).toBeVisible({ timeout: 20_000 })
-  expect((await fixture(page)).served.filter((s) => s === 'versions:refused')).toHaveLength(4)
+  // Said at the first refusal; the read's default retries (four attempts in all) go on settling after it.
+  await expect
+    .poll(async () => (await fixture(page)).served.filter((s) => s === 'versions:refused').length, { timeout: 20_000 })
+    .toBe(4)
+  await expect(untitled(page).getByText('This report isn’t available to you.')).toBeVisible()
   await expect(untitled(page).getByRole('button', { name: 'Try again' })).toHaveCount(0)
 })
 
