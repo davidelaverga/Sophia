@@ -160,3 +160,16 @@ for (const width of [390, 320]) {
     expect(t.height, 'its target down').toBeGreaterThanOrEqual(40)
   })
 }
+
+// Past the strip's tiles yours can go into «+N»: the floor, the one showing and whoever speaks keep a tile before you
+// (tile-view.ts). «In the call» switches your camera then (Codex P2 on #422).
+test('@phone · flip · your tile in «+N»: «In the call» switches your camera', async ({ page }) => {
+  await enter(page, 'people=9&video=screen&screenBy=8&floor=9')
+  await cameraOn(page)
+  await page.evaluate(() => window.fixture?.speaking(2))
+  await expect(myTile(page)).toHaveCount(0)
+  await page.getByRole('button', { name: /^\+\d+ more in the call$/ }).click()
+  const me = page.getByRole('dialog', { name: 'In the call' }).getByRole('listitem').filter({ hasText: 'you' })
+  await me.getByRole('button', { name: 'Switch camera' }).click()
+  await expect.poll(() => switches(page)).toEqual(['device:videoinput:cam-desk'])
+})
