@@ -39,9 +39,14 @@ let failed = false
 try {
   await withClient(server.url, (c) => c.query(`CREATE DATABASE ${database}`))
   failed = !(await runFiles(withDatabase(server.url, database), [...migrations, ...tests]))
-  await withClient(server.url, (c) => c.query(`DROP DATABASE IF EXISTS ${database} WITH (FORCE)`))
 } finally {
-  server.stop()
+  // Dropped even after an unexpected failure: on a reused server a leftover database would keep the cluster-global
+  // assembler role's grants (0070), and the next installation is refused while they exist.
+  try {
+    await withClient(server.url, (c) => c.query(`DROP DATABASE IF EXISTS ${database} WITH (FORCE)`))
+  } finally {
+    server.stop()
+  }
 }
 console.log(
   failed

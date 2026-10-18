@@ -90,6 +90,8 @@ test('panes @phone · one screen at a time: the list, then the conversation alon
   await expect(list(page)).toBeHidden()
   await expect(dock(page)).toBeHidden()
   await expect(open(page).getByRole('heading', { level: 3 })).toHaveText('Short or long briefs?')
+  // The row pressed went with the list: the focus is on the conversation's title, not the page (A24).
+  await expect(open(page).getByRole('heading', { level: 3 })).toBeFocused()
   await open(page).getByRole('button', { name: 'All conversations' }).click()
   await expect(list(page)).toBeVisible()
   await expect(rows(page).nth(1)).toBeFocused()
@@ -109,6 +111,50 @@ test('panes @phone · a conversation’s context rises from the foot', async ({ 
     return box && viewport ? Math.round(Math.abs(box.y + box.height - viewport.height)) : Infinity
   }
   await expect.poll(gap).toBeLessThanOrEqual(1)
+})
+
+test('panes @phone · typing before the opening frame keeps the focus and draft in the composer', async ({ page }) => {
+  await page.goto(PAGE)
+  await expect(rows(page).first()).toBeVisible()
+  await rows(page).first().focus()
+  // Hold the opening frame, not the network: a reader can reach the composer before the pane's deferred focus runs.
+  // Keyboard activation needs no actionability animation frames while this deterministic crossing is held.
+  await page.evaluate(() => {
+    const request = window.requestAnimationFrame.bind(window)
+    const cancel = window.cancelAnimationFrame.bind(window)
+    const pending = new Map<number, FrameRequestCallback>()
+    window.requestAnimationFrame = (callback) => {
+      const id = request(() => undefined)
+      pending.set(id, callback)
+      return id
+    }
+    window.cancelAnimationFrame = (id) => {
+      pending.delete(id)
+      cancel(id)
+    }
+    document.addEventListener(
+      'release-pane-frame',
+      () => {
+        window.requestAnimationFrame = request
+        window.cancelAnimationFrame = cancel
+        for (const callback of pending.values()) request(callback)
+        pending.clear()
+      },
+      { once: true },
+    )
+  })
+  await page.keyboard.press('Enter')
+  await field(page).fill('Writing before the opening frame.')
+  await expect(field(page)).toBeFocused()
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        document.dispatchEvent(new Event('release-pane-frame'))
+        requestAnimationFrame(() => resolve())
+      }),
+  )
+  await expect(field(page)).toBeFocused()
+  await expect(field(page)).toHaveValue('Writing before the opening frame.')
 })
 
 test('panes · a note sent while the thread is scrolled up comes into sight', async ({ page }) => {

@@ -103,9 +103,19 @@ jobs:
       - run: pnpm test:sql
       # Two-connection races, lease fencing, idempotent retries, SSE and revocation over real HTTP.
       - run: pnpm test:db
-      # S1-05A crossing: the real pinned dsh runtime against the real API, PostgreSQL and worker dispatch.
+      # S1-05A crossing: the real pinned dsh runtime against the real API, PostgreSQL and worker dispatch; and CON-01's
+      # service-mode replies on the same path, the context recorded by the worker with the dispatcher never paused,
+      # against a local provider double (no credential or provider call). One file at a time.
       - run: pnpm build && pnpm artifacts
-      - run: node --test --test-concurrency=1 --test-timeout=180000 tests/integration/runtime-service.test.mjs
+      - run: >-
+          node --test --test-concurrency=1 --test-timeout=180000 tests/integration/runtime-service.test.mjs
+          tests/integration/conversation-service.test.mjs
+      # Q13's exclusive admission and install groups, which the shared service above cannot qualify (they skip there):
+      # a PostgreSQL 16 cluster of their own, made in this service's image with no network, as its postgres user, the
+      # repository and this Node read-only. Its census, version and stages are printed; a skip or a missing stage fails.
+      # Then D-Q13's trusted-creator group on a second such cluster, whose postgres is a plain installer, as on Supabase.
+      - run: scripts/q13-owned-pg16.sh '${{ job.services.postgres.id }}'
+        timeout-minutes: 6
 
   room-media:
     name: Media bridge against a real LiveKit server

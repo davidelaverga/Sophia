@@ -6,7 +6,7 @@
 // `arrive=1`: yesterday's talk and her line of today, nothing said yet. The parts the API doesn't give yet:
 // `memory=1` (`=old`: one learned last year), `week=1`, `voice=1`, `ready=1` (a session in 10 min), or `all=1` (personal-extras.ts).
 // `spaceAfter=ms`, `epochAfter=ms`: the space, or its epoch, read that much later; `readSlow=1`: earlier days take
-// 1.5 s. `slow=1`: a message takes 1.5 s on its way, not 0.3, and her answer 2.5 s, not 0.9. `kept=sophia`: the note was Sophia's. `holdReply=1`: her answer waits for `window.personalFixture.answer()`. `window.personalFixture.sent` lists what was sent; `pressed`, what those parts were asked.
+// 1.5 s. `slow=1`: a message takes 1.5 s on its way, not 0.3, and her answer 2.5 s, not 0.9. `kept=sophia`: the note was Sophia's. `holdReply=1`: her answer waits for `window.personalFixture.answer()`; `holdSend=1`: a message waits on its way for `window.personalFixture.releaseSend()`. `window.personalFixture.sent` lists what was sent; `pressed`, what those parts were asked.
 import { ApiError } from '../src/api/client.ts'
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
@@ -32,6 +32,8 @@ declare global {
       sent: string[]
       pressed: string[]
       answer?: () => void
+      /** `holdSend=1`: a message on its way goes on (or fails) only when this is called. */
+      releaseSend?: () => void
       carried: string[]
       takenBack: string[]
       /** Each note forgotten, by id (personal-forget-note.md). */
@@ -324,6 +326,13 @@ function answered(s: Space, text: string, hers: PersonalTurn): Space {
 }
 
 /** The space and its writes, as the API would keep them: a message is listed at once and answered 900 ms later. */
+/** A message on its way: until `releaseSend` (`holdSend=1`), else 1.5 s (`slow=1`) or 0.3 s. */
+function onItsWay(): Promise<void> {
+  const fixture = window.personalFixture
+  if (query.has('holdSend') && fixture) return new Promise((go) => (fixture.releaseSend = go))
+  return new Promise((r) => setTimeout(r, query.has('slow') ? 1500 : 300))
+}
+
 function useSimulated() {
   const [space, setSpace] = useState<Space>(firstSpace)
   const [sending, setSending] = useState<Sending | null>(null)
@@ -342,7 +351,7 @@ function useSimulated() {
       sent.push(text)
       setBusy(true)
       setSending({ text, at: new Date(), epoch: 1 })
-      await new Promise((r) => setTimeout(r, query.has('slow') ? 1500 : 300))
+      await onItsWay()
       // `sendFails=1`: the message doesn't go (a lost connection); its words come back to the field.
       if (query.has('sendFails')) {
         setSending(null)
