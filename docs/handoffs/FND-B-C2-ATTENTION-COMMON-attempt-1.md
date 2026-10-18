@@ -282,6 +282,15 @@ and other statuses are unchanged; the fence, retry, draft and restoration paths 
   to Goals and back; the remount's held reads are released after its effects run and answer 200, and the window and
   Mark as seen come back with no further read, no Try again and no seen write. The same case fails on 0cedd74c.
 
+## FND-B-COMMON-CURRENT-REVIEW-CORRECTION-01 on mentions (#409 4305869903)
+
+- A seen write for a mention that fails is tried again while the same occurrence stays readable where it is: at most
+  three times, later each time (1 s, 2 s, 3 s). Before each try the occurrence is checked for the same element and
+  readable geometry; the view's cleanup cancels every pending try (hidden chat, another account, a changed occurrence).
+  In-flight and done writes are not repeated, and both cache invalidations stay. `e2e/mentions.spec.ts` covers a
+  stationary visible mention whose first write fails (marked once, two attempts), a write that keeps failing (four
+  attempts in all, then none until the next showing), and closing the chat (the pending retry is cancelled).
+
 ## Next bounded action
 
 B's private handback goes to P; R reviews this integration. No push until P selects one publication.
