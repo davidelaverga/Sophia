@@ -5,7 +5,8 @@
 // file is checked against its hash before it is shown, so what is read is what downloads. A non-modal complementary
 // region: focus moves to its title on open and back to the opener on close; Esc steps down, F toggles the full page.
 import { ReportOrigin } from './ReportOrigin.tsx'
-import { useQuery } from '@tanstack/react-query'
+import { ownedBytes, ownedText } from './download.ts'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { lazy, Suspense, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
 import { reportLanguage } from '@sophia/report/language'
@@ -16,16 +17,7 @@ import { ReviseSections } from './ReviseSections.tsx'
 import type { Identity } from '../../app/dev-identity.ts'
 import { modalOnScreen, onScreen as isVisible, ShortcutScope } from '../../app/shortcuts.ts'
 import { useCommands } from '../../app/useCommands.ts'
-import {
-  checkedBlob,
-  HashMismatch,
-  loadReportBytes,
-  loadReportText,
-  saveBlob,
-  utf8,
-  type LoadedBytes,
-  type LoadedText,
-} from './download.ts'
+import { HashMismatch, ownedSave, saveBlob, SaveWithheld, utf8, type LoadedBytes, type LoadedText } from './download.ts'
 import { parseMarkdown, wordCount, type ParsedReport } from './markdown.ts'
 import { HtmlView, reviewTag } from './HtmlView.tsx'
 import { MarkdownView } from './MarkdownView.tsx'
@@ -54,6 +46,7 @@ import {
   versionReadFailure,
   viewerFormats,
 } from './report-view.ts'
+import { reportRead, useReportFence } from './report-read.ts'
 import { ReportHistory } from './ReportHistory.tsx'
 import { ReviewRow } from './ReviewRow.tsx'
 import { TaskList, useTasks } from './TaskList.tsx'
@@ -114,9 +107,13 @@ const pick = (versions: readonly ArtifactVersion[] | undefined, id: string | nul
 
 /** The data on screen: the report's versions, the one shown, its checked text and its sources. */
 function usePaneData(identity: Identity, link: ReportLink, cursor: string | undefined, tab: ViewerTab) {
+  // This person's own refusal of the report (its versions or cited sources) since its newest allowed read: nothing read
+  // before shows, the version, its text, renditions, sources and history all go with the list (report-read.ts).
+  const refused = useReportFence(link.artifactId)
   const versions = useQuery({
     queryKey: ['report-versions', link.artifactId, identity.name],
-    queryFn: () => listArtifactVersions(identity.token, link.artifactId),
+    queryFn: reportRead(link.artifactId, () => listArtifactVersions(identity.token, link.artifactId)),
+    select: (list: readonly ArtifactVersion[]) => (refused ? undefined : list),
   })
   const version = pick(versions.data, link.versionId)
   // A link to a version the list does not hold (one published since it was read) reads the list again, once per
@@ -137,14 +134,15 @@ function usePaneData(identity: Identity, link: ReportLink, cursor: string | unde
   const text = useQuery({
     // A source's bytes never change (content-addressed), so a version's text is read once.
     queryKey: ['report-text', version?.sourceId, identity.name],
-    queryFn: () => loadReportText(identity.token, version?.sourceId ?? '', version?.sourceHash ?? ''),
+    queryFn: (ctx) =>
+      ownedText(identity.token, version?.sourceId ?? '', version?.sourceHash ?? '', link.artifactId)(ctx),
     enabled: version !== undefined,
     staleTime: Infinity,
     retry: (n, error) => !(error instanceof HashMismatch) && n < 2,
   })
   const sources = useQuery({
     queryKey: ['report-sources', link.artifactId, version?.id, identity.name],
-    queryFn: () => listReportSources(identity.token, link.artifactId, version?.id ?? ''),
+    queryFn: reportRead(link.artifactId, () => listReportSources(identity.token, link.artifactId, version?.id ?? '')),
     enabled: version !== undefined,
   })
   // A link to a source's id is a citation only when the version cites that source (CX-0019), never a link to any other
@@ -165,6 +163,7 @@ function usePaneData(identity: Identity, link: ReportLink, cursor: string | unde
   // A linked passage is decided for the pane, so the Sources tab and back keep it (usePassageArrival).
   const arrival = usePassageArrival(version, parsed, shown.sourcesSettled, tab === 'document')
   return {
+    refused,
     versions,
     version,
     versionSettled,
@@ -190,7 +189,8 @@ function useRenditions(identity: Identity, link: ReportLink, version: ArtifactVe
   const showHtml = link.format === 'html' && page !== undefined
   const pdf = useQuery({
     queryKey: ['report-pdf', rendition?.sourceId, identity.name],
-    queryFn: () => loadReportBytes(identity.token, rendition?.sourceId ?? '', rendition?.sha256 ?? ''),
+    queryFn: (ctx) =>
+      ownedBytes(identity.token, rendition?.sourceId ?? '', rendition?.sha256 ?? '', link.artifactId)(ctx),
     enabled: showPdf,
     staleTime: Infinity,
     retry: retryRead,
@@ -198,7 +198,7 @@ function useRenditions(identity: Identity, link: ReportLink, version: ArtifactVe
   // The designed page's text, checked against the rendition's hash: the frame shows exactly what downloads.
   const html = useQuery({
     queryKey: ['report-html', page?.sourceId, identity.name],
-    queryFn: () => loadReportText(identity.token, page?.sourceId ?? '', page?.sha256 ?? ''),
+    queryFn: (ctx) => ownedText(identity.token, page?.sourceId ?? '', page?.sha256 ?? '', link.artifactId)(ctx),
     enabled: showHtml,
     staleTime: Infinity,
     retry: retryRead,
@@ -458,6 +458,7 @@ export function DocumentPane(props: Props) {
   const { title, top, offer, recover, onCurrent } = usePaneBehaviour(props, data, live.showing)
   const width = usePaneWidth()
   const status = useTransientStatus()
+  const client = useQueryClient()
   const { focusSource, cite, choose } = useCitation(tab, onTab)
   const full = link.size === 'full'
   const tasks = useTaskTab(props)
@@ -476,7 +477,7 @@ export function DocumentPane(props: Props) {
             // Only the current version is shown to everyone: the room shows what is current (present-view.ts).
             show={data.version && onCurrent && props.show?.(data.version.id, onClose)}
             full={full}
-            onDownload={() => void viewerDownload(data, status.show)}
+            onDownload={() => void viewerDownload(data, status.show, { client, artifactId: link.artifactId })}
             onEnlarge={onEnlarge}
             onStepDown={onStepDown}
             onClose={onClose}
@@ -502,7 +503,7 @@ export function DocumentPane(props: Props) {
         tasks={tasks.list}
         revise={revise}
       />
-      <PaneStatus {...status} />
+      <PaneStatus {...status} withheld={data.refused} />
       <PassageBar pane={pane} version={data.version} viewer={{ ...props, onSeeTasks: () => choose('tasks') }} />
     </aside>
   )
@@ -554,11 +555,14 @@ function reviewOf(props: Props, data: PaneData): ReactNode {
   )
 }
 
-/** The download's line of status, in the pane's foot. */
-function PaneStatus({ text, error }: { text: string; error: boolean }) {
+/**
+ * The download's line of status, in the pane's foot. While the report is refused (`withheld`) it says nothing of a
+ * download that came before (its filename, size, hash), at once and not when the line would fade; the line stays.
+ */
+function PaneStatus({ text, error, withheld }: { text: string; error: boolean; withheld: boolean }) {
   return (
-    <p className="report-status" role="status" data-error={error || undefined}>
-      {text}
+    <p className="report-status" role="status" data-error={(!withheld && error) || undefined}>
+      {withheld ? '' : text}
     </p>
   )
 }
@@ -585,7 +589,9 @@ interface BodyProps {
  * current one, when the report has one, is a press away).
  */
 function unavailable(data: PaneData): Blocked | null {
-  const failure = versionReadFailure(data.versions, data.version !== undefined, data.versionSettled)
+  const failure = data.refused
+    ? 'refused'
+    : versionReadFailure(data.versions, data.version !== undefined, data.versionSettled)
   if (failure === 'refused') return { text: 'This report isn’t available to you.' }
   if (failure === 'failed') {
     // Nothing of the report was read, or its list was, but without this version.
@@ -794,15 +800,27 @@ const asBytes = (text: LoadedText): LoadedBytes => ({
   mime: text.mime,
 })
 
-/** The viewer's download: the bytes already loaded, checked against their record again before they are saved. */
-async function viewerDownload(data: PaneData, show: (text: string, error?: boolean) => void): Promise<void> {
+/**
+ * The viewer's download: the bytes already loaded, checked against their record again before they are saved, for the
+ * report and account cache as the press began (`owner`): a newer own refusal of the report since stops the save.
+ */
+async function viewerDownload(
+  data: PaneData,
+  show: (text: string, error?: boolean) => void,
+  owner: { client: QueryClient; artifactId: string },
+): Promise<void> {
   const shown = onScreen(data)
   if (!shown) return
   try {
-    saveBlob(await checkedBlob(shown.file.bytes, shown.sha256, shown.file.mime), shown.file.filename)
+    await ownedSave(shown.file, shown.sha256, { client: owner.client, artifactId: owner.artifactId }, saveBlob)
     show(`Downloading ${shown.file.filename} · ${exact(shown.file.bytes.byteLength, shown.sha256)}`)
   } catch (err: unknown) {
-    show(err instanceof HashMismatch ? err.message : 'The download didn’t start. Try again.', true)
+    show(
+      err instanceof HashMismatch || err instanceof SaveWithheld
+        ? err.message
+        : 'The download didn’t start. Try again.',
+      true,
+    )
   }
 }
 

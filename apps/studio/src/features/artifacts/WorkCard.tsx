@@ -6,10 +6,14 @@
 // delivered without the PDF it asked for offers editors "Try PDF again" (RetryPdf). Hold and Stop live on its goal
 // (WorkControls), as for every task, a PDF rendering again included.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useOwnedTaskDetail } from './task-detail.ts'
+import { taskRead, useTaskFence } from './task-detail-read.ts'
+import { TaskRefused } from './TaskRefused.tsx'
+import { ReportRefused } from './ReportRefused.tsx'
+import { useOwnedVersions } from './report-versions.ts'
 import { useEffect, useRef } from 'react'
 import type { ArtifactVersion, NativeTask, NativeTaskDetail, ResearchProgress } from '@sophia/contracts'
 import { Card, Icon, Tag } from '@sophia/ui'
-import { listArtifactVersions } from '../../api/artifacts.ts'
 import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer, type OpenRequest } from './DocumentViewer.tsx'
@@ -67,10 +71,13 @@ const detailRead = (q: { isPending: boolean; error: Error | null }): DetailRead 
  * stay shown.
  */
 function useResearch({ task, projectId, identity }: Props) {
+  // The task's own refusal (task-detail-read.ts): its private detail is withheld, not only its report.
+  const taskRefused = useTaskFence(projectId, task.id)
   const detail = useQuery({
     queryKey: ['native-task', projectId, task.id, task.phase, task.resultSourceId, identity.name],
-    queryFn: () => getNativeTask(identity.token, projectId, task.id),
+    queryFn: taskRead(projectId, task.id, () => getNativeTask(identity.token, projectId, task.id)),
     refetchInterval: (q) => pollEvery(task, q.state.data),
+    select: (d: NativeTaskDetail) => (taskRefused ? undefined : d),
   })
   const outputs = detail.data?.result?.outputs ?? []
   const research = detail.data?.research
@@ -86,18 +93,41 @@ function useResearch({ task, projectId, identity }: Props) {
       void client.invalidateQueries({ queryKey: ['report-versions', task.artifactId] })
     }
   }, [client, latest, task.artifactId])
-  const versions = useQuery({
-    queryKey: ['report-versions', task.artifactId, latest, identity.name],
-    queryFn: () => listArtifactVersions(identity.token, task.artifactId ?? ''),
-    enabled: task.artifactId !== undefined && outputs.length > 0,
-  }).data
+  // The task's report: its own refusal (here or by any reader of it) withholds every report field and action.
+  const key = ['report-versions', task.artifactId, latest, identity.name]
+  const { versions, refused } = useOwnedVersions(key, task.artifactId, identity, outputs.length > 0)
   return {
+    taskRefused,
+    refused,
     research,
     outputs,
     versions,
     words: researchState(task, outputs, research?.outputs ?? ['markdown'], research ?? {}, detailRead(detail)),
     current: versions?.find((v) => v.id === latest),
   }
+}
+
+/** The task's report outputs, or, refused, only that it isn't available (with its Try again). */
+function ReportOutputs(props: {
+  refused: boolean
+  task: Props['task']
+  identity: Identity
+  outputs: readonly Output[]
+  versions: readonly ArtifactVersion[] | undefined
+  open: Open | null
+}) {
+  const { refused, task, identity, outputs, versions, open } = props
+  if (refused && task.artifactId) return <ReportRefused artifactId={task.artifactId} identity={identity} />
+  return (
+    <Outputs outputs={outputs} versions={versions} token={identity.token} open={open} artifactId={task.artifactId} />
+  )
+}
+
+/** The task refused to this person: only that, with its Try again (TaskRefused). */
+function TaskRefusedLine(props: { refused: boolean; projectId: string; taskId: string; identity: Identity }) {
+  return props.refused ? (
+    <TaskRefused projectId={props.projectId} taskId={props.taskId} identity={props.identity} />
+  ) : null
 }
 
 /** Opens this task's report in the viewer; null where there is no viewer or no report yet. */
@@ -107,8 +137,9 @@ function useOpen(artifactId: string | undefined): Open | null {
 }
 
 /** "Try PDF again" is offered to editors on a report missing its PDF, while that PDF is not already rendering again. */
-const offersRetry = (canAct: boolean, words: StateWords, research: ResearchProgress | undefined) =>
-  canAct && words.missing === 'pdf' && research !== undefined && !research.pdfRendering
+const offersRetry = (canAct: boolean, words: StateWords, research: ResearchProgress | undefined, refused: boolean) =>
+  // A rendition of the task's report: never offered while that report is refused to this person (report-read.ts).
+  canAct && !refused && words.missing === 'pdf' && research !== undefined && !research.pdfRendering
 
 /**
  * Named in the address (`#task-<id>`, as a line of Updates names it): the card takes the focus and comes into view,
@@ -129,17 +160,32 @@ export function useNamedCard(taskId: string) {
 
 export function WorkCard(props: Props) {
   const { task, identity, projectId, canAct = false } = props
-  const { research, outputs, versions, words, current } = useResearch(props)
+  const { taskRefused, refused, research, outputs, versions, words, current } = useResearch(props)
   const now = useNow()
   const open = useOpen(task.artifactId)
-  const retry = offersRetry(canAct, words, research)
+  const retry = offersRetry(canAct, words, research, refused)
+  // Its own detail refused (task-detail-read.ts): only that refusal and its retry, never the normal Researching or
+  // Completed state, its progress or a read-failure note beside it (as DesignCard).
+  if (taskRefused)
+    return (
+      <Card as="li" className="task work-card" data-state="refused" data-task={task.id} tabIndex={-1}>
+        <TaskRefusedLine refused projectId={projectId} taskId={task.id} identity={identity} />
+      </Card>
+    )
   return (
     // The card takes the focus when a control inside it goes (Try PDF again, once the PDF renders again).
     <Card as="li" className="task work-card" data-state={words.state} data-task={task.id} tabIndex={-1}>
       <CardHead words={words} task={task} research={research} now={now} />
       <p className="work-card-question">{research?.question ?? 'Research'}</p>
       {words.state === 'researching' && research && <Progress research={research} />}
-      <Outputs outputs={outputs} versions={versions} token={identity.token} open={open} />
+      <ReportOutputs
+        refused={refused}
+        task={task}
+        identity={identity}
+        outputs={outputs}
+        versions={versions}
+        open={open}
+      />
       <DesignRow html={research?.html} projectId={projectId} identity={identity} researchTaskId={task.id} />
       {words.note && <p className="goal-outcome">{words.note}</p>}
       {retry && <RetryPdf projectId={projectId} taskId={task.id} token={identity.token} />}
@@ -155,10 +201,11 @@ interface OutputsProps {
   versions: readonly ArtifactVersion[] | undefined
   token: string
   open: Open | null
+  artifactId: string | undefined
 }
 
 /** One row per delivered output, side by side (stacked in a narrow card): only what the task actually stored. */
-function Outputs({ outputs, versions, token, open }: OutputsProps) {
+function Outputs({ outputs, versions, token, open, artifactId }: OutputsProps) {
   if (outputs.length === 0) return null
   return (
     <div className="work-card-outputs">
@@ -168,6 +215,7 @@ function Outputs({ outputs, versions, token, open }: OutputsProps) {
           output={o}
           version={versions?.find((v) => v.id === o.artifactVersionId)}
           token={token}
+          artifactId={artifactId}
           onOpen={open ? () => open({ versionId: o.artifactVersionId, format: o.format }) : null}
         />
       ))}
@@ -191,19 +239,22 @@ const DESIGN_ENDED: ReadonlySet<string> = new Set(['published', 'failed', 'cance
 function useDesignState(html: HtmlProgress, rest: { projectId: string; identity: Identity; researchTaskId: string }) {
   const { projectId, identity, researchTaskId } = rest
   const live = html.state === 'designing' && html.designTaskId !== undefined
-  const detail = useQuery({
+  // The design child task's own refusal (task-detail-read.ts) withholds its state; the row then says only that refusal.
+  const { detail, refused } = useOwnedTaskDetail({
     queryKey: ['native-task', projectId, html.designTaskId, identity.name],
-    queryFn: () => getNativeTask(identity.token, projectId, html.designTaskId ?? ''),
+    projectId,
+    taskId: html.designTaskId,
+    identity,
     enabled: live,
     refetchInterval: live ? DESIGN_POLL : false,
   })
-  const state = live ? detail.data?.design?.state : undefined
+  const state = live ? detail?.design?.state : undefined
   const client = useQueryClient()
   useEffect(() => {
     if (state && DESIGN_ENDED.has(state))
       void client.invalidateQueries({ queryKey: ['native-task', projectId, researchTaskId] })
   }, [client, state, projectId, researchTaskId])
-  return state
+  return { state, refused: live && refused }
 }
 
 /** The HTML page's row before it is published: what the design is doing, or why there is no page. */
@@ -227,7 +278,15 @@ function DesignRow({ html, ...rest }: DesignRowProps & { html: HtmlProgress | un
 }
 
 function DesignState({ html, ...rest }: DesignRowProps & { html: HtmlProgress }) {
-  const words = designWords(html, useDesignState(html, rest))
+  const { state, refused } = useDesignState(html, rest)
+  // The design task refused to this person: only that, with its Try again, never its fallback Designing words.
+  if (refused && html.designTaskId)
+    return (
+      <div className="output-row" data-design="refused">
+        <TaskRefused projectId={rest.projectId} taskId={html.designTaskId} identity={rest.identity} />
+      </div>
+    )
+  const words = designWords(html, state)
   return (
     <div className="output-row" data-design={html.state}>
       <div className="output-open" aria-live="polite">
@@ -288,6 +347,8 @@ interface RowProps {
   output: Output
   version: ArtifactVersion | undefined
   token: string
+  /** The task's report, whose own output this row is: its download is that report's own read. */
+  artifactId: string | undefined
   onOpen: (() => void) | null
 }
 
@@ -312,12 +373,14 @@ const TILE: Record<Output['format'], string> = { markdown: 'MD', pdf: 'PDF', htm
 /** A row's format, said: two rows of one report differ by it (the name alone is "Report" until the versions load). */
 const formatName = (format: Output['format']) => FORMAT_NAME[format]
 
-function OutputRow({ output, version, token, onOpen }: RowProps) {
+function OutputRow({ output, version, token, artifactId, onOpen }: RowProps) {
   const status = useTransientStatus()
+  const client = useQueryClient()
   const name = nameOf(output, version)
   const download = async () => {
     try {
-      const saved = await downloadSource(token, output.sourceId, output.sha256)
+      const owner = artifactId ? { client, artifactId } : undefined
+      const saved = await downloadSource(token, output.sourceId, output.sha256, undefined, owner)
       status.show(`Downloading ${saved.filename} · ${formatBytes(saved.byteLength)}`)
     } catch (err: unknown) {
       status.show(err instanceof Error ? err.message : 'The download didn’t start. Try again.', true)

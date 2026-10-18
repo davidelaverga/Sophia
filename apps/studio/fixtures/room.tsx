@@ -335,6 +335,8 @@ interface Fixture {
   loseNextReply: () => void
   /** Reads of the research task fail from now on; given false, they succeed again. */
   failTask: (fails?: boolean) => void
+  /** The research task's reads are refused (403) from now on; given false, they are answered. */
+  refuseTask: (on?: boolean) => void
   /** A live caption packet reaches this member, as the bridge sends what is said aloud (CX-0023): synthetic text. */
   caption: (packet: ChatCaption) => void
   /** Sophia's participant leaves the room (her bridge lost its link, or restarted). */
@@ -347,6 +349,12 @@ interface Fixture {
   describeElsewhere: (text: string) => void
   /** Reads of the report's versions fail from now on: unavailable, or refused (`not_found`); given false, they succeed. */
   failVersions: (how?: 'unavailable' | 'not_found' | false) => void
+  /** Reads of the design task fail from now on: refused (403) or unavailable (503); given false, they succeed. */
+  failDesign: (how?: 'unavailable' | 'forbidden' | false) => void
+  /** The page's own cache as it holds a report's or task's fence (read only, never set): its refusal and allowed reads. */
+  fenceOf: (key: readonly string[]) => unknown
+  /** Sets out the page's own queries under `key` again, through their own owned query functions (nothing set by hand). */
+  refetch: (key: readonly string[]) => void
   /** The report's sources, held since the page opened (`hold=sources`), come now. */
   releaseSources: () => void
   /** Reads of the report's sources wait again from now on, until released. */
@@ -387,6 +395,10 @@ declare global {
     fixture?: Fixture
   }
 }
+
+/** `designfail=forbidden|unavailable`: the design task's reads fail so from the start. */
+const designFailOf = (v: string | null): false | 'unavailable' | 'forbidden' =>
+  v === 'unavailable' || v === 'forbidden' ? v : false
 
 const query = new URLSearchParams(window.location.search)
 
@@ -621,6 +633,9 @@ const project = {
   },
   description: SOPHIAS_DESCRIPTION,
   versionsFail: false as false | 'unavailable' | 'not_found',
+  // `designcard=on`: the design task itself is in the project's work (its own DesignCard); `failDesign` fails its read.
+  designCard: query.get('designcard') === 'on',
+  designFail: designFailOf(query.get('designfail')),
   sourcesHeld: query.get('hold') === 'sources',
   textHeld: query.get('hold') === 'text',
   activityHeld: query.get('hold') === 'activity',
@@ -630,6 +645,7 @@ const project = {
   coversHeld: query.get('hold') === 'covers',
   // `fail=task`: every read of the research task is refused (503), as the hosted cards' detail went unread.
   taskFails: query.get('fail') === 'task',
+  taskRefused: false,
   researching: query.get('research') === 'running' ? { reads: 0 } : null,
   researchFinished: false,
   textTampered: query.get('tamper') === 'text',
@@ -1135,6 +1151,9 @@ window.fixture = {
   failTask: (fails = true) => {
     project.taskFails = fails
   },
+  refuseTask: (on = true) => {
+    project.taskRefused = on
+  },
   caption: deliverCaption,
   sophiaLeaves,
   speakMuted: speakWhileMuted,
@@ -1145,6 +1164,11 @@ window.fixture = {
   failVersions: (how = 'unavailable') => {
     project.versionsFail = how
   },
+  failDesign: (how = 'forbidden') => {
+    project.designFail = how
+  },
+  fenceOf: (key) => queryClient.getQueryData(key),
+  refetch: (key) => void queryClient.refetchQueries({ queryKey: key }).catch(() => undefined),
   releaseSources: () => releaseSources(project),
   holdSources: () => {
     project.sourcesHeld = true

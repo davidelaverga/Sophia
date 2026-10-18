@@ -2,6 +2,7 @@
 // screen goes, when I follow it or show it myself, or a card that says who shows what, with Follow. Following is this
 // device's choice (01:41) and ends when nothing is shown. «Show everyone» is offered only under the vision flag.
 import { useQuery } from '@tanstack/react-query'
+import { useReportFence } from '../artifacts/report-read.ts'
 import { useCallback, useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react'
 import type { Snapshot } from '@sophia/contracts'
 import { accountOf } from '../../app/auth-callback.ts'
@@ -221,6 +222,8 @@ const onStageOf = (shown: Shown | null, following: boolean, screen: boolean) =>
 export function useStagePresent(snapshot: Snapshot | undefined, room: Room, context: Context) {
   const { projectId, identity, me, names, spoken } = context
   const shown = shownOf(snapshot?.sharedFocus, snapshot?.artifacts, me)
+  // The shown report's own refusal (report-read.ts): its card says who shows a report, never its title or version.
+  const refused = useReportFence(shownArtifact(shown))
   // Whose call, of which project: another person in this tab, or a project opened again, starts afresh.
   const followed = useFollowing(shown, `${projectId} ${accountOf(identity)} ${String(room.call)}`)
   const { following, stopped, focused, follow, unfollow } = followed
@@ -243,7 +246,7 @@ export function useStagePresent(snapshot: Snapshot | undefined, room: Room, cont
     const on = { version: shown.version, identity, by: guide, action: stop ?? unfollowing, spoken, walk }
     return { presented: presentedOf(on, room, shown.mine), card: null }
   }
-  return { presented: null, card: cardOf(shown, guide, { screen, stopped, focused, follow, stop }) }
+  return { presented: null, card: cardOf(shown, guide, { screen, stopped, focused, follow, stop, refused }) }
 }
 
 /** The report on the stage; to whoever shows it, how many others follow it (A14, the vision flag's). */
@@ -251,13 +254,17 @@ function presentedOf(on: Omit<ComponentProps<typeof PresentedReport>, 'followers
   return <PresentedReport {...on} followers={VISION && mine ? followersOf(room, on.version.id) : 0} />
 }
 
+/** The shown report's id, for its fence ('' when nothing is shown). */
+const shownArtifact = (shown: Shown | null): string => shown?.version?.artifactId ?? ''
+
 /** The card: mine with Stop showing; another's with Follow, when the stage can present it. */
 function cardOf(
   shown: Shown,
   guide: string,
-  at: { screen: boolean; stopped: boolean; focused: () => void; follow: () => void; stop: ReactNode },
+  at: { screen: boolean; stopped: boolean; focused: () => void; follow: () => void; stop: ReactNode; refused: boolean },
 ): ReactNode {
-  const followable = shown.version && !at.screen
+  // A report refused to me is never offered to follow: nothing of it may be put on my stage (r4307481573).
+  const followable = shown.version && !at.screen && !at.refused
   const action = shown.mine ? (
     at.stop
   ) : followable ? (
@@ -265,6 +272,6 @@ function cardOf(
       Follow
     </button>
   ) : null
-  const words = showingWords(guide, shown.version, shown.mine)
+  const words = showingWords(guide, at.refused ? { title: 'a report', versionNumber: 0 } : shown.version, shown.mine)
   return <ShowingCard words={words} action={action} focused={at.stopped} onFocused={at.focused} />
 }
