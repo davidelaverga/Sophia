@@ -18,6 +18,7 @@ import {
   type StageMode,
 } from './room-view.ts'
 import { arrivalOrder, peopleTiles, tilesFor } from './tile-view.ts'
+import { TileMenu } from './TileMenu.tsx'
 import { useMirror } from './mirror-preference.ts'
 
 function VideoView({ feed, fit }: { feed: VideoFeed; fit: 'cover' | 'contain' }) {
@@ -62,6 +63,29 @@ function TileAct(props: { label: string; icon: 'expand' | 'eyeOff' | 'flip'; onP
       <Icon name={icon} />
       <Tip label={label} align={left ? 'start' : 'end'} />
     </button>
+  )
+}
+
+/**
+ * A tile's presses: Pin on others', Hide my tile and Switch camera on yours. A phone's strip holds one press a tile
+ * (theme.css): with both of yours, the press that opens them as a menu (TileMenu, Luis 2026-10-18).
+ */
+function TilePresses({
+  name,
+  onPin,
+  onHide,
+  onFlip,
+}: Pick<TileProps, 'onPin' | 'onHide' | 'onFlip'> & { name: string }) {
+  return (
+    <>
+      {onHide ? (
+        <TileAct label="Hide my tile" icon="eyeOff" onPress={onHide} />
+      ) : (
+        onPin && <TileAct label={`Pin ${name}`} icon="expand" onPress={onPin} />
+      )}
+      {onFlip && <TileAct label="Switch camera" icon="flip" onPress={onFlip} left />}
+      {onHide && onFlip && <TileMenu onFlip={onFlip} onHide={onHide} />}
+    </>
   )
 }
 
@@ -217,12 +241,7 @@ function PersonTile({ person, camera, holds, onPin, onHide, onFlip }: TileProps)
           <Icon name="micOff" size={10} />
         </span>
       )}
-      {onHide ? (
-        <TileAct label="Hide my tile" icon="eyeOff" onPress={onHide} />
-      ) : (
-        onPin && <TileAct label={`Pin ${shortName(person.name)}`} icon="expand" onPress={onPin} />
-      )}
-      {onFlip && <TileAct label="Switch camera" icon="flip" onPress={onFlip} left />}
+      <TilePresses name={shortName(person.name)} onPin={onPin} onHide={onHide} onFlip={onFlip} />
     </li>
   )
 }
