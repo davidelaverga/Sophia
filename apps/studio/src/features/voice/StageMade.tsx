@@ -4,6 +4,8 @@
 // this person once opened (here or anywhere) or closed. Until the task's record is read it says what the chat's card
 // says, and Open waits.
 import { useQuery } from '@tanstack/react-query'
+import type { ArtifactVersion } from '@sophia/contracts'
+import { reportRead, useReportFence } from '../artifacts/report-read.ts'
 import {
   useCallback,
   useContext,
@@ -110,10 +112,13 @@ function useMadeRecord({ notice, projectId, identity }: Pick<Props, 'notice' | '
   })
   const detail = task.data
   const artifactId = detail?.task.artifactId
+  // The report's own refusal (report-read.ts) withholds what was read of it here too.
+  const refused = useReportFence(artifactId ?? '')
   const versions = useQuery({
     queryKey: ['report-versions', artifactId, identity.name],
-    queryFn: () => listArtifactVersions(identity.token, artifactId ?? ''),
+    queryFn: reportRead(artifactId ?? '', () => listArtifactVersions(identity.token, artifactId ?? '')),
     enabled: !!artifactId,
+    select: (list: readonly ArtifactVersion[]) => (refused ? undefined : list),
   }).data
   // Knowledge's first page holds a report just made (newest first). Under Knowledge's own key, so a description
   // edited there is read again here; otherwise at most every half minute.

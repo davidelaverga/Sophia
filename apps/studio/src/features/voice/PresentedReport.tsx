@@ -3,6 +3,7 @@
 // sources are read as the viewer reads them: the same query keys, so a report open in the pane shares them. A citation
 // opens its source in the viewer's Sources tab.
 import { useQuery } from '@tanstack/react-query'
+import { reportRead, useReportFence } from '../artifacts/report-read.ts'
 import { useCallback, useEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
 import { reportLanguage } from '@sophia/report/language'
@@ -122,7 +123,7 @@ function useShownText(version: ArtifactVersion, identity: Identity) {
   })
   const sources = useQuery({
     queryKey: ['report-sources', version.artifactId, version.id, identity.name],
-    queryFn: () => listReportSources(identity.token, version.artifactId, version.id),
+    queryFn: reportRead(version.artifactId, () => listReportSources(identity.token, version.artifactId, version.id)),
   })
   const listed = sources.data?.sources
   const parsed = useMemo(
@@ -133,7 +134,23 @@ function useShownText(version: ArtifactVersion, identity: Identity) {
   return { parsed, listed, language, failed: text.isError }
 }
 
-export function PresentedReport({ version, identity, by, action, spoken, walk, followers = 0 }: Props) {
+export function PresentedReport(props: Props) {
+  // The report's own refusal (report-read.ts), seen here or anywhere else: no title, meta, index, text or action.
+  const refused = useReportFence(props.version.artifactId)
+  return refused ? <RefusedReport /> : <ShownReport {...props} />
+}
+
+function RefusedReport() {
+  return (
+    <section className="report-main" aria-label="Report">
+      <p className="report-main-refused" role="status">
+        This report isn’t available to you.
+      </p>
+    </section>
+  )
+}
+
+function ShownReport({ version, identity, by, action, spoken, walk, followers = 0 }: Props) {
   const { parsed, listed, language, failed } = useShownText(version, identity)
   const self = useFocusOnArrival(version.id)
   const body = useRef<HTMLDivElement>(null)
