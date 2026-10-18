@@ -21,4 +21,19 @@ describe('a search’s folding', () => {
     assert.equal(foldCharacter('ß'), 'ss')
     assert.equal(foldCharacter('\u0301'), '')
   })
+
+  it('folds capital sharp S to ss, as small sharp s folds (Codex P2 on #433)', () => {
+    assert.equal(foldCharacter('\u1e9e'), 'ss')
+    assert.equal(foldForSearch('STRA\u1e9eE'), foldForSearch('stra\u00dfe'))
+  })
+
+  it('leaves nothing to fold in what it folded, for every code point', () => {
+    const unsettled: string[] = []
+    for (let point = 0; point <= 0x10ffff; point += 1) {
+      if (point >= 0xd800 && point <= 0xdfff) continue
+      const folded = foldCharacter(String.fromCodePoint(point))
+      if (foldForSearch(folded) !== folded) unsettled.push(`U+${point.toString(16).toUpperCase()}`)
+    }
+    assert.deepEqual(unsettled, [])
+  })
 })

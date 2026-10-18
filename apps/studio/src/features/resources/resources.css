@@ -1972,3 +1972,10 @@
     flex: none;
   }
 }
+/* Less motion asked for: it is there at once. Here, not in the list above, which its own rule would follow and undo
+   (Codex P2 on #441). */
+@media (prefers-reduced-motion: reduce) {
+  .copy-link-hand {
+    animation: none;
+  }
+}

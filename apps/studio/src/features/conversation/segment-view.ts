@@ -12,9 +12,13 @@ interface Placed {
 }
 
 /** Each message's next one, as a page read before `before` shows them: consecutive, the last's being `before`. */
-export function pageLinks(page: readonly Placed[], before: string): [string, string][] {
+export function pageLinks(page: readonly Placed[], before: string | null): [string, string][] {
   const sorted = page.toSorted(inOrder)
-  return sorted.map((p, i) => [p.id, sorted[i + 1]?.id ?? before])
+  // The latest page (`before` null, a search's newest message): its newest has no next one, as in the window.
+  return sorted.flatMap((p, i): [string, string][] => {
+    const next = sorted[i + 1]?.id ?? before
+    return next === null ? [] : [[p.id, next]]
+  })
 }
 
 /** Each message's next one in the window (the latest messages, consecutive); the newest has none. */
@@ -40,4 +44,15 @@ export function afterGap(shown: readonly Placed[], gap: string): Placed | undefi
   const sorted = shown.toSorted(inOrder)
   const at = sorted.findIndex((s) => s.id === gap)
   return at < 0 ? undefined : sorted[at + 1]
+}
+
+/**
+ * A jump read as it stands for one address (4306435436): under way for any address (one jump at a time; the next waits
+ * and then asks for its own page); failed only for the address whose own read failed; otherwise idle.
+ */
+export function jumpReading(
+  jumped: { owner: string; reading: 'idle' | 'loading' | 'failed' },
+  owner: string,
+): 'idle' | 'loading' | 'failed' {
+  return jumped.reading === 'failed' && jumped.owner !== owner ? 'idle' : jumped.reading
 }

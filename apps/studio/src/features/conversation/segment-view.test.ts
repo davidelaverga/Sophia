@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { afterGap, gapsIn, pageLinks, windowLinks } from './segment-view.ts'
+import { afterGap, gapsIn, jumpReading, pageLinks, windowLinks } from './segment-view.ts'
 
 /** Message n (1-based) of a discussion, a second apart. */
 const m = (n: number) => ({
@@ -64,5 +64,32 @@ describe('the gaps that pages read leave (A38, R-C4-01)', () => {
     const shown = [...range(51, 100), ...range(211, 260)]
     assert.deepEqual(afterGap(shown, m(100).id), m(211))
     assert.equal(afterGap(shown, m(260).id), undefined)
+  })
+
+  // 4306435434: a search's newest message comes with before null; the latest page is read, and its newest has no next.
+  it('the latest page (before null): each links to its next, the newest to none', () => {
+    assert.deepEqual(pageLinks([m(2), m(1), m(3)], null), [
+      [m(1).id, m(2).id],
+      [m(2).id, m(3).id],
+    ])
+    assert.deepEqual(gapsIn([m(1), m(2), m(3)], new Map(pageLinks([m(1), m(2), m(3)], null))), [])
+  })
+
+  // 4306435436: hold A, follow B. A loading: B waits. A answers: B is idle and asks for its own page. A fails: the
+  // failure is A's, B is idle and asks for its own page. B's own failure is B's, so B's Try again reads B.
+  it('a jump read is owned by its followed address: an older follow never fails a newer one, even both latest', () => {
+    // Follows are id#seq; two newest messages both read the latest page (before null) yet stay distinct.
+    const A = 'm-a#1'
+    const B = 'm-b#1'
+    assert.equal(jumpReading({ owner: A, reading: 'loading' }, B), 'loading', 'one at a time: B waits')
+    assert.equal(jumpReading({ owner: A, reading: 'idle' }, B), 'idle', 'A answered: B asks for its own page')
+    assert.equal(jumpReading({ owner: A, reading: 'failed' }, B), 'idle', 'A failed: not B’s failure')
+    assert.equal(jumpReading({ owner: A, reading: 'failed' }, A), 'failed')
+    assert.equal(jumpReading({ owner: B, reading: 'failed' }, B), 'failed', 'B’s own failure: its Try again reads B')
+    assert.equal(
+      jumpReading({ owner: A, reading: 'failed' }, 'm-a#2'),
+      'idle',
+      'the same message followed again is a new follow',
+    )
   })
 })

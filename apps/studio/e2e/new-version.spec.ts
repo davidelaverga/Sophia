@@ -30,6 +30,14 @@ test('version · a word that came before the notice was drawn still shows it (Co
   await expect(notice(page)).toBeVisible()
 })
 
+test('version · a word after the notice was drawn, before it listened, still shows it (Codex P2 on #432)', async ({
+  page,
+}) => {
+  // Its own fixture page (fixtures/new-version.tsx): the word comes as React commits, between the two.
+  await page.goto('/new-version.html')
+  await expect(notice(page)).toBeVisible()
+})
+
 test('version · the notice stands over the opening, its Reload under the pointer (Codex P2 on #415)', async ({
   page,
 }) => {

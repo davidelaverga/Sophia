@@ -119,3 +119,28 @@ test('why · «and N more» gone with the line shortened, the focus goes to its 
   await expect(more).toHaveCount(0)
   await expect(why.locator('[data-blocker]').last()).toBeFocused()
 })
+
+/** Each text's baseline in the Blocked lane's line, by the bottom of its words: «Waiting on» first, then each press. */
+const baselines = (page: Page) =>
+  lane(page, 'Blocked')
+    .locator('.lane-why')
+    .evaluate((why) =>
+      [why.querySelector('.lane-why-word'), ...why.querySelectorAll('.text-button')].flatMap((el) => {
+        const words = el?.firstChild
+        if (!words) return []
+        const range = document.createRange()
+        range.selectNodeContents(words)
+        const first = range.getClientRects()[0]
+        return first ? [Math.round(first.bottom * 2) / 2] : []
+      }),
+    )
+
+for (const query of ['', '?waits=1']) {
+  test(`why · «Waiting on» and what it waits on share one baseline (${query || 'one blocker'})`, async ({ page }) => {
+    await page.goto(`${PAGE}${query}`)
+    await expect(lane(page, 'Blocked').locator('.lane-why .text-button').first()).toBeVisible()
+    const [word, first] = await baselines(page)
+    // The word and the first blocker stand on one line: their words end at the same height.
+    expect(Math.abs((word ?? 0) - (first ?? Number.NaN))).toBeLessThanOrEqual(0.5)
+  })
+}

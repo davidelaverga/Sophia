@@ -55,6 +55,7 @@ import {
   deliverCaption,
   deliverNotice,
   dropCall,
+  disabling,
   enabling,
   joined,
   leaving,
@@ -288,6 +289,10 @@ interface Fixture {
   holdMission: (on: boolean) => void
   /** The brief's reads are refused (403), as to a reader no longer in the project; or answer again. */
   refuseMission: (on: boolean) => void
+  /** The goals' targets reads fail, or read again (targets-robust.md). */
+  failTargets: (on: boolean) => void
+  /** While on, the goals' targets reads wait; off, the waiting ones are answered. */
+  holdTargets: (on: boolean) => void
   /** The running meeting closes (another member closed it), and the feed moves (chapter 7's update). */
   endMeeting: () => void
   /** The project list's reads fail, or read again (chapter 1). */
@@ -358,6 +363,9 @@ interface Fixture {
   /** Turning the microphone on waits until `releaseMicrophone`, as a browser still asking for it. */
   holdMicrophone: () => void
   releaseMicrophone: () => void
+  /** Turning the microphone off waits until `releaseMute`, as LiveKit's mute does while a republish settles. */
+  holdMute: () => void
+  releaseMute: () => void
   /** Leaving the call waits until `releaseLeave`, as a slow disconnect. */
   holdLeave: () => void
   /** Leaving the call fails on LiveKit's side, as a disconnect that rejects. */
@@ -386,6 +394,12 @@ interface Fixture {
   describeElsewhere: (text: string) => void
   /** Reads of the report's versions fail from now on: unavailable, or refused (`not_found`); given false, they succeed. */
   failVersions: (how?: 'unavailable' | 'not_found' | false) => void
+  /** Reads of the design task fail from now on: refused (403) or unavailable (503); given false, they succeed. */
+  failDesign: (how?: 'unavailable' | 'forbidden' | false) => void
+  /** The page's own cache as it holds a report's or task's fence (read only, never set): its refusal and allowed reads. */
+  fenceOf: (key: readonly string[]) => unknown
+  /** Sets out the page's own queries under `key` again, through their own owned query functions (nothing set by hand). */
+  refetch: (key: readonly string[]) => void
   /** The report's sources, held since the page opened (`hold=sources`), come now. */
   releaseSources: () => void
   /** Reads of the report's sources wait again from now on, until released. */
@@ -434,6 +448,10 @@ const MENTIONING = {
   revision: 2,
   mentions: [ME],
 }
+
+/** `designfail=forbidden|unavailable`: the design task's reads fail so from the start. */
+const designFailOf = (v: string | null): false | 'unavailable' | 'forbidden' =>
+  v === 'unavailable' || v === 'forbidden' ? v : false
 
 const query = new URLSearchParams(window.location.search)
 
@@ -697,6 +715,9 @@ const project = {
   },
   description: SOPHIAS_DESCRIPTION,
   versionsFail: false as false | 'unavailable' | 'not_found',
+  // `designcard=on`: the design task itself is in the project's work (its own DesignCard); `failDesign` fails its read.
+  designCard: query.get('designcard') === 'on',
+  designFail: designFailOf(query.get('designfail')),
   sourcesHeld: query.get('hold') === 'sources',
   textHeld: query.get('hold') === 'text',
   activityHeld: query.get('hold') === 'activity',
@@ -753,6 +774,9 @@ const project = {
     : [],
   projectsFail: query.get('projects') === 'fail',
   missionHeld: query.get('mission') === 'hold' ? waiting() : null,
+  // `targetsRead=hold` or `fail`: the goals' targets wait, or fail, from the first (targets-robust.md).
+  targetsHeld: query.get('targetsRead') === 'hold' ? waiting() : null,
+  targetsFail: query.get('targetsRead') === 'fail',
   carriedElsewhere: query.get('carried') === 'elsewhere',
   reportsElsewhere: query.get('reports') === 'elsewhere',
   cardAhead: query.get('card') === 'ahead',
@@ -1076,6 +1100,14 @@ window.fixture = {
     project.missionHeld = on ? held : null
     if (!on) for (const answer of held) answer()
   },
+  failTargets: (on) => {
+    project.targetsFail = on
+  },
+  holdTargets: (on) => {
+    const held = project.targetsHeld ?? []
+    project.targetsHeld = on ? held : null
+    if (!on) for (const answer of held) answer()
+  },
   failProjects: (on) => {
     project.projectsFail = on
   },
@@ -1275,6 +1307,13 @@ window.fixture = {
     enabling.held = false
     for (const done of enabling.waiting.splice(0)) done()
   },
+  holdMute: () => {
+    disabling.held = true
+  },
+  releaseMute: () => {
+    disabling.held = false
+    for (const done of disabling.waiting.splice(0)) done()
+  },
   holdLeave: () => {
     leaving.held = true
   },
@@ -1313,6 +1352,11 @@ window.fixture = {
   failVersions: (how = 'unavailable') => {
     project.versionsFail = how
   },
+  failDesign: (how = 'forbidden') => {
+    project.designFail = how
+  },
+  fenceOf: (key) => queryClient.getQueryData(key),
+  refetch: (key) => void queryClient.refetchQueries({ queryKey: key }).catch(() => undefined),
   releaseSources: () => releaseSources(project),
   holdSources: () => {
     project.sourcesHeld = true

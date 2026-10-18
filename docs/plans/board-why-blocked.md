@@ -42,3 +42,6 @@
 - **After the review (Codex on #244, round 2)**: a lane names three blockers, the rest behind «and N more» (as a lane
   keeps its tiles): a plan with many prerequisites no longer pushes the tiles out of reach. No fixture has more than
   three; the cap is read in the code.
+- **One baseline (Luis, 2026-10-17)**: «Waiting on» sat 4 px above the blocker's name: the word at the top of its own
+  line, the name centred in its press's 24 px box. The line aligns its items on their baseline; board-why.spec reads
+  the words' bottoms, with one blocker and with several.

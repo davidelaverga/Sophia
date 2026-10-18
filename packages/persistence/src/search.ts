@@ -181,7 +181,7 @@ function toHit(r: Row): SearchHit {
     title,
     snippet: cut(oneLine(r.snippet), 200),
     at: r.at.toISOString(),
-    cite: { recordId: r.record_id, sha256: r.sha256, ...(r.anchor ? { anchor: r.anchor } : {}) },
+    cite: { recordId: r.record_id, sha256: r.sha256, ...withAnchor(sectionAnchor(r.anchor)) },
     ...(kind === 'message' ? { before: r.before } : {}),
   }
 }
@@ -240,3 +240,14 @@ export async function searchProject(c: pg.PoolClient, query: SearchQuery): Promi
     next: rows.length > SEARCH_PAGE && last ? encodeCursor(cursorAfter(last, query.projectId, hash)) : null,
   }
 }
+
+/**
+ * A heading whose words are only punctuation or emoji has an empty anchor in 0072 (its slug keeps letters, digits,
+ * spaces and hyphens), yet it is a real section with its own repeats. Its hit names it by a token no slug can be
+ * (EMPTY_SECTION, "_"), with the same "#n" for its n-th repeat; the report viewer gives such headings the same id
+ * (MarkdownView). A report row (null) has no anchor (4306435438).
+ */
+export const EMPTY_SECTION = '_'
+export const sectionAnchor = (raw: string | null): string | null =>
+  raw === null ? null : raw === '' || raw.startsWith('#') ? `${EMPTY_SECTION}${raw}` : raw
+const withAnchor = (anchor: string | null) => (anchor ? { anchor } : {})

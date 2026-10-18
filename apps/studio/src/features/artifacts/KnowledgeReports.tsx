@@ -7,6 +7,8 @@
 // so it shows none of the notes on what changed: alone, a note that the rest was kept read as true when it was not
 // (CX-0026). Editors and admins edit a description against the revision they saw.
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
+import { ReportRefused } from './ReportRefused.tsx'
+import { useReportFence } from './report-read.ts'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ReportCard } from '@sophia/contracts'
 import { Card, CardCover, EmptyState, Search, Segmented, Skeleton } from '@sophia/ui'
@@ -279,7 +281,22 @@ interface CardProps {
  * A report as a tile: its cover, then its title, one meta line and its description. The title's press takes the whole
  * tile; over the cover of a designed page, a press of its own opens that page. Edit and History keep their own.
  */
-function ReportCardView({ card, showProject, editable, identity }: CardProps) {
+function ReportCardView(props: CardProps) {
+  // The report's own refusal (report-read.ts): the card keeps nothing of it, only a way to read it again.
+  const refused = useReportFence(props.card.artifactId)
+  return refused ? <RefusedCard card={props.card} identity={props.identity} /> : <ShownCard {...props} />
+}
+
+/** A refused report's tile: no title, meta, description, cover or action; Try again reads the report itself again. */
+function RefusedCard({ card, identity }: Pick<CardProps, 'card' | 'identity'>) {
+  return (
+    <Card as="li" live className="report-card">
+      <ReportRefused artifactId={card.artifactId} identity={identity} />
+    </Card>
+  )
+}
+
+function ShownCard({ card, showProject, editable, identity }: CardProps) {
   const viewer = useDocumentViewer()
   const client = useQueryClient()
   // A designed report opens as the page its card shows, from its title and its History as from its cover: the version

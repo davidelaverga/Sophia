@@ -13,7 +13,7 @@ import { getDiscussionPage } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Acted } from './MessageActions.tsx'
 import { heldView, inOrder } from './message-acts.ts'
-import { afterGap, gapsIn, pageLinks, windowLinks } from './segment-view.ts'
+import { afterGap, gapsIn, jumpReading, pageLinks, windowLinks } from './segment-view.ts'
 
 /** How many entries the snapshot holds, withdrawn places included: with fewer, it holds the whole discussion. */
 const WINDOW = 50
@@ -43,10 +43,16 @@ export interface Earlier {
   load: () => void
   /** The reader's own act, shown until the chat is read again. */
   revise: (acted: Acted) => void
-  /** Reads the one page that ends just before `before` (a found message's next, A38), held apart from the window. */
-  jump: (before: string) => void
-  /** That read: under way, failed (the reader tries again), or not. */
-  jumping: Reading
+  /**
+   * Reads the one page that ends just before `before` (a found message's next, A38), held apart from the window; null:
+   * the latest page (a search's newest message). One at a time.
+   */
+  jump: (before: string | null, owner: string) => void
+  /**
+   * The jump read as it stands for `before`: under way (any jump: one at a time, the next waits), failed only when this
+   * address's own read failed (the reader tries again), else idle (4306435436: an older address's failure is its own).
+   */
+  jumping: (owner: string) => Reading
   /** Where messages between were never read (A38): after which messages, a gap's read, and the press that fills it. */
   gaps: { after: readonly string[]; reading: (after: string) => Reading; fill: (after: string) => void }
 }
@@ -94,7 +100,7 @@ interface Holding {
   atStart: boolean
   gaps: readonly string[]
   /** A page read before `before`, kept with everything held. */
-  hold: (page: Page, before: string, atStart: boolean) => void
+  hold: (page: Page, before: string | null, atStart: boolean) => void
 }
 
 /**
@@ -102,18 +108,20 @@ interface Holding {
  * filled from below a page at a time, until no message between is unread (segment-view.ts).
  */
 function useFoundPage(projectId: string, token: string, at: Holding): Pick<Earlier, 'jump' | 'jumping' | 'gaps'> {
-  const [jumping, setJumping] = useState<Reading>('idle')
+  // The jump read belongs to the followed address that asked for it (`owner`, its id#seq), not to its page boundary:
+  // two newest messages both read the latest page (before null) yet are different follows (4306435436).
+  const [jumped, setJumped] = useState<{ owner: string; reading: Reading }>({ owner: '', reading: 'idle' })
   const [filling, setFilling] = useState<{ after: string; reading: Reading } | null>(null)
   const { shown, hold } = at
-  const jump = (before: string) => {
-    if (jumping === 'loading') return
-    setJumping('loading')
+  const jump = (before: string | null, owner: string) => {
+    if (jumped.reading === 'loading') return
+    setJumped({ owner, reading: 'loading' })
     getDiscussionPage(token, projectId, before).then(
       (page) => {
         hold(page, before, page.before === null || at.atStart)
-        setJumping('idle')
+        setJumped({ owner, reading: 'idle' })
       },
-      () => setJumping('failed'),
+      () => setJumped({ owner, reading: 'failed' }),
     )
   }
   const fill = (after: string) => {
@@ -129,6 +137,7 @@ function useFoundPage(projectId: string, token: string, at: Holding): Pick<Earli
     )
   }
   const reading = (after: string): Reading => (filling?.after === after ? filling.reading : 'idle')
+  const jumping = (owner: string): Reading => jumpReading(jumped, owner)
   return { jump, jumping, gaps: { after: at.gaps, reading, fill } }
 }
 
@@ -166,7 +175,7 @@ interface Latest {
 function heldWith(
   now: Held | null,
   projectId: string,
-  read: { page: Page; before: string; start: boolean },
+  read: { page: Page; before: string | null; start: boolean },
   win: Latest,
 ): Held {
   const { page, before, start } = read
@@ -194,7 +203,7 @@ function useHold(
   useLayoutEffect(() => {
     windowNow.current = { entries: discussion, withdrawn: discussionWithdrawn }
   }, [discussion, discussionWithdrawn])
-  return (page: Page, before: string, start: boolean) =>
+  return (page: Page, before: string | null, start: boolean) =>
     setHeld((h) =>
       heldWith(h?.projectId === projectId ? h : null, projectId, { page, before, start }, windowNow.current),
     )

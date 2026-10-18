@@ -45,6 +45,16 @@ describe('finding in the conversation (personal-moments.md §3)', () => {
     ])
   })
 
+  it('finds capital sharp S by ss or ß, and ß by it (Codex P2 on #433)', () => {
+    assert.deepEqual(pieces('ẞ', 'ss'), [{ text: 'ẞ', n: 0 }])
+    assert.deepEqual(pieces('STRAẞE', 'straße'), [{ text: 'STRAẞE', n: 0 }])
+    assert.deepEqual(pieces('Die Straße', 'ẞ'), [
+      { text: 'Die Stra', n: null },
+      { text: 'ß', n: 0 },
+      { text: 'e', n: null },
+    ])
+  })
+
   it('finds a standalone mark as written, and never matches across one (Codex P2 on #406)', () => {
     assert.deepEqual(pieces('2^8 and `x`', '^'), [
       { text: '2', n: null },
