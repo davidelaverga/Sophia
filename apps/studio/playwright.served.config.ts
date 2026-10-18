@@ -37,6 +37,9 @@ export default defineConfig({
     // SOPHIA_SERVED_GL=swiftshader: Chromium's software GL (ANGLE on SwiftShader) for the page's WebGL, for comparing
     // with the default headless backend; the product's light and its canvas stay as they are.
     ...(process.env.SOPHIA_SERVED_GL === 'swiftshader' ? { launchOptions: { args: ['--use-angle=swiftshader'] } } : {}),
+    // SOPHIA_SERVED_BROWSER=chromium: Playwright's full Chromium build (its new headless mode) instead of
+    // chrome-headless-shell, the pinned revision's other build (playwright-core browsers.json, chromium 1243).
+    ...(process.env.SOPHIA_SERVED_BROWSER === 'chromium' ? { channel: 'chromium' } : {}),
   },
   webServer: [
     {
@@ -51,6 +54,8 @@ export default defineConfig({
         ...(personal
           ? {
               SOPHIA_SERVED_PERSONAL_OWNER: subjectOf(luis?.token ?? ''),
+              // The journey's answers: the first question answered, the second refused once (a provider 503), then "ok".
+              SOPHIA_SERVED_PERSONAL_SCRIPT: JSON.stringify([{ text: 'ok' }, { status: 503 }]),
               SOPHIA_DISPOSABLE_DATABASE_URL: process.env.SOPHIA_DISPOSABLE_DATABASE_URL ?? '',
             }
           : {}),

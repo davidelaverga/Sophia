@@ -380,3 +380,17 @@ B's private handback goes to P; R reviews this repair. No push.
   message, "No binder found for interface media.mojom.OnDeviceSpeechRecognition", in Playwright's
   chrome-headless-shell, when the composer's dictation probes on-device speech recognition. The normal journey stays
   unrun under this headless build.
+
+## FND-B-PERSONAL-SETTLEMENT-AND-NORMAL-UI-FOCUSED-01
+
+- R-PERSONAL-AD7-WITNESS-01 (bounded failure settlement): `within` clears its timer. The erasure-first lifecycle is one
+  owned function, `erasureFirst`: the gate always opens; the erasure, or else the turn's own reply, is joined within a
+  bound; a drain timeout is reported as the failure it is (never swallowed or awaited again unbounded); witness reads
+  are bounded. A composed control injects a never-answering witness read: it fails within its bound with the gate open
+  and the turn's work joined.
+- R-PERSONAL4AB-SERVED-SCOPE-01: with `SOPHIA_SERVED_BROWSER=chromium` (Playwright's full Chromium 1243, 153.0.8010.12,
+  in its new headless mode), `/personal` no longer crashes. The normal journey covers ask, answer and refresh; a real
+  provider refusal (the double's 503), where the payer is held and Ask again stays failed; then a SYNTHETIC FIXTURE
+  operator settlement at 0 through the disposable owner connection (the double's refusal produced no stream and no
+  usage); then Ask again answers. Delete everything with the confirm word gets 202, and after a refresh nothing is left.
+  Another dev identity sees only its own space. chrome-headless-shell still crashes (no OnDeviceSpeechRecognition binder).

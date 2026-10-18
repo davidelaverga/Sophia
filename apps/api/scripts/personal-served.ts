@@ -25,6 +25,9 @@ if (/sophia[-_]?(prod|legacy|pilot)/i.test(ownerDb.href)) throw new Error('perso
 ownerDb.pathname = apiDb.pathname // the database dev-db made, as its owner
 
 const double = await startMockResponses()
+// SOPHIA_SERVED_PERSONAL_SCRIPT: the double's answers in order, as JSON steps (`{ text }` or `{ status }`); after them, "ok".
+const steps: unknown = JSON.parse(process.env.SOPHIA_SERVED_PERSONAL_SCRIPT ?? '[]')
+for (const step of Array.isArray(steps) ? (steps as unknown[]) : []) double.script(step)
 const client = new pg.Client({ connectionString: ownerDb.href })
 await client.connect()
 try {

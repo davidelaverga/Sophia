@@ -188,11 +188,19 @@ function gatedClient(client: pg.PoolClient, at: Gate): pg.PoolClient {
 }
 
 /** A promise that settles within `ms`, or fails saying what did not happen. */
-const within = <T>(ms: number, what: string, p: Promise<T>) =>
-  Promise.race([
-    p,
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`not in ${ms} ms: ${what}`)), ms)),
-  ])
+const within = async <T>(ms: number, what: string, p: Promise<T>): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      p,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`not in ${ms} ms: ${what}`)), ms)
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 /** The one epoch row, as a nonnegative integer: none, two, null or anything else is a failed witness, never a commit. */
 function epochValue(rows: readonly { epoch: unknown }[]): number {
@@ -234,6 +242,57 @@ function gatedPool(at: Gate): pg.Pool {
         : connect()?.then((client) => gatedClient(client, at)),
   })
   return own
+}
+
+/** A thrown value as an Error. */
+const asError = (e: unknown) => (e instanceof Error ? e : new Error(String(e)))
+
+/**
+ * FIXTURE (erasure first): the owner's turn goes in, its reservation waits at the gate, the erasure commits (its epoch
+ * seen in the database, exactly one more) and only then does the gate open. The whole operation is owned: the gate always
+ * opens, the erasure and the turn's work are joined within bounds, and a timeout is reported as the failure it is.
+ */
+async function erasureFirst(
+  api: string,
+  ownerId: string,
+  at: Gate,
+  o: { epochRead?: () => Promise<number>; witnessMs?: number } = {},
+) {
+  const marks: Record<string, number> = {}
+  const rows = () => owner<{ epoch: unknown }>(`SELECT epoch FROM sophia.personal_spaces WHERE owner_id=$1`, [ownerId])
+  const read = () => within(2_000, 'the epoch witness read', o.epochRead ? o.epochRead() : rows().then(epochValue))
+  let erasing: Promise<{ status: number; json: unknown }> | undefined
+  let failure: unknown
+  let oldEpoch = -1
+  let epochBefore = -1
+  let epochAfter = -1
+  try {
+    oldEpoch = (await space(api, ownerId)).epoch
+    await write(api, '/api/v1/personal/turns', ownerId, { text: 'Private words, erased first' })
+    await within(10_000, 'the reservation reached the gate', at.reached)
+    marks.reservationHeld = performance.now()
+    epochBefore = await within(o.witnessMs ?? 2_000, 'the epoch witness read', read())
+    erasing = call(api, '/api/v1/personal/erasure', ownerId, { confirm: 'delete' }, oldEpoch)
+    epochAfter = await epochAdvance(read, epochBefore, o.witnessMs ?? 3_000)
+    marks.erasureCommitted = performance.now()
+  } catch (err: unknown) {
+    failure = err
+  } finally {
+    at.open()
+  }
+  // Owned work joined within bounds: the erasure (it drains the call), else the turn's own reply.
+  const drained = erasing
+    ? await within(20_000, 'the erasure drained', erasing).then(
+        (answer) => ({ answer }),
+        (err: unknown) => ({ err }),
+      )
+    : await within(20_000, 'the turn settled', settled(api, ownerId)).then(
+        () => ({ answer: undefined }),
+        (err: unknown) => ({ err }),
+      )
+  if (failure) throw asError(failure)
+  if ('err' in drained) throw asError(drained.err)
+  return { marks, epochBefore, epochAfter, oldEpoch, erased: drained.answer }
 }
 
 /** Poll as a client does until no reply is pending. */
@@ -594,34 +653,13 @@ describe('the live personal companion (local provider double)', () => {
     const at = gate()
     const api = await liveApi('first-payer', EVE, true, gatedPool(at))
     const sentBefore = recorded().length
-    const marks: Record<string, number> = {}
-    const epochRows = () =>
-      owner<{ epoch: unknown }>(`SELECT epoch FROM sophia.personal_spaces WHERE owner_id=$1`, [EVE])
-    let erasing: Promise<{ status: number; json: unknown }> | undefined
-    let oldEpoch = -1
-    let epochBefore = -1
-    let epochAfter = -1
-    // The whole owned operation, from before the turn can reach the gate: the gate always opens and the erasure is
-    // always joined, within bounds, whatever fails on the way.
-    try {
-      oldEpoch = (await space(api, EVE)).epoch
-      await write(api, '/api/v1/personal/turns', EVE, { text: 'Private words, erased first' })
-      await within(10_000, 'the reservation reached the gate', at.reached)
-      marks.reservationHeld = performance.now()
-      epochBefore = epochValue(await epochRows())
-      erasing = call(api, '/api/v1/personal/erasure', EVE, { confirm: 'delete' }, oldEpoch)
-      // The witness: the erasure's epoch, one more than before, in the database while the reservation is held.
-      epochAfter = await epochAdvance(async () => epochValue(await epochRows()), epochBefore, 3_000)
-      marks.erasureCommitted = performance.now()
-    } finally {
-      at.open()
-      if (erasing) await within(20_000, 'the erasure drained', erasing).catch(() => undefined)
-    }
-    const erased = await erasing
+    const run = await erasureFirst(api, EVE, at)
+    const { marks, epochBefore, epochAfter, oldEpoch } = run
+    const erased = run.erased
     marks.erasureAnswered = performance.now()
     assert.equal(erased?.status, 202, JSON.stringify(erased?.json))
     assert.equal(epochAfter, epochBefore + 1)
-    assert.ok(marks.reservationHeld < marks.erasureCommitted)
+    assert.ok((marks.reservationHeld ?? Infinity) < (marks.erasureCommitted ?? -Infinity), 'held, then committed')
     const turnsAfter = parsePersonalTurnPage((await call(api, '/api/v1/personal/turns?after=0', EVE)).json)
     assert.deepEqual(turnsAfter.turns, [], 'nothing of the erased words, no answer')
     assert.equal(recorded().length, sentBefore, 'the provider was asked nothing')
@@ -647,6 +685,27 @@ describe('the live personal companion (local provider double)', () => {
   // The fixture's own boundaries (R-PERSONAL-AD7-WITNESS-01, -POOL-02): a missing, null, malformed, doubled or
   // unchanged epoch never records a commit; the same pg client handed out twice is wrapped once, so one statement is
   // one record.
+  // The lifecycle's failure boundary (R-PERSONAL-AD7-WITNESS-01): a witness read that never answers fails within its
+  // bound; the gate still opens and the turn's own work and the erasure are joined, within bounds, before the failure
+  // is reported, so nothing the test started is left held.
+  it('the fixture: a never-answering witness read fails in bounds, with the gate opened and owned work joined', async () => {
+    const GUS = randomUUID()
+    const at = gate()
+    const api = await liveApi('first-payer', GUS, true, gatedPool(at))
+    const started = Date.now()
+    await assert.rejects(
+      erasureFirst(api, GUS, at, { epochRead: () => new Promise<number>(() => undefined), witnessMs: 500 }),
+      /not in 500 ms: the epoch witness read/,
+    )
+    assert.ok(Date.now() - started < 30_000, 'bounded')
+    assert.equal(at.delegated <= 1, true)
+    const page = parsePersonalTurnPage((await call(api, '/api/v1/personal/turns?after=0', GUS)).json)
+    assert.equal(page.pending, false, 'no reply left pending')
+    await owner(
+      `UPDATE sophia.personal_companion_usage SET state='released' WHERE payer='first-payer' AND state='reserved'`,
+    )
+  })
+
   it('the fixture: a bad or unchanged epoch is a failed witness; a reused client records each statement once', async () => {
     for (const rows of [[], [{ epoch: null }], [{ epoch: 'x' }], [{ epoch: '-1' }], [{ epoch: '1' }, { epoch: '2' }]])
       assert.throws(() => epochValue(rows), /epoch witness/)
