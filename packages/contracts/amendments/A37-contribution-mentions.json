@@ -1,0 +1,92 @@
+{
+  "id": "A37",
+  "goal": "E2E",
+  "title": "A member mentions other members in a room message, and each is asked to look",
+  "why": [
+    "#365 section 7 (FND-C3b-EXPLICIT-MENTIONS-01): a member could not ask someone in particular to look at a message. Mentions are explicit actor ids on the message, at most five, each an active member; the author and repeats are left out. No words are parsed, nothing is inferred, no work is woken, nobody is notified outside the Studio and nothing is spent.",
+    "Only an editor or an admin adds or changes recipients; a viewer still writes, corrects and withdraws their own ordinary words with none, and can be mentioned. A submit without mentions has none; a correction without mentions keeps them; [] clears them.",
+    "Attention is bound to the message's committed revision (A36): a kept recipient still waiting moves to the new revision as one item, one who has looked is not asked again, an added one is asked, a removed one is not, and a withdrawal ends all. The same words with other recipients change only who is mentioned.",
+    "The recipient's need is opted into with mentions=1, so a reader that knows only A15's kinds never meets the new one. Each time a recipient is asked anew is its own occurrence with its own need id; markNeedSeen for a mention marks that occurrence on that revision seen; a seen for an older revision or occurrence answers 204 and clears nothing newer (V on #409). Readers with revisions=1 see who a message mentions, never whether they looked."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/Contribution/properties/mentions",
+      "value": {
+        "anyOf": [
+          {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Members this message mentions (A37), by actor id: at most five, each an active member; the author and repeats are left out. Absent or null: none. A non-empty list needs an editor or an admin; a viewer writes without one. Nothing is parsed from the text."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ContributionCorrection/properties/mentions",
+      "value": {
+        "anyOf": [
+          {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The message's recipients after the correction (A37). Absent or null: kept as they are. [] clears them. A list that adds or changes recipients needs an editor or an admin. The same words with other recipients change only who is mentioned: no new revision, nothing erased or woken."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/DiscussionEntry/properties/mentions",
+      "value": {
+        "type": "array",
+        "maxItems": 5,
+        "items": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "revisions=1 only (A37): the members this message mentions now, never whether they looked."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/Need/properties/kind/enum/-",
+      "value": "mention"
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/Need/properties/ref/properties/kind/enum/-",
+      "value": "contribution"
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1me~1needs/get/parameters",
+      "value": [
+        {
+          "name": "mentions",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": ["1"]
+          },
+          "description": "1: also the messages that mention the person (A37): kind mention, ref.kind contribution, ref.id the message, ref.within `<revision>.<occurrence>` (the message's revision, and which asking this is: a recipient named again after being removed is a new occurrence); the id is `mention:<projectId>:<revision>.<occurrence>:<contributionId>`. Seen acts on that exact occurrence only: an earlier one's seen answers 204 and clears nothing newer. Without it, only A15's kinds, for a reader that knows no other."
+        }
+      ]
+    }
+  ]
+}

@@ -2,8 +2,10 @@ import { readFileSync } from 'node:fs'
 import { defineConfig } from '@playwright/test'
 
 // The narrow served path (FND-B-C1-SERVED-PATH-01), never the fixture pages: the normal Studio dev server (vite.config.ts,
-// no VITE_SOPHIA_VISION) with saved conversations on (VITE_SOPHIA_CONVERSATIONS=1), calling the real API on its
-// restricted role (apps/api/src/server.ts, SOPHIA_CONVERSATIONS=on, no companion) over a local PostgreSQL.
+// no VITE_SOPHIA_VISION) with saved conversations on (VITE_SOPHIA_CONVERSATIONS=1), Home's needs and Updates on
+// (VITE_SOPHIA_ATTENTION=1, A15/A34) and the room's message acts and mentions on (VITE_SOPHIA_MESSAGE_ACTS=1,
+// VITE_SOPHIA_MENTIONS=1, A36/A37), calling the real API on its restricted role (apps/api/src/server.ts,
+// SOPHIA_CONVERSATIONS=on, no companion) over a local PostgreSQL. playwright.attention.config.ts is the page fixture.
 // The data is synthetic: SOPHIA_SERVED_ENV names the JSON that apps/api/scripts/dev-db.ts --json printed (its api env,
 // project and HS256 dev identities). That project's conversation setting must be enabled first. Run by hand only:
 //   SOPHIA_SERVED_ENV=<dev-db json> pnpm exec playwright test -c playwright.served.config.ts
@@ -27,7 +29,8 @@ const luis = served.identities.find((i) => i.name === 'Luis')
 
 export default defineConfig({
   testDir: './e2e-served',
-  testMatch: personal ? 'personal-served.spec.ts' : 'c1-served.spec.ts',
+  // The Personal journey runs alone (it needs its own launcher); every other served spec runs as before, without it.
+  ...(personal ? { testMatch: 'personal-served.spec.ts' } : { testIgnore: 'personal-served.spec.ts' }),
   workers: 1,
   retries: 0,
   reporter: 'list',
@@ -68,6 +71,9 @@ export default defineConfig({
       env: {
         SOPHIA_API_ORIGIN: 'http://127.0.0.1:5199',
         VITE_SOPHIA_CONVERSATIONS: '1',
+        VITE_SOPHIA_ATTENTION: '1',
+        VITE_SOPHIA_MESSAGE_ACTS: '1',
+        VITE_SOPHIA_MENTIONS: '1',
         VITE_DEV_PROJECT_ID: served.project.projectId,
         VITE_DEV_IDENTITIES: JSON.stringify(served.identities),
       },

@@ -27,7 +27,10 @@ import { knowledgeRoutes } from './routes/knowledge.ts'
 import { MEDIA_ROUTES, mediaRoutes } from './routes/media.ts'
 import { missionRoutes } from './routes/mission.ts'
 import { personalRoutes } from './routes/personal.ts'
+import { needsRoutes } from './routes/needs.ts'
 import { CONVERSATION_SCHEMA, projectConversationRoutes } from './routes/project-conversations.ts'
+import { updatesRoutes } from './routes/updates.ts'
+import { contributionActRoutes } from './routes/contribution-acts.ts'
 import { profileRoutes } from './routes/profile.ts'
 import { eventRoutes } from './routes/events.ts'
 import { projectionRoutes } from './routes/projections.ts'
@@ -202,6 +205,16 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.my_profile()') IS NOT NULL
   AND to_regprocedure('sophia.set_my_profile(text,bigint,text)') IS NOT NULL
   AND to_regprocedure('sophia.actor_label(uuid,uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.list_needs()') IS NOT NULL
+  AND to_regprocedure('sophia.mark_reply_seen(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.project_updates(uuid,integer)') IS NOT NULL
+  AND to_regprocedure('sophia.mark_project_seen(uuid,bigint)') IS NOT NULL
+  AND to_regprocedure('sophia.preview_contribution_act(uuid,uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.correct_contribution(uuid,uuid,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.withdraw_contribution(uuid,uuid,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.list_needs(boolean)') IS NOT NULL
+  AND to_regprocedure('sophia.mark_mention_seen(uuid,uuid,bigint,bigint)') IS NOT NULL
+  AND to_regprocedure('sophia.contribution_recipients(uuid,uuid)') IS NOT NULL
   AND to_regprocedure('sophia.goal_retirements(uuid)') IS NOT NULL
   AND ${COLUMNS.map(([table, column]) => columnExists(table, column)).join('\n  AND ')} AS ok`
 
@@ -226,6 +239,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({
     logger: deps.logger ?? false,
     genReqId: () => randomUUID(),
+    // A path parameter may be as long as its contract allows: a need's id is up to 600 characters (A15), escaped in the
+    // path (`:` as %3A); the router's default (100) answered such a path 414.
+    routerOptions: { maxParamLength: 2000 },
     // The contract rejects unknown properties (e.g. a spoofed actor field) instead of silently
     // stripping them, and never coerces types (api/README: runtime validation obligations).
     ajv: { customOptions: { removeAdditional: false, coerceTypes: false, useDefaults: false } },
@@ -255,6 +271,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   projectionRoutes(app, { pool: deps.pool })
   goalTargetRoutes(app, { pool: deps.pool })
   profileRoutes(app, { pool: deps.pool })
+  needsRoutes(app, { pool: deps.pool })
+  updatesRoutes(app, { pool: deps.pool })
+  contributionActRoutes(app, { pool: deps.pool })
   activityRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   commandRoutes(app, { pool: deps.pool })
   conversationRoutes(app, { pool: deps.pool })

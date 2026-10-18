@@ -41,6 +41,8 @@ import {
   parseRoomToken,
   parseSnapshot,
 } from '@sophia/contracts/validate'
+import { MENTIONS } from '../app/mentions.ts'
+import { MESSAGE_ACTS } from '../app/message-acts.ts'
 import { apiUrl } from './base.ts'
 import { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS } from './timeouts.ts'
 
@@ -111,9 +113,19 @@ async function inTime<T>(ms: number, run: (signal: AbortSignal) => Promise<T>, o
   }
 }
 
+/**
+ * With the message acts flag (or the mentions flag, whose recipients come with revisions: A37), the discussion is read
+ * with its revisions and tombstones (A36's revisions=1).
+ */
+const REVISIONS = MESSAGE_ACTS || MENTIONS ? 'revisions=1' : ''
+
 export function getSnapshot(token: string, projectId: string, signal?: AbortSignal): Promise<Snapshot> {
   const read = async (limit: AbortSignal) => {
-    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/snapshot`), { headers: auth(token), signal: limit })
+    const query = REVISIONS ? `?${REVISIONS}` : ''
+    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/snapshot${query}`), {
+      headers: auth(token),
+      signal: limit,
+    })
     if (!res.ok) throw await toError(res)
     return readBody(res, parseSnapshot, 'safe_read')
   }
@@ -122,7 +134,8 @@ export function getSnapshot(token: string, projectId: string, signal?: AbortSign
 
 /** readDiscussion (A23): a page of the room's discussion, oldest first: the newest, or the 50 before `before`. */
 export function getDiscussionPage(token: string, projectId: string, before: string | null): Promise<DiscussionPage> {
-  const query = before ? `?before=${encodeURIComponent(before)}` : ''
+  const params = [...(before ? [`before=${encodeURIComponent(before)}`] : []), ...(REVISIONS ? [REVISIONS] : [])]
+  const query = params.length > 0 ? `?${params.join('&')}` : ''
   const read = async (limit: AbortSignal) => {
     const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/discussion${query}`), {
       headers: auth(token),
@@ -287,12 +300,26 @@ interface CallInit {
    * endless or malformed (R-REFUSAL-CLIENT-01). The view fences on that refusal.
    */
   protectedRead?: true
+  /**
+   * A read behind the project's door (Updates' «since», closedDoor): its 401 or 403 is the refusal, known from the status
+   * alone, so it is raised at once with that status, never after an error body that may be slow, endless or malformed
+   * (R-391-UPDATES-01). The view fences on it.
+   */
+  doorRead?: true
 }
 
 /**
  * One call with an optional bearer, body and key; the reply validated as `parse`, never cast. A GET waits as a
  * read does; anything else, as a write.
  */
+/** A protected read's refusal, known from its status alone (`protectedRead`, `doorRead`); undefined for any other. */
+function refusedByStatus(status: number, init: CallInit, retry: ApiErrorBody['retry']): ApiError | undefined {
+  if (status === 403 && init.protectedRead) return new ApiError(403, 'forbidden', unreadRefusal(403), retry)
+  if ((status === 401 || status === 403) && init.doorRead)
+    return new ApiError(status, `http_${status}`, unreadRefusal(status), retry)
+  return undefined
+}
+
 export function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value: unknown) => T): Promise<T> {
   const method = init.method ?? 'POST'
   // What a failure allows: an admission is retried with its key, a read is asked again, and a write without a key
@@ -315,9 +342,10 @@ export function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value
     } catch {
       throw new ApiError(0, 'outcome_unknown', 'No reply from Sophia', retry)
     }
-    if (!res.ok && res.status === 403 && init.protectedRead) {
+    const refused = refusedByStatus(res.status, init, retry)
+    if (refused) {
       void res.body?.cancel().catch(() => undefined)
-      throw new ApiError(403, 'forbidden', unreadRefusal(403), retry)
+      throw refused
     }
     if (!res.ok) throw await toError(res)
     return readBody(res, parse, retry)

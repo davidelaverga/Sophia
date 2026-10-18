@@ -5,6 +5,8 @@
 // no Ajv compiler and no eval at runtime. A body that breaks the contract throws; it is never cast.
 import type { ErrorObject, ValidateFunction } from 'ajv'
 import {
+  validateContributionActPreview,
+  validateContributionActReceipt,
   validateContributionReceipt,
   validateCursorAdvance,
   validateError,
@@ -51,6 +53,7 @@ import {
   validateActivityPage,
   validateMemberRemoved,
   validateProfile,
+  validateProjectUpdates,
   validateProjectList,
   validateWorkBoardView,
   validateWorkReceipt,
@@ -110,6 +113,7 @@ export const parseMemberRoleSet = parser('MemberRoleSet', validateMemberRoleSet)
 export const parseActivityPage = parser('ActivityPage', validateActivityPage)
 export const parseMemberRemoved = parser('MemberRemoved', validateMemberRemoved)
 export const parseProfile = parser('Profile', validateProfile)
+export const parseProjectUpdates = parser('ProjectUpdates', validateProjectUpdates)
 export const parseEvent = parser('Event', validateEvent)
 export const parseCursorAdvance = parser('CursorAdvance', validateCursorAdvance)
 export const parseRoomToken = parser('RoomToken', validateRoomToken)
@@ -123,6 +127,8 @@ export const parseLobbyEntry = parser('LobbyEntry', validateLobbyEntry)
 export const parseRoomSession = parser('RoomSession', validateRoomSession)
 export const parseMembership = parser('Membership', validateMembership)
 export const parseContributionReceipt = parser('ContributionReceipt', validateContributionReceipt)
+export const parseContributionActPreview = parser('ContributionActPreview', validateContributionActPreview)
+export const parseContributionActReceipt = parser('ContributionActReceipt', validateContributionActReceipt)
 export const parseNativeTaskReceipt = parser('NativeTaskReceipt', validateNativeTaskReceipt)
 export const parseNativeTaskDetail = parser('NativeTaskDetail', validateNativeTaskDetail)
 export const parseExchangeState = parser('ExchangeState', validateExchangeState)

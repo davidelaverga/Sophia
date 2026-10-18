@@ -15,6 +15,7 @@ const GLYPH: Readonly<Record<NeedKind, IconName>> = {
   review: 'brief',
   guest: 'invite',
   reply: 'sophia',
+  mention: 'chat',
 }
 
 interface Props {
@@ -33,6 +34,7 @@ function NeedRow({ need, index, now, onOpen }: { need: Need; index: number; now:
         type="button"
         data-tone={note.tone}
         data-kind={need.kind}
+        data-need={need.id}
         onClick={onOpen}
         onPointerMove={followPointer}
       >

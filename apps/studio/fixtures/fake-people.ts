@@ -102,8 +102,12 @@ export function personLeaves(name: string): void {
   changed()
 }
 
-/** Who an admin muted, took out of the call, or whose camera or screen they stopped (host-controls.md, host-more.md). */
-const muted = new Set<string>()
+/**
+ * Who an admin muted, took out of the call, or whose camera or screen they stopped (host-controls.md, host-more.md).
+ * `muted=n`: the `n`th other person came in with their microphone off.
+ */
+const mutedAtFirst = oneOfUs(query.get('muted'), false)
+const muted = new Set<string>(mutedAtFirst === null ? [] : [personId(mutedAtFirst)])
 const removed = new Set<string>()
 const cameraOff = new Set<string>()
 const screenOff = new Set<string>()

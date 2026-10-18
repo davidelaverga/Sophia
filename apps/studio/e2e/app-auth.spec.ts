@@ -98,6 +98,7 @@ declare global {
       proposals: readonly { key: string; body: unknown }[]
       asked: readonly string[]
       unexpected: readonly string[]
+      attention: readonly string[]
       hold: (by: string, path: string, method?: string) => void
       release: () => void
     }
@@ -397,6 +398,34 @@ test('codex · a06db118 · the next account’s first render reads nothing the l
   await page.evaluate(() => window.appFixture?.release())
   await expect(page.getByRole('button', { name: 'Review sources' }).first()).toBeVisible()
   expect(await unexpectedOf(page)).toEqual([])
+})
+
+test('sign out · one that fails says so, the person still in; Try again signs out (Codex P2 on #410)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  // The browser's storage refuses to let the session go while the root says so: the sign-out fails, the session stays.
+  await page.evaluate((key) => {
+    const removeItem = Storage.prototype.removeItem.bind(localStorage)
+    Storage.prototype.removeItem = (name: string) => {
+      if (name === key && document.documentElement.dataset['refuse'] === 'yes') throw new Error('Storage refused')
+      removeItem(name)
+    }
+    document.documentElement.dataset['refuse'] = 'yes'
+  }, SESSION_KEY)
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
+  const toast = page.locator('.toast')
+  await expect(toast).toContainText('Couldn’t sign out: this device is still signed in.')
+  await expect(account(page)).toBeVisible()
+  await page.evaluate(() => {
+    delete document.documentElement.dataset['refuse']
+  })
+  await toast.getByRole('button', { name: 'Try again' }).click()
+  await expect(page.locator('input[type="email"]')).toBeVisible()
 })
 
 test('codex · 6e9e2a9b · signing out forgets every proposal at once, before the Auth service answers', async ({

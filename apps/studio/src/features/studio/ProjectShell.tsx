@@ -12,6 +12,7 @@ import { projectTitle, useDocumentTitle } from '../../app/document-title.ts'
 import { routePath, type View, viewsShown } from '../../app/route.ts'
 import { CommandsHost } from '../../app/CommandsHost.tsx'
 import { useCommands, useOffered } from '../../app/useCommands.ts'
+import { ATTENTION } from '../../app/attention.ts'
 import { CONVERSATIONS, VISION } from '../../app/vision.ts'
 import { ProjectGoProvider, useArrival } from './project-go.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
@@ -273,7 +274,7 @@ const VIEW_ALSO: Readonly<Record<View, readonly string[]>> = {
 
 /** The views a person can go to from here, each a command without a key (docs/plans/commands.md). */
 const viewCommands = (view: View, onShow: (view: View) => void) =>
-  viewsShown(VISION, CONVERSATIONS)
+  viewsShown(VISION, CONVERSATIONS, ATTENTION)
     .filter((v) => v !== view)
     .map((v) => ({
       id: `view-${v}`,
@@ -832,9 +833,10 @@ function PageBody(props: BodyProps) {
   if (view === 'conversations' && CONVERSATIONS) {
     return <ConversationsView {...{ projectId, identity, membership }} cursor={snapshot?.cursor} />
   }
-  if (view === 'updates' && VISION) {
+  // Updates is served (A34), so the attention flag shows it too; its meetings and recaps (A12) stay the vision flag's.
+  if (view === 'updates' && (VISION || ATTENTION)) {
     const inCall = props.room.status === 'live' || props.room.status === 'reconnecting'
-    return <UpdatesView {...{ projectId, identity, snapshot, membership, inCall }} />
+    return <UpdatesView {...{ projectId, identity, snapshot, membership, inCall }} meetings={VISION} />
   }
   return view === 'studio' ? null : <PendingView view={view} onShow={onShow} />
 }

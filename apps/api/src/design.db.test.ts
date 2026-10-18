@@ -1481,6 +1481,40 @@ describe('a scoped edit of a published page (B-16..B-18, 0041)', () => {
     assert.equal(busy.status, 'refused', JSON.stringify(busy))
   })
 
+  it('is revoked when its author withdraws the message that asked for it, which the preview lists (0068, A36)', async () => {
+    const { w, versionId } = await publishedPage()
+    const instruction = 'Make the first section a short list.'
+    const asked = await edit(w, 'e-withdrawn', { versionId, sections: ['s1'], instruction })
+    assert.equal(asked.status, 202, JSON.stringify(asked.json))
+    const taskId = String(asked.json.taskId)
+    const said = await owner((c) =>
+      c.query<{ id: string }>(
+        `SELECT c.id FROM sophia.contributions c JOIN sophia.source_texts t ON t.source_id=c.source_id
+          WHERE c.project_id=$1 AND c.actor_id=$2 AND t.body=$3`,
+        [w.projectId, E, instruction],
+      ),
+    )
+    const message = `/api/v1/projects/${w.projectId}/contributions/${String(said.rows[0]?.id)}`
+    const preview = await call(`${message}/preview?action=withdraw`, { bearer: await token(E) })
+    assert.equal(preview.status, 200, JSON.stringify(preview.json))
+    assert.deepEqual([preview.json.erases, preview.json.reach], [true, [{ taskId, kind: 'design', restarts: false }]])
+    const out = await call(`${message}/withdrawal`, {
+      bearer: await token(E),
+      body: {
+        expectedRevision: preview.json.revision,
+        reach: preview.json.reach,
+        previewToken: preview.json.previewToken,
+      },
+      headers: { 'idempotency-key': randomUUID() },
+    })
+    assert.equal(out.status, 200, JSON.stringify(out.json))
+    const row = await designRow(taskId)
+    assert.deepEqual([row.state, row.job, row.attempt], ['failed', 'failed', 'revoked'])
+    assert.match(row.reason, /^revoked: a source the report drew on was withdrawn/)
+    // The published page it would have edited is as it was.
+    assert.equal(row.versions, 2)
+  })
+
   it('revises only the named section: protected sections, the shell and the stylesheet are refused; a stale base conflicts; the published page is next version', async () => {
     const { w, d, versionId } = await publishedPage()
     const asked = await edit(w, 'e-1', {

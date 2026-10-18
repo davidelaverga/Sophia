@@ -4530,17 +4530,119 @@ test('live-home reader rejects renamed roots and changed journal or lease after 
   }
 })
 
+// The journal read is reached only after read() verifies every retained node (async descriptor stats and path lstats),
+// so a slow host can take more event-loop turns than until()'s budget. These cases wait on an explicit signal from the
+// journal read itself, within a wall-clock bound, raced against the read ending first; on timeout they say which stage
+// was last seen and which handles are open. The held read is always released and settled (run 39100260766, job
+// 117595744173: until(() => entered) ran out of turns; no ownership assertion had failed).
+async function journalReadReached(f, reading, stages, ms = 5000) {
+  const reached = deferred()
+  const outcome = reading.then(() => 'fulfilled', error => `rejected: ${error.message}`)
+  const prior = f.fixture.beforeRead
+  f.fixture.beforeRead = path => { stages.push(`read ${path.split('/').pop()}`); if (path.endsWith('sophia-reply.jsonl')) reached.resolve(); return prior?.(path) }
+  let timer
+  const first = await Promise.race([
+    reached.promise.then(() => 'entered'),
+    outcome.then(o => `ended before the journal read: ${o}`),
+    new Promise(resolve => { timer = setTimeout(() => resolve('timeout'), ms) }),
+  ])
+  clearTimeout(timer)
+  return { first, outcome, describe: () => `${first}; stages ${stages.join(', ') || 'none'}; open handles ${[...f.fixture.handles].length}` }
+}
+
+/** Settles within `ms`, or says it did not (the losing work is not abandoned silently: the caller reports it). */
+async function settleWithin(promise, ms) {
+  let timer
+  try {
+    return await Promise.race([promise.then(value => ({ settled: true, value })), new Promise(resolve => { timer = setTimeout(() => resolve({ settled: false }), ms) })])
+  } finally { clearTimeout(timer) }
+}
+
+/** Every fixture gate released, then the read and the reader's close settled within bounds; what did not is reported. */
+async function teardown(f, reader, outcome, gates) {
+  for (const gate of gates) gate.resolve()
+  f.fixture.beforeStat = null; f.fixture.beforeRead = null
+  const read = await settleWithin(outcome, 2000)
+  const close = await settleWithin(reader.close().then(() => 'closed', error => `close rejected: ${error.message}`), 2000)
+  return { read, close, handles: f.fixture.handles.size }
+}
+
+const settledClean = cleanup => assert.deepEqual([cleanup.read.settled, cleanup.close.settled, cleanup.handles], [true, true, 0], JSON.stringify(cleanup))
+
 test('live-home reader keeps ownership through pending I/O and close prevents subsequent reads', async t => {
   const f = await liveHomeFixture(t), reader = await f.openHome(f.scope, () => {})
-  const held = deferred(); let entered = false
-  f.fixture.beforeRead = path => { if (path.endsWith('sophia-reply.jsonl')) { entered = true; return held.promise } }
-  const reading = reader.read(); await until(() => entered)
-  await assert.rejects(reader.read(), /unavailable/)
-  const closing = reader.close()
-  assert.equal(await Promise.race([closing.then(() => 'closed'), tick().then(() => 'waiting')]), 'waiting')
-  assert.ok(f.fixture.handles.size > 0)
-  held.resolve(); await assert.rejects(reading, /reply_live_home_unconfirmed/); await closing
-  assert.equal(f.fixture.handles.size, 0)
+  const held = deferred(), stages = []
+  f.fixture.beforeStat = path => { stages.push(`stat ${path?.split('/').pop()}`) }
+  f.fixture.beforeRead = path => { if (path.endsWith('sophia-reply.jsonl')) return held.promise }
+  const reading = reader.read()
+  const journal = await journalReadReached(f, reading, stages)
+  let cleanup
+  try {
+    assert.equal(journal.first, 'entered', journal.describe())
+    await assert.rejects(reader.read(), /unavailable/)
+    const closing = reader.close()
+    assert.equal(await Promise.race([closing.then(() => 'closed'), tick().then(() => 'waiting')]), 'waiting')
+    assert.ok(f.fixture.handles.size > 0)
+    held.resolve(); await assert.rejects(reading, /reply_live_home_unconfirmed/); await closing
+    assert.equal(f.fixture.handles.size, 0)
+  } finally {
+    cleanup = await teardown(f, reader, journal.outcome, [held])
+  }
+  settledClean(cleanup)
+})
+
+test('live-home reader: a slow pre-read verification still reaches the journal read by its signal, not a turn count', async t => {
+  const f = await liveHomeFixture(t), reader = await f.openHome(f.scope, () => {})
+  const held = deferred(), stages = []
+  // Each descriptor stat of the verification waits 30 ms: far more than 200 event-loop turns in all.
+  f.fixture.beforeStat = path => { stages.push(`stat ${path?.split('/').pop()}`); return new Promise(resolve => setTimeout(resolve, 30)) }
+  f.fixture.beforeRead = path => { if (path.endsWith('sophia-reply.jsonl')) return held.promise }
+  const reading = reader.read()
+  const journal = await journalReadReached(f, reading, stages)
+  let cleanup
+  try {
+    assert.equal(journal.first, 'entered', journal.describe())
+    assert.ok(stages.some(s => s.startsWith('stat')), 'the verification ran first')
+  } finally {
+    cleanup = await teardown(f, reader, journal.outcome, [held])
+  }
+  settledClean(cleanup)
+})
+
+test('live-home reader: a verification refusal ends the read before the journal read, and every handle closes', async t => {
+  const f = await liveHomeFixture(t), reader = await f.openHome(f.scope, () => {})
+  const stages = []
+  f.fixture.beforeStat = path => { stages.push(`stat ${path?.split('/').pop()}`); throw new Error('synthetic verification refusal') }
+  const reading = reader.read()
+  const journal = await journalReadReached(f, reading, stages)
+  let cleanup
+  try {
+    assert.match(journal.first, /^ended before the journal read: rejected: .*reply_live_home_unconfirmed/, journal.describe())
+    assert.ok(!stages.some(s => s.startsWith('read sophia-reply')), 'the journal was never read')
+  } finally {
+    cleanup = await teardown(f, reader, journal.outcome, [])
+  }
+  settledClean(cleanup)
+})
+
+test('live-home reader: a pre-read stat that never returns times out the entry wait and the bounded teardown, never a hang', async t => {
+  const f = await liveHomeFixture(t), reader = await f.openHome(f.scope, () => {})
+  const stalled = deferred(), stages = []
+  // The verification's first stat waits on a gate this test owns and releases only in its teardown.
+  f.fixture.beforeStat = path => { stages.push(`stat ${path?.split('/').pop()}`); return stalled.promise }
+  const reading = reader.read()
+  const journal = await journalReadReached(f, reading, stages, 300)
+  let cleanup, still
+  try {
+    assert.equal(journal.first, 'timeout', journal.describe())
+    assert.ok(stages.some(s => s.startsWith('stat')), 'held in the verification, before the journal read')
+    // Bounded: the read is reported unsettled within 200 ms instead of being awaited without end.
+    still = await settleWithin(journal.outcome, 200)
+    assert.equal(still.settled, false, 'the stalled read is unsettled, and said so in bounds')
+  } finally {
+    cleanup = await teardown(f, reader, journal.outcome, [stalled])
+  }
+  settledClean(cleanup)
 })
 
 test('live-home reader cancellation during acquisition closes the just-opened descriptor', async t => {

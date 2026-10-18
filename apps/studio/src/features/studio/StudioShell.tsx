@@ -4,6 +4,8 @@
 // stage keeps Sophia's light and the people at its centre; the panel is this viewer's own, like the lens.
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useState, type ReactNode } from 'react'
+import { MESSAGE } from '../resources/link.ts'
+import { useAddressed } from '../resources/useAddressed.ts'
 import { Button } from '@sophia/ui'
 import { getMission } from '../../api/mission.ts'
 import type { Snapshot } from '@sophia/contracts'
@@ -57,6 +59,13 @@ export function useRoomPanel(snapshot: Snapshot | undefined, room: ProjectRoom, 
   const [panel, setPanel] = useState<Panel | null>(null)
   const [opener, setOpener] = useState<Panel | null>(null)
   const unread = useUnread(chatSignature(snapshot, room.chat, room.notices), studio && panel === 'chat')
+  // A message named in the address (a mention from Home, A37): the chat opens on it.
+  const message = useAddressed(MESSAGE)
+  useEffect(() => {
+    if (!studio || !message.id) return
+    setPanel('chat')
+    setOpener('chat')
+  }, [studio, message.id, message.seq])
   const brief = useBriefUpdates(studio && panel === 'brief')
   // A passage asked about from the report (PassageBar), until the chat's message takes it.
   const [asked, setAsked] = useState<Passage | null>(null)
@@ -64,6 +73,8 @@ export function useRoomPanel(snapshot: Snapshot | undefined, room: ProjectRoom, 
     panel,
     opener,
     unread,
+    /** The chat is on screen: its tab open while the room is (a mention is seen only then, A37). */
+    chatInView: studio && panel === 'chat',
     brief,
     asked,
     /** A passage asked about: Chat opens, and its message takes the passage (useAskedInto). */
@@ -319,6 +330,7 @@ export function StudioShell(props: Props) {
             {...common}
             snapshot={snapshot}
             room={room}
+            inView={panel.chatInView}
             {...chatDraft}
             onShowRoom={() => panel.show(null)}
           />
