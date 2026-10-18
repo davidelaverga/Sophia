@@ -8,6 +8,9 @@ const ME = '00000000-0000-4000-8000-0000000000a1'
 const dock = (page: Page) => page.getByRole('navigation', { name: 'Room controls' })
 const myTile = (page: Page) => page.locator(`.tile[data-actor="${ME}"]`)
 const flip = (page: Page) => myTile(page).getByRole('button', { name: 'Switch camera' })
+/** On a phone's strip, with both of your tile's presses: the one press that holds them, and its menu. */
+const yourTile = (page: Page) => myTile(page).getByRole('button', { name: 'Your tile', exact: true })
+const tileMenu = (page: Page) => page.getByRole('menu', { name: 'Your tile' })
 const cameraOn = (page: Page) => dock(page).getByRole('button', { name: 'Camera', exact: true }).click()
 const switches = (page: Page) =>
   page.evaluate(() => [...(window.fixture?.asked ?? [])].filter((a) => a.startsWith('device:videoinput:')))
@@ -52,6 +55,16 @@ const target = (press: Locator) =>
     }
   })
 
+/** Whether a press at each item's middle reaches the item itself: nothing clips it, covers it or leaves it off screen. */
+const reached = (menu: Locator) =>
+  menu.getByRole('menuitem').evaluateAll((items) =>
+    items.map((el) => {
+      const r = el.getBoundingClientRect()
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+      return hit !== null && (hit === el || el.contains(hit))
+    }),
+  )
+
 test.beforeEach(async ({ page }) => {
   await page.route(
     (url) => url.origin !== 'http://127.0.0.1:5199',
@@ -75,6 +88,15 @@ test('flip · on a computer Video settings chooses: your tile has no Switch came
   await cameraOn(page)
   await expect(myTile(page)).toBeVisible()
   await expect(flip(page)).toBeHidden()
+})
+
+test('flip · on a computer, beside a shown screen, your tile keeps Hide my tile, no menu', async ({ page }) => {
+  await enter(page, 'people=2&video=screen')
+  await cameraOn(page)
+  await expect(myTile(page)).toBeVisible()
+  const presses = myTile(page).getByRole('button')
+  await expect(presses).toHaveCount(1)
+  await expect(presses).toHaveAccessibleName('Hide my tile')
 })
 
 // The switch follows the camera the call is on, not the choice kept for the next call (Codex P2 on #422).
@@ -116,6 +138,9 @@ test('@phone · flip · in the gallery Switch camera is a 40 px square, clear of
   await cameraOn(page)
   await expect(page.getByRole('list', { name: 'In the room' })).toHaveAttribute('data-count', '7')
   await expect(flip(page)).toBeVisible()
+  // Both presses fit a gallery's tile: no menu holds them there.
+  await expect(myTile(page).getByRole('button')).toHaveCount(2)
+  await expect(yourTile(page)).toHaveCount(0)
   await atRest(page)
   const f = await flip(page).boundingBox()
   const h = await myTile(page).getByRole('button', { name: 'Hide my tile' }).boundingBox()
@@ -123,25 +148,88 @@ test('@phone · flip · in the gallery Switch camera is a 40 px square, clear of
   expect(f !== null && h !== null && apart(f, h)).toBe(true)
 })
 
-// A tile a fifth of a phone (51 to 65 px) holds one finger-sized press, not two side by side (Codex P2 on #422):
-// Switch camera while it is there, Hide my tile otherwise.
-test('@phone · flip · beside a shown screen your tile keeps one press: Switch camera, Hide my tile with the camera off', async ({
+// A tile a fifth of a phone (51 to 65 px) holds one finger-sized press, not two side by side (Codex P2 on #422). With
+// your camera off only Hide my tile applies: the press is it, no menu.
+test('@phone · flip · beside a shown screen with your camera off, your tile’s one press is Hide my tile, no menu', async ({
   page,
 }) => {
   await enter(page, 'people=2&video=screen')
   const presses = myTile(page).getByRole('button')
   await expect(presses).toHaveCount(1)
   await expect(presses).toHaveAccessibleName('Hide my tile')
-  await cameraOn(page)
-  await expect(flip(page)).toBeVisible()
-  await expect(presses).toHaveCount(1)
-  await expect(presses).toHaveAccessibleName('Switch camera')
+  await expect(presses).not.toHaveAttribute('aria-haspopup')
+  await presses.click()
+  await expect(page.locator('.tile-hidden-self')).toContainText('Your tile is hidden')
 })
+
+// With your camera on and two cameras both apply: the one press opens them as a menu, over the tile's clip and the
+// strip's edge (Luis 2026-10-18, «Procede con tu recomendación de una pulsacion»).
+for (const width of [390, 320]) {
+  const px = `${String(width)} px`
+  const onStrip = async (page: Page) => {
+    await page.setViewportSize({ width, height: 844 })
+    await enter(page, 'people=2&video=screen')
+    await cameraOn(page)
+    await expect(yourTile(page)).toBeVisible()
+  }
+
+  test(`@phone · flip · beside a shown screen, your tile’s one press opens Switch camera and Hide my tile; Switch camera switches (${px})`, async ({
+    page,
+  }) => {
+    await onStrip(page)
+    await expect(myTile(page).getByRole('button')).toHaveCount(1)
+    await expect(yourTile(page)).toHaveAttribute('aria-haspopup', 'menu')
+    await expect(yourTile(page)).toHaveAttribute('aria-expanded', 'false')
+    await yourTile(page).click()
+    await expect(yourTile(page)).toHaveAttribute('aria-expanded', 'true')
+    const items = tileMenu(page).getByRole('menuitem')
+    await expect(items).toHaveText(['Switch camera', 'Hide my tile'])
+    await expect(items.first()).toBeFocused()
+    await expect
+      .poll(() => reached(tileMenu(page)), 'each item is what a press at its middle reaches')
+      .toEqual([true, true])
+    await items.first().click()
+    await expect.poll(() => switches(page)).toEqual(['device:videoinput:cam-desk'])
+    await expect(tileMenu(page)).toHaveCount(0)
+    await expect(yourTile(page)).toBeFocused()
+  })
+
+  test(`@phone · flip · beside a shown screen, Hide my tile from your tile’s menu hides it (${px})`, async ({
+    page,
+  }) => {
+    await onStrip(page)
+    await yourTile(page).click()
+    await tileMenu(page).getByRole('menuitem', { name: 'Hide my tile' }).click()
+    const hidden = page.locator('.tile-hidden-self')
+    await expect(hidden).toContainText('Your tile is hidden')
+    await expect(hidden.getByRole('button', { name: 'Show' })).toBeFocused()
+    await expect(myTile(page)).toHaveCount(0)
+  })
+
+  test(`@phone · flip · beside a shown screen, Escape closes your tile’s menu and gives the focus back; a press outside closes it (${px})`, async ({
+    page,
+  }) => {
+    await onStrip(page)
+    await yourTile(page).click()
+    await expect(tileMenu(page)).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(tileMenu(page)).toHaveCount(0)
+    await expect(yourTile(page)).toBeFocused()
+    await expect(yourTile(page)).toHaveAttribute('aria-expanded', 'false')
+    await yourTile(page).click()
+    await expect(tileMenu(page)).toBeVisible()
+    await page.locator('.present .screen-main').click({ position: { x: 8, y: 8 } })
+    await expect(tileMenu(page)).toHaveCount(0)
+    // Closed, nothing chosen.
+    await expect(myTile(page)).toBeVisible()
+    expect(await switches(page)).toEqual([])
+  })
+}
 
 // On a phone's strip the mute is the tile's corner mark, at its top-left (muted-on-tiles.md); the press keeps clear of
 // it, a finger's size still (Codex P2 on #430).
 for (const width of [390, 320]) {
-  test(`@phone · flip · beside a shown screen, muted, the mark is clear of Switch camera, a finger’s size (${String(width)} px)`, async ({
+  test(`@phone · flip · beside a shown screen, muted, the mark is clear of your tile’s press, a finger’s size (${String(width)} px)`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 844 })
@@ -150,12 +238,12 @@ for (const width of [390, 320]) {
     await dock(page).getByRole('button', { name: 'Microphone', exact: true }).click()
     const mark = myTile(page).locator('.tile-muted-corner')
     await expect(mark).toBeVisible()
-    await expect(flip(page)).toBeVisible()
+    await expect(yourTile(page)).toBeVisible()
     await atRest(page)
     const m = await mark.boundingBox()
-    const f = await flip(page).boundingBox()
+    const f = await yourTile(page).boundingBox()
     expect(m !== null && f !== null && apart(m, f), 'the mark clear of the press drawn').toBe(true)
-    const t = await target(flip(page))
+    const t = await target(yourTile(page))
     expect(t.width, 'its target across').toBeGreaterThanOrEqual(40)
     expect(t.height, 'its target down').toBeGreaterThanOrEqual(40)
   })
