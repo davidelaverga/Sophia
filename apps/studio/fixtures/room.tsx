@@ -339,6 +339,10 @@ interface Fixture {
   failVersions: (how?: 'unavailable' | 'not_found' | false) => void
   /** Reads of the design task fail from now on: refused (403) or unavailable (503); given false, they succeed. */
   failDesign: (how?: 'unavailable' | 'forbidden' | false) => void
+  /** The page's own cache as it holds a report's or task's fence (read only, never set): its refusal and allowed reads. */
+  fenceOf: (key: readonly string[]) => unknown
+  /** Sets out the page's own queries under `key` again, through their own owned query functions (nothing set by hand). */
+  refetch: (key: readonly string[]) => void
   /** The report's sources, held since the page opened (`hold=sources`), come now. */
   releaseSources: () => void
   /** Reads of the report's sources wait again from now on, until released. */
@@ -1125,6 +1129,8 @@ window.fixture = {
   failDesign: (how = 'forbidden') => {
     project.designFail = how
   },
+  fenceOf: (key) => queryClient.getQueryData(key),
+  refetch: (key) => void queryClient.refetchQueries({ queryKey: key }).catch(() => undefined),
   releaseSources: () => releaseSources(project),
   holdSources: () => {
     project.sourcesHeld = true
