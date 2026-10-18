@@ -18,7 +18,6 @@ import {
   type RoomOptions,
   type Participant,
   type RemoteTrack,
-  type RemoteTrackPublication,
   type TrackPublication,
 } from 'livekit-client'
 import {
@@ -35,6 +34,7 @@ import { chosenBackground, type BackgroundId } from './background-preference.ts'
 import { backgroundPicture } from './background-pictures.ts'
 import { cameraBackground } from './camera-background.ts'
 import { deviceChange } from './device-change.ts'
+import { incomingCameras } from './incoming-cameras.ts'
 import { hearWhileMuted, mutedWatch } from './muted-speech.ts'
 import { chosenDevices, deviceName, type DeviceKind, type MediaDevice } from './device-preference.ts'
 import { followingSignal } from './following-signal.ts'
@@ -176,27 +176,14 @@ function videoFeeds(): Feeds {
     ].filter((f): f is VideoFeed => f !== null)
 }
 
-/**
- * Others' cameras, taken or let go (incoming-video.md): off, this browser unsubscribes from each camera published to it,
- * now and as more are published; a screen shared always comes. On again, it takes them back.
- */
-function incomingCameras(room: Room, onChange: () => void): Pick<RoomConnection, 'setIncomingVideo'> {
-  let on = true
-  const apply = (pub: RemoteTrackPublication) => {
-    if (pub.source === Track.Source.Camera && pub.isSubscribed !== on) pub.setSubscribed(on)
-  }
-  // A camera published while they're off isn't taken; one published while they're on is LiveKit's to take, as ever.
-  room.on(RoomEvent.TrackPublished, (pub: RemoteTrackPublication) => {
-    if (!on) apply(pub)
-  })
-  return {
-    setIncomingVideo: (next) => {
-      on = next
-      for (const person of room.remoteParticipants.values())
-        for (const pub of person.trackPublications.values()) apply(pub)
-      onChange()
-    },
-  }
+/** Others' cameras, taken or let go (incoming-cameras.ts), over this room's publications. */
+function incomingVideo(room: Room, onChange: () => void): Pick<RoomConnection, 'setIncomingVideo'> {
+  const cameras = incomingCameras(
+    () => [...room.remoteParticipants.values()].flatMap((person) => [...person.trackPublications.values()]),
+    onChange,
+  )
+  room.on(RoomEvent.TrackPublished, cameras.published)
+  return { setIncomingVideo: cameras.set }
 }
 
 /** Remote voices (and a shared screen's sound) play through hidden audio elements, removed with the track. */
@@ -520,7 +507,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
       room.localParticipant.publishData(encodeReaction(emoji), { reliable: true, topic: REACTION_TOPIC }),
     setVolume: (identity, level) =>
       audio.volume.set(identity, level, room.remoteParticipants.get(identity)?.trackPublications.values() ?? []),
-    ...incomingCameras(room, cb.onChange),
+    ...incomingVideo(room, cb.onChange),
     leave: () => room.disconnect(),
   }
 }
