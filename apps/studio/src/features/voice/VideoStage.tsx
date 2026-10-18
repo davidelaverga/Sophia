@@ -17,7 +17,7 @@ import {
   type RoomParticipant,
   type StageMode,
 } from './room-view.ts'
-import { arrivalOrder, GALLERY_TILES, STRIP_TILES, tilesFor } from './tile-view.ts'
+import { arrivalOrder, peopleTiles, tilesFor } from './tile-view.ts'
 import { useMirror } from './mirror-preference.ts'
 
 function VideoView({ feed, fit }: { feed: VideoFeed; fit: 'cover' | 'contain' }) {
@@ -69,7 +69,9 @@ function TileAct(props: { label: string; icon: 'expand' | 'eyeOff' | 'flip'; onP
 function HiddenSelf({ onShow }: { onShow: () => void }) {
   return (
     <li className="tile tile-hidden-self">
-      <span>Your tile is hidden</span>
+      {/* In a fifth of a phone the words give way to an eye struck through; a screen reader still hears them. */}
+      <Icon name="eyeOff" size={14} />
+      <span className="tile-hidden-words">Your tile is hidden</span>
       <button type="button" className="text-button" onClick={onShow}>
         Show
       </button>
@@ -318,6 +320,7 @@ export function VideoStage({ mode, people: everyoneHere, feeds, floor, shown, fl
     people.filter((p) => p !== pinned),
     stage,
     strip,
+    self.hidden,
   )
   // Held here, not in «+N»: the tiles move between the strip and the gallery, and the sheet stays open across.
   const [everyone, setEveryone] = useState(false)
@@ -336,7 +339,7 @@ export function VideoStage({ mode, people: everyoneHere, feeds, floor, shown, fl
   const sheet = everyone && <InTheCall people={everyoneHere} floor={floor} onClose={() => setEveryone(false)} />
   if (!strip) {
     return (
-      <ul className="gallery" data-count={count + (self.hidden ? 1 : 0)} aria-label="In the room">
+      <ul className="gallery" data-count={count} aria-label="In the room">
         {tiles}
         {sheet}
       </ul>
@@ -385,11 +388,15 @@ function usePin(people: readonly RoomParticipant[], present: boolean) {
   return [pinned, setPinned] as const
 }
 
-/** The people with a tile, the rest past them («+N»), and how many tiles the gallery lays out (Sophia's too). */
+/**
+ * The people with a tile, the rest past them («+N»), and how many tiles the gallery lays out: Sophia's, «Your tile is
+ * hidden» when it stands in your place, and «+N» too.
+ */
 function useKeptTiles(
   people: RoomParticipant[],
   stage: { floor: FloorView; showing: string | null; arrived: readonly string[]; pinned: string | undefined },
   present: boolean,
+  selfHidden: boolean,
 ) {
   const spokeAt = useSpokeAt(people)
   const order = {
@@ -399,8 +406,8 @@ function useKeptTiles(
     arrived: stage.arrived,
     pinned: stage.pinned ?? null,
   }
-  const { shown: kept, more } = tilesFor(people, order, present ? STRIP_TILES : GALLERY_TILES)
-  return { kept, more, count: kept.length + 1 + (more.length > 0 ? 1 : 0) }
+  const { shown: kept, more } = tilesFor(people, order, peopleTiles(present, selfHidden))
+  return { kept, more, count: kept.length + 1 + (selfHidden ? 1 : 0) + (more.length > 0 ? 1 : 0) }
 }
 
 /** Who spoke when, in turns (each change in who speaks is one): who spoke last keeps a tile next (tile-view.ts). */

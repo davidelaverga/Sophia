@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { arrivalOrder, tilesFor } from './tile-view.ts'
+import { arrivalOrder, peopleTiles, tilesFor } from './tile-view.ts'
 
 const person = (identity: string, over: { speaking?: boolean; local?: boolean } = {}) => ({
   identity,
@@ -69,5 +69,14 @@ describe('arrivalOrder', () => {
       { identity: '0' },
     ]
     assert.deepEqual(arrivalOrder(people), ['b', 'd', 'c', '0', 'a'])
+  })
+})
+
+describe('the tiles people get (Codex P2 on #380)', () => {
+  it('gives up one to «Your tile is hidden», so hiding your tile never adds one', () => {
+    assert.equal(peopleTiles(false, false), 8)
+    assert.equal(peopleTiles(false, true), 7)
+    assert.equal(peopleTiles(true, false), 4)
+    assert.equal(peopleTiles(true, true), 3)
   })
 })
