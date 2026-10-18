@@ -706,14 +706,19 @@ input[type='checkbox']:hover:not(:disabled) {
   right: 0;
   transform: translate(0, 2px);
 }
+/* At a left edge (your tile's Switch camera, camera-flip.md): from the control's start, never past the edge. */
+.tip[data-align='start'] {
+  left: 0;
+  transform: translate(0, 2px);
+}
 .has-tip:hover .tip,
 .has-tip:focus-visible .tip {
   opacity: 1;
   transform: translate(-50%, 0);
   transition-delay: 320ms;
 }
-.has-tip:hover .tip[data-align='end'],
-.has-tip:focus-visible .tip[data-align='end'] {
+.has-tip:hover .tip:is([data-align='end'], [data-align='start']),
+.has-tip:focus-visible .tip:is([data-align='end'], [data-align='start']) {
   transform: translate(0, 0);
 }
 /* The next ask's reason with the focus in its field too: the keyboard's way to see why, the cap being no stop of its
@@ -1047,10 +1052,9 @@ button.mark:hover {
   height: 28px;
   border-color: var(--line);
 }
-/* Its rows: 32 px in the body type, the one under the pointer or the focus lit; one that waits (aria-disabled) in
-   the third ink, unlit. */
-.menu [role='menuitem'],
-.menu [role='menuitemradio'] {
+/* Its rows, each kind (an act, one of a set, a switch): 32 px in the body type, the one under the pointer or the focus
+   lit; one that waits (aria-disabled) in the third ink, unlit. */
+.menu [role^='menuitem'] {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1064,7 +1068,7 @@ button.mark:hover {
   font-size: var(--type-body);
   text-align: left;
 }
-.menu :is([role='menuitem'], [role='menuitemradio']):is(:hover, :focus-visible):not([aria-disabled='true']) {
+.menu [role^='menuitem']:is(:hover, :focus-visible):not([aria-disabled='true']) {
   outline: none;
   background: rgb(var(--ink-rgb) / 0.06);
 }
@@ -2767,9 +2771,16 @@ button.contribution-quote:hover {
     display: none;
   }
   /* Before joining the dock has only Join and its check, so the check stands there on a phone too (phone-devices.md):
-     its sheet chooses the microphone and the camera, a phone's front or back. */
+     its sheet chooses the microphone and the camera, a phone's front or back. It is one of the dock's 42 px squares, a
+     finger's size (Codex P2 on #412), its chevron still the only mark. */
   .device-menu.device-check-open {
     display: inline-flex;
+    margin-left: 0;
+  }
+  .device-check-open .device-open {
+    width: 42px;
+    height: 42px;
+    border-radius: var(--r-3);
   }
 }
 /* The check before joining (docs/plans/device-check.md): the camera's picture over a row per device, the voice's meter
@@ -3413,7 +3424,8 @@ button.contribution-quote:hover {
   top: 12px;
   /* Centred on the whole width, not from its middle: from left: 50% a phone gave it half the screen and three lines. */
   inset-inline: 0;
-  z-index: 70;
+  /* Over the opening's overlay too (#entry, 100): a sign-in's return can meet a part gone (Codex P2 on #415). */
+  z-index: 110;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -4498,8 +4510,7 @@ button.contribution-quote:hover {
     min-width: 40px;
     min-height: 40px;
   }
-  .menu [role='menuitem'],
-  .menu [role='menuitemradio'] {
+  .menu [role^='menuitem'] {
     height: 44px;
   }
   .sheet-head .round {
@@ -6433,6 +6444,18 @@ button.contribution-quote:hover {
     opacity: 1;
   }
 }
+/* Switch camera, on your own tile (camera-flip.md): the other corner, and only on a phone, where the dock's device
+   menus aren't there; on a computer Video settings chooses. */
+.tile-pin.tile-flip {
+  display: none;
+  right: auto;
+  left: 8px;
+}
+@media (max-width: 600px) {
+  .tile-pin.tile-flip {
+    display: inline-grid;
+  }
+}
 
 /* Settings, in one place (docs/plans/account-settings.md): a part a heading and its choices, one under another. */
 .settings-part {
@@ -6510,6 +6533,10 @@ button.contribution-quote:hover {
   padding-left: 10px;
   border-left: 2px solid var(--line-2);
   color: var(--text-2);
+}
+/* A quote's blank line keeps a line's height, so its paragraphs stay apart (Codex P2 on #384). */
+.msg-quote:empty::before {
+  content: '\200b';
 }
 /* A web address in a message (docs/plans/message-links.md): the halo's link colour, underlined, wrapping inside the
    column however long it is. */
