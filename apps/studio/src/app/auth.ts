@@ -24,6 +24,7 @@ import { linkAcceptance, type LinkAcceptance } from './link-accept.ts'
 import { passkeysWorkOn } from './passkey-domain.ts'
 import { profileFromMetadata, providerOf } from './profile.ts'
 import { forgetPendingUnlock, pendingUnlock, refuseOtherAccount } from './provider-leave.ts'
+import { watchRefusals } from './refresh-refusal.ts'
 import { endSession, signedOutAfter, type Ended } from './sign-out.ts'
 import { keepReturnAnchor, returnAnchorAfter } from './return-anchor.ts'
 
@@ -38,6 +39,9 @@ const keptAtLoad = accountSessionKept()
 /** The Supabase project the Studio signs in with, when one is configured (the key is the publishable one). */
 export const authProject = url && key ? { url, key } : null
 
+/** What the Auth service said when it last refused this tab's refresh, noted as the client fetches. */
+const refusals = watchRefusals((input, init) => fetch(input, init))
+
 export const supabase: SupabaseClient | null = authProject
   ? createClient(authProject.url, authProject.key, {
       auth: {
@@ -47,6 +51,7 @@ export const supabase: SupabaseClient | null = authProject
         persistSession: true,
         autoRefreshToken: true,
       },
+      global: { fetch: refusals.fetch },
     })
   : null
 
@@ -94,14 +99,16 @@ const fromSession = (s: Session | null): SignedIn | SignedOut =>
 /** An account is in: not a guest's session, nor the page still finding out who is, nor a link's offer. */
 const accountIn = (state: AuthState) => state.status === 'signed_in' && state.identity.role !== 'guest'
 
+/** As a word came: whether this tab's Sign out was under way, and the refusal of its refresh just before, if any. */
+type Heard = { own: boolean; refused: string | null }
+
 /**
  * The state a change the listener heard leaves (`next`, over `now`): signed out by a cause this tab did not start,
- * another tab or a refresh the Auth service refused, it says so (signed-out-elsewhere.md). `own`: this tab's Sign out
- * was under way as the change came.
+ * another tab or a refresh the Auth service refused, it says which (signed-out-elsewhere.md).
  */
-function afterHeard(now: AuthState, next: SignedIn | SignedOut, own: boolean): AuthState {
+function afterHeard(now: AuthState, next: SignedIn | SignedOut, heard: Heard): AuthState {
   if (next.status === 'signed_in') return next
-  const ended = endedWhileIn(accountIn(now), own)
+  const ended = endedWhileIn(accountIn(now), heard.own, heard.refused)
   return ended ? { ...next, ended } : next
 }
 
@@ -185,11 +192,13 @@ function subscribeToSession(client: SupabaseClient, onState: Dispatch<SetStateAc
   // The first state is the redirect's (above), which may be a link's offer: the initial event must not replace it,
   // and neither may a guest's session or none (offerStands). An account that signs in ends the offer.
   const { data } = client.auth.onAuthStateChange((event, session) => {
+    // A refusal belongs to the next word alone, whatever it is: a refresh that went through makes it old.
+    const refused = refusals.take()
     if (event === 'INITIAL_SESSION' || returning || offerStands(offered !== null, session)) return
     if (session && !session.user.is_anonymous) offered = null
     // Whose sign-out it is, read as the word comes, not when React applies the change.
     const own = signingOutHere
-    onState((now) => afterHeard(now, fromSession(session), own))
+    onState((now) => afterHeard(now, fromSession(session), { own, refused }))
   })
   return () => {
     alive = false
