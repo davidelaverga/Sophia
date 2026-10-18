@@ -70,6 +70,8 @@ interface Props {
   link: ReportLink
   /** What opened the report, as the viewer read it at the click; null for a deep link. */
   opener: React.RefObject<HTMLElement | null>
+  /** How many times a report was asked for: the one on screen asked for again keeps this pane (useFocusHandoff). */
+  asked: number
   tab: ViewerTab
   onTab: (tab: ViewerTab) => void
   onVersion: (versionId: string) => void
@@ -332,28 +334,40 @@ function panelToggleOf(el: HTMLElement): HTMLElement | null {
   return panel ? document.querySelector<HTMLElement>(`.panel-toggles [data-panel="${panel}"]`) : null
 }
 
+/** What has the focus now, as an element; null for none. */
+const focused = () => (document.activeElement instanceof HTMLElement ? document.activeElement : null)
+
 /**
  * Focus moves to the title on open. On close it returns to what opened the pane, or to the toggle of the side panel
  * that held it (focusReturn), unless it already went somewhere: the side panel opening in the pane's place moves it in.
  */
-function useFocusHandoff(opener: React.RefObject<HTMLElement | null>) {
+function useFocusHandoff(opener: React.RefObject<HTMLElement | null>, asked: number) {
   const title = useRef<HTMLHeadingElement>(null)
   // What had the focus as the pane came, read once and never the pane's own title (an effect run twice, as React's
   // development mode does, would read the title it just focused).
   const atMount = useRef<HTMLElement | null>(null)
   useEffect(() => {
-    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const active = focused()
     if (active !== title.current) atMount.current ??= active
     title.current?.focus({ preventScroll: true })
     return () => {
       // Read at the close, on purpose: the same report opened again from elsewhere names its latest opener; one that
-      // left the page (a sheet closed for the report) gives way to what had the focus as the pane came.
+      // left the page (a sheet closed for the report) gives way to what had the focus as it was last asked for.
       // oxlint-disable-next-line react-hooks/exhaustive-deps
       const from = returnFrom(opener.current, atMount.current)
       const free = focusFree(document.activeElement, document.body)
       focusReturn(free, from, from ? panelToggleOf(from) : null, shownNow)?.focus({ preventScroll: true })
     }
   }, [opener])
+  // The same report asked for again (from another goal's sheet, which closed for it and gave the focus to its own row)
+  // keeps this pane: what has the focus now, outside the pane, takes the first opening's place (Codex P2 on #448).
+  const askedAt = useRef(asked)
+  useEffect(() => {
+    if (askedAt.current === asked) return
+    askedAt.current = asked
+    const active = focused()
+    if (active && !title.current?.closest('.report-pane')?.contains(active)) atMount.current = active
+  }, [asked])
   return title
 }
 
@@ -381,7 +395,7 @@ function useCitation(tab: ViewerTab, onTab: (tab: ViewerTab) => void) {
 
 /** What the pane does around what it shows: the version it pins, its keys, the focus and its top's height. */
 function usePaneBehaviour(
-  { link, opener, onVersion, onStepDown, onEnlarge }: Props,
+  { link, opener, asked, onVersion, onStepDown, onEnlarge }: Props,
   data: PaneData,
   showing: (to: string) => void,
 ) {
@@ -397,7 +411,7 @@ function usePaneBehaviour(
       run: full ? onStepDown : onEnlarge,
     },
   ])
-  const title = useFocusHandoff(opener)
+  const title = useFocusHandoff(opener, asked)
   // Back to the side pane with the focus on a call switch: beside the room the dock has them and the row is hidden,
   // so the focus goes to the title rather than stay on a button nobody sees.
   useEffect(() => {
