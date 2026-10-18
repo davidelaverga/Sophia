@@ -81,10 +81,14 @@ test('menu · the account’s: the plane 6 px under its control at its end, the 
     focused: 0,
     checked: ['Dark ●'], // Appearance: the dark room is the choice in force (docs/plans/light-mode.md)
   })
+  // «Your name» comes first where the server serves profiles, as the fixture's does (docs/plans/profile-editor.md).
+  await expect(page.getByRole('menuitem', { name: 'Your name' })).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  // In a project it is your personal data, said so (docs/plans/account-menu.md).
+  await expect(page.getByRole('menuitem', { name: /^Your personal data/ })).toBeFocused()
   await page.keyboard.press('ArrowDown')
   await expect(page.getByRole('menuitem', { name: 'How privacy works' })).toBeFocused()
   await page.keyboard.press('ArrowUp')
-  // In a project it is your personal data, said so (docs/plans/account-menu.md).
   await expect(page.getByRole('menuitem', { name: /^Your personal data/ })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('menu')).toHaveCount(0)

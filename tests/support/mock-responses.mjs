@@ -17,6 +17,7 @@ export async function startMockResponses() {
   const requests = []
   const queue = []
   let active = 0
+  let abandoned = 0
   const server = createServer(async (req, res) => {
     let raw = ''
     for await (const chunk of req) raw += chunk
@@ -28,10 +29,18 @@ export async function startMockResponses() {
     requests.push({ method: req.method, url: req.url, headers: { ...req.headers }, body })
     const step = queue.shift() ?? { text: 'ok' }
     const n = requests.length
+    // A controlled provider refusal (429, 5xx): a plain JSON error and no stream, as the API answers one.
+    if (step.status) {
+      res.writeHead(step.status, { 'content-type': 'application/json', ...(step.status === 429 ? { 'retry-after': '0' } : {}) })
+      return res.end(JSON.stringify({ error: { message: `test double answered ${step.status}`, type: 'test_double', code: null } }))
+    }
     const id = `resp_mock_${n}`
     active += 1
     let closed = false
-    res.on('close', () => { closed = true })
+    res.on('close', () => {
+      closed = true
+      if (!res.writableEnded) abandoned += 1
+    })
     // Every answer starts with an opaque reasoning item, as a reasoning model's does, so the next request replays it.
     const reasoning = { id: `rs_mock_${n}`, type: 'reasoning', summary: [], encrypted_content: `mock-encrypted-${n}` }
     const args = typeof step.toolCall?.arguments === 'function' ? step.toolCall.arguments(body) : step.toolCall?.arguments
@@ -67,10 +76,12 @@ export async function startMockResponses() {
     /**
      * Queue answers; each request consumes one (default: a short "ok"). `{ toolCall: { name, arguments } }` calls a tool;
      * `arguments` may be a function of the request body, for an argument only what the model received can give.
-     * `usage` replaces fields of the reported usage.
+     * `usage` replaces fields of the reported usage. `{ status }` answers that HTTP error (429, 5xx) with no stream.
      */
     script: (...steps) => { queue.push(...steps) },
     get active() { return active },
+    /** Streamed answers the client closed before they finished (an aborted call). */
+    get abandoned() { return abandoned },
     close: () => new Promise((resolve) => { server.closeAllConnections?.(); server.close(resolve) }),
   }
 }
@@ -100,6 +111,11 @@ export function recordedRouteOverlay(bundlePatchText, baseURL) {
  */
 export function researchRouteOverlay(bundlePatchText, baseURL) {
   return providerOverlay(bundlePatchText, baseURL, 'openai-research')
+}
+
+/** The same overlay for the conversation service route's provider alias (CON-01 B2). */
+export function conversationRouteOverlay(bundlePatchText, baseURL) {
+  return providerOverlay(bundlePatchText, baseURL, 'openai-conversation')
 }
 
 /** The same overlay for the source-review route's provider alias (WBC-02). */

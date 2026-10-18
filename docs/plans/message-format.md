@@ -20,6 +20,14 @@
   - Sophia's answers in Conversations keep their own blocks (`sophia-text.ts`). Personal and Find keep `LinkedText`,
     so a mark is never split.
 
+## Follow-ups (Codex P2s on #384)
+
+- **An address whose path holds marks stays one link:** bold is read only where its mark doesn't open inside a web
+  address, so `https://example.com/**draft**` links whole, and `**https://example.com/plan**` is still a bold link.
+- **A blank line before a quote stays:** a quote's block starts its own line, so a line before it needs no break of
+  its own, except an empty one.
+- **A quote's blank line keeps a line's height,** so a quoted message's paragraphs stay apart.
+
 ## Checks
 
 - **`rich-text.test.ts`:** a quote line; code before bold (`` `**not bold**` `` stays code); an unclosed mark stays as
