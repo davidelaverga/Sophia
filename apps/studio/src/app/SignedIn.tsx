@@ -252,6 +252,19 @@ const accountActions = (
   out: { signOut: () => void; signOutEverywhere: () => void },
 ) => ({ data: sheets.data, privacy: sheets.privacy, chooseDev, ...out })
 
+/**
+ * The padlock reaches every project shown or kept for its call: none reads the person's Needs while it is shut. Always
+ * mounted with SignedIn, it forgets what is personal while the padlock is shut, wherever the person is.
+ */
+function ShellsUnderLock({ locked, ...props }: ShellsProps & { locked: boolean }) {
+  useForgetWhileLocked(locked)
+  return (
+    <PersonalLocked.Provider value={locked}>
+      <ProjectShells {...props} />
+    </PersonalLocked.Provider>
+  )
+}
+
 function SignedIn(props: SignedInProps) {
   const { identity, notice, routing, onChooseDev } = props
   const { route, open, openAt, leave, goTo } = routing
@@ -263,7 +276,6 @@ function SignedIn(props: SignedInProps) {
   const project = route.projectId
   useProviderReturn({ call, project, place: route.place, setLock, goTo, say: toast.show })
   useOneCallInSight(call, project)
-  useForgetWhileLocked(lock.locked)
   useSayings({ ended, say: toast.show, project, notice })
   const sheets = useSheetsAtHome(leave)
   const out = signOuts(toast.show, props)
@@ -275,20 +287,18 @@ function SignedIn(props: SignedInProps) {
   const openProject = opening(join.ask, open)
   return (
     <>
-      {/* The padlock reaches every project shown or kept for its call: none reads the person's Needs while it is shut. */}
-      <PersonalLocked.Provider value={lock.locked}>
-        <ProjectShells
-          ids={ids}
-          onScreen={onScreen}
-          identity={identity}
-          account={<AccountMenu identity={identity} where="project" actions={actions} />}
-          routing={routing}
-          joining={join.joining}
-          onJoinHandled={join.handled}
-          onCall={reportCall}
-          onSignOut={out.signOut}
-        />
-      </PersonalLocked.Provider>
+      <ShellsUnderLock
+        locked={lock.locked}
+        ids={ids}
+        onScreen={onScreen}
+        identity={identity}
+        account={<AccountMenu identity={identity} where="project" actions={actions} />}
+        routing={routing}
+        joining={join.joining}
+        onJoinHandled={join.handled}
+        onCall={reportCall}
+        onSignOut={out.signOut}
+      />
       {!project && (
         <Places
           place={route.place}

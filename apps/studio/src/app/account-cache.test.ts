@@ -60,18 +60,19 @@ describe('the padlock forgets the room’s mentions read too: the person’s mix
     client.setQueryData(['conversations', 'project-1', DAVIDE], { list: [] })
     client.setQueryData(['tasks', 'project-1'], { tasks: [] })
     let aborted = false
-    let answer: (value: typeof mixed) => void = () => {}
+    const deferred: { resolve?: (value: typeof mixed) => void } = {}
     const late = client.fetchQuery({
       queryKey: ['mentions', 'needs', DAVIDE, 'cursor-3'],
       queryFn: ({ signal }) =>
         new Promise<typeof mixed>((resolve) => {
           signal.addEventListener('abort', () => (aborted = true))
-          answer = resolve
+          deferred.resolve = resolve
         }),
     })
     forgetPersonalReads(client)
     assert.equal(aborted, true, 'the read on its way is stopped')
-    answer(mixed) // it answers anyway, late
+    assert.ok(deferred.resolve, 'the read was on its way')
+    deferred.resolve(mixed) // it answers anyway, late
     await late.catch(() => undefined)
     assert.deepEqual(client.getQueriesData({ queryKey: ['mentions', 'needs'] }), [], 'nothing of the list is kept')
     assert.deepEqual(client.getQueryData(['conversations', 'project-1', DAVIDE]), { list: [] })
