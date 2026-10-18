@@ -1226,11 +1226,16 @@
 }
 
 @media (max-width: 560px) {
-  .resource-sheet-head {
+  /* The name, then its presses on a line of their own at the right end, Close last at the sheet's edge; the head grows
+     to hold both lines. Named with the frame's class too, so it outweighs the frame's 36 px head whichever sheet loads
+     last (theme.css comes after this one on the fixture pages, before it in the app). The kit draws the presses as
+     `.sheet-acts`: the rule here named a class nothing renders (informe-25 H3). */
+  .sheet-head.resource-sheet-head {
     flex-wrap: wrap;
     row-gap: 6px;
+    height: auto;
   }
-  .resource-sheet-actions {
+  .resource-sheet-head .sheet-acts {
     margin-left: auto;
   }
   .resource-search {
@@ -1591,8 +1596,17 @@
   font-size: var(--type-small);
 }
 
+/* The ring's share, registered as a number so a change of it can be eased: a gradient itself only jumps between values
+   (informe-25 M14). */
+@property --fresh {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
 /* ---- Live, shared with the plan's board: a ring around a picture, emptying as its session's last report ages (its
-   `--fresh`, 1 to 0), amber while the session waits; and a dot that pings while a session reports. ---- */
+   `--fresh`, 1 to 0), amber while the session waits; and a dot that pings while a session reports. Each change of the
+   share sweeps over the base duration and rests long before the next tick: the ring never moves for its own sake. ---- */
 .live-ring {
   position: relative;
 }
@@ -1604,7 +1618,7 @@
   background: conic-gradient(var(--teal) calc(var(--fresh, 0) * 360deg), rgb(var(--teal-rgb) / 0.12) 0);
   /* A fine stroke at its edge (closest-side: a bare `circle` reaches the corners and swells into the picture). */
   mask: radial-gradient(circle closest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
-  transition: background 1s linear;
+  transition: --fresh var(--base) var(--ease);
 }
 .live-ring[data-live][data-waiting]::before {
   background: conic-gradient(var(--amber) calc(var(--fresh, 0) * 360deg), rgb(var(--amber-rgb) / 0.12) 0);

@@ -42,7 +42,8 @@
   describes them.
 - The keyboard: as tabs or radios, Left and Right wrap, Home and End reach the ends, and the choice follows the focus
   (automatic activation); as a group, each press is its own stop and Space or Enter presses it. As before.
-- On a phone the presses keep their 36 (`pointer: coarse`), and the small ones 36 too.
+- On a phone the presses keep their 36 (`pointer: coarse`), and the small ones 36 too; the box holds them at 44, stated,
+  so a column that overflows can't shrink it under its presses (informe-25 P-01, phone-fits.md).
 - A screen reader hears the same roles, names and states: tab/selected, radio/checked, button/pressed.
 
 ## Checks (written first)
