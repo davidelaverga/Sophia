@@ -11,9 +11,37 @@ export function nextCamera(cameras: readonly MediaDevice[], chosen: string | und
   return cameras[(at + 1) % cameras.length]?.id ?? null
 }
 
+/** A press of one call's switch, given the cameras listed and the switch, which says whether the call took it. */
+export type CameraPress = (cameras: readonly MediaDevice[], switchTo: (id: string) => Promise<boolean>) => Promise<void>
+
+/**
+ * One call's presses, from the camera it began on (`kept`, as chosen for calls). The kept choice isn't read again: it
+ * can part from the call's, where storage can't be written or a refused switch was kept all the same (Codex P2 on #422).
+ */
+export function cameraPresses(kept: string | undefined): CameraPress {
+  let inUse = kept
+  return async (cameras, switchTo) => {
+    const from = inUse
+    const next = nextCamera(cameras, from)
+    if (next === null) return
+    // Moved on at the press, so a second press before the first is answered goes on from it; back if refused.
+    inUse = next
+    if (!(await switchTo(next)) && inUse === next) inUse = from
+  }
+}
+
+/**
+ * The presses of the call under way here, by when it went live: one call at a time in a tab (a second join drops the
+ * first), and kept past the video view, which goes while nobody's camera is on.
+ */
+let presses: { call: number | null; press: CameraPress } | null = null
+
 interface Devices {
   listDevices: (kind: 'videoinput') => Promise<MediaDevice[]>
-  switchDevice: (kind: 'videoinput', id: string) => Promise<void>
+  /** Resolves true once the call switched to it. */
+  switchDevice: (kind: 'videoinput', id: string) => Promise<boolean>
+  /** When the call went live: each call's presses start again from the camera kept for calls. */
+  liveSince: number | null
 }
 
 /**
@@ -21,7 +49,7 @@ interface Devices {
  * are listed again each time yours comes on (a phone may give their names only once it has asked).
  */
 export function useCameraFlip(devices: Devices, cameraOn: boolean): (() => void) | null {
-  const { listDevices, switchDevice } = devices
+  const { listDevices, switchDevice, liveSince } = devices
   const [cameras, setCameras] = useState<readonly MediaDevice[]>([])
   useEffect(() => {
     if (!cameraOn) return undefined
@@ -38,7 +66,10 @@ export function useCameraFlip(devices: Devices, cameraOn: boolean): (() => void)
   }, [listDevices, cameraOn])
   if (!cameraOn || cameras.length < 2) return null
   return () => {
-    const next = nextCamera(cameras, chosenDevices().videoinput)
-    if (next) void switchDevice('videoinput', next)
+    // The kept choice, read at the call's first press: no switch of its own has been kept yet.
+    const call =
+      presses?.call === liveSince ? presses : { call: liveSince, press: cameraPresses(chosenDevices().videoinput) }
+    presses = call
+    void call.press(cameras, (id) => switchDevice('videoinput', id))
   }
 }

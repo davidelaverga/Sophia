@@ -29,8 +29,9 @@ The numbers are a phone's strip at 390 and 320 px (tiles of 65 and 51 px, `room-
 
 1. **The call's own camera:** `cameraPresses` (pure) keeps the camera the call is on, from the one kept for calls when
    its first press comes. A press moves it on at once, so a second press before the first is answered goes on from it,
-   and a refused switch moves it back. `switchDevice` resolves whether the call switched. `RoomStage` holds the presses
-   rather than the video view, so turning your camera off and on again keeps them; each call (`liveSince`) starts again.
+   and a refused switch moves it back. `switchDevice` resolves whether the call switched. The presses are the tab's
+   (one call at a time), not the video view's, so turning your camera off and on again keeps them; each call
+   (`liveSince`) starts again.
 2. **The switch is 40 px wide on a touch screen,** as a round button is.
 3. **A phone's strip tile holds one press, at its top-right corner:** Switch camera while it is there, Hide my tile
    otherwise. Hide my tile stays in the gallery, where both fit.
@@ -57,7 +58,6 @@ The numbers are a phone's strip at 390 and 320 px (tiles of 65 and 51 px, `room-
 
 ## Limits
 
-- Leaving the room's view during a call forgets its presses: the next press starts from the camera kept for calls.
 - With your camera on and two cameras, a phone's strip has no Hide my tile. A tile a fifth of a phone (51 px) holds
   one 40 px press; the camera's switch is the one a phone has nowhere else.
 - In the call, the dock's device openers on a touch screen wider than a phone are still the 20 × 36 px tab: a follow-up,
