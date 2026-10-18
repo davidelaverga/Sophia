@@ -6396,6 +6396,27 @@ button.contribution-quote:hover {
   .tile-strip .tile:has(> .tile-flip) > .tile-pin:not(.tile-flip) {
     display: none;
   }
+  /* The press at the top-right, clear of the mute mark at the top-left (Codex P2 on #430): a 28 px square, as the
+     strip's initial and chip are small; a 40 px one would leave 9 px of a 51 px tile. Its target is still a finger's,
+     40 px from the tile's corner, over the mark and the chip, which aren't presses. */
+  .tile-strip .tile-pin {
+    top: 4px;
+    right: 4px;
+    left: auto;
+    width: 28px;
+    height: 28px;
+    min-width: 0;
+    min-height: 0;
+  }
+  .tile-strip .tile-pin::after {
+    content: '';
+    position: absolute;
+    /* To the tile's corner: the press's 4 px inset and its 1 px edge. */
+    top: -5px;
+    right: -5px;
+    width: 40px;
+    height: 40px;
+  }
 }
 
 /* Settings, in one place (docs/plans/account-settings.md): a part a heading and its choices, one under another. */
