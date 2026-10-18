@@ -5924,8 +5924,9 @@ button.contribution-quote:hover {
 .goals-brief-you {
   color: var(--text);
 }
-/* The notes unread, said under the brief (docs/plans/notes-robust.md). */
-.goals-notes-failed {
+/* The notes or the dates unread, said under the brief (docs/plans/notes-robust.md, targets-robust.md). */
+.goals-notes-failed,
+.goals-dates-failed {
   margin: -16px 0 0;
   color: var(--text-2);
   font-size: var(--type-small);
