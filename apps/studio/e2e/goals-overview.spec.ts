@@ -4,6 +4,13 @@ import { expect, test, type Page } from '@playwright/test'
 
 const ROLLOUT = 'Roll the new onboarding out to every region'
 const row = (page: Page, title: string) => page.locator('li.goal', { hasText: title })
+/** The browser refuses every copy, as one that wasn't given the clipboard does. */
+const refuseCopies = (page: Page) =>
+  page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: () => Promise.reject(new DOMException('Denied', 'NotAllowedError')) },
+    })
+  })
 
 test('goals · the demo as Luis: nothing waits on him, the rollout needs attention, done folded', async ({ page }) => {
   await page.goto('/room.html?demo=1&place=goals')
@@ -108,11 +115,7 @@ test('goals · «Copy link» in the sheet copies the address that opens that goa
 test('goals · a refused «Copy link» shows the goal’s own address in the sheet; Escape closes only it (Codex P2 on #382)', async ({
   page,
 }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, 'clipboard', {
-      value: { writeText: () => Promise.reject(new DOMException('Denied', 'NotAllowedError')) },
-    })
-  })
+  await refuseCopies(page)
   await page.setViewportSize({ width: 360, height: 760 })
   await page.goto('/room.html?demo=1&place=goals')
   await page.getByRole('button', { name: ROLLOUT, exact: true }).click()
@@ -128,6 +131,18 @@ test('goals · a refused «Copy link» shows the goal’s own address in the she
   await page.keyboard.press('Escape')
   await expect(field).toHaveCount(0)
   await expect(sheet).toBeVisible()
+})
+
+test('goals · with less motion asked for, a refused «Copy link» hands its link over without moving (Codex P2 on #441)', async ({
+  page,
+}) => {
+  await refuseCopies(page)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/room.html?demo=1&place=goals')
+  await page.getByRole('button', { name: ROLLOUT, exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: ROLLOUT })
+  await sheet.getByRole('button', { name: 'Copy link' }).click()
+  await expect(sheet.getByRole('group', { name: 'Copy this link' })).toHaveCSS('animation-name', 'none')
 })
 
 // A goal lists the reports its work made (docs/plans/goal-reports.md): the demo's research task, the rollout's, made its
