@@ -1,0 +1,1962 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Sophia · CON-01 mission</title><style>
+:root{--navy:#162e43;--teal:#20756e;--ink:#253749;--muted:#63788b;--line:#dbe5eb}*{box-sizing:border-box}body{margin:0;color:var(--ink);background:#eef3f6;font:16px/1.7 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}header{height:86px;background:var(--navy);color:#fff;display:flex;align-items:center;gap:20px;padding:16px 28px;position:sticky;top:0;z-index:3}header b{font-size:20px;letter-spacing:.03em}header small{display:block;color:#c3d7de;font-size:12px}header .edition{margin-left:auto;text-align:right;font-size:12px}.shell{display:grid;grid-template-columns:285px minmax(0,1fr);max-width:1600px;margin:auto}nav{position:sticky;top:86px;height:calc(100vh - 86px);overflow:auto;padding:23px 16px;background:#eff5f7;border-right:1px solid var(--line)}nav label{display:block;font-size:12px;font-weight:650;color:var(--muted)}nav input{width:100%;margin:7px 0 15px;padding:11px;border:1px solid #b7c8d4;border-radius:6px;font:inherit}nav a{display:block;font-size:12px;line-height:1.5;padding:8px 10px;color:#435e72;text-decoration:none;border-radius:5px}nav a.active{background:#dceeea;color:#12594f;font-weight:650}nav a:hover{background:#e1ebf0}main{min-width:0;background:white;padding:42px 54px 80px;min-height:calc(100vh - 86px)}article{max-width:980px;margin:auto}.path{font:12px ui-monospace,monospace;color:var(--muted);overflow-wrap:anywhere;border-bottom:1px solid var(--line);padding-bottom:17px}h1{font-size:34px;line-height:1.22;letter-spacing:-.7px;color:var(--navy);margin:26px 0}h2{font-size:23px;line-height:1.4;margin-top:34px;color:#214c62}h3{font-size:18px;margin-top:27px}p,li{overflow-wrap:anywhere}li{margin:8px 0}a{color:#1d6e79;text-underline-offset:3px}blockquote{margin:25px 0;padding:9px 20px;background:#eef7f4;border-left:4px solid var(--teal)}code{font: .87em ui-monospace,SFMono-Regular,monospace;background:#eff3f7;padding:.12em .3em;border-radius:3px;overflow-wrap:anywhere}pre{background:#1b3042;color:#e3edf3;padding:22px;border-radius:7px;overflow:auto;max-width:100%;font:12px/1.65 ui-monospace,monospace}pre code{padding:0;background:none;color:inherit}table{width:100%;border-collapse:collapse;font-size:13px;line-height:1.55}th,td{padding:12px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;min-width:125px}th{background:#edf4f7;color:#244e62}tbody tr:nth-child(even){background:#fbfcfd}.table-scroll{overflow:auto;margin:23px 0;border:1px solid var(--line);border-radius:6px}#menu{display:none;color:white;background:none;border:1px solid #90a9ba;border-radius:5px;padding:8px;font:inherit}[hidden]{display:none!important}:focus-visible{outline:3px solid #318b85;outline-offset:3px}footer{margin-top:45px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+@media(max-width:1000px){main{padding:30px}.shell{grid-template-columns:245px minmax(0,1fr)}}@media(max-width:760px){header{height:79px;padding:12px 16px;gap:12px}header b{font-size:16px}header .edition{font-size:10px}header small{font-size:10px}#menu{display:block;font-size:12px}.shell{display:block}nav{display:none;position:fixed;z-index:4;top:79px;left:0;width:min(88vw,310px);height:calc(100vh - 79px);box-shadow:12px 0 40px #16304433}nav.open{display:block}main{padding:27px 20px 65px}h1{font-size:27px}h2{font-size:21px}body{font-size:15px}th,td{padding:10px;min-width:140px}.path{font-size:10px}}@media print{header,nav{display:none!important}.shell{display:block}main{padding:0}body{font-size:10pt}h1{font-size:23pt}.table-scroll{overflow:visible}pre{white-space:pre-wrap;background:#eee;color:#111}}
+</style></head><body><header><button id="menu" aria-controls="nav" aria-expanded="false">Contents</button><div><b>SOPHIA · CON-01</b><small>Saved project conversations · Parallel mission</small></div><div class="edition">Claude Code + Codex<br>9 October 2026 · v0.1</div></header><div class="shell"><nav id="nav" aria-label="Mission documents"><label for="search">Find a document</label><input id="search" type="search" placeholder="Launch, retention, evidence…"><a href="#db33563055168" data-title="con-01 — saved project conversations readme.md">CON-01 — Saved project conversations</a><a href="#d0a53dbb769f6" data-title="mission and product boundary 01_mission.md">Mission and product boundary</a><a href="#db5a21c7c04e1" data-title="source baseline and binding map 02_baseline_and_bindings.md">Source baseline and binding map</a><a href="#d49c74cbcc544" data-title="conversation contract and saved-text policy 03_contract_and_retention.md">Conversation contract and saved-text policy</a><a href="#d6d644d299b69" data-title="real sophia replies, bounded context and useful projections 04_runtime_and_context.md">Real Sophia replies, bounded context and useful projections</a><a href="#da7ee9359d93d" data-title="claude–codex coordination and parallel boundaries 05_coordination_and_ownership.md">Claude–Codex coordination and parallel boundaries</a><a href="#d36c0b19a619c" data-title="implementation slices and gates 06_implementation_and_review_gates.md">Implementation slices and gates</a><a href="#d65bdcbb8b86e" data-title="acceptance and evidence 07_acceptance_and_evidence.md">Acceptance and evidence</a><a href="#d38ad8664d5fc" data-title="codex operations, actual-app verification and rollback 08_operations_and_app_test.md">Codex operations, actual-app verification and rollback</a><a href="#d304647c5ed47" data-title="sources, precedence and limits 09_source_register.md">Sources, precedence and limits</a><a href="#da1b3f38c7ebc" data-title="source_manifest.json source_manifest.json">SOURCE_MANIFEST.json</a><a href="#d37959855b8c9" data-title="package validation — not product acceptance validation.md">Package validation — not product acceptance</a><a href="#dc4850f0ed7e2" data-title="evidence/acceptance.json evidence/acceptance.json">evidence/acceptance.json</a><a href="#d0fb814ba3c7f" data-title="evidence/episode.example.json evidence/episode.example.json">evidence/episode.example.json</a><a href="#d65e34adbbffb" data-title="claude code — exact launch for con-01 launch/claude_code.md">Claude Code — exact launch for CON-01</a><a href="#df8848dadf08f" data-title="codex — exact launch for con-01 launch/codex.md">Codex — exact launch for CON-01</a><a href="#d7aab91c10664" data-title="references/v3/architecture__06_operations_and_releases.md.original.txt references/v3/architecture__06_operations_and_releases.md.original.txt">references/v3/architecture__06_OPERATIONS_AND_RELEASES.md.original.txt</a><a href="#d0df45b21bbca" data-title="references/v3/architecture__07_conversations_and_task_context.md.original.txt references/v3/architecture__07_conversations_and_task_context.md.original.txt">references/v3/architecture__07_CONVERSATIONS_AND_TASK_CONTEXT.md.original.txt</a><a href="#dbd424f68da05" data-title="references/v3/goals__con-01.md.original.txt references/v3/goals__con-01.md.original.txt">references/v3/goals__CON-01.md.original.txt</a><a href="#d5171e22760ff" data-title="scripts/validate_pack.py scripts/validate_pack.py">scripts/validate_pack.py</a><a href="#deeada0fb5bc6" data-title="con-01 binding review templates/binding_review.md">CON-01 binding review</a><a href="#d0a6fd4a98f34" data-title="con-01 handoff templates/handoff.md">CON-01 handoff</a><a href="#d5ee0a3fbac83" data-title="con-01 exact operation batch templates/operation_batch.md">CON-01 exact operation batch</a><a href="#ddfc2ab7e61a9" data-title="con-01 review handoff templates/review.md">CON-01 review handoff</a><a href="#d676b86b8a8dd" data-title="evidence templates, not evidence of execution evidence/readme.md">Evidence templates, not evidence of execution</a><a href="#d21f1a859500d" data-title="parent-plan evidence references/readme.md">Parent-plan evidence</a><a href="#daf03ff89b349" data-title="coordination templates templates/readme.md">Coordination templates</a></nav><main><article id="db33563055168" hidden><p class="path">README.md</p><h1>CON-01 — Saved project conversations</h1>
+<h2>Parallel mission · Claude Code implements · Codex reviews and operates</h2>
+<p><strong>Edition:</strong> v0.1 · 9 October 2026<br/>
+<strong>Product:</strong> Sophia · <code>davidelaverga/Sophia</code><br/>
+<strong>Plan parent:</strong> Unified Continuation v3.0, CON-01<br/>
+<strong>Status:</strong> executable mission specification; not installed, implemented, deployed, or product-accepted by this pack's authoring. No live operation or spending is authorized by the archive alone.</p>
+<blockquote>
+<p>A team can open two named conversations inside one project, contribute independently, ask Sophia for a real answer, and return later to the right discussion with current project context. No new agent manager, computer, or Paperclip issue is required just because someone starts a conversation.</p>
+</blockquote>
+<h2>Assignment</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Responsibility</th>
+<th>Owner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Product, architecture, retention decision, operation approval</td>
+<td>Davide</td>
+</tr>
+<tr>
+<td>Primary source implementation, including required API/runtime and existing Studio wiring</td>
+<td>Davide's Claude Code</td>
+</tr>
+<tr>
+<td>Continuous independent review, release preparation, authorized deployment, actual app verification</td>
+<td>Davide's Codex</td>
+</tr>
+<tr>
+<td>Existing Studio visual/interaction design and shared frontend coordination</td>
+<td>Luis; do not redesign his conversation experience</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>This is the parallel conversation mission, not the next Paperclip/external-coding mission.</strong> CTX-01 (task-specific “Ask Sophia”) follows separately. The existing conversation-level Ask Sophia and its three quick questions are in scope.</p>
+<h2>Start here</h2>
+<ol>
+<li>Read <a href="#d0a53dbb769f6">the mission</a> and <a href="#db5a21c7c04e1">current evidence/bindings</a>.</li>
+<li>Start <strong>Codex now</strong> using <a href="#df8848dadf08f">its exact launch</a>, not only when a PR is ready. Start Claude Code using <a href="#d65e34adbbffb">its exact launch</a>. They may both inspect immediately; one implementer owns feature source.</li>
+<li>Complete G0's binding and privacy review before freezing a migration or runtime integration. <a href="#d49c74cbcc544">Contract</a>, <a href="#d6d644d299b69">runtime behavior</a>, and <a href="#da7ee9359d93d">parallel ownership</a> are required.</li>
+<li>Work through <a href="#d36c0b19a619c">the slices</a>. Use <a href="#d65bdcbb8b86e">acceptance</a> and <a href="#d38ad8664d5fc">operations/app test</a> from the outset.</li>
+<li>Update the actual mission coordination record and handoff on every material boundary. <a href="#daf03ff89b349">Templates</a> provide the payloads; they do not create a scheduler or guarantee automatic notifications.</li>
+</ol>
+<p>A convenient offline <a href="#db33563055168">reader</a> is included. The Markdown files are the editable mission specification. <a href="#d304647c5ed47">Sources</a> distinguish inspected code, retained plan, and proposed mission decisions. Original v3 CON-01 and its architecture excerpt are included byte-for-byte as <code>.original.txt</code> evidence under <code>references/</code>; their relative links describe the parent pack, not a second installation target.</p>
+<h2>Release shape</h2>
+<p>Target <strong>one focused feature PR</strong>, with reviewable commits and staged evidence, not several independent rewrites. A separate deployment/evidence change may be needed under repository practice. If a shared-core change cannot safely fit, record the exact split and ownership before creating another branch; do not expand into a general chat platform.</p>
+<p>Source work may begin in parallel with design and WBC-02. Runtime, schema, and shared Studio integration still have one writer at a time. Shipping this mission does not certify those other missions.</p>
+<h2>First real proof</h2>
+<p>Two members, two conversations, a current accepted project constraint, an unrelated conversation-local detail, an actual dsh answer, a lost write reply, a return after restart, and one withdrawal. The real app—not a fixture page—must preserve the expected records, target, privacy and result.</p>
+</article><article id="d0a53dbb769f6" hidden><p class="path">01_MISSION.md</p><h1>Mission and product boundary</h1>
+<h2>Outcome</h2>
+<p>Complete the existing multi-conversation Studio experience against durable authorized records and the selected native dsh runtime. People can <strong>create, write, ask, leave, reopen, and continue</strong> without losing authorship or confusing conversation history with accepted project decisions.</p>
+<p>This operationalizes v3 CON-01. Detailed behavior below is a proposed implementation contract where the existing UI proposal does not define backend behavior. G0 records the accepted contract and current source bindings; a source contradiction is resolved explicitly, never silently imported from old plans.</p>
+<h2>The user episode</h2>
+<p>Use a dedicated test project and authorized test members, not a real team's unconsented history.</p>
+<p>Davide opens <strong>“Onboarding direction”</strong> and posts an idea with Ask Sophia off. Luis contributes in that conversation. Davide opens <strong>“Presentation narrative”</strong>, posts a different idea, and asks Sophia for help. Both conversations show the same currently accepted project constraint, but the second does not receive the first's whole transcript or its unrelated detail.</p>
+<p>Davide returns to Onboarding and uses <strong>“Sum it up,” “What's still open?” and “What did we decide?”</strong> Sophia answers from actual retained conversation records plus the current eligible mission context. She distinguishes a suggestion from an accepted decision. Luis makes an authorized decision using the existing proposal/decision UI; future context reflects that decision in both conversations without rewriting earlier messages.</p>
+<p>While Sophia is replying, Davide changes conversations and types a draft. The reply goes to the original conversation and the draft survives. A lost Send response is retried as the same intent; one human message and at most one eligible response request result. After a real process/client restart and return, the records remain coherent. Withdrawing a message removes its body from eligible reads and invalidates dependent summaries and runtime context. No old voice content is reconstructed.</p>
+<h2>Required scope</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Required result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Durable text</td>
+<td>Atomic conversation + first message, subsequent messages, authenticated authorship, conversation-local ordering and bounded pagination</td>
+</tr>
+<tr>
+<td>Participation</td>
+<td>Members write; current authorized viewers read; unknown membership grants neither; guests/outsiders remain excluded</td>
+</tr>
+<tr>
+<td>Ask Sophia</td>
+<td><code>askSophia=false</code> persists text only; <code>true</code> durably requests a scoped native reply, shown separately from receipt of the message</td>
+</tr>
+<tr>
+<td>Context</td>
+<td>Same current mission/accepted decisions/eligible sources, separate local histories; no default cross-conversation transcript loading</td>
+</tr>
+<tr>
+<td>Return</td>
+<td>Existing list, thread, context, draft and delayed-write behavior backed by real records and refresh/replay</td>
+</tr>
+<tr>
+<td>Projection</td>
+<td>Bounded summary and recorded open-question information with explicit coverage/currentness; no invented “fully summarized” state</td>
+</tr>
+<tr>
+<td>Decisions</td>
+<td>Preserve existing A08 proposal/decision path; conversation prose or a generated summary never accepts a decision</td>
+</tr>
+<tr>
+<td>Output</td>
+<td>Correctly render an existing eligible exact artifact/version reference when present; keep null when there is no output</td>
+</tr>
+<tr>
+<td>Privacy</td>
+<td>Explicit saved-text policy, withdrawal/erasure, derived-content invalidation and current-membership enforcement</td>
+</tr>
+<tr>
+<td>Delivery</td>
+<td>Local proof, independent review, authorized release and actual browser/provider episode</td>
+</tr>
+</tbody>
+</table></div>
+<h2>Explicit non-goals</h2>
+<p>Do not implement CTX-01's task-panel explanation, CON-02 meeting close/catch-up/search, new image/deck/frontend generation, owner-native engineer enrollment, resource quotas, a Paperclip upgrade, QM/Buzz adoption, Slack, routine automation, model/provider switching, general cross-conversation search, or ambient audio/transcript capture.</p>
+<p>Do not require renaming, archiving, unread receipts, typing indicators, attachments, arbitrary chat editing, a new notification system or a universal retention product. The minimal erasure/withdrawal control required by the saved-text policy is a privacy obligation, not a general chat-management expansion.</p>
+<p>Do not turn ordinary chat into an operational issue or add a second scheduler. No infinite inference on every project update, list read, tab switch or new human-only message.</p>
+<h2>Selected mission decisions</h2>
+<p><strong>D1 — Preserve the interface.</strong> Complete Luis's three-pane desktop and single-screen mobile flow. Restrict UI changes to real binding, coverage/retention/error information and necessary accessibility.</p>
+<p><strong>D2 — Explicit invocation.</strong> The existing Ask Sophia selection is the invocation signal. The three conversation quick asks use the same real request path. No attention-classifier project is needed.</p>
+<p><strong>D3 — Read-only responder for this slice.</strong> A conversation answer may reason about supplied eligible project material but cannot create work, change a source, approve a proposal, use an external account or control another attempt. Existing explicit UI controls continue through their existing authorized operations. A request for new unsupported execution gets an honest limitation, not a promise to run it.</p>
+<p><strong>D4 — No arbitrary new provider.</strong> Reuse a currently authorized compatible route, subject to recorded payer/allowance and native readiness. Do not assume the research or design grant authorizes conversation inference. No credentials or provider selection is made by this document.</p>
+<p><strong>D5 — Independent progress.</strong> Implement storage/context/UI work without waiting for a new external engineer, browser provider or design format. Native activation may need a coordinated bundle change; that boundary must be scheduled, not used to block all other source work.</p>
+<p><strong>D6 — Full mission means real behavior.</strong> A table, fixture conversation, HTTP 200, loaded bundle or model final sentence cannot close this mission. Source-ready and locally verified remain separate from app-verified and owner-accepted.</p>
+<h2>Success and stop condition</h2>
+<p>CON-01 is complete when all mandatory acceptance cases have the required evidence, the first real episode passes on the reviewed candidate, the read/write/reply privacy paths remain available under the agreed release policy, and Davide accepts the outcome. If live credentials or a release target are unavailable, finish permitted source and independent checks, deliver a release-ready handoff, and leave live/app acceptance explicitly open.</p>
+</article><article id="db5a21c7c04e1" hidden><p class="path">02_BASELINE_AND_BINDINGS.md</p><h1>Source baseline and binding map</h1>
+<h2>Inspected snapshot</h2>
+<p>Repository: <code>davidelaverga/Sophia</code><br/>
+Main returned by the connector: <code>695fe4424ad268111357553cf60a99e7f1523dea</code><br/>
+Read date: 9 October 2026. This is an evidence anchor, <strong>not an instruction to reset a checkout</strong>. No deployed tuple was discovered or tested while authoring this pack.</p>
+<p>The open-PR read in this review returned <strong>draft #190, “docs: install unified continuation v3,”</strong> on <code>docs/install-unified-v3</code>, head <code>17cd6e91d7652f65a40e7fe2653c3227748a165</code>. Refresh its state at kickoff. Do not duplicate that installation, edit its frozen files in another branch, or describe its review as completed. User v3 direction and this assigned mission remain inputs while installed navigation is reconciled.</p>
+<h2>Verified source observations</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Evidence</th>
+<th>What it establishes</th>
+<th>What it does not establish</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>apps/studio/src/api/vision.ts</code></td>
+<td>A18 proposal names, runtime-checked shapes, Ask Sophia flag, later-message reply model</td>
+<td>Production endpoints, persistence or native reply execution</td>
+</tr>
+<tr>
+<td><code>features/conversations/ConversationsView.tsx</code></td>
+<td>Existing separate conversation feature; subject-keyed list cache; feed-driven refresh; membership writer gate</td>
+<td>Server authorization or cross-process durability</td>
+</tr>
+<tr>
+<td><code>docs/plans/project-conversations.md</code></td>
+<td>Project-shared context, local histories, actual contributors, retention requirement</td>
+<td>Approval to retain old voice or ambient data</td>
+</tr>
+<tr>
+<td><code>docs/plans/project-conversation-writes.md</code></td>
+<td>One intent/key, preserved drafts, create/send forms, response-pending UX</td>
+<td>Exactly-once model execution from UI retry behavior</td>
+</tr>
+<tr>
+<td><code>docs/plans/conversations-answers.md</code></td>
+<td>C6 demonstration bar; quick answers are fixture answers pending real runtime</td>
+<td>Live intelligence already present</td>
+</tr>
+<tr>
+<td><code>docs/plans/conversations-decide.md</code></td>
+<td>C7 uses existing A08 writes, expected revision, one decision/retry identity</td>
+<td>Automatic acceptance from prose</td>
+</tr>
+<tr>
+<td><code>docs/plans/conversations-panes.md</code></td>
+<td>Luis's accepted responsive three-pane direction and focus/scroll rules</td>
+<td>A reason to redesign Studio</td>
+</tr>
+<tr>
+<td><code>docs/DESTINATION_MAP.md</code></td>
+<td>Current package families, native bridge, one specialist registry, existing mission-context reader, API/contracts/persistence</td>
+<td>Every later path listed as unbuilt already exists</td>
+</tr>
+<tr>
+<td><code>AGENTS.md</code></td>
+<td>Exact toolchain, native artifact gate, current source/assignment precedence, independent review and durable handoff obligations</td>
+<td>Permission to spend or deploy without the relevant operation authorization</td>
+</tr>
+</tbody>
+</table></div>
+<p>The map shows current dsh/persistence/mission services to reuse. It describes the combined design/source-review runtime; their own latest progress and deployment records must be reread by the executors. This pack does not close WBC-02 or SDD-01.</p>
+<h2>Concrete edit anchors</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Existing area</th>
+<th>Mission work</th>
+<th>Ownership</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>apps/studio/src/features/conversations/</code></td>
+<td>Wire reads/writes/reply state/coverage; preserve layout, held writes, drafts and subject identity</td>
+<td>Claude implements; Luis coordinates visual/shared surfaces; Codex reviews</td>
+</tr>
+<tr>
+<td><code>apps/studio/src/api/vision.ts</code></td>
+<td>Promote only qualified conversation operations to generated real contracts; leave unrelated vision proposals gated</td>
+<td>Shared API writer nominated at G0</td>
+</tr>
+<tr>
+<td><code>packages/contracts/</code></td>
+<td>Reviewed OpenAPI amendment, generated types/validators and response identities</td>
+<td>One contracts writer; no handwritten competing type authority</td>
+</tr>
+<tr>
+<td><code>packages/persistence/</code></td>
+<td>Actor-scoped durable records, idempotency, conversation reads and existing mission-context integration</td>
+<td>Claude, in reserved files/migrations</td>
+</tr>
+<tr>
+<td><code>apps/api/</code></td>
+<td>Authenticated routes, current eligibility, feature capability and native request bridge</td>
+<td>Claude, bounded routes</td>
+</tr>
+<tr>
+<td><code>packages/dsh-bundle/</code>, <code>config/specialists.json</code>, <code>config/runtime-unit.json</code></td>
+<td>Minimal scoped responder/context/result binding only if needed</td>
+<td>Shared runtime writer; integrate additively after explicit handoff</td>
+</tr>
+<tr>
+<td>Existing project feed/snapshot</td>
+<td>Emit and consume truthful invalidation updates from committed records</td>
+<td>Extend existing path, do not replace the entire event system</td>
+</tr>
+<tr>
+<td><code>e2e/project-conversations.spec.ts</code>, <code>e2e/project-conversation-writes.spec.ts</code></td>
+<td>Retain UI tests; add real-backed cases in the appropriate discovered test harness</td>
+<td>Paths named in the source plans; confirm actual checkout before edits</td>
+</tr>
+<tr>
+<td>Existing auth, membership, privacy and mission tests</td>
+<td>Add adversarial cases; preserve prior account-keying and decision behavior</td>
+<td>Claude implements; Codex independently exercises</td>
+</tr>
+<tr>
+<td><code>docs/handoffs/</code>, current progress/coordination records</td>
+<td>Exact candidate, observations, unresolved effects and operation handoff</td>
+<td>Each executor owns its own report</td>
+</tr>
+</tbody>
+</table></div>
+<p>New files under these families are proposed destinations until G0 assigns actual paths. Do not create historical <code>frontend/</code>, Python, LangGraph, Hydra, Graphiti or LoopRun replacements. <code>packages/context/</code> is listed as unbuilt; a broad new context platform is not a dependency for CON-01.</p>
+<h2>G0: binding questions to close from actual source</h2>
+<p>Claude writes the binding record; Codex independently checks it:</p>
+<ul>
+<li>Which installed OpenAPI/privacy amendment currently controls saved text, and which fresh amendment/migration IDs are unreserved? <strong>A18 is a UI proposal label, not a reserved backend amendment number.</strong></li>
+<li>Which actor/RLS/idempotency helpers and real project event cursor are already in use? Identify exact functions and negative tests.</li>
+<li>Which current API endpoint supplies MissionContext and how does withdrawal invalidate its readers?</li>
+<li>Which native admission/binding path can own a conversational reply without creating a work-board issue or reusing a retired brief operation?</li>
+<li>Can the selected role safely receive conversation-local input without loading another conversation's native history? Identify the actual per-agent scope and recovery key.</li>
+<li>What exact retention/erasure interface implements §3 of <a href="#d49c74cbcc544">the contract</a>? What are the backup and external-provider limits?</li>
+<li>Which source, application and runtime releases are currently live, and which other mission owns the next combined bundle? Record rather than assume.</li>
+</ul>
+<p>G0 is a bounded source/binding task, not framework research. Unresolved optional features stay unavailable. A genuinely missing necessary contract gets a focused amendment; unrelated work continues.</p>
+<h2>Evidence limitations</h2>
+<p>Inspection covered selected files and directory metadata through the GitHub connector, not a full cloned source build. An anonymous container clone was unavailable. Several earlier guessed documentation paths were not found; this pack uses the verified <code>docs/plans/project-conversations*</code> paths instead. There was no paid model call, database test, browser session, migration, account connection, deployment or repository write in this authoring process.</p>
+<p>Current checkout instructions override any stale path example. If a required file moved, find and record the replacement; do not invent its contents or silently revert to an older architecture map.</p>
+</article><article id="d49c74cbcc544" hidden><p class="path">03_CONTRACT_AND_RETENTION.md</p><h1>Conversation contract and saved-text policy</h1>
+<h2>1. Source proposal retained</h2>
+<p>The following are <strong>existing A18 UI proposals</strong>, read in <code>vision.ts</code>, not advertised here as installed APIs:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Request</th>
+<th>Existing response</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>List</td>
+<td><code>GET /api/v1/projects/{projectId}/conversations</code></td>
+<td><code>{ conversations: ConversationSummary[] }</code>, newest activity first</td>
+</tr>
+<tr>
+<td>Read page</td>
+<td><code>GET /api/v1/conversations/{id}/messages?before=…</code></td>
+<td>`{ messages: ConversationMessage[], before: string</td>
+</tr>
+<tr>
+<td>Create</td>
+<td><code>POST /api/v1/projects/{projectId}/conversations</code>, Idempotency-Key; <code>{ title, text, askSophia }</code></td>
+<td><code>{ conversation, message }</code></td>
+</tr>
+<tr>
+<td>Send</td>
+<td><code>POST /api/v1/conversations/{id}/messages</code>, Idempotency-Key; <code>{ text, askSophia }</code></td>
+<td>`{ message, sophia: 'asked'</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>ConversationSummary</code>: <code>id</code>, <code>title</code>, nullable <code>summary</code>, <code>lastAt</code>, actual <code>contributors[{actorId,name}]</code>, <code>sophia</code> (answered, not merely asked), <code>openQuestions</code>, nullable exact <code>output{artifactId,versionId,versionNumber,title}</code>; optional <code>lastMessage</code> with author, actorId, name, opening text and time. Existing proposal caps the opening at 140 characters and the title at 120; preserve the repository's exact Unicode/counting rule, or specify and test it explicitly at G0.</p>
+<p><code>ConversationMessage</code>: <code>id</code>, <code>author: member|sophia</code>, nullable <code>actorId</code> and <code>name</code>, <code>text</code>, <code>at</code>. Server derives the human actor. Null IDs never merge distinct human authors. Sophia attribution comes from a trusted runtime result, never a browser-supplied author field.</p>
+<p>The mission retains these operation meanings and uses generated validation. Additions below must be reviewed and generated, not cast onto the old response. Move only implemented conversation calls off the global vision fixture path; do not enable A12/A14/A19 or other unimplemented features along with them.</p>
+<h2>2. Necessary additive semantics</h2>
+<p>These are <strong>mission requirements</strong>, not pre-existing fields. Choose the final schema with the current contract owner at G0:</p>
+<ul>
+<li>A stable server-generated conversation-local ordering key and opaque pagination cursor. Timestamp alone is not a tie-breaker or permission boundary. Cursor use is authorized against its conversation/project before lookup.</li>
+<li>A response-request identity linked to the exact admitted human message and conversation, with truthful pending/running/complete/failed/cancelled/blocked state, and the final assistant message identity when it exists. The exact enum must reuse compatible current lifecycle vocabulary; no conflicting universal lifecycle.</li>
+<li>A trusted <code>replyTo</code>/response correlation on the assistant result. <strong>“Any Sophia message later than the submission timestamp” must not settle an unrelated pending question.</strong></li>
+<li>Summary and open-question projection coverage: covered message sequence/range, source/context eligibility revision, generation time, and missing/partial/current/stale/unavailable status. A summary is not a canonical decision. Unchanged eligible older summaries may be marked stale; privacy-invalid summaries must be suppressed, not shown with a warning.</li>
+<li>Applicable saved-text policy identity and explicit capability state. Storage availability and inference availability are separate. Human messages may be retained when replies are unavailable, but the response request must be visibly blocked or not admitted, never falsely progressing.</li>
+<li>Bounded source references for eligible accepted decisions and exact output versions. The backend validates references; generated prose cannot mint authority.</li>
+</ul>
+<p>No API number, migration number, route alias or runtime preset ID is allocated by this document. G0 records the actual generated contracts and reservations. New state must describe distinct facts, not duplicate the canonical message content elsewhere.</p>
+<h2>3. Proposed saved-text policy for this mission</h2>
+<p>This is a product/technical policy proposal to record with Davide before live activation; it is not a legal-retention conclusion.</p>
+<p><strong>What is retained:</strong> only submitted text in named project conversations, successful published assistant replies, their governed source references, explicit user actions and the minimum delivery/evidence metadata needed for correctness. Unsent drafts remain per-account/per-conversation client state under the existing UI behavior. Do not add cloud draft syncing in this mission.</p>
+<p><strong>Audience:</strong> current eligible project members, including read-only viewers. Personal content is not imported automatically. All conversations inside the team project are team-visible under that project's rules; this mission creates no private mode inside a team project.</p>
+<p><strong>Duration:</strong> propose project-lifetime retention until explicit withdrawal/erasure, project deletion, or an already applicable shorter organization policy. Do not invent a numeric TTL or supersede a stricter installed policy. The activation record states the effective policy version, actual lifecycle and any backup retention limitation. No live saving is enabled while those facts remain unspecified.</p>
+<p><strong>Controls:</strong> propose that authors may withdraw their own message; project editors/admins may moderate or erase a conversation under existing project authority. Reuse an existing compatible erasure path; otherwise add the smallest authenticated operation and discoverable UI needed for these controls. Viewers cannot write or erase. Whole-conversation deletion is not a prerequisite for rename/archive/unread functionality. Do not let a member erase unrelated project records through this path.</p>
+<p><strong>Disclosure:</strong> show a clear saved-team-text notice before the first submission and make the current policy/controls reachable afterward. Proposed copy: “Messages here are saved for this project and can be read by its members. Asking Sophia uses the project's approved model route. Live room audio is not saved by this feature.” Final wording must match the effective policy and recipient rules; do not promise self-hosting, zero provider retention, or absolute deletion unless qualified.</p>
+<p><strong>No backfill:</strong> do not reconstruct old room chat, voice, captions, screenshots, telemetry or private assistant history. Existing deliberately saved notes remain separate sources. Typed text in a live room does not become a named-conversation transcript by implication.</p>
+<p><strong>Downstream limits:</strong> application erasure must cover operational storage and derived read paths. Backups and data already disclosed to a provider have their own retention and deletion limits; disclose rather than claim immediate universal destruction. Bodies, excerpts and secrets stay out of routine logs/metrics and public evidence.</p>
+<h2>4. Atomic admission, duplicate requests and failures</h2>
+<p>Create the conversation and its first human message atomically. When <code>askSophia=true</code>, atomically record or compatibly bind the response request and durable dispatch intention before acknowledging that it was asked. A failed admission cannot leave a phantom conversation or a worker with no originating message.</p>
+<p>Namespace idempotency by authenticated subject, project/conversation, operation and canonical payload. An identical retry returns the established result after current read authorization. Reusing a key with a changed payload conflicts. Losing membership cannot be bypassed by replaying a formerly valid key.</p>
+<p>Two simultaneous clients may submit text; each accepted message receives a unique ordered identity. A cancelled browser request is not proof that the write was cancelled. A received native result is not a new human message. Retry/rehydration cannot create a second response request or erase newer drafts.</p>
+<p><code>not_asked</code> creates no response obligation, model call, computer, operational issue, worker wake or paid summary job. <code>asked</code> means a durable answer request exists, not that the answer has succeeded. A published reply requires an actual accepted native result tied to this request.</p>
+<h2>5. Current eligibility and erasure</h2>
+<p>Authorize list metadata, snippets, message pages, summaries, context, source links and events. Eligibility filtering precedes counts and pagination. Mere possession of an ID, cursor, historical receipt or cached source is not read authority.</p>
+<p>Withdrawal immediately makes the body and dependent generated projections ineligible, invalidates caches and any reusable native context containing it, and fences pending generation/publication that depends on it. Tombstones may retain minimal IDs needed for ordering and duplicate prevention; they cannot contain the erased text, its excerpt, a recoverable prompt or a supposedly harmless summary of it.</p>
+<p>A refresh/reconnect performs current checks. Do not reuse an old provider session that still carries withdrawn content. If the current native path cannot selectively invalidate it, retire/rebuild that conversational context under the same request and allowance lineage before another answer. Do not reset budget or create a replacement writer merely by creating a fresh session.</p>
+<p>Independently and explicitly accepted project decisions/notes have their own current retention policy. Withdrawing their conversation source does not silently reverse the decision or imply permission to retain a hidden copy of the original message. Preserve permissible decision identity and mark missing provenance according to the existing policy. Flag conflicts for explicit resolution.</p>
+<p>An already delivered answer cannot be made unseen. Remove ineligible cached material on revalidation and do not resend it; keep the product claim about withdrawal bounded to what the system can enforce.</p>
+<h2>6. Preserve existing decision and output semantics</h2>
+<p>The existing conversation “Propose as decision” and context “Accept/Decline” use A08. Keep exact expected revisions, same-key retries, role restrictions and existing mission replacement rules. No auto-promotion from an apparent consensus, a summary, a generated list or a quick ask.</p>
+<p>A generic mention of a report is not output creation. <code>output</code> refers only to a valid eligible artifact/version association. Do not overwrite source manifests to attach an unrelated historical output. Without an actual association it remains null. Rendering and navigation of existing linked outputs must be qualified; new artifact generation is outside this slice.</p>
+</article><article id="d6d644d299b69" hidden><p class="path">04_RUNTIME_AND_CONTEXT.md</p><h1>Real Sophia replies, bounded context and useful projections</h1>
+<h2>Use the current native path</h2>
+<p>No new harness, root agent loop, Paperclip conversation issue, QM session store or Buzz relay is introduced. Use the current dsh registry, service-bound admission, native result observation, durable delivery and allowance machinery.</p>
+<p>At G0, identify an appropriate existing role or add one minimal <strong>read-only conversation specialization</strong> within the same role family and registry, with a newly recorded composition when required. This is not permission to reuse a retired brief submission, mount all guide mutation tools, or change the default provider. Any new preset name in implementation is explicitly reviewed rather than advertised as already installed.</p>
+<p>For the first mission, supply the bounded authorized context from the application. A responder does not need arbitrary host files, web browsing, external credentials or general domain writes merely to answer the three quick questions. It may receive only the narrowly needed read capabilities if the chosen native binding requires them. Framework-added tools must be inspected, not assumed absent.</p>
+<h2>Input context contract</h2>
+<p>The trusted response binding contains the initiating subject, project and conversation IDs, human message/request IDs, current permission/control generation, cutoff of the local history, applicable project-context/eligibility revision, exact route/role configuration, and bounded allowance. Models cannot change these identifiers by including them in text.</p>
+<p>Assemble:</p>
+<ol>
+<li>The current request, preserving its full submitted meaning and separate attribution.</li>
+<li>The relevant retained history of <strong>this conversation</strong>, or an eligible bounded summary with coverage plus recent messages. Context truncation is explicit.</li>
+<li>The current mission context supplied by the existing compiler: accepted mission/constraints, proposed-but-undecided items and selected eligible sources.</li>
+<li>Relevant exact output references where the application actually provides them.</li>
+</ol>
+<p>Do not flatten all project conversations into one native history. Do not use a mutable global “current conversation.” Do not retrieve Personal content implicitly. Deliberate cross-conversation retrieval is a later capability; the first slice may explain that it is unavailable rather than making a false cross-thread claim.</p>
+<h2>Concurrency and publication</h2>
+<p>One conversation response lane may serialize its inference while other conversations proceed within existing limits. Persist human messages independently of model availability. The native session/agent key and response publication target must include the conversation and applicable context generation, not the browser's selected tab.</p>
+<p>For each accepted Ask request, keep an unambiguous terminal or pending outcome. Do not silently combine several asks and mark them all answered by one generic reply. The initial implementation should use separately correlated responses unless a formally reviewed batching contract explicitly preserves every covered request.</p>
+<p>Before generation and before publication, recheck relevant authorization/eligibility. A normal new local message arriving after the answer's recorded cutoff does not needlessly erase the in-flight reply; mark what it answers. A privacy withdrawal or revoked authority can invalidate publication. A changed project decision invalidates cached current-state summaries; an in-flight answer cannot be displayed as an unqualified statement of a now-replaced decision. Use bounded revalidation/reassembly or an explicit superseded result, never an infinite refresh loop.</p>
+<p>Publish an assistant message once from a trusted finalized native result, correlated to its response request. An incomplete token stream is provisional and must not become a complete historical answer by accident. A client/stream restart reads the durable state; it does not launch another inference. Budget-exhausted, failed, cancelled and unavailable states remain distinguishable. Retained useful partial output is labeled partial and cannot settle the request as a complete answer.</p>
+<p>The simple implementation may display the existing answering indicator and publish final text when settled; token streaming is not a new requirement. Neither transport timing nor “later than my timestamp” proves that an incoming answer addressed this request.</p>
+<h2>Quick asks: actual behavior</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Existing action</th>
+<th>Required answer</th>
+<th>Prohibited shortcut</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sum it up</td>
+<td>What this conversation has discussed, attributed positions, relevant current accepted project constraints, and unresolved matters</td>
+<td>Fixed fixture sentence, invented agreement, all-project transcript dump</td>
+</tr>
+<tr>
+<td>What's still open?</td>
+<td>Unanswered/uncertain matters in the observed conversation, with source references, separated from project proposals</td>
+<td>Equate every question mark with a blocker; mark ambiguous matters settled</td>
+</tr>
+<tr>
+<td>What did we decide?</td>
+<td>Current accepted decisions from the mission record, with available time/provenance; explicitly distinguish conversation suggestions</td>
+<td>Turn repeated messages or model opinion into a decision</td>
+</tr>
+<tr>
+<td>Ordinary Ask</td>
+<td>A useful bounded answer from available project context, or an honest lack-of-context/unsupported-action response</td>
+<td>Claim to browse, create, schedule, approve or deploy without actual capability</td>
+</tr>
+</tbody>
+</table></div>
+<p>Quick asks are ordinary authenticated conversation messages with <code>askSophia=true</code>, not privileged commands. Conversation “Ask” remains separate from CTX-01's work-item reader.</p>
+<h2>Summary and question projections</h2>
+<p>Stored messages and the mission ledger are authoritative. Summaries and inferred question lists are derived, regenerable and bounded.</p>
+<p>Do not generate a paid summary just because someone lists or opens a conversation. The first implementation may update a persisted summary as part of an explicit “Sum it up” answer and update the recorded question projection during “What's still open?”. This requires only the corresponding approved inference, not a second background model loop. After new messages, mark coverage stale until updated. Future automatic refresh is not authorized by this mission.</p>
+<p>Keep the extracted projected content structurally validated and linked to the observed message range and current source revisions. Invalid output produces no projection update; the last still-eligible projection remains with truthful coverage. Do not silently bless the free-form reply as an accepted decision.</p>
+<p>Before a projection has been produced, <code>summary=null</code> is legitimate and recorded-open-question count may be zero, but the UI must state “Not assessed” or “No recorded questions yet,” not “Everything resolved.” A partial count needs a visible coverage qualification. Change the generated contract/UI together rather than pretending the old number conveys completeness.</p>
+<p>Source correction/withdrawal invalidates the dependent summary, question list and assistant-derived excerpts. Suppress privacy-invalid bodies before an asynchronous rebuild. “Stale” is not an excuse to continue showing withdrawn content.</p>
+<h2>Exact prompt delta to install through the scoped role</h2>
+<p>The following block is mission-authored role guidance. Preserve higher-priority Sophia identity and safety instructions; do not edit frozen assets to insert it. Record the installed bytes/version and effective tool list.</p>
+<blockquote>
+<p>You are Sophia responding inside the named team-project conversation supplied by the application. Treat the current request, earlier attributed messages, accepted project decisions and undecided proposals as different kinds of evidence. Use only the eligible context and read capabilities supplied for this request. Do not assume another conversation, private workspace, uncaptured meeting or unavailable source has been read. Cite supplied source/message/decision references where the output contract supports them; never invent a reference or a person's contribution. When summarizing, say what was discussed and what remains uncertain; agreement in chat is not an accepted project decision. When asked what was decided, use the current accepted mission records and distinguish them from suggestions. When asked what remains open, separate conversation questions from project proposals and actual blockers. Be useful and proportionate to the question; preserve the full meaning of a multi-part request. Do not create tasks, edit artifacts, accept decisions, approve permissions, schedule work, change execution resources or promise an unavailable action. Explain that limit when relevant. A submitted request is not completed work. Do not claim a tool or action occurred without the application's corresponding evidence. Do not move an answer to the currently selected browser tab: the application owns its destination. Retained text can be partial or outdated; respect the provided coverage and currentness information and state uncertainty rather than filling gaps.</p>
+</blockquote>
+<p>This paragraph does not enforce authorization. The server, tool guards, output validator and tests do that. Role updates never grant broader runtime access.</p>
+<h2>Recovery and spending</h2>
+<p>Use the existing reservation/settlement path compatible with the chosen route, and record how it is bound. Do not meter against a design or research allowance by accident. Initial provider-call limits, output/context limits and payer must be explicit in the release batch; do not invent prices or a new model here.</p>
+<p>Human-only messages need no inference. For asked messages, a missing grant or unavailable runtime yields an honest blocked/not-admitted reply state while the human text remains governed as recorded. Explicit retry/continuation keeps the original logical request and cumulative allowance; uncertain generation is reconciled before another attempt.</p>
+<p>Privacy erasure or explicit reply cancellation prevents a late result from publishing. No application-owned tool/result obligation may be orphaned merely by a deploy. Reuse current mechanisms; if this path reveals a required missing narrow recovery behavior, implement it inside this crossing rather than claiming REL-01 as globally complete.</p>
+</article><article id="da7ee9359d93d" hidden><p class="path">05_COORDINATION_AND_OWNERSHIP.md</p><h1>Claude–Codex coordination and parallel boundaries</h1>
+<h2>Roles and independent review</h2>
+<p>Claude Code is the main code executor for this mission. That includes database/API, minimal dsh changes, generated contracts, tests and existing Studio integration within the agreed scope. Luis does not become a mandatory second programmer for every UI file; preserve his design and coordinate shared edits.</p>
+<p>Codex follows from the beginning: independently reviews G0, exercises the persistence/privacy crossing after G1, inspects actual runtime context after G2, performs pre-merge review, prepares deployment, executes specifically authorized batches and tests the app. Codex does not merely sign Claude's final narrative.</p>
+<p>Each has a separate worktree and recorded native session/attempt. Codex may write its review/evidence/runbook files. Feature corrections normally go back to Claude. If Codex must author an urgent fix under an explicit assignment, it creates a new candidate requiring independent review; it cannot both author and supply the only independent acceptance of that fix.</p>
+<h2>Coordination home</h2>
+<p>Use one existing assigned issue/thread if a CON-01 thread exists. Otherwise the implementer may propose a mission issue and a draft PR under the normal repository assignment; record actual numbers after creation, never assume #105 is the new mission. #105 is historical proposal/design evidence, not an automatically granted operational queue.</p>
+<p>Proposed mission documents are <code>docs/coordination/CON-01/</code> and a current mission progress record. Confirm with current repository practice before creating them. Existing <code>docs/handoffs/</code> remains the inspected source's attempt-handoff location. Follow any newer mandatory workflow/logging instructions found at kickoff.</p>
+<p>Use unique actual IDs for attempts and messages. Suggested prefix convention: <code>CON-01-CC-*</code> for implementer messages and <code>CON-01-CX-*</code> for Codex. These are proposed names, not reserved IDs. Every review request names the exact commit/tree, changed boundary, checks actually run and questions for the reviewer.</p>
+<h2>Practical handoff protocol</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Message</th>
+<th>Sender → recipient</th>
+<th>Minimum payload</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Binding review</td>
+<td>Claude → Codex</td>
+<td>Current base, source paths, A18-to-real-contract map, privacy policy proposal, ownership and tests</td>
+</tr>
+<tr>
+<td>Review finding</td>
+<td>Codex → Claude</td>
+<td>Severity, exact source/version, observed/expected behavior, reproducer, smallest correction</td>
+</tr>
+<tr>
+<td>Candidate handoff</td>
+<td>Claude → Codex</td>
+<td>Exact commit/tree/runtime identities, acceptance status, commands and evidence, unresolved effects</td>
+</tr>
+<tr>
+<td>Operation request</td>
+<td>Claude/Codex → Davide</td>
+<td>Exact target and effects, reviewed candidate, credentials by reference, payer/cap/expiry, preconditions and rollback</td>
+</tr>
+<tr>
+<td>Operator receipt</td>
+<td>Codex → both</td>
+<td>What actually ran, observed targets/digests, resulting state, cost/uncertainty, cleanup and next action</td>
+</tr>
+<tr>
+<td>Closeout</td>
+<td>Both → Davide</td>
+<td>Independent source/app verdicts, remaining limitations, capability now usable and no broadened milestone claim</td>
+</tr>
+</tbody>
+</table></div>
+<p>Written handoffs are durable records, not a promise of asynchronous monitoring. Each executor checks the shared record at the beginning of a session and at the stated gate. No polling model, automation, or new notification service is installed for coordination.</p>
+<h2>Parallel work ownership</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Design mission: new assets/formats, capture kernels, design prompts, renderers</td>
+<td>Outside CON-01. Only consume existing exact output references.</td>
+</tr>
+<tr>
+<td>WBC-02: Paperclip plugin/adapter, commission/effect settlement, deployment</td>
+<td>Preserve; do not upgrade or reinterpret its status. Conversation asks never use its work issue merely to obtain a runtime.</td>
+</tr>
+<tr>
+<td>v3 installation PR #190</td>
+<td>Refresh current status; do not install a second copy or edit frozen historical packs.</td>
+</tr>
+<tr>
+<td><code>config/specialists.json</code>, generated specialists, shared bridge, runtime/unit digests and locks</td>
+<td>One nominated writer at a time; CON-01 supplies a minimal additive delta and tests. Rebuild one combined candidate retaining all other roles.</td>
+</tr>
+<tr>
+<td>OpenAPI/generated validators and migration roster</td>
+<td>Reserve actual IDs in the shared record before writing. No independent generator runs that delete another lane's change.</td>
+</tr>
+<tr>
+<td>Studio shell/navigation/room/call/viewer store</td>
+<td>Luis coordinates integration; no visual rewrite or account-key regression.</td>
+</tr>
+<tr>
+<td>New bounded conversation source and tests</td>
+<td>Claude owns implementation; Codex independently reviews.</td>
+</tr>
+<tr>
+<td>Hosted database/runtime/app operations</td>
+<td>Codex under the actual authorized batch and deployment coordination. One current live reference; no extra production stack merely to bypass another lane.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Two additive migrations can coexist only when their actual dependencies and replacements are known. In particular, a <code>CREATE OR REPLACE</code> must preserve other lanes' branches. Shared SQL/runtime changes land in an agreed order; rebasing refreshes affected independent evidence.</p>
+<h2>Work that can start immediately</h2>
+<p>Source inspection, binding proposals, tests against controlled local records, persistence/UI code in reserved paths and local integration can proceed before WBC-02/design live acceptance. Real native or deployed activation waits for the necessary current runtime and authority only. Do not invent a dependency on image generation, Omnigent enrollment or a cloud sandbox.</p>
+<h2>Merge discipline</h2>
+<p>Target one focused feature PR. Keep contract/privacy, persistence, native replies, UI integration and evidence in reviewable commits. A draft PR can appear early. Codex's approval is bound to an exact candidate; materially changed auth, schema, prompt, runtime or integration invalidates the affected approval. Rebase onto current main without resetting another person's worktree. Do not merge solely because all unit tests are green; preserve the specific changed-crossing evidence required by the repository.</p>
+</article><article id="d36c0b19a619c" hidden><p class="path">06_IMPLEMENTATION_AND_REVIEW_GATES.md</p><h1>Implementation slices and gates</h1>
+<p>The numbered gates are local to CON-01, not new roadmap goals or reserved PR numbers. G1–G3 may contain parallel pure tests/UI preparation, but the actual schema and runtime integrations follow the single-writer agreement.</p>
+<h2>G0 — Bind the mission and policy</h2>
+<p><strong>Claude:</strong> inspect current source, branch, installed planning index, draft/open PRs, progress, generated APIs, runtime and retention rules. Produce an actual binding map and reserve IDs/surfaces. Explain the minimum native conversation path. Record the saved-text policy proposed in this pack and the applicable existing policy.</p>
+<p><strong>Codex:</strong> independently inspect those bindings, authorship/authorization, erasure and response correlation. Confirm what is existing versus new. Prepare the real-app proof and negative cases before code is accepted.</p>
+<p><strong>Exit:</strong> approved bounded contract and current ownership; exact unresolved policy/operation decisions recorded. Local code on already settled areas may continue while an unrelated blocker remains. No retention activation without its specific decision.</p>
+<h2>G1 — Durable human conversations</h2>
+<p>Implement atomic create + first message, member-only send, authorized reads, ordering/cursors, same-intent retry and committed feed invalidation. Keep human-only <code>askSophia=false</code> inference-free. Wire an existing UI path to the local real API early; do not stop at an in-memory example.</p>
+<p>Add minimum erasure/withdrawal and invalidation required by the accepted policy alongside persistence—not as a later privacy feature. Reuse actor transactions/RLS and idempotency helpers.</p>
+<p><strong>Codex review:</strong> run or inspect real PostgreSQL negative tests, response-loss/retry and cross-account cases independently. Verify no private source is fetched before an authorization check.</p>
+<p><strong>Exit:</strong> local real records survive API/database reconnection or process restart; one intent remains one record; drafts and uncertain receipts behave correctly. This is not yet a live Sophia answer.</p>
+<h2>G2 — One actual read-only reply path</h2>
+<p>Bind <code>askSophia=true</code> to a durable correlated native request, bounded local/project context and the current approved role family. Add the minimum specialization only where needed, with recorded composition and no host shell or project mutations. Keep different conversations out of one indiscriminate native history.</p>
+<p>Implement reply lifecycle observation, exact-result publication, current eligibility checks and no duplicate execution on viewer/transport reconnect. A missing runtime or grant is explicit. Build prompt/request-shape and context-invalidation tests with a stub first, labeling them synthetic.</p>
+<p><strong>Codex review:</strong> inspect the effective prompt/tool/route configuration; independently test two conversations, withheld input, a late reply and an uncertain dispatch. Plan any paid probe under an exact authorized batch.</p>
+<p><strong>Exit:</strong> pinned local dsh crosses the real service/persistence path with a labeled provider stub; actual provider evidence remains separate until the authorized probe. No claim that image/research tools have been installed into this role.</p>
+<h2>G3 — Complete Luis's existing experience</h2>
+<p>Promote the four qualified conversation operations to real generated contracts. Keep unrelated vision features gated. Replace time-based “any later answer” completion with request correlation. Retain account subject identity, multi-draft/held-write behavior, independent read errors, list ordering and mobile focus/scroll rules.</p>
+<p>Make the three quick asks useful through G2. Persist bounded summary/question projections with honest coverage; preserve the existing A08 decision buttons. Test an exact existing output reference or correctly null output without creating a new format pipeline. Add the saved-text notice and discoverable withdrawal controls.</p>
+<p><strong>Codex review:</strong> browser interaction at desktop, tablet and phone widths; read request/response and persisted state, not screenshots alone. Verify a simple design change did not hide needed errors or cancellation.</p>
+<p><strong>Exit:</strong> useful local two-member/two-conversation episode, no fixture answers outside fixtures; no regression in the room, Personal, current report reader or work-board controls.</p>
+<h2>G4 — Integrate and independently review the exact candidate</h2>
+<p>Claude runs the actual repository checks and supplies the reviewed source/runtime artifact identities and a complete handoff. Codex independently reproduces changed crossings, reviews the combined diff, checks shared-lane integration and distinguishes baseline failures from introduced failures.</p>
+<p>Use current commands from source. At the inspected baseline these include <code>pnpm toolchain:check</code>, frozen installation, <code>pnpm check</code>, and <code>pnpm artifacts</code>; <code>pnpm artifacts:record</code> is needed only when source changes require recording new artifact identity. A skipped PostgreSQL/native/browser suite is not a pass.</p>
+<p><strong>Exit:</strong> merge/release recommendation for an exact candidate with zero unresolved blocking findings, or a concrete blocked/partial verdict. No silent model change or permission broadening to achieve green.</p>
+<h2>G5 — Codex operates and tests in the actual app</h2>
+<p>Codex discovers the actual deployment target read-only, then executes only the approved batch: additive migration/configuration where needed, reviewed app/API/runtime artifacts, controlled feature enablement and a bounded live probe. It tests the signed-in user journey in the actual application with live conversation endpoints and real native answers. Browser fixtures and handcrafted provider messages are not enabled on this path.</p>
+<p>Exercise a lost response, return/reopen, independent member read, current project decision, erasure and one safe negative authorization check on the dedicated test project. Destructive failure injection remains local/staging unless the exact target/effect is separately authorized.</p>
+<p><strong>Exit:</strong> actual app evidence, exact deployment tuple, cost/uncertainty and cleanup recorded. Codex reports its independent verdict; Davide supplies product acceptance. If credentials/target or permission are unavailable, the feature is release-ready but app acceptance remains blocked—do not stop after only screenshots and call it delivered.</p>
+<h2>Handoff to the next parallel slice</h2>
+<p>After acceptance, CTX-01 may reuse the conversation identity, read-only explanation discipline and output links. It still needs its own work-record binding and tests; do not implement it as a hidden rider. The design and native-execution lanes can attach future exact outputs to this conversation model without replacing it.</p>
+</article><article id="d65bdcbb8b86e" hidden><p class="path">07_ACCEPTANCE_AND_EVIDENCE.md</p><h1>Acceptance and evidence</h1>
+<p>The five <code>CON-01-T*</code> cases retain the requirements from the v3 ZIP. The remaining <code>CON01-A*</code> cases operationalize this mission; they do not allocate backend identifiers. Every case begins <strong>not_run</strong> in the machine-readable <a href="#dc4850f0ed7e2">checklist</a>.</p>
+<h2>Required matrix</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Case</th>
+<th>Required outcome</th>
+<th>Evidence path</th>
+<th>Gate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CON-01-T01</td>
+<td>Separate conversations</td>
+<td>Two conversations share current accepted project context while retaining different history and source/request origins; no automatic new computer.</td>
+<td>PostgreSQL + native/context tests + actual app</td>
+<td>G2/G5</td>
+</tr>
+<tr>
+<td>CON-01-T02</td>
+<td>Correct authorship</td>
+<td>Contributor list contains actual eligible human writers; Sophia appears only after a published reply; attendance or project membership alone adds nobody.</td>
+<td>Database + UI + actual app</td>
+<td>G1/G5</td>
+</tr>
+<tr>
+<td>CON-01-T03</td>
+<td>Retention boundary</td>
+<td>Previously unsaved room/voice/caption history is absent; only explicit named-conversation text is saved under the accepted policy.</td>
+<td>Policy review + database + app</td>
+<td>G0/G5</td>
+</tr>
+<tr>
+<td>CON-01-T04</td>
+<td>Current eligibility</td>
+<td>Withdrawal removes the body from eligible reads and dependent summaries, question projections and cached native context; a late dependent reply cannot publish.</td>
+<td>Database + native race test + app</td>
+<td>G1/G5</td>
+</tr>
+<tr>
+<td>CON-01-T05</td>
+<td>Account isolation</td>
+<td>Different subjects with the same display email cannot read each other's browser state. Same subject with renamed email retains its own state, including pending callback results.</td>
+<td>Auth/browser regression</td>
+<td>G1/G5</td>
+</tr>
+<tr>
+<td>CON01-A01</td>
+<td>Atomic start</td>
+<td>Failure between conversation creation and first message leaves no partial accepted start; successful start has one first message and consistent receipt.</td>
+<td>PostgreSQL transaction test</td>
+<td>G1</td>
+</tr>
+<tr>
+<td>CON01-A02</td>
+<td>Lost create reply</td>
+<td>Retry of a committed start with the same intent key returns the same conversation/message; no second native response obligation.</td>
+<td>Database + real HTTP/browser adverse test</td>
+<td>G1/G5</td>
+</tr>
+<tr>
+<td>CON01-A03</td>
+<td>Lost send reply</td>
+<td>Retry preserves one human message and one response request, even after changing conversations and reopening the composer.</td>
+<td>Database + browser + app</td>
+<td>G1/G5</td>
+</tr>
+<tr>
+<td>CON01-A04</td>
+<td>Changed payload same key</td>
+<td>Changing text, title, ask flag or target under an old key is rejected as a conflict, not silently reused or executed again.</td>
+<td>API/database negative test</td>
+<td>G1</td>
+</tr>
+<tr>
+<td>CON01-A05</td>
+<td>Current membership</td>
+<td>Viewers can read only eligible project content and cannot post; outsiders/guests and revoked members cannot read through IDs, cursors, summaries or idempotent receipt replay.</td>
+<td>Authenticated API + RLS + app spot check</td>
+<td>G1/G5</td>
+</tr>
+<tr>
+<td>CON01-A06</td>
+<td>Forged author</td>
+<td>Supplying an actor, name, assistant author, project or response target cannot impersonate a member or publish an assistant message.</td>
+<td>Schema/API negative test</td>
+<td>G1</td>
+</tr>
+<tr>
+<td>CON01-A07</td>
+<td>Ordering and pagination</td>
+<td>Concurrent equal-timestamp messages appear once in a stable conversation order; pages have no duplicates/gaps; another conversation's cursor is refused.</td>
+<td>Database concurrency + browser</td>
+<td>G1</td>
+</tr>
+<tr>
+<td>CON01-A08</td>
+<td>No implicit invocation</td>
+<td>askSophia=false stores text but performs no inference, paid summary, operational issue, external action or worker wake. Verify counters/state, not just UI silence.</td>
+<td>Database + runtime/provider-call spy</td>
+<td>G1/G2</td>
+</tr>
+<tr>
+<td>CON01-A09</td>
+<td>Exact response correlation</td>
+<td>Two pending asks and an unrelated assistant message do not settle one another; every completed reply identifies its actual request.</td>
+<td>Native/API + browser</td>
+<td>G2/G5</td>
+</tr>
+<tr>
+<td>CON01-A10</td>
+<td>Runtime unavailable</td>
+<td>Human text persists according to policy; absent native readiness or grant yields a truthful blocked/not-admitted answer state and no false progress.</td>
+<td>Local runtime fault + UI</td>
+<td>G2</td>
+</tr>
+<tr>
+<td>CON01-A11</td>
+<td>Original destination</td>
+<td>Switching tabs/projects while a reply runs does not move its publication, cancel unrelated work or destroy the other draft.</td>
+<td>Concurrent browser + native</td>
+<td>G2/G5</td>
+</tr>
+<tr>
+<td>CON01-A12</td>
+<td>Restart after admission</td>
+<td>An admitted request survives API/execution-host restart; observation or replay cannot independently start a duplicate response attempt.</td>
+<td>Controlled native/service restart</td>
+<td>G2</td>
+</tr>
+<tr>
+<td>CON01-A13</td>
+<td>Uncertain inference</td>
+<td>Timeout after dispatch remains unresolved until reconciled; retries keep request and allowance lineage and do not silently spend through another payer.</td>
+<td>Native adverse test + accounting</td>
+<td>G2</td>
+</tr>
+<tr>
+<td>CON01-A14</td>
+<td>Current mission</td>
+<td>An accepted constraint changed through A08 appears in both conversations' current context; old proposals stay distinguishable and no transcript is rewritten.</td>
+<td>Database + native + app</td>
+<td>G2/G5</td>
+</tr>
+<tr>
+<td>CON01-A15</td>
+<td>Real quick answers</td>
+<td>Three quick asks produce substantively appropriate answers from actual source context, not a fixed fixture. Include attributed views, undecided proposals and accepted decisions.</td>
+<td>Pinned native stub integration + separately real provider/app</td>
+<td>G2/G5</td>
+</tr>
+<tr>
+<td>CON01-A16</td>
+<td>No mutation from conversation answer</td>
+<td>Requests in chat to approve, schedule, edit or deploy cannot cross the read-only responder boundary; no hidden Paperclip issue or source mutation.</td>
+<td>Effective tool inspection + hostile prompt tests</td>
+<td>G2</td>
+</tr>
+<tr>
+<td>CON01-A17</td>
+<td>Summary coverage</td>
+<td>Missing and partial summaries/question counts are labeled; new messages mark coverage stale; list/open refresh does not itself trigger paid work.</td>
+<td>Database + UI + inference counter</td>
+<td>G3</td>
+</tr>
+<tr>
+<td>CON01-A18</td>
+<td>Projection race</td>
+<td>An old summary completion cannot overwrite a newer eligible projection or restore content invalidated by erasure/changed scope.</td>
+<td>Database/native race test</td>
+<td>G2/G3</td>
+</tr>
+<tr>
+<td>CON01-A19</td>
+<td>Source injection</td>
+<td>Text resembling system instructions or actor IDs remains untrusted content; source snippets cannot add tools, alter audience or accept decisions.</td>
+<td>Prompt boundary + API negative tests</td>
+<td>G2</td>
+</tr>
+<tr>
+<td>CON01-A20</td>
+<td>Decision actions retained</td>
+<td>Propose/Accept/Decline still use the existing authorized A08 path with the observed revision and one intent key; a stale decision is refreshed/refused.</td>
+<td>Existing decision tests + browser</td>
+<td>G3</td>
+</tr>
+<tr>
+<td>CON01-A21</td>
+<td>Output identity</td>
+<td>An actually linked eligible report opens its exact version; unavailable source stays unavailable; no output remains null rather than inventing a candidate.</td>
+<td>Source/reader integration + browser</td>
+<td>G3</td>
+</tr>
+<tr>
+<td>CON01-A22</td>
+<td>Draft and held write</td>
+<td>A delayed receipt clears only the submitted text; newer text and per-conversation drafts survive navigation; unsent drafts are not stored server-side by this feature.</td>
+<td>Browser adverse test</td>
+<td>G3</td>
+</tr>
+<tr>
+<td>CON01-A23</td>
+<td>Read errors independently</td>
+<td>Failure of list, thread or context is honest and retryable independently; no error is rendered as an empty successful history.</td>
+<td>Browser/API fault test</td>
+<td>G3</td>
+</tr>
+<tr>
+<td>CON01-A24</td>
+<td>Mobile and accessibility</td>
+<td>Desktop three panes; tablet context drawer; phone list/thread and context sheet. Send stays reachable, keyboard focus returns and history scroll does not jump on passive updates.</td>
+<td>Actual browser at 390, 900/1000 and 1440 widths</td>
+<td>G3/G5</td>
+</tr>
+<tr>
+<td>CON01-A25</td>
+<td>Privacy during read/stream</td>
+<td>Revoked access or withdrawn content is rechecked on rehydrate/next read and before publication; old events cannot repopulate ineligible content.</td>
+<td>API/replay/native + browser</td>
+<td>G2/G5</td>
+</tr>
+<tr>
+<td>CON01-A26</td>
+<td>Partial and cancelled replies</td>
+<td>Interrupted text is not silently finalized; cancelled/failed requests show their true outcome, preserve the human question and cannot publish from a stale generation.</td>
+<td>Native/result/API test</td>
+<td>G2</td>
+</tr>
+<tr>
+<td>CON01-A27</td>
+<td>No collateral regression</td>
+<td>Room speech/focus, Personal isolation, existing source review controls and native HTML outputs retain their semantics on the combined source.</td>
+<td>Existing relevant suites + smoke app checks</td>
+<td>G4/G5</td>
+</tr>
+<tr>
+<td>CON01-A28</td>
+<td>Bounded context and spending</td>
+<td>Long transcript uses eligible coverage/recent windows with limits; no infinite retries, budget reset on new session, auxiliary unapproved provider or logged transcript body.</td>
+<td>Long-context fixture + request/accounting inspection</td>
+<td>G2/G4</td>
+</tr>
+<tr>
+<td>CON01-A29</td>
+<td>Rollback and erasure continuity</td>
+<td>Disabling new asks/writes preserves governed reads/erase/control access and stored data; rollback does not revert to ephemeral storage or revive old asks.</td>
+<td>Release rehearsal + operator evidence</td>
+<td>G4/G5</td>
+</tr>
+<tr>
+<td>CON01-A30</td>
+<td>Actual app non-fixture proof</td>
+<td>Two accounts use the real application/API and at least one real provider-backed Sophia reply, with durable server records and observed deployment identity. Synthetic routes are excluded.</td>
+<td>Codex app/browser + authorized provider evidence</td>
+<td>G5</td>
+</tr>
+<tr>
+<td>CON01-A31</td>
+<td>Parallel ownership</td>
+<td>Final contracts/runtime include all already accepted WBC/SDD roles; reserved migrations and shared writer order are recorded; no unrelated deployment is replayed.</td>
+<td>Diff/artifact/coordination inspection</td>
+<td>G4</td>
+</tr>
+</tbody>
+</table></div>
+<h2>Evidence levels</h2>
+<p><strong>L0:</strong> source/specification/schema/static checks. <strong>L1:</strong> local real API/PostgreSQL/pinned dsh with a clearly labeled stub provider. <strong>L2:</strong> authorized actual provider/native execution against the exact configured route. <strong>L3:</strong> authenticated deployed app using that real path. <strong>L4:</strong> Davide's acceptance of the observed product episode.</p>
+<p>These levels describe evidence, not automatic promotion. L0/L1 checks cannot close L2/L3. A paid model answer without the app's durable publication does not close L3. Unit tests do not establish rollback or source eligibility in the deployed service.</p>
+<h2>Useful answer rubric</h2>
+<p>Codex inspects a small frozen corpus, not exact wording: two different viewpoints; an accepted constraint; an unaccepted conflicting proposal; an unrelated private/other-conversation detail that must be absent; and one intentionally unanswerable question. Evaluate grounding, attribution, currentness, uncertainty and proportional usefulness separately. Any unauthorized disclosure/action or fabricated accepted decision is a blocking failure, not offset by eloquent prose.</p>
+<p>Fixtures may use seeded project/message text. Do not put real private conversations or credentials in Git. The provided <a href="#d0fb814ba3c7f">episode fixture</a> is an illustrative test design, not a native/API response or proof of execution.</p>
+<h2>Recording evidence</h2>
+<p>Each execution record identifies the case, actual command/action, code commit and tree, service/schema/runtime/route identities, data fixture or approved live project, timestamp, observed result, verdict, and evidence location. Record statuses as <code>not_run</code>, <code>passed</code>, <code>failed</code>, <code>blocked</code>, or <code>not_applicable</code> with reason; required cases cannot be waived by an unexplained N/A.</p>
+<p>A <code>WORKFLOW_END_TO_END_TRAILER</code>-style summary is supplied in the handoff template as a mission requirement: real initiating user action, authoritative records, authenticated crossings, effects actually observed, privacy/egress and control status, verdict (<code>proven</code>, <code>partial</code>, <code>blocked</code>, <code>disproven</code>), and next falsifier. Use the repository's current required format when it is stricter or differently named.</p>
+<p>Do not log transcripts, provider credentials, hidden reasoning, raw sessions or sensitive URLs. For controlled live tests, restricted evidence may carry necessary exact IDs. Public/source evidence uses normalized paths and synthetic data. Correlation hashes show identity, not proof that private content was read correctly unless the reader receipt establishes that fact.</p>
+<h2>Completion decision</h2>
+<p>Claude reports source and local gates. Codex reports independent review, actual authorized operations and app evidence. Davide records product acceptance. G0 privacy acceptance, blocking source findings and required live cases must be settled; partial readiness remains honest. This mission cannot mark the broader three-engineer founder gate, CON-02, CTX-01, model portability or full creative formats complete.</p>
+</article><article id="d38ad8664d5fc" hidden><p class="path">08_OPERATIONS_AND_APP_TEST.md</p><h1>Codex operations, actual-app verification and rollback</h1>
+<h2>Authorization boundary</h2>
+<p>Davide has assigned Codex the operator and reviewer role. That is not a blank authorization for a particular database, deployment, provider spend, account login or native session. Codex may inspect and prepare immediately. Before effects, use the current repository's required operation controls and an explicit batch recording the reviewed candidate, real target, ordered actions, credential references, payer, finite allowance, expiry, preconditions, concurrency restrictions and rollback.</p>
+<p>Use the repository's actual operation wrapper/path discovered at kickoff. This document deliberately gives no invented production command, host URL, migration number or API key. Do not replace or bypass a native launcher or guard based on a similar script name. When a required target or approval is unavailable, continue independent review and return the exact missing item, not an invented workaround.</p>
+<h2>Preflight</h2>
+<ol>
+<li>Read current AGENTS/CONTRIBUTING, execution index, deployment instructions, current WBC/SDD records and active mission ownership. Discover which source/runtime/schema is actually live, not only what main declares.</li>
+<li>Record exact source commit/tree, built artifact identities, migration set, desired feature state, current app/API/runtime and rollback capability. Identify whether the change touches a combined runtime with other lanes' additions.</li>
+<li>Confirm the saved-text policy decision, test-member permissions and narrowly scoped test project. Credentials stay in approved stores. Use ordinary role accounts, not an admin path that conceals authorization defects.</li>
+<li>Rehearse additive migration and rollback/read-compatibility locally or in the authorized test environment. Confirm known live work and unresolved controls are not disrupted. Stop/erase operations must remain reachable.</li>
+<li>Review app/API compatibility for the rollout order. A server can add fields before the new client consumes them; no client should call an unimplemented conversation operation as though success were available. Do not enable the global fixture vision flag in production.</li>
+</ol>
+<h2>Deployment sequence to bind to the actual stack</h2>
+<p>The precise service order comes from the reviewed compatibility map; the following obligations remain:</p>
+<ul>
+<li>Apply only reserved reviewed additive schema changes and required configuration, with an observed result and approved rollback/backup plan.</li>
+<li>Deploy the exact API/runtime/client artifacts needed for this feature, preserving all already accepted roles and source routes. Do not re-deploy an old design or Paperclip unit over newer accepted behavior.</li>
+<li>Prove storage/authorization/capability readiness first. Enable asked replies only after their actual native route, current grant and result publication are ready.</li>
+<li>Start with the designated project/member cohort; do not turn on saved text for unrelated users under an unaccepted policy.</li>
+<li>Record the actual live tuple. No second production reference stack is created merely to avoid coordinating a cutover. Local/staging test environments remain clearly identified.</li>
+</ul>
+<h2>Actual-app episode — Codex executes, Claude fixes</h2>
+<p>Use the real signed-in application with fixture interception disabled. Inspect actual network requests and independently read authorized stored records. Do not rely only on a screenshot of plausible messages.</p>
+<p><strong>Setup:</strong> two authorized test members and, where safely available, a read-only viewer; a second denied project/account for isolation checks; a small synthetic accepted project constraint created through the normal authorized path. The test data is non-sensitive and cleanup is part of the batch.</p>
+<p><strong>Episode:</strong></p>
+<ol>
+<li>Start Onboarding direction with Ask off. Confirm one durable conversation and first message, correct actor, no model call. Add the second member's independent contribution.</li>
+<li>Start Presentation narrative with Ask on. Observe the exact response request and one real provider-backed response published to that conversation. Verify the unrelated Onboarding detail is absent from its assembled context.</li>
+<li>Change tabs while a response runs and edit another draft. The original conversation receives its reply. The other draft and selected view remain intact.</li>
+<li>Lose one response to an already committed Send using an authorized test proxy/controlled test condition, then retry with the same key. Verify one message and one reply obligation. Do not sever a shared production service to simulate this.</li>
+<li>Return/reload in a fresh browser session. Both histories, actual contributors and current mission context are present. Ask the three quick questions and check the answer rubric, references and summary coverage.</li>
+<li>Use the existing proposal/decision flow to accept an eligible new constraint as the correct editor. Both conversation contexts reflect it; the old proposal and historical text are not silently rewritten.</li>
+<li>Withdraw a controlled message and verify subsequent reads/summary snippets and new native context exclude it. Test the late-completion race locally/staging unless specifically authorized live.</li>
+<li>Verify viewer write refusal and denied-project reads without acquiring any real unauthorized content. Check the expected auth failure, not a successful admin request.</li>
+<li>Reopen a real existing linked output at its recorded version if a legitimate association is available; otherwise confirm output remains null and use the current source-backed reader integration test for positive association.</li>
+<li>Check 390 px phone, tablet/context drawer, and desktop views; Send visibility, focus, drafts, independent read errors and passive-scroll stability. End by checking current room/Personal/work-board smoke behavior and recording cleanup.</li>
+</ol>
+<p>Use the exact deployment tuple on every artifact. A service label or commit on the repository does not establish which code served the browser.</p>
+<h2>Failure and stop rules</h2>
+<p>Stop the affected rollout on cross-project disclosure, missing/duplicated admitted text, false reply settlement, reappearance of withdrawn content, unbounded retries/spend, corrupted runtime identity or blocked control/erasure. Record the actual boundary and preserve evidence. Do not mask it by flipping every feature off, changing the model, using a more privileged account or rerunning until a prettier answer appears.</p>
+<p>An unavailable provider, route or live test permission can leave the source release-ready but unqualified. Tell Davide which capability remains unavailable. Do not label a stub as a live provider and do not invent a schedule to return later.</p>
+<h2>Rollback</h2>
+<p>Prefer first disabling new reply admissions and, if necessary, new text writes for the cohort, while retaining current authorized reads, privacy controls, pending-operation observation and stored content. Existing asks must be settled/cancelled or reconciled; disabling the UI is not cancellation.</p>
+<p>Keep additive data and compatibility readers. Do not drop conversation tables or restore an old runtime that cannot enforce erasure merely to revert the feature. If the previous application cannot safely read the new records, retain the qualified read/erase API and hide only the unsupported front-end surface until an explicit migration is reviewed.</p>
+<p>A rollback must not resurrect withdrawn text or replay old requests. Track backup/retention limits honestly. New execution under an older code version still requires the current permission, source eligibility and allowance. Re-enable only after the correction's affected gates are independently rerun.</p>
+<h2>Final operator report</h2>
+<p>Use <a href="#d0a6fd4a98f34">the handoff</a>. Include operation request and approval references, observed deployed identities, test case verdicts, actual cost/unknown cost, pending effects, cleanup, rollback availability and the next permitted action. App verification is Codex's evidence; final product acceptance belongs to Davide.</p>
+</article><article id="d304647c5ed47" hidden><p class="path">09_SOURCE_REGISTER.md</p><h1>Sources, precedence and limits</h1>
+<h2>Requested basis</h2>
+<p>This mission uses the user-provided Unified Continuation v3.0 ZIP and the current conversation's assignment. The old v2 reader and historical Python/DeerFlow maps are not substituted for that plan. No external product recommendation or provider API research is required for this bounded mission.</p>
+<p>The exact actual-source read anchor is <code>695fe4424ad268111357553cf60a99e7f1523dea</code>. Native/runtime/library details not demonstrated by the inspected paths remain G0 binding obligations. Repository links require the reader's GitHub access. They are pinned evidence, not orders to reset a worktree.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Source</th>
+<th>Read scope and permitted use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S01</td>
+<td><a href="https://api.github.com/repos/davidelaverga/Sophia/git/ref/heads/main" rel="noopener noreferrer" target="_blank">Main ref</a></td>
+<td>Main ref read; recorded source identity only, not deployed state.</td>
+</tr>
+<tr>
+<td>S02</td>
+<td><a href="https://api.github.com/repos/davidelaverga/Sophia/pulls?state=open&amp;per_page=50" rel="noopener noreferrer" target="_blank">Open PR collection</a></td>
+<td>Read-only open-PR snapshot; draft #190 observed. Refresh at kickoff.</td>
+</tr>
+<tr>
+<td>S03</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/AGENTS.md" rel="noopener noreferrer" target="_blank">AGENTS.md</a></td>
+<td>Returned repository entry/rules, through file end; precise toolchain and artifact/handoff requirements. Earlier missing documentation paths are not treated as source.</td>
+</tr>
+<tr>
+<td>S04</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/apps/studio/src/api/vision.ts" rel="noopener noreferrer" target="_blank">Conversation UI contract</a></td>
+<td>Read lines 1–230 and 370–720. A18 proposal shapes, later response, members/viewers, artifact references; unrelated APIs remain out of scope.</td>
+</tr>
+<tr>
+<td>S05</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/apps/studio/src/features/conversations/ConversationsView.tsx" rel="noopener noreferrer" target="_blank">ConversationsView.tsx</a></td>
+<td>Read lines 1–170. Existing feature, accountOf query key, membership gate, feed invalidation and panels. Not a complete file audit.</td>
+</tr>
+<tr>
+<td>S06</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/docs/plans/project-conversations.md" rel="noopener noreferrer" target="_blank">Project conversations</a></td>
+<td>Full returned plan: separate histories/shared project, contributors, pagination, explicit retention gap and tests.</td>
+</tr>
+<tr>
+<td>S07</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/docs/plans/project-conversation-writes.md" rel="noopener noreferrer" target="_blank">Project conversation writes</a></td>
+<td>Full returned plan: Ask on/off, once-per-key writes, per-conversation drafts, later answer and current timestamp-oriented waiting behavior.</td>
+</tr>
+<tr>
+<td>S08</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/docs/plans/conversations-panes.md" rel="noopener noreferrer" target="_blank">Conversation panes</a></td>
+<td>Full returned plan: chosen desktop/tablet/mobile behavior and focus/scroll expectations.</td>
+</tr>
+<tr>
+<td>S09</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/docs/plans/conversations-answers.md" rel="noopener noreferrer" target="_blank">Conversation quick answers</a></td>
+<td>Full returned C6 plan: fixture demonstrations explicitly leave real answers to the runtime.</td>
+</tr>
+<tr>
+<td>S10</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/docs/plans/conversations-decide.md" rel="noopener noreferrer" target="_blank">Conversation decisions</a></td>
+<td>Full returned C7 plan: existing A08 operations and revision/idempotency rules, not new decision store.</td>
+</tr>
+<tr>
+<td>S11</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/docs/DESTINATION_MAP.md" rel="noopener noreferrer" target="_blank">Destination map</a></td>
+<td>Requested lines 1–150; response truncated after core package map. Claims limited to visible map entries: persistence, mission context, contracts, registry, native bridge, Paperclip and design.</td>
+</tr>
+<tr>
+<td>S12</td>
+<td><a href="https://github.com/davidelaverga/Sophia/tree/695fe4424ad268111357553cf60a99e7f1523dea/apps/studio/src/features/conversations" rel="noopener noreferrer" target="_blank">Conversation directory</a></td>
+<td>Directory/tree metadata only: existing components, stores and tests; not proof their behavior passes.</td>
+</tr>
+</tbody>
+</table></div>
+<h2>Retained original plan excerpts</h2>
+<p>Parent ZIP SHA-256: <code>cafb22928ab298e4691b38377671bbdbfa2f4cd79a30e50288bdd36be93efb80</code>.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Original member inside v3</th>
+<th>Included original bytes</th>
+<th>SHA-256</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>goals/CON-01.md</code></td>
+<td><a href="#dbd424f68da05">goals__CON-01.md.original.txt</a></td>
+<td><code>be28f583eac72a0252928db120f48930600b15dde8ec7d82e9cf7e7fce83b759</code></td>
+</tr>
+<tr>
+<td><code>architecture/07_CONVERSATIONS_AND_TASK_CONTEXT.md</code></td>
+<td><a href="#d0df45b21bbca">architecture__07_CONVERSATIONS_AND_TASK_CONTEXT.md.original.txt</a></td>
+<td><code>0ce6629c3f18c9cb9f94374d3a78efd42e45594100bd379a6af93f355bd7f9ea</code></td>
+</tr>
+<tr>
+<td><code>architecture/06_OPERATIONS_AND_RELEASES.md</code></td>
+<td><a href="#d7aab91c10664">architecture__06_OPERATIONS_AND_RELEASES.md.original.txt</a></td>
+<td><code>ab1337a332d91f1c41fbc0dde5150fb800008d45cae2b210a223d45246f2922f</code></td>
+</tr>
+</tbody>
+</table></div>
+<h2>Precedence</h2>
+<p>Current applicable repository security and effect controls, the actual installed contract and explicitly approved owner decisions remain binding. The user-selected v3 product direction and this mission determine the requested scope, subject to the G0 source/retention amendment. Actual accepted implementation and in-flight ownership are not undone by a document label. A conflict is recorded and resolved in the smallest affected contract, not silently guessed.</p>
+<p>No whole-repository source build or active production inspection was performed. No live model, SQL, runtime, browser or deployment tests were run in authoring. The separate VALIDATION.md concerns only package integrity and its authored checklist.</p>
+<h2>Research issues deliberately not converted into claims</h2>
+<p>A18 remains the UI proposal label until properly allocated in the backend contract. A successful UI fixture is not evidence of a saved conversation. A native context chosen by a tab is not acceptable routing. A saved summary is not a decision or proof of complete coverage. Named-conversation retention does not backfill live voice or Personal history. Draft PR #190 is an observed coordination input, not an assertion about its state at implementation time.</p>
+</article><article id="da1b3f38c7ebc" hidden><p class="path">SOURCE_MANIFEST.json</p><h1>SOURCE_MANIFEST.json</h1><pre>{
+  &quot;schema&quot;: &quot;sophia.con01.source-manifest.v1&quot;,
+  &quot;mission&quot;: &quot;CON-01&quot;,
+  &quot;edition&quot;: &quot;0.1&quot;,
+  &quot;date&quot;: &quot;2026-10-09&quot;,
+  &quot;sophia_read_ref&quot;: &quot;695fe4424ad268111357553cf60a99e7f1523dea&quot;,
+  &quot;status&quot;: &quot;mission_specification_only&quot;,
+  &quot;parent_zip_sha256&quot;: &quot;cafb22928ab298e4691b38377671bbdbfa2f4cd79a30e50288bdd36be93efb80&quot;,
+  &quot;preserved_references&quot;: [
+    {
+      &quot;source_archive_member&quot;: &quot;Sophia_Unified_Continuation_Pack_v3.0_2026-10-09/goals/CON-01.md&quot;,
+      &quot;pack_path&quot;: &quot;references/v3/goals__CON-01.md.original.txt&quot;,
+      &quot;sha256&quot;: &quot;be28f583eac72a0252928db120f48930600b15dde8ec7d82e9cf7e7fce83b759&quot;
+    },
+    {
+      &quot;source_archive_member&quot;: &quot;Sophia_Unified_Continuation_Pack_v3.0_2026-10-09/architecture/07_CONVERSATIONS_AND_TASK_CONTEXT.md&quot;,
+      &quot;pack_path&quot;: &quot;references/v3/architecture__07_CONVERSATIONS_AND_TASK_CONTEXT.md.original.txt&quot;,
+      &quot;sha256&quot;: &quot;0ce6629c3f18c9cb9f94374d3a78efd42e45594100bd379a6af93f355bd7f9ea&quot;
+    },
+    {
+      &quot;source_archive_member&quot;: &quot;Sophia_Unified_Continuation_Pack_v3.0_2026-10-09/architecture/06_OPERATIONS_AND_RELEASES.md&quot;,
+      &quot;pack_path&quot;: &quot;references/v3/architecture__06_OPERATIONS_AND_RELEASES.md.original.txt&quot;,
+      &quot;sha256&quot;: &quot;ab1337a332d91f1c41fbc0dde5150fb800008d45cae2b210a223d45246f2922f&quot;
+    }
+  ],
+  &quot;sources&quot;: [
+    {
+      &quot;id&quot;: &quot;S01&quot;,
+      &quot;name&quot;: &quot;Main ref&quot;,
+      &quot;url&quot;: &quot;https://api.github.com/repos/davidelaverga/Sophia/git/ref/heads/main&quot;,
+      &quot;read_scope&quot;: &quot;Main ref read; recorded source identity only, not deployed state.&quot;
+    },
+    {
+      &quot;id&quot;: &quot;S02&quot;,
+      &quot;name&quot;: &quot;Open PR collection&quot;,
+      &quot;url&quot;: &quot;https://api.github.com/repos/davidelaverga/Sophia/pulls?state=open&amp;per_page=50&quot;,
+      &quot;read_scope&quot;: &quot;Read-only open-PR snapshot; draft #190 observed. Refresh at kickoff.&quot;
+    },
+    {
+      &quot;id&quot;: &quot;S03&quot;,
+      &quot;name&quot;: &quot;AGENTS.md&quot;,
+      &quot;url&quot;: &quot;https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/AGENTS.md&quot;,
+      &quot;read_scope&quot;: &quot;Returned repository entry/rules, through file end; precise toolchain and artifact/handoff requirements. Earlier missing documentation paths are not treated as source.&quot;
+    },
+    {
+      &quot;id&quot;: &quot;S04&quot;,
+      &quot;name&quot;: &quot;Conversation UI contract&quot;,
+      &quot;url&quot;: &quot;https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/apps/studio/src/api/vision.ts&quot;,
+      &quot;read_scope&quot;: &quot;Read lines 1\u2013230 and 370\u2013720. A18 proposal shapes, later response, members/viewers, artifact references; unrelated APIs remain out of scope.&quot;
+    },
+    {
+      &quot;id&quot;: &quot;S05&quot;,
+      &quot;name&quot;: &quot;ConversationsView.tsx&quot;,
+      &quot;url&quot;: &quot;https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/apps/studio/src/features/conversations/ConversationsView.tsx&quot;,
+      &quot;read_scope&quot;: &quot;Read lines 1\u2013170. Existing feature, accountOf query key, membership gate, feed invalidation and panels. Not a complete file audit.&quot;
+    },
+    {
+      &quot;id&quot;: &quot;S06&quot;,
+      &quot;name&quot;: &quot;Project conversations&quot;,
+      &quot;url&quot;: &quot;https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/docs/plans/project-conversations.md&quot;,
+      &quot;read_scope&quot;: &quot;Full returned plan: separate histories/shared project, contributors, pagination, explicit retention gap and tests.&quot;
+    },
+    {
+      &quot;id&quot;: &quot;S07&quot;,
+      &quot;name&quot;: &quot;Project conversation writes&quot;,
+      &quot;url&quot;: &quot;https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/docs/plans/project-conversation-writes.md&quot;,
+      &quot;read_scope&quot;: &quot;Full returned plan: Ask on/off, once-per-key writes, per-conversation drafts, later answer and current timestamp-oriented waiting behavior.&quot;
+    },
+    {
+      &quot;id&quot;: &quot;S08&quot;,
+      &quot;name&quot;: &quot;Conversation panes&quot;,
+      &quot;url&quot;: &quot;https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/docs/plans/conversations-panes.md&quot;,
+      &quot;read_scope&quot;: &quot;Full returned plan: chosen desktop/tablet/mobile behavior and focus/scroll expectations.&quot;
+    },
+    {
+      &quot;id&quot;: &quot;S09&quot;,
+      &quot;name&quot;: &quot;Conversation quick answers&quot;,
+      &quot;url&quot;: &quot;https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/docs/plans/conversations-answers.md&quot;,
+      &quot;read_scope&quot;: &quot;Full returned C6 plan: fixture demonstrations explicitly leave real answers to the runtime.&quot;
+    },
+    {
+      &quot;id&quot;: &quot;S10&quot;,
+      &quot;name&quot;: &quot;Conversation decisions&quot;,
+      &quot;url&quot;: &quot;https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/docs/plans/conversations-decide.md&quot;,
+      &quot;read_scope&quot;: &quot;Full returned C7 plan: existing A08 operations and revision/idempotency rules, not new decision store.&quot;
+    },
+    {
+      &quot;id&quot;: &quot;S11&quot;,
+      &quot;name&quot;: &quot;Destination map&quot;,
+      &quot;url&quot;: &quot;https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/docs/DESTINATION_MAP.md&quot;,
+      &quot;read_scope&quot;: &quot;Requested lines 1\u2013150; response truncated after core package map. Claims limited to visible map entries: persistence, mission context, contracts, registry, native bridge, Paperclip and design.&quot;
+    },
+    {
+      &quot;id&quot;: &quot;S12&quot;,
+      &quot;name&quot;: &quot;Conversation directory&quot;,
+      &quot;url&quot;: &quot;https://github.com/davidelaverga/Sophia/tree/695fe4424ad268111357553cf60a99e7f1523dea/apps/studio/src/features/conversations&quot;,
+      &quot;read_scope&quot;: &quot;Directory/tree metadata only: existing components, stores and tests; not proof their behavior passes.&quot;
+    }
+  ],
+  &quot;unallocated&quot;: [
+    &quot;backend amendment ID&quot;,
+    &quot;database migration ID&quot;,
+    &quot;native preset ID if a new role is needed&quot;,
+    &quot;mission issue/PR&quot;,
+    &quot;live target&quot;,
+    &quot;live provider allowance&quot;
+  ],
+  &quot;live_operations_performed&quot;: false
+}
+</pre></article><article id="d37959855b8c9" hidden><p class="path">VALIDATION.md</p><h1>Package validation — not product acceptance</h1>
+<p>Date: 9 October 2026.</p>
+<h2>Checks performed</h2>
+<ul>
+<li>Read the user-provided v3 CON-01 mission and selected architecture/operation excerpts from the ZIP. The three included original excerpts retain their exact SHA-256 identities.</li>
+<li>Inspect the referenced current GitHub source and UI planning files. This is source inspection, not a full repository build.</li>
+<li>Confirm unique acceptance IDs: <strong>36 cases</strong>, including the five inherited v3 cases. All execution verdicts in the template remain <code>not_run</code> with no evidence fabricated.</li>
+<li>Confirm the episode example is explicitly synthetic, not an API response, and contains no execution results.</li>
+<li>Validate every relative link in the active Markdown package and every in-reader internal anchor. Original parent excerpts are <code>.txt</code> evidence; their original links refer to the full parent pack.</li>
+<li>Render the offline reader through installed Chromium at <strong>390, 1000 and 1440 px</strong>. Search and navigation to the Codex launch passed; no page-width overflow, page errors or external requests occurred in those checks. Each embedded document was selected individually. The 390 px capture was visually inspected.</li>
+<li>The browser environment blocks direct <code>file:</code> navigation, so the exact reader bytes were loaded into a blank Chromium page for those tests. This tests rendered behavior, not that environment's file-opening policy. No Sophia application was opened.</li>
+<li>Verify package hashes and ZIP member bytes after final packaging. The included <code>scripts/validate_pack.py</code> can rerun link/reference/checklist/checksum checks using Python's standard library.</li>
+</ul>
+<h2>Explicitly not performed</h2>
+<p>No Sophia source was written, no PR/issue/comment was created, no app or runtime was deployed, no database migration or SQL suite was executed, no provider was called, and no live account or resource was connected. Browser checks above concern this <strong>mission reader only</strong>, not CON-01's app acceptance. No production readiness is implied.</p>
+<h2>Outcome</h2>
+<p>The mission pack is ready to hand to Claude Code and Codex. Its product, privacy-amendment, runtime, deployment and live-app gates remain for the assigned executors and Davide. Final operation targets, amounts, retention authorization and fresh backend IDs are intentionally not invented.</p>
+</article><article id="dc4850f0ed7e2" hidden><p class="path">evidence/acceptance.json</p><h1>evidence/acceptance.json</h1><pre>{
+  &quot;schema&quot;: &quot;sophia.con01.acceptance-plan.v1&quot;,
+  &quot;mission&quot;: &quot;CON-01&quot;,
+  &quot;evidence_status&quot;: &quot;planning_only&quot;,
+  &quot;cases&quot;: [
+    {
+      &quot;id&quot;: &quot;CON-01-T01&quot;,
+      &quot;name&quot;: &quot;Separate conversations&quot;,
+      &quot;expected&quot;: &quot;Two conversations share current accepted project context while retaining different history and source/request origins; no automatic new computer.&quot;,
+      &quot;required_evidence&quot;: &quot;PostgreSQL + native/context tests + actual app&quot;,
+      &quot;gate&quot;: &quot;G2/G5&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON-01-T02&quot;,
+      &quot;name&quot;: &quot;Correct authorship&quot;,
+      &quot;expected&quot;: &quot;Contributor list contains actual eligible human writers; Sophia appears only after a published reply; attendance or project membership alone adds nobody.&quot;,
+      &quot;required_evidence&quot;: &quot;Database + UI + actual app&quot;,
+      &quot;gate&quot;: &quot;G1/G5&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON-01-T03&quot;,
+      &quot;name&quot;: &quot;Retention boundary&quot;,
+      &quot;expected&quot;: &quot;Previously unsaved room/voice/caption history is absent; only explicit named-conversation text is saved under the accepted policy.&quot;,
+      &quot;required_evidence&quot;: &quot;Policy review + database + app&quot;,
+      &quot;gate&quot;: &quot;G0/G5&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON-01-T04&quot;,
+      &quot;name&quot;: &quot;Current eligibility&quot;,
+      &quot;expected&quot;: &quot;Withdrawal removes the body from eligible reads and dependent summaries, question projections and cached native context; a late dependent reply cannot publish.&quot;,
+      &quot;required_evidence&quot;: &quot;Database + native race test + app&quot;,
+      &quot;gate&quot;: &quot;G1/G5&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON-01-T05&quot;,
+      &quot;name&quot;: &quot;Account isolation&quot;,
+      &quot;expected&quot;: &quot;Different subjects with the same display email cannot read each other&#x27;s browser state. Same subject with renamed email retains its own state, including pending callback results.&quot;,
+      &quot;required_evidence&quot;: &quot;Auth/browser regression&quot;,
+      &quot;gate&quot;: &quot;G1/G5&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A01&quot;,
+      &quot;name&quot;: &quot;Atomic start&quot;,
+      &quot;expected&quot;: &quot;Failure between conversation creation and first message leaves no partial accepted start; successful start has one first message and consistent receipt.&quot;,
+      &quot;required_evidence&quot;: &quot;PostgreSQL transaction test&quot;,
+      &quot;gate&quot;: &quot;G1&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A02&quot;,
+      &quot;name&quot;: &quot;Lost create reply&quot;,
+      &quot;expected&quot;: &quot;Retry of a committed start with the same intent key returns the same conversation/message; no second native response obligation.&quot;,
+      &quot;required_evidence&quot;: &quot;Database + real HTTP/browser adverse test&quot;,
+      &quot;gate&quot;: &quot;G1/G5&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A03&quot;,
+      &quot;name&quot;: &quot;Lost send reply&quot;,
+      &quot;expected&quot;: &quot;Retry preserves one human message and one response request, even after changing conversations and reopening the composer.&quot;,
+      &quot;required_evidence&quot;: &quot;Database + browser + app&quot;,
+      &quot;gate&quot;: &quot;G1/G5&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A04&quot;,
+      &quot;name&quot;: &quot;Changed payload same key&quot;,
+      &quot;expected&quot;: &quot;Changing text, title, ask flag or target under an old key is rejected as a conflict, not silently reused or executed again.&quot;,
+      &quot;required_evidence&quot;: &quot;API/database negative test&quot;,
+      &quot;gate&quot;: &quot;G1&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A05&quot;,
+      &quot;name&quot;: &quot;Current membership&quot;,
+      &quot;expected&quot;: &quot;Viewers can read only eligible project content and cannot post; outsiders/guests and revoked members cannot read through IDs, cursors, summaries or idempotent receipt replay.&quot;,
+      &quot;required_evidence&quot;: &quot;Authenticated API + RLS + app spot check&quot;,
+      &quot;gate&quot;: &quot;G1/G5&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A06&quot;,
+      &quot;name&quot;: &quot;Forged author&quot;,
+      &quot;expected&quot;: &quot;Supplying an actor, name, assistant author, project or response target cannot impersonate a member or publish an assistant message.&quot;,
+      &quot;required_evidence&quot;: &quot;Schema/API negative test&quot;,
+      &quot;gate&quot;: &quot;G1&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A07&quot;,
+      &quot;name&quot;: &quot;Ordering and pagination&quot;,
+      &quot;expected&quot;: &quot;Concurrent equal-timestamp messages appear once in a stable conversation order; pages have no duplicates/gaps; another conversation&#x27;s cursor is refused.&quot;,
+      &quot;required_evidence&quot;: &quot;Database concurrency + browser&quot;,
+      &quot;gate&quot;: &quot;G1&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A08&quot;,
+      &quot;name&quot;: &quot;No implicit invocation&quot;,
+      &quot;expected&quot;: &quot;askSophia=false stores text but performs no inference, paid summary, operational issue, external action or worker wake. Verify counters/state, not just UI silence.&quot;,
+      &quot;required_evidence&quot;: &quot;Database + runtime/provider-call spy&quot;,
+      &quot;gate&quot;: &quot;G1/G2&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A09&quot;,
+      &quot;name&quot;: &quot;Exact response correlation&quot;,
+      &quot;expected&quot;: &quot;Two pending asks and an unrelated assistant message do not settle one another; every completed reply identifies its actual request.&quot;,
+      &quot;required_evidence&quot;: &quot;Native/API + browser&quot;,
+      &quot;gate&quot;: &quot;G2/G5&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A10&quot;,
+      &quot;name&quot;: &quot;Runtime unavailable&quot;,
+      &quot;expected&quot;: &quot;Human text persists according to policy; absent native readiness or grant yields a truthful blocked/not-admitted answer state and no false progress.&quot;,
+      &quot;required_evidence&quot;: &quot;Local runtime fault + UI&quot;,
+      &quot;gate&quot;: &quot;G2&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A11&quot;,
+      &quot;name&quot;: &quot;Original destination&quot;,
+      &quot;expected&quot;: &quot;Switching tabs/projects while a reply runs does not move its publication, cancel unrelated work or destroy the other draft.&quot;,
+      &quot;required_evidence&quot;: &quot;Concurrent browser + native&quot;,
+      &quot;gate&quot;: &quot;G2/G5&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A12&quot;,
+      &quot;name&quot;: &quot;Restart after admission&quot;,
+      &quot;expected&quot;: &quot;An admitted request survives API/execution-host restart; observation or replay cannot independently start a duplicate response attempt.&quot;,
+      &quot;required_evidence&quot;: &quot;Controlled native/service restart&quot;,
+      &quot;gate&quot;: &quot;G2&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A13&quot;,
+      &quot;name&quot;: &quot;Uncertain inference&quot;,
+      &quot;expected&quot;: &quot;Timeout after dispatch remains unresolved until reconciled; retries keep request and allowance lineage and do not silently spend through another payer.&quot;,
+      &quot;required_evidence&quot;: &quot;Native adverse test + accounting&quot;,
+      &quot;gate&quot;: &quot;G2&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A14&quot;,
+      &quot;name&quot;: &quot;Current mission&quot;,
+      &quot;expected&quot;: &quot;An accepted constraint changed through A08 appears in both conversations&#x27; current context; old proposals stay distinguishable and no transcript is rewritten.&quot;,
+      &quot;required_evidence&quot;: &quot;Database + native + app&quot;,
+      &quot;gate&quot;: &quot;G2/G5&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A15&quot;,
+      &quot;name&quot;: &quot;Real quick answers&quot;,
+      &quot;expected&quot;: &quot;Three quick asks produce substantively appropriate answers from actual source context, not a fixed fixture. Include attributed views, undecided proposals and accepted decisions.&quot;,
+      &quot;required_evidence&quot;: &quot;Pinned native stub integration + separately real provider/app&quot;,
+      &quot;gate&quot;: &quot;G2/G5&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A16&quot;,
+      &quot;name&quot;: &quot;No mutation from conversation answer&quot;,
+      &quot;expected&quot;: &quot;Requests in chat to approve, schedule, edit or deploy cannot cross the read-only responder boundary; no hidden Paperclip issue or source mutation.&quot;,
+      &quot;required_evidence&quot;: &quot;Effective tool inspection + hostile prompt tests&quot;,
+      &quot;gate&quot;: &quot;G2&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A17&quot;,
+      &quot;name&quot;: &quot;Summary coverage&quot;,
+      &quot;expected&quot;: &quot;Missing and partial summaries/question counts are labeled; new messages mark coverage stale; list/open refresh does not itself trigger paid work.&quot;,
+      &quot;required_evidence&quot;: &quot;Database + UI + inference counter&quot;,
+      &quot;gate&quot;: &quot;G3&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A18&quot;,
+      &quot;name&quot;: &quot;Projection race&quot;,
+      &quot;expected&quot;: &quot;An old summary completion cannot overwrite a newer eligible projection or restore content invalidated by erasure/changed scope.&quot;,
+      &quot;required_evidence&quot;: &quot;Database/native race test&quot;,
+      &quot;gate&quot;: &quot;G2/G3&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A19&quot;,
+      &quot;name&quot;: &quot;Source injection&quot;,
+      &quot;expected&quot;: &quot;Text resembling system instructions or actor IDs remains untrusted content; source snippets cannot add tools, alter audience or accept decisions.&quot;,
+      &quot;required_evidence&quot;: &quot;Prompt boundary + API negative tests&quot;,
+      &quot;gate&quot;: &quot;G2&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A20&quot;,
+      &quot;name&quot;: &quot;Decision actions retained&quot;,
+      &quot;expected&quot;: &quot;Propose/Accept/Decline still use the existing authorized A08 path with the observed revision and one intent key; a stale decision is refreshed/refused.&quot;,
+      &quot;required_evidence&quot;: &quot;Existing decision tests + browser&quot;,
+      &quot;gate&quot;: &quot;G3&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A21&quot;,
+      &quot;name&quot;: &quot;Output identity&quot;,
+      &quot;expected&quot;: &quot;An actually linked eligible report opens its exact version; unavailable source stays unavailable; no output remains null rather than inventing a candidate.&quot;,
+      &quot;required_evidence&quot;: &quot;Source/reader integration + browser&quot;,
+      &quot;gate&quot;: &quot;G3&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A22&quot;,
+      &quot;name&quot;: &quot;Draft and held write&quot;,
+      &quot;expected&quot;: &quot;A delayed receipt clears only the submitted text; newer text and per-conversation drafts survive navigation; unsent drafts are not stored server-side by this feature.&quot;,
+      &quot;required_evidence&quot;: &quot;Browser adverse test&quot;,
+      &quot;gate&quot;: &quot;G3&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A23&quot;,
+      &quot;name&quot;: &quot;Read errors independently&quot;,
+      &quot;expected&quot;: &quot;Failure of list, thread or context is honest and retryable independently; no error is rendered as an empty successful history.&quot;,
+      &quot;required_evidence&quot;: &quot;Browser/API fault test&quot;,
+      &quot;gate&quot;: &quot;G3&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A24&quot;,
+      &quot;name&quot;: &quot;Mobile and accessibility&quot;,
+      &quot;expected&quot;: &quot;Desktop three panes; tablet context drawer; phone list/thread and context sheet. Send stays reachable, keyboard focus returns and history scroll does not jump on passive updates.&quot;,
+      &quot;required_evidence&quot;: &quot;Actual browser at 390, 900/1000 and 1440 widths&quot;,
+      &quot;gate&quot;: &quot;G3/G5&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A25&quot;,
+      &quot;name&quot;: &quot;Privacy during read/stream&quot;,
+      &quot;expected&quot;: &quot;Revoked access or withdrawn content is rechecked on rehydrate/next read and before publication; old events cannot repopulate ineligible content.&quot;,
+      &quot;required_evidence&quot;: &quot;API/replay/native + browser&quot;,
+      &quot;gate&quot;: &quot;G2/G5&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A26&quot;,
+      &quot;name&quot;: &quot;Partial and cancelled replies&quot;,
+      &quot;expected&quot;: &quot;Interrupted text is not silently finalized; cancelled/failed requests show their true outcome, preserve the human question and cannot publish from a stale generation.&quot;,
+      &quot;required_evidence&quot;: &quot;Native/result/API test&quot;,
+      &quot;gate&quot;: &quot;G2&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A27&quot;,
+      &quot;name&quot;: &quot;No collateral regression&quot;,
+      &quot;expected&quot;: &quot;Room speech/focus, Personal isolation, existing source review controls and native HTML outputs retain their semantics on the combined source.&quot;,
+      &quot;required_evidence&quot;: &quot;Existing relevant suites + smoke app checks&quot;,
+      &quot;gate&quot;: &quot;G4/G5&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A28&quot;,
+      &quot;name&quot;: &quot;Bounded context and spending&quot;,
+      &quot;expected&quot;: &quot;Long transcript uses eligible coverage/recent windows with limits; no infinite retries, budget reset on new session, auxiliary unapproved provider or logged transcript body.&quot;,
+      &quot;required_evidence&quot;: &quot;Long-context fixture + request/accounting inspection&quot;,
+      &quot;gate&quot;: &quot;G2/G4&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A29&quot;,
+      &quot;name&quot;: &quot;Rollback and erasure continuity&quot;,
+      &quot;expected&quot;: &quot;Disabling new asks/writes preserves governed reads/erase/control access and stored data; rollback does not revert to ephemeral storage or revive old asks.&quot;,
+      &quot;required_evidence&quot;: &quot;Release rehearsal + operator evidence&quot;,
+      &quot;gate&quot;: &quot;G4/G5&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A30&quot;,
+      &quot;name&quot;: &quot;Actual app non-fixture proof&quot;,
+      &quot;expected&quot;: &quot;Two accounts use the real application/API and at least one real provider-backed Sophia reply, with durable server records and observed deployment identity. Synthetic routes are excluded.&quot;,
+      &quot;required_evidence&quot;: &quot;Codex app/browser + authorized provider evidence&quot;,
+      &quot;gate&quot;: &quot;G5&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;CON01-A31&quot;,
+      &quot;name&quot;: &quot;Parallel ownership&quot;,
+      &quot;expected&quot;: &quot;Final contracts/runtime include all already accepted WBC/SDD roles; reserved migrations and shared writer order are recorded; no unrelated deployment is replayed.&quot;,
+      &quot;required_evidence&quot;: &quot;Diff/artifact/coordination inspection&quot;,
+      &quot;gate&quot;: &quot;G4&quot;,
+      &quot;status&quot;: &quot;not_run&quot;,
+      &quot;evidence_refs&quot;: []
+    }
+  ]
+}
+</pre></article><article id="d0fb814ba3c7f" hidden><p class="path">evidence/episode.example.json</p><h1>evidence/episode.example.json</h1><pre>{
+  &quot;schema&quot;: &quot;sophia.con01.synthetic-episode.v1&quot;,
+  &quot;synthetic&quot;: true,
+  &quot;not_an_api_response&quot;: true,
+  &quot;project&quot;: &quot;TEST-PROJECT&quot;,
+  &quot;members&quot;: {
+    &quot;member_a&quot;: &quot;AUTHOR-A&quot;,
+    &quot;member_b&quot;: &quot;AUTHOR-B&quot;,
+    &quot;viewer&quot;: &quot;VIEWER-C&quot;
+  },
+  &quot;accepted_constraint&quot;: &quot;Keep registration behavior unchanged.&quot;,
+  &quot;undecided_proposal&quot;: &quot;Lead with a map rather than a list.&quot;,
+  &quot;conversations&quot;: [
+    {
+      &quot;local_label&quot;: &quot;onboarding&quot;,
+      &quot;title&quot;: &quot;Onboarding direction&quot;,
+      &quot;messages&quot;: [
+        {
+          &quot;actor&quot;: &quot;AUTHOR-A&quot;,
+          &quot;text&quot;: &quot;Make the workshop list easier to explore. This thread-only marker is TEAL-CEDAR-47.&quot;,
+          &quot;askSophia&quot;: false
+        },
+        {
+          &quot;actor&quot;: &quot;AUTHOR-B&quot;,
+          &quot;text&quot;: &quot;The map is useful, but let us compare a list-first option.&quot;,
+          &quot;askSophia&quot;: false
+        }
+      ]
+    },
+    {
+      &quot;local_label&quot;: &quot;narrative&quot;,
+      &quot;title&quot;: &quot;Presentation narrative&quot;,
+      &quot;messages&quot;: [
+        {
+          &quot;actor&quot;: &quot;AUTHOR-A&quot;,
+          &quot;text&quot;: &quot;Help us structure a short presentation about the current project direction. Separate accepted constraints from suggestions.&quot;,
+          &quot;askSophia&quot;: true
+        }
+      ]
+    }
+  ],
+  &quot;quick_asks&quot;: [
+    &quot;Sum it up&quot;,
+    &quot;What&#x27;s still open?&quot;,
+    &quot;What did we decide?&quot;
+  ],
+  &quot;privacy_assertions&quot;: [
+    &quot;TEAL-CEDAR-47 does not enter the narrative response context by default.&quot;,
+    &quot;The undecided proposal is not reported as an accepted project decision.&quot;,
+    &quot;After withdrawing its source message, TEAL-CEDAR-47 is not served from derived projections or reused native history.&quot;
+  ],
+  &quot;adverse_cases&quot;: [
+    &quot;Lose response after committed create/send; retry same key.&quot;,
+    &quot;Navigate while reply runs; preserve other draft.&quot;,
+    &quot;Update accepted constraint via normal authorized A08 flow.&quot;,
+    &quot;Restart locally; rehydrate without duplicate reply.&quot;
+  ],
+  &quot;execution_results&quot;: []
+}
+</pre></article><article id="d65e34adbbffb" hidden><p class="path">launch/CLAUDE_CODE.md</p><h1>Claude Code — exact launch for CON-01</h1>
+<p>You are Davide's primary code executor for <strong>CON-01: saved project conversations</strong> in <code>davidelaverga/Sophia</code>. Complete the existing conversation experience end to end. Davide's Codex follows from the beginning as independent reviewer, operator and actual-app tester. Luis retains the existing Studio design/shared-surface coordination; do not wait for him to implement every routine UI binding you are assigned.</p>
+<h2>Read before writing</h2>
+<p>Locate the extracted <code>Sophia_CON01_Mission_Pack_v0.1_2026-10-09</code> and read its README, 01_MISSION, 02_BASELINE_AND_BINDINGS, 03_CONTRACT_AND_RETENTION, 04_RUNTIME_AND_CONTEXT, 05_COORDINATION_AND_OWNERSHIP, 06_IMPLEMENTATION_AND_REVIEW_GATES and 07_ACCEPTANCE_AND_EVIDENCE. Read 08_OPERATIONS_AND_APP_TEST before preparing any effect request. Source references are in 09_SOURCE_REGISTER.</p>
+<p>Read the actual checkout's AGENTS.md, CONTRIBUTING.md and current installed execution entry. Follow any newer mandatory workflow/execution-ledger rules. The v3 parent pack is the planning basis; frozen v2 and old Python maps are historical, not current implementation instructions. Do not spend context loading every archived spec.</p>
+<p>Recover the actual repository/worktree, branch, main and candidate SHA, assignment, human owner, your actual native session/attempt, current runtime and existing in-flight work. The pack's inspected ref is evidence, not a reset target. Refresh draft PR #190 (v3 installation), current conversation work, WBC-02 and SDD-01 records and the shared schema/runtime reservations before editing. If someone already implemented part of this mission, verify and extend it rather than create a second store or UI.</p>
+<h2>Scope you must deliver</h2>
+<p>Two named conversations in one project, atomic first-message creation, durable human messages, authenticated authorship and stable paging; the existing Ask Sophia on/off behavior; real read-only native answers in the originating conversation; useful Sum it up / What's still open? / What did we decide?; current shared mission context with separate local histories; bounded coverage-aware summary/question projections; accurate current output references; drafts, retries and return behavior; saved-text disclosure and enforceable withdrawal/erasure.</p>
+<p>Keep the existing A08 proposal/decision controls. A chat answer or summary must never accept a decision. Do not implement task-specific CTX-01, meeting recaps, new artifact generation, native engineers, resource providers, Slack, automatic routines or a model switch as riders.</p>
+<h2>First actions</h2>
+<ol>
+<li>Inspect the verified source anchors, especially <code>apps/studio/src/api/vision.ts</code>, <code>features/conversations/</code>, <code>docs/plans/project-conversations.md</code>, <code>project-conversation-writes.md</code>, <code>conversations-answers.md</code>, <code>conversations-decide.md</code>, <code>conversations-panes.md</code>, and the current persistence/runtime/contract code.</li>
+<li>Create a bounded G0 binding record in the actual agreed coordination location. Distinguish existing UI proposals from installed APIs. Resolve the saved-text policy and minimum erase control; reserve fresh IDs with the current owner. Do not call the backend amendment A18 merely because the UI proposal did.</li>
+<li>Send Codex the exact base, proposed delta, source functions, retention proposal, shared-file plan and tests for independent review. Establish one shared issue/PR reference using actual returned IDs; do not invent a mission thread or overwrite #105.</li>
+<li>Implement G1 human-only durability first with failing tests for atomic admission, same-key retry and unauthorized access. Connect the existing UI to the real local API early.</li>
+<li>Implement G2 through the current dsh registry and service-bound lifecycle. Select an appropriate existing role or a minimal read-only specialization with a recorded identity; no new root loop, provider or shadow scheduler. Preserve the entire current combined role roster.</li>
+<li>Complete G3 UI, exact reply correlation, coverage and quick answers. Do not settle pending asks based on any later Sophia message or replace a new draft when an old response arrives.</li>
+</ol>
+<h2>Boundaries you must enforce</h2>
+<p>Use server actor/grants, not model-supplied IDs. Save submitted input before acknowledging; a lost HTTP response is not a lost write. <code>askSophia=false</code> produces no inference or operational work. An asked reply has its own durable identity, target, state and allowance. Read or tab changes do not rerun it. No all-project transcript or implicit Personal context. Invalidated source cannot survive in summaries, logs or reused native history. A fresh native session does not reset spending or authority.</p>
+<p>Keep controls outside the read-only responder. Empty/missing context is not permission to invent facts. A fixture answer is not real intelligence. A provider or runtime failure must remain visible and bounded.</p>
+<h2>Review and operations</h2>
+<p>Use separate worktrees. You own feature code; Codex independently reviews G0, G1, G2 and the combined candidate. Resolve findings with exact regression evidence. One writer owns shared generated contracts, migrations, registry and runtime digests; coordinate those edits with the design/Paperclip owners. Do not replace their source or release candidate.</p>
+<p>Run the real repository checks. At the inspected baseline use its exact Node/pnpm, frozen install, <code>pnpm check</code> and <code>pnpm artifacts</code>; record new artifacts only when your change requires it. Run PostgreSQL and browser checks, not only unit tests. Label provider stubs and partial evidence accurately.</p>
+<p>Prepare a focused PR with reviewable commits. Handoff exact commit/tree, artifact/runtime identities, checks, acceptance status and unresolved effects to Codex. Send environment changes, migrations, live calls, deployments and app tests as bounded operation requests. <strong>Do not perform restricted operations, use real credentials, merge or deploy on the assumption that your code-executor role grants them.</strong> Existing explicit authority still applies; no unnecessary repeated approval for a already approved exact operation.</p>
+<p>Do not finish at “code written.” Continue permitted fixes after Codex's app findings and hand back the corrected candidate for independent re-review. If blocked on a real missing permission or resource, complete independent work and name that precise block; do not add another platform to evade it.</p>
+<h2>End every session with a durable handoff</h2>
+<p>Follow current repository logging/handoff instructions, and use this pack's templates where compatible. Include exact source, changed files, commands/results, source-versus-fixture-versus-live evidence, saved inputs/outputs, outstanding controls/effects, remaining acceptance and one next action. Never certify WBC-02, SDD-01, the full founder gate or another mission from CON-01's checks.</p>
+<p>Start with G0 now. No background automation is implied by this prompt.</p>
+</article><article id="df8848dadf08f" hidden><p class="path">launch/CODEX.md</p><h1>Codex — exact launch for CON-01</h1>
+<p>You are Davide's <strong>independent reviewer, deployment operator and actual-app tester</strong> for CON-01: saved project conversations in <code>davidelaverga/Sophia</code>. Davide's Claude Code is the primary feature implementer. Follow the work from its first binding proposal; do not wait for a final PR and merely summarize its author.</p>
+<h2>Read and recover</h2>
+<p>Locate <code>Sophia_CON01_Mission_Pack_v0.1_2026-10-09</code>. Read README and documents 01–09, especially the privacy/response contract, acceptance matrix, coordination rules and operation limits. Read the current checkout's AGENTS.md, CONTRIBUTING.md, current execution index and required operation/workflow instructions. Preserve the existing Studio design and in-flight runtime/contract ownership.</p>
+<p>Recover the actual repository/worktree, current main, Claude's exact branch and candidate, your own attempt/session, mission issue/PR and live deployment identity if available. The pack's ref is an evidence pin, not permission to reset a branch. Refresh draft PR #190 and the current WBC-02/SDD-01 work; do not create a competing v3 installation or re-run old production batches.</p>
+<h2>What you are reviewing</h2>
+<p>The mission completes saved project conversations, not task-panel Ask or native coding integration. Human messages and real Sophia replies must retain their own conversation and author, share only eligible current project context, survive return, and obey explicit saved-text/erasure rules. Existing conversation quick asks must become useful. Read-only chat cannot create work, approve, schedule, edit, or deploy.</p>
+<h2>Start immediately</h2>
+<ol>
+<li>Independently inspect the current source and UI proposal. Record which fields/endpoints are proposed, which actual backend functions exist and which behavior remains unqualified.</li>
+<li>Review Claude's G0 binding, retention/erasure policy proposal, trusted identities, response correlation, idempotency namespace, runtime composition and shared-file plan before the schema/runtime contract is finalized.</li>
+<li>Establish the live proof requirements early: actual test project/accounts, selected compatible provider route, credentials by reference, finite allowance and the exact operation-authorization process. Missing values are not permission to invent them.</li>
+<li>Prepare the adversarial cases now: duplicate send after lost reply; wrong actor/project/cursor; two concurrent asks; late answer in another tab; source withdrawal before publication; current mission update; account rename/same-email isolation; API/native restart; and rollback preserving governed data.</li>
+</ol>
+<h2>At each gate</h2>
+<p><strong>G1:</strong> examine real PostgreSQL writes/reads and authorization, not only UI fixtures. Reproduce a negative and a success crossing independently. Confirm human-only chat causes no paid/model or operational work.</p>
+<p><strong>G2:</strong> inspect the actual assembled native context/tool/role configuration and recorded result correlation. A setup flag, registered role or successful bridge response is not evidence of a useful provider-backed answer. Test blocked/failed requests and uncertain dispatch; no duplicate reply or hidden budget reset. Stubs are L1 only.</p>
+<p><strong>G3:</strong> use a browser to test the preserved three-pane/mobile interaction, quick answers, coverage labels, drafts and stale receipts. Verify existing A08 writes remain separate and current. Check that retiring the conversation fixture path does not activate unrelated vision proposals.</p>
+<p><strong>G4:</strong> review the exact combined diff, source/tree/artifact identities and current main integration. Ask Claude for the smallest concrete corrections and independently recheck them. A material new source change invalidates the affected earlier review. Do not author a feature fix and then provide its only independent validation.</p>
+<h2>Deploy and test the real app under the actual authorization</h2>
+<p>You own preparation and execution of authorized operational batches for this mission. Read-only discovery and local review can begin immediately. Each effect batch must identify exact candidate, target, ordered effects, credential references, payer/finite cap/expiry, safety preconditions, concurrent-live-work handling and rollback. Your assigned role and this prompt do not invent those missing values or waive existing confirmation rules.</p>
+<p>After the batch is actually approved, perform the necessary migration/configuration and deployment, verify the serving app/API/runtime tuple, and enable only the designated cohort. Do not broaden the feature or switch provider to escape a failure. Preserve other missions' live work and exact combined runtime.</p>
+<p>Execute 08_OPERATIONS_AND_APP_TEST.md in the real signed-in application without fixtures, using two actual authorized test accounts and synthetic project content. Observe durable records and the real native answer, not just attractive screenshots. Test return, a lost Send response under a controlled approved condition, current decision context, correct reply destination, privacy withdrawal and a denied access. Keep destructive fault injection in local/staging unless its exact live effect was authorized. Record actual resource use and any uncertain outcome.</p>
+<p>If the available tools cannot operate the browser or a required target is inaccessible, establish that limitation through the available access path, then return the exact blocked acceptance item. Do not claim app verification from HTTP probes alone. Conversely, do not stop after source review when the approved tools and live batch permit the app test.</p>
+<h2>Keep the feedback loop moving</h2>
+<p>Post material findings to the shared mission thread/record with exact candidate, expected/observed behavior, severity and reproducer. Claude implements fixes; you independently review and rerun affected evidence. Do not create an autonomous monitoring task or promise work after the session; inspect updates at actual execution/review checkpoints.</p>
+<p>Use <code>source_ready</code>, <code>locally_verified</code>, <code>reviewed</code>, <code>authorized</code>, <code>deployed</code>, <code>app_verified</code> and <code>owner_accepted</code> as distinct readiness facts, or the existing compatible repository vocabulary. “Implementation finished” is not product acceptance. Davide makes the final product decision.</p>
+<p>End with a durable handoff recording the operation request/approval, exact observed tuple, actual commands/actions and results, each acceptance verdict, privacy/spending limits, unresolved effects and cleanup, rollback availability and one next bounded action. Do not mark the broader product or the other missions complete.</p>
+</article><article id="d7aab91c10664" hidden><p class="path">references/v3/architecture__06_OPERATIONS_AND_RELEASES.md.original.txt</p><h1>references/v3/architecture__06_OPERATIONS_AND_RELEASES.md.original.txt</h1><pre># Operations, recovery, evidence and releases
+
+## Design is not authorization
+
+Source writes, repository merge, provider spending, migrations, account linking, sandbox creation and production deployment each need their applicable assignment/approval. This pack performs none. Read current in-flight work and release records; do not replay earlier batches because an old goal names them.
+
+For actual operations use one exact candidate and its generated artifact/runtime identity, actual target, ordered effects, named credential references, payer, bounded allowance, expiry, preconditions and rollback. Unknown requirements stay unqualified rather than using another person&#x27;s credentials or an arbitrary fallback.
+
+## Durable obligations at distributed boundaries
+
+Before acknowledging a consequential input, retain its content or governed source reference, actor, destination, work/source revision, control generation and delivery identity. UI optimism is not admission. Pending native-input UI caches are not a durable instruction ledger.
+
+Application-owned tool calls become recorded obligations. Recover differently when an operation was never sent, may have happened, or has a recorded result whose reply was lost. Reconcile before repeating non-idempotent effects; retry recorded result delivery rather than re-executing work. Human approvals are separate requests, not synthetic tool success needed to unstick a session.
+
+## Stop and uncertainty
+
+Record control immediately and make old commands ineligible. Ask the selected runtime to stop through its supported path, then establish settlement. An unreachable process stays outcome-unknown; a local control epoch is not an OS kill switch. Do not give a second writer unresolved shared source/effects. Hold preserves a continuation path; a lost observer run cannot destroy the work.
+
+Every record says what was requested, accepted, observed and verified. A provider/control notification may not include acknowledgement. Cap retries and escalation; do not turn stopped work into a watchdog&#x27;s mandatory restart. Standalone telemetry failure cannot alter canonical results or grant authority.
+
+## Exact source migration
+
+New work may opt into a qualified new route; existing work remains bound to its controller/runtime until a safe handover. Drain and reconcile old external effects, snapshot permitted source and remaining requirements, authorize the destination and record new lineage. Rollback disables new admissions to the new route while preserving old cleanup, control and reader access.
+
+For current WBC-02 uncertain host writes, retain its operator-fence rules until an explicit reviewed replacement. Wall-clock expiry or a dead process alone may not settle a database effect. Do not weaken that behavior to make a general adapter simpler.
+
+## Evidence levels
+
+Documentation validation; design-model rehearsal; source inspection; fixture/local crossing; installed authenticated service; live provider/native; deployed app; human acceptance. Keep these distinct. This pack&#x27;s checks only cover the first two and its source-read manifest. Included historical test reports remain attributed, not rerun.
+
+## Product measures
+
+Measure time to first useful preview, exact-target preservation, original guidance retained, duplicate-effect rate, unresolved controls, owner handback success, context re-explanation, comparable accepted-result quality, human correction burden and total resource cost. Provider quota, project allowance and recorded cost are separate. Self-hosted compute is not free just because token-price data is absent.
+
+## Enterprise claims
+
+Model independence does not establish SSO/SCIM, complete private deployment, regulatory certification, data residency or a private voice path. ENT-01 scopes evidence for actual customer requirements. Reject no-external-inference claims until auxiliary calls, logs, tests, retrieval and publication respect the same policy.
+</pre></article><article id="d0df45b21bbca" hidden><p class="path">references/v3/architecture__07_CONVERSATIONS_AND_TASK_CONTEXT.md.original.txt</p><h1>references/v3/architecture__07_CONVERSATIONS_AND_TASK_CONTEXT.md.original.txt</h1><pre># Conversations, task questions and meeting continuity
+
+## Identity model
+
+Use the existing project ID. Add independently addressable conversation records only through a reviewed contract amendment. Each saved text entry has authenticated writer, conversation, content/source reference, ordering and applicable retention. A summary reports its coverage boundary and last successful update. Name lists reflect actual authors; presence/meeting attendance is independently observed.
+
+A conversation can include several meetings and several work attempts. The browser tab is neither the work&#x27;s owner nor its callback address. Resolve routing once on admission and carry it across queues and native sessions. Runtime workers may change without changing the conversation&#x27;s identity.
+
+## Bind Luis&#x27;s existing contracts
+
+A18 in issue #105 and `apps/studio/src/api/vision.ts` are the current UI proposal, not universal installed APIs. Preserve ConversationSummary, contributors, open-question/decision actions and exact output identity where source supports them; extend only through the actual contract owner. Do not allocate the old proposal&#x27;s migration/amendment numbers without checking current reservations.
+
+CON-01 completes saved conversations and current contributor summaries. CON-02 completes records-only meeting recaps, actual presentation cursors, search and returning. CTX-01 adds bounded &#x27;Ask Sophia&#x27; reads for a work item before broad autonomous replanning.
+
+## Task explanations
+
+Read the selected work revision, dependencies, pending human action, exact candidate and operational evidence. Identify which question/request currently blocks progress; older unresolved questions are not necessarily blockers. Explain known eligibility changes, not guaranteed success. &#x27;What happens if I say yes?&#x27; is read-only until the person chooses a distinct action.
+
+Answers cite eligible retained records and separate source facts from Sophia&#x27;s inference. A card&#x27;s suggestion is not work admission. A server-confirmed approval must name the exact current request and be issued by the right human; no impersonation through a shared integration principal.
+
+## Reconcile directions
+
+When independent conversations disagree, assemble alternatives with source references, shared criteria and unresolved dependencies. Offer a proposed synthesis or decision. A generated recap or majority of messages cannot silently change the mission. When a new decision is accepted, identify affected active attempts and use explicit supported guidance, Hold or re-admission—not hidden prompt replacement.
+
+## Meeting boundaries
+
+Explicit authorized Close plus the existing proposed empty-room sweep is retained. Verified presence is required; unknown is not empty. The interval organizes retained records but origin links determine meeting relevance. Late results of meeting-initiated work appear as after-close updates. A non-follower retains their own selected artifact version. Closing a meeting never terminates admitted asynchronous work by implication.
+
+## Retention and withdrawal
+
+No complete transcript is claimed for records-only recaps. Saved text is governed separately from live voice/captions. Search reads current source eligibility before counts, snippets and pagination. Derived summaries must not survive as a second copy of forgotten text. Old text that was never retained cannot be reconstructed from screenshots or invented from a model.
+</pre></article><article id="dbd424f68da05" hidden><p class="path">references/v3/goals__CON-01.md.original.txt</p><h1>references/v3/goals__CON-01.md.original.txt</h1><pre># CON-01 — Saved project conversations with current context
+
+**Human owner:** Davide; Luis owns existing conversation UI. **Dependencies for full activation:** BASE.
+**State:** proposed work, not implemented or run by pack authoring. Source/fixture preparation may proceed before external activation. No migration/API number or live allowance is reserved.
+
+## Outcome
+
+Complete the existing conversation experience rather than importing another session product. People can open different named discussions, see who contributed, and continue from relevant project context.
+
+## Required context
+
+- [02_CURRENT_BASELINE.md](../02_CURRENT_BASELINE.md)
+- [architecture/01_SYSTEM_AND_AUTHORITY.md](../architecture/01_SYSTEM_AND_AUTHORITY.md)
+- [architecture/07_CONVERSATIONS_AND_TASK_CONTEXT.md](../architecture/07_CONVERSATIONS_AND_TASK_CONTEXT.md)
+
+## Goal sessions
+
+### CON-01-G1 — Bind and declare retention
+
+Read A18 and current vision.ts/CONTRACT ownership. Define explicitly which text is saved, retention controls and how old ephemeral content remains absent. Bind subject identities and source eligibility.
+
+**Handback:** exact changed scope, actual contract or qualification evidence, limitations and next eligible action.
+
+### CON-01-G2 — Persist and compile
+
+Add conversation-local ordering, actual writers, bounded summary coverage and open-question/decision/output references. Reuse the project context compiler; no transcript flattening.
+
+**Handback:** exact changed scope, actual contract or qualification evidence, limitations and next eligible action.
+
+### CON-01-G3 — Connect existing views
+
+Complete existing read/write fixture seams; create/select/reopen without replacing local drafts or active work routing. Test same-subject renamed email and different-subject same email.
+
+**Handback:** exact changed scope, actual contract or qualification evidence, limitations and next eligible action.
+
+## Acceptance
+
+| ID | Scenario | Required outcome |
+|---|---|---|
+| CON-01-T01 | Separate conversations | Two conversations share accepted project decisions but retain separate history and origin; no automatic new computer. |
+| CON-01-T02 | Correct authorship | Contributor list reflects actual writers, not project membership or attendance. |
+| CON-01-T03 | Retention boundary | Previously unsaved room/voice content is absent; saved text requires the accepted policy. |
+| CON-01-T04 | Current eligibility | Withdrawal removes affected searchable/summary content and prevents stale cached recall. |
+| CON-01-T05 | Account isolation | Different subjects sharing a display email cannot read each other&#x27;s browser state. |
+
+## Evidence and operations
+
+Run existing checks and the specific changed crossing. Fixtures and design rehearsals remain labeled. Product/provider/native/deployment outcomes require actual evidence on the exact candidate; planning does not grant accounts, effects, spending or a schedule. Preserve old active attempts and their control/allowance lineage.
+
+## Launch and handoff
+
+Use [implementation](../launch/CON-01_IMPLEMENT.md) or [independent review / operations](../launch/CON-01_CODEX.md). Stop at a useful tested boundary and return the [handoff](../operations/HANDOFF_TEMPLATE.md). A failed integration must name adopt/narrow/fix/stop and what it replaces; it may not create a second controller by default.
+</pre></article><article id="d5171e22760ff" hidden><p class="path">scripts/validate_pack.py</p><h1>scripts/validate_pack.py</h1><pre>#!/usr/bin/env python3
+&quot;&quot;&quot;Validate this mission package, not the Sophia application. Uses only stdlib.&quot;&quot;&quot;
+from pathlib import Path
+from urllib.parse import urlparse, unquote
+import hashlib, json, re, sys
+root = Path(__file__).resolve().parents[1]
+errors=[]; checked_links=0; checksum_count=0
+for p in root.rglob(&#x27;*.md&#x27;):
+    for target in re.findall(r&#x27;\]\(([^\s)]+)(?:\s+&quot;[^&quot;]*&quot;)?\)&#x27;, p.read_text()):
+        if urlparse(target).scheme or target.startswith(&#x27;#&#x27;):
+            continue
+        filepart=unquote(target.split(&#x27;#&#x27;,1)[0])
+        if not filepart: continue
+        dest=(p.parent/filepart).resolve()
+        if not dest.is_relative_to(root): errors.append(f&#x27;Escaping local link: {p.relative_to(root)} -&gt; {target}&#x27;)
+        elif not dest.exists(): errors.append(f&#x27;Missing local link: {p.relative_to(root)} -&gt; {target}&#x27;)
+        checked_links+=1
+manifest=json.loads((root/&#x27;SOURCE_MANIFEST.json&#x27;).read_text())
+for entry in manifest[&#x27;preserved_references&#x27;]:
+    p=root/entry[&#x27;pack_path&#x27;]
+    if hashlib.sha256(p.read_bytes()).hexdigest()!=entry[&#x27;sha256&#x27;]:
+        errors.append(&#x27;Original reference hash mismatch: &#x27;+entry[&#x27;pack_path&#x27;])
+a=json.loads((root/&#x27;evidence/acceptance.json&#x27;).read_text())
+ids=[c[&#x27;id&#x27;] for c in a[&#x27;cases&#x27;]]
+if len(set(ids))!=len(ids): errors.append(&#x27;Duplicate acceptance IDs&#x27;)
+if not all(c[&#x27;status&#x27;]==&#x27;not_run&#x27; and c[&#x27;evidence_refs&#x27;]==[] for c in a[&#x27;cases&#x27;]):
+    errors.append(&#x27;Mission template contains execution claims&#x27;)
+if not set(f&#x27;CON-01-T{i:02d}&#x27; for i in range(1,6)).issubset(ids): errors.append(&#x27;Missing inherited CON-01 cases&#x27;)
+e=json.loads((root/&#x27;evidence/episode.example.json&#x27;).read_text())
+if not e.get(&#x27;synthetic&#x27;) or not e.get(&#x27;not_an_api_response&#x27;) or e.get(&#x27;execution_results&#x27;):
+    errors.append(&#x27;Synthetic example boundary invalid&#x27;)
+checksums=root/&#x27;SHA256SUMS.txt&#x27;
+if checksums.exists():
+    for line in checksums.read_text().splitlines():
+        expected, rel=line.split(&#x27;  &#x27;,1)
+        p=root/rel
+        if not p.is_file() or hashlib.sha256(p.read_bytes()).hexdigest()!=expected:
+            errors.append(&#x27;Checksum mismatch: &#x27;+rel)
+        checksum_count+=1
+else:
+    print(&#x27;NOTE: checksum file not present (pre-package check)&#x27;)
+result={&#x27;scope&#x27;:&#x27;documentation and archive only; no product tests&#x27;, &#x27;local_links_checked&#x27;:checked_links,
+        &#x27;acceptance_cases&#x27;:len(ids), &#x27;preserved_references&#x27;:len(manifest[&#x27;preserved_references&#x27;]),
+        &#x27;checksums_checked&#x27;:checksum_count,&#x27;errors&#x27;:errors}
+print(json.dumps(result,indent=2))
+sys.exit(bool(errors))
+</pre></article><article id="deeada0fb5bc6" hidden><p class="path">templates/BINDING_REVIEW.md</p><h1>CON-01 binding review</h1>
+<p>State: proposed / reviewed / blocked<br/>
+Actual issue/PR:<br/>
+Base commit/tree and candidate:<br/>
+Implementer attempt/session:<br/>
+Independent reviewer attempt/session:<br/>
+Current main and in-flight shared writers:</p>
+<h2>Source-to-change map</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Exact existing function/contract/test</th>
+<th>Change needed</th>
+<th>Owned files</th>
+<th>Reviewer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Create/send/read</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Actor/project eligibility</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Response admission and correlation</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Native scoped context/result</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Summary/withdrawal</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Studio and existing A08 decision path</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<h2>Contract decisions</h2>
+<p>Saved text: what / audience / duration / erase authority / backup limits / policy version:<br/>
+Current policy and Davide decision reference:<br/>
+New amendment/migration reservation and observed namespace:<br/>
+Native route/role/tool composition and accounting:<br/>
+Additive response lifecycle and coverage schema:<br/>
+Deployment reader compatibility and rollback:</p>
+<h2>Non-goals, shared boundaries, gate</h2>
+<p>Preserved WBC/SDD roles and release owners:<br/>
+CON-01 file owner and release integration order:<br/>
+Required negative tests:<br/>
+Codex findings and closure evidence:<br/>
+Unresolved question, owner, smallest next action:</p>
+</article><article id="d0a6fd4a98f34" hidden><p class="path">templates/HANDOFF.md</p><h1>CON-01 handoff</h1>
+<h2>WORKFLOW_END_TO_END_TRAILER</h2>
+<p>Initiating actual user behavior:<br/>
+Authoritative project/conversation/message/request/source identities:<br/>
+Authenticated crossings actually exercised:<br/>
+Resulting durable and visible state:<br/>
+Provider/data destinations and credentials by reference:<br/>
+Before/after request/control/withdrawal state:<br/>
+Client return/rehydration and absence of false updates:<br/>
+Verdict: proven / partial / blocked / disproven<br/>
+Next falsifier or required check:</p>
+<h2>Attempt and candidate</h2>
+<p>Actual executor/role/native session/attempt:<br/>
+Repository/worktree/branch/base/candidate/tree:<br/>
+Contract/migration/reservation/runtime/artifact identities:<br/>
+Actual issue/PR/review/operation request references:</p>
+<h2>Readiness</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Fact</th>
+<th>Verdict</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Source ready</td>
+<td>not assessed</td>
+<td></td>
+</tr>
+<tr>
+<td>Locally verified</td>
+<td>not assessed</td>
+<td></td>
+</tr>
+<tr>
+<td>Independently reviewed</td>
+<td>not assessed</td>
+<td></td>
+</tr>
+<tr>
+<td>Operation authorized</td>
+<td>not assessed</td>
+<td></td>
+</tr>
+<tr>
+<td>Deployed</td>
+<td>not assessed</td>
+<td></td>
+</tr>
+<tr>
+<td>Actual app verified</td>
+<td>not assessed</td>
+<td></td>
+</tr>
+<tr>
+<td>Davide accepted</td>
+<td>not assessed</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<h2>Changed and tested</h2>
+<p>Changed paths and scope:<br/>
+Commands/actions actually run, environment and result:<br/>
+Acceptance matrix update and evidence locations:<br/>
+Prompt/tool/context behavior actually observed:<br/>
+Baseline failures separately reproduced:<br/>
+Unrun/blocked cases:</p>
+<h2>Continuing work</h2>
+<p>Outstanding writes/replies/permissions/controls/cleanup:<br/>
+Allowance used/uncertain/remaining:<br/>
+Preserved data and rollback/read/erase path:<br/>
+Other missions' owners and unchanged obligations:<br/>
+One next action and responsible actor:</p>
+</article><article id="d5ee0a3fbac83" hidden><p class="path">templates/OPERATION_BATCH.md</p><h1>CON-01 exact operation batch</h1>
+<p>Status: DRAFT — not executable until actual required values and approval are recorded.<br/>
+Request ID / revision / actual mission issue:<br/>
+Requested by / operator:<br/>
+Approval reference, scope and expiry:</p>
+<h2>Identity and target</h2>
+<p>Reviewed candidate commit/tree:<br/>
+Build/runtime/image/configuration/schema identities:<br/>
+Actual app/API/runtime/database targets:<br/>
+Existing live reference and in-flight work:<br/>
+Cohort/project/test accounts and authorized roles:</p>
+<h2>Effects and limits</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Order</th>
+<th>Exact action/command using approved wrapper</th>
+<th>Target</th>
+<th>Expected effect</th>
+<th>Idempotency/reconcile evidence</th>
+<th>Stop condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p>Credential references (no values):<br/>
+Payer / finite total allowance / per-action ceilings / expiry:<br/>
+Data approved for use and destinations:<br/>
+Storage retention/backup/erasure policy reference:<br/>
+Explicit excluded effects (e.g. account changes, unrelated deploys, broad publication):</p>
+<h2>Preflight and rollback</h2>
+<p>Independent review reference:<br/>
+Migration rehearsal/lock/reservation evidence:<br/>
+Current control/cleanup/readers remain available:<br/>
+Rollback steps and compatibility test:<br/>
+Handling an operation whose response is lost:<br/>
+Test cleanup and irreversible effects:<br/>
+Required actual-app cases:</p>
+<h2>Operator receipt (after execution only)</h2>
+<p>Actual ordered actions and results:<br/>
+Observed serving identities:<br/>
+Spent / unknown / remaining allowance:<br/>
+Unresolved effects and settlement owner:<br/>
+Cleanup and rollback readiness:<br/>
+Case verdicts / next bounded action:</p>
+</article><article id="ddfc2ab7e61a9" hidden><p class="path">templates/REVIEW.md</p><h1>CON-01 review handoff</h1>
+<p>Type: binding review / persistence review / runtime review / combined candidate / app finding<br/>
+From / to / actual attempt IDs:<br/>
+Exact commit/tree/runtime and actual issue/PR:<br/>
+Changed boundary and user outcome:</p>
+<h2>Author evidence (attributed, not independently verified yet)</h2>
+<p>Commands or browser actions actually executed:<br/>
+Environment and result:<br/>
+Acceptance cases and evidence locations:<br/>
+Unrun cases and unresolved effects:</p>
+<h2>Independent finding</h2>
+<p>Severity and case ID:<br/>
+Exact file/function/operation/version:<br/>
+Expected / observed behavior:<br/>
+Reproducer and independent evidence:<br/>
+Smallest proposed correction:<br/>
+Required rerun/affected prior review:</p>
+<h2>Decision</h2>
+<p>approved for next source gate / changes requested / blocked<br/>
+This is not a live operation authorization.<br/>
+Next actor and bounded action:</p>
+</article><article id="d676b86b8a8dd" hidden><p class="path">evidence/README.md</p><h1>Evidence templates, not evidence of execution</h1>
+<p><a href="#dc4850f0ed7e2">acceptance.json</a> contains the required checklist, all <code>not_run</code>. <a href="#d0fb814ba3c7f">episode.example.json</a> is synthetic seed material for local tests. Neither file is a production API response, membership grant, provider result or release approval.</p>
+<p>Implementers should copy the checklist into their actual restricted/normalized evidence process, record results under the candidate and preserve original not-run template bytes in this pack. Do not fabricate actual IDs from these readable examples.</p>
+</article><article id="d21f1a859500d" hidden><p class="path">references/README.md</p><h1>Parent-plan evidence</h1>
+<p>The <code>.original.txt</code> files in <code>v3/</code> are byte-for-byte copies of selected Markdown members of the user-provided Unified Continuation v3.0 ZIP. Their original relative links refer to the full parent pack, not this subpack. They are evidence, not alternate editable missions.</p>
+<p>The active implementation detail is in documents 01–08. This subpack preserves CON-01-T01 through T05 and adds explicitly named operational cases. Original file identities are recorded in SOURCE_MANIFEST.json.</p>
+</article><article id="daf03ff89b349" hidden><p class="path">templates/README.md</p><h1>Coordination templates</h1>
+<p>Use these within the actual mission issue/PR and repository handoff conventions. Blank fields are intentionally unresolved; they are not default authorizations.</p>
+<ul>
+<li><a href="#deeada0fb5bc6">Binding and ownership</a></li>
+<li><a href="#ddfc2ab7e61a9">Independent review request/finding</a></li>
+<li><a href="#d5ee0a3fbac83">Operation batch</a></li>
+<li><a href="#d0a6fd4a98f34">Session/release handoff</a></li>
+</ul>
+<p>Only links and identified records need travel between sessions. Avoid copying secrets, private transcripts or full harness histories into issue comments.</p>
+</article><footer>Mission specification only. No repository, deployed app or provider acceptance is claimed by this reader.</footer></main></div><script>
+const docs=[...document.querySelectorAll('article')],links=[...document.querySelectorAll('nav a')],nav=document.querySelector('nav'),menu=document.querySelector('#menu');
+function show(){const id=location.hash.slice(1);const doc=docs.find(d=>d.id===id)||docs[0];docs.forEach(d=>d.hidden=d!==doc);links.forEach(a=>a.classList.toggle('active',a.hash==='#'+doc.id));nav.classList.remove('open');menu.setAttribute('aria-expanded','false');window.scrollTo(0,0);document.title=doc.querySelector('h1').textContent+' · Sophia CON-01';}
+window.addEventListener('hashchange',show);show();menu.onclick=()=>{const state=nav.classList.toggle('open');menu.setAttribute('aria-expanded',String(state));};document.addEventListener('keydown',e=>{if(e.key==='Escape'){nav.classList.remove('open');menu.setAttribute('aria-expanded','false');}});document.querySelector('#search').addEventListener('input',e=>{const q=e.target.value.toLowerCase();links.forEach(a=>a.hidden=!a.dataset.title.includes(q));});
+</script></body></html>

@@ -1,0 +1,28 @@
+# Q13 local source qualification — Codex takeover
+
+Base `d06f98a136173827bba1243ac8b4f3278eb6ddc1`. The accepted Q13A policy and source-only approval on #198 authorize local candidate/test changes; historical owners have not acknowledged this new pin. No applied migration changes. Proposed r5 SQL from `2ff7daeb` is the reviewed input, not new qualification.
+
+States before implementation:
+- Absent/bare assembler: install only with safe attributes, no memberships or dependencies anywhere in the cluster. Existing authority, members or another installation refuse atomically; nothing is normalized or revoked.
+- Execution login: only assembler assumable; no broad API/worker or peer assumption. Claimed/begun/unexpired transaction plus its asker selects only that project; absent/wrong/settled claim, actor, project or lease yields no eligible rows.
+- Operational writes: real fresh login receives permission denial before any API/worker function or direct writer outside the read allowlist runs. Existing API reads retain their predicates and behavior.
+- Activation: every effective privilege/admission/session hold blocks use. PUBLIC admission changes do not settle a pre-existing connection; only its own client closes it. Grant/policy/role drift requires requalification. Local test grants/revokes affect only the freshly owned synthetic cluster and are removed with it.
+- Live target: its template1 admission constraint is unresolved; Ask stays disabled regardless of local results. No hosted grants, migrations, connection termination or provider execution.
+
+Affected source: S3 candidate and new read-only activation SQL; assembly module documentation; assembly database qualification tests; the fences test's isolated-role setup where its second database used to adopt the installed role. Shared predicates/functions/view are identity-checked and not rewritten. No runtime binary, bundle, execution-host, tool, role or model configuration changes.
+
+Order: qualify bare identity and claim-bound reads; preserve S3/S4 lifecycle and compiler crossings; independent whole-diff review; ordinary gates; push; automatic review of that exact head. Promotion to 0049/0050 and live activation remain separate.
+
+Independent review P1: r5's name/ACL allowlist missed disabled RLS or changed policies/callable/view semantics. The owned-PG regression failed before the correction. The activation check now binds all 38 SELECT policies (including extra policy detection), table RLS/owner flags, the view definition/options, and all S3 assembly/context helpers, triggers and the four shared read helpers by definition and owner. The S3 and S4 kept-trigger identities are the only reviewed alternatives. Deparsing requires `search_path=pg_catalog`; the installation owner is explicitly `postgres`; alternate owner or PostgreSQL major is held pending a reviewed identity. These catalog identities are source drift checks, not protection against a privileged administrator changing the database after the check.
+
+Qualification is run only on a fresh exclusive owned loopback PostgreSQL cluster, with a 0700 owner-controlled directory and zero other clients before setup. A dedicated opt-in suite verifies actual outside admission before and after a local-only remedy, unchanged old-session liveness after revocation and voluntary client settlement, plus activation hold regressions. Ordinary test runs skip that dedicated cluster-wide suite; they do not imply its crossing passed. No shared or hosted cluster privileges are changed.
+
+Independent review P2: trigger function hashes alone missed disabled/dropped/rebound trigger registrations. The owned-PG fail-before disables both message/reply scrub triggers and demonstrates the missing hold. The corrected query binds all ten required S3 scrub/kept trigger registrations, full definitions and normal enabled state; disabled, dropped, rebound and kept-trigger cases are rerun. No deployment or privacy deletion is inferred from a successful catalog check.
+
+## Automatic review follow-up at published 9aad383c
+
+The mandatory exact-head automatic review completed at 2026-10-12T23:29:39Z with two findings: P1 unreviewed grantees on an allowlisted assembly function were excluded from the effective-authority scan; P2 revoking a required assembler function grant could also leave zero holds. Both invalidate the affected activation-check readiness at that pin. Owned PostgreSQL regressions against unchanged published SQL failed for an added API EXECUTE grant and a removed required EXECUTE grant (three control tests passed, two regressions failed; cluster removed).
+
+The correction compares the complete ACL of all 27 reviewed assembly/context/shared functions in both directions. It binds owner and the ten assembler, four API helper and three worker helper grants, including grantor and grant option. NULL ACLs expand through PostgreSQL's default ACL, including PUBLIC EXECUTE. Extra principals, missing grants and private-helper exposure hold activation. Positive checks additionally require the assembler's 20 effective relation SELECT privileges and schema USAGE; a valid NOINHERIT login is not required to hold these before SET ROLE. No installed ACL, function, policy or role is changed by this read-only check.
+
+Focused after-test: five tests pass, including the earlier semantic/authority drift and S4 composition controls. Further sibling cases cover all five assembly entry points, a NULL function ACL, every allowed relation read and the schema privilege. Final clean-candidate full PostgreSQL/ordinary gates and independent whole-diff review remain required before publication; their immutable receipts belong to the follow-up handoff. No hosted activation, provider or app verdict follows.

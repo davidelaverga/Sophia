@@ -18,6 +18,7 @@ import {
   type RoomOptions,
   type Participant,
   type RemoteTrack,
+  type RemoteTrackPublication,
   type TrackPublication,
 } from 'livekit-client'
 import {
@@ -94,6 +95,8 @@ export interface RoomConnection {
   setFollowing: (versionId: string | null) => Promise<void>
   /** A reaction to everyone in the call, on its own topic (call-reactions.md). */
   sendReaction: (emoji: ReactionEmoji) => Promise<void>
+  /** Others' cameras come to this browser, or not (incoming-video.md); a screen shared always comes. */
+  setIncomingVideo: (on: boolean) => void
   leave: () => Promise<void>
 }
 
@@ -168,6 +171,29 @@ function videoFeeds(): Feeds {
       feedOf(p, p.getTrackPublication(Track.Source.Camera), 'camera', local),
       feedOf(p, p.getTrackPublication(Track.Source.ScreenShare), 'screen', local),
     ].filter((f): f is VideoFeed => f !== null)
+}
+
+/**
+ * Others' cameras, taken or let go (incoming-video.md): off, this browser unsubscribes from each camera published to it,
+ * now and as more are published; a screen shared always comes. On again, it takes them back.
+ */
+function incomingCameras(room: Room, onChange: () => void): Pick<RoomConnection, 'setIncomingVideo'> {
+  let on = true
+  const apply = (pub: RemoteTrackPublication) => {
+    if (pub.source === Track.Source.Camera && pub.isSubscribed !== on) pub.setSubscribed(on)
+  }
+  // A camera published while they're off isn't taken; one published while they're on is LiveKit's to take, as ever.
+  room.on(RoomEvent.TrackPublished, (pub: RemoteTrackPublication) => {
+    if (!on) apply(pub)
+  })
+  return {
+    setIncomingVideo: (next) => {
+      on = next
+      for (const person of room.remoteParticipants.values())
+        for (const pub of person.trackPublications.values()) apply(pub)
+      onChange()
+    },
+  }
 }
 
 /** Remote voices (and a shared screen's sound) play through hidden audio elements, removed with the track. */
@@ -473,6 +499,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     setFollowing: (versionId) => Promise.resolve(following.set(versionId)),
     sendReaction: (emoji) =>
       room.localParticipant.publishData(encodeReaction(emoji), { reliable: true, topic: REACTION_TOPIC }),
+    ...incomingCameras(room, cb.onChange),
     leave: () => room.disconnect(),
   }
 }

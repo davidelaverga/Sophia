@@ -1,0 +1,25 @@
+# CON-01 takeover57 — approved io_uring filter amendment
+
+Davide explicitly approved the narrow CON01-FILTER-AMENDMENT.md SHA256b27971144ab4d93446fb15dcd6cb78691b0779e65e7f0967e5ddfdbe9be3d2b0. The receipt is filter-amendment-20261014-1145/approval.safe.json. Actual clock before writes09:44:46Z14October; source-only expiry remains10:00Z/noonRome. Same Codex sole writer/session/worktree, Claude stopped. No deployment, hosted migration/configuration, accounts, grants, credentials, provider execution or spending authorized. Pending27/36/Q8/shared integration remain held.
+
+## Candidate and exact scope
+
+Published PR273 remains457053b3fe619631f0d2e2fcc1e3edc98cfc5348/treeec71aa3a83e6208ff559d075a881b374fdb8593c. Unpublished launcherfa3681f5209254628ebfd8fe28c9b9ac608bf79f2f6e856d8912180430fb90af; tests98bd4223b4c3e49773f0bbecf55d5ea48f48ea7ba1d30873b6e213fff45be283; SOURCE_MAP47d611e4d27e9bf034fef35d80f0b85511a717c29a2739cd10e9b84d29fee054; Q7d5ba60b6a9e63f430ff686ff2ff5a3141422aaaa5d739c08eeb9ea4d2e756bdc. Wrapperf513bedcf811dbf912e515e0e4205c7e41c07f9f3218eb88d0173aa90b8001e9 unchanged. Progress/coordination/handoff records are the only other changes for this component.
+
+The pure x86_64 seccomp builder now returns EPERM for io_uring_setup425, io_uring_enter426 and io_uring_register427. This closes the identified SQE socket-creation path in the source policy. The Q7 table records those denials and requires no inherited ring descriptors plus actual pinned Node/dsh compatibility under P7. Failure cannot select a fallback or relax policy. SOURCE_MAP registers the reviewed syscall/seccomp/Landlock/io_uring sources, including the legacy x32 dispatch comparison and dated mutable Landlock references. No upstream code copied or dependency/artifact/profile changed.
+
+This is not installed containment: CLI still refuses69, descriptor closure and actual Linux verifier/filter/Node compatibility remain unqualified. No current source test proves those physical crossings. Ask stays disabled.
+
+## Verification
+
+New regression was written first and assertion-failed on original launcher2cd289d1. It checks all three ring entrypoints with zero, ordinary, negative and high-word arguments. The corrected source passes141 Python tests and Node wrapper. Commands: python3 -I -m unittest discover -s apps/execution-host/reply -p 'test_*.py'; node --test tests/unit/reply-launch.test.mjs; pnpm test. Ordinary99567 terminal0:2604passed,70existing skips,0failed/cancelled. Isolated original-source regression also assertion-fails, recorded before-regression.log; owned temporary tree removed. AST size/arity and git diff --check pass, not full structural/artifact gate. All kernel/libc/pidfd/signal calls mocked. Independent exact-pin source/documentation review cleared with no actionable finding:141 Python tests, wrapper and27,646 pure old/new cases pass. The65-instruction filter differs semantically only for native425/426/427; other decisions and source bytes remain preserved. The reviewer checked approved scope and documentation limits; all runs terminal, no retained resources and source/test/doc hold released. Final independent-step4-filter-amendment-20261014/review.safe.json was read in full. This closes the narrow source-policy omission, not actual ring-free descriptor inheritance/Linux enforcement/P7 compatibility.
+
+Private evidence filter-amendment-20261014-1145: approval.safe.json, before.py, before-regression.log, ordinary.log and author.safe.json. Checkpoint posted198/6165542422. No source/test write while review hold active.
+
+## Readiness and next crossing
+
+No push; latest actual automatic review273/6144338846 still covers only published457053b3fe. Every future push requires whole-diff independent review and current gates, then actual automatic Codex review. No full Step4/source_ready/integrated reviewed/operational authorized/deployed/app_verified/owner_accepted claim.
+
+Last actual main c69463aa76249d7f37252058e45395d85bc46ccc/tree0eb84602960bb85ac3338048f594a2c71fd3bf69, owner and browser observations remain handoff56's dated checkpoints; this amendment does not refresh or accept them. Same held11 integration conflicts and no new shared-owner handback. Preserve all recorded Luis/Studio work. OP0002r6 setup/human-chat and OP0001r4 Ask remain incomplete/unapproved; synthetic cohort, serving tuple, finite subscription route and exact governed recovery unqualified.36-case ledger unchanged18partial_L1/3passed_L1/15not_run, A30not_run. Product provider calls0/spend0; assistant compute unknown. No operational effects or live rollback required. Prior source pins remain rollback references; governed data untouched.
+
+Next bounded source action after independent recheck: continue approved containment/descriptor setup implementation within the valid source window, while actual Linux/native/provider qualification and profile/integration authority remain separate gates. Expiry is not extended by this amendment. Broader product/other missions stay open.
