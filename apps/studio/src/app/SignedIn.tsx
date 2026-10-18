@@ -15,8 +15,9 @@ import { accountOf } from './auth-callback.ts'
 import { OpeningPrepares } from './opening-prepares.ts'
 import type { Identity } from './dev-identity.ts'
 import { joinStands, projectOnScreen, shownView, type Place } from './route.ts'
-import { VISION } from './vision.ts'
+import { CONVERSATIONS, VISION } from './vision.ts'
 import { ShortcutScope } from './shortcuts.ts'
+import { SIGN_OUT_FAILED } from './sign-out.ts'
 import { Toast, useToast, type ShowToast } from './Toast.tsx'
 import type { useProjectRoute } from './useProjectRoute.ts'
 
@@ -25,9 +26,10 @@ interface SignedInProps {
   notice: string | undefined
   routing: ReturnType<typeof useProjectRoute>
   onChooseDev: (identity: Identity | null) => void
-  onSignOut: () => void
+  /** This device's sign-out: resolves to whether it went through (sign-out-failed.md). */
+  onSignOut: () => Promise<boolean>
   /** Every device the account is on (sign-out-scope.md): Settings' «Sign out of all devices». */
-  onSignOutEverywhere: () => void
+  onSignOutEverywhere: () => Promise<boolean>
 }
 
 /** Told when a call ends: the call as it was, and why when this person didn't leave it (call-end.ts). */
@@ -190,7 +192,7 @@ function ProjectShells(props: ShellsProps) {
             <ProjectShell
               key={`${accountOf(identity)}:${id}`}
               projectId={id}
-              view={id === route.projectId ? shownView(route.view, VISION) : 'studio'}
+              view={id === route.projectId ? shownView(route.view, VISION, CONVERSATIONS) : 'studio'}
               identity={identity}
               account={account}
               onShow={show}
@@ -223,20 +225,34 @@ const opening =
     open(projectId)
   }
 
+/**
+ * A sign-out that fails keeps the person in: the toast says so, with Try again, which tries the same once more
+ * (sign-out-failed.md, Codex P2 on #410).
+ */
+const sayingIfFailed = (say: ShowToast) => {
+  const tried = (end: () => Promise<boolean>) => (): void => {
+    void end().then((out) => {
+      if (!out) say(SIGN_OUT_FAILED, tried(end), 'Try again')
+    })
+  }
+  return tried
+}
+
+/** This device's sign-out and every device's, each said when it fails (sayingIfFailed). */
+const signOuts = (say: ShowToast, props: Pick<SignedInProps, 'onSignOut' | 'onSignOutEverywhere'>) => {
+  const tried = sayingIfFailed(say)
+  return { signOut: tried(props.onSignOut), signOutEverywhere: tried(props.onSignOutEverywhere) }
+}
+
 /** The account menu's actions, wherever it shows: here over a project, in the places their own (Places). */
 const accountActions = (
   sheets: { data: () => void; privacy: () => void },
-  props: Pick<SignedInProps, 'onChooseDev' | 'onSignOut' | 'onSignOutEverywhere'>,
-) => ({
-  data: sheets.data,
-  privacy: sheets.privacy,
-  chooseDev: props.onChooseDev,
-  signOut: props.onSignOut,
-  signOutEverywhere: props.onSignOutEverywhere,
-})
+  chooseDev: SignedInProps['onChooseDev'],
+  out: { signOut: () => void; signOutEverywhere: () => void },
+) => ({ data: sheets.data, privacy: sheets.privacy, chooseDev, ...out })
 
 function SignedIn(props: SignedInProps) {
-  const { identity, notice, routing, onChooseDev, onSignOut } = props
+  const { identity, notice, routing, onChooseDev } = props
   const { route, open, openAt, leave, goTo } = routing
   const toast = useToast()
   const ended = useRef<OnEnded | null>(null)
@@ -249,7 +265,8 @@ function SignedIn(props: SignedInProps) {
   useForgetWhileLocked(lock.locked)
   useSayings({ ended, say: toast.show, project, notice })
   const sheets = useSheetsAtHome(leave)
-  const actions = accountActions(sheets, props)
+  const out = signOuts(toast.show, props)
+  const actions = accountActions(sheets, onChooseDev, out)
   const onScreen = projectOnScreen(project, call?.projectId ?? null)
   const ids = [onScreen, call && call.projectId !== onScreen ? call.projectId : null].filter(
     (id): id is string => id !== null,
@@ -266,7 +283,7 @@ function SignedIn(props: SignedInProps) {
         joining={join.joining}
         onJoinHandled={join.handled}
         onCall={reportCall}
-        onSignOut={onSignOut}
+        onSignOut={out.signOut}
       />
       {!project && (
         <Places
@@ -287,8 +304,8 @@ function SignedIn(props: SignedInProps) {
             openAt(projectId, where.view, where.at)
           }}
           onChooseDev={onChooseDev}
-          onSignOut={onSignOut}
-          onSignOutEverywhere={props.onSignOutEverywhere}
+          onSignOut={out.signOut}
+          onSignOutEverywhere={out.signOutEverywhere}
         />
       )}
       <Toast notice={toast.notice} onHide={toast.hide} />

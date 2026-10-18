@@ -141,10 +141,11 @@ export const RECEIPT_STAGES = [
 export const OUTBOX_DESTINATIONS = ['native.create', 'native.resume', 'native.stop', 'control.settle']
 
 export const EVENT_TYPES = [
-  ...suffixed('command.', ['admitted', 'incorporated', 'outcome_unknown', 'denied']),
+  ...suffixed('command.', ['admitted', 'incorporated', 'outcome_unknown', 'denied', 'retirement_changed']),
   ...suffixed('room.', ['session_scheduled', 'session_canceled', 'lobby_changed', 'input_floor_changed']),
   ...suffixed('room.', ['invitation_created', 'invitation_reissued', 'invitation_revoked']),
   ...suffixed('room.', ['exchange_opened', 'exchange_changed', 'sophia_presence', 'host_muted', 'host_removed']),
+  ...suffixed('room.', ['host_camera_off', 'host_screen_off', 'host_muted_all']),
   ...suffixed('project.', [
     'created',
     'member_joined',
@@ -170,7 +171,19 @@ export const EVENT_TYPES = [
   ...suffixed('goal.', ['held', 'stopped', 'target_set']),
 ]
 
-const COMMAND_KINDS = ['steer', 'request_review', 'hold', 'stop', 'resume', 'native_task', 'create', 'input', 'inspect']
+const COMMAND_KINDS = [
+  'steer',
+  'request_review',
+  'hold',
+  'stop',
+  'resume',
+  'native_task',
+  'create',
+  'input',
+  'inspect',
+  // A completed goal's sessions retired by a project admin (0075, A41).
+  'retire_sessions',
+]
 const EXCHANGE_CHANGES = [
   'opened',
   'end',
@@ -218,6 +231,7 @@ export const SUMMARY_CODES = [
   ...suffixed('room.sophia_', VOICE_STATES),
   ...suffixed('room.', ['session', 'session_canceled', 'invitation', 'invitation_revoked']),
   ...suffixed('room.', ['input_floor', 'input_floor_released', 'host_muted', 'host_removed']),
+  ...suffixed('room.', ['host_camera_off', 'host_screen_off', 'host_muted_all']),
   ...suffixed('project.', [
     'created',
     'member',
