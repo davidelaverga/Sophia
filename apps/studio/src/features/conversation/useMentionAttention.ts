@@ -222,7 +222,7 @@ export function useMessageAddressed(
   const { load, offered, atStart, withdrawn, jump } = earlier
   // Found by a search, its next message known: the one page that ends at it, whose read is the one waited on.
   const before = beforeOf(named.id)
-  const reading = before !== undefined ? earlier.jumping(before) : earlier.reading
+  const reading = before !== undefined ? earlier.jumping(key) : earlier.reading
   useEffect(() => {
     const id = named.id
     if (!inView || !loaded || !id || at !== 'looking') return
@@ -231,7 +231,7 @@ export function useMessageAddressed(
     const step = nextLook({ ...seen, ...readOf(reading), jump: jumpOf(before, jumped) })
     if (step === 'wait') return
     setState(lookAfter({ key, at, pages, jumped }, step))
-    if (step === 'jump' && before !== undefined) jump(before)
+    if (step === 'jump' && before !== undefined) jump(before, key)
     else if (step === 'load') load()
     // Brought into view once for this following of the address; later messages never pull the reader back.
     else if (step === 'found') el?.scrollIntoView({ block: 'center' })
@@ -254,6 +254,6 @@ export function useMessageAddressed(
     shown,
   ])
   const retry =
-    at === 'looking' && before !== undefined && earlier.jumping(before) === 'failed' ? () => jump(before) : null
+    at === 'looking' && before !== undefined && earlier.jumping(key) === 'failed' ? () => jump(before, key) : null
   return { at, retry }
 }

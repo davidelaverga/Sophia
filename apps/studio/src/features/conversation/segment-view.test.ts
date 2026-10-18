@@ -77,15 +77,19 @@ describe('the gaps that pages read leave (A38, R-C4-01)', () => {
 
   // 4306435436: hold A, follow B. A loading: B waits. A answers: B is idle and asks for its own page. A fails: the
   // failure is A's, B is idle and asks for its own page. B's own failure is B's, so B's Try again reads B.
-  it('a jump read is owned by its address: an older address never fails a newer one', () => {
-    const A = 'a'
-    const B = 'b'
-    assert.equal(jumpReading({ before: A, reading: 'loading' }, B), 'loading')
-    assert.equal(jumpReading({ before: A, reading: 'idle' }, B), 'idle')
-    assert.equal(jumpReading({ before: A, reading: 'failed' }, B), 'idle')
-    assert.equal(jumpReading({ before: A, reading: 'failed' }, A), 'failed')
-    assert.equal(jumpReading({ before: B, reading: 'failed' }, B), 'failed')
-    assert.equal(jumpReading({ before: null, reading: 'failed' }, B), 'idle', 'the latest page’s failure is its own')
-    assert.equal(jumpReading({ before: null, reading: 'failed' }, null), 'failed')
+  it('a jump read is owned by its followed address: an older follow never fails a newer one, even both latest', () => {
+    // Follows are id#seq; two newest messages both read the latest page (before null) yet stay distinct.
+    const A = 'm-a#1'
+    const B = 'm-b#1'
+    assert.equal(jumpReading({ owner: A, reading: 'loading' }, B), 'loading', 'one at a time: B waits')
+    assert.equal(jumpReading({ owner: A, reading: 'idle' }, B), 'idle', 'A answered: B asks for its own page')
+    assert.equal(jumpReading({ owner: A, reading: 'failed' }, B), 'idle', 'A failed: not B’s failure')
+    assert.equal(jumpReading({ owner: A, reading: 'failed' }, A), 'failed')
+    assert.equal(jumpReading({ owner: B, reading: 'failed' }, B), 'failed', 'B’s own failure: its Try again reads B')
+    assert.equal(
+      jumpReading({ owner: A, reading: 'failed' }, 'm-a#2'),
+      'idle',
+      'the same message followed again is a new follow',
+    )
   })
 })

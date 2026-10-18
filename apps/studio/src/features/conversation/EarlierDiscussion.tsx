@@ -47,12 +47,12 @@ export interface Earlier {
    * Reads the one page that ends just before `before` (a found message's next, A38), held apart from the window; null:
    * the latest page (a search's newest message). One at a time.
    */
-  jump: (before: string | null) => void
+  jump: (before: string | null, owner: string) => void
   /**
    * The jump read as it stands for `before`: under way (any jump: one at a time, the next waits), failed only when this
    * address's own read failed (the reader tries again), else idle (4306435436: an older address's failure is its own).
    */
-  jumping: (before: string | null) => Reading
+  jumping: (owner: string) => Reading
   /** Where messages between were never read (A38): after which messages, a gap's read, and the press that fills it. */
   gaps: { after: readonly string[]; reading: (after: string) => Reading; fill: (after: string) => void }
 }
@@ -108,18 +108,20 @@ interface Holding {
  * filled from below a page at a time, until no message between is unread (segment-view.ts).
  */
 function useFoundPage(projectId: string, token: string, at: Holding): Pick<Earlier, 'jump' | 'jumping' | 'gaps'> {
-  const [jumped, setJumped] = useState<{ before: string | null; reading: Reading }>({ before: null, reading: 'idle' })
+  // The jump read belongs to the followed address that asked for it (`owner`, its id#seq), not to its page boundary:
+  // two newest messages both read the latest page (before null) yet are different follows (4306435436).
+  const [jumped, setJumped] = useState<{ owner: string; reading: Reading }>({ owner: '', reading: 'idle' })
   const [filling, setFilling] = useState<{ after: string; reading: Reading } | null>(null)
   const { shown, hold } = at
-  const jump = (before: string | null) => {
+  const jump = (before: string | null, owner: string) => {
     if (jumped.reading === 'loading') return
-    setJumped({ before, reading: 'loading' })
+    setJumped({ owner, reading: 'loading' })
     getDiscussionPage(token, projectId, before).then(
       (page) => {
         hold(page, before, page.before === null || at.atStart)
-        setJumped({ before, reading: 'idle' })
+        setJumped({ owner, reading: 'idle' })
       },
-      () => setJumped({ before, reading: 'failed' }),
+      () => setJumped({ owner, reading: 'failed' }),
     )
   }
   const fill = (after: string) => {
@@ -135,7 +137,7 @@ function useFoundPage(projectId: string, token: string, at: Holding): Pick<Earli
     )
   }
   const reading = (after: string): Reading => (filling?.after === after ? filling.reading : 'idle')
-  const jumping = (before: string | null): Reading => jumpReading(jumped, before)
+  const jumping = (owner: string): Reading => jumpReading(jumped, owner)
   return { jump, jumping, gaps: { after: at.gaps, reading, fill } }
 }
 

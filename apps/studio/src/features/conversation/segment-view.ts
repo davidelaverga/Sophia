@@ -51,8 +51,8 @@ export function afterGap(shown: readonly Placed[], gap: string): Placed | undefi
  * and then asks for its own page); failed only for the address whose own read failed; otherwise idle.
  */
 export function jumpReading(
-  jumped: { before: string | null; reading: 'idle' | 'loading' | 'failed' },
-  before: string | null,
+  jumped: { owner: string; reading: 'idle' | 'loading' | 'failed' },
+  owner: string,
 ): 'idle' | 'loading' | 'failed' {
-  return jumped.reading === 'failed' && jumped.before !== before ? 'idle' : jumped.reading
+  return jumped.reading === 'failed' && jumped.owner !== owner ? 'idle' : jumped.reading
 }
