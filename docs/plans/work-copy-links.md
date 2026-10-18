@@ -7,7 +7,9 @@
 ## What changes
 
 - **«Copy link» in a goal's sheet and in a task's,** Resources' own press (`CopyLink`): it copies the address that
-  opens that goal or task, says «Link copied» for a moment, and says where the link is if the browser refuses.
+  opens that goal or task, says «Link copied» for a moment, and says where the link is if the browser refuses. When
+  the address bar doesn't hold it (a goal opened from the list), the refused link is handed over under the press,
+  selected, to copy by hand; Escape closes only it, not the sheet (Codex P2 on #382).
 - **The address is built from the anchor** (`addressOf`: this page's path and query, then `#goal-<id>` or
   `#task-<id>`), not read from the address bar:
   - a goal opened from the list doesn't write its anchor there (`useOpenGoal` only reads it);

@@ -4,7 +4,7 @@
 import { useEffect, type RefObject } from 'react'
 import { useSlidingThumb } from '@sophia/ui'
 import { routePath, viewsShown, type View } from '../../app/route.ts'
-import { VISION } from '../../app/vision.ts'
+import { CONVERSATIONS, VISION } from '../../app/vision.ts'
 
 export const VIEW_LABEL: Record<View, string> = {
   studio: 'Studio',
@@ -16,8 +16,8 @@ export const VIEW_LABEL: Record<View, string> = {
   resources: 'Resources',
 }
 
-/** Conversations is the vision flag's (Davide's chapter 2): elsewhere its tab isn't there, and its address says «Coming». */
-const SHOWN = viewsShown(VISION)
+/** Only the served views (app/route.ts): saved conversations where the build turns them on, the rest under the vision flag. */
+const SHOWN = viewsShown(VISION, CONVERSATIONS)
 
 interface Props {
   projectId: string

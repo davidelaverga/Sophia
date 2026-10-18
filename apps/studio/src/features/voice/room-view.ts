@@ -71,10 +71,10 @@ export function standingOf(metadata: string | undefined): Standing {
 }
 
 /**
- * A muted microphone, as the list and the tiles show it (muted-on-tiles.md): off, and not a listener's, who has none to
- * mute.
+ * A muted microphone, as the list and the tiles show it (muted-on-tiles.md): off, whoever's. Every person's token
+ * publishes a microphone, a viewer's too since A06, so no one is a listener with none to mute (Codex P2 on #411).
  */
-export const mutedMic = (person: RoomParticipant): boolean => !person.micOn && person.standing !== 'viewer'
+export const mutedMic = (person: RoomParticipant): boolean => !person.micOn
 
 /**
  * Members hold the input floor; guests never do. Changed by amendment A06 (S1-05A, for Luis's review): viewers
