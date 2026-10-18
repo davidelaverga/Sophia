@@ -6391,6 +6391,11 @@ button.contribution-quote:hover {
   .tile-pin.tile-flip {
     display: inline-grid;
   }
+  /* A tile a fifth of a phone (51 to 65 px) holds one finger-sized press, not two side by side (Codex P2 on #422):
+     Switch camera while it is there, as a phone has it nowhere else; Hide my tile otherwise, and in the gallery. */
+  .tile-strip .tile:has(> .tile-flip) > .tile-pin:not(.tile-flip) {
+    display: none;
+  }
 }
 
 /* Settings, in one place (docs/plans/account-settings.md): a part a heading and its choices, one under another. */
