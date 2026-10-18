@@ -36,7 +36,8 @@ export function useVoiceMeters(
     let last = performance.now()
     const tick = (now: number) => {
       id = requestAnimationFrame(tick)
-      const dt = Math.min(0.05, Math.max(0, (now - last) / 1000))
+      // The clock's own time, however few frames draw it: the envelope is exact at any step (8 a second on a loaded CI).
+      const dt = Math.max(0, (now - last) / 1000)
       last = now
       const root = box.current
       if (root && root.clientWidth > 0) frame(root, followed, level, dt)

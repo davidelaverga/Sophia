@@ -31,6 +31,10 @@
   no element keeps a written level; a speaking tile's glow 18 px or less at 0 and 40 px or more at 0.8; under reduced
   motion the tallest bar stands at 6.6 px and nothing is written.
 
+- At 8 frames a second (`e2e/frames.ts`; CI's run of #462 drew under 20), a meter's `--level` is back at 0 within 1.8 s
+  of its voice going from 0.9 to 0: the loop hands the envelope the clock's own time between frames, not a step clamped
+  to 0.05 s (it read 0.04).
+
 ## Limits
 
 - Someone heard at «Off» volume (#425) is unsubscribed, so their meter rests at 0 while LiveKit still marks them

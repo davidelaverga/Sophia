@@ -17,6 +17,8 @@
   voice (30 / 180 ms), so receiving never flickers.
 - **The engine:** `hearing()`, read once a frame while she listens and motion is full, through that envelope; written as
   `--hear` beside `--amp`, only when it changes. The voice reader is a shared `level()` that reads a failure as silence.
+  Like her voice's, this envelope takes the clock's own time between frames, not the springs' step clamped to 0.05 s
+  (voice-amplitude.md, «Slow frames»).
 - **`StageLight`:** gives her light the holder's level (`room.voiceLevel`), only while the holder is present, and
   nothing in text mode. The reader is stable while the holder is, so the engine's update doesn't run every render.
 - **The paper orb:** what she hears stirs her clouds (+0.3 of the swirl), whitens them a touch (+0.08), opens her heart a

@@ -338,7 +338,7 @@ export class LightEngine {
     // The room moved at once, so the light moves with it; and a resized canvas is blank until drawn, so draw now.
     const t = performance.now() / 1000
     this.relayoutUntil = t + RELAYOUT_S
-    this.draw(t, this.step(t, 0))
+    this.draw(t, this.step(t, 0, 0))
   }
 
   private readonly tick = (): void => {
@@ -353,7 +353,8 @@ export class LightEngine {
     this.last = t
     if (!this.snapped) this.snap()
     this.pace(raw)
-    this.draw(t, this.step(t, Math.min(0.05, raw)))
+    // The springs step at most 0.05 s a frame; the voices' envelopes are exact at any step, so they take the clock's.
+    this.draw(t, this.step(t, Math.min(0.05, raw), raw))
   }
 
   /** The first frame with a size places the light where it belongs instead of flying in from a corner. */
@@ -368,7 +369,7 @@ export class LightEngine {
     for (const k of ['x', 'y', 'radius'] as const) settle(this.springs[k])
   }
 
-  private step(t: number, dt: number): HandoffStep | null {
+  private step(t: number, dt: number, wall: number): HandoffStep | null {
     const s = this.springs
     setTargets(s, this.input, this.size.width, this.size.height)
     if (t < this.relayoutUntil) this.place()
@@ -381,7 +382,7 @@ export class LightEngine {
     aimSource(s, this.input.mark ?? null, this.aim())
     s.swell.target = flight && !this.reduced ? flight.frame.swell : this.bloom(t)
     for (const sp of Object.values(s)) stepSpring(sp, dt)
-    this.hear(dt)
+    this.hear(wall)
     if (!this.reduced) this.flow += dt * (0.34 * s.think.value - 0.9 * this.amp * s.speak.value - 0.05 * s.listen.value)
     if (flight && flight.frame.progress >= 1) this.handoffState = null
     return flight

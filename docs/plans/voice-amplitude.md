@@ -40,6 +40,16 @@
 - `voice-amplitude.spec.ts`: `--amp` reaches 0.85 within a second of her level at 0.9, and 0 again at 0; while she
   listens a level moves nothing; on paper `--ls` grows to 1.18 or more and back to 1; under reduced motion nothing.
 
+## Slow frames (CI's run of #462)
+
+- CI's room job, drawing under 20 frames a second, still read `--amp` at 0.01 when the check gave up after her silence.
+  The engine clamps each frame's step to 0.05 s for its springs, and the envelope took that clamped step: below 20
+  frames a second it ran slower than the clock (at 8, at 40 %, so a 180 ms fall took 2.4 s). The envelope is exact at
+  any step, so it now takes the clock's own time between frames (`step(t, dt, wall)`); the springs keep their clamp.
+- Checks, written first: with the browser's frames at 8 a second (`e2e/frames.ts`, `slowFrames`), `--amp` is back at 0
+  within 1.8 s of her level going from 0.9 to 0 (0.93 s of the clock); it read 0.04 before the change. The check that
+  failed on CI polls every 50 ms, so it reads until its 2 s are up, not until Playwright's last default interval.
+
 ## Limits
 
 - LiveKit marks her speaking a few hundred ms late, so her first syllable shows no swell.
