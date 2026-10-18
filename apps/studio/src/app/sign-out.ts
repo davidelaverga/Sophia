@@ -71,3 +71,6 @@ export const NOT_EVERYWHERE =
 /** The state a sign-out leaves: signed out, and said so when the other devices may still be in. */
 export const signedOutAfter = (ended: Ended): { status: 'signed_out'; notice?: string } =>
   ended === 'here-only' ? { status: 'signed_out', notice: NOT_EVERYWHERE } : { status: 'signed_out' }
+
+/** Said by the toast when a sign-out fails and this device stays signed in (Codex P2 on #410, sign-out-failed.md). */
+export const SIGN_OUT_FAILED = 'Couldn’t sign out: this device is still signed in. Check your connection and try again.'
