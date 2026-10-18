@@ -215,10 +215,23 @@ export async function actInCall(
   token: string,
   projectId: string,
   identity: string,
-  what: 'mute' | 'remove',
+  what: 'mute' | 'remove' | 'stop-camera' | 'stop-screen',
 ): Promise<void> {
   const send = async (limit: AbortSignal) => {
     const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/room/people/${identity}/${what}`), {
+      method: 'POST',
+      headers: auth(token),
+      signal: limit,
+    })
+    if (!res.ok) throw await toError(res)
+  }
+  return inTime(WRITE_TIMEOUT_MS, send)
+}
+
+/** An admin mutes everyone else in the call (A31): members and guests. No key: twice is once. */
+export async function muteEveryoneInCall(token: string, projectId: string): Promise<void> {
+  const send = async (limit: AbortSignal) => {
+    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/room/mute-all`), {
       method: 'POST',
       headers: auth(token),
       signal: limit,
@@ -268,6 +281,12 @@ interface CallInit {
   headers?: Readonly<Record<string, string>>
   /** The caller's own signal: once it aborts, the call stops (as one past its time does). */
   signal?: AbortSignal
+  /**
+   * A protected read (a project's conversations, a conversation's messages): its 403 is the refusal, known from the
+   * status alone, so it is raised at once as `forbidden`, never after (or according to) an error body that may be slow,
+   * endless or malformed (R-REFUSAL-CLIENT-01). The view fences on that refusal.
+   */
+  protectedRead?: true
 }
 
 /**
@@ -295,6 +314,10 @@ export function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value
       })
     } catch {
       throw new ApiError(0, 'outcome_unknown', 'No reply from Sophia', retry)
+    }
+    if (!res.ok && res.status === 403 && init.protectedRead) {
+      void res.body?.cancel().catch(() => undefined)
+      throw new ApiError(403, 'forbidden', unreadRefusal(403), retry)
     }
     if (!res.ok) throw await toError(res)
     return readBody(res, parse, retry)

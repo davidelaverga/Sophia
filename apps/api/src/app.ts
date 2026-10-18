@@ -27,6 +27,8 @@ import { knowledgeRoutes } from './routes/knowledge.ts'
 import { MEDIA_ROUTES, mediaRoutes } from './routes/media.ts'
 import { missionRoutes } from './routes/mission.ts'
 import { personalRoutes } from './routes/personal.ts'
+import { CONVERSATION_SCHEMA, projectConversationRoutes } from './routes/project-conversations.ts'
+import { profileRoutes } from './routes/profile.ts'
 import { eventRoutes } from './routes/events.ts'
 import { projectionRoutes } from './routes/projections.ts'
 import { projectRoutes } from './routes/projects.ts'
@@ -35,7 +37,7 @@ import { activityRoutes } from './routes/activity.ts'
 import { roomRoutes } from './routes/rooms.ts'
 import { designRoutes } from './routes/design.ts'
 import { RENDERER_ROUTES, rendererRoutes } from './routes/renderer.ts'
-import { RUNTIME_ROUTES, researchRoutes, runtimeRoutes } from './routes/runtime.ts'
+import { RUNTIME_ROUTES, conversationRuntimeRoutes, researchRoutes, runtimeRoutes } from './routes/runtime.ts'
 import { sourceRoutes } from './routes/sources.ts'
 import type { LiveKitConfig } from './livekit.ts'
 import { NotificationHub } from './notification-hub.ts'
@@ -43,8 +45,13 @@ import { NotificationHub } from './notification-hub.ts'
 declare module 'fastify' {
   interface FastifyRequest {
     actorId: string
-    /** Display name from the verified token (email), or null. Shown to others; never authority. */
+    /**
+     * The account provider's name from the verified token, or null: it seeds a display name the person hasn't chosen
+     * (0062). Never an address; others see a person's profile name, never this.
+     */
     actorName: string | null
+    /** The verified token's email, or null: the contact invitations are matched by (A16). Never shown as a name. */
+    actorContact: string | null
     /** An anonymous guest: only GUEST_ROUTES are open to them. */
     actorAnonymous: boolean
     /** On a RUNTIME_ROUTES request only: the runtime capability's hash and transport headers (A04). */
@@ -83,6 +90,11 @@ export interface AppDeps {
    * agent later. Without one, a personal message is refused (503) before anything is kept.
    */
   companion?: Companion | null
+  /**
+   * Saved project conversations (CON-01, amendment A33): served only when on (SOPHIA_CONVERSATIONS=on). Off, no A33 route
+   * exists and /ready requires nothing of migration 0063, so this API and the previous one run on either database.
+   */
+  conversations?: boolean
 }
 
 /**
@@ -183,7 +195,13 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.project_activity(uuid,bigint,integer)') IS NOT NULL
   AND to_regprocedure('sophia.remove_member(uuid,uuid,text)') IS NOT NULL
   AND to_regprocedure('sophia.set_project_archived(uuid,boolean,text)') IS NOT NULL
+  AND to_regprocedure('sophia.record_room_act(uuid,uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.activity_name(uuid,uuid)') IS NOT NULL
   AND to_regprocedure('sophia.name_from_room(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.name_actor(text,text)') IS NOT NULL
+  AND to_regprocedure('sophia.my_profile()') IS NOT NULL
+  AND to_regprocedure('sophia.set_my_profile(text,bigint,text)') IS NOT NULL
+  AND to_regprocedure('sophia.actor_label(uuid,uuid,text)') IS NOT NULL
   AND ${COLUMNS.map(([table, column]) => columnExists(table, column)).join('\n  AND ')} AS ok`
 
 /**
@@ -229,18 +247,21 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   registerCors(app, deps.corsOrigins ?? [])
   registerAuthentication(app, deps.verifyActor, deps.mediaBridgeTokenSha256 ?? null)
   app.setErrorHandler(handleError)
-  registerHealth(app, deps.pool, Boolean(deps.byteStore))
+  registerHealth(app, deps.pool, Boolean(deps.byteStore), Boolean(deps.conversations))
   const store = writeOnceStore(deps.pool, deps.byteStore)
 
   projectRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   projectionRoutes(app, { pool: deps.pool })
   goalTargetRoutes(app, { pool: deps.pool })
+  profileRoutes(app, { pool: deps.pool })
   activityRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   commandRoutes(app, { pool: deps.pool })
   conversationRoutes(app, { pool: deps.pool })
   missionRoutes(app, { pool: deps.pool })
   runtimeRoutes(app, { pool: deps.pool, hub: runtimeHub })
   researchRoutes(app, deps.pool)
+  // The reply runtime's routes call 0064's functions: served, and checked by /ready, only with conversations on.
+  if (deps.conversations) conversationRuntimeRoutes(app, deps.pool)
   designRoutes(app, { pool: deps.pool, store })
   roomRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   exchangeRoutes(app, { pool: deps.pool, livekit: deps.livekit })
@@ -257,6 +278,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       )
     : null
   personalRoutes(app, { pool: deps.pool, companion })
+  if (deps.conversations) projectConversationRoutes(app, { pool: deps.pool })
   return app
 }
 
@@ -315,6 +337,7 @@ function requireMediaCapability(req: FastifyRequest, expected: Buffer | null): v
 function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor, mediaToken: Buffer | null): void {
   app.decorateRequest('actorId', '')
   app.decorateRequest('actorName', null)
+  app.decorateRequest('actorContact', null)
   app.decorateRequest('actorAnonymous', false)
   app.decorateRequest('runtimeCaller', null)
   app.decorateRequest('rendererToken', null)
@@ -342,6 +365,7 @@ function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor, 
       const actor = await verifyActor(req.headers.authorization)
       req.actorId = actor.id
       req.actorName = actor.name
+      req.actorContact = actor.contact
       req.actorAnonymous = actor.anonymous
     } catch (err: unknown) {
       req.log.warn({ auth: describeAuthRejection(req.headers.authorization, err) }, 'authentication rejected')
@@ -377,14 +401,15 @@ function handleError(err: FastifyError | DomainError, req: FastifyRequest, reply
   return sendError(req, reply, 503, { code: 'unavailable', message: 'Unavailable', retry: 'safe_read' })
 }
 
-function registerHealth(app: FastifyInstance, pool: pg.Pool, stores: boolean): void {
+function registerHealth(app: FastifyInstance, pool: pg.Pool, stores: boolean, conversations: boolean): void {
   app.get('/health', () => ({ ok: true }))
   app.get('/ready', async (_req, reply) => {
     try {
       await checkRoleSafety(pool)
       const { rows } = await pool.query<{ ok: boolean }>(REQUIRED_SCHEMA)
       const store = stores ? (await pool.query<{ ok: boolean }>(STORE_SCHEMA)).rows[0]?.ok : true
-      if (!rows[0]?.ok || !store) return await reply.status(503).send({ ready: false, reason: 'schema' })
+      const talk = conversations ? (await pool.query<{ ok: boolean }>(CONVERSATION_SCHEMA)).rows[0]?.ok : true
+      if (!rows[0]?.ok || !store || !talk) return await reply.status(503).send({ ready: false, reason: 'schema' })
       return { ready: true }
     } catch {
       return reply.status(503).send({ ready: false, reason: 'database' })

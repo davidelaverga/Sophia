@@ -37,6 +37,8 @@ import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 // Type-only: brings the `ctx.tools` Context augmentation into scope.
 import type { ToolDefinition, ToolGuard } from '@deepseek-ai/dsh-tools'
 import { commandText, parseCommand, ProtocolError } from './protocol.js'
+import { ReplyController, type ReplyControllerSettings } from './reply-child.js'
+import { ReplyServiceExecutor, SERVICE_ROLE, SERVICE_ROLE_DIGEST, serviceSettings, type ReplyServiceSettings } from './reply-service.js'
 import { RetainedQueue } from './retained-queue.js'
 import { wire } from './runtime-wire.generated.js'
 import type { RuntimeCommand, RuntimeReceipt, ReceiptStage } from './protocol.js'
@@ -52,7 +54,7 @@ import { foldLog, Journal, strongestFence } from './session-events.js'
 import type { CommandEntry, DeliveryTarget, ExecutionIdentity, FenceState, StashedMessage } from './session-events.js'
 import { ServiceTransport, TransportError } from './transport.js'
 import type { HelloReply, Observation, ServiceBinding, UnrecoveredBinding } from './transport.js'
-import type { ResearchReserveRequest, RuntimeCommandBatch } from './runtime-wire-types.generated.js'
+import type { ResearchReserveRequest, RuntimeCommandBatch, RuntimeRole } from './runtime-wire-types.generated.js'
 
 /** One model route: the provider route, the model and the reasoning effort (null: the model's default). */
 export type RouteSpec = ExecutionIdentity['route']
@@ -71,6 +73,9 @@ export type RouteConfig = RouteSpec & { readonly maxTokens: number; readonly pri
 
 /** Row config plus the resolved environment the bridge runs with. */
 export interface BridgeSettings {
+  readonly replies?: ReplyControllerSettings | null
+  /** Conversation replies in service mode (CON-01 B2): one public prepareCall/stream per reply, no Agent or home. */
+  readonly replyService?: ReplyServiceSettings | null
   readonly protocolVersion: 1
   readonly bundle: string
   readonly dshVersion: string
@@ -84,6 +89,8 @@ export interface BridgeSettings {
   readonly pollWaitMs: number
   /** Upper bound for cancellation to settle before a Hold/Stop receipt reports `outcome_unknown`. */
   readonly settleTimeoutMs: number
+  /** One retained receipt delivery's bound (default 10 s): a service that never answers is retried, not awaited. */
+  readonly receiptWaitMs?: number
   /** The unit's route allowlist beyond `default`, by route id (SMC-M03). */
   readonly routes: Readonly<Record<string, RouteConfig>>
   /** Role id → route id; a role not named runs on `default`. */
@@ -138,10 +145,40 @@ const OBSERVATION_TYPE = /^[a-z][a-z0-9_/.-]{0,63}$/
 /** Upper bound of a receipt reason on the wire (A04). */
 const REASON_LIMIT = 16_000
 
+/** Service-mode settings the executor accepts, or null with the reason logged (the mode is then unavailable). */
+function validServiceSettings(value: ReplyServiceSettings | null, log: (line: string) => void): ReplyServiceSettings | null {
+  if (value === null) return null
+  try {
+    return serviceSettings(value)
+  } catch {
+    log('reply_service_unavailable settings_invalid')
+    return null
+  }
+}
+
+/**
+ * The conversation role a service-mode runtime advertises: the server dispatches replies only on its route, and only
+ * for a grant pinned to the executor it names (A40): this bridge's configured, running service tuple.
+ */
+function serviceRole(settings: ReplyServiceSettings): RuntimeRole {
+  return {
+    id: SERVICE_ROLE,
+    route: settings.routeId,
+    presetDigest: SERVICE_ROLE_DIGEST,
+    executor: { execution: 'service', routeId: settings.routeId, executorArtifactDigest: settings.executorArtifactDigest },
+  }
+}
+
 /** Readiness as reported to the Sophia service and to the startup log. */
 export type BridgeReadiness = { state: 'ready' } | { state: 'not_ready'; reason: string }
 
 export class ControlBridge {
+  private replies: ReplyController | null = null
+  /** Valid service-mode settings, or null: then no conversation role is advertised and no reply runs here. */
+  private readonly replyServiceSettings: ReplyServiceSettings | null
+  private replyService: ReplyServiceExecutor | null = null
+  /** Installed only by the enabled CON controller; cancellation is not cleanup proof. */
+  private replySuperseded: (() => void) | null = null
   private readonly attempts = new Map<string, AttemptState>()
   /**
    * Serializes command execution per attempt id, including the command that
@@ -168,11 +205,16 @@ export class ControlBridge {
 
   constructor(private readonly ctx: Context, private readonly settings: BridgeSettings) {
     this.journal = new Journal(settings.journalDir)
+    this.replyServiceSettings = validServiceSettings(settings.replyService ?? null, settings.log)
     this.transport = settings.service
       ? new ServiceTransport({ ...settings.service, runtimeUnitId: settings.runtimeUnitId, bridgeInstanceId: this.instanceId })
       : null
     const common = { signal: this.stopping.signal, log: settings.log }
-    this.receiptQueue = new RetainedQueue('receipt', (batch) => this.transport!.receipts(batch), {
+    // Each retained delivery attempt is bounded: a request the service accepts but never answers must not block every
+    // later receipt (Stop and retire included) or shutdown's flush. A timed-out batch is sent again; the service
+    // deduplicates receipts by command and stage.
+    const receiptWaitMs = settings.receiptWaitMs ?? 10_000
+    this.receiptQueue = new RetainedQueue('receipt', (batch) => this.transport!.receipts(batch, AbortSignal.timeout(receiptWaitMs)), {
       ...common,
       delayMs: 0,
       onAck: (batch) => this.receiptsAcknowledged(batch),
@@ -309,6 +351,8 @@ export class ControlBridge {
     void this.connect()
     return async () => {
       this.stopping.abort()
+      this.replies?.dispose()
+      this.replyService?.dispose()
       offPreStep()
       offGuard()
       offStream()
@@ -330,10 +374,41 @@ export class ControlBridge {
       this.setReadiness({ state: 'not_ready', reason: `Sophia service hello failed: ${(error as Error).message}` })
       return
     }
+    if (this.stopping.signal.aborted) return
+    try {
+      const replySettings = this.settings.replies ?? null
+      this.replies = new ReplyController({ projectId: hello.projectId, runtimeUnitId: this.settings.runtimeUnitId,
+        leaseId: this.instanceId }, replySettings, this.transport)
+      const replies = this.replies
+      if (replySettings) this.replySuperseded = () => replies.dispose()
+    } catch {
+      this.settings.log('reply_controller_configuration_invalid')
+      this.replies = new ReplyController({ projectId: hello.projectId, runtimeUnitId: this.settings.runtimeUnitId,
+        leaseId: this.instanceId }, null, this.transport)
+    }
+    if (this.replyServiceSettings) {
+      this.replyService?.dispose()
+      this.replyService = new ReplyServiceExecutor({ projectId: hello.projectId, runtimeUnitId: this.settings.runtimeUnitId,
+        leaseId: this.instanceId }, this.replyServiceSettings, this.ctx.llm, this.transport, this.settings.log,
+        (receipt) => this.send(receipt))
+      // A superseded lease fences service replies as it does native ones: every call in flight is aborted and the
+      // bridge goes not ready. Nothing here claims the call stopped at the provider, or settles or releases its cost.
+      const service = this.replyService
+      const native = this.replySuperseded
+      this.replySuperseded = () => {
+        service.dispose()
+        native?.()
+      }
+    }
     this.cursor = hello.cursor
     const unrecovered: UnrecoveredBinding[] = []
     for (const binding of hello.bindings) {
-      const failure = await this.reconcile(binding)
+      // A service attempt under this executor's exact tuple is adopted for Stop and retire; it is never run again.
+      if ('conversationReplyId' in binding && this.replyService?.adopt(binding)) continue
+      if ('conversationReplyId' in binding) this.replies.unrecovered()
+      const failure = 'conversationReplyId' in binding
+        ? { attemptId: binding.attemptId, reason: 'conversation_child_unqualified' }
+        : await this.reconcile(binding)
       if (failure) unrecovered.push(failure)
     }
     // Tell the service first, so the startup line a supervisor keys on
@@ -356,6 +431,17 @@ export class ControlBridge {
     this.settings.log(next.state === 'ready' ? `readiness=ready${failed}` : `readiness=not_ready reason="${next.reason}"`)
   }
 
+  /** The commands endpoint maps a superseded instance lease to 409/invalid_state. */
+  private fenceSupersededReplyPoll(error: unknown): boolean {
+    if (this.replySuperseded === null || !(error instanceof TransportError) ||
+        error.status !== 409 || error.code !== 'invalid_state') return false
+    this.stopping.abort()
+    try { this.replySuperseded() }
+    catch { /* Cancellation failure remains unresolved; never resume polling or assert cleanup. */ }
+    this.setReadiness({ state: 'not_ready', reason: 'conversation_lease_superseded' })
+    return true
+  }
+
   private async pollLoop(): Promise<void> {
     const transport = this.transport!
     while (!this.stopping.signal.aborted) {
@@ -364,6 +450,7 @@ export class ControlBridge {
         batch = await transport.poll(this.cursor, this.settings.pollWaitMs, this.stopping.signal)
       } catch (error) {
         if (this.stopping.signal.aborted) return
+        if (this.fenceSupersededReplyPoll(error)) return
         this.settings.log(`poll failed: ${(error as Error).message}; retrying`)
         await new Promise((resolve) => setTimeout(resolve, 1000))
         continue
@@ -418,8 +505,9 @@ export class ControlBridge {
    * route. The preset registry loads its definitions while the bridge connects, so each preset gets a bounded wait to
    * become resolvable; a role whose preset still cannot be activated is not advertised.
    */
-  private async advertisedRoles(): Promise<Array<{ id: string; route: string; presetDigest: string }>> {
-    const roles: Array<{ id: string; route: string; presetDigest: string }> = []
+  private async advertisedRoles(): Promise<RuntimeRole[]> {
+    const roles: RuntimeRole[] = []
+    if (this.replyServiceSettings) roles.push(serviceRole(this.replyServiceSettings))
     for (const [roleId, routeId] of Object.entries(this.settings.roleRoutes).sort(([a], [b]) => a.localeCompare(b))) {
       const role = roleOf(roleId)
       if (!role) continue
@@ -699,6 +787,14 @@ export class ControlBridge {
       return reject(`command targets runtime unit ${command.binding.runtimeUnitId}; this runtime is ${this.settings.runtimeUnitId}`)
     }
     if (!ATTEMPT_ID.test(attemptId)) return reject('attemptId must match [A-Za-z0-9][A-Za-z0-9_-]{0,63}')
+
+    // Reply ownership/transport stay outside goal history. The production reply configuration remains disabled.
+    // Controller admission is retained asynchronously so this serial queue can promptly deliver Stop.
+    if ('conversationReplyId' in command.binding) {
+      if (this.replyService) return this.replyService.execute(command)
+      return this.replies?.execute(command) ?? reject('conversation_child_unqualified')
+    }
+    if (command.kind === 'retire') return reject('retire_requires_reply_owner')
 
     const attempt = this.attempts.get(attemptId)
     const prior = attempt?.receipts.get(command.commandId)

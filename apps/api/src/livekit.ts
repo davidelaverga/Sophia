@@ -175,16 +175,94 @@ export async function memberInRoom(cfg: LiveKitConfig, roomId: string, identity:
   return !!them && MEMBERS.has(them.standing)
 }
 
+/** A participant whose microphone a host act actually muted, with the standing their token carries. */
+export interface MutedParticipant {
+  readonly identity: string
+  readonly standing: Standing
+}
+
+/**
+ * A batch of mutes the room server failed partway through: `muted` tracks were muted before it failed, and, for a
+ * batch over participants, exactly which ones (each counted only once its own mute call succeeded). The act did
+ * something, so what it did is recorded (routes/host-acts.ts), and the request still reports the failure.
+ */
+export class PartialMute extends Error {
+  readonly muted: number
+  readonly participants: readonly MutedParticipant[]
+
+  constructor(muted: number, cause: unknown, participants: readonly MutedParticipant[] = []) {
+    super('The room server failed after muting some of them', { cause })
+    this.name = 'PartialMute'
+    this.muted = muted
+    this.participants = participants
+  }
+}
+
+/**
+ * Mute those of these published tracks that are on; how many it muted. One already muted is left as it is and not
+ * counted, so a repeated or retried act that changes nothing is not recorded as done (Codex P2 on #385). A failure
+ * after some were muted says how many (PartialMute).
+ */
+export async function muteUnmuted(
+  rooms: Pick<RoomServiceClient, 'mutePublishedTrack'>,
+  roomId: string,
+  identity: string,
+  tracks: readonly { sid: string; muted: boolean }[],
+): Promise<number> {
+  let muted = 0
+  try {
+    for (const t of tracks) {
+      if (t.muted) continue
+      await rooms.mutePublishedTrack(roomId, identity, t.sid, true)
+      muted += 1
+    }
+  } catch (err: unknown) {
+    throw muted > 0 ? new PartialMute(muted, err) : err
+  }
+  return muted
+}
+
 /**
  * Mute someone's microphone (A24), as the room server does it: their published microphone track, muted; only they
- * can turn it on again. True once it is muted, or already was; false when they publish no microphone.
+ * can turn it on again. True when it muted it; false when it already was muted or they publish no microphone.
  */
 export async function muteMicrophone(cfg: LiveKitConfig, roomId: string, identity: string): Promise<boolean> {
   const rooms = new RoomServiceClient(apiUrl(cfg), cfg.apiKey, cfg.apiSecret)
   const mic = (await rooms.getParticipant(roomId, identity)).tracks.find((t) => t.source === TrackSource.MICROPHONE)
-  if (!mic) return false
-  if (!mic.muted) await rooms.mutePublishedTrack(roomId, identity, mic.sid, true)
-  return true
+  return (await muteUnmuted(rooms, roomId, identity, mic ? [mic] : [])) > 0
+}
+
+/**
+ * Mute every published track of these sources of theirs (A31); only they turn them on again. True when it muted one;
+ * false when they publish none, or every one was already muted.
+ */
+async function muteSources(cfg: LiveKitConfig, roomId: string, identity: string, sources: readonly TrackSource[]) {
+  const rooms = new RoomServiceClient(apiUrl(cfg), cfg.apiKey, cfg.apiSecret)
+  const tracks = (await rooms.getParticipant(roomId, identity)).tracks.filter((t) => sources.includes(t.source))
+  return (await muteUnmuted(rooms, roomId, identity, tracks)) > 0
+}
+
+/** Stop someone's camera (A31): their published camera track, muted. */
+export const stopCamera = (cfg: LiveKitConfig, roomId: string, identity: string) =>
+  muteSources(cfg, roomId, identity, [TrackSource.CAMERA])
+
+/** Stop someone's screen share (A31): the share and its sound, muted; their Studio then stops sharing. */
+export const stopScreen = (cfg: LiveKitConfig, roomId: string, identity: string) =>
+  muteSources(cfg, roomId, identity, [TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO])
+
+/** Mute everyone else's microphone (A31): members and guests, never Sophia's participant. Says how many. */
+export async function muteEveryone(cfg: LiveKitConfig, roomId: string, except: string): Promise<number> {
+  const people = await roomParticipants(cfg, roomId)
+  const muted: MutedParticipant[] = []
+  try {
+    for (const p of people) {
+      if (p.identity === except || p.standing === 'sophia' || p.standing === 'unknown') continue
+      if (await muteMicrophone(cfg, roomId, p.identity)) muted.push({ identity: p.identity, standing: p.standing })
+    }
+  } catch (err: unknown) {
+    throw muted.length > 0 ? new PartialMute(muted.length, err, muted) : err
+  }
+  return muted.length
 }
 
 /** Take a member out of the call (A24): disconnected now; as a member, they may join again. */

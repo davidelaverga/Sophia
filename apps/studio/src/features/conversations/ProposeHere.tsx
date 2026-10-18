@@ -6,18 +6,19 @@
 // conversation or leaving for another view and coming back finds the same one, sent again under its key, never twice.
 import { skipToken, useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
-import type { MissionContext } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import {
+  briefNow,
   contextQuery,
   proposedWhere,
   refusalWords,
   statementFrom,
   useAlreadyOpen,
   useProposeSend,
+  type ContextRead,
   type ProposedMark,
   type ProposedWhere,
 } from './decide.ts'
@@ -49,8 +50,9 @@ function useHeldProposal(args: ProposeArgs | null) {
   const held = kept.proposals[id] ?? null
   const marked = (mark: ProposedMark | null) =>
     change((was) => ({ ...was, proposed: withEntry(was.proposed, id, mark) }))
-  // The brief as the context last read it (no read of its own): where the proposal stands, as it moves.
-  const brief = useQuery<MissionContext>(
+  // The brief as the context last read it (no read of its own): where the proposal stands, as it moves; only from a read
+  // as it may show now (`briefNow`: none from before the latest refusal, PR #199 r4239851727).
+  const brief = useQuery<ContextRead>(
     identity
       ? { ...contextQuery(projectId, identity), enabled: false }
       : { queryKey: ['conversations', 'no-brief'], queryFn: skipToken },
@@ -76,7 +78,7 @@ function useHeldProposal(args: ProposeArgs | null) {
     },
   )
   const mark = kept.proposed[id] ?? null
-  const where = mark && proposedWhere({ isError: brief.isError, data: brief.data }, mark)
+  const where = mark && proposedWhere({ isError: brief.isError, data: briefNow(brief.data, kept) }, mark)
   return { ...write, sent: held?.ask ?? null, done: mark !== null, where, marked }
 }
 

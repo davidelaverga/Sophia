@@ -1,7 +1,13 @@
 import pg from 'pg'
 import { DomainError } from '@sophia/domain'
 import { classifyDbError } from './errors.ts'
-import { checkServiceControl, controlledQueryTimedOut, serviceClient, type ServiceControl } from './service-control.ts'
+import {
+  budgetedRead,
+  checkServiceControl,
+  controlledQueryTimedOut,
+  serviceClient,
+  type ServiceControl,
+} from './service-control.ts'
 
 export interface PoolOptions {
   max?: number
@@ -69,6 +75,30 @@ function acquiredClient(client: pg.PoolClient, control?: ServiceControl): pg.Poo
 }
 
 /**
+ * BEGIN and the actor's setting. A controlled transaction is bounded on the server as well as the client: a read
+ * statement by statement (`read`, budgetedRead), a write once, here, by what remains of its deadline.
+ */
+async function begin(
+  client: pg.PoolClient,
+  read: pg.PoolClient | null,
+  opts: TxOptions,
+  lease: ReturnType<typeof serviceClient>,
+  control?: ServiceControl,
+): Promise<void> {
+  await client.query(opts.mode === 'read' ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN')
+  if (opts.actorId !== null)
+    await (read ?? client).query("SELECT set_config('sophia.actor_id', $1, true)", [opts.actorId])
+  lease.check()
+  if (control && !read) {
+    // Closing pg's socket alone need not stop server-side SQL. Bound it on the server as well as the client.
+    await client.query("SELECT set_config('statement_timeout', $1, true)", [
+      String(Math.max(1, Math.floor(control.deadline - performance.now()))),
+    ])
+    lease.check()
+  }
+}
+
+/**
  * One connection, one transaction. Reads use REPEATABLE READ READ ONLY so a snapshot and its cursor are
  * consistent. A failure while committing a write leaves its outcome unknown: the client must retry with
  * the same Idempotency-Key, never a new one.
@@ -87,19 +117,13 @@ async function transaction<T>(
     control,
   )
   const lease = serviceClient(client, control)
+  // A controlled read bounds each statement by what remains of its absolute budget (R-C1-READ-BOUNDS-01): the actor's
+  // setting and every statement of the read. A controlled write keeps its one bound, set once in begin.
+  const read = control && opts.mode === 'read' ? budgetedRead(client, control, lease) : null
   let committing = false
   try {
-    await client.query(opts.mode === 'read' ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN')
-    if (opts.actorId !== null) await client.query("SELECT set_config('sophia.actor_id', $1, true)", [opts.actorId])
-    lease.check()
-    if (control) {
-      // Closing pg's socket alone need not stop server-side SQL. Bound it on the server as well as the client.
-      await client.query("SELECT set_config('statement_timeout', $1, true)", [
-        String(Math.max(1, Math.floor(control.deadline - performance.now()))),
-      ])
-      lease.check()
-    }
-    const result = await fn(client)
+    await begin(client, read, opts, lease, control)
+    const result = await fn(read ?? client)
     lease.check()
     committing = true
     await client.query('COMMIT')
@@ -135,24 +159,38 @@ export function withService<T>(
   return transaction(pool, { mode: 'write', actorId: null }, fn, control)
 }
 
-/**
- * The verified actor's name, from their own token and never from a request, put in the transaction for the rows that
- * keep it (0048: a room message; 0049: a note, a proposal, a decision). Call inside withActor; no name, nothing is set.
- */
-export async function nameActor(c: pg.PoolClient, name: string | null): Promise<void> {
-  if (name) await c.query("SELECT set_config('sophia.actor_name', $1, true)", [name])
+/** What the verified token says about its subject (never a request): the provider's name, and the verified email. */
+export interface ActorNames {
+  /** Seeds a display name the person hasn't chosen (0062); never an address. */
+  seed: string | null
+  /** The address invitations are matched by; the room keeps it (0050, 0055), and it is never shown as a name. */
+  contact: string | null
 }
 
 /**
- * Keep the name the transaction carries (nameActor) as the actor's in this project, for their voice writes (0050):
- * called when the member joins the call, as the API signs their room token with it. A non-member keeps nothing.
+ * Put the verified actor's names in the transaction (0062's name_actor), for the rows that keep a name (0048: a room
+ * message; 0049: a note, a proposal, a decision) and the room's address book (0050): the provider's name seeds a display
+ * name the person hasn't chosen, which never replaces one they chose. Answers their display name, or null. Call inside
+ * withActor(..., "write").
+ */
+export async function nameActor(c: pg.PoolClient, names: ActorNames): Promise<string | null> {
+  const { rows } = await c.query<{ shown: string | null }>('SELECT sophia.name_actor($1, $2) AS shown', [
+    names.seed,
+    names.contact,
+  ])
+  return rows[0]?.shown ?? null
+}
+
+/**
+ * Keep the address the transaction carries (nameActor) as the actor's in this project (0050, 0062), for an admin to
+ * invite them elsewhere (0055): called when the member opens the project or joins its call. A non-member keeps nothing.
  */
 export async function rememberRoomName(c: pg.PoolClient, projectId: string): Promise<void> {
   await c.query('SELECT sophia.remember_room_name($1)', [projectId])
 }
 
 /**
- * Put the actor's kept name (0050) in the transaction for a voice write, unless it carries one already: the bridge
+ * Put the speaker's display name (0062) in the transaction for a voice write, unless it carries one already: the bridge
  * names the speaker by id only. Call inside withActor as the speaker; nothing leaves the database.
  */
 export async function nameFromRoom(c: pg.PoolClient, projectId: string): Promise<void> {
@@ -161,14 +199,18 @@ export async function nameFromRoom(c: pg.PoolClient, projectId: string): Promise
 
 /**
  * One connection, one transaction, the verified actor set transaction-locally
- * (`set_config(..., true)`), so a pooled connection never carries a previous actor.
+ * (`set_config(..., true)`), so a pooled connection never carries a previous actor. A `control` bounds it as it bounds
+ * a service transaction: a deadline and an abort, either of which retires the connection instead of returning it to the
+ * pool (READ-BOUNDS-01; the projection reads pass one). A controlled read is bounded on the server too, each statement
+ * by what remains of the absolute deadline (budgetedRead), so none outlives it.
  */
 export function withActor<T>(
   pool: pg.Pool,
   actorId: string,
   mode: TxMode,
   fn: (c: pg.PoolClient) => Promise<T>,
+  control?: ServiceControl,
 ): Promise<T> {
   if (!ACTOR_ID.test(actorId)) throw new DomainError('actor_context_required', 'A verified actor is required')
-  return transaction(pool, { mode, actorId }, fn)
+  return transaction(pool, { mode, actorId }, fn, control)
 }

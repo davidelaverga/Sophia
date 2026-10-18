@@ -18,6 +18,7 @@ import {
   type RoomOptions,
   type Participant,
   type RemoteTrack,
+  type RemoteTrackPublication,
   type TrackPublication,
 } from 'livekit-client'
 import {
@@ -93,6 +94,8 @@ export interface RoomConnection {
   setFollowing: (versionId: string | null) => Promise<void>
   /** A reaction to everyone in the call, on its own topic (call-reactions.md). */
   sendReaction: (emoji: ReactionEmoji) => Promise<void>
+  /** Others' cameras come to this browser, or not (incoming-video.md); a screen shared always comes. */
+  setIncomingVideo: (on: boolean) => void
   leave: () => Promise<void>
 }
 
@@ -169,6 +172,29 @@ function videoFeeds(): Feeds {
     ].filter((f): f is VideoFeed => f !== null)
 }
 
+/**
+ * Others' cameras, taken or let go (incoming-video.md): off, this browser unsubscribes from each camera published to it,
+ * now and as more are published; a screen shared always comes. On again, it takes them back.
+ */
+function incomingCameras(room: Room, onChange: () => void): Pick<RoomConnection, 'setIncomingVideo'> {
+  let on = true
+  const apply = (pub: RemoteTrackPublication) => {
+    if (pub.source === Track.Source.Camera && pub.isSubscribed !== on) pub.setSubscribed(on)
+  }
+  // A camera published while they're off isn't taken; one published while they're on is LiveKit's to take, as ever.
+  room.on(RoomEvent.TrackPublished, (pub: RemoteTrackPublication) => {
+    if (!on) apply(pub)
+  })
+  return {
+    setIncomingVideo: (next) => {
+      on = next
+      for (const person of room.remoteParticipants.values())
+        for (const pub of person.trackPublications.values()) apply(pub)
+      onChange()
+    },
+  }
+}
+
 /** Remote voices (and a shared screen's sound) play through hidden audio elements, removed with the track. */
 /**
  * The room's voices, as audio elements this room owns: a room that ends removes its own, never another's (a join that
@@ -192,6 +218,17 @@ function remoteAudio(room: Room, textOnly: () => boolean): Set<HTMLMediaElement>
     }
   })
   return mine
+}
+
+/**
+ * A screen share the host stopped (A31, host-more.md) stops here too: the server can only mute it, so this person's
+ * share ends, and the browser's capture with it, rather than sending a black screen.
+ */
+function stopsWhenHostStops(room: Room): void {
+  room.on(RoomEvent.TrackMuted, (publication, participant) => {
+    if (participant !== room.localParticipant || publication.source !== Track.Source.ScreenShare) return
+    void room.localParticipant.setScreenShareEnabled(false).catch(() => undefined)
+  })
 }
 
 const CHANGES = [
@@ -408,6 +445,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
   room.on(RoomEvent.Reconnected, () => cb.onStatus('live'))
   let textOnly = false
   const audio = remoteAudio(room, () => textOnly)
+  stopsWhenHostStops(room)
   room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
     for (const el of audio) el.remove()
     audio.clear()
@@ -451,6 +489,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     setFollowing: (versionId) => Promise.resolve(following.set(versionId)),
     sendReaction: (emoji) =>
       room.localParticipant.publishData(encodeReaction(emoji), { reliable: true, topic: REACTION_TOPIC }),
+    ...incomingCameras(room, cb.onChange),
     leave: () => room.disconnect(),
   }
 }

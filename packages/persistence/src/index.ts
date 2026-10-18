@@ -9,9 +9,12 @@ export {
   withActor,
   withoutActor,
   withService,
+  type ActorNames,
   type PoolOptions,
   type TxMode,
 } from './tx.ts'
+export type { ServiceControl } from './service-control.ts'
+export { readMyProfile, setMyProfile } from './profiles.ts'
 export { classifyDbError } from './errors.ts'
 export { migrate, readMigrations, MigrationDrift, type MigrationReport } from './migrate.ts'
 export { readSnapshot } from './snapshot.ts'
@@ -44,6 +47,8 @@ export {
   type NewInvitation,
 } from './access.ts'
 export { claimOutbox, expireDispatchLeases, recordDispatchResult, type OutboxRow } from './outbox.ts'
+// The conversation assembler (S3, 0064/0070): the worker records a reply's context when its create waits for one.
+export { assembleReply, checkedLimits, type AssemblyLimits, type AssemblyResult } from './conversation-assembly.ts'
 export { readEventFrames, type EventFrame, type EventPage } from './events.ts'
 export {
   ChannelListener,
@@ -263,10 +268,46 @@ export {
   type DesignRoles,
 } from './design.ts'
 export {
+  CONVERSATION_LIST_LIMIT,
+  CONVERSATION_NOTICE,
+  CONVERSATION_PAGE_LIMIT,
+  conversationCursor,
+  cursorSeq,
+  eraseConversation,
+  readConversationList,
+  readConversationMessage,
+  readConversationPage,
+  readProjectConversationPage,
+  readConversationReply,
+  readConversationSummary,
+  readFeedPosition,
+  sendConversationMessage,
+  startConversation,
+  withdrawConversationMessage,
+  type ConversationReceipt,
+  type ConversationSendWrite,
+  type ConversationStartWrite,
+} from './conversations.ts'
+
+export {
+  runtimeConversationClaim,
+  runtimeConversationGo,
+  runtimeConversationReserve,
+  runtimeConversationSettle,
+  runtimeConversationAcknowledged,
+} from './conversation-runtime.ts'
+export {
   changeMemberRole,
   readGoalTargets,
   readInvitablePeople,
   readProjectMembers,
   setGoalTarget,
 } from './goal-targets.ts'
-export { pendingMemberRemoval, readProjectActivity, recordHostAct, removeMember } from './activity.ts'
+export {
+  pendingMemberRemoval,
+  readProjectActivity,
+  recordHostAct,
+  recordRoomAct,
+  removedJustNow,
+  removeMember,
+} from './activity.ts'

@@ -1,22 +1,25 @@
 // The account, one control in every bar (the places' and a project's): the avatar opens a menu with who is signed in
-// (their picture, name, email and how they signed in; account-menu.md),
-// "Your data" and how privacy works, passkeys, and signing out. From a project the first two open at home, where the
+// (their picture, name, email and how they signed in; account-menu.md), «Your name» where the server serves profiles
+// (profile-editor.md), "Your data" and how privacy works, passkeys, and signing out. From a project the first two open at home, where the
 // personal space's own sheets are. Locally the dev identity is chosen in its head. It is the kit's menu, and closes
 // like any popover (usePopover): Escape returns to the avatar, a press anywhere else closes it.
-import { useState } from 'react'
+import { useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Menu, MenuHead, MenuItem, MenuSep, Tip, usePopover } from '@sophia/ui'
 import { authMode, passkeysOffered } from './auth.ts'
+import { accountOf } from './auth-callback.ts'
 import { Avatar } from './Avatar.tsx'
 import { devIdentities, type Identity } from './dev-identity.ts'
 import { askCommands } from './CommandsHost.tsx'
 import { PasskeySheet } from './PasskeySheet.tsx'
+import { ProfileSheet } from './ProfileSheet.tsx'
 import { keyLabel, onMac } from './shortcuts.ts'
 import { signedInWith } from './profile.ts'
 import { type Theme, useTheme } from './theme.ts'
 import { reportsOn } from './crash-report.ts'
 import { FeedbackSheet } from './FeedbackSheet.tsx'
 import { SettingsSheet } from './SettingsSheet.tsx'
+import { useMyProfile } from './useMyProfile.ts'
 
 export interface AccountActions {
   data: () => void
@@ -58,16 +61,27 @@ function DevChoice({ identity, onChoose }: { identity: Identity; onChoose: (i: I
   )
 }
 
-/** Who is signed in: their picture, their name (else the email), the email under a name, and how they signed in. */
-function Head({ identity, onChoose }: { identity: Identity; onChoose: (i: Identity | null) => void }) {
+/**
+ * Who is signed in: their picture, their name (the one their projects see, else the provider's, else the email), the
+ * email under a name, and how they signed in. The email is theirs to see here; it is never their name to others.
+ */
+function Head({
+  identity,
+  name,
+  onChoose,
+}: {
+  identity: Identity
+  name: string | null
+  onChoose: (i: Identity | null) => void
+}) {
   const how = signedInWith(identity.provider)
   return (
     <MenuHead>
       <span className="account-who">
         <Avatar identity={identity} />
         <span className="account-names">
-          <span className="account-name">{identity.displayName ?? identity.name}</span>
-          {authMode !== 'dev' && identity.displayName && <span>{identity.name}</span>}
+          <span className="account-name">{name ?? identity.name}</span>
+          {authMode !== 'dev' && name && <span>{identity.name}</span>}
           {authMode !== 'dev' && how && <span>{how}</span>}
         </span>
       </span>
@@ -111,7 +125,7 @@ interface Props {
 }
 
 /** The sheet the menu opened, one at a time: Settings hands over to Passkeys or feedback, your data or privacy, the keys. */
-type SheetName = 'passkeys' | 'feedback' | 'settings' | null
+type SheetName = 'passkeys' | 'feedback' | 'settings' | `name:${string}` | null
 
 function AccountSheet(props: {
   which: Exclude<SheetName, null>
@@ -121,6 +135,13 @@ function AccountSheet(props: {
 }) {
   const { which, actions, onSheet } = props
   const close = () => onSheet(null)
+  // «Your name», only for the account it was opened for, keyed by it (Codex P1 on #388).
+  if (which.startsWith('name:')) {
+    const account = which.slice('name:'.length)
+    return account === accountOf(props.identity) ? (
+      <ProfileSheet key={account} identity={props.identity} onClose={close} />
+    ) : null
+  }
   if (which === 'passkeys') return <PasskeySheet onClose={close} />
   if (which === 'feedback') return <FeedbackSheet onClose={close} />
   const leaveFor = (run: () => void) => () => {
@@ -143,7 +164,11 @@ function AccountSheet(props: {
 
 export function AccountMenu({ identity, where, actions }: Props) {
   const [open, setOpen] = useState(false)
+  // One sheet at a time (Settings hands over to Passkeys or feedback). «Your name» carries the account it was opened for:
+  // another account coming in (another tab) closes it, so nothing typed for one is ever saved for the next (Codex P1
+  // on #388).
   const [sheet, setSheet] = useState<SheetName>(null)
+  const mine = useMyProfile(identity)
   const menu = usePopover(open, () => setOpen(false))
   // The item goes with the menu: its button takes the focus first, so a sheet the item opens gives it back there.
   const pick = (run: () => void) => () => {
@@ -154,21 +179,15 @@ export function AccountMenu({ identity, where, actions }: Props) {
   const tip = DATA_TIP[where]
   return (
     <div ref={menu.wrap} className="account">
-      <button
-        ref={menu.opener}
-        className="account-btn has-tip"
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="Account"
-        onClick={() => setOpen(!open)}
-      >
-        <Avatar identity={identity} />
-        <Tip label="Account" side="bottom" align="end" />
-      </button>
+      <AccountButton identity={identity} opener={menu.opener} open={open} onToggle={() => setOpen(!open)} />
       {open && (
         <Menu popover={menu} label="Account" className="account-menu">
-          <Head identity={identity} onChoose={actions.chooseDev} />
+          <Head
+            identity={identity}
+            name={mine.profile?.displayName ?? identity.displayName ?? null}
+            onChoose={actions.chooseDev}
+          />
+          {mine.offered && <MenuItem onClick={pick(() => setSheet(`name:${accountOf(identity)}`))}>Your name</MenuItem>}
           <MenuItem className="has-tip" onClick={pick(actions.data)}>
             {DATA_LABEL[where]}
             <Tip label={tip.label} {...(tip.keys ? { keys: tip.keys } : {})} side="bottom" align="end" />
@@ -196,5 +215,28 @@ export function AccountMenu({ identity, where, actions }: Props) {
           document.body,
         )}
     </div>
+  )
+}
+
+/** The account's button: its avatar, opening and closing the menu. */
+function AccountButton(props: {
+  identity: Identity
+  opener: RefObject<HTMLButtonElement | null>
+  open: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      ref={props.opener}
+      className="account-btn has-tip"
+      type="button"
+      aria-haspopup="menu"
+      aria-expanded={props.open}
+      aria-label="Account"
+      onClick={props.onToggle}
+    >
+      <Avatar identity={props.identity} />
+      <Tip label="Account" side="bottom" align="end" />
+    </button>
   )
 }

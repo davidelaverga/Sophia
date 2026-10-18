@@ -12,6 +12,7 @@ import { after, before, describe, it } from 'node:test'
 import {
   parseInvitation,
   parseInvitationPreview,
+  parseActivityPage,
   parseLobbyEntry,
   parseMembership,
   parseRoomSession,
@@ -103,6 +104,26 @@ describe('guest invitations', () => {
       key: true,
     })
     assert.equal(res.status, 503)
+  })
+
+  it('name a guest in the activity: their knock under the name they gave, and the decision on them (activity-followups.md)', async () => {
+    const link = { token: tokenOf(parseInvitation((await invite(B, { kind: 'guest' })).json).url) }
+    const G = randomUUID()
+    const knocked = parseLobbyEntry(
+      (await call('/api/v1/join/knock', { bearer: await guestToken(G), body: { ...link, displayName: 'Rosa' } })).json,
+    )
+    await call(`/api/v1/lobby/${knocked.id}/decision`, { bearer: await token(B), body: { decision: 'admit' } })
+    const read = parseActivityPage(
+      (await call(`/api/v1/projects/${seed.projectId}/activity`, { method: 'GET', bearer: await token(A) })).json,
+    )
+    const lobby = read.entries.filter((e) => e.type === 'room.lobby_changed').slice(0, 2)
+    assert.deepEqual(
+      lobby.map((e) => [e.actor.id, e.actor.name, e.target?.id ?? null, e.target?.name ?? null]),
+      [
+        [B, lobby[0]?.actor.name ?? null, G, 'Rosa'],
+        [G, 'Rosa', null, null],
+      ],
+    )
   })
 
   it('let an anonymous guest knock, wait, and join only after an editor admits them', async () => {
@@ -244,22 +265,25 @@ describe('people to invite from other projects (A26)', () => {
 })
 
 describe('a project’s members (A25)', () => {
-  it('lists the active members with their roles, named once they opened the project; an outsider is refused', async () => {
+  it('lists the active members with their roles, by display name and never by address; an outsider is refused', async () => {
     const [admin, editor, viewer] = [randomUUID(), randomUUID(), randomUUID()]
     const { projectId } = await seedProject(db.ownerUrl, { admin, editors: [editor], viewers: [viewer] })
-    const opens = async (sub: string) =>
-      call(`/api/v1/projects/${projectId}/membership`, { method: 'GET', bearer: await token(sub) })
-    assert.equal((await opens(admin)).status, 200)
+    const opens = async (sub: string, claims?: Record<string, unknown>) =>
+      call(`/api/v1/projects/${projectId}/membership`, { method: 'GET', bearer: await token(sub, claims) })
+    // The admin's account gives a name; the editor's only an address, which the room keeps for invitations (0055).
+    const named = { email: `${admin.slice(0, 8)}@sophia.test`, user_metadata: { full_name: 'Alma Ruiz' } }
+    assert.equal((await opens(admin, named)).status, 200)
     assert.equal((await opens(editor)).status, 200)
     const listed = await call(`/api/v1/projects/${projectId}/members`, { method: 'GET', bearer: await token(viewer) })
     assert.equal(listed.status, 200)
     assert.deepEqual(listed.json, {
       members: [
-        { actorId: admin, role: 'admin', name: `${admin.slice(0, 8)}@sophia.test` },
-        { actorId: editor, role: 'editor', name: `${editor.slice(0, 8)}@sophia.test` },
+        { actorId: admin, role: 'admin', name: 'Alma Ruiz' },
+        { actorId: editor, role: 'editor', name: null },
         { actorId: viewer, role: 'viewer', name: null },
       ],
     })
+    assert.ok(!JSON.stringify(listed.json).includes('@'), 'no address in the members')
     const outsider = await call(`/api/v1/projects/${projectId}/members`, {
       method: 'GET',
       bearer: await token(randomUUID()),
@@ -424,7 +448,8 @@ describe('member invitations waiting in the app (A16)', () => {
         id: created.id,
         projectId: seed.projectId,
         projectTitle: 'Founders',
-        inviter: `${A.slice(0, 8)}@sophia.test`,
+        // A's account gives no name, so the invitation names no one: never A's address (0062).
+        inviter: null,
         role: 'viewer',
         expiresAt: Date.parse(created.expiresAt),
       },
@@ -482,14 +507,15 @@ describe('who wrote in the room, as the room shows it (e2e chat «A member»)', 
         body: { source: null, threadId: null, artifactVersionId: null, intent: 'discuss', ...body },
       }),
     )
-  it('keeps the author’s name with the message, and refuses a name sent by the client', async () => {
+  it('names the author by their display name, never their address, and refuses a name sent by the client', async () => {
     assert.equal((await said(B, { text: 'Can we start with the checklist?' })).status, 202)
     const snap = await call(`/api/v1/projects/${seed.projectId}/snapshot`, { method: 'GET', bearer: await token(A) })
     const entries = (
       snap.json as { discussion: { actorId: string; text: string | null; authorName?: string | null }[] }
     ).discussion
     const mine = entries.find((e) => e.text === 'Can we start with the checklist?')
-    assert.deepEqual([mine?.actorId, mine?.authorName], [B, `${B.slice(0, 8)}@sophia.test`])
+    // B's token carries only an address: the message keeps no name, and the Studio says «A member».
+    assert.deepEqual([mine?.actorId, mine?.authorName], [B, null])
     assert.equal((await said(B, { text: 'Spoofed', authorName: 'Luis' })).status, 422)
   })
 })

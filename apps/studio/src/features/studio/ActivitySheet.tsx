@@ -31,6 +31,9 @@ const who = (person: { name: string | null }) => person.name ?? 'A member'
 const DONE: Readonly<Record<string, string>> = {
   'room.host_muted': 'Muted in the call',
   'room.host_removed': 'Took out of the call',
+  'room.host_camera_off': 'Turned off the camera of',
+  'room.host_screen_off': 'Stopped the screen sharing of',
+  'room.host_muted_all': 'Muted everyone in the call',
   'project.member_role': 'Changed the role of',
   'project.member_removed': 'Removed from the project',
   'project.archived': 'Archived the project',
