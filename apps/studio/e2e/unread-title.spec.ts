@@ -37,6 +37,21 @@ test('unread · messages from another while the tab is hidden count in its title
   await expect(page).toHaveTitle('Fixture project · Sophia')
 })
 
+test('unread · a message rolled out of the snapshot’s 50 still counts (Codex P2 on #418)', async ({ page }) => {
+  await page.goto('/room.html')
+  await expect(page).toHaveTitle('Fixture project · Sophia')
+  await away(page, true)
+  await page.evaluate(() => window.fixture?.say('First while away.'))
+  await expect(page).toHaveTitle('(1) Fixture project · Sophia')
+  // Fifty more: the snapshot holds the latest 50 (fixtures/data.ts, as the API does), so the first leaves it.
+  await page.evaluate(() => {
+    for (let i = 0; i < 50; i++) window.fixture?.say(`More ${String(i)}`)
+  })
+  await expect(page).toHaveTitle('(51) Fixture project · Sophia')
+  await away(page, false)
+  await expect(page).toHaveTitle('Fixture project · Sophia')
+})
+
 test('unread · a message while the tab is shown doesn’t count', async ({ page }) => {
   await page.goto('/room.html')
   await expect(page).toHaveTitle('Fixture project · Sophia')
