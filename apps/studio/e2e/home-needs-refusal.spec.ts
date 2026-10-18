@@ -241,3 +241,17 @@ test(`needs @phone · semantic: its own read refused (403, delayed body), on a p
   await expect(page.locator(`${NEEDS} button`).first()).toBeVisible()
   expect(await seenWrites(page), 'no seen write from a retired control').toBe(0)
 })
+
+test('needs · an ordinary failure (503) with no refusal before it keeps the rows read, beside its note', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  const rows = page.locator(`${NEEDS} button`)
+  await expect(rows.first()).toBeVisible()
+  const count = await rows.count()
+  await observe(page, '503')
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+  await expect(page.locator('body')).toContainText('Couldn’t read what needs you.')
+  await expect(rows).toHaveCount(count)
+  expect(await seenWrites(page)).toBe(0)
+})

@@ -251,6 +251,14 @@ and other statuses are unchanged; the fence, retry, draft and restoration paths 
   keep fails all six (held: rows visible; others: rows back after the later 503). The checks measure DOM layout and
   visibility in rAF callbacks, not compositor paint.
 
+## FND-B-NEEDS-CURRENT-MAIN-EAE-INTEGRATION-01
+
+- Main `eae138d4` is merged in cleanly (tree `5e6411e9`): Luis's Home Needs focus by id, Unicode folding, rem type and
+  the other UI merges sit beside the Needs own-read fence.
+- Cases the browser cannot stage on one query are covered in `use-needs-order.test.ts`, on a real `QueryClient`: an
+  older read answering after a refusal, the same mark after a remount, another account's own scope, and a read since
+  restoring the rows. `home-needs-refusal.spec.ts` adds a 503 with no refusal before it, which keeps the rows.
+
 ## Next bounded action
 
 B's private handback goes to P; R reviews this integration. No push until P selects one publication.
