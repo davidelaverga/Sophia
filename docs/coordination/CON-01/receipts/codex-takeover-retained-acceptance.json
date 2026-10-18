@@ -1,0 +1,230 @@
+{
+  "evidence_source_commit": "ceb4e14e1cb0717f5485e7981ef270d071b4907d",
+  "source_sha256": "9e075ae5d95e0766768a989bedca047ba6e4b7b3278d7511745d03bc9bea6f00",
+  "source_path": "docs/coordination/CON-01/acceptance.independent.json",
+  "takeover_candidate": "56182a222e59d3fe06513302adef8879775893c3",
+  "statement": "Each existing mission case verdict retained unchanged. Focused UI corrections are not full gate acceptance.",
+  "counts": {
+    "partial_L1": 18,
+    "passed_L1": 3,
+    "not_run": 15
+  },
+  "cases": [
+    {
+      "id": "CON-01-T01",
+      "name": "Separate conversations",
+      "status": "partial_L1",
+      "required_evidence": "PostgreSQL + native/context tests + actual app"
+    },
+    {
+      "id": "CON-01-T02",
+      "name": "Correct authorship",
+      "status": "partial_L1",
+      "required_evidence": "Database + UI + actual app"
+    },
+    {
+      "id": "CON-01-T03",
+      "name": "Retention boundary",
+      "status": "partial_L1",
+      "required_evidence": "Policy review + database + app"
+    },
+    {
+      "id": "CON-01-T04",
+      "name": "Current eligibility",
+      "status": "partial_L1",
+      "required_evidence": "Database + native race test + app"
+    },
+    {
+      "id": "CON-01-T05",
+      "name": "Account isolation",
+      "status": "partial_L1",
+      "required_evidence": "Auth/browser regression"
+    },
+    {
+      "id": "CON01-A01",
+      "name": "Atomic start",
+      "status": "passed_L1",
+      "required_evidence": "PostgreSQL transaction test"
+    },
+    {
+      "id": "CON01-A02",
+      "name": "Lost create reply",
+      "status": "partial_L1",
+      "required_evidence": "Database + real HTTP/browser adverse test"
+    },
+    {
+      "id": "CON01-A03",
+      "name": "Lost send reply",
+      "status": "partial_L1",
+      "required_evidence": "Database + browser + app"
+    },
+    {
+      "id": "CON01-A04",
+      "name": "Changed payload same key",
+      "status": "passed_L1",
+      "required_evidence": "API/database negative test"
+    },
+    {
+      "id": "CON01-A05",
+      "name": "Current membership",
+      "status": "partial_L1",
+      "required_evidence": "Authenticated API + RLS + app spot check"
+    },
+    {
+      "id": "CON01-A06",
+      "name": "Forged author",
+      "status": "passed_L1",
+      "required_evidence": "Schema/API negative test"
+    },
+    {
+      "id": "CON01-A07",
+      "name": "Ordering and pagination",
+      "status": "partial_L1",
+      "required_evidence": "Database concurrency + browser"
+    },
+    {
+      "id": "CON01-A08",
+      "name": "No implicit invocation",
+      "status": "partial_L1",
+      "required_evidence": "Database + runtime/provider-call spy"
+    },
+    {
+      "id": "CON01-A09",
+      "name": "Exact response correlation",
+      "status": "not_run",
+      "required_evidence": "Native/API + browser"
+    },
+    {
+      "id": "CON01-A10",
+      "name": "Runtime unavailable",
+      "status": "partial_L1",
+      "required_evidence": "Local runtime fault + UI"
+    },
+    {
+      "id": "CON01-A11",
+      "name": "Original destination",
+      "status": "not_run",
+      "required_evidence": "Concurrent browser + native"
+    },
+    {
+      "id": "CON01-A12",
+      "name": "Restart after admission",
+      "status": "partial_L1",
+      "required_evidence": "Controlled native/service restart"
+    },
+    {
+      "id": "CON01-A13",
+      "name": "Uncertain inference",
+      "status": "not_run",
+      "required_evidence": "Native adverse test + accounting"
+    },
+    {
+      "id": "CON01-A14",
+      "name": "Current mission",
+      "status": "not_run",
+      "required_evidence": "Database + native + app"
+    },
+    {
+      "id": "CON01-A15",
+      "name": "Real quick answers",
+      "status": "not_run",
+      "required_evidence": "Pinned native stub integration + separately real provider/app"
+    },
+    {
+      "id": "CON01-A16",
+      "name": "No mutation from conversation answer",
+      "status": "not_run",
+      "required_evidence": "Effective tool inspection + hostile prompt tests"
+    },
+    {
+      "id": "CON01-A17",
+      "name": "Summary coverage",
+      "status": "not_run",
+      "required_evidence": "Database + UI + inference counter"
+    },
+    {
+      "id": "CON01-A18",
+      "name": "Projection race",
+      "status": "not_run",
+      "required_evidence": "Database/native race test"
+    },
+    {
+      "id": "CON01-A19",
+      "name": "Source injection",
+      "status": "not_run",
+      "required_evidence": "Prompt boundary + API negative tests"
+    },
+    {
+      "id": "CON01-A20",
+      "name": "Decision actions retained",
+      "status": "partial_L1",
+      "required_evidence": "Existing decision tests + browser"
+    },
+    {
+      "id": "CON01-A21",
+      "name": "Output identity",
+      "status": "not_run",
+      "required_evidence": "Source/reader integration + browser"
+    },
+    {
+      "id": "CON01-A22",
+      "name": "Draft and held write",
+      "status": "partial_L1",
+      "required_evidence": "Browser adverse test"
+    },
+    {
+      "id": "CON01-A23",
+      "name": "Read errors independently",
+      "status": "partial_L1",
+      "required_evidence": "Browser/API fault test"
+    },
+    {
+      "id": "CON01-A24",
+      "name": "Mobile and accessibility",
+      "status": "partial_L1",
+      "required_evidence": "Actual browser at 390, 900/1000 and 1440 widths"
+    },
+    {
+      "id": "CON01-A25",
+      "name": "Privacy during read/stream",
+      "status": "partial_L1",
+      "required_evidence": "API/replay/native + browser"
+    },
+    {
+      "id": "CON01-A26",
+      "name": "Partial and cancelled replies",
+      "status": "not_run",
+      "required_evidence": "Native/result/API test"
+    },
+    {
+      "id": "CON01-A27",
+      "name": "No collateral regression",
+      "status": "not_run",
+      "required_evidence": "Existing relevant suites + smoke app checks"
+    },
+    {
+      "id": "CON01-A28",
+      "name": "Bounded context and spending",
+      "status": "not_run",
+      "required_evidence": "Long-context fixture + request/accounting inspection"
+    },
+    {
+      "id": "CON01-A29",
+      "name": "Rollback and erasure continuity",
+      "status": "partial_L1",
+      "required_evidence": "Release rehearsal + operator evidence"
+    },
+    {
+      "id": "CON01-A30",
+      "name": "Actual app non-fixture proof",
+      "status": "not_run",
+      "required_evidence": "Codex app/browser + authorized provider evidence"
+    },
+    {
+      "id": "CON01-A31",
+      "name": "Parallel ownership",
+      "status": "not_run",
+      "required_evidence": "Diff/artifact/coordination inspection"
+    }
+  ]
+}

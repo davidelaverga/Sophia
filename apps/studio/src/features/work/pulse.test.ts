@@ -45,3 +45,35 @@ describe('the work pulse folds repeats', () => {
     assert.equal(row?.at, t(12))
   })
 })
+
+describe('a command’s later events are not new requests (R-C75-UI-1)', () => {
+  const typed = (type: string, summaryCode: string, occurredAt: string): ProjectEvent => ({
+    ...event(summaryCode, occurredAt),
+    type,
+  })
+
+  it('one retirement is one request; its progress and its unconfirmed or refused stops say what they are', () => {
+    const progress = Array.from({ length: 17 }, () =>
+      typed('command.retirement_changed', 'command.retire_sessions', t(12)),
+    )
+    const rows = view([
+      typed('command.denied', 'command.stop', t(12)),
+      typed('command.outcome_unknown', 'command.stop', t(12)),
+      ...progress,
+      typed('command.admitted', 'command.retire_sessions', t(11)),
+    ])
+    assert.deepEqual(rows, [
+      'Stop not carried out ×1 @12',
+      'Stop not confirmed ×1 @12',
+      'Retirement of remaining sessions: session results updated ×17 @12',
+      'Retirement of remaining sessions requested ×1 @11',
+    ])
+  })
+
+  it('keeps every admission’s own words', () => {
+    assert.deepEqual(
+      view([typed('command.admitted', 'command.stop', t(1)), typed('command.admitted', 'command.hold', t(1))]),
+      ['Stop requested ×1 @01', 'Hold requested ×1 @01'],
+    )
+  })
+})
