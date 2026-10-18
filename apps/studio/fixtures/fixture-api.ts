@@ -195,6 +195,8 @@ interface Project {
   researching?: { reads: number } | null
   /** Reads of the research task fail (`window.fixture.failTask`), as an API that lost its database answers. */
   taskFails?: boolean
+  /** Reads of the research task are refused to this person (403), as after a revoked membership (`refuseTask`). */
+  taskRefused?: boolean
   /** A version's text arrives as bytes its record does not name (`tamper=text`). */
   textTampered: boolean
   /** Version 1 carries a designed HTML page (SDD-01, `designed=on`), and the research task lists it. */
@@ -1819,6 +1821,15 @@ function taskRead(project: Project): Response | Promise<Response> {
         : researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing),
     )
   served.push(`task:${String(project.taskRevision ?? 1)}`)
+  if (project.taskRefused) {
+    const body = {
+      code: 'forbidden',
+      message: 'Not permitted',
+      requestId: '00000000-0000-4000-8000-0000000000bd',
+      retry: 'never',
+    }
+    return new Response(JSON.stringify(body), { status: 403 })
+  }
   if (project.taskFails) {
     const body = {
       code: 'unavailable',
