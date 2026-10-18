@@ -6,7 +6,9 @@
 // viewer, whose Download saves the same bytes (without a viewer, it saves them); a task without one offers none.
 // The files come from the task's own record, read with this person's rights; until it is read, Open and Download keep
 // their place and the focus but do nothing (aria-disabled, never disabled).
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { ReportRefused } from '../artifacts/ReportRefused.tsx'
+import { useReportFence, type ReportOwner } from '../artifacts/report-read.ts'
 import { Icon } from '@sophia/ui'
 import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -36,9 +38,10 @@ type File = NonNullable<Delivered['primary']>
 type Show = (text: string, error?: boolean) => void
 
 /** Save one delivered file after its hash is checked, and say so (or why not). */
-async function save(token: string, file: File, show: Show): Promise<void> {
+async function save(token: string, file: File, show: Show, owner: ReportOwner | undefined): Promise<void> {
   try {
-    const saved = await downloadSource(token, file.sourceId, file.sha256)
+    // A delivered file of the task's report: its content read is that report's own (download.ts ownedContent).
+    const saved = await downloadSource(token, file.sourceId, file.sha256, undefined, owner)
     show(`Downloading ${saved.filename} · ${formatBytes(saved.byteLength)}`)
   } catch (err: unknown) {
     show(err instanceof Error ? err.message : 'The download didn’t start. Try again.', true)
@@ -47,45 +50,60 @@ async function save(token: string, file: File, show: Show): Promise<void> {
 
 export function NoticeCard(props: Props) {
   const { notice, identity } = props
-  const viewer = useDocumentViewer()
   const status = useTransientStatus()
-  const { artifactId, primary, markdown, page } = useDelivered(props)
-  const open = viewer && artifactId ? (file: File) => viewer.open(noticeOpenRequest(artifactId, file)) : null
+  const delivered = useDelivered(props)
+  const refused = useReportFence(delivered.artifactId ?? '')
   const title = noticeTitle(notice.taskKind)
-  const download = () => (primary ? save(identity.token, primary, status.show) : Promise.resolve())
   return (
     <div className="chat-notice" role="group" aria-label={title}>
       <p className="chat-notice-title">
         <Icon name="brief" />
         <strong>{title}</strong>
       </p>
-      <div className="chat-notice-actions">
-        <button type="button" onClick={() => primary && open?.(primary)} aria-disabled={!open || !primary || undefined}>
-          Open
-        </button>
-        <button type="button" className="ghost" onClick={() => void download()} aria-disabled={!primary || undefined}>
-          <Icon name="download" />
-          Download
-        </button>
-        {markdown && open && (
-          <button type="button" className="ghost" onClick={() => open(markdown)}>
-            Markdown
-          </button>
-        )}
-        {page && (
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => (open ? open(page) : void save(identity.token, page, status.show))}
-          >
-            HTML page
-          </button>
-        )}
-      </div>
+      {refused && delivered.artifactId ? (
+        <ReportRefused artifactId={delivered.artifactId} identity={identity} />
+      ) : (
+        <NoticeActions delivered={delivered} identity={identity} show={status.show} />
+      )}
       {/* There before it speaks: a live region added with its words is often not read. */}
       <p className="chat-status" role="status" data-error={status.error || undefined}>
         {status.text}
       </p>
+    </div>
+  )
+}
+
+/** Open, Download, Markdown and the HTML page of the task's report: each save is that report's own read. */
+function NoticeActions({ delivered, identity, show }: { delivered: Delivered; identity: Identity; show: Show }) {
+  const viewer = useDocumentViewer()
+  const client = useQueryClient()
+  const { artifactId, primary, markdown, page } = delivered
+  const owner = artifactId ? { client, artifactId } : undefined
+  const open = viewer && artifactId ? (file: File) => viewer.open(noticeOpenRequest(artifactId, file)) : null
+  const download = () => (primary ? save(identity.token, primary, show, owner) : Promise.resolve())
+  return (
+    <div className="chat-notice-actions">
+      <button type="button" onClick={() => primary && open?.(primary)} aria-disabled={!open || !primary || undefined}>
+        Open
+      </button>
+      <button type="button" className="ghost" onClick={() => void download()} aria-disabled={!primary || undefined}>
+        <Icon name="download" />
+        Download
+      </button>
+      {markdown && open && (
+        <button type="button" className="ghost" onClick={() => open(markdown)}>
+          Markdown
+        </button>
+      )}
+      {page && (
+        <button
+          type="button"
+          className="ghost"
+          onClick={() => (open ? open(page) : void save(identity.token, page, show, owner))}
+        >
+          HTML page
+        </button>
+      )}
     </div>
   )
 }

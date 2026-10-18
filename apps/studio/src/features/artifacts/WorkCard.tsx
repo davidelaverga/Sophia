@@ -123,8 +123,9 @@ function useOpen(artifactId: string | undefined): Open | null {
 }
 
 /** "Try PDF again" is offered to editors on a report missing its PDF, while that PDF is not already rendering again. */
-const offersRetry = (canAct: boolean, words: StateWords, research: ResearchProgress | undefined) =>
-  canAct && words.missing === 'pdf' && research !== undefined && !research.pdfRendering
+const offersRetry = (canAct: boolean, words: StateWords, research: ResearchProgress | undefined, refused: boolean) =>
+  // A rendition of the task's report: never offered while that report is refused to this person (report-read.ts).
+  canAct && !refused && words.missing === 'pdf' && research !== undefined && !research.pdfRendering
 
 /**
  * Named in the address (`#task-<id>`, as a line of Updates names it): the card takes the focus and comes into view,
@@ -148,7 +149,7 @@ export function WorkCard(props: Props) {
   const { refused, research, outputs, versions, words, current } = useResearch(props)
   const now = useNow()
   const open = useOpen(task.artifactId)
-  const retry = offersRetry(canAct, words, research)
+  const retry = offersRetry(canAct, words, research, refused)
   return (
     // The card takes the focus when a control inside it goes (Try PDF again, once the PDF renders again).
     <Card as="li" className="task work-card" data-state={words.state} data-task={task.id} tabIndex={-1}>
