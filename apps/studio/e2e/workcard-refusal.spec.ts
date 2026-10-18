@@ -71,3 +71,28 @@ test('work card · an ordinary 503 after an allowed read keeps its normal state,
   expect(s.refused).toBe(0)
   expect(s.state).not.toBe('refused')
 })
+
+test('work card · its HTML design child task refused: the row says only that refusal, never Designing; allowed again, it restores', async ({
+  page,
+}) => {
+  await page.goto('/room.html?place=work&design=designing')
+  const row = page.locator('.work-card .output-row[data-design]')
+  await expect(row).toContainText('HTML page · Designing', { timeout: 15_000 })
+  await page.evaluate(() => window.fixture?.failDesign('forbidden'))
+  await page.evaluate(() => window.fixture?.refetch(['native-task']))
+  await expect(row).toHaveAttribute('data-design', 'refused', { timeout: 15_000 })
+  const s = {
+    designing: await page.locator('.work-card').getByText('HTML page · Designing').count(),
+    refused: await row.getByText(REFUSED).count(),
+    tryAgain: await row.getByRole('button', { name: 'Try again' }).count(),
+    parentState: await card(page).getAttribute('data-state'),
+  }
+  console.log(`WORK-design-child refused ${JSON.stringify(s)}`)
+  expect(s).toEqual({ designing: 0, refused: 1, tryAgain: 1, parentState: s.parentState })
+  expect(s.parentState).not.toBe('refused')
+  await page.evaluate(() => window.fixture?.failDesign(false))
+  await row.getByRole('button', { name: 'Try again' }).press('Enter')
+  await expect(page.locator('.work-card .output-row[data-design]')).not.toHaveAttribute('data-design', 'refused', {
+    timeout: 15_000,
+  })
+})
