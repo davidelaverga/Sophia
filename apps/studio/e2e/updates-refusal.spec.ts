@@ -227,39 +227,41 @@ for (const status of [401, 403] as const) {
 // #391 4305867088: a refusal cached in the account's query cache is not recorded again when Updates mounts anew. The
 // remount's own first read (held until every effect has run, then answered 200) shows the digest and Mark as seen again,
 // with no second read, no Try again and no seen write.
-test('updates · a remount after a refusal: its first read answers 200 and restores the window, no second read or retry', async ({
-  page,
-}) => {
-  await page.goto(PAGE)
-  const since = page.locator(SINCE)
-  await expect(since.locator('li').first()).toBeVisible()
-  await observe(page, { status: 403, body: 'malformed' })
-  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
-  await expect(since).toContainText('What changed couldn’t be read.')
-  const views = page.getByRole('navigation', { name: 'Project views' })
-  await views.getByRole('link', { name: 'Goals' }).click()
-  await expect(page.locator(SINCE)).toHaveCount(0)
-  await page.evaluate(() => {
-    window.updatesHeld = []
-    if (window.updatesTrace) {
-      window.updatesTrace.control = 'hold'
-      window.updatesTrace.sinceReads = 0
-    }
+for (const status of [401, 403] as const) {
+  test(`updates · a remount after a refusal (${status}): its first reads answer 200 and restore the window, no further read or retry`, async ({
+    page,
+  }) => {
+    await page.goto(PAGE)
+    const since = page.locator(SINCE)
+    await expect(since.locator('li').first()).toBeVisible()
+    await observe(page, { status, body: 'malformed' })
+    await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+    await expect(since).toContainText('What changed couldn’t be read.')
+    const views = page.getByRole('navigation', { name: 'Project views' })
+    await views.getByRole('link', { name: 'Goals' }).click()
+    await expect(page.locator(SINCE)).toHaveCount(0)
+    await page.evaluate(() => {
+      window.updatesHeld = []
+      if (window.updatesTrace) {
+        window.updatesTrace.control = 'hold'
+        window.updatesTrace.sinceReads = 0
+      }
+    })
+    await views.getByRole('link', { name: 'Updates' }).click()
+    // The remount's reads (its query's, and again once the room's cursor arrives) are held while every effect runs.
+    await expect.poll(() => page.evaluate(() => window.updatesHeld?.length ?? 0)).toBeGreaterThan(0)
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 200))))
+    const held = await page.evaluate(() => {
+      if (window.updatesTrace) window.updatesTrace.control = 'pass'
+      const pending = window.updatesHeld?.splice(0) ?? []
+      for (const release of pending) release()
+      return pending.length
+    })
+    await expect(page.locator(SINCE).locator('li').first()).toBeVisible()
+    await expect(page.locator(SINCE).getByRole('button', { name: 'Mark as seen' })).toBeVisible()
+    await expect(page.locator(SINCE).getByRole('button', { name: 'Try again' })).toHaveCount(0)
+    // No read after the held ones: no refetch, no retry.
+    expect(await page.evaluate(() => window.updatesTrace?.sinceReads)).toBe(held)
+    expect(await seenWrites(page)).toBe(0)
   })
-  await views.getByRole('link', { name: 'Updates' }).click()
-  // The remount's reads (its query's, and again once the room's cursor arrives) are held while every effect runs.
-  await expect.poll(() => page.evaluate(() => window.updatesHeld?.length ?? 0)).toBeGreaterThan(0)
-  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 200))))
-  const held = await page.evaluate(() => {
-    if (window.updatesTrace) window.updatesTrace.control = 'pass'
-    const pending = window.updatesHeld?.splice(0) ?? []
-    for (const release of pending) release()
-    return pending.length
-  })
-  await expect(page.locator(SINCE).locator('li').first()).toBeVisible()
-  await expect(page.locator(SINCE).getByRole('button', { name: 'Mark as seen' })).toBeVisible()
-  await expect(page.locator(SINCE).getByRole('button', { name: 'Try again' })).toHaveCount(0)
-  // No read after the held ones: no refetch, no retry.
-  expect(await page.evaluate(() => window.updatesTrace?.sinceReads)).toBe(held)
-  expect(await seenWrites(page)).toBe(0)
-})
+}

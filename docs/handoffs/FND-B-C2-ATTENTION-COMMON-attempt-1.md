@@ -282,6 +282,16 @@ and other statuses are unchanged; the fence, retry, draft and restoration paths 
   to Goals and back; the remount's held reads are released after its effects run and answer 200, and the window and
   Mark as seen come back with no further read, no Try again and no seen write. The same case fails on 0cedd74c.
 
+## FND-B-COMMON-TWO-FOCUSED-HOLDS-01
+
+- reply-child live-home teardown: `teardown` releases every fixture-owned gate, then settles the read and the
+  reader's close within bounds (`settleWithin`, timer cleared); a close rejection is recorded, not swallowed; anything
+  unsettled or any handle left fails the case after its body. A control stalls the verification's first stat on a gate
+  the test owns: the entry wait times out, the read is reported unsettled within 200 ms, and the teardown then settles
+  everything. The old teardown shape hangs that control until an external cap. The production reader is unchanged;
+  Linux is unrun here.
+- The Updates remount case runs for 401 and 403; both fail on 0cedd74c.
+
 ## FND-B-COMMON-CURRENT-REVIEW-CORRECTION-01 on mentions (#409 4305869903)
 
 - A seen write for a mention that fails is tried again while the same occurrence stays readable where it is: at most
