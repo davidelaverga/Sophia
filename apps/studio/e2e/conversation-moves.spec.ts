@@ -95,3 +95,22 @@ test('moves · Alt+↓ and Alt+↑ go along the list as shown', async ({ page })
   await page.keyboard.press('Alt+ArrowDown')
   await expect(heading(page)).toHaveText('Test data for the first release')
 })
+
+test('moves · a report beside the conversation keeps Alt+↓ to itself; from the view the move still goes (Codex P2 on #382)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 800 })
+  await page.goto(PAGE)
+  await expect(heading(page)).toHaveText('What makes a report worth reading?')
+  await open(page).locator('.conv-output').first().click()
+  const title = page.locator('.report-pane #report-pane-title')
+  await expect(title).toBeFocused()
+  await page.keyboard.press('Alt+ArrowDown')
+  // Two frames: where a move would have handed the focus to the row.
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
+  await expect(heading(page)).toHaveText('What makes a report worth reading?')
+  await expect(title).toBeFocused()
+  await rows(page).first().focus()
+  await page.keyboard.press('Alt+ArrowDown')
+  await expect(heading(page)).toHaveText('Short or long briefs?')
+})
