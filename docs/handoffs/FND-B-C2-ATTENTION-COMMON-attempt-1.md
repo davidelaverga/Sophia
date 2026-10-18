@@ -268,6 +268,20 @@ and other statuses are unchanged; the fence, retry, draft and restoration paths 
   older read answering after a refusal, the same mark after a remount, another account's own scope, and a read since
   restoring the rows. `home-needs-refusal.spec.ts` adds a 503 with no refusal before it, which keeps the rows.
 
+## FND-B-COMMON-CURRENT-REVIEW-CORRECTION-01
+
+- The reply-child live-home case that failed on the 409 Linux runner (run 39100260766, job 117595744173,
+  `until(() => entered)`) now waits on an explicit signal from the journal read itself, with a 5 s wall-clock bound,
+  raced against the read ending first. On timeout it reports the verification stages it saw and the open handles. The
+  held read is always released and settled, every ownership and close assertion is kept, and the production reader is
+  unchanged. Two controls: a pre-read verification slowed past 200 event-loop turns still reaches the read by its
+  signal, and a verification refusal ends the read before the journal read with every handle closed. The focused Linux
+  reproduction did not run (no local Linux).
+- Updates (#391 4305867088): the effect that recorded a refusal again from a cached error on mount is gone. The query
+  function's synchronous keep is now the only writer. `updates-refusal.spec.ts` covers a prior success, a 403, then away
+  to Goals and back; the remount's held reads are released after its effects run and answer 200, and the window and
+  Mark as seen come back with no further read, no Try again and no seen write. The same case fails on 0cedd74c.
+
 ## Next bounded action
 
 B's private handback goes to P; R reviews this integration. No push until P selects one publication.

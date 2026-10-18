@@ -11,7 +11,7 @@ const PAGE = '/room.html?demo=1&place=updates'
 const SINCE = 'section[aria-labelledby="since-title"]'
 const PROTECTED = [`${SINCE} li`, `${SINCE} h4`, `${SINCE} .recap-acts button`]
 
-type Control = 'pass' | '503' | { status: 401 | 403; body: 'delayed' | 'malformed' }
+type Control = 'pass' | 'hold' | '503' | { status: 401 | 403; body: 'delayed' | 'malformed' }
 interface Trace {
   denials: { id: number; path: string; at: number }[]
   hits: { afterMs: number; what: string }[]
@@ -19,73 +19,92 @@ interface Trace {
   /** rAF callbacks after the first refusal reached the app. */
   postFrames: number
   seenWrites: number
+  /** «since» reads the page asked for. */
+  sinceReads: number
 }
 declare global {
   interface Window {
     updatesTrace?: Trace & { stop: boolean; control: Control }
     heldDelivery?: { held: (() => void)[]; release: () => void }
+    updatesHeld?: (() => void)[]
   }
 }
 
-async function observe(page: Page, control: Control) {
-  await page.evaluate(
-    ({ first, selectors }) => {
-      const trace: Trace & { stop: boolean; control: Control } = {
-        denials: [],
-        hits: [],
-        frames: 0,
-        postFrames: 0,
-        seenWrites: 0,
-        stop: false,
-        control: first,
-      }
-      window.updatesTrace = trace
-      let seq = 0
-      const inner = window.fetch
-      window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-        const id = ++seq
-        const path = new URL(input instanceof Request ? input.url : String(input), location.href).pathname
-        const method = init?.method ?? 'GET'
-        if (method === 'PUT' && path.endsWith('/seen')) trace.seenWrites++
-        if (!path.endsWith('/since') || method !== 'GET') return inner(input, init)
-        const c = trace.control
-        if (c === 'pass') return inner(input, init)
-        if (c === '503') return Response.json({ code: 'http_503' }, { status: 503 })
-        if (c.body === 'malformed') {
-          trace.denials.push({ id, path, at: performance.now() })
-          return new Response('<html>refused</html>', { status: c.status })
-        }
-        const slow = new ReadableStream<Uint8Array>({
-          async start(controller) {
-            await new Promise((resolve) => setTimeout(resolve, 300))
-            controller.enqueue(new TextEncoder().encode('{"code":"forbidden","message":"Not permitted"}'))
-            controller.close()
-          },
-        })
-        trace.denials.push({ id, path, at: performance.now() })
-        return new Response(slow, { status: c.status, headers: { 'content-type': 'application/json' } })
-      }
-      const tick = () => {
-        if (trace.stop) return
-        trace.frames++
-        const firstDenial = trace.denials[0]
-        if (firstDenial) {
-          trace.postFrames++
-          const now = performance.now()
-          for (const selector of selectors) {
-            const shown = [...document.querySelectorAll(selector)].some((el) => {
-              const style = getComputedStyle(el)
-              return el.getClientRects().length > 0 && style.visibility !== 'hidden' && style.display !== 'none'
+/** The «since» reads, as the control asks: each refusal stamped as its Response is handed to the app. */
+async function controlSince(page: Page, control: Control) {
+  await page.evaluate((first) => {
+    const trace: Trace & { stop: boolean; control: Control } = {
+      denials: [],
+      hits: [],
+      frames: 0,
+      postFrames: 0,
+      seenWrites: 0,
+      sinceReads: 0,
+      stop: false,
+      control: first,
+    }
+    window.updatesTrace = trace
+    let seq = 0
+    const inner = window.fetch
+    const refused = (id: number, path: string, c: { status: 401 | 403; body: 'delayed' | 'malformed' }) => {
+      const body =
+        c.body === 'malformed'
+          ? '<html>refused</html>'
+          : new ReadableStream<Uint8Array>({
+              async start(controller) {
+                await new Promise((resolve) => setTimeout(resolve, 300))
+                controller.enqueue(new TextEncoder().encode('{"code":"forbidden","message":"Not permitted"}'))
+                controller.close()
+              },
             })
-            if (shown) trace.hits.push({ afterMs: Math.round((now - firstDenial.at) * 10) / 10, what: selector })
-          }
+      trace.denials.push({ id, path, at: performance.now() })
+      return new Response(body, { status: c.status, headers: { 'content-type': 'application/json' } })
+    }
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const id = ++seq
+      const path = new URL(input instanceof Request ? input.url : String(input), location.href).pathname
+      const method = init?.method ?? 'GET'
+      if (method === 'PUT' && path.endsWith('/seen')) trace.seenWrites++
+      if (!path.endsWith('/since') || method !== 'GET') return inner(input, init)
+      trace.sinceReads++
+      const c = trace.control
+      if (c === 'pass') return inner(input, init)
+      if (c === 'hold') return new Promise<void>((r) => window.updatesHeld?.push(r)).then(() => inner(input, init))
+      if (c === '503') return Response.json({ code: 'http_503' }, { status: 503 })
+      return refused(id, path, c)
+    }
+  }, control)
+}
+
+/** From the first refusal on, each animation frame records any protected element laid out and visible. */
+async function watchFrames(page: Page) {
+  await page.evaluate((selectors) => {
+    const trace = window.updatesTrace
+    if (!trace) throw new Error('controlSince first')
+    const tick = () => {
+      if (trace.stop) return
+      trace.frames++
+      const firstDenial = trace.denials[0]
+      if (firstDenial) {
+        trace.postFrames++
+        const now = performance.now()
+        for (const selector of selectors) {
+          const shown = [...document.querySelectorAll(selector)].some((el) => {
+            const style = getComputedStyle(el)
+            return el.getClientRects().length > 0 && style.visibility !== 'hidden' && style.display !== 'none'
+          })
+          if (shown) trace.hits.push({ afterMs: Math.round((now - firstDenial.at) * 10) / 10, what: selector })
         }
-        requestAnimationFrame(tick)
       }
       requestAnimationFrame(tick)
-    },
-    { first: control, selectors: PROTECTED },
-  )
+    }
+    requestAnimationFrame(tick)
+  }, PROTECTED)
+}
+
+async function observe(page: Page, control: Control) {
+  await controlSince(page, control)
+  await watchFrames(page)
 }
 
 const setControl = (page: Page, control: Control) =>
@@ -204,3 +223,43 @@ for (const status of [401, 403] as const) {
     expect(await seenWrites(page), 'reading never marks seen').toBe(0)
   })
 }
+
+// #391 4305867088: a refusal cached in the account's query cache is not recorded again when Updates mounts anew. The
+// remount's own first read (held until every effect has run, then answered 200) shows the digest and Mark as seen again,
+// with no second read, no Try again and no seen write.
+test('updates · a remount after a refusal: its first read answers 200 and restores the window, no second read or retry', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  const since = page.locator(SINCE)
+  await expect(since.locator('li').first()).toBeVisible()
+  await observe(page, { status: 403, body: 'malformed' })
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+  await expect(since).toContainText('What changed couldn’t be read.')
+  const views = page.getByRole('navigation', { name: 'Project views' })
+  await views.getByRole('link', { name: 'Goals' }).click()
+  await expect(page.locator(SINCE)).toHaveCount(0)
+  await page.evaluate(() => {
+    window.updatesHeld = []
+    if (window.updatesTrace) {
+      window.updatesTrace.control = 'hold'
+      window.updatesTrace.sinceReads = 0
+    }
+  })
+  await views.getByRole('link', { name: 'Updates' }).click()
+  // The remount's reads (its query's, and again once the room's cursor arrives) are held while every effect runs.
+  await expect.poll(() => page.evaluate(() => window.updatesHeld?.length ?? 0)).toBeGreaterThan(0)
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 200))))
+  const held = await page.evaluate(() => {
+    if (window.updatesTrace) window.updatesTrace.control = 'pass'
+    const pending = window.updatesHeld?.splice(0) ?? []
+    for (const release of pending) release()
+    return pending.length
+  })
+  await expect(page.locator(SINCE).locator('li').first()).toBeVisible()
+  await expect(page.locator(SINCE).getByRole('button', { name: 'Mark as seen' })).toBeVisible()
+  await expect(page.locator(SINCE).getByRole('button', { name: 'Try again' })).toHaveCount(0)
+  // No read after the held ones: no refetch, no retry.
+  expect(await page.evaluate(() => window.updatesTrace?.sinceReads)).toBe(held)
+  expect(await seenWrites(page)).toBe(0)
+})

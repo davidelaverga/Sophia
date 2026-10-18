@@ -3,7 +3,7 @@
 // the fixture pages answer, or the attention flag, where A34 serves the digest: the meetings only under the vision flag
 // (ProjectShell decides); elsewhere Updates is still «Coming» (PendingView).
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { useCallback, useState, useSyncExternalStore } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { Button, Icon, Menu, MenuItem, Segmented, usePopover, type SegmentedItem } from '@sophia/ui'
 import { ApiError } from '../../api/client.ts'
@@ -84,7 +84,7 @@ const sinceRefusedKey = (projectId: string) => ['vision', 'since-refused', proje
  * taken when the refusal is seen; never the clock); 0 when never. Kept in the account's query cache (one per account,
  * app/account-cache.ts), so another view and back keeps it (R-C2-READ-01).
  */
-function useSinceRefused(projectId: string, since: { error: unknown; errorUpdateCount: number }): number {
+function useSinceRefused(projectId: string): number {
   const client = useQueryClient()
   useQuery({
     queryKey: sinceRefusedKey(projectId),
@@ -100,11 +100,8 @@ function useSinceRefused(projectId: string, since: { error: unknown; errorUpdate
     useCallback((changed: () => void) => client.getQueryCache().subscribe(changed), [client]),
     () => client.getQueryData<number>(sinceRefusedKey(projectId)) ?? 0,
   )
-  const refused = closedDoor(since.error)
-  useEffect(() => {
-    // Each refusal seen (the count only tells one from the next): later than every read set out before it.
-    if (refused) sinceRefusedNow(client, projectId)
-  }, [client, projectId, refused, since.errorUpdateCount])
+  // A refusal is kept once, as its own read learns it (the query function, sinceRefusedNow): never again from a cached
+  // error a remount observes, which would come after the remount's own recovery read and hide its answer (#391 4305867088).
   return refusedAt
 }
 
@@ -129,7 +126,7 @@ function SinceYouLooked({ projectId, identity, cursor, me }: SinceProps) {
     placeholderData: keepPreviousData,
     retry: false,
   })
-  const refusedAt = useSinceRefused(projectId, since)
+  const refusedAt = useSinceRefused(projectId)
   const shown = shownSince(since.data, since.isError && closedDoor(since.error), refusedAt)
   return (
     <section className="updates-part" aria-labelledby="since-title">
