@@ -293,7 +293,6 @@ export class LightEngine {
     return { x: this.pointer.x - at.left, y: this.pointer.y - at.top }
   }
 
-  /** The floor travels from one person, through Sophia, to the next. */
   /** A result arrived (orb-result.md): one soft bloom, under full motion only. */
   arrive(): void {
     if (!this.reduced) this.bloomAt = performance.now() / 1000
@@ -306,6 +305,7 @@ export class LightEngine {
     return 0.6 * Math.sin((Math.PI * at) / BLOOM_S)
   }
 
+  /** The floor travels from one person, through Sophia, to the next. */
   handoff(from: Point, to: Point): void {
     this.handoffState = { from, to, started: performance.now() / 1000 }
   }

@@ -207,12 +207,6 @@ export const WORKING_PHASES: ReadonlySet<NativeTask['phase']> = new Set([
 ])
 
 /**
- * Work in progress, counted once per goal: what the light's work line and Sophia's note count. A native task
- * (a brief) has its own goal, so its goal and its task are one piece of work, not two. A goal with a task is
- * working only while its task is: a finished brief leaves its goal `checking`, its result waiting for review,
- * and that is not work in progress (CX-0061).
- */
-/**
  * The tasks whose result arrived since `before` (orb-result.md): at work then, with their result ready now. The first look
  * (no `before`) arrives nothing: what was finished when the room opened is not news.
  */
@@ -222,6 +216,12 @@ export function arrivedResults(before: Snapshot['work'] | null, now: Snapshot['w
   return now.filter((t) => t.phase === 'result_ready' && working.has(t.id)).map((t) => t.id)
 }
 
+/**
+ * Work in progress, counted once per goal: what the light's work line and Sophia's note count. A native task
+ * (a brief) has its own goal, so its goal and its task are one piece of work, not two. A goal with a task is
+ * working only while its task is: a finished brief leaves its goal `checking`, its result waiting for review,
+ * and that is not work in progress (CX-0061).
+ */
 export function runningWork(snapshot: Pick<Snapshot, 'goals' | 'work'> | undefined): number {
   if (!snapshot) return 0
   const withTask = new Set(snapshot.work.map((task) => task.goalId))
