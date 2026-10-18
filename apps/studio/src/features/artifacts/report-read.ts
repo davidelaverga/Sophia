@@ -64,6 +64,13 @@ export async function ownedReportRead<T>(owner: ReportOwner, read: () => Promise
 /** Whether the report is fenced: refused since its newest allowed read. */
 export const fenced = (fence: ReportFence): boolean => fence.refusedAt > fence.allowedFrom
 
+/**
+ * Whether the report is fenced NOW in the cache of the account that began an operation (`owner`, taken before its first
+ * await): read synchronously, at the very moment of a report-owned side effect such as a save.
+ */
+export const fencedNow = ({ client, artifactId }: ReportOwner): boolean =>
+  fenced(client.getQueryData<ReportFence>(reportFenceKey(artifactId)) ?? NONE)
+
 /** The report's fence as this account's cache keeps it; never fenced before any refusal. Only read here. */
 export function useReportFence(artifactId: string): boolean {
   return fenced(
