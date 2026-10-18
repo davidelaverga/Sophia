@@ -287,4 +287,95 @@ describe('runtime service crossing (real API, PostgreSQL, worker, pinned dsh)', 
     assert.equal(task.task.id, receipt.taskId)
     assert.equal(task.task.attemptId, receipt.attemptId, 'the same attempt, not a new one')
   })
+
+  // 0075/A41: a project admin retires the sessions still attached to a COMPLETED goal. The goal's completion is a
+  // LABELLED owner-written fixture (a completed goal whose session is still live is the residue this control exists for);
+  // everything else is the real member API, database, worker dispatch, runtime transport, pinned dsh bridge and receipts.
+  const LIVE = 'stopped; the native driver is idle and the handle is released'
+  const RESTOP = 'stopped; the stopped epoch stands'
+  const complete = (w, goalId) =>
+    owner(`UPDATE sophia.goals SET status='completed', state_revision=state_revision+1 WHERE project_id=$1 AND id=$2`, [w.project.projectId, goalId])
+  const retire = (w, goalId, key = crypto.randomUUID()) =>
+    api(A, 'POST', `/api/v1/projects/${w.project.projectId}/commands`, {
+      kind: 'retire_sessions', goalId, expectedGoalRevision: 1, expectedAuthorityEpoch: 1, bodySourceId: null,
+    }, key)
+  const snapshotGoal = async (actor, w, goalId) =>
+    (await api(actor, 'GET', `/api/v1/projects/${w.project.projectId}/snapshot`)).json.goals.find((g) => g.id === goalId)
+  const stopReceipts = (attemptId) =>
+    owner(`SELECT rr.stage, rr.reason, rc.authority_epoch::int AS epoch FROM sophia.runtime_receipts rr
+      JOIN sophia.runtime_commands rc ON rc.project_id=rr.project_id AND rc.id=rr.runtime_command_id
+      JOIN sophia.commands c ON c.project_id=rc.project_id AND c.id=rc.command_id
+      WHERE rc.attempt_id=$1 AND rc.kind='stop' AND c.kind='retire_sessions' ORDER BY rr.recorded_at`, [attemptId])
+
+  test('A41: retiring a completed goal fences its live session through the real bridge; a restart does not revive it', async (t) => {
+    const w = await world(t)
+    w.llm.script({ text: 'still streaming after completion', chunks: 60, delayMs: 100 })
+    await w.start()
+    await w.ready()
+    const input = await w.say('Input for the retirement test.')
+    const receipt = await admitBrief(w, [input.contributionId])
+    await w.until(() => w.llm.active > 0, 'the live model stream')
+    await complete(w, receipt.goalId) // FIXTURE: completed, its session still live
+    const editor = await api(E, 'POST', `/api/v1/projects/${w.project.projectId}/commands`, {
+      kind: 'retire_sessions', goalId: receipt.goalId, expectedGoalRevision: 1, expectedAuthorityEpoch: 1, bodySourceId: null,
+    }, crypto.randomUUID())
+    assert.equal(editor.status, 403, 'an editor never retires')
+    const admitted = await retire(w, receipt.goalId)
+    assert.equal(admitted.status, 202, JSON.stringify(admitted.json))
+    assert.deepEqual(admitted.json.targets.map((x) => x.attemptId), [receipt.attemptId])
+    const checked = await w.until(async () => {
+      const rows = await stopReceipts(receipt.attemptId)
+      return rows.find((r) => r.stage === 'checked')
+    }, 'the bridge’s checked stop')
+    assert.deepEqual([checked.reason, checked.epoch], [LIVE, 2], 'the live fence: cancelled, idle within its bound, handle released')
+    const calls = w.llm.requests.length
+    await sleep(1500)
+    assert.equal(w.llm.requests.length, calls, 'nothing runs after the retirement')
+    const goal = await w.until(async () => {
+      const g = await snapshotGoal(A, w, receipt.goalId)
+      return g?.retirement?.state === 'checked' && g
+    }, 'the retirement settled in the admin’s snapshot')
+    assert.deepEqual([goal.status, goal.revision, goal.authorityEpoch], ['completed', 1, 2])
+    assert.deepEqual(goal.retirement.targets.map((x) => [x.attemptId, x.result, x.stage]), [[receipt.attemptId, 'live_reported', 'checked']])
+    assert.equal((await snapshotGoal(E, w, receipt.goalId)).retirement, undefined, 'the editor reads no retirement')
+    // A restart: the settled session is no longer the runtime's to recover, and nothing runs again.
+    await w.stop('SIGKILL')
+    await w.start()
+    await w.ready()
+    await sleep(1000)
+    assert.doesNotMatch(w.stderr(), new RegExp(`reconciled ${receipt.attemptId}: fence=active`))
+    assert.equal(w.llm.requests.length, calls, 'nothing runs after the restart either')
+  })
+
+  test('A41: a retirement admitted while the runtime is down reaches it after a restart as a durable restop', async (t) => {
+    const w = await world(t)
+    w.llm.script({ text: 'interrupted by a crash', chunks: 60, delayMs: 100 })
+    await w.start()
+    await w.ready()
+    const input = await w.say('Input for the restop test.')
+    const receipt = await admitBrief(w, [input.contributionId])
+    await w.until(() => w.llm.active > 0, 'the live model stream')
+    // Hold dispatch so the stop cannot be sent to the dead runtime's lease; a fresh dispatcher resumes it below.
+    await dispatcher.stop()
+    await w.stop('SIGKILL')
+    await complete(w, receipt.goalId) // FIXTURE: completed while its session's runtime is down
+    const admitted = await retire(w, receipt.goalId)
+    assert.equal(admitted.status, 202, JSON.stringify(admitted.json))
+    await w.start()
+    await w.ready()
+    // The retirement's fence held for the restarted bridge: hello said stopped, so the bridge fenced the attempt and
+    // never loaded its session (control-bridge reconcile: a stopped binding is not resumed and logs nothing).
+    await sleep(500)
+    assert.doesNotMatch(w.stderr(), new RegExp(`reconciled ${receipt.attemptId}: fence=active`))
+    dispatcher = new s.worker.RuntimeDispatcher(workerPool, { workerId: 'crossing-worker-2', idleMs: 250 })
+    dispatcher.start()
+    const checked = await w.until(async () => (await stopReceipts(receipt.attemptId)).find((r) => r.stage === 'checked'), 'the restop')
+    assert.deepEqual([checked.reason, checked.epoch], [RESTOP, 2], 'durable only: no live handle to idle')
+    const goal = await w.until(async () => {
+      const g = await snapshotGoal(A, w, receipt.goalId)
+      return g?.retirement?.state === 'checked' && g
+    }, 'the retirement settled in the admin’s snapshot')
+    assert.deepEqual(goal.retirement.targets.map((x) => [x.result, x.reason]), [['durable_only', RESTOP]])
+    assert.equal(goal.status, 'completed')
+  })
 })

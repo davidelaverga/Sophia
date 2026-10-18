@@ -1,5 +1,7 @@
+// First: the ear for a new version, before the eager imports below can ask for a part that is gone (new-version.md).
+import { newVersion } from './new-version-early.ts'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState, type ComponentProps } from 'react'
 import { draftsOnlyOf, forgetDrafts } from '../features/personal/draft.ts'
 import { cacheFor, cacheOf } from './account-cache.ts'
 import { accountOf } from './auth-callback.ts'
@@ -158,14 +160,39 @@ const forgetAllDrafts = () => {
  * parameter: the join page hands Sign out straight to a button, whose click would read as «everywhere».
  */
 const leaving =
-  (queryClient: ReturnType<typeof useAccountCache>, signedInAs: string | null) => (end: () => Promise<void>) => () => {
+  (queryClient: ReturnType<typeof useAccountCache>, signedInAs: string | null) =>
+  (end: () => Promise<void>) =>
+  async (): Promise<boolean> => {
     setSignedIn(null)
     queryClient.clear()
     forgetUnderWay()
     forgetPendingUnlock()
-    // A sign-out that fails leaves the person in: their writes are theirs again.
-    void signOutForgetting(end, forgetAllDrafts).catch(() => setSignedIn(signedInAs))
+    // A sign-out that fails leaves the person in: their writes are theirs again, and SignedIn says so (false).
+    try {
+      await signOutForgetting(end, forgetAllDrafts)
+      return true
+    } catch {
+      setSignedIn(signedInAs)
+      return false
+    }
   }
+
+/** An invitation's page, which handles its own sign-in (JoinFlow), with the app's reads and its failure guard. */
+function JoinPage(props: {
+  queryClient: ReturnType<typeof useAccountCache>
+  join: Omit<ComponentProps<typeof JoinFlow>, 'onSignOut'>
+  onSignOut: () => void
+}) {
+  return (
+    <QueryClientProvider client={props.queryClient}>
+      <LoadFailed>
+        <Suspense fallback={<Centered title="Opening the room…" busy />}>
+          <JoinFlow {...props.join} onSignOut={props.onSignOut} />
+        </Suspense>
+      </LoadFailed>
+    </QueryClientProvider>
+  )
+}
 
 function AppBody() {
   const { state, chooseDev, signOut, signOutEverywhere, acceptLink, declineLink } = useAuth()
@@ -196,15 +223,8 @@ function AppBody() {
   // An invitation link works before, during and after sign-in: it handles its own. A sign-in link's question
   // ("Continue as …?") still comes first there, so the session it carries is accepted or declined, never lost.
   if (joinPage) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <LoadFailed>
-          <Suspense fallback={<Centered title="Opening the room…" busy />}>
-            <JoinFlow auth={state} onChooseDev={switchIdentity} onSignOut={leaveSession} onOpenProject={routing.open} />
-          </Suspense>
-        </LoadFailed>
-      </QueryClientProvider>
-    )
+    const join = { auth: state, onChooseDev: switchIdentity, onOpenProject: routing.open }
+    return <JoinPage queryClient={queryClient} join={join} onSignOut={() => void leaveSession()} />
   }
   if (state.status === 'loading') return <Centered title="Sophia" busy />
   if (state.status === 'link_offer') {
@@ -238,7 +258,7 @@ export function App() {
   return (
     <>
       <AppBody />
-      <NewVersion />
+      <NewVersion signal={newVersion} />
     </>
   )
 }

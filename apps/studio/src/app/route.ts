@@ -8,16 +8,19 @@ export type View = (typeof VIEWS)[number]
 
 /**
  * Views not served yet outside the vision flag: Conversations (A18, Davide's chapter 2), Updates (A12/A13) and Resources
- * (the resources' API). Under the flag (the demo, the fixtures) they show from their fixture data.
+ * (the resources' API). Under the flag (the demo, the fixtures) they show from their fixture data. Saved conversations
+ * (CON-01, A33) are served on their own where the build turns them on (app/vision.ts CONVERSATIONS); that turns on
+ * nothing else unserved.
  */
 const UNSERVED: readonly View[] = ['conversations', 'updates', 'resources']
 
 /** The views a project's nav shows: only the served ones, every one under the vision flag (docs/plans/served-views.md). */
-export const viewsShown = (vision: boolean): readonly View[] =>
-  vision ? VIEWS : VIEWS.filter((v) => !UNSERVED.includes(v))
+export const viewsShown = (vision: boolean, conversations: boolean = vision): readonly View[] =>
+  vision ? VIEWS : VIEWS.filter((v) => !UNSERVED.includes(v) || (v === 'conversations' && conversations))
 
 /** The view an address opens: itself when shown, else the project's Studio, never a «Coming» page. */
-export const shownView = (view: View, vision: boolean): View => (viewsShown(vision).includes(view) ? view : 'studio')
+export const shownView = (view: View, vision: boolean, conversations: boolean = vision): View =>
+  viewsShown(vision, conversations).includes(view) ? view : 'studio'
 
 /** Outside a project: the two doors (home), the personal space and the work space (A10, direction C). */
 export const PLACES = ['home', 'personal', 'work'] as const

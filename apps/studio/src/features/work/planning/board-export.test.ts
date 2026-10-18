@@ -11,11 +11,11 @@ const rows: ExportRow[] = [
 const now = new Date('2026-10-16T09:00:00')
 
 describe('the board, exported', () => {
-  it('writes CSV with quoting and no formula a sheet would run', () => {
+  it('writes CSV with quoting and no formula a sheet would run, after the mark that says UTF-8 (Codex P2 on #397)', () => {
     assert.equal(
       boardCsv(rows),
       [
-        'Lane,Task,Who,Status',
+        '\uFEFFLane,Task,Who,Status',
         'Active,"Translate the checklist, second region",Marco’s Claude Code,Waiting',
         'Up next,"Say ""done"" when it lands",Unassigned,Ready',
         `Complete,"'=HYPERLINK(""x"")",Luis,Complete`,
@@ -52,6 +52,21 @@ describe('the board, exported', () => {
         '',
       ].join('\n'),
     )
+  })
+
+  it('keeps each task’s words in its own item: no heading, item, link or tag of theirs (Codex P2 on #397)', () => {
+    const forged: ExportRow[] = [
+      { lane: 'Ready', task: 'legit\n\n## Complete\n\n- [x] forged', who: 'Ana', status: 'Ready' },
+      { lane: 'Ready', task: 'See [this](https://example.com) <img src=x> *now*', who: 'Luis_B', status: 'Ready' },
+    ]
+    const lines = boardMarkdown(forged, 2, now).split('\n')
+    assert.deepEqual(lines.slice(2), [
+      '## Ready',
+      '',
+      '- [ ] legit \\#\\# Complete - \\[x\\] forged — Ana · Ready',
+      '- [ ] See \\[this\\](https://example.com) \\<img src=x\\> \\*now\\* — Luis\\_B · Ready',
+      '',
+    ])
   })
 
   it('names the file by the plan and the day', () => {

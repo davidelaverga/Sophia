@@ -1,0 +1,96 @@
+{
+  "id": "A35",
+  "goal": "CON-01",
+  "title": "Conversation execution provenance: the original execution mode, route and executor artifact of a reply attempt, and the executor a runtime receipt claims",
+  "why": [
+    "A reply attempt's create body is scrubbed at its end, and its grant, runtime unit and hello change; none of them can say afterwards whether it ran in-process as a no-home service call or as a native child. The server now keeps, per attempt and immutably, the {execution, routeId, executorArtifactDigest} it dispatched under (migration 0067), and projects it to the runtime (FND-B2, V's provenance disposition).",
+    "A service attempt's create payload carries that tuple (payload.conversation.execution), so the executor compares it with its own installed, pinned service-only closure before anything runs.",
+    "The recovery binding of a service attempt carries the same tuple (provenance), so a fresh process can tell its own attempt from a native or unknown one; absent means native or unknown, never service.",
+    "A runtime receipt may state the executor that sends it (executor). It is a claim, checked by the server against its own stored provenance, never a source of it: a service attempt's checked retire requires the exact service tuple; a native or unknown attempt refuses a service claim. Native receipts without the field are unchanged."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/RuntimeCommand/oneOf/1/properties/payload/properties/conversation/properties/execution",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "execution": {
+            "const": "service"
+          },
+          "routeId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$"
+          },
+          "executorArtifactDigest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": ["execution", "routeId", "executorArtifactDigest"],
+        "description": "A service attempt's original execution tuple, from the server's provenance (0067). Absent for a native attempt."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RuntimeServiceBinding/oneOf/1/properties/provenance",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "execution": {
+            "const": "service"
+          },
+          "routeId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$"
+          },
+          "executorArtifactDigest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": ["execution", "routeId", "executorArtifactDigest"],
+        "description": "A service attempt's original execution tuple, as the server kept it at dispatch. Absent: native or unknown."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RuntimeReceipt/properties/executor",
+      "value": {
+        "description": "The executor sending this receipt, as it claims to be; the server checks it against its stored provenance for a conversation attempt. Absent: as before this amendment.",
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "execution": {
+                "const": "service"
+              },
+              "routeId": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$"
+              },
+              "executorArtifactDigest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": ["execution", "routeId", "executorArtifactDigest"]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "execution": {
+                "const": "native"
+              }
+            },
+            "required": ["execution"]
+          }
+        ]
+      }
+    }
+  ]
+}
