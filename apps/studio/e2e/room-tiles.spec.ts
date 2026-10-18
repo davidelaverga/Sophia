@@ -152,6 +152,50 @@ for (const width of [320, 390, 820]) {
   })
 }
 
+/** Your own tile, and hiding it from your view (room-basics.md): «Your tile is hidden» stands in its place. */
+const mine = (page: Page) => room(page).locator('li.tile', { has: page.locator('[data-mark="you"]') })
+async function hideMine(page: Page) {
+  await mine(page).hover()
+  await mine(page).getByRole('button', { name: 'Hide my tile' }).click()
+  await expect(room(page).locator('.tile-hidden-self')).toBeVisible()
+}
+
+test('tiles · a gallery of eleven others, your tile hidden: still nine tiles, its place one of them (Codex P2 on #380)', async ({
+  page,
+}) => {
+  await enter(page, 'people=11&video=camera')
+  await hideMine(page)
+  await expect(tiles(page)).toHaveCount(9)
+  await expect(room(page)).toHaveAttribute('data-count', '9')
+  await expect(more(page)).toHaveText('+5')
+})
+
+test('tiles · on a phone beside a shown screen, your tile hidden: five tiles on one row (Codex P2 on #380)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await enter(page, 'people=9&video=screen')
+  await hideMine(page)
+  await expect(tiles(page)).toHaveCount(5)
+  await expect(more(page)).toHaveText('+7')
+  // At rest (a tile arriving rises a few px): one row.
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished),
+    ),
+  )
+  const tops = await tiles(page).evaluateAll((all) => all.map((el) => el.getBoundingClientRect().top))
+  expect(Math.max(...tops) - Math.min(...tops)).toBeLessThanOrEqual(1)
+  // «Your tile is hidden» fits a fifth of a phone: nothing of it cut, Show whole, its words still said.
+  const place = room(page).locator('.tile-hidden-self')
+  expect(await place.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1)
+  await expect(place.getByRole('button', { name: 'Show' })).toBeInViewport({ ratio: 1 })
+  await expect(place).toContainText('Your tile is hidden')
+})
+
 /** What a screen reader is given for a tile's label (its accessibility tree, not its text nodes). */
 const said = (page: Page, name: string) => room(page).locator('.tile-name').filter({ hasText: name }).ariaSnapshot()
 

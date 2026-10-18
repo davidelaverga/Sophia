@@ -9,6 +9,7 @@ process.env.VITE_SOPHIA_VISION = '1'
 
 const fakeLiveKit = fileURLToPath(new URL('./fixtures/fake-livekit.ts', import.meta.url))
 const fixtureCrashDsn = fileURLToPath(new URL('./fixtures/crash-dsn.ts', import.meta.url))
+const fixtureCrashSentry = fileURLToPath(new URL('./fixtures/crash-sentry.ts', import.meta.url))
 const studioPage = fileURLToPath(new URL('./index.html', import.meta.url))
 /** index.html's early script (signed-in-load.ts), and the path these servers serve it at: their root is fixtures/. */
 const EARLY = '/src/app/signed-in-load.ts'
@@ -35,6 +36,14 @@ const crashDsn: Plugin = {
   enforce: 'pre',
   resolveId: (source, importer) =>
     source === './crash-dsn.ts' && importer?.endsWith('/src/app/crash-report.ts') ? fixtureCrashDsn : null,
+}
+
+/** The crash reports' Sentry on the fixture pages: `?sentryFlaky=1` fails its first set-up (fixtures/crash-sentry.ts). */
+const crashSentry: Plugin = {
+  name: 'sophia-fixture-crash-sentry',
+  enforce: 'pre',
+  resolveId: (source, importer) =>
+    source === './crash-sentry.ts' && importer?.endsWith('/src/app/crash-report.ts') ? fixtureCrashSentry : null,
 }
 
 /**
@@ -69,7 +78,7 @@ const openingPage = studioPageAs('/opening.html', '/opening.tsx')
 // directory serves them.
 export default defineConfig({
   root: fileURLToPath(new URL('./fixtures', import.meta.url)),
-  plugins: [noLiveKit, crashDsn, openingPage, react()],
+  plugins: [noLiveKit, crashDsn, crashSentry, openingPage, react()],
   // The Studio's own public files (the opening's stylesheet and script, the brand).
   publicDir: fileURLToPath(new URL('./public', import.meta.url)),
   server: {

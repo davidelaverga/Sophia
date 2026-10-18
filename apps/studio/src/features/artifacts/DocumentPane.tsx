@@ -40,6 +40,7 @@ import {
   pinTo,
   renditionOf,
   rereadFor,
+  returnFrom,
   shortHash,
   versionMissing,
   versionReadFailure,
@@ -337,14 +338,18 @@ function panelToggleOf(el: HTMLElement): HTMLElement | null {
  */
 function useFocusHandoff(opener: React.RefObject<HTMLElement | null>) {
   const title = useRef<HTMLHeadingElement>(null)
+  // What had the focus as the pane came, read once and never the pane's own title (an effect run twice, as React's
+  // development mode does, would read the title it just focused).
+  const atMount = useRef<HTMLElement | null>(null)
   useEffect(() => {
-    // A deep link has no opener: what had the focus as the pane came.
-    const atMount = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    if (active !== title.current) atMount.current ??= active
     title.current?.focus({ preventScroll: true })
     return () => {
-      // Read at the close, on purpose: the same report opened again from elsewhere names its latest opener.
+      // Read at the close, on purpose: the same report opened again from elsewhere names its latest opener; one that
+      // left the page (a sheet closed for the report) gives way to what had the focus as the pane came.
       // oxlint-disable-next-line react-hooks/exhaustive-deps
-      const from = opener.current ?? atMount
+      const from = returnFrom(opener.current, atMount.current)
       const free = focusFree(document.activeElement, document.body)
       focusReturn(free, from, from ? panelToggleOf(from) : null, shownNow)?.focus({ preventScroll: true })
     }

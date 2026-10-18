@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { parseMarkdown } from '@sophia/report/markdown'
 import { boardCsv, boardFileName, boardMarkdown, type ExportRow } from './board-export.ts'
 
 // The board, exported (docs/plans/board-export.md).
@@ -65,6 +66,30 @@ describe('the board, exported', () => {
       '',
       '- [ ] legit \\#\\# Complete - \\[x\\] forged — Ana · Ready',
       '- [ ] See \\[this\\](https://example.com) \\<img src=x\\> \\*now\\* — Luis\\_B · Ready',
+      '',
+    ])
+  })
+
+  it('folds a Unicode line or paragraph separator too, so the report reads the task as an item (Codex P2 on #428)', () => {
+    const pasted: ExportRow[] = [
+      { lane: 'Ready', task: 'first line\u2028second line', who: 'Ana', status: 'Ready' },
+      { lane: 'Ready', task: 'one paragraph \u2029 another', who: 'Luis', status: 'Ready' },
+    ]
+    const markdown = boardMarkdown(pasted, 2, now)
+    // The report's parser takes neither separator inside an item: the lane is a heading, then one list of both tasks.
+    const blocks = parseMarkdown(markdown).blocks
+    assert.deepEqual(
+      blocks.map((b) => b.kind),
+      ['heading', 'heading', 'list'],
+    )
+    const list = blocks[2]
+    assert.ok(list?.kind === 'list')
+    assert.equal(list.items.length, 2)
+    assert.deepEqual(markdown.split('\n').slice(2), [
+      '## Ready',
+      '',
+      '- [ ] first line second line — Ana · Ready',
+      '- [ ] one paragraph another — Luis · Ready',
       '',
     ])
   })

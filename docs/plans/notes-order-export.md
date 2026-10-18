@@ -19,7 +19,8 @@
 
 - **Newest and Oldest are one choice** (a radio group): one Tab stop, and the arrows move it, as the board's lenses.
 - **Forget hands the focus to the next note shown,** in the order chosen and as Find leaves them, not the next one
-  the API listed.
+  the API listed. Shown once the note is gone: forgetting one of six takes Find away (Codex P2 on #431,
+  [focus-handoff-follow-ups](focus-handoff-follow-ups.md)).
 - **The day stands under its words,** and Carry and Forget side by side after them. The day had taken Carry's cell,
   so the two stood apart on a row of their own.
 - **One line a note in the file:** a note's line breaks fold to spaces, so a line of its own never reads as a note.
