@@ -109,7 +109,11 @@ describe(
           (t) => t.source === ServerSource.MICROPHONE,
         )
         assert.equal(mic?.muted, true)
-        assert.equal(await muteMicrophone(server, roomId, member), true, 'muted again, nothing changes')
+        assert.equal(
+          await muteMicrophone(server, roomId, member),
+          false,
+          'muted again: nothing changed, nothing recorded',
+        )
         await removeFromCall(server, roomId, member)
         await within('the member was not disconnected', them.left)
         assert.equal(await memberInRoom(server, roomId, member), false)
@@ -147,7 +151,15 @@ describe(
           until(() => told.size === 2),
         )
         assert.deepEqual(told, new Set([TrackSource.SOURCE_SCREENSHARE, TrackSource.SOURCE_SCREENSHARE_AUDIO]))
-        assert.equal(await stopScreen(server, roomId, sharer), true, 'stopped again, nothing changes')
+        // Stopped again: both already muted, so nothing changes and nothing is recorded (changed-only, Codex P2 on #385).
+        assert.equal(
+          await stopScreen(server, roomId, sharer),
+          false,
+          'stopped again: nothing changed, nothing recorded',
+        )
+        const again = await listed()
+        for (const source of [ServerSource.SCREEN_SHARE, ServerSource.SCREEN_SHARE_AUDIO])
+          assert.equal(again.find((t) => t.source === source)?.muted, true, `source ${String(source)} still muted`)
         assert.equal(await stopScreen(server, roomId, talker), false, 'no screen shared, nothing to stop')
         const mic = (await rooms.getParticipant(roomId, talker)).tracks.find(
           (t) => t.source === ServerSource.MICROPHONE,

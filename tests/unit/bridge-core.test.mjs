@@ -144,3 +144,86 @@ test('the first recorded execution identity is the attempt\'s; a later record ne
   assert.equal(logged.identity.source, 'create')
   assert.equal(logged.role, 'sophia-review-v1')
 })
+
+import { createServer } from 'node:http'
+import { mkdtemp as mkdtempReplyPoll, rm as rmReplyPoll } from 'node:fs/promises'
+import { ControlBridge } from '../../packages/dsh-bundle/dist/control-bridge.js'
+const replyPollSettings={routeId:'synthetic',route:{provider:'synthetic',model:'synthetic',reasoningEffort:null},maxTokens:10,
+  admissionWaitMs:100,bounds:{deadlineMs:1000,graceMs:2,killMs:5,exitWaitMs:10,settleWaitMs:10},
+  retry:{requestWaitMs:10,retryWaitMs:2,maxAttempts:1},receiptWaitMs:100,verification:null,launch:()=>assert.fail('no launch')}
+async function replyPollCrossing(mode){
+ const scratch=await mkdtempReplyPoll(join(tmpdir(),'independent-poll-refresh-'));let bridge,polls=0,reads=0,timer;const logs=[]
+ const server=createServer((req,res)=>{
+  res.setHeader('content-type','application/json')
+  if(req.url==='/v1/runtime/hello'){res.end(JSON.stringify({projectId:'p',leaseId:'synthetic',authorityEpoch:1,bindings:[],cursor:0}));return}
+  if(req.url==='/v1/runtime/ready'){res.statusCode=204;res.end();return}
+  polls++;if(polls===2)bridge.stopping.abort();res.statusCode=409;res.end(JSON.stringify({code:'invalid_state',message:'synthetic supersession'}))
+ })
+ try{
+  await new Promise(r=>server.listen(0,'127.0.0.1',r))
+  const settings={protocolVersion:1,bundle:'synthetic',dshVersion:'synthetic',runtimeUnitId:'unit',
+   service:{baseUrl:`http://127.0.0.1:${server.address().port}`,token:'synthetic-only'},workspace:scratch,journalDir:scratch,pollWaitMs:1,settleTimeoutMs:1,routes:{},roleRoutes:{},research:null,log:x=>logs.push(x)}
+  Object.defineProperty(settings,'replies',{get(){reads++;if(mode==='toggle-disabled')return reads===1?null:replyPollSettings;if(mode==='toggle-enabled')return reads===1?replyPollSettings:null;return mode==='enabled'?replyPollSettings:mode==='invalid'?{...replyPollSettings,routeId:3}:null}})
+  bridge=new ControlBridge({},settings);bridge.advertisedRoles=async()=>[]
+  const goal={handle:{dispose:()=>assert.fail('must not dispose goal')}};bridge.attempts.set('synthetic-goal',goal)
+  let timeout=false
+  await Promise.race([bridge.connect(),new Promise(r=>{timer=setTimeout(()=>{timeout=true;bridge.stopping.abort();r()},4000)})])
+  assert.equal(timeout,false)
+  assert.equal(bridge.attempts.get('synthetic-goal'),goal)
+  return {mode,polls,reads,controllerEnabled:bridge.replies?.settings!==null,hook:bridge.replySuperseded!==null,readiness:bridge.readiness,logs}
+ }finally{clearTimeout(timer);bridge?.stopping.abort();bridge?.replies?.dispose();server.closeAllConnections();await new Promise(r=>server.close(r));await rmReplyPoll(scratch,{recursive:true,force:true})}
+}
+for(const mode of ['enabled','disabled','invalid','toggle-disabled','toggle-enabled'])test('refreshed actual connect '+mode,async()=>{
+ const r=await replyPollCrossing(mode);process.stdout.write(JSON.stringify(r)+'\n')
+ const expected=mode==='enabled'||mode==='toggle-enabled'
+ assert.equal(r.hook,expected,'hook must match the exact configuration passed to the captured controller')
+ assert.equal(r.polls,expected?1:2,'supersession must fence only the exact enabled controller')
+})
+
+// #393 review: a retained receipt whose delivery the service accepts but never answers is retried within its bound,
+// so it neither blocks the receipts behind it nor waits forever. The bridge's own queue and transport, over real HTTP.
+test('a retained receipt delivery that stalls is bounded and sent again', async () => {
+  const scratch = await mkdtempReplyPoll(join(tmpdir(), 'retained-receipt-'))
+  const delivered = []
+  let attempts = 0
+  const open = new Set()
+  const server = createServer(async (req, res) => {
+    let raw = ''
+    for await (const chunk of req) raw += chunk
+    if (req.url !== '/v1/runtime/receipts') return res.writeHead(404).end()
+    attempts += 1
+    if (attempts === 1) {
+      open.add(res)
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.write('{')
+      return
+    }
+    delivered.push(...JSON.parse(raw).receipts)
+    res.writeHead(204).end()
+  })
+  let bridge
+  try {
+    await new Promise((r) => server.listen(0, '127.0.0.1', r))
+    bridge = new ControlBridge({}, {
+      protocolVersion: 1, bundle: 'synthetic', dshVersion: 'synthetic', runtimeUnitId: 'unit',
+      service: { baseUrl: `http://127.0.0.1:${server.address().port}`, token: 'synthetic-only' },
+      workspace: scratch, journalDir: scratch, pollWaitMs: 1, settleTimeoutMs: 1, receiptWaitMs: 150,
+      routes: {}, roleRoutes: {}, research: null, log: () => {},
+    })
+    const receipt = {
+      commandId: 'cmd-retained', attemptId: 'att-retained', stage: 'checked', nativeSessionId: null, nativeSequence: null,
+      evidenceRefs: [], observedAt: new Date().toISOString(), reason: null,
+    }
+    bridge.send(receipt)
+    const deadline = Date.now() + 4000
+    while (delivered.length === 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 25))
+    assert.equal(attempts, 2, 'the stalled attempt was abandoned and the batch sent again')
+    assert.deepEqual(delivered.map((r) => [r.commandId, r.stage]), [['cmd-retained', 'checked']])
+  } finally {
+    bridge?.stopping.abort()
+    for (const res of open) res.destroy()
+    server.closeAllConnections()
+    await new Promise((r) => server.close(r))
+    await rmReplyPoll(scratch, { recursive: true, force: true })
+  }
+})
