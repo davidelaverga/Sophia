@@ -312,6 +312,17 @@ export function findNotes<T extends { text: string }>(notes: readonly T[], typed
   return wanted ? notes.filter((n) => plain(n.text).includes(wanted)) : [...notes]
 }
 
+/**
+ * The note that takes the focus once one is forgotten: the nearest after it in the order chosen (`ordered`, ids) among
+ * those shown once it is gone, else the nearest before it; null when none is shown. Shown after, not before: forgetting
+ * one of six takes Find away, and every note is shown again (Codex P2 on #431).
+ */
+export function nextShown(ordered: readonly string[], gone: string, shown: readonly string[]): string | null {
+  const at = ordered.indexOf(gone)
+  const isShown = (id: string) => shown.includes(id)
+  return ordered.slice(at + 1).find(isShown) ?? ordered.slice(0, at).findLast(isShown) ?? null
+}
+
 /** The projects whose title holds what is typed, whatever its case or accents; all of them for nothing typed. */
 export function findProjects(projects: readonly ProjectSummary[], typed: string): ProjectSummary[] {
   const wanted = plain(typed.trim())

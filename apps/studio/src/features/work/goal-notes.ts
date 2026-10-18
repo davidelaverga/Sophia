@@ -65,6 +65,20 @@ export function notesRead(q: { data: unknown; isError: boolean }): 'read' | 'rea
   return q.data === undefined ? 'reading' : 'read'
 }
 
+type ReadState = ReturnType<typeof notesRead>
+
+/**
+ * Whether a goal's health can be said: every read it waits on (the notes, the dates) is in, or kept from before a later
+ * failure (targets-robust.md; Codex P2 on #372).
+ */
+export const known = (...states: readonly ReadState[]): boolean => states.every((s) => s === 'read' || s === 'stale')
+
+/** What the brief adds while the notes or the dates are still coming: the health may miss a difficulty or a date. */
+export function readingWords(notes: ReadState, dates: ReadState): string {
+  if (notes === 'reading') return dates === 'reading' ? ' · Reading the notes and dates…' : ' · Reading the notes…'
+  return dates === 'reading' ? ' · Reading the dates…' : ''
+}
+
 /** After a note is kept, the field clears only what was sent: words typed since, or a kind chosen since, stay. */
 export function keptAfter(
   now: { text: string; kind: NoteKind },

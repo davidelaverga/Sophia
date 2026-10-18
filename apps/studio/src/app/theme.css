@@ -2287,6 +2287,11 @@ img.avatar {
   color: var(--text-2);
   font-size: 12px;
 }
+/* A message's lines stay lines, as in the chat's turns and in Conversations: RichText leaves its breaks to pre-wrap, so
+   a blank line before a quote stays (Codex P2 on #429). */
+.contribution-text {
+  white-space: pre-wrap;
+}
 /* When each message was said (docs/plans/chat-times.md): its time by the author, and a day line above each day's first
    message, as the conversations' day line is set. */
 .contribution-at,
@@ -5924,8 +5929,9 @@ button.contribution-quote:hover {
 .goals-brief-you {
   color: var(--text);
 }
-/* The notes unread, said under the brief (docs/plans/notes-robust.md). */
-.goals-notes-failed {
+/* The notes or the dates unread, said under the brief (docs/plans/notes-robust.md, targets-robust.md). */
+.goals-notes-failed,
+.goals-dates-failed {
   margin: -16px 0 0;
   color: var(--text-2);
   font-size: var(--type-small);

@@ -41,6 +41,25 @@ export const leaving: { held: boolean; fails: boolean; waiting: (() => void)[] }
 export const enabling: { held: boolean; waiting: (() => void)[] } = { held: false, waiting: [] }
 
 /**
+ * Turning the microphone off waits while held (`window.fixture.holdMute`), as LiveKit's mute does while a republish
+ * settles; a change asked after it waits its turn, as LiveKit's mute lock makes it.
+ */
+export const disabling: { held: boolean; waiting: (() => void)[] } = { held: false, waiting: [] }
+let micTurn: Promise<void> | null = null
+
+/** A microphone change in that order: a held turn-off waits for its release, and what comes after waits for it. */
+function inTurn(apply: () => void, held: boolean): Promise<void> {
+  const mine = (micTurn ?? Promise.resolve())
+    .then(() => (held ? new Promise<void>((resolve) => disabling.waiting.push(resolve)) : undefined))
+    .then(apply)
+  micTurn = mine
+  void mine.then(() => {
+    if (micTurn === mine) micTurn = null
+  })
+  return mine
+}
+
+/**
  * A microphone on its way while held arrives when released (`window.fixture.holdMicrophone`), whatever came meanwhile:
  * LiveKit still publishes a late enable after a turn-off stopped waiting for it.
  */
@@ -241,6 +260,8 @@ function deviceSwitch(me: RoomParticipant, changed: () => void) {
       changed()
     }
     if (on && name === 'microphone' && enabling.held) return arrival(apply)
+    if (name === 'microphone' && (micTurn !== null || (!on && disabling.held)))
+      return inTurn(apply, !on && disabling.held)
     apply()
     return Promise.resolve()
   }

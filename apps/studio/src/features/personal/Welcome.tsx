@@ -533,11 +533,15 @@ const ONE_COLUMN = '(max-width: 860px)'
 /** «What needs you», wherever it is mounted. */
 const NEEDS = '[aria-label="What needs you"]'
 
+/** Kept while the list's own heading has the focus: no need's id is empty, so it never names a need. */
+const HEADING = ''
+
 /**
  * The focus kept on a need when the list moves across 860 px (home-needs-focus.md; Codex P2 on #289): which need had
  * it is remembered by its id, forgotten once the focus goes elsewhere, and that need takes it again after the move if
  * the focus fell to the page. By the need, not its place: the list is read again every 20 s, and a need may come ahead
- * or leave (Codex P2 on #377). One that left takes nothing with it.
+ * or leave (Codex P2 on #377). One that left is not stood in for by another need: the list's heading takes the focus
+ * instead of the page, and keeps it across the next move as a need would (Codex P2 on #442).
  */
 function useNeedsFocus(home: RefObject<HTMLDivElement | null>, oneColumn: boolean) {
   const kept = useRef<string | null>(null)
@@ -545,8 +549,8 @@ function useNeedsFocus(home: RefObject<HTMLDivElement | null>, oneColumn: boolea
     const el = home.current
     const onFocus = (e: FocusEvent) => {
       const target = e.target instanceof Element ? e.target : null
-      const row = target?.closest(NEEDS) ? target.closest<HTMLElement>('[data-need]') : null
-      kept.current = row?.dataset.need ?? null
+      const need = target?.closest<HTMLElement>('[data-need]')?.dataset.need ?? HEADING
+      kept.current = target?.closest(NEEDS) ? need : null
     }
     el?.addEventListener('focusin', onFocus)
     return () => el?.removeEventListener('focusin', onFocus)
@@ -555,9 +559,11 @@ function useNeedsFocus(home: RefObject<HTMLDivElement | null>, oneColumn: boolea
     const need = kept.current
     const fell = document.activeElement === null || document.activeElement === document.body
     if (need === null || !fell) return
-    const rows = home.current?.querySelector(NEEDS)?.querySelectorAll<HTMLElement>('[data-need]') ?? []
+    const list = home.current?.querySelector(NEEDS)
+    const rows = [...(list?.querySelectorAll<HTMLElement>('[data-need]') ?? [])]
     // By the dataset, so an id such as permission:wait-w1 needs no escaping in a selector.
-    for (const row of rows) if (row.dataset.need === need) row.focus()
+    const row = rows.find((r) => r.dataset.need === need)
+    ;(row ?? list?.querySelector<HTMLElement>('#hw-needs-h'))?.focus()
   }, [home, oneColumn])
 }
 

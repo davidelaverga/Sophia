@@ -90,22 +90,52 @@ function readSpills(): string[] {
 
 const overflowing = (page: Page) => page.evaluate(readSpills)
 
+/**
+ * In the page: each goal control's tip that reaches past a side of the window, and how far. A tip waits hidden in the
+ * place it shows in (only its 2 px lift changes), so this reads them all at once.
+ */
+function readTipsOut(): string[] {
+  return [...document.querySelectorAll<HTMLElement>('.goal > .controls .tip')].flatMap((tip) => {
+    const { left, right } = tip.getBoundingClientRect()
+    const past = Math.max(-left, right - window.innerWidth)
+    return past > 1 ? [`«${tip.textContent}» ${past.toFixed(1)} px past the window`] : []
+  })
+}
+
 const settle = (page: Page) => page.waitForTimeout(1200)
 
-for (const root of ['125%', '150%']) {
-  test.describe(`at ${root}`, () => {
-    test.beforeEach(async ({ page }) => {
-      await page.route(
-        (url) => url.origin !== 'http://127.0.0.1:5199',
-        (route) => route.abort(),
-      )
-      // A larger browser default, before anything draws: the root's size is what rem reads.
-      await page.addInitScript((size) => {
-        document.addEventListener('DOMContentLoaded', () => {
-          document.documentElement.style.fontSize = size
-        })
-      }, root)
+/** The fixtures' own origin only, and the root at `root`. */
+async function largerText(page: Page, root: string) {
+  await page.route(
+    (url) => url.origin !== 'http://127.0.0.1:5199',
+    (route) => route.abort(),
+  )
+  // A larger browser default, before anything draws: the root's size is what rem reads.
+  await page.addInitScript((size) => {
+    document.addEventListener('DOMContentLoaded', () => {
+      document.documentElement.style.fontSize = size
     })
+  }, root)
+}
+
+for (const root of ['125%', '150%']) {
+  // A goal without a plan has its controls at the content's start; held, Resume comes first (Codex P2 on #421). Tips
+  // show only on a screen wider than a phone, under a pointer that hovers (theme.css): a computer's check.
+  test(`fit · at ${root}, a held goal's Resume keeps its tip in the window, as every goal control does`, async ({
+    page,
+  }) => {
+    await largerText(page, root)
+    await page.goto('/work.html?goals=9')
+    const resume = page
+      .locator('li.goal', { hasText: 'Localise the pricing page' })
+      .getByRole('button', { name: 'Resume', exact: true })
+    await resume.hover()
+    await expect(resume.locator('.tip')).toHaveCSS('opacity', '1')
+    expect(await page.evaluate(readTipsOut)).toEqual([])
+  })
+
+  test.describe(`at ${root}`, () => {
+    test.beforeEach(({ page }) => largerText(page, root))
 
     for (const tag of ['', '@phone · ']) {
       for (const url of PAGES) {
