@@ -1,6 +1,36 @@
 /* The Resources view (ResourcePanel): tiles to scan, a search and four filters for when they are many, one line on
    top only while a request waits, and each resource's detail in the app's sheet. Tokens and forms are the app's. */
 
+/* The models' and tools' own inks, the room's and the paper's (docs/plans/light-room-literals.md): on paper each
+   darkens along its own hue until it holds 3:1 as a dot on its chip and as a bar on its track (the room's read 1.5 to
+   3.0 there), Opus still the deepest of its family. A plain effort bar is its tool's ink at 55 % in the room, and
+   whole on paper, where a part of it would wash out over the track; Claude's below its top is the ink at 0.32 in the
+   room and at 0.5 on paper, 3:1 on its track. */
+:root {
+  --opus-ink: #d97757;
+  --sonnet-ink: #e6a273;
+  --haiku-ink: #efc893;
+  --gpt-ink: #6f8cff;
+  --gemini-ink: #8e75b2;
+  --gemini-pro-ink: #a68bd6;
+  --gemini-flash-ink: #4f9cf9;
+  --silver-ink: #c3c7d4;
+  --effort-k: 55%;
+  --claude-bar: rgb(var(--ink-rgb) / 0.32);
+}
+:root[data-theme='light'] {
+  --opus-ink: #b25435;
+  --sonnet-ink: #a8693a;
+  --haiku-ink: #9e7a47;
+  --gpt-ink: #5e78e9;
+  --gemini-ink: #7d65a0;
+  --gemini-pro-ink: #8e73bc;
+  --gemini-flash-ink: #3381dc;
+  --silver-ink: #7c808c;
+  --effort-k: 100%;
+  --claude-bar: rgb(var(--ink-rgb) / 0.5);
+}
+
 .resources-summary {
   margin-left: auto;
   color: var(--text-3);
@@ -89,6 +119,11 @@
   text-align: left;
   animation: arrive 0.4s var(--ease) both;
   animation-delay: calc(var(--i, 0) * 40ms);
+}
+/* On paper its rim, then the contact a card rests on (light-shadows.md): this list replaces the card's own. As light
+   as the tile's own rule, so its states (waiting, changed) still win. */
+:where(:root[data-theme='light']) .resource-tile {
+  box-shadow: var(--rim), var(--elev-card);
 }
 .resource-tile-head {
   display: flex;
@@ -262,25 +297,25 @@
   background: var(--chip-ink);
 }
 .model-chip[data-family='opus'] {
-  --chip-ink: #d97757;
+  --chip-ink: var(--opus-ink);
 }
 .model-chip[data-family='sonnet'] {
-  --chip-ink: #e6a273;
+  --chip-ink: var(--sonnet-ink);
 }
 .model-chip[data-family='haiku'] {
-  --chip-ink: #efc893;
+  --chip-ink: var(--haiku-ink);
 }
 .model-chip[data-family='gpt'] {
-  --chip-ink: #6f8cff;
+  --chip-ink: var(--gpt-ink);
 }
 .model-chip[data-family='gemini-pro'] {
-  --chip-ink: #a68bd6;
+  --chip-ink: var(--gemini-pro-ink);
 }
 .model-chip[data-family='gemini-flash'] {
-  --chip-ink: #4f9cf9;
+  --chip-ink: var(--gemini-flash-ink);
 }
 .model-chip[data-family='grok'] {
-  --chip-ink: #c3c7d4;
+  --chip-ink: var(--silver-ink);
 }
 .resource-tile-activity {
   display: flex;
@@ -372,7 +407,7 @@
   inset: 0 auto 0 0;
   overflow: hidden;
   border-radius: inherit;
-  background: color-mix(in srgb, var(--tool-accent, var(--text-3)) 55%, transparent);
+  background: color-mix(in srgb, var(--tool-accent, var(--text-3)) var(--effort-k), transparent);
 }
 .effort-label {
   color: var(--text-3);
@@ -389,7 +424,7 @@
    look is kept for its top alone: Claude's lavender dots and their glint in ultracode, GPT's violet gradient and its
    sparks at ultra. */
 .effort[data-look='claude'] .effort-fill {
-  background: rgb(var(--ink-rgb) / 0.32);
+  background: var(--claude-bar);
 }
 .effort[data-look='gpt'] .effort-fill {
   background: #3b7cf6;
@@ -401,8 +436,14 @@
     rgb(var(--ink-rgb) / 0.02);
 }
 .effort[data-look='claude'][data-alive] .effort-fill {
-  background: linear-gradient(90deg, rgb(var(--ink-rgb) / 0.3) 0%, #b3a3f5 38%, var(--core) 50%, #b3a3f5 62%) 0 0 / 250%
-    100%;
+  background: linear-gradient(
+      90deg,
+      rgb(var(--ink-rgb) / 0.3) 0%,
+      var(--claude-ink) 38%,
+      var(--claude-glint) 50%,
+      var(--claude-ink) 62%
+    )
+    0 0 / 250% 100%;
   mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
   -webkit-mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
   animation: effort-glint 2.6s linear infinite;
@@ -412,9 +453,9 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 30% 25%, #e4dcff 0.9px, transparent 1.4px),
-    radial-gradient(circle at 62% 75%, #e4dcff 0.9px, transparent 1.4px),
-    radial-gradient(circle at 86% 25%, #e4dcff 0.9px, transparent 1.4px);
+    radial-gradient(circle at 30% 25%, var(--claude-spark) 0.9px, transparent 1.4px),
+    radial-gradient(circle at 62% 75%, var(--claude-spark) 0.9px, transparent 1.4px),
+    radial-gradient(circle at 86% 25%, var(--claude-spark) 0.9px, transparent 1.4px);
   animation: effort-twinkle 1.8s ease-in-out infinite alternate;
 }
 /* GPT at ultra: a gradient from deep blue to violet, sparks drifting along it. */
@@ -536,8 +577,8 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #b3a3f5;
-  box-shadow: 0 0 0 3px rgba(179, 163, 245, 0.15);
+  background: var(--claude-ink);
+  box-shadow: 0 0 0 3px rgb(var(--claude-ink-rgb) / 0.15);
 }
 /* The runtime on it: the dot breathes. Done: teal. A stop not confirmed: amber, still. */
 .effort-asked[data-tone='moving'] .effort-asked-dot {
@@ -562,7 +603,7 @@
 @keyframes effort-breathe {
   to {
     opacity: 0.35;
-    box-shadow: 0 0 0 5px rgba(179, 163, 245, 0.06);
+    box-shadow: 0 0 0 5px rgb(var(--claude-ink-rgb) / 0.06);
   }
 }
 .effort-asked .text-button {
@@ -649,7 +690,7 @@
   margin: -8px 0 0 -8px;
   border-radius: 50%;
   background: var(--core);
-  box-shadow: 0 1px 4px rgb(var(--shadow-rgb) / calc(0.45 * var(--shadow-k)));
+  box-shadow: var(--elev-knob);
   transition: left var(--fast) var(--ease);
 }
 .effort-picker-foot {
@@ -1048,20 +1089,20 @@
 
 /* A tool's mark: on a small tile at a head, bare in a line of text. */
 [data-tool='claude-code'] {
-  --tool-accent: #d97757;
+  --tool-accent: var(--opus-ink);
 }
 [data-tool='gemini-cli'] {
-  --tool-accent: #8e75b2;
+  --tool-accent: var(--gemini-ink);
 }
 /* Codex's mark is blue; the one-colour marks (Grok, Copilot, Cursor) take a cool silver, so none borrows the app's
    own lavender. */
 [data-tool='codex'] {
-  --tool-accent: #6f8cff;
+  --tool-accent: var(--gpt-ink);
 }
 [data-tool='grok'],
 [data-tool='github-copilot'],
 [data-tool='cursor'] {
-  --tool-accent: #c3c7d4;
+  --tool-accent: var(--silver-ink);
 }
 .tool-logo {
   display: inline-grid;
@@ -1458,12 +1499,12 @@
   height: 8px;
   border-radius: 50%;
   background: radial-gradient(circle, var(--core), var(--halo) 70%);
-  box-shadow: 0 0 10px var(--halo);
+  box-shadow: var(--glow-spark);
   animation: ask-light 2.8s var(--ease) infinite alternate;
 }
 @keyframes ask-light {
   to {
-    box-shadow: 0 0 16px var(--halo);
+    box-shadow: var(--glow-spark-peak);
     transform: scale(1.12);
   }
 }
@@ -1477,7 +1518,7 @@
   height: 6px;
   border-radius: 50%;
   background: var(--halo-text);
-  box-shadow: 0 0 10px var(--halo);
+  box-shadow: var(--glow-spark);
   animation: away-breathe 2.4s var(--ease) infinite alternate;
 }
 @keyframes away-breathe {
@@ -1503,7 +1544,7 @@
   padding: 0 12px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-3);
-  background: rgb(var(--ink-rgb) / 0.03);
+  background: var(--field);
   color: var(--text);
   font-size: var(--type-body);
 }
@@ -1561,7 +1602,7 @@
   height: 3px;
   border-radius: 999px;
   background: var(--teal);
-  box-shadow: 0 0 8px rgb(var(--teal-rgb) / 0.6);
+  box-shadow: var(--glow-running);
   transition: width 0.5s var(--ease);
 }
 .act-steps li[data-reached] {
@@ -1723,7 +1764,11 @@
 /* The last pass. The sheet's head takes a faint light in its tool's colour, as the app's pages take hers from above;
    its mark arrives with a small pop; a meter in the red glows softly; a tile's mark lifts under the pointer. */
 .resource-sheet .sheet-top {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--tool-accent) 7%, var(--plane)), var(--plane));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--tool-accent) 7%, var(--surface-well)),
+    var(--surface-well)
+  );
 }
 .resource-sheet-head .tool-logo {
   animation: logo-in 0.45s var(--ease) both;
@@ -1735,7 +1780,7 @@
   }
 }
 .capacity-meter.is-full .capacity-meter-fill {
-  box-shadow: 0 0 8px color-mix(in srgb, var(--rose) 45%, transparent);
+  box-shadow: var(--glow-full);
 }
 .tool-logo.lg {
   transition: transform var(--fast) var(--ease);
@@ -1855,9 +1900,9 @@
   background: linear-gradient(
       100deg,
       transparent 35%,
-      rgba(179, 163, 245, 0.55) 47%,
-      var(--core) 50%,
-      rgba(179, 163, 245, 0.55) 53%,
+      rgb(var(--claude-ink-rgb) / 0.55) 47%,
+      var(--claude-glint) 50%,
+      rgb(var(--claude-ink-rgb) / 0.55) 53%,
       transparent 65%
     )
     0 0 / 300% 100%;
@@ -1959,7 +2004,8 @@
   border-radius: var(--r-3);
   border: 1px solid var(--line-2);
   background: var(--plane-2);
-  box-shadow: 0 18px 50px rgb(var(--shadow-rgb) / calc(0.55 * var(--shadow-k)));
+  /* Over everything, as a menu is (light-shadows.md): the room's 0.55 black, paper's third level. */
+  box-shadow: var(--elev-menu);
   color: var(--text-2);
   font-size: var(--type-small);
   white-space: nowrap;
@@ -1971,7 +2017,7 @@
   padding: 4px 8px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-2);
-  background: var(--plane);
+  background: var(--surface-well);
   color: var(--text);
   font: 400 var(--type-small) / var(--lh-small) var(--mono);
 }
