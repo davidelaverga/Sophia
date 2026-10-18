@@ -15,8 +15,13 @@ const settled = (page: Page) =>
     Promise.all(
       b
         .getAnimations({ subtree: true })
-        .filter((a) => a.effect?.getTiming().iterations !== Infinity)
-        .map((a) => a.finished),
+        // A live ring's eased share (a registered property, retaken each tick) is no arrival.
+        .filter(
+          (a) =>
+            a.effect?.getTiming().iterations !== Infinity &&
+            !(a instanceof CSSTransition && a.transitionProperty.startsWith('--')),
+        )
+        .map((a) => a.finished.catch(() => undefined)),
     ),
   )
 

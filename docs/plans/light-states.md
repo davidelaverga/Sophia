@@ -29,11 +29,12 @@
     well; the one chosen rests on the first level (`--elev-1`, light-shadows.md), and its track (`--control-track`, the
     room's glass) sinks on paper, the ink at 0.04, so a white thumb never sits on white. Hover, selection and the focus
     ring stay the ink, as informe-claro's fourth principle says: their channels carry the theme.
-- **Rules (30 declarations):** the 13 hovers at 0.06, the palette's and a PDF page's chosen row, a field at rest and
+- **Rules (29 declarations):** the 13 hovers at 0.06, the palette's and a PDF page's chosen row, a field at rest and
   focused, the select, a device's choice and a step's guide field, the pill and the decision pill, the square, the lens
-  track and thumb, Knowledge's pressed filter, Conversations' open row and pressed toggle, and the two focus rings.
-  Selectors and order stay. On paper four rules of its own, as light as theirs, add `--control-selected-shadow` after
-  the thumb's, the pressed filter's and the open row's edge (at rest and hovered).
+  track and thumb, Conversations' open row and pressed toggle, and the two focus rings. Knowledge's pressed filter
+  paints nothing of its own since informe-25 V4 (#459): the group's thumb shows it.
+  Selectors and order stay. On paper three rules of its own, as light as theirs, add `--control-selected-shadow` after
+  the thumb's and the open row's edge (at rest and hovered).
 - **The room, pixel for pixel:** each rule reads the same colour through its token: the tokens resolve at the root,
   nothing redefines `--ink-rgb` or `--halo-text-rgb` below it, and `--raise-2` was the same 0.075 of the same ink. A
   shadow is paper's rules alone, so the room computes each `box-shadow` as main did.
@@ -43,7 +44,7 @@
 - `states.test.ts` (unit, on the Studio's CSS): the eleven tokens hold in the room the exact expressions above; on paper
   the six fills are opaque white over the page and a well, hover and selection sink the paper as they lift the void, the
   shadow is the first level, the track sinks under a white thumb; the 17 rules read their tokens (the track's background
-  said once); the room's edges are main's and paper's four rules add the level; no hover at 0.06, no chosen state in the
+  said once); the room's edges are main's and paper's three rules add the level; no hover at 0.06, no chosen state in the
   ink and no focus ring is written by hand (18 were).
 - `light-states.spec.ts` (e2e, fixtures): on paper the lens thumb stands lighter than its track, a call's dock presses
   at rest lighter than the dock, the open conversation lighter than its list, and the title filter is white. In the room

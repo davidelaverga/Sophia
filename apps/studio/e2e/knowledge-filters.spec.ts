@@ -39,8 +39,24 @@ test('filters · the project filter is the app’s segmented group, as the forma
     expect(b.corner, 'a square corner').toBeLessThanOrEqual(8)
     expect(b.height).toBe(format[0]?.height)
   }
-  // The pressed choice has a quiet plane under it; the others none.
-  for (const b of [...project, ...format]) expect(b.plane, JSON.stringify(b)).toBe(b.pressed)
+  // The pressed choice's plane is the group's thumb alone: no press paints its own (informe-25 V4, phone-fits.md).
+  for (const b of [...project, ...format]) expect(b.plane, JSON.stringify(b)).toBe(false)
+  for (const name of ['Project', 'Format']) {
+    const group = page.getByRole('group', { name, exact: true })
+    await expect
+      .poll(() =>
+        group.evaluate((box) => {
+          const on = box.querySelector<HTMLElement>('button[aria-pressed="true"]')
+          const s = getComputedStyle(box)
+          return (
+            on !== null &&
+            getComputedStyle(box, '::before').backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+            Math.abs(parseFloat(s.getPropertyValue('--thumb-x')) - on.offsetLeft) <= 1
+          )
+        }),
+      )
+      .toBe(true)
+  }
 })
 
 test('filters · only the app’s type sizes in the filters', async ({ page }) => {

@@ -638,6 +638,12 @@ button:disabled,
   background: rgb(var(--rose-rgb) / 0.08);
   color: var(--rose);
 }
+/* Under the pointer the destructive answer keeps its rose (the pill's own hover, 0,3,0, greyed it: informe-25 M12): its
+   edge wakes and its fill stays, so its words keep 4.5:1 on paper, a rose zone under it or not (Delete everything). */
+.pill.danger:hover:not(:disabled, [aria-disabled='true']) {
+  border-color: rgb(var(--rose-rgb) / 0.7);
+  background: rgb(var(--rose-rgb) / 0.08);
+}
 .pill-dot {
   width: 6px;
   height: 6px;
@@ -727,10 +733,16 @@ select option {
 .round[aria-pressed='true']:hover {
   background: var(--core-hover);
 }
-.round.leave:hover {
+/* Leave is the way out at rest too, not only under a pointer a phone never has: the kit's danger tint
+   (room-dock-people.md). Under the pointer, one step deeper. */
+.round.leave {
   color: var(--rose);
   border-color: rgb(var(--rose-rgb) / 0.4);
   background: rgb(var(--rose-rgb) / 0.08);
+}
+.round.leave:hover {
+  border-color: rgb(var(--rose-rgb) / 0.6);
+  background: rgb(var(--rose-rgb) / 0.16);
 }
 .text-button {
   border: 0;
@@ -834,7 +846,11 @@ select:hover:not(:disabled) {
   border-color: var(--line-3);
   color: var(--text);
 }
-/* A checkbox answers the pointer: a step brighter (its box is the browser's). */
+/* A checkbox is the kit's: checked, it fills with the «on» of a pressed square and a primary press (--core), never the
+   browser's blue (informe-25 X8); under the pointer, a step brighter. */
+input[type='checkbox'] {
+  accent-color: var(--core);
+}
 input[type='checkbox']:hover:not(:disabled) {
   filter: brightness(1.2);
 }
@@ -3265,10 +3281,8 @@ button.contribution-quote:hover {
   height: 22px;
   padding: 0 7px;
   border-radius: var(--r-1);
-  background: rgb(var(--void-rgb) / 0.62);
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
-  color: var(--text);
   font-size: 12px;
   font-weight: 500;
 }
@@ -3318,8 +3332,22 @@ button.contribution-quote:hover {
   min-height: 22px;
   padding: 2px 7px;
   border-radius: var(--r-1);
-  background: rgb(var(--void-rgb) / 0.66);
   font-size: 12px;
+}
+/* Names over video are the room's dark chips in either theme: the video under them is black on paper too (.video,
+   .screen-main). Their inks are the room's, copied from :root (if those move, these follow), so the words, the floor's
+   warm and an offer of another screen read 5:1 or more, over a paper tile with no camera too (room-dock-people.md). The
+   mute's corner mark on a phone's strip (muted-on-tiles.md) is one of them. */
+.tile-name,
+.tile-muted-corner,
+.screen-main figcaption {
+  --text: #ecebf1;
+  --text-2: rgb(236 235 241 / 0.66);
+  --warm: #f1dcc7;
+  --halo-text: #b9a8ff;
+  --halo-text-rgb: 185 168 255;
+  background: rgb(0 0 0 / 0.62);
+  color: var(--text);
 }
 
 /* The room from other views: in the header's end cluster on a wide screen (docs/plans/dock-header.md), a small
@@ -4577,6 +4605,13 @@ button.contribution-quote:hover {
   .segmented button {
     min-height: 36px;
   }
+  /* The box holds its 36 px presses on touch: 36, its 3 + 3 of padding and 1 + 1 of edge. Stated, not left to its
+     content: a box whose min-height is its own is shrunk to it in a column that overflows (Personal's notes), and its
+     thumb hung 8 px out of it (informe-25 P-01). */
+  .segmented,
+  .segmented.sz-sm {
+    min-height: 44px;
+  }
   /* An inline action's target reaches past its words, so the line around it keeps its height. */
   .text-button {
     position: relative;
@@ -4766,7 +4801,6 @@ button.contribution-quote:hover {
     width: 12px;
     height: 12px;
     border-radius: 3px;
-    background: rgb(var(--void-rgb) / 0.62);
     color: var(--text-2);
   }
 }
@@ -6853,12 +6887,14 @@ button.contribution-quote:hover {
   resize: vertical;
 }
 
-/* Everyone in the call, in the side panel (docs/plans/host-controls.md): a row each, the admin's menu at its end. */
+/* Everyone in the call, in the side panel (docs/plans/host-controls.md): a row each, the admin's menu at its end. The
+   names stand on the panel's gutter, the tabs' line; each row's own 8 px frames its name in its hover plane, and its
+   menu (32 px) ends where Close's box does (room-dock-people.md). */
 .people {
   display: grid;
   gap: 2px;
   margin: 0;
-  padding: 8px 0;
+  padding: 8px calc(var(--panel-pad) - 8px);
   list-style: none;
 }
 .person {
@@ -6872,6 +6908,13 @@ button.contribution-quote:hover {
 }
 .person:hover {
   background: rgb(var(--ink-rgb) / 0.04);
+}
+/* Touch: the menu is a finger's 40 px, and its column follows, so it never passes its row; the volume's square keeps
+   its 36 px column (people-volume.md). */
+@media (pointer: coarse) {
+  .person {
+    grid-template-columns: minmax(0, 1fr) auto 20px 36px 40px;
+  }
 }
 .person-name {
   overflow: hidden;
@@ -7085,12 +7128,12 @@ button.contribution-quote:hover {
   color: var(--text-2);
 }
 
-/* «Mute everyone» at the People panel's head, for an admin (docs/plans/host-more.md). */
+/* «Mute everyone» at the People panel's head, for an admin (docs/plans/host-more.md): a press on the gutter. */
 .people-head {
   display: grid;
   justify-items: start;
   gap: 4px;
-  padding: 12px 0 8px;
+  padding: 12px var(--panel-pad) 8px;
 }
 .people-head .confirm {
   justify-self: stretch;

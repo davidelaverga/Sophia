@@ -5,7 +5,18 @@
 // a control is on its way its row says so and its menu waits, so one press is one act. Everyone can turn each other
 // person down for themselves alone (people-volume.md).
 import { useRef, useState, type KeyboardEvent } from 'react'
-import { ConfirmButton, EmptyState, Icon, Menu, MenuHead, MenuItem, Tip, usePopover } from '@sophia/ui'
+import {
+  Button,
+  buttonClass,
+  ConfirmButton,
+  EmptyState,
+  Icon,
+  Menu,
+  MenuHead,
+  MenuItem,
+  Tip,
+  usePopover,
+} from '@sophia/ui'
 import { actInCall, muteEveryoneInCall } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
@@ -85,10 +96,11 @@ function Actions({ person, name, busy, onAct }: ActionsProps) {
   const label = `Actions for ${name}`
   return (
     <span ref={row.menu.wrap} className="person-actions" onKeyDown={row.onKeyDown}>
-      <button
+      {/* The kit's 32 px square: it fills its column and ends where Close does (room-dock-people.md). */}
+      <Button
         ref={row.menu.opener}
-        type="button"
-        className="round"
+        kind="icon"
+        size="md"
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={row.open}
@@ -96,7 +108,7 @@ function Actions({ person, name, busy, onAct }: ActionsProps) {
         onClick={() => !busy && row.toggle()}
       >
         <Icon name="more" />
-      </button>
+      </Button>
       {row.open && (
         <Menu popover={row.menu} label={label} side="bottom" align="end">
           {person.micOn && <MenuItem onClick={row.choose(() => onAct('mute'))}>Mute microphone</MenuItem>}
@@ -263,7 +275,9 @@ function MuteEveryone({
   }
   return (
     <div className="people-head">
+      {/* A press, not a heading: the kit's small pill (room-dock-people.md). */}
       <ConfirmButton
+        className={buttonClass({ size: 'sm' })}
         label={state === 'sending' ? 'Muting everyone…' : 'Mute everyone'}
         warning="Everyone else’s microphone goes off; each turns their own back on."
         confirm="Mute them"

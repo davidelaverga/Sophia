@@ -35,7 +35,7 @@
 ## Checks (written first)
 
 - The project and format filters are `.segmented` groups. Their buttons share a height and a corner of at most 8 px. The
-  pressed one has a plane under it.
+  pressed one has a plane under it: the group's own thumb, and no press paints its own (informe-25 V4, phone-fits.md).
 - In the filters, only the app's type sizes (13 px for the buttons, 12 px for the counts).
 - Another project's button and its count read at 4.5:1, pressed or not (the fixture's `reports=elsewhere`).
 - With what was carried in, the first tile is above the carried-in heading.
