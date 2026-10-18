@@ -51,6 +51,13 @@ const designOf = (design: NativeTaskDetail['design']) =>
 export function DesignCard(props: Props) {
   const { task, identity } = props
   const { refused, design, words, page } = useDesign(props)
+  // Its own detail refused (task-detail-read.ts): only that refusal and its retry, never the normal Designing status.
+  if (refused)
+    return (
+      <Card as="li" className="task work-card" data-state="refused" data-task={props.task.id} tabIndex={-1}>
+        <TaskRefused projectId={props.projectId} taskId={task.id} identity={identity} />
+      </Card>
+    )
   return (
     <Card
       as="li"
@@ -64,7 +71,6 @@ export function DesignCard(props: Props) {
         <span className="muted">{designOf(design)}</span>
       </div>
       {words.note && <p className="goal-outcome">{words.note}</p>}
-      {refused && <TaskRefused projectId={props.projectId} taskId={task.id} identity={identity} />}
       {page && task.artifactId && <PageRow page={page} artifactId={task.artifactId} identity={identity} />}
     </Card>
   )
