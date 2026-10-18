@@ -2663,6 +2663,19 @@ button.contribution-quote:hover {
 .menu.device-list {
   min-width: 240px;
 }
+/* On a touch screen the check before joining is a finger's size wherever it stands (Codex P2 on #434): turned sideways
+   a phone has the computer's dock, and the check is 40 px square as Join is; in a phone's own layout, one of its 42 px
+   squares (below). */
+@media (pointer: coarse) {
+  .device-menu.device-check-open {
+    margin-left: 0;
+  }
+  .device-check-open .device-open {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--r-3);
+  }
+}
 @media (max-width: 600px) {
   .device-menu {
     display: none;
