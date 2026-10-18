@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { taskRead } from './task-detail-read.ts'
+import { taskQueryOf, taskRead } from './task-detail-read.ts'
 
 export function TaskRefused({
   projectId,
@@ -21,12 +21,12 @@ export function TaskRefused({
     if (reading) return
     setReading(true)
     // The task's own readers read again (so what shows is the fresh answer); with none, one task GET is set out.
-    const key = ['native-task', projectId, taskId]
+    const ofTask = taskQueryOf(projectId, taskId)
     const read =
-      client.getQueryCache().findAll({ queryKey: key }).length > 0
-        ? client.refetchQueries({ queryKey: key })
+      client.getQueryCache().findAll({ predicate: ofTask }).length > 0
+        ? client.refetchQueries({ predicate: ofTask })
         : client.fetchQuery({
-            queryKey: [...key, 'again', identity.name],
+            queryKey: ['native-task', projectId, taskId, 'again', identity.name],
             queryFn: taskRead(projectId, taskId, () => getNativeTask(identity.token, projectId, taskId)),
             staleTime: 0,
           })

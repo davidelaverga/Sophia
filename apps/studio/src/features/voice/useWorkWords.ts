@@ -2,10 +2,10 @@
 // same query key, so they share one cache. Each keeps its own 15 s timer (TanStack), so with a Work card mounted too
 // the record may be read twice in 15 s; a brief, whose words need no record, is never read. Nor is it read while her
 // line isn't there to say it: under a video stage, or in a room kept out of sight.
-import { useQuery } from '@tanstack/react-query'
+
+import { useOwnedTaskDetail } from '../artifacts/task-detail.ts'
 import { useContext } from 'react'
 import type { Snapshot } from '@sophia/contracts'
-import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { ShortcutScope } from '../../app/shortcuts.ts'
 import { readsCount, soleTask, workWords } from './work-line.ts'
@@ -22,11 +22,14 @@ export function useWorkWords(
   const inSight = useContext(ShortcutScope)
   const task = soleTask(snapshot)
   const read = readsCount(task) && lineShown && inSight
-  const detail = useQuery({
+  // The same key as WorkCard's: the same owned task read, and withheld while the task is refused.
+  const { detail } = useOwnedTaskDetail({
     queryKey: ['native-task', projectId, task?.id, task?.phase, task?.resultSourceId, identity.name],
-    queryFn: () => getNativeTask(identity.token, projectId, task?.id ?? ''),
+    projectId,
+    taskId: task?.id,
+    identity,
     enabled: read,
     refetchInterval: read ? EVERY : false,
-  }).data
+  })
   return task ? workWords(task, detail) : null
 }

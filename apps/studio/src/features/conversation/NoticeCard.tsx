@@ -6,11 +6,12 @@
 // viewer, whose Download saves the same bytes (without a viewer, it saves them); a task without one offers none.
 // The files come from the task's own record, read with this person's rights; until it is read, Open and Download keep
 // their place and the focus but do nothing (aria-disabled, never disabled).
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
+import { TaskRefused } from '../artifacts/TaskRefused.tsx'
+import { useOwnedTaskDetail } from '../artifacts/task-detail.ts'
 import { ReportRefused } from '../artifacts/ReportRefused.tsx'
 import { useReportFence, type ReportOwner } from '../artifacts/report-read.ts'
 import { Icon } from '@sophia/ui'
-import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
 import { downloadSource } from '../artifacts/download.ts'
@@ -26,11 +27,14 @@ interface Props {
 
 /** The task's delivered files and its report, as this person may read them. */
 function useDelivered({ notice, projectId, identity }: Props) {
-  const detail = useQuery({
+  // The task's own refusal (task-detail-read.ts) withholds its delivered files and the actions built on them.
+  const { detail, refused } = useOwnedTaskDetail({
     queryKey: ['native-task', projectId, notice.taskId, 'notice', notice.resultRevision, identity.name],
-    queryFn: () => getNativeTask(identity.token, projectId, notice.taskId),
-  }).data
-  return { artifactId: detail?.task.artifactId, ...noticeActions(detail?.result?.outputs ?? []) }
+    projectId,
+    taskId: notice.taskId,
+    identity,
+  })
+  return { taskRefused: refused, artifactId: detail?.task.artifactId, ...noticeActions(detail?.result?.outputs ?? []) }
 }
 
 type Delivered = ReturnType<typeof useDelivered>
@@ -60,7 +64,9 @@ export function NoticeCard(props: Props) {
         <Icon name="brief" />
         <strong>{title}</strong>
       </p>
-      {refused && delivered.artifactId ? (
+      {delivered.taskRefused ? (
+        <TaskRefused projectId={props.projectId} taskId={notice.taskId} identity={identity} />
+      ) : refused && delivered.artifactId ? (
         <ReportRefused artifactId={delivered.artifactId} identity={identity} />
       ) : (
         <NoticeActions delivered={delivered} identity={identity} show={status.show} />
