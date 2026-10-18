@@ -135,8 +135,10 @@ interface Gate {
   reached: Promise<void>
   open: () => void
   arrive: () => Promise<void>
-  /** What the reservation statement answered once it went on (or how it failed): the branch actually taken. */
-  outcome: string[]
+  /** Each reservation statement actually sent, once, in order: its ordinal and what it answered (or how it failed). */
+  outcome: { ordinal: number; rows: unknown }[]
+  /** How many reservation statements were sent through this gate. */
+  delegated: number
 }
 
 function gate(): Gate {
@@ -147,6 +149,7 @@ function gate(): Gate {
   return {
     reached,
     outcome: [],
+    delegated: 0,
     open: () => opened?.(),
     arrive: async () => {
       arrived?.()
@@ -158,23 +161,57 @@ function gate(): Gate {
 const reservesCall = (sql: unknown) =>
   (typeof sql === 'string' ? sql : JSON.stringify(sql ?? '')).includes('reserve_personal_companion')
 
+/** The clients already gated: pg-pool hands the same idle client out again, and it is wrapped once, never twice. */
+const gatedClients = new WeakSet<pg.PoolClient>()
+
 /** A client whose reservation statement waits at the gate before it is sent; every other statement goes as it is. */
 function gatedClient(client: pg.PoolClient, at: Gate): pg.PoolClient {
+  if (gatedClients.has(client)) return client
+  gatedClients.add(client)
   const query = client.query.bind(client) as (...args: unknown[]) => Promise<unknown>
   return Object.assign(client, {
     query: async (...args: unknown[]) => {
       if (!reservesCall(args[0])) return query(...args)
+      at.delegated += 1
+      const ordinal = at.delegated
       await at.arrive()
       try {
         const answer = await query(...args)
-        at.outcome.push(JSON.stringify((answer as { rows?: unknown[] }).rows ?? null))
+        at.outcome.push({ ordinal, rows: (answer as { rows?: unknown[] }).rows ?? null })
         return answer
       } catch (err: unknown) {
-        at.outcome.push(`error: ${err instanceof Error ? err.message : String(err)}`)
+        at.outcome.push({ ordinal, rows: `error: ${err instanceof Error ? err.message : String(err)}` })
         throw err
       }
     },
   })
+}
+
+/** A promise that settles within `ms`, or fails saying what did not happen. */
+const within = <T>(ms: number, what: string, p: Promise<T>) =>
+  Promise.race([
+    p,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`not in ${ms} ms: ${what}`)), ms)),
+  ])
+
+/** The one epoch row, as a nonnegative integer: none, two, null or anything else is a failed witness, never a commit. */
+function epochValue(rows: readonly { epoch: unknown }[]): number {
+  if (rows.length !== 1) throw new Error(`epoch witness: ${rows.length} rows`)
+  const value = Number(rows[0]?.epoch ?? Number.NaN)
+  if (!Number.isInteger(value) || value < 0) throw new Error(`epoch witness: not an epoch: ${String(rows[0]?.epoch)}`)
+  return value
+}
+
+/** Polls `read` until the epoch is exactly `from + 1`, or fails at the deadline (unchanged is a failure too). */
+async function epochAdvance(read: () => Promise<number>, from: number, ms: number): Promise<number> {
+  const until = Date.now() + ms
+  for (;;) {
+    const now = await read()
+    if (now === from + 1) return now
+    if (now !== from) throw new Error(`epoch witness: ${from} -> ${now}, not the one erasure`)
+    if (Date.now() > until) throw new Error(`epoch witness: unchanged at ${from} after ${ms} ms`)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
 }
 
 /**
@@ -558,38 +595,42 @@ describe('the live personal companion (local provider double)', () => {
     const api = await liveApi('first-payer', EVE, true, gatedPool(at))
     const sentBefore = recorded().length
     const marks: Record<string, number> = {}
-    const epochOf = async () =>
-      (await owner<{ epoch: string }>(`SELECT epoch::text FROM sophia.personal_spaces WHERE owner_id=$1`, [EVE]))[0]
-        ?.epoch
-    await write(api, '/api/v1/personal/turns', EVE, { text: 'Private words, erased first' })
-    await at.reached
-    marks.reservationHeld = performance.now()
-    const epochBefore = await epochOf()
-    const { epoch } = await space(api, EVE)
+    const epochRows = () =>
+      owner<{ epoch: unknown }>(`SELECT epoch FROM sophia.personal_spaces WHERE owner_id=$1`, [EVE])
     let erasing: Promise<{ status: number; json: unknown }> | undefined
+    let oldEpoch = -1
+    let epochBefore = -1
+    let epochAfter = -1
+    // The whole owned operation, from before the turn can reach the gate: the gate always opens and the erasure is
+    // always joined, within bounds, whatever fails on the way.
     try {
-      erasing = call(api, '/api/v1/personal/erasure', EVE, { confirm: 'delete' }, epoch)
-      let epochNow = epochBefore
-      for (let i = 0; i < 300 && epochNow === epochBefore; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 10))
-        epochNow = await epochOf()
-      }
-      // The witness: the erasure's epoch is in the database before the reservation may go on.
-      assert.notEqual(epochNow, epochBefore, 'the erasure committed while the reservation was held')
+      oldEpoch = (await space(api, EVE)).epoch
+      await write(api, '/api/v1/personal/turns', EVE, { text: 'Private words, erased first' })
+      await within(10_000, 'the reservation reached the gate', at.reached)
+      marks.reservationHeld = performance.now()
+      epochBefore = epochValue(await epochRows())
+      erasing = call(api, '/api/v1/personal/erasure', EVE, { confirm: 'delete' }, oldEpoch)
+      // The witness: the erasure's epoch, one more than before, in the database while the reservation is held.
+      epochAfter = await epochAdvance(async () => epochValue(await epochRows()), epochBefore, 3_000)
       marks.erasureCommitted = performance.now()
     } finally {
       at.open()
+      if (erasing) await within(20_000, 'the erasure drained', erasing).catch(() => undefined)
     }
     const erased = await erasing
     marks.erasureAnswered = performance.now()
     assert.equal(erased?.status, 202, JSON.stringify(erased?.json))
+    assert.equal(epochAfter, epochBefore + 1)
     assert.ok(marks.reservationHeld < marks.erasureCommitted)
     const turnsAfter = parsePersonalTurnPage((await call(api, '/api/v1/personal/turns?after=0', EVE)).json)
     assert.deepEqual(turnsAfter.turns, [], 'nothing of the erased words, no answer')
     assert.equal(recorded().length, sentBefore, 'the provider was asked nothing')
     assert.deepEqual(await usage('first-payer'), [], 'nothing reserved')
+    // The branch taken, each reservation statement recorded once: one, after the erasure, answering not_current.
+    assert.deepEqual(at.outcome, [{ ordinal: 1, rows: [{ outcome: 'not_current' }] }])
+    assert.equal(at.delegated, 1)
     // After the erasure, the old epoch's write is refused and writes nothing; the new epoch writes as before.
-    const stale = await call(api, '/api/v1/personal/resume', EVE, {}, epoch)
+    const stale = await call(api, '/api/v1/personal/resume', EVE, {}, oldEpoch)
     assert.ok(stale.status >= 400, `old epoch refused: ${stale.status} ${JSON.stringify(stale.json)}`)
     assert.ok(!JSON.stringify(stale.json).includes('erased first'), 'no erased words in the refusal')
     assert.deepEqual(
@@ -598,20 +639,50 @@ describe('the live personal companion (local provider double)', () => {
       'no new turn from the old epoch',
     )
     assert.equal(recorded().length, sentBefore, 'still no provider request')
-    // The branch taken: every reservation attempt went on after the erasure and answered not_current.
-    assert.ok(at.outcome.length > 0, 'the held reservation went on')
-    assert.ok(
-      at.outcome.every((o) => o.includes('not_current')),
-      `reservation outcomes ${at.outcome.join()}`,
-    )
     process.stdout.write(
-      `ERASURE-FIRST ${JSON.stringify({ ...marks, epochBefore, staleStatus: stale.status, reservation: at.outcome })}\n`,
+      `ERASURE-FIRST ${JSON.stringify({ ...marks, epochBefore, epochAfter, staleStatus: stale.status, reservations: at.outcome })}\n`,
     )
   })
 
-  // After an erasure (#435 4304290365), the old request key on the second API: under the old epoch the fence refuses
-  // it; under the new epoch the key's request reads redacted and writes nothing. Neither brings back the erased words,
-  // keeps a turn, reserves or asks the provider; a retry of the erased turn finds nothing to retry.
+  // The fixture's own boundaries (R-PERSONAL-AD7-WITNESS-01, -POOL-02): a missing, null, malformed, doubled or
+  // unchanged epoch never records a commit; the same pg client handed out twice is wrapped once, so one statement is
+  // one record.
+  it('the fixture: a bad or unchanged epoch is a failed witness; a reused client records each statement once', async () => {
+    for (const rows of [[], [{ epoch: null }], [{ epoch: 'x' }], [{ epoch: '-1' }], [{ epoch: '1' }, { epoch: '2' }]])
+      assert.throws(() => epochValue(rows), /epoch witness/)
+    assert.equal(epochValue([{ epoch: '3' }]), 3)
+    await assert.rejects(
+      epochAdvance(() => Promise.resolve(5), 5, 50),
+      /unchanged at 5/,
+    )
+    await assert.rejects(
+      epochAdvance(() => Promise.resolve(7), 5, 50),
+      /not the one erasure/,
+    )
+    assert.equal(await epochAdvance(() => Promise.resolve(6), 5, 50), 6)
+    const at = gate()
+    at.open()
+    const own = gatedPool(at)
+    const first = await own.connect()
+    const pid = (await first.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]?.pid
+    await first.query(`SELECT 'reserve_personal_companion'::text AS probe`)
+    first.release()
+    const again = await own.connect()
+    assert.equal(
+      (await again.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]?.pid,
+      pid,
+      'the same client',
+    )
+    await again.query(`SELECT 'reserve_personal_companion'::text AS probe`)
+    again.release()
+    assert.equal(at.delegated, 2)
+    assert.deepEqual(
+      at.outcome.map((o) => o.ordinal),
+      [1, 2],
+      'one record per statement',
+    )
+  })
+
   it('after an erasure, the old key on the other API, old epoch or new: refused, nothing kept or asked', async () => {
     const FAY = randomUUID()
     const one = await liveApi('fay-payer', FAY)

@@ -31,7 +31,13 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   reporter: 'list',
-  use: { baseURL: 'http://127.0.0.1:5198', viewport: { width: 1440, height: 900 } },
+  use: {
+    baseURL: 'http://127.0.0.1:5198',
+    viewport: { width: 1440, height: 900 },
+    // SOPHIA_SERVED_GL=swiftshader: Chromium's software GL (ANGLE on SwiftShader) for the page's WebGL, for comparing
+    // with the default headless backend; the product's light and its canvas stay as they are.
+    ...(process.env.SOPHIA_SERVED_GL === 'swiftshader' ? { launchOptions: { args: ['--use-angle=swiftshader'] } } : {}),
+  },
   webServer: [
     {
       command: personal ? 'node ../api/scripts/personal-served.ts' : 'node ../api/src/server.ts',

@@ -365,3 +365,18 @@ B's private handback goes to P; R reviews this repair. No push.
 - `e2e-served/personal-served.spec.ts` (the normal journey) did not complete. On `/personal` the headless Chromium
   renderer crashes for Luis and for Davide alike, after WebGL "GPU stall due to ReadPixels" warnings, before the
   journey can type. Root cause (headless WebGL environment or a product render) not established; the journey is unrun.
+
+## FND-B-PERSONAL-FIXTURE-GL-FOCUSED-CORRECTION-01
+
+- R-PERSONAL-AD7-WITNESS-01: the erasure-first case reads exactly one epoch row as a nonnegative integer. It requires
+  the epoch to move from before to exactly before + 1 while the reservation is held; it records both numbers (0, 1).
+  The whole owned operation is under one `finally` that always opens the gate and joins the erasure, within bounds.
+- R-PERSONAL-AD7-POOL-02: the same pooled pg client is wrapped once (a WeakSet), and each reservation statement is
+  recorded once, with its ordinal. The case sees exactly one statement, answering `not_current`; the earlier two
+  identical strings came from double wrapping, not two runner attempts. A fixture case shows that missing, null,
+  malformed, doubled and unchanged epochs fail the witness, and that a reused client records one entry per statement.
+- The served `/personal` crash: `SOPHIA_SERVED_GL=swiftshader` (Chromium `--use-angle=swiftshader`) crashes at the same
+  point as default headless. The browser log names the cause: the browser terminates the renderer for a bad IPC
+  message, "No binder found for interface media.mojom.OnDeviceSpeechRecognition", in Playwright's
+  chrome-headless-shell, when the composer's dictation probes on-device speech recognition. The normal journey stays
+  unrun under this headless build.
