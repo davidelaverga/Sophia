@@ -33,15 +33,18 @@ const WORK_GOAL = '00000000-0000-4000-8000-0000000000b1'
 
 const part = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
 
-/** A synthetic session, unsigned: only the synthetic Auth service ever sees it, and it signs nothing. */
-function session(person: Person) {
-  const exp = Math.floor(Date.now() / 1000) + 24 * 3600
+/**
+ * A synthetic session, unsigned: only the synthetic Auth service ever sees it, and it signs nothing. `life`: seconds its
+ * access token has left, a day unless told; below zero it has expired, and supabase-js asks for a refresh as it loads.
+ */
+function session(person: Person, life = 24 * 3600) {
+  const exp = Math.floor(Date.now() / 1000) + life
   const claims = { sub: person.id, email: person.email, role: 'authenticated', aud: 'authenticated', exp }
   return {
     access_token: `${part({ alg: 'none', typ: 'JWT' })}.${part({ ...claims, is_anonymous: false })}.synthetic`,
     refresh_token: `synthetic-refresh-${person.id}`,
     token_type: 'bearer',
-    expires_in: 24 * 3600,
+    expires_in: Math.max(0, life),
     expires_at: exp,
     user: {
       id: person.id,
@@ -113,8 +116,9 @@ test.afterEach(({ context }) => expect(elsewhere.get(context) ?? []).toEqual([])
 
 /**
  * The synthetic Auth service, and an API that answers nothing (the checks need none of its reads). `logout` waits for
- * `release` when given one, and answers `logoutStatus` (a 503: the service unavailable); every call to the Auth service
- * is counted.
+ * `release` when given one, and answers `logoutStatus` (a 503: the service unavailable); a refresh is refused, as Auth
+ * refuses a refresh token it no longer knows (every device signed out elsewhere); every call to the Auth service is
+ * counted.
  */
 async function serve(context: BrowserContext, logout?: Promise<void>, logoutStatus = 204) {
   const calls: string[] = []
@@ -132,6 +136,10 @@ async function serve(context: BrowserContext, logout?: Promise<void>, logoutStat
       if (logoutStatus !== 204)
         return route.fulfill({ status: logoutStatus, json: { code: logoutStatus, msg: 'Synthetic Auth: unavailable' } })
       return route.fulfill({ status: 204 })
+    }
+    if (pathname.endsWith('/auth/v1/token')) {
+      const refused = { error: 'invalid_grant', error_description: 'Invalid Refresh Token: Refresh Token Not Found' }
+      return route.fulfill({ status: 400, json: refused })
     }
     return route.fulfill({ status: 404, json: { code: 404, msg: 'Synthetic Auth: nothing here' } })
   })
@@ -155,8 +163,8 @@ async function serve(context: BrowserContext, logout?: Promise<void>, logoutStat
   return calls
 }
 
-/** A tab whose Supabase session is `person`'s, and whose session storage holds `held`, before the app first loads. */
-async function signedInTab(context: BrowserContext, person: Person, held: Record<string, string> = HELD) {
+/** A tab whose kept Supabase session is `kept`, and whose session storage holds `held`, before the app first loads. */
+async function keptTab(context: BrowserContext, kept: ReturnType<typeof session>, held: Record<string, string>) {
   const page = await context.newPage()
   await page.goto(`${APP}/favicon.svg`)
   await page.evaluate(
@@ -164,10 +172,14 @@ async function signedInTab(context: BrowserContext, person: Person, held: Record
       localStorage.setItem(key, JSON.stringify(signedIn))
       for (const [k, v] of Object.entries(items)) sessionStorage.setItem(k, v)
     },
-    [SESSION_KEY, session(person), held] as const,
+    [SESSION_KEY, kept, held] as const,
   )
   return page
 }
+
+/** A tab whose Supabase session is `person`'s, and whose session storage holds `held`, before the app first loads. */
+const signedInTab = (context: BrowserContext, person: Person, held: Record<string, string> = HELD) =>
+  keptTab(context, session(person), held)
 
 const account = (page: Page) => page.getByRole('button', { name: 'Account' }).first()
 
@@ -848,6 +860,80 @@ test('legal · a sign-out in another tab forgets the views’ unsent words here 
   await expect
     .poll(() => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? '{}') as unknown, key))
     .toEqual({ lens: 'build', drafts: {} })
+})
+
+// --- Signed out by a cause this tab did not start: the sign-in says so, once (docs/plans/signed-out-elsewhere.md). ---
+
+const ENDED_ELSEWHERE = 'You were signed out in another tab or on another device, so this tab signed out too.'
+const ENDED_AWAY = 'Your sign-in on this device ended while you were away.'
+const WORDS_CLEARED = 'Unsent words here were cleared.'
+/** A first visit's line under the title, which the sign-in says when nothing else happened. */
+const LEDE = 'Where your team and Sophia think together.'
+const emailField = (page: Page) => page.locator('#email')
+
+test('seam · signed out in another tab: the sign-in says so politely, once, and the email field keeps the focus', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await anotherTab(context, null)
+  await expect(emailField(page)).toBeVisible()
+  // A status in the lede's place, not the form's alert; no unsent words were kept here, so it says none went.
+  await expect(page.getByRole('status')).toHaveText(ENDED_ELSEWHERE)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(page.getByText(LEDE)).toHaveCount(0)
+  await expect(emailField(page)).toBeFocused()
+  // Said once: after a reload nothing signed this tab out, and the sign-in is a first visit's again.
+  await page.reload()
+  await expect(emailField(page)).toBeVisible()
+  await expect(page.getByText(LEDE)).toBeVisible()
+  await expect(page.getByText(ENDED_ELSEWHERE)).toHaveCount(0)
+  await expect(page.getByRole('status')).toHaveCount(0)
+})
+
+test('seam · a sign-in that ended while the page was closed: said once as it loads, with the unsent words that went', async ({
+  context,
+}) => {
+  const calls = await serve(context)
+  // Davide's session, kept on this device, expired an hour ago, and the Auth service refuses its refresh.
+  const page = await keptTab(context, session(DAVIDE, -3600), { [OTHER_PART]: '{}' })
+  const key = viewerKeyOf(DAVIDE.id, WORK_PROJECT)
+  await page.evaluate(
+    (k) => localStorage.setItem(k, JSON.stringify({ lens: 'build', drafts: { build: 'secret plan' } })),
+    key,
+  )
+  await page.goto(`${APP}/app.html`)
+  await expect(emailField(page)).toBeVisible()
+  await expect(page.getByRole('status')).toHaveText(`${ENDED_AWAY} ${WORDS_CLEARED}`)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(emailField(page)).toBeFocused()
+  expect(calls).toContain('POST /synthetic-auth/auth/v1/token')
+  // The words it says went are gone: the view keeps its lens, never its unsent words.
+  expect(await page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? '{}') as unknown, key)).toEqual({
+    lens: 'build',
+    drafts: {},
+  })
+  await page.reload()
+  await expect(emailField(page)).toBeVisible()
+  await expect(page.getByText(LEDE)).toBeVisible()
+  await expect(page.getByText(ENDED_AWAY)).toHaveCount(0)
+  await expect(page.getByRole('status')).toHaveCount(0)
+})
+
+test('seam · this tab’s own Sign out says nothing of it: the sign-in is a first visit’s (control)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
+  await expect(emailField(page)).toBeVisible()
+  await expect(page.getByText(LEDE)).toBeVisible()
+  await expect(page.getByRole('status')).toHaveCount(0)
+  await expect(page.getByRole('alert')).toHaveCount(0)
 })
 
 test('legal · /terms and /privacy keep their address and their page, signed out or in (Codex P1 on #366)', async ({
