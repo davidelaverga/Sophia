@@ -136,15 +136,21 @@ function useShownText(version: ArtifactVersion, identity: Identity) {
 }
 
 export function PresentedReport(props: Props) {
-  // The report's own refusal (report-read.ts), seen here or anywhere else: no title, meta, index, text or action.
+  // The report's own refusal (report-read.ts), seen here or anywhere else: no title, meta, index, text or report action;
+  // only the stage's own way out (Stop showing / Stop following, as the stage supplies it) stays.
   const refused = useReportFence(props.version.artifactId)
   return refused ? <RefusedReport {...props} /> : <ShownReport {...props} />
 }
 
-/** Refused: nothing of the report; Try again reads the report itself (ReportRefused), so it can come back here. */
-function RefusedReport({ version, identity }: Props) {
+/**
+ * Refused: nothing of the report; Try again reads the report itself (ReportRefused), so it can come back here. The
+ * stage's exit (`action`: the parent's own Stop showing or Stop following, never a report-derived control) stays, so a
+ * refused presentation can still be left in place; pressing it changes the stage, not the report's refusal.
+ */
+function RefusedReport({ version, identity, action }: Props) {
   return (
     <section className="report-main" aria-label="Report">
+      <span className="report-main-acts">{action}</span>
       <ReportRefused artifactId={version.artifactId} identity={identity} className="report-main-refused" />
     </section>
   )

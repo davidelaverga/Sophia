@@ -18,6 +18,11 @@
     If it isn't in the list, the existing note says so («The conversation asked for isn't here: the newest is open.»).
   - A fragment under another prefix is left alone.
 
+## Follow-up (Codex P2 on #375)
+
+- **An address naming one keeps it while the list can't be read yet** (still coming, or failed and read again):
+  the conversation opens once the list arrives, its address unchanged.
+
 ## Checks
 
 `conversation-address.spec.ts`, on the fixture's conversations:

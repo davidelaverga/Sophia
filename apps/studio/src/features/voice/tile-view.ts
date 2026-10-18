@@ -8,6 +8,13 @@ export const STRIP_TILES = 4
 /** Tiles for people in the gallery. */
 export const GALLERY_TILES = 8
 
+/**
+ * The tiles people get: the strip's or the gallery's, less the one «Your tile is hidden» holds where your tile was
+ * (room-basics.md), so hiding your tile never adds one (Codex P2 on #380).
+ */
+export const peopleTiles = (strip: boolean, selfHidden: boolean) =>
+  (strip ? STRIP_TILES : GALLERY_TILES) - (selfHidden ? 1 : 0)
+
 interface Person {
   identity: string
   speaking: boolean

@@ -6,7 +6,7 @@
 // region: focus moves to its title on open and back to the opener on close; Esc steps down, F toggles the full page.
 import { ReportOrigin } from './ReportOrigin.tsx'
 import { ownedBytes, ownedText } from './download.ts'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { lazy, Suspense, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
 import { reportLanguage } from '@sophia/report/language'
@@ -17,7 +17,7 @@ import { ReviseSections } from './ReviseSections.tsx'
 import type { Identity } from '../../app/dev-identity.ts'
 import { modalOnScreen, onScreen as isVisible, ShortcutScope } from '../../app/shortcuts.ts'
 import { useCommands } from '../../app/useCommands.ts'
-import { checkedBlob, HashMismatch, saveBlob, utf8, type LoadedBytes, type LoadedText } from './download.ts'
+import { HashMismatch, ownedSave, saveBlob, SaveWithheld, utf8, type LoadedBytes, type LoadedText } from './download.ts'
 import { parseMarkdown, wordCount, type ParsedReport } from './markdown.ts'
 import { HtmlView, reviewTag } from './HtmlView.tsx'
 import { MarkdownView } from './MarkdownView.tsx'
@@ -40,6 +40,7 @@ import {
   pinTo,
   renditionOf,
   rereadFor,
+  returnFrom,
   shortHash,
   versionMissing,
   versionReadFailure,
@@ -337,14 +338,18 @@ function panelToggleOf(el: HTMLElement): HTMLElement | null {
  */
 function useFocusHandoff(opener: React.RefObject<HTMLElement | null>) {
   const title = useRef<HTMLHeadingElement>(null)
+  // What had the focus as the pane came, read once and never the pane's own title (an effect run twice, as React's
+  // development mode does, would read the title it just focused).
+  const atMount = useRef<HTMLElement | null>(null)
   useEffect(() => {
-    // A deep link has no opener: what had the focus as the pane came.
-    const atMount = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    if (active !== title.current) atMount.current ??= active
     title.current?.focus({ preventScroll: true })
     return () => {
-      // Read at the close, on purpose: the same report opened again from elsewhere names its latest opener.
+      // Read at the close, on purpose: the same report opened again from elsewhere names its latest opener; one that
+      // left the page (a sheet closed for the report) gives way to what had the focus as the pane came.
       // oxlint-disable-next-line react-hooks/exhaustive-deps
-      const from = opener.current ?? atMount
+      const from = returnFrom(opener.current, atMount.current)
       const free = focusFree(document.activeElement, document.body)
       focusReturn(free, from, from ? panelToggleOf(from) : null, shownNow)?.focus({ preventScroll: true })
     }
@@ -439,6 +444,7 @@ export function DocumentPane(props: Props) {
   const { title, top, offer, recover, onCurrent } = usePaneBehaviour(props, data, live.showing)
   const width = usePaneWidth()
   const status = useTransientStatus()
+  const client = useQueryClient()
   const { focusSource, cite, choose } = useCitation(tab, onTab)
   const full = link.size === 'full'
   const tasks = useTaskTab(props)
@@ -457,7 +463,7 @@ export function DocumentPane(props: Props) {
             // Only the current version is shown to everyone: the room shows what is current (present-view.ts).
             show={data.version && onCurrent && props.show?.(data.version.id, onClose)}
             full={full}
-            onDownload={() => void viewerDownload(data, status.show)}
+            onDownload={() => void viewerDownload(data, status.show, { client, artifactId: link.artifactId })}
             onEnlarge={onEnlarge}
             onStepDown={onStepDown}
             onClose={onClose}
@@ -483,7 +489,7 @@ export function DocumentPane(props: Props) {
         tasks={tasks.list}
         revise={revise}
       />
-      <PaneStatus {...status} />
+      <PaneStatus {...status} withheld={data.refused} />
       <PassageBar pane={pane} version={data.version} viewer={{ ...props, onSeeTasks: () => choose('tasks') }} />
     </aside>
   )
@@ -535,11 +541,14 @@ function reviewOf(props: Props, data: PaneData): ReactNode {
   )
 }
 
-/** The download's line of status, in the pane's foot. */
-function PaneStatus({ text, error }: { text: string; error: boolean }) {
+/**
+ * The download's line of status, in the pane's foot. While the report is refused (`withheld`) it says nothing of a
+ * download that came before (its filename, size, hash), at once and not when the line would fade; the line stays.
+ */
+function PaneStatus({ text, error, withheld }: { text: string; error: boolean; withheld: boolean }) {
   return (
-    <p className="report-status" role="status" data-error={error || undefined}>
-      {text}
+    <p className="report-status" role="status" data-error={(!withheld && error) || undefined}>
+      {withheld ? '' : text}
     </p>
   )
 }
@@ -777,15 +786,27 @@ const asBytes = (text: LoadedText): LoadedBytes => ({
   mime: text.mime,
 })
 
-/** The viewer's download: the bytes already loaded, checked against their record again before they are saved. */
-async function viewerDownload(data: PaneData, show: (text: string, error?: boolean) => void): Promise<void> {
+/**
+ * The viewer's download: the bytes already loaded, checked against their record again before they are saved, for the
+ * report and account cache as the press began (`owner`): a newer own refusal of the report since stops the save.
+ */
+async function viewerDownload(
+  data: PaneData,
+  show: (text: string, error?: boolean) => void,
+  owner: { client: QueryClient; artifactId: string },
+): Promise<void> {
   const shown = onScreen(data)
   if (!shown) return
   try {
-    saveBlob(await checkedBlob(shown.file.bytes, shown.sha256, shown.file.mime), shown.file.filename)
+    await ownedSave(shown.file, shown.sha256, { client: owner.client, artifactId: owner.artifactId }, saveBlob)
     show(`Downloading ${shown.file.filename} · ${exact(shown.file.bytes.byteLength, shown.sha256)}`)
   } catch (err: unknown) {
-    show(err instanceof HashMismatch ? err.message : 'The download didn’t start. Try again.', true)
+    show(
+      err instanceof HashMismatch || err instanceof SaveWithheld
+        ? err.message
+        : 'The download didn’t start. Try again.',
+      true,
+    )
   }
 }
 

@@ -49,15 +49,16 @@ function Progress({ plan }: { plan: Glanced | undefined }) {
 }
 
 /**
- * The reports this goal's work made (goal-reports.md): a title opens it in the viewer, the sheet closed first, one at a
- * time (Codex P1 on #414); none, or no viewer, no section.
+ * The reports this goal's work made (goal-reports.md): a title opens it in the viewer on the version its row names (the
+ * pane offers a newer one), the sheet closed first, one at a time (Codex P1 and P2s on #414); none, or no viewer, no
+ * section. Closing the report gives the focus back to the goal's row.
  */
 function GoalReports({ reports, onLeave }: { reports: readonly ArtifactVersion[]; onLeave: () => void }) {
   const viewer = useDocumentViewer()
   if (!viewer || reports.length === 0) return null
-  const open = (artifactId: string) => {
+  const open = (r: ArtifactVersion) => {
     onLeave()
-    viewer.open({ artifactId })
+    viewer.open({ artifactId: r.artifactId, versionId: r.id })
   }
   return (
     <section className="goal-sheet-section goal-reports" aria-label="Reports">
@@ -65,7 +66,7 @@ function GoalReports({ reports, onLeave }: { reports: readonly ArtifactVersion[]
       <ul>
         {reports.map((r) => (
           <li key={r.artifactId}>
-            <button type="button" className="text-button" onClick={() => open(r.artifactId)}>
+            <button type="button" className="text-button" onClick={() => open(r)}>
               {r.title ?? 'Untitled report'}
             </button>
             {r.versionNumber !== undefined && <span className="goal-report-version">v{r.versionNumber}</span>}

@@ -23,6 +23,13 @@
 - **The fixture:** the viewer's camera, once turned on, gives a local feed (`fake-people.ts`), as LiveKit's local
   track does.
 
+## Follow-ups (Codex P2 on #380)
+
+- **Hiding your tile never adds one:** «Your tile is hidden» takes one of the tiles people get (`peopleTiles` in
+  tile-view.ts), so the gallery stays at nine and a phone's strip at five, on one row.
+- **In a fifth of a phone** (65 px) its words give way to an eye struck through over Show; a screen reader still hears
+  them. Three lines of words didn't fit there.
+
 ## Checks
 
 - **`call-clock.test.ts`:** 0:00, 1:05, 1:02:05, and the words for each.

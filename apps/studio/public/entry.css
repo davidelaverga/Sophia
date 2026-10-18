@@ -4,16 +4,19 @@
   Then it holds, breathing, over a thin bar that src/app/entry.ts moves on real milestones. Transforms and opacity only.
   The lockup's unit is --h, the mark's height: the word and the dot are placed on the brand lockup's own 60-unit grid.
 */
+/* index.html declares both schemes; until theme.css arrives, the root names the one shown, as theme.css will. */
 html,
 body {
   margin: 0;
   background: #050408;
+  color-scheme: dark;
 }
 /* A light page (entry.js read the choice): paper from the first paint, the opening's ground and wipe with it. */
 html[data-theme='light'],
 html[data-theme='light'] body,
 html[data-theme='light'] .entry-ground {
   background: #fbf8f3;
+  color-scheme: light;
 }
 html[data-theme='light'] .entry-wipe {
   background: linear-gradient(90deg, rgba(251, 248, 243, 0), #fbf8f3 24px);
