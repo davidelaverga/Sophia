@@ -115,9 +115,9 @@ const ROOM: Record<string, string[]> = {
   'src/features/personal/personal.css .places .popover': ['0 18px 50px rgb(0 0 0 / 0.55)'],
   'src/features/personal/personal.css .places .c3-daypill': ['0 8px 24px rgb(0 0 0 / 0.4)'],
   'src/features/personal/personal.css .places .c3-notes': ['-24px 0 60px rgb(0 0 0 / 0.45)'],
+  'src/features/resources/resources.css .copy-link-hand': ['0 18px 50px rgb(0 0 0 / 0.55)'],
   'src/features/resources/resources.css .effort-knob': ['0 1px 4px rgb(0 0 0 / 0.45)'],
   // Main's copy-link hand (#441), a popover, cast a menu's shadow: `0 18px 50px` at 0.55 × 1.
-  'src/features/resources/resources.css .copy-link-hand': ['0 18px 50px rgb(0 0 0 / 0.55)'],
   'src/features/work/planning/board.css .rail-turn': ['0 6px 18px rgb(0 0 0 / 0.45)'],
   'src/features/work/planning/board.css .task-tile': ['0 1px 2px rgb(0 0 0 / 0.3)'],
   'src/features/work/planning/board.css .task-tile:hover': ['0 14px 34px rgb(0 0 0 / 0.4)'],
