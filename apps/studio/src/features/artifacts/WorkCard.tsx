@@ -164,12 +164,19 @@ export function WorkCard(props: Props) {
   const now = useNow()
   const open = useOpen(task.artifactId)
   const retry = offersRetry(canAct, words, research, refused)
+  // Its own detail refused (task-detail-read.ts): only that refusal and its retry, never the normal Researching or
+  // Completed state, its progress or a read-failure note beside it (as DesignCard).
+  if (taskRefused)
+    return (
+      <Card as="li" className="task work-card" data-state="refused" data-task={task.id} tabIndex={-1}>
+        <TaskRefusedLine refused projectId={projectId} taskId={task.id} identity={identity} />
+      </Card>
+    )
   return (
     // The card takes the focus when a control inside it goes (Try PDF again, once the PDF renders again).
     <Card as="li" className="task work-card" data-state={words.state} data-task={task.id} tabIndex={-1}>
       <CardHead words={words} task={task} research={research} now={now} />
       <p className="work-card-question">{research?.question ?? 'Research'}</p>
-      <TaskRefusedLine refused={taskRefused} projectId={projectId} taskId={task.id} identity={identity} />
       {words.state === 'researching' && research && <Progress research={research} />}
       <ReportOutputs
         refused={refused}
@@ -232,8 +239,8 @@ const DESIGN_ENDED: ReadonlySet<string> = new Set(['published', 'failed', 'cance
 function useDesignState(html: HtmlProgress, rest: { projectId: string; identity: Identity; researchTaskId: string }) {
   const { projectId, identity, researchTaskId } = rest
   const live = html.state === 'designing' && html.designTaskId !== undefined
-  // The design child task's own refusal (task-detail-read.ts) withholds its state (the row says the generic words).
-  const { detail } = useOwnedTaskDetail({
+  // The design child task's own refusal (task-detail-read.ts) withholds its state; the row then says only that refusal.
+  const { detail, refused } = useOwnedTaskDetail({
     queryKey: ['native-task', projectId, html.designTaskId, identity.name],
     projectId,
     taskId: html.designTaskId,
@@ -247,7 +254,7 @@ function useDesignState(html: HtmlProgress, rest: { projectId: string; identity:
     if (state && DESIGN_ENDED.has(state))
       void client.invalidateQueries({ queryKey: ['native-task', projectId, researchTaskId] })
   }, [client, state, projectId, researchTaskId])
-  return state
+  return { state, refused: live && refused }
 }
 
 /** The HTML page's row before it is published: what the design is doing, or why there is no page. */
@@ -271,7 +278,15 @@ function DesignRow({ html, ...rest }: DesignRowProps & { html: HtmlProgress | un
 }
 
 function DesignState({ html, ...rest }: DesignRowProps & { html: HtmlProgress }) {
-  const words = designWords(html, useDesignState(html, rest))
+  const { state, refused } = useDesignState(html, rest)
+  // The design task refused to this person: only that, with its Try again, never its fallback Designing words.
+  if (refused && html.designTaskId)
+    return (
+      <div className="output-row" data-design="refused">
+        <TaskRefused projectId={rest.projectId} taskId={html.designTaskId} identity={rest.identity} />
+      </div>
+    )
+  const words = designWords(html, state)
   return (
     <div className="output-row" data-design={html.state}>
       <div className="output-open" aria-live="polite">

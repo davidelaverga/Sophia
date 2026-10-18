@@ -191,11 +191,16 @@ const lookAfter = (look: Look, step: Exclude<ReturnType<typeof nextLook>, 'wait'
 /** A read under way, or failed, as the look waits on it. */
 const readOf = (reading: Earlier['reading']) => ({ reading: reading === 'loading', failed: reading === 'failed' })
 
-/** A search's page to read for this message: none without a search's hint, else still to read or read. */
-const jumpOf = (before: string | null | undefined, jumped: boolean) => {
+/**
+ * A search's page to read for this message: none without a search's hint, else still to read or read. A latest-page
+ * hint (null) only said it was the newest when found: newer messages may have come since (4307870144), so once that
+ * page is read without it, it is looked for in the bounded earlier pages as any address is, never said gone for that.
+ */
+export const jumpOf = (before: string | null | undefined, jumped: boolean): 'none' | 'unread' | 'read' => {
   // undefined: no search found it; null: it was the newest when found (the latest page), else the message after it.
   if (before === undefined) return 'none'
-  return jumped ? 'read' : 'unread'
+  if (!jumped) return 'unread'
+  return before === null ? 'none' : 'read'
 }
 
 /**
@@ -222,7 +227,13 @@ export function useMessageAddressed(
   const { load, offered, atStart, withdrawn, jump } = earlier
   // Found by a search, its next message known: the one page that ends at it, whose read is the one waited on.
   const before = beforeOf(named.id)
-  const reading = before !== undefined ? earlier.jumping(key) : earlier.reading
+  // The jump's read while the search's page is still the one waited on; once a stale latest-page hint (null) was read
+  // without it and the look goes on earlier (jumpOf "none"), the earlier pages' own read is (R on 4307870144).
+  // A jump requested is not a jump read: while this follow's own jump is under way or failed, that read is the one
+  // waited on (and retried); only once it settled without the message does the earlier lookup's own read govern.
+  const jumpRead = before !== undefined ? earlier.jumping(key) : 'idle'
+  const reading =
+    before !== undefined && (jumpOf(before, jumped) !== 'none' || jumpRead !== 'idle') ? jumpRead : earlier.reading
   useEffect(() => {
     const id = named.id
     if (!inView || !loaded || !id || at !== 'looking') return

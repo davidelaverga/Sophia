@@ -139,8 +139,9 @@ function useMadeRecord({ notice, projectId, identity }: Pick<Props, 'notice' | '
   const outputs = detail?.result?.outputs ?? []
   // Only the version the record names: a list cached before a revision would show the older one.
   const version = versions?.find((v) => v.id === outputs[0]?.artifactVersionId)
-  // A read that failed is said, with a way to try again: never an Open that waits for ever.
-  const failed = task.isError && !detail
+  // A read that failed is said, with a way to try again: never an Open that waits for ever. The task's own refusal is
+  // not such a failure: it has its one recovery (MadeTaskRefused), never a second Try again or transient words too.
+  const failed = task.isError && !detail && !taskRefused
   // The room shows what is current: a version since replaced isn't offered to everyone.
   const current = !!version && versions?.[0]?.id === version.id
   const record = { detail, artifactId, version, current, card, outputs, failed, retry: () => void task.refetch() }
