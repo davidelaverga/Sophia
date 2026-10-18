@@ -1,6 +1,6 @@
 # Signed out from outside this tab, said once
 
-> 2026-10-18 · costuras.md seam #2, 2026-10-18, Luis «¿cómo vamos con las mejoras de seam?». Studio only, no API.
+> 2026-10-18 · costuras.md seam #2, 2026-10-18, Luis «OK y como vamos con las mejoras de seam?». Studio only, no API.
 
 ## What was measured
 
