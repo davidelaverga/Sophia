@@ -34,6 +34,8 @@ type Recorded = MockResponsesRequest
 let db: TestDatabase
 let pool: pg.Pool
 let double: Double
+/** FIXTURE: the gated companions' own pools, closed after. */
+const gatedPools: pg.Pool[] = []
 const apps: FastifyInstance[] = []
 const companions: ConfiguredCompanion[] = []
 
@@ -87,10 +89,10 @@ const env = (payer: string, ownerId: string = NOBODY) => ({
 })
 
 /** An API on the restricted role with the live companion its configuration gives, listening on 127.0.0.1. */
-async function liveApi(payer: string, ownerId: string, enroll = true): Promise<string> {
+async function liveApi(payer: string, ownerId: string, enroll = true, companionPool = pool): Promise<string> {
   // FIXTURE: the operator enrolls the payer for this test's owner (the only way an owner is pinned).
   if (enroll) await owner(`UPDATE sophia.personal_companion_payers SET owner_id=$2 WHERE payer=$1`, [payer, ownerId])
-  const configured = await personalCompanionFrom(env(payer, ownerId), pool)
+  const configured = await personalCompanionFrom(env(payer, ownerId), companionPool)
   companions.push(configured)
   const verifyActor = createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET })
   const app = buildApp({ pool, verifyActor, companion: configured.companion })
@@ -126,6 +128,75 @@ async function write(at: string, path: string, as: string, body: unknown) {
   const r = await call(at, path, as, body, epoch)
   assert.equal(r.status, 202, JSON.stringify(r.json))
   return parsePersonalReceipt(r.json)
+}
+
+/** A gate the companion's reservation waits at: `reached` once it is there, and it goes on once `open` is called. */
+interface Gate {
+  reached: Promise<void>
+  open: () => void
+  arrive: () => Promise<void>
+  /** What the reservation statement answered once it went on (or how it failed): the branch actually taken. */
+  outcome: string[]
+}
+
+function gate(): Gate {
+  let arrived: (() => void) | undefined
+  let opened: (() => void) | undefined
+  const reached = new Promise<void>((resolve) => (arrived = resolve))
+  const opening = new Promise<void>((resolve) => (opened = resolve))
+  return {
+    reached,
+    outcome: [],
+    open: () => opened?.(),
+    arrive: async () => {
+      arrived?.()
+      await opening
+    },
+  }
+}
+
+const reservesCall = (sql: unknown) =>
+  (typeof sql === 'string' ? sql : JSON.stringify(sql ?? '')).includes('reserve_personal_companion')
+
+/** A client whose reservation statement waits at the gate before it is sent; every other statement goes as it is. */
+function gatedClient(client: pg.PoolClient, at: Gate): pg.PoolClient {
+  const query = client.query.bind(client) as (...args: unknown[]) => Promise<unknown>
+  return Object.assign(client, {
+    query: async (...args: unknown[]) => {
+      if (!reservesCall(args[0])) return query(...args)
+      await at.arrive()
+      try {
+        const answer = await query(...args)
+        at.outcome.push(JSON.stringify((answer as { rows?: unknown[] }).rows ?? null))
+        return answer
+      } catch (err: unknown) {
+        at.outcome.push(`error: ${err instanceof Error ? err.message : String(err)}`)
+        throw err
+      }
+    },
+  })
+}
+
+/**
+ * FIXTURE (erasure first): the companion's own pool on the restricted role (the API keeps the shared one). Its
+ * clients hold the reservation statement at the gate. pg-pool's own query() acquires with connect(callback), so both
+ * of connect's forms are kept: the callback is forwarded with the client, the promise resolves with it.
+ */
+function gatedPool(at: Gate): pg.Pool {
+  const own = createPool(db.apiUrl, { max: 4 })
+  gatedPools.push(own)
+  const connect = own.connect.bind(own) as (
+    callback?: (err: Error | undefined, client: pg.PoolClient | undefined, release: (e?: unknown) => void) => void,
+  ) => Promise<pg.PoolClient> | undefined
+  Object.assign(own, {
+    connect: (
+      callback?: (err: Error | undefined, client: pg.PoolClient | undefined, release: (e?: unknown) => void) => void,
+    ) =>
+      callback
+        ? connect((err, client, release) => callback(err, client && gatedClient(client, at), release))
+        : connect()?.then((client) => gatedClient(client, at)),
+  })
+  return own
 }
 
 /** Poll as a client does until no reply is pending. */
@@ -177,7 +248,7 @@ before(async () => {
   await owner(
     `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES
     ('test-payer', $1, 1000000), ('tight-payer', $1, 10), ('held-payer', $1, 1000000), ('stop-payer', $1, 1000000),
-    ('prompt-payer', $1, 1000000), ('note-payer', $1, 1000000), ('owner-payer', $1, 1000000)`,
+    ('prompt-payer', $1, 1000000), ('note-payer', $1, 1000000), ('owner-payer', $1, 1000000), ('first-payer', $1, 1000000)`,
     [NOBODY],
   )
 })
@@ -185,6 +256,7 @@ before(async () => {
 after(async () => {
   for (const app of apps) await app.close()
   for (const c of companions) await c.dispose()
+  for (const p of gatedPools) await p.end()
   await double.close()
   await pool.end()
   await db.drop()
@@ -474,6 +546,67 @@ describe('the live personal companion (local provider double)', () => {
       ['settled', 'settled'],
     )
     assert.equal(recorded().length, sentBefore + 2)
+  })
+
+  // Erasure FIRST (#435 4304290365, composed): the owner's turn is kept, its call registered and context read; its
+  // reservation waits at the companion's pool gate; the erasure commits (seen in the database: the epoch moved); then
+  // the reservation goes on. It finds its call from before the erasure: nothing is reserved, the provider is asked
+  // nothing, nothing of the erased words comes back. No answer is queued on the double: one asked for would show.
+  it('an erasure that commits before a call reserves: nothing reserved, no provider request, nothing back', async () => {
+    const EVE = randomUUID()
+    const at = gate()
+    const api = await liveApi('first-payer', EVE, true, gatedPool(at))
+    const sentBefore = recorded().length
+    const marks: Record<string, number> = {}
+    const epochOf = async () =>
+      (await owner<{ epoch: string }>(`SELECT epoch::text FROM sophia.personal_spaces WHERE owner_id=$1`, [EVE]))[0]
+        ?.epoch
+    await write(api, '/api/v1/personal/turns', EVE, { text: 'Private words, erased first' })
+    await at.reached
+    marks.reservationHeld = performance.now()
+    const epochBefore = await epochOf()
+    const { epoch } = await space(api, EVE)
+    let erasing: Promise<{ status: number; json: unknown }> | undefined
+    try {
+      erasing = call(api, '/api/v1/personal/erasure', EVE, { confirm: 'delete' }, epoch)
+      let epochNow = epochBefore
+      for (let i = 0; i < 300 && epochNow === epochBefore; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 10))
+        epochNow = await epochOf()
+      }
+      // The witness: the erasure's epoch is in the database before the reservation may go on.
+      assert.notEqual(epochNow, epochBefore, 'the erasure committed while the reservation was held')
+      marks.erasureCommitted = performance.now()
+    } finally {
+      at.open()
+    }
+    const erased = await erasing
+    marks.erasureAnswered = performance.now()
+    assert.equal(erased?.status, 202, JSON.stringify(erased?.json))
+    assert.ok(marks.reservationHeld < marks.erasureCommitted)
+    const turnsAfter = parsePersonalTurnPage((await call(api, '/api/v1/personal/turns?after=0', EVE)).json)
+    assert.deepEqual(turnsAfter.turns, [], 'nothing of the erased words, no answer')
+    assert.equal(recorded().length, sentBefore, 'the provider was asked nothing')
+    assert.deepEqual(await usage('first-payer'), [], 'nothing reserved')
+    // After the erasure, the old epoch's write is refused and writes nothing; the new epoch writes as before.
+    const stale = await call(api, '/api/v1/personal/resume', EVE, {}, epoch)
+    assert.ok(stale.status >= 400, `old epoch refused: ${stale.status} ${JSON.stringify(stale.json)}`)
+    assert.ok(!JSON.stringify(stale.json).includes('erased first'), 'no erased words in the refusal')
+    assert.deepEqual(
+      parsePersonalTurnPage((await call(api, '/api/v1/personal/turns?after=0', EVE)).json).turns,
+      [],
+      'no new turn from the old epoch',
+    )
+    assert.equal(recorded().length, sentBefore, 'still no provider request')
+    // The branch taken: every reservation attempt went on after the erasure and answered not_current.
+    assert.ok(at.outcome.length > 0, 'the held reservation went on')
+    assert.ok(
+      at.outcome.every((o) => o.includes('not_current')),
+      `reservation outcomes ${at.outcome.join()}`,
+    )
+    process.stdout.write(
+      `ERASURE-FIRST ${JSON.stringify({ ...marks, epochBefore, staleStatus: stale.status, reservation: at.outcome })}\n`,
+    )
   })
 
   it('an exhausted allowance asks the provider nothing', async () => {

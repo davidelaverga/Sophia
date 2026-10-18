@@ -341,3 +341,13 @@ B's private handback goes to P; R reviews this repair. No push.
 - `personal-usage.db.test.ts` settles every statement it sends, in lock order, before ending a connection. With the
   real fence removed, the case now fails with its own assertion ("the erasure waits for the admission holding the
   space") instead of "Connection terminated".
+
+## FND-B-PERSONAL-FIXTURE-AND-REAL-SERVED-JOURNEY-01
+
+- `personal-live.db.test.ts` gains the composed erasure-first case, run on the two-API restricted-role harness with
+  the loopback double. The companion alone gets a pool on the restricted role whose reservation statement waits at a
+  gate. `connect` keeps both of its forms, because pg-pool's own `query()` acquires with `connect(callback)`; the earlier
+  adapter dropped that callback and hung. The owner's turn is kept and its call registered; the erasure commits, seen
+  by the epoch moving in the database before the gate opens; then every reservation attempt answers `not_current`.
+  Nothing is reserved, the provider is asked nothing, nothing of the erased words comes back, and the old epoch's
+  resume is refused (409) with no new turn.
