@@ -214,6 +214,9 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.correct_contribution(uuid,uuid,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.withdraw_contribution(uuid,uuid,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.list_needs(boolean)') IS NOT NULL
+  -- 0069 already made list_needs(boolean); only 0076's body reads a mention's source as its recipient may (4308526636).
+  AND EXISTS (SELECT 1 FROM pg_catalog.pg_proc p WHERE p.oid = to_regprocedure('sophia.list_needs(boolean)')
+    AND position('s.owner_id=a OR (s.scope=''project'' AND s.eligible)' IN p.prosrc) > 0)
   AND to_regprocedure('sophia.mark_mention_seen(uuid,uuid,bigint,bigint)') IS NOT NULL
   AND to_regprocedure('sophia.contribution_recipients(uuid,uuid)') IS NOT NULL
   AND to_regprocedure('sophia.markdown_section_texts(text)') IS NOT NULL
