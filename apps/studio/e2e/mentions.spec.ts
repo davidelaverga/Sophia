@@ -22,6 +22,8 @@ declare global {
     heldSends?: { held: (() => void)[]; bodies: { mentions: string[] | undefined }[]; hold: boolean }
     /** Seen writes the page attempted (the failing-seen cases below). */
     seenAttempts?: number
+    /** The held seen write's release: answers it 503 (the held-write case below). */
+    releaseSeen?: () => void
   }
 }
 const seenOf = async (page: Page) => (await served(page)).filter((s) => s.startsWith('seen:'))
@@ -502,4 +504,49 @@ test('mentions · closing the chat cancels a pending retry of a failed seen writ
   await expect(discussion(page)).toHaveCount(0)
   await page.waitForTimeout(2500)
   expect(await seenAttempts(page)).toBe(1)
+})
+
+// #409 R-CURRENT-MENTIONS-RETRY-OWNERSHIP-02: the first seen write is held; while it is in flight the same mounted chat's
+// effect starts again (a new message changes what it shows); then the held write fails. The occurrence, still current
+// and readable where it is, is acknowledged by the effect that is current now, within bounds: no scroll, no new read.
+test('mentions · a seen write that fails after the chat moved on is tried again by the chat as it is now', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    let held = true
+    window.seenAttempts = 0
+    const wrap =
+      (f: typeof fetch): typeof fetch =>
+      async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href)
+        if (init?.method === 'POST' && /^\/api\/v1\/me\/needs\/[^/]+\/seen$/.test(url.pathname)) {
+          window.seenAttempts = (window.seenAttempts ?? 0) + 1
+          if (held) {
+            held = false
+            await new Promise<void>((resolve) => (window.releaseSeen = resolve))
+            return new Response(JSON.stringify({ code: 'unavailable', message: 'Busy', retry: 'safe' }), {
+              status: 503,
+            })
+          }
+        }
+        return f(input, init)
+      }
+    let current = wrap(window.fetch.bind(window))
+    Object.defineProperty(window, 'fetch', {
+      configurable: true,
+      get: () => current,
+      set: (f: typeof fetch) => (current = wrap(f)),
+    })
+  })
+  await page.goto(`/room.html?call=on&people=2&floor=1&discussion=mentioned#message-${MENTIONED_IN}`)
+  const entry = discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)
+  await expect(entry).toBeInViewport()
+  await expect.poll(() => seenAttempts(page)).toBe(1) // the write is in flight, held
+  await page.evaluate(() => window.fixture?.say('SYNTHETIC: the chat moves on while the write is held.'))
+  await expect(line(page, 'the chat moves on while the write is held')).toBeVisible()
+  await expect(entry).toBeInViewport()
+  await page.evaluate(() => window.releaseSeen?.())
+  await expect.poll(() => served(page), { timeout: 6000 }).toContain(`seen:${NEED}`)
+  expect((await served(page)).filter((s) => s === `seen:${NEED}`)).toHaveLength(1)
+  expect(await seenAttempts(page)).toBe(2)
 })

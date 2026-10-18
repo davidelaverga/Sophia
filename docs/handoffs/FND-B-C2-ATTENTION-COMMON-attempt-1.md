@@ -291,6 +291,15 @@ and other statuses are unchanged; the fence, retry, draft and restoration paths 
   stationary visible mention whose first write fails (marked once, two attempts), a write that keeps failing (four
   attempts in all, then none until the next showing), and closing the chat (the pending retry is cancelled).
 
+## FND-B-COMMON-TWO-FOCUSED-HOLDS-01 on mentions (R-CURRENT-MENTIONS-RETRY-OWNERSHIP-02)
+
+- A seen write that fails after its effect was replaced is retried by the effect that is current: a per-hook ref names
+  the live owner, set as each effect starts and cleared as it ends. A cancelled owner never runs again, in-flight
+  dedupe stays, and the current effect's token, occurrence and geometry checks and its bounded budget apply.
+  `e2e/mentions.spec.ts` "after the chat moved on" holds the first write, has a new message restart the effect while
+  the mention stays current, then fails the held write: before the fix the mention stays unacknowledged; after it, it
+  is marked once on the second attempt.
+
 ## Next bounded action
 
 B's private handback goes to P; R reviews this integration. No push until P selects one publication.

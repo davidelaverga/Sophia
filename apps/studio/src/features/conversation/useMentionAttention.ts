@@ -115,6 +115,9 @@ export function useMentionsSeen(
 ) {
   const client = useQueryClient()
   const marked = useRef(new Set<string>())
+  // The retries of the effect that is current: a write that fails after its effect was replaced (the chat moved on, the
+  // same occurrence still waiting) is retried by the current one, never by a cancelled one (#409 4305869903).
+  const retryOwner = useRef<ReturnType<typeof seenRetries> | null>(null)
   const ids = [...waiting.values()]
     .map((w) => w.need)
     .toSorted()
@@ -134,12 +137,13 @@ export function useMentionsSeen(
       const el = [...waitingEls()].find((e) => e instanceof HTMLElement && e.dataset.mentionNeed === id)
       if (el) seen(shownNeed(el, root))
     })
+    retryOwner.current = retries
     const seen = (id: string | undefined) => {
       if (!id || marked.current.has(id)) return
       marked.current.add(id)
       void markNeedSeen(identity.token, id).then(again, () => {
         marked.current.delete(id)
-        retries.retry(id)
+        retryOwner.current?.retry(id)
       })
     }
     const observer = new IntersectionObserver((changes) => changes.forEach((change) => seen(readNeed(change))), {
@@ -159,6 +163,7 @@ export function useMentionsSeen(
     root.addEventListener('scroll', onScroll, { passive: true })
     return () => {
       retries.cancel()
+      if (retryOwner.current === retries) retryOwner.current = null
       observer.disconnect()
       root.removeEventListener('scroll', onScroll)
       cancelAnimationFrame(frame)
