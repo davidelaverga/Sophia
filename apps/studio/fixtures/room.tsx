@@ -54,6 +54,7 @@ import {
   deliverCaption,
   deliverNotice,
   dropCall,
+  disabling,
   enabling,
   joined,
   leaving,
@@ -313,6 +314,9 @@ interface Fixture {
   /** Turning the microphone on waits until `releaseMicrophone`, as a browser still asking for it. */
   holdMicrophone: () => void
   releaseMicrophone: () => void
+  /** Turning the microphone off waits until `releaseMute`, as LiveKit's mute does while a republish settles. */
+  holdMute: () => void
+  releaseMute: () => void
   /** Leaving the call waits until `releaseLeave`, as a slow disconnect. */
   holdLeave: () => void
   /** Leaving the call fails on LiveKit's side, as a disconnect that rejects. */
@@ -1089,6 +1093,13 @@ window.fixture = {
   releaseMicrophone: () => {
     enabling.held = false
     for (const done of enabling.waiting.splice(0)) done()
+  },
+  holdMute: () => {
+    disabling.held = true
+  },
+  releaseMute: () => {
+    disabling.held = false
+    for (const done of disabling.waiting.splice(0)) done()
   },
   holdLeave: () => {
     leaving.held = true
