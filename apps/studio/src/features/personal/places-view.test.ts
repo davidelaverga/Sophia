@@ -7,6 +7,7 @@ import {
   FIND_FROM,
   findNotes,
   findProjects,
+  nextShown,
   orderProjects,
   codeButton,
   EDGE_TIP,
@@ -469,5 +470,28 @@ describe('finding a note (personal-notes-write-find.md)', () => {
       findNotes(more, '^').map((n) => n.id),
       ['e'],
     )
+  })
+})
+
+describe('the note that takes the focus once one is forgotten (Codex P2 on #431)', () => {
+  const ordered = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
+
+  it('is the next one shown once it is gone, when Find went with it and every note is shown again', () => {
+    // Find held only n3; then n1 to n6 but n3 are shown.
+    assert.equal(nextShown(ordered, 'n3', ['n1', 'n2', 'n4', 'n5', 'n6']), 'n4')
+    // Find held n1, n3, n4, n5 and n6; the next shown is n2, not the next match.
+    assert.equal(nextShown(ordered, 'n1', ['n2', 'n3', 'n4', 'n5', 'n6']), 'n2')
+  })
+
+  it('skips the notes Find still leaves out', () => {
+    assert.equal(nextShown(ordered, 'n2', ['n1', 'n5', 'n6']), 'n5')
+  })
+
+  it('is the nearest one before it when none after it is shown', () => {
+    assert.equal(nextShown(ordered, 'n5', ['n1', 'n3']), 'n3')
+  })
+
+  it('is none when no note is shown', () => {
+    assert.equal(nextShown(ordered, 'n1', []), null)
   })
 })
