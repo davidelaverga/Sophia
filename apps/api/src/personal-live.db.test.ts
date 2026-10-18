@@ -256,7 +256,7 @@ async function erasureFirst(
   api: string,
   ownerId: string,
   at: Gate,
-  o: { epochRead?: () => Promise<number>; witnessMs?: number } = {},
+  o: { epochRead?: () => Promise<number>; witnessMs?: number; drainMs?: number } = {},
 ) {
   const marks: Record<string, number> = {}
   const rows = () => owner<{ epoch: unknown }>(`SELECT epoch FROM sophia.personal_spaces WHERE owner_id=$1`, [ownerId])
@@ -282,14 +282,20 @@ async function erasureFirst(
   }
   // Owned work joined within bounds: the erasure (it drains the call), else the turn's own reply.
   const drained = erasing
-    ? await within(20_000, 'the erasure drained', erasing).then(
+    ? await within(o.drainMs ?? 20_000, 'the erasure drained', erasing).then(
         (answer) => ({ answer }),
         (err: unknown) => ({ err }),
       )
-    : await within(20_000, 'the turn settled', settled(api, ownerId)).then(
+    : await within(o.drainMs ?? 20_000, 'the turn settled', settled(api, ownerId)).then(
         () => ({ answer: undefined }),
         (err: unknown) => ({ err }),
       )
+  // Both failures stay reported: a failed witness never hides a drain that did not settle (R-PERSONAL-AD7-WITNESS-01).
+  if (failure && 'err' in drained)
+    throw new AggregateError(
+      [asError(failure), asError(drained.err)],
+      'the witness failed and owned work did not settle',
+    )
   if (failure) throw asError(failure)
   if ('err' in drained) throw asError(drained.err)
   return { marks, epochBefore, epochAfter, oldEpoch, erased: drained.answer }
@@ -701,6 +707,32 @@ describe('the live personal companion (local provider double)', () => {
     assert.equal(at.delegated <= 1, true)
     const page = parsePersonalTurnPage((await call(api, '/api/v1/personal/turns?after=0', GUS)).json)
     assert.equal(page.pending, false, 'no reply left pending')
+    await owner(
+      `UPDATE sophia.personal_companion_usage SET state='released' WHERE payer='first-payer' AND state='reserved'`,
+    )
+  })
+
+  // Both failures at once (R-PERSONAL-AD7-WITNESS-01 combined): the witness read never answers and the owned work is
+  // given no time to settle; the report carries both, neither hiding the other.
+  it('the fixture: a failed witness and an unsettled drain are reported together', async () => {
+    const HAL = randomUUID()
+    const at = gate()
+    const api = await liveApi('first-payer', HAL, true, gatedPool(at))
+    const thrown = await erasureFirst(api, HAL, at, {
+      epochRead: () => new Promise<number>(() => undefined),
+      witnessMs: 300,
+      drainMs: 1,
+    }).then(
+      () => undefined,
+      (err: unknown) => err,
+    )
+    assert.ok(thrown instanceof AggregateError, String(thrown))
+    assert.deepEqual(
+      thrown.errors.map((e: unknown) => (e instanceof Error ? e.message : String(e))),
+      ['not in 300 ms: the epoch witness read', 'not in 1 ms: the turn settled'],
+    )
+    // The owned work, given its time after the report, settles: nothing is left pending.
+    await within(20_000, 'the turn settled after the report', settled(api, HAL))
     await owner(
       `UPDATE sophia.personal_companion_usage SET state='released' WHERE payer='first-payer' AND state='reserved'`,
     )
