@@ -37,9 +37,10 @@ export function boardCsv(rows: readonly ExportRow[]): string {
 
 /**
  * A value as Markdown keeps it inside its line: line breaks folded to spaces and marks escaped, so a task's words never
- * open a heading, an item, a link or a tag of their own (Codex P2 on #397).
+ * open a heading, an item, a link or a tag of their own (Codex P2 on #397). U+2028 and U+2029 fold too: the report's
+ * parser reads an item that holds either as a paragraph (Codex P2 on #428).
  */
-const inline = (value: string) => value.replace(/\s*[\r\n]+\s*/g, ' ').replace(/[\\`*_[\]<>~|#]/g, '\\$&')
+const inline = (value: string) => value.replace(/\s*[\r\n\u2028\u2029]+\s*/g, ' ').replace(/[\\`*_[\]<>~|#]/g, '\\$&')
 
 /** «16 Oct 2026». */
 const fullDay = (at: Date) => at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
