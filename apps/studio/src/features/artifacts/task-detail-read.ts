@@ -64,3 +64,11 @@ export function useTaskFence(projectId: string, taskId: string): boolean {
     }).data,
   )
 }
+
+/** Every reader’s query of this task (any native-task key variant, the origin’s included), in this cache. */
+export const taskQueryOf =
+  (projectId: string, taskId: string) =>
+  (q: { queryKey: readonly unknown[] }): boolean =>
+    (q.queryKey[0] === 'native-task' || q.queryKey[0] === 'native-task-origin') &&
+    q.queryKey[1] === projectId &&
+    q.queryKey[2] === taskId

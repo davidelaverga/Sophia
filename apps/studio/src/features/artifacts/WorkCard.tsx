@@ -6,6 +6,7 @@
 // delivered without the PDF it asked for offers editors "Try PDF again" (RetryPdf). Hold and Stop live on its goal
 // (WorkControls), as for every task, a PDF rendering again included.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useOwnedTaskDetail } from './task-detail.ts'
 import { taskRead, useTaskFence } from './task-detail-read.ts'
 import { TaskRefused } from './TaskRefused.tsx'
 import { ReportRefused } from './ReportRefused.tsx'
@@ -231,13 +232,16 @@ const DESIGN_ENDED: ReadonlySet<string> = new Set(['published', 'failed', 'cance
 function useDesignState(html: HtmlProgress, rest: { projectId: string; identity: Identity; researchTaskId: string }) {
   const { projectId, identity, researchTaskId } = rest
   const live = html.state === 'designing' && html.designTaskId !== undefined
-  const detail = useQuery({
+  // The design child task's own refusal (task-detail-read.ts) withholds its state (the row says the generic words).
+  const { detail } = useOwnedTaskDetail({
     queryKey: ['native-task', projectId, html.designTaskId, identity.name],
-    queryFn: () => getNativeTask(identity.token, projectId, html.designTaskId ?? ''),
+    projectId,
+    taskId: html.designTaskId,
+    identity,
     enabled: live,
     refetchInterval: live ? DESIGN_POLL : false,
   })
-  const state = live ? detail.data?.design?.state : undefined
+  const state = live ? detail?.design?.state : undefined
   const client = useQueryClient()
   useEffect(() => {
     if (state && DESIGN_ENDED.has(state))

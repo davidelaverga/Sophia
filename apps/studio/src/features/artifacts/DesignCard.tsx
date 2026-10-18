@@ -2,12 +2,13 @@
 // state in words (designing, with its separate reviewer, published, or why there is no page), the version it designs,
 // and once published its page: the row opens the stored page in the viewer, and Download saves the same bytes after
 // their hash is checked. Hold and Stop live on its goal (WorkControls), as for every task.
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
+import { TaskRefused } from './TaskRefused.tsx'
+import { useOwnedTaskDetail } from './task-detail.ts'
 import { ReportRefused } from './ReportRefused.tsx'
 import { useReportFence } from './report-read.ts'
 import type { NativeTask, NativeTaskDetail } from '@sophia/contracts'
 import { Card, Icon, Tag } from '@sophia/ui'
-import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer } from './DocumentViewer.tsx'
 import { downloadSource } from './download.ts'
@@ -30,14 +31,17 @@ const ACTIVE = WORKING_PHASES
 
 /** The design's detail, read again while it runs; its words; and its published page, once there is one. */
 function useDesign({ task, projectId, identity }: Props) {
-  const detail = useQuery({
+  // The task's own refusal (task-detail-read.ts) withholds its detail: design state, base version, page.
+  const { detail, refused } = useOwnedTaskDetail({
     queryKey: ['native-task', projectId, task.id, task.phase, task.resultSourceId, identity.name],
-    queryFn: () => getNativeTask(identity.token, projectId, task.id),
+    projectId,
+    taskId: task.id,
+    identity,
     refetchInterval: ACTIVE.has(task.phase) ? 15_000 : false,
-  }).data
+  })
   const design = detail?.design
   const words = design ? designState(design) : { label: 'Designing', tone: 'lav' as const, note: null }
-  return { design, words, page: detail?.result?.outputs?.find((o) => o.format === 'html') }
+  return { refused, design, words, page: detail?.result?.outputs?.find((o) => o.format === 'html') }
 }
 
 /** "HTML page design · from report v2". */
@@ -46,7 +50,7 @@ const designOf = (design: NativeTaskDetail['design']) =>
 
 export function DesignCard(props: Props) {
   const { task, identity } = props
-  const { design, words, page } = useDesign(props)
+  const { refused, design, words, page } = useDesign(props)
   return (
     <Card
       as="li"
@@ -60,6 +64,7 @@ export function DesignCard(props: Props) {
         <span className="muted">{designOf(design)}</span>
       </div>
       {words.note && <p className="goal-outcome">{words.note}</p>}
+      {refused && <TaskRefused projectId={props.projectId} taskId={task.id} identity={identity} />}
       {page && task.artifactId && <PageRow page={page} artifactId={task.artifactId} identity={identity} />}
     </Card>
   )

@@ -3,7 +3,7 @@ import { describe, it } from 'node:test'
 import { QueryClient } from '@tanstack/react-query'
 import { ApiError } from '../../api/client.ts'
 import { fenced, reportFenceKey, reportRead, type ReportFence } from './report-read.ts'
-import { ownedTaskRead, taskFenced, taskFenceKey, type TaskFence } from './task-detail-read.ts'
+import { ownedTaskRead, taskFenced, taskFenceKey, taskQueryOf, type TaskFence } from './task-detail-read.ts'
 
 // R-native-task-own-absence: a task GET refused to this person fences that task in that account's cache only; an
 // older answer after it never lifts it, a later 503 keeps it, a task GET since lifts it; reports stay apart.
@@ -47,5 +47,24 @@ describe('a native task’s own refusal', () => {
     assert.equal(reportOf(client, 'a1'), false, 'a task refusal marks no report')
     await reportRead('a1', () => Promise.resolve(['v']))({ client })
     assert.equal(taskOf(client), true, 'a report read does not lift the task')
+  })
+
+  it('Try again finds every reader’s query of this task (origin variant included), none of another task or project', () => {
+    const client = new QueryClient()
+    for (const key of [
+      ['native-task', P, T, 'research', 'r1', 'Davide'],
+      ['native-task', P, T, 'notice', 3, 'Davide'],
+      ['native-task-origin', P, T, 'Davide'],
+      ['native-task', P, 't2', 'Davide'],
+      ['native-task-origin', 'p2', T, 'Davide'],
+      ['report-versions', 'a1', 'Davide'],
+    ])
+      client.setQueryData(key, { ok: true })
+    const found = client
+      .getQueryCache()
+      .findAll({ predicate: taskQueryOf(P, T) })
+      .map((q) => q.queryKey)
+    assert.deepEqual(found.length, 3)
+    assert.ok(found.every((k) => k[1] === P && k[2] === T))
   })
 })
