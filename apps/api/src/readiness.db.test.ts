@@ -44,6 +44,7 @@ const MENTIONS = '0069_contribution_mentions.sql'
 const SEARCH = '0072_project_search.sql'
 const TASKS = '0074_project_human_tasks.sql'
 const RETIREMENTS = '0075_completed_goal_session_retirement.sql'
+const MENTION_VISIBILITY = '0076_mention_source_visibility.sql'
 
 let dir: string
 let db: TestDatabase
@@ -216,6 +217,10 @@ describe('readiness across 0043', () => {
       'its snapshot needs 0075',
     )
     await migrate(RETIREMENTS)
+    // Everything else current, but 0069's list_needs(boolean) not yet repaired by 0076 (4308526636): not ready.
+    await through(MENTION_VISIBILITY)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0076')
+    await migrate(MENTION_VISIBILITY)
     await current()
     assert.deepEqual(await ready(), [200, { ready: true }], 'with all')
     const snapshot = await withActor(pool, admin, 'read', (c) => readSnapshot(c, projectId))

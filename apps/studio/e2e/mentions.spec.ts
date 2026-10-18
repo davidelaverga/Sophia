@@ -179,6 +179,31 @@ test('mentions · a message that comes to mention the reader while it is shown i
   await expect.poll(() => served(page)).toContain(`seen:mention:${PROJECT}:1.1:${entryIdOf(1)}`)
 })
 
+test('mentions · named while a modal covers the chat: nothing is marked seen until it closes, then exactly once (4308744385)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?call=on&people=2&floor=1&discussion=mine')
+  await expect(leave(page)).toBeVisible()
+  await chatToggle(page).click()
+  const entry = line(page, 'Sounds good to me.')
+  await expect(entry).toBeInViewport()
+  // A real modal over the room: the command palette (the platform's command key: Meta on a Mac, Ctrl elsewhere).
+  await page.keyboard.press('ControlOrMeta+k')
+  const modal = page.getByRole('dialog', { name: 'Commands' })
+  await expect(modal).toBeVisible()
+  expect(await modal.getAttribute('aria-modal')).toBe('true')
+  await page.evaluate(() => window.fixture?.mentionMeIn(1))
+  await expect(entry.locator('.contribution-mentions')).toHaveText('to you')
+  await page.waitForTimeout(1500)
+  expect(await seenOf(page), 'nothing marked seen while covered').toEqual([])
+  await page.keyboard.press('Escape')
+  await expect(modal).toHaveCount(0)
+  await expect.poll(() => seenOf(page)).toEqual([`seen:mention:${PROJECT}:1.1:${entryIdOf(1)}`])
+  // Reading on, nothing more is sent.
+  await page.waitForTimeout(500)
+  expect(await seenOf(page)).toHaveLength(1)
+})
+
 test('mentions · removed and named again on the same words is a new occurrence: each is acknowledged once, by its own id', async ({
   page,
 }) => {
@@ -549,4 +574,120 @@ test('mentions · a seen write that fails after the chat moved on is tried again
   await expect.poll(() => served(page), { timeout: 6000 }).toContain(`seen:${NEED}`)
   expect((await served(page)).filter((s) => s === `seen:${NEED}`)).toHaveLength(1)
   expect(await seenAttempts(page)).toBe(2)
+})
+
+/**
+ * R92 on 4308744385: the first seen write is held until released, then answers 503, and so do the next `failures - 1`;
+ * every attempt is counted.
+ */
+async function heldFailingSeen(page: Page, failures: number) {
+  await page.addInitScript((n) => {
+    let left = n
+    let held = true
+    window.seenAttempts = 0
+    const wrap =
+      (f: typeof fetch): typeof fetch =>
+      async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href)
+        if (init?.method === 'POST' && /^\/api\/v1\/me\/needs\/[^/]+\/seen$/.test(url.pathname)) {
+          window.seenAttempts = (window.seenAttempts ?? 0) + 1
+          if (held) {
+            held = false
+            await new Promise<void>((resolve) => (window.releaseSeen = resolve))
+          }
+          if (left > 0) {
+            left--
+            return new Response(JSON.stringify({ code: 'unavailable', message: 'Busy', retry: 'safe' }), {
+              status: 503,
+            })
+          }
+        }
+        return f(input, init)
+      }
+    let current = wrap(window.fetch.bind(window))
+    Object.defineProperty(window, 'fetch', {
+      configurable: true,
+      get: () => current,
+      set: (f: typeof fetch) => (current = wrap(f)),
+    })
+  }, failures)
+}
+
+const commands = (page: Page) => page.getByRole('dialog', { name: 'Commands' })
+/** A real modal over the chat: the command palette (the platform's command key: Meta on a Mac, Ctrl elsewhere). */
+async function cover(page: Page) {
+  await page.keyboard.press('ControlOrMeta+k')
+  await expect(commands(page)).toBeVisible()
+  expect(await commands(page).getAttribute('aria-modal')).toBe('true')
+}
+async function uncover(page: Page) {
+  await page.keyboard.press('Escape')
+  await expect(commands(page)).toHaveCount(0)
+}
+
+/** The mentioned message readable and its first seen write held; then the modal over the chat. */
+async function heldThenCovered(page: Page, failures: number) {
+  await heldFailingSeen(page, failures)
+  await page.goto(`/room.html?call=on&people=2&floor=1&discussion=mentioned#message-${MENTIONED_IN}`)
+  const entry = discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)
+  await expect(entry).toBeInViewport()
+  await expect.poll(() => seenAttempts(page)).toBe(1) // in flight, held
+  await cover(page)
+  return entry
+}
+
+for (const phone of [false, true])
+  test(`mentions${phone ? ' @phone' : ''} · a failed seen write's retry falling due under a modal is sent once when it closes, with no scroll (R92)`, async ({
+    page,
+  }) => {
+    const entry = await heldThenCovered(page, 1)
+    await page.evaluate(() => window.releaseSeen?.()) // 503, while covered
+    await page.waitForTimeout(2000) // past the owned retry's deadline (1 s)
+    expect(await seenAttempts(page), 'no new write while covered').toBe(1)
+    expect(await seenOf(page)).toEqual([])
+    const scrolled = await discussion(page).evaluate((el) => el.scrollTop)
+    await uncover(page)
+    await expect.poll(() => seenOf(page)).toEqual([`seen:${NEED}`])
+    await page.waitForTimeout(1500)
+    expect(await seenAttempts(page)).toBe(2)
+    expect(await seenOf(page)).toEqual([`seen:${NEED}`])
+    expect(await discussion(page).evaluate((el) => el.scrollTop)).toBe(scrolled)
+    await expect(entry).toBeInViewport()
+  })
+
+test('mentions · a modal closing before a failed seen write is due sends nothing early; the retry goes at its time, once (R92)', async ({
+  page,
+}) => {
+  await heldThenCovered(page, 1)
+  await page.evaluate(() => window.releaseSeen?.())
+  await page.waitForTimeout(150)
+  await uncover(page) // before the 1 s deadline
+  await page.waitForTimeout(300)
+  expect(await seenAttempts(page), 'no early duplicate').toBe(1)
+  await expect.poll(() => seenOf(page)).toEqual([`seen:${NEED}`])
+  await page.waitForTimeout(1500)
+  expect(await seenAttempts(page)).toBe(2)
+})
+
+test('mentions · covered and revealed again and again, a failing seen write keeps its bound: the first and three more (R92)', async ({
+  page,
+}) => {
+  await heldThenCovered(page, 99)
+  await page.evaluate(() => window.releaseSeen?.())
+  for (const [due, attempts] of [
+    [1300, 2],
+    [2300, 3],
+    [3300, 4],
+  ] as const) {
+    await page.waitForTimeout(due) // the next retry falls due under the modal
+    expect(await seenAttempts(page)).toBe(attempts - 1)
+    await uncover(page)
+    await expect.poll(() => seenAttempts(page)).toBe(attempts)
+    await cover(page)
+  }
+  await page.waitForTimeout(4500)
+  await uncover(page)
+  await page.waitForTimeout(1000)
+  expect(await seenAttempts(page)).toBe(4)
+  expect(await seenOf(page)).toEqual([])
 })
