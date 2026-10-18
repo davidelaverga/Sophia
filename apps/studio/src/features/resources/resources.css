@@ -1925,3 +1925,50 @@
     transform: none;
   }
 }
+
+/* A refused copy's link, to copy by hand (CopyLink; Codex P2 on #382): under its press, aligned to its end, on the
+   menus' raised plane, as wide as a phone's sheet leaves beside the head's other presses. */
+.copy-link-at {
+  position: relative;
+  display: inline-flex;
+}
+.copy-link-hand {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(360px, calc(100vw - 96px));
+  padding: 8px 10px;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line-2);
+  background: var(--plane-2);
+  box-shadow: 0 18px 50px rgb(var(--shadow-rgb) / calc(0.55 * var(--shadow-k)));
+  color: var(--text-2);
+  font-size: var(--type-small);
+  white-space: nowrap;
+  animation: arrive var(--base) var(--ease) both;
+}
+.copy-link-hand input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--plane);
+  color: var(--text);
+  font: 400 var(--type-small) / var(--lh-small) var(--mono);
+}
+/* On a phone the words go above the field, so the link has the plane's whole width. */
+@media (max-width: 600px) {
+  .copy-link-hand {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .copy-link-hand input {
+    flex: none;
+  }
+}
