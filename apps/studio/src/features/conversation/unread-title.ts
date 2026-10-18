@@ -5,28 +5,37 @@ import { useEffect, useState } from 'react'
 import type { DiscussionEntry } from '@sophia/contracts'
 
 /**
+ * The messages counted while the tab is hidden, each by its id with who wrote it: the membership is read apart from the
+ * snapshot, so the viewer can be known only after their own message was counted (Codex P2 on #444).
+ */
+type Counted = ReadonlyMap<string, string>
+
+/**
  * The messages counted so far, with the typed ones in `entries` not seen and not counted yet, never the viewer's own: a
- * spoken turn has its caption. The same set when none is new, so a refresh alone changes nothing.
+ * spoken turn has its caption. One of theirs counted before they were known leaves, though it left the snapshot. The
+ * same map when nothing changes, so a refresh alone changes nothing.
  */
 export function withUnseen(
-  counted: ReadonlySet<string>,
+  counted: Counted,
   entries: readonly DiscussionEntry[],
   seen: ReadonlySet<string>,
   me: string | null,
-): ReadonlySet<string> {
+): Counted {
   const fresh = entries.filter(
     (e) => e.origin === 'composer' && e.actorId !== me && !seen.has(e.id) && !counted.has(e.id),
   )
-  if (fresh.length === 0) return counted
-  const next = new Set(counted)
-  for (const e of fresh) next.add(e.id)
+  const own = me === null ? [] : [...counted].filter(([, actorId]) => actorId === me)
+  if (fresh.length === 0 && own.length === 0) return counted
+  const next = new Map(counted)
+  for (const [id] of own) next.delete(id)
+  for (const e of fresh) next.set(e.id, e.actorId)
   return next
 }
 
 /** What the discussion held while the tab was shown, and the messages counted since it was hidden. */
 interface Unseen {
   seen: ReadonlySet<string>
-  counted: ReadonlySet<string>
+  counted: Counted
 }
 
 /** Whether the page is hidden, followed as it changes. */
@@ -50,7 +59,7 @@ export function useUnseenWhileHidden(entries: readonly DiscussionEntry[] | undef
   useEffect(() => {
     if (!entries) return // the shell in the background reads no discussion
     setUnseen((was) => {
-      if (!hidden || !was) return { seen: new Set(entries.map((e) => e.id)), counted: new Set() }
+      if (!hidden || !was) return { seen: new Set(entries.map((e) => e.id)), counted: new Map() }
       const counted = withUnseen(was.counted, entries, was.seen, me)
       return counted === was.counted ? was : { seen: was.seen, counted }
     })
