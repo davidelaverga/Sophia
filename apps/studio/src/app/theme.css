@@ -28,6 +28,10 @@
   --surface-well: var(--plane);
   --surface-raised: var(--plane-2);
   --surface-overlay: var(--plane-2);
+  /* A raised panel (a sheet, the report pane) and what dims the page under a modal one: in the room a well under half
+     the void, as it always stood; on paper the raised surface under a veil of ink (docs/plans/light-elevation.md). */
+  --sheet-plane: var(--surface-well);
+  --veil: rgb(var(--void-rgb) / 0.5);
   --void: #050408;
   --plane: #0b0a0f;
   --plane-2: #121118;
@@ -192,6 +196,10 @@
      1.036:1 from the void to the plane and 1.051:1 on to the raised one, kept in proportion inside the 1.059:1 from
      paper to white (1.026:1 and 1.033:1). */
   --surface-well: #fdfbf8;
+  /* A raised panel is the raised surface, white, and the veil is ink, so a sheet rises over the page it covers
+     (informe-25 X7: on the plane it sat 1.07:1 under it; at the well it would stand only 1.026:1 over it). */
+  --sheet-plane: var(--surface-raised);
+  --veil: rgb(var(--ink-rgb) / 0.18);
   --void: #fbf8f3;
   --plane: #f4f0ea;
   --plane-2: #ffffff;
@@ -3810,7 +3818,7 @@ button.contribution-quote:hover {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgb(var(--void-rgb) / 0.5);
+  background: var(--veil);
   animation: veil var(--base) var(--ease) both;
 }
 /* The palette (docs/plans/commands.md): a dialog in the middle of the screen, high; the kit's search field over rows
@@ -3917,7 +3925,7 @@ button.contribution-quote:hover {
   overflow-y: auto;
   padding: var(--sheet-top) 20px 28px;
   border-left: 1px solid var(--line-2);
-  background: var(--surface-well);
+  background: var(--sheet-plane);
   box-shadow: var(--elev-sheet);
   animation: slide var(--base) var(--ease) both;
 }
@@ -3932,6 +3940,11 @@ button.contribution-quote:hover {
   z-index: 2;
   margin-top: calc(-1 * var(--sheet-top));
   padding-top: var(--sheet-top);
+  background: var(--sheet-plane);
+}
+/* On paper a borderless box a raised panel holds (a report's comparison, an update's text) would vanish on its white:
+   it sits a step down, in the well. */
+:root[data-theme='light'] :is(.report-compare, .update-text) {
   background: var(--surface-well);
 }
 /* A live call's switches under a sheet's head: the sheet covers the room's own (call-in-reach.tsx). */

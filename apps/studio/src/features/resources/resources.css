@@ -1752,8 +1752,8 @@
 .resource-sheet .sheet-top {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--tool-accent) 7%, var(--surface-well)),
-    var(--surface-well)
+    color-mix(in srgb, var(--tool-accent) 7%, var(--sheet-plane)),
+    var(--sheet-plane)
   );
 }
 .resource-sheet-head .tool-logo {
