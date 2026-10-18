@@ -31,11 +31,13 @@ import { NeedsYou } from './NeedsYou.tsx'
 /** Now on the service's clock: the needs' expiries compare on it (A15's `readAt`), not on the browser's. */
 const onService = (now: Date, skew = 0): Date => (skew === 0 ? now : new Date(now.getTime() + skew))
 import {
+  homeLine,
   homeNextAsk,
   homeRows,
   notesLabel,
   rowNote,
   type HomeAction,
+  type HomeLine,
   type HomeRow,
   type Said,
   type YouDoor,
@@ -63,6 +65,12 @@ interface Props {
   count: string
   /** The personal space is locked: your row unlocks it, and there is no line. */
   locked: boolean
+  /**
+   * Sophia answers in the personal space (the API's `companion`): the line to her where she does; where she doesn't,
+   * that she can't yet and a note instead; undefined until the space is read, the line's place held
+   * (docs/plans/home-no-companion.md).
+   */
+  answers: boolean | undefined
   /** Home is out of sight (another place is): the microphone stops and her light stops following. */
   hidden: boolean
   /** Home is the place arrived at (not only on screen while a move runs): a visit ends when it is not. */
@@ -384,8 +392,25 @@ function SayLine({ actions, onTalk, line, hidden, here, next }: LineProps) {
   )
 }
 
+/** The line's place in You (homeLine): the line, that she can't answer yet with a note instead, or the place held. */
+function LineSlot({ shows, ...say }: LineProps & { shows: HomeLine | null }) {
+  if (shows === 'line') return <SayLine {...say} />
+  if (shows === 'cannot')
+    return (
+      <p className="hw-off">
+        <span>Sophia can’t answer here yet</span>
+        <span aria-hidden>·</span>
+        <button className="text-button" type="button" onClick={say.actions.notes}>
+          Write a note
+        </button>
+      </p>
+    )
+  return shows === 'held' ? <div className="hw-held" aria-hidden /> : null
+}
+
 /** You and Sophia, private: where you left off (or the padlock), your notes, and the line to her: alone on a first visit. */
-function You({ you, locked, actions, onTalk, line, hidden, here, next }: Pick<Props, 'you' | 'locked'> & LineProps) {
+function You(props: Pick<Props, 'you' | 'locked' | 'answers'> & LineProps) {
+  const { you, locked, answers, actions, onTalk, line, hidden, here, next } = props
   return (
     <section className="hw-section hw-you" aria-labelledby="hw-you-h">
       {/* Your notes in the head, as Personal's head carries them (docs/plans/home-first-glance.md). */}
@@ -415,7 +440,7 @@ function You({ you, locked, actions, onTalk, line, hidden, here, next }: Pick<Pr
           </li>
         </ol>
       )}
-      {!locked && <SayLine {...{ actions, onTalk, line, hidden, here, next }} />}
+      <LineSlot shows={homeLine(locked, answers)} {...{ actions, onTalk, line, hidden, here, next }} />
     </section>
   )
 }
@@ -561,6 +586,7 @@ export function Welcome(props: Props) {
         <You
           you={props.you}
           locked={props.locked}
+          answers={props.answers}
           actions={props.actions}
           onTalk={setTalk}
           line={line}

@@ -206,8 +206,8 @@
 .places .hw-name {
   color: var(--text-3);
 }
-/* A first visit: the line follows its label directly, with the label's own gap. */
-.places .hw-you .hw-label-row + .hw-say {
+/* A first visit: the line (or what stands in its place) follows its label directly, with the label's own gap. */
+.places .hw-you .hw-label-row + :is(.hw-say, .hw-off, .hw-held) {
   margin-top: 0;
 }
 /* A section's head with a press on its right: your notes beside «You and Sophia». */
@@ -484,6 +484,21 @@
   color: var(--text-3);
   text-align: left;
   transition: border-color var(--base) var(--ease);
+  animation: hw-in 520ms var(--ease) calc(var(--d, 220ms) + 160ms) both;
+}
+/* Where Sophia can't answer, the line's place says so and offers a note; while that is unknown, the place is held.
+   Neither is a field, so no hairline; the line's box and words, so nothing below moves (home-no-companion.md). */
+.places .hw-off,
+.places .hw-held {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-height: 46px;
+  margin: 14px 0 0;
+  color: var(--text-3);
+  font: 15px / var(--lh-body) var(--sans);
+  letter-spacing: -0.005em;
   animation: hw-in 520ms var(--ease) calc(var(--d, 220ms) + 160ms) both;
 }
 /* Speaking: the line listens, its hairline lit and moving; the microphone is the one way out. */
@@ -1956,6 +1971,8 @@
   .places .hw-index > li,
   .places .hw-index > li::before,
   .places .hw-say,
+  .places .hw-off,
+  .places .hw-held,
   .places .hw-label,
   .places .hw-mic,
   .places .c3-ambient,
