@@ -227,6 +227,24 @@ and other statuses are unchanged; the fence, retry, draft and restoration paths 
   next words. The first success leaves Lucía and the words; the request bodies are `[Marco]` then `[Lucía]`. The
   original unconditional clear, restored as a mutant, fails that case. Definite-failure and unknown-retry cases are not
   in this spec.
+## FND-B-UPDATES-INDEX-AND-CAUSAL-QUALIFICATION-01
+
+- 0066 (unapplied, unmerged) gains `project_events_job_admission_idx`, the one name P allocated: a partial index
+  `(project_id,entity_id,sequence) WHERE entity_type='job' AND type='native_task.admitted'`, exactly the predicates
+  and order of `update_asker` and `version_asker`. No helper body changed, and no new migration or contract.
+- The bounded probe in `apps/api/src/updates.db.test.ts` runs only with `SOPHIA_UPDATES_SCALE=1`. Fixture: 10,000
+  unrelated events, then 500 report tasks admitted before the reader's mark, then their 500 results in the window.
+  Through GetSince every report names its asker. On a fresh plain-installer PG17 cluster (all 0001-0075 applied),
+  `project_updates` took 776.7 ms without the index (dropped and rolled back) and 163.2 ms with it. The admission
+  lookup went from a 300-buffer bitmap scan removing 10,999 rows to a 3-buffer index scan. All 12 A34 cases pass.
+- Updates' synchronous keep is now causally covered. `e2e/updates-refusal.spec.ts` "observer delivery held" holds
+  TanStack's observer scheduler, using the page's own module instance. Frames then come after the refusal reaches the
+  app and before the query tells the view. With the keep, none of them shows a protected line; with only the keep
+  removed (`doorRead` kept), cached lines show from 2.9 ms.
+- `e2e/updates-digest.spec.ts` gives only the meeting-time case a UTC context (`timezoneId`), so it no longer depends
+  on the machine's zone. Its assertion is unchanged.
+- Corrections to the earlier handback: the ordinary check does not run the DB tests. The earlier probe applied 67
+  migration files before 0070 failed; it was not a full schema.
 
 ## Next bounded action
 
