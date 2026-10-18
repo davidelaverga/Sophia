@@ -25,7 +25,7 @@ export type ReceiptStage = RuntimeReceipt['stage']
 /** Command kinds the bridge executes. */
 export type RuntimeCommandKind = RuntimeCommand['kind']
 
-const KINDS: ReadonlySet<string> = new Set(['create', 'resume', 'input', 'steer', 'hold', 'stop', 'inspect'])
+const KINDS: ReadonlySet<string> = new Set(['create', 'resume', 'input', 'steer', 'hold', 'stop', 'inspect', 'retire'])
 
 /** A command that failed validation; the bridge answers it with a `rejected` receipt. */
 export class ProtocolError extends Error {}

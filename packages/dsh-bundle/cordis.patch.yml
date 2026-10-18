@@ -156,6 +156,34 @@
             compat:
               supportsStrictMode: false
               supportsLongCacheRetention: false
+      # Conversation service route (CON-01 B2): the same approved development
+      # model and effort, under a provider alias of its own capped at 4096
+      # output tokens, for one read-only reply per call made in-process through
+      # the public prepareCall/stream (no Agent, session or tools). The same key
+      # reference as the development route; API key, never a subscription route.
+      # The bridge row below allows the route but enables no reply mode: that is
+      # the operator's, with a pinned grant (0067).
+      openai-conversation:
+        displayName: OpenAI (conversation)
+        apiKeyEnv: OPENAI_API_KEY
+        api: openai-responses
+        baseURL: https://api.openai.com/v1
+        defaultMaxTokens: 4096
+        models:
+          - id: gpt-6-luna
+            name: GPT-6 Luna
+            contextWindow: 272000
+            maxTokens: 4096
+            input: [text]
+            reasoningEfforts:
+              low: low
+              medium: medium
+              high: high
+              xhigh: xhigh
+              max: max
+            compat:
+              supportsStrictMode: false
+              supportsLongCacheRetention: false
 
 # Compaction (SMC-M03, decision D9): the research route compacts at 45% of its
 # window instead of 80%, so a long research session stays cheap per request and
@@ -296,6 +324,18 @@
             maxTokens: 16000
             # Every call is reserved from the review's allowance (at most eight in all) and settled from its usage
             # through the review operations (WBC-02).
+            prices:
+              input: 0.1
+              cacheRead: 0.01
+              cacheWrite: 0.125
+              output: 0.5
+          conversation-service-luna-high-v1:
+            provider: openai-conversation
+            model: gpt-6-luna
+            reasoningEffort: high
+            maxTokens: 4096
+            # A service-mode reply reserves before its one call and settles from its usage (CON-01 B2). No reply mode
+            # is enabled here: without `replies` the route is allowed but no conversation role is advertised.
             prices:
               input: 0.1
               cacheRead: 0.01

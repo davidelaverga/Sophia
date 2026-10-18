@@ -7,13 +7,38 @@
 //      authority and either queues one runtime command or records an explicit denial.
 import type pg from 'pg'
 import {
+  assembleReply,
+  checkedLimits,
   claimRuntimeOutbox,
   dispatchRuntimeOutbox,
   expireDispatchLeases,
   ProjectEventListener,
   reconcileRuntimeOutbox,
+  type AssemblyLimits,
   type DispatchOutcome,
 } from '@sophia/persistence'
+
+/**
+ * The assembly bounds the worker records a reply's context under. checkedLimits holds them to its rules: a lease of at
+ * least three deadlines and at least what a failed client can hold its locks for (statement + idle-in-transaction). The
+ * database's conversation_context_wait (0071) is sized from one reply's uncontended worst case under these: 2 s first
+ * pass + 3 claims x 30 s lease + 2 x 7 s re-offers + one 7 s final pass = 113 s <= 120 s. A unit test pins that
+ * arithmetic. It is not a latency guarantee: dispatchOnce claims up to 10 rows and assembles them one after another, so
+ * a reply behind others can run out of the 120 s and fail, truthfully, with context_unavailable when a pass next
+ * processes it.
+ */
+export const ASSEMBLY_LIMITS: AssemblyLimits = checkedLimits({
+  leaseMs: 30_000,
+  deadlineMs: 10_000,
+  connectMs: 2_000,
+  statementTimeoutMs: 5_000,
+  lockTimeoutMs: 2_000,
+  idleInTransactionMs: 5_000,
+  connectionCheckMs: 1_000,
+})
+
+/** The reason conversation_dispatch (0071) defers a reply create whose context is not yet recorded. */
+export const WAITING_FOR_CONTEXT = 'waiting for reply context'
 
 export interface PassResult {
   expired: number
@@ -29,6 +54,11 @@ export interface DispatcherOptions {
   batchSize?: number
   leaseSeconds?: number
   log?: (line: string) => void
+  /**
+   * A login admitted to the conversation assembler role (Q13), or absent: then no context is recorded here, and the
+   * database ends a waiting reply as context_unavailable within its wait.
+   */
+  assemblerUrl?: string | null
 }
 
 /** A dispatch outcome as one log line: the result, and the runtime command or the reason. */
@@ -36,6 +66,21 @@ const describe = (o: DispatchOutcome): string =>
   o.result === 'enqueued'
     ? `enqueued as runtime command ${o.runtimeCommandId} (seq ${o.seq})`
     : `${o.result}: ${o.reason ?? ''}`
+
+/**
+ * A reply create committed as waiting for its context: record that context once, now, through the assembler login;
+ * the row's next pass dispatches what was recorded. Without a login nothing is recorded here.
+ */
+async function assembleWaiting(
+  replyId: string | null | undefined,
+  outcome: DispatchOutcome,
+  options: DispatcherOptions,
+): Promise<void> {
+  if (outcome.result !== 'deferred' || outcome.reason !== WAITING_FOR_CONTEXT || !replyId || !options.assemblerUrl)
+    return
+  const assembled = await assembleReply(options.assemblerUrl, replyId, ASSEMBLY_LIMITS)
+  options.log?.(`assembly for reply ${replyId}: ${assembled.outcome}`)
+}
 
 /** One pass. Safe to run concurrently from several workers: claims skip locked rows. */
 export async function dispatchOnce(pool: pg.Pool, options: DispatcherOptions): Promise<PassResult> {
@@ -50,6 +95,7 @@ export async function dispatchOnce(pool: pg.Pool, options: DispatcherOptions): P
       const outcome = await dispatchRuntimeOutbox(pool, row.project_id, row.id, row.lease_token)
       outcomes.push(outcome)
       options.log?.(`dispatch outbox ${row.id}: ${describe(outcome)}`)
+      await assembleWaiting(row.conversation_reply_id, outcome, options)
     } catch (err: unknown) {
       // The lease expired or was swept meanwhile: the row is reconciled from recorded state, never resent here.
       lost += 1

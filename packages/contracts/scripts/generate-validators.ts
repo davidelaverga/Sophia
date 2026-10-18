@@ -30,6 +30,7 @@ const EXPORTS = [
   'MemberRoleSet',
   'ActivityPage',
   'MemberRemoved',
+  'Profile',
   'Error',
   'Event',
   'CursorAdvance',
@@ -72,6 +73,12 @@ const EXPORTS = [
   'WorkResult',
   'SourceReviewProposal',
   'SourceReviewAvailability',
+  'ConversationList',
+  'ConversationMessagePage',
+  'ConversationStarted',
+  'ConversationMessageSent',
+  'ConversationWithdrawal',
+  'ConversationErasure',
   'DesignEditReceipt',
 ] as const
 

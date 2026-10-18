@@ -901,7 +901,7 @@ function ExportMenu({ rows, revision }: { rows: readonly PlanRow[]; revision: nu
     const now = new Date()
     const text = kind === 'csv' ? boardCsv(exportRows(rows)) : boardMarkdown(exportRows(rows), revision, now)
     saveBlob(
-      new Blob([text], { type: kind === 'csv' ? 'text/csv' : 'text/markdown' }),
+      new Blob([text], { type: kind === 'csv' ? 'text/csv;charset=utf-8' : 'text/markdown;charset=utf-8' }),
       boardFileName(revision, now, kind),
     )
   }
