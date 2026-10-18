@@ -164,12 +164,19 @@ export function WorkCard(props: Props) {
   const now = useNow()
   const open = useOpen(task.artifactId)
   const retry = offersRetry(canAct, words, research, refused)
+  // Its own detail refused (task-detail-read.ts): only that refusal and its retry, never the normal Researching or
+  // Completed state, its progress or a read-failure note beside it (as DesignCard).
+  if (taskRefused)
+    return (
+      <Card as="li" className="task work-card" data-state="refused" data-task={task.id} tabIndex={-1}>
+        <TaskRefusedLine refused projectId={projectId} taskId={task.id} identity={identity} />
+      </Card>
+    )
   return (
     // The card takes the focus when a control inside it goes (Try PDF again, once the PDF renders again).
     <Card as="li" className="task work-card" data-state={words.state} data-task={task.id} tabIndex={-1}>
       <CardHead words={words} task={task} research={research} now={now} />
       <p className="work-card-question">{research?.question ?? 'Research'}</p>
-      <TaskRefusedLine refused={taskRefused} projectId={projectId} taskId={task.id} identity={identity} />
       {words.state === 'researching' && research && <Progress research={research} />}
       <ReportOutputs
         refused={refused}
