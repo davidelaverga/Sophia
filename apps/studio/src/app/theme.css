@@ -6381,6 +6381,12 @@ button.contribution-quote:hover {
   right: auto;
   left: 8px;
 }
+/* A touch press, so a finger's width too (Codex P2 on #422): the shared touch rule raises only its height. */
+@media (pointer: coarse) {
+  .tile-pin.tile-flip {
+    min-width: 40px;
+  }
+}
 @media (max-width: 600px) {
   .tile-pin.tile-flip {
     display: inline-grid;
