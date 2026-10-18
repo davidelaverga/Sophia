@@ -30,6 +30,7 @@ import {
 } from '@sophia/contracts/room-chat'
 import type { CallEnd } from './call-end.ts'
 import type { BackgroundProcessorWrapper } from '@livekit/track-processors'
+import { audioElements } from './audio-elements.ts'
 import { chosenBackground, type BackgroundId } from './background-preference.ts'
 import { backgroundPicture } from './background-pictures.ts'
 import { cameraBackground } from './camera-background.ts'
@@ -186,43 +187,26 @@ function incomingVideo(room: Room, onChange: () => void): Pick<RoomConnection, '
   return { setIncomingVideo: cameras.set }
 }
 
-/** Remote voices (and a shared screen's sound) play through hidden audio elements, removed with the track. */
 /**
- * The room's voices, as audio elements this room owns: a room that ends removes its own, never another's (a join that
- * was superseded and left must not silence the call that replaced it). While the call reads Sophia, her voice has no
- * element at all (text-mode-quiet.md): LiveKit's startAudio would unmute one.
+ * The room's voices (and a shared screen's sound), in hidden audio elements this room owns (audio-elements.ts). While
+ * the call reads Sophia, her voice has no element at all (text-mode-quiet.md): LiveKit's startAudio would unmute one.
  */
 function remoteAudio(room: Room) {
-  const mine = new Set<HTMLMediaElement>()
-  const trackOf = new Map<HTMLMediaElement, RemoteTrack>()
-  const drop = (el: HTMLMediaElement) => {
-    trackOf.get(el)?.detach(el)
-    trackOf.delete(el)
-    el.remove()
-    mine.delete(el)
-  }
-  // Off lets a member's sound go at once: detached, startAudio can't unmute it before their track stops coming.
-  const volume = peopleVolume<HTMLMediaElement>(drop)
-  const play = (track: RemoteTrack, whose: 'sophia' | 'member') => {
-    const el = track.attach()
+  const elements = audioElements<RemoteTrack, HTMLMediaElement>((el, whose) => {
     el.dataset.sophiaRoomAudio = whose
     document.body.append(el)
-    mine.add(el)
-    trackOf.set(el, track)
-    return el
-  }
+  })
+  // Off lets a member's sound go at once: detached, startAudio can't unmute it before their track stops coming.
+  const volume = peopleVolume<HTMLMediaElement>(elements.drop)
   const stop = (track: RemoteTrack) => {
-    for (const el of track.detach()) {
-      volume.remove(el)
-      drop(el)
-    }
+    for (const el of elements.stop(track)) volume.remove(el)
   }
-  const sophia = sophiaVoice<RemoteTrack>({ attach: (track) => play(track, 'sophia'), detach: stop })
+  const sophia = sophiaVoice<RemoteTrack>({ attach: (track) => elements.play(track, 'sophia'), detach: stop })
   room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant) => {
     if (track.kind !== Track.Kind.Audio) return
     if (isSophia(participant)) sophia.add(track)
     // A member's sound plays at the level given them here (people-volume.md); Sophia's keeps the call's.
-    else volume.add(play(track, 'member'), participant.identity)
+    else volume.add(elements.play(track, 'member'), participant.identity)
   })
   room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
     if (track.kind !== Track.Kind.Audio) return
@@ -233,7 +217,7 @@ function remoteAudio(room: Room) {
   room.on(RoomEvent.TrackPublished, (publication, participant) => {
     if (!isSophia(participant)) volume.published(publication, participant.identity)
   })
-  return { mine, setRead: sophia.setRead, volume }
+  return { clear: elements.clear, setRead: sophia.setRead, volume }
 }
 
 /**
@@ -463,8 +447,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
   const audio = remoteAudio(room)
   stopsWhenHostStops(room)
   room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
-    for (const el of audio.mine) el.remove()
-    audio.mine.clear()
+    audio.clear()
     cb.onEnded((reason !== undefined && ENDS[reason]) || 'dropped')
   })
   listenToSophia(room, cb)
