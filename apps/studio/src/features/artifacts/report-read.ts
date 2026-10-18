@@ -4,7 +4,8 @@
 // ran the read, for that report; so is the newest allowed read. While the refusal is newer than every allowed read,
 // nothing read before it shows: body, head, sources, history, counts, links, Download and show all go with the versions
 // read. A read set out since the refusal and allowed shows the report again; a later ordinary failure changes nothing.
-import { useQuery, type QueryClient } from '@tanstack/react-query'
+import { useCallback, useSyncExternalStore } from 'react'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { ApiError } from '../../api/client.ts'
 
 let order = 0
@@ -71,16 +72,24 @@ export const fenced = (fence: ReportFence): boolean => fence.refusedAt > fence.a
 export const fencedNow = ({ client, artifactId }: ReportOwner): boolean =>
   fenced(client.getQueryData<ReportFence>(reportFenceKey(artifactId)) ?? NONE)
 
-/** The report's fence as this account's cache keeps it; never fenced before any refusal. Only read here. */
+/**
+ * The report's fence as this account's cache keeps it; never fenced before any refusal. Only read here. Read from the
+ * cache itself as it changes (as useNeedsRefused does), not through a query observer's scheduled notification, so a
+ * refusal kept in the cache withholds the report in the same render pass, never a frame later.
+ */
 export function useReportFence(artifactId: string): boolean {
-  return fenced(
-    useQuery({
-      queryKey: reportFenceKey(artifactId),
-      queryFn: () => NONE,
-      initialData: NONE,
-      enabled: false,
-      staleTime: Infinity,
-      gcTime: Infinity,
-    }).data,
+  const client = useQueryClient()
+  // Registered and kept (never fetched) so the cache holds the key with its defaults, as before.
+  useQuery({
+    queryKey: reportFenceKey(artifactId),
+    queryFn: () => NONE,
+    initialData: NONE,
+    enabled: false,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  })
+  return useSyncExternalStore(
+    useCallback((changed: () => void) => client.getQueryCache().subscribe(changed), [client]),
+    () => fenced(client.getQueryData<ReportFence>(reportFenceKey(artifactId)) ?? NONE),
   )
 }

@@ -489,7 +489,7 @@ export function DocumentPane(props: Props) {
         tasks={tasks.list}
         revise={revise}
       />
-      <PaneStatus {...status} />
+      <PaneStatus {...status} withheld={data.refused} />
       <PassageBar pane={pane} version={data.version} viewer={{ ...props, onSeeTasks: () => choose('tasks') }} />
     </aside>
   )
@@ -541,11 +541,14 @@ function reviewOf(props: Props, data: PaneData): ReactNode {
   )
 }
 
-/** The download's line of status, in the pane's foot. */
-function PaneStatus({ text, error }: { text: string; error: boolean }) {
+/**
+ * The download's line of status, in the pane's foot. While the report is refused (`withheld`) it says nothing of a
+ * download that came before (its filename, size, hash), at once and not when the line would fade; the line stays.
+ */
+function PaneStatus({ text, error, withheld }: { text: string; error: boolean; withheld: boolean }) {
   return (
-    <p className="report-status" role="status" data-error={error || undefined}>
-      {text}
+    <p className="report-status" role="status" data-error={(!withheld && error) || undefined}>
+      {withheld ? '' : text}
     </p>
   )
 }

@@ -263,7 +263,8 @@ function cardOf(
   guide: string,
   at: { screen: boolean; stopped: boolean; focused: () => void; follow: () => void; stop: ReactNode; refused: boolean },
 ): ReactNode {
-  const followable = shown.version && !at.screen
+  // A report refused to me is never offered to follow: nothing of it may be put on my stage (r4307481573).
+  const followable = shown.version && !at.screen && !at.refused
   const action = shown.mine ? (
     at.stop
   ) : followable ? (
