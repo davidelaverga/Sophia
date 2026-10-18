@@ -66,8 +66,9 @@ export function NoticeCard(props: Props) {
         <NoticeActions delivered={delivered} identity={identity} show={status.show} />
       )}
       {/* There before it speaks: a live region added with its words is often not read. */}
-      <p className="chat-status" role="status" data-error={status.error || undefined}>
-        {status.text}
+      {/* A refused report keeps no saved filename/size or error of its own, even one that lands late. */}
+      <p className="chat-status" role="status" data-error={(!refused && status.error) || undefined}>
+        {refused ? null : status.text}
       </p>
     </div>
   )
