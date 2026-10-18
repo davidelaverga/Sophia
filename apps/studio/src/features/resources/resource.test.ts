@@ -211,6 +211,8 @@ describe('finding a resource among many', () => {
     for (const q of ['', 'claude', 'ANTHROPIC', 'davide pdf', 'opus', 'reviewer', 'Davidé'])
       assert.equal(matches(claude, q), true, q)
     for (const q of ['codex', 'luis', 'davide codex']) assert.equal(matches(claude, q), false, q)
+    // A standalone mark is looked for as written: it no longer folds to nothing, which found everything (Codex P2 on #406).
+    assert.equal(matches(claude, '^'), false)
   })
 
   it('filters by what waits, what is online and whose it is', () => {

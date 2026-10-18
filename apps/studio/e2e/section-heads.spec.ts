@@ -37,13 +37,20 @@ const headsRead = (page: Page, heads: string) =>
       ),
     ]
     const title = document.querySelector<HTMLElement>('.view-head h2, .updates > h2')
-    const body = document.documentElement
+    // The tokens as drawn, in px: the scale is rem (type-rem.md), so their raw text isn't a size to compare.
+    const probe = document.createElement('span')
+    document.body.append(probe)
+    probe.style.fontSize = 'var(--type-body)'
+    const body = parseFloat(getComputedStyle(probe).fontSize)
+    probe.style.fontSize = 'var(--type-head)'
+    const head = parseFloat(getComputedStyle(probe).fontSize)
+    probe.remove()
     return {
       count: shown.length,
       types,
       title: title ? parseFloat(getComputedStyle(title).fontSize) : null,
-      body: parseFloat(getComputedStyle(body).getPropertyValue('--type-body')),
-      head: parseFloat(getComputedStyle(body).getPropertyValue('--type-head')),
+      body,
+      head,
     }
   }, heads)
 

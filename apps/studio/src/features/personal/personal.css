@@ -541,8 +541,11 @@
 .places .hw-say input::placeholder {
   color: var(--text-3);
 }
+/* The line's key keeps the 16 px leading (in rem, it grows with a larger browser text) and no padding above or below:
+   18 px with its edge, as before, on the 4 px grid (type-scale.spec.ts). */
 .places .hw-say kbd {
   font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  padding-block: 0;
   color: var(--text-3);
 }
 /* A key only where there are keys: a touch screen has none to press. */

@@ -105,6 +105,31 @@ test('goals · «Copy link» in the sheet copies the address that opens that goa
   await expect(other.getByRole('dialog', { name: ROLLOUT })).toBeVisible()
 })
 
+test('goals · a refused «Copy link» shows the goal’s own address in the sheet; Escape closes only it (Codex P2 on #382)', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: () => Promise.reject(new DOMException('Denied', 'NotAllowedError')) },
+    })
+  })
+  await page.setViewportSize({ width: 360, height: 760 })
+  await page.goto('/room.html?demo=1&place=goals')
+  await page.getByRole('button', { name: ROLLOUT, exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: ROLLOUT })
+  await sheet.getByRole('button', { name: 'Copy link' }).click()
+  const field = sheet.getByRole('textbox', { name: 'Link', exact: true })
+  await expect(field).toBeFocused()
+  expect(new URL(await field.inputValue()).hash).toMatch(/^#goal-/)
+  await expect(sheet.getByRole('button', { name: /address bar/ })).toHaveCount(0)
+  // Whole inside the sheet, on a phone too: nothing of it cut off at the sheet's side.
+  const [box, frame] = await Promise.all([field.boundingBox(), sheet.boundingBox()])
+  expect(box && frame ? box.x >= frame.x && box.x + box.width <= frame.x + frame.width : false).toBe(true)
+  await page.keyboard.press('Escape')
+  await expect(field).toHaveCount(0)
+  await expect(sheet).toBeVisible()
+})
+
 // A goal lists the reports its work made (docs/plans/goal-reports.md): the demo's research task, the rollout's, made its
 // report; the title opens it in the viewer. Without them in the snapshot, no «Reports».
 test('goals · a goal lists the reports its work made, and a title opens it in the viewer', async ({ page }) => {

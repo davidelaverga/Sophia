@@ -7,10 +7,11 @@
 
 ## What changes
 
-- **`Welcome.tsx`:** `useNeedsFocus` remembers which control in «What needs you» last had the focus, by its place in
-  the list. A focus that moves elsewhere in the page forgets it.
-- **After the list moves** (`oneColumn` changes), if the focus fell to the page, the control in the same place in the
-  list takes it again.
+- **`Welcome.tsx`:** `useNeedsFocus` remembers which need in «What needs you» last had the focus, by the need's id
+  (`data-need` on its row), not its place in the list (Codex P2 on #377): the list is read again every 20 s, and a need
+  may come ahead of it or leave. A focus that moves elsewhere in the page forgets it.
+- **After the list moves** (`oneColumn` changes), if the focus fell to the page, the same need takes it again. A need
+  that left meanwhile is not stood in for: the focus stays where it fell.
 - Nothing changes when the focus wasn't in the list.
 
 ## Checks
@@ -19,4 +20,7 @@
 - at 1000 px, focus the second need's control, then resize to 800 px: the same control, in the list after the
   greeting, has the focus;
 - resize back to 1000 px: it still has it, in the side column;
-- with the focus on another control, crossing the width leaves the focus where it was.
+- with the focus on another control, crossing the width leaves the focus where it was;
+- `needs=api`: a need that comes ahead of the focused one (`homeFixture.urgentNeed()`), then 800 px: the same need has
+  the focus;
+- `needs=api`: the focused need leaves (`homeFixture.dropNeed`), then 800 px: no other need takes the focus.
