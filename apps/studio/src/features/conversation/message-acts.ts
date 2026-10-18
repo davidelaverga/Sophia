@@ -92,12 +92,17 @@ interface Discussion {
   withdrawn: readonly WithdrawnEntry[]
 }
 
-/** What earlier reads held, with the window over its own span: what it no longer lists there was withdrawn. */
+/**
+ * What earlier reads held, with the window over its own span: what it no longer lists there was withdrawn. Its span ends
+ * at its newest: a message read since, newer than a window not yet read again (a search's latest page), stays.
+ */
 function windowed(held: Discussion | null, window: Discussion) {
   const entries = new Map((held?.entries ?? []).map((e) => [e.id, e]))
   const withdrawn = new Map((held?.withdrawn ?? []).map((w) => [w.id, w]))
-  const [start] = [...window.entries, ...window.withdrawn].toSorted(inOrder)
-  if (start) for (const [id, entry] of entries) if (inOrder(entry, start) >= 0) entries.delete(id)
+  const span = [...window.entries, ...window.withdrawn].toSorted(inOrder)
+  const [start, end] = [span[0], span.at(-1)]
+  if (start && end)
+    for (const [id, entry] of entries) if (inOrder(entry, start) >= 0 && inOrder(entry, end) <= 0) entries.delete(id)
   for (const entry of window.entries) entries.set(entry.id, entry)
   for (const w of window.withdrawn) withdrawn.set(w.id, w)
   return { entries, withdrawn }

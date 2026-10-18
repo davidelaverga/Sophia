@@ -138,6 +138,15 @@ describe('heldView', () => {
     )
   })
 
+  it('its span ends at its newest: a message read since, newer than a window not read again, stays', () => {
+    // A search's latest page (e5) answered while the window (e2..e4) was not read again; e3, within its span, is gone.
+    const view = heldView(held(e(1), e(2), e(3), e(4), e(5)), { entries: [e(2), e(4)], withdrawn: [] }, new Map())
+    assert.deepEqual(
+      view.entries.map((x) => x.text),
+      ['Message 1', 'Message 2', 'Message 4', 'Message 5'],
+    )
+  })
+
   it('shows the reader’s own act until a read brings it, never over a newer read, and a withdrawal as a place only', () => {
     const fixed = e(2, { text: 'Fixed', revision: 2 })
     const gone = { id: e(1).id, actorId: ME, authorName: null, createdAt: at(1), withdrawnAt: at(5) }
