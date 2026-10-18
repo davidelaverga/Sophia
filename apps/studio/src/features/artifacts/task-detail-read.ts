@@ -3,7 +3,8 @@
 // query cache that ran it, for that project and task; so is the newest allowed read. While refused since, the task's
 // detail (its private question, allowance, outputs, progress) is withheld; a task GET set out since and allowed
 // restores it. A report read never lifts it, and it never marks a report.
-import { useQuery, type QueryClient } from '@tanstack/react-query'
+import { useCallback, useSyncExternalStore } from 'react'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { ownReportRefusal } from './report-read.ts'
 
 let order = 0
@@ -53,15 +54,20 @@ export const taskFenced = (fence: TaskFence): boolean => fence.refusedAt > fence
 
 /** Whether this task is refused to this person since its newest allowed read. Only read here. */
 export function useTaskFence(projectId: string, taskId: string): boolean {
-  return taskFenced(
-    useQuery({
-      queryKey: taskFenceKey(projectId, taskId),
-      queryFn: () => NONE,
-      initialData: NONE,
-      enabled: false,
-      staleTime: Infinity,
-      gcTime: Infinity,
-    }).data,
+  const client = useQueryClient()
+  // Registered and kept (never fetched) so the cache holds the key with its defaults; read from the cache itself as it
+  // changes (as useNeedsRefused does), so a kept refusal withholds the task in the same render pass, not a frame later.
+  useQuery({
+    queryKey: taskFenceKey(projectId, taskId),
+    queryFn: () => NONE,
+    initialData: NONE,
+    enabled: false,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  })
+  return useSyncExternalStore(
+    useCallback((changed: () => void) => client.getQueryCache().subscribe(changed), [client]),
+    () => taskFenced(client.getQueryData<TaskFence>(taskFenceKey(projectId, taskId)) ?? NONE),
   )
 }
 

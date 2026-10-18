@@ -28,7 +28,7 @@ export const getSourceContent = (
 ): Promise<SourceContent> =>
   callApi(
     `/api/v1/sources/${sourceId}/content?disposition=${disposition}`,
-    { token, method: 'GET' },
+    { token, method: 'GET', doorRead: true },
     parseSourceContent,
   )
 
@@ -51,13 +51,17 @@ export function listReports(token: string, filter: ReportFilter): Promise<Report
 
 /** Every published version of one report, newest first, with what changed and what was kept. */
 export const listArtifactVersions = (token: string, artifactId: string): Promise<readonly ArtifactVersion[]> =>
-  callApi(`/api/v1/artifacts/${artifactId}/versions`, { token, method: 'GET' }, parseArtifactVersionList)
+  callApi(
+    `/api/v1/artifacts/${artifactId}/versions`,
+    { token, method: 'GET', doorRead: true },
+    parseArtifactVersionList,
+  )
 
 /** The sources one version cites, with how each was retrieved; only those the reader may read. */
 export const listReportSources = (token: string, artifactId: string, versionId: string): Promise<ReportSourceList> =>
   callApi(
     `/api/v1/artifacts/${artifactId}/versions/${versionId}/sources`,
-    { token, method: 'GET' },
+    { token, method: 'GET', doorRead: true },
     parseReportSourceList,
   )
 
