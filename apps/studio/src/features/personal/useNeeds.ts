@@ -2,7 +2,8 @@
 // flag, every 20 s as the projects are; and the way to each need, where it lives. Undefined while both flags are off,
 // the padlock is shut (the read carries Sophia's replies: nothing personal is read or kept while it is), the read is on
 // its way or failed: Home is then as it was, her light alone.
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useCallback, useSyncExternalStore } from 'react'
 import type { Need as WireNeed } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
 import { tokenSubject } from '../../app/auth-callback.ts'
@@ -57,21 +58,67 @@ export interface NeedsRead {
 /** Home reads what needs the person under either flag: the vision flag's fixtures, or A15 served (attention). */
 const NEEDS_SHOWN = VISION || ATTENTION
 
+/** This page's order of reads and refusals (never the clock): a read set out before a refusal is older than it. */
+let order = 0
+const needsOrder = (): number => ++order
+
+/** When this account's own read of its needs was last refused (401, 403), in `needsOrder`; 0 when never. */
+const needsRefusedKey = (account: string) => ['vision', 'needs-refused', account]
+
+/** A refusal of this account's own read, kept as it is learnt: later than every read set out before it. */
+const needsRefusedNow = (client: QueryClient, account: string) =>
+  client.setQueryData<number>(needsRefusedKey(account), (at = 0) => Math.max(at, needsOrder()))
+
+/**
+ * The account's last refusal, kept in its query cache for as long as the page lives (another view and back keeps it),
+ * and read from the cache as it changes (its listeners are told at once), not a task later as an observer is.
+ */
+function useNeedsRefused(client: QueryClient, account: string): number {
+  useQuery({
+    queryKey: needsRefusedKey(account),
+    queryFn: () => 0,
+    initialData: 0,
+    enabled: false,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  })
+  return useSyncExternalStore(
+    useCallback((changed: () => void) => client.getQueryCache().subscribe(changed), [client]),
+    () => client.getQueryData<number>(needsRefusedKey(account)) ?? 0,
+  )
+}
+
+/** A read set out after the last refusal; none from before it. */
+const readSince = <T extends { readFrom: number }>(data: T | undefined, refusedAt: number): T | undefined =>
+  data && data.readFrom > refusedAt ? data : undefined
+
 export function useNeeds(token: string, go: NeedsGo, options: NeedsOptions = {}): NeedsRead {
   const { enabled = NEEDS_SHOWN, locked = false } = options
   const client = useQueryClient()
   // Keyed by the account, not the token: a refreshed token is the same person, and their rows stay while it reads
   // again (Codex on #245).
-  const queryKey = ['vision', 'needs', tokenSubject(token) ?? token]
+  const account = tokenSubject(token) ?? token
+  const queryKey = ['vision', 'needs', account]
+  const refusedAt = useNeedsRefused(client, account)
   const read = useQuery({
     queryKey,
     // When the answer arrived, beside it: `readAt` is the service's clock and this is the browser's, at the same moment.
-    queryFn: async ({ signal }) => ({ list: await listNeeds(token, signal), receivedAt: Date.now() }),
+    // Refused (401, 403, known from the status alone): kept at once, before the query tells this view (R-NEEDS-OWN-READ-01).
+    queryFn: async ({ signal }) => {
+      const readFrom = needsOrder()
+      const list = await listNeeds(token, signal).catch((error: unknown) => {
+        if (refusedBy(error)) needsRefusedNow(client, account)
+        throw error
+      })
+      return { list, receivedAt: Date.now(), readFrom }
+    },
     enabled: enabled && !locked,
     refetchInterval: 20_000,
     retry: false,
   })
-  const got = read.data
+  // None read before the account's last refusal shows, whatever fails after it (a 503, a late answer, another view and
+  // back): only a read set out since, and answered, does.
+  const got = readSince(read.data, refusedAt)
   // The rows read last are kept through a poll that fails (the list stays actionable), and the note says the read
   // failed beside them: `isError` is read apart from the cached rows (Codex on #245).
   const note: Read | null =

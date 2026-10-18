@@ -246,6 +246,20 @@ and other statuses are unchanged; the fence, retry, draft and restoration paths 
 - Corrections to the earlier handback: the ordinary check does not run the DB tests. The earlier probe applied 67
   migration files before 0070 failed; it was not a full schema.
 
+## FND-B-NEEDS-OWN-READ-REFUSAL-FOCUSED-CORRECTION-01 (#391 4305645985, R-NEEDS-OWN-READ-01)
+
+- Home's account Needs read (`GET /api/v1/me/needs`, `listNeeds`) is a `doorRead`: its 401 or 403 is raised at
+  once with its status. `useNeeds` keeps the account's refusal, in this page's read order, in the account's query cache
+  as the read learns it, and reads it as the cache changes. No row read before the last refusal shows, whatever comes
+  after it (a 503, a late answer, another view and back); a read set out since, and answered, restores them. A 503
+  with no refusal before it keeps the rows as before. Polling, the padlock, the seen mark after a turn is shown, and
+  the per-account cache are unchanged.
+- `e2e/home-needs-refusal.spec.ts` adapts the Updates refusal spec. It covers 401 and 403, with delayed and malformed
+  bodies, and the held-delivery case: zero frames show a cached need or action, and no seen write is made. One `@phone`
+  case runs on the phone project. Removing only `doorRead` fails both delayed cases; removing only the synchronous
+  keep fails all six (held: rows visible; others: rows back after the later 503). The checks measure DOM layout and
+  visibility in rAF callbacks, not compositor paint.
+
 ## Next bounded action
 
 B's private handback goes to P; R reviews this integration. No push until P selects one publication.
