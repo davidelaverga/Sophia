@@ -120,7 +120,8 @@
   flex: none;
   border-radius: 50%;
   background: var(--warm);
-  animation: ps-dot-pulse 1.4s ease-in-out infinite;
+  /* Still: motion in the Studio is for events, not states (CONTRIBUTING.md). Its pulse named keyframes lost since
+     484e390ad, so it ran nothing (informe-25 M14); the dot and its words say the call is on. */
 }
 /* Back to the room: the pill's whole height is its target. */
 .places .room-pill .t {
