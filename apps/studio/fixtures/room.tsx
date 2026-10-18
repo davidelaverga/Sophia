@@ -400,6 +400,8 @@ interface Fixture {
   fenceOf: (key: readonly string[]) => unknown
   /** Sets out the page's own queries under `key` again, through their own owned query functions (nothing set by hand). */
   refetch: (key: readonly string[]) => void
+  /** A report's own task list answers not_found (422) from now on, as after a revoked membership; false, it reads again. */
+  failReportTasks: (on: boolean) => void
   /** The report's sources, held since the page opened (`hold=sources`), come now. */
   releaseSources: () => void
   /** Reads of the report's sources wait again from now on, until released. */
@@ -718,6 +720,7 @@ const project = {
   // `designcard=on`: the design task itself is in the project's work (its own DesignCard); `failDesign` fails its read.
   designCard: query.get('designcard') === 'on',
   designFail: designFailOf(query.get('designfail')),
+  reportTasksFail: false,
   sourcesHeld: query.get('hold') === 'sources',
   textHeld: query.get('hold') === 'text',
   activityHeld: query.get('hold') === 'activity',
@@ -1354,6 +1357,9 @@ window.fixture = {
   },
   failDesign: (how = 'forbidden') => {
     project.designFail = how
+  },
+  failReportTasks: (on) => {
+    project.reportTasksFail = on
   },
   fenceOf: (key) => queryClient.getQueryData(key),
   refetch: (key) => void queryClient.refetchQueries({ queryKey: key }).catch(() => undefined),

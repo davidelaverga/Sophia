@@ -194,6 +194,8 @@ interface Project {
    */
   versionsFail: false | 'unavailable' | 'not_found'
   /** The design task itself is in the project's work, as its own card (`designcard=on`). */
+  /** A report's own task list answers not_found (`failReportTasks`). */
+  reportTasksFail?: boolean
   designCard?: boolean
   /** Reads of the design task fail: refused (403, this person's own), or unavailable (503); false, they succeed. */
   designFail?: false | 'unavailable' | 'forbidden'
@@ -2095,7 +2097,7 @@ function humanTasksAnswer(project: Project, method: string, url: URL, init: Requ
   // Served without a seed: none yet, still answered as A39.
   const tasks = (project.humanTasks ??= noHumanTasks())
   const world = taskWorld(project)
-  if (method === 'GET') return humanRead(tasks, world, url, route)
+  if (method === 'GET') return humanRead(project, tasks, world, url, route)
   return writeAnswered(project, humanWrite(tasks, world, { method, path, init, one: route.one }))
 }
 
@@ -2109,12 +2111,18 @@ function writeAnswered(project: Project, result: Answer | undefined) {
 
 /** A39's reads: a report's tasks, the project's, or one. */
 function humanRead(
+  project: Project,
   tasks: HumanTasks,
   world: TaskWorld,
   url: URL,
   route: { report: string | undefined; one: RegExpExecArray | null; list: boolean },
 ): Response {
   served.push(`task-read:${url.pathname}${url.search}`)
+  if (route.report && project.reportTasksFail)
+    return answerOf({
+      status: 422,
+      body: { code: 'not_found', message: 'Artifact not found', requestId: PROJECT, retry: 'never' },
+    })
   if (route.report) return answerOf(reportTasks(tasks, world, route.report))
   if (route.list) return json(projectPage(tasks, world, url.searchParams.get('cursor')))
   const t = tasks.list.find((x) => x.taskId === route.one?.[1])
