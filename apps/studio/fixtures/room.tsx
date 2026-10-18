@@ -643,6 +643,7 @@ const project = {
   coversHeld: query.get('hold') === 'covers',
   // `fail=task`: every read of the research task is refused (503), as the hosted cards' detail went unread.
   taskFails: query.get('fail') === 'task',
+  taskRefused: false,
   researching: query.get('research') === 'running' ? { reads: 0 } : null,
   researchFinished: false,
   textTampered: query.get('tamper') === 'text',
