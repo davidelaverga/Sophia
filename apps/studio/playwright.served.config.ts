@@ -15,19 +15,40 @@ interface Served {
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dev-db.ts's own output
 const served = JSON.parse(readFileSync(process.env.SOPHIA_SERVED_ENV ?? '', 'utf8')) as Served
 process.env.SOPHIA_SERVED_PROJECT = served.project.projectId
+// SOPHIA_SERVED_PERSONAL=1: the Personal journey (e2e-served/personal-served.spec.ts). The API starts through
+// apps/api/scripts/personal-served.ts: the loopback model double, one ephemeral payer for Luis through the disposable
+// database's owner connection (SOPHIA_DISPOSABLE_DATABASE_URL), then the real API on its restricted role, live.
+const personal = process.env.SOPHIA_SERVED_PERSONAL === '1'
+const subjectOf = (token: string): string => {
+  const payload: unknown = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8'))
+  return payload && typeof payload === 'object' && 'sub' in payload ? String(payload.sub) : ''
+}
+const luis = served.identities.find((i) => i.name === 'Luis')
 
 export default defineConfig({
   testDir: './e2e-served',
+  testMatch: personal ? 'personal-served.spec.ts' : 'c1-served.spec.ts',
   workers: 1,
   retries: 0,
   reporter: 'list',
   use: { baseURL: 'http://127.0.0.1:5198', viewport: { width: 1440, height: 900 } },
   webServer: [
     {
-      command: 'node ../api/src/server.ts',
+      command: personal ? 'node ../api/scripts/personal-served.ts' : 'node ../api/src/server.ts',
       url: 'http://127.0.0.1:5199/health',
       reuseExistingServer: false,
-      env: { ...served.api, HOST: '127.0.0.1', PORT: '5199', SOPHIA_CONVERSATIONS: 'on' },
+      env: {
+        ...served.api,
+        HOST: '127.0.0.1',
+        PORT: '5199',
+        SOPHIA_CONVERSATIONS: 'on',
+        ...(personal
+          ? {
+              SOPHIA_SERVED_PERSONAL_OWNER: subjectOf(luis?.token ?? ''),
+              SOPHIA_DISPOSABLE_DATABASE_URL: process.env.SOPHIA_DISPOSABLE_DATABASE_URL ?? '',
+            }
+          : {}),
+      },
     },
     {
       command: 'pnpm exec vite --port 5198 --strictPort',

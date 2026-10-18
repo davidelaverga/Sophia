@@ -248,7 +248,7 @@ before(async () => {
   await owner(
     `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES
     ('test-payer', $1, 1000000), ('tight-payer', $1, 10), ('held-payer', $1, 1000000), ('stop-payer', $1, 1000000),
-    ('prompt-payer', $1, 1000000), ('note-payer', $1, 1000000), ('owner-payer', $1, 1000000), ('first-payer', $1, 1000000)`,
+    ('prompt-payer', $1, 1000000), ('note-payer', $1, 1000000), ('owner-payer', $1, 1000000), ('first-payer', $1, 1000000), ('fay-payer', $1, 1000000)`,
     [NOBODY],
   )
 })
@@ -607,6 +607,67 @@ describe('the live personal companion (local provider double)', () => {
     process.stdout.write(
       `ERASURE-FIRST ${JSON.stringify({ ...marks, epochBefore, staleStatus: stale.status, reservation: at.outcome })}\n`,
     )
+  })
+
+  // After an erasure (#435 4304290365), the old request key on the second API: under the old epoch the fence refuses
+  // it; under the new epoch the key's request reads redacted and writes nothing. Neither brings back the erased words,
+  // keeps a turn, reserves or asks the provider; a retry of the erased turn finds nothing to retry.
+  it('after an erasure, the old key on the other API, old epoch or new: refused, nothing kept or asked', async () => {
+    const FAY = randomUUID()
+    const one = await liveApi('fay-payer', FAY)
+    const two = await liveApi('fay-payer', FAY, false)
+    const oldEpoch = (await space(one, FAY)).epoch
+    const key = randomUUID()
+    double.script({ text: 'For Fay before the erasure.', usage: { input_tokens: 10, output_tokens: 5 } })
+    const sent = await call(one, '/api/v1/personal/turns', FAY, { text: 'Words to forget' }, { epoch: oldEpoch, key })
+    assert.equal(sent.status, 202, JSON.stringify(sent.json))
+    const answered = await settled(one, FAY)
+    const asked = answered.turns.find((t) => t.author === 'person')
+    assert.ok(asked)
+    const askedBefore = recorded().length
+    const usageBefore = await usage('fay-payer')
+    await write(one, '/api/v1/personal/erasure', FAY, { confirm: 'delete' })
+    const newEpoch = (await space(two, FAY)).epoch
+    assert.notEqual(newEpoch, oldEpoch, 'the erasure moved the epoch')
+    const sameKeyOldEpoch = await call(
+      two,
+      '/api/v1/personal/turns',
+      FAY,
+      { text: 'Words to forget' },
+      { epoch: oldEpoch, key },
+    )
+    const sameKeyNewEpoch = await call(
+      two,
+      '/api/v1/personal/turns',
+      FAY,
+      { text: 'Words to forget' },
+      { epoch: newEpoch, key },
+    )
+    const retryOld = await call(
+      two,
+      `/api/v1/personal/turns/${asked.id}/retry`,
+      FAY,
+      {},
+      { epoch: newEpoch, key: randomUUID() },
+    )
+    const answers = { sameKeyOldEpoch, sameKeyNewEpoch, retryOld }
+    process.stdout.write(`POST-ERASURE ${JSON.stringify(answers)}\n`)
+    assert.equal(sameKeyOldEpoch.status, 409, 'the old epoch is refused at the fence')
+    assert.ok(
+      sameKeyNewEpoch.status >= 400 || JSON.stringify(sameKeyNewEpoch.json).includes('redacted'),
+      'the old key writes nothing',
+    )
+    assert.ok(retryOld.status >= 400, 'the erased turn has nothing to retry')
+    for (const a of Object.values(answers))
+      assert.ok(!JSON.stringify(a.json).includes('Words to forget'), 'no erased words')
+    for (const at of [one, two])
+      assert.deepEqual(
+        parsePersonalTurnPage((await call(at, '/api/v1/personal/turns?after=0', FAY)).json).turns,
+        [],
+        'nothing kept',
+      )
+    assert.equal(recorded().length, askedBefore, 'no provider request after the erasure')
+    assert.deepEqual(await usage('fay-payer'), usageBefore, 'no new usage')
   })
 
   it('an exhausted allowance asks the provider nothing', async () => {

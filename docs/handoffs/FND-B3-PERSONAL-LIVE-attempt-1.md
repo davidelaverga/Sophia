@@ -351,3 +351,17 @@ B's private handback goes to P; R reviews this repair. No push.
   by the epoch moving in the database before the gate opens; then every reservation attempt answers `not_current`.
   Nothing is reserved, the provider is asked nothing, nothing of the erased words comes back, and the old epoch's
   resume is refused (409) with no new turn.
+
+## FND-B-PERSONAL-SERVED-STARTUP-BINDING-01
+
+- `personal-live.db.test.ts`, after an erasure, on the second API: the old request key gets 409 `request_erased`
+  under the old epoch and the same under the new one; a retry of the erased turn gets 422 `not_found`. None brings
+  back the erased words, keeps a turn, reserves or asks the provider.
+- `apps/api/scripts/personal-served.ts` is the served Personal startup, selected in `playwright.served.config.ts` only
+  by `SOPHIA_SERVED_PERSONAL=1` (the C1 served path is unchanged). It starts the loopback double first, then enrolls
+  one ephemeral payer for Luis through the disposable database's owner connection, then the real API on its
+  restricted role with the live companion and a fake key held in the process. That binding works: the double, the API
+  and Vite start, health passes, and both dev identities load the App.
+- `e2e-served/personal-served.spec.ts` (the normal journey) did not complete. On `/personal` the headless Chromium
+  renderer crashes for Luis and for Davide alike, after WebGL "GPU stall due to ReadPixels" warnings, before the
+  journey can type. Root cause (headless WebGL environment or a product render) not established; the journey is unrun.
