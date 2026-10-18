@@ -164,6 +164,10 @@ interface Project {
    * `not_found`, as it refuses a report this person may not read; false, they succeed.
    */
   versionsFail: false | 'unavailable' | 'not_found'
+  /** The design task itself is in the project's work, as its own card (`designcard=on`). */
+  designCard?: boolean
+  /** Reads of the design task fail: refused (403, this person's own), or unavailable (503); false, they succeed. */
+  designFail?: false | 'unavailable' | 'forbidden'
   /** Reads of a version's sources wait until the page lets them through (`hold=sources`), as a slow API's do. */
   sourcesHeld: boolean
   /** So do reads of a version's text (`hold=text`). */
@@ -350,7 +354,10 @@ function snapshotOf(project: Project) {
     : project.work
       ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing).task] }
       : now
-  const reported = project.goalReports ? withGoalReports(project, work) : work
+  const designed = project.designCard
+    ? { ...work, work: [...work.work, designingTask(project.designed ? 'published' : 'designing').task] }
+    : work
+  const reported = project.goalReports ? withGoalReports(project, designed) : designed
   const titled = project.title ? { ...reported, title: project.title } : reported
   return withFocus(project, project.waiting ? { ...titled, lobby: lobbyOf(project.lobbyAsked) } : titled)
 }
@@ -1358,7 +1365,13 @@ export function releaseCovers(project: Project): void {
 
 /** The design task of the research's page, read while it is designed (`design=designing`, B-19), then published. */
 function designRead(project: Project): Response | null {
-  if (!project.designing && !project.designed) return null
+  if (project.designFail) {
+    const [status, retry] = project.designFail === 'forbidden' ? [403, 'never'] : [503, 'safe_read']
+    served.push(`design:${project.designFail}`)
+    const body = { code: project.designFail, message: 'No', requestId: '00000000-0000-4000-8000-0000000000bb', retry }
+    return new Response(JSON.stringify(body), { status })
+  }
+  if (!project.designing && !project.designed && !project.designCard) return null
   return json(designingTask(project.designed ? 'published' : 'designing'))
 }
 
