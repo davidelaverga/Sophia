@@ -1226,11 +1226,16 @@
 }
 
 @media (max-width: 560px) {
-  .resource-sheet-head {
+  /* The name, then its presses on a line of their own at the right end, Close last at the sheet's edge; the head grows
+     to hold both lines. Named with the frame's class too, so it outweighs the frame's 36 px head whichever sheet loads
+     last (theme.css comes after this one on the fixture pages, before it in the app). The kit draws the presses as
+     `.sheet-acts`: the rule here named a class nothing renders (informe-25 H3). */
+  .sheet-head.resource-sheet-head {
     flex-wrap: wrap;
     row-gap: 6px;
+    height: auto;
   }
-  .resource-sheet-actions {
+  .resource-sheet-head .sheet-acts {
     margin-left: auto;
   }
   .resource-search {
