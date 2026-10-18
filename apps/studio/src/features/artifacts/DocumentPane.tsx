@@ -5,6 +5,7 @@
 // file is checked against its hash before it is shown, so what is read is what downloads. A non-modal complementary
 // region: focus moves to its title on open and back to the opener on close; Esc steps down, F toggles the full page.
 import { ReportOrigin } from './ReportOrigin.tsx'
+import { ownedBytes, ownedText } from './download.ts'
 import { useQuery } from '@tanstack/react-query'
 import { lazy, Suspense, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
@@ -16,16 +17,7 @@ import { ReviseSections } from './ReviseSections.tsx'
 import type { Identity } from '../../app/dev-identity.ts'
 import { modalOnScreen, onScreen as isVisible, ShortcutScope } from '../../app/shortcuts.ts'
 import { useCommands } from '../../app/useCommands.ts'
-import {
-  checkedBlob,
-  HashMismatch,
-  loadReportBytes,
-  loadReportText,
-  saveBlob,
-  utf8,
-  type LoadedBytes,
-  type LoadedText,
-} from './download.ts'
+import { checkedBlob, HashMismatch, saveBlob, utf8, type LoadedBytes, type LoadedText } from './download.ts'
 import { parseMarkdown, wordCount, type ParsedReport } from './markdown.ts'
 import { HtmlView, reviewTag } from './HtmlView.tsx'
 import { MarkdownView } from './MarkdownView.tsx'
@@ -139,7 +131,8 @@ function usePaneData(identity: Identity, link: ReportLink, cursor: string | unde
   const text = useQuery({
     // A source's bytes never change (content-addressed), so a version's text is read once.
     queryKey: ['report-text', version?.sourceId, identity.name],
-    queryFn: () => loadReportText(identity.token, version?.sourceId ?? '', version?.sourceHash ?? ''),
+    queryFn: (ctx) =>
+      ownedText(identity.token, version?.sourceId ?? '', version?.sourceHash ?? '', link.artifactId)(ctx),
     enabled: version !== undefined,
     staleTime: Infinity,
     retry: (n, error) => !(error instanceof HashMismatch) && n < 2,
@@ -193,7 +186,8 @@ function useRenditions(identity: Identity, link: ReportLink, version: ArtifactVe
   const showHtml = link.format === 'html' && page !== undefined
   const pdf = useQuery({
     queryKey: ['report-pdf', rendition?.sourceId, identity.name],
-    queryFn: () => loadReportBytes(identity.token, rendition?.sourceId ?? '', rendition?.sha256 ?? ''),
+    queryFn: (ctx) =>
+      ownedBytes(identity.token, rendition?.sourceId ?? '', rendition?.sha256 ?? '', link.artifactId)(ctx),
     enabled: showPdf,
     staleTime: Infinity,
     retry: retryRead,
@@ -201,7 +195,7 @@ function useRenditions(identity: Identity, link: ReportLink, version: ArtifactVe
   // The designed page's text, checked against the rendition's hash: the frame shows exactly what downloads.
   const html = useQuery({
     queryKey: ['report-html', page?.sourceId, identity.name],
-    queryFn: () => loadReportText(identity.token, page?.sourceId ?? '', page?.sha256 ?? ''),
+    queryFn: (ctx) => ownedText(identity.token, page?.sourceId ?? '', page?.sha256 ?? '', link.artifactId)(ctx),
     enabled: showHtml,
     staleTime: Infinity,
     retry: retryRead,

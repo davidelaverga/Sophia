@@ -3,6 +3,8 @@
 // sources are read as the viewer reads them: the same query keys, so a report open in the pane shares them. A citation
 // opens its source in the viewer's Sources tab.
 import { useQuery } from '@tanstack/react-query'
+import { ownedText } from '../artifacts/download.ts'
+import { ReportRefused } from '../artifacts/ReportRefused.tsx'
 import { reportRead, useReportFence } from '../artifacts/report-read.ts'
 import { useCallback, useEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
@@ -10,7 +12,6 @@ import { reportLanguage } from '@sophia/report/language'
 import { listReportSources } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
-import { loadReportText } from '../artifacts/download.ts'
 import { parseMarkdown, type Block } from '../artifacts/markdown.ts'
 import { MarkdownView } from '../artifacts/MarkdownView.tsx'
 import { focusLost, takeShownHere } from './focus-arrival.ts'
@@ -118,7 +119,7 @@ function SectionIndex(props: {
 function useShownText(version: ArtifactVersion, identity: Identity) {
   const text = useQuery({
     queryKey: ['report-text', version.sourceId, identity.name],
-    queryFn: () => loadReportText(identity.token, version.sourceId, version.sourceHash),
+    queryFn: ownedText(identity.token, version.sourceId, version.sourceHash, version.artifactId),
     staleTime: Infinity,
   })
   const sources = useQuery({
@@ -137,15 +138,14 @@ function useShownText(version: ArtifactVersion, identity: Identity) {
 export function PresentedReport(props: Props) {
   // The report's own refusal (report-read.ts), seen here or anywhere else: no title, meta, index, text or action.
   const refused = useReportFence(props.version.artifactId)
-  return refused ? <RefusedReport /> : <ShownReport {...props} />
+  return refused ? <RefusedReport {...props} /> : <ShownReport {...props} />
 }
 
-function RefusedReport() {
+/** Refused: nothing of the report; Try again reads the report itself (ReportRefused), so it can come back here. */
+function RefusedReport({ version, identity }: Props) {
   return (
     <section className="report-main" aria-label="Report">
-      <p className="report-main-refused" role="status">
-        This report isn’t available to you.
-      </p>
+      <ReportRefused artifactId={version.artifactId} identity={identity} className="report-main-refused" />
     </section>
   )
 }

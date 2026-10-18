@@ -6,10 +6,11 @@
 // delivered without the PDF it asked for offers editors "Try PDF again" (RetryPdf). Hold and Stop live on its goal
 // (WorkControls), as for every task, a PDF rendering again included.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { ReportRefused } from './ReportRefused.tsx'
+import { useOwnedVersions } from './report-versions.ts'
 import { useEffect, useRef } from 'react'
 import type { ArtifactVersion, NativeTask, NativeTaskDetail, ResearchProgress } from '@sophia/contracts'
 import { Card, Icon, Tag } from '@sophia/ui'
-import { listArtifactVersions } from '../../api/artifacts.ts'
 import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer, type OpenRequest } from './DocumentViewer.tsx'
@@ -86,18 +87,33 @@ function useResearch({ task, projectId, identity }: Props) {
       void client.invalidateQueries({ queryKey: ['report-versions', task.artifactId] })
     }
   }, [client, latest, task.artifactId])
-  const versions = useQuery({
-    queryKey: ['report-versions', task.artifactId, latest, identity.name],
-    queryFn: () => listArtifactVersions(identity.token, task.artifactId ?? ''),
-    enabled: task.artifactId !== undefined && outputs.length > 0,
-  }).data
+  // The task's report: its own refusal (here or by any reader of it) withholds every report field and action.
+  const key = ['report-versions', task.artifactId, latest, identity.name]
+  const { versions, refused } = useOwnedVersions(key, task.artifactId, identity, outputs.length > 0)
   return {
+    refused,
     research,
     outputs,
     versions,
     words: researchState(task, outputs, research?.outputs ?? ['markdown'], research ?? {}, detailRead(detail)),
     current: versions?.find((v) => v.id === latest),
   }
+}
+
+/** The task's report outputs, or, refused, only that it isn't available (with its Try again). */
+function ReportOutputs(props: {
+  refused: boolean
+  task: Props['task']
+  identity: Identity
+  outputs: readonly Output[]
+  versions: readonly ArtifactVersion[] | undefined
+  open: Open | null
+}) {
+  const { refused, task, identity, outputs, versions, open } = props
+  if (refused && task.artifactId) return <ReportRefused artifactId={task.artifactId} identity={identity} />
+  return (
+    <Outputs outputs={outputs} versions={versions} token={identity.token} open={open} artifactId={task.artifactId} />
+  )
 }
 
 /** Opens this task's report in the viewer; null where there is no viewer or no report yet. */
@@ -129,7 +145,7 @@ export function useNamedCard(taskId: string) {
 
 export function WorkCard(props: Props) {
   const { task, identity, projectId, canAct = false } = props
-  const { research, outputs, versions, words, current } = useResearch(props)
+  const { refused, research, outputs, versions, words, current } = useResearch(props)
   const now = useNow()
   const open = useOpen(task.artifactId)
   const retry = offersRetry(canAct, words, research)
@@ -139,7 +155,14 @@ export function WorkCard(props: Props) {
       <CardHead words={words} task={task} research={research} now={now} />
       <p className="work-card-question">{research?.question ?? 'Research'}</p>
       {words.state === 'researching' && research && <Progress research={research} />}
-      <Outputs outputs={outputs} versions={versions} token={identity.token} open={open} />
+      <ReportOutputs
+        refused={refused}
+        task={task}
+        identity={identity}
+        outputs={outputs}
+        versions={versions}
+        open={open}
+      />
       <DesignRow html={research?.html} projectId={projectId} identity={identity} researchTaskId={task.id} />
       {words.note && <p className="goal-outcome">{words.note}</p>}
       {retry && <RetryPdf projectId={projectId} taskId={task.id} token={identity.token} />}
@@ -155,10 +178,11 @@ interface OutputsProps {
   versions: readonly ArtifactVersion[] | undefined
   token: string
   open: Open | null
+  artifactId: string | undefined
 }
 
 /** One row per delivered output, side by side (stacked in a narrow card): only what the task actually stored. */
-function Outputs({ outputs, versions, token, open }: OutputsProps) {
+function Outputs({ outputs, versions, token, open, artifactId }: OutputsProps) {
   if (outputs.length === 0) return null
   return (
     <div className="work-card-outputs">
@@ -168,6 +192,7 @@ function Outputs({ outputs, versions, token, open }: OutputsProps) {
           output={o}
           version={versions?.find((v) => v.id === o.artifactVersionId)}
           token={token}
+          artifactId={artifactId}
           onOpen={open ? () => open({ versionId: o.artifactVersionId, format: o.format }) : null}
         />
       ))}
@@ -288,6 +313,8 @@ interface RowProps {
   output: Output
   version: ArtifactVersion | undefined
   token: string
+  /** The task's report, whose own output this row is: its download is that report's own read. */
+  artifactId: string | undefined
   onOpen: (() => void) | null
 }
 
@@ -312,12 +339,14 @@ const TILE: Record<Output['format'], string> = { markdown: 'MD', pdf: 'PDF', htm
 /** A row's format, said: two rows of one report differ by it (the name alone is "Report" until the versions load). */
 const formatName = (format: Output['format']) => FORMAT_NAME[format]
 
-function OutputRow({ output, version, token, onOpen }: RowProps) {
+function OutputRow({ output, version, token, artifactId, onOpen }: RowProps) {
   const status = useTransientStatus()
+  const client = useQueryClient()
   const name = nameOf(output, version)
   const download = async () => {
     try {
-      const saved = await downloadSource(token, output.sourceId, output.sha256)
+      const owner = artifactId ? { client, artifactId } : undefined
+      const saved = await downloadSource(token, output.sourceId, output.sha256, undefined, owner)
       status.show(`Downloading ${saved.filename} · ${formatBytes(saved.byteLength)}`)
     } catch (err: unknown) {
       status.show(err instanceof Error ? err.message : 'The download didn’t start. Try again.', true)

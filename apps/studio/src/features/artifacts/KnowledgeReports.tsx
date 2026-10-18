@@ -7,6 +7,7 @@
 // so it shows none of the notes on what changed: alone, a note that the rest was kept read as true when it was not
 // (CX-0026). Editors and admins edit a description against the revision they saw.
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
+import { ReportRefused } from './ReportRefused.tsx'
 import { useReportFence } from './report-read.ts'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ReportCard } from '@sophia/contracts'
@@ -288,19 +289,9 @@ function ReportCardView(props: CardProps) {
 
 /** A refused report's tile: no title, meta, description, cover or action; Try again reads the report itself again. */
 function RefusedCard({ card, identity }: Pick<CardProps, 'card' | 'identity'>) {
-  const client = useQueryClient()
   return (
     <Card as="li" live className="report-card">
-      <p className="report-meta" role="status">
-        This report isn’t available to you.{' '}
-        <button
-          type="button"
-          className="text-button"
-          onClick={() => void client.refetchQueries({ queryKey: ['report-versions', card.artifactId, identity.name] })}
-        >
-          Try again
-        </button>
-      </p>
+      <ReportRefused artifactId={card.artifactId} identity={identity} />
     </Card>
   )
 }
