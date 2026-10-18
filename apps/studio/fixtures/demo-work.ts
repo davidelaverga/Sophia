@@ -4,9 +4,10 @@
 // a plan the Studio would refuse fails here, never on screen. Every name and number is invented, as the rest of the demo.
 import type { RequiredAction, Resource } from '../src/features/resources/resource.ts'
 import { readBoardView, type GoalView } from '../src/features/work/planning/board-view.ts'
-import { PROJECT } from './data.ts'
+import { membership, PROJECT } from './data.ts'
 import { DEMO_GOALS } from './demo-goals.ts'
 import { unexpected } from './fixture-api.ts'
+import { personId } from './fake-people.ts'
 import { NOW } from './resources-data.ts'
 import { firstGoal } from './work-data.ts'
 
@@ -40,6 +41,12 @@ const WORDS: readonly (readonly [string, string])[] = [
 const CAST: Readonly<Record<string, string>> = { davide: 'marco' }
 
 /**
+ * On the board, the demo's people carry the ids its project's members carry (fixture-api.ts `membersRead`), so the
+ * Studio names them as it does a served board, from /members (served-names.md): Davide is Marco, Luis is the viewer.
+ */
+const BOARD_CAST: Readonly<Record<string, string>> = { davide: personId(1), luis: membership.actorId }
+
+/**
  * A session's commands (guidance, hold, stop): the room's demo has no lead to take them, so a task offers only what
  * the page can answer (asking Sophia), never a press that fails (no dead affordances).
  */
@@ -49,19 +56,19 @@ const COMMANDS = new Set(['guidance', 'hold', 'stop'])
 const ISO = /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/
 
 /** One string as the demo tells it: a person's id the demo's cast, a time moved to now, words the pilot's. */
-function told(text: string, shift: number): string {
-  const cast = CAST[text]
-  if (cast) return cast
+function told(text: string, shift: number, cast: Readonly<Record<string, string>> = CAST): string {
+  const person = cast[text]
+  if (person) return person
   if (ISO.test(text)) return new Date(Date.parse(text) + shift).toISOString()
   return WORDS.reduce((t, [from, to]) => t.split(from).join(to), text)
 }
 
 /** Every string in a value as the demo tells it; anything else as it is. */
-function inPilotWords(value: unknown, shift: number): unknown {
-  if (typeof value === 'string') return told(value, shift)
-  if (Array.isArray(value)) return value.map((v) => inPilotWords(v, shift))
+function inPilotWords(value: unknown, shift: number, cast: Readonly<Record<string, string>> = CAST): unknown {
+  if (typeof value === 'string') return told(value, shift, cast)
+  if (Array.isArray(value)) return value.map((v) => inPilotWords(v, shift, cast))
   if (typeof value === 'object' && value !== null) {
-    return Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, inPilotWords(inner, shift)]))
+    return Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, inPilotWords(inner, shift, cast)]))
   }
   return value
 }
@@ -84,7 +91,9 @@ export function demoServedGoals(): GoalView[] {
     snapshot_cursor: '1',
     observed_at: new Date().toISOString(),
     coverage: 'complete',
-    goals: [inPilotWords({ ...view, goal_id: ROLLOUT.id, current_plan: plan, items }, Date.now() - NOW.getTime())],
+    goals: [
+      inPilotWords({ ...view, goal_id: ROLLOUT.id, current_plan: plan, items }, Date.now() - NOW.getTime(), BOARD_CAST),
+    ],
   })
   if (read.ok) return [...read.value.goals]
   // Loud in development and in every check (`unexpected`), never a blank demo: the goals then show without a plan.

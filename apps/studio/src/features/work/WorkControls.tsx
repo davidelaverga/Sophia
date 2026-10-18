@@ -16,9 +16,24 @@ interface Props {
   token: string
   /** A project admin: only they are offered Retire remaining sessions (the API refuses anyone else, A41). */
   admin?: boolean
+  /** Where the row stands: at the content's end (a goal over its plan, on a wide screen), else at its start. */
+  edge?: Edge
 }
 
-export function WorkControls({ goal, projectId, identity, token, admin = false }: Props) {
+type Edge = 'start' | 'end'
+type TipAlign = 'center' | 'end' | 'start'
+
+/**
+ * A control's tip, kept inside the content. In a row at its start each tip hangs from its control's start (held,
+ * Resume comes first: Codex P2 on #421); in one at its end the filled first press centres its tip and the others align
+ * to their ends (Codex P2 on #253).
+ */
+function tipAlignOf(kind: CommandKind, edge: Edge): TipAlign {
+  if (edge === 'start') return 'start'
+  return kind === 'request_review' ? 'center' : 'end'
+}
+
+export function WorkControls({ goal, projectId, identity, token, admin = false, edge = 'start' }: Props) {
   const queryClient = useQueryClient()
   const admission = useAdmission<CommandKind, Receipt>(async (key, kind) => {
     try {
@@ -36,13 +51,14 @@ export function WorkControls({ goal, projectId, identity, token, admin = false }
   })
   const busy = admission.state.status === 'sending'
   const available = commandsFor(goal.status, admin)
+  const retire = () => void admission.submit('retire_sessions')
 
   return (
     <div className="controls">
       <div className="control-row">
         {available.map((kind) =>
           kind === 'retire_sessions' ? (
-            <RetireButton key={kind} disabled={busy} onConfirm={() => void admission.submit('retire_sessions')} />
+            <RetireButton key={kind} align={tipAlignOf(kind, edge)} disabled={busy} onConfirm={retire} />
           ) : kind === 'stop' ? (
             // Stopping is final, so it asks, says so, and waits: no timer takes the question away.
             <ConfirmButton
@@ -54,8 +70,7 @@ export function WorkControls({ goal, projectId, identity, token, admin = false }
               className="text-button"
               // Its tip as Hold has its own: the destructive press says what it does too (Codex on #253).
               tip={COMMAND.stop.hint}
-              // The last control, at the content's edge: its tip aligns to its end (Codex P2 on #253).
-              tipAlign="end"
+              tipAlign={tipAlignOf(kind, edge)}
               disabled={busy}
               onConfirm={() => void admission.submit('stop')}
             />
@@ -69,8 +84,7 @@ export function WorkControls({ goal, projectId, identity, token, admin = false }
               onClick={() => void admission.submit(kind)}
             >
               {COMMAND[kind].verb}
-              {/* After the first press, the row reaches the content's edge: the tips align to their ends, as Stop's. */}
-              <Tip label={COMMAND[kind].hint} align={kind === 'request_review' ? 'center' : 'end'} />
+              <Tip label={COMMAND[kind].hint} align={tipAlignOf(kind, edge)} />
             </button>
           ),
         )}
@@ -84,7 +98,7 @@ export function WorkControls({ goal, projectId, identity, token, admin = false }
 }
 
 /** An owner's explicit fence for a completed goal's sessions (A41): it asks, says what stays, and waits. */
-function RetireButton({ disabled, onConfirm }: { disabled: boolean; onConfirm: () => void }) {
+function RetireButton({ align, disabled, onConfirm }: { align: TipAlign; disabled: boolean; onConfirm: () => void }) {
   return (
     <ConfirmButton
       label={COMMAND.retire_sessions.verb}
@@ -93,7 +107,7 @@ function RetireButton({ disabled, onConfirm }: { disabled: boolean; onConfirm: (
       keep="Keep them"
       className="text-button"
       tip={COMMAND.retire_sessions.hint}
-      tipAlign="end"
+      tipAlign={align}
       disabled={disabled}
       onConfirm={onConfirm}
     />

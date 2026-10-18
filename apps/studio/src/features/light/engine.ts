@@ -168,7 +168,8 @@ interface HandoffStep {
 export class LightEngine {
   private readonly reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   private readonly springs = createSprings(this.reduced)
-  private readonly gl: LightRenderer | null
+  /** Her light in WebGL, in the room only: on paper the halo is CSS and no context is held (setPaper). */
+  private gl: LightRenderer | null = null
   private readonly traceCanvas: HTMLCanvasElement
   private readonly trace: CanvasRenderingContext2D | null
   private readonly observer: ResizeObserver
@@ -188,14 +189,11 @@ export class LightEngine {
   private paper = false
   private readonly box: HTMLElement
 
-  /** The WebGL canvas: not displayed on paper (theme.css), when its frames are not drawn (Codex on #234). */
-  private readonly glCanvas: HTMLCanvasElement
+  /** The room's canvas the WebGL light draws on; none on paper, where SophiaLight renders none. */
+  private glCanvas: HTMLCanvasElement | null = null
 
-  constructor(box: HTMLElement, glCanvas: HTMLCanvasElement, traceCanvas: HTMLCanvasElement) {
-    this.glCanvas = glCanvas
+  constructor(box: HTMLElement, traceCanvas: HTMLCanvasElement) {
     this.box = box
-    this.gl = createLightRenderer(glCanvas, this.reduced)
-    if (!this.gl) box.dataset.fallback = ''
     this.traceCanvas = traceCanvas
     this.trace = traceCanvas.getContext('2d')
     this.observer = new ResizeObserver(([entry]) => {
@@ -209,9 +207,22 @@ export class LightEngine {
     this.frameId = requestAnimationFrame(this.tick)
   }
 
-  /** Told by the component as the root's theme changes. */
-  setPaper(paper: boolean): void {
+  /**
+   * Told by the component as the root's theme changes, with the room's canvas while dark (light-webgl-room.md). Turned
+   * paper, the canvas leaves and its context is given back; turned dark, the new canvas gets one, sized now: its box
+   * kept its size, so no resize comes for it.
+   */
+  setPaper(paper: boolean, glCanvas: HTMLCanvasElement | null): void {
     this.paper = paper
+    const canvas = paper ? null : glCanvas
+    if (canvas === this.glCanvas) return
+    this.gl?.release()
+    this.glCanvas = canvas
+    this.gl = canvas ? createLightRenderer(canvas, this.reduced) : null
+    if (!canvas) return
+    // Without WebGL the room keeps a CSS glow (theme.css), until a later canvas has it.
+    this.box.toggleAttribute('data-fallback', !this.gl)
+    if (this.size.width >= 1 && this.size.height >= 1) this.gl?.resize(this.size.width, this.size.height)
   }
 
   update(input: LightInput): void {
@@ -326,8 +337,8 @@ export class LightEngine {
   }
 
   private draw(t: number, flight: HandoffStep | null): void {
-    // A canvas not displayed (on paper the halo is CSS) has no parent box to lay out in: no frame is drawn into it.
-    if (this.glCanvas.offsetParent !== null) this.gl?.draw(toFrame(this.springs, t, this.flow, this.input.mark ?? null))
+    // A canvas not displayed, or gone with the room, has no parent box to lay out in: no frame is drawn into it.
+    if (this.glCanvas?.offsetParent) this.gl?.draw(toFrame(this.springs, t, this.flow, this.input.mark ?? null))
     if (!this.trace) return
     this.trace.clearRect(0, 0, this.size.width, this.size.height)
     const inks = inksFor(this.paper)

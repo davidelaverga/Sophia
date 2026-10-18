@@ -52,6 +52,21 @@ export function offered(row: PlanRow): Offer[] {
   })
 }
 
+/** The sheet's keys that have a press now (TaskSheet: H presses Hold or Resume, S presses Stop). */
+export interface SheetKeys {
+  hold: boolean
+  stop: boolean
+}
+
+/**
+ * Which of the sheet's keys have a press: exactly what «Act on it» draws (a target, an offer, a port to send through),
+ * so the foot never names a key that does nothing there (informe-25 DL-12).
+ */
+export function sheetKeys(row: PlanRow, acts: { project: string; canSend: boolean } | undefined): SheetKeys {
+  const kinds = acts?.canSend && targetOf(row, acts.project) ? offered(row).map((o) => o.kind) : []
+  return { hold: kinds.includes('hold') || kinds.includes('resume'), stop: kinds.includes('stop') }
+}
+
 /** Names in a list, as said: "Guidance, Hold and Stop". */
 const listed = (names: readonly string[]) =>
   names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1) ?? ''}` : (names[0] ?? '')

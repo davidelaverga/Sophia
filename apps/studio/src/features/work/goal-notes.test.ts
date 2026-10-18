@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { Goal, MissionEntry } from '@sophia/contracts'
-import { goalNotes, keptAfter, noteAuthor, notesRead, noteWord, said, withNotes } from './goal-notes.ts'
+import {
+  goalNotes,
+  keptAfter,
+  known,
+  noteAuthor,
+  notesRead,
+  noteWord,
+  readingWords,
+  said,
+  withNotes,
+} from './goal-notes.ts'
 
 const entry = (id: string, over: Partial<MissionEntry> = {}): MissionEntry => ({
   id,
@@ -112,5 +122,22 @@ describe('the notes when the ledger is slow or fails, and a note still going (do
       kind: 'observation',
     })
     assert.deepEqual(keptAfter({ text: 'First note', kind: 'expectation' }, sent), { text: '', kind: 'expectation' })
+  })
+})
+
+describe('the reads a health waits on (targets-robust.md; Codex P2 on #372)', () => {
+  it('a health is known once every read it waits on is in, a later failure keeping the last', () => {
+    assert.equal(known('read', 'read'), true)
+    assert.equal(known('read', 'stale'), true)
+    assert.equal(known('read', 'reading'), false)
+    assert.equal(known('failed', 'read'), false)
+  })
+
+  it('the brief says which reads are still coming', () => {
+    assert.equal(readingWords('read', 'read'), '')
+    assert.equal(readingWords('reading', 'read'), ' · Reading the notes…')
+    assert.equal(readingWords('read', 'reading'), ' · Reading the dates…')
+    assert.equal(readingWords('reading', 'reading'), ' · Reading the notes and dates…')
+    assert.equal(readingWords('failed', 'reading'), ' · Reading the dates…')
   })
 })

@@ -55,6 +55,7 @@ import {
   deliverCaption,
   deliverNotice,
   dropCall,
+  disabling,
   enabling,
   joined,
   leaving,
@@ -277,6 +278,10 @@ interface Fixture {
   holdMission: (on: boolean) => void
   /** The brief's reads are refused (403), as to a reader no longer in the project; or answer again. */
   refuseMission: (on: boolean) => void
+  /** The goals' targets reads fail, or read again (targets-robust.md). */
+  failTargets: (on: boolean) => void
+  /** While on, the goals' targets reads wait; off, the waiting ones are answered. */
+  holdTargets: (on: boolean) => void
   /** The running meeting closes (another member closed it), and the feed moves (chapter 7's update). */
   endMeeting: () => void
   /** The project list's reads fail, or read again (chapter 1). */
@@ -347,6 +352,9 @@ interface Fixture {
   /** Turning the microphone on waits until `releaseMicrophone`, as a browser still asking for it. */
   holdMicrophone: () => void
   releaseMicrophone: () => void
+  /** Turning the microphone off waits until `releaseMute`, as LiveKit's mute does while a republish settles. */
+  holdMute: () => void
+  releaseMute: () => void
   /** Leaving the call waits until `releaseLeave`, as a slow disconnect. */
   holdLeave: () => void
   /** Leaving the call fails on LiveKit's side, as a disconnect that rejects. */
@@ -755,6 +763,9 @@ const project = {
     : [],
   projectsFail: query.get('projects') === 'fail',
   missionHeld: query.get('mission') === 'hold' ? waiting() : null,
+  // `targetsRead=hold` or `fail`: the goals' targets wait, or fail, from the first (targets-robust.md).
+  targetsHeld: query.get('targetsRead') === 'hold' ? waiting() : null,
+  targetsFail: query.get('targetsRead') === 'fail',
   carriedElsewhere: query.get('carried') === 'elsewhere',
   reportsElsewhere: query.get('reports') === 'elsewhere',
   cardAhead: query.get('card') === 'ahead',
@@ -1058,6 +1069,14 @@ window.fixture = {
     project.missionHeld = on ? held : null
     if (!on) for (const answer of held) answer()
   },
+  failTargets: (on) => {
+    project.targetsFail = on
+  },
+  holdTargets: (on) => {
+    const held = project.targetsHeld ?? []
+    project.targetsHeld = on ? held : null
+    if (!on) for (const answer of held) answer()
+  },
   failProjects: (on) => {
     project.projectsFail = on
   },
@@ -1237,6 +1256,13 @@ window.fixture = {
   releaseMicrophone: () => {
     enabling.held = false
     for (const done of enabling.waiting.splice(0)) done()
+  },
+  holdMute: () => {
+    disabling.held = true
+  },
+  releaseMute: () => {
+    disabling.held = false
+    for (const done of disabling.waiting.splice(0)) done()
   },
   holdLeave: () => {
     leaving.held = true
