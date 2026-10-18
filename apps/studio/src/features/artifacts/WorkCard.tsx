@@ -6,6 +6,8 @@
 // delivered without the PDF it asked for offers editors "Try PDF again" (RetryPdf). Hold and Stop live on its goal
 // (WorkControls), as for every task, a PDF rendering again included.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { taskRead, useTaskFence } from './task-detail-read.ts'
+import { TaskRefused } from './TaskRefused.tsx'
 import { ReportRefused } from './ReportRefused.tsx'
 import { useOwnedVersions } from './report-versions.ts'
 import { useEffect, useRef } from 'react'
@@ -68,10 +70,13 @@ const detailRead = (q: { isPending: boolean; error: Error | null }): DetailRead 
  * stay shown.
  */
 function useResearch({ task, projectId, identity }: Props) {
+  // The task's own refusal (task-detail-read.ts): its private detail is withheld, not only its report.
+  const taskRefused = useTaskFence(projectId, task.id)
   const detail = useQuery({
     queryKey: ['native-task', projectId, task.id, task.phase, task.resultSourceId, identity.name],
-    queryFn: () => getNativeTask(identity.token, projectId, task.id),
+    queryFn: taskRead(projectId, task.id, () => getNativeTask(identity.token, projectId, task.id)),
     refetchInterval: (q) => pollEvery(task, q.state.data),
+    select: (d: NativeTaskDetail) => (taskRefused ? undefined : d),
   })
   const outputs = detail.data?.result?.outputs ?? []
   const research = detail.data?.research
@@ -91,6 +96,7 @@ function useResearch({ task, projectId, identity }: Props) {
   const key = ['report-versions', task.artifactId, latest, identity.name]
   const { versions, refused } = useOwnedVersions(key, task.artifactId, identity, outputs.length > 0)
   return {
+    taskRefused,
     refused,
     research,
     outputs,
@@ -114,6 +120,13 @@ function ReportOutputs(props: {
   return (
     <Outputs outputs={outputs} versions={versions} token={identity.token} open={open} artifactId={task.artifactId} />
   )
+}
+
+/** The task refused to this person: only that, with its Try again (TaskRefused). */
+function TaskRefusedLine(props: { refused: boolean; projectId: string; taskId: string; identity: Identity }) {
+  return props.refused ? (
+    <TaskRefused projectId={props.projectId} taskId={props.taskId} identity={props.identity} />
+  ) : null
 }
 
 /** Opens this task's report in the viewer; null where there is no viewer or no report yet. */
@@ -146,7 +159,7 @@ export function useNamedCard(taskId: string) {
 
 export function WorkCard(props: Props) {
   const { task, identity, projectId, canAct = false } = props
-  const { refused, research, outputs, versions, words, current } = useResearch(props)
+  const { taskRefused, refused, research, outputs, versions, words, current } = useResearch(props)
   const now = useNow()
   const open = useOpen(task.artifactId)
   const retry = offersRetry(canAct, words, research, refused)
@@ -155,6 +168,7 @@ export function WorkCard(props: Props) {
     <Card as="li" className="task work-card" data-state={words.state} data-task={task.id} tabIndex={-1}>
       <CardHead words={words} task={task} research={research} now={now} />
       <p className="work-card-question">{research?.question ?? 'Research'}</p>
+      <TaskRefusedLine refused={taskRefused} projectId={projectId} taskId={task.id} identity={identity} />
       {words.state === 'researching' && research && <Progress research={research} />}
       <ReportOutputs
         refused={refused}
