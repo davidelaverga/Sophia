@@ -4769,10 +4769,11 @@ button.contribution-quote:hover {
     border-color: var(--warm);
   }
   /* «Your tile is hidden» in a fifth of a phone (65 px): an eye struck through over Show, the words kept for a screen
-     reader; three lines of them didn't fit (Codex P2 follow-up on #380). */
+     reader; three lines of them didn't fit (Codex P2 follow-up on #380). At 320 px a fifth is 51 px: the eye, its gap
+     and Show (42 px) keep 3 px above and below, inside the tile's edge; 6 px there passed it (Codex P2 on #450). */
   .tile-strip .tile-hidden-self {
     justify-items: center;
-    padding: 6px;
+    padding: 3px 6px;
   }
   .tile-strip .tile-hidden-self > svg {
     display: block;
@@ -6909,11 +6910,14 @@ button.contribution-quote:hover {
 .person:hover {
   background: rgb(var(--ink-rgb) / 0.04);
 }
-/* Touch: the menu is a finger's 40 px, and its column follows, so it never passes its row; the volume's square keeps
-   its 36 px column (people-volume.md). */
+/* Touch: the menu and the volume are each a finger's 40 px square, and their columns follow, so neither passes its row.
+   The shared touch rule lifts a round button's height only: the volume stayed 36 px wide (Codex P2 on #425). */
 @media (pointer: coarse) {
   .person {
-    grid-template-columns: minmax(0, 1fr) auto 20px 36px 40px;
+    grid-template-columns: minmax(0, 1fr) auto 20px 40px 40px;
+  }
+  .person-volume .round {
+    min-width: 40px;
   }
 }
 .person-name {

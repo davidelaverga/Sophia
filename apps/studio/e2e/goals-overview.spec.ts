@@ -167,6 +167,28 @@ for (const how of ['Escape', 'Close'] as const) {
   })
 }
 
+test('goals · a report already open, asked for again from a goal’s sheet, gives the focus back to that goal’s row (Codex P2 on #448)', async ({
+  page,
+}) => {
+  // On screen first by its link: as the pane came, nothing had the focus, the page did.
+  await page.goto('/room.html?demo=1&place=goals&reports=1&report=00000000-0000-4000-8000-0000000000b1')
+  const pane = page.locator('.report-pane')
+  await expect(pane).toBeVisible()
+  // The goal's row in the list: the pane's «Made for» names the same goal.
+  const press = page.getByRole('main').getByRole('button', { name: ROLLOUT, exact: true })
+  await press.focus()
+  await page.keyboard.press('Enter')
+  const sheet = page.getByRole('dialog', { name: ROLLOUT })
+  await sheet.getByRole('region', { name: 'Reports' }).getByRole('button').focus()
+  await page.keyboard.press('Enter')
+  await expect(sheet).toHaveCount(0)
+  // The same report: its pane stays, and the sheet gave the focus back to its row as it closed.
+  await expect(press).toBeFocused()
+  await pane.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(pane).toHaveCount(0)
+  await expect(press).toBeFocused()
+})
+
 test('goals · a report opens on the version its row names; a newer one is offered (Codex P2 on #414)', async ({
   page,
 }) => {
