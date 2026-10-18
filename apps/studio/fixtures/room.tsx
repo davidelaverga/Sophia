@@ -367,6 +367,8 @@ interface Fixture {
   describeElsewhere: (text: string) => void
   /** Reads of the report's versions fail from now on: unavailable, or refused (`not_found`); given false, they succeed. */
   failVersions: (how?: 'unavailable' | 'not_found' | false) => void
+  /** Reads of the design task fail from now on: refused (403) or unavailable (503); given false, they succeed. */
+  failDesign: (how?: 'unavailable' | 'forbidden' | false) => void
   /** The report's sources, held since the page opened (`hold=sources`), come now. */
   releaseSources: () => void
   /** Reads of the report's sources wait again from now on, until released. */
@@ -415,6 +417,10 @@ const MENTIONING = {
   revision: 2,
   mentions: [ME],
 }
+
+/** `designfail=forbidden|unavailable`: the design task's reads fail so from the start. */
+const designFailOf = (v: string | null): false | 'unavailable' | 'forbidden' =>
+  v === 'unavailable' || v === 'forbidden' ? v : false
 
 const query = new URLSearchParams(window.location.search)
 
@@ -671,6 +677,9 @@ const project = {
   },
   description: SOPHIAS_DESCRIPTION,
   versionsFail: false as false | 'unavailable' | 'not_found',
+  // `designcard=on`: the design task itself is in the project's work (its own DesignCard); `failDesign` fails its read.
+  designCard: query.get('designcard') === 'on',
+  designFail: designFailOf(query.get('designfail')),
   sourcesHeld: query.get('hold') === 'sources',
   textHeld: query.get('hold') === 'text',
   activityHeld: query.get('hold') === 'activity',
@@ -1230,6 +1239,9 @@ window.fixture = {
   },
   failVersions: (how = 'unavailable') => {
     project.versionsFail = how
+  },
+  failDesign: (how = 'forbidden') => {
+    project.designFail = how
   },
   releaseSources: () => releaseSources(project),
   holdSources: () => {
