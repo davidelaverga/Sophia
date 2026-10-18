@@ -2,6 +2,12 @@
 // and comes back naming that day once the divider has gone above.
 import { expect, test, type Page } from '@playwright/test'
 
+/**
+ * The fixture's clock stands at noon. Today's turns are minutes old: in the quarter hour after midnight some fell on
+ * yesterday, the «Today» divider moved, and the pill had nothing to step aside for (CI at 00:06 UTC).
+ */
+const PAGE = '/personal.html?at=12:00'
+
 /** Scroll the list so the «Today» divider's top sits `offset` px under the list's top (negative: above it). */
 const placeToday = (page: Page, offset: number) =>
   page.locator('.msgs').evaluate((list, by) => {
@@ -18,7 +24,7 @@ test('personal · the day pill steps aside for the divider under it, and comes b
 }) => {
   // Short enough that the fixture's two days scroll past the pill.
   await page.setViewportSize({ width: 1440, height: 440 })
-  await page.goto('/personal.html')
+  await page.goto(PAGE)
   const pill = page.locator('.c3-daypill')
   await placeToday(page, 20)
   await expect(pill).toHaveAttribute('data-crowded', 'true')
@@ -33,7 +39,7 @@ test('personal · the pill stepped aside leaves the accessibility tree, and come
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 440 })
-  await page.goto('/personal.html')
+  await page.goto(PAGE)
   const pill = page.locator('.c3-daypill')
   await placeToday(page, 20)
   await expect(pill).toHaveAttribute('data-crowded', 'true')
@@ -48,7 +54,7 @@ test('personal · a resize that moves the divider away reads the crowding again,
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 440 })
-  await page.goto('/personal.html')
+  await page.goto(PAGE)
   const pill = page.locator('.c3-daypill')
   // Room below, so the reader is not at the end: the list's own stick-to-the-end would otherwise scroll, and that
   // scroll alone would read the crowding again.
@@ -79,7 +85,7 @@ test('personal · the days’ menu closed with Escape once the pill is crowded: 
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 440 })
-  await page.goto('/personal.html')
+  await page.goto(PAGE)
   const pill = page.locator('.c3-daypill')
   await placeToday(page, -40)
   await pill.click()

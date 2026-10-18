@@ -26,11 +26,21 @@ function field(value: string): string {
   return /[",\r\n]/.test(safe) || safe !== value ? `"${safe.replaceAll('"', '""')}"` : safe
 }
 
-/** A header, then a row a task, lines ending CRLF as RFC 4180 has them. */
+/**
+ * A header, then a row a task, lines ending CRLF as RFC 4180 has them. First the byte-order mark, without which Excel
+ * reads the file as its local code page instead of UTF-8 (Codex P2 on #397).
+ */
 export function boardCsv(rows: readonly ExportRow[]): string {
   const lines = [['Lane', 'Task', 'Who', 'Status'], ...rows.map((r) => [r.lane, r.task, r.who, r.status])]
-  return `${lines.map((l) => l.map(field).join(',')).join('\r\n')}\r\n`
+  return `\uFEFF${lines.map((l) => l.map(field).join(',')).join('\r\n')}\r\n`
 }
+
+/**
+ * A value as Markdown keeps it inside its line: line breaks folded to spaces and marks escaped, so a task's words never
+ * open a heading, an item, a link or a tag of their own (Codex P2 on #397). U+2028 and U+2029 fold too: the report's
+ * parser reads an item that holds either as a paragraph (Codex P2 on #428).
+ */
+const inline = (value: string) => value.replace(/\s*[\r\n\u2028\u2029]+\s*/g, ' ').replace(/[\\`*_[\]<>~|#]/g, '\\$&')
 
 /** «16 Oct 2026». */
 const fullDay = (at: Date) => at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -40,9 +50,9 @@ export function boardMarkdown(rows: readonly ExportRow[], revision: number, now:
   const lanes = [...new Set(rows.map((r) => r.lane))]
   const lines = [`# Tasks · plan r${String(revision)} · ${fullDay(now)}`, '']
   for (const lane of lanes) {
-    lines.push(`## ${lane}`, '')
+    lines.push(`## ${inline(lane)}`, '')
     for (const r of rows.filter((x) => x.lane === lane))
-      lines.push(`- [${r.lane === 'Complete' ? 'x' : ' '}] ${r.task} — ${r.who} · ${r.status}`)
+      lines.push(`- [${r.lane === 'Complete' ? 'x' : ' '}] ${inline(r.task)} — ${inline(r.who)} · ${inline(r.status)}`)
     lines.push('')
   }
   return lines.join('\n')

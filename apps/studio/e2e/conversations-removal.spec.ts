@@ -1140,3 +1140,154 @@ test('removal · an erasure whose reply is lost: when the feed shows it gone, it
   await expect(rows(page).first()).toBeFocused()
   await noReadOnceGone(page)
 })
+
+/**
+ * R-REFUSAL-MEASURE-01 (semantic): the refusal boundary is the CLIENT's first sight of a conversation read's 403 status.
+ * The page's fetch (the fixture's) is wrapped after load: each conversations list or thread read that comes back 403 is
+ * stamped, with its own sequence number and path, at the instant its Response is handed to the app (one performance.now
+ * clock). A declared control then delays (300 ms) or corrupts that 403's body only. From the first stamp on, every
+ * requestAnimationFrame callback looks for protected content or controls laid out and visible (a row, the open thread's
+ * messages or composer, New conversation) and records it. This measures rendering opportunities in rAF callbacks, with
+ * layout boxes and computed visibility: not photographed or composited paint.
+ */
+type DenialMode = 'delayed' | 'malformed'
+interface DenialTrace {
+  denials: { id: number; path: string; at: number }[]
+  hits: { at: number; afterMs: number; what: string }[]
+  frames: number
+}
+declare global {
+  interface Window {
+    denialTrace?: DenialTrace & { stop: boolean }
+  }
+}
+
+async function observeClientDenials(page: Page, mode: DenialMode) {
+  await page.evaluate((m) => {
+    const trace: DenialTrace & { stop: boolean } = { denials: [], hits: [], frames: 0, stop: false }
+    window.denialTrace = trace
+    let seq = 0
+    const inner = window.fetch
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const id = ++seq
+      const res = await inner(input, init)
+      const path = new URL(input instanceof Request ? input.url : String(input), location.href).pathname
+      if (res.status !== 403 || !/\/conversations(\/[^/]+\/messages)?$/.test(path)) return res
+      // Stamped as the Response is handed to the app, with nothing awaited between the stamp and the return.
+      if (m === 'malformed') {
+        trace.denials.push({ id, path, at: performance.now() })
+        return new Response('<html>refused</html>', { status: 403 })
+      }
+      const text = res.clone().text()
+      const slow = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          const words = await text
+          await new Promise((resolve) => setTimeout(resolve, 300))
+          controller.enqueue(new TextEncoder().encode(words))
+          controller.close()
+        },
+      })
+      trace.denials.push({ id, path, at: performance.now() })
+      return new Response(slow, { status: 403, headers: res.headers })
+    }
+    const protectedSelectors = [
+      '[aria-label="All conversations"] li',
+      '[aria-label="Open conversation"] .conv-messages > li',
+      '[aria-label="Open conversation"] textarea',
+      'button[aria-label="New conversation"]',
+    ]
+    const tick = () => {
+      if (trace.stop) return
+      trace.frames++
+      const first = trace.denials[0]
+      if (first) {
+        const now = performance.now()
+        for (const selector of protectedSelectors) {
+          const shown = [...document.querySelectorAll(selector)].some((el) => {
+            const style = getComputedStyle(el)
+            return el.getClientRects().length > 0 && style.visibility !== 'hidden' && style.display !== 'none'
+          })
+          if (shown) trace.hits.push({ at: now, afterMs: Math.round((now - first.at) * 10) / 10, what: selector })
+        }
+      }
+      requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  }, mode)
+}
+
+const readDenialTrace = (page: Page) =>
+  page.evaluate(() => {
+    const t = window.denialTrace
+    if (!t) return { denials: [], hits: [], frames: 0 }
+    t.stop = true
+    return { denials: t.denials, hits: t.hits, frames: t.frames }
+  })
+
+for (const mode of ['delayed', 'malformed'] as const) {
+  test(`removal · semantic: the list refused (403, ${mode} body): from the client's first sight of it, no frame shows a row, the thread, its composer or Start; the draft comes back with the project`, async ({
+    page,
+  }, info) => {
+    await page.goto(PAGE)
+    await expect(messages(page)).toHaveCount(6)
+    await field(page).fill('SYNTHETIC-DRAFT-SEMANTIC')
+    await page.evaluate(() => window.fixture?.holdMessageReads())
+    await observeClientDenials(page, mode)
+    await listRefusedOnTryAgain(page)
+    await expect(rows(page)).toHaveCount(0)
+    await expect(open(page)).toHaveCount(0)
+    await expect(list(page).getByRole('button', { name: 'New conversation' })).toHaveCount(0)
+    // The older thread read answers now; then to another view and back: still nothing shows.
+    await page.evaluate(() => window.fixture?.releaseMessageReads())
+    await trip(page)
+    await expect(list(page)).toContainText('This project refused a read of its conversations.')
+    await page.waitForTimeout(500)
+    const trace = await readDenialTrace(page)
+    await info.attach(`denial-trace-list-${mode}.json`, {
+      body: JSON.stringify(trace, null, 1),
+      contentType: 'application/json',
+    })
+    expect(
+      trace.denials.some((d) => d.path.endsWith('/conversations')),
+      'the list read was refused, as the client saw',
+    ).toBe(true)
+    expect(trace.frames).toBeGreaterThan(10)
+    expect(trace.hits, 'protected content or controls after the client saw the 403').toEqual([])
+    const fenced = await kept(page)
+    expect(typeof fenced?.fence?.at).toBe('number')
+    expect([fenced?.erased[C1], fenced?.drafts[C1]]).toEqual([undefined, 'SYNTHETIC-DRAFT-SEMANTIC'])
+    // Only a list read set out since, and answered, brings the conversation and its draft back.
+    await projectGivenBack(page)
+    await expect(rows(page)).not.toHaveCount(0)
+    await expect(messages(page)).toHaveCount(6)
+    await expect(field(page)).toHaveValue('SYNTHETIC-DRAFT-SEMANTIC')
+    expect((await kept(page))?.fence).toBeNull()
+  })
+
+  test(`removal · semantic: the open thread's read refused (403, ${mode} body) as the feed moves: from the client's first sight of it, no frame shows its messages, composer, a row or Start`, async ({
+    page,
+  }, info) => {
+    await page.goto(PAGE)
+    await expect(messages(page)).toHaveCount(6)
+    await expect(field(page)).toBeVisible()
+    await page.evaluate(() => window.fixture?.failConversations(true))
+    await page.evaluate((c) => window.fixture?.refuseMessageReads(c), C1)
+    await observeClientDenials(page, mode)
+    await page.evaluate(() => window.fixture?.listMore(true))
+    await expect(list(page)).toContainText('This project refused a read of its conversations.')
+    await expect(rows(page)).toHaveCount(0)
+    await page.waitForTimeout(500)
+    const trace = await readDenialTrace(page)
+    await info.attach(`denial-trace-thread-${mode}.json`, {
+      body: JSON.stringify(trace, null, 1),
+      contentType: 'application/json',
+    })
+    expect(
+      trace.denials.some((d) => /\/conversations\/[^/]+\/messages$/.test(d.path)),
+      'the thread read was refused, as the client saw',
+    ).toBe(true)
+    expect(trace.frames).toBeGreaterThan(10)
+    expect(trace.hits, 'protected content or controls after the client saw the 403').toEqual([])
+    expect((await served(page)).filter((s) => s === 'messages-refused:c1')).toHaveLength(1)
+  })
+}

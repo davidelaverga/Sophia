@@ -41,6 +41,25 @@ export const leaving: { held: boolean; fails: boolean; waiting: (() => void)[] }
 export const enabling: { held: boolean; waiting: (() => void)[] } = { held: false, waiting: [] }
 
 /**
+ * Turning the microphone off waits while held (`window.fixture.holdMute`), as LiveKit's mute does while a republish
+ * settles; a change asked after it waits its turn, as LiveKit's mute lock makes it.
+ */
+export const disabling: { held: boolean; waiting: (() => void)[] } = { held: false, waiting: [] }
+let micTurn: Promise<void> | null = null
+
+/** A microphone change in that order: a held turn-off waits for its release, and what comes after waits for it. */
+function inTurn(apply: () => void, held: boolean): Promise<void> {
+  const mine = (micTurn ?? Promise.resolve())
+    .then(() => (held ? new Promise<void>((resolve) => disabling.waiting.push(resolve)) : undefined))
+    .then(apply)
+  micTurn = mine
+  void mine.then(() => {
+    if (micTurn === mine) micTurn = null
+  })
+  return mine
+}
+
+/**
  * A microphone on its way while held arrives when released (`window.fixture.holdMicrophone`), whatever came meanwhile:
  * LiveKit still publishes a late enable after a turn-off stopped waiting for it.
  */
@@ -205,6 +224,9 @@ const viewer = (): RoomParticipant => ({
 
 /** What the page said it follows, last (following-signal.ts sends only a change). */
 let said: string | null = null
+/** Others' cameras come to this page, or not (incoming-video.md): as the connection records it. */
+let incoming = true
+const theirs = () => feeds().filter((f) => incoming || f.source !== 'camera')
 
 /** What the page says it follows, as the room's connection records it: only a change is sent. */
 function sayFollowing(versionId: string | null): Promise<void> {
@@ -238,6 +260,8 @@ function deviceSwitch(me: RoomParticipant, changed: () => void) {
       changed()
     }
     if (on && name === 'microphone' && enabling.held) return arrival(apply)
+    if (name === 'microphone' && (micTurn !== null || (!on && disabling.held)))
+      return inTurn(apply, !on && disabling.held)
     apply()
     return Promise.resolve()
   }
@@ -279,14 +303,22 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
       allowSound()
       return Promise.resolve()
     },
-    feeds: () => (me.cameraOn ? [ownFeed(me.identity), ...feeds()] : feeds()),
+    feeds: () => (me.cameraOn ? [ownFeed(me.identity), ...theirs()] : theirs()),
     setMicrophone: device('microphone', 'micOn'),
     setCamera: device('camera', 'cameraOn'),
     setScreenShare: device('screen', 'screenOn'),
     switchDevice,
     setBackground,
     sendReaction,
+    setIncomingVideo: (on) => {
+      asked.push(`incoming:${on ? 'on' : 'off'}`)
+      incoming = on
+      cb.onChange()
+    },
     setFollowing: sayFollowing,
+    setVolume: (identity, level) => {
+      asked.push(`volume:${identity}:${String(level)}`)
+    },
     leave: () => {
       asked.push('leave')
       open = false

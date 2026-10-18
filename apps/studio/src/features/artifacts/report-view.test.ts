@@ -6,38 +6,39 @@ import { compareSections } from './markdown.ts'
 import {
   conclusionTopic,
   currentOffer,
+  designState,
   elapsedText,
   escapeStepsDown,
-  failedOutright,
-  focusFree,
-  formatsOffered,
-  focusReturn,
-  designState,
-  htmlMissing,
-  pdfMissing,
-  renditionOf,
-  viewerFormats,
   factChips,
   factsLine,
+  failedOutright,
+  focusFree,
+  focusReturn,
   formatBytes,
+  formatsOffered,
+  htmlMissing,
   money,
   notesNeedFacts,
   notesShown,
+  pdfMissing,
+  pinTo,
   progressRatio,
   progressText,
   quotedHeadings,
+  renditionOf,
   renditionRefusal,
   renditionWords,
   reportFilename,
+  rereadFor,
   researchState,
+  returnFrom,
   sourceTitle,
   sourceWords,
-  pinTo,
-  rereadFor,
   spendText,
   summaryEdit,
   versionMissing,
   versionReadFailure,
+  viewerFormats,
 } from './report-view.ts'
 
 const progress = {
@@ -755,6 +756,15 @@ describe('the focus when the pane closes', () => {
     assert.equal(focusFree(body, body), true, 'the page holds it')
     assert.equal(focusFree({ isConnected: false }, body), true, 'what held it went (the citation, with its tab)')
     assert.equal(focusFree({ isConnected: true }, body), false, 'Sign out, in the account menu, keeps it')
+  })
+
+  it('names the latest opener while it is in the page, else what had the focus as the pane came (Codex P2 on #414)', () => {
+    const row = { isConnected: true }
+    const card = { isConnected: true }
+    assert.equal(returnFrom(card, row), card, 'the opener is still there')
+    assert.equal(returnFrom({ isConnected: false }, row), row, 'a sheet closed for the report and took its button')
+    assert.equal(returnFrom(null, row), row, 'a deep link: no opener')
+    assert.equal(returnFrom(null, null), null)
   })
 })
 

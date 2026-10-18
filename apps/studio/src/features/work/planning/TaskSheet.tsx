@@ -16,6 +16,7 @@ import { addressOf, TASK } from '../../resources/link.ts'
 import { observedAgo, type Resource } from '../../resources/resource.ts'
 import type { Room } from '../../resources/room.ts'
 import type { Acts } from '../../resources/SessionActs.tsx'
+import { sheetKeys, type SheetKeys } from './actions.ts'
 import { AskSophia, type Asks } from './AskSophia.tsx'
 import type { GoalView } from './board-view.ts'
 import { MARK_TONE, open, waitsOn, type PlanRow, type WaitRow, type WorkPlan } from './plan.ts'
@@ -154,7 +155,8 @@ const pressOf = (sheet: HTMLElement, is: (words: string) => boolean) =>
 /**
  * The sheet's keys (docs/plans/task-keys-micro-type.md): J and K turn to the next task or the one before; H presses
  * Hold, or Resume when that is what is offered; S presses Stop, which asks first with the focus on the safe answer, and
- * asks nothing more while it asks. None while a field has the keys.
+ * asks nothing more while it asks. None while a field has the keys. The foot names H and S only while their press is
+ * drawn (sheetKeys).
  */
 const KEYS: Readonly<Record<string, (sheet: HTMLElement, onStep: Props['onStep']) => void>> = {
   j: (_, onStep) => onStep(1),
@@ -278,6 +280,28 @@ function backTo(id: string): HTMLElement | null {
   return tiles.find((el) => el.dataset['task'] === id) ?? tiles[0] ?? null
 }
 
+/** The sheet's foot: the plan it belongs to, and the keys that do something here (informe-25 DL-12). */
+function Foot({ plan, operable, keys }: { plan: WorkPlan; operable: boolean; keys: SheetKeys }) {
+  return (
+    <p className="task-sheet-plan muted">
+      Plan r{plan.revision} · {operable ? 'accepted' : 'proposed, not accepted yet'} · <kbd>J</kbd> <kbd>K</kbd> the
+      next and the one before
+      {keys.hold && (
+        <>
+          {' '}
+          · <kbd>H</kbd> hold or resume
+        </>
+      )}
+      {keys.stop && (
+        <>
+          {' '}
+          · <kbd>S</kbd> stop
+        </>
+      )}
+    </p>
+  )
+}
+
 export function TaskSheet(props: Props) {
   const { row, rows, plan, onOpen, onStep, onClose, now, viewerId, onOpenResource } = props
   useSteps(onStep)
@@ -321,16 +345,8 @@ export function TaskSheet(props: Props) {
             onOpenConversation={props.onOpenConversation}
           />
         )}
-        <p className="task-sheet-plan muted">
-          Plan r{plan.revision} · {props.operable ? 'accepted' : 'proposed, not accepted yet'} · <kbd>J</kbd>{' '}
-          <kbd>K</kbd> the next and the one before
-          {props.operable && (
-            <>
-              {' '}
-              · <kbd>H</kbd> hold or resume · <kbd>S</kbd> stop
-            </>
-          )}
-        </p>
+        {/* TaskActions is mounted only while the plan is in force: before, no key has a press. */}
+        <Foot plan={plan} operable={props.operable} keys={sheetKeys(row, props.operable ? props.acts : undefined)} />
       </div>
     </Sheet>,
     document.body,
