@@ -44,7 +44,8 @@ export interface Earlier {
   /** The reader's own act, shown until the chat is read again. */
   revise: (acted: Acted) => void
   /** Reads the one page that ends just before `before` (a found message's next, A38), held apart from the window. */
-  jump: (before: string) => void
+  /** The page that ends just before `before`; null: the latest page (a search's newest message). */
+  jump: (before: string | null) => void
   /** That read: under way, failed (the reader tries again), or not. */
   jumping: Reading
   /** Where messages between were never read (A38): after which messages, a gap's read, and the press that fills it. */
@@ -94,7 +95,7 @@ interface Holding {
   atStart: boolean
   gaps: readonly string[]
   /** A page read before `before`, kept with everything held. */
-  hold: (page: Page, before: string, atStart: boolean) => void
+  hold: (page: Page, before: string | null, atStart: boolean) => void
 }
 
 /**
@@ -105,7 +106,7 @@ function useFoundPage(projectId: string, token: string, at: Holding): Pick<Earli
   const [jumping, setJumping] = useState<Reading>('idle')
   const [filling, setFilling] = useState<{ after: string; reading: Reading } | null>(null)
   const { shown, hold } = at
-  const jump = (before: string) => {
+  const jump = (before: string | null) => {
     if (jumping === 'loading') return
     setJumping('loading')
     getDiscussionPage(token, projectId, before).then(
@@ -166,7 +167,7 @@ interface Latest {
 function heldWith(
   now: Held | null,
   projectId: string,
-  read: { page: Page; before: string; start: boolean },
+  read: { page: Page; before: string | null; start: boolean },
   win: Latest,
 ): Held {
   const { page, before, start } = read
@@ -194,7 +195,7 @@ function useHold(
   useLayoutEffect(() => {
     windowNow.current = { entries: discussion, withdrawn: discussionWithdrawn }
   }, [discussion, discussionWithdrawn])
-  return (page: Page, before: string, start: boolean) =>
+  return (page: Page, before: string | null, start: boolean) =>
     setHeld((h) =>
       heldWith(h?.projectId === projectId ? h : null, projectId, { page, before, start }, windowNow.current),
     )

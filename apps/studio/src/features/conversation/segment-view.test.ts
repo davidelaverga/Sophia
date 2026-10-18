@@ -65,4 +65,13 @@ describe('the gaps that pages read leave (A38, R-C4-01)', () => {
     assert.deepEqual(afterGap(shown, m(100).id), m(211))
     assert.equal(afterGap(shown, m(260).id), undefined)
   })
+
+  // 4306435434: a search's newest message comes with before null; the latest page is read, and its newest has no next.
+  it('the latest page (before null): each links to its next, the newest to none', () => {
+    assert.deepEqual(pageLinks([m(2), m(1), m(3)], null), [
+      [m(1).id, m(2).id],
+      [m(2).id, m(3).id],
+    ])
+    assert.deepEqual(gapsIn([m(1), m(2), m(3)], new Map(pageLinks([m(1), m(2), m(3)], null))), [])
+  })
 })

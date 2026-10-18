@@ -12,9 +12,13 @@ interface Placed {
 }
 
 /** Each message's next one, as a page read before `before` shows them: consecutive, the last's being `before`. */
-export function pageLinks(page: readonly Placed[], before: string): [string, string][] {
+export function pageLinks(page: readonly Placed[], before: string | null): [string, string][] {
   const sorted = page.toSorted(inOrder)
-  return sorted.map((p, i) => [p.id, sorted[i + 1]?.id ?? before])
+  // The latest page (`before` null, a search's newest message): its newest has no next one, as in the window.
+  return sorted.flatMap((p, i): [string, string][] => {
+    const next = sorted[i + 1]?.id ?? before
+    return next === null ? [] : [[p.id, next]]
+  })
 }
 
 /** Each message's next one in the window (the latest messages, consecutive); the newest has none. */
