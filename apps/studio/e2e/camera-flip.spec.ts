@@ -99,3 +99,18 @@ test('@phone · flip · in the gallery Switch camera is a 40 px square, clear of
   expect([Math.round(f?.width ?? 0), Math.round(f?.height ?? 0)]).toEqual([40, 40])
   expect(f !== null && h !== null && apart(f, h)).toBe(true)
 })
+
+// A tile a fifth of a phone (51 to 65 px) holds one finger-sized press, not two side by side (Codex P2 on #422):
+// Switch camera while it is there, Hide my tile otherwise.
+test('@phone · flip · beside a shown screen your tile keeps one press: Switch camera, Hide my tile with the camera off', async ({
+  page,
+}) => {
+  await enter(page, 'people=2&video=screen')
+  const presses = myTile(page).getByRole('button')
+  await expect(presses).toHaveCount(1)
+  await expect(presses).toHaveAccessibleName('Hide my tile')
+  await cameraOn(page)
+  await expect(flip(page)).toBeVisible()
+  await expect(presses).toHaveCount(1)
+  await expect(presses).toHaveAccessibleName('Switch camera')
+})
