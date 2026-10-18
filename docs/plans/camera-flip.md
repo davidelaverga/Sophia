@@ -25,5 +25,6 @@
 
 ## Follow-ups (Codex P2s on #422)
 
-In `phone-tiles-follow-ups.md`: the switch follows the call's own camera, is 40 px wide on a touch screen, is a
-phone's strip tile's one press, and «In the call» has it while your tile is in «+N».
+In `phone-tiles-follow-ups.md`: the switch follows the call's own camera, is 40 px wide on a touch screen, and «In the
+call» has it while your tile is in «+N». On a phone's strip your tile holds one press: «Your tile», a menu of Switch
+camera and Hide my tile (Luis, 2026-10-18).
