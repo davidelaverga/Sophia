@@ -250,6 +250,7 @@ export class LightEngine {
    * kept its size, so no resize comes for it.
    */
   setPaper(paper: boolean, glCanvas: HTMLCanvasElement | null): void {
+    this.paper = paper
     // The paper orb's properties are written afresh on the next frame (publish).
     this.halo = ''
     const canvas = paper ? null : glCanvas
