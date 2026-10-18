@@ -31,10 +31,10 @@ const put = (sound: Sound, level: Level) => {
   sound.muted = level === 0
 }
 
-/** One of a person's tracks, as LiveKit's publication: taken (subscribed) or let go. */
+/** One of a person's tracks, as LiveKit's publication: asked for (isDesired, even before it is here) or let go. */
 interface Track {
   readonly kind: string
-  readonly isSubscribed: boolean
+  readonly isDesired: boolean
   setSubscribed: (on: boolean) => void
 }
 
@@ -45,10 +45,13 @@ export function peopleVolume() {
   const levels = new Map<string, Level>()
   const sounds = new Map<Sound, string>()
   const levelOf = (identity: string) => levels.get(identity) ?? 1
-  /** Their sound comes unless they are Off; their video is left alone. */
+  /**
+   * Their sound comes unless they are Off; their video is left alone. Compared with what was asked for, not with what
+   * is here: a sound still on its way is let go by Off too (Codex P1 on #425).
+   */
   const take = (track: Track, identity: string) => {
     const wanted = levelOf(identity) !== 0
-    if (track.kind === 'audio' && track.isSubscribed !== wanted) track.setSubscribed(wanted)
+    if (track.kind === 'audio' && track.isDesired !== wanted) track.setSubscribed(wanted)
   }
   return {
     /** A sound of theirs begins: it plays at the level they were given. */
