@@ -31,6 +31,7 @@ const EXPORTS = [
   'ActivityPage',
   'MemberRemoved',
   'Profile',
+  'ProjectUpdates',
   'Error',
   'Event',
   'CursorAdvance',

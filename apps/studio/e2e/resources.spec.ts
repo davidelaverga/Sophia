@@ -584,6 +584,8 @@ test('a copy the browser refuses is said, with what to do instead', async ({ pag
   await open(page, 'Davide · Claude Code')
   await page.getByRole('button', { name: 'Copy link' }).click()
   await expect(page.getByRole('button', { name: 'Couldn’t copy: the link is in the address bar' })).toBeVisible()
+  // The sheet's anchor is in the address bar: nothing more to hand over (Codex P2 on #382).
+  await expect(page.getByRole('textbox', { name: 'Link', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: 'Copy session id' }).click()
   await expect(page.getByRole('button', { name: 'Couldn’t copy: claude-worker' })).toBeVisible()
 })
@@ -1239,7 +1241,7 @@ test('each resource shows its tool’s own mark, and its sheet the maker', async
     await expect((await open(page, name)).getByText(vendor, { exact: true })).toBeVisible()
     await page.keyboard.press('Escape')
   }
-  // A coloured mark is an image; a one-colour mark (Grok) takes the text's colour, so it reads on the dark theme.
+  // A coloured mark is an image; a one-colour mark (Grok) takes the text's colour, so it reads on either theme.
   await expect(tile(page, 'Davide · Codex').locator('.tool-logo img')).toHaveAttribute('src', /\.svg|^data:image\/svg/)
   await expect(tile(page, 'Davide · Grok').locator('.tool-logo-mark')).toBeVisible()
 })

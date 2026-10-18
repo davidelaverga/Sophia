@@ -9,7 +9,7 @@ import type { Need } from '../features/personal/needs-you.ts'
 import { callApi } from './client.ts'
 
 export const listNeeds = (token: string, signal?: AbortSignal): Promise<NeedList> =>
-  callApi('/api/v1/me/needs', { token, method: 'GET', ...(signal ? { signal } : {}) }, parseNeedList)
+  callApi('/api/v1/me/needs', { token, method: 'GET', doorRead: true, ...(signal ? { signal } : {}) }, parseNeedList)
 
 /**
  * The person has seen a need (A15, `markNeedSeen`): for a reply it advances their last seen personal turn, so the reply

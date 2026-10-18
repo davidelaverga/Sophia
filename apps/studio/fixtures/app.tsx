@@ -6,7 +6,9 @@
 // arrives (the next is answered). The synthetic Auth service's requests still leave the page, to the checks' answers.
 // `appFixture` says what the API was asked, across a reload too: each proposal sent (its key and its body), each
 // request with the account its token names, and any request the fixture did not expect. `appFixture.hold(by, path)`
-// holds that account's requests for that path until `release()`, as a slow API's answer is.
+// holds that account's requests for that path until `release()`, as a slow API's answer is. `attention=a34` (kept in
+// the tab too): Updates' «since» and «seen» are A34's, strict and each account's own (attention-data.ts), and
+// `appFixture.attention` says what they were asked.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { StrictMode } from 'react'
@@ -16,6 +18,7 @@ import { SkipLink } from '../src/app/SkipLink.tsx'
 import { begin } from '../src/app/entry.ts'
 import '../src/app/theme.css'
 import { conversations, conversationMission, messagesOf } from './conversation-data.ts'
+import { attentionAnswer } from './attention-data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
 import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
@@ -29,6 +32,8 @@ declare global {
       /** Each API request, as `METHOD /path by <the subject its token names, or nobody>`. */
       asked: readonly string[]
       unexpected: readonly string[]
+      /** A34's reads and seen marks answered (`attention=a34`), as `since by <subject>` and `seen <sequence> by …`. */
+      attention: readonly string[]
       hold: (by: string, path: string, method?: string) => void
       release: () => void
     }
@@ -36,6 +41,7 @@ declare global {
 }
 
 const WORK_KEY = 'fixture.app.work'
+const ATTENTION_KEY = 'fixture.app.attention'
 const SENT_KEY = 'fixture.app.proposals'
 const ASKED_KEY = 'fixture.app.asked'
 const UNEXPECTED_KEY = 'fixture.app.unexpected'
@@ -87,6 +93,7 @@ Reflect.set(globalThis, 'SpeechRecognition', undefined)
 
 bootTheme(new URLSearchParams(window.location.search).get('theme'))
 if (new URLSearchParams(window.location.search).get('work') === 'lost') sessionStorage.setItem(WORK_KEY, 'lost')
+if (new URLSearchParams(window.location.search).get('attention') === 'a34') sessionStorage.setItem(ATTENTION_KEY, 'a34')
 if (sessionStorage.getItem(WORK_KEY) === 'lost') {
   const proposals = { lose: 1, how: 'lost' as const, sent: sentBefore(), held: [] }
   const asked = before(ASKED_KEY).map(String)
@@ -129,11 +136,17 @@ if (sessionStorage.getItem(WORK_KEY) === 'lost') {
     missionPlus: conversationMission(),
   })
   const fixture = window.fetch
+  const a34 = sessionStorage.getItem(ATTENTION_KEY) === 'a34'
+  const marks = new Map<string, string | null>()
+  const attention: string[] = []
   let held: { by: string; path: string; method?: string; waiting: (() => void)[] } | null = null
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const { pathname, method, by } = described(input, init)
     if (pathname.startsWith('/synthetic-auth/')) return network(input, init)
     asked.push(`${method} ${pathname} by ${by}`)
+    const body = init?.body ?? null
+    const served = a34 ? attentionAnswer(marks, (s) => attention.push(s), { pathname, method, by, body }) : undefined
+    if (served) return Promise.resolve(served)
     const holding = held
     if (holding?.by === by && holding.path === pathname && (!holding.method || holding.method === method)) {
       return new Promise<Response>((answer) => holding.waiting.push(() => void fixture(input, init).then(answer)))
@@ -146,6 +159,7 @@ if (sessionStorage.getItem(WORK_KEY) === 'lost') {
     get unexpected() {
       return [...unexpectedBefore, ...unexpected]
     },
+    attention,
     hold: (by, path, method?) => {
       held = method ? { by, path, method, waiting: [] } : { by, path, waiting: [] }
     },

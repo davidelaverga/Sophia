@@ -48,6 +48,7 @@ import {
   pinTo,
   renditionOf,
   rereadFor,
+  returnFrom,
   shortHash,
   versionMissing,
   versionReadFailure,
@@ -337,14 +338,18 @@ function panelToggleOf(el: HTMLElement): HTMLElement | null {
  */
 function useFocusHandoff(opener: React.RefObject<HTMLElement | null>) {
   const title = useRef<HTMLHeadingElement>(null)
+  // What had the focus as the pane came, read once and never the pane's own title (an effect run twice, as React's
+  // development mode does, would read the title it just focused).
+  const atMount = useRef<HTMLElement | null>(null)
   useEffect(() => {
-    // A deep link has no opener: what had the focus as the pane came.
-    const atMount = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    if (active !== title.current) atMount.current ??= active
     title.current?.focus({ preventScroll: true })
     return () => {
-      // Read at the close, on purpose: the same report opened again from elsewhere names its latest opener.
+      // Read at the close, on purpose: the same report opened again from elsewhere names its latest opener; one that
+      // left the page (a sheet closed for the report) gives way to what had the focus as the pane came.
       // oxlint-disable-next-line react-hooks/exhaustive-deps
-      const from = opener.current ?? atMount
+      const from = returnFrom(opener.current, atMount.current)
       const free = focusFree(document.activeElement, document.body)
       focusReturn(free, from, from ? panelToggleOf(from) : null, shownNow)?.focus({ preventScroll: true })
     }
@@ -636,8 +641,23 @@ function PaneBody(props: BodyProps) {
  */
 function DocumentView(props: Pick<BodyProps, 'data' | 'full' | 'onCite' | 'changes' | 'revise' | 'identity'>) {
   const { data, full, onCite, changes } = props
-  if (data.showPdf) return <PdfTab data={data} full={full} />
-  if (data.showHtml) return <HtmlTab data={data} full={full} revise={props.revise} />
+  // What it was made for stands above the PDF and the designed page too (Codex P2 on #383); the Markdown says it in its
+  // own flow, after the note on a missing format.
+  const origin = data.version && <ReportOrigin version={data.version} identity={props.identity} />
+  if (data.showPdf)
+    return (
+      <>
+        {origin}
+        <PdfTab data={data} full={full} />
+      </>
+    )
+  if (data.showHtml)
+    return (
+      <>
+        {origin}
+        <HtmlTab data={data} full={full} revise={props.revise} />
+      </>
+    )
   return <DocumentTab data={data} onCite={onCite} changes={changes} identity={props.identity} />
 }
 

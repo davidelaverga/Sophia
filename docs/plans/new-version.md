@@ -14,6 +14,14 @@
   error (a join's, the viewer's).
 - **Reload never runs by itself:** an automatic one would drop a call in progress.
 
+## Follow-ups (Codex P2s on #415)
+
+- **Heard from the first moment:** App's eager imports (the signed-in Studio warmed beside the sign-in) can ask for a
+  part that is gone before React draws the notice. `new-version-early.ts`, App's first import, keeps the word for it.
+- **Over the opening:** a sign-in's return shows the opening's overlay (`#entry`, z-index 100) while the signed-in
+  part may fail to load. The notice stands over it, so Reload can be pressed at once.
+- **Not now gives the focus back** to where it was when the notice came, as the toast's acts do.
+
 ## Checks
 
 - **`new-version.spec.ts`** (the app's fixture page):

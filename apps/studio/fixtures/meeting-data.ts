@@ -2,6 +2,7 @@
 // meetings, closed; the one the room is in, its recap built from the fixture's own records (the notes kept with Keep,
 // the report a result notice brought, the fixture's decision, the people in the call); its close, once; and what
 // changed since the viewer last looked, from the same records. Every word is synthetic.
+import type { ProjectUpdates } from '@sophia/contracts'
 import type { AfterUpdate, Digest, MeetingRecap, MeetingReceipt } from '../src/api/vision.ts'
 import { membership } from './data.ts'
 import { personId } from './fake-people.ts'
@@ -204,6 +205,13 @@ export function digestOf(m: Meeting, cursor: number): Digest {
     names: all.names,
   }
 }
+
+/**
+ * The fixture's answer to «since» (A34): its digest as a window. It lists every record not yet seen, so nothing lies
+ * after it (`more` false). The adapter is here, at the fixture's own answer, so the Studio reads every «since» by the
+ * contract alone, whatever the build (R-C2-WIRE-01).
+ */
+export const updatesWindowOf = (m: Meeting, cursor: number): ProjectUpdates => ({ ...digestOf(m, cursor), more: false })
 
 /** The running meeting until now (A13's `so-far`): built as its recap is, for whoever joins late. */
 export function soFarOf(m: Meeting, cursor: number): Digest {

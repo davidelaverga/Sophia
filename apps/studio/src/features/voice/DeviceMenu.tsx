@@ -124,6 +124,36 @@ function BackgroundItems({ can, onChoose }: { can: boolean | null; onChoose: (id
   )
 }
 
+interface Switch {
+  on: boolean
+  toggle: () => void
+}
+
+/** Last, the menu's switches: your camera mirrored here (room-basics.md), others' cameras coming (incoming-video.md). */
+function Switches(props: {
+  mirror?: Switch | undefined
+  incoming?: Switch | undefined
+  closeThen: (act: () => void) => void
+}) {
+  const { mirror, incoming, closeThen } = props
+  if (!mirror && !incoming) return null
+  return (
+    <>
+      <MenuSep />
+      {mirror && (
+        <MenuItem checked={mirror.on} toggle onClick={() => closeThen(mirror.toggle)}>
+          Mirror my video
+        </MenuItem>
+      )}
+      {incoming && (
+        <MenuItem checked={incoming.on} toggle onClick={() => closeThen(incoming.toggle)}>
+          Show others’ cameras
+        </MenuItem>
+      )}
+    </>
+  )
+}
+
 interface Props {
   /** The kinds it lists, in order; a speaker only where the browser can choose one. */
   kinds: readonly DeviceKind[]
@@ -134,10 +164,12 @@ interface Props {
   /** Under the cameras, the camera's background. */
   background?: BackgroundChoice
   /** Last, whether your own camera shows mirrored here (room-basics.md). */
-  mirror?: { on: boolean; toggle: () => void }
+  mirror?: Switch | undefined
+  /** And whether others' cameras come here, for this call (incoming-video.md). */
+  incoming?: Switch | undefined
 }
 
-export function DeviceMenu({ kinds, label, list, onChoose, background, mirror }: Props) {
+export function DeviceMenu({ kinds, label, list, onChoose, background, mirror, incoming }: Props) {
   const [open, setOpen] = useState(false)
   const menu = usePopover(open, () => setOpen(false))
   const shown = kinds.filter((k) => k !== 'audiooutput' || canChooseOutput())
@@ -186,14 +218,7 @@ export function DeviceMenu({ kinds, label, list, onChoose, background, mirror }:
               <BackgroundItems can={can} onChoose={(id) => closeThen(() => background.onChoose(id))} />
             </>
           )}
-          {mirror && (
-            <>
-              <MenuSep />
-              <MenuItem checked={mirror.on} toggle onClick={() => closeThen(mirror.toggle)}>
-                Mirror my video
-              </MenuItem>
-            </>
-          )}
+          <Switches mirror={mirror} incoming={incoming} closeThen={closeThen} />
         </Menu>
       )}
     </div>

@@ -17,6 +17,7 @@ import { rememberDevice, type DeviceKind, type MediaDevice } from './device-pref
 import { micOnJoin, rememberMic } from './mic-preference.ts'
 import type { Heard } from './reaction-channel.ts'
 import { paced, shownAfter, SHOWN_FOR_MS, type Reaction, type ReactionEmoji } from './reactions.ts'
+import type { Level } from './people-volume.ts'
 import { mediaMessage, type Device, type DockStatus, type RoomParticipant } from './room-view.ts'
 import type { SophiaSignal } from './sophia-view.ts'
 
@@ -90,6 +91,12 @@ export interface ProjectRoom {
   react: (emoji: ReactionEmoji) => void
   /** What this person follows, said to the members in the call (A14, following-signal.ts); null for nothing. */
   setFollowing: (versionId: string | null) => Promise<void>
+  /** How loud each other person is here alone, by identity, full when not listed (people-volume.md). */
+  volumes: ReadonlyMap<string, Level>
+  setVolume: (identity: string, level: Level) => void
+  /** Others' cameras come to this browser (incoming-video.md): off for this call only; a shared screen still comes. */
+  incomingVideo: boolean
+  setIncomingVideo: (on: boolean) => void
 }
 
 /** A failed join in words: the API's own refusal, or what to check when the room could not be reached. */
@@ -258,6 +265,19 @@ function useDevices(connection: { current: RoomConnection | null }, refresh: () 
     },
     switchDevice: deviceSwitch(connection, setMediaError),
     setBackground: backgroundSwitch(connection, setMediaError),
+  }
+}
+
+/** Others' cameras, taken or let go for this call (incoming-video.md); out of the call, the next one takes them again. */
+function useIncomingVideo(connection: { current: RoomConnection | null }) {
+  const [incomingVideo, setIncoming] = useState(true)
+  return {
+    incomingVideo,
+    setIncomingVideo: (on: boolean) => {
+      setIncoming(on)
+      connection.current?.setIncomingVideo(on)
+    },
+    resetIncoming: () => setIncoming(true),
   }
 }
 
@@ -467,6 +487,30 @@ function useReactions(connection: { current: RoomConnection | null }) {
   }
 }
 
+/** Each person's volume, here alone (people-volume.md): kept by person for the call; out of it, everyone is full again. */
+function usePeopleVolume(connection: { current: RoomConnection | null }) {
+  const [volumes, setVolumes] = useState<ReadonlyMap<string, Level>>(() => new Map())
+  return {
+    volumes,
+    setVolume: (identity: string, level: Level) => {
+      setVolumes((now) => new Map(now).set(identity, level))
+      connection.current?.setVolume(identity, level)
+    },
+    resetVolumes: () => setVolumes(new Map()),
+  }
+}
+
+/** What this person chose for this call alone: each person's volume and others' cameras. Out of it, both reset. */
+function useCallChoices(connection: { current: RoomConnection | null }) {
+  const { resetVolumes, ...volume } = usePeopleVolume(connection)
+  const { resetIncoming, ...incoming } = useIncomingVideo(connection)
+  const resetChoices = () => {
+    resetVolumes()
+    resetIncoming()
+  }
+  return { choices: { ...volume, ...incoming }, resetChoices }
+}
+
 /** Leaving, and how many calls the person was in and left by their own press (ProjectRoom.leftByPress). */
 function useLeave(calls: CallFence<RoomConnection>, outOfCall: (why: CallEnd | null) => void) {
   const [leftByPress, setLeftByPress] = useState(0)
@@ -510,6 +554,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     )
   }
   const { clearNote, arrive, silence, ...devices } = useDevices(calls, refresh)
+  const { choices, resetChoices } = useCallChoices(calls)
   const typedChat = useConversation(calls, silence)
 
   /**
@@ -525,6 +570,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     joining.current = null
     setPeople(NOBODY)
     clearNote()
+    resetChoices()
     setStatus(why && CALL_END[why].failed ? 'failed' : 'idle')
     setError(why ? CALL_END[why].note : null)
   }
@@ -552,6 +598,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     ...joined,
     ...people,
     ...devices,
+    ...choices,
     setMicrophone,
     ...conversationParts(typedChat),
     startAudio,

@@ -477,4 +477,19 @@ describe('the same question: the last words of #274 (docs/plans/same-question-wo
     }
     assert.equal(folds(20), folds(1))
   })
+
+  it('folds the draft once, and each title once (Codex P2 on #376)', (t) => {
+    const folds = (question: string, n: number) => {
+      const normalize = t.mock.method(String.prototype, 'normalize')
+      const many = Array.from({ length: n }, (_, i) => asked(`c${String(i)}`, `Setup owner number ${String(i)}`, at))
+      sameQuestion(question, many)
+      const of = (s: string) => normalize.mock.calls.filter((c) => String(c.this) === s).length
+      const counts = { question: of(question), title: of('Setup owner number 0') }
+      normalize.mock.restore()
+      return counts
+    }
+    assert.deepEqual(folds('Who owns setup when an admin changes?', 1), { question: 1, title: 1 })
+    assert.deepEqual(folds('Who owns setup when an admin changes?', 20), { question: 1, title: 1 })
+    assert.equal(folds('Who does not own setup when an admin changes?', 20).question, 1)
+  })
 })
