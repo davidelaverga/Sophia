@@ -1,7 +1,7 @@
 // Who is using the Studio. Supabase Auth when configured (magic link, PKCE, auto-refreshed access
 // token); otherwise the dev-only identities written by scripts/dev-stack.ts.
 import { createClient, type AuthError, type Session, type SupabaseClient } from '@supabase/supabase-js'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { READ_TIMEOUT_MS } from '../api/timeouts.ts'
 import {
   LINK_FAILED,
@@ -18,6 +18,8 @@ import {
 import { sendFailure } from './auth-words.ts'
 import { settleWithin } from './deadline.ts'
 import { devIdentities, loadIdentity, saveIdentity, type Identity } from './dev-identity.ts'
+import { endedAtLoad, endedWhileIn, type Ending } from './ended-notice.ts'
+import { accountSessionKept } from './kept-session.ts'
 import { linkAcceptance, type LinkAcceptance } from './link-accept.ts'
 import { passkeysWorkOn } from './passkey-domain.ts'
 import { profileFromMetadata, providerOf } from './profile.ts'
@@ -30,6 +32,8 @@ const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
 
 // Read before the client starts: its own PKCE exchange rewrites the address when it succeeds.
 const callback = readAuthCallback(window.location.href)
+// Read before the client starts too: as it starts, it removes a kept session the Auth service no longer knows.
+const keptAtLoad = accountSessionKept()
 
 /** The Supabase project the Studio signs in with, when one is configured (the key is the publishable one). */
 export const authProject = url && key ? { url, key } : null
@@ -51,7 +55,8 @@ export const authMode: AuthMode = supabase ? 'supabase' : devIdentities.length >
 
 /** `notice`: why the last sign-in link did not do what it offered, when it did not. */
 type SignedIn = { status: 'signed_in'; identity: Identity; notice?: string }
-type SignedOut = { status: 'signed_out'; notice?: string }
+/** `ended`: how this tab was signed out when it did not sign out itself (signed-out-elsewhere.md). */
+type SignedOut = { status: 'signed_out'; notice?: string; ended?: Ending }
 /**
  * A link carried a session and nobody is signed in: the person says whether `account` is theirs first. `slow`: they
  * said so, and signing in outlasted the wait; it goes on, and they can start over.
@@ -63,6 +68,9 @@ type LinkTokens = { accessToken: string; refreshToken: string }
 
 /** A link's session, kept in memory (never in storage) while the person decides whether it is theirs. */
 let offered: LinkAcceptance | null = null
+
+/** This tab's own Sign out is under way (useAuth's `leave`): a sign-out the listener hears meanwhile is its own. */
+let signingOutHere = false
 
 /** Signing in with a link's session through the Auth client: true once signed in (link-accept.ts). */
 const signInWith = (client: SupabaseClient, link: LinkTokens) => async () =>
@@ -82,6 +90,31 @@ const fromSession = (s: Session | null): SignedIn | SignedOut =>
         },
       }
     : { status: 'signed_out' }
+
+/** An account is in: not a guest's session, nor the page still finding out who is, nor a link's offer. */
+const accountIn = (state: AuthState) => state.status === 'signed_in' && state.identity.role !== 'guest'
+
+/**
+ * The state a change the listener heard leaves (`next`, over `now`): signed out by a cause this tab did not start,
+ * another tab or a refresh the Auth service refused, it says so (signed-out-elsewhere.md). `own`: this tab's Sign out
+ * was under way as the change came.
+ */
+function afterHeard(now: AuthState, next: SignedIn | SignedOut, own: boolean): AuthState {
+  if (next.status === 'signed_in') return next
+  const ended = endedWhileIn(accountIn(now), own)
+  return ended ? { ...next, ended } : next
+}
+
+/**
+ * The state a page load leaves, a redirect's or none: its notice when it has one; else, signed out where a session this
+ * device kept for an account is gone once the client checked it, that it ended while the page was closed.
+ */
+function settled(session: Session | null, notice: string | null): AuthState {
+  const state = fromSession(session)
+  if (notice) return { ...state, notice }
+  const ended = endedAtLoad({ before: keptAtLoad, after: accountSessionKept() }, session !== null)
+  return ended ? { status: 'signed_out', ended } : state
+}
 
 /**
  * A link that carries a session (an invitation or a magic link sent from the Auth dashboard) is never used without
@@ -136,12 +169,11 @@ async function sessionAfterRedirect(client: SupabaseClient): Promise<AuthState> 
   if (await refuseOtherAccount(client.auth, data.session?.user.id ?? null)) {
     return { status: 'signed_out', notice: UNLOCK_OTHER_ACCOUNT_NOTICE }
   }
-  const state = fromSession(data.session)
-  return notice ? { ...state, notice } : state
+  return settled(data.session, notice)
 }
 
 /** Current session now and on every change (including TOKEN_REFRESHED). Returns the unsubscribe. */
-function subscribeToSession(client: SupabaseClient, onState: (state: AuthState) => void): () => void {
+function subscribeToSession(client: SupabaseClient, onState: Dispatch<SetStateAction<AuthState>>): () => void {
   let alive = true
   // Back from a provider an unlock left for, nothing the client says is adopted before the redirect's state: the
   // account it signed in may be another, which never opens (its SIGNED_IN comes on its own, a moment later).
@@ -155,7 +187,9 @@ function subscribeToSession(client: SupabaseClient, onState: (state: AuthState) 
   const { data } = client.auth.onAuthStateChange((event, session) => {
     if (event === 'INITIAL_SESSION' || returning || offerStands(offered !== null, session)) return
     if (session && !session.user.is_anonymous) offered = null
-    onState(fromSession(session))
+    // Whose sign-out it is, read as the word comes, not when React applies the change.
+    const own = signingOutHere
+    onState((now) => afterHeard(now, fromSession(session), own))
   })
   return () => {
     alive = false
@@ -207,11 +241,17 @@ export function useAuth(): Auth {
   useEffect(() => (supabase ? subscribeToSession(supabase, setState) : undefined), [])
 
   // Signing out: this device's session, or every device's when asked (sign-out-scope.md); the sign-in says so when
-  // only this device's could end (Codex P1 on #410).
+  // only this device's could end (Codex P1 on #410). The sign-out the listener hears meanwhile is this tab's own, which
+  // the sign-in never calls a sign-out from elsewhere.
   const leave = async (everywhere: boolean) => {
     let ended: Ended = 'ended'
-    if (supabase) ended = await endSession(supabase.auth, everywhere)
-    else saveIdentity(null)
+    signingOutHere = true
+    try {
+      if (supabase) ended = await endSession(supabase.auth, everywhere)
+      else saveIdentity(null)
+    } finally {
+      signingOutHere = false
+    }
     setState(signedOutAfter(ended))
   }
 

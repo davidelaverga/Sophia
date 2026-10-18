@@ -10,6 +10,7 @@ import { forgetProposals, proposalsKeptFor, proposalsOnlyOf } from '../features/
 import { setSignedIn } from './signed-in.ts'
 import { useAuth, type AuthState } from './auth.ts'
 import type { Identity } from './dev-identity.ts'
+import { endedNotice } from './ended-notice.ts'
 import { forgetRecent, recentFor } from './palette-recent.ts'
 import { forgetPendingUnlock } from './provider-leave.ts'
 import { opensJoinPage } from './route.ts'
@@ -38,15 +39,21 @@ function draftsKeptFor(state: AuthState): string | null | undefined {
 /**
  * The device keeps only the draft of the account signed in: once the app knows who that is, anyone else's goes, and
  * all go once it knows nobody is (signed out here or in another tab, a session that ended, also while the page was
- * closed, a provider's return refused). While it is still finding out, nothing goes.
+ * closed, a provider's return refused). While it is still finding out, nothing goes. Once nobody is in and the
+ * clearing has run, returns whether unsent words went (signed-out-elsewhere.md); undefined until then.
  */
-function useDraftsOnlyOfWhoIsIn(state: AuthState) {
+function useDraftsOnlyOfWhoIsIn(state: AuthState): boolean | undefined {
   const who = draftsKeptFor(state)
+  const [went, setWent] = useState<{ who: string | null | undefined; words: boolean }>({ who: undefined, words: false })
   useEffect(() => {
-    if (who !== undefined) draftsOnlyOf(who)
+    if (who === undefined) return
+    const drafts = draftsOnlyOf(who)
     // Signed out, here or in another tab: the views' unsent words go too (Codex P1 on #366).
-    if (who === null) forgetViewerDrafts()
+    const views = who === null && forgetViewerDrafts()
+    // Run again for the same person (React's strict check), it finds nothing left: what went the first time still went.
+    setWent((was) => ({ who, words: (was.who === who && was.words) || drafts || views }))
   }, [who])
+  return who === null && went.who === null ? went.words : undefined
 }
 
 /**
@@ -203,7 +210,7 @@ function AppBody() {
   useProposalsOnlyOfWhoIsIn(state)
   // Who is in, for writes that outlive their part (signed-in.ts): set as it changes, cleared at once on leaving.
   useEffect(() => setSignedIn(signedInAs), [signedInAs])
-  useDraftsOnlyOfWhoIsIn(state)
+  const wordsWent = useDraftsOnlyOfWhoIsIn(state)
   const { joinPage, legal } = useOwnPage(state)
 
   // Cached server state belongs to one identity; drop it whenever the identity changes.
@@ -230,7 +237,11 @@ function AppBody() {
   if (state.status === 'link_offer') {
     return <LinkOffer account={state.account} slow={state.slow} onAccept={acceptLink} onDecline={declineLink} />
   }
-  if (state.status === 'signed_out') return <SignIn onChooseDev={switchIdentity} notice={state.notice} />
+  if (state.status === 'signed_out') {
+    // Signed out by a cause this tab did not start: said once, with the unsent words that went (ended-notice.ts).
+    const ended = state.ended && endedNotice(state.ended, wordsWent)
+    return <SignIn onChooseDev={switchIdentity} notice={state.notice} ended={ended} />
+  }
   // A guest's session left over from a room's door is no account: the Studio asks them to sign in.
   if (state.identity.role === 'guest') return <SignIn onChooseDev={switchIdentity} />
 

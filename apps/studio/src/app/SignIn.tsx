@@ -144,10 +144,12 @@ interface SignInProps {
   onChooseDev: (identity: Identity) => void
   /** Why the last sign-in link did not work, when it did not. */
   notice?: string | undefined
+  /** Why this tab was signed out, when a cause it did not start did it (`Lede`): the line, or null while it is decided. */
+  ended?: string | null | undefined
 }
 
-export function SignIn({ onChooseDev, notice }: SignInProps) {
-  if (authMode === 'supabase') return <EmailSignIn notice={notice} />
+export function SignIn({ onChooseDev, notice, ended }: SignInProps) {
+  if (authMode === 'supabase') return <EmailSignIn notice={notice} ended={ended} />
   if (authMode === 'dev') return <DevIdentityPicker onChoose={onChooseDev} />
   return (
     <Centered title="Sign-in isn’t configured">
@@ -297,7 +299,25 @@ function useAddress(send: (email: string) => Promise<void>) {
   return { email, state, setState, field, submit, invalid, change }
 }
 
-export function EmailSignIn({ notice, send = sendMagicLink, verify }: { notice: string | undefined } & EmailPorts) {
+/**
+ * The line under the title. What opens, in the door's voice (auth-words.ts, docs/plans/sign-in-lede.md): the first
+ * screen says what Sophia is. Signed out by a cause this tab did not start, why takes its place, said as a polite status
+ * that never takes the focus (signed-out-elsewhere.md); while that line is decided (`ended` null), the place waits for
+ * it rather than show the lede for a moment.
+ */
+function Lede({ ended }: { ended: string | null | undefined }) {
+  if (ended === undefined) return <p className="screen-lede">{SIGN_IN_LEDE}</p>
+  if (ended === null) return null
+  return (
+    <p className="screen-lede arrive" role="status">
+      {ended}
+    </p>
+  )
+}
+
+type EmailSignInProps = { notice: string | undefined; ended?: string | null | undefined } & EmailPorts
+
+export function EmailSignIn({ notice, ended, send = sendMagicLink, verify }: EmailSignInProps) {
   const address = useAddress(send)
   const { email, state, setState, field, invalid } = address
   const showError = useCallback((message: string) => setState({ step: 'error', message }), [setState])
@@ -318,8 +338,7 @@ export function EmailSignIn({ notice, send = sendMagicLink, verify }: { notice: 
   }
   return (
     <Centered title="Sign in to Sophia" light={listening}>
-      {/* What opens, in the door's voice (auth-words.ts, docs/plans/sign-in-lede.md): the first screen says what Sophia is. */}
-      <p className="screen-lede">{SIGN_IN_LEDE}</p>
+      <Lede ended={ended} />
       {notice && (
         <p className="form-error" role="alert">
           {notice}
