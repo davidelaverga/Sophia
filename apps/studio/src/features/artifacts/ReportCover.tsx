@@ -7,6 +7,7 @@
 // is within reach: one scrolled far away keeps its checked page in the cache, not a live document. Until it arrives the
 // cover is a quiet plane; a read that fails or doesn't match leaves the monogram.
 import { useQuery } from '@tanstack/react-query'
+import { reportRead, useReportFence } from './report-read.ts'
 import { useEffect, useRef, useState } from 'react'
 import type { ArtifactVersion, ReportCard } from '@sophia/contracts'
 import { listArtifactVersions } from '../../api/artifacts.ts'
@@ -53,9 +54,12 @@ type Cover =
  * list again, once per version, before the cover gives up on it: as the viewer does (rereadFor).
  */
 function useCurrent(card: ReportCard, identity: Identity, near: boolean) {
+  // The report's own refusal, wherever it was seen (the pane, a cover, a presentation): nothing read before it shows.
+  const refused = useReportFence(card.artifactId)
   const versions = useQuery({
     queryKey: ['report-versions', card.artifactId, identity.name],
-    queryFn: () => listArtifactVersions(identity.token, card.artifactId),
+    queryFn: reportRead(card.artifactId, () => listArtifactVersions(identity.token, card.artifactId)),
+    select: (list: readonly ArtifactVersion[]) => (refused ? undefined : list),
     enabled: near,
     // A cover is read once: never again by itself (the window coming back, a reconnect), for every tile ever seen.
     staleTime: Infinity,
@@ -73,7 +77,7 @@ function useCurrent(card: ReportCard, identity: Identity, near: boolean) {
     setReread(id)
     void refetch()
   }, [absent, reread, id, refetch])
-  return { version, failed: versions.isError || (absent && reread === id) }
+  return { version, failed: refused || versions.isError || (absent && reread === id) }
 }
 
 /** The cover's reads: the current version, then its designed page, or its Markdown when it has none. */
