@@ -179,6 +179,31 @@ test('mentions · a message that comes to mention the reader while it is shown i
   await expect.poll(() => served(page)).toContain(`seen:mention:${PROJECT}:1.1:${entryIdOf(1)}`)
 })
 
+test('mentions · named while a modal covers the chat: nothing is marked seen until it closes, then exactly once (4308744385)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?call=on&people=2&floor=1&discussion=mine')
+  await expect(leave(page)).toBeVisible()
+  await chatToggle(page).click()
+  const entry = line(page, 'Sounds good to me.')
+  await expect(entry).toBeInViewport()
+  // A real modal over the room: the command palette (the platform's command key: Meta on a Mac, Ctrl elsewhere).
+  await page.keyboard.press('ControlOrMeta+k')
+  const modal = page.getByRole('dialog', { name: 'Commands' })
+  await expect(modal).toBeVisible()
+  expect(await modal.getAttribute('aria-modal')).toBe('true')
+  await page.evaluate(() => window.fixture?.mentionMeIn(1))
+  await expect(entry.locator('.contribution-mentions')).toHaveText('to you')
+  await page.waitForTimeout(1500)
+  expect(await seenOf(page), 'nothing marked seen while covered').toEqual([])
+  await page.keyboard.press('Escape')
+  await expect(modal).toHaveCount(0)
+  await expect.poll(() => seenOf(page)).toEqual([`seen:mention:${PROJECT}:1.1:${entryIdOf(1)}`])
+  // Reading on, nothing more is sent.
+  await page.waitForTimeout(500)
+  expect(await seenOf(page)).toHaveLength(1)
+})
+
 test('mentions · removed and named again on the same words is a new occurrence: each is acknowledged once, by its own id', async ({
   page,
 }) => {
