@@ -29,6 +29,12 @@
   project opens and joins, as «Join the room» from Work does.
 - **One line:** it replaces the toast that already shows, and adds none. Each hang-up gets its own toast. An opening
   with no call says nothing. The toast keeps role=status and never takes the focus.
+- **`ProjectShell.tsx` (`useJoinOnOpen`), found at the first fix:** Rejoin opened the fixture project, but its dock
+  stayed at «Joining the room…». The project's snapshot was already read, so the join began during the shell's first
+  effects. React's strict mode (development) then remounts at once: the room's unmount (`useRoomConnection`,
+  `calls.end()`) superseded that join, and `done` kept the second pass from joining. With strict mode off on the app's
+  page, the same check passed. The join now waits a tick after the effects, and a remount cancels the wait. A
+  production build runs effects once. Work's «Join the room» on a warmed project takes the same path (inferred).
 
 ## Checks (written first)
 
@@ -40,9 +46,13 @@
   project, in its call. Control: Leave in the places' bar → «You left Fixture project.» with no press. Opening Research
   notes after that says nothing new.
 - **Lever** (`fixtures/app.tsx`, `projects=two`, kept in the tab as `work=lost` is): Work's list holds «Research notes»
-  after the fixture project. Its reads are the fixture project's, and its snapshot carries its own id and title.
+  after the fixture project. Its reads are the fixture project's, and its snapshot carries its own id and title. It
+  imports the contracts' validators only when asked: `signed-in-later.spec.ts` requires that a page at rest never
+  loads them.
 
 ## Limits
 
 - Nothing warns before Open; this seam is about what happens after it.
 - Rejoin lives as long as the toast does (8 s). After that, the project's own Join is the way back, as today.
+- At 390 px the toast is 195 px wide, so the line wraps to four lines. `.toast` sits at `left: 50%` and shrinks to
+  fit the half it has, so its `max-width` is never reached. That is a follow-up of its own.
