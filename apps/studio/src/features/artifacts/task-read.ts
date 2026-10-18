@@ -3,6 +3,7 @@
 // cache that ran the read, as it settles, for its project and resource (the project's list, or one report's), and
 // nothing read before the last refusal shown again, whatever answers later. Only a read set out since shows again.
 import { useQuery, type QueryClient } from '@tanstack/react-query'
+import { ApiError } from '../../api/client.ts'
 import { closedDoor } from '../studio/project-door.ts'
 
 /** A read of tasks as it was read, and when that read was set out, in this page's order (`taskOrder`). */
@@ -21,26 +22,40 @@ export function keepTasksRefusal(client: QueryClient, projectId: string, resourc
   client.setQueryData<number>(tasksRefusedKey(projectId, resource), (at = 0) => Math.max(at, taskOrder()))
 }
 
+/**
+ * A report's own task list refused to this person: 401/403, or that read's not_found (a 422 this contract keeps for a
+ * report unknown or inaccessible, on purpose indistinguishable). Only for that read; any other 422, a bare 404 or a 503
+ * is not this person's refusal, and no other read's 422 changes meaning.
+ */
+export const reportTasksRefused = (error: unknown): boolean =>
+  closedDoor(error) || (error instanceof ApiError && error.status === 422 && error.code === 'not_found')
+
 async function stamped<T extends object>(
   client: QueryClient,
   scope: { projectId: string; resource: string },
   read: () => Promise<T>,
+  refused: (error: unknown) => boolean,
 ): Promise<TaskRead<T>> {
   const readFrom = taskOrder()
   try {
     return { ...(await read()), readFrom }
   } catch (error) {
     // Kept as the refused read settles, before its error reaches anything that renders it.
-    if (closedDoor(error)) keepTasksRefusal(client, scope.projectId, scope.resource)
+    if (refused(error)) keepTasksRefusal(client, scope.projectId, scope.resource)
     throw error
   }
 }
 
 /** The query function of one task read (a report's list). */
 export const taskRead =
-  <T extends object>(projectId: string, resource: string, read: (signal: AbortSignal) => Promise<T>) =>
+  <T extends object>(
+    projectId: string,
+    resource: string,
+    read: (signal: AbortSignal) => Promise<T>,
+    refused: (error: unknown) => boolean = closedDoor,
+  ) =>
   ({ signal, client }: { signal: AbortSignal; client: QueryClient }): Promise<TaskRead<T>> =>
-    stamped(client, { projectId, resource }, () => read(signal))
+    stamped(client, { projectId, resource }, () => read(signal), refused)
 
 /** The query function of a paged task read (the project's list). */
 export const taskPages =
@@ -58,7 +73,7 @@ export const taskPages =
     signal: AbortSignal
     client: QueryClient
   }): Promise<TaskRead<T>> =>
-    stamped(client, { projectId, resource }, () => read(pageParam, signal))
+    stamped(client, { projectId, resource }, () => read(pageParam, signal), closedDoor)
 
 /**
  * The reads that may show: none while this person's own read is refused, and none read before the last refusal

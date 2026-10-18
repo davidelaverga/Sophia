@@ -20,8 +20,7 @@ import { PASSAGE_PARAM } from './report-link.ts'
 import { doneWords, fromWords, mayAssign, mayFinish, ordered, ownerWords } from './task-view.ts'
 import { byTime } from './review-view.ts'
 import { useFeedRefetch } from './useFeedRefetch.ts'
-import { shownTaskReads, taskOrder, taskRead, useTasksRefused, type TaskRead } from './task-read.ts'
-import { closedDoor } from '../studio/project-door.ts'
+import { reportTasksRefused, shownTaskReads, taskOrder, taskRead, useTasksRefused, type TaskRead } from './task-read.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { canInvite } from '../access/useAccess.ts'
 
@@ -68,7 +67,13 @@ export function useTasks(identity: Identity, projectId: string, artifactId: stri
   const read = useQuery({
     queryKey: tasksKey(artifactId, identity.name),
     // Stamped when set out; this person's own refusal of the report's tasks kept as it settles (V-C5-TASKS-READ-01).
-    queryFn: taskRead(projectId, artifactId, (signal) => listReportTasks(identity.token, artifactId, signal)),
+    // Its 401/403 or not_found (reportTasksRefused) is this person's own refusal of the report's tasks.
+    queryFn: taskRead(
+      projectId,
+      artifactId,
+      (signal) => listReportTasks(identity.token, artifactId, signal),
+      reportTasksRefused,
+    ),
     enabled: TASKABLE,
     retry: 1,
   })
@@ -77,7 +82,7 @@ export function useTasks(identity: Identity, projectId: string, artifactId: stri
   // The list (and its count) as it may show: nothing read before this person's own refusal.
   const shown = shownTaskReads(
     read.data ? [read.data] : undefined,
-    read.isError && closedDoor(read.error),
+    read.isError && reportTasksRefused(read.error),
     refusedAt,
   )?.[0]
   return { read, shown }
