@@ -150,6 +150,12 @@ function pieces() {
 /** The flash of a tile that changed glows in its tool's own colour, set on the tile: no root token can carry it. */
 const OWN_COLOUR = ['src/features/resources/resources.css @keyframes tile-changed 0%']
 /**
+ * In the room, moving, a speaker's ring and tile glow follow their voice (voice-meters.md), a level set on each speaker:
+ * no root token can carry it either. At rest and on paper they read their roles.
+ */
+const MOVING = "src/app/theme.css @media (prefers-reduced-motion: no-preference) :root:not([data-theme='light'])"
+const VOICED = [`${MOVING} .presence[data-speaking] .orbit`, `${MOVING} .tile[data-speaking]`]
+/**
  * Her orb's glow on paper (paper-orb.md) rises with her state, set on the light (her breath, her voice, a call): no root
  * token can carry it either.
  */
@@ -178,6 +184,11 @@ const ROOM: Record<string, string> = {
     '0 0 0 3px rgb(241 220 199 / 0.12), 0 0 24px rgb(241 220 199 / 0.22)',
   'src/app/theme.css .tile[data-speaking] { box-shadow }':
     '0 0 0 1px rgb(241 220 199 / 0.6), 0 0 28px rgb(241 220 199 / 0.16)',
+  // Moving, the room's ring and tile glow follow the voice (voice-meters.md): at `--level` 0.34 they are the two above.
+  [`${MOVING} .presence[data-speaking] .orbit { box-shadow }`]:
+    '0 0 0 calc(2px + var(--level, 0) * 3px) rgb(241 220 199 / 0.12), 0 0 24px rgb(241 220 199 / calc(0.1 + var(--level, 0) * 0.36))',
+  [`${MOVING} .tile[data-speaking] { box-shadow }`]:
+    '0 0 0 1px rgb(241 220 199 / 0.6), 0 0 calc(16px + var(--level, 0) * 36px) rgb(241 220 199 / calc(0.08 + var(--level, 0) * 0.24))',
   'src/app/theme.css .qr { filter }': 'drop-shadow(0 0 32px rgb(156 130 245 / 0.24))',
   'src/app/theme.css .toggle-dot { box-shadow }': '0 0 8px 1px rgb(156 130 245 / 0.8)',
   'src/app/theme.css .report-sections a[data-sophia]::before { box-shadow }': '0 0 8px #9c82f5',
@@ -246,7 +257,7 @@ const opaque = (colour: string) => /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(colour) 
 describe('glows (light-live.md)', () => {
   it('no piece glows of its own: each glow reads a --glow token', () => {
     const own = pieces()
-      .filter((d) => !OWN_COLOUR.includes(d.where) && d.where !== HER_ORB)
+      .filter((d) => ![...OWN_COLOUR, ...VOICED, HER_ORB].includes(d.where))
       .flatMap((d) =>
         layersOf(d)
           .filter(glows)
