@@ -116,13 +116,14 @@ export function SophiaLight({
   const size = useShapingSize(box, shaping)
   // Where the light rests once through, for the mark to form there: the same numbers the engine is given.
   const [restsAt, setRestsAt] = useState<LightTarget | null>(null)
-  // On paper the trace writes in the paper's inks (trace.ts); the root's theme is followed as it changes.
+  // On paper the trace writes in the paper's inks (trace.ts) and no WebGL canvas is kept; the root's theme is followed
+  // as it changes.
   const paper = usePaper()
   const markAt = formed && restsAt ? { x: restsAt.x, y: restsAt.y, size: markSize(restsAt.radius) } : null
 
   useEffect(() => {
-    if (!box.current || !glCanvas.current || !traceCanvas.current) return undefined
-    const running = new LightEngine(box.current, glCanvas.current, traceCanvas.current)
+    if (!box.current || !traceCanvas.current) return undefined
+    const running = new LightEngine(box.current, traceCanvas.current)
     engine.current = running
     return () => {
       running.stop()
@@ -131,7 +132,7 @@ export function SophiaLight({
   }, [])
 
   useEffect(() => {
-    engine.current?.setPaper(paper)
+    engine.current?.setPaper(paper, glCanvas.current)
   }, [paper])
 
   useEffect(() => {
@@ -159,7 +160,8 @@ export function SophiaLight({
         markAt ? `${String(Math.round(markAt.x))} ${String(Math.round(markAt.y))} ${String(markAt.size)}` : undefined
       }
     >
-      <canvas ref={glCanvas} className="light-gl" />
+      {/* The WebGL light is the room's: on paper no canvas, so no context held for a light never drawn there. */}
+      {!paper && <canvas ref={glCanvas} className="light-gl" />}
       <canvas ref={traceCanvas} className="light-trace" />
       {formed && restsAt && <Threshold at={restsAt} from={formed.from} />}
     </div>
