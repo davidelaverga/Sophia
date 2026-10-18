@@ -84,9 +84,9 @@
     of another grant is not; a note is taken once.
   - `ended-notice.test.ts` (unit): the `refused` line, with and without the clause; after a refusal of this tab's
     refresh, `elsewhere` only for the codes of a session gone from the Auth service, `refused` for any other.
-  - `app-auth.spec.ts` (e2e), a lever for the open tab: signed in, the kept session is rewritten as supabase-js finds it
-    an hour on (its access token expired) and the tab is shown again (`visibilitychange`), so the client refreshes at
-    once. Refused as `refresh_token_already_used`: the `refused` line, never the `elsewhere` one; refused as
+  - `app-auth.spec.ts` (e2e), a lever for the open tab (`tokenRunsOut`): signed in, the kept session is rewritten as
+    supabase-js finds it once its access token has run out, and the tab is shown again (`visibilitychange`), so the
+    client refreshes at once instead of at its next 30 s tick. Refused as `refresh_token_already_used`: the `refused` line, never the `elsewhere` one; refused as
     `refresh_token_not_found` (every device signed out elsewhere): the `elsewhere` line. The synthetic Auth now refuses
     a refresh as the real one does (400, API 2024-01-01, a code), `refresh_token_not_found` unless a check sets another.
 
