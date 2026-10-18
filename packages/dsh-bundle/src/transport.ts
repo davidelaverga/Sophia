@@ -193,9 +193,9 @@ export class ServiceTransport {
     return checked('command batch', wire.RuntimeCommandBatch, reply)
   }
 
-  async receipts(receipts: readonly RuntimeReceipt[]): Promise<void> {
+  async receipts(receipts: readonly RuntimeReceipt[], signal?: AbortSignal): Promise<void> {
     for (const receipt of receipts) checked('receipt', wire.RuntimeReceipt, receipt)
-    await this.request('POST', '/v1/runtime/receipts', { receipts })
+    await this.request('POST', '/v1/runtime/receipts', { receipts }, signal)
   }
 
   async observations(observations: readonly Observation[], signal?: AbortSignal): Promise<void> {

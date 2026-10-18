@@ -20,7 +20,7 @@ if (!root) throw new Error('index.html must contain #root')
 
 createRoot(root).render(
   <StrictMode>
-    {/* The first press on every page (skip-link.md). */}
+    {/* First in the tab order on every page (skip-link.md). */}
     <SkipLink />
     <App />
   </StrictMode>,

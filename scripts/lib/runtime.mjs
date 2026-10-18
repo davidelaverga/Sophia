@@ -9,6 +9,9 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DSH_ENTRY, sanitizedEnv } from './common.mjs'
 
+/** Node's code-loading and resolution environment (packages/dsh-bundle/src/executor-identity.ts refuses the same). */
+const NODE_MODIFIER_ENV = ['NODE_OPTIONS', 'NODE_PATH', 'NODE_PRESERVE_SYMLINKS', 'NODE_PRESERVE_SYMLINKS_MAIN']
+
 /**
  * @param {{ unit: any, runtimeDir: string, layout: { dshHome: string, home: string, cwd: string, root: string },
  *   bridge?: { url: string, token: string }, workspace?: string, credentials?: string[],
@@ -16,6 +19,9 @@ import { DSH_ENTRY, sanitizedEnv } from './common.mjs'
  * @returns {{ child: import('node:child_process').ChildProcess, stderr: () => string, stop: (signal?: string) => Promise<{ code: number|null, signal: string|null }>, exited: Promise<{ code: number|null, signal: string|null }> }}
  */
 export function launchRuntime({ unit, runtimeDir, layout, bridge, workspace, credentials = [], extraEnv = {}, overlays = [] }) {
+  // Node's code-loading and resolution modifiers are no supported launch (#393 R-B2-A868-03): the sanitized environment
+  // carries none, and none may be added. The bundle refuses them too; the message names no value.
+  if (NODE_MODIFIER_ENV.some((name) => (extraEnv[name] ?? '') !== '')) throw new Error('launchRuntime: a Node code-loading or resolution modifier is not a supported launch')
   const env = {
     ...sanitizedEnv({ dshHome: layout.dshHome, home: layout.home, credentials }),
     SOPHIA_RUNTIME_UNIT: unit.id,

@@ -119,11 +119,11 @@ describe('floor view', () => {
 describe('what sets someone apart', () => {
   const guest = { ...person('g', 'Luis'), standing: 'guest' as const }
 
-  it('says a microphone is muted when it is off, and never for a listener, who has none (muted-on-tiles.md)', () => {
+  it('says a microphone is muted when it is off, whoever’s: a viewer speaks too (A06; Codex P2 on #411)', () => {
     assert.equal(mutedMic({ ...davide, micOn: false }), true)
     assert.equal(mutedMic({ ...guest, micOn: false }), true)
     assert.equal(mutedMic(davide), false)
-    assert.equal(mutedMic({ ...davide, micOn: false, standing: 'viewer' }), false)
+    assert.equal(mutedMic({ ...davide, micOn: false, standing: 'viewer' }), true)
   })
 
   it('says one thing about a person, or nothing', () => {

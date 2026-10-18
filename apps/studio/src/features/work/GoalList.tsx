@@ -47,6 +47,8 @@ interface Props {
   controls: boolean
   /** Editors and admins act on goals and invite; viewers read. */
   canAct: boolean
+  /** A project admin: only they retire a completed goal's remaining sessions (A41). */
+  admin?: boolean | undefined
   onOpenStudio: () => void
   onInvite: () => void
   /** Tasks: each goal's plan, by the goal's id, shown inside that goal's row (LFE-07.1). */
@@ -203,6 +205,7 @@ interface ListedProps extends Pick<
 > {
   summary: boolean | undefined
   controls: boolean
+  admin: boolean
   /** Every plan as served; `plans`, those Tasks draws. */
   given: Props['plans']
   plans: Props['plans']
@@ -213,7 +216,7 @@ interface ListedProps extends Pick<
 /** Goals: the overview. Tasks: each goal with its plan under it, as the search leaves them. */
 const NO_NAMES: ReadonlyMap<string, string> = new Map()
 
-function Listed({ snapshot, projectId, identity, entry, onOpenGoal, summary, controls, ...shown }: ListedProps) {
+function Listed({ snapshot, projectId, identity, entry, onOpenGoal, summary, controls, admin, ...shown }: ListedProps) {
   const { given, plans, listed, query, me, names } = shown
   // With no goal yet, the view's empty state says so alone: no brief, no list, no search (goals-overview.md).
   if (summary) {
@@ -234,6 +237,7 @@ function Listed({ snapshot, projectId, identity, entry, onOpenGoal, summary, con
             projectId={projectId}
             identity={identity}
             controls={controls}
+            admin={admin}
             compact={plans?.[g.id] !== undefined}
             next={plans?.[g.id]?.next}
           >
@@ -252,6 +256,7 @@ export function GoalList({
   identity,
   controls,
   canAct,
+  admin,
   onOpenStudio,
   onInvite,
   plans: given,
@@ -278,6 +283,7 @@ export function GoalList({
         {...{ snapshot, projectId, identity, entry, onOpenGoal, given, plans, listed, query, me, names }}
         summary={summary}
         controls={controls && canAct}
+        admin={controls && canAct && admin === true}
       />
       {snapshot && <NativeTasks snapshot={snapshot} projectId={projectId} identity={identity} canAct={canAct} />}
     </section>
