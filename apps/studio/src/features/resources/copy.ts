@@ -8,6 +8,8 @@ const SHOWN: Record<Exclude<CopyState, 'idle'>, number> = { copied: 1600, failed
 
 export function useCopy(text: () => string) {
   const [state, setState] = useState<CopyState>('idle')
+  /** What the browser refused to copy, kept past the failure's few seconds, until the next press or `dismiss`. */
+  const [refused, setRefused] = useState<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const settle = (next: Exclude<CopyState, 'idle'>) => {
     setState(next)
@@ -15,12 +17,15 @@ export function useCopy(text: () => string) {
     timer.current = setTimeout(() => setState('idle'), SHOWN[next])
   }
   const copy = async () => {
+    const value = text() // read in the press, as the write is
+    setRefused(null)
     try {
-      await navigator.clipboard.writeText(text())
+      await navigator.clipboard.writeText(value)
       settle('copied')
     } catch {
+      setRefused(value)
       settle('failed')
     }
   }
-  return { state, copy: () => void copy() }
+  return { state, refused, copy: () => void copy(), dismiss: () => setRefused(null) }
 }

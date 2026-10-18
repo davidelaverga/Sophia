@@ -1,6 +1,6 @@
 // A native tool's own mark, so a resource reads as what it is at a glance: Claude Code's, Codex's, Grok's… The marks
 // come from @lobehub/icons-static-svg (MIT); each brand's mark stays its owner's trademark, shown only to name the tool.
-// A one-colour mark takes the text's colour (a mask), so it reads on the dark theme; a coloured one is shown as made.
+// A one-colour mark takes the text's colour (a mask), so it reads on either theme; a coloured one is shown as made.
 import claudeCode from '@lobehub/icons-static-svg/icons/claudecode-color.svg'
 import codex from '@lobehub/icons-static-svg/icons/codex-color.svg'
 import cursor from '@lobehub/icons-static-svg/icons/cursor.svg'

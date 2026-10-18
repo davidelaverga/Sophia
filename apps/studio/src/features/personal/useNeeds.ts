@@ -60,13 +60,13 @@ const NEEDS_SHOWN = VISION || ATTENTION
 
 /** This page's order of reads and refusals (never the clock): a read set out before a refusal is older than it. */
 let order = 0
-const needsOrder = (): number => ++order
+export const needsOrder = (): number => ++order
 
 /** When this account's own read of its needs was last refused (401, 403), in `needsOrder`; 0 when never. */
-const needsRefusedKey = (account: string) => ['vision', 'needs-refused', account]
+export const needsRefusedKey = (account: string) => ['vision', 'needs-refused', account]
 
 /** A refusal of this account's own read, kept as it is learnt: later than every read set out before it. */
-const needsRefusedNow = (client: QueryClient, account: string) =>
+export const needsRefusedNow = (client: QueryClient, account: string) =>
   client.setQueryData<number>(needsRefusedKey(account), (at = 0) => Math.max(at, needsOrder()))
 
 /**
@@ -89,7 +89,7 @@ function useNeedsRefused(client: QueryClient, account: string): number {
 }
 
 /** A read set out after the last refusal; none from before it. */
-const readSince = <T extends { readFrom: number }>(data: T | undefined, refusedAt: number): T | undefined =>
+export const readSince = <T extends { readFrom: number }>(data: T | undefined, refusedAt: number): T | undefined =>
   data && data.readFrom > refusedAt ? data : undefined
 
 export function useNeeds(token: string, go: NeedsGo, options: NeedsOptions = {}): NeedsRead {
