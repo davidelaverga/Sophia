@@ -480,6 +480,9 @@ test('M03-RF-0021 · a report the API refuses is said as refused, never as a rea
     .toBe(4)
   await expect(untitled(page).getByText('This report isn’t available to you.')).toBeVisible()
   await expect(untitled(page).getByRole('button', { name: 'Try again' })).toHaveCount(0)
+  // Settled, nothing read before the refusal shows: not the cached first version's text, nor its titled pane.
+  await expect(page.getByText(FIRST)).toHaveCount(0)
+  await expect(pane(page)).toHaveCount(0)
 })
 
 test('LFE-02.1 · Esc held down steps down once, and pinning names the version in place, not as a new entry', async ({
