@@ -53,15 +53,18 @@ test('personal · served: Luis asks, the companion answers, a refresh keeps it; 
   const luis = await browser.newPage()
   const calls = await as(luis, 'Luis')
   await luis.goto('/personal')
+  // The answers are read in the conversation itself: since main's attention, "What needs you" may list the same reply.
+  // After the erasure the page-wide counts below hold for both places.
+  const talk = luis.getByLabel('Conversation with Sophia')
   const field = luis.getByRole('textbox', { name: /Write to her|Message|Talk/i }).first()
   await expect(field).toBeVisible()
   await field.fill('SYNTHETIC served question for the double')
   await field.press('Enter')
   await expect(luis.getByText('SYNTHETIC served question for the double')).toBeVisible()
-  await expect(luis.getByText('ok', { exact: true })).toBeVisible({ timeout: 15_000 })
+  await expect(talk.getByText('ok', { exact: true })).toBeVisible({ timeout: 15_000 })
   await luis.reload()
   await expect(luis.getByText('SYNTHETIC served question for the double')).toBeVisible()
-  await expect(luis.getByText('ok', { exact: true })).toBeVisible()
+  await expect(talk.getByText('ok', { exact: true })).toBeVisible()
   expect(calls.some((c) => c === 'POST /api/v1/personal/turns')).toBe(true)
 
   // A second question: the companion's provider refuses once (the double's 503), the turn says so; Ask again answers.
@@ -78,7 +81,7 @@ test('personal · served: Luis asks, the companion answers, a refresh keeps it; 
   reconcileHeld()
   await luis.getByRole('button', { name: 'Ask again' }).click()
   await expect(luis.locator('p.c3-failed')).toHaveCount(0, { timeout: 15_000 })
-  await expect(luis.getByText('ok', { exact: true })).toHaveCount(2)
+  await expect(talk.getByText('ok', { exact: true })).toHaveCount(2)
   expect(calls.filter((c) => /^POST \/api\/v1\/personal\/turns\/[^/]+\/retry$/.test(c))).toHaveLength(2)
 
   // Delete everything, as the owner confirms it in "Your data": the erasure answers, and after a refresh nothing is left.
