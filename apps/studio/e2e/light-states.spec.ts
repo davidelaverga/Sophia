@@ -79,9 +79,10 @@ const openRow = (page: Page) =>
 const dockPresses = (page: Page) =>
   page.evaluate(() => {
     const dock = document.querySelector('.dock')
+    // Leave is the way out, tinted rose in both themes (room/aaa-dock-people, #459): an accent, not a control at rest.
     const presses = [...(dock?.querySelectorAll('button.round, button.pill') ?? [])].filter(
       (b) =>
-        !b.matches('.primary, [aria-pressed="true"], :disabled') &&
+        !b.matches('.primary, .leave, [aria-pressed="true"], :disabled') &&
         b.getBoundingClientRect().width > 0 &&
         getComputedStyle(b).backgroundColor !== 'rgba(0, 0, 0, 0)',
     )

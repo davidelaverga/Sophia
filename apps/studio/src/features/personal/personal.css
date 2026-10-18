@@ -120,7 +120,8 @@
   flex: none;
   border-radius: 50%;
   background: var(--warm);
-  animation: ps-dot-pulse 1.4s ease-in-out infinite;
+  /* Still: motion in the Studio is for events, not states (CONTRIBUTING.md). Its pulse named keyframes lost since
+     484e390ad, so it ran nothing (informe-25 M14); the dot and its words say the call is on. */
 }
 /* Back to the room: the pill's whole height is its target. */
 .places .room-pill .t {
@@ -141,6 +142,10 @@
 .places .room-pill .round:not([aria-pressed='true']) {
   border-color: transparent;
   background: transparent;
+}
+/* Leave keeps its rose ink here at rest (theme.css), so the pointer's answer is its plane (room-dock-people.md). */
+.places .room-pill .round.leave:hover {
+  background: rgb(var(--rose-rgb) / 0.12);
 }
 /* Under the bar's call: what Sophia is looking at and what stopped a device, as the dock says them. */
 .places .room-pill-notes {
@@ -406,8 +411,10 @@
   }
 }
 /* A row that joins or takes you back says so at rest, in its own width, on every screen: its press is the one the
-   moment asks for (docs/plans/home-first-glance.md). */
-.places .hw-row:is([data-act='join'], [data-act='back']) {
+   moment asks for (docs/plans/home-first-glance.md). Its columns carry no weight of their own (:where): on a phone the
+   two-line row below keeps its three columns for it too, where it used to lose to this one and set its title 4 px in
+   and its arrow 14 px short (informe-25 E5). */
+.places .hw-row:where([data-act='join'], [data-act='back']) {
   grid-template-columns: 28px minmax(0, 1fr) auto auto;
 }
 .places .hw-row:is([data-act='join'], [data-act='back']) .hw-go {
@@ -537,6 +544,8 @@
   color: var(--text);
   font: 15px / var(--lh-body) var(--sans);
   letter-spacing: -0.005em;
+  /* A suggestion longer than the line ends in an ellipsis, never through a letter (informe-25 E6). */
+  text-overflow: ellipsis;
 }
 .places .hw-say input::placeholder {
   color: var(--text-3);

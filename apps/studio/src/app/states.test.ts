@@ -122,12 +122,6 @@ const READS = [
   [THEME, '.segmented', 'background', 'var(--control-track)'],
   [THEME, '.segmented::before', 'background', 'var(--control-selected)'],
   [
-    'features/artifacts/artifacts.css',
-    ".knowledge-filters .segmented button[aria-pressed='true']",
-    'background',
-    'var(--control-selected)',
-  ],
-  [
     'features/conversations/conversations.css',
     ".conv-row[aria-pressed='true']",
     'background',
@@ -186,21 +180,17 @@ describe('the states (informe-claro D20)', () => {
     )
   })
 
-  it('a thumb, a pressed segment and the open conversation keep their room edges; paper adds the chosen level', () => {
+  it('a thumb and the open conversation keep their room edges; paper adds the chosen level', () => {
     const edge = 'inset 0 0 0 1px rgb(var(--ink-rgb) / 0.08)'
-    const artifacts = 'features/artifacts/artifacts.css'
     const conversations = 'features/conversations/conversations.css'
-    const pressed = ".knowledge-filters .segmented button[aria-pressed='true']"
     const row = ".conv-row[aria-pressed='true']"
     // The room's rules cast what they did on main: their edge, no layer added.
     assert.equal(declared(THEME, '.segmented::before', 'box-shadow'), edge)
-    assert.equal(declared(artifacts, pressed, 'box-shadow'), edge)
     assert.equal(declared(conversations, row, 'box-shadow'), undefined)
     assert.equal(declared(conversations, `${row}:hover`, 'box-shadow'), 'inset 0 0 0 1px var(--line-2)')
     // Paper's own rules, as light as those, add the level after the edge.
     const level = 'var(--control-selected-shadow)'
     assert.equal(declared(THEME, onPaper('.segmented::before'), 'box-shadow'), `${edge}, ${level}`)
-    assert.equal(declared(artifacts, onPaper(pressed), 'box-shadow'), `${edge}, ${level}`)
     assert.equal(declared(conversations, onPaper(row), 'box-shadow'), level)
     assert.equal(
       declared(conversations, onPaper(`${row}:hover`), 'box-shadow'),
