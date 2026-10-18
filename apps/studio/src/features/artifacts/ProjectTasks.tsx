@@ -12,6 +12,9 @@ import { TASKS } from '../../app/tasks.ts'
 import { useMembership } from '../access/useAccess.ts'
 import { TODO } from '../resources/link.ts'
 import { useAddressed } from '../resources/useAddressed.ts'
+import { closedDoor } from '../studio/project-door.ts'
+import { shownTaskReads, taskPages, useTasksRefused } from './task-read.ts'
+import { ProjectNewTask } from './PassageTask.tsx'
 import { TaskRow, TasksPending } from './TaskList.tsx'
 import { useFeedRefetch } from './useFeedRefetch.ts'
 
@@ -23,27 +26,19 @@ interface Props {
 
 export function ProjectTasks({ projectId, identity, cursor }: Props) {
   const me = useMembership(projectId, identity.name, identity.token).data
-  const read = useInfiniteQuery({
-    queryKey: ['tasks', 'project', projectId, identity.name],
-    queryFn: ({ pageParam, signal }) => listProjectTasks(identity.token, projectId, pageParam, signal),
-    initialPageParam: null as string | null,
-    getNextPageParam: (last) => last.next,
-    enabled: TASKS,
-    retry: 1,
-  })
-  useFeedRefetch(TASKS ? cursor : undefined, read)
-  const listed = read.data?.pages.flatMap((p) => p.tasks) ?? []
+  const { read, pages, listed } = useProjectTaskPages(projectId, identity, cursor)
   const named = useNamedTask(projectId, identity, cursor, listed.length > 0 || read.isSuccess ? listed : undefined)
   if (!TASKS) return null
   return (
     <section className="project-tasks" aria-labelledby="project-tasks-title">
       <h3 id="project-tasks-title">Tasks</h3>
+      {pages && <ProjectNewTask projectId={projectId} identity={identity} onAdded={() => void read.refetch()} />}
       {named.words && (
         <p className="task-none" role="status">
           {named.words}
         </p>
       )}
-      {!read.data || !me ? (
+      {!pages || !me ? (
         <TasksPending failed={read.isError} onRetry={() => void read.refetch()} />
       ) : (
         <Rows
@@ -51,13 +46,35 @@ export function ProjectTasks({ projectId, identity, cursor }: Props) {
           row={{ me, projectId, identity, artifactId: null, onStale: () => [read.refetch(), named.refetch()] }}
         />
       )}
-      {read.hasNextPage && (
+      {pages && read.hasNextPage && (
         <button type="button" className="text-button" onClick={() => void read.fetchNextPage()}>
           More tasks
         </button>
       )}
     </section>
   )
+}
+
+/**
+ * The project's task pages, read again as the feed moves, and those that may show: each page stamped when its read is
+ * set out, this person's own refusal (401, 403) kept as it settles, and nothing read before it shown again, no title,
+ * count, More, origin or action, until a read set out since answers (V-C5-TASKS-READ-01).
+ */
+function useProjectTaskPages(projectId: string, identity: Identity, cursor: string | undefined) {
+  const read = useInfiniteQuery({
+    queryKey: ['tasks', 'project', projectId, identity.name],
+    queryFn: taskPages<Awaited<ReturnType<typeof listProjectTasks>>>(projectId, 'project', (after, signal) =>
+      listProjectTasks(identity.token, projectId, after, signal),
+    ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.next,
+    enabled: TASKS,
+    retry: 1,
+  })
+  useFeedRefetch(TASKS ? cursor : undefined, read)
+  const refusedAt = useTasksRefused(projectId, 'project')
+  const pages = shownTaskReads(read.data?.pages, read.isError && closedDoor(read.error), refusedAt)
+  return { read, pages, listed: pages?.flatMap((p) => p.tasks) ?? [] }
 }
 
 /** The rows, or that there are none. */

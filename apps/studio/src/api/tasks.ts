@@ -78,8 +78,9 @@ export const getProjectTask = (token: string, projectId: string, taskId: string,
  */
 export function createTask(token: string, projectId: string, key: string, ask: TaskAsk): Promise<ProjectTask> {
   if (!SERVED_TASKS) return proposed.createTask(token, projectId, key, ask)
-  const place = readLocator(`?${PASSAGE_PARAM}=${encodeURIComponent(ask.from.passage)}`)
-  const origin = place ? { artifactId: ask.from.artifactId, versionId: ask.from.versionId, ...place } : null
+  const from = ask.from
+  const place = from ? readLocator(`?${PASSAGE_PARAM}=${encodeURIComponent(from.passage)}`) : null
+  const origin = from && place ? { artifactId: from.artifactId, versionId: from.versionId, ...place } : null
   return callApi(project(projectId), { token, key, body: { title: ask.text, ownerId: ask.owner, origin } }, (v) =>
     shownTask(parseProjectTask(v)),
   )

@@ -62,7 +62,7 @@ export function usePassageTask(props: {
     (task, ask) => {
       setAsked(null)
       setAdded(task)
-      taskRecorded(queryClient, ask.from.artifactId, identity.name, task)
+      if (ask.from) taskRecorded(queryClient, ask.from.artifactId, identity.name, task)
       // The press went with what it did, unless the person has gone on elsewhere (a slow reply, the form closed).
       requestAnimationFrame(() => focusFree() && line.current?.focus())
     },
@@ -141,7 +141,8 @@ function TaskLine(props: {
 }
 
 interface FormProps {
-  passage: TaskPassage
+  /** The passage it is made from; null for the project brief's New task. */
+  passage: TaskPassage | null
   /** This person's actor id: a task «for me» is for them. */
   me: string
   people: readonly TaskPerson[]
@@ -207,7 +208,7 @@ function TaskForm({ passage, me, people, write, onClose }: FormProps) {
       void write.create({
         text: text.trim(),
         owner: ownerOf(owner, me),
-        from: { ...passage.place, quote: taskQuote(passage.text) },
+        from: passage ? { ...passage.place, quote: taskQuote(passage.text) } : null,
       })
   }
   return (
@@ -224,7 +225,7 @@ function TaskForm({ passage, me, people, write, onClose }: FormProps) {
         onClose()
       }}
     >
-      <p className="task-quote">{keptText(passage.text, passage.source)}</p>
+      {passage && <p className="task-quote">{keptText(passage.text, passage.source)}</p>}
       <TaskField
         text={text}
         empty={empty}
@@ -320,5 +321,66 @@ function TaskFoot({ owner, setOwner, people, held, words, children }: FootProps)
       </span>
       <span className="review-acts">{children}</span>
     </span>
+  )
+}
+
+/**
+ * The project brief's «New task» (A39, served): an ordinary project task, with no passage (its origin null), made with
+ * the same form, Create, key and Try again as a passage's. Offered to editors and admins; for me or anyone.
+ */
+export function ProjectNewTask(props: { projectId: string; identity: Identity; onAdded: () => void }) {
+  const { projectId, identity } = props
+  const me = useMembership(projectId, identity.name, identity.token).data
+  const [opened, setOpened] = useState(0)
+  const [asked, setAsked] = useState(false)
+  const [added, setAdded] = useState<ProjectTask | null>(null)
+  const line = useRef<HTMLParagraphElement>(null)
+  const write = useCreate(
+    (key, ask) => createTask(identity.token, projectId, key, ask),
+    (task) => {
+      setAsked(false)
+      setAdded(task)
+      props.onAdded()
+      requestAnimationFrame(() => focusFree() && line.current?.focus())
+    },
+  )
+  if (!SERVED_TASKS || !me || !canInvite(me)) return null
+  return (
+    <div className="project-new-task">
+      {asked ? (
+        <TaskForm
+          key={opened}
+          passage={null}
+          me={me.actorId}
+          people={[]}
+          write={write}
+          onClose={() => {
+            setAsked(false)
+            if (!write.held) write.reset()
+          }}
+        />
+      ) : (
+        !write.held && (
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => {
+              write.reset()
+              setAdded(null)
+              setOpened((n) => n + 1)
+              setAsked(true)
+            }}
+          >
+            New task
+          </button>
+        )
+      )}
+      <TaskLine
+        lineRef={line}
+        said={added ? `Task added for ${ownerWords(added, me.actorId, SERVED_TASKS)}.` : null}
+        write={asked ? null : write}
+        onSee={() => setAdded(null)}
+      />
+    </div>
   )
 }

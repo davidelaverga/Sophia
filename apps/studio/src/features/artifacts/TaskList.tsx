@@ -20,6 +20,8 @@ import { PASSAGE_PARAM } from './report-link.ts'
 import { doneWords, fromWords, mayAssign, mayFinish, ordered, ownerWords } from './task-view.ts'
 import { byTime } from './review-view.ts'
 import { useFeedRefetch } from './useFeedRefetch.ts'
+import { shownTaskReads, taskOrder, taskRead, useTasksRefused, type TaskRead } from './task-read.ts'
+import { closedDoor } from '../studio/project-door.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { canInvite } from '../access/useAccess.ts'
 
@@ -30,8 +32,11 @@ const tasksKey = (artifactId: string, viewer: string) => ['vision', 'tasks', art
  * still on its way or failed, so the task made is there at once.
  */
 export const taskRecorded = (queryClient: QueryClient, artifactId: string, viewer: string, task: ProjectTask) =>
-  queryClient.setQueryData<{ tasks: readonly ProjectTask[] }>(tasksKey(artifactId, viewer), (was) => ({
+  queryClient.setQueryData<TaskRead<{ tasks: readonly ProjectTask[] }>>(tasksKey(artifactId, viewer), (was) => ({
+    ...was,
     tasks: byTime(was?.tasks ?? [], task, (t) => t.taskId),
+    // A list read before a refusal stays so; one seeded now is as new as this write.
+    readFrom: was?.readFrom ?? taskOrder(),
   }))
 
 /** A page of tasks as a read keeps it: a report's list, or one of the project's pages. */
@@ -59,15 +64,23 @@ export function taskChanged(queryClient: QueryClient, task: ProjectTask) {
 }
 
 /** A report's tasks, read again as the feed moves (a task is a record); none read without tasks offered. */
-export function useTasks(identity: Identity, artifactId: string, cursor: string | undefined) {
+export function useTasks(identity: Identity, projectId: string, artifactId: string, cursor: string | undefined) {
   const read = useQuery({
     queryKey: tasksKey(artifactId, identity.name),
-    queryFn: ({ signal }) => listReportTasks(identity.token, artifactId, signal),
+    // Stamped when set out; this person's own refusal of the report's tasks kept as it settles (V-C5-TASKS-READ-01).
+    queryFn: taskRead(projectId, artifactId, (signal) => listReportTasks(identity.token, artifactId, signal)),
     enabled: TASKABLE,
     retry: 1,
   })
   useFeedRefetch(TASKABLE ? cursor : undefined, read)
-  return read
+  const refusedAt = useTasksRefused(projectId, artifactId)
+  // The list (and its count) as it may show: nothing read before this person's own refusal.
+  const shown = shownTaskReads(
+    read.data ? [read.data] : undefined,
+    read.isError && closedDoor(read.error),
+    refusedAt,
+  )?.[0]
+  return { read, shown }
 }
 
 interface Props {
@@ -79,10 +92,10 @@ interface Props {
 
 export function TaskList({ projectId, identity, artifactId, cursor }: Props) {
   const me = useMembership(projectId, identity.name, identity.token).data
-  const tasks = useTasks(identity, artifactId, cursor)
-  if (!tasks.data) return <TasksPending failed={tasks.isError} onRetry={() => void tasks.refetch()} />
+  const { read: tasks, shown } = useTasks(identity, projectId, artifactId, cursor)
+  if (!shown) return <TasksPending failed={tasks.isError} onRetry={() => void tasks.refetch()} />
   if (!me) return null
-  const all = ordered(tasks.data.tasks)
+  const all = ordered(shown.tasks)
   if (all.length === 0) {
     // Only who may make one is told how; a viewer is told there are none.
     return (

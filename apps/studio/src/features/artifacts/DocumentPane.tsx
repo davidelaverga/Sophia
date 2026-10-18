@@ -504,9 +504,9 @@ function useRevise(props: Props, data: PaneData, onCurrent: boolean): ReactNode 
 
 /** The Tasks tab (A17, the vision flag's; A39, the tasks flag's): how many are open, and its list. */
 function useTaskTab(props: Props): { open: number | undefined; list: ReactNode } {
-  const read = useTasks(props.identity, props.link.artifactId, props.cursor)
+  const { shown } = useTasks(props.identity, props.projectId, props.link.artifactId, props.cursor)
   return {
-    open: TASKABLE && read.data ? openCount(read.data.tasks) : undefined,
+    open: TASKABLE && shown ? openCount(shown.tasks) : undefined,
     list: TASKABLE ? (
       <TaskList
         projectId={props.projectId}

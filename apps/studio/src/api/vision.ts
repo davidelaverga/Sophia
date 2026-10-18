@@ -424,7 +424,8 @@ export interface TaskFrom {
 export interface TaskAsk {
   text: string
   owner: string | null
-  from: { artifactId: string; versionId: string; passage: string; quote: string }
+  /** The passage it is made from; null for an ordinary project task (A39's nullable origin, the brief's New task). */
+  from: { artifactId: string; versionId: string; passage: string; quote: string } | null
 }
 
 const TASK = {
