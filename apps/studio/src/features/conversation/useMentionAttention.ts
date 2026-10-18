@@ -227,7 +227,9 @@ export function useMessageAddressed(
   const { load, offered, atStart, withdrawn, jump } = earlier
   // Found by a search, its next message known: the one page that ends at it, whose read is the one waited on.
   const before = beforeOf(named.id)
-  const reading = before !== undefined ? earlier.jumping(key) : earlier.reading
+  // The jump's read while the search's page is still the one waited on; once a stale latest-page hint (null) was read
+  // without it and the look goes on earlier (jumpOf "none"), the earlier pages' own read is (R on 4307870144).
+  const reading = before !== undefined && jumpOf(before, jumped) !== 'none' ? earlier.jumping(key) : earlier.reading
   useEffect(() => {
     const id = named.id
     if (!inView || !loaded || !id || at !== 'looking') return
