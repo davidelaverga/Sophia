@@ -4,7 +4,7 @@
 // brought into view once; when it isn't among the messages shown, a few earlier pages are read to find it, and the
 // chat says so when it can't be shown.
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { listNeeds, markNeedSeen } from '../../api/needs.ts'
 import { tokenSubject } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -103,6 +103,12 @@ function seenRetries(again: (id: string) => void) {
   }
 }
 
+/** The reader's Needs, read again after a seen write (Home's and the chat's lists). */
+function readNeedsAgain(client: QueryClient, subject: string) {
+  void client.invalidateQueries({ queryKey: ['mentions', 'needs', subject] })
+  void client.invalidateQueries({ queryKey: ['vision', 'needs', subject] })
+}
+
 /**
  * Calls `look` once a frame as the chat's scroll moves (`false`), and when the last visible modal over the page closes
  * (`true`, 4308744385): the page's modals watched as they change. Returns its stop.
@@ -169,22 +175,23 @@ export function useMentionsSeen(
     const root = history.current
     if (!MENTIONS || !inView || !root || !ids || typeof IntersectionObserver === 'undefined') return undefined
     const subject = tokenSubject(identity.token) ?? identity.token
-    const again = () => {
-      void client.invalidateQueries({ queryKey: ['mentions', 'needs', subject] })
-      void client.invalidateQueries({ queryKey: ['vision', 'needs', subject] })
-    }
+    const again = () => readNeedsAgain(client, subject)
     // A write that failed is tried again while the same occurrence stays readable where it is (#409 4305869903).
+    // One falling due under a visible modal waits, due, for the last one to close (R92 on 4308744385).
     const retries = seenRetries((id) => {
       const el = [...waitingEls()].find((e) => e instanceof HTMLElement && e.dataset.mentionNeed === id)
-      if (el) seen(shownNeed(el, root))
+      if (modalOnScreen()) due.add(id)
+      else if (el) seen(shownNeed(el, root))
     })
     retryOwner.current = retries
     const failed = new Set<string>()
+    const due = new Set<string>()
     // A message under a visible modal (a sheet, a dialog) is not shown to the reader: nothing is marked or sent while one
     // covers the page (4308744385); the last one closing looks again at what the chat shows, as it stands.
     const seen = (id: string | undefined) => {
       if (!id || marked.current.has(id) || modalOnScreen()) return
       marked.current.add(id)
+      due.delete(id)
       void markNeedSeen(identity.token, id).then(again, () => {
         marked.current.delete(id)
         failed.add(id)
@@ -198,11 +205,11 @@ export function useMentionsSeen(
     const waitingEls = () => root.querySelectorAll('[data-mention-need]')
     for (const el of waitingEls()) observer.observe(el)
     // What the chat shows, read again as its scroll moves it, or as it stands once the last visible modal closes; an
-    // occurrence whose write failed stays with its bounded retry, never sent again by the modal closing.
+    // occurrence whose write failed is sent then only when its bounded retry fell due under the modal, never early.
     const look = (uncovered: boolean) => {
       for (const el of waitingEls()) {
         const id = shownNeed(el, root)
-        if (!uncovered || !id || !failed.has(id)) seen(id)
+        if (!uncovered || !id || !failed.has(id) || due.has(id)) seen(id)
       }
     }
     const stopLooking = watchShown(root, look)
