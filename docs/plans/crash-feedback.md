@@ -24,6 +24,11 @@
   - Request headers and cookies are dropped, and so is the user.
 - **«Send feedback»** in the account menu, shown only when reports are on. It opens a sheet: «What would you like us to
   know?», then Send. It says «Sent. Thank you.» once Sentry has taken it, and «Couldn’t send it. Try again.» if not.
+  - «Taken» means Sentry's ingest answered 2xx within 8 s (the SDK's own `sendFeedback`): a request blocked, refused
+    or rate-limited is not sent (Codex P2 on #367; `flush` only said the queue drained).
+  - A Sentry whose load or set-up failed is started again by the next Send, so Try again works (Codex P2 on #367). A
+    crash a boundary catches doesn't start it again: each try of a chunk that won't load would bring the new-version
+    notice back.
 - **CSP:** `connect-src` gains Sentry's ingest hosts.
 - **The privacy notice** names Sentry and what it receives.
 - **Fixtures:** `?sentry=1` turns reports on, with a DSN whose host the tests answer (`fixtures/crash-dsn.ts`, in place
@@ -48,4 +53,7 @@
 - `crash-feedback.spec.ts`:
   - feedback reaches the service with its words, and is said sent;
   - a thrown error is reported without the address's query or fragment;
-  - without a DSN, no Send feedback.
+  - without a DSN, no Send feedback;
+  - a send the ingest never gets (aborted) or refuses (500) says it couldn't, never «Sent»;
+  - a Sentry whose first set-up failed (`?sentryFlaky=1`, `fixtures/crash-sentry.ts`) starts again for the next Send,
+    which is sent, and reports on its own from then on.
