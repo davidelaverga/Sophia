@@ -77,7 +77,15 @@ export function GoalCard(props: Props) {
         </>
       )}
       {controls && (
-        <WorkControls goal={goal} projectId={projectId} identity={identity.name} token={identity.token} admin={admin} />
+        <WorkControls
+          goal={goal}
+          projectId={projectId}
+          identity={identity.name}
+          token={identity.token}
+          admin={admin}
+          // Over its plan they stand at its top right (board.css); a phone, which shows no tips, puts them under it.
+          edge={compact ? 'end' : 'start'}
+        />
       )}
       {children}
     </li>

@@ -24,8 +24,8 @@ interface Props {
   keys?: string | undefined
   /** What it does, in its tip (a goal's Stop: «End the work for good»); the label when only a key is given. */
   tip?: string | undefined
-  /** The tip's alignment: `end` for a press at the content's edge, so the tip never runs past it. */
-  tipAlign?: 'center' | 'end'
+  /** The tip's alignment: `end` at the content's end and `start` at its start, so the tip never runs past it. */
+  tipAlign?: 'center' | 'end' | 'start'
 }
 
 /** The button at rest. Waiting, it keeps the focus it was given back (Codex P1 on #356): said, not natively disabled. */
