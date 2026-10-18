@@ -149,6 +149,11 @@ function pieces() {
 
 /** The flash of a tile that changed glows in its tool's own colour, set on the tile: no root token can carry it. */
 const OWN_COLOUR = ['src/features/resources/resources.css @keyframes tile-changed 0%']
+/**
+ * Her orb's glow on paper (paper-orb.md) rises with her state, set on the light (her breath, her voice, a call): no root
+ * token can carry it either.
+ */
+const HER_ORB = "src/app/theme.css :root[data-theme='light'] .light::after"
 /** Her mark keeps its soft light on paper (light-paper-mark.md): the one light of colour paper keeps is hers. */
 const HERS = new Set([
   '--glow-mark',
@@ -220,8 +225,11 @@ function drawsEffect({ property, value }: Declaration): boolean {
 }
 /** The hand-written colours in effects today, each to go with its branch of the light-mode plan (informe-claro §6). */
 const WRITTEN = [
-  // Her halo on paper (light-paper-mark.md): its white heart and deep ring; the orb replaces it.
-  "src/app/theme.css :root[data-theme='light'] .light::after { background }",
+  // Her orb on paper (paper-orb.md), which replaced the halo: her clouds, her glass and its light, in her ramp until the
+  // ramp is tokens (light-paper.md, row 13).
+  "src/app/theme.css :root[data-theme='light'] .light::before { background-image }",
+  "src/app/theme.css :root[data-theme='light'] .light::after { background-image }",
+  "src/app/theme.css :root[data-theme='light'] .light::after { box-shadow }",
   // GPT's own gradient and glints, a tool's look.
   "src/features/resources/resources.css .effort[data-look='gpt'][data-alive] .effort-fill { background }",
   "src/features/resources/resources.css .effort[data-look='gpt'][data-alive] .effort-fill::after { background }",
@@ -238,7 +246,7 @@ const opaque = (colour: string) => /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(colour) 
 describe('glows (light-live.md)', () => {
   it('no piece glows of its own: each glow reads a --glow token', () => {
     const own = pieces()
-      .filter((d) => !OWN_COLOUR.includes(d.where))
+      .filter((d) => !OWN_COLOUR.includes(d.where) && d.where !== HER_ORB)
       .flatMap((d) =>
         layersOf(d)
           .filter(glows)

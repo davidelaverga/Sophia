@@ -212,6 +212,16 @@ export const WORKING_PHASES: ReadonlySet<NativeTask['phase']> = new Set([
  * working only while its task is: a finished brief leaves its goal `checking`, its result waiting for review,
  * and that is not work in progress (CX-0061).
  */
+/**
+ * The tasks whose result arrived since `before` (orb-result.md): at work then, with their result ready now. The first look
+ * (no `before`) arrives nothing: what was finished when the room opened is not news.
+ */
+export function arrivedResults(before: Snapshot['work'] | null, now: Snapshot['work']): string[] {
+  if (!before) return []
+  const working = new Set(before.filter((t) => WORKING_PHASES.has(t.phase)).map((t) => t.id))
+  return now.filter((t) => t.phase === 'result_ready' && working.has(t.id)).map((t) => t.id)
+}
+
 export function runningWork(snapshot: Pick<Snapshot, 'goals' | 'work'> | undefined): number {
   if (!snapshot) return 0
   const withTask = new Set(snapshot.work.map((task) => task.goalId))

@@ -82,6 +82,14 @@ function pieces() {
   )
 }
 
+/**
+ * Her orb's glass on paper (docs/plans/paper-orb.md) grounds itself and lets her violet fall under her: her light's own
+ * material, not a level, written with her ramp until the ramp is tokens (light-paper.md, row 13).
+ */
+const HER_ORB = "src/app/theme.css :root[data-theme='light'] .light::after"
+/** A rule only paper applies: what it casts is paper's, never the room's. */
+const paperOnly = (where: string) => where.includes(":root[data-theme='light']")
+
 /** What each piece cast in the room before the tokens (main at f37006560: `--shadow-k` 1, the room's ink black). */
 const ROOM: Record<string, string[]> = {
   'src/app/theme.css .tip': ['0 8px 24px rgb(0 0 0 / 0.5)'],
@@ -117,11 +125,13 @@ const ROOM: Record<string, string[]> = {
 
 describe('elevation (light-shadows.md)', () => {
   it('no piece casts a shadow of its own: each reads an elevation token', () => {
-    const own = pieces().flatMap((d) =>
-      split(d.value, ',')
-        .filter(casts)
-        .map((layer) => `${d.where} { ${d.property}: ${layer} }`),
-    )
+    const own = pieces()
+      .filter((d) => d.where !== HER_ORB)
+      .flatMap((d) =>
+        split(d.value, ',')
+          .filter(casts)
+          .map((layer) => `${d.where} { ${d.property}: ${layer} }`),
+      )
     assert.deepEqual(own, [])
   })
 
@@ -171,7 +181,7 @@ describe('elevation (light-shadows.md)', () => {
 
   it('the room keeps every shadow it cast, to the value', () => {
     const now: Record<string, string[]> = {}
-    for (const d of pieces().filter((p) => p.property === 'box-shadow')) {
+    for (const d of pieces().filter((p) => p.property === 'box-shadow' && !paperOnly(p.where))) {
       const cast = split(resolve(d.value, room), ',').filter(casts)
       if (cast.length) now[d.where] = [...(now[d.where] ?? []), ...cast]
     }
