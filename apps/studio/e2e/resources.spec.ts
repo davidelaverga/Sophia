@@ -1241,7 +1241,7 @@ test('each resource shows its tool’s own mark, and its sheet the maker', async
     await expect((await open(page, name)).getByText(vendor, { exact: true })).toBeVisible()
     await page.keyboard.press('Escape')
   }
-  // A coloured mark is an image; a one-colour mark (Grok) takes the text's colour, so it reads on the dark theme.
+  // A coloured mark is an image; a one-colour mark (Grok) takes the text's colour, so it reads on either theme.
   await expect(tile(page, 'Davide · Codex').locator('.tool-logo img')).toHaveAttribute('src', /\.svg|^data:image\/svg/)
   await expect(tile(page, 'Davide · Grok').locator('.tool-logo-mark')).toBeVisible()
 })
