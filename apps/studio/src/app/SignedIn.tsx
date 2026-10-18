@@ -10,7 +10,7 @@ import { OPEN } from '../features/personal/lock.ts'
 import { useLock, useUnlockOnReturn } from '../features/personal/useLock.ts'
 import { ProjectShell, type ProjectCall } from '../features/studio/ProjectShell.tsx'
 import { AccountMenu } from './AccountMenu.tsx'
-import { forgetPersonalReads } from './account-cache.ts'
+import { PersonalLocked, forgetPersonalReads } from './account-cache.ts'
 import { accountOf } from './auth-callback.ts'
 import { OpeningPrepares } from './opening-prepares.ts'
 import type { Identity } from './dev-identity.ts'
@@ -275,17 +275,20 @@ function SignedIn(props: SignedInProps) {
   const openProject = opening(join.ask, open)
   return (
     <>
-      <ProjectShells
-        ids={ids}
-        onScreen={onScreen}
-        identity={identity}
-        account={<AccountMenu identity={identity} where="project" actions={actions} />}
-        routing={routing}
-        joining={join.joining}
-        onJoinHandled={join.handled}
-        onCall={reportCall}
-        onSignOut={out.signOut}
-      />
+      {/* The padlock reaches every project shown or kept for its call: none reads the person's Needs while it is shut. */}
+      <PersonalLocked.Provider value={lock.locked}>
+        <ProjectShells
+          ids={ids}
+          onScreen={onScreen}
+          identity={identity}
+          account={<AccountMenu identity={identity} where="project" actions={actions} />}
+          routing={routing}
+          joining={join.joining}
+          onJoinHandled={join.handled}
+          onCall={reportCall}
+          onSignOut={out.signOut}
+        />
+      </PersonalLocked.Provider>
       {!project && (
         <Places
           place={route.place}
