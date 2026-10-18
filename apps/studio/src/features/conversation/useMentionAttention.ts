@@ -3,9 +3,10 @@
 // here), and only once the message is readable on screen. A message the address names (a mention opened from Home) is
 // brought into view once; when it isn't among the messages shown, a few earlier pages are read to find it, and the
 // chat says so when it can't be shown.
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useContext, useEffect, useRef, useState, type RefObject } from 'react'
 import { keepPreviousData, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { listNeeds, markNeedSeen } from '../../api/needs.ts'
+import { PersonalLocked } from '../../app/account-cache.ts'
 import { tokenSubject } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { modalOnScreen } from '../../app/shortcuts.ts'
@@ -25,22 +26,25 @@ const SEEN_RETRY_MS = 1000
 /**
  * The mentions waiting for the reader in this project, by message: each one's need id exactly as the service lists it
  * (`mention:<project>:<revision>.<occurrence>:<message>`) and the message revision it is for, so it is attached only to
- * that revision shown (mention-view `needFor`). Read again as the project moves.
+ * that revision shown (mention-view `needFor`). Read again as the project moves. The list is the person's mixed Needs
+ * (their replies' words beside the mentions): while the personal padlock is shut it is neither read nor shown, and what
+ * was read goes (forgetPersonalReads); opened again, it is read afresh (P1 4309009938).
  */
 export function useMyMentions(
   identity: Identity,
   projectId: string,
   cursor: string | undefined,
 ): ReadonlyMap<string, Waiting> {
+  const locked = useContext(PersonalLocked)
   const read = useQuery({
     queryKey: ['mentions', 'needs', tokenSubject(identity.token) ?? identity.token, cursor],
     queryFn: ({ signal }) => listNeeds(identity.token, signal),
     placeholderData: keepPreviousData,
-    enabled: MENTIONS,
+    enabled: MENTIONS && !locked,
     retry: false,
   })
   const needs = read.data?.needs
-  if (!needs) return NONE
+  if (!needs || locked) return NONE
   return new Map(
     needs
       .filter((n) => n.kind === 'mention' && n.projectId === projectId && n.ref.kind === 'contribution')

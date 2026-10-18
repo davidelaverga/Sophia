@@ -23,7 +23,10 @@ import { OFFERED } from './invitations-data.ts'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { forgetKept, keptAt, type Kept } from '../src/features/conversations/talk-store.ts'
 import { accountOf } from '../src/app/auth-callback.ts'
+import { PersonalLocked, forgetPersonalReads } from '../src/app/account-cache.ts'
 import { setSignedIn } from '../src/app/signed-in.ts'
+import { lockKey, OPEN } from '../src/features/personal/lock.ts'
+import { useLock } from '../src/features/personal/useLock.ts'
 import { messagesKey } from '../src/features/conversations/conversation-list.ts'
 import { StrictMode, useEffect, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -424,6 +427,12 @@ interface Fixture {
   unexpected: readonly string[]
   /** The writes that reached the brief, each with its body (mission-writes.ts). */
   missionWrites: readonly { path: string; body: unknown }[]
+  /** The personal padlock, as SignedIn holds it (useLock): shut by the person, or opened (P1 4309009938). */
+  setPadlock: (locked: boolean) => void
+  /** What the page keeps of the person's mixed Needs read for the room's mentions: every variant holding an answer (P1 4309009938). */
+  cachedMentionNeeds: () => unknown[]
+  /** The device storage key of this account's padlock (lock.ts), for another tab's lock. */
+  padlockKey: () => string
 }
 
 declare global {
@@ -820,6 +829,13 @@ const project = {
 installFixtureApi(project)
 
 window.fixture = {
+  setPadlock: (locked) => padlock.set(locked),
+  cachedMentionNeeds: () =>
+    queryClient
+      .getQueriesData({ queryKey: ['mentions', 'needs'] })
+      .map(([, data]) => data)
+      .filter((data) => data !== undefined),
+  padlockKey: () => lockKey(accountOf(identity)),
   update: () => publish(project),
   shutDoor: () => {
     project.doorShut = true
@@ -1534,11 +1550,26 @@ const demoAccount = (privacy: () => void) => ({
   signOutEverywhere: () => window.location.assign(`signin.html?everywhere=1${DEMO ? '&demo=1' : ''}`),
 })
 
+/** The padlock's control for a check (window.fixture.setPadlock), set once the page's padlock is mounted. */
+const padlock = { set: (_locked: boolean) => {} }
+// `padlock=call`: a call that begins shuts the padlock, as SignedIn's does (useLock); otherwise this page's calls leave it.
+const CALL_SHUTS = query.get('padlock') === 'call'
+// `padlock=shut`: the page opens with the padlock already shut on this device, as it was left (lock.ts's stored value).
+if (query.get('padlock') === 'shut') localStorage.setItem(lockKey(accountOf(identity)), 'you')
+
 function Project({ background }: { background: boolean }) {
   const [view, setView] = useState<View>(viewOf(query.get('place')))
   const [privacy, setPrivacy] = useState(false)
+  const [inCall, setInCall] = useState(false)
+  // The personal padlock as SignedIn holds it, on the same device storage (another tab's lock reaches it too), and what
+  // it forgets while shut (SignedIn's useForgetWhileLocked).
+  const [lock, setLock] = useLock(accountOf(identity), CALL_SHUTS && inCall ? PROJECT : null)
+  padlock.set = (locked) => setLock(locked ? { locked: true, by: 'you' } : OPEN)
+  useEffect(() => {
+    if (lock.locked) forgetPersonalReads(queryClient)
+  }, [lock.locked])
   return (
-    <>
+    <PersonalLocked.Provider value={lock.locked}>
       {privacy && <PrivacySheet onClose={() => setPrivacy(false)} />}
       <ProjectShell
         projectId={PROJECT}
@@ -1552,6 +1583,7 @@ function Project({ background }: { background: boolean }) {
         onWork={() => served.push('went:work')}
         onSignOut={nothing}
         joinOnOpen={query.get('call') === 'on'}
+        onCall={(call) => setInCall(call !== null)}
         background={background}
         resources={
           DEMO ? (
@@ -1561,7 +1593,7 @@ function Project({ background }: { background: boolean }) {
           ) : undefined
         }
       />
-    </>
+    </PersonalLocked.Provider>
   )
 }
 
