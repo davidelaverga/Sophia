@@ -66,27 +66,43 @@ describe('search admission', () => {
         headers: { 'x-actor': actor, authorization: token },
       })
 
-    const first = ask(A, 'Bearer one')
-    await new Promise((r) => setTimeout(r, 20))
-    assert.equal(connects, 1, 'admitted: its client is asked for')
-    // The same verified actor with another token shares its bound: refused before any client is asked for.
-    assert.equal((await ask(A, 'Bearer two')).statusCode, 503)
-    assert.equal(connects, 1)
-    const second = ask(B, 'Bearer three')
-    await new Promise((r) => setTimeout(r, 20))
-    assert.equal(connects, 2)
-    // Aggregate bound: a third actor is refused before the pool, and nothing waits in a queue.
-    assert.equal((await ask(C, 'Bearer four')).statusCode, 503)
-    assert.equal(connects, 2)
-    assert.deepEqual(admission.state, { inFlight: 2, actors: 2 })
-    // Settled with an error (the client could not be had): the permit goes, and that actor may search again.
-    waiting[0]!.reject(new Error('connection refused'))
-    // (A client that can't be had is the API's «unavailable» too; it was asked for, unlike the refused ones above.)
-    assert.equal((await first).statusCode, 503)
-    assert.deepEqual(admission.state, { inFlight: 1, actors: 1 })
-    waiting[1]!.reject(new Error('connection refused'))
-    await second
-    assert.deepEqual(admission.state, { inFlight: 0, actors: 0 })
-    await app.close()
+    // A refusal is immediate: a request still unanswered after a bounded wait was admitted (and waits for a client).
+    const refusedNow = async (actor: string, token: string): Promise<number> => {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const late = new Promise<'admitted'>((r) => {
+        timer = setTimeout(() => r('admitted'), 1_000)
+      })
+      const answer = await Promise.race([ask(actor, token), late]).finally(() => clearTimeout(timer))
+      assert.ok(answer !== 'admitted', `${actor} was admitted instead of refused at once`)
+      return answer.statusCode
+    }
+
+    try {
+      const first = ask(A, 'Bearer one')
+      await new Promise((r) => setTimeout(r, 20))
+      assert.equal(connects, 1, 'admitted: its client is asked for')
+      // The same verified actor with another token shares its bound: refused before any client is asked for.
+      assert.equal(await refusedNow(A, 'Bearer two'), 503)
+      assert.equal(connects, 1)
+      const second = ask(B, 'Bearer three')
+      await new Promise((r) => setTimeout(r, 20))
+      assert.equal(connects, 2)
+      // Aggregate bound: a third actor is refused before the pool, and nothing waits in a queue.
+      assert.equal(await refusedNow(C, 'Bearer four'), 503)
+      assert.equal(connects, 2)
+      assert.deepEqual(admission.state, { inFlight: 2, actors: 2 })
+      // Settled with an error (the client could not be had): the permit goes, and that actor may search again.
+      waiting[0]!.reject(new Error('connection refused'))
+      // (A client that can't be had is the API's «unavailable» too; it was asked for, unlike the refused ones above.)
+      assert.equal((await first).statusCode, 503)
+      assert.deepEqual(admission.state, { inFlight: 1, actors: 1 })
+      waiting[1]!.reject(new Error('connection refused'))
+      await second
+      assert.deepEqual(admission.state, { inFlight: 0, actors: 0 })
+    } finally {
+      // Whatever happened, nothing is left waiting: every client still asked for is refused, and the app closes.
+      for (const w of waiting) w.reject(new Error('test over'))
+      await app.close()
+    }
   })
 })
