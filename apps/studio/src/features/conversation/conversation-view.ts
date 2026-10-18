@@ -72,9 +72,7 @@ export function authorLabel(
   if (actorId === me) return 'You'
   const name = names.get(actorId) ?? fallback ?? undefined
   if (name === undefined) return 'A member'
-  // An address is no name: the person, as the stage names them (e2e-real Q1); a name given stays whole, an at sign in it
-  // or not (a guest's «@alice», «Ana @ Acme»: Codex P2 on #330).
-  return ADDRESS.test(name) ? shortName(name) : name
+  return spokenName(name)
 }
 
 /**
@@ -94,6 +92,12 @@ export function withAuthors(
 
 /** An email address, as an account's name falls back to one: one word, an at sign, a domain with a dot. */
 const ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/**
+ * A name as it is said: an address is no name, so the person, as the stage names them (e2e-real Q1); a name given stays
+ * whole, an at sign in it or not (a guest's «@alice», «Ana @ Acme»: Codex P2 on #330).
+ */
+export const spokenName = (name: string) => (ADDRESS.test(name) ? shortName(name) : name)
 
 export type BriefBlock =
   { kind: 'heading'; text: string } | { kind: 'item'; text: string } | { kind: 'paragraph'; text: string }

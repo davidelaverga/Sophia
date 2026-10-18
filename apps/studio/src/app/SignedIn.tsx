@@ -15,6 +15,7 @@ import { accountOf } from './auth-callback.ts'
 import { OpeningPrepares } from './opening-prepares.ts'
 import type { Identity } from './dev-identity.ts'
 import { joinStands, projectOnScreen, shownView, type Place } from './route.ts'
+import { ATTENTION } from './attention.ts'
 import { CONVERSATIONS, VISION } from './vision.ts'
 import { ShortcutScope } from './shortcuts.ts'
 import { SIGN_OUT_FAILED } from './sign-out.ts'
@@ -192,7 +193,7 @@ function ProjectShells(props: ShellsProps) {
             <ProjectShell
               key={`${accountOf(identity)}:${id}`}
               projectId={id}
-              view={id === route.projectId ? shownView(route.view, VISION, CONVERSATIONS) : 'studio'}
+              view={id === route.projectId ? shownView(route.view, VISION, CONVERSATIONS, ATTENTION) : 'studio'}
               identity={identity}
               account={account}
               onShow={show}

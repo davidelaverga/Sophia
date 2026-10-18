@@ -7,6 +7,7 @@ import {
   FIND_FROM,
   findNotes,
   findProjects,
+  nextShown,
   orderProjects,
   codeButton,
   EDGE_TIP,
@@ -16,6 +17,7 @@ import {
   greeting,
   lightOf,
   HOME_ACTION,
+  homeLine,
   homeRows,
   otherWaysNote,
   otherWaysShown,
@@ -215,6 +217,8 @@ describe('home, as a place that knows where you’ll go', () => {
   it('Sophia says the one thing that matters: your call, else a session soon, else a live room, else all is well', () => {
     assert.equal(plain(sophiaSays(undefined, NOW, null)), '')
     assert.equal(plain(sophiaSays([], NOW, null)), 'Start a project when you’re ready, or just talk to me.')
+    // Where she can't answer, she doesn't offer to talk (prod-honesty's home-no-companion.md).
+    assert.equal(plain(sophiaSays([], NOW, null, false)), 'Start a project when you’re ready.')
     assert.equal(plain(sophiaSays([project()], NOW, null)), 'Your projects are as you left them.')
     assert.equal(plain(sophiaSays(four, NOW, null)), 'Pitch run in Weekly standup starts in 10 min.')
     const live = project({
@@ -250,9 +254,10 @@ describe('home, as a place that knows where you’ll go', () => {
 })
 
 describe('your data', () => {
-  it('counts days with Sophia by the days the person wrote, and copies everything as text', () => {
+  it('counts days with Sophia by the days the person wrote, and copies everything as text', (t) => {
     const everything: PersonalExport = {
-      exportedAt: NOW.toISOString(),
+      // The export's own time, after every turn, not the device's (Codex P2 on #405).
+      exportedAt: inMin(3),
       next: null,
       turns: [
         turn('I have a pitch', 60 * 24),
@@ -280,12 +285,15 @@ describe('your data', () => {
     }
     // Days are the server's count over the whole conversation (a long one lists only its newest turns).
     assert.deepEqual(factsOf({ ...everything, days: 31 }), { days: 31, notes: 1, carried: 1 })
-    const text = exportText(everything, 'Ana', NOW)
+    // The device's clock is years off: the copy never reads it.
+    t.mock.timers.enable({ apis: ['Date'], now: new Date(2030, 0, 1) })
+    const text = exportText(everything, 'Ana')
+    t.mock.timers.reset()
     // A copy is read another day (export-dates.md): its days are dates, its messages say when, and it says when it was
-    // made.
+    // made, by the export's own time.
     assert.match(
       text,
-      /^Ana · personal space with Sophia\nAs of Wednesday, September 30, 2026, 21:00\n\nNotes:\n- Take/,
+      /^Ana · personal space with Sophia\nAs of Wednesday, September 30, 2026, 21:03\n\nNotes:\n- Take/,
     )
     assert.match(text, /Carried to projects:\n- Ask Luis \(Launch plan\)/)
     assert.match(
@@ -469,5 +477,40 @@ describe('finding a note (personal-notes-write-find.md)', () => {
       findNotes(more, '^').map((n) => n.id),
       ['e'],
     )
+  })
+})
+
+describe('Home’s line to Sophia (docs/plans/home-no-companion.md)', () => {
+  it('is the line where she answers, says she can’t where she doesn’t, and holds its place until that is known', () => {
+    assert.equal(homeLine(false, true), 'line')
+    assert.equal(homeLine(false, false), 'cannot')
+    assert.equal(homeLine(false, undefined), 'held')
+  })
+  it('is nothing while the space is locked: your row unlocks it', () => {
+    assert.equal(homeLine(true, true), null)
+    assert.equal(homeLine(true, false), null)
+  })
+})
+
+describe('the note that takes the focus once one is forgotten (Codex P2 on #431)', () => {
+  const ordered = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
+
+  it('is the next one shown once it is gone, when Find went with it and every note is shown again', () => {
+    // Find held only n3; then n1 to n6 but n3 are shown.
+    assert.equal(nextShown(ordered, 'n3', ['n1', 'n2', 'n4', 'n5', 'n6']), 'n4')
+    // Find held n1, n3, n4, n5 and n6; the next shown is n2, not the next match.
+    assert.equal(nextShown(ordered, 'n1', ['n2', 'n3', 'n4', 'n5', 'n6']), 'n2')
+  })
+
+  it('skips the notes Find still leaves out', () => {
+    assert.equal(nextShown(ordered, 'n2', ['n1', 'n5', 'n6']), 'n5')
+  })
+
+  it('is the nearest one before it when none after it is shown', () => {
+    assert.equal(nextShown(ordered, 'n5', ['n1', 'n3']), 'n3')
+  })
+
+  it('is none when no note is shown', () => {
+    assert.equal(nextShown(ordered, 'n1', []), null)
   })
 })

@@ -15,7 +15,11 @@ export const submitContribution = (
 
 /** One task with its instruction and, once captured, its source-backed result. */
 export const getNativeTask = (token: string, projectId: string, taskId: string): Promise<NativeTaskDetail> =>
-  callApi(`/api/v1/projects/${projectId}/native-tasks/${taskId}`, { token, method: 'GET' }, parseNativeTaskDetail)
+  callApi(
+    `/api/v1/projects/${projectId}/native-tasks/${taskId}`,
+    { token, method: 'GET', doorRead: true },
+    parseNativeTaskDetail,
+  )
 
 /**
  * "Try PDF again" (A11, 0032): print a report published without its PDF again, as a binding-less rendition. An

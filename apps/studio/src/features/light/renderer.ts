@@ -69,6 +69,8 @@ export interface LightRenderer {
   /** Render at a lower resolution; false once it cannot go lower. */
   degrade: () => boolean
   dispose: () => void
+  /** Gives the context back now: for a canvas that is never drawn again (the page turned paper). */
+  release: () => void
 }
 
 function compile(gl: WebGLRenderingContext, type: number, source: string): WebGLShader {
@@ -145,5 +147,7 @@ export function createLightRenderer(canvas: HTMLCanvasElement, reduced: boolean)
     // The context stays with its canvas: React may mount the same canvas again (StrictMode, fast refresh),
     // and a lost context could not draw there. The browser frees it with the canvas.
     dispose: () => gl.bindBuffer(gl.ARRAY_BUFFER, null),
+    // The room's canvas leaves as the page turns paper and is never mounted again: no need to wait for the browser.
+    release: () => gl.getExtension('WEBGL_lose_context')?.loseContext(),
   }
 }

@@ -17,6 +17,7 @@ import { rememberDevice, type DeviceKind, type MediaDevice } from './device-pref
 import { micOnJoin, rememberMic } from './mic-preference.ts'
 import type { Heard } from './reaction-channel.ts'
 import { paced, shownAfter, SHOWN_FOR_MS, type Reaction, type ReactionEmoji } from './reactions.ts'
+import type { Level } from './people-volume.ts'
 import { mediaMessage, type Device, type DockStatus, type RoomParticipant } from './room-view.ts'
 import type { SophiaSignal } from './sophia-view.ts'
 
@@ -67,6 +68,11 @@ export interface ProjectRoom {
   /** When this person's latest call went live (ms): what a late join is measured from; null before any. */
   liveSince: number | null
   setMicrophone: (on: boolean) => Promise<void>
+  /**
+   * A fence on the microphone choices: true until the next one is made, or the call is another. Push to talk's late
+   * turn-off answers to it (Codex P2s on #381).
+   */
+  chosenStill: () => () => boolean
   setCamera: (on: boolean) => Promise<void>
   setScreenShare: (on: boolean) => Promise<void>
   /**
@@ -88,6 +94,9 @@ export interface ProjectRoom {
   react: (emoji: ReactionEmoji) => void
   /** What this person follows, said to the members in the call (A14, following-signal.ts); null for nothing. */
   setFollowing: (versionId: string | null) => Promise<void>
+  /** How loud each other person is here alone, by identity, full when not listed (people-volume.md). */
+  volumes: ReadonlyMap<string, Level>
+  setVolume: (identity: string, level: Level) => void
   /** Others' cameras come to this browser (incoming-video.md): off for this call only; a shared screen still comes. */
   incomingVideo: boolean
   setIncomingVideo: (on: boolean) => void
@@ -213,6 +222,8 @@ function deviceSwitch(connection: { current: RoomConnection | null }, say: (note
  */
 function useDevices(connection: { current: RoomConnection | null }, refresh: () => void) {
   const [mediaError, setMediaError] = useState<string | null>(null)
+  /** The microphone choices made, counted as each is asked (before its first wait). */
+  const choices = useRef(0)
   /** One device in call `c` turned on or off; the note says why it failed, for the way it was going. */
   const change = async (c: RoomConnection | null, device: Device, on: boolean): Promise<Outcome> => {
     if (!c) return 'took'
@@ -246,8 +257,13 @@ function useDevices(connection: { current: RoomConnection | null }, refresh: () 
     silence: async () => (await media('microphone', false)) !== 'failed',
     /** The person's own choice, remembered for their next join; true when it took in this call. */
     setMicrophone: async (on: boolean): Promise<boolean> => {
+      choices.current += 1
       rememberMic(on)
       return (await media('microphone', on)) === 'took'
+    },
+    chosenStill: () => {
+      const [c, n] = [connection.current, choices.current]
+      return () => c !== null && connection.current === c && choices.current === n
     },
     setCamera: async (on: boolean) => {
       await media('camera', on)
@@ -479,6 +495,30 @@ function useReactions(connection: { current: RoomConnection | null }) {
   }
 }
 
+/** Each person's volume, here alone (people-volume.md): kept by person for the call; out of it, everyone is full again. */
+function usePeopleVolume(connection: { current: RoomConnection | null }) {
+  const [volumes, setVolumes] = useState<ReadonlyMap<string, Level>>(() => new Map())
+  return {
+    volumes,
+    setVolume: (identity: string, level: Level) => {
+      setVolumes((now) => new Map(now).set(identity, level))
+      connection.current?.setVolume(identity, level)
+    },
+    resetVolumes: () => setVolumes(new Map()),
+  }
+}
+
+/** What this person chose for this call alone: each person's volume and others' cameras. Out of it, both reset. */
+function useCallChoices(connection: { current: RoomConnection | null }) {
+  const { resetVolumes, ...volume } = usePeopleVolume(connection)
+  const { resetIncoming, ...incoming } = useIncomingVideo(connection)
+  const resetChoices = () => {
+    resetVolumes()
+    resetIncoming()
+  }
+  return { choices: { ...volume, ...incoming }, resetChoices }
+}
+
 /** Leaving, and how many calls the person was in and left by their own press (ProjectRoom.leftByPress). */
 function useLeave(calls: CallFence<RoomConnection>, outOfCall: (why: CallEnd | null) => void) {
   const [leftByPress, setLeftByPress] = useState(0)
@@ -522,7 +562,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     )
   }
   const { clearNote, arrive, silence, ...devices } = useDevices(calls, refresh)
-  const { resetIncoming, ...incoming } = useIncomingVideo(calls)
+  const { choices, resetChoices } = useCallChoices(calls)
   const typedChat = useConversation(calls, silence)
 
   /**
@@ -538,7 +578,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     joining.current = null
     setPeople(NOBODY)
     clearNote()
-    resetIncoming()
+    resetChoices()
     setStatus(why && CALL_END[why].failed ? 'failed' : 'idle')
     setError(why ? CALL_END[why].note : null)
   }
@@ -566,7 +606,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     ...joined,
     ...people,
     ...devices,
-    ...incoming,
+    ...choices,
     setMicrophone,
     ...conversationParts(typedChat),
     startAudio,

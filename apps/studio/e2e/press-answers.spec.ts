@@ -149,7 +149,8 @@ async function unanswering(page: Page, scope = 'body', tips = true) {
       Promise.all(
         document
           .getAnimations()
-          .filter((a) => a instanceof CSSTransition)
+          // A live ring's eased share, retaken each second, is no press easing back.
+          .filter((a) => a instanceof CSSTransition && !a.transitionProperty.startsWith('--'))
           .map((a) => a.finished.catch(() => undefined)),
       ),
     )

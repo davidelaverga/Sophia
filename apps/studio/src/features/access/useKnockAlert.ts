@@ -3,7 +3,10 @@
 // Those already waiting when the page read its snapshot are not news.
 import { useEffect, useRef } from 'react'
 import type { LobbyEntry } from '@sophia/contracts'
+import { notifyHidden } from '../../app/notify.ts'
 import { arrivals, knockWords } from './knock-alert.ts'
+
+export { canNotify } from '../../app/notify.ts'
 
 let context: AudioContext | null = null
 
@@ -28,22 +31,6 @@ function chime(): void {
   } catch {
     // No sound here: the door's panel and the tab's title still say it.
   }
-}
-
-/** Whether this browser can notify, and has been allowed to. */
-export const canNotify = () => typeof Notification !== 'undefined' && Notification.permission === 'granted'
-
-function notify(arrived: readonly LobbyEntry[], projectTitle: string, projectId: string): void {
-  if (!canNotify()) return
-  const shown = new Notification(knockWords(arrived), { body: projectTitle, tag: `knock:${projectId}` })
-  shown.addEventListener(
-    'click',
-    () => {
-      window.focus()
-      shown.close()
-    },
-    { once: true },
-  )
 }
 
 interface Options {
@@ -76,6 +63,6 @@ export function useKnockAlert(waiting: readonly LobbyEntry[], { projectId, proje
     const arrived = arrivals(before, people)
     if (arrived.length === 0) return
     chime()
-    if (document.hidden) notify(arrived, projectTitle, projectId)
+    notifyHidden(knockWords(arrived), projectTitle, `knock:${projectId}`)
   }, [ids, loaded, canDecide, projectTitle, projectId])
 }

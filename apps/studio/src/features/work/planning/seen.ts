@@ -6,7 +6,7 @@
 // viewer's look never leaks into this one; a browser that refuses storage just forgets.
 import type { BoardDecision } from './board-view.ts'
 import { actionable, laneOf, latestDecisions, type Lane, type Mark, type PlanRow } from './plan.ts'
-import { resultsOf } from './results.ts'
+import { nameIn, resultsOf, versionNames } from './results.ts'
 
 /** Whose look, at which plan. */
 export interface SeenAt {
@@ -203,14 +203,20 @@ const historySaid = (d: BoardDecision, { viewerId, people = {} }: Looking) =>
 /** A task's current result now: its version, or none (none current, or two claiming to be). */
 const resultNow = (r: PlanRow) => resultsOf(r.view).current?.version_id ?? null
 
+/** A new result, said by its version's name, never its id (version-names.md). */
+const newSaid = (r: PlanRow) =>
+  `${r.item.purpose} has a new result: ${nameIn(versionNames(r.view), resultNow(r) ?? '')}`
+
 /**
  * A result it had, lost since: none is current now, or two claim to be (Codex F-012). Said as such, never as a move
- * its mark didn't make.
+ * its mark didn't make, and by its name; gone from the list, as gone (version-names.md).
  */
 function lostSaid(r: PlanRow, had: string): string {
-  return resultsOf(r.view).ambiguous
-    ? `${r.item.purpose} has no single current result now: two versions claim to be current`
-    : `${r.item.purpose} has no current result now: ${had} isn’t current any more`
+  if (resultsOf(r.view).ambiguous)
+    return `${r.item.purpose} has no single current result now: two versions claim to be current`
+  const name = versionNames(r.view).get(had)
+  const what = name ? `${name} isn’t current any more` : 'its last result isn’t listed any more'
+  return `${r.item.purpose} has no current result now: ${what}`
 }
 
 /** What moved since the last look, by kind: a new result, a result lost, a mark that changed (or a task new since). */
@@ -255,7 +261,7 @@ export function whileAway(
     )
   const all = [
     ...decisionsSaid(decisions, seen, looking),
-    ...resulted.map((r) => `${r.item.purpose} has a new result: ${resultNow(r) ?? ''}`),
+    ...resulted.map(newSaid),
     ...lost.map(({ row, was }) => lostSaid(row, was)),
     ...marked.filter((r) => PRESSING.has(r.status.mark)).map(markSaid),
     ...blocked.map((r) => `${r.item.purpose} is blocked`),

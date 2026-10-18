@@ -12,6 +12,7 @@ import { projectTitle, useDocumentTitle } from '../../app/document-title.ts'
 import { routePath, type View, viewsShown } from '../../app/route.ts'
 import { CommandsHost } from '../../app/CommandsHost.tsx'
 import { useCommands, useOffered } from '../../app/useCommands.ts'
+import { ATTENTION } from '../../app/attention.ts'
 import { CONVERSATIONS, VISION } from '../../app/vision.ts'
 import { ProjectGoProvider, useArrival } from './project-go.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
@@ -34,6 +35,8 @@ import { ProjectSearch, SearchButton } from '../search/SearchSheet.tsx'
 import { VIEW_LABEL } from './ViewNav.tsx'
 import { useCatchUp } from '../voice/CatchUp.tsx'
 import { useUnseenWhileHidden } from '../conversation/unread-title.ts'
+import { openAcross } from '../work/planning/decision-alert.ts'
+import { useDecisionAlert } from '../work/planning/useDecisionAlert.ts'
 import { MeetingRecapOnLeave } from '../voice/MeetingRecap.tsx'
 import { useProjectRoom, type LeaveHow, type ProjectRoom } from '../voice/useProjectRoom.ts'
 import { useMedia, WIDE } from '../../app/useMedia.ts'
@@ -87,12 +90,12 @@ function useLeaveBehindClosedDoor(blocked: Blocked | null, room: ProjectRoom) {
 
 /**
  * The tab names the project and counts what waits: who is at its door, the messages written in the room while the tab
- * was hidden (unread-title.md), and the requests waiting on this person in their tools (`resourcesWaiting`), so a tab
- * in the background still calls.
+ * was hidden (unread-title.md), and what waits on this person (`mine`): the requests in their tools and the decisions on
+ * the board (decision-alert.md), so a tab in the background still calls.
  */
-function useTabTitle(snapshot: Snapshot | undefined, me: string | null, resourcesWaiting = 0) {
+function useTabTitle(snapshot: Snapshot | undefined, me: string | null, mine = 0) {
   const unseen = useUnseenWhileHidden(snapshot?.discussion, me)
-  const waiting = (snapshot?.lobby.filter((e) => e.status === 'waiting').length ?? 0) + resourcesWaiting + unseen
+  const waiting = (snapshot?.lobby.filter((e) => e.status === 'waiting').length ?? 0) + mine + unseen
   useDocumentTitle(snapshot ? projectTitle(snapshot.title, waiting) : null)
 }
 
@@ -243,6 +246,16 @@ function useJoinOnOpen(room: ProjectRoom, joinOnOpen: boolean, onHandled: (() =>
 }
 
 /**
+ * The decisions on the board waiting on the viewer (decision-alert.md): how many, for the tab's number, and a new one
+ * heard while the tab is hidden. None while the board hasn't been read, or the shell is in the background.
+ */
+function useDecisionsWaiting(shown: Snapshot | undefined, plans: ServedWork['plans'], projectId: string): number {
+  const open = shown && openAcross(plans)
+  useDecisionAlert(open, projectId, shown?.title ?? '')
+  return open?.length ?? 0
+}
+
+/**
  * What the shell does for the rest of the app: its tab title while on screen, its call reported, a join on arrival,
  * and no call kept behind a closed door.
  */
@@ -251,10 +264,12 @@ function useBeyondTheView(
   snapshot: Snapshot | undefined,
   room: ProjectRoom,
   blocked: Blocked | null,
-  me: string | null,
+  viewer: { me: string | null; plans: ServedWork['plans'] },
 ) {
   useLeaveBehindClosedDoor(blocked, room)
-  useTabTitle(props.background ? undefined : snapshot, me, props.resourcesWaiting)
+  const shown = props.background ? undefined : snapshot
+  const decisions = useDecisionsWaiting(shown, viewer.plans, props.projectId)
+  useTabTitle(shown, viewer.me, (props.resourcesWaiting ?? 0) + decisions)
   const looking = lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))
   useReportCall(props.projectId, snapshot?.title, room, looking, props.onCall)
   useJoinOnOpen(room, props.joinOnOpen ?? false, props.onJoinHandled)
@@ -273,7 +288,7 @@ const VIEW_ALSO: Readonly<Record<View, readonly string[]>> = {
 
 /** The views a person can go to from here, each a command without a key (docs/plans/commands.md). */
 const viewCommands = (view: View, onShow: (view: View) => void) =>
-  viewsShown(VISION, CONVERSATIONS)
+  viewsShown(VISION, CONVERSATIONS, ATTENTION)
     .filter((v) => v !== view)
     .map((v) => ({
       id: `view-${v}`,
@@ -480,7 +495,7 @@ export function ProjectShell(props: Props) {
   const { loaded, blocked, shown } = doorOf(snapshot)
   const dockAt = useDockPlace(room, snapshot.data, () => onShow('studio'), dockShown(view, blocked))
   const work = useTasksWork(props, feed, membership, blocked, searching)
-  useBeyondTheView(props, snapshot.data, room, blocked, membership?.actorId ?? null)
+  useBeyondTheView(props, snapshot.data, room, blocked, { me: membership?.actorId ?? null, plans: work.plans })
   const at = { view, inviting, mayInvite: !!shown && canInvite(membership), shown: !!shown, blocked: !!blocked }
   useProjectKeys({ onLeave, onWork, invite, search, show: onShow }, at)
   return (
@@ -832,9 +847,10 @@ function PageBody(props: BodyProps) {
   if (view === 'conversations' && CONVERSATIONS) {
     return <ConversationsView {...{ projectId, identity, membership }} cursor={snapshot?.cursor} />
   }
-  if (view === 'updates' && VISION) {
+  // Updates is served (A34), so the attention flag shows it too; its meetings and recaps (A12) stay the vision flag's.
+  if (view === 'updates' && (VISION || ATTENTION)) {
     const inCall = props.room.status === 'live' || props.room.status === 'reconnecting'
-    return <UpdatesView {...{ projectId, identity, snapshot, membership, inCall }} />
+    return <UpdatesView {...{ projectId, identity, snapshot, membership, inCall }} meetings={VISION} />
   }
   return view === 'studio' ? null : <PendingView view={view} onShow={onShow} />
 }

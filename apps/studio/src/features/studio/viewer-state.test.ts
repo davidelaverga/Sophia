@@ -3,10 +3,13 @@ import { describe, it } from 'node:test'
 import {
   addressLensFor,
   INITIAL_VIEWER_STATE,
+  LENSES,
+  lensesShown,
   lensInAddress,
   lensKept,
   readLensWrite,
   readViewerState,
+  shownLens,
   storedViewerState,
   viewerKey,
   viewerReducer,
@@ -100,5 +103,18 @@ describe('the lens in the address, kept and owned (Codex P2s on #242)', () => {
     const here = { pathname: '/p/one', search: '?lens=explore&report=r1&version=v2' }
     assert.equal(addressLensFor(viewerKey('ana', P), here, wrote), null)
     assert.equal(addressLensFor(mine, here, wrote), 'explore')
+  })
+})
+
+describe('the lenses shown (docs/plans/prod-honesty.md)', () => {
+  it('offers Converse alone outside the vision flag, and every lens under it', () => {
+    assert.deepEqual(lensesShown(false), ['converse'])
+    assert.deepEqual(lensesShown(true), LENSES)
+  })
+  it('opens a stored or linked lens that is not shown as Converse, and keeps a shown one', () => {
+    assert.equal(shownLens('explore', false), 'converse')
+    assert.equal(shownLens('build', false), 'converse')
+    assert.equal(shownLens('converse', false), 'converse')
+    assert.equal(shownLens('build', true), 'build')
   })
 })

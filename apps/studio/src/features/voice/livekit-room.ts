@@ -18,7 +18,6 @@ import {
   type RoomOptions,
   type Participant,
   type RemoteTrack,
-  type RemoteTrackPublication,
   type TrackPublication,
 } from 'livekit-client'
 import {
@@ -31,16 +30,19 @@ import {
 } from '@sophia/contracts/room-chat'
 import type { CallEnd } from './call-end.ts'
 import type { BackgroundProcessorWrapper } from '@livekit/track-processors'
+import { audioElements } from './audio-elements.ts'
 import { chosenBackground, type BackgroundId } from './background-preference.ts'
 import { backgroundPicture } from './background-pictures.ts'
 import { cameraBackground } from './camera-background.ts'
 import { deviceChange } from './device-change.ts'
+import { incomingCameras } from './incoming-cameras.ts'
 import { hearWhileMuted, mutedWatch } from './muted-speech.ts'
 import { chosenDevices, deviceName, type DeviceKind, type MediaDevice } from './device-preference.ts'
 import { followingSignal } from './following-signal.ts'
 import { VISION } from '../../app/vision.ts'
 import { standingOf, type RoomParticipant } from './room-view.ts'
 import { MEDIAPIPE_BASE, SEGMENTER_FILE } from './mediapipe-path.ts'
+import { peopleVolume, type Level } from './people-volume.ts'
 import { listenToReactions, type Heard } from './reaction-channel.ts'
 import { encodeReaction, REACTION_TOPIC, type ReactionEmoji } from './reactions.ts'
 import { isSophia, listenToSophia } from './sophia-channel.ts'
@@ -95,6 +97,8 @@ export interface RoomConnection {
   setFollowing: (versionId: string | null) => Promise<void>
   /** A reaction to everyone in the call, on its own topic (call-reactions.md). */
   sendReaction: (emoji: ReactionEmoji) => Promise<void>
+  /** How loud a person is in this browser alone, their voice and their screen's sound (people-volume.md). */
+  setVolume: (identity: string, level: Level) => void
   /** Others' cameras come to this browser, or not (incoming-video.md); a screen shared always comes. */
   setIncomingVideo: (on: boolean) => void
   leave: () => Promise<void>
@@ -173,61 +177,47 @@ function videoFeeds(): Feeds {
     ].filter((f): f is VideoFeed => f !== null)
 }
 
-/**
- * Others' cameras, taken or let go (incoming-video.md): off, this browser unsubscribes from each camera published to it,
- * now and as more are published; a screen shared always comes. On again, it takes them back.
- */
-function incomingCameras(room: Room, onChange: () => void): Pick<RoomConnection, 'setIncomingVideo'> {
-  let on = true
-  const apply = (pub: RemoteTrackPublication) => {
-    if (pub.source === Track.Source.Camera && pub.isSubscribed !== on) pub.setSubscribed(on)
-  }
-  // A camera published while they're off isn't taken; one published while they're on is LiveKit's to take, as ever.
-  room.on(RoomEvent.TrackPublished, (pub: RemoteTrackPublication) => {
-    if (!on) apply(pub)
-  })
-  return {
-    setIncomingVideo: (next) => {
-      on = next
-      for (const person of room.remoteParticipants.values())
-        for (const pub of person.trackPublications.values()) apply(pub)
-      onChange()
-    },
-  }
+/** Others' cameras, taken or let go (incoming-cameras.ts), over this room's publications. */
+function incomingVideo(room: Room, onChange: () => void): Pick<RoomConnection, 'setIncomingVideo'> {
+  const cameras = incomingCameras(
+    () => [...room.remoteParticipants.values()].flatMap((person) => [...person.trackPublications.values()]),
+    onChange,
+  )
+  room.on(RoomEvent.TrackPublished, cameras.published)
+  return { setIncomingVideo: cameras.set }
 }
 
-/** Remote voices (and a shared screen's sound) play through hidden audio elements, removed with the track. */
 /**
- * The room's voices, as audio elements this room owns: a room that ends removes its own, never another's (a join that
- * was superseded and left must not silence the call that replaced it). While the call reads Sophia, her voice has no
- * element at all (text-mode-quiet.md): LiveKit's startAudio would unmute one.
+ * The room's voices (and a shared screen's sound), in hidden audio elements this room owns (audio-elements.ts). While
+ * the call reads Sophia, her voice has no element at all (text-mode-quiet.md): LiveKit's startAudio would unmute one.
  */
 function remoteAudio(room: Room) {
-  const mine = new Set<HTMLMediaElement>()
-  const play = (track: RemoteTrack, whose: 'sophia' | 'member') => {
-    const el = track.attach()
+  const elements = audioElements<RemoteTrack, HTMLMediaElement>((el, whose) => {
     el.dataset.sophiaRoomAudio = whose
     document.body.append(el)
-    mine.add(el)
-  }
+  })
+  // Off lets a member's sound go at once: detached, startAudio can't unmute it before their track stops coming.
+  const volume = peopleVolume<HTMLMediaElement>(elements.drop)
   const stop = (track: RemoteTrack) => {
-    for (const el of track.detach()) {
-      el.remove()
-      mine.delete(el)
-    }
+    for (const el of elements.stop(track)) volume.remove(el)
   }
-  const sophia = sophiaVoice<RemoteTrack>({ attach: (track) => play(track, 'sophia'), detach: stop })
+  const sophia = sophiaVoice<RemoteTrack>({ attach: (track) => elements.play(track, 'sophia'), detach: stop })
   room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant) => {
     if (track.kind !== Track.Kind.Audio) return
     if (isSophia(participant)) sophia.add(track)
-    else play(track, 'member')
+    // A member's sound plays at the level given them here (people-volume.md); Sophia's keeps the call's.
+    else volume.add(elements.play(track, 'member'), participant.identity)
   })
   room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
     if (track.kind !== Track.Kind.Audio) return
     sophia.remove(track)
     stop(track)
   })
-  return { mine, setRead: sophia.setRead }
+  // A sound someone Off publishes (their screen's, or their voice after a rejoin) isn't taken (people-volume.md).
+  room.on(RoomEvent.TrackPublished, (publication, participant) => {
+    if (!isSophia(participant)) volume.published(publication, participant.identity)
+  })
+  return { clear: elements.clear, setRead: sophia.setRead, volume }
 }
 
 /**
@@ -457,8 +447,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
   const audio = remoteAudio(room)
   stopsWhenHostStops(room)
   room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
-    for (const el of audio.mine) el.remove()
-    audio.mine.clear()
+    audio.clear()
     cb.onEnded((reason !== undefined && ENDS[reason]) || 'dropped')
   })
   listenToSophia(room, cb)
@@ -499,7 +488,9 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     setFollowing: (versionId) => Promise.resolve(following.set(versionId)),
     sendReaction: (emoji) =>
       room.localParticipant.publishData(encodeReaction(emoji), { reliable: true, topic: REACTION_TOPIC }),
-    ...incomingCameras(room, cb.onChange),
+    setVolume: (identity, level) =>
+      audio.volume.set(identity, level, room.remoteParticipants.get(identity)?.trackPublications.values() ?? []),
+    ...incomingVideo(room, cb.onChange),
     leave: () => room.disconnect(),
   }
 }

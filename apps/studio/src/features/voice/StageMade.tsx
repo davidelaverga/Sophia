@@ -4,6 +4,10 @@
 // this person once opened (here or anywhere) or closed. Until the task's record is read it says what the chat's card
 // says, and Open waits.
 import { useQuery } from '@tanstack/react-query'
+import { TaskRefused } from '../artifacts/TaskRefused.tsx'
+import { useOwnedTaskDetail } from '../artifacts/task-detail.ts'
+import { ReportRefused } from '../artifacts/ReportRefused.tsx'
+import { useOwnedVersions } from '../artifacts/report-versions.ts'
 import {
   useCallback,
   useContext,
@@ -16,8 +20,7 @@ import {
   type RefObject,
 } from 'react'
 import { Icon, Tip } from '@sophia/ui'
-import { listArtifactVersions, listReports } from '../../api/artifacts.ts'
-import { getNativeTask } from '../../api/conversation.ts'
+import { listReports } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { modalOnScreen, ShortcutScope } from '../../app/shortcuts.ts'
 import { useCommands } from '../../app/useCommands.ts'
@@ -104,17 +107,25 @@ interface Props {
 
 /** The task's record, its report's version (the one the record names) and its card on Knowledge. */
 function useMadeRecord({ notice, projectId, identity }: Pick<Props, 'notice' | 'projectId' | 'identity'>) {
-  const task = useQuery({
+  // The task's own refusal (task-detail-read.ts) withholds its record: result facts, asker, report link.
+  const {
+    query: task,
+    detail,
+    refused: taskRefused,
+  } = useOwnedTaskDetail({
     queryKey: ['native-task', projectId, notice.taskId, 'notice', notice.resultRevision, identity.name],
-    queryFn: () => getNativeTask(identity.token, projectId, notice.taskId),
+    projectId,
+    taskId: notice.taskId,
+    identity,
   })
-  const detail = task.data
   const artifactId = detail?.task.artifactId
-  const versions = useQuery({
-    queryKey: ['report-versions', artifactId, identity.name],
-    queryFn: () => listArtifactVersions(identity.token, artifactId ?? ''),
-    enabled: !!artifactId,
-  }).data
+  // The report's own refusal (report-read.ts) withholds what was read of it here too.
+  const { versions, refused } = useOwnedVersions(
+    ['report-versions', artifactId, identity.name],
+    artifactId,
+    identity,
+    true,
+  )
   // Knowledge's first page holds a report just made (newest first). Under Knowledge's own key, so a description
   // edited there is read again here; otherwise at most every half minute.
   const card = useQuery({
@@ -128,11 +139,18 @@ function useMadeRecord({ notice, projectId, identity }: Pick<Props, 'notice' | '
   const outputs = detail?.result?.outputs ?? []
   // Only the version the record names: a list cached before a revision would show the older one.
   const version = versions?.find((v) => v.id === outputs[0]?.artifactVersionId)
-  // A read that failed is said, with a way to try again: never an Open that waits for ever.
-  const failed = task.isError && !detail
+  // A read that failed is said, with a way to try again: never an Open that waits for ever. The task's own refusal is
+  // not such a failure: it has its one recovery (MadeTaskRefused), never a second Try again or transient words too.
+  const failed = task.isError && !detail && !taskRefused
   // The room shows what is current: a version since replaced isn't offered to everyone.
   const current = !!version && versions?.[0]?.id === version.id
-  return { detail, artifactId, version, current, card, outputs, failed, retry: () => void task.refetch() }
+  const record = { detail, artifactId, version, current, card, outputs, failed, retry: () => void task.refetch() }
+  return { ...withheld(record, refused), taskRefused }
+}
+
+/** Refused (report-read.ts): the report's card and outputs are withheld too, not only its versions. */
+function withheld<R extends { card: unknown; outputs: readonly unknown[] }>(record: R, refused: boolean) {
+  return refused ? { ...record, card: undefined, outputs: [], refused } : { ...record, refused }
 }
 
 /** The Chat toggle of this stage, which holds the object's card: where the focus goes once the object is gone. */
@@ -283,7 +301,7 @@ export function StageMade(props: Props) {
   const { notice, nameOf, fresh, onBorn } = props
   const self = useRef<HTMLDivElement>(null)
   const record = useMadeRecord(props)
-  const { detail, version, card, outputs } = record
+  const { version, card } = record
   const { ready, key, open, close, onKeyDown } = useMadeActions(props, self, record)
   useUnderHerLine(self)
   const [born] = useState(fresh)
@@ -304,15 +322,17 @@ export function StageMade(props: Props) {
         <span className="made-title">{heading.title}</span>
         <span className="made-meta">{heading.meta}</span>
       </span>
+      <MadeRefused artifactId={record.refused ? record.artifactId : undefined} identity={props.identity} />
+      <MadeTaskRefused
+        refused={record.taskRefused}
+        projectId={props.projectId}
+        taskId={notice.taskId}
+        identity={props.identity}
+      />
       {card?.summary && (
         <MadeSummary summary={card.summary} by={card.summaryAuthorId ? nameOf(card.summaryAuthorId) : null} />
       )}
-      {detail?.result && (
-        <MadeFacts
-          facts={factWords(madeFacts(detail.result.markdown, outputs, version))}
-          asked={nameOf(detail.task.actorId)}
-        />
-      )}
+      <MadeFactsOf record={record} nameOf={nameOf} />
       <span className="made-acts">
         {record.failed ? <RetryRead onRetry={record.retry} /> : <OpenButton ready={ready} keyOn={key} onOpen={open} />}
         {props.show && version && record.current && props.show(version.id, () => props.onPutAway(notice))}
@@ -322,4 +342,26 @@ export function StageMade(props: Props) {
       </button>
     </div>
   )
+}
+
+/** A refused report on the stage: only that it isn't available, with its Try again (ReportRefused). */
+function MadeRefused({ artifactId, identity }: { artifactId: string | undefined; identity: Identity }) {
+  return artifactId ? <ReportRefused artifactId={artifactId} identity={identity} /> : null
+}
+
+/** What the result says, from the report's own text: none while the report is refused. */
+function MadeFactsOf({ record, nameOf }: { record: ReturnType<typeof useMadeRecord>; nameOf: (id: string) => string }) {
+  const { detail, outputs, version } = record
+  if (!detail?.result || record.refused) return null
+  return (
+    <MadeFacts
+      facts={factWords(madeFacts(detail.result.markdown, outputs, version))}
+      asked={nameOf(detail.task.actorId)}
+    />
+  )
+}
+
+/** The task refused to this person: only that, with its Try again (TaskRefused). */
+function MadeTaskRefused(p: { refused: boolean; projectId: string; taskId: string; identity: Identity }) {
+  return p.refused ? <TaskRefused projectId={p.projectId} taskId={p.taskId} identity={p.identity} /> : null
 }

@@ -72,6 +72,14 @@ export const commandsFor = (status: Goal['status'], admin: boolean): CommandKind
   ORDER.filter((kind) => COMMAND[kind].allowed.includes(status) && (kind !== 'retire_sessions' || admin))
 
 /**
+ * A goal's commands on this page: `commandsFor`, with Request review only under the vision flag. The lead's review
+ * ('lead.review' in the outbox) has no consumer yet, so in production its receipt would wait for ever; the fixtures'
+ * lead answers it (docs/plans/prod-asks.md).
+ */
+export const goalCommands = (status: Goal['status'], vision: boolean, admin = false): CommandKind[] =>
+  commandsFor(status, admin).filter((kind) => vision || kind !== 'request_review')
+
+/**
  * Command summaries describe what was *requested* (admission is not completion); room and membership
  * summaries describe what happened.
  */

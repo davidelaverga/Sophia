@@ -119,6 +119,21 @@ interface Props {
   children: ReactNode
 }
 
+/**
+ * What opened the report, read before the side panel closes and takes it out of sight: the focus returns there. And how
+ * many times one was asked for: the report on screen asked for again keeps its pane, which reads again where the focus
+ * goes back to if that opener leaves the page (Codex P2 on #448).
+ */
+function useOpener() {
+  const opener = useRef<HTMLElement | null>(null)
+  const [asked, setAsked] = useState(0)
+  const noteOpener = useCallback(() => {
+    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setAsked((n) => n + 1)
+  }, [])
+  return { opener, asked, noteOpener }
+}
+
 export function DocumentViewerProvider(props: Props) {
   const { projectId, identity, panelOpen, closePanel, openChat, chatUnread, call, note, askAbout, children } = props
   const { link, write, back } = useReportHistory(projectId)
@@ -127,11 +142,10 @@ export function DocumentViewerProvider(props: Props) {
   const [section, setSection] = useState<SectionAsk | null>(null)
   const asks = useRef(0)
   if (!link && section) setSection(null)
-  // What opened the report, read before the side panel closes and takes it out of sight: the focus returns there.
-  const opener = useRef<HTMLElement | null>(null)
+  const { noteOpener, ...openedBy } = useOpener()
   const open = useCallback(
     (r: OpenRequest) => {
-      opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      noteOpener()
       closePanel()
       setTab(r.tab ?? 'document')
       // A first open is an intent of its own (Back closes it); another report replaces the one on screen. A section is
@@ -139,7 +153,7 @@ export function DocumentViewerProvider(props: Props) {
       write(openedLink(link, r.section ? { ...r, format: 'markdown' } : r), link === null)
       setSection(r.section ? { anchor: r.section, versionId: r.versionId ?? null, n: (asks.current += 1) } : null)
     },
-    [closePanel, link, write],
+    [closePanel, link, noteOpener, write],
   )
   const close = useCallback(() => back(link?.size === 'full' ? 2 : 1, null), [back, link?.size])
   const leaveFor = useLeaveFor(link, close)
@@ -163,7 +177,7 @@ export function DocumentViewerProvider(props: Props) {
           projectId={projectId}
           identity={identity}
           link={link}
-          opener={opener}
+          {...openedBy}
           tab={tab}
           onTab={setTab}
           onVersion={(versionId) => write({ ...link, versionId }, false)}

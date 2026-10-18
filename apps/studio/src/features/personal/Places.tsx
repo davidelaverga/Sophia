@@ -416,13 +416,15 @@ function Home({ v }: { v: View }) {
   )
   const projects = v.projects.data?.projects
   const fresh = !!data && data.turns.length === 0 && data.notes.length === 0
+  // Whether Sophia answers here, as the API says; unknown until the space is read (home-no-companion.md).
+  const answers = data ? data.companion !== 'unavailable' : undefined
   return (
     <div className="c-home" data-place-view="home" data-content hidden={!v.shown.includes('home')}>
       <Welcome
         hello={greeting(now.getHours(), null, fresh)}
         name={firstName(props.identity)}
         date={dateLine(now)}
-        says={sophiaSays(projects, now, props.call ?? null)}
+        says={sophiaSays(projects, now, props.call ?? null, answers === true)}
         you={youDoor({ locked: lockedBy(props.lock), turns: data?.turns, notes: data?.notes.length ?? 0, now })}
         reads={needsRead ? [personalRead(v), projectsRead(v), needsRead] : [personalRead(v), projectsRead(v)]}
         needs={needs}
@@ -433,6 +435,7 @@ function Home({ v }: { v: View }) {
         inCallProject={props.call?.projectId ?? null}
         count={workCount(projects)}
         locked={props.lock.locked}
+        answers={answers}
         hidden={!v.shown.includes('home')}
         here={placeAt(v.shown) === 'home'}
         actions={{

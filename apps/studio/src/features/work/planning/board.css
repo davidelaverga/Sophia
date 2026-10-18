@@ -18,7 +18,7 @@
   border: 1px solid var(--line-2);
   border-radius: 50%;
   background: var(--plane-2);
-  box-shadow: 0 6px 18px rgb(var(--shadow-rgb) / calc(0.45 * var(--shadow-k)));
+  box-shadow: var(--elev-turn);
   color: var(--text-2);
   animation: arrive 0.25s var(--ease) both;
   transition:
@@ -76,7 +76,7 @@
   height: 2px;
   border-radius: 2px;
   background: linear-gradient(90deg, transparent, var(--halo), transparent);
-  box-shadow: 0 0 12px rgb(var(--halo-rgb) / 0.6);
+  box-shadow: var(--glow-rail);
   transform: translateX(var(--thumb-x, 0));
 }
 .goal-rail[data-thumb-ready]::after {
@@ -143,7 +143,7 @@
 }
 .goal-tab-dot[data-status='running'] {
   background: var(--teal);
-  box-shadow: 0 0 8px rgb(var(--teal-rgb) / 0.6);
+  box-shadow: var(--glow-running);
 }
 .goal-tab-dot[data-status='holding'],
 .goal-tab-dot[data-status='held'] {
@@ -165,7 +165,7 @@
   width: 18px;
   height: 18px;
   margin-right: -6px;
-  border: 1.5px solid var(--plane);
+  border: 1.5px solid var(--surface-well);
   font-size: 8.5px;
 }
 .plan-tab-faces + .plan-tab-count {
@@ -187,7 +187,7 @@
   height: 6px;
   border-radius: 50%;
   background: var(--amber);
-  box-shadow: 0 0 8px rgb(var(--amber-rgb) / 0.7);
+  box-shadow: var(--glow-mine);
 }
 
 /* ---- The board ---- */
@@ -266,10 +266,12 @@
 .lane-head .plan-mark::after {
   display: none;
 }
-/* Under the Blocked lane's head: what it waits on, each a press (docs/plans/board-why-blocked.md). */
+/* Under the Blocked lane's head: what it waits on, each a press (docs/plans/board-why-blocked.md). On one baseline:
+   a press's words sit in its 24 px box, the word «Waiting on» at the top of its own line otherwise (Luis, 2026-10-17). */
 .lane-why {
   display: flex;
   flex-wrap: wrap;
+  align-items: baseline;
   gap: 2px 8px;
   margin: -4px 0 0;
   padding: 0 4px;
@@ -325,7 +327,7 @@
   background-image: linear-gradient(180deg, rgb(var(--sheen-rgb) / 0.035), rgb(var(--sheen-rgb) / 0.01));
   box-shadow:
     inset 0 1px 0 rgb(var(--sheen-rgb) / 0.05),
-    0 1px 2px rgb(var(--shadow-rgb) / calc(0.3 * var(--shadow-k)));
+    var(--elev-task);
   color: var(--text);
   text-align: left;
   animation: tile-in 0.5s var(--ease) both;
@@ -401,7 +403,7 @@
     transform: translateY(-2px);
     box-shadow:
       inset 0 1px 0 rgb(var(--sheen-rgb) / 0.06),
-      0 14px 34px rgb(var(--shadow-rgb) / calc(0.4 * var(--shadow-k)));
+      var(--elev-task-hover);
   }
   .task-tile:hover .task-who .avatar {
     transform: scale(1.06);
@@ -410,9 +412,7 @@
 /* What the hovered tile waits on: a lavender ring, with a soft glow around it. */
 .task-tile[data-lit] {
   --edge: rgb(var(--halo-rgb) / 0.7);
-  box-shadow:
-    0 0 0 4px rgb(var(--halo-rgb) / 0.14),
-    0 0 28px rgb(var(--halo-rgb) / 0.2);
+  box-shadow: var(--glow-lit);
 }
 
 .task-who {
@@ -557,12 +557,15 @@
   padding: 0;
   list-style: none;
 }
+/* A linked task in two lines (informe-25 V1): its name over where it stands. Side by side, the status sentence's `auto`
+   track took its whole width first and left the name a word a line. Both sit in the last column, so a row with no mark
+   (work observed outside the plan) gives them the whole row. */
 .task-link {
   display: grid;
-  grid-template-columns: 8px minmax(0, 1fr) auto;
+  grid-template-columns: 8px minmax(0, 1fr);
   font-size: var(--type-body);
-  align-items: center;
-  gap: 10px;
+  align-items: start;
+  gap: 2px 10px;
   width: 100%;
   padding: 9px 10px;
   border: 0;
@@ -574,6 +577,17 @@
 }
 .task-link:hover {
   background: rgb(var(--ink-rgb) / 0.07);
+}
+.task-link:not(:has(> .plan-mark)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.task-link-name,
+.task-link-where {
+  grid-column: -2 / -1;
+}
+/* The mark on the name's first line, not between its two. */
+.task-link > .plan-mark {
+  margin-top: calc((1lh - 8px) / 2);
 }
 .task-link-where {
   color: var(--text-3);
@@ -654,7 +668,7 @@
   height: 6px;
   border-radius: 50%;
   background: var(--halo-text);
-  box-shadow: 0 0 10px var(--halo);
+  box-shadow: var(--glow-spark);
   animation: changed-breathe 2.4s var(--ease) infinite alternate;
 }
 @keyframes changed-breathe {
@@ -701,7 +715,7 @@
   height: 100%;
   border-radius: 50%;
   background: radial-gradient(circle at 50% 45%, var(--core), var(--halo) 58%, rgb(var(--halo-rgb) / 0.18) 72%);
-  box-shadow: 0 0 10px rgb(var(--halo-rgb) / 0.35);
+  box-shadow: var(--glow-worker);
 }
 .task-sheet-who .plan-sophia {
   width: 40px;
@@ -918,7 +932,7 @@
   stroke-linecap: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  filter: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.85));
+  filter: var(--glow-thread);
   animation: thread-draw 0.5s var(--ease) forwards;
 }
 @keyframes thread-draw {
@@ -928,7 +942,7 @@
 }
 .thread-spark {
   fill: var(--core);
-  filter: drop-shadow(0 0 6px var(--halo));
+  filter: var(--glow-thread-spark);
   offset-distance: 0%;
   offset-rotate: 0deg;
   animation: thread-spark 1.4s var(--ease) 0.35s infinite;
@@ -1062,7 +1076,7 @@
   padding: 0 12px;
   border: 1px solid var(--line-2);
   border-radius: 999px;
-  background: rgb(var(--ink-rgb) / 0.04);
+  background: var(--control);
   color: var(--text-2);
   font-size: var(--type-body);
   transition:

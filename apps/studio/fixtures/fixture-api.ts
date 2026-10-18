@@ -79,7 +79,16 @@ import {
 import type { ProjectRelease, ReportList } from '@sophia/contracts'
 import { searchHits, searchPage } from './search-data.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
-import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
+import {
+  closed,
+  MEETING,
+  markSeen,
+  meetingList,
+  recapOf,
+  soFarOf,
+  updatesWindowOf,
+  type Meeting,
+} from './meeting-data.ts'
 import { profileAnswer } from './profile-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
@@ -155,6 +164,10 @@ interface Project {
    * `not_found`, as it refuses a report this person may not read; false, they succeed.
    */
   versionsFail: false | 'unavailable' | 'not_found'
+  /** The design task itself is in the project's work, as its own card (`designcard=on`). */
+  designCard?: boolean
+  /** Reads of the design task fail: refused (403, this person's own), or unavailable (503); false, they succeed. */
+  designFail?: false | 'unavailable' | 'forbidden'
   /** Reads of a version's sources wait until the page lets them through (`hold=sources`), as a slow API's do. */
   sourcesHeld: boolean
   /** So do reads of a version's text (`hold=text`). */
@@ -171,6 +184,8 @@ interface Project {
   researching?: { reads: number } | null
   /** Reads of the research task fail (`window.fixture.failTask`), as an API that lost its database answers. */
   taskFails?: boolean
+  /** Reads of the research task are refused to this person (403), as after a revoked membership (`refuseTask`). */
+  taskRefused?: boolean
   /** A version's text arrives as bytes its record does not name (`tamper=text`). */
   textTampered: boolean
   /** Version 1 carries a designed HTML page (SDD-01, `designed=on`), and the research task lists it. */
@@ -261,6 +276,10 @@ interface Project {
   missionRefused?: boolean
   /** While set, the brief's reads wait for these (`mission=hold`, `window.fixture.holdMission`). */
   missionHeld?: (() => void)[] | null
+  /** The goals' targets read fails (`targetsRead=fail`, `window.fixture.failTargets`). */
+  targetsFail?: boolean
+  /** While set, the goals' targets reads wait for these (`targetsRead=hold`, `window.fixture.holdTargets`). */
+  targetsHeld?: (() => void)[] | null
 }
 
 /** The conversations as the fixtures keep them (A33 serves them, conversation-wire.ts), and the reads that fail. */
@@ -341,7 +360,10 @@ function snapshotOf(project: Project) {
     : project.work
       ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing).task] }
       : now
-  const reported = project.goalReports ? withGoalReports(project, work) : work
+  const designed = project.designCard
+    ? { ...work, work: [...work.work, designingTask(project.designed ? 'published' : 'designing').task] }
+    : work
+  const reported = project.goalReports ? withGoalReports(project, designed) : designed
   const titled = project.title ? { ...reported, title: project.title } : reported
   return withFocus(project, project.waiting ? { ...titled, lobby: lobbyOf(project.lobbyAsked) } : titled)
 }
@@ -573,8 +595,21 @@ function projectRead(project: Project, url: URL): Response | Promise<Response> |
   if (url.pathname === `${base}/activity`)
     return project.activityHeld ? new Promise<Response>(() => undefined) : activityRead(url)
   if (url.pathname.startsWith(`${base}/discussion`)) return discussionRead(project, url)
-  if (url.pathname === `${base}/goal-targets`) return goalTargetsRead(project)
+  if (url.pathname === `${base}/goal-targets`) return targetsAnswer(project)
   return url.pathname === `${base}/members` ? membersRead(project) : null
+}
+
+/** The goals' targets as read: held while asked (`holdTargets`), refused while they fail (`failTargets`). */
+function targetsAnswer(project: Project): Response | Promise<Response> {
+  const held = project.targetsHeld
+  if (held) return new Promise<Response>((resolve) => held.push(() => resolve(targetsNow(project))))
+  return targetsNow(project)
+}
+
+/** The goals' targets once let through: refused while they fail, else read. */
+function targetsNow(project: Project): Response {
+  if (project.targetsFail) return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
+  return goalTargetsRead(project)
 }
 
 /** The goals' owners and dates (A25). */
@@ -846,7 +881,7 @@ function recordsAnswer(project: Project, method: string, url: URL, init: Request
   if (path.startsWith(`${base}/mission`)) return missionAnswer(project, method, path, init)
   if (method === 'GET' && path.startsWith(`${base}/meetings`)) return meetingAnswer(project, path)
   if (method === 'GET' && path === `${base}/since` && project.meeting)
-    return json(digestOf(project.meeting, project.revision))
+    return json(updatesWindowOf(project.meeting, project.revision))
   if (project.invitations) return invitationsAnswer(project.invitations, method, path, init, base) ?? undefined
   if (method === 'GET' && path === `${base}/invitations`) return json({ invitations: [] })
   return undefined
@@ -1349,7 +1384,13 @@ export function releaseCovers(project: Project): void {
 
 /** The design task of the research's page, read while it is designed (`design=designing`, B-19), then published. */
 function designRead(project: Project): Response | null {
-  if (!project.designing && !project.designed) return null
+  if (project.designFail) {
+    const [status, retry] = project.designFail === 'forbidden' ? [403, 'never'] : [503, 'safe_read']
+    served.push(`design:${project.designFail}`)
+    const body = { code: project.designFail, message: 'No', requestId: '00000000-0000-4000-8000-0000000000bb', retry }
+    return new Response(JSON.stringify(body), { status })
+  }
+  if (!project.designing && !project.designed && !project.designCard) return null
   return json(designingTask(project.designed ? 'published' : 'designing'))
 }
 
@@ -1691,6 +1732,15 @@ function taskRead(project: Project): Response | Promise<Response> {
         : researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing),
     )
   served.push(`task:${String(project.taskRevision ?? 1)}`)
+  if (project.taskRefused) {
+    const body = {
+      code: 'forbidden',
+      message: 'Not permitted',
+      requestId: '00000000-0000-4000-8000-0000000000bd',
+      retry: 'never',
+    }
+    return new Response(JSON.stringify(body), { status: 403 })
+  }
   if (project.taskFails) {
     const body = {
       code: 'unavailable',

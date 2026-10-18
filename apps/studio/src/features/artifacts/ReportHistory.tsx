@@ -7,11 +7,11 @@
 // Show this version turns into "On screen" in place, a comparison takes the focus as it opens and hands it back to its
 // Compare.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { ownedText } from './download.ts'
 import { useEffect, useRef, useState } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
 import { ReadNote, Tag } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
-import { loadReportText } from './download.ts'
 import { compareSections, type SectionChange } from './markdown.ts'
 import { conclusionTopic, factChips, factsLine, notesShown, quotedHeadings } from './report-view.ts'
 import { dayOf } from '../../app/time-words.ts'
@@ -152,7 +152,7 @@ function Comparison({ identity, older, newer, onClose }: CompareProps) {
   const text = (v: ArtifactVersion) =>
     client.fetchQuery({
       queryKey: ['report-text', v.sourceId, identity.name],
-      queryFn: () => loadReportText(identity.token, v.sourceId, v.sourceHash),
+      queryFn: ownedText(identity.token, v.sourceId, v.sourceHash, v.artifactId),
       staleTime: Infinity,
     })
   const change = useQuery({

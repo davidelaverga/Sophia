@@ -98,6 +98,7 @@ declare global {
       proposals: readonly { key: string; body: unknown }[]
       asked: readonly string[]
       unexpected: readonly string[]
+      attention: readonly string[]
       hold: (by: string, path: string, method?: string) => void
       release: () => void
     }
@@ -886,4 +887,34 @@ test('feedback · opened from Home during a call, the call’s switches stay in 
   await expect(
     sheet.getByRole('group', { name: 'Your call' }).getByRole('button', { name: 'Leave the room' }),
   ).toBeVisible()
+})
+
+test('places · in the bar’s call, Leave is rose at rest and its plane answers the pointer (room-dock-people.md)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/p/${WORK_PROJECT}/studio?work=lost`)
+  await page
+    .getByRole('navigation', { name: 'Room controls' })
+    .getByRole('button', { name: /^Join the room/ })
+    .click()
+  await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
+  await page.keyboard.press('h')
+  const out = page.locator('.places .room-pill').getByRole('button', { name: 'Leave the room' })
+  await expect(out).toBeVisible()
+  await page.mouse.move(0, 0)
+  const rest = await out.evaluate((b) => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--rose)'
+    document.body.append(probe)
+    const rose = getComputedStyle(probe).color
+    probe.remove()
+    return { color: getComputedStyle(b).color, plane: getComputedStyle(b).backgroundColor, rose }
+  })
+  // The bar keeps its squares bare at rest: the rose ink alone says the way out.
+  expect(rest.color).toBe(rest.rose)
+  expect(rest.plane).toBe('rgba(0, 0, 0, 0)')
+  await out.hover()
+  await expect(out).not.toHaveCSS('background-color', rest.plane)
 })
