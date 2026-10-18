@@ -95,6 +95,16 @@ const SCHEMAS = [
   'SourceReviewFinding',
   'SourceReviewSubmitRequest',
   'SourceReviewSubmission',
+  'RuntimeConversationClaimRequest',
+  'RuntimeConversationClaimReply',
+  'RuntimeConversationGoRequest',
+  'RuntimeConversationGoReply',
+  'RuntimeConversationReserveRequest',
+  'RuntimeConversationReservation',
+  'RuntimeConversationSettleRequest',
+  'RuntimeConversationSettlement',
+  'RuntimeConversationAcknowledgedRequest',
+  'RuntimeConversationAcknowledgement',
 ] as const
 /** What the bridge validates at runtime: every reply it reads, each command, and what it sends. */
 const VALIDATED = [
@@ -143,6 +153,16 @@ const VALIDATED = [
   'SourceReviewContextReply',
   'SourceReviewSubmitRequest',
   'SourceReviewSubmission',
+  'RuntimeConversationClaimRequest',
+  'RuntimeConversationClaimReply',
+  'RuntimeConversationGoRequest',
+  'RuntimeConversationGoReply',
+  'RuntimeConversationReserveRequest',
+  'RuntimeConversationReservation',
+  'RuntimeConversationSettleRequest',
+  'RuntimeConversationSettlement',
+  'RuntimeConversationAcknowledgedRequest',
+  'RuntimeConversationAcknowledgement',
 ] as const
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')

@@ -505,32 +505,34 @@ function Light({
 /** Home's one column (personal.css, ≤ 860 px): there what needs you comes right after the greeting. */
 const ONE_COLUMN = '(max-width: 860px)'
 
-/** «What needs you», wherever it is mounted, and the controls in it. */
+/** «What needs you», wherever it is mounted. */
 const NEEDS = '[aria-label="What needs you"]'
-const PRESSES = 'button, a[href], [tabindex]:not([tabindex="-1"])'
 
 /**
- * The focus kept on a need when the list moves across 860 px (home-needs-focus.md; Codex P2 on #289): the place in the
- * list of the control last focused is remembered, forgotten once the focus goes elsewhere, and given back there after
- * the move if the focus fell to the page.
+ * The focus kept on a need when the list moves across 860 px (home-needs-focus.md; Codex P2 on #289): which need had
+ * it is remembered by its id, forgotten once the focus goes elsewhere, and that need takes it again after the move if
+ * the focus fell to the page. By the need, not its place: the list is read again every 20 s, and a need may come ahead
+ * or leave (Codex P2 on #377). One that left takes nothing with it.
  */
 function useNeedsFocus(home: RefObject<HTMLDivElement | null>, oneColumn: boolean) {
-  const at = useRef<number | null>(null)
+  const kept = useRef<string | null>(null)
   useEffect(() => {
     const el = home.current
     const onFocus = (e: FocusEvent) => {
       const target = e.target instanceof Element ? e.target : null
-      const list = target?.closest(NEEDS)
-      at.current = list && target ? [...list.querySelectorAll(PRESSES)].indexOf(target) : null
+      const row = target?.closest(NEEDS) ? target.closest<HTMLElement>('[data-need]') : null
+      kept.current = row?.dataset.need ?? null
     }
     el?.addEventListener('focusin', onFocus)
     return () => el?.removeEventListener('focusin', onFocus)
   }, [home])
   useLayoutEffect(() => {
-    const kept = at.current
+    const need = kept.current
     const fell = document.activeElement === null || document.activeElement === document.body
-    if (kept === null || kept < 0 || !fell) return
-    home.current?.querySelector(NEEDS)?.querySelectorAll<HTMLElement>(PRESSES)[kept]?.focus()
+    if (need === null || !fell) return
+    const rows = home.current?.querySelector(NEEDS)?.querySelectorAll<HTMLElement>('[data-need]') ?? []
+    // By the dataset, so an id such as permission:wait-w1 needs no escaping in a selector.
+    for (const row of rows) if (row.dataset.need === need) row.focus()
   }, [home, oneColumn])
 }
 

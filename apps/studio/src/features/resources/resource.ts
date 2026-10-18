@@ -4,6 +4,7 @@
 // `sophia.capacity.observation.v1` schema (docs/execution/2026-10-01-unified/contracts/coordination).
 import { pace, type Pace } from './pace.ts'
 import { ago as agoWords, inTime } from '../../app/time-words.ts'
+import { foldForSearch } from '../../app/search-fold.ts'
 
 /** The native coding tools a resource can enroll; each shows as itself (ToolLogo). */
 export type Tool = 'claude-code' | 'codex' | 'grok' | 'gemini-cli' | 'github-copilot' | 'cursor'
@@ -387,12 +388,8 @@ export function inFilter(filter: Filter, r: Resource, actions: RequiredAction[],
   return true
 }
 
-/** Text to compare in a search: no case, no accents ("Mérida" finds "merida"). */
-const fold = (text: string) =>
-  text
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
+/** Text to compare in a search: no case, no accents ("Mérida" finds "merida"), as every search folds (search-fold.ts). */
+const fold = foldForSearch
 
 /**
  * Whether a resource answers a search: every word must be found in its tool, maker, owner, sessions' roles and models,

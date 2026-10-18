@@ -1,13 +1,13 @@
 // A hint that appears on hover and keyboard focus: what a control does, and its key. It is decorative for
 // assistive technology: the control carries its own name (aria-label), so nothing is announced twice.
-// The control needs the `has-tip` class. Controls at an edge align the tip to their end, so it never
-// reaches past the edge (and never widens a scrolling panel).
+// The control needs the `has-tip` class. Controls at an edge align the tip to their end (at a left edge, their
+// start), so it never reaches past the edge (and never widens a scrolling panel).
 
 interface Props {
   label: string
   keys?: string | undefined
   side?: 'top' | 'bottom'
-  align?: 'center' | 'end'
+  align?: 'center' | 'end' | 'start'
 }
 
 export function Tip({ label, keys, side = 'top', align = 'center' }: Props) {

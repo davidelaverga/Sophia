@@ -462,4 +462,16 @@ describe('finding a note (personal-notes-write-find.md)', () => {
   it('keeps them all for nothing typed', () => {
     assert.equal(findNotes(notes, '  ').length, 3)
   })
+
+  it('folds case as Unicode does, and finds a standalone mark as written (Codex P2s on #406)', () => {
+    const more = [note('d', 'ΟΔΟΣ'), note('e', 'Ship 2^8'), note('f', 'Ship 28')]
+    assert.deepEqual(
+      findNotes(more, 'οδος').map((n) => n.id),
+      ['d'],
+    )
+    assert.deepEqual(
+      findNotes(more, '^').map((n) => n.id),
+      ['e'],
+    )
+  })
 })

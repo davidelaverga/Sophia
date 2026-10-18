@@ -27,7 +27,8 @@ import { homeRowFor } from '../src/features/personal/focus.ts'
 import type { Need } from '../src/features/personal/needs-you.ts'
 import { VISION } from '../src/app/vision.ts'
 import { Welcome } from '../src/features/personal/Welcome.tsx'
-import { DEMO, DEMO_LABEL, HOME_PROJECT } from './demo.ts'
+import { DEMO, DEMO_LABEL, HOME_PROJECT, PROJECT_NAME } from './demo.ts'
+import { PROJECT } from './data.ts'
 import '../src/app/theme.css'
 import '../src/features/personal/personal.css'
 import { bootTheme } from '../src/app/theme.ts'
@@ -50,6 +51,10 @@ declare global {
       breakNeeds: () => void
       /** The service refuses the person from now on (403): what was read before is not shown any more. */
       refuseNeeds: () => void
+      /** `needs=api`: a decision due in 5 min comes, so it goes first, and the list is read again (the 20 s poll). */
+      urgentNeed: () => void
+      /** `needs=api`: a need leaves (answered elsewhere), and the list is read again. */
+      dropNeed: (id: string) => void
     }
   }
 }
@@ -70,6 +75,14 @@ window.homeFixture = {
   },
   refuseNeeds: () => {
     failing = 403
+  },
+  urgentNeed: () => {
+    urgent = true
+    void client.invalidateQueries({ queryKey: ['vision', 'needs'] })
+  },
+  dropNeed: (id) => {
+    seen.add(id)
+    void client.invalidateQueries({ queryKey: ['vision', 'needs'] })
   },
   hear: () => HeardRecognition.listening?.hear(),
   // Where the focus lands on the way back from Personal (focus.ts): an element's id, else its tag.
@@ -176,9 +189,23 @@ const needs = VISION ? NEEDS[query.get('needs') ?? (DEMO ? 'some' : '')] : undef
 const viaApi = query.get('needs') === 'api'
 /** `needsFail=1`: every read of the route fails (503) until `homeFixture.recover()`, so Home's note and its Try again can be checked. */
 let failing: number | null = query.get('needsFail') === '1' ? 503 : null
+/** The needs the answer leaves out: marked seen, or dropped (`homeFixture.dropNeed`). */
+const seen = new Set<string>()
+/** `homeFixture.urgentNeed()`: the answer adds a decision due in 5 min. */
+let urgent = false
+const urgentNeed = (now: number) => ({
+  id: 'decision:d2',
+  kind: 'decision',
+  title: 'Approve the pricing copy?',
+  projectId: PROJECT,
+  projectTitle: PROJECT_NAME,
+  expiresAt: new Date(now + 5 * 60_000).toISOString(),
+  detail: null,
+  at: new Date(now - 60_000).toISOString(),
+  ref: { kind: 'work_decision', id: 'd2', within: '00000000-0000-4000-8000-0000000000c3', resourceId: null },
+})
 if (viaApi) {
   const real = window.fetch.bind(window)
-  const seen = new Set<string>()
   window.fetch = (input, init) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     const { pathname } = new URL(url, window.location.href)
@@ -199,8 +226,10 @@ if (viaApi) {
         const body = JSON.stringify({ error })
         return Promise.resolve(new Response(body, { status: failing, headers: { 'content-type': 'application/json' } }))
       }
-      const answer = needsAnswer()
-      const body = JSON.stringify({ ...answer, needs: answer.needs.filter((n) => !seen.has(n.id)) })
+      const now = Date.now()
+      const answer = needsAnswer(now)
+      const all = [...(urgent ? [urgentNeed(now)] : []), ...answer.needs]
+      const body = JSON.stringify({ ...answer, needs: all.filter((n) => !seen.has(n.id)) })
       return Promise.resolve(new Response(body, { headers: { 'content-type': 'application/json' } }))
     }
     return real(input, init)
