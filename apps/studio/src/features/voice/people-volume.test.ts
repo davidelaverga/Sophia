@@ -5,13 +5,16 @@ import { LEVELS, levelWords, levelsHere, peopleVolume, volumeSettable } from './
 // Each person's volume, for you alone (docs/plans/people-volume.md): a level is kept by person and put on each of
 // their sounds, those playing and those to come; Off stops their sound coming, and silences it until it stops.
 const sound = () => ({ volume: 1, muted: false })
+/** A publication as LiveKit's: wanted (isDesired) and ready to play (isSubscribed) are two things. */
 const track = (kind: 'audio' | 'video') => {
   const t = {
     kind,
     isSubscribed: true,
+    isDesired: true,
     asked: [] as boolean[],
     setSubscribed: (on: boolean) => {
       t.asked.push(on)
+      t.isDesired = on
       t.isSubscribed = on
     },
   }
@@ -63,6 +66,17 @@ describe('people volume', () => {
     const camera = track('video')
     volume.published(camera, 'marco')
     assert.deepEqual(camera.asked, [])
+  })
+
+  it('Off lets go of a sound still on its way, and full asks nothing again of one already asked for (Codex P1)', () => {
+    const volume = peopleVolume()
+    // Asked for, not here yet: LiveKit says it is wanted (isDesired) but not subscribed (isSubscribed, ready to play).
+    const coming = { ...track('audio'), isSubscribed: false }
+    volume.set('marco', 0, [coming])
+    assert.deepEqual(coming.asked, [false])
+    const alsoComing = { ...track('audio'), isSubscribed: false }
+    volume.set('lucia', 1, [alsoComing])
+    assert.deepEqual(alsoComing.asked, [])
   })
 
   it('lets a sound that ended go: a level set later doesn’t reach it', () => {
