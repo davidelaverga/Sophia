@@ -18,6 +18,13 @@
   - With no trigger, or a task that can't be read, nothing shows. No error is said: the report reads as before.
 - **The fixture:** each version carries its trigger. In the demo, the research task's goal is the rollout.
 
+## Follow-ups (Codex P2s on #383)
+
+- **Above every format:** the origin stands above the designed HTML page and the PDF too, not only the Markdown. On the
+  full page it keeps the designed page's edge.
+- **Where the report covers the page** (a phone, the full page), «Made for» closes it before opening Goals (the
+  viewer's `leaveFor`), as a source's origin does. Beside Goals at the side size, the report stays open.
+
 ## Checks
 
 `report-origin.spec.ts`:

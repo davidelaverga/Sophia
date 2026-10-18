@@ -190,7 +190,7 @@ function useCopy(props: Props, calledOff: CalledOff, erasingNow: RefObject<boole
   const copyNow = async () => {
     try {
       const signal = calledOff.signal()
-      const load = async () => exportText(await exportPersonalSpace(token, epoch, signal), who, new Date())
+      const load = async () => exportText(await exportPersonalSpace(token, epoch, signal), who)
       await copyFetched(load, browserClip(), () => open.current && !lockedNow())
       toast(NOTICE.copied)
     } catch (err: unknown) {

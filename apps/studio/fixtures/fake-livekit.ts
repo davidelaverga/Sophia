@@ -295,6 +295,9 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
       cb.onChange()
     },
     setFollowing: sayFollowing,
+    setVolume: (identity, level) => {
+      asked.push(`volume:${identity}:${String(level)}`)
+    },
     leave: () => {
       asked.push('leave')
       open = false
