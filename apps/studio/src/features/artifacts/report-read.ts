@@ -38,17 +38,28 @@ function keep(client: QueryClient, artifactId: string, next: (was: ReportFence) 
  */
 export const reportRead =
   <T>(artifactId: string, read: () => Promise<T>) =>
-  async ({ client }: { client: QueryClient }): Promise<T> => {
-    const readFrom = reportOrder()
-    try {
-      const value = await read()
-      keep(client, artifactId, (was) => ({ ...was, allowedFrom: Math.max(was.allowedFrom, readFrom) }))
-      return value
-    } catch (error) {
-      if (ownReportRefusal(error)) keep(client, artifactId, (was) => ({ ...was, refusedAt: reportOrder() }))
-      throw error
-    }
+  ({ client }: { client: QueryClient }): Promise<T> =>
+    ownedReportRead({ client, artifactId }, read)
+
+/** The report a read belongs to, as its caller knows it (never guessed from a source or citation id), and its cache. */
+export interface ReportOwner {
+  client: QueryClient
+  artifactId: string
+}
+
+/** One report-owned read (its versions, cited sources or its own content API read), stamped and settled as above. */
+export async function ownedReportRead<T>(owner: ReportOwner, read: () => Promise<T>): Promise<T> {
+  const { client, artifactId } = owner
+  const readFrom = reportOrder()
+  try {
+    const value = await read()
+    keep(client, artifactId, (was) => ({ ...was, allowedFrom: Math.max(was.allowedFrom, readFrom) }))
+    return value
+  } catch (error) {
+    if (ownReportRefusal(error)) keep(client, artifactId, (was) => ({ ...was, refusedAt: reportOrder() }))
+    throw error
   }
+}
 
 /** Whether the report is fenced: refused since its newest allowed read. */
 export const fenced = (fence: ReportFence): boolean => fence.refusedAt > fence.allowedFrom

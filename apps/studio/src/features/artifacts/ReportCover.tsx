@@ -7,12 +7,13 @@
 // is within reach: one scrolled far away keeps its checked page in the cache, not a live document. Until it arrives the
 // cover is a quiet plane; a read that fails or doesn't match leaves the monogram.
 import { useQuery } from '@tanstack/react-query'
+import { ownedText } from './download.ts'
 import { reportRead, useReportFence } from './report-read.ts'
 import { useEffect, useRef, useState } from 'react'
 import type { ArtifactVersion, ReportCard } from '@sophia/contracts'
 import { listArtifactVersions } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { HashMismatch, loadReportText } from './download.ts'
+import { HashMismatch } from './download.ts'
 import { coverOf, monogramOf, type CoverLine } from './report-cover.ts'
 import { renditionOf } from './report-view.ts'
 
@@ -86,7 +87,7 @@ function useCover(card: ReportCard, identity: Identity, near: boolean): Cover {
   const page = renditionOf(version, 'html')
   const html = useQuery({
     queryKey: ['report-html', page?.sourceId, identity.name],
-    queryFn: () => loadReportText(identity.token, page?.sourceId ?? '', page?.sha256 ?? ''),
+    queryFn: (ctx) => ownedText(identity.token, page?.sourceId ?? '', page?.sha256 ?? '', card.artifactId)(ctx),
     // Behind the tile's reach too: versions already in the cache (the viewer's) never read an off-screen page.
     enabled: near && page !== undefined,
     staleTime: Infinity,
@@ -94,7 +95,8 @@ function useCover(card: ReportCard, identity: Identity, near: boolean): Cover {
   })
   const text = useQuery({
     queryKey: ['report-text', version?.sourceId, identity.name],
-    queryFn: () => loadReportText(identity.token, version?.sourceId ?? '', version?.sourceHash ?? ''),
+    queryFn: (ctx) =>
+      ownedText(identity.token, version?.sourceId ?? '', version?.sourceHash ?? '', card.artifactId)(ctx),
     enabled: near && version !== undefined && page === undefined,
     staleTime: Infinity,
     retry: retryRead,
