@@ -2,12 +2,17 @@
 // glow move with how loud they are now, through the same envelope as Sophia's light; a re-render mid-speech restarts
 // nothing, and what stops speaking rests. The fixture's voices are set by hand (`window.fixture.voiceLevel`).
 import { expect, test, type Page } from '@playwright/test'
+import { slowFrames } from './frames.ts'
 
 const MARCO = '00000000-0000-4000-8000-0000000000b1'
 const LUCIA = '00000000-0000-4000-8000-0000000000b2'
 
 const voice = (page: Page, who: 'sophia' | number, level: number) =>
   page.evaluate(([w, l]) => window.fixture?.voiceLevel(w, l), [who, level] as const)
+
+/** The level the meters last wrote on a presence (`--level`); none, 0. */
+const levelOf = (page: Page, actor: string) =>
+  page.locator(`.presence[data-actor="${actor}"]`).evaluate((li) => Number(li.style.getPropertyValue('--level') || 0))
 
 /** A presence's four bars as drawn, their running animations, and its orbit's glow (its second shadow's alpha). */
 const meterOf = (page: Page, actor: string) =>
@@ -96,6 +101,19 @@ test('people · a re-render mid-speech restarts nothing; who stops speaking rest
   expect(low).toBeGreaterThanOrEqual(11)
   await page.evaluate(() => window.fixture?.speaking(null))
   await expect.poll(() => written(page)).toBe(0)
+})
+
+test('people · on a slow machine (8 frames a second) a speaker’s meter still rests within two seconds of their silence', async ({
+  page,
+}) => {
+  await slowFrames(page)
+  await page.goto('/room.html?call=on&people=2&speaking=1')
+  await expect(page.locator(`.presence[data-actor="${MARCO}"]`)).toHaveAttribute('data-speaking', 'true')
+  await voice(page, 1, 0.9)
+  await expect.poll(() => levelOf(page, MARCO), { timeout: 1000, intervals: [50] }).toBeGreaterThanOrEqual(0.85)
+  await voice(page, 1, 0)
+  // Falling with 180 ms from 0.9 to under 0.005 takes 0.93 s of the clock, however few frames draw it.
+  await expect.poll(() => levelOf(page, MARCO), { timeout: 1800, intervals: [50] }).toBe(0)
 })
 
 test('people · on video a speaker’s tile glows with their voice', async ({ page }) => {

@@ -2,6 +2,7 @@
 // read in this browser from the audio it already plays, and nothing else moves it; on paper her halo swells as the
 // dark page's light does. The fixture's voices are set by hand (`window.fixture.voiceLevel`). Every name is synthetic.
 import { expect, test, type Page } from '@playwright/test'
+import { slowFrames } from './frames.ts'
 
 const light = (page: Page) => page.locator('.room-stage > .light')
 
@@ -44,13 +45,26 @@ test('light · her voice moves her light while she speaks, and only then', async
   await voice(page, 'sophia', 0.9)
   await expect.poll(() => amp(page), { timeout: 1000 }).toBeGreaterThanOrEqual(0.85)
   await voice(page, 'sophia', 0)
-  await expect.poll(() => amp(page), { timeout: 2000 }).toBe(0)
+  await expect.poll(() => amp(page), { timeout: 2000, intervals: [50] }).toBe(0)
   // Listening, her voice moves nothing: a level heard then is not hers to show.
   await page.evaluate(() => window.fixture?.sophia('listening'))
   await expect(light(page)).toHaveAttribute('data-mode', 'listen')
   await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))))
   await voice(page, 'sophia', 0.9)
   expect(await peak(page)).toBeLessThanOrEqual(0.01)
+})
+
+test('light · on a slow machine (8 frames a second) her light still settles within two seconds of her silence', async ({
+  page,
+}) => {
+  await slowFrames(page)
+  await page.goto('/room.html?call=on&sophia=speaking')
+  await expect(light(page)).toHaveAttribute('data-mode', 'speak')
+  await voice(page, 'sophia', 0.9)
+  await expect.poll(() => amp(page), { timeout: 1000, intervals: [50] }).toBeGreaterThanOrEqual(0.85)
+  await voice(page, 'sophia', 0)
+  // Falling with 180 ms from 0.9 to under 0.005 takes 0.93 s of the clock, however few frames draw it.
+  await expect.poll(() => amp(page), { timeout: 1800, intervals: [50] }).toBe(0)
 })
 
 test('light · on paper her halo swells with her voice, as the dark page’s light does', async ({ page }) => {
