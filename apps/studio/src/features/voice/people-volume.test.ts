@@ -79,6 +79,28 @@ describe('people volume', () => {
     assert.deepEqual(alsoComing.asked, [])
   })
 
+  it('Off lets that person’s sounds go at once, and one that begins while they are Off, so startAudio can’t unmute them (Codex P1 on #425)', () => {
+    const released: object[] = []
+    const volume = peopleVolume((s) => released.push(s))
+    const marco = sound()
+    const lucia = sound()
+    volume.add(marco, 'marco')
+    volume.add(lucia, 'lucia')
+    volume.set('marco', 0, [])
+    // Muted and let go now: the element leaves its track before the unsubscription is through.
+    assert.deepEqual(released, [marco])
+    assert.equal(marco.muted, true)
+    // Let go, it is no longer theirs to set: a later level doesn't reach it.
+    volume.set('marco', 0.5, [])
+    assert.equal(marco.volume, 0)
+    // A sound of theirs that begins while they are Off is let go as it begins.
+    const late = sound()
+    volume.set('marco', 0, [])
+    volume.add(late, 'marco')
+    assert.deepEqual(released, [marco, late])
+    assert.deepEqual(lucia, { volume: 1, muted: false })
+  })
+
   it('lets a sound that ended go: a level set later doesn’t reach it', () => {
     const volume = peopleVolume()
     const marco = sound()
