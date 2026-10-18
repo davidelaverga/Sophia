@@ -868,6 +868,44 @@ test('legal · /terms and /privacy keep their address and their page, signed out
   await expect(signedIn.getByRole('heading', { level: 1 })).toHaveText('Privacy notice')
 })
 
+/** What the join page says back from a sign-in link opened in a browser that never asked for it. */
+const OTHER_BROWSER_LINE =
+  'This sign-in link opened in a different browser from the one you started in. Type the email’s code there, or open your invitation link again here.'
+
+test('join · a sign-in link opened in another browser says where to finish, once (join-other-browser.md)', async ({
+  context,
+}) => {
+  const calls = await serve(context)
+  const page = await context.newPage()
+  // The sign-in email's link, in a browser that holds no invitation token and never asked for the link.
+  await page.goto(`${APP}/join?code=synthetic-code`)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('You started in another browser')
+  await expect(page.getByText(OTHER_BROWSER_LINE)).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Go to Sophia' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'This door is closed' })).toHaveCount(0)
+  await expect(page.getByText('This link is incomplete', { exact: false })).toHaveCount(0)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  // Nothing was exchanged or asked: this browser holds no sign-in of its own to finish.
+  expect(calls).toEqual([])
+  // The code has left the address, so a reload is an ordinary visit: said once per link opened.
+  expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe('/join')
+  await page.reload()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('This door is closed')
+  await expect(page.getByText(OTHER_BROWSER_LINE)).toHaveCount(0)
+})
+
+test('join · with no invitation token and no sign-in’s return, the page keeps its closed door (join-other-browser.md)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await context.newPage()
+  await page.goto(`${APP}/join`)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('This door is closed')
+  await expect(page.getByText('This link is incomplete. Ask for the whole link, or a new one.')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Go to Sophia' })).toBeVisible()
+  await expect(page.getByText(OTHER_BROWSER_LINE)).toHaveCount(0)
+})
+
 test('feedback · opened from Home during a call, the call’s switches stay in reach (Codex P1 on #367)', async ({
   context,
 }) => {
