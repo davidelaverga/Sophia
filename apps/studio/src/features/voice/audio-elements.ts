@@ -5,15 +5,15 @@
 /** Whose voice an element plays, as the page marks it. */
 export type Whose = 'sophia' | 'member'
 
-/** A remote track, as LiveKit's: attach gives an element that plays it; detach lets go of one, or of all it has. */
+/** A remote track, as LiveKit's: attach gives an element that plays it; detach lets go of one. */
 export interface Playable<E> {
   attach(): E
-  detach(): E[]
   detach(el: E): unknown
 }
 
 /** An audio element, as the page has it. */
 interface AudioElement {
+  volume: number
   remove: () => void
 }
 
@@ -27,17 +27,24 @@ export function audioElements<T extends Playable<E>, E extends AudioElement>(pla
     el.remove()
   }
   return {
-    /** The track plays in an element of its own, put on the page. */
+    /**
+     * The track plays in an element of its own, put on the page, at full: LiveKit hands back an element it detached
+     * before, at the volume its last voice had (a member Off, or at 25%). A member's level is put on it after.
+     */
     play: (track: T, whose: Whose) => {
       const el = track.attach()
+      el.volume = 1
       place(el, whose)
       trackOf.set(el, track)
       return el
     },
     drop,
-    /** The elements the track lets go of leave the page; they are returned, for whoever else keeps them. */
+    /**
+     * Each element kept for the track leaves the page, whatever the track still holds: LiveKit detaches them all
+     * before it says the track is gone, so asking it then finds none. They are returned, for whoever else keeps them.
+     */
     stop: (track: T) => {
-      const gone = track.detach()
+      const gone = [...trackOf].filter(([, of]) => of === track).map(([el]) => el)
       for (const el of gone) drop(el)
       return gone
     },
