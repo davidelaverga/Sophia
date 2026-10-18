@@ -15,6 +15,8 @@ export interface OutboxRow {
   lease_owner: string | null
   lease_token: string | null
   attempts: number
+  /** The conversation reply a reply delivery is for (0064); null for goal work. */
+  conversation_reply_id?: string | null
 }
 
 const wrap = async <T>(p: Promise<T>): Promise<T> => {

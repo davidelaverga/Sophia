@@ -62,3 +62,13 @@ test('address @phone · the address shows the conversation alone; back to the li
   await expect(list(page)).toBeVisible()
   await expect.poll(() => hash(page)).toBe('')
 })
+
+test('address · an address naming one stays while the list can’t be read yet (Codex P2 on #375)', async ({ page }) => {
+  await page.goto(`${PAGE.replace('conversations=1', 'conversations=fail')}#conversation-${BRIEFS}`)
+  await expect(list(page)).toContainText('The conversations can’t be read now.')
+  expect(await hash(page)).toBe(`#conversation-${BRIEFS}`)
+  await page.evaluate(() => window.fixture?.failConversations(false))
+  await list(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(heading(page)).toHaveText('Short or long briefs?')
+  expect(await hash(page)).toBe(`#conversation-${BRIEFS}`)
+})
