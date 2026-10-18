@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { afterGap, gapsIn, pageLinks, windowLinks } from './segment-view.ts'
+import { afterGap, gapsIn, jumpReading, pageLinks, windowLinks } from './segment-view.ts'
 
 /** Message n (1-based) of a discussion, a second apart. */
 const m = (n: number) => ({
@@ -73,5 +73,19 @@ describe('the gaps that pages read leave (A38, R-C4-01)', () => {
       [m(2).id, m(3).id],
     ])
     assert.deepEqual(gapsIn([m(1), m(2), m(3)], new Map(pageLinks([m(1), m(2), m(3)], null))), [])
+  })
+
+  // 4306435436: hold A, follow B. A loading: B waits. A answers: B is idle and asks for its own page. A fails: the
+  // failure is A's, B is idle and asks for its own page. B's own failure is B's, so B's Try again reads B.
+  it('a jump read is owned by its address: an older address never fails a newer one', () => {
+    const A = 'a'
+    const B = 'b'
+    assert.equal(jumpReading({ before: A, reading: 'loading' }, B), 'loading')
+    assert.equal(jumpReading({ before: A, reading: 'idle' }, B), 'idle')
+    assert.equal(jumpReading({ before: A, reading: 'failed' }, B), 'idle')
+    assert.equal(jumpReading({ before: A, reading: 'failed' }, A), 'failed')
+    assert.equal(jumpReading({ before: B, reading: 'failed' }, B), 'failed')
+    assert.equal(jumpReading({ before: null, reading: 'failed' }, B), 'idle', 'the latest page’s failure is its own')
+    assert.equal(jumpReading({ before: null, reading: 'failed' }, null), 'failed')
   })
 })

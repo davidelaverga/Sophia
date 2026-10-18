@@ -13,7 +13,7 @@ import { getDiscussionPage } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Acted } from './MessageActions.tsx'
 import { heldView, inOrder } from './message-acts.ts'
-import { afterGap, gapsIn, pageLinks, windowLinks } from './segment-view.ts'
+import { afterGap, gapsIn, jumpReading, pageLinks, windowLinks } from './segment-view.ts'
 
 /** How many entries the snapshot holds, withdrawn places included: with fewer, it holds the whole discussion. */
 const WINDOW = 50
@@ -43,11 +43,16 @@ export interface Earlier {
   load: () => void
   /** The reader's own act, shown until the chat is read again. */
   revise: (acted: Acted) => void
-  /** Reads the one page that ends just before `before` (a found message's next, A38), held apart from the window. */
-  /** The page that ends just before `before`; null: the latest page (a search's newest message). */
+  /**
+   * Reads the one page that ends just before `before` (a found message's next, A38), held apart from the window; null:
+   * the latest page (a search's newest message). One at a time.
+   */
   jump: (before: string | null) => void
-  /** That read: under way, failed (the reader tries again), or not. */
-  jumping: Reading
+  /**
+   * The jump read as it stands for `before`: under way (any jump: one at a time, the next waits), failed only when this
+   * address's own read failed (the reader tries again), else idle (4306435436: an older address's failure is its own).
+   */
+  jumping: (before: string | null) => Reading
   /** Where messages between were never read (A38): after which messages, a gap's read, and the press that fills it. */
   gaps: { after: readonly string[]; reading: (after: string) => Reading; fill: (after: string) => void }
 }
@@ -103,18 +108,18 @@ interface Holding {
  * filled from below a page at a time, until no message between is unread (segment-view.ts).
  */
 function useFoundPage(projectId: string, token: string, at: Holding): Pick<Earlier, 'jump' | 'jumping' | 'gaps'> {
-  const [jumping, setJumping] = useState<Reading>('idle')
+  const [jumped, setJumped] = useState<{ before: string | null; reading: Reading }>({ before: null, reading: 'idle' })
   const [filling, setFilling] = useState<{ after: string; reading: Reading } | null>(null)
   const { shown, hold } = at
   const jump = (before: string | null) => {
-    if (jumping === 'loading') return
-    setJumping('loading')
+    if (jumped.reading === 'loading') return
+    setJumped({ before, reading: 'loading' })
     getDiscussionPage(token, projectId, before).then(
       (page) => {
         hold(page, before, page.before === null || at.atStart)
-        setJumping('idle')
+        setJumped({ before, reading: 'idle' })
       },
-      () => setJumping('failed'),
+      () => setJumped({ before, reading: 'failed' }),
     )
   }
   const fill = (after: string) => {
@@ -130,6 +135,7 @@ function useFoundPage(projectId: string, token: string, at: Holding): Pick<Earli
     )
   }
   const reading = (after: string): Reading => (filling?.after === after ? filling.reading : 'idle')
+  const jumping = (before: string | null): Reading => jumpReading(jumped, before)
   return { jump, jumping, gaps: { after: at.gaps, reading, fill } }
 }
 

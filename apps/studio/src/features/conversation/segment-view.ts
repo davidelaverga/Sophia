@@ -45,3 +45,14 @@ export function afterGap(shown: readonly Placed[], gap: string): Placed | undefi
   const at = sorted.findIndex((s) => s.id === gap)
   return at < 0 ? undefined : sorted[at + 1]
 }
+
+/**
+ * A jump read as it stands for one address (4306435436): under way for any address (one jump at a time; the next waits
+ * and then asks for its own page); failed only for the address whose own read failed; otherwise idle.
+ */
+export function jumpReading(
+  jumped: { before: string | null; reading: 'idle' | 'loading' | 'failed' },
+  before: string | null,
+): 'idle' | 'loading' | 'failed' {
+  return jumped.reading === 'failed' && jumped.before !== before ? 'idle' : jumped.reading
+}

@@ -222,7 +222,7 @@ export function useMessageAddressed(
   const { load, offered, atStart, withdrawn, jump } = earlier
   // Found by a search, its next message known: the one page that ends at it, whose read is the one waited on.
   const before = beforeOf(named.id)
-  const reading = before !== undefined ? earlier.jumping : earlier.reading
+  const reading = before !== undefined ? earlier.jumping(before) : earlier.reading
   useEffect(() => {
     const id = named.id
     if (!inView || !loaded || !id || at !== 'looking') return
@@ -253,6 +253,7 @@ export function useMessageAddressed(
     withdrawn,
     shown,
   ])
-  const retry = at === 'looking' && before !== undefined && earlier.jumping === 'failed' ? () => jump(before) : null
+  const retry =
+    at === 'looking' && before !== undefined && earlier.jumping(before) === 'failed' ? () => jump(before) : null
   return { at, retry }
 }
