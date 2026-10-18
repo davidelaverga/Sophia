@@ -76,6 +76,36 @@ test('home · crossing 860 px keeps the focus on the need that had it', async ({
   await expect(presses('.hw-side').nth(1)).toBeFocused()
 })
 
+// By the need, not its place in the list (Codex P2 on #377): the list is read again every 20 s, and a need may come
+// ahead of the one focused, or leave.
+test('home · a need that came ahead, then crossing 860 px: the focus stays on the same need', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 900 })
+  await page.goto('/home.html?needs=api')
+  const side = page.locator('.hw-side button')
+  await expect(side).toHaveCount(4)
+  const marco = side.filter({ hasText: 'Marco Pereira is in the lobby' })
+  await marco.focus()
+  await page.evaluate(() => window.homeFixture?.urgentNeed())
+  await expect(side).toHaveCount(5)
+  await expect(side.first()).toContainText('Approve the pricing copy?')
+  await expect(marco).toBeFocused()
+  await page.setViewportSize({ width: 800, height: 900 })
+  await expect(page.locator('.hw-needs-here button', { hasText: 'Marco Pereira is in the lobby' })).toBeFocused()
+})
+
+test('home · a need that left is not stood in for by its neighbour after crossing 860 px', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 900 })
+  await page.goto('/home.html?needs=api')
+  const side = page.locator('.hw-side button')
+  await expect(side).toHaveCount(4)
+  await side.filter({ hasText: 'Marco Pereira is in the lobby' }).focus()
+  await page.evaluate(() => window.homeFixture?.dropNeed('guest:g1'))
+  await expect(side).toHaveCount(3)
+  await page.setViewportSize({ width: 800, height: 900 })
+  await expect(page.locator('.hw-needs-here button')).toHaveCount(3)
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true)
+})
+
 test('home · crossing 860 px leaves a focus outside the list where it was', async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 900 })
   await page.goto(PAGE)

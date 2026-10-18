@@ -294,12 +294,32 @@ interface CallInit {
   headers?: Readonly<Record<string, string>>
   /** The caller's own signal: once it aborts, the call stops (as one past its time does). */
   signal?: AbortSignal
+  /**
+   * A protected read (a project's conversations, a conversation's messages): its 403 is the refusal, known from the
+   * status alone, so it is raised at once as `forbidden`, never after (or according to) an error body that may be slow,
+   * endless or malformed (R-REFUSAL-CLIENT-01). The view fences on that refusal.
+   */
+  protectedRead?: true
+  /**
+   * A read behind the project's door (Updates' «since», closedDoor): its 401 or 403 is the refusal, known from the status
+   * alone, so it is raised at once with that status, never after an error body that may be slow, endless or malformed
+   * (R-391-UPDATES-01). The view fences on it.
+   */
+  doorRead?: true
 }
 
 /**
  * One call with an optional bearer, body and key; the reply validated as `parse`, never cast. A GET waits as a
  * read does; anything else, as a write.
  */
+/** A protected read's refusal, known from its status alone (`protectedRead`, `doorRead`); undefined for any other. */
+function refusedByStatus(status: number, init: CallInit, retry: ApiErrorBody['retry']): ApiError | undefined {
+  if (status === 403 && init.protectedRead) return new ApiError(403, 'forbidden', unreadRefusal(403), retry)
+  if ((status === 401 || status === 403) && init.doorRead)
+    return new ApiError(status, `http_${status}`, unreadRefusal(status), retry)
+  return undefined
+}
+
 export function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value: unknown) => T): Promise<T> {
   const method = init.method ?? 'POST'
   // What a failure allows: an admission is retried with its key, a read is asked again, and a write without a key
@@ -321,6 +341,11 @@ export function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value
       })
     } catch {
       throw new ApiError(0, 'outcome_unknown', 'No reply from Sophia', retry)
+    }
+    const refused = refusedByStatus(res.status, init, retry)
+    if (refused) {
+      void res.body?.cancel().catch(() => undefined)
+      throw refused
     }
     if (!res.ok) throw await toError(res)
     return readBody(res, parse, retry)

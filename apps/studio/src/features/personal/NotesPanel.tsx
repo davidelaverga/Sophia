@@ -202,12 +202,13 @@ export function NotesPanel(props: Props) {
   const panel = useRef<HTMLElement>(null)
   const { carrying, setCarrying, crossing, carry } = useCarry(panel, onCarry)
   const crossed = (id: string) => crossing === id || props.carrying(id)
-  const forget = useForget(panel, notes, props.onForget)
+  const find = useFind(notes)
+  // The next note is the next one shown, in the order chosen and as Find leaves them (Codex P2 on #394).
+  const forget = useForget(panel, find.shown, props.onForget)
   // The package, open: it replaces the notes' own Carry, so one writer carries at a time; while a step of it runs
   // (carrying, taking back), the notes stay open, so what it says stays in sight.
   const [packing, setPacking] = useState(false)
   const [packBusy, setPackBusy] = useState(false)
-  const find = useFind(notes)
   // Focus the panel itself: a tip should appear when you reach a control, not the moment the notes open.
   useEffect(() => panel.current?.focus({ preventScroll: true }), [])
   return (
@@ -226,14 +227,17 @@ export function NotesPanel(props: Props) {
       {!packing &&
         find.shown.map((note) => (
           <div key={note.id} className={`c2-t${crossed(note.id) ? ' crossing' : ''}`} inert={crossed(note.id)}>
-            <p>
-              {note.text}
-              {note.keptBy === 'sophia' && <span className="by">from Sophia</span>}
-            </p>
-            {/* Its day, beside the words, not in them: Find and the notes read the words alone. */}
-            <time className="c2-day" dateTime={note.createdAt}>
-              {dayOf(note.createdAt, Date.now())}
-            </time>
+            {/* The words with their day under them, then Carry and Forget beside them (Codex P2 on #394). */}
+            <div className="c2-words">
+              <p>
+                {note.text}
+                {note.keptBy === 'sophia' && <span className="by">from Sophia</span>}
+              </p>
+              {/* Its day, after the words, not in them: Find and the notes read the words alone. */}
+              <time className="c2-day" dateTime={note.createdAt}>
+                {dayOf(note.createdAt, Date.now())}
+              </time>
+            </div>
             <NoteActs
               noteId={note.id}
               open={carrying === note.id}
@@ -282,7 +286,7 @@ const ORDERS = [
 function OrderNotes({ find }: { find: Find }) {
   return (
     <Segmented
-      role="group"
+      role="radiogroup"
       label="Order"
       size="sm"
       className="c3-order"
@@ -347,7 +351,7 @@ function FindNotes(props: { typed: string; onTyped: (typed: string) => void; fou
 /** A note's acts: Carry, and Forget, which asks first since its words go for good (personal-forget-note.md). */
 function NoteActs(props: { noteId: string; open: boolean; onCarry: () => void; onForget: () => void }) {
   return (
-    <>
+    <span className="c2-acts">
       <button
         className="ghost"
         type="button"
@@ -364,7 +368,7 @@ function NoteActs(props: { noteId: string; open: boolean; onCarry: () => void; o
         keep="Keep it"
         onConfirm={props.onForget}
       />
-    </>
+    </span>
   )
 }
 

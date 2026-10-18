@@ -59,6 +59,7 @@ import { useServedWork, type ServedWork } from '../work/planning/ServedWork.tsx'
 import type { Feed } from '../../projectors/projection.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { ProjectName } from './ProjectName.tsx'
+import { ViewFailed } from './ViewFailed.tsx'
 
 // The Invite sheet (and its QR encoder) loads the first time someone opens it.
 const InviteSheet = lazy(() => import('../access/InviteSheet.tsx').then((m) => ({ default: m.InviteSheet })))
@@ -650,6 +651,27 @@ interface BodyProps {
   floating: React.ReactNode
 }
 
+/** The door, and an archived project's line over it (archive-project.md): on every view, as the lobby is. */
+function ProjectDoor({
+  projectId,
+  identity,
+  membership,
+  snapshot,
+}: Pick<BodyProps, 'projectId' | 'identity' | 'membership' | 'snapshot'>) {
+  return (
+    <>
+      <ArchivedLine projectId={projectId} identity={identity} membership={membership} />
+      <LobbyPanel
+        projectId={projectId}
+        identity={identity}
+        lobby={snapshot?.lobby}
+        canDecide={canInvite(membership)}
+        projectTitle={snapshot?.title}
+      />
+    </>
+  )
+}
+
 /**
  * Studio is the room itself; every other view is a page, with the room one click away in the mini dock.
  * The lobby shows on every view: someone waiting at the door should never depend on which page you read.
@@ -676,19 +698,7 @@ function ProjectBody(props: BodyProps) {
       </WithViewer>
     </ProjectGoProvider>
   )
-  // The door, and an archived project's line under it (archive-project.md): on every view, as the lobby is.
-  const lobby = (
-    <>
-      <ArchivedLine projectId={projectId} identity={identity} membership={membership} />
-      <LobbyPanel
-        projectId={projectId}
-        identity={identity}
-        lobby={snapshot?.lobby}
-        canDecide={canInvite(membership)}
-        projectTitle={snapshot?.title}
-      />
-    </>
-  )
+  const lobby = <ProjectDoor projectId={projectId} identity={identity} membership={membership} snapshot={snapshot} />
   if (view === 'studio') {
     return withViewer(
       <>
@@ -716,8 +726,11 @@ function ProjectBody(props: BodyProps) {
     <>
       {lobby}
       <main className={pageClass(work, props.plans, view === 'conversations' && CONVERSATIONS)} data-content>
-        {resources ?? <PageBody {...props} />}
-        {work && pulse}
+        {/* A view that fails to draw says so in its place, its pulse too; the shell and the call stay (view-boundary.md). */}
+        <ViewFailed view={view}>
+          {resources ?? <PageBody {...props} />}
+          {work && pulse}
+        </ViewFailed>
       </main>
       {props.floating}
     </>,
@@ -850,6 +863,7 @@ function Goals(props: BodyProps) {
       identity={identity}
       controls={work}
       canAct={canInvite(membership)}
+      admin={membership?.role === 'admin'}
       plans={plans}
       summary={!work}
       me={membership?.actorId}

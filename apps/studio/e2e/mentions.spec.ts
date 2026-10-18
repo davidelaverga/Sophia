@@ -16,6 +16,16 @@ const MENTIONED_IN = '00000000-0000-4000-8000-00000000003a'
 const PROJECT = '00000000-0000-4000-8000-0000000000aa'
 const NEED = `mention:${PROJECT}:2.1:${MENTIONED_IN}`
 const entryIdOf = (n: number) => `00000000-0000-4000-8000-${String(n + 1).padStart(12, '0')}`
+declare global {
+  interface Window {
+    /** A message to the room held until released, and what each named (the held-send case below). */
+    heldSends?: { held: (() => void)[]; bodies: { mentions: string[] | undefined }[]; hold: boolean }
+    /** Seen writes the page attempted (the failing-seen cases below). */
+    seenAttempts?: number
+    /** The held seen write's release: answers it 503 (the held-write case below). */
+    releaseSeen?: () => void
+  }
+}
 const seenOf = async (page: Page) => (await served(page)).filter((s) => s.startsWith('seen:'))
 
 /** In the call, out of Sophia's conversation: the bar writes to the room (room-discussion.spec.ts). */
@@ -372,4 +382,171 @@ test('mentions · an earlier page that fails stops the look: the failure and Try
   await page.getByRole('button', { name: 'Try again' }).click()
   await expect(discussion(page).locator(`[data-message="${old}"]`)).toBeInViewport()
   await expect.poll(() => seenOf(page)).toEqual([`seen:mention:${PROJECT}:1.1:${old}`])
+})
+
+test('mentions · chosen again while a message goes: its success clears only what it named; the next choice and words stay, and go with the next message', async ({
+  page,
+}) => {
+  await enter(page)
+  // Each message to the room is held until released, and what it named is kept.
+  await page.evaluate(() => {
+    const inner = window.fetch
+    const held: (() => void)[] = []
+    const bodies: { mentions: string[] | undefined }[] = []
+    const sendsHeld = { held, bodies, hold: true }
+    window.heldSends = sendsHeld
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(input instanceof Request ? input.url : String(input), location.href).pathname
+      if (init?.method !== 'POST' || !path.endsWith('/contributions')) return inner(input, init)
+      const sent: unknown = typeof init.body === 'string' ? JSON.parse(init.body) : null
+      const named = sent && typeof sent === 'object' && 'mentions' in sent ? sent.mentions : undefined
+      bodies.push({ mentions: Array.isArray(named) ? named.map(String) : undefined })
+      if (sendsHeld.hold) await new Promise<void>((resolve) => held.push(resolve))
+      return inner(input, init)
+    }
+  })
+  const sends = () =>
+    page.evaluate(() => ({ bodies: window.heldSends?.bodies ?? [], held: window.heldSends?.held.length ?? 0 }))
+  await page.getByRole('button', { name: 'Mention' }).click()
+  const options = page.getByRole('group', { name: /Mention members/ })
+  await options.getByRole('checkbox', { name: 'Marco' }).check()
+  await page.getByRole('button', { name: 'Done' }).click()
+  await bar(page).fill('SYNTHETIC first words for Marco')
+  await bar(page).press('Enter')
+  await expect.poll(async () => (await sends()).held).toBe(1)
+  // While it goes: Lucía instead of Marco, and the next words.
+  await page.getByRole('button', { name: 'Mention' }).click()
+  await options.getByRole('checkbox', { name: 'Marco' }).uncheck()
+  await options.getByRole('checkbox', { name: 'Lucía' }).check()
+  await page.getByRole('button', { name: 'Done' }).click()
+  await expect(page.getByText('Mentions Lucía')).toBeVisible()
+  await bar(page).fill('SYNTHETIC next words for Lucía')
+  await page.evaluate(() => {
+    const sendsHeld = window.heldSends
+    if (!sendsHeld) return
+    sendsHeld.hold = false
+    for (const release of sendsHeld.held.splice(0)) release()
+  })
+  await expect(line(page, 'SYNTHETIC first words for Marco').locator('.contribution-mentions')).toHaveText('to Marco')
+  // The first message's success leaves the next choice and words as they are.
+  await expect(page.getByText('Mentions Lucía')).toBeVisible()
+  await expect(bar(page)).toHaveValue('SYNTHETIC next words for Lucía')
+  await bar(page).press('Enter')
+  await expect(line(page, 'SYNTHETIC next words for Lucía').locator('.contribution-mentions')).toHaveText('to Lucía')
+  await expect(page.getByText('Mentions Lucía')).toHaveCount(0) // what it named, unchanged, clears on its success
+  const { bodies } = await sends()
+  expect(bodies.map((b) => b.mentions)).toEqual([[MARCO], [expect.not.stringMatching(MARCO)]])
+})
+
+/**
+ * #409 4305869903: the first `failures` seen writes answer 503 (the fixture's fetch is wrapped as the page sets it), and
+ * each attempt is counted, so a stationary readable mention's retries are seen without a scroll or a new read.
+ */
+async function failingSeen(page: Page, failures: number) {
+  await page.addInitScript((n) => {
+    let left = n
+    window.seenAttempts = 0
+    const wrap =
+      (f: typeof fetch): typeof fetch =>
+      async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href)
+        if (init?.method === 'POST' && /^\/api\/v1\/me\/needs\/[^/]+\/seen$/.test(url.pathname)) {
+          window.seenAttempts = (window.seenAttempts ?? 0) + 1
+          if (left > 0) {
+            left--
+            return new Response(JSON.stringify({ code: 'unavailable', message: 'Busy', retry: 'safe' }), {
+              status: 503,
+            })
+          }
+        }
+        return f(input, init)
+      }
+    let current = wrap(window.fetch.bind(window))
+    Object.defineProperty(window, 'fetch', {
+      configurable: true,
+      get: () => current,
+      set: (f: typeof fetch) => (current = wrap(f)),
+    })
+  }, failures)
+}
+const seenAttempts = (page: Page) => page.evaluate(() => window.seenAttempts ?? 0)
+
+test('mentions · a seen write that fails once is tried again while the message stays readable, and is marked once', async ({
+  page,
+}) => {
+  await failingSeen(page, 1)
+  await page.goto(`/room.html?call=on&people=2&floor=1&discussion=mentioned#message-${MENTIONED_IN}`)
+  const entry = discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)
+  await expect(entry).toBeInViewport()
+  await expect.poll(() => served(page), { timeout: 5000 }).toContain(`seen:${NEED}`)
+  expect((await served(page)).filter((s) => s === `seen:${NEED}`)).toHaveLength(1)
+  expect(await seenAttempts(page)).toBe(2)
+})
+
+test('mentions · a seen write that keeps failing is tried a bounded number of times, then waits for the next showing', async ({
+  page,
+}) => {
+  await failingSeen(page, 99)
+  await page.goto(`/room.html?call=on&people=2&floor=1&discussion=mentioned#message-${MENTIONED_IN}`)
+  await expect(discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)).toBeInViewport()
+  await expect.poll(() => seenAttempts(page), { timeout: 9000 }).toBe(4) // the first and three more
+  await page.waitForTimeout(4500)
+  expect(await seenAttempts(page)).toBe(4)
+  expect((await served(page)).filter((s) => s.startsWith('seen:'))).toEqual([])
+})
+
+test('mentions · closing the chat cancels a pending retry of a failed seen write', async ({ page }) => {
+  await failingSeen(page, 99)
+  await page.goto(`/room.html?call=on&people=2&floor=1&discussion=mentioned#message-${MENTIONED_IN}`)
+  await expect(discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)).toBeInViewport()
+  await expect.poll(() => seenAttempts(page)).toBe(1)
+  await chatToggle(page).click()
+  await expect(discussion(page)).toHaveCount(0)
+  await page.waitForTimeout(2500)
+  expect(await seenAttempts(page)).toBe(1)
+})
+
+// #409 R-CURRENT-MENTIONS-RETRY-OWNERSHIP-02: the first seen write is held; while it is in flight the same mounted chat's
+// effect starts again (a new message changes what it shows); then the held write fails. The occurrence, still current
+// and readable where it is, is acknowledged by the effect that is current now, within bounds: no scroll, no new read.
+test('mentions · a seen write that fails after the chat moved on is tried again by the chat as it is now', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    let held = true
+    window.seenAttempts = 0
+    const wrap =
+      (f: typeof fetch): typeof fetch =>
+      async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href)
+        if (init?.method === 'POST' && /^\/api\/v1\/me\/needs\/[^/]+\/seen$/.test(url.pathname)) {
+          window.seenAttempts = (window.seenAttempts ?? 0) + 1
+          if (held) {
+            held = false
+            await new Promise<void>((resolve) => (window.releaseSeen = resolve))
+            return new Response(JSON.stringify({ code: 'unavailable', message: 'Busy', retry: 'safe' }), {
+              status: 503,
+            })
+          }
+        }
+        return f(input, init)
+      }
+    let current = wrap(window.fetch.bind(window))
+    Object.defineProperty(window, 'fetch', {
+      configurable: true,
+      get: () => current,
+      set: (f: typeof fetch) => (current = wrap(f)),
+    })
+  })
+  await page.goto(`/room.html?call=on&people=2&floor=1&discussion=mentioned#message-${MENTIONED_IN}`)
+  const entry = discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)
+  await expect(entry).toBeInViewport()
+  await expect.poll(() => seenAttempts(page)).toBe(1) // the write is in flight, held
+  await page.evaluate(() => window.fixture?.say('SYNTHETIC: the chat moves on while the write is held.'))
+  await expect(line(page, 'the chat moves on while the write is held')).toBeVisible()
+  await expect(entry).toBeInViewport()
+  await page.evaluate(() => window.releaseSeen?.())
+  await expect.poll(() => served(page), { timeout: 6000 }).toContain(`seen:${NEED}`)
+  expect((await served(page)).filter((s) => s === `seen:${NEED}`)).toHaveLength(1)
+  expect(await seenAttempts(page)).toBe(2)
 })

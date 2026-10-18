@@ -248,7 +248,11 @@ export const closeMeeting = (token: string, roomId: string, meetingId: string, k
 
 /** A34 (A13's «since»): what changed since this viewer last looked (their own attention, kept by the API). */
 export const getSince = (token: string, projectId: string, signal?: AbortSignal): Promise<Since> =>
-  callApi(`/api/v1/projects/${projectId}/since`, { token, method: 'GET', ...(signal ? { signal } : {}) }, parseSince)
+  callApi(
+    `/api/v1/projects/${projectId}/since`,
+    { token, method: 'GET', doorRead: true, ...(signal ? { signal } : {}) },
+    parseSince,
+  )
 
 /** A13: this viewer has seen up to `sequence`; the API never lowers it, so a second write is harmless. */
 export const markSeen = (token: string, projectId: string, sequence: string): Promise<undefined> =>

@@ -28,6 +28,10 @@ export interface ReplyUnderWay {
   done: () => void
 }
 
+/** The same members, in any order: a choice is its members, never the array that holds them. */
+const sameMembers = (a: readonly string[], b: readonly string[]) =>
+  a.length === b.length && a.every((id) => b.includes(id))
+
 const NO_REPLY: ReplyUnderWay = { id: null, done: () => undefined }
 const NO_MENTIONS: MentionsUnderWay = { ids: [], done: () => undefined }
 
@@ -72,8 +76,10 @@ export function useRoomMessage(
     const now = latest.current.reply
     if (message.replyTo !== null && message.replyTo === now.id) now.done()
     if (latest.current.draft.trim() === message.text) onDraft('')
-    // The members it named were named: the choice clears for the next message.
-    if (message.mentions.length > 0) latest.current.mentions.done()
+    // The members it named were named: the choice clears for the next message, unless it is no longer the one sent
+    // (another chosen while it went, or after no reply): that is the next message's (409 P2 4304921244).
+    const named = latest.current.mentions
+    if (message.mentions.length > 0 && sameMembers(named.ids, message.mentions)) named.done()
   }
   const words = unknown
     ? `Not confirmed: “${firstWords(unknown.text)}”`

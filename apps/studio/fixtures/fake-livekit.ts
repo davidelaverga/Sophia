@@ -205,6 +205,9 @@ const viewer = (): RoomParticipant => ({
 
 /** What the page said it follows, last (following-signal.ts sends only a change). */
 let said: string | null = null
+/** Others' cameras come to this page, or not (incoming-video.md): as the connection records it. */
+let incoming = true
+const theirs = () => feeds().filter((f) => incoming || f.source !== 'camera')
 
 /** What the page says it follows, as the room's connection records it: only a change is sent. */
 function sayFollowing(versionId: string | null): Promise<void> {
@@ -279,14 +282,22 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
       allowSound()
       return Promise.resolve()
     },
-    feeds: () => (me.cameraOn ? [ownFeed(me.identity), ...feeds()] : feeds()),
+    feeds: () => (me.cameraOn ? [ownFeed(me.identity), ...theirs()] : theirs()),
     setMicrophone: device('microphone', 'micOn'),
     setCamera: device('camera', 'cameraOn'),
     setScreenShare: device('screen', 'screenOn'),
     switchDevice,
     setBackground,
     sendReaction,
+    setIncomingVideo: (on) => {
+      asked.push(`incoming:${on ? 'on' : 'off'}`)
+      incoming = on
+      cb.onChange()
+    },
     setFollowing: sayFollowing,
+    setVolume: (identity, level) => {
+      asked.push(`volume:${identity}:${String(level)}`)
+    },
     leave: () => {
       asked.push('leave')
       open = false

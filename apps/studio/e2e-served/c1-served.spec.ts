@@ -46,8 +46,8 @@ test('served · VISION off: the conversations tab is the real A33 list, and noth
   page,
 }) => {
   const calls = await as(page, 'Luis')
-  // Synchronized on the A33 read itself (B-C4 run 42 saw the list visible before any API request was recorded): the
-  // list's answer, then the required record of the request.
+  // Synchronized on the A33 read itself (seen in B-C4 run 42 and B-C1-current-main run 29: the list visible before any
+  // API request was recorded): the list's answer, then the required record of the request.
   const listed = page.waitForResponse(
     (r) => new URL(r.url()).pathname === `/api/v1/projects/${PROJECT}/conversations` && r.request().method() === 'GET',
   )
