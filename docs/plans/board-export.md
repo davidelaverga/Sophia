@@ -17,8 +17,17 @@
     complete one and `- [ ]` for the rest, each with «who · status».
   - **The file's name:** `tasks-plan-r2-2026-10-16.csv` or `.md`.
 
+## Follow-ups (Codex P2s on #397)
+
+- **The CSV starts with a byte-order mark,** without which Excel reads the file in its local code page, not UTF-8: «Marco’s»
+  turned into mojibake. The download says `charset=utf-8` too.
+- **Markdown keeps each value inside its line:** line breaks fold to spaces, and the marks that format (`\` `` ` ``
+  `*` `_` `[` `]` `<` `>` `~` `|` `#`) are escaped. A task's words can't open a heading, an item, a link or a tag of
+  their own.
+
 ## Checks
 
-- **`board-export.test.ts`:** CSV quoting and the formula guard; Markdown lanes and checkboxes; the file names.
+- **`board-export.test.ts`:** CSV quoting, the formula guard and the byte-order mark; Markdown lanes and checkboxes,
+  and a task's words kept in its item; the file names.
 - **`board-export.spec.ts`:** on the work fixture, «Export» → «Download CSV» saves the file by its name, with the
   header and a row a task. «Download Markdown» saves one with the lanes as headings.

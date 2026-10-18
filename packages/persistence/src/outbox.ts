@@ -9,12 +9,14 @@ export interface OutboxRow {
   id: string
   command_id: string
   destination: string
-  goal_id: string
+  goal_id: string | null
   state: string
   cleanup: boolean
   lease_owner: string | null
   lease_token: string | null
   attempts: number
+  /** The conversation reply a reply delivery is for (0064); null for goal work. */
+  conversation_reply_id?: string | null
 }
 
 const wrap = async <T>(p: Promise<T>): Promise<T> => {

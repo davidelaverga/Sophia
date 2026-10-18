@@ -211,6 +211,29 @@ Read in a checkout of `paperclipai/paperclip@5edf55d7350c7f08c9dd132c7e0f1421fa0
 | UML-612-OPTIMIZATION | Linux `v6.12.101`, `init/Kconfig`, compiler optimization choice, read from the same SHA-256-verified kernel archive | Upstream defaults to `CC_OPTIMIZE_FOR_PERFORMANCE` (`-O2`); the preceding candidate explicitly chose `CC_OPTIMIZE_FOR_SIZE` (`-Os`). The runtime candidate now uses the upstream performance setting. Same-host full-fixture comparisons retain the size setting as a control; neither setting is native Render acceptance by itself. | `renderers/web/pdf/uml/kernel.config`, `Dockerfile`, `.github/workflows/uml-fixture.yml` |
 | LINUX-PARENT-DEATH | [Linux man-pages, `PR_SET_PDEATHSIG(2const)`](https://man7.org/linux/man-pages/man2/PR_SET_PDEATHSIG.2const.html), read 2026-10-08 | Parent-death signaling persists across ordinary exec but does not signal for a parent that has already died. The driver supplies its PID before spawning; the child arms `SIGKILL` and checks its parent identity before exec. Existing namespace descendants rearm after fork and UID changes. | `renderers/web/pdf/uml/owned-exec.py`, `host-qa.py`, `test_owned_exec.py` |
 
+## 2i. CON-01 reply containment references
+
+| Source id | Upstream reference | Used for | Sophia files |
+|---|---|---|---|
+| CON-LINUX-SYSCALL-X64 | [Linux v6.12 x86_64 syscall table](https://github.com/torvalds/linux/blob/v6.12/arch/x86/entry/syscalls/syscall_64.tbl), read2026-10-14 | Q7 process creation, signal, socket, pidfd, seccomp and Landlock syscall numbers; native x86_64 only | apps/execution-host/reply/reply-launch.py, test_reply_launch.py |
+| CON-LINUX-SECCOMP | [Linux v6.12 seccomp UAPI](https://github.com/torvalds/linux/blob/v6.12/include/uapi/linux/seccomp.h) and [seccomp(2)](https://www.man7.org/linux/man-pages/man2/seccomp.2.html), read2026-10-14 | seccomp_data layout/action values, GET_ACTION_AVAIL, x32 separation and integer truncation; legacy dispatch comparison: [v5.3 common.c](https://github.com/torvalds/linux/blob/v5.3/arch/x86/entry/common.c) and [v5.4 common.c](https://github.com/torvalds/linux/blob/v5.4/arch/x86/entry/common.c); pure bytecode/injected queries are not kernel enforcement | same |
+| CON-LINUX-LANDLOCK | [Kernel Landlock documentation](https://cdn.kernel.org/doc/html/latest/userspace-api/landlock.html) and [Landlock UAPI](https://github.com/torvalds/linux/blob/master/include/uapi/linux/landlock.h), observed2026-10-14 | ABI4 filesystem bits0–14; ABI5 adds15(IOCTL_DEV), ABI9 adds16(RESOLVE_UNIX); documented throughABI11. Dynamic references are dated observations, not pinned runtime artifacts; later/unknown ABI refuses pending new source review and actual qualification | same |
+| CON-LINUX-IO-URING | Linux v6.12 [opdef.c](https://github.com/torvalds/linux/blob/v6.12/io_uring/opdef.c), [net.c](https://github.com/torvalds/linux/blob/v6.12/io_uring/net.c), [io_uring.c](https://github.com/torvalds/linux/blob/v6.12/io_uring/io_uring.c) and [net/socket.c](https://github.com/torvalds/linux/blob/v6.12/net/socket.c), read2026-10-14 | IORING_OP_SOCKET dispatches io_socket to __sys_socket_file with the SQE domain. Inference from source: syscall41/53 argument predicates do not cover that path. No target-host exploit demonstrated. Deny425/426/427, exclude inherited ring descriptors and qualify pinned Node/dsh on actual Linux before acceptance | same |
+
+Approved provenance addition under CON01-FILTER-AMENDMENT,14October2026; no upstream code copied.
+
+No claim of actual Linux qualification. All local capability/syscall/pidfd/signal0 paths used injected operations. Actual topology, runtime installation and physical isolation remain held.
+
+## 2j. Upstream sources at CON-01 B2 (service-mode replies)
+
+Read in the installed runtime of dsh `0.2.0-rc.2` and pi-ai `0.87.1` (`.artifacts/runtime/node_modules/.pnpm/…`), 2026-10-16; nothing is copied.
+
+| Source id | Upstream file (installed package) | Used for | Sophia files |
+|---|---|---|---|
+| CON-B2-PREPARE | `@deepseek-ai/dsh-llm` `lib/index.js` `prepareCall(config, signal)` (line 2203) and `lib/types/index.d.ts` `PreparedLlmCall` (line 93) | One call is prepared with its config and adapter registration resolved together; the returned config is detached and frozen, with any adapter default materialized; its `stream` dispatches once (a second dispatch, or a request whose call-config fields differ from the prepared ones, fails `INVALID_PREPARED_CALL`, lines 2224–2225) | `packages/dsh-bundle/src/reply-service.ts` (`prepare`, `call`: the prepared config must equal the pinned route; one stream per reply) |
+| CON-B2-ADAPTER-PREPARE | `@deepseek-ai/dsh-llm-pi-ai` `lib/index.js` `prepareCall(provider, model, _signal)` (line 1831) | The adapter's preparation reads its current profile snapshot and the model's info from it, and returns the stream bound to that snapshot: no provider I/O happens before `stream` | `reply-service.ts` (preparation before the reservation; no provider request until the reserved call) |
+| CON-B2-NO-RETRY | `@deepseek-ai/dsh-llm-pi-ai` `lib/index.js` `profileOptions` (lines 1674–1685, `maxRetries: 0`); pi-ai `dist/api/openai-responses.js` (lines 117–124: SDK request `maxRetries: 0`, then `retryProviderRequest` with the adapter's 0) and `dist/utils/provider-retry.js` (lines 75–90: no retry while `maxRetries` is 0) | A prepared call with no session id and no Agent makes one HTTP request: neither the SDK, pi-ai nor the adapter retries a 429 or 5xx (`dsh-llm-retry` hooks only `agent/request-error`) | `reply-service.ts`; `tests/integration/conversation-service.test.mjs` (a controlled 429 and 503 each reach the provider double once) |
+
 ## 3. Facts learned at the pin (not in the pack)
 
 These are observed behaviors of the pinned release, recorded so later goals

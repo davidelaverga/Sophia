@@ -2,6 +2,9 @@
 // runtime command that may name a route.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { openapi } from '../../packages/contracts/src/index.ts'
+import { RUNTIME_ROUTES } from '../../apps/api/src/routes/runtime.ts'
+import { wire } from '../../packages/dsh-bundle/dist/runtime-wire.generated.js'
 import { offRoute } from '../../packages/dsh-bundle/dist/control-bridge.js'
 import { parseConfig } from '../../packages/dsh-bundle/dist/index.js'
 import { parseCommand, ProtocolError } from '../../packages/dsh-bundle/dist/protocol.js'
@@ -74,5 +77,71 @@ test('a command may name a specialization role and, on create, the route admissi
   assert.equal(parseCommand({ ...command, payload: { ...command.payload, role: 'sophia-brief-v1', route: undefined } }).payload.role, 'sophia-brief-v1')
   for (const bad of [{ route: 'Research' }, { route: '-x' }, { role: 'sophia-research-md' }, { role: 'research-md-v1' }]) {
     assert.throws(() => parseCommand({ ...command, payload: { ...command.payload, ...bad } }), ProtocolError)
+  }
+})
+
+const conRequest = {
+  attemptId: '00000000-0000-0000-0000-000000000001',
+  commandId: '00000000-0000-0000-0000-000000000002', authorityEpoch: 1, leaseId: 'synthetic-bridge',
+}
+const conKeys = { observations: [], usage: [], ordinals: [], hasTurnEnd: false }
+const conCall = { routeId: 'synthetic-route', credentialRef: 'synthetic-ref', ownerResourceRef: 'synthetic-owner', unit: 'calls_tokens', tokens: 100, priceMicros: 0 }
+const conShapes = [
+  ['claim', 'ClaimRequest', 'ClaimReply', conRequest],
+  ['go', 'GoRequest', 'GoReply', conRequest],
+  ['reserve', 'ReserveRequest', 'Reservation', { ...conRequest, ordinal: 1, call: conCall }],
+  ['settle', 'SettleRequest', 'Settlement', { ...conRequest, ordinal: 1, used: { calls: 1, tokens: 10, priceMicros: 0 } }],
+  ['acknowledged', 'AcknowledgedRequest', 'Acknowledgement', { ...conRequest, keys: conKeys }],
+]
+
+test('the five CON service paths bind the exact generated request and response shapes, never a member identity', () => {
+  for (const [path, request, response, body] of conShapes) {
+    const route = `/v1/runtime/conversation/${path}`
+    assert.ok(RUNTIME_ROUTES.has(route), route)
+    const operation = openapi.paths[route].post
+    assert.deepEqual(operation.security, [{ runtimeCapability: [] }])
+    assert.deepEqual(operation.parameters.map(p => p.name), ['x-sophia-runtime-unit', 'x-sophia-bridge-instance', 'x-sophia-bridge-protocol'])
+    assert.equal(operation.requestBody.content['application/json'].schema.$ref, `#/components/schemas/RuntimeConversation${request}`)
+    assert.equal(operation.responses['200'].content['application/json'].schema.$ref, `#/components/schemas/RuntimeConversation${response}`)
+    const validate = wire[`RuntimeConversation${request}`]
+    assert.equal(validate(body), true, JSON.stringify(validate.errors))
+    for (const key of ['actorId', 'projectId', 'resourceId']) assert.equal(validate({ ...body, [key]: conRequest.attemptId }), false)
+    assert.equal(validate({ ...body, attemptId: 'not-an-id' }), false)
+    assert.equal(validate({ ...body, authorityEpoch: 0 }), false)
+    assert.equal(validate({ ...body, commandId: undefined }), false)
+    assert.equal(typeof wire[`RuntimeConversation${response}`], 'function')
+  }
+})
+
+test('CON wire keeps two ordinals and safe integer accounting without silently truncating journal proof', () => {
+  const reserve = wire.RuntimeConversationReserveRequest
+  const settle = wire.RuntimeConversationSettleRequest
+  for (const ordinal of [0, 3, 1.5]) {
+    assert.equal(reserve({ ...conRequest, ordinal, call: conCall }), false)
+    assert.equal(settle({ ...conRequest, ordinal, used: { calls: 1, tokens: 10, priceMicros: 0 } }), false)
+  }
+  for (const tokens of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1]) assert.equal(reserve({ ...conRequest, ordinal: 1, call: { ...conCall, tokens } }), false)
+  assert.equal(settle({ ...conRequest, ordinal: 1, used: { calls: 2, tokens: 10, priceMicros: 0 } }), false)
+  assert.equal(wire.RuntimeConversationAcknowledgedRequest({ ...conRequest, keys: { ...conKeys, observations: Array.from({ length: 502 }, (_, i) => `synthetic-session#${i}`) } }), true)
+})
+
+test('CON wire retains all eight ACK predicates and each durable terminal-writer kind', () => {
+  const id = conRequest.attemptId
+  const capture = { kind: 'capture', turnEndId: id, turnEndSeq: 2, resultRef: id, outcome: 'published' }
+  const predicates = {
+    observations: { met: true, keys: [] }, usage: { met: true, keys: [] }, reservations: { met: true, states: [] },
+    terminalState: { met: true, replyId: id, state: 'answered' },
+    terminalWriter: { met: true, key: capture }, createAnswered: { met: true, commandId: id, stage: 'delivered' },
+    capture: { met: true, outcome: 'published', key: capture }, payloadScrubbed: { met: true, commandId: id },
+  }
+  const validate = wire.RuntimeConversationAcknowledgement
+  for (const key of [capture, { kind: 'receipt', commandId: id, stage: 'failed' },
+    { kind: 'hello', attemptId: id, leaseId: 'synthetic-bridge', leaseEpoch: 2 },
+    { kind: 'cancellation', replyId: id, caller: 'capture_native_result', causeKind: 'capture_privacy', reason: 'audience_changed', cancelledAt: '2026-10-13T10:00:00.123456+00:00' }, null]) {
+    assert.equal(validate({ predicates: { ...predicates, terminalWriter: { met: key !== null, key } } }), true, JSON.stringify(validate.errors))
+  }
+  for (const name of Object.keys(predicates)) {
+    const incomplete = { ...predicates }; delete incomplete[name]
+    assert.equal(validate({ predicates: incomplete }), false, name)
   }
 })
