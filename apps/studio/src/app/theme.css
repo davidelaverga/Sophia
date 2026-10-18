@@ -2978,6 +2978,17 @@ button.contribution-quote:hover {
   color: var(--text-2);
   font-size: var(--type-small);
 }
+/* Your camera's switch at your line's end, while your tile isn't on the stage (Codex P2 on #422): on a phone only, as
+   on the tile; on a computer Video settings chooses. */
+.in-the-call-flip {
+  display: none;
+  margin-left: auto;
+}
+@media (max-width: 600px) {
+  .in-the-call-flip {
+    display: inline-block;
+  }
+}
 /* A card (docs/plans/card-scale.md): a raised plane with a 1 px edge, 12 px of radius and 14 of padding; the board's
    tile 8 and 10 × 12. A live one answers: the edge lights and the plane rises a step under the pointer, a press sinks
    it half a pixel, the keyboard draws the ring. A card names its own layout; the kit gives it its surface. */

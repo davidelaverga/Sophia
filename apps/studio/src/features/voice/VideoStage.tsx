@@ -319,8 +319,7 @@ export function VideoStage({ mode, people: everyoneHere, feeds, floor, shown, fl
     stage,
     strip,
   )
-  // Held here, not in «+N»: the tiles move between the strip and the gallery, and the sheet stays open across.
-  const [everyone, setEveryone] = useState(false)
+  const everyone = useEveryone(everyoneHere, floor, { kept, flip })
   const tiles = (
     <Tiles
       kept={kept}
@@ -330,15 +329,14 @@ export function VideoStage({ mode, people: everyoneHere, feeds, floor, shown, fl
       self={self}
       flip={flip}
       more={more.length}
-      onMore={() => setEveryone(true)}
+      onMore={everyone.show}
     />
   )
-  const sheet = everyone && <InTheCall people={everyoneHere} floor={floor} onClose={() => setEveryone(false)} />
   if (!strip) {
     return (
       <ul className="gallery" data-count={count + (self.hidden ? 1 : 0)} aria-label="In the room">
         {tiles}
-        {sheet}
+        {everyone.sheet}
       </ul>
     )
   }
@@ -356,9 +354,25 @@ export function VideoStage({ mode, people: everyoneHere, feeds, floor, shown, fl
       <ul className="tile-strip" aria-label="In the room">
         {tiles}
       </ul>
-      {sheet}
+      {everyone.sheet}
     </div>
   )
+}
+
+/**
+ * «In the call», which «+N» opens: held here, not in «+N», as the tiles move between the strip and the gallery and the
+ * sheet stays open across. Your camera's switch goes with your tile: off the stage (in «+N», or hidden), your line in
+ * the sheet has it (Codex P2 on #422).
+ */
+function useEveryone(
+  people: readonly RoomParticipant[],
+  floor: FloorView,
+  mine: { kept: readonly RoomParticipant[]; flip: (() => void) | null | undefined },
+) {
+  const [open, setOpen] = useState(false)
+  const flip = mine.kept.some((p) => p.local) ? null : mine.flip
+  const sheet = open && <InTheCall people={people} floor={floor} flip={flip} onClose={() => setOpen(false)} />
+  return { sheet, show: () => setOpen(true) }
 }
 
 /** What takes the stage: a person pinned, else a shared screen, else a report shown. */
@@ -437,8 +451,16 @@ const backToRoom = () =>
   document.querySelector<HTMLElement>('[data-more-tile]') ??
   document.querySelector<HTMLElement>('button[aria-label="Leave the room"]')
 
-/** Everyone in the call, with what sets them apart (the floor, a guest, speaking), and you. */
-function InTheCall(props: { people: readonly RoomParticipant[]; floor: FloorView; onClose: () => void }) {
+/**
+ * Everyone in the call, with what sets them apart (the floor, a guest, speaking), and you: on a phone, with your
+ * camera's switch while your tile isn't on the stage (camera-flip.md).
+ */
+function InTheCall(props: {
+  people: readonly RoomParticipant[]
+  floor: FloorView
+  flip: (() => void) | null | undefined
+  onClose: () => void
+}) {
   const id = useId()
   return (
     // Over the whole page, never inside the stage: its layers (the dock, the captions) would draw over a sheet held
@@ -452,6 +474,11 @@ function InTheCall(props: { people: readonly RoomParticipant[]; floor: FloorView
               <li key={p.identity}>
                 <span className="in-the-call-name">{`${shortName(p.name)}${p.local ? ' · you' : ''}`}</span>
                 {role && <span className="in-the-call-role">{role}</span>}
+                {p.local && props.flip && (
+                  <button type="button" className="text-button in-the-call-flip" onClick={props.flip}>
+                    Switch camera
+                  </button>
+                )}
               </li>
             )
           })}
