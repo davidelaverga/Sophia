@@ -380,6 +380,14 @@ export function focusReturn<T>(
   return fallback !== null && visible(fallback) ? fallback : null
 }
 
+/**
+ * Whom the focus goes back to: the latest opener while it is still in the page, else what had the focus as the pane
+ * came (a deep link; or a sheet that closed for the report and took its button, having handed the focus back to its
+ * own opener first: Codex P2 on #414).
+ */
+export const returnFrom = <T extends { isConnected: boolean }>(latest: T | null, atMount: T | null): T | null =>
+  latest?.isConnected ? latest : atMount
+
 /** An Esc the viewer may hear: already handled or not, held down, and whether a field or an open dialog keeps it. */
 export interface EscapeAt {
   defaultPrevented: boolean
