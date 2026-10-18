@@ -31,7 +31,7 @@ import { accountOf } from './account.ts'
 import { useAsks } from './AskSophia.tsx'
 import { NOT_CONNECTED, NOT_READ, type Ask } from './ask.ts'
 import { moveOnBoard } from './board-keys.ts'
-import type { BoardView, ItemView } from './board-view.ts'
+import type { BoardView } from './board-view.ts'
 import { Decision, type Decide, type DecisionAnswer } from './Decision.tsx'
 import { Lens } from './Lens.tsx'
 import { shows, type LensName } from './lenses.ts'
@@ -43,6 +43,7 @@ import {
   laneOf,
   latestDecisions,
   outsideOf,
+  outsideSaid,
   proposed,
   waitsOn,
   type Board,
@@ -354,7 +355,8 @@ const plansOf = (goal: GoalView) => [goal.current_plan, ...goal.proposed_plans].
 const aboutOf = (d: BoardDecision, plans: readonly WorkPlan[]) => {
   const bound = plans.find((p) => p.plan_id === d.plan_id && p.revision === d.plan_revision)
   const purpose = bound?.items.find((i) => i.id === d.work_id)?.purpose
-  const what = purpose ?? `${d.work_id}, in plan r${String(d.plan_revision)}, not shown here`
+  // Its id stays out of the words (version-names.md).
+  const what = purpose ?? `a task in plan r${String(d.plan_revision)}, not shown here`
   return `About ${what}${d.candidate_version_ref ? ` · ${d.candidate_version_ref}` : ''}`
 }
 
@@ -703,12 +705,9 @@ function Slot({ slot, rows, onOpenTask, decisions, onChallenge }: SlotProps) {
   )
 }
 
-/** What an observed item is doing, in a few words: "running", "ready for review". */
-const lifeSaid = (v: ItemView) => v.lifecycle.replaceAll('_', ' ')
-
 /**
  * Work observed for the goal that the plan in force doesn't hold, said rather than hidden: who has it and where it
- * stands, by its work id (the view says no more of it). The goal's own Hold and Stop still reach all of its work.
+ * stands (outsideSaid), its id kept out of the words. The goal's own Hold and Stop still reach all of its work.
  */
 function OutsideWork({ outside }: { outside: readonly Outside[] }) {
   if (outside.length === 0) return null
@@ -716,14 +715,11 @@ function OutsideWork({ outside }: { outside: readonly Outside[] }) {
     <section className="board-outside" aria-label="Observed outside the plan">
       <h4 className="field-label">Observed outside the plan</h4>
       <ul className="task-links">
-        {outside.map(({ work_id, view }) => (
+        {outsideSaid(outside).map(({ work_id, name, where, ambiguous }) => (
           // Each work id once; observed more than once, it is said so, with neither observation (Codex F-045).
-          <li key={work_id} className="task-link" data-work={work_id} data-ambiguous={view ? undefined : true}>
-            <span className="task-link-name">
-              {view ? (view.assignment?.executor.display_name ?? 'No one assigned') : 'Observed more than once'} ·{' '}
-              {work_id}
-            </span>
-            <span className="task-link-where">{view ? lifeSaid(view) : 'which is current isn’t known'}</span>
+          <li key={work_id} className="task-link" data-work={work_id} data-ambiguous={ambiguous || undefined}>
+            <span className="task-link-name">{name}</span>
+            <span className="task-link-where">{where}</span>
           </li>
         ))}
       </ul>
@@ -947,7 +943,9 @@ const Updating = ({ decisions, ...props }: DecisionsProps) => (
  * Where this board sends, now: commands, choices, challenges and questions go only from a plan in force whose live
  * state can be read. From a read that may be stale (coverage unavailable) nothing goes, as from a plan only proposed:
  * what shows stays, results still open, and what was sent stays said, its receipts and replies still landing. A
- * partial read still sends: what it holds was read now (Codex F-022).
+ * partial read still sends: what it holds was read now (Codex F-022). `asking`: a page with a conversation, one to ask
+ * in or one to go to; with none at all a task offers no asking, never a question kept unanswered (prod-asks.md). One
+ * that only dropped keeps its asks, with why (Codex F-005).
  */
 function portsOf(props: BodyProps, operable: boolean) {
   const live = operable && props.coverage !== 'unavailable'
@@ -956,6 +954,7 @@ function portsOf(props: BodyProps, operable: boolean) {
     onDecide: live ? props.onDecide : undefined,
     onChallenge: live ? props.onChallenge : undefined,
     onAsk: live ? props.onAsk : undefined,
+    asking: props.onAsk !== undefined || props.onOpenConversation !== undefined,
     closed: props.coverage === 'unavailable' ? NOT_READ : NOT_CONNECTED,
   }
 }
@@ -1008,7 +1007,8 @@ function BoardBody(props: BodyProps) {
       {opened && (
         <TaskSheet
           {...props}
-          {...{ row: opened, rows, plan, operable, viewerId, acts, asks: questions, account: accountOf(opened, props) }}
+          {...{ row: opened, rows, plan, operable, viewerId, acts, account: accountOf(opened, props) }}
+          asks={ports.asking ? questions : undefined}
           next={goal.next_checkpoint}
           onOpen={view.setOpen}
           onStep={view.step}

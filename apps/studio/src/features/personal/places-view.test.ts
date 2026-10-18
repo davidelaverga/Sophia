@@ -17,6 +17,7 @@ import {
   greeting,
   lightOf,
   HOME_ACTION,
+  homeLine,
   homeRows,
   otherWaysNote,
   otherWaysShown,
@@ -216,6 +217,8 @@ describe('home, as a place that knows where you’ll go', () => {
   it('Sophia says the one thing that matters: your call, else a session soon, else a live room, else all is well', () => {
     assert.equal(plain(sophiaSays(undefined, NOW, null)), '')
     assert.equal(plain(sophiaSays([], NOW, null)), 'Start a project when you’re ready, or just talk to me.')
+    // Where she can't answer, she doesn't offer to talk (prod-honesty's home-no-companion.md).
+    assert.equal(plain(sophiaSays([], NOW, null, false)), 'Start a project when you’re ready.')
     assert.equal(plain(sophiaSays([project()], NOW, null)), 'Your projects are as you left them.')
     assert.equal(plain(sophiaSays(four, NOW, null)), 'Pitch run in Weekly standup starts in 10 min.')
     const live = project({
@@ -474,6 +477,18 @@ describe('finding a note (personal-notes-write-find.md)', () => {
       findNotes(more, '^').map((n) => n.id),
       ['e'],
     )
+  })
+})
+
+describe('Home’s line to Sophia (docs/plans/home-no-companion.md)', () => {
+  it('is the line where she answers, says she can’t where she doesn’t, and holds its place until that is known', () => {
+    assert.equal(homeLine(false, true), 'line')
+    assert.equal(homeLine(false, false), 'cannot')
+    assert.equal(homeLine(false, undefined), 'held')
+  })
+  it('is nothing while the space is locked: your row unlocks it', () => {
+    assert.equal(homeLine(true, true), null)
+    assert.equal(homeLine(true, false), null)
   })
 })
 
