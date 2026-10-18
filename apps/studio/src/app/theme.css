@@ -4593,10 +4593,11 @@ button.contribution-quote:hover {
     border-color: var(--warm);
   }
   /* «Your tile is hidden» in a fifth of a phone (65 px): an eye struck through over Show, the words kept for a screen
-     reader; three lines of them didn't fit (Codex P2 follow-up on #380). */
+     reader; three lines of them didn't fit (Codex P2 follow-up on #380). At 320 px a fifth is 51 px: the eye, its gap
+     and Show (42 px) keep 3 px above and below, inside the tile's edge; 6 px there passed it (Codex P2 on #450). */
   .tile-strip .tile-hidden-self {
     justify-items: center;
-    padding: 6px;
+    padding: 3px 6px;
   }
   .tile-strip .tile-hidden-self > svg {
     display: block;
