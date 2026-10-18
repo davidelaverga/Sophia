@@ -4,19 +4,21 @@
 :root {
   /* The type scale of the work views (Resources, the plan's board): four steps under a view's title.
      Titles name a thing; body says it; small is what follows it; labels are mono, often in capitals. A view's
-     title is one step above the headings' ramp, on the grid's 32 (docs/plans/view-titles.md). */
-  --type-view: 28px;
+     title is one step above the headings' ramp, on the grid's 32 (docs/plans/view-titles.md). In rem, so a person's
+     larger browser text grows the scale and its leading together; at the browser's own 16 px they are the px in the
+     comments (docs/plans/type-rem.md). */
+  --type-view: 1.75rem; /* 28 */
   /* The heads of a view's sections and tiles: one step above the body's title, under the view's (docs/plans/section-heads.md). */
-  --type-head: 15px;
-  --type-title: 14px;
-  --type-body: 13px;
-  --type-small: 12px;
-  --type-label: 10.5px;
+  --type-head: 0.9375rem; /* 15 */
+  --type-title: 0.875rem; /* 14 */
+  --type-body: 0.8125rem; /* 13 */
+  --type-small: 0.75rem; /* 12 */
+  --type-label: 0.65625rem; /* 10.5 */
   /* Their leadings, on the 4 px grid: labels and small 16, body and titles 20, a lead and a heading 24. */
-  --lh-small: 16px;
-  --lh-body: 20px;
-  --lh-head: 24px;
-  --lh-view: 32px;
+  --lh-small: 1rem; /* 16 */
+  --lh-body: 1.25rem; /* 20 */
+  --lh-head: 1.5rem; /* 24 */
+  --lh-view: 2rem; /* 32 */
   color-scheme: dark;
   --void: #050408;
   --plane: #0b0a0f;
@@ -310,12 +312,14 @@ kbd {
   font-size: var(--type-small);
   color: var(--text-3);
 }
+/* A key: 18 px at least, and taller when its letters are (a larger browser text, type-rem-fit.spec.ts). */
 kbd {
   display: inline-grid;
   place-items: center;
   min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
+  min-height: 18px;
+  padding: 1px 4px;
+  line-height: 1;
   border-radius: var(--r-1);
   border: 1px solid var(--line-2);
   background: rgb(var(--ink-rgb) / 0.04);
@@ -5501,6 +5505,8 @@ button.contribution-quote:hover {
 }
 .updates-part {
   display: grid;
+  /* One column that may be narrower than its widest row: the kinds' strip scrolls in it, the page doesn't. */
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: 16px;
 }
@@ -5838,8 +5844,15 @@ button.contribution-quote:hover {
    page does not (Codex on #239). */
 .updates-narrow .segmented {
   max-width: 100%;
+  /* Its presses don't shrink (below): the strip itself may, and scrolls. */
+  min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
+}
+/* Its presses keep their words on one line: the row scrolls instead (a phone, larger text). */
+.updates-narrow .segmented button {
+  flex: none;
+  white-space: nowrap;
 }
 /* A presented report's version and its following count: data, on the 10.5 px scale beside the «Shown by» label (Codex
    on #241). */

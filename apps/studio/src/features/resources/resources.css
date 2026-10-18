@@ -514,12 +514,17 @@
   transform: rotate(180deg);
 }
 /* In the session's column: its dot under the model chip's and the work tag's, its text where theirs starts, as tall as
-   the chip, and as far from the tag below as from the chip above. */
+   the chip at the default size (taller when the text is larger: Codex P1 on #421), and as far from the tag below as
+   from the chip above. */
 .effort-asked {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 18px;
+  /* Its own line: 18 px at the default size, as the chip, and a line of larger text past it. Its press (24 px) may
+     reach over it, as before; its words never wrap under it. */
+  height: max(18px, var(--lh-small));
+  line-height: var(--lh-small);
+  white-space: nowrap;
   margin-bottom: 2px;
   padding-left: 6px;
   color: var(--text-2);
@@ -782,7 +787,8 @@
 }
 .resource-session {
   display: grid;
-  grid-template-columns: 84px minmax(0, 1fr);
+  /* The role's column grows with the text: 84 px at the default size. */
+  grid-template-columns: 5.25rem minmax(0, 1fr);
   align-items: baseline;
   gap: 2px 12px;
 }
