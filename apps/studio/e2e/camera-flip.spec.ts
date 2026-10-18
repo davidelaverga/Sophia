@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 // Switch camera on a phone, in a call (docs/plans/camera-flip.md): your own tile offers the next camera, round, once your
 // camera is on and there are two; on a computer, Video settings chooses. The fixture's two cameras stand in for a
@@ -28,6 +28,29 @@ const atRest = (page: Page) =>
         .map((a) => a.finished),
     ),
   )
+
+/**
+ * A press's touch target as the browser hit-tests it, past what it draws: how far from its middle a press still lands
+ * on it, across and down, in quarter pixels.
+ */
+const target = (press: Locator) =>
+  press.evaluate((el) => {
+    const r = el.getBoundingClientRect()
+    const [cx, cy] = [r.left + r.width / 2, r.top + r.height / 2]
+    const lands = (x: number, y: number) => {
+      const hit = document.elementFromPoint(x, y)
+      return hit !== null && (hit === el || el.contains(hit))
+    }
+    const reach = (at: (d: number) => [number, number]) => {
+      let d = 0
+      while (d < 80 && lands(...at(d + 0.25))) d += 0.25
+      return d
+    }
+    return {
+      width: Math.round(reach((d) => [cx - d, cy]) + reach((d) => [cx + d, cy])),
+      height: Math.round(reach((d) => [cx, cy - d]) + reach((d) => [cx, cy + d])),
+    }
+  })
 
 test.beforeEach(async ({ page }) => {
   await page.route(
@@ -114,3 +137,26 @@ test('@phone · flip · beside a shown screen your tile keeps one press: Switch 
   await expect(presses).toHaveCount(1)
   await expect(presses).toHaveAccessibleName('Switch camera')
 })
+
+// On a phone's strip the mute is the tile's corner mark, at its top-left (muted-on-tiles.md); the press keeps clear of
+// it, a finger's size still (Codex P2 on #430).
+for (const width of [390, 320]) {
+  test(`@phone · flip · beside a shown screen, muted, the mark is clear of Switch camera, a finger’s size (${String(width)} px)`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 })
+    await enter(page, 'people=2&video=screen')
+    await cameraOn(page)
+    await dock(page).getByRole('button', { name: 'Microphone', exact: true }).click()
+    const mark = myTile(page).locator('.tile-muted-corner')
+    await expect(mark).toBeVisible()
+    await expect(flip(page)).toBeVisible()
+    await atRest(page)
+    const m = await mark.boundingBox()
+    const f = await flip(page).boundingBox()
+    expect(m !== null && f !== null && apart(m, f), 'the mark clear of the press drawn').toBe(true)
+    const t = await target(flip(page))
+    expect(t.width, 'its target across').toBeGreaterThanOrEqual(40)
+    expect(t.height, 'its target down').toBeGreaterThanOrEqual(40)
+  })
+}
