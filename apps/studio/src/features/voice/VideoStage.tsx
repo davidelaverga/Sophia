@@ -42,14 +42,25 @@ interface TileProps {
   onPin?: (() => void) | undefined
   /** Your own tile: hide it from your own gallery, for this call (room-basics.md). */
   onHide?: (() => void) | undefined
+  /** Your own tile, on a phone with two cameras: switch to the next (camera-flip.md). */
+  onFlip?: (() => void) | null | undefined
 }
 
-/** A round press at a tile's corner, shown under the pointer or the focus: Pin on others', Hide on yours. */
-function TileAct({ label, icon, onPress }: { label: string; icon: 'expand' | 'eyeOff'; onPress: () => void }) {
+/**
+ * A round press at a tile's corner, shown under the pointer or the focus: Pin on others', Hide on yours; Switch camera on
+ * yours too, at the other corner (`left`).
+ */
+function TileAct(props: { label: string; icon: 'expand' | 'eyeOff' | 'flip'; onPress: () => void; left?: boolean }) {
+  const { label, icon, onPress, left = false } = props
   return (
-    <button type="button" className="round tile-pin has-tip" aria-label={label} onClick={onPress}>
+    <button
+      type="button"
+      className={`round tile-pin has-tip${left ? ' tile-flip' : ''}`}
+      aria-label={label}
+      onClick={onPress}
+    >
       <Icon name={icon} />
-      <Tip label={label} align="end" />
+      <Tip label={label} align={left ? 'start' : 'end'} />
     </button>
   )
 }
@@ -173,7 +184,7 @@ function TileMark({ mark }: { mark: 'you' | 'guest' | 'floor' }) {
   )
 }
 
-function PersonTile({ person, camera, holds, onPin, onHide }: TileProps) {
+function PersonTile({ person, camera, holds, onPin, onHide, onFlip }: TileProps) {
   return (
     <li
       className="tile"
@@ -200,11 +211,18 @@ function PersonTile({ person, camera, holds, onPin, onHide }: TileProps) {
           </span>
         )}
       </span>
+      {/* On a phone's strip the chip has no room for it: the mute shows in the tile's corner (theme.css). */}
+      {mutedMic(person) && (
+        <span className="tile-muted-corner" aria-hidden>
+          <Icon name="micOff" size={10} />
+        </span>
+      )}
       {onHide ? (
         <TileAct label="Hide my tile" icon="eyeOff" onPress={onHide} />
       ) : (
         onPin && <TileAct label={`Pin ${shortName(person.name)}`} icon="expand" onPress={onPin} />
       )}
+      {onFlip && <TileAct label="Switch camera" icon="flip" onPress={onFlip} left />}
     </li>
   )
 }
@@ -216,6 +234,8 @@ interface Props {
   floor: FloorView
   /** A report shown to everyone, where a shared screen goes when none is shared. */
   shown?: ReactNode
+  /** Your camera's switch, on a phone with two (camera-flip.md): on your own tile. */
+  flip?: (() => void) | null
 }
 
 /**
@@ -255,6 +275,8 @@ function Tiles(props: {
   floor: FloorView
   onPin: ((identity: string) => void) | undefined
   self: { hidden: boolean; hide: () => void; show: () => void }
+  /** Your camera's switch, on a phone with two (camera-flip.md); null otherwise. */
+  flip: (() => void) | null | undefined
   more: number
   onMore: () => void
 }) {
@@ -272,6 +294,7 @@ function Tiles(props: {
           holds={props.floor.holder?.identity === p.identity}
           onPin={onPin && (() => onPin(p.identity))}
           onHide={p.local ? self.hide : undefined}
+          onFlip={p.local ? props.flip : undefined}
         />
       ))}
       {self.hidden && <HiddenSelf onShow={self.show} />}
@@ -280,7 +303,7 @@ function Tiles(props: {
   )
 }
 
-export function VideoStage({ mode, people: everyoneHere, feeds, floor, shown }: Props) {
+export function VideoStage({ mode, people: everyoneHere, feeds, floor, shown, flip }: Props) {
   const { tiled: people, ...self } = useSelfHidden(everyoneHere)
   const { screen, others, choose } = useScreenChoice(feeds)
   const cameraOf = (identity: string) => feeds.find((f) => f.identity === identity && f.source === 'camera')
@@ -308,6 +331,7 @@ export function VideoStage({ mode, people: everyoneHere, feeds, floor, shown }: 
       floor={floor}
       onPin={present ? undefined : setPinned}
       self={self}
+      flip={flip}
       more={more.length}
       onMore={() => setEveryone(true)}
     />

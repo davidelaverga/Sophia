@@ -19,14 +19,16 @@ export function RichText({ text }: { text: string }) {
   const lines = richLines(text)
   return lines.map((line, i) => {
     const words = line.pieces.map((p, k) => <PieceOf key={k} piece={p} />)
-    // A quote is a block of its own; any other line keeps its break, as pre-wrap draws it.
+    // A quote is a block of its own; any other line keeps its break, as pre-wrap draws it. A line before a quote needs
+    // none, its block starting a line anyway, unless the line is empty: that blank line stays (Codex P2 on #384).
     if (line.quote)
       return (
         <span key={i} className="msg-quote">
           {words}
         </span>
       )
-    const broken = i < lines.length - 1 && !lines[i + 1]?.quote
+    const next = lines[i + 1]
+    const broken = next !== undefined && (!next.quote || line.pieces.length === 0)
     return (
       <Fragment key={i}>
         {words}

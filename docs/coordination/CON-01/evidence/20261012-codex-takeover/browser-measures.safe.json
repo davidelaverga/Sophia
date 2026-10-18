@@ -1,0 +1,78 @@
+{
+  "desktop": {
+    "buttons": [
+      {
+        "height": 28,
+        "text": "Remove",
+        "width": 70.84375,
+        "x": 328,
+        "y": 574
+      },
+      {
+        "height": 28,
+        "text": "Keep it",
+        "width": 57.5859375,
+        "x": 410.84375,
+        "y": 574
+      }
+    ],
+    "confirmation": {
+      "height": 116,
+      "width": 480,
+      "x": 328,
+      "y": 486
+    },
+    "coverage": [
+      "The summary covers messages 1–9.",
+      "The questions cover messages 1–9."
+    ],
+    "focus": "Keep it",
+    "horizontalOverflow": false,
+    "viewport": {
+      "height": 800,
+      "width": 1280
+    }
+  },
+  "phoneFinePointer": {
+    "buttons": [
+      {
+        "height": 28,
+        "text": "Remove",
+        "width": 70.84375,
+        "x": 14,
+        "y": 665
+      },
+      {
+        "height": 28,
+        "text": "Keep it",
+        "width": 57.5859375,
+        "x": 96.84375,
+        "y": 665
+      }
+    ],
+    "confirmation": {
+      "height": 136,
+      "width": 351,
+      "x": 14,
+      "y": 557
+    },
+    "focus": "Keep it",
+    "horizontalOverflow": false,
+    "viewport": {
+      "height": 844,
+      "width": 390
+    }
+  },
+  "phoneNotice": {
+    "bottom": 252,
+    "found": true,
+    "height": 112,
+    "horizontalOverflow": false,
+    "text": "Titles and messages here are saved for this project, and its current members can read them. They’re kept for the life of the project until they’re withdrawn or erased, unless a stricter organization rule applies. You can withdraw your own messages; admins can remove any message or erase a conversation. Hosted backups keep their own retention, and what someone has already seen can’t be unseen. Live room audio is not saved here.",
+    "viewportHeight": 844,
+    "width": 362,
+    "x": 14,
+    "y": 140
+  },
+  "scope": "Synthetic local IAB fixture only; mobile touch control sizes separately checked by pinned Playwright phone project"
+}

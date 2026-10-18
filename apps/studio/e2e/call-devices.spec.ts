@@ -116,6 +116,30 @@ test('@phone · devices · in the call the dock keeps its one row of squares: no
 
 // Before joining the dock has only Join and its check: on a phone the check stands there too (phone-devices.md), and its
 // sheet chooses the camera, a phone's front or back, that the call opens with.
+test('@phone · devices · before joining, the check beside Join is a finger-sized 42 px square on its row (Codex P2 on #412)', async ({
+  page,
+}) => {
+  await page.goto('/room.html')
+  const check = dock(page).getByRole('button', { name: 'Check audio and video', exact: true })
+  await expect(check).toBeVisible()
+  // Once the dock has risen (its arrival moves it 8 px), so both boxes are read at rest.
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished),
+    ),
+  )
+  const c = await check.boundingBox()
+  const j = await dock(page)
+    .getByRole('button', { name: /^Join the room/ })
+    .boundingBox()
+  expect(Math.round(c?.width ?? 0), 'its width').toBe(42)
+  expect(Math.round(c?.height ?? 0), 'its height').toBe(42)
+  expect(Math.round(c?.y ?? 0), 'on Join’s row').toBe(Math.round(j?.y ?? -1))
+})
+
 test('@phone · devices · before joining, the check stands beside Join and chooses the camera the call opens with', async ({
   page,
 }) => {

@@ -76,18 +76,19 @@ async function readProjectReleases(
     created_at: Date
   }>(
     `WITH own AS (
-       SELECT id, project_id, body, owner_name, true AS mine, created_at FROM sophia.personal_releases
+       SELECT id, project_id, body, owner_id, owner_name, true AS mine, created_at FROM sophia.personal_releases
         WHERE owner_id = sophia.actor_id() AND project_id = ANY($1::uuid[])
      ), others AS (
        SELECT r.* FROM unnest($1::uuid[]) AS p(id) CROSS JOIN LATERAL (
-         SELECT id, project_id, body, owner_name, false AS mine, created_at FROM sophia.personal_releases
+         SELECT id, project_id, body, owner_id, owner_name, false AS mine, created_at FROM sophia.personal_releases
           WHERE project_id = p.id AND owner_id <> sophia.actor_id()
           ORDER BY created_at DESC, id DESC LIMIT $2) r
      ), ranked AS (
        SELECT *, row_number() OVER (PARTITION BY project_id ORDER BY mine DESC, created_at DESC, id DESC) AS place
          FROM (SELECT * FROM own UNION ALL SELECT * FROM others) carried
      )
-     SELECT id, project_id, body, owner_name, mine, created_at FROM (
+     SELECT id, project_id, body, coalesce(sophia.actor_label(project_id, owner_id, owner_name), 'A member') AS owner_name,
+            mine, created_at FROM (
        SELECT * FROM ranked WHERE place <= $2 ORDER BY mine DESC, created_at DESC, id DESC LIMIT $3) kept
       ORDER BY created_at, id`,
     [projectIds, limit, total],
