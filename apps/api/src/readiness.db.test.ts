@@ -5,6 +5,7 @@
 // (writeOnce): not ready without it, and an API without a store requires nothing of 0044. The brief and the room's
 // chat read the authors' names of 0048 and 0049 (Codex P1 on #336), and a voice write the room names of 0050: not
 // ready on a database short of any.
+import { randomUUID } from 'node:crypto'
 import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -13,8 +14,8 @@ import type { FastifyInstance } from 'fastify'
 import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { createPool } from '@sophia/persistence'
-import { createTestDatabase, type TestDatabase } from '@sophia/test-support'
+import { createPool, readSnapshot, withActor } from '@sophia/persistence'
+import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
 import { memoryByteStore } from './byte-store.ts'
@@ -36,6 +37,7 @@ const ARCHIVE = '0059_archive_project.sql'
 const ROOM_ACTS = '0060_room_acts.sql'
 const ACTIVITY_NAMES = '0061_activity_names.sql'
 const PROFILES = '0062_actor_profiles.sql'
+const RETIREMENTS = '0075_completed_goal_session_retirement.sql'
 
 let dir: string
 let db: TestDatabase
@@ -136,8 +138,20 @@ describe('readiness across 0043', () => {
     await migrate(ACTIVITY_NAMES)
     assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0062')
     await migrate(PROFILES)
+    // The snapshot reads goal_retirements (0075) unconditionally, whatever the flags: without it, not ready.
+    await through(RETIREMENTS)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0075')
+    const admin = randomUUID()
+    const { projectId } = await seedProject(db.ownerUrl, { admin })
+    await assert.rejects(
+      withActor(pool, admin, 'read', (c) => readSnapshot(c, projectId)),
+      'its snapshot needs 0075',
+    )
+    await migrate(RETIREMENTS)
     await current()
     assert.deepEqual(await ready(), [200, { ready: true }], 'with all')
+    const snapshot = await withActor(pool, admin, 'read', (c) => readSnapshot(c, projectId))
+    assert.equal(snapshot?.projectId, projectId, 'and its snapshot reads')
   })
 
   it('with a byte store, is not ready until 0044 lets every write claim its key; without one, needs no 0044', async () => {

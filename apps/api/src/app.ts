@@ -202,6 +202,7 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.my_profile()') IS NOT NULL
   AND to_regprocedure('sophia.set_my_profile(text,bigint,text)') IS NOT NULL
   AND to_regprocedure('sophia.actor_label(uuid,uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.goal_retirements(uuid)') IS NOT NULL
   AND ${COLUMNS.map(([table, column]) => columnExists(table, column)).join('\n  AND ')} AS ok`
 
 /**

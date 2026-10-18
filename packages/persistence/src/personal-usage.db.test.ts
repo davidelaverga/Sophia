@@ -379,21 +379,31 @@ describe('personal companion usage (0073)', () => {
     const erase = await openTx(db.apiUrl, ivy)
     // Each pid is read before its connection is given a statement that may wait (a client runs one at a time).
     const [admitPid, erasePid] = [await backendPid(admit), await backendPid(erase)]
+    // Every statement sent is settled before its connection ends, in lock order (payer, admission, erasure), so a
+    // failed assertion is what the test reports, never a pending statement cut off by the cleanup.
+    let reserving: Promise<unknown> = Promise.resolve()
+    let erasing: Promise<unknown> = Promise.resolve()
     try {
-      const reserving = admit.query<{ r: string }>(
+      const reserved = admit.query<{ r: string }>(
         `SELECT sophia.reserve_personal_companion($1,'p-five','route-a',1) AS r`,
         [old],
       )
+      reserving = reserved.catch(() => undefined)
       assert.equal(await blocked(admitPid), true, 'the admission waits for the payer')
-      const erasing = erase.query(`SELECT sophia.erase_personal_space($1,'delete')`, [randomUUID()])
+      const erased = erase.query(`SELECT sophia.erase_personal_space($1,'delete')`, [randomUUID()])
+      erasing = erased.catch(() => undefined)
       assert.equal(await blocked(erasePid), true, 'the erasure waits for the admission holding the space')
       await payer.query('COMMIT')
-      assert.equal((await reserving).rows[0]?.r, 'reserved')
+      assert.equal((await reserved).rows[0]?.r, 'reserved')
       await admit.query('COMMIT')
-      await erasing
+      await erased
       await erase.query('COMMIT')
     } finally {
-      await Promise.all([payer, admit, erase].map((c) => c.end().catch(() => undefined)))
+      await payer.end().catch(() => undefined)
+      await reserving
+      await admit.end().catch(() => undefined)
+      await erasing
+      await erase.end().catch(() => undefined)
     }
     assert.deepEqual(
       (await usageOf(old)).map((u) => u.state),
@@ -406,18 +416,22 @@ describe('personal companion usage (0073)', () => {
     const erase2 = await openTx(db.apiUrl, ivy)
     const admit2 = await openTx(db.apiUrl, ivy)
     const admit2Pid = await backendPid(admit2)
+    let reserving2: Promise<unknown> = Promise.resolve()
     try {
       await erase2.query(`SELECT sophia.erase_personal_space($1,'delete')`, [randomUUID()])
-      const reserving = admit2.query<{ r: string }>(
+      const reserved = admit2.query<{ r: string }>(
         `SELECT sophia.reserve_personal_companion($1,'p-five','route-a',1) AS r`,
         [earlier],
       )
+      reserving2 = reserved.catch(() => undefined)
       assert.equal(await blocked(admit2Pid), true, 'the admission waits for the erasure holding the space')
       await erase2.query('COMMIT')
-      assert.equal((await reserving).rows[0]?.r, 'not_current')
+      assert.equal((await reserved).rows[0]?.r, 'not_current')
       await admit2.query('COMMIT')
     } finally {
-      await Promise.all([erase2, admit2].map((c) => c.end().catch(() => undefined)))
+      await erase2.end().catch(() => undefined)
+      await reserving2
+      await admit2.end().catch(() => undefined)
     }
     assert.deepEqual(await usageOf(earlier), [])
   })

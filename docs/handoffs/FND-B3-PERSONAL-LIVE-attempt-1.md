@@ -330,3 +330,14 @@ B's private handback goes to P; R reviews this repair. No push.
   Both fail on 2b0c7718's SQL and route and pass after.
 - These lock-observing DB tests need a superuser server (as CI's), because a non-superuser owner cannot see others'
   lock waits.
+
+## FND-B-PERSONAL-MINIMAL-COMMON-AND-CAUSAL-NEGATIVE-01
+
+- The minimal accepted common union from attention: the reply-child rejection-observer test (`e584a6c6`); the
+  conversation client's `protectedRead` 403 status before the body (`527d3b62`); and the list and transcript
+  query-function fence with its semantic browser cases (`586327ce`). Each carried file is blob-equal to the donor;
+  their Personal bases equalled the donor's. Readiness gains only the `goal_retirements` predicate (0075 is already
+  here), and `readiness.db.test.ts` its 0075 step. Personal's `companionReady` and the health route are unchanged.
+- `personal-usage.db.test.ts` settles every statement it sends, in lock order, before ending a connection. With the
+  real fence removed, the case now fails with its own assertion ("the erasure waits for the admission holding the
+  space") instead of "Connection terminated".
