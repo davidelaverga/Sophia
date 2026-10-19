@@ -33,7 +33,7 @@ interface PortsDeps {
   setConnection: (c: Connection) => void
 }
 
-function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => void } {
+export function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => void } {
   let refresh: ReturnType<typeof setTimeout> | undefined
   const current = () => {
     if (!deps.feed.current) throw new Error('feed loop started before the first snapshot')
