@@ -151,6 +151,13 @@ function messageHits(s: Searched, q: string): SearchHit[] {
  * The hits as A38 serves them (the served page, VITE_SOPHIA_SEARCH without the vision flag): no recap, no meeting, each
  * with its source's hash; only a message has `before`.
  */
+/** As the API cuts a hit's words (packages/persistence/src/search.ts toHit): one line, at most `size` code points. */
+const oneLine = (text: string) => text.replace(/\s+/g, ' ').trim()
+function cut(text: string, size: number): string {
+  const chars = Array.from(oneLine(text))
+  return chars.length <= size ? chars.join('') : `${chars.slice(0, size - 1).join('')}…`
+}
+
 export function servedHits(all: readonly SearchHit[]): ServedHit[] {
   return all.flatMap(({ meetingId: _meeting, before, ...h }): ServedHit[] =>
     h.kind === 'recap'
@@ -159,6 +166,9 @@ export function servedHits(all: readonly SearchHit[]): ServedHit[] {
           {
             ...h,
             kind: h.kind,
+            // A38's bounds, as the API serves them (R-B71-CONTRACT-TRIAGE-01: a report section's whole paragraph is not).
+            title: cut(h.title, h.kind === 'note' || h.kind === 'decision' ? 120 : 300),
+            snippet: cut(h.snippet, 200),
             cite: { ...h.cite, sha256: h.cite.sha256 ?? '0'.repeat(64) },
             ...(h.kind === 'message' ? { before: before ?? null } : {}),
           },

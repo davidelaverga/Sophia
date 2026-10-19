@@ -463,10 +463,14 @@ for (const status of [401, 403])
         set: (f: typeof fetch) => (current = wrap(f)),
       })
     }, status)
-    await page.goto('/room.html?demo=1&place=goals')
+    // vision=off: the fixture answers as A38 does (strict), so the served read succeeds here (B71: with the flag on it
+    // answers as A13 and every read fails as unreadable, which no recovery can pass).
+    await page.goto('/room.html?demo=1&place=goals&vision=off')
     await search(page, 'checklist')
     const goal = sheet(page).getByRole('button', { name: /Keep teams through an admin change/ })
+    const unreadable = sheet(page).getByText('The search couldn’t be read.')
     await expect(goal).toBeVisible() // found in what the Studio holds
+    await expect(unreadable).toHaveCount(0) // and the served read answered
     await page.evaluate(() => ((window as Denying).denySearch = true))
     await field(page).fill('checklis') // a new search: its read refused
     await expect.poll(() => page.evaluate(() => (window as Denying).searchDenied)).toBeGreaterThan(0)
@@ -476,4 +480,5 @@ for (const status of [401, 403])
     await page.evaluate(() => ((window as Denying).denySearch = false))
     await field(page).fill('checkl')
     await expect(goal).toBeVisible()
+    await expect(unreadable).toHaveCount(0) // reopened by a read that answered, not by a failure
   })
