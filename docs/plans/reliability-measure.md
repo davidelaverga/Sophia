@@ -121,8 +121,34 @@ script uses, runs it: the same two fixture servers, one desktop project, `grep: 
   room failures in a 6-hour window, two false flakes and a 0.1-minute median. A room job counts only if it runs the
   Playwright suite (`isRoomGate`).
 
+## Honest when partial (Codex on #470)
+
+> 2026-10-19 · two P2s on #470, both verified against the code before any change. Luis: «Lo que no se mide, no se
+> puede mejorar»; a number taken from half a run, or from half a window, is worse than none.
+
+- **A failed suite published a whole report.** With `--fixture --run`, a suite that exited non-zero (a timeout, a
+  browser crash, a failed scenario) was only logged («collecting what it wrote»): the report was built from the
+  records some tests had written and the script exited 0, so a before/after could compare a full run with a third of
+  one. The same hole stands without `--run` (the guard path on Luis's machine): the script never knew how many
+  scenarios the suite has. Now the report counts the scenarios it expected (`playwright test … --list`, its «Total: N
+  tests») against the records it found. When the suite exited non-zero, or fewer records than scenarios came back,
+  the fixture section is **incomplete**: it keeps the suite's exit and «n of N scenarios wrote results», publishes no
+  summary (no percentage, no p50), and the script still writes the file but exits 1. A listing that fails leaves N
+  unknown; the suite's exit still decides. The suite command and the results folder can be pointed elsewhere
+  (`RELIABILITY_SUITE`, `RELIABILITY_RESULTS`) for the script's own test, which runs a fake suite.
+- **M12 had no state at the window's start.** `--ci` lists runs *created* from `--since`, so main's state at that
+  moment was unknown: if main was already red, the red time until the first green in the window counted 0, and a run
+  created before `since` that ended inside the window was missed. Now `--ci` also reads main's 20 newest `ci` push
+  runs created before `since` (`gh run list --branch main --event push --created "<since"`), latest attempts only.
+  `mainHealth(runs, now, since)` walks every end in time, so the state at `since` is the one the earlier runs left,
+  then keeps only the red time inside the window (a span that began before it counts from `since`; `redSince` keeps
+  its true start) and counts in the green share only the commits created in the window. M10 and M11 still read the
+  window only.
+
 ## Limits
 
+- M12's runs before the window are read by their latest attempt only: an earlier attempt of one of them that ended
+  red before `since`, rerun green after, is not seen as red at the start.
 - `scripts/**/*.mjs` and `tests/` are outside the repository's lint and Prettier gates (S1-01's runtime-unit areas);
   these files are formatted with the repository's Prettier settings anyway.
 - M10 sees only what reruns and double runs show: a flake on a commit nobody reran is a plain failure. The
