@@ -59,3 +59,19 @@ test('unread · a message while the tab is shown doesn’t count', async ({ page
   await page.waitForTimeout(500)
   await expect(page).toHaveTitle('Fixture project · Sophia')
 })
+
+test('unread · the viewer’s own message, read before their membership, leaves the count once it is (Codex P2 on #444)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?membership=hold')
+  await expect(page).toHaveTitle('Fixture project · Sophia')
+  await away(page, true)
+  // Written from the viewer's phone while this tab is hidden, and read before the page knows who the viewer is.
+  await page.evaluate(() => window.fixture?.sayElsewhere('Sent from my phone.'))
+  await page.evaluate(() => window.fixture?.say('The deck is in Resources.'))
+  await expect(page).toHaveTitle('(2) Fixture project · Sophia')
+  await page.evaluate(() => window.fixture?.releaseMembership())
+  await expect(page).toHaveTitle('(1) Fixture project · Sophia')
+  await away(page, false)
+  await expect(page).toHaveTitle('Fixture project · Sophia')
+})

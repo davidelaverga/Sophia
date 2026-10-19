@@ -47,8 +47,8 @@ const CAST: Readonly<Record<string, string>> = { davide: 'marco' }
 const BOARD_CAST: Readonly<Record<string, string>> = { davide: personId(1), luis: membership.actorId }
 
 /**
- * A session's commands (guidance, hold, stop): the room's demo has no lead to take them, so a task offers only what
- * the page can answer (asking Sophia), never a press that fails (no dead affordances).
+ * A session's commands (guidance, hold, stop): the room's demo has no lead to take them, and no conversation to ask
+ * in, so a task offers neither, never a press that fails (no dead affordances; prod-asks.md).
  */
 const COMMANDS = new Set(['guidance', 'hold', 'stop'])
 

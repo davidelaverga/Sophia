@@ -123,6 +123,16 @@ describe('conversationRows', () => {
     assert.deepEqual(shape(rows), ['day:Today', 'intro'])
   })
 
+  it('asks nothing where Sophia can’t answer: her introduction ends on what the space is (home-no-companion.md)', () => {
+    assert.equal(
+      introText('Ana', false),
+      'Hi Ana, I’m Sophia. This space is just for you: nothing here reaches your projects unless you carry it.',
+    )
+    assert.equal(introText('Ana').endsWith('What’s on your mind?'), true)
+    const intro = conversationRows(input([], { fromTheStart: true, answers: false })).find((r) => r.kind === 'intro')
+    assert.equal(intro && 'text' in intro && intro.text.includes('?'), false)
+  })
+
   it('divides by day, groups turns from the same side, and shows the wait at the end', () => {
     const turns = [
       turn('person', 'I keep putting off the slides', at(2, 21, 10)),

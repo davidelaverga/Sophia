@@ -64,6 +64,7 @@ import {
   leaving,
   linkLost,
   reactFrom,
+  setVoiceLevel,
   sophiaLeaves,
   speakWhileMuted,
 } from './fake-livekit.ts'
@@ -92,6 +93,7 @@ import {
   releaseCovers,
   served,
   unexpected,
+  eventEntities,
 } from './fixture-api.ts'
 import { messageActsOf } from './message-acts.ts'
 import { idOf, ME } from './data.ts'
@@ -168,6 +170,8 @@ interface Fixture {
   holdHost: (on: boolean) => void
   /** Another member writes in the room's discussion, and the event saying so goes out. */
   say: (text: string) => void
+  /** The viewer writes in it from another device, a phone, and the event saying so goes out (unread-title.md). */
+  sayElsewhere: (text: string) => void
   /** Someone starts waiting at the door, and the event saying so goes out (knock-alert.md). */
   knock: () => void
   /** The call's connection is lost. */
@@ -410,6 +414,8 @@ interface Fixture {
   sophia: (state: SophiaState) => void
   /** Who speak now: 0 the viewer, `n` the `n`th other person, several at once as a list; null no one. */
   speaking: (who: number | readonly number[] | null) => void
+  /** How loud a voice is from now on, 0…1: `sophia`, the viewer (0) or the `n`th other person (voice-amplitude.md). */
+  voiceLevel: (who: 'sophia' | number, level: number) => void
   /** Another member's change reaches the API just before the page's next pass: that pass is refused as stale. */
   moveRoom: () => void
   /** Whom the floor was passed to, by name, in order. */
@@ -433,6 +439,8 @@ interface Fixture {
   cachedMentionNeeds: () => unknown[]
   /** The device storage key of this account's padlock (lock.ts), for another tab's lock. */
   padlockKey: () => string
+  /** Someone else's tab corrects, or withdraws, the n-th message (its id given); the feed names it (4309253137). */
+  changeElsewhere: (n: number, id: string, text: string | null) => void
 }
 
 declare global {
@@ -836,6 +844,18 @@ window.fixture = {
       .map(([, data]) => data)
       .filter((data) => data !== undefined),
   padlockKey: () => lockKey(accountOf(identity)),
+  changeElsewhere: (n, id, text) => {
+    const was = project.messages[n]
+    const base = typeof was === 'string' ? { text: was } : was
+    if (!base) return
+    const revision = (base.revision ?? 1) + 1
+    const now = new Date().toISOString()
+    project.messages[n] =
+      text === null ? { ...base, revision, withdrawnAt: now } : { ...base, text, revision, correctedAt: now }
+    const type = text === null ? 'contribution.withdrawn' : 'contribution.corrected'
+    eventEntities.set(project.revision + 1, { type, entityType: 'contribution', entityId: id })
+    publish(project)
+  },
   update: () => publish(project),
   shutDoor: () => {
     project.doorShut = true
@@ -851,6 +871,10 @@ window.fixture = {
   },
   say: (text) => {
     project.messages.push(text)
+    publish(project)
+  },
+  sayElsewhere: (text) => {
+    project.messages.push({ text, me: true })
     publish(project)
   },
   knock: () => {
@@ -1345,6 +1369,7 @@ window.fixture = {
   },
   sophia: setSophia,
   speaking: setSpeaking,
+  voiceLevel: setVoiceLevel,
   leaves: personLeaves,
   moveRoom: () => {
     project.roomMoves = true

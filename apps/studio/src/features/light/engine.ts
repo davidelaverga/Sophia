@@ -1,8 +1,20 @@
 // The light's loop, outside React: springs follow what the room says (mode, where she sits, whom she
 // attends to, whether work runs), and each frame is drawn by the WebGL renderer and the 2D trace.
 // It never decides anything about the room; it only shows it.
-import { handoffFrame, settle, spring, stepSpring, type HandoffFrame, type Point, type Spring } from './motion.ts'
+import {
+  envelope,
+  HEAR_ATTACK_S,
+  HEAR_RELEASE_S,
+  handoffFrame,
+  settle,
+  spring,
+  stepSpring,
+  type HandoffFrame,
+  type Point,
+  type Spring,
+} from './motion.ts'
 import { createLightRenderer, type LightFrame, type LightRenderer } from './renderer.ts'
+import { paperHalo } from './shape.ts'
 import { aimOf, BEHIND, lightBehind } from './threshold.ts'
 import { drawHandoff, drawWorkLine, inksFor, perimeter } from './trace.ts'
 
@@ -32,6 +44,10 @@ export interface LightInput {
   working: boolean
   /** A mark formed in front of the light: it blocks her and she pours past its edges. */
   mark?: MarkAt | null
+  /** How loud she is now, 0…1, read once a frame while she speaks (voice-levels.ts); absent, her voice moves nothing. */
+  voice?: (() => number) | null
+  /** How loud the one she listens to is, 0…1, read once a frame while she listens (orb-hears.md); absent, nothing. */
+  hearing?: (() => number) | null
 }
 
 type SpringName =
@@ -47,7 +63,6 @@ type SpringName =
   | 'intensity'
   | 'ignite'
   | 'swell'
-  | 'amp'
   | 'lean'
   | 'workLine'
   | 'occlude'
@@ -73,7 +88,6 @@ function createSprings(reduced: boolean): Springs {
     intensity: spring(reduced ? 1 : 0.55, 1.2),
     ignite: spring(reduced ? 1 : 0.42, 1.25),
     swell: spring(0, 7),
-    amp: spring(0, 18),
     lean: spring(1, 3),
     workLine: spring(0, 1.6),
     occlude: spring(0, reduced ? 12 : 1.9),
@@ -95,6 +109,9 @@ function aimSource(s: Springs, mark: MarkAt | null, pointer: Point | null): void
  * measured a frame or two later.
  */
 const RELAYOUT_S = 0.25
+
+/** How long a result's bloom lasts, up and down (orb-result.md). */
+const BLOOM_S = 0.9
 
 /** Where the light sits when the room gives no target: centered, in the upper part of the box. */
 export function defaultTarget(width: number, height: number): LightTarget {
@@ -124,7 +141,7 @@ function aimAt(s: Springs, look: Point | null): void {
   s.dirY.target = len > 1 ? dy / len : dy
 }
 
-function toFrame(s: Springs, time: number, flow: number, mark: MarkAt | null): LightFrame {
+function toFrame(s: Springs, time: number, flow: number, mark: MarkAt | null, amp: number): LightFrame {
   const v = (name: SpringName) => s[name].value
   return {
     markX: mark?.x ?? 0,
@@ -145,7 +162,7 @@ function toFrame(s: Springs, time: number, flow: number, mark: MarkAt | null): L
     think: v('think'),
     speak: v('speak'),
     work: v('work'),
-    amp: v('amp'),
+    amp,
     swell: v('swell'),
     lean: v('lean'),
     ignite: v('ignite'),
@@ -165,6 +182,16 @@ interface HandoffStep {
   to: Point
 }
 
+/** A voice's level now, 0…1; one that can't be read is silence. */
+function level(read: (() => number) | null | undefined): number {
+  try {
+    const v = read?.() ?? 0
+    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0
+  } catch {
+    return 0
+  }
+}
+
 export class LightEngine {
   private readonly reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   private readonly springs = createSprings(this.reduced)
@@ -177,6 +204,8 @@ export class LightEngine {
   private size = { width: 0, height: 0 }
   private edge: Point[] = []
   private handoffState: Handoff | null = null
+  /** When a result last arrived (`arrive`), for her one soft bloom. */
+  private bloomAt = Number.NEGATIVE_INFINITY
   private frameId = 0
   private last = performance.now() / 1000
   private slowFor = 0
@@ -185,8 +214,16 @@ export class LightEngine {
   private relayoutUntil = 0
   /** The pointer on the page while a mark is shown (fine pointers, full motion only); placed in the box per frame. */
   private pointer: Point | null = null
-  /** The page on paper: the trace writes in the paper's inks (trace.ts). */
+  /** The page on paper: the trace writes in the paper's inks (trace.ts), and the halo reads the springs (paperHalo). */
   private paper = false
+  /** The paper halo's properties as last written, so a light at rest writes nothing. */
+  private halo = ''
+  /** Her voice now, followed by its envelope (motion.ts): 0 unless she speaks, under full motion. */
+  private amp = 0
+  /** What she hears, by its own slower envelope: 0 unless she listens, under full motion (orb-hears.md). */
+  private ear = 0
+  /** The levels as last written (`--amp`, `--hear`): a light that never hears a voice writes nothing. */
+  private readonly written = { '--amp': '0.00', '--hear': '0.00' }
   private readonly box: HTMLElement
 
   /** The room's canvas the WebGL light draws on; none on paper, where SophiaLight renders none. */
@@ -214,6 +251,8 @@ export class LightEngine {
    */
   setPaper(paper: boolean, glCanvas: HTMLCanvasElement | null): void {
     this.paper = paper
+    // The paper orb's properties are written afresh on the next frame (publish).
+    this.halo = ''
     const canvas = paper ? null : glCanvas
     if (canvas === this.glCanvas) return
     this.gl?.release()
@@ -255,6 +294,18 @@ export class LightEngine {
     return { x: this.pointer.x - at.left, y: this.pointer.y - at.top }
   }
 
+  /** A result arrived (orb-result.md): one soft bloom, under full motion only. */
+  arrive(): void {
+    if (!this.reduced) this.bloomAt = performance.now() / 1000
+  }
+
+  /** The bloom's swell now: 0.9 s up and down, none while she speaks (her voice already moves her). */
+  private bloom(t: number): number {
+    const at = t - this.bloomAt
+    if (at < 0 || at > BLOOM_S || this.springs.speak.value > 0.5) return 0
+    return 0.6 * Math.sin((Math.PI * at) / BLOOM_S)
+  }
+
   /** The floor travels from one person, through Sophia, to the next. */
   handoff(from: Point, to: Point): void {
     this.handoffState = { from, to, started: performance.now() / 1000 }
@@ -287,7 +338,7 @@ export class LightEngine {
     // The room moved at once, so the light moves with it; and a resized canvas is blank until drawn, so draw now.
     const t = performance.now() / 1000
     this.relayoutUntil = t + RELAYOUT_S
-    this.draw(t, this.step(t, 0))
+    this.draw(t, this.step(t, 0, 0))
   }
 
   private readonly tick = (): void => {
@@ -302,7 +353,8 @@ export class LightEngine {
     this.last = t
     if (!this.snapped) this.snap()
     this.pace(raw)
-    this.draw(t, this.step(t, Math.min(0.05, raw)))
+    // The springs step at most 0.05 s a frame; the voices' envelopes are exact at any step, so they take the clock's.
+    this.draw(t, this.step(t, Math.min(0.05, raw), raw))
   }
 
   /** The first frame with a size places the light where it belongs instead of flying in from a corner. */
@@ -317,7 +369,7 @@ export class LightEngine {
     for (const k of ['x', 'y', 'radius'] as const) settle(this.springs[k])
   }
 
-  private step(t: number, dt: number): HandoffStep | null {
+  private step(t: number, dt: number, wall: number): HandoffStep | null {
     const s = this.springs
     setTargets(s, this.input, this.size.width, this.size.height)
     if (t < this.relayoutUntil) this.place()
@@ -328,22 +380,57 @@ export class LightEngine {
     aimAt(s, flight ? flight.frame.head : this.input.attention)
     s.occlude.target = this.input.mark ? 1 : 0
     aimSource(s, this.input.mark ?? null, this.aim())
-    s.swell.target = flight && !this.reduced ? flight.frame.swell : 0
+    s.swell.target = flight && !this.reduced ? flight.frame.swell : this.bloom(t)
     for (const sp of Object.values(s)) stepSpring(sp, dt)
-    if (!this.reduced)
-      this.flow += dt * (0.34 * s.think.value - 0.9 * s.amp.value * s.speak.value - 0.05 * s.listen.value)
+    this.hear(wall)
+    if (!this.reduced) this.flow += dt * (0.34 * s.think.value - 0.9 * this.amp * s.speak.value - 0.05 * s.listen.value)
     if (flight && flight.frame.progress >= 1) this.handoffState = null
     return flight
   }
 
+  /**
+   * Her voice while she speaks, and the voice she listens to while she listens, each through its envelope, under full
+   * motion only; a reader that fails is silence.
+   */
+  private hear(dt: number): void {
+    const { mode, voice, hearing } = this.input
+    this.amp = envelope(this.amp, mode === 'speak' && !this.reduced ? level(voice) : 0, dt)
+    const heard = mode === 'listen' && !this.reduced ? level(hearing) : 0
+    this.ear = envelope(this.ear, heard, dt, HEAR_ATTACK_S, HEAR_RELEASE_S)
+  }
+
   private draw(t: number, flight: HandoffStep | null): void {
+    const frame = toFrame(this.springs, t, this.flow, this.input.mark ?? null, this.amp)
+    this.report('--amp', frame.amp)
+    this.report('--hear', this.ear)
     // A canvas not displayed, or gone with the room, has no parent box to lay out in: no frame is drawn into it.
-    if (this.glCanvas?.offsetParent) this.gl?.draw(toFrame(this.springs, t, this.flow, this.input.mark ?? null))
+    if (this.glCanvas?.offsetParent) this.gl?.draw(frame)
+    if (this.paper) this.publish(frame)
     if (!this.trace) return
     this.trace.clearRect(0, 0, this.size.width, this.size.height)
     const inks = inksFor(this.paper)
     drawWorkLine(this.trace, this.edge, this.springs.workLine.value, inks)
     if (flight && !this.reduced) drawHandoff(this.trace, flight.from, flight.to, flight.frame, inks)
+  }
+
+  /**
+   * On paper the halo is CSS: it reads her place, radius, size and strength from the same springs the canvas draws
+   * (light-room-paper.md), written only when they change.
+   */
+  private publish(frame: LightFrame): void {
+    const halo = paperHalo(frame)
+    const key = Object.values(halo).join(' ')
+    if (key === this.halo) return
+    this.halo = key
+    for (const [name, value] of Object.entries(halo)) this.box.style.setProperty(name, value)
+  }
+
+  /** A level the shader or the paper orb is given (`--amp`, `--hear`), for the checks too, written only when it changes. */
+  private report(name: '--amp' | '--hear', value: number): void {
+    const said = value.toFixed(2)
+    if (said === this.written[name]) return
+    this.written[name] = said
+    this.box.style.setProperty(name, said)
   }
 
   /** Frames slower than ~28 fps for a second step the resolution down; a 30 Hz display is not load. */

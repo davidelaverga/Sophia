@@ -680,6 +680,37 @@ export const outsideOf = (goal: GoalView, plan: WorkPlan | null): Outside[] => {
   return [...viewsOf(goal)].filter(([id]) => !ids.has(id)).map(([work_id, view]) => ({ work_id, view }))
 }
 
+/** An outside task in words (outsideSaid). */
+export interface OutsideSaid {
+  work_id: string
+  /** Who has it, or that it is observed more than once. */
+  name: string
+  /** Where it stands, or that which observation is current isn't known. */
+  where: string
+  ambiguous: boolean
+}
+
+const wordsOf = ({ work_id, view }: Outside): OutsideSaid => ({
+  work_id,
+  name: view ? (view.assignment?.executor.display_name ?? 'No one assigned') : 'Observed more than once',
+  where: view ? view.lifecycle.replaceAll('_', ' ') : 'which is current isn’t known',
+  ambiguous: !view,
+})
+
+/**
+ * Work observed outside the plan, in words: who has it and where it stands, never its id (a UUID in production; it
+ * stays in `data-work`). Rows that would read alike are told apart by their order, «(1 of 2)», so two never read as one
+ * (Codex F-045; docs/plans/version-names.md).
+ */
+export function outsideSaid(outside: readonly Outside[]): OutsideSaid[] {
+  const said = outside.map(wordsOf)
+  return said.map((o) => {
+    const alike = said.filter((other) => other.name === o.name && other.where === o.where)
+    if (alike.length < 2) return o
+    return { ...o, name: `${o.name} (${String(alike.indexOf(o) + 1)} of ${String(alike.length)})` }
+  })
+}
+
 /** Whether following `next` from each item comes back to it: a loop of parents or of blockers. */
 function loops(items: readonly PlanItem[], next: (item: PlanItem) => readonly string[]): boolean {
   const byId = new Map(items.map((i) => [i.id, i]))

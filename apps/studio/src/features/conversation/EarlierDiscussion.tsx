@@ -12,6 +12,7 @@ import type { DiscussionEntry, WithdrawnEntry } from '@sophia/contracts'
 import { getDiscussionPage } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Acted } from './MessageActions.tsx'
+import { useHeldRefresh } from './held-pages.ts'
 import { heldView, inOrder } from './message-acts.ts'
 import { afterGap, gapsIn, jumpReading, pageLinks, windowLinks } from './segment-view.ts'
 
@@ -230,15 +231,33 @@ export function useEarlierDiscussion(
     if (el && fromBottom.current !== null) el.scrollTop = el.scrollHeight - fromBottom.current
     fromBottom.current = null
   }, [held, history])
-  const { entries, withdrawn } = heldView(held, { entries: discussion, withdrawn: discussionWithdrawn }, acted)
+  // A held message changed elsewhere is not shown while its page is read again (held-pages.ts, 4309253137).
+  const [stale, epoch] = useHeldRefresh({
+    projectId,
+    identity,
+    held,
+    // Search's held pages also keep their links (gaps, A38): a refresh changes entries only and keeps the rest.
+    setHeld: (next) =>
+      setHeld((h) => {
+        const r = next(h)
+        return r && h ? { ...h, ...r } : null
+      }),
+    window: [...discussion, ...discussionWithdrawn],
+  })
+  const view = heldView(held, { entries: discussion, withdrawn: discussionWithdrawn }, acted)
+  const entries = view.entries.filter((e) => !stale.has(e.id))
+  const { withdrawn } = view
   const atStart = held?.atStart ?? false
   const hold = useHold(setHeld, projectId, discussion, discussionWithdrawn)
   const load = () => {
     const [oldest] = [...entries, ...withdrawn].toSorted(inOrder)
     if (!oldest || reading === 'loading') return
     setReading('loading')
+    const asOf = epoch()
     getDiscussionPage(identity.token, projectId, oldest.id).then(
       (page) => {
+        // Pages let go while this was read: what it brings may be older than what is known; it is not kept.
+        if (epoch() !== asOf) return setReading('idle')
         const el = history.current
         fromBottom.current = el ? el.scrollHeight - el.scrollTop : null
         hold(page, oldest.id, page.before === null)

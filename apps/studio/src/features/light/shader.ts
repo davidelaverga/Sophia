@@ -1,6 +1,7 @@
 // Sophia's light as one fragment shader. Distances are in units of the light's radius, so the same light
 // fills a room or sits in a video tile. It draws light only: the canvas is composited with `screen`, so
 // where there is no light the page shows through and no edge is ever visible.
+import { WORK } from './shape.ts'
 import { UMBRAL, type UmbralHalf } from './threshold.ts'
 
 /** A number as GLSL reads it: always with its decimals. */
@@ -88,9 +89,9 @@ void main() {
   float iris = fbm3(vec3(dir * 2.6, t * 0.55)) - 0.5;
 
   float breath = 1.0 + 0.035 * sin(t * 0.85) * u_listen;
-  float size = mix(1.0, 0.6, u_work) * breath * (1.0 + 0.24 * u_amp * u_speak) * (1.0 + 0.16 * u_swell) * u_ignite;
+  float size = mix(1.0, ${f(WORK.size)}, u_work) * breath * (1.0 + 0.24 * u_amp * u_speak) * (1.0 + 0.16 * u_swell) * u_ignite;
   float edge = 1.0 + iris * 0.6 * u_amp * u_speak;
-  float energy = u_intensity * (1.0 - 0.7 * u_work) * (1.0 - 0.22 * u_think) * (1.0 + 0.4 * u_amp * u_speak + 0.55 * u_swell);
+  float energy = u_intensity * (1.0 - ${f(1 - WORK.energy)} * u_work) * (1.0 - 0.22 * u_think) * (1.0 + 0.4 * u_amp * u_speak + 0.55 * u_swell);
 
   float core = exp(-pow(r / (size * 0.16), 2.0));
   float bloom = exp(-pow(r / (size * 0.55 * edge), 1.35));
@@ -106,7 +107,7 @@ void main() {
     * (u_listen * 0.5 + u_speak * 0.22) * min(dl, 1.0);
 
   // Depth by temperature: white core, violet bloom, cooler air.
-  vec3 bloomCol = mix(mix(u_halo, u_cool, u_think * 0.5), u_ember, u_work * 0.65);
+  vec3 bloomCol = mix(mix(u_halo, u_cool, u_think * 0.5), u_ember, u_work * ${f(WORK.ember)});
   vec3 airCol = mix(bloomCol, u_cool, 0.45);
 
   // Behind the formed mark: the halves block her light and it pours past them, through the line between you.
