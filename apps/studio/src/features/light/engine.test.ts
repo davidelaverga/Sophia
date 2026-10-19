@@ -303,4 +303,20 @@ describe('a result arriving while the floor travels blooms once it has landed (o
     assert.ok(largestFrom(sizes, landed) >= 1.03, `after the landing: ${String(largestFrom(sizes, landed))}`)
     light.stop()
   })
+
+  it('a floor that leaves 0.6 s into a bloom, once it has shown, doesn’t bring it back after the landing', () => {
+    // At rest, so her size is the bloom's alone (out of work she would still be growing back to 1).
+    const { light, sizes } = paperLight('rest')
+    framesFor(8, 60)
+    light.arrive()
+    const arrived = sizes.length
+    framesFor(0.6, 60)
+    assert.ok(largestFrom(sizes, arrived) >= 1.03, `before the floor left: ${String(largestFrom(sizes, arrived))}`)
+    pass(light)
+    framesFor(1.6, 60)
+    const landed = sizes.length
+    framesFor(1.6, 60)
+    assert.ok(largestFrom(sizes, landed) < 1.03, `after the landing: ${String(largestFrom(sizes, landed))}`)
+    light.stop()
+  })
 })

@@ -87,6 +87,45 @@ test('result · arriving while the floor passes, she blooms once it has landed',
   expect(await peakBetween(page, passed + 1700, passed + 3400)).toBeGreaterThanOrEqual(1.03)
 })
 
+/**
+ * Her research finishes; once she is out of work (the result has arrived), `ms` later the floor leaves for Lucía, from
+ * the menu already open. When it left, on the page's clock: the page times it, not the test's round trips.
+ */
+const passAfterResult = (page: Page, ms: number) =>
+  page.evaluate(
+    (delay) =>
+      new Promise<number>((done) => {
+        const her = document.querySelector('.room-stage > .light')
+        const lucia = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) =>
+          item.textContent.includes('Lucía'),
+        )
+        const pass = () => {
+          lucia?.click()
+          done(performance.now())
+        }
+        const arrived = () => {
+          if (her?.getAttribute('data-mode') === 'work') requestAnimationFrame(arrived)
+          else setTimeout(pass, delay)
+        }
+        window.fixture?.researchDone()
+        requestAnimationFrame(arrived)
+      }),
+    ms,
+  )
+
+test('result · a floor passed once her bloom has shown doesn’t bloom her again when it lands', async ({ page }) => {
+  await page.goto('/room.html?call=on&people=2&floor=me&research=running&theme=light')
+  await expect(light(page)).toHaveAttribute('data-mode', 'work')
+  await expect.poll(() => size(page), { timeout: 8000 }).toBe(0.9)
+  await page.getByRole('button', { name: 'Pass to…' }).click()
+  await expect(page.getByRole('menuitem', { name: 'Lucía' })).toBeVisible()
+  // 0.6 s into her bloom it has shown (its first quarter second barely does), so the floor's landing brings no other.
+  const passed = await passAfterResult(page, 600)
+  const landed = peakBetween(page, passed + 1700, passed + 3400)
+  await expect.poll(() => page.evaluate(() => window.fixture?.floorTo)).toEqual(['Lucía'])
+  expect(await landed).toBeLessThan(1.03)
+})
+
 test('result · under reduced motion a result arriving doesn’t move her', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/room.html?research=running&theme=light')
