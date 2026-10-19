@@ -57,3 +57,29 @@ test('owner · a save someone else beat is said, and the sheet shows what stands
   await expect(sheet(page).getByRole('alert')).toContainText('Someone changed it meanwhile')
   await expect(sheet(page).getByLabel('Target date')).toHaveValue('2026-12-01')
 })
+
+// A read that fails is said in place, never as «none» (docs/plans/silent-reads.md; the reliability baseline's gap #4).
+const UNREAD = 'The owner and date can’t be read right now.'
+
+test('owner · an admin whose members can’t be read is told so, and offered no «No owner» for it', async ({ page }) => {
+  await open(page, '&targets=1&membersRead=fail')
+  const unread = sheet(page).locator('.goal-target').getByRole('alert')
+  await expect(unread).toContainText(UNREAD, { timeout: 20_000 })
+  await expect(sheet(page).getByRole('combobox', { name: 'Owner' })).toHaveCount(0)
+  await page.evaluate(() => window.fixture?.failMembers(false))
+  await unread.getByRole('button', { name: 'Try again' }).click()
+  await expect(unread).toHaveCount(0)
+  await expect(sheet(page).getByRole('combobox', { name: 'Owner' })).toHaveValue(MARCO)
+})
+
+test('owner · a viewer whose targets can’t be read is told so, never «none»', async ({ page }) => {
+  await open(page, '&role=viewer&targets=1&targetsRead=fail')
+  const section = sheet(page).locator('.goal-target')
+  await expect(section.getByRole('alert')).toContainText(UNREAD, { timeout: 20_000 })
+  await expect(section).not.toContainText('none')
+  await page.evaluate(() => window.fixture?.failTargets(false))
+  await section.getByRole('button', { name: 'Try again' }).click()
+  await expect(section).toContainText('Marco')
+  await expect(section).toContainText('30 Oct 2026')
+  await expect(section.getByRole('alert')).toHaveCount(0)
+})
