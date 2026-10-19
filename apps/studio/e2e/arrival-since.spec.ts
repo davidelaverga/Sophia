@@ -118,6 +118,18 @@ test('arrival · a join asked as the project opens (Join the room, Rejoin): noth
   await expect(arrival(page)).toHaveText('')
 })
 
+test('arrival · a door that closes under the line takes it: the notice stands alone, offering nothing of the project', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await expect(arrival(page)).toContainText(LINE)
+  // Removed from the project while it is open: the next snapshot read is refused.
+  await page.evaluate(() => window.fixture?.shutDoor())
+  await expect(page.locator('.page.notice h2')).toBeVisible()
+  await expect(arrival(page)).toHaveText('')
+  await expect(page.getByRole('button', { name: 'Open Updates' })).toHaveCount(0)
+})
+
 test('arrival · never marked seen, the demo says nothing: its window is everything so far', async ({ page }) => {
   await page.goto('/room.html?demo=1')
   await answered(page)
