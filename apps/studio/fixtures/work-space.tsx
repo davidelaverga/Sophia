@@ -12,7 +12,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { ProjectSummary } from '@sophia/contracts'
 import { retryRead } from '../src/app/account-cache.ts'
-import { useArchivedProjects, useUnarchive } from '../src/features/studio/Archive.tsx'
+import { useArchivedWork } from '../src/features/studio/Archive.tsx'
 import { WorkSpace } from '../src/features/personal/WorkSpace.tsx'
 import '../src/app/theme.css'
 import '../src/features/personal/personal.css'
@@ -82,16 +82,14 @@ window.fetch = (input, init) => {
 }
 
 function Page() {
-  const projects = useArchivedProjects(IDENTITY)
-  const unarchive = useUnarchive(IDENTITY)
+  const fold = useArchivedWork(IDENTITY)
   return (
     <div className="places" data-place="work">
       <WorkSpace
         hidden={false}
         token="fixture"
         projects={active}
-        // As Places' Work hands it (its failure is a toast there, which this page has not).
-        archived={{ projects, onUnarchive: (id) => void unarchive(id).catch(() => undefined) }}
+        archived={fold}
         read={{ state: 'ready', failed: '', retry: () => undefined }}
         fresh={new Set()}
         inCallProject={null}

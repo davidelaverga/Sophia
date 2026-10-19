@@ -10,6 +10,7 @@ import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { useMounted } from '../../app/useMounted.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { AdmissionNote } from '../access/AdmissionNote.tsx'
+import type { ArchivedWork } from '../studio/Archive.tsx'
 import { shortName } from '../voice/room-view.ts'
 import {
   CARD_ACTION,
@@ -52,8 +53,8 @@ interface Props {
   }
   /** The invitations waiting for the person (InvitedBand, A16): at the head of the list; nothing when none waits. */
   invited?: ReactNode
-  /** The person's archived projects (A30), folded after the list, and how an admin brings one back. */
-  archived?: { projects: readonly ProjectSummary[] | undefined; onUnarchive: (projectId: string) => void }
+  /** The person's archived projects (A30), folded after the list, and how an admin brings one back (useArchivedWork). */
+  archived?: ArchivedWork
 }
 
 function Edge({ lock, onCross }: { lock: LockedBy | null; onCross: () => void }) {
@@ -297,6 +298,44 @@ function NoneFound({ typed, onClear }: { typed: string; onClear: () => void }) {
 }
 
 /**
+ * One archived project: it opens, and an admin brings it back. Its Unarchive waits while it goes («Bringing back…»),
+ * and a failure is said under the row until the next press, as a removal's is in «In this project».
+ */
+function ArchivedRow({
+  project,
+  archived,
+  onOpen,
+}: {
+  project: ProjectSummary
+  archived: ArchivedWork
+  onOpen: (projectId: string) => void
+}) {
+  const { sending, failed } = archived.unarchiving(project.projectId)
+  return (
+    <li>
+      <button type="button" className="text-button" onClick={() => onOpen(project.projectId)}>
+        {project.title}
+      </button>
+      {project.role === 'admin' && (
+        <button
+          type="button"
+          className="ghost"
+          aria-disabled={sending || undefined}
+          onClick={() => archived.onUnarchive(project.projectId)}
+        >
+          {sending ? 'Bringing back…' : 'Unarchive'}
+        </button>
+      )}
+      {failed && (
+        <p className="form-error" role="alert">
+          {failed}
+        </p>
+      )}
+    </li>
+  )
+}
+
+/**
  * «Archived (n)» after the list (archive-project.md): folded, as a finished project should be; each opens, and an admin
  * brings one back. Nothing while none is archived.
  */
@@ -317,16 +356,7 @@ function ArchivedFold({ archived, onOpen }: { archived: Props['archived']; onOpe
       {open && (
         <ul className="c3-archived-list">
           {projects.map((p) => (
-            <li key={p.projectId}>
-              <button type="button" className="text-button" onClick={() => onOpen(p.projectId)}>
-                {p.title}
-              </button>
-              {p.role === 'admin' && (
-                <button type="button" className="ghost" onClick={() => archived.onUnarchive(p.projectId)}>
-                  Unarchive
-                </button>
-              )}
-            </li>
+            <ArchivedRow key={p.projectId} project={p} archived={archived} onOpen={onOpen} />
           ))}
         </ul>
       )}

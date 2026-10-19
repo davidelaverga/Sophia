@@ -9,6 +9,7 @@ import { archiveProject } from '../../api/client.ts'
 import { listArchivedProjects } from '../../api/personal.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
+import { usePresses } from '../personal/presses.ts'
 import { archiveKeys } from './archive-keys.ts'
 
 export const archivedKey = (identity: Identity) => ['projects', identity.name, 'archived'] as const
@@ -52,10 +53,48 @@ export function useArchiveWrite(identity: Identity) {
   }
 }
 
-/** Bring an archived project back from Work's list; the lists are read again once it lands. */
-export function useUnarchive(identity: Identity) {
+/** What a failed Unarchive says when the API gives no words of its own. */
+const UNARCHIVE_FAILED = 'Couldn’t bring the project back. Try again.'
+
+/** Where a project's Unarchive in Work stands: on its way, or what its last try failed with, until the next press. */
+export interface Unarchiving {
+  sending: boolean
+  failed: string | null
+}
+
+/** Work's «Archived» (archive-project.md), as Places hands it to WorkSpace. */
+export interface ArchivedWork {
+  projects: readonly ProjectSummary[] | undefined
+  onUnarchive: (projectId: string) => void
+  unarchiving: (projectId: string) => Unarchiving
+}
+
+/**
+ * Work's archived projects, and each Unarchive kept on its row until it is answered (Codex on #368): it goes through
+ * the presses (presses.ts), as Take back does, so its row says «Bringing back…» and a second press sends nothing; a
+ * failure is said on the row, in the line's words, until the next press. The lists are read again once it lands.
+ */
+export function useArchivedWork(identity: Identity): ArchivedWork {
+  const projects = useArchivedProjects(identity)
   const write = useArchiveWrite(identity)
-  return (projectId: string) => write(projectId, false)
+  const presses = usePresses()
+  const [failed, setFailed] = useState<ReadonlyMap<string, string>>(() => new Map())
+  const say = (projectId: string, words: string | null) =>
+    setFailed((was) => {
+      const next = new Map(was)
+      if (words === null) next.delete(projectId)
+      else next.set(projectId, words)
+      return next
+    })
+  return {
+    projects,
+    onUnarchive: (projectId) =>
+      presses.press(projectId, async () => {
+        say(projectId, null)
+        await write(projectId, false).catch((err: unknown) => say(projectId, failure(err, UNARCHIVE_FAILED)))
+      }),
+    unarchiving: (projectId) => ({ sending: presses.waits(projectId), failed: failed.get(projectId) ?? null }),
+  }
 }
 
 interface SheetProps {
@@ -129,7 +168,7 @@ export function ArchivedLine({
       await write(projectId, false)
       setState({ sending: false, failed: null })
     } catch (err: unknown) {
-      setState({ sending: false, failed: failure(err, 'Couldn’t bring the project back. Try again.') })
+      setState({ sending: false, failed: failure(err, UNARCHIVE_FAILED) })
     }
   }
   return (
