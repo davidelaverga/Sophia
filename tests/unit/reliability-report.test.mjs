@@ -16,6 +16,7 @@ import {
   outcomeOf,
   parseRunSummary,
   percentile,
+  rankFailedTests,
   rate,
   roomDurations,
   shardOf,
@@ -205,6 +206,30 @@ test('the Playwright run summary gives the failed and flaky tests, and a spec is
     failedTests: [],
     flakyTests: [],
   })
+})
+
+test('failed tests are ranked by their full title, recent failures first, with when each last failed', () => {
+  // One test( line can stand for many pages: the same file and line, different titles, are different tests.
+  const work = '[desktop] › e2e/press-answers.spec.ts:128:3 › press answers › on the work space'
+  const room = '[desktop] › e2e/press-answers.spec.ts:128:3 › press answers › on the room'
+  const feed = '[desktop] › e2e/feed.spec.ts:40:1 › feed · reconnects'
+  const week = at(-24 * 7)
+  const ranked = rankFailedTests(
+    [
+      { test: work, at: week },
+      { test: work, at: at(-24 * 6) },
+      { test: work, at: week },
+      { test: room, at: at(-10) },
+      { test: feed, at: at(-60) },
+      { test: feed, at: at(-30) },
+    ],
+    at(0),
+  )
+  assert.deepEqual(ranked, [
+    { test: feed, spec: 'e2e/feed.spec.ts:40', failures: 2, recent: 1, lastFailed: at(-30) },
+    { test: room, spec: 'e2e/press-answers.spec.ts:128', failures: 1, recent: 1, lastFailed: at(-10) },
+    { test: work, spec: 'e2e/press-answers.spec.ts:128', failures: 3, recent: 0, lastFailed: at(-24 * 6) },
+  ])
 })
 
 test('the room job minutes are read per day and per part, with the margin of p90 to the limit', () => {

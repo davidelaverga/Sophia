@@ -181,6 +181,11 @@ export function specOf(line) {
   return /(\S+\.spec\.ts):(\d+)/.exec(line)?.slice(1).join(':') ?? line
 }
 
+/** Not written yet: the room's failed tests ranked by title, with when they last failed. */
+export function rankFailedTests() {
+  return []
+}
+
 /**
  * M11. The room's successful jobs per UTC day and part (`whole` or the shard), with the margin of p90 to the limit;
  * timeouts that day and part counted beside them.
