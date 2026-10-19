@@ -14,10 +14,20 @@ export const servedPage = (page: ServedPage): SearchPage => ({
   next: page.next,
 })
 
-const searchServed = (token: string, projectId: string, q: string, cursor: string | null, signal?: AbortSignal) =>
+/**
+ * A38's read, behind the project's door: its 401 or 403 is the refusal from the status alone, at once, never after an
+ * error body that may be slow or endless, so the search fences its pages without waiting (R on 0d25, r4315060306).
+ */
+export const searchServed = (
+  token: string,
+  projectId: string,
+  q: string,
+  cursor: string | null,
+  signal?: AbortSignal,
+) =>
   callApi(
     `/api/v1/projects/${projectId}/search?${new URLSearchParams({ q, ...(cursor ? { cursor } : {}) }).toString()}`,
-    { token, method: 'GET', ...(signal ? { signal } : {}) },
+    { token, method: 'GET', doorRead: true, ...(signal ? { signal } : {}) },
     (value) => servedPage(parseSearchPage(value)),
   )
 
