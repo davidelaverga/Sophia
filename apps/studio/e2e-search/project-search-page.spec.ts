@@ -412,3 +412,27 @@ test('served search · an eligible query of astral letters is typed whole and as
   await page.keyboard.insertText('a'.repeat(201))
   await expect(field(page)).toHaveValue('a'.repeat(200))
 })
+
+// The same bound at its edge: a valid 200-code-point query of astral words (64, 64, 64 and 5 letters, three spaces)
+// is held and asked whole; edited back by Backspace and typed on, the shorter query is asked as it now stands.
+test('served search · a 200-code-point query of astral words is asked whole, and editing it back asks the shorter one (r4315568923)', async ({
+  page,
+}) => {
+  await open(page, 'discussion=60&heron=3')
+  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  const word = (n: number, cp: string) => cp.repeat(n)
+  const query = [word(64, '\u{10428}'), word(64, '\u{10429}'), word(64, '\u{1042A}'), word(5, '\u{1042B}')].join(' ')
+  expect([...query].length).toBe(200)
+  const qs = async () =>
+    (await requests(page)).map((r) => new URL(r, 'http://fixture').searchParams.get('q')).filter(Boolean)
+  await field(page).focus()
+  await page.keyboard.insertText(query)
+  await expect(field(page)).toHaveValue(query)
+  await expect.poll(qs).toContain(query)
+  await page.keyboard.press('Backspace', { delay: 0 })
+  for (let i = 0; i < 5; i++) await page.keyboard.press('Backspace')
+  await page.keyboard.insertText(' ab')
+  const shorter = [word(64, '\u{10428}'), word(64, '\u{10429}'), word(64, '\u{1042A}')].join(' ') + ' ab'
+  await expect(field(page)).toHaveValue(shorter)
+  await expect.poll(qs).toContain(shorter)
+})
