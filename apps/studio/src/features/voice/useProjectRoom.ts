@@ -584,12 +584,13 @@ const relaysOf = (calls: CallFence<RoomConnection>) => ({
 
 /**
  * The room's note as the browser's connection stands (noteFor, costuras seam #8): a call lost offline says so, and once
- * the network is back, that Try again rejoins. The call stays lost until a join gets back in. Offline, any join asks
- * for nothing, since it could reach nothing, and says why (joinHeld): after a lost call, the lost call's line; from
- * rest, «You’re offline. Join once you’re back.», gone once the network is back (offline-join-from-rest.md). A join
- * that failed offline keeps the offline note (keptNote), whatever an earlier try said.
+ * the network is back, that Try again rejoins. The call stays lost until a join gets back in. Offline, out of the call
+ * (`inCall`: in it, or on the way into it), any join asks for nothing, since it could reach nothing, and says why
+ * (joinHeld): after a lost call, the lost call's line; from rest, «You’re offline. Join once you’re back.», gone once
+ * the network is back (offline-join-from-rest.md). In the call, a join goes to the call, which answers it. A join that
+ * failed offline keeps the offline note (keptNote), whatever an earlier try said.
  */
-function useRoomNote() {
+function useRoomNote(inCall: () => boolean) {
   const [note, setNote] = useState<string | null>(null)
   const lost = useRef(false)
   const online = useOnline()
@@ -602,14 +603,14 @@ function useRoomNote() {
     joinOnline:
       (join: ProjectRoom['join']) =>
       async (options?: JoinOptions): Promise<boolean> => {
-        const held = joinHeld({ online: navigator.onLine, lost: lost.current })
+        const held = joinHeld({ online: navigator.onLine, lost: lost.current, inCall: inCall() })
         if (held !== null) {
           setNote(held)
           return false
         }
-        const inCall = await join(options)
-        if (inCall) lost.current = false
-        return inCall
+        const joined = await join(options)
+        if (joined) lost.current = false
+        return joined
       },
   }
 }
@@ -622,9 +623,9 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
    */
   const [calls] = useState(() => new CallFence<RoomConnection>())
   const [status, setStatus] = useState<DockStatus>('idle')
-  const { error, setError, joinOnline } = useRoomNote()
-  const [people, setPeople] = useState<People>(NOBODY)
   const joining = useRef<Promise<boolean> | null>(null)
+  const { error, setError, joinOnline } = useRoomNote(() => calls.current !== null || joining.current !== null)
+  const [people, setPeople] = useState<People>(NOBODY)
 
   useEffect(() => () => void calls.end(), [calls])
 

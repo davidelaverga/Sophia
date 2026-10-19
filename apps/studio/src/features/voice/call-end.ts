@@ -47,12 +47,14 @@ export const saysOffline = (note: string | null): boolean => note === OFFLINE_EN
 const offlineNote = (lost: boolean) => (lost ? OFFLINE_END : OFFLINE_JOIN)
 
 /**
- * What a join pressed now says instead of asking for a token, with the browser offline or not (navigator.onLine) and
- * a call lost with no join back in since. Offline it could reach nothing, so it asks for nothing and says why
- * (offline-join-from-rest.md). Online, nothing: it goes (a true proves nothing).
+ * What a join pressed now says instead of asking for a token, with the browser offline or not (navigator.onLine), a
+ * call lost with no join back in since, and whether this person is in the call or on the way into it. Out of the call
+ * and offline, it could reach nothing, so it asks for nothing and says why (offline-join-from-rest.md). Online,
+ * nothing: it goes (a true proves nothing). In the call, nothing either: that call answers it (Chat with Sophia, say),
+ * and nobody in it is told to join.
  */
-export const joinHeld = (at: { online: boolean; lost: boolean }): string | null =>
-  at.online ? null : offlineNote(at.lost)
+export const joinHeld = (at: { online: boolean; lost: boolean; inCall: boolean }): string | null =>
+  at.online || at.inCall ? null : offlineNote(at.lost)
 
 /**
  * The room's note as the browser's connection stands: offline, a lost call says so. Back online, that Try again
