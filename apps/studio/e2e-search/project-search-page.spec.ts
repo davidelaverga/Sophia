@@ -420,9 +420,10 @@ test('served search · a 200-code-point query of astral words is asked whole, an
 }) => {
   await open(page, 'discussion=60&heron=3')
   await page.getByRole('button', { name: 'Search', exact: true }).click()
-  const word = (n: number, cp: string) => cp.repeat(n)
-  const query = [word(64, '\u{10428}'), word(64, '\u{10429}'), word(64, '\u{1042A}'), word(5, '\u{1042B}')].join(' ')
-  expect([...query].length).toBe(200)
+  const query = ['\u{10428}'.repeat(64), '\u{10429}'.repeat(64), '\u{1042A}'.repeat(64), '\u{1042B}'.repeat(5)].join(
+    ' ',
+  )
+  expect(Array.from(query)).toHaveLength(200)
   const qs = async () =>
     (await requests(page)).map((r) => new URL(r, 'http://fixture').searchParams.get('q')).filter(Boolean)
   await field(page).focus()
@@ -432,7 +433,7 @@ test('served search · a 200-code-point query of astral words is asked whole, an
   await page.keyboard.press('Backspace', { delay: 0 })
   for (let i = 0; i < 5; i++) await page.keyboard.press('Backspace')
   await page.keyboard.insertText(' ab')
-  const shorter = [word(64, '\u{10428}'), word(64, '\u{10429}'), word(64, '\u{1042A}')].join(' ') + ' ab'
+  const shorter = ['\u{10428}'.repeat(64), '\u{10429}'.repeat(64), '\u{1042A}'.repeat(64)].join(' ') + ' ab'
   await expect(field(page)).toHaveValue(shorter)
   await expect.poll(qs).toContain(shorter)
 })
