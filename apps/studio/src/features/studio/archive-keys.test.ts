@@ -41,11 +41,26 @@ describe('archive keys (A30; Codex on #368)', () => {
     assert.notEqual(keys.keyFor(archive), second, 'refused')
   })
 
-  it('settling one choice leaves the other’s key', () => {
+  it('a refusal or no reply leaves the other choice’s key', () => {
     const keys = archiveKeys(counter())
     const back = keys.keyFor(bringBack)
     keys.keyFor(archive)
+    keys.settled(archive, new ApiError(403, 'forbidden', 'Only an admin can archive the project', 'never'))
+    assert.equal(keys.keyFor(bringBack), back, 'refused: the project is as it was')
+    keys.settled(archive, new TypeError('Failed to fetch'))
+    assert.equal(keys.keyFor(bringBack), back, 'no reply')
+  })
+
+  it('one choice landing lets go of the other’s unanswered key, so pressing it later is a new write', () => {
+    const keys = archiveKeys(counter())
+    const first = keys.keyFor(archive)
+    keys.settled(archive, new TypeError('Failed to fetch'))
+    keys.keyFor(bringBack)
+    keys.settled(bringBack)
+    assert.notEqual(keys.keyFor(archive), first, 'archived again, not answered with the lost archive’s receipt')
+    const back = keys.keyFor(bringBack)
+    keys.settled(bringBack, new ApiError(0, 'outcome_unknown', 'No reply from Sophia', 'same_admission_key'))
     keys.settled(archive)
-    assert.equal(keys.keyFor(bringBack), back)
+    assert.notEqual(keys.keyFor(bringBack), back, 'the mirror: brought back again under a new key')
   })
 })
