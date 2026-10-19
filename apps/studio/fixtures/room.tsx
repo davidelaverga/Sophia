@@ -805,9 +805,6 @@ if (query.get('seen') === 'earlier') {
     sessionStorage.setItem(SEEN_KEY, JSON.stringify({ sequence: seen.sequence, records: [...seen.records] })),
   )
 }
-// `said=home`: Home said this project's window before the page opened, as its sentence keeps it (useSaidOnce).
-if (query.get('said') === 'home')
-  rememberSaid(accountOf(identity), { [PROJECT]: linesOf(updatesWindowOf(project.meeting, project.revision)) })
 
 window.fixture = {
   update: () => publish(project),
@@ -1532,6 +1529,11 @@ function DemoResources() {
 
 const root = document.getElementById('root')
 if (!root) throw new Error('room.html must contain #root')
+
+// `said=home`: Home said this project's window before the page opened, as its sentence keeps it (useSaidOnce). Here,
+// once every record the window is built from is defined (`readoutMade`, below the project).
+if (query.get('said') === 'home')
+  rememberSaid(accountOf(identity), { [PROJECT]: linesOf(updatesWindowOf(project.meeting, project.revision)) })
 
 /** The page's reads, which `forgetAccount` clears as App clears them. */
 const queryClient = new QueryClient()

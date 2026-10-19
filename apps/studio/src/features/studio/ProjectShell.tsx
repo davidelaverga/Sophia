@@ -48,6 +48,7 @@ import { GOAL, showInAddress } from '../resources/link.ts'
 import { WelcomeBand } from '../access/WelcomeBand.tsx'
 import { ADDRESS_NAMED } from '../resources/useAddressed.ts'
 import { useKnownNames } from './useKnownNames.ts'
+import { ArrivalSince } from '../updates/ArrivalSince.tsx'
 import { UpdatesView } from '../updates/UpdatesView.tsx'
 import { Connections } from '../connections/Connections.tsx'
 import { ConversationsView } from '../conversations/ConversationsView.tsx'
@@ -116,16 +117,38 @@ function OpeningNote({ loaded, blocked }: { loaded: boolean; blocked: Blocked | 
   )
 }
 
-/** Under the bar: a slow opening said, or, once open, the newcomer's welcome (newcomer-welcome.md). */
+/**
+ * Under the bar: a slow opening said, or, once open, the newcomer's welcome (newcomer-welcome.md); and, its status there
+ * from the first frame, what changed since the person last looked (project-arrival-since.md).
+ */
 interface UnderProps extends Omit<ComponentProps<typeof WelcomeBand>, 'onGoals'> {
   loaded: boolean
   blocked: Blocked | null
   onShow: (view: View) => void
+  view: View
+  /** Its call: a project kept out of sight (`background`) is always in one, so that says nothing here either. */
+  room: ProjectRoom
 }
 
-function UnderTheBar({ loaded, blocked, onShow, ...welcome }: UnderProps) {
-  if (!loaded || blocked) return <OpeningNote loaded={loaded} blocked={blocked} />
-  return <WelcomeBand {...welcome} onGoals={() => onShow('goals')} />
+function UnderTheBar({ loaded, blocked, onShow, view, room, ...welcome }: UnderProps) {
+  const open = loaded && !blocked
+  return (
+    <>
+      <ArrivalSince
+        projectId={welcome.projectId}
+        identity={welcome.identity}
+        drawn={open}
+        inCall={isInCall(room)}
+        atUpdates={view === 'updates'}
+        onUpdates={() => onShow('updates')}
+      />
+      {open ? (
+        <WelcomeBand {...welcome} onGoals={() => onShow('goals')} />
+      ) : (
+        <OpeningNote loaded={loaded} blocked={blocked} />
+      )}
+    </>
+  )
 }
 
 const isInCall = (room: ProjectRoom) => room.status === 'live' || room.status === 'reconnecting'
@@ -535,7 +558,7 @@ export function ProjectShell(props: Props) {
           onLeave={onLeave}
           onWork={onWork}
         />
-        <UnderTheBar {...{ loaded, blocked, projectId, identity, onShow, snapshot: snapshot.data }} />
+        <UnderTheBar {...{ loaded, blocked, projectId, identity, onShow, view, room, snapshot: snapshot.data }} />
         <CommandsHost onSearch={VISION && shown ? search : undefined} />
         {inviting && shown && (
           <LazyInvite from={{ projectId, identity, membership, shown, room }} onClose={() => setInviting(false)} />
