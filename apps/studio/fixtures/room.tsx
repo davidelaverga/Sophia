@@ -80,6 +80,7 @@ import {
   setSpeaking,
   sophiaAsked,
   type SophiaState,
+  unmutes,
 } from './fake-people.ts'
 import {
   holdFeed,
@@ -155,6 +156,10 @@ interface Fixture {
   failEarlier: () => void
   /** The next host control fails, as an unreachable room server's (host-controls.md). */
   failHost: () => void
+  /** The next «Mute everyone» mutes everyone, then fails, as a record lost after it (mute-all-follow-ups.md). */
+  failAfterMuteAll: () => void
+  /** The `n`th other person turns their microphone back on, after an admin muted it (fake-people.ts). */
+  unmutes: (n: number) => void
   /** The next goal target saved finds someone else's first (goal-owner-date.md). */
   staleTarget: () => void
   /** The next invitation to this address fails, as an unavailable API's (invite-from-projects.md). */
@@ -624,6 +629,7 @@ const project = {
   editHeld: null as (() => void)[] | null,
   failEarlier: false,
   failHost: false,
+  failAfterMuteAll: false,
   staleTarget: false,
   // `archived=1`: the project is archived (archive-project.md).
   archived: query.get('archived') === '1',
@@ -837,6 +843,10 @@ window.fixture = {
   failHost: () => {
     project.failHost = true
   },
+  failAfterMuteAll: () => {
+    project.failAfterMuteAll = true
+  },
+  unmutes,
   staleTarget: () => {
     project.staleTarget = true
   },
