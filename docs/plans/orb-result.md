@@ -28,3 +28,4 @@
 
 - Several results at once bloom once.
 - The bloom reads on the dark page too (the canvas reads the same swell), which is the same news there.
+- A result arriving while the floor travels blooms once it has landed, whole (`orb-follow-ups.md`).

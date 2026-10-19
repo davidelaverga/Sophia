@@ -3,6 +3,7 @@
 // It never decides anything about the room; it only shows it.
 import {
   envelope,
+  HANDOFF_SECONDS,
   HEAR_ATTACK_S,
   HEAR_RELEASE_S,
   handoffFrame,
@@ -312,6 +313,17 @@ export class LightEngine {
     return 0.6 * Math.sin((Math.PI * at) / BLOOM_S)
   }
 
+  /**
+   * What swells her now: the floor in flight, else a result's bloom. While the floor travels, a bloom not yet over waits
+   * for its landing and plays whole then (orb-follow-ups.md): the flight holds the swell meanwhile.
+   */
+  private swell(t: number, flight: HandoffStep | null): number {
+    const h = this.handoffState
+    if (!flight || !h || this.reduced) return this.bloom(t)
+    if (t - this.bloomAt <= BLOOM_S) this.bloomAt = h.started + HANDOFF_SECONDS
+    return flight.frame.swell
+  }
+
   /** The floor travels from one person, through Sophia, to the next. */
   handoff(from: Point, to: Point): void {
     this.handoffState = { from, to, started: performance.now() / 1000 }
@@ -387,7 +399,7 @@ export class LightEngine {
     aimAt(s, flight ? flight.frame.head : this.input.attention)
     s.occlude.target = this.input.mark ? 1 : 0
     aimSource(s, this.input.mark ?? null, this.aim())
-    s.swell.target = flight && !this.reduced ? flight.frame.swell : this.bloom(t)
+    s.swell.target = this.swell(t, flight)
     for (const sp of Object.values(s)) stepSpring(sp, dt)
     this.hear(wall)
     if (!this.reduced) this.flow += dt * (0.34 * s.think.value - 0.9 * this.amp * s.speak.value - 0.05 * s.listen.value)
