@@ -104,3 +104,9 @@
   room isn’t available». The race itself (a join that begins online and fails offline) is the unit check.
 - **P2, the dropped note might not be heard:** see «Heard» above. The browser checks mark the empty status line before
   the drop, then find the offline words in that same line, in the dock and in the header's mini dock.
+
+## Decided (2026-10-19)
+
+- **A message held with no reply, offline, keeps these words** (Luis 2026-10-19: «Pon tus sugerencias a esas
+  preguntas»): «You’re offline, so “…” isn’t confirmed. Send it again once you’re back; it won’t be written twice.» The
+  other option, «Not confirmed» with Send waiting, is set aside. No code changes.
