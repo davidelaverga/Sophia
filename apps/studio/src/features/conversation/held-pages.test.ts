@@ -1,14 +1,16 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { DiscussionEntry } from '@sophia/contracts'
+import type { DiscussionEntry, DiscussionPage } from '@sophia/contracts'
 import {
-  KEPT,
   anchorOf,
   changesOf,
   contributionChanged,
   feedResynced,
   feedStopped,
+  HeldRefresher,
+  KEPT,
   ownerOf,
+  READS,
   staleHeld,
   withPage,
 } from './held-pages.ts'
@@ -92,5 +94,91 @@ describe('held pages kept honest (4309253137)', () => {
     for (let n = 0; n <= KEPT; n += 1) contributionChanged(busy, id(1000 + n))
     assert.equal(changesOf(busy).ids.size, 0, 'past the bound: let go')
     assert.equal(changesOf(busy).resyncs, 1, 'as after a resync: the earlier pages go')
+  })
+
+  it('the refresher keeps at most one batch in flight: a burst while reads are pending starts no more (R 61DC-F1)', async () => {
+    const answers: { anchor: string; resolve: (p: DiscussionPage) => void }[] = []
+    let active = 0
+    let most = 0
+    const refresher = new HeldRefresher(
+      (anchor) =>
+        new Promise((resolve) => {
+          active += 1
+          most = Math.max(most, active)
+          answers.push({ anchor, resolve: (p) => ((active -= 1), resolve(p)) })
+        }),
+      (_page, ids) => ids,
+      () => assert.fail('nothing is dropped'),
+    )
+    const held = maps(...Array.from({ length: 20 }, (_, n) => e(n + 1)))
+    const window = [e(60)]
+    const learned = new Map<string, number>()
+    for (const n of [3, 7, 11, 15]) {
+      learned.set(id(n), learned.size + 1)
+      refresher.step({ ids: new Map(learned), resyncs: 0 }, held, window)
+    }
+    assert.equal(answers.length, 1, 'one read for the first change; the next three wait')
+    assert.equal(most, 1)
+    assert.deepEqual(
+      [...refresher.fence({ ids: learned, resyncs: 0 }, held, window)].toSorted(),
+      [id(3), id(7), id(11), id(15)].toSorted(),
+      'all four are fenced at once, read or waiting',
+    )
+    answers[0]?.resolve({ entries: [], before: null })
+    await Promise.resolve()
+    refresher.step({ ids: learned, resyncs: 0 }, held, window)
+    assert.equal(answers.length, 4, 'the waiting three go together, one read each, within READS')
+    assert.ok(most <= READS)
+  })
+
+  it('after a failure drops the pages, an older answer or failure changes nothing in the pages read again (R 61DC-F2)', async () => {
+    const answers: { resolve: (p: DiscussionPage) => void; reject: (e: Error) => void }[] = []
+    let drops = 0
+    let applied = 0
+    const refresher = new HeldRefresher(
+      () => new Promise((resolve, reject) => answers.push({ resolve, reject })),
+      (_page, ids) => {
+        applied += 1
+        return ids
+      },
+      () => (drops += 1),
+    )
+    const held = maps(...Array.from({ length: 20 }, (_, n) => e(n + 1)))
+    const changes = {
+      ids: new Map([
+        [id(3), 1],
+        [id(12), 2],
+      ]),
+      resyncs: 0,
+    }
+    refresher.step(changes, held, [e(60)])
+    assert.equal(answers.length, 2)
+    answers[0]?.reject(new Error('503'))
+    await Promise.resolve()
+    assert.equal(drops, 1, 'the failure lets the pages go')
+    // The reader reads the earlier pages again (a fresh held span); the other, older read fails late, then one succeeds late.
+    answers[1]?.reject(new Error('late'))
+    await Promise.resolve()
+    assert.equal(drops, 1, 'an older failure does not drop the pages read again')
+    const fresh = maps(...Array.from({ length: 20 }, (_, n) => e(n + 1)))
+    refresher.step({ ids: new Map(), resyncs: 0 }, fresh, [e(60)])
+    assert.equal(applied, 0, 'no older answer was applied')
+  })
+
+  it('a message learned newer while its read is out is not settled by that read; it is asked again', async () => {
+    const answers: ((p: DiscussionPage) => void)[] = []
+    const refresher = new HeldRefresher(
+      () => new Promise((resolve) => answers.push(resolve)),
+      (_page, ids) => ids,
+      () => assert.fail('nothing is dropped'),
+    )
+    const held = maps(e(1), e(2), e(3), e(4))
+    refresher.step({ ids: new Map([[id(2), 1]]), resyncs: 0 }, held, [e(60)])
+    const newer = { ids: new Map([[id(2), 2]]), resyncs: 0 }
+    answers[0]?.({ entries: [e(2, 'old answer')], before: null })
+    await Promise.resolve()
+    assert.ok(refresher.fence(newer, held, [e(60)]).has(id(2)), 'still fenced: its newer change is not yet read')
+    refresher.step(newer, held, [e(60)])
+    assert.equal(answers.length, 2, 'read again for the newer change')
   })
 })

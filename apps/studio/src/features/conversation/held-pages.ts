@@ -156,9 +156,79 @@ interface Held extends HeldMaps {
 }
 
 /**
- * Keeps the held pages honest as the feed reports changes: returns the held ids not to show while their page is read
- * again. A late answer is used only if nothing newer was learned for its messages since it was asked.
+ * The held pages' refresher, apart from React so its callbacks can be tested (R on 61dc). One batch of reads at a
+ * time, at most READS pages: what changes meanwhile waits, fenced, for the next batch. Every drop (a failed read, too
+ * many pages, a resync) starts a new epoch: an answer, or a failure, from an older one changes nothing.
  */
+export class HeldRefresher {
+  epoch = 0
+  inflight = 0
+  private asked = new Map<string, number>()
+  private pending = new Set<string>()
+
+  private readonly read: (anchor: string) => Promise<DiscussionPage>
+  private readonly apply: (page: DiscussionPage, ids: readonly string[]) => readonly string[]
+  private readonly drop: () => void
+
+  constructor(
+    read: (anchor: string) => Promise<DiscussionPage>,
+    apply: (page: DiscussionPage, ids: readonly string[]) => readonly string[],
+    drop: () => void,
+  ) {
+    this.read = read
+    this.apply = apply
+    this.drop = drop
+  }
+
+  /** The held ids not to show: changed and not yet read again, or being read again. */
+  fence(changes: Changes, held: HeldMaps, window: readonly Placed[]): ReadonlySet<string> {
+    const waiting = staleHeld(changes, this.asked, held.entries, new Set(window.map((w) => w.id)))
+    return new Set([...this.pending, ...waiting])
+  }
+
+  /** A new epoch: what was asked is forgotten, and no older answer applies. */
+  reset(): void {
+    this.epoch += 1
+    this.inflight = 0
+    this.asked = new Map()
+    this.pending = new Set()
+  }
+
+  step(changes: Changes, held: HeldMaps, window: readonly Placed[]): void {
+    if (this.inflight > 0) return
+    const ids = staleHeld(changes, this.asked, held.entries, new Set(window.map((w) => w.id)))
+    if (ids.length === 0) return
+    const byAnchor = pagesFor(ids, [...held.entries.values(), ...held.withdrawn.values(), ...window])
+    if (byAnchor.size > READS) return this.giveUp()
+    const asOf = this.epoch
+    for (const id of ids) {
+      this.asked.set(id, changes.ids.get(id) ?? 0)
+      this.pending.add(id)
+    }
+    this.inflight = byAnchor.size
+    for (const [anchor, mine] of byAnchor) {
+      const sent = new Map(mine.map((id) => [id, this.asked.get(id)]))
+      this.read(anchor).then(
+        (page) => {
+          if (this.epoch !== asOf) return
+          this.inflight -= 1
+          const current = mine.filter((id) => this.asked.get(id) === sent.get(id))
+          for (const id of this.apply(page, current)) this.pending.delete(id)
+        },
+        () => {
+          if (this.epoch === asOf) this.giveUp()
+        },
+      )
+    }
+  }
+
+  private giveUp(): void {
+    this.reset()
+    this.drop()
+  }
+}
+
+/** Keeps the held pages honest as the feed reports changes: returns the held ids not to show (fenced at render). */
 export function useHeldRefresh(input: {
   projectId: string
   identity: { name: string; token: string }
@@ -167,57 +237,41 @@ export function useHeldRefresh(input: {
   window: readonly Placed[]
 }): ReadonlySet<string> {
   const { projectId, held, setHeld, window } = input
-  const { token } = input.identity
-  const owner = ownerOf(input.identity.name, projectId)
-  const changes = useContributionChanges(owner)
-  const asked = useRef(new Map<string, number>())
-  // Bumped by every resync: an answer asked before it is ignored (R F1).
-  const generation = useRef(changes.resyncs)
-  const [stale, setStale] = useState<ReadonlySet<string>>(new Set())
-  useEffect(() => {
-    const drop = () => {
-      setHeld((h) => (h && h.projectId === projectId ? null : h))
-      setStale(new Set())
-    }
-    if (changes.resyncs !== generation.current) {
-      generation.current = changes.resyncs
-      asked.current = new Map()
-      if (held) drop()
-      return
-    }
-    if (!held) return
-    const ids = staleHeld(changes, asked.current, held.entries, new Set(window.map((w) => w.id)))
-    if (ids.length === 0) return
-    for (const id of ids) asked.current.set(id, changes.ids.get(id) ?? 0)
-    setStale((s) => new Set([...s, ...ids]))
-    const byAnchor = pagesFor(ids, [...held.entries.values(), ...held.withdrawn.values(), ...window])
-    // Bounded: past READS pages at once, the earlier pages go and «Earlier messages» reads them again (R F2).
-    if (byAnchor.size > READS) return drop()
-    const asOf = generation.current
-    for (const [anchor, mine] of byAnchor) {
-      const sent = new Map(mine.map((id) => [id, asked.current.get(id)]))
-      getDiscussionPage(token, projectId, anchor).then(
-        (page) => {
-          if (generation.current !== asOf) return
-          // Only the messages nothing newer was learned for since this read was sent (R F1).
-          const current = mine.filter((id) => asked.current.get(id) === sent.get(id))
-          let settled: string[] = []
+  const changes = useContributionChanges(ownerOf(input.identity.name, projectId))
+  const token = useRef(input.identity.token)
+  token.current = input.identity.token
+  const [, rendered] = useState(0)
+  // One refresher for this chat's life (its project is fixed for it: another project mounts another chat).
+  const [refresher] = useState(
+    () =>
+      new HeldRefresher(
+        (anchor) => getDiscussionPage(token.current, projectId, anchor),
+        (page, ids) => {
+          let settled: readonly string[] = []
           setHeld((h) => {
             if (!h || h.projectId !== projectId) return h
-            const next = withPage(h, page, current)
+            const next = withPage(h, page, ids)
             settled = next.settled
             return { ...h, entries: next.entries, withdrawn: next.withdrawn }
           })
-          setStale((s) => new Set([...s].filter((id) => !settled.includes(id))))
+          rendered((n) => n + 1)
+          return settled
         },
-        () => {
-          if (generation.current === asOf) drop()
-        },
-      )
-    }
-  }, [changes, held, projectId, setHeld, token, window])
-  return stale
+        () => setHeld((h) => (h && h.projectId === projectId ? null : h)),
+      ),
+  )
+  const resyncs = useRef(changes.resyncs)
+  useEffect(() => {
+    if (changes.resyncs !== resyncs.current) {
+      resyncs.current = changes.resyncs
+      refresher.reset()
+      setHeld((h) => (h && h.projectId === projectId ? null : h))
+    } else if (held) refresher.step(changes, held, window)
+  }, [changes, held, projectId, refresher, setHeld, window])
+  return held ? refresher.fence(changes, held, window) : NONE_STALE
 }
+
+const NONE_STALE: ReadonlySet<string> = new Set()
 
 /** At most this many pages are read again at once. */
 export const READS = 3

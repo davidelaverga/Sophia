@@ -131,3 +131,18 @@ test('earlier · a held message withdrawn elsewhere loses its words; its neighbo
   await expect(page.getByText('Message 3', { exact: true })).toBeVisible()
   await expect(page.getByText('Message 5', { exact: true })).toBeVisible()
 })
+
+test('earlier · a held message withdrawn elsewhere whose page fails to read again: its words go, the earlier pages go, and «Earlier messages» reads them again (R on 61dc)', async ({
+  page,
+}) => {
+  await heldEarlier(page)
+  const target = (await items(page).nth(3).getAttribute('data-message')) ?? ''
+  await page.evaluate(() => window.fixture?.failEarlier())
+  await page.evaluate((m) => window.fixture?.changeElsewhere(3, m, null), target)
+  await expect(page.getByText('Message 4', { exact: true })).toHaveCount(0)
+  await expect(earlier(page)).toBeVisible() // the span let go: a visible way to read it again
+  await expect(entries(page)).toHaveCount(50)
+  await earlier(page).click()
+  await expect(page.getByText('Message 3', { exact: true })).toBeVisible()
+  await expect(page.getByText('Message 4', { exact: true })).toHaveCount(0)
+})
