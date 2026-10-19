@@ -7,6 +7,8 @@ const fixtures = 'http://127.0.0.1:5199'
 
 export default defineConfig({
   testDir: 'e2e',
+  // The @reliability suite measures; it runs only through playwright.reliability.config.ts (reliability-measure.md).
+  testIgnore: 'reliability/**',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   reporter: process.env.CI ? [['list'], ['github']] : 'list',
