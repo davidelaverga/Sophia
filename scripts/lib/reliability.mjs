@@ -181,9 +181,28 @@ export function specOf(line) {
   return /(\S+\.spec\.ts):(\d+)/.exec(line)?.slice(1).join(':') ?? line
 }
 
-/** Not written yet: the room's failed tests ranked by title, with when they last failed. */
-export function rankFailedTests() {
-  return []
+const RECENT_MS = 48 * 3_600_000
+
+/**
+ * The room's failed tests (`failures`: one { test, at } per failed test of a job, `test` the summary's line), each by
+ * its full title: one `test(` line can stand for many pages. Per test: how many times it failed, how many of them in
+ * the 48 hours before `now`, and its last failure. Recent failures first, then the most, then the latest, so a test
+ * fixed days ago doesn't lead the list.
+ */
+export function rankFailedTests(failures, now) {
+  const since = Date.parse(now) - RECENT_MS
+  return [...groupBy(failures, (f) => f.test)]
+    .map(([test, group]) => ({
+      test,
+      spec: specOf(test),
+      failures: group.length,
+      recent: group.filter((f) => Date.parse(f.at) >= since).length,
+      lastFailed: group
+        .map((f) => f.at)
+        .sort()
+        .at(-1),
+    }))
+    .sort((a, b) => b.recent - a.recent || b.failures - a.failures || b.lastFailed.localeCompare(a.lastFailed))
 }
 
 /**

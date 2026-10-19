@@ -32,7 +32,7 @@ import {
   roomDurations,
   scenarioCounts,
   shardOf,
-  specOf,
+  rankFailedTests,
   summarizeM1,
   summarizeM2,
   summarizeM6,
@@ -186,8 +186,11 @@ function jobEntries(attempts, limitOf) {
   )
 }
 
-/** The Playwright summary of each failed room job (the `github` reporter's notice). */
-async function roomFailures(repo, entries) {
+/**
+ * The Playwright summary of each failed room job (the `github` reporter's notice), and the tests that failed most,
+ * each by its full title, with its last failure and its failures in the 48 hours before `until`.
+ */
+async function roomFailures(repo, entries, until) {
   const failed = entries.filter((e) => familyOf(e.name) === ROOM && e.outcome === 'failure')
   const summaries = await pool(failed, 4, (e) =>
     cached(`annotations-${e.id}`, () => gh(['api', `repos/${repo}/check-runs/${e.id}/annotations?per_page=100`])),
@@ -197,17 +200,14 @@ async function roomFailures(repo, entries) {
     return { ...e, summary: notice ? parseRunSummary(notice.message) : null }
   })
   const withSummary = read.filter((e) => e.summary)
-  const specs = new Map()
-  for (const test of withSummary.flatMap((e) => e.summary.failedTests)) {
-    specs.set(specOf(test), (specs.get(specOf(test)) ?? 0) + 1)
-  }
+  const failures = withSummary.flatMap((e) => e.summary.failedTests.map((test) => ({ test, at: e.startedAt })))
   return {
     failedJobs: failed.length,
     withSummary: withSummary.length,
     oneTest: withSummary.filter((e) => e.summary.failed === 1).length,
     twoOrFewer: withSummary.filter((e) => e.summary.failed <= 2).length,
     noSummary: read.filter((e) => !e.summary).map((e) => ({ id: e.id, branch: e.branch, minutes: e.minutes })),
-    topSpecs: [...specs].sort((a, b) => b[1] - a[1]).slice(0, 10),
+    topTests: rankFailedTests(failures, until).slice(0, 10),
   }
 }
 
@@ -252,7 +252,11 @@ async function measureCi({ repo, since }) {
     repo,
     window: { since, until, runs: runs.length, completedAttempts: attempts.length, jobs: entries.length },
     roomLimit: limitOf(ROOM),
-    m10: { flakes: flakeRates(entries), jobs: jobTable(entries), roomFailures: await roomFailures(repo, entries) },
+    m10: {
+      flakes: flakeRates(entries),
+      jobs: jobTable(entries),
+      roomFailures: await roomFailures(repo, entries, until),
+    },
     m11: roomDurations(entries, limitOf(ROOM)),
     m12: mainHealth(mainAttempts([...before, ...runs], attempts), until, since),
   }
@@ -354,8 +358,13 @@ function ciMarkdown(ci) {
         `| ${r.day} | ${r.part} | ${r.n} | ${num(r.p50)} | ${num(r.p90)} | ${num(r.max)} | ${num(r.margin)} min (${pct(r.marginShare)}) | ${r.timeouts} |`,
     ),
   ]
-  if (rf.topSpecs.length > 0) {
-    lines.push('', `Specs that failed most in room jobs: ${rf.topSpecs.map(([s, n]) => `\`${s}\` ×${n}`).join(', ')}.`)
+  if (rf.topTests.length > 0) {
+    lines.push(
+      '',
+      '| Room test that failed (recent first) | Failures | In the last 48 h | Last failed |',
+      '| --- | --- | --- | --- |',
+      ...rf.topTests.map((t) => `| \`${t.test}\` | ${t.failures} | ${t.recent} | ${t.lastFailed} |`),
+    )
   }
   return lines
 }
