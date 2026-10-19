@@ -364,7 +364,26 @@ const windowFenced = (
   window: readonly Placed[],
   erasure: { gone: ReadonlySet<string>; acted: ReadonlySet<string> },
   untrustedNow: boolean,
-) => (untrustedNow ? window.map((w) => w.id) : windowAliasesOf(window, erasure.gone, erasure.acted))
+  unseenNow: boolean,
+) => {
+  if (untrustedNow) return window.map((w) => w.id)
+  // A source erased that this chat cannot name (its message not shown, 4318164723): a reference in the window may share
+  // it, so none is shown until a snapshot as new as that erasure.
+  const references = unseenNow ? window.filter((w) => 'kind' in w && w.kind === 'reference').map((w) => w.id) : []
+  return [...windowAliasesOf(window, erasure.gone, erasure.acted), ...references]
+}
+
+/** The latest cursor of an erasure whose source this chat could not learn (not shown here when learned, 4318164723). */
+function unseenOf(known: ReadonlyMap<string, Gone>, changes: Changes): string | undefined {
+  let latest: string | undefined
+  for (const [id, at] of changes.erasing ?? []) {
+    const gone = known.get(`${id}@${at}`)
+    const cursor = changes.erasedAt?.get(id)
+    if (typeof gone === 'object' || gone === 'kept' || cursor === undefined) continue
+    if (latest === undefined || BigInt(cursor) > BigInt(latest)) latest = cursor
+  }
+  return latest
+}
 
 /** Whether a message as shown has words known erased (R-B55-P1). */
 type Erased = (shown: { id: string; sourceId?: string; revision?: number }, receipt?: string | null) => boolean
@@ -436,7 +455,8 @@ export function useHeldRefresh(input: HeldRefreshInput): readonly [ReadonlySet<s
   }, [changes, erasure, held, projectId, refresher, setHeld, tick, window])
   // A manual «Earlier» read asked before an erasure was learned brings nothing back (F2: a named message's old words too).
   const epoch = () => `${refresher.epoch}:${erasure.generation()}`
-  const inWindow = windowFenced(window, erasure, untrusted(changes.lostAt, input.cursor))
+  const unseen = untrusted(unseenOf(erasure.known, changes), input.cursor)
+  const inWindow = windowFenced(window, erasure, untrusted(changes.lostAt, input.cursor), unseen)
   if (!held) return [inWindow.length > 0 ? new Set(inWindow) : NONE_STALE, epoch, erasure.erased] as const
   // At render (F1): the aliases of a source gone, or every held message while which went is unknown, are not shown.
   const hidden = erasure.unknown ? [...held.entries.keys()] : aliasesOf(held, erasure.gone, erasure.acted)
@@ -490,6 +510,7 @@ function useErasure(changes: Changes, held: HeldMaps | null, window: readonly Pl
   }
   const acted = new Set(erasing.map(([id]) => id))
   return {
+    known: known.current,
     gone,
     acted,
     fresh,
