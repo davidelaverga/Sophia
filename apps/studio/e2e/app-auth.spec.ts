@@ -762,11 +762,8 @@ const listed = (projectId: string, title: string) => ({
   releases: [],
 })
 
-/**
- * Seven projects, past the five where Work offers finding one (find-projects.md): the one check here that has a project
- * list, answered in place of serve()'s unavailable API (a later route wins).
- */
-async function sevenProjects(context: BrowserContext) {
+/** Seven projects, past the five where Work offers finding one (find-projects.md). */
+function seven() {
   const titles = [
     'Copper launch',
     'Fixture project',
@@ -776,9 +773,14 @@ async function sevenProjects(context: BrowserContext) {
     'Delta pitch',
     'Ember notes',
   ]
-  const projects = titles.map((title, i) =>
+  return titles.map((title, i) =>
     listed(title === 'Fixture project' ? WORK_PROJECT : `00000000-0000-4000-8000-0000000000c${String(i)}`, title),
   )
+}
+
+/** The seven as the project list, answered in place of serve()'s unavailable API (a later route wins). */
+async function sevenProjects(context: BrowserContext) {
+  const projects = seven()
   await context.route(`${APP}/api/v1/projects`, (route) => route.fulfill({ json: { projects, personalEpoch: 1 } }))
 }
 
@@ -844,6 +846,81 @@ test('browser-account · ⌘K opens a project by its name (find-projects.md)', a
   await page.keyboard.type('fixture')
   await expect(palette.getByRole('option').first()).toContainText('Open Fixture project')
   await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(new RegExp(WORK_PROJECT))
+})
+
+// The reliability baseline's gap #2 (reliability-retry-5xx-and-write-timeouts.md): what Render's proxy answers while a
+// deploy or a cold start runs, a 502 page with no contract body, is asked again by a read. The project list goes through
+// the network here (this page fakes no fetch), so the proxy's page is the browser's own reply.
+test('reliability · the project list answered twice by a proxy’s 502 page loads by itself, nothing pressed', async ({
+  context,
+}) => {
+  await serve(context)
+  const projects = seven()
+  let asked = 0
+  await context.route(`${APP}/api/v1/projects`, (route) => {
+    asked += 1
+    if (asked <= 2)
+      return route.fulfill({
+        status: 502,
+        contentType: 'text/html',
+        body: '<html><head><title>502 Bad Gateway</title></head><body><h1>Bad Gateway</h1></body></html>',
+      })
+    return route.fulfill({ json: { projects, personalEpoch: 1 } })
+  })
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await page.keyboard.press('w')
+  const work = page.locator('section[data-place-view="work"]')
+  // TanStack's own waits, 1 s then 2 s, and the list; well before the list's 20 s interval would read it again.
+  await expect(work.locator('.c3-proj h3')).toHaveCount(7, { timeout: 8000 })
+  await expect(work.getByRole('alert')).toHaveCount(0)
+  expect(asked).toBe(3)
+})
+
+// Review P2 on the same branch: a gateway timeout may come after the API committed. A new project answered by a 504 page
+// is an unknown outcome: the press sends it again under the same Idempotency-Key, so the server records one project.
+test('reliability · a new project answered by a proxy’s 504 page is sent again with the same key: one project', async ({
+  context,
+}) => {
+  await serve(context)
+  const projects = seven()
+  const keys: string[] = []
+  const recorded = new Set<string>()
+  await context.route(`${APP}/api/v1/projects`, (route) => {
+    const request = route.request()
+    if (request.method() !== 'POST') return route.fulfill({ json: { projects, personalEpoch: 1 } })
+    const key = request.headers()['idempotency-key'] ?? ''
+    keys.push(key)
+    const first = !recorded.has(key)
+    recorded.add(key) // the API commits under the key; a key seen before gets the same project back
+    if (keys.length === 1)
+      return route.fulfill({
+        status: 504,
+        contentType: 'text/html',
+        body: '<html><head><title>504 Gateway Timeout</title></head><body><h1>Gateway Timeout</h1></body></html>',
+      })
+    return route.fulfill({ status: first ? 201 : 200, json: { projectId: WORK_PROJECT, cursor: '1' } })
+  })
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await page.keyboard.press('w')
+  const work = page.locator('section[data-place-view="work"]')
+  await expect(work.locator('.c3-proj h3')).toHaveCount(7)
+  await work.getByRole('button', { name: 'New project' }).click()
+  const form = work.locator('form.c3-newproj')
+  await form.getByLabel('Project title').fill('Harbour pilot')
+  const start = form.locator('button[type="submit"]')
+  await start.click()
+  await expect.poll(() => keys.length).toBe(1)
+  // The outcome is unknown: the person presses again, and the same intent goes, under its key.
+  await expect(start).toBeEnabled()
+  await start.click()
+  await expect.poll(() => keys.length).toBe(2)
+  expect(keys[1]).toBe(keys[0])
+  expect(recorded.size).toBe(1)
   await expect(page).toHaveURL(new RegExp(WORK_PROJECT))
 })
 
