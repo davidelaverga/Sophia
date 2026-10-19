@@ -9,24 +9,27 @@ import { archiveProject } from '../../api/client.ts'
 import { listArchivedProjects } from '../../api/personal.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
+import { READ_FAILED, readState } from '../personal/places-view.ts'
 import { usePresses } from '../personal/presses.ts'
+import type { Read } from '../personal/ReadNotes.tsx'
 import { archiveKeys } from './archive-keys.ts'
 
 export const archivedKey = (identity: Identity) => ['projects', identity.name, 'archived'] as const
 
-/** The person's archived projects (A30), read again as the lists are. */
-export function useArchivedProjects(identity: Identity): readonly ProjectSummary[] | undefined {
-  const read = useQuery({
+/** The read of the person's archived projects (A30), read again as the lists are. */
+const useArchivedRead = (identity: Identity) =>
+  useQuery({
     queryKey: archivedKey(identity),
     queryFn: ({ signal }) => listArchivedProjects(identity.token, signal),
     staleTime: 30_000,
   })
-  return read.data?.projects
-}
 
-/** Whether this project is among the person's archived ones: false until that read lands. */
+/**
+ * Whether this project is among the person's archived ones: false until that read lands, and while it fails, so
+ * nothing inside the project claims it either way (only Work says the read failed).
+ */
 export function useIsArchived(identity: Identity, projectId: string): boolean {
-  return useArchivedProjects(identity)?.some((p) => p.projectId === projectId) ?? false
+  return useArchivedRead(identity).data?.projects.some((p) => p.projectId === projectId) ?? false
 }
 
 const failure = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback)
@@ -64,18 +67,22 @@ export interface Unarchiving {
 
 /** Work's «Archived» (archive-project.md), as Places hands it to WorkSpace. */
 export interface ArchivedWork {
+  /** Undefined until the list has been read (`read` says how that goes). */
   projects: readonly ProjectSummary[] | undefined
+  /** A failed read is said where «Archived» goes, with Try again: none archived is never what a failure looks like. */
+  read: Read
   onUnarchive: (projectId: string) => void
   unarchiving: (projectId: string) => Unarchiving
 }
 
 /**
- * Work's archived projects, and each Unarchive kept on its row until it is answered (Codex on #368): it goes through
- * the presses (presses.ts), as Take back does, so its row says «Bringing back…» and a second press sends nothing; a
- * failure is said on the row, in the line's words, until the next press. The lists are read again once it lands.
+ * Work's archived projects, as read (a failed read says so: Codex on #368), and each Unarchive kept on its row until it
+ * is answered: it goes through the presses (presses.ts), as Take back does, so its row says «Bringing back…» and a
+ * second press sends nothing; a failure is said on the row, in the line's words, until the next press. The lists are
+ * read again once it lands.
  */
 export function useArchivedWork(identity: Identity): ArchivedWork {
-  const projects = useArchivedProjects(identity)
+  const read = useArchivedRead(identity)
   const write = useArchiveWrite(identity)
   const presses = usePresses()
   const [failed, setFailed] = useState<ReadonlyMap<string, string>>(() => new Map())
@@ -87,7 +94,8 @@ export function useArchivedWork(identity: Identity): ArchivedWork {
       return next
     })
   return {
-    projects,
+    projects: read.data?.projects,
+    read: { state: readState(read), failed: READ_FAILED.archived, retry: () => void read.refetch() },
     onUnarchive: (projectId) =>
       presses.press(projectId, async () => {
         say(projectId, null)

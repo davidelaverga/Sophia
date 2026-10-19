@@ -23,7 +23,7 @@ import {
   type LockedBy,
   type ProjectOrder,
 } from './places-view.ts'
-import { ReadNotes, type Read } from './ReadNotes.tsx'
+import { FailedReads, ReadNotes, type Read } from './ReadNotes.tsx'
 import { useCapped } from './useCapped.ts'
 import { useNow } from '../../app/use-now.ts'
 
@@ -337,12 +337,14 @@ function ArchivedRow({
 
 /**
  * «Archived (n)» after the list (archive-project.md): folded, as a finished project should be; each opens, and an admin
- * brings one back. Nothing while none is archived.
+ * brings one back. Nothing while none is archived; a read that failed says so in its place, with Try again.
  */
 function ArchivedFold({ archived, onOpen }: { archived: Props['archived']; onOpen: (projectId: string) => void }) {
   const [open, setOpen] = useState(false)
-  const projects = archived?.projects ?? []
-  if (!archived || projects.length === 0) return null
+  if (!archived) return null
+  if (archived.read.state === 'failed') return <FailedReads reads={[archived.read]} />
+  const projects = archived.projects ?? []
+  if (projects.length === 0) return null
   return (
     <section className="c3-archived" aria-label="Archived projects">
       <button
