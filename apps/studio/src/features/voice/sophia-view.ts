@@ -154,3 +154,11 @@ export function sophiaView(
   const stale = ctx.reconnecting ? { light: idle(ctx.working), presence: 'joining' as const } : {}
   return { ...base, ...stale, exchange, looking }
 }
+
+/**
+ * The call on her light's rim (orb-presence.md): she speaks into a blocked sound, and she is here. Over a link coming
+ * back she is joining, gathered and still, and her light carries no call; Allow audio stays (`needsAudio`), the block
+ * being this browser's own, not stale (orb-follow-ups.md).
+ */
+export const lightSound = (seen: Pick<SophiaView, 'needsAudio' | 'presence'>): 'blocked' | null =>
+  seen.needsAudio && seen.presence === 'here' ? 'blocked' : null

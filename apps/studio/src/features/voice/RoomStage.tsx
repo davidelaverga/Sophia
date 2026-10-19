@@ -37,7 +37,7 @@ import {
   type StageMode,
   soleWorkingTask,
 } from './room-view.ts'
-import { sophiaView, type SophiaView } from './sophia-view.ts'
+import { lightSound, sophiaView, type SophiaView } from './sophia-view.ts'
 import { anchorOf, measureStage, sameGeometry, type StageGeometry } from './stage-geometry.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
 
@@ -361,7 +361,7 @@ function StageLight({ light, room, sophia, geometry, working, holder }: StageLig
       voice={textMode ? null : sophiaLevel}
       hearing={textMode ? null : hearing}
       presence={sophia.presence === 'here' ? null : sophia.presence}
-      sound={sophia.needsAudio ? 'blocked' : null}
+      sound={lightSound(sophia)}
     />
   )
 }

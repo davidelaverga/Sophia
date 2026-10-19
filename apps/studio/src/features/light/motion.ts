@@ -5,7 +5,7 @@ export interface Spring {
   value: number
   velocity: number
   target: number
-  /** Angular frequency: higher settles faster (about 4.7 / omega seconds to within 1%). */
+  /** Angular frequency: higher settles faster (from rest, about 6.6 / omega seconds to within 1% of the way). */
   omega: number
 }
 
