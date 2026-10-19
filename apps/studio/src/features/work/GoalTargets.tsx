@@ -33,18 +33,22 @@ export function useTargetsRead(at: At) {
   return { targets, state: notesRead(read), refetch: () => void read.refetch() }
 }
 
-/** The goals' targets alone, by goal id: what the sheet's own date reads. */
-export const useGoalTargets = (at: At): ReadonlyMap<string, GoalTarget> => useTargetsRead(at).targets
-
-/** The project's members, for naming an owner and choosing one. */
-export function useMembers(at: At): readonly ProjectMember[] {
+/**
+ * The project's members, for naming an owner and choosing one, with how the read stands: an empty list after a
+ * failure is not «no one» (silent-reads.md).
+ */
+export function useMembersRead(at: At) {
   const read = useQuery({
     queryKey: ['members', at.projectId, at.identity.name],
     queryFn: () => getProjectMembers(at.identity.token, at.projectId),
     staleTime: 60_000,
   })
-  return read.data?.members ?? []
+  const members: readonly ProjectMember[] = read.data?.members ?? []
+  return { members, state: notesRead(read), refetch: () => void read.refetch() }
 }
+
+/** The project's members alone: what a row and the invite sheet name. */
+export const useMembers = (at: At): readonly ProjectMember[] => useMembersRead(at).members
 
 const ownerName = (members: readonly ProjectMember[], id: string) =>
   members.find((m) => m.actorId === id)?.name ?? 'A member'
@@ -137,10 +141,24 @@ function TargetForm(props: {
   )
 }
 
-/** The sheet's owner and date: a form for an editor or an admin, the words for a viewer. */
+/** The targets or the members unread, with nothing kept: said in place of the owner and date, never as «none». */
+function TargetUnread({ onRetry }: { onRetry: () => void }) {
+  return (
+    <p role="alert">
+      The owner and date can’t be read right now.{' '}
+      <button type="button" className="text-button" onClick={onRetry}>
+        Try again
+      </button>
+    </p>
+  )
+}
+
+/** The sheet's owner and date: a form for an editor or an admin, the words for a viewer; a failed read, said. */
 export function GoalTargetSection({ goalId, at }: { goalId: string; at: At }) {
-  const target = useGoalTargets(at).get(goalId)
-  const members = useMembers(at)
+  const dates = useTargetsRead(at)
+  const target = dates.targets.get(goalId)
+  const { members, ...people } = useMembersRead(at)
+  const unread = [dates, people].filter((read) => read.state === 'failed')
   const role = useMembership(at.projectId, at.identity.name, at.identity.token).data?.role
   const client = useQueryClient()
   const [state, setState] = useState<{ note: Note; saving: boolean }>({ note: null, saving: false })
@@ -162,7 +180,9 @@ export function GoalTargetSection({ goalId, at }: { goalId: string; at: At }) {
   const may = role === 'admin' || role === 'editor'
   return (
     <section className="goal-sheet-section goal-target" aria-label="Owner and date">
-      {may ? (
+      {unread.length > 0 ? (
+        <TargetUnread onRetry={() => unread.forEach((read) => read.refetch())} />
+      ) : may ? (
         // Keyed by the target's revision: what stands now fills the form again once it is read.
         <TargetForm key={target?.revision ?? 0} target={target} members={members} onSave={save} saving={state.saving} />
       ) : (
