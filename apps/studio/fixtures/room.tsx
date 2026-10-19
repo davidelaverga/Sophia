@@ -23,6 +23,10 @@ import { OFFERED } from './invitations-data.ts'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { forgetKept, keptAt, type Kept } from '../src/features/conversations/talk-store.ts'
 import { accountOf } from '../src/app/auth-callback.ts'
+import { PersonalLocked, forgetPersonalReads } from '../src/app/account-cache.ts'
+import { setSignedIn } from '../src/app/signed-in.ts'
+import { lockKey, OPEN } from '../src/features/personal/lock.ts'
+import { useLock } from '../src/features/personal/useLock.ts'
 import { messagesKey } from '../src/features/conversations/conversation-list.ts'
 import { StrictMode, useEffect, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -79,6 +83,7 @@ import {
   type SophiaState,
 } from './fake-people.ts'
 import {
+  MENTIONED_IN,
   installFixtureApi,
   publish,
   type Conversations,
@@ -88,7 +93,10 @@ import {
   releaseCovers,
   served,
   unexpected,
+  eventEntities,
 } from './fixture-api.ts'
+import { messageActsOf } from './message-acts.ts'
+import { idOf, ME } from './data.ts'
 import { missionWrites } from './mission-writes.ts'
 import { withdrawnElsewhere } from './conversation-writes.ts'
 import {
@@ -121,6 +129,10 @@ import { demoResources, demoServedGoals } from './demo-work.ts'
 import { bootTheme } from '../src/app/theme.ts'
 import { startCrashReports } from '../src/app/crash-report.ts'
 import { SkipLink } from '../src/app/SkipLink.tsx'
+
+// As App sets for whoever is signed in (signed-in.ts): this page's one account, so a write that outlives its part (a
+// message act's preview, R-C3-ACT-01) sees it as still signed in.
+setSignedIn(accountOf(identity))
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
@@ -304,6 +316,30 @@ interface Fixture {
   sophiaWalks: (anchor: string) => void
   /** The next message to the room lands, but its reply is lost: the page can't tell it was recorded. */
   loseNextContributionReply: () => void
+  /** A36 (message-acts.md): the next act on a message is stale, its message corrected elsewhere first. */
+  staleNextAct: () => void
+  /** The next act on a message lands, but its reply is lost. */
+  loseNextActReply: () => void
+  /** The next act on a message fails as an unavailable API's. */
+  failNextAct: () => void
+  /** The `n`th message comes to mention the viewer, its words and revision unchanged (a mention-only correction, A37). */
+  mentionMeIn: (n: number) => void
+  /** The `n`th message no longer mentions the viewer, its words and revision unchanged (A37). */
+  unmentionMeIn: (n: number) => void
+  /** The entity the last published event named, if any (contribution.mentioned's metadata, exact). */
+  lastEventEntity: () => unknown
+  /** Its author corrects the `n`th message's words: a new revision, its recipients (and their occurrence) kept (A36). */
+  reviseMessage: (n: number, text: string) => void
+  /** The discussion's reads (snapshot, pages) lag: they keep what they read now until `releaseSnapshot`. */
+  holdSnapshot: () => void
+  releaseSnapshot: () => void
+  /** Every earlier page's read fails until turned off. */
+  failEarlierReads: (on: boolean) => void
+  /** The next previews list this many running research tasks as reading the words. */
+  reachNextPreview: (tasks: number) => void
+  /** Acts on messages land, but their replies wait until `releaseActs`. */
+  holdActs: () => void
+  releaseActs: () => void
   /** The next show lands, but its reply is lost: the page can't tell it was committed. */
   loseNextFocusReply: () => void
   /** The next close of the meeting lands, but its reply is lost. */
@@ -391,12 +427,28 @@ interface Fixture {
   unexpected: readonly string[]
   /** The writes that reached the brief, each with its body (mission-writes.ts). */
   missionWrites: readonly { path: string; body: unknown }[]
+  /** The personal padlock, as SignedIn holds it (useLock): shut by the person, or opened (P1 4309009938). */
+  setPadlock: (locked: boolean) => void
+  /** What the page keeps of the person's mixed Needs read for the room's mentions: every variant holding an answer (P1 4309009938). */
+  cachedMentionNeeds: () => unknown[]
+  /** The device storage key of this account's padlock (lock.ts), for another tab's lock. */
+  padlockKey: () => string
+  /** Someone else's tab corrects, or withdraws, the n-th message (its id given); the feed names it (4309253137). */
+  changeElsewhere: (n: number, id: string, text: string | null) => void
 }
 
 declare global {
   interface Window {
     fixture?: Fixture
   }
+}
+
+/** Another member's message that mentions the viewer (A37): the one Home's mention need names. */
+const MENTIONING = {
+  id: MENTIONED_IN,
+  text: 'Can you check the door plan before Friday?',
+  revision: 2,
+  mentions: [ME],
 }
 
 /** `designfail=forbidden|unavailable`: the design task's reads fail so from the start. */
@@ -595,10 +647,32 @@ const project = {
   },
   // `discussion=60`: that many messages from another member, more than the snapshot's 50 (discussion-earlier.md);
   // `discussion=days`: two from yesterday and two from today; `discussion=yesterday`, yesterday's two (chat-times.md).
-  messages: (query.get('discussion') === 'days' || query.get('discussion') === 'yesterday'
-    ? overTwoDays().slice(0, query.get('discussion') === 'days' ? 4 : 2)
-    : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`)) as (string | Said)[],
+  // `discussion=mine`: the viewer's own written message, another member's, and the viewer's own shared report (A36).
+  // `discussion=mentioned`: another member's message that mentions the viewer, on its revision 2 (A37).
+  // `mentionOld=1` with `discussion=60`: the third message, beyond the chat's 50, mentions the viewer (A37).
+  messages: (query.get('mentionOld') === '1'
+    ? Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) =>
+        i === 2 ? { text: `Message ${i + 1}`, mentions: [ME] } : `Message ${i + 1}`,
+      )
+    : query.get('discussion') === 'mentioned'
+      ? ['Sounds good to me.', MENTIONING]
+      : query.get('discussion') === 'mine'
+        ? [
+            { text: 'Meet at nine by the north door.', me: true },
+            'Sounds good to me.',
+            { text: 'The pilot report, version 2.', me: true, kind: 'reference' },
+          ]
+        : query.get('discussion') === 'days' || query.get('discussion') === 'yesterday'
+          ? overTwoDays().slice(0, query.get('discussion') === 'days' ? 4 : 2)
+          : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`)) as (
+    string | Said
+  )[],
   contributions: new Map(),
+  // `acts=1`: the viewer's messages offer Edit and Withdraw (message-acts.md, A36).
+  messageActs: messageActsOf(query),
+  membersFail: query.get('members') === 'fail',
+  heldMessages: undefined as (string | Said)[] | undefined,
+  failEarlierReads: false,
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
@@ -748,6 +822,26 @@ const project = {
 installFixtureApi(project)
 
 window.fixture = {
+  setPadlock: (locked) => padlock.set(locked),
+  cachedMentionNeeds: () =>
+    queryClient
+      .getQueriesData({ queryKey: ['mentions', 'needs'] })
+      .map(([, data]) => data)
+      .filter((data) => data !== undefined),
+  padlockKey: () => lockKey(accountOf(identity)),
+  lastEventEntity: () => eventEntities.get(project.revision) ?? null,
+  changeElsewhere: (n, id, text) => {
+    const was = project.messages[n]
+    const base = typeof was === 'string' ? { text: was } : was
+    if (!base) return
+    const revision = (base.revision ?? 1) + 1
+    const now = new Date().toISOString()
+    project.messages[n] =
+      text === null ? { ...base, revision, withdrawnAt: now } : { ...base, text, revision, correctedAt: now }
+    const type = text === null ? 'contribution.withdrawn' : 'contribution.corrected'
+    eventEntities.set(project.revision + 1, { type, entityType: 'contribution', entityId: id })
+    publish(project)
+  },
   update: () => publish(project),
   shutDoor: () => {
     project.doorShut = true
@@ -1091,6 +1185,66 @@ window.fixture = {
   loseNextContributionReply: () => {
     project.loseContributionReply = true
   },
+  staleNextAct: () => {
+    project.messageActs.staleNext = true
+  },
+  loseNextActReply: () => {
+    project.messageActs.loseNextReply = true
+  },
+  failNextAct: () => {
+    project.messageActs.failNext = true
+  },
+  reachNextPreview: (tasks) => {
+    project.messageActs.reach = tasks
+  },
+  // Named again after being removed is a new occurrence of the viewer's mention (A37).
+  mentionMeIn: (n) => {
+    const m = project.messages[n]
+    if (m === undefined) return
+    const said = typeof m === 'string' ? { text: m } : m
+    if (said.mentions?.includes(ME)) return
+    project.messages[n] = { ...said, id: idOf(m, n), mentions: [ME], occurrence: (said.occurrence ?? 0) + 1 }
+    mentionedEvent(idOf(m, n), said.revision ?? 1)
+    publish(project)
+  },
+  reviseMessage: (n, text) => {
+    const m = project.messages[n]
+    if (m === undefined) return
+    const said = typeof m === 'string' ? { text: m } : m
+    project.messages[n] = {
+      ...said,
+      id: idOf(m, n),
+      text,
+      revision: (said.revision ?? 1) + 1,
+      correctedAt: new Date().toISOString(),
+    }
+    publish(project)
+  },
+  holdSnapshot: () => {
+    project.heldMessages = structuredClone(project.messages)
+  },
+  releaseSnapshot: () => {
+    project.heldMessages = undefined
+    publish(project)
+  },
+  failEarlierReads: (on) => {
+    project.failEarlierReads = on
+  },
+  unmentionMeIn: (n) => {
+    const m = project.messages[n]
+    if (m === undefined || typeof m === 'string') return
+    project.messages[n] = { ...m, id: idOf(m, n), mentions: (m.mentions ?? []).filter((id) => id !== ME) }
+    mentionedEvent(idOf(m, n), m.revision ?? 1)
+    publish(project)
+  },
+  holdActs: () => {
+    project.messageActs.held = []
+  },
+  releaseActs: () => {
+    const held = project.messageActs.held ?? []
+    project.messageActs.held = null
+    for (const release of held) release()
+  },
   loseNextFocusReply: () => {
     project.showing.loseReply = true
   },
@@ -1394,11 +1548,35 @@ const demoAccount = (privacy: () => void) => ({
   signOutEverywhere: () => window.location.assign(`signin.html?everywhere=1${DEMO ? '&demo=1' : ''}`),
 })
 
+/**
+ * As the API does (0069): a message's recipients named again or no longer, at the same revision and body, is a
+ * contribution.mentioned event naming the message at its revision unchanged, on the next sequence (4309755040).
+ */
+function mentionedEvent(id: string, revision: number) {
+  const entity = { type: 'contribution.mentioned', entityType: 'contribution', entityId: id, entityRevision: revision }
+  eventEntities.set(project.revision + 1, entity)
+}
+
+/** The padlock's control for a check (window.fixture.setPadlock), set once the page's padlock is mounted. */
+const padlock = { set: (_locked: boolean) => {} }
+// `padlock=call`: a call that begins shuts the padlock, as SignedIn's does (useLock); otherwise this page's calls leave it.
+const CALL_SHUTS = query.get('padlock') === 'call'
+// `padlock=shut`: the page opens with the padlock already shut on this device, as it was left (lock.ts's stored value).
+if (query.get('padlock') === 'shut') localStorage.setItem(lockKey(accountOf(identity)), 'you')
+
 function Project({ background }: { background: boolean }) {
   const [view, setView] = useState<View>(viewOf(query.get('place')))
   const [privacy, setPrivacy] = useState(false)
+  const [inCall, setInCall] = useState(false)
+  // The personal padlock as SignedIn holds it, on the same device storage (another tab's lock reaches it too), and what
+  // it forgets while shut (SignedIn's useForgetWhileLocked).
+  const [lock, setLock] = useLock(accountOf(identity), CALL_SHUTS && inCall ? PROJECT : null)
+  padlock.set = (locked) => setLock(locked ? { locked: true, by: 'you' } : OPEN)
+  useEffect(() => {
+    if (lock.locked) forgetPersonalReads(queryClient)
+  }, [lock.locked])
   return (
-    <>
+    <PersonalLocked.Provider value={lock.locked}>
       {privacy && <PrivacySheet onClose={() => setPrivacy(false)} />}
       <ProjectShell
         projectId={PROJECT}
@@ -1412,6 +1590,7 @@ function Project({ background }: { background: boolean }) {
         onWork={() => served.push('went:work')}
         onSignOut={nothing}
         joinOnOpen={query.get('call') === 'on'}
+        onCall={(call) => setInCall(call !== null)}
         background={background}
         resources={
           DEMO ? (
@@ -1421,7 +1600,7 @@ function Project({ background }: { background: boolean }) {
           ) : undefined
         }
       />
-    </>
+    </PersonalLocked.Provider>
   )
 }
 

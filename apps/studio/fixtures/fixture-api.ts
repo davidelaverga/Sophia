@@ -90,6 +90,7 @@ import {
   type Meeting,
 } from './meeting-data.ts'
 import { profileAnswer } from './profile-data.ts'
+import { discussionPageOf, messageActAnswer, snapshotDiscussion, type MessageActs } from './message-acts.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
 
@@ -117,6 +118,16 @@ interface Project {
   /** The door shut under the shell (`window.fixture.shutDoor`): every snapshot read from now on is refused (403). */
   doorShut?: boolean
   messages: (string | Said)[]
+  /** Its members' message corrections and withdrawals (A36, message-acts.ts); absent, the page has none. */
+  messageActs?: MessageActs
+  /** The members read fails (`members=fail`, A37). */
+  membersFail?: boolean
+  /** The viewer's mentions marked seen (A37), by need id. */
+  mentionsSeen?: Set<string>
+  /** While set, the snapshot's and the pages' discussion read these messages (`holdSnapshot`): a lagging read. */
+  heldMessages?: (string | Said)[] | undefined
+  /** While set, every earlier page's read fails as an unavailable API's (`failEarlierReads`). */
+  failEarlierReads?: boolean
   /** The viewer's messages to the room, by their Idempotency-Key: the same key again replays the receipt. */
   contributions?: Map<string, { text: string; receipt: ContributionReceipt }>
   /** The next message lands, but its reply is lost on the way (`window.fixture.loseNextContributionReply`). */
@@ -317,7 +328,10 @@ function hrefOf(input: RequestInfo | URL): string {
 
 const streams = new Set<ReadableStreamDefaultController<string>>()
 
-const frameOf = (sequence: number) => `id: ${sequence}\ndata: ${JSON.stringify(projectEvent(sequence))}\n\n`
+/** What an event names, when it is not the project itself: a message corrected or withdrawn elsewhere (held-pages). */
+export const eventEntities = new Map<number, { type: string; entityType: string; entityId: string }>()
+const frameOf = (sequence: number) =>
+  `id: ${sequence}\ndata: ${JSON.stringify({ ...projectEvent(sequence), ...eventEntities.get(sequence) })}\n\n`
 
 /**
  * The project's event stream, open until the page drops it; pings keep it from looking stalled. Dropped by its
@@ -352,8 +366,11 @@ function eventStream(project: Project, after: number, signal: AbortSignal | null
  * The project's snapshot now, with someone at the door when the page asked for it (`lobby=waiting`), and the research
  * task in its work on the Work page (`place=work`).
  */
-function snapshotOf(project: Project) {
-  const now = snapshot(project.revision, project.exchange, project.messages, project.goals, project.room)
+function snapshotOf(project: Project, revisions = false) {
+  const now = {
+    ...snapshot(project.revision, project.exchange, project.messages, project.goals, project.room),
+    ...snapshotDiscussion({ ...project, messages: project.heldMessages ?? project.messages }, revisions),
+  }
   const running = project.researching ? researchRunning(project.researching.reads).task : null
   const work = running
     ? { ...now, work: [running] }
@@ -620,6 +637,8 @@ function goalTargetsRead(project: Project): Response {
 
 /** The project's members (A25): the viewer and the two others the room fixture names, with roles as changed (A27). */
 function membersRead(project: Project): Response {
+  // `members=fail` (A37): the read fails, so nobody is offered or named until it is read.
+  if (project.membersFail) return unavailable()
   const roleOf = (actorId: string, start: Membership['role']) => project.memberRoles?.get(actorId) ?? start
   const gone = project.removedMembers ?? new Set<string>()
   return json({
@@ -721,11 +740,11 @@ const discussionRead = (project: Project, url: URL) =>
 function discussionPage(project: Project, url: URL): Response {
   const anchor = url.searchParams.get('before')
   served.push(`discussion:${anchor ?? 'newest'}`)
-  if (project.failEarlier) {
+  if (project.failEarlier || project.failEarlierReads) {
     project.failEarlier = false
     return unavailable()
   }
-  const all = project.messages.map(said)
+  const all = (project.heldMessages ?? project.messages).map(said)
   const end = anchor ? all.findIndex((e) => e.id === anchor) : all.length
   if (end < 0) {
     const problem = {
@@ -736,22 +755,27 @@ function discussionPage(project: Project, url: URL): Response {
     }
     return new Response(JSON.stringify(problem), { status: 422, headers: { 'content-type': 'application/json' } })
   }
-  const start = Math.max(0, end - 50)
-  const entries = all.slice(start, end)
-  return json({ entries, before: start > 0 ? (entries[0]?.id ?? null) : null })
+  return json(
+    discussionPageOf(
+      { ...project, messages: project.heldMessages ?? project.messages },
+      end,
+      url.searchParams.get('revisions') === '1',
+    ),
+  )
 }
 
 /** The snapshot as the API serves it; refused once the door is shut under the shell (`window.fixture.shutDoor`). */
-function snapshotAnswer(project: Project) {
+function snapshotAnswer(project: Project, url: URL) {
   served.push(`snapshot:${project.revision}`)
-  return project.doorShut ? refused('You no longer have access to this project') : json(snapshotOf(project))
+  const revisions = url.searchParams.get('revisions') === '1'
+  return project.doorShut ? refused('You no longer have access to this project') : json(snapshotOf(project, revisions))
 }
 
 function answer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
   const signal = init?.signal
   const base = `/api/v1/projects/${PROJECT}`
   const path = url.pathname
-  if (method === 'GET' && path === `${base}/snapshot`) return snapshotAnswer(project)
+  if (method === 'GET' && path === `${base}/snapshot`) return snapshotAnswer(project, url)
   const records = recordsAnswer(project, method, url, init)
   if (records !== undefined) return records
   if (method === 'GET' && path === `${base}/membership`) return membershipRead(project)
@@ -762,8 +786,53 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
   return answerReports(project, method, url, init)
 }
 
+/** A message's correction or withdrawal and their preview (A36, message-acts.ts); undefined for any other request. */
+const actAnswer = (project: Project, method: string, url: URL, init: RequestInit | undefined) =>
+  messageActAnswer(project, method, url, init, { served, publish: () => publish(project) }) ??
+  needSeen(project, method, url)
+
+/** markNeedSeen (A15, A37's mention): recorded as `seen:<id>`, that exact occurrence no longer listed; 204 as the API. */
+function needSeen(project: Project, method: string, url: URL): Response | undefined {
+  const marked = /^\/api\/v1\/me\/needs\/([^/]+)\/seen$/.exec(url.pathname)
+  if (method !== 'POST' || !marked) return undefined
+  const id = decodeURIComponent(marked[1] ?? '')
+  served.push(`seen:${id}`)
+  ;(project.mentionsSeen ??= new Set()).add(id)
+  return new Response(null, { status: 204 })
+}
+
+/**
+ * The viewer's waiting mentions in the room (A37), as the API lists them: each message of the room that names them, by
+ * its revision and occurrence, until that occurrence is seen; never a withdrawn one.
+ */
+function roomMentionNeeds(project: Project) {
+  return project.messages.flatMap((m, n) => {
+    if (typeof m === 'string' || m.withdrawnAt || !m.mentions?.includes(membership.actorId)) return []
+    const revision = m.revision ?? 1
+    const id = idOf(m, n)
+    const need = `mention:${PROJECT}:${String(revision)}.${String(m.occurrence ?? 1)}:${id}`
+    if (project.mentionsSeen?.has(need)) return []
+    return [
+      {
+        id: need,
+        kind: 'mention',
+        // Its first words, as the API's first_words cuts them (0065: 140 characters).
+        title: m.text.length > 140 ? `${m.text.slice(0, 139)}…` : m.text,
+        projectId: PROJECT,
+        projectTitle: PROJECT_NAME,
+        expiresAt: null,
+        detail: 'A member mentioned you',
+        at: m.at ?? new Date().toISOString(),
+        ref: needRef('contribution', id, `${String(revision)}.${String(m.occurrence ?? 1)}`),
+      },
+    ]
+  })
+}
+
 /** The vision's proposed reads, and A18's writes; undefined for any other request. */
 function visionAnswer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
+  const act = actAnswer(project, method, url, init)
+  if (act !== undefined) return act
   if (method === 'GET') return visionRead(project, url)
   return method === 'POST' ? talkWritten(project, url.pathname, init) : undefined
 }
@@ -793,8 +862,11 @@ const needRef = (kind: string, id: string, within: string | null = null, resourc
   resourceId,
 })
 
-/** What needs the viewer (A15, docs/plans/needs-api.md): one of each kind, given out of order; the Studio sorts them. */
-export function needsAnswer(now = Date.now()) {
+/**
+ * What needs the viewer (A15, docs/plans/needs-api.md): one of each kind, given out of order; the Studio sorts them.
+ * With `mentions` (A37's mentions=1), a message in the fixture project that mentions them too.
+ */
+export function needsAnswer(now = Date.now(), mentions = false) {
   const at = (minutes: number) => new Date(now + minutes * 60_000).toISOString()
   const here = { projectId: PROJECT, projectTitle: PROJECT_NAME }
   const need = (id: string, kind: string, title: string, over: Record<string, unknown>) => ({
@@ -834,9 +906,24 @@ export function needsAnswer(now = Date.now()) {
         at: at(-1440),
         ref: needRef('personal_turn', 't9'),
       }),
+      ...(mentions ? [MENTION_NEED(at(-5))] : []),
     ],
   }
 }
+
+/** The message that mentions the viewer (A37): Marco's, on its revision 2, its current words. */
+export const MENTIONED_IN = '00000000-0000-4000-8000-00000000003a'
+const MENTION_NEED = (at: string) => ({
+  id: `mention:${PROJECT}:2.1:${MENTIONED_IN}`,
+  kind: 'mention',
+  title: 'Can you check the door plan before Friday?',
+  projectId: PROJECT,
+  projectTitle: PROJECT_NAME,
+  expiresAt: null,
+  detail: 'Marco mentioned you',
+  at,
+  ref: needRef('contribution', MENTIONED_IN, '2.1'),
+})
 
 /** The person's archived projects (A30): this one, when it is. */
 function archivedListAnswer(project: Project): Response {
@@ -850,8 +937,11 @@ function archivedListAnswer(project: Project): Response {
 function ownRead(project: Project, url: URL) {
   if (url.pathname === '/api/v1/projects') return projectListAnswer(project)
   if (url.pathname === '/api/v1/projects/archived') return archivedListAnswer(project)
-  if (url.pathname === '/api/v1/me/needs') return json(needsAnswer())
-  return undefined
+  if (url.pathname !== '/api/v1/me/needs') return undefined
+  // With mentions=1 (A37), the room's own mentions of the viewer, as its messages name them now.
+  const needs = needsAnswer(Date.now())
+  if (url.searchParams.get('mentions') !== '1') return json(needs)
+  return json({ ...needs, needs: [...needs.needs, ...roomMentionNeeds(project)] })
 }
 
 /** The proposed reads of the vision (A13's search, A14's focus); undefined for any other request. */
@@ -1555,13 +1645,7 @@ function contributed(project: Project, init: RequestInit | undefined): Response 
   const replyTo = replyOf(project, body)
   if (replyTo instanceof Response) return replyTo
   const id = entryIdOf(project.messages.length)
-  project.messages.push({
-    id,
-    text: body.text,
-    me: true,
-    at: new Date().toISOString(),
-    ...(replyTo ? { replyTo } : {}),
-  })
+  project.messages.push(messageWritten(id, body.text, replyTo, mentionsOf(init?.body)))
   publish(project)
   served.push(`contribution:${body.intent}`)
   const receipt: ContributionReceipt = {
@@ -1589,6 +1673,31 @@ function contributionAnswer(project: Project, receipt: ContributionReceipt): Res
 /** A contribution recorded, as the API answers it: 202. */
 const recorded = (receipt: ContributionReceipt) =>
   new Response(JSON.stringify(receipt), { status: 202, headers: { 'content-type': 'application/json' } })
+
+/** A message the viewer wrote, with what it answers (A20) and whom it names (A37), each recorded as served. */
+function messageWritten(
+  id: string,
+  text: string,
+  replyTo: Said['replyTo'] | null | undefined,
+  mentions: string[],
+): Said {
+  if (mentions.length > 0) served.push(`mentions:${mentions.join(',')}`)
+  return {
+    id,
+    text,
+    me: true,
+    at: new Date().toISOString(),
+    ...(replyTo ? { replyTo } : {}),
+    ...(mentions.length > 0 ? { mentions } : {}),
+  }
+}
+
+/** The members a message names (A37), as sent: none when `mentions` is left out. */
+function mentionsOf(body: BodyInit | null | undefined): string[] {
+  const value: unknown = typeof body === 'string' ? JSON.parse(body) : null
+  if (typeof value !== 'object' || value === null || !('mentions' in value) || !Array.isArray(value.mentions)) return []
+  return value.mentions.filter((m): m is string => typeof m === 'string')
+}
 
 const isContribution = (value: unknown): value is { text: string; intent: ContributionReceipt['intent'] } =>
   typeof value === 'object' &&

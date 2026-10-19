@@ -188,6 +188,8 @@ const needs = VISION ? NEEDS[query.get('needs') ?? (DEMO ? 'some' : '')] : undef
  * its seen write (POST …/needs/<id>/seen) is recorded as "seen <id>" and that need leaves the next answer.
  */
 const viaApi = query.get('needs') === 'api'
+/** `mentions=1` (A37): with `needs=api`, a message that mentions the viewer is among what needs them. */
+const MENTIONED = query.get('mentions') === '1'
 /** `needsFail=1`: every read of the route fails (503) until `homeFixture.recover()`, so Home's note and its Try again can be checked. */
 let failing: number | null = query.get('needsFail') === '1' ? 503 : null
 /** The needs the answer leaves out: marked seen, or dropped (`homeFixture.dropNeed`). */
@@ -228,7 +230,11 @@ if (viaApi) {
         return Promise.resolve(new Response(body, { status: failing, headers: { 'content-type': 'application/json' } }))
       }
       const now = Date.now()
-      const answer = needsAnswer(now)
+      const answer = needsAnswer(
+        now,
+        // A37: a message mentioning the viewer, when the page asks for it (`mentions=1`) and the read opts in.
+        MENTIONED && new URL(url, window.location.href).searchParams.get('mentions') === '1',
+      )
       const all = [...(urgent ? [urgentNeed(now)] : []), ...answer.needs]
       const body = JSON.stringify({ ...answer, needs: all.filter((n) => !seen.has(n.id)) })
       return Promise.resolve(new Response(body, { headers: { 'content-type': 'application/json' } }))
@@ -346,7 +352,7 @@ const say = (text: string) => pressed.push(`say ${text}`)
 const openPress = (
   view: string,
   projectId: string,
-  where: { taskId?: string; decisionId?: string; requestId?: string; resourceId?: string },
+  where: { taskId?: string; decisionId?: string; requestId?: string; resourceId?: string; messageId?: string },
 ) =>
   `open ${view} ${projectId}${
     where.requestId
@@ -355,7 +361,9 @@ const openPress = (
         ? ` #decision-${where.decisionId}`
         : where.taskId
           ? ` #task-${where.taskId}`
-          : ''
+          : where.messageId
+            ? ` #message-${where.messageId}`
+            : ''
   }`
 
 /** A personal log for the check of the seen mark: `log`, thirty turns in a short scrollport, the named reply (t9) the last, below the fold; `hidden`, the same under `hidden`. */

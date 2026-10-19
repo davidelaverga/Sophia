@@ -46,6 +46,8 @@ const EXPORTS = [
   'RoomSession',
   'Membership',
   'ContributionReceipt',
+  'ContributionActPreview',
+  'ContributionActReceipt',
   'NativeTaskReceipt',
   'NativeTaskDetail',
   'ExchangeState',

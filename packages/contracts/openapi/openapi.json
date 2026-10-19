@@ -176,6 +176,18 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "revisions",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            },
+            "description": "1: the reader handles corrections and withdrawals (A36): entries carry revision, correctedAt and kind, and withdrawn messages come as tombstones. Without it the answer is the shape before A36, withdrawn messages left out."
           }
         ],
         "responses": {
@@ -12874,7 +12886,21 @@
           }
         },
         "x-sophia-implementation": "contract_only",
-        "x-sophia-release-goal": "F2"
+        "x-sophia-release-goal": "F2",
+        "parameters": [
+          {
+            "name": "mentions",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            },
+            "description": "1: also the messages that mention the person (A37): kind mention, ref.kind contribution, ref.id the message, ref.within `<revision>.<occurrence>` (the message's revision, and which asking this is: a recipient named again after being removed is a new occurrence); the id is `mention:<projectId>:<revision>.<occurrence>:<contributionId>`. Seen acts on that exact occurrence only: an earlier one's seen answers 204 and clears nothing newer. Without it, only A15's kinds, for a reader that knows no other."
+          }
+        ]
       }
     },
     "/api/v1/me/needs/{id}/seen": {
@@ -13287,6 +13313,18 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "revisions",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            },
+            "description": "1: the reader handles corrections and withdrawals (A36): entries carry revision, correctedAt and kind, and withdrawn messages come as tombstones. Without it the answer is the shape before A36, withdrawn messages left out."
           }
         ],
         "responses": {
@@ -15724,6 +15762,315 @@
           }
         }
       }
+    },
+    "/api/v1/projects/{projectId}/contributions/{contributionId}/preview": {
+      "get": {
+        "operationId": "previewContributionAct",
+        "summary": "What correcting or withdrawing the caller's own message would do, with the proof the act carries.",
+        "tags": [
+          "conversations"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "contributionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "correct",
+                "withdraw"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContributionActPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not an active member, or not the message's author",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "stale_revision: the message was withdrawn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema; the message is not in the discussion; a correction of a message that shares a report or file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/contributions/{contributionId}/correction": {
+      "post": {
+        "operationId": "correctContribution",
+        "summary": "The author's new words for their own written message: same message, author and time; the old words erased with the work that read them.",
+        "tags": [
+          "conversations"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "contributionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContributionCorrection"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Corrected, or nothing to change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContributionActReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not an active member, or not the message's author",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "stale_revision: the message, its reach or the preview changed or expired since it was shown, or it was withdrawn; request_erased: a retry of a correction whose words have since been erased; idempotency_conflict: the key was used for another request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema; the message is not in the discussion; a proof not shown to this member for this message; a correction of a message that shares a report or file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/contributions/{contributionId}/withdrawal": {
+      "post": {
+        "operationId": "withdrawContribution",
+        "summary": "The author takes their own message out of the discussion: written words erased with the work that read them; a shared report or file untouched.",
+        "tags": [
+          "conversations"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "contributionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContributionWithdrawal"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Withdrawn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContributionActReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not an active member, or not the message's author",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "stale_revision: the message, its reach or the preview changed or expired since it was shown, or it was withdrawn; request_erased: a retry of a correction whose words have since been erased; idempotency_conflict: the key was used for another request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema; the message is not in the discussion; a proof not shown to this member for this message; a correction of a message that shares a report or file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -16828,6 +17175,14 @@
             "items": {
               "$ref": "#/components/schemas/NativeTask"
             }
+          },
+          "discussionWithdrawn": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/WithdrawnEntry"
+            },
+            "description": "revisions=1 only: the messages withdrawn within the discussion's span; its 50 counts them."
           }
         },
         "required": [
@@ -17008,6 +17363,22 @@
               "ask_sophia",
               "propose_work"
             ]
+          },
+          "mentions": {
+            "anyOf": [
+              {
+                "type": "array",
+                "maxItems": 5,
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Members this message mentions (A37), by actor id: at most five, each an active member; the author and repeats are left out. Absent or null: none. A non-empty list needs an editor or an admin; a viewer writes without one. Nothing is parsed from the text."
           }
         },
         "required": [
@@ -19564,6 +19935,40 @@
               }
             ],
             "description": "Who wrote it: the author's current display name; null when they have none (never an address)."
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "revisions=1 only: moves with each correction."
+          },
+          "correctedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "revisions=1 only: when its words were last corrected; null if never."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "text",
+              "reference"
+            ],
+            "description": "revisions=1 only: written as text (its author may correct it), or sharing a report or file (it can only be withdrawn)."
+          },
+          "mentions": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "revisions=1 only (A37): the members this message mentions now, never whether they looked."
           }
         },
         "required": [
@@ -32058,7 +32463,8 @@
               "decision",
               "permission",
               "guest",
-              "reply"
+              "reply",
+              "mention"
             ],
             "description": "What it is. A review asked of a person is not in this amendment: A11 keeps verdicts, not requests; the kind joins when a request record exists."
           },
@@ -32130,7 +32536,8 @@
                   "work_decision",
                   "work_wait",
                   "lobby_entry",
-                  "personal_turn"
+                  "personal_turn",
+                  "contribution"
                 ],
                 "description": "The record family: a decision of the work board (WorkDecision: it has a decider and an expiry, and Tasks renders it), a work item's wait (WorkWait, by its own reference: one work item may hold several), a lobby entry, a personal turn."
               },
@@ -32360,6 +32767,14 @@
               }
             ],
             "description": "The page's oldest entry while older ones remain; null at the first message."
+          },
+          "withdrawn": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/WithdrawnEntry"
+            },
+            "description": "revisions=1 only: the messages withdrawn within the page's span; the page's 50 counts them."
           }
         },
         "required": [
@@ -34954,6 +35369,305 @@
         },
         "required": [
           "sequence"
+        ]
+      },
+      "ContributionActPreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "What correcting or withdrawing the caller's own message would do, and the proof (15 minutes) the act must carry.",
+        "properties": {
+          "contributionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "correct",
+              "withdraw"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The message's revision; the act names it as expectedRevision."
+          },
+          "erases": {
+            "type": "boolean",
+            "description": "True for a message written as text: its current words are erased (a correction keeps the new ones). False for a message that shares a report or file, which stays as it is."
+          },
+          "reach": {
+            "type": "array",
+            "description": "Every running task that read the words and is revoked by erasing them, in task order, none left out. Words a provider already received cannot be recalled.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "taskId",
+                "kind",
+                "restarts"
+              ],
+              "properties": {
+                "taskId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "research",
+                    "design"
+                  ]
+                },
+                "restarts": {
+                  "type": "boolean",
+                  "description": "Research whose goal still works starts again without the words, on the same allowance (or waits for Resume while held)."
+                }
+              }
+            }
+          },
+          "previewToken": {
+            "type": "string",
+            "pattern": "^v2\\.[0-9]{1,12}\\.[0-9a-f]{64}$",
+            "description": "The preview's proof (v2): it binds the revision and the reach as shown. Another version's is refused."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "contributionId",
+          "action",
+          "revision",
+          "erases",
+          "reach",
+          "previewToken",
+          "expiresAt"
+        ]
+      },
+      "ContributionCorrection": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "New words for the caller's own written message. Words identical to the current ones change nothing.",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reach": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "taskId",
+                "kind",
+                "restarts"
+              ],
+              "properties": {
+                "taskId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "research",
+                    "design"
+                  ]
+                },
+                "restarts": {
+                  "type": "boolean",
+                  "description": "Research whose goal still works starts again without the words, on the same allowance (or waits for Resume while held)."
+                }
+              }
+            },
+            "description": "The reach exactly as the preview listed it, every task with its kind and restart (Codex on #396). Not bounded: the preview lists every task the words reach. An altered list fails the proof (422); one that is no longer true, as after a Stop or a Resume, is stale (409)."
+          },
+          "previewToken": {
+            "type": "string",
+            "pattern": "^v2\\.[0-9]{1,12}\\.[0-9a-f]{64}$",
+            "description": "The preview's proof (v2): it binds the revision and the reach as shown. Another version's is refused."
+          },
+          "mentions": {
+            "anyOf": [
+              {
+                "type": "array",
+                "maxItems": 5,
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The message's recipients after the correction (A37). Absent or null: kept as they are. [] clears them. A list that adds or changes recipients needs an editor or an admin. The same words with other recipients change only who is mentioned: no new revision, nothing erased or woken."
+          }
+        },
+        "required": [
+          "text",
+          "expectedRevision",
+          "reach",
+          "previewToken"
+        ]
+      },
+      "ContributionWithdrawal": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Take the caller's own message out of the discussion.",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reach": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "taskId",
+                "kind",
+                "restarts"
+              ],
+              "properties": {
+                "taskId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "research",
+                    "design"
+                  ]
+                },
+                "restarts": {
+                  "type": "boolean",
+                  "description": "Research whose goal still works starts again without the words, on the same allowance (or waits for Resume while held)."
+                }
+              }
+            },
+            "description": "The reach exactly as the preview listed it, every task with its kind and restart (Codex on #396). Not bounded: the preview lists every task the words reach. An altered list fails the proof (422); one that is no longer true, as after a Stop or a Resume, is stale (409)."
+          },
+          "previewToken": {
+            "type": "string",
+            "pattern": "^v2\\.[0-9]{1,12}\\.[0-9a-f]{64}$",
+            "description": "The preview's proof (v2): it binds the revision and the reach as shown. Another version's is refused."
+          }
+        },
+        "required": [
+          "expectedRevision",
+          "reach",
+          "previewToken"
+        ]
+      },
+      "ContributionActReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A correction or withdrawal: no text and no digest.",
+        "properties": {
+          "contributionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "correct",
+              "withdraw"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "current",
+              "withdrawn"
+            ]
+          },
+          "changed": {
+            "type": "boolean",
+            "description": "False for a correction with the words the message already has."
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The event the act emitted; null when it changed nothing."
+          }
+        },
+        "required": [
+          "contributionId",
+          "projectId",
+          "operation",
+          "revision",
+          "state",
+          "changed",
+          "cursor"
+        ]
+      },
+      "WithdrawnEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Where a withdrawn message stood (revisions=1 only): who and when, never its words.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "authorName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "withdrawnAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "actorId",
+          "authorName",
+          "createdAt",
+          "withdrawnAt"
         ]
       }
     }
