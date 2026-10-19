@@ -828,8 +828,13 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
 
 /** A message's correction or withdrawal and their preview (A36, message-acts.ts); undefined for any other request. */
 const actAnswer = (project: Project, method: string, url: URL, init: RequestInit | undefined) =>
-  messageActAnswer(project, method, url, init, { served, publish: () => publish(project) }) ??
-  needSeen(project, method, url)
+  messageActAnswer(project, method, url, init, {
+    served,
+    publish: () => {
+      publish(project)
+      return String(project.revision)
+    },
+  }) ?? needSeen(project, method, url)
 
 /** markNeedSeen (A15, A37's mention): recorded as `seen:<id>`, that exact occurrence no longer listed; 204 as the API. */
 function needSeen(project: Project, method: string, url: URL): Response | undefined {
