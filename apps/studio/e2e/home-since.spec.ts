@@ -187,6 +187,24 @@ test('home · a call’s project Home doesn’t show, whose read failed, is read
   await expect(news(page)).toHaveText('Since you last looked: a note kept in Product launch. Open Updates')
 })
 
+test('home · a waiting call’s project the person no longer has isn’t read as Home is arrived at; online still reads it', async ({
+  page,
+}) => {
+  // Product launch's call ends out of Home and its read fails. Then the projects, read again, leave it out: the person
+  // was removed from it. Home can't show it and a read would be refused, so an arrival doesn't read it.
+  const productLaunch = async () => (await reads(page)).filter((p) => p === id(4))
+  await page.goto(`${QUIET}&since=some&call=${id(4)}&sinceFail=1&away=1`)
+  await page.evaluate(() => window.homeFixture?.hangUp())
+  await expect.poll(() => reads(page)).toEqual([id(4)])
+  await page.evaluate(() => window.homeFixture?.reread('live'))
+  await page.getByRole('button', { name: 'Back to Home' }).click()
+  await answered(page, [1, 4, 5].map(id))
+  expect(await productLaunch()).toHaveLength(1)
+  // It still waits: the browser back online reads it once.
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+  await expect.poll(productLaunch).toHaveLength(2)
+})
+
 test('home · under a session soon it waits, unsaid, even as the session passes with Home open; nothing after a seen mark', async ({
   page,
 }) => {
