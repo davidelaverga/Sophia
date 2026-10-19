@@ -97,25 +97,45 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
-      - run: pnpm install --frozen-lockfile
+      - id: install
+        run: pnpm install --frozen-lockfile
       # The pack's migrations and SQL test as imported, then this repository's migrations and the same test.
-      - run: pnpm test:sql --source pack
-      - run: pnpm test:sql
+      - id: sql-pack
+        run: pnpm test:sql --source pack
+      - id: sql
+        run: pnpm test:sql
       # Two-connection races, lease fencing, idempotent retries, SSE and revocation over real HTTP.
-      - run: pnpm test:db
+      - id: db
+        run: pnpm test:db
       # S1-05A crossing: the real pinned dsh runtime against the real API, PostgreSQL and worker dispatch; and CON-01's
       # service-mode replies on the same path, the context recorded by the worker with the dispatcher never paused,
       # against a local provider double (no credential or provider call). One file at a time.
-      - run: pnpm build && pnpm artifacts
-      - run: >-
+      - id: artifacts
+        run: pnpm build && pnpm artifacts
+      - id: crossing
+        run: >-
           node --test --test-concurrency=1 --test-timeout=180000 tests/integration/runtime-service.test.mjs
           tests/integration/conversation-service.test.mjs
       # Q13's exclusive admission and install groups, which the shared service above cannot qualify (they skip there):
       # a PostgreSQL 16 cluster of their own, made in this service's image with no network, as its postgres user, the
       # repository and this Node read-only. Its census, version and stages are printed; a skip or a missing stage fails.
       # Then D-Q13's trusted-creator group on a second such cluster, whose postgres is a plain installer, as on Supabase.
-      - run: scripts/q13-owned-pg16.sh '${{ job.services.postgres.id }}'
+      - id: q13
+        run: scripts/q13-owned-pg16.sh '${{ job.services.postgres.id }}'
         timeout-minutes: 6
+      # When a phase above fails, its name goes into the check's annotations: the log's tail is the PostgreSQL service's
+      # own output at cleanup, which does not say which phase failed (B53, run 39283483704). It reads only the phases'
+      # outcomes, prints no environment, and runs only after a failure, which already fails the job; the log is unchanged.
+      - name: Name the failed phase
+        if: failure()
+        env:
+          PHASES: >-
+            install=${{ steps.install.outcome }} sql-pack=${{ steps.sql-pack.outcome }} sql=${{ steps.sql.outcome }}
+            db=${{ steps.db.outcome }} artifacts=${{ steps.artifacts.outcome }} crossing=${{ steps.crossing.outcome }}
+            q13=${{ steps.q13.outcome }}
+        run: |
+          failed=$(printf '%s\n' $PHASES | sed -n 's/=failure$//p' | tr '\n' ' ')
+          echo "::error title=Failed phase::${failed:-a setup step before install} (outcomes: $PHASES)"
 
   room-media:
     name: Media bridge against a real LiveKit server
