@@ -976,11 +976,31 @@ async function readingOpen(page: Page) {
   await expect(page.locator('.conv-msg')).toHaveCount(6)
 }
 
+/**
+ * The page has asked the API nothing for a second: a project event's refresh (the snapshot, the archived list) is in,
+ * so the request the check makes next is the one that meets an expired token, not a refresh that renewed it before.
+ */
+async function quiet(page: Page) {
+  let last = -1
+  await expect
+    .poll(
+      async () => {
+        const now = (await askedOf(page)).length
+        const still = now === last
+        last = now
+        return still
+      },
+      { intervals: [1000] },
+    )
+    .toBe(true)
+}
+
 test('session · a conversation opened after the token expired shows its messages: one refresh, asked again (gap #3)', async ({
   context,
 }) => {
   const { page, calls } = await renewableIn(context, 'conversations')
   await readingOpen(page)
+  await quiet(page)
   await page.evaluate(() => window.appFixture?.expireToken())
   await rows(page).nth(1).click()
   await expect(page.locator('.conv-msg').filter({ hasText: 'One page. Anything longer, nobody reads.' })).toBeVisible()
@@ -1021,6 +1041,7 @@ test('session · a message sent after the token expired goes again with its key 
   await readingOpen(page)
   // No Sophia's answer, which would publish to the feed.
   await page.getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await quiet(page)
   await page.evaluate(() => window.appFixture?.expireToken())
   await page.getByLabel('Continue this question with the team').fill('Check the March figures')
   await page.keyboard.press('Enter')
