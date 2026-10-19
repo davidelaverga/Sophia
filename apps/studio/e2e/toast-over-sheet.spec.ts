@@ -95,7 +95,7 @@ test('toast · with no sheet open, a notice keeps its place at the bottom', asyn
 test('toast · with the command palette open, a notice keeps its place (Codex on #293)', async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 844 })
   await page.goto('/room.html?demo=1')
-  await page.keyboard.press('Control+k')
+  await page.keyboard.press('ControlOrMeta+k')
   await expect(page.getByRole('dialog', { name: 'Commands' })).toBeVisible()
   await notice(page)
   await page.waitForTimeout(400)

@@ -41,6 +41,8 @@ import {
   parseRoomToken,
   parseSnapshot,
 } from '@sophia/contracts/validate'
+import { MENTIONS } from '../app/mentions.ts'
+import { MESSAGE_ACTS } from '../app/message-acts.ts'
 import { apiUrl } from './base.ts'
 import { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS } from './timeouts.ts'
 
@@ -135,9 +137,19 @@ async function inTime<T>(ms: number, run: (signal: AbortSignal) => Promise<T>, o
   }
 }
 
+/**
+ * With the message acts flag (or the mentions flag, whose recipients come with revisions: A37), the discussion is read
+ * with its revisions and tombstones (A36's revisions=1).
+ */
+const REVISIONS = MESSAGE_ACTS || MENTIONS ? 'revisions=1' : ''
+
 export function getSnapshot(token: string, projectId: string, signal?: AbortSignal): Promise<Snapshot> {
   const read = async (limit: AbortSignal) => {
-    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/snapshot`), { headers: auth(token), signal: limit })
+    const query = REVISIONS ? `?${REVISIONS}` : ''
+    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/snapshot${query}`), {
+      headers: auth(token),
+      signal: limit,
+    })
     if (!res.ok) throw await toError(res, 'read')
     return readBody(res, parseSnapshot, 'safe_read')
   }
@@ -146,7 +158,8 @@ export function getSnapshot(token: string, projectId: string, signal?: AbortSign
 
 /** readDiscussion (A23): a page of the room's discussion, oldest first: the newest, or the 50 before `before`. */
 export function getDiscussionPage(token: string, projectId: string, before: string | null): Promise<DiscussionPage> {
-  const query = before ? `?before=${encodeURIComponent(before)}` : ''
+  const params = [...(before ? [`before=${encodeURIComponent(before)}`] : []), ...(REVISIONS ? [REVISIONS] : [])]
+  const query = params.length > 0 ? `?${params.join('&')}` : ''
   const read = async (limit: AbortSignal) => {
     const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/discussion${query}`), {
       headers: auth(token),

@@ -5,6 +5,8 @@
 // no Ajv compiler and no eval at runtime. A body that breaks the contract throws; it is never cast.
 import type { ErrorObject, ValidateFunction } from 'ajv'
 import {
+  validateContributionActPreview,
+  validateContributionActReceipt,
   validateContributionReceipt,
   validateCursorAdvance,
   validateError,
@@ -125,6 +127,8 @@ export const parseLobbyEntry = parser('LobbyEntry', validateLobbyEntry)
 export const parseRoomSession = parser('RoomSession', validateRoomSession)
 export const parseMembership = parser('Membership', validateMembership)
 export const parseContributionReceipt = parser('ContributionReceipt', validateContributionReceipt)
+export const parseContributionActPreview = parser('ContributionActPreview', validateContributionActPreview)
+export const parseContributionActReceipt = parser('ContributionActReceipt', validateContributionActReceipt)
 export const parseNativeTaskReceipt = parser('NativeTaskReceipt', validateNativeTaskReceipt)
 export const parseNativeTaskDetail = parser('NativeTaskDetail', validateNativeTaskDetail)
 export const parseExchangeState = parser('ExchangeState', validateExchangeState)

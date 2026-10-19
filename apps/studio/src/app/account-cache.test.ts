@@ -48,3 +48,34 @@ describe('a refusal that will not change is not asked again (e2e-real Q2)', () =
     assert.equal(cacheOf(DAVIDE).client.getDefaultOptions().queries?.retry, retryRead)
   })
 })
+
+describe('the padlock forgets the room’s mentions read too: the person’s mixed Needs (P1 4309009938)', () => {
+  it('every account, cursor and older shape of it goes, the read on its way is stopped, and nothing else goes', async () => {
+    const { client } = cacheOf(DAVIDE)
+    const mixed = { needs: [{ id: 'reply:t9', kind: 'reply', title: 'SENTINEL personal words' }] }
+    client.setQueryData(['mentions', 'needs', DAVIDE, 'cursor-1'], mixed)
+    client.setQueryData(['mentions', 'needs', DAVIDE, 'cursor-2'], mixed)
+    client.setQueryData(['mentions', 'needs', OTHER, undefined], mixed)
+    client.setQueryData(['mentions', 'needs', 'davide@sophia.test'], mixed) // an older key, by address
+    client.setQueryData(['conversations', 'project-1', DAVIDE], { list: [] })
+    client.setQueryData(['tasks', 'project-1'], { tasks: [] })
+    let aborted = false
+    const deferred: { resolve?: (value: typeof mixed) => void } = {}
+    const late = client.fetchQuery({
+      queryKey: ['mentions', 'needs', DAVIDE, 'cursor-3'],
+      queryFn: ({ signal }) =>
+        new Promise<typeof mixed>((resolve) => {
+          signal.addEventListener('abort', () => (aborted = true))
+          deferred.resolve = resolve
+        }),
+    })
+    forgetPersonalReads(client)
+    assert.equal(aborted, true, 'the read on its way is stopped')
+    assert.ok(deferred.resolve, 'the read was on its way')
+    deferred.resolve(mixed) // it answers anyway, late
+    await late.catch(() => undefined)
+    assert.deepEqual(client.getQueriesData({ queryKey: ['mentions', 'needs'] }), [], 'nothing of the list is kept')
+    assert.deepEqual(client.getQueryData(['conversations', 'project-1', DAVIDE]), { list: [] })
+    assert.deepEqual(client.getQueryData(['tasks', 'project-1']), { tasks: [] })
+  })
+})

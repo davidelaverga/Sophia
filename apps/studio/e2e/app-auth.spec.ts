@@ -1253,6 +1253,20 @@ test('places · Leave pressed in the bar keeps «You left …», with nothing to
   await expect(page.locator('.toast')).not.toContainText('ended when you opened')
 })
 
+test('places · ⌘K pressed as Leave in the bar ends the call keeps its typing in the palette (call-ends-on-open.md)', async ({
+  context,
+}) => {
+  const page = await inCallAtHome(context)
+  await page.locator('.places .room-pill').getByRole('button', { name: 'Leave the room' }).click()
+  // The palette opens while the call is still ending: the pill's going must not take the focus from its field.
+  await page.keyboard.press('ControlOrMeta+k')
+  const palette = page.getByRole('dialog', { name: 'Commands' })
+  await expect(palette).toBeVisible()
+  await expect(page.locator('.places .room-pill')).toHaveCount(0)
+  await page.keyboard.type('research notes')
+  await expect(palette.getByRole('option').first()).toContainText('Open Research notes')
+})
+
 /** The room tokens the fixture project's room asked for: one for each join. */
 const roomTokens = async (page: Page) =>
   (await askedOf(page)).filter((a) => a === `POST /api/v1/projects/${WORK_PROJECT}/room-token by ${DAVIDE.id}`).length
@@ -1277,6 +1291,30 @@ test('places · Rejoin pressed once back in that call by its own Join joins noth
   await page.waitForTimeout(1500)
   expect(await roomTokens(page)).toBe(joins)
   await expect(dock.getByRole('button', { name: 'Leave the room' })).toHaveCount(0)
+})
+
+// A chat message's anchor through a sign-in (Codex P2 on #435): kept on leaving, given back on a refused return.
+test('sign-in · a refused return to a project gives back the chat message its link named, kept for the next try', async ({
+  context,
+}) => {
+  await serve(context)
+  const path = '/p/00000000-0000-4000-8000-0000000000aa/studio'
+  const message = '#message-00000000-0000-4000-8000-0000000000ab' // linkHash(that id, MESSAGE)
+  const page = await context.newPage()
+  await page.goto(`${APP}/favicon.svg`)
+  await page.evaluate(
+    ([at, hash]) => localStorage.setItem('sophia.return-anchor', JSON.stringify({ path: at, hash, at: Date.now() })),
+    [path, message] as const,
+  )
+  await page.goto(`${APP}${path}?error=access_denied`)
+  await expect(page.locator('#email')).toBeVisible()
+  await expect
+    .poll(() => {
+      const url = new URL(page.url())
+      return `${url.pathname}${url.search}${url.hash}`
+    })
+    .toBe(`${path}${message}`)
+  expect(await page.evaluate(() => localStorage.getItem('sophia.return-anchor'))).toContain(message)
 })
 
 /**

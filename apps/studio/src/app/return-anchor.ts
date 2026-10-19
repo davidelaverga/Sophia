@@ -1,5 +1,6 @@
 // A link's place through a sign-in (docs/plans/anchor-through-sign-in.md). A magic link and a provider come back to the
-// page's path only, and the callback's cleanup drops the fragment, so the conversation, task or resource a link named
+// page's path only, and the callback's cleanup drops the fragment, so the conversation, task, resource or chat message a
+// link named
 // was lost on the way in. It is kept on this device while the sign-in is out (a magic link opens a new tab), and given
 // back once, on the same path, after the clean address. A return that didn't sign in (an older link, a provider's
 // refusal) puts it back on the address too and keeps it, so the next try, in this tab or another, still finds it.
@@ -17,7 +18,7 @@ export const RETURN_ANCHOR_MS = 30 * 60_000
  * characters once `requestAddress` and `linkHash` have both encoded it (four UTF-8 bytes as %XX, each % then as %25),
  * with the %2F between: 160 × 20 + 3 + 200 × 20.
  */
-const VIEW_ANCHOR = /^#(?:conversation|task|goal|decision|resource|request)-[^\s#&=]{1,7203}$/
+const VIEW_ANCHOR = /^#(?:conversation|task|goal|decision|resource|request|message)-[^\s#&=]{1,7203}$/
 
 interface Store {
   getItem: (key: string) => string | null

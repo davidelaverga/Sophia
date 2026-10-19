@@ -13,7 +13,7 @@ import { useCallSeen } from '../features/personal/useSinceNews.ts'
 import { ProjectShell, type ProjectCall } from '../features/studio/ProjectShell.tsx'
 import { snapshotKey } from '../features/studio/useProjectFeed.ts'
 import { AccountMenu } from './AccountMenu.tsx'
-import { forgetPersonalReads } from './account-cache.ts'
+import { PersonalLocked, forgetPersonalReads } from './account-cache.ts'
 import { accountOf } from './auth-callback.ts'
 import { oneCall } from './one-call.ts'
 import { OpeningPrepares } from './opening-prepares.ts'
@@ -287,6 +287,19 @@ const accountActions = (
   out: { signOut: () => void; signOutEverywhere: () => void },
 ) => ({ data: sheets.data, privacy: sheets.privacy, chooseDev, ...out })
 
+/**
+ * The padlock reaches every project shown or kept for its call: none reads the person's Needs while it is shut. Always
+ * mounted with SignedIn, it forgets what is personal while the padlock is shut, wherever the person is.
+ */
+function ShellsUnderLock({ locked, ...props }: ShellsProps & { locked: boolean }) {
+  useForgetWhileLocked(locked)
+  return (
+    <PersonalLocked.Provider value={locked}>
+      <ProjectShells {...props} />
+    </PersonalLocked.Provider>
+  )
+}
+
 function SignedIn(props: SignedInProps) {
   const { identity, notice, routing, onChooseDev } = props
   const { route, open, openAt, leave, goTo } = routing
@@ -299,7 +312,6 @@ function SignedIn(props: SignedInProps) {
   const openProject = opening(join.ask, open)
   useProviderReturn({ call, project, place: route.place, setLock, goTo, say: toast.show })
   useOneCallInSight(call, project, leaveFor)
-  useForgetWhileLocked(lock.locked)
   useSayings({ ended, say: toast.show, project, notice, viewer: identity.name, open: openProject })
   const sheets = useSheetsAtHome(leave)
   const out = signOuts(toast.show, props)
@@ -310,7 +322,8 @@ function SignedIn(props: SignedInProps) {
   )
   return (
     <>
-      <ProjectShells
+      <ShellsUnderLock
+        locked={lock.locked}
         ids={ids}
         onScreen={onScreen}
         identity={identity}
