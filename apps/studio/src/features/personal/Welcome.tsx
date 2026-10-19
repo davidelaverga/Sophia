@@ -149,10 +149,14 @@ function Greeting({ hello, name, date, says }: Pick<Props, 'hello' | 'name' | 'd
           <span>{hello}.</span>
         )}
       </h2>
-      {says.length > 0 && (
+      {/* With nothing to say her sentence's place is held, so nothing below moves when one comes or goes with Home
+          open (docs/plans/home-no-false-claim.md). */}
+      {says.length > 0 ? (
         <p className="hw-says">
           {says.map((s, i) => (s.strong ? <strong key={i}>{s.text}</strong> : <span key={i}>{s.text}</span>))}
         </p>
+      ) : (
+        <div className="hw-says-held" aria-hidden />
       )}
     </header>
   )
