@@ -246,8 +246,15 @@
   color: var(--text);
   font-weight: 500;
 }
+/* Open Updates, in her sentence's own words and line (home-since-you-looked.md). */
+.places .hw-says .text-button {
+  padding: 0;
+  font-size: inherit;
+  line-height: inherit;
+}
 /* Nothing to say holds one line of her sentence (22 px above, 24 px of words): when one comes (a session nears,
-   someone enters a room) or goes, nothing under the greeting moves under a pointer (home-no-false-claim.md). */
+   someone enters a room) or goes, nothing under the greeting moves under a pointer (home-no-false-claim.md). It is
+   her sentence's status, mounted all along, which news fills (home-since-you-looked.md). */
 .places .hw-says-held {
   min-height: 1lh;
   margin-top: 22px;

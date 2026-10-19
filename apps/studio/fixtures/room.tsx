@@ -23,6 +23,7 @@ import type { ChatCaption } from '@sophia/contracts/room-chat'
 import { OFFERED } from './invitations-data.ts'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { forgetKept, keptAt, type Kept } from '../src/features/conversations/talk-store.ts'
+import { readSaid } from '../src/features/updates/since-said.ts'
 import { accountOf } from '../src/app/auth-callback.ts'
 import { messagesKey } from '../src/features/conversations/conversation-list.ts'
 import { StrictMode, useEffect, useState, type ReactNode } from 'react'
@@ -265,6 +266,8 @@ interface Fixture {
   listMore: (on: boolean) => void
   /** What the view keeps for this project and this page's account (talk-store.ts), as a check reads it. */
   kept: () => Kept | undefined
+  /** The lines of this project's window this account was shown here (since-said.ts), so Home won't say them. */
+  saidSince: () => readonly string[] | null
   /** Whether this page holds a read of the conversation's messages (its query's data), as a check reads it. */
   cachedMessages: (conversationId: string) => boolean
   /** Someone writes in the open conversation (the newest), and the feed moves (conversation-moves.md). */
@@ -993,6 +996,7 @@ window.fixture = {
     publish(project)
   },
   kept: () => keptAt(`${PROJECT} ${accountOf(identity)}`),
+  saidSince: () => readSaid(accountOf(identity))[PROJECT] ?? null,
   cachedMessages: (conversationId) =>
     queryClient.getQueryData(messagesKey(conversationId, accountOf(identity))) !== undefined,
   conversationMessage: (name, text) => {
