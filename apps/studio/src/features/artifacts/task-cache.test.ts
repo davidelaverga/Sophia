@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import { InfiniteQueryObserver, QueryClient, type InfiniteData } from '@tanstack/react-query'
 import type { ProjectTask } from '../../api/vision.ts'
 import { taskChanged, taskRecorded, tasksKey } from './task-cache.ts'
+import { taskOrder } from './task-read.ts'
 
 // SYNTHETIC client-cache regressions for c82's two automatic findings (4310419402, 4310419406), on a real TanStack
 // QueryClient and the actual cache helpers. The "server" below orders and pages as persistence/human-tasks.ts does:
@@ -56,7 +57,7 @@ describe('task cache (4310419402): an older write answer never rolls back a newe
     const client = new QueryClient()
     const newer = task(2, { revision: 2, owner: B, ownerName: 'Davide' })
     client.setQueryData(tasksKey('report-1', 'davide'), { tasks: [newer], readFrom: 1 })
-    taskRecorded(client, 'report-1', 'davide', task(2, { revision: 1 }))
+    taskRecorded(client, 'report-1', 'davide', task(2, { revision: 1 }), 0)
     const flat = client.getQueryData<{ tasks: ProjectTask[] }>(tasksKey('report-1', 'davide'))
     assert.equal(flat?.tasks.length, 1)
     assert.equal(flat?.tasks[0]?.revision, 2)
@@ -79,7 +80,7 @@ describe('task cache (R on 878): a late write answer at the SAME revision never 
     })
     client.setQueryData(['tasks', 'one', P, read.taskId, 'davide'], read)
     taskChanged(client, late)
-    taskRecorded(client, 'report-1', 'davide', late)
+    taskRecorded(client, 'report-1', 'davide', late, 0)
     const flat = client.getQueryData<{ tasks: ProjectTask[] }>(tasksKey('report-1', 'davide'))
     const pages = client.getQueryData<InfiniteData<Page>>(['tasks', 'project', P, 'davide'])
     const one = client.getQueryData<ProjectTask>(['tasks', 'one', P, read.taskId, 'davide'])
@@ -89,6 +90,38 @@ describe('task cache (R on 878): a late write answer at the SAME revision never 
     // A later genuine allowed read restores it: a read replaces the query's data whole.
     client.setQueryData(['tasks', 'one', P, read.taskId, 'davide'], late)
     assert.deepEqual(client.getQueryData<ProjectTask>(['tasks', 'one', P, read.taskId, 'davide'])?.from, origin)
+  })
+})
+
+describe('task cache (R on 36dc): a late create answer never refills a report list a newer read left it out of', () => {
+  const origin = { artifactId: 'report-1', versionId: 'v-old', versionNumber: 1, passage: 'b1w0c3', quote: null }
+  const created = task(5, { from: origin })
+  const key = tasksKey('report-1', 'davide')
+  const flat = (client: QueryClient) => client.getQueryData<{ tasks: ProjectTask[]; readFrom: number }>(key)
+
+  it('a 200 {tasks: []} read set out after the Create was sent stays empty, and only an allowed read restores it', async () => {
+    const client = new QueryClient()
+    const sentAt = taskOrder() // the Create is sent; its answer is held
+    // The source turns private; the report's own task read, set out since, answers as persistence/human-tasks.ts does.
+    client.setQueryData(key, { tasks: [], next: null, readFrom: taskOrder() })
+    taskRecorded(client, 'report-1', 'davide', created, sentAt) // the delayed answer, its origin as it was
+    assert.deepEqual(flat(client)?.tasks, [], 'the newer read’s exclusion is not refilled')
+    assert.equal(client.getQueryState(key)?.isInvalidated, true, 'the list is read again instead')
+    // A later allowed read (the source shared again) brings it back: only a read restores it.
+    const read = { tasks: [created], next: null, readFrom: taskOrder() }
+    await client.fetchQuery({ queryKey: key, queryFn: () => read })
+    assert.deepEqual(flat(client)?.tasks[0]?.from, origin)
+  })
+
+  it('a list read set out before the Create was sent, or none yet, takes the created task at once', () => {
+    const client = new QueryClient()
+    client.setQueryData(key, { tasks: [], next: null, readFrom: taskOrder() })
+    taskRecorded(client, 'report-1', 'davide', created, taskOrder())
+    assert.deepEqual(flat(client)?.tasks, [created])
+    assert.equal(client.getQueryState(key)?.isInvalidated, false)
+    const seeded = new QueryClient()
+    taskRecorded(seeded, 'report-1', 'davide', created, taskOrder())
+    assert.deepEqual(flat(seeded)?.tasks, [created])
   })
 })
 

@@ -27,10 +27,25 @@ export const admits = (held: { revision?: number }, incoming: { revision?: numbe
 
 /**
  * A task created: into the report's tasks by its time, once (the feed may bring it too); seeded when the first read is
- * still on its way or failed, so the task made is there at once.
+ * still on its way or failed, so the task made is there at once. A list read set out since the Create was sent
+ * (`sentAt`, in `taskOrder`) that does not hold it decides instead: the API leaves out a task whose origin this reader
+ * may no longer follow (A39), with a 200 and no refusal, so the answer never refills it — that list is read again, and
+ * only that read brings the task back.
  */
-export const taskRecorded = (queryClient: QueryClient, artifactId: string, viewer: string, task: ProjectTask) =>
-  queryClient.setQueryData<TaskRead<{ tasks: readonly ProjectTask[] }>>(tasksKey(artifactId, viewer), (was) => ({
+export function taskRecorded(
+  queryClient: QueryClient,
+  artifactId: string,
+  viewer: string,
+  task: ProjectTask,
+  sentAt: number,
+) {
+  const key = tasksKey(artifactId, viewer)
+  const held = queryClient.getQueryData<TaskRead<TaskPage>>(key)
+  if (held && held.readFrom > sentAt && !held.tasks.some((t) => t.taskId === task.taskId)) {
+    void queryClient.invalidateQueries({ queryKey: key, exact: true })
+    return
+  }
+  queryClient.setQueryData<TaskRead<TaskPage>>(key, (was) => ({
     ...was,
     // A newer copy already read (the feed's) stays: a late create answer goes in only where it is not older.
     tasks: (was?.tasks ?? []).some((t) => t.taskId === task.taskId && !admits(t, task))
@@ -39,6 +54,7 @@ export const taskRecorded = (queryClient: QueryClient, artifactId: string, viewe
     // A list read before a refusal stays so; one seeded now is as new as this write.
     readFrom: was?.readFrom ?? taskOrder(),
   }))
+}
 
 /**
  * A task changed: in every read of tasks that holds it, each kept in its own shape, and never over a newer copy
