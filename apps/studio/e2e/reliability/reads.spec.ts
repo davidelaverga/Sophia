@@ -160,7 +160,7 @@ test.describe('M6 · views', () => {
 test.describe('M6 · reads that fall back to empty (baseline §1.1)', () => {
   test('Goals · the owner picker’s members (GoalTargets) @reliability', async ({ context, page }) => {
     // Since #409 the members are read as the project loads (mentions name them), so they fail from the load.
-    const read = site('Goals · owner picker (members)', true,'/members(\\?|$)')
+    const read = site('Goals · owner picker (members)', true, '/members(\\?|$)')
     await sweep(context, page, read, async (p, fail) => {
       await viewOpen('Goals', region('Goals'))(p, fail)
       await settled(p, 5000, 15_000)
