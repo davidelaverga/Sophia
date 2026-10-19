@@ -411,6 +411,7 @@ function useHomeSays(v: View, answers: boolean | undefined): Said[] {
     here: placeAt(v.shown) === 'home',
     inCall: call !== null,
     covered: sophiaSays(projects, now, call, answers === true).length > 0,
+    theirs: projects?.map((p) => p.projectId),
   })
   const says = sophiaSays(projects, now, call, answers === true, visit.news)
   useSaidOnce(props.identity, visit, says)

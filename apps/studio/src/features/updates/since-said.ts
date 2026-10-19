@@ -1,7 +1,7 @@
 // What changed since you last looked, said once (docs/plans/home-since-you-looked.md): what a window of A34 holds that
 // Sophia's sentence on Home names, only what someone else did, and, per account on this device, the lines already said
-// there, shown in Updates or in front of the person when a call ended, by project. Pure but for the storage, which may
-// refuse: the page then remembers for as long as it lives.
+// there, shown in Updates or in front of the person when a call ended, by project, and the calls' projects whose window
+// is still to be read. Pure but for the storage, which may refuse: the page then remembers for as long as it lives.
 import type { Since } from '../../api/vision.ts'
 import { tokenSubject } from '../../app/auth-callback.ts'
 
@@ -59,12 +59,20 @@ export function freshIn(window: Since, reader: string | null, known: readonly st
 /** What this device keeps, by project: the lines of its window last said, shown or seen. */
 export type Known = Readonly<Record<string, readonly string[]>>
 
-/** The windows with news for `reader` on this device, each trimmed to that news (`known`: by project). */
-export function unsaid(windows: ReadonlyMap<string, Since>, known: Known, reader: string | null): Map<string, Since> {
+/**
+ * The windows with news for `reader` on this device, each trimmed to that news (`known`: by project). A project whose
+ * call's read is `pending` has none: what its window holds may be what the call held.
+ */
+export function unsaid(
+  windows: ReadonlyMap<string, Since>,
+  known: Known,
+  reader: string | null,
+  pending: readonly string[] = [],
+): Map<string, Since> {
   return new Map(
     [...windows].flatMap(([id, w]) => {
       const fresh = freshIn(w, reader, known[id])
-      return newsOf(fresh) ? [[id, fresh] as const] : []
+      return !pending.includes(id) && newsOf(fresh) ? [[id, fresh] as const] : []
     }),
   )
 }
@@ -80,14 +88,17 @@ const isKnown = (value: unknown): value is Known =>
   !Array.isArray(value) &&
   Object.values(value).every((v) => Array.isArray(v) && v.every((line) => typeof line === 'string'))
 
-function stored(account: string): Known {
+/** What the storage holds at `key`, if it is what `valid` says; else, or where it refuses, `none`. */
+function storedAt<T>(key: string, valid: (value: unknown) => value is T, none: T): T {
   try {
-    const value: unknown = JSON.parse(localStorage.getItem(storeKey(account)) ?? '{}')
-    return isKnown(value) ? value : {}
+    const value: unknown = JSON.parse(localStorage.getItem(key) ?? 'null')
+    return valid(value) ? value : none
   } catch {
-    return {}
+    return none
   }
 }
+
+const stored = (account: string): Known => storedAt(storeKey(account), isKnown, {})
 
 /** What this account was told, or shown, by project, on this device. */
 export const readSaid = (account: string): Known => ({ ...stored(account), ...kept.get(account) })
@@ -103,4 +114,43 @@ export function rememberSaid(account: string, known: Known): void {
   } catch {
     kept.set(account, all)
   }
+}
+
+const pendingKey = (account: string) => `sophia.since.pending.v1.${account}`
+
+/** The projects waiting where the storage refuses, by account, for as long as the page lives. */
+const waiting = new Map<string, readonly string[]>()
+
+const isIds = (value: unknown): value is string[] => Array.isArray(value) && value.every((id) => typeof id === 'string')
+
+/**
+ * The projects whose call ended with no window of theirs read since (Codex P2 on #468): the read as a call ends fails
+ * when the call ended because the network or the API went. Per account on this device, so a reload keeps them.
+ */
+export const readPending = (account: string): readonly string[] =>
+  waiting.get(account) ?? storedAt(pendingKey(account), isIds, [])
+
+function keepPending(account: string, ids: readonly string[]): void {
+  try {
+    localStorage.setItem(pendingKey(account), JSON.stringify(ids))
+    waiting.delete(account)
+  } catch {
+    waiting.set(account, ids)
+  }
+}
+
+/** A call in `projectId` ended: until a window of it is read, none of it is news (`unsaid`). */
+export const markPending = (account: string, projectId: string): void =>
+  keepPending(account, [...new Set([...readPending(account), projectId])])
+
+/**
+ * A window of `projectId`, just read. If its call's read was pending, this is it: what the call held, kept whole as
+ * said, and the project waits no more. Else it keeps nothing.
+ */
+export function settlePending(account: string, projectId: string, window: Since): void {
+  const pending = readPending(account)
+  if (!pending.includes(projectId)) return
+  rememberSaid(account, { [projectId]: linesOf(window) })
+  const rest = pending.filter((id) => id !== projectId)
+  keepPending(account, rest)
 }

@@ -191,3 +191,102 @@ review round 1 (the next one updates only this record). Files changed against `f
   - It is a second surface, with one read on every project open.
   - One concern per PR, given the bottleneck.
 - Source IDs consulted: none from the source register; the work read this repository and costuras.md only.
+
+## Codex P2 on #468: a failed post-call read
+
+- Source: Codex P2 on #468 (`useSinceNews.ts:126`), not a P1. Luis 2026-10-18: «Todo trabajo nuevo que hagas ten en
+  cuenta nuestro cuello de botella actual. Si se puede hacer en un pr, excelente o como veas, que alivie la presión pero
+  hay que seguir trabajando».
+- Worktree and range: `D:\Descargas\SophiaV4\Sophia-paper-9`, branch `home/call-seen-retry` from `origin/group/seams-4`
+  `e7940b963` (#468, open). The ending code commit is `2629a4117fd6` (tree `87654c5be08e`); the next commit updates
+  only the note and this record. Local only, nothing pushed.
+- Files: `src/features/updates/since-said.ts`, `src/features/personal/useSinceNews.ts`, `fixtures/home.tsx` (the
+  `sinceFail=1` lever), `src/features/updates/since-said.test.ts`, `e2e/home-since.spec.ts`,
+  `docs/plans/home-since-you-looked.md` (its own section), and this record.
+- **Outcome.** A call's end marks its project pending (per account on this device, `sophia.since.pending.v1.<account>`;
+  for the page's life where storage refuses) before the read. While it is pending, Home says nothing of it. The first
+  window read that takes is kept whole as said, and the mark goes. That read can be the call's own, its retry when the
+  browser is `online` again, or Home's read as a visit begins. There is no timer and no polling.
+  - Before: a failed read was dropped (`.catch(() => undefined)`), and the next arrival after Home read that window
+    said «Since you last looked: 2 decisions and a new report in Launch plan».
+- **Evidence.**
+  - Note committed first (`0bc9a7e29`). Tests alone, failing (`d8d071c29`):
+    - `since-said.test.ts`: «does not provide an export named 'markPending'».
+    - `home-since.spec.ts` (log `pw-logs/call-seen-retry-red.txt`): 2 failed, 5 passed.
+      - Home open: the second arrival after the failed read said «Since you last looked: 2 decisions and a new report in
+        Launch plan. Open Updates» where `""` was expected (line 141).
+      - Home out of sight: the `online` event read nothing again. The reads expected `[id1, id1]`, and there was one
+        (line 157).
+  - Fix `2629a4117`. Unit since-said 9/9, places-view and attention 42/43; the one failure is attention's Windows
+    separators. The Studio suite passes 1889/1891, the two Windows path ones.
+  - Green through the guard at `2629a4117`: `home-since`, `home`, `app-auth` 71/71 (`pw-logs/call-seen-retry-green.txt`).
+  - **Control mutants**, each for one run and restored:
+    - Unit: `unsaid` ignoring the pending list fails 1 (the pending project is said). `settlePending` keeping nothing
+      fails 2 (`{}` where the call's lines were expected).
+    - Browser, a throwaway detached commit `9fc09307d`, now unreachable (`pw-logs/call-seen-retry-mutant.txt`). Home's
+      read doesn't settle and the `online` listener is gone: both new checks fail.
+      - Home open never says the one later decision («Received: ""»), since the project stays pending.
+      - Out of Home, there is no read again.
+  - Whole-repo `oxlint --type-aware` (0 diagnostics, 1371 files), `tsc --noEmit -p apps/studio` and Prettier on the
+    touched non-docs files are clean.
+- **Decisions.**
+  - Per device, not per tab: a reload or a tab closed after the failure keeps the mark.
+  - The settle lives in the one read that Home, the call's end and the retry share (`readOf`), so whichever takes
+    first counts.
+  - Only a fresh read settles, never a window cached from before the call. While pending, a visit leaves that project
+    out (`unsaid`'s `pending`), whatever the page holds.
+  - The retry is the browser's `online` event plus Home's own reads. TanStack already holds a read while the browser
+    knows it is offline (`networkMode: 'online'`), so what is lost is a read that fails: a 503, a request cut, a network
+    the browser still calls online.
+- **Remaining.**
+  - The note's two limits: a project the person can't read any more stays pending (one failed read per `online`
+    event), and Updates opened on a pending project doesn't end the wait.
+  - CI is the run on record. `e2e-attention` and `e2e-served` weren't run here.
+- **Next bounded action.** Luis says whether this goes onto #468's branch or into its own PR once #468 merges. It is
+  pushed only on his word, and merges on green with no open P1.
+
+## Review of the fix: a pending project Home doesn't show
+
+- Source: a P2 from the review of `2629a4117` (`useSinceNews.ts:151`), verified in the code. Only `online` and Home's
+  own read (its three rows, `homeShown`) ended a wait. So a call in a project outside those rows, ended on a 503 with
+  the browser still online, waited until the project entered Home's rows. That first read was then kept whole as the
+  call's, and what others did there meanwhile was never said on Home.
+- Commits, same branch and worktree, local only:
+  - `2e3a92852`: note.
+  - `a618458ba`: test, failing.
+  - `86c2b2e27`: fix.
+  - `d55724523`: second test, failing.
+  - `c9aaec65b`: second fix.
+  - `9f64318ab`: the attention guard's pattern.
+  - Then this record. The ending code commit is `9f64318ab179` (tree `2294289b0eb5`).
+- **Outcome** (`useSinceNews.ts` `usePendingReads`; `Places.tsx` and `fixtures/home.tsx` pass `theirs`): each arrival
+  on Home, once its rows are known, reads once each pending project that is among the person's projects but not among
+  Home's rows, and again if those rows change while Home is open. Its conditions are Home's own: on Home, under the
+  flags, out of a call. There is no timer and no polling, and most arrivals read nothing more. A project the person no
+  longer has is left to `online`, so an arrival never sends a read the service would refuse.
+- **Evidence.**
+  - Red at `a618458ba` (`pw-logs/call-seen-arrival-red.txt`): 1 failed, 7 passed. At line 176, the arrival read Product
+    launch once, the failed read, where two reads were expected.
+  - The same check with its read counts taken out, on a throwaway detached commit `b86f2b00c`, now unreachable
+    (`pw-logs/call-seen-arrival-red-harm.txt`), failed at the harm itself: «Received: ""» where «Since you last looked:
+    a note kept in Product launch. Open Updates» was expected.
+  - Red at `d55724523` (`pw-logs/call-seen-theirs-red.txt`): 1 failed, 8 passed. At line 202, a project the person
+    was removed from was read twice where once was expected.
+  - Green through the guard at `86c2b2e27`: 72/72. At `9f64318ab`: `home-since`, `home`, `app-auth` 73/73
+    (`pw-logs/call-seen-theirs-green.txt`).
+  - The Studio unit suite passes 1889/1891. The two failures are the known Windows path ones (`app/attention.test.ts`'s
+    first case, `features/conversations/browser-imports.test.ts`).
+  - Whole-repo `oxlint --type-aware` (0 diagnostics, 1371 files), `tsc --noEmit -p apps/studio` and Prettier on the
+    touched non-docs files are clean.
+- **Decisions.**
+  - No read on mount or on `visibilitychange`. It would end a wait a little sooner when the person lands elsewhere, at
+    the cost of a third read path.
+  - No new unit, because the change is which reads an arrival starts. `since-said.ts` is untouched.
+  - The arrival's read leaves Home's rows to Home's own read, so a project is read once per arrival.
+- **Remaining.**
+  - `c9aaec65b` alone fails the attention guard's pattern on any OS. The next commit, `9f64318ab`, names `theirs` in it;
+    history is never rewritten here.
+  - The note's limits stand. A wait keeps, along with the call's lines, what others did until the first read that
+    takes, because A34 gives a report no time. A project the person can't read any more costs one failed read per
+    `online` event. Updates opened on a pending project doesn't end the wait.
+  - CI is the run on record. `e2e-attention` and `e2e-served` weren't run here.
