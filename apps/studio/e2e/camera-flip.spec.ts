@@ -131,6 +131,53 @@ test('@phone · flip · a switch the browser refuses leaves the call where it wa
   await expect.poll(() => switches(page)).toEqual(['device:videoinput:cam-desk', 'device:videoinput:cam-desk'])
 })
 
+// Turned sideways a phone has the computer's dock, and Video settings chooses the camera: back in portrait, your tile's
+// next press goes on from the camera chosen there, not from its own last press (Codex P2 on #464).
+const sideways = (page: Page) => page.setViewportSize({ width: 844, height: 390 })
+const portrait = (page: Page) => page.setViewportSize({ width: 390, height: 844 })
+const chooseInVideoSettings = async (page: Page, camera: string) => {
+  await dock(page).getByRole('button', { name: 'Video settings', exact: true }).click()
+  await page.getByRole('menu', { name: 'Video settings' }).getByRole('menuitemradio', { name: camera }).click()
+}
+
+test('@phone · flip · a camera chosen in Video settings, turned sideways, is where your tile’s next press goes on from', async ({
+  page,
+}) => {
+  await enter(page)
+  await cameraOn(page)
+  await flip(page).click()
+  await expect.poll(() => switches(page)).toEqual(['device:videoinput:cam-desk'])
+  await sideways(page)
+  await chooseInVideoSettings(page, 'FaceTime HD Camera')
+  await expect.poll(() => switches(page)).toEqual(['device:videoinput:cam-desk', 'device:videoinput:cam-built-in'])
+  await portrait(page)
+  await flip(page).click()
+  await expect
+    .poll(() => switches(page), 'the other camera, not the one already on')
+    .toEqual(['device:videoinput:cam-desk', 'device:videoinput:cam-built-in', 'device:videoinput:cam-desk'])
+})
+
+test('@phone · flip · where nothing can be kept, a camera chosen in Video settings before any press is where the first goes on from', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Storage.prototype.setItem = () => {
+      throw new DOMException('Blocked', 'SecurityError')
+    }
+  })
+  await enter(page)
+  await cameraOn(page)
+  await expect(flip(page)).toBeVisible()
+  await sideways(page)
+  await chooseInVideoSettings(page, 'Desk camera')
+  await expect.poll(() => switches(page)).toEqual(['device:videoinput:cam-desk'])
+  await portrait(page)
+  await flip(page).click()
+  await expect
+    .poll(() => switches(page), 'the other camera, not the one already on')
+    .toEqual(['device:videoinput:cam-desk', 'device:videoinput:cam-built-in'])
+})
+
 // A finger's width as well as its height on a touch screen (Codex P2 on #422). The narrowest gallery a phone lays out,
 // three across at 320 px (91 px tiles), still keeps Hide my tile clear of it.
 test('@phone · flip · in the gallery Switch camera is a 40 px square, clear of Hide my tile (320 px, three across)', async ({

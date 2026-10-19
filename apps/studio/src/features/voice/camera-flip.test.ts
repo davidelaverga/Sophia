@@ -48,6 +48,55 @@ test('two presses before the first is answered go round, as two answered would',
   assert.deepEqual(asked, ['back', 'front'])
 })
 
+// A camera chosen elsewhere (Video settings, which a phone turned sideways shows) is the call's: the next press goes on
+// from it (Codex P2 on #464).
+test('a switch made elsewhere moves the next press on from that camera, not the one already on', async () => {
+  const asked: string[] = []
+  const press = cameraPresses('front')
+  await press([front, back], asking(asked, true))
+  press.took('front')
+  await press([front, back], asking(asked, true))
+  assert.deepEqual(asked, ['back', 'back'], 'two cameras: the other one, not the front already on')
+
+  const round: string[] = []
+  const three = cameraPresses('front')
+  await three([front, back, wide], asking(round, true))
+  three.took('wide')
+  await three([front, back, wide], asking(round, true))
+  assert.deepEqual(round, ['back', 'front'], 'three cameras: round from the one chosen')
+})
+
+/** Switches answered when the test says, each told back once it took (`told`), as the room tells every switch. */
+function answeredLater(asked: string[], told: (id: string) => void) {
+  const answers: (() => void)[] = []
+  const switchTo = (id: string) => {
+    asked.push(id)
+    return new Promise<boolean>((resolve) => {
+      answers.push(() => {
+        told(id)
+        resolve(true)
+      })
+    })
+  }
+  return { switchTo, answer: () => answers.shift()?.() }
+}
+
+test('the call’s own switches, told back as any switch is, don’t hold three quick presses back', async () => {
+  const asked: string[] = []
+  const press = cameraPresses(undefined)
+  const later = answeredLater(asked, (id) => press.took(id))
+  const first = press([front, back], later.switchTo)
+  const second = press([front, back], later.switchTo)
+  // The first is answered while the second still waits: the third goes on from the second's camera.
+  later.answer()
+  await first
+  const third = press([front, back], later.switchTo)
+  later.answer()
+  later.answer()
+  await Promise.all([second, third])
+  assert.deepEqual(asked, ['back', 'front', 'back'])
+})
+
 // Your tile's menu on a phone's strip stands in the top layer (the Popover API), which Safari before 17 lacks; the build
 // targets Safari 16.4 (a review's P1 on this branch).
 test('the top layer is there where the browser shows popovers, not in Safari before 17 nor without a page', () => {
