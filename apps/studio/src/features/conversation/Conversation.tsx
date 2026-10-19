@@ -77,6 +77,28 @@ function useFollowing(room: ProjectRoom, discussion: Snapshot['discussion'] | un
   return { history, following, onScroll }
 }
 
+/** The call's lines with Sophia: turns, notices and captions, in order. */
+function Timeline(props: {
+  timeline: ReturnType<typeof chatTimeline>
+  projectId: string
+  identity: Props['identity']
+  me: string
+  names: ReadonlyMap<string, string>
+}) {
+  const { timeline, projectId, identity, me, names } = props
+  return (
+    <ol className="chat-messages" aria-label="Conversation with Sophia">
+      {timeline.map((entry) => (
+        <li key={entryKey(entry)}>
+          {entry.type === 'turn' && <Turn turn={entry.turn} />}
+          {entry.type === 'notice' && <NoticeCard notice={entry.notice} projectId={projectId} identity={identity} />}
+          {entry.type === 'caption' && <Caption caption={entry.caption} me={me} names={names} />}
+        </li>
+      ))}
+    </ol>
+  )
+}
+
 export function Conversation(props: Props) {
   const { projectId, identity, snapshot, me, names, room, draft, onDraft, onShowRoom } = props
   const discussion = snapshot?.discussion ?? []
@@ -112,19 +134,7 @@ export function Conversation(props: Props) {
         />
         {VISION && discussion.length > 0 && <RepliesState failed={replies.failed} onRetry={replies.retry} />}
         <TodayLine lastAt={lastSaidAt(earlier.entries, earlier.withdrawn)} shown={timeline.length > 0} />
-        {timeline.length > 0 && (
-          <ol className="chat-messages" aria-label="Conversation with Sophia">
-            {timeline.map((entry) => (
-              <li key={entryKey(entry)}>
-                {entry.type === 'turn' && <Turn turn={entry.turn} />}
-                {entry.type === 'notice' && (
-                  <NoticeCard notice={entry.notice} projectId={projectId} identity={identity} />
-                )}
-                {entry.type === 'caption' && <Caption caption={entry.caption} me={me} names={names} />}
-              </li>
-            ))}
-          </ol>
-        )}
+        {timeline.length > 0 && <Timeline {...{ timeline, projectId, identity, me, names }} />}
       </div>
       <Composer
         projectId={projectId}
