@@ -61,6 +61,26 @@ function useActed(projectId: string) {
   return { acted, revise }
 }
 
+/** Each window the snapshot shows is kept once pages are read, so a message leaving it stays. */
+function useWindowKept(
+  projectId: string,
+  discussion: readonly DiscussionEntry[],
+  discussionWithdrawn: readonly WithdrawnEntry[],
+  setHeld: (next: (h: Held | null) => Held | null) => void,
+) {
+  useEffect(() => {
+    setHeld((h) =>
+      h && h.projectId === projectId
+        ? {
+            ...h,
+            entries: withEntries(h.entries, discussion),
+            withdrawn: withEntries(h.withdrawn, discussionWithdrawn),
+          }
+        : h,
+    )
+  }, [discussion, discussionWithdrawn, projectId, setHeld])
+}
+
 export function useEarlierDiscussion(
   projectId: string,
   identity: Identity,
@@ -73,18 +93,7 @@ export function useEarlierDiscussion(
   const fromBottom = useRef<number | null>(null)
   const held = stored?.projectId === projectId ? stored : null
   const { acted, revise } = useActed(projectId)
-  // Each window the snapshot shows is kept once pages are read, so a message leaving it stays.
-  useEffect(() => {
-    setHeld((h) =>
-      h && h.projectId === projectId
-        ? {
-            ...h,
-            entries: withEntries(h.entries, discussion),
-            withdrawn: withEntries(h.withdrawn, discussionWithdrawn),
-          }
-        : h,
-    )
-  }, [discussion, discussionWithdrawn, projectId])
+  useWindowKept(projectId, discussion, discussionWithdrawn, setHeld)
   // A page put above keeps the reader where they were: the distance from the bottom is what stays.
   useLayoutEffect(() => {
     const el = history.current
@@ -92,7 +101,13 @@ export function useEarlierDiscussion(
     fromBottom.current = null
   }, [held, history])
   // A held message changed elsewhere is not shown while its page is read again (held-pages.ts, 4309253137).
-  const stale = useHeldRefresh({ projectId, identity, held, setHeld, window: [...discussion, ...discussionWithdrawn] })
+  const [stale, epoch] = useHeldRefresh({
+    projectId,
+    identity,
+    held,
+    setHeld,
+    window: [...discussion, ...discussionWithdrawn],
+  })
   const view = heldView(held, { entries: discussion, withdrawn: discussionWithdrawn }, acted)
   const entries = view.entries.filter((e) => !stale.has(e.id))
   const { withdrawn } = view
@@ -101,8 +116,11 @@ export function useEarlierDiscussion(
     const [oldest] = [...entries, ...withdrawn].toSorted(inOrder)
     if (!oldest || reading === 'loading') return
     setReading('loading')
+    const asOf = epoch()
     getDiscussionPage(identity.token, projectId, oldest.id).then(
       (page) => {
+        // Pages let go while this was read: what it brings may be older than what is known; it is not kept.
+        if (epoch() !== asOf) return setReading('idle')
         const el = history.current
         fromBottom.current = el ? el.scrollHeight - el.scrollTop : null
         setHeld({

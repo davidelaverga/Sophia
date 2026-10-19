@@ -242,4 +242,34 @@ describe('held pages kept honest (4309253137)', () => {
     assert.equal(active, 3, 'drained: the waiting work goes, within READS')
     assert.ok(most <= READS)
   })
+
+  it('pages read again after a let-go are not fenced again for what was known then; a later change still is (R fallback-reload)', () => {
+    let reads = 0
+    let drops = 0
+    const refresher = new HeldRefresher(
+      () => {
+        reads += 1
+        return new Promise<DiscussionPage>(() => {})
+      },
+      (_page, ids) => ids,
+      () => (drops += 1),
+    )
+    const held = maps(...Array.from({ length: 20 }, (_, n) => e(n + 1)))
+    const burst = { ids: new Map([1, 3, 5, 7, 9].map((n, k): [string, number] => [id(n), k + 1])), resyncs: 0 }
+    refresher.fence(burst, held, [e(60)])
+    refresher.step(burst, held, [e(60)])
+    assert.equal(drops, 1, 'five pages at once: let go')
+    assert.equal(reads, 0)
+    // «Earlier messages» reads the pages again (fresh, after the let-go): nothing fenced, nothing read again.
+    const reloaded = maps(...Array.from({ length: 20 }, (_, n) => e(n + 1)))
+    assert.deepEqual([...refresher.fence(burst, reloaded, [e(60)])], [])
+    refresher.step(burst, reloaded, [e(60)])
+    assert.equal(drops, 1, 'not let go again')
+    assert.equal(reads, 0, 'not read again')
+    // A change learned after the let-go is newer than what was known then: fenced and read.
+    const later = { ids: new Map([...burst.ids, [id(12), 9]]), resyncs: 0 }
+    assert.deepEqual([...refresher.fence(later, reloaded, [e(60)])], [id(12)])
+    refresher.step(later, reloaded, [e(60)])
+    assert.equal(reads, 1)
+  })
 })

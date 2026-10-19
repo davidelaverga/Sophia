@@ -166,6 +166,8 @@ export class HeldRefresher {
   /** The reads actually out, of any epoch: each counted until it really ends, once (R physical pending). */
   physical = 0
   private asked = new Map<string, number>()
+  /** The changes as last seen (render or step): what a let-go counts as asked. */
+  private latest: Changes = { ids: new Map(), resyncs: 0 }
   private pending = new Set<string>()
 
   private readonly read: (anchor: string) => Promise<DiscussionPage>
@@ -188,19 +190,25 @@ export class HeldRefresher {
 
   /** The held ids not to show: changed and not yet read again, or being read again. */
   fence(changes: Changes, held: HeldMaps, window: readonly Placed[]): ReadonlySet<string> {
+    this.latest = changes
     const waiting = staleHeld(changes, this.asked, held.entries, new Set(window.map((w) => w.id)))
     return new Set([...this.pending, ...waiting])
   }
 
-  /** A new epoch: what was asked is forgotten, and no older answer applies. */
+  /**
+   * A new epoch (the held pages are let go): no older answer applies, and what was known at this moment counts as asked,
+   * a copy taken now. Pages read after it are read fresh, so they are not fenced again for those changes (the
+   * relinquish loop, R fallback-reload); a change learned later is newer than the copy and is fenced and read.
+   */
   reset(): void {
     this.epoch += 1
     this.inflight = 0
-    this.asked = new Map()
+    this.asked = new Map(this.latest.ids)
     this.pending = new Set()
   }
 
   step(changes: Changes, held: HeldMaps, window: readonly Placed[]): void {
+    this.latest = changes
     if (this.inflight > 0) return
     const ids = staleHeld(changes, this.asked, held.entries, new Set(window.map((w) => w.id)))
     if (ids.length === 0) return
@@ -248,7 +256,7 @@ export function useHeldRefresh(input: {
   held: Held | null
   setHeld: (next: (h: Held | null) => Held | null) => void
   window: readonly Placed[]
-}): ReadonlySet<string> {
+}): readonly [ReadonlySet<string>, () => number] {
   const { projectId, held, setHeld, window } = input
   const changes = useContributionChanges(ownerOf(input.identity.name, projectId))
   const token = useRef(input.identity.token)
@@ -285,7 +293,8 @@ export function useHeldRefresh(input: {
       setHeld((h) => (h && h.projectId === projectId ? null : h))
     } else if (held) refresher.step(changes, held, window)
   }, [changes, held, projectId, refresher, setHeld, tick, window])
-  return held ? refresher.fence(changes, held, window) : NONE_STALE
+  const epoch = () => refresher.epoch
+  return [held ? refresher.fence(changes, held, window) : NONE_STALE, epoch] as const
 }
 
 const NONE_STALE: ReadonlySet<string> = new Set()
