@@ -65,18 +65,35 @@ export class ApiError extends Error {
 const unreadRefusal = (status: number) =>
   `That didn’t go through.${status >= 500 || status === 429 ? ' Try again.' : ''}`
 
-/** A proxy's answer while the API deploys or wakes (Render's 502/503/504 page): the API itself, asked again, may answer. */
+/**
+ * A proxy's answer with no body of the API's (Render's 502/503/504 page: a deploy, a cold start, an instance lost or too
+ * slow mid-request). The API's own 5xx always carries its contract body, so one without it never came from the API.
+ */
 const PROXY_PAUSE = new Set([502, 503, 504])
+
+/** What a call is: a read, an admission (a write with its Idempotency-Key) or a write without one. */
+type Call = 'read' | 'admission' | 'write'
+
+/**
+ * What a failure with no answer of the API's allows, by call: a read is asked again; an admission may have been
+ * recorded, so it goes again only with its key, on the person's press; a write without a key is never repeated as if it
+ * had not happened.
+ */
+const UNANSWERED: Record<Call, ApiErrorBody['retry']> = {
+  read: 'safe_read',
+  admission: 'same_admission_key',
+  write: 'never',
+}
 
 /**
  * The reply's error body when it matches the contract; otherwise the HTTP status speaks, in words. Without a body, a
- * read stopped at the proxy is safe to ask again; anything else is final, and a write never repeats itself
+ * proxy's 502/503/504 is a failure with no answer of the API's (UNANSWERED); anything else is final
  * (docs/plans/reliability-retry-5xx-and-write-timeouts.md).
  */
-export async function toError(res: Response, call: 'read' | 'write'): Promise<ApiError> {
+export async function toError(res: Response, call: Call): Promise<ApiError> {
   const body = asErrorBody(await res.json().catch(() => null))
   if (body) return new ApiError(res.status, body.code, body.message, body.retry)
-  const retry = call === 'read' && PROXY_PAUSE.has(res.status) ? 'safe_read' : 'never'
+  const retry = PROXY_PAUSE.has(res.status) ? UNANSWERED[call] : 'never'
   return new ApiError(res.status, `http_${res.status}`, unreadRefusal(res.status), retry)
 }
 
@@ -272,7 +289,7 @@ function postIdempotent<T>(
     } catch {
       throw new ApiError(0, 'outcome_unknown', 'No reply from Sophia', 'same_admission_key')
     }
-    if (!res.ok) throw await toError(res, 'write')
+    if (!res.ok) throw await toError(res, 'admission')
     return readBody(res, parse, 'same_admission_key')
   })
 }
@@ -318,8 +335,9 @@ export function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value
   const method = init.method ?? 'POST'
   // What a failure allows: an admission is retried with its key, a read is asked again, and a write without a key
   // (a lobby decision, cancelling a session) that got no answer may have happened, so it is never repeated as if not.
-  const retry = init.key ? 'same_admission_key' : method === 'GET' ? 'safe_read' : 'never'
-  const call = async (signal: AbortSignal) => {
+  const call: Call = init.key ? 'admission' : method === 'GET' ? 'read' : 'write'
+  const retry = UNANSWERED[call]
+  const send = async (signal: AbortSignal) => {
     let res: Response
     try {
       res = await fetch(apiUrl(path), {
@@ -341,10 +359,10 @@ export function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value
       void res.body?.cancel().catch(() => undefined)
       throw refused
     }
-    if (!res.ok) throw await toError(res, retry === 'safe_read' ? 'read' : 'write')
+    if (!res.ok) throw await toError(res, call)
     return readBody(res, parse, retry)
   }
-  return inTime(method === 'GET' ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS, call, init.signal)
+  return inTime(method === 'GET' ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS, send, init.signal)
 }
 
 export const admitGoalCommand = (token: string, projectId: string, key: string, cmd: GoalCommand): Promise<Receipt> =>
