@@ -259,7 +259,8 @@ test('BASE-03 · a call lost offline is said from a polite line that was in the 
 }) => {
   await enter(page, '/room.html?call=on')
   // A live region added with its words is often not read: the polite line is there, empty, before the call is lost.
-  const polite = page.locator('.dock-wrap > p[role="status"]')
+  // The blocked-sound line (sound-blocked-others.md) is the dock's other polite line, and is not this one.
+  const polite = page.locator('.dock-wrap > p[role="status"]:not(.dock-sound)')
   await expect(polite).toHaveCount(1)
   await expect(polite).toHaveText('')
   await polite.evaluate((el) => el.setAttribute('data-before', ''))
