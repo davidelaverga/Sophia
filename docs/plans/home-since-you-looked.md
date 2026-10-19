@@ -87,13 +87,23 @@
   `updates <Launch plan>`. Once: Leave Home and back says nothing and reads nothing (kept 20 s); a reload says nothing;
   `since=more` says the new window. `since=seen` says nothing. In a call nothing is read and the call's sentence
   stands. Under the session soon (`projects=four`) the news isn't said and isn't remembered, so `quiet` then says it.
+- **Measured once green**: the fixture page runs under StrictMode, whose second mount reads again what the first let go
+  (the reads pass their abort signal). The spec therefore counts the projects asked, and raw reads only between two
+  moments. A production build mounts once.
+- **The attention guard** (`app/attention.test.ts`) lists the flag's readers, and now names `useSinceNews.ts` with its
+  one use (`const SINCE_SHOWN = VISION || ATTENTION`).
 
 ## Limits
 
-- **It moves the rows once.** The news comes one read after the projects, and it is two lines at a desk (three on a
-  phone) where one is held. On the arrival that says it, what is under the greeting moves down by the difference. This
-  happens once per window: a visit's news is fixed, and an arrival that says nothing moves nothing. A session soon or
-  a room replacing it with Home open moves it back, as a wrapped sentence did on main.
+- **It moves the rows once.** The news comes one read after the projects, and it is two lines where one is held (at a
+  desk and on a phone, measured: the status 24 → 48 px, «You and Sophia» 222 → 246 px and 206 → 230 px). On the
+  arrival that says it, what is under the greeting moves down 24 px. This happens once per window: a visit's news is
+  fixed, and an arrival that says nothing moves nothing. A session soon or a room replacing it with Home open moves it
+  back, as a wrapped sentence did on main.
+- **A row that comes in mid-visit is read, not said.** A session nearing can bring a project into the three rows while
+  Home is open. Its window is read then (one more read), and anything in it is said on the next arrival.
+- **The name may break across the two lines** («Launch / plan» at a desk). Keeping it whole would overflow a phone
+  with a long title.
 - **Never marked, never said.** Someone who has never pressed Mark as seen in a project hears nothing about it on Home.
   Their window is everything so far, and Updates says so. Once they mark it, Home starts.
 - **Same counts, same news.** One decision withdrawn and another made in the same window count the same, so the line
