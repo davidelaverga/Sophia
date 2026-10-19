@@ -247,4 +247,28 @@ describe('runFeedLoop', () => {
       await running
     }
   })
+
+  it('stopping during the wait ends it at once: nothing listens, no timer is left, nothing more is asked', async () => {
+    const h = harness([fail, fail])
+    const source = wakeable(h)
+    let ended = false
+    // The page's own wait: it ends when woken or when its time is up, never by itself on the loop's stop.
+    h.ports.sleep = (ms: number, woken?: AbortSignal) => {
+      h.sleeps.push(ms)
+      return new Promise((resolve) => woken?.addEventListener('abort', () => resolve()))
+    }
+    const running = h.run().then(() => (ended = true))
+    try {
+      await settle()
+      assert.equal(source.listening.size, 1, 'the stream was lost: the loop waits, and listens')
+      h.stop.abort() // the page leaves, or the token changes
+      await settle()
+      assert.equal(source.listening.size, 0, 'stopped, nothing listens any more')
+      assert.ok(ended, 'the loop ended without its wait running out')
+      assert.equal(h.followedFrom.length, 1)
+    } finally {
+      source.fire() // releases a wait the loop left behind, so the check ends either way
+      await running
+    }
+  })
 })
