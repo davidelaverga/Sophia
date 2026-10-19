@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 // A message that comes while the tab is hidden counts in its title (docs/plans/unread-title.md), as someone at the door
 // already does; shown again, the count goes. The page's visibility is stood in for (`away`), and another member writes
@@ -74,4 +74,112 @@ test('unread · the viewer’s own message, read before their membership, leaves
   await expect(page).toHaveTitle('(1) Fixture project · Sophia')
   await away(page, false)
   await expect(page).toHaveTitle('Fixture project · Sophia')
+})
+
+// Shown again, the chat marks where the person left off (docs/plans/messages-while-away.md, costuras seam #10): a
+// divider above the first message that came, and, where the divider is out of the chat's view, a line at its head
+// with Jump. Once per absence; sending ends it.
+
+const chatToggle = (page: Page) => page.getByRole('button', { name: /^Chat/ }).first()
+const contributions = (page: Page) => page.getByRole('list', { name: 'Recent discussion' }).locator('.contribution')
+const divider = (page: Page, words: string) => page.getByText(words, { exact: true })
+const line = (page: Page) => page.getByRole('status').filter({ hasText: 'came while you were away' })
+const history = (page: Page) => page.locator('.conversation-history')
+
+/** Two messages from another member while the tab is hidden, the first «The deck is in Resources.», then back. */
+async function backFromTwo(page: Page) {
+  await away(page, true)
+  await page.evaluate(() => window.fixture?.say('The deck is in Resources.'))
+  await page.evaluate(() => window.fixture?.say('And the numbers too.'))
+  await expect(page).toHaveTitle('(2) Fixture project · Sophia')
+  await away(page, false)
+  await expect(page).toHaveTitle('Fixture project · Sophia')
+}
+
+/** Whether the element lies wholly inside the chat's history, as the reader sees it. */
+async function inHistory(page: Page, el: Locator) {
+  const [box, at] = await Promise.all([history(page).boundingBox(), el.boundingBox()])
+  return !!box && !!at && at.y >= box.y - 1 && at.y + at.height <= box.y + box.height + 1
+}
+
+test('away · back from two messages, the chat marks the first with a divider; in view, no line points at it (seam #10)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?discussion=3')
+  await expect(page).toHaveTitle('Fixture project · Sophia')
+  await backFromTwo(page)
+  await chatToggle(page).click()
+  const mark = divider(page, '2 messages came while you were away')
+  await expect(mark).toBeVisible()
+  // In the first one's line, above its words, after the three from before.
+  const first = contributions(page).nth(3)
+  await expect(first).toContainText('The deck is in Resources.')
+  await expect(first.getByText('2 messages came while you were away', { exact: true })).toBeVisible()
+  const [markAt, wordsAt] = await Promise.all([
+    mark.boundingBox(),
+    first.getByText('The deck is in Resources.').boundingBox(),
+  ])
+  expect((markAt?.y ?? 0) + (markAt?.height ?? 0)).toBeLessThanOrEqual(wordsAt?.y ?? 0)
+  await expect(divider(page, '2 messages came while you were away')).toHaveCount(1)
+  await expect(line(page)).toHaveCount(0)
+})
+
+test('away · the chat open while the tab was hidden: the divider shows all the same', async ({ page }) => {
+  await page.goto('/room.html?discussion=3')
+  await chatToggle(page).click()
+  await expect(page.locator('#converse-draft')).toBeVisible()
+  await backFromTwo(page)
+  await expect(divider(page, '2 messages came while you were away')).toBeVisible()
+  await expect(contributions(page).nth(3)).toContainText('2 messages came while you were away')
+})
+
+test('away · thirty while away, the chat opened at the newest: its head says so, and Jump goes to the first, once', async ({
+  page,
+}) => {
+  await page.goto('/room.html?discussion=3')
+  await expect(page).toHaveTitle('Fixture project · Sophia')
+  await away(page, true)
+  await page.evaluate(() => {
+    window.fixture?.say('The deck is in Resources.')
+    for (let i = 1; i < 30; i++) window.fixture?.say(`More ${String(i)}`)
+  })
+  await expect(page).toHaveTitle('(30) Fixture project · Sophia')
+  await away(page, false)
+  await chatToggle(page).click()
+  await expect(line(page)).toHaveText('30 messages came while you were away. Jump to the first')
+  const mark = divider(page, '30 messages came while you were away')
+  expect(await inHistory(page, mark)).toBe(false)
+  await page.getByRole('button', { name: 'Jump to the first' }).click()
+  await expect(mark).toBeFocused()
+  await expect.poll(() => inHistory(page, mark)).toBe(true)
+  await expect(line(page)).toHaveCount(0)
+  // Once: back at the newest, the divider far again, hidden and shown with nothing new says nothing more.
+  await history(page).evaluate((el) => (el.scrollTop = el.scrollHeight))
+  await expect.poll(() => inHistory(page, mark)).toBe(false)
+  await away(page, true)
+  await away(page, false)
+  await page.waitForTimeout(300)
+  await expect(line(page)).toHaveCount(0)
+  await expect(mark).toHaveCount(1)
+})
+
+test('away · hidden and shown with nothing new adds nothing, nor does a message while shown', async ({ page }) => {
+  await page.goto('/room.html?discussion=3')
+  await chatToggle(page).click()
+  await away(page, true)
+  await away(page, false)
+  await page.evaluate(() => window.fixture?.say('Seen as it comes.'))
+  await expect(page.getByText('Seen as it comes.')).toBeVisible()
+  await expect(page.getByText(/came while you were away/)).toHaveCount(0)
+})
+
+test('away · sending from the bar ends it', async ({ page }) => {
+  await page.goto('/room.html?discussion=3')
+  await backFromTwo(page)
+  await chatToggle(page).click()
+  await expect(divider(page, '2 messages came while you were away')).toBeVisible()
+  await page.locator('#converse-draft').fill('Reading them now.')
+  await page.locator('#converse-draft').press('Enter')
+  await expect(contributions(page).last()).toContainText('Reading them now.')
+  await expect(page.getByText(/came while you were away/)).toHaveCount(0)
 })
