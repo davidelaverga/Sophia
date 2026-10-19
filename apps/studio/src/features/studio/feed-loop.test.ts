@@ -5,6 +5,8 @@ import { ApiError } from '../../api/client.ts'
 import { applyFrame, initialFeed, rebase, type Feed } from '../../projectors/projection.ts'
 import { MAX_BACKOFF_MS, MIN_BACKOFF_MS, runFeedLoop, type Connection, type FeedPorts } from './feed-loop.ts'
 
+/** The spread on each wait (feed-reconnect.md): ±30 %. */
+const JITTER = 0.3
 const P = '00000000-0000-0000-0000-000000000001'
 const event = (sequence: string): Frame => ({
   eventId: `e${sequence}`,
@@ -24,9 +26,10 @@ type Attempt = (after: string, onOpen: () => void, onFrame: (f: Frame) => void) 
 
 /**
  * Scripted ports: each stream attempt runs the next scripted behaviour; the loop stops after them. `doors` answers
- * each "was the snapshot refused too?" in turn (a closed door when none is scripted).
+ * each "was the snapshot refused too?" in turn (a closed door when none is scripted). `random` spreads the waits; at
+ * 0.5 they are the exact backoff.
  */
-function harness(attempts: Attempt[], snapshotCursor = '0', doors: boolean[] = []) {
+function harness(attempts: Attempt[], snapshotCursor = '0', doors: boolean[] = [], random = () => 0.5) {
   let feed: Feed = initialFeed('0')
   const connections: Connection[] = []
   const followedFrom: string[] = []
@@ -58,6 +61,7 @@ function harness(attempts: Attempt[], snapshotCursor = '0', doors: boolean[] = [
       sleeps.push(ms)
       return Promise.resolve()
     },
+    random,
   }
   const run = () => runFeedLoop(ports, stop.signal)
   return {
@@ -134,5 +138,35 @@ describe('runFeedLoop', () => {
     const expected = [1, 2, 4, 8, MAX_BACKOFF_MS / MIN_BACKOFF_MS].map((n) => n * MIN_BACKOFF_MS)
     assert.deepEqual(h.sleeps.slice(0, 5), expected)
     assert.equal(h.sleeps[5], MIN_BACKOFF_MS) // the live connection reset the backoff
+  })
+
+  it('spreads each wait by ±30 % so pages that lost the stream together come back apart', async () => {
+    const steps = [1, 2, 4, 8, 10].map((n) => n * MIN_BACKOFF_MS)
+    const low = harness([fail, fail, fail, fail, fail], '0', [], () => 0)
+    await low.run()
+    assert.deepEqual(
+      low.sleeps,
+      steps.map((ms) => Math.round(ms * (1 - JITTER))),
+    )
+    const high = harness([fail, fail, fail, fail, fail], '0', [], () => 0.999_999)
+    await high.run()
+    assert.deepEqual(
+      high.sleeps,
+      steps.map((ms) => Math.round(ms * (1 + JITTER))),
+    )
+  })
+
+  it('keeps every spread wait in its band, the doubling and the reset on the unspread step', async () => {
+    const draws = [0.1, 0.9, 0.3, 0.7, 0.2, 0.8, 0.4]
+    let i = 0
+    const h = harness([fail, fail, fail, fail, fail, stream(), fail], '0', [], () => draws[i++ % draws.length] ?? 0.5)
+    await h.run()
+    const steps = [1, 2, 4, 8, 10, 1, 2].map((n) => n * MIN_BACKOFF_MS)
+    assert.equal(h.sleeps.length, steps.length)
+    h.sleeps.forEach((ms, n) => {
+      const step = steps[n] ?? 0
+      assert.ok(ms >= step * (1 - JITTER) && ms <= step * (1 + JITTER), `wait ${String(n)}: ${String(ms)} ms`)
+      assert.notEqual(ms, step, `wait ${String(n)} is spread`)
+    })
   })
 })
