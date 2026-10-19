@@ -664,3 +664,35 @@ describe('Task revalidation (0077, FND-C50)', () => {
     )
   })
 })
+
+describe('a task page cursor belongs to its project (FND-C54, finding 4319532308)', () => {
+  it("refuses a cursor from another project the reader can also read (422), never using it as that list's boundary", async () => {
+    const [admin] = [randomUUID()]
+    const { projectId: a } = await seedProject(db.ownerUrl, { admin })
+    const { projectId: b } = await seedProject(db.ownerUrl, { admin })
+    for (let i = 0; i < 51; i += 1) await created(admin, a, { title: `A ${String(i)}` })
+    const fromA = (await list(admin, a)).next
+    assert.ok(fromA, 'a real cursor of A')
+    // B's tasks are all newer than A's cursor: used as B's boundary, it would skip every one of them.
+    const bIds: string[] = []
+    for (let i = 0; i < 3; i += 1) bIds.push((await created(admin, b, { title: `B ${String(i)}` })).taskId)
+    const crossed = await call(admin, 'GET', `${tasks(b)}?cursor=${fromA}`)
+    assert.deepEqual([crossed.status, crossed.json?.code], [422, 'invalid_request'], crossed.raw)
+    // B's own list is whole, and A's cursor still pages A: its next page, each task once, in order.
+    assert.deepEqual(new Set((await list(admin, b)).tasks.map((t) => t.taskId)), new Set(bIds))
+    const first = await list(admin, a)
+    const second = await list(admin, a, fromA)
+    assert.deepEqual([first.tasks.length, second.tasks.length, second.next], [50, 1, null])
+    const all = [...first.tasks, ...second.tasks]
+    assert.equal(new Set(all.map((t) => t.taskId)).size, 51)
+    assert.deepEqual(
+      all.map((t) => t.createdAt),
+      all.map((t) => t.createdAt).toSorted((x, y) => y.localeCompare(x)),
+      'newest first across the pages',
+    )
+    // A well-formed cursor naming no task of this project, and a malformed one: the same refusal.
+    const forged = Buffer.from(`0.${String(Date.now() * 1000)}.${randomUUID()}`).toString('base64url')
+    assert.equal((await call(admin, 'GET', `${tasks(a)}?cursor=${forged}`)).status, 422)
+    assert.equal((await call(admin, 'GET', `${tasks(a)}?cursor=abc`)).status, 422)
+  })
+})

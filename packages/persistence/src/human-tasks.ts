@@ -131,6 +131,21 @@ async function isMine(c: pg.PoolClient, projectId: string): Promise<boolean> {
   return rows.length > 0
 }
 
+/**
+ * A cursor of this project's list: its task must be one of the project's (finding 4319532308). Another list's cursor,
+ * even one this reader may read, is refused as unknown, never used as this list's boundary; its format is unchanged.
+ * Tasks are not deleted, so a page's last task stays the project's.
+ */
+async function projectCursor(c: pg.PoolClient, projectId: string, cursor: string) {
+  const after = decodeCursor(cursor)
+  const { rows } = await c.query(`SELECT 1 FROM sophia.project_tasks WHERE project_id = $1 AND id = $2`, [
+    projectId,
+    after.id,
+  ])
+  if (rows.length === 0) throw new DomainError('invalid_request', 'Unknown cursor')
+  return after
+}
+
 /** listProjectTasks (A39): a page, open first, newest first. Null when the project isn't the reader's. */
 export async function readProjectTasks(
   c: pg.PoolClient,
@@ -138,7 +153,7 @@ export async function readProjectTasks(
   cursor: string | null,
 ): Promise<ProjectTaskList | null> {
   if (!(await isMine(c, projectId))) return null
-  const after = cursor === null ? null : decodeCursor(cursor)
+  const after = cursor === null ? null : await projectCursor(c, projectId, cursor)
   const { rows } = await c.query<TaskRow>(
     `SELECT ${COLUMNS} FROM sophia.project_tasks t ${ORIGIN}
       WHERE t.project_id = $1
