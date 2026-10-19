@@ -12,10 +12,11 @@ record.
 Existing authority: Luis 2026-10-19, «quisiera trabajar en la fiabilidad y resiliencia. Ahí tendríamos que también
 medir. Lo que no se mide, no se puede mejorar» and «Procede con el script de medición y el lote R1»; local only, nothing
 pushed.
-Ending commit/tree: `efea18f338ae` (tree `46427a51d0d4`), the branch's last commit that changes code (the next one is
-this record). Against `56c61c61e`: `e2e/app-auth.spec.ts`, `src/api/client.ts`, `src/api/client.test.ts`,
-`src/api/stream.ts`, `src/app/auth.ts`, `src/app/auth-fetch.ts`, `src/app/auth-fetch.test.ts`,
-`src/app/bounded-fetch.ts`, `src/app/reauth.ts`, and `docs/plans/reliability-retry-5xx-and-write-timeouts.md`.
+Ending commit/tree: `eb85a48e6d7e` (tree `4bc7732016ef`), after the independent review's P2 (the first round ended at
+`efea18f338ae`): the branch's last commit that changes code (the next one updates the note and this record). Against
+`56c61c61e`: `e2e/app-auth.spec.ts`, `src/api/client.ts`, `src/api/client.test.ts`, `src/api/stream.ts`,
+`src/app/auth.ts`, `src/app/auth-fetch.ts`, `src/app/auth-fetch.test.ts`, `src/app/bounded-fetch.ts`,
+`src/app/reauth.ts`, `docs/plans/reliability-retry-5xx-and-write-timeouts.md`, and this record.
 
 ## Outcome
 
@@ -23,8 +24,14 @@ this record). Against `56c61c61e`: `e2e/app-auth.spec.ts`, `src/api/client.ts`, 
   answers with a 502/503/504 page and no contract body. Such a reply was final, so the project list, members, goals
   and the rest showed «That didn’t go through. Try again.» at once. Now a read (GET) that gets one is safe to ask again,
   and the App's cache tries three times, 1 s, 2 s and 4 s apart, before those words show.
-- A write that gets the same page stays final: the person resends it, an admission with the same key. A 4xx page and
-  a 500 stay final too. A reply with the contract keeps the API's own `retry`.
+- **A keyed write that gets the same page keeps its key** (review P2). A new project, an invitation, a message: the
+  proxy may have answered after the API committed, so the outcome is unknown. The form says «Sophia didn’t answer. Try
+  again», and the person's press sends it again under the same Idempotency-Key, never by itself.
+  - The first round's version of this record claimed that was already so. It wasn't: such a reply was a final
+    refusal, the key was let go, and the next press went under a new key and could record a second one.
+  - A 503 is treated the same way: a key kept costs nothing, a key let go can cost a duplicate.
+  - A write without a key stays final. A 4xx page and a 500 stay final too: the API's own 5xx always carries its
+    body. A reply with the contract keeps the API's own `retry`.
 - **Two PUT writes wait as writes.** A goal's owner and date (`setGoalTarget`) and a member's role (`changeMemberRole`)
   wait 90 s, as every other write does. They were cut at a read's 30 s.
 - **The App's Auth client has an end.** Each request of the App's Supabase Auth client (refresh, sign-in link,
@@ -55,7 +62,16 @@ this record). Against `56c61c61e`: `e2e/app-auth.spec.ts`, `src/api/client.ts`, 
   - `auth-fetch.test.ts`: «still waiting at 30000 ms». The caller's own abort already held.
   - The commit also moves the Auth client's fetch, unchanged, to `auth-fetch.ts`, so it can be checked without the page.
 - **Gap #10, fixed** (`efea18f33`).
-- **Green at `efea18f33`:**
+- **Review P2, written first and failing** (`284126ace`):
+  - `client.test.ts`: «on an admission» fails with `actual: [ 502, 'never' ]`, `expected: [ 502, 'same_admission_key' ]`
+    (and the same for 503 and 504). The P3 pin, a 500 page final on a read and on an admission, already held.
+  - `app-auth.spec.ts`, «reliability · a new project answered by a proxy’s 504 page is sent again with the same key»
+    (log `pw-logs/r1-p2-samekey-red.txt`): «Expected: "dbb57ccc-…"», «Received: "8e264577-…"». The second press carried a
+    new key.
+- **Review P2, fixed** (`eb85a48e6`). Through the guard (`pw-logs/r1-p2-final2.txt`): 162 passed. The specs: the first
+  round's eleven, plus `archive-project`, `invite-members`, `invite-from-projects`, `project-conversation-writes`,
+  `project-leave`, `project-rename`. Unit 1915/1915. Lint, `tsc` and Prettier clean.
+- **Green at `efea18f33`** (first round):
   - Through the guard (`pw-logs/r1-p2-final.txt`): 116 passed. The specs: `app-auth`, `signed-in-later`,
     `goal-owner-date`, `goal-controls`, `goals-overview`, `goal-overdue`, `member-roles`, `remove-member`,
     `host-controls`, `discussion-earlier`, `opening`.
@@ -64,10 +80,13 @@ this record). Against `56c61c61e`: `e2e/app-auth.spec.ts`, `src/api/client.ts`, 
 
 ## Decisions and changes
 
-- **`toError(res, 'read' | 'write')`, required.** Each site now says what it is, so the type checker catches a new
-  site that doesn't. `callApi` passes `'read'` exactly when its own rule already calls the call a safe read (a GET
-  without a key).
-- **502/503/504 only.** A 500 without a body is a fault of ours, not a proxy waiting on a deploy, so it stays final.
+- **`toError(res, 'read' | 'admission' | 'write')`, required.** Each site now says what it is, so the type checker
+  catches a new site that doesn't. `UNANSWERED` maps each kind to what a failure with no answer of the API's allows.
+  `callApi` derives both its own `retry` and the kind from that one rule: a key makes it an admission, a GET a read.
+- **The unkeyed PUTs stay final.** The goal's target is compare-and-set on its revision, and a role already held
+  changes nothing, so a press after a write that landed never applies it twice.
+- **502/503/504 only.** The API's own 5xx always carries its contract body (`handleError`), so a bodiless 500 is no
+  proxy pause; it stays final, on a read and on an admission.
 - **30 s for the App's Auth client** (`AUTH_REQUEST_MS = READ_TIMEOUT_MS`), not the API's 90 s for writes. Supabase
   Auth doesn't sleep like Render. A sign-in email sent through SMTP fits well within it.
 - **`boundedFetch(ms)` in its own module** (`bounded-fetch.ts`), shared by `reauth.ts` (20 s, unchanged) and
