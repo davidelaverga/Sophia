@@ -16,12 +16,13 @@ const a = (n: number) => jwt(A, n)
 
 /** An Auth client whose session holds `token`; each refresh gives that session's next token unless `refuses`. */
 function authWith(token: string | null, refuses = false) {
-  const state = { token, refreshes: 0 }
+  const state = { token, refreshes: 0, refuses }
   const auth: SessionAuth = {
     getSession: () => Promise.resolve({ data: { session: state.token ? { access_token: state.token } : null } }),
     refreshSession: () => {
       state.refreshes += 1
-      if (refuses || !state.token) return Promise.resolve({ data: { session: null }, error: new Error('refused') })
+      if (state.refuses || !state.token)
+        return Promise.resolve({ data: { session: null }, error: new Error('refused') })
       const claims: unknown = JSON.parse(Buffer.from(state.token.split('.')[1] ?? '', 'base64url').toString())
       const { sub, session_id: session, n } = claims as { sub: string; session_id: string; n: number }
       state.token = jwt(sub, n + 1, session)
@@ -89,6 +90,28 @@ describe('a refused token is renewed once', () => {
     clock += 3600_000
     assert.equal(await renew(a(2)), a(3))
     assert.equal(state.refreshes, 2)
+  })
+})
+
+// Independent review, P3: only the renewal in flight is shared. A settled one is never an answer later: the session says
+// what holds then.
+describe('a renewal is shared only while it is on its way', () => {
+  it('a renewal that failed isn’t kept: the same token refused later asks again', async () => {
+    const { auth, state } = authWith(a(1), true)
+    const renew = tokenRenewal(auth)
+    assert.equal(await renew(a(1)), null)
+    state.refuses = false
+    assert.equal(await renew(a(1)), a(2))
+    assert.equal(state.refreshes, 2)
+  })
+
+  it('signed out since: the same token refused later gets nothing, not the renewal before', async () => {
+    const { auth, state } = authWith(a(1))
+    const renew = tokenRenewal(auth)
+    assert.equal(await renew(a(1)), a(2))
+    state.token = null
+    assert.equal(await renew(a(1)), null)
+    assert.equal(state.refreshes, 1)
   })
 })
 
