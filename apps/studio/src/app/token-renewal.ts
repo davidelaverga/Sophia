@@ -1,6 +1,7 @@
 // Where the API's requests get a new token when the API refuses theirs (api/renew.ts, auth-session-renewal.md): the
 // App's Supabase Auth client. supabase-js refreshes on its own only in a shown tab, every 30 s, once the token has under
 // 90 s left; a laptop that wakes past the hour asks the API before that refresh has come back.
+import { tokenSession, tokenSubject } from './auth-callback.ts'
 
 /** What a renewal asks of the Auth client: supabase-js's own `getSession` and `refreshSession`. */
 export interface SessionAuth {
@@ -14,13 +15,34 @@ export interface SessionAuth {
  */
 export const RENEWED_LATELY_MS = 60_000
 
-/** The token now: the session's if it is already another than the refused one, else a refresh's; null without one. */
+/**
+ * Whether `token` is the refused one's own sign-in, renewed: the same account, and the same session where both name one
+ * (a refresh keeps it). The session is read from the storage every tab shares, so another tab's sign-in, another
+ * account's or a new one of the same account, can be there before this tab hears of it (review P1): its token never
+ * carries this tab's request.
+ */
+function sameSignIn(token: string, stale: string): boolean {
+  const account = tokenSubject(stale)
+  if (!account || tokenSubject(token) !== account) return false
+  const was = tokenSession(stale)
+  const is = tokenSession(token)
+  return !was || !is || was === is
+}
+
+/** `token` when it is the refused one's own sign-in, renewed; else null. */
+const ownOr = (token: string | null, stale: string) => (token && sameSignIn(token, stale) ? token : null)
+
+/**
+ * The token now: the session's if it is already another than the refused one (the ticker or another request renewed
+ * it), else a refresh's; null without one, or when either belongs to another sign-in. A session of another sign-in is
+ * never refreshed: that would renew theirs.
+ */
 async function renewed(auth: SessionAuth, stale: string): Promise<string | null> {
   const { data } = await auth.getSession()
   const now = data.session?.access_token ?? null
-  if (now !== stale) return now // the ticker or another request renewed it, or nobody is signed in any more
+  if (now !== stale) return ownOr(now, stale)
   const { data: refreshed, error } = await auth.refreshSession()
-  return error ? null : (refreshed.session?.access_token ?? null)
+  return error ? null : ownOr(refreshed.session?.access_token ?? null, stale)
 }
 
 /**
