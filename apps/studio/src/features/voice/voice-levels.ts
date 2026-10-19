@@ -1,6 +1,7 @@
 // How loud each voice in the call is now (docs/plans/voice-amplitude.md): read in this browser from the audio it already
-// receives, and nothing is sent anywhere. One AudioContext for the call, made on the first read (after Join's press), an
-// analyser per microphone track on the device check's scale (levelOf), let go when its person leaves or the call ends.
+// receives, and nothing is sent anywhere. One AudioContext for the call, made beside LiveKit's own as the room connects
+// (or on the first read), an analyser per microphone track on the device check's scale (levelOf), let go when its person
+// leaves or the call ends.
 // It never throws: what can't be read reads 0, and nothing moves.
 import { RoomEvent, Track, type Participant, type RemoteParticipant, type Room } from 'livekit-client'
 import { levelOf } from './device-check.ts'
@@ -58,6 +59,12 @@ type LevelRoom = Pick<Room, 'on' | 'localParticipant' | 'remoteParticipants'>
 export interface VoiceLevels {
   voiceLevel: (identity: string) => number
   sophiaLevel: () => number
+  /**
+   * The call's context, made now if it isn't, and resumed; nothing after the call. Called where LiveKit's own is (the
+   * room connecting, Allow audio's press): Safari keeps a context made or resumed outside a press suspended, so with
+   * the room's sound already allowed one made on a later read would read 0 until another press (orb-follow-ups.md).
+   */
+  wake: () => void
 }
 
 export function voiceLevels(room: LevelRoom, makeTapper: () => Tapper = analyserTapper): VoiceLevels {
@@ -87,9 +94,19 @@ export function voiceLevels(room: LevelRoom, makeTapper: () => Tapper = analyser
       return 0
     }
   }
+  const wake = () => {
+    if (ended) return
+    try {
+      tapper ??= makeTapper()
+      tapper.resume()
+    } catch {
+      // A context the browser refuses is made again on a read, which reads 0 meanwhile.
+    }
+  }
   room.on(RoomEvent.ParticipantDisconnected, (p: RemoteParticipant) => drop(p.identity))
+  // Sound allowed: made then if it isn't yet, as LiveKit's own runs, not on a later read outside the press.
   room.on(RoomEvent.AudioPlaybackStatusChanged, (playing: boolean) => {
-    if (playing) tapper?.resume()
+    if (playing) wake()
   })
   room.on(RoomEvent.Disconnected, () => {
     if (ended) return
@@ -109,5 +126,6 @@ export function voiceLevels(room: LevelRoom, makeTapper: () => Tapper = analyser
       const her = room.remoteParticipants.get('sophia')
       return her && isSophia(her) ? read(her) : 0
     },
+    wake,
   }
 }

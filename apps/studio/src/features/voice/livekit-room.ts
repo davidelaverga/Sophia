@@ -443,6 +443,21 @@ function deviceControls(
   }
 }
 
+/**
+ * The voices' levels in this room (voice-levels.ts), their context woken where LiveKit's own is: now, beside the one
+ * `connect` makes, so what lets the room's sound play lets them run; and within Allow audio's press, before LiveKit's
+ * sound is started (Safari runs only a context made or resumed within a press).
+ */
+function roomLevels(room: Room) {
+  const { wake, ...levels } = voiceLevels(room)
+  wake()
+  const startAudio = () => {
+    wake()
+    return room.startAudio()
+  }
+  return { levels, startAudio }
+}
+
 export async function connectRoom(serverUrl: string, token: string, cb: RoomCallbacks): Promise<RoomConnection> {
   const room = new Room(roomOptions())
   for (const event of CHANGES) room.on(event, cb.onChange)
@@ -459,6 +474,8 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
   listenToReactions(room, (heard) => cb.onReaction?.(heard))
   const signalMode = modeSignal(room, () => textOnly)
   const following = followingSignal(room, cb.onChange, { resync: VISION })
+  // Before `connect`, which makes LiveKit's own context.
+  const sound = roomLevels(room)
   await room.connect(serverUrl, token)
   const feedsOf = videoFeeds()
   const after = async (change: Promise<unknown>) => {
@@ -483,8 +500,8 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     participants: () => [toView(room.localParticipant, true), ...people().map(other)],
     sophia: () => sophiaSignal([...room.remoteParticipants.values()].find(isSophia)),
     audioBlocked: () => !room.canPlaybackAudio,
-    ...voiceLevels(room),
-    startAudio: () => after(room.startAudio()),
+    ...sound.levels,
+    startAudio: () => after(sound.startAudio()),
     feeds: () => [...feedsOf(room.localParticipant, true), ...people().flatMap((p) => feedsOf(p, false))],
     ...deviceControls(
       room,
