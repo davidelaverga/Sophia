@@ -4,6 +4,7 @@
 // decided for each reader on each read (published, private, ineligible, erased, replayed) with no copy of a source's
 // words, hash or title anywhere; one event per act and no other authority row moved.
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import type { FastifyInstance } from 'fastify'
 import { SignJWT } from 'jose'
 import pg from 'pg'
@@ -517,7 +518,16 @@ async function taskRows(p: string) {
 async function raceDone(revoke: Revoke, revokerIsViewer: boolean) {
   const [admin, viewer] = [randomUUID(), randomUUID()]
   const { projectId: p } = await seedProject(db.ownerUrl, { admin, viewers: [viewer] })
-  const t = await created(admin, p, { title: 'Theirs', ownerId: viewer })
+  // Created through the application role's SQL too, so the race needs no API admission (it runs on 0074 or 0077).
+  const maker = await actorTx(admin)
+  const made = await maker.query<{ r: { taskId: string } }>('SELECT sophia.create_project_task($1,$2,$3) r', [
+    p,
+    randomUUID(),
+    { title: 'Theirs', ownerId: viewer },
+  ])
+  await maker.query('COMMIT')
+  await maker.end()
+  const t = { taskId: made.rows[0]?.r.taskId ?? '' }
   const prior = await taskRows(p)
   const revoker = await actorTx(revokerIsViewer ? viewer : admin)
   const doer = await actorTx(viewer)
@@ -539,7 +549,57 @@ async function raceDone(revoke: Revoke, revokerIsViewer: boolean) {
   }
 }
 
+/** The three Task writes as a migration defines them, to put 0074's back (0077 absent) or 0077's again. */
+function taskWritesOf(migration: string): string {
+  const sql = readFileSync(new URL(`../../../db/migrations/${migration}`, import.meta.url), 'utf8')
+  return ['create_project_task', 'set_project_task_owner', 'finish_project_task']
+    .map((name) => {
+      const start = sql.search(new RegExp(`CREATE (OR REPLACE )?FUNCTION sophia\\.${name}\\(`))
+      const end = sql.indexOf('END $$;', start) + 'END $$;'.length
+      return sql.slice(start, end).replace(/^CREATE FUNCTION/, 'CREATE OR REPLACE FUNCTION')
+    })
+    .join('\n')
+}
+
 describe('Task revalidation (0077, FND-C50)', () => {
+  it('refuses every Task write (503, nothing written) while 0077 is absent, and admits them once it is installed', async () => {
+    const [admin, viewer] = [randomUUID(), randomUUID()]
+    const { projectId: p } = await seedProject(db.ownerUrl, { admin, viewers: [viewer] })
+    const t = await created(admin, p, { title: 'Theirs', ownerId: viewer })
+    const free = await created(admin, p, { title: 'For nobody yet' })
+    const fresh = buildApp({
+      pool,
+      verifyActor: createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET }),
+    })
+    const as = async (sub: string, method: Method, url: string, body: unknown) =>
+      (
+        await fresh.inject({
+          method,
+          url,
+          headers: { authorization: `Bearer ${await token(sub)}`, 'idempotency-key': randomUUID() },
+          payload: body as Record<string, unknown>,
+        })
+      ).statusCode
+    const writes = async () => [
+      await as(admin, 'POST', tasks(p), { title: 'More' }),
+      await as(viewer, 'POST', `${tasks(p)}/${t.taskId}/done`, { expectedRevision: 1 }),
+      await as(admin, 'PUT', `${tasks(p)}/${free.taskId}/owner`, { ownerId: viewer, expectedRevision: 1 }),
+    ]
+    try {
+      await owner(taskWritesOf('0074_project_human_tasks.sql'))
+      const prior = await taskRows(p)
+      assert.equal((await fresh.inject({ method: 'GET', url: '/ready' })).statusCode, 503)
+      assert.deepEqual(await writes(), [503, 503, 503], 'create, Done and assign refused before any write')
+      assert.deepEqual(await taskRows(p), prior, 'no task, revision, event or request moved')
+      assert.equal((await call(admin, 'GET', tasks(p))).status, 200, 'reads are not gated')
+    } finally {
+      await owner(taskWritesOf('0077_project_human_tasks_revalidation.sql'))
+    }
+    assert.equal((await fresh.inject({ method: 'GET', url: '/ready' })).statusCode, 200)
+    assert.deepEqual(await writes(), [201, 200, 200], 'the same writes, admitted')
+    await fresh.close()
+  })
+
   it('is ready only with 0077 installed: every Task write locks first, and a new origin is Markdown', async () => {
     const ready = await app.inject({ method: 'GET', url: '/ready' })
     assert.equal(ready.statusCode, 200, ready.body)

@@ -25,7 +25,7 @@ import { conversationRoutes } from './routes/conversations.ts'
 import { exchangeRoutes } from './routes/exchanges.ts'
 import { knowledgeRoutes } from './routes/knowledge.ts'
 import { searchRoutes } from './routes/search.ts'
-import { humanTaskRoutes } from './routes/human-tasks.ts'
+import { humanTaskRoutes, TASK_WRITES } from './routes/human-tasks.ts'
 import { MEDIA_ROUTES, mediaRoutes } from './routes/media.ts'
 import { missionRoutes } from './routes/mission.ts'
 import { personalRoutes } from './routes/personal.ts'
@@ -224,12 +224,7 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.create_project_task(uuid,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.set_project_task_owner(uuid,uuid,uuid,bigint)') IS NOT NULL
   AND to_regprocedure('sophia.finish_project_task(uuid,uuid,text,bigint)') IS NOT NULL
-  -- 0077: each Task write locks the project before reading the current actor; a new origin must be a Markdown report.
-  AND (SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.proname IN ('create_project_task','set_project_task_owner',
-    'finish_project_task') AND p.pronamespace = 'sophia'::regnamespace
-    AND position('Locked first, then the current actor (0077)' IN p.prosrc) > 0) = 3
-  AND EXISTS (SELECT 1 FROM pg_catalog.pg_proc p WHERE p.proname = 'create_project_task'
-    AND p.pronamespace = 'sophia'::regnamespace AND position('r.format=''markdown''' IN p.prosrc) > 0)
+  AND ${TASK_WRITES}
   AND to_regprocedure('sophia.goal_retirements(uuid)') IS NOT NULL
   AND ${COLUMNS.map(([table, column]) => columnExists(table, column)).join('\n  AND ')} AS ok`
 

@@ -42,6 +42,26 @@ const listQuery = {
   properties: { cursor: { type: 'string', pattern: '^[A-Za-z0-9_-]{1,200}$' } },
 } as const
 
+/**
+ * The Task writes these routes call, as 0077 left them (FND-C50): each locks the project before reading the current
+ * actor, and a new origin must be a Markdown report. /ready requires it, and so does every Task write: until it is
+ * installed a create, assignment or Done is refused (503) before any database write.
+ */
+export const TASK_WRITES = `(SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.proname IN ('create_project_task',
+    'set_project_task_owner', 'finish_project_task') AND p.pronamespace = 'sophia'::regnamespace
+    AND position('Locked first, then the current actor (0077)' IN p.prosrc) > 0) = 3
+  AND EXISTS (SELECT 1 FROM pg_catalog.pg_proc p WHERE p.proname = 'create_project_task'
+    AND p.pronamespace = 'sophia'::regnamespace AND position('r.format=''markdown''' IN p.prosrc) > 0)`
+
+/** Refuses a Task write until 0077 is installed; once it is, it stays admitted (a migration is never rolled back). */
+function taskWriteAdmission(pool: pg.Pool): () => Promise<void> {
+  let installed = false
+  return async () => {
+    if (!installed) installed = (await pool.query<{ ok: boolean }>(`SELECT ${TASK_WRITES} AS ok`)).rows[0]?.ok === true
+    if (!installed) throw new DomainError('unavailable', 'Tasks are not available yet')
+  }
+}
+
 type TaskParams = { projectId: string; taskId: string }
 type Keyed = { 'idempotency-key': string }
 
@@ -79,10 +99,12 @@ function readRoutes(app: FastifyInstance, pool: pg.Pool): void {
 
 export function humanTaskRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool }): void {
   readRoutes(app, pool)
+  const preHandler = taskWriteAdmission(pool)
 
   app.post<{ Params: { projectId: string }; Headers: Keyed; Body: ProjectTaskRequest }>(
     '/api/v1/projects/:projectId/tasks',
     {
+      preHandler,
       schema: {
         params: projectParams,
         headers: idempotencyHeader,
@@ -102,6 +124,7 @@ export function humanTaskRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool 
   app.put<{ Params: TaskParams; Body: ProjectTaskOwnerRequest }>(
     '/api/v1/projects/:projectId/tasks/:taskId/owner',
     {
+      preHandler,
       schema: {
         params: taskParams,
         body: { $ref: 'ProjectTaskOwnerRequest#' },
@@ -118,6 +141,7 @@ export function humanTaskRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool 
   app.post<{ Params: TaskParams; Headers: Keyed; Body: ProjectTaskDoneRequest }>(
     '/api/v1/projects/:projectId/tasks/:taskId/done',
     {
+      preHandler,
       schema: {
         params: taskParams,
         headers: idempotencyHeader,
