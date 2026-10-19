@@ -352,3 +352,44 @@ test('served search · a gap fill answered before a correction and a let-go neve
     `Message ${n + 1}, corrected after the fill was asked`,
   )
 })
+
+// R on 0d25 (r4315060306): A38's 401/403 with an error body that never ends (SYNTHETIC: the page's fetch answers the
+// search with that status and an endless stream, the transport controlled here). The hits read before are not shown,
+// without waiting for the body; the body is let go.
+type Denying = Window & { denySearch?: boolean; searchDenied?: number; searchBodyCancelled?: number }
+for (const status of [401, 403])
+  test(`served search · a ${status} whose body never ends hides the hits read before at once (r4315060306)`, async ({
+    page,
+  }) => {
+    await page.addInitScript((code) => {
+      const w = window as Denying
+      w.searchDenied = 0
+      w.searchBodyCancelled = 0
+      const wrap =
+        (f: typeof fetch): typeof fetch =>
+        (input, init) => {
+          const url = new URL(input instanceof Request ? input.url : String(input), location.href)
+          if (!w.denySearch || !url.pathname.endsWith('/search')) return f(input, init)
+          w.searchDenied = (w.searchDenied ?? 0) + 1
+          const body = new ReadableStream({
+            cancel: () => void (w.searchBodyCancelled = (w.searchBodyCancelled ?? 0) + 1),
+          })
+          return Promise.resolve(new Response(body, { status: code, headers: { 'content-type': 'application/json' } }))
+        }
+      let current = wrap(window.fetch.bind(window))
+      Object.defineProperty(window, 'fetch', {
+        configurable: true,
+        get: () => current,
+        set: (f: typeof fetch) => (current = wrap(f)),
+      })
+    }, status)
+    await open(page, 'discussion=60&heron=3')
+    await search(page, 'heron')
+    await expect(hits(page)).toHaveCount(1)
+    await page.evaluate(() => ((window as Denying).denySearch = true))
+    await field(page).fill('kiosk') // a new search: its read refused by the headers, its body never ending
+    await expect.poll(() => page.evaluate(() => (window as Denying).searchDenied)).toBeGreaterThan(0)
+    await field(page).fill('heron') // back to the search read before the refusal: its cached hits are not shown
+    await expect(hits(page)).toHaveCount(0, { timeout: 2000 })
+    expect(await page.evaluate(() => (window as Denying).searchBodyCancelled), 'the body is let go').toBeGreaterThan(0)
+  })
