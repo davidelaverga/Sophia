@@ -241,17 +241,20 @@ export function useHeldRefresh(input: {
   const token = useRef(input.identity.token)
   token.current = input.identity.token
   const [, rendered] = useState(0)
+  const latest = useRef(held)
+  latest.current = held
   // One refresher for this chat's life (its project is fixed for it: another project mounts another chat).
   const [refresher] = useState(
     () =>
       new HeldRefresher(
         (anchor) => getDiscussionPage(token.current, projectId, anchor),
         (page, ids) => {
-          let settled: readonly string[] = []
+          // Settled now, from the pages as last rendered: React may run the update itself later.
+          const shown = latest.current
+          const settled = shown && shown.projectId === projectId ? withPage(shown, page, ids).settled : []
           setHeld((h) => {
             if (!h || h.projectId !== projectId) return h
             const next = withPage(h, page, ids)
-            settled = next.settled
             return { ...h, entries: next.entries, withdrawn: next.withdrawn }
           })
           rendered((n) => n + 1)
