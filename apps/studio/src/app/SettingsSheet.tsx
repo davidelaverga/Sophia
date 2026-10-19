@@ -1,6 +1,5 @@
 // Settings, in one place (docs/plans/account-settings.md): the account, the theme, a call's defaults, your data and
 // help, gathered from where the Studio already keeps each choice. The avatar's menu opens it; nothing here is new state.
-import { useState } from 'react'
 import { ConfirmButton, Segmented } from '@sophia/ui'
 import { authMode, passkeysOffered } from './auth.ts'
 import { Avatar } from './Avatar.tsx'
@@ -10,7 +9,7 @@ import { signedInWith } from './profile.ts'
 import { EVERYWHERE } from './sign-out.ts'
 import { Sheet } from './Sheet.tsx'
 import { type Theme, useTheme } from './theme.ts'
-import { micOnJoin, rememberMic } from '../features/voice/mic-preference.ts'
+import { rememberMic, useMicOnJoin } from '../features/voice/mic-preference.ts'
 import { useMirror } from '../features/voice/mirror-preference.ts'
 
 interface Props {
@@ -51,20 +50,16 @@ function Check(props: { label: string; checked: boolean; onChange: (on: boolean)
   )
 }
 
-/** A call's defaults: the microphone on joining (the next join reads it) and the mirror (the stage reads it). */
+/**
+ * A call's defaults: the microphone on joining (the next join reads it) and the mirror (the stage reads it). Both are
+ * the stores themselves, so the call's own microphone in the sheet's head moves the box too (Codex P2 on #398).
+ */
 function Calls() {
-  const [mic, setMic] = useState(micOnJoin)
+  const mic = useMicOnJoin()
   const mirror = useMirror()
   return (
     <Part title="Calls">
-      <Check
-        label="Join with my microphone on"
-        checked={mic}
-        onChange={(on) => {
-          rememberMic(on)
-          setMic(on)
-        }}
-      />
+      <Check label="Join with my microphone on" checked={mic} onChange={rememberMic} />
       <Check label="Mirror my video" checked={mirror.on} onChange={(on) => on !== mirror.on && mirror.toggle()} />
     </Part>
   )
