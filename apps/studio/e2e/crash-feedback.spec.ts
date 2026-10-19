@@ -40,6 +40,30 @@ test('feedback · Send feedback sends the words to the crash service, and says s
   )
 })
 
+// One sheet at a time (CONTRIBUTING.md): Settings hands over to feedback, and feedback closed gives Settings back, at the
+// press that opened it. Opened from the menu, it closes to the page (Codex P2 on #398).
+test('feedback · opened from Settings, Close comes back to Settings, at its Send feedback', async ({ page }) => {
+  await page.goto('/room.html?sentry=1')
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Settings…' }).click()
+  const settings = page.getByRole('dialog', { name: 'Settings' })
+  await settings.getByRole('button', { name: 'Send feedback' }).click()
+  await expect(settings).toHaveCount(0)
+  await sheet(page).getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(sheet(page)).toHaveCount(0)
+  await expect(settings.getByRole('button', { name: 'Send feedback' })).toBeFocused()
+})
+
+test('feedback · opened from the menu, Close goes back to the page, at the avatar', async ({ page }) => {
+  await page.goto('/room.html?sentry=1')
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Send feedback' }).click()
+  await sheet(page).getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(sheet(page)).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0)
+  await expect(account(page)).toBeFocused()
+})
+
 test('crash · an error the page throws is reported, without the address’s query or fragment', async ({ page }) => {
   const sent = await ingest(page)
   await page.goto('/room.html?sentry=1#private-token')
