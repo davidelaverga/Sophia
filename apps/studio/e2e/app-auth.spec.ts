@@ -975,7 +975,16 @@ test('places · opening another project in a call says it ended the call, with R
   await expect(page.locator('.places .room-pill')).toBeVisible()
   await openResearchNotes(page)
   await expect(toast).toContainText('ended when you opened “Research notes”.')
-  await expect(toast.getByRole('button', { name: 'Rejoin' })).toBeVisible()
+  await toast.getByRole('button', { name: 'Rejoin' }).click()
+  await expect(
+    page.getByRole('navigation', { name: 'Room controls' }).getByRole('button', { name: 'Leave the room' }),
+  ).toBeVisible()
+  // Each end forgets its cause: a Leave pressed after is said as a Leave, with nothing to press (from Home, where the
+  // room is out of sight and the toast says it).
+  await page.keyboard.press('h')
+  await page.locator('.places .room-pill').getByRole('button', { name: 'Leave the room' }).click()
+  await expect(toast).toContainText('You left Fixture project.')
+  await expect(toast.getByRole('button')).toHaveCount(0)
 })
 
 test('places · Leave pressed in the bar keeps «You left …», with nothing to press (call-ends-on-open.md)', async ({
