@@ -9,6 +9,7 @@ import { useEffect, useRef } from 'react'
 import { Tip } from '@sophia/ui'
 import { useCommands } from '../../app/useCommands.ts'
 import { callCommands } from './call-commands.ts'
+import { noteRole } from './call-end.ts'
 import { CallSwitches, sendingOf } from './CallSwitches.tsx'
 import { joinTip, TextMode } from './RoomDock.tsx'
 import { LookingIndicator } from './SophiaControls.tsx'
@@ -96,7 +97,7 @@ export function MiniDock({ room, looking, onOpen }: Props) {
       {/* What the dock says, stacked by its own height: a note (a join or device error) first, her looking under it. */}
       <div className="dock-notes" ref={notes}>
         {note && (
-          <p className="dock-note mini-note" role="alert">
+          <p className="dock-note mini-note" role={noteRole(note)}>
             {note}
           </p>
         )}

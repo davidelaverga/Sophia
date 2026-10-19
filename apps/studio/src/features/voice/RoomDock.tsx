@@ -18,6 +18,7 @@ import { micOnJoin } from './mic-preference.ts'
 import { usePushToTalk } from './usePushToTalk.ts'
 import { useMirror } from './mirror-preference.ts'
 import { callClock, callClockWords } from './call-clock.ts'
+import { noteRole } from './call-end.ts'
 import { useNow } from '../../app/use-now.ts'
 import { PassMenu } from './PassMenu.tsx'
 import { ReactMenu } from './ReactMenu.tsx'
@@ -72,6 +73,7 @@ export function RoomDock(props: Props) {
   useDockHeight(wrap)
   const micOn = !!room.participants.find((p) => p.local)?.micOn
   const talking = usePushToTalk(micOn, room, live)
+  const note = room.mediaError ?? room.error
   return (
     <>
       {/* Beside the dock, not in it: the dock's measured height (--dock-h) is the dock's alone. */}
@@ -79,9 +81,9 @@ export function RoomDock(props: Props) {
       <div ref={wrap} className="dock-wrap">
         <LookingIndicator text={props.sophia.looking} />
         {/* What stopped a device, or why this person is out of the call: a failed join, or a call that ended. */}
-        {(room.mediaError ?? room.error) && (
-          <p className="dock-note" role="alert">
-            {room.mediaError ?? room.error}
+        {note && (
+          <p className="dock-note" role={noteRole(note)}>
+            {note}
           </p>
         )}
         {/* Speech on a muted microphone (muted-speech.md): said while it is still off. */}

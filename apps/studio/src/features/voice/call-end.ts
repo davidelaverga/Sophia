@@ -32,3 +32,21 @@ export const CALL_END: Record<CallEnd, EndNote> = {
  * is as the person's microphone choice says.
  */
 export const keepsTextMode = (why: CallEnd | null): boolean => why !== null && CALL_END[why].failed
+
+/** A call lost while the browser is offline (navigator.onLine false), in Personal's voice (costuras seam #8). */
+export const OFFLINE_END = 'You’re offline, so the call ended here. Join again once you’re back.'
+/** That note once the browser is back online. */
+export const BACK_ONLINE = 'You’re back online. Try again rejoins the call.'
+
+/**
+ * The room's note as the browser's connection stands: offline, a lost call says so; back online, that Try again
+ * rejoins. Online, a lost call keeps its own words (a true proves nothing), and every other note stays as it is.
+ */
+export function noteFor(note: string | null, online: boolean): string | null {
+  if (online) return note === OFFLINE_END ? BACK_ONLINE : note
+  return note === CALL_END.dropped.note ? OFFLINE_END : note
+}
+
+/** How the dock says its note: the connection's two politely, as Personal's line; a failure, at once. */
+export const noteRole = (note: string): 'status' | 'alert' =>
+  note === OFFLINE_END || note === BACK_ONLINE ? 'status' : 'alert'

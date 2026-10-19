@@ -1,11 +1,12 @@
 // Continuing a conversation (docs/plans/project-conversation-writes.md): a field, «Ask Sophia», and Send. Each message
 // is one intent with one key, held by the view (talk-store.ts), as is a refusal that answers it: with no reply it says
 // so, and Send sends that message again under its key, never a second one, even after the person went elsewhere and
-// came back. A message the API accepted goes into the page at once. The field clears only if it still holds what was
-// sent. Enter sends; Shift+Enter starts a line. On its way, Send says so. «Ask Sophia» is a checkbox shown as a chip
-// with her mark (docs/plans/conversation-thread.md). While the field is empty, quick asks ask her in one press, their
-// words the message (docs/plans/conversations-find.md). Once she has answered, the empty field proposes the next ask as
-// its placeholder, with a key cap «Tab»: Tab puts it in the field with «Ask Sophia» on, Esc puts it away, and the quick
+// came back. Offline, nothing goes, and the line says so before any press (docs/plans/offline-work-side.md). A message
+// the API accepted goes into the page at once. The field clears only if it still holds what was sent. Enter sends;
+// Shift+Enter starts a line. On its way, Send says so. «Ask Sophia» is a checkbox shown as a chip with her mark
+// (docs/plans/conversation-thread.md). While the field is empty, quick asks ask her in one press, their words the
+// message (docs/plans/conversations-find.md). Once she has answered, the empty field proposes the next ask as its
+// placeholder, with a key cap «Tab»: Tab puts it in the field with «Ask Sophia» on, Esc puts it away, and the quick
 // asks drop what was just asked (docs/plans/next-ask.md).
 import { useQueryClient } from '@tanstack/react-query'
 import { type KeyboardEvent, type ReactNode, type RefObject, useLayoutEffect, useRef } from 'react'
@@ -16,6 +17,7 @@ import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
+import { OFFLINE_UNSENT, useOnline } from '../personal/online.ts'
 import {
   firstWords,
   lastSaid,
@@ -112,7 +114,10 @@ function useMessageWrite(props: Props, askSophia: boolean) {
     (key, ask) => sendConversationMessage(identity.token, conversationId, key, ask),
     refusal,
   )
-  const ready = props.canSend && (write.unknown?.text ?? draft).trim() !== ''
+  // Offline (navigator.onLine false; a true proves nothing), nothing goes, not even a message held with no reply: the
+  // line says so before any press. Back online, Send goes as before (costuras seam #8).
+  const online = useOnline()
+  const ready = online && props.canSend && (write.unknown?.text ?? draft).trim() !== ''
   /** The draft, or a quick ask's words (Sophia asked, the draft left as it is). */
   const send = async (text: string, asking: boolean, fromDraft: boolean) => {
     // Undefined too for an account forgotten meanwhile: its receipt never comes back into the cache.
@@ -149,11 +154,17 @@ function useMessageWrite(props: Props, askSophia: boolean) {
   }
   /** A quick ask: whether it is in, or went unanswered or refused (null when it wasn't sent at all). */
   const quick = async (words: string) =>
-    !write.busy && props.canSend && !write.unknown ? await send(words, true, false) : null
-  const words = write.unknown
-    ? `Not confirmed: “${firstWords(write.unknown.text)}”. Send sends it again; it won’t be written twice.`
-    : write.refused
-  return { busy: write.busy, ready, go, quick, words, held: write.unknown }
+    online && !write.busy && props.canSend && !write.unknown ? await send(words, true, false) : null
+  const offline = !online && props.canSend
+  const words = lineOf(write.unknown, write.refused, offline)
+  return { busy: write.busy, ready, go, quick, words, held: write.unknown, offline }
+}
+
+/** What the field's line says: offline, that nothing goes, in place of «Not confirmed»; else what the last press met. */
+function lineOf(unknown: MessageAsk | null, refused: string | null, offline: boolean): string | null {
+  if (offline) return OFFLINE_UNSENT
+  if (unknown) return `Not confirmed: “${firstWords(unknown.text)}”. Send sends it again; it won’t be written twice.`
+  return refused
 }
 
 /** Under the field: who the message goes to (Sophia only where she answers here), and how Enter sends. */
@@ -240,7 +251,7 @@ function FieldBox(props: {
 
 export function ConversationComposer(props: Props) {
   const { draft, onDraft } = props
-  const { busy, ready, go, quick, words, held } = useMessageWrite(props, props.askSophia)
+  const { busy, ready, go, quick, words, held, offline } = useMessageWrite(props, props.askSophia)
   // With no reply, the box says what the held message asked, and stays so until it is answered.
   const asks = held?.askSophia ?? props.askSophia
   // A message on its way (sending, or held with no reply) quiets the field's suggestions (Codex on #265).
@@ -278,18 +289,25 @@ export function ConversationComposer(props: Props) {
       {props.canSend && props.answers && (
         <QuickAsks
           asks={next.quick}
-          away={draft.trim() !== '' || held !== null}
+          // Offline, too: a quick ask could only wait, as words in the field do.
+          away={draft.trim() !== '' || held !== null || offline}
           busy={busy}
           onAsk={(w) => void ask(w)}
         />
       )}
       <Hint asks={asks} answers={props.answers} />
-      {(words ?? slow) && (
-        <p className="conv-note" role="alert">
-          {words ?? SLOW_NOTE}
-        </p>
-      )}
+      <Note words={words} slow={slow} polite={offline} />
     </form>
+  )
+}
+
+/** Under the field: what the last press met, or that the wait goes on; offline, that nothing goes, said politely. */
+function Note({ words, slow, polite }: { words: string | null; slow: boolean; polite: boolean }) {
+  if (!words && !slow) return null
+  return (
+    <p className="conv-note" role={polite ? 'status' : 'alert'}>
+      {words ?? SLOW_NOTE}
+    </p>
   )
 }
 
