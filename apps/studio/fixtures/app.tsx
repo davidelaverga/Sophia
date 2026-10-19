@@ -10,6 +10,10 @@
 // the tab too): Updates' «since» and «seen» are A34's, strict and each account's own (attention-data.ts), and
 // `appFixture.attention` says what they were asked. `projects=two` (kept in the tab too): Work's list holds Research
 // notes after the fixture project, so a call can be left by opening another (call-ends-on-open.md).
+// `appFixture.expireToken()`: every token the API has seen is refused from now on, as the API refuses an expired one
+// (a 401), until the page sends another; `refuseTokens()` refuses every token, new ones too; `dropStream()` ends the
+// feed's stream; `refused` says each request refused so, and `keys` each request's Idempotency-Key
+// (auth-session-renewal.md).
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { StrictMode } from 'react'
@@ -20,7 +24,7 @@ import { begin } from '../src/app/entry.ts'
 import '../src/app/theme.css'
 import { conversations, conversationMission, messagesOf } from './conversation-data.ts'
 import { attentionAnswer } from './attention-data.ts'
-import { installFixtureApi, unexpected } from './fixture-api.ts'
+import { dropStream, installFixtureApi, unexpected } from './fixture-api.ts'
 import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
 import { goal } from './work-data.ts'
@@ -37,6 +41,13 @@ declare global {
       attention: readonly string[]
       hold: (by: string, path: string, method?: string) => void
       release: () => void
+      expireToken: () => void
+      refuseTokens: () => void
+      dropStream: () => void
+      /** Each request refused for its token (`expireToken`, `refuseTokens`), as `METHOD /path`. */
+      refused: readonly string[]
+      /** Each request with an Idempotency-Key, refused or not, as `METHOD /path key`. */
+      keys: readonly string[]
     }
   }
 }
@@ -62,9 +73,12 @@ function before(key: string): unknown[] {
   }
 }
 
+/** A request's bearer token, as the API reads it. */
+const tokenOf = (headers: Headers) => /^Bearer (.+)$/.exec(headers.get('authorization') ?? '')?.[1] ?? null
+
 /** The account a request's bearer token names (its `sub`), unverified: the fixture signs nothing. */
 function subjectOf(headers: Headers): string {
-  const payload = headers.get('authorization')?.split('.')[1]
+  const payload = tokenOf(headers)?.split('.')[1]
   try {
     const claims: unknown = payload ? JSON.parse(atob(payload.replaceAll('-', '+').replaceAll('_', '/'))) : null
     const sub: unknown = typeof claims === 'object' && claims !== null ? Reflect.get(claims, 'sub') : null
@@ -79,13 +93,28 @@ function described(input: RequestInfo | URL, init?: RequestInit) {
   const given = input instanceof Request ? input : null
   const href = input instanceof Request ? input.url : input instanceof URL ? input.href : input
   const url = new URL(href, window.location.href)
+  const headers = new Headers(init?.headers ?? given?.headers)
   return {
     url,
     pathname: url.pathname,
     method: (init?.method ?? given?.method ?? 'GET').toUpperCase(),
-    by: subjectOf(new Headers(init?.headers ?? given?.headers)),
+    by: subjectOf(headers),
+    token: tokenOf(headers),
+    key: headers.get('idempotency-key'),
   }
 }
+
+/** The API's answer to a token it no longer takes: expired, or never valid (actor_context_required). */
+const tokenRefused = () =>
+  new Response(
+    JSON.stringify({
+      code: 'actor_context_required',
+      message: 'Invalid or expired token',
+      requestId: '00000000-0000-4000-8000-0000000000bd',
+      retry: 'reauthorize',
+    }),
+    { status: 401, headers: { 'content-type': 'application/json' } },
+  )
 
 /** The proposals the fixture's service was sent before a reload of the tab. */
 const sentBefore = (): { key: string; body: unknown }[] =>
@@ -186,10 +215,27 @@ if (sessionStorage.getItem(WORK_KEY) === 'lost') {
   const marks = new Map<string, string | null>()
   const attention: string[] = []
   let held: { by: string; path: string; method?: string; waiting: (() => void)[] } | null = null
+  const tokens = { seen: new Set<string>(), expired: new Set<string>(), refuseAll: false }
+  const refused: string[] = []
+  const keys: string[] = []
+  /** The API's 401 to this request's token once it no longer takes it (`expireToken`, `refuseTokens`), else null. */
+  const tokenAnswer = ({ method, pathname, token, key }: ReturnType<typeof described>): Response | null => {
+    if (key) keys.push(`${method} ${pathname} ${key}`)
+    if (!token) return null
+    if (!tokens.refuseAll && !tokens.expired.has(token)) {
+      tokens.seen.add(token)
+      return null
+    }
+    refused.push(`${method} ${pathname}`)
+    return tokenRefused()
+  }
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
-    const { pathname, method, by } = described(input, init)
+    const request = described(input, init)
+    const { pathname, method, by } = request
     if (pathname.startsWith('/synthetic-auth/')) return network(input, init)
     asked.push(`${method} ${pathname} by ${by}`)
+    const refusal = tokenAnswer(request)
+    if (refusal) return Promise.resolve(refusal)
     const body = init?.body ?? null
     const served = a34 ? attentionAnswer(marks, (s) => attention.push(s), { pathname, method, by, body }) : undefined
     if (served) return Promise.resolve(served)
@@ -214,6 +260,15 @@ if (sessionStorage.getItem(WORK_KEY) === 'lost') {
       held = null
       for (const go of waiting) go()
     },
+    expireToken: () => {
+      for (const token of tokens.seen) tokens.expired.add(token)
+    },
+    refuseTokens: () => {
+      tokens.refuseAll = true
+    },
+    dropStream,
+    refused,
+    keys,
   }
 }
 

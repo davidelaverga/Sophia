@@ -2,6 +2,7 @@
 // token); otherwise the dev-only identities written by scripts/dev-stack.ts.
 import { createClient, type AuthError, type Session, type SupabaseClient } from '@supabase/supabase-js'
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { renewTokensWith } from '../api/renew.ts'
 import { READ_TIMEOUT_MS } from '../api/timeouts.ts'
 import {
   LINK_FAILED,
@@ -27,6 +28,7 @@ import { profileFromMetadata, providerOf } from './profile.ts'
 import { forgetPendingUnlock, pendingUnlock, refuseOtherAccount } from './provider-leave.ts'
 import { endSession, signedOutAfter, type Ended } from './sign-out.ts'
 import { keepReturnAnchor, returnAnchorAfter } from './return-anchor.ts'
+import { tokenRenewal } from './token-renewal.ts'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
@@ -51,6 +53,9 @@ export const supabase: SupabaseClient | null = authProject
       global: { fetch: refusals.fetch },
     })
   : null
+
+// A token the API refuses (a laptop that woke past its hour) is renewed here once, and the request goes again.
+if (supabase) renewTokensWith(tokenRenewal(supabase.auth))
 
 export type AuthMode = 'supabase' | 'dev' | 'none'
 export const authMode: AuthMode = supabase ? 'supabase' : devIdentities.length > 0 ? 'dev' : 'none'
