@@ -5,6 +5,7 @@
 > cuello de botella actual. Si se puede hacer en un pr, excelente o como veas, que alivie la presión pero hay que seguir
 > trabajando». Studio only, no API: A34 is served. One PR: Home's line; the arrival line in a project is the next step.
 > Review round 1 (one P1, three P2) changed what counts as news, what is remembered and when a visit says it: below.
+> Codex P2 on #468 keeps a call's project waiting when the read after the call fails: its own section, below.
 
 ## What was measured
 
@@ -78,7 +79,7 @@
   (`sophia.since.said.v1.<account>`); where storage refuses, for as long as the page lives. Nothing names the account.
 - **A call's end** (`useCallSeen`, in `SignedIn`'s `useCall`, which owns the one call, wherever the person is then):
   its project's window is read once and kept. What was decided, made and kept by then was in front of them, in the room or its recap. One read per call, after
-  it, never during.
+  it, never during; one that fails waits for the next read (Codex P2 on #468, below).
 - **A visit says it as it begins, or not at all** (`useSinceNews`): a visit begins at each arrival on Home. It says the
   windows this page read before it began, for the projects drawn with it, decided at its first frame and never after.
   So Sophia's sentence is drawn with the news from the first frame, and nothing under the greeting moves while Home
@@ -142,6 +143,48 @@
   - No horizontal overflow on the page or in Home's scroller.
 - **The attention guard** (`app/attention.test.ts`) lists the flag's readers, and now names `useSinceNews.ts` with its
   one use (`const SINCE_SHOWN = VISION || ATTENTION`).
+
+## Codex P2 on #468: a failed post-call read
+
+> Codex P2 on #468 (`useSinceNews.ts:126`), not a P1. Luis 2026-10-18: «Todo trabajo nuevo que hagas ten en cuenta
+> nuestro cuello de botella actual. Si se puede hacer en un pr, excelente o como veas, que alivie la presión pero hay que
+> seguir trabajando». So it rides on this PR's branch as one small change: two source files and the fixture's lever, no
+> API.
+
+- **Read in the code.** `useCallSeen` reads the call's project once as the call ends (`fetchQuery`, `retry: false`)
+  and keeps its lines. If that read fails, `.catch(() => undefined)` drops it: `was.current` has already moved on, and
+  nothing reads it again. A call often ends because the network or the API went, so that is when the read fails. Once
+  they are back, Home reads that window like any other, and says what the person's own call decided, made or kept as
+  news: «Since you last looked: 2 decisions and a new report in **Launch plan**».
+- **What the browser already covers.** While the browser knows it is offline, TanStack holds the read and runs it once
+  it is back (`networkMode: 'online'`, `onlineManager`). So the loss is a read that fails: the API down (503), a
+  request cut mid-way, a network the browser still calls online.
+- **What changes** (`since-said.ts`, `useSinceNews.ts`):
+  - A call's end marks its project **pending** before the read, per account on this device, kept as the said lines
+    are (`sophia.since.pending.v1.<account>`; for the page's life where storage refuses).
+  - While a project is pending, a visit says nothing of it (`unsaid`), whatever window the page holds, one from before
+    the call included.
+  - Any read of a pending project's window that takes counts as its post-call read: the call's own, its retry, or
+    Home's on an arrival. Its lines are kept whole, as said, and the mark goes (`settlePending`, in the one read all
+    three use).
+  - **The retry** is one read per pending project when the browser says it is `online` again. Home's own read of the
+    projects it shows, as a visit begins, counts too, and comes before the next visit decides.
+  - There is no timer and no polling: a read that fails again leaves the mark for the next of the two.
+  - The mark is per device, not per tab, because a reload or a tab closed after the failure would otherwise lose it, and
+    the next page's first read of that window would be said.
+- **Checks, written first:**
+  - Unit (`since-said.test.ts`):
+    - a pending project says nothing, and the others' news stands;
+    - its first window read is kept and clears the mark, while a read for another project keeps nothing;
+    - after that, a later decision is news;
+    - the mark is per account, and the page's where storage refuses.
+  - Browser (`home-since.spec.ts`; the lever `sinceFail=1` makes the first window read answer 503):
+    - A call ends with Home open and its read fails. The next arrival reads Launch plan again and says nothing, nor
+      does the one after. One more decision since is said alone.
+    - A call ends with Home out of sight and its read fails. The `online` event reads it again, and Home then says
+      nothing of it.
+- **Limit.** A project the person can no longer read (removed from it, or deleted) stays pending on this device. Each
+  `online` event then costs one failed read, and Home doesn't show the project.
 
 ## Limits
 
