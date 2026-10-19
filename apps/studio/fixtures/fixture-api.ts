@@ -161,6 +161,8 @@ interface Project {
   description: Description
   /** The next edit of it lands, but its reply is lost (`summary=lost`, description-reply-lost.md). */
   summaryLost?: boolean
+  /** Knowledge's reads of the report cards wait until the page lets them through (`holdReports`), as a slow API's do. */
+  reportsHeld?: boolean
   /**
    * How reads of the report's versions fail from now on: `unavailable`, as an API that lost its database answers;
    * `not_found`, as it refuses a report this person may not read; false, they succeed.
@@ -1323,6 +1325,21 @@ function reportsAnswer(project: Project, url: URL) {
   return json({ ...list, projects })
 }
 
+/** Reads of the report cards the page holds, each waiting to be let through (`window.fixture.releaseReports`). */
+const heldReports: (() => void)[] = []
+
+/** Knowledge's cards; while the page holds them, a read that answers once let through, with the cards as they are then. */
+function reportsRead(project: Project, url: URL): Response | Promise<Response> {
+  if (!project.reportsHeld) return reportsAnswer(project, url)
+  return new Promise((resolve) => heldReports.push(() => resolve(reportsAnswer(project, url))))
+}
+
+/** Lets the held reads of the cards through, and every later one. */
+export function releaseReports(project: Project): void {
+  project.reportsHeld = false
+  for (const release of heldReports.splice(0)) release()
+}
+
 /**
  * The report viewer's and Knowledge's requests (SMC-M03): the fixture report's versions, their sources and text, its
  * task, its card, and an edit of its description.
@@ -1331,7 +1348,7 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
   const path = url.pathname
   if (method === 'PATCH') return edited(project, path, init)
   if (method !== 'GET') return null
-  if (path === '/api/v1/knowledge/reports') return reportsAnswer(project, url)
+  if (path === '/api/v1/knowledge/reports') return reportsRead(project, url)
   const listed = versionsOf(project, path)
   if (listed) return listed
   const source = /^\/api\/v1\/sources\/([0-9a-f-]{36})\/content$/.exec(path)?.[1]

@@ -87,7 +87,26 @@ test('quiet · every word on the tiles reads: no contrast under 4.5:1', async ({
 // the words sent, never blamed on a teammate; only other words are a conflict, and the typed ones stay.
 const SAVED = 'Saved. The reply was lost on the way, but the description reads as you wrote it.'
 
+/** Every line a description says from the page's start, kept as said: one replaced before an assertion still counts. */
+const recordLines = (page: Page) =>
+  page.addInitScript(() => {
+    const said: string[] = []
+    Reflect.set(window, 'linesSaid', said)
+    new MutationObserver(() => {
+      for (const line of document.querySelectorAll('.report-problem, .report-saved')) said.push(line.textContent ?? '')
+    }).observe(document, { childList: true, subtree: true, characterData: true })
+  })
+
+/** The lines said so far that blamed someone else for the description (null when nothing recorded them). */
+const blamed = (page: Page) =>
+  page.evaluate(() => {
+    const said: unknown = Reflect.get(window, 'linesSaid')
+    if (!Array.isArray(said)) return null
+    return said.filter((line): line is string => typeof line === 'string' && line.includes('Someone changed'))
+  })
+
 test('quiet · a save whose reply was lost says it was saved, once, never that someone changed it', async ({ page }) => {
+  await recordLines(page)
   await page.goto('/room.html?place=knowledge&summary=lost')
   const card = tile(page, 'Fixture report')
   const edit = card.getByRole('button', { name: 'Edit description', exact: true })
@@ -107,13 +126,14 @@ test('quiet · a save whose reply was lost says it was saved, once, never that s
   await card.getByRole('button', { name: 'Save' }).click()
   await expect(field).toHaveCount(0)
   await expect(card.getByText('My sharper description', { exact: true })).toBeVisible()
-  await expect(card.getByText(/Someone changed this description/)).toHaveCount(0)
   await expect(card.getByText(SAVED)).toHaveCount(0)
+  expect(await blamed(page)).toEqual([])
 })
 
 test('quiet · a stale save whose words are the description already says it was saved, not someone else’s', async ({
   page,
 }) => {
+  await recordLines(page)
   await page.goto('/room.html?place=knowledge')
   const card = tile(page, 'Fixture report')
   await card.getByRole('button', { name: 'Edit description', exact: true }).click()
@@ -124,7 +144,8 @@ test('quiet · a stale save whose words are the description already says it was 
   await card.getByRole('button', { name: 'Save' }).click()
   await expect(card.getByText(SAVED)).toHaveAttribute('role', 'status')
   await expect(field).toHaveCount(0)
-  await expect(card.getByText(/Someone changed this description/)).toHaveCount(0)
+  // Never, not even for a moment before the cards read again: a stale refusal says nothing until it is settled.
+  expect(await blamed(page)).toEqual([])
 })
 
 test('quiet · other words saved meanwhile are a conflict: the typed words stay, and Save puts them in place', async ({
@@ -137,8 +158,9 @@ test('quiet · other words saved meanwhile are a conflict: the typed words stay,
   await field.fill('My own description')
   await page.evaluate(() => window.fixture?.describeElsewhere('A teammate’s description'))
   await card.getByRole('button', { name: 'Save' }).click()
+  // Theirs is named before Save can replace it: never chosen blind.
   await expect(card.getByRole('alert')).toHaveText(
-    'Someone changed this description since you opened it. Cancel to see theirs, or Save to use yours.',
+    'Someone changed this description to “A teammate’s description” since you opened it. Save to use yours instead.',
   )
   await expect(field).toHaveValue('My own description')
   await expect(card.getByText(SAVED)).toHaveCount(0)
@@ -147,4 +169,69 @@ test('quiet · other words saved meanwhile are a conflict: the typed words stay,
   await expect(field).toHaveCount(0)
   await expect(card.getByText('My own description', { exact: true })).toBeVisible()
   await expect(card.getByRole('alert')).toHaveCount(0)
+})
+
+test('quiet · a second Save before the cards read again is still the person’s own, never someone else’s', async ({
+  page,
+}) => {
+  await recordLines(page)
+  await page.goto('/room.html?place=knowledge&summary=lost')
+  const card = tile(page, 'Fixture report')
+  const field = card.getByRole('textbox', { name: 'Description' })
+  await card.getByRole('button', { name: 'Edit description', exact: true }).click()
+  await field.fill('My sharper description')
+  // The cards read slowly: the first save lands and its reply is lost, and nothing has read it back yet.
+  await page.evaluate(() => window.fixture?.holdReports())
+  await card.getByRole('button', { name: 'Save' }).click()
+  await expect(card.getByRole('alert')).toContainText('No reply from Sophia')
+  // A word changed and saved again, against the revision the first already moved on: refused as stale, unsaid.
+  await field.fill('My sharper description, again')
+  await card.getByRole('button', { name: 'Save' }).click()
+  await expect(card.getByRole('alert')).toHaveCount(0)
+  await page.evaluate(() => window.fixture?.releaseReports())
+  await expect(card.locator('.report-problem, .report-saved')).toHaveText(SAVED)
+  await expect(field).toHaveValue('My sharper description, again') // the words typed since stay, offered over it
+  await card.getByRole('button', { name: 'Save' }).click()
+  await expect(field).toHaveCount(0)
+  await expect(card.getByText('My sharper description, again', { exact: true })).toBeVisible()
+  expect(await blamed(page)).toEqual([])
+})
+
+test('quiet · Cancel and Edit while a save is unheard start from the words sent, and saving them is the person’s own', async ({
+  page,
+}) => {
+  await recordLines(page)
+  await page.goto('/room.html?place=knowledge&summary=lost')
+  const card = tile(page, 'Fixture report')
+  const edit = card.getByRole('button', { name: 'Edit description', exact: true })
+  const field = card.getByRole('textbox', { name: 'Description' })
+  await edit.click()
+  await field.fill('My sharper description')
+  await page.evaluate(() => window.fixture?.holdReports())
+  await card.getByRole('button', { name: 'Save' }).click()
+  await expect(card.getByRole('alert')).toContainText('No reply from Sophia')
+  await card.getByRole('button', { name: 'Cancel' }).click()
+  await expect(card.getByRole('alert')).toContainText('No reply from Sophia') // it still waits to be heard
+  await edit.click()
+  await expect(field).toHaveValue('My sharper description') // the words sent, not the card's older ones
+  await card.getByRole('button', { name: 'Save' }).click() // refused as stale: the first one landed
+  await page.evaluate(() => window.fixture?.releaseReports())
+  await expect(card.getByText(SAVED)).toHaveAttribute('role', 'status')
+  await expect(field).toHaveCount(0)
+  await expect(card.getByText('My sharper description', { exact: true })).toBeVisible()
+  expect(await blamed(page)).toEqual([])
+})
+
+test('quiet · the saved line goes once the description reads otherwise', async ({ page }) => {
+  await page.goto('/room.html?place=knowledge&summary=lost')
+  const card = tile(page, 'Fixture report')
+  await card.getByRole('button', { name: 'Edit description', exact: true }).click()
+  await card.getByRole('textbox', { name: 'Description' }).fill('My sharper description')
+  await card.getByRole('button', { name: 'Save' }).click()
+  await expect(card.getByText(SAVED)).toHaveAttribute('role', 'status')
+  // A teammate edits it since, and the cards read again (the window's focus comes back): no longer as written.
+  await page.evaluate(() => window.fixture?.describeElsewhere('A teammate’s description'))
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+  await expect(card.getByText('A teammate’s description', { exact: true })).toBeVisible()
+  await expect(card.getByText(SAVED)).toHaveCount(0)
 })

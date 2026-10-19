@@ -7,6 +7,7 @@ import {
   conclusionTopic,
   currentOffer,
   designState,
+  draftFrom,
   elapsedText,
   escapeStepsDown,
   factChips,
@@ -17,6 +18,7 @@ import {
   formatBytes,
   formatsOffered,
   htmlMissing,
+  liveNote,
   money,
   notesNeedFacts,
   notesShown,
@@ -37,8 +39,10 @@ import {
   sourceWords,
   spendText,
   SUMMARY_KEPT,
-  SUMMARY_THEIRS,
   summaryEdit,
+  summaryProblem,
+  summaryTheirs,
+  unheardWith,
   versionMissing,
   versionReadFailure,
   viewerFormats,
@@ -842,12 +846,13 @@ describe('a description edit', () => {
 })
 
 describe('a description save its reply never confirmed', () => {
-  const sent = { sent: 'My sharper description', base: 1 }
+  const sent = { sent: ['My sharper description'], base: 1 }
+  const kept = (reads: string) => ({ ...SUMMARY_KEPT, reads })
   it('settles nothing while the card holds the revision it was sent against', () => {
-    assert.equal(settleUnheard(sent, { summary: 'Sophia’s description', summaryRevision: 1 }, sent.sent), null)
-    const unchanged = { sent: 'Sophia’s description', base: 1 }
+    assert.equal(settleUnheard(sent, { summary: 'Sophia’s description', summaryRevision: 1 }, 'x'), null)
+    const unchanged = { sent: ['Sophia’s description'], base: 1 }
     assert.equal(
-      settleUnheard(unchanged, { summary: 'Sophia’s description', summaryRevision: 1 }, unchanged.sent),
+      settleUnheard(unchanged, { summary: 'Sophia’s description', summaryRevision: 1 }, 'Sophia’s description'),
       null,
       'the same words at the same revision prove nothing landed',
     )
@@ -855,32 +860,94 @@ describe('a description save its reply never confirmed', () => {
   it('went through when a newer card reads the words sent: the form closes, said politely', () => {
     const card = { summary: 'My sharper description', summaryRevision: 2 }
     assert.deepEqual(settleUnheard(sent, card, '  My sharper description '), {
-      note: SUMMARY_KEPT,
+      note: kept('My sharper description'),
       close: true,
       base: 2,
     })
     assert.equal(SUMMARY_KEPT.words, 'Saved. The reply was lost on the way, but the description reads as you wrote it.')
     assert.equal(SUMMARY_KEPT.polite, true, 'a status in the past tense, never an alert')
-    assert.deepEqual(settleUnheard(sent, card, null), { note: SUMMARY_KEPT, close: false, base: 2 }, 'form closed')
+    assert.deepEqual(
+      settleUnheard(sent, card, null),
+      { note: kept('My sharper description'), close: false, base: 2 },
+      'form closed',
+    )
   })
   it('keeps words typed since, over the revision now read', () => {
     const card = { summary: 'My sharper description', summaryRevision: 2 }
     assert.deepEqual(settleUnheard(sent, card, 'My sharper description, and more'), {
-      note: SUMMARY_KEPT,
+      note: kept('My sharper description'),
       close: false,
       base: 2,
     })
   })
-  it('is someone else’s when a newer card reads other words: the typed words stay, offered over it', () => {
+  it('is someone else’s when a newer card reads other words: named, and the typed words stay, offered over it', () => {
     const card = { summary: 'A teammate’s description', summaryRevision: 3 }
-    assert.deepEqual(settleUnheard(sent, card, sent.sent), { note: SUMMARY_THEIRS, close: false, base: 3 })
-    assert.match(SUMMARY_THEIRS.words, /^Someone changed this description since you opened it\. /)
-    assert.equal(SUMMARY_THEIRS.polite, false)
+    const theirs = summaryTheirs('A teammate’s description')
+    assert.deepEqual(settleUnheard(sent, card, 'My sharper description'), { note: theirs, close: false, base: 3 })
+    assert.equal(
+      theirs.words,
+      'Someone changed this description to “A teammate’s description” since you opened it. Save to use yours instead.',
+      'what Save would replace is named, never chosen blind (ProfileSheet’s conflictWords)',
+    )
+    assert.equal(theirs.polite, false)
+    assert.equal(theirs.reads, 'A teammate’s description')
+    assert.equal(
+      summaryTheirs(null).words,
+      'Someone changed this description since you opened it. Save to use yours instead.',
+    )
     assert.deepEqual(
       settleUnheard(sent, card, null),
       { note: null, close: false, base: 3 },
       'the form closed: theirs shows on the card, attributed, and nothing more is said',
     )
+  })
+  it('remembers every save sent while one goes unheard: any of them may be the one that landed', () => {
+    const first = unheardWith(null, { summary: 'My sharper description', expectedRevision: 1 })
+    assert.deepEqual(first, { sent: ['My sharper description'], base: 1 })
+    const both = unheardWith(first, { summary: 'My sharper description, again', expectedRevision: 1 })
+    assert.deepEqual(both, { sent: ['My sharper description', 'My sharper description, again'], base: 1 })
+    const card = { summary: 'My sharper description', summaryRevision: 2 }
+    assert.deepEqual(
+      settleUnheard(both, card, 'My sharper description, again'),
+      { note: kept('My sharper description'), close: false, base: 2 },
+      'the first landed and the second was refused as stale: the person’s own, never someone else’s',
+    )
+    assert.deepEqual(settleUnheard(both, card, 'My sharper description'), {
+      note: kept('My sharper description'),
+      close: true,
+      base: 2,
+    })
+  })
+  it('starts Edit from the last words sent while a save is unheard, else from the card', () => {
+    const card = { summary: 'Sophia’s description', summaryRevision: 1 }
+    const both = { sent: ['My sharper description', 'My sharper description, again'], base: 1 }
+    assert.deepEqual(draftFrom(card, both), { text: 'My sharper description, again', base: 1 })
+    assert.deepEqual(draftFrom(card, null), { text: 'Sophia’s description', base: 1 })
+    assert.deepEqual(draftFrom({ summary: null, summaryRevision: 0 }, null), { text: '', base: 0 })
+  })
+  it('says a line only while it is true: one naming the description goes once the card reads otherwise', () => {
+    const saved = kept('My sharper description')
+    assert.equal(liveNote(saved, 'My sharper description'), saved)
+    assert.equal(liveNote(saved, 'A teammate’s description'), null, 'a teammate edited it since: no longer as written')
+    const theirs = summaryTheirs('A teammate’s description')
+    assert.equal(liveNote(theirs, 'A teammate’s description'), theirs)
+    assert.equal(liveNote(theirs, 'Another teammate’s'), null)
+    const problem = { words: 'The description wasn’t saved. Try again.', polite: false }
+    assert.equal(liveNote(problem, 'Anything'), problem, 'a line naming no description stays')
+    assert.equal(liveNote(null, 'Anything'), null)
+  })
+})
+
+describe('a description save refused or unanswered', () => {
+  it('says nothing for a stale refusal until the cards settle whose words are there', () => {
+    assert.equal(summaryProblem('stale_revision'), null, 'never «Someone changed…» before the text is known')
+    assert.equal(summaryProblem('forbidden'), 'Only editors and admins can change it.')
+    assert.equal(
+      summaryProblem('outcome_unknown'),
+      'No reply from Sophia: it may have been saved. It will show here when the list reads again.',
+    )
+    assert.equal(summaryProblem('unavailable'), 'The description wasn’t saved. Try again.')
+    assert.equal(summaryProblem(null), 'The description wasn’t saved. Try again.')
   })
 })
 
