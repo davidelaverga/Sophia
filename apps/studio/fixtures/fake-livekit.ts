@@ -110,6 +110,13 @@ function switchDevice(kind: DeviceKind, id: string): Promise<void> {
   return refused === 'switch' ? Promise.reject(blocked()) : Promise.resolve()
 }
 
+/** Allow audio, as the connection records it: every voice reaches this browser from now on (fake-people.ts). */
+function startAudio(): Promise<void> {
+  asked.push('audio:start')
+  allowSound()
+  return Promise.resolve()
+}
+
 /** A typed line to Sophia, as the connection records it. */
 function sendChat(): Promise<void> {
   asked.push('chat')
@@ -318,10 +325,7 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     sophia: sophiaSignal,
     audioBlocked: soundBlocked,
     ...voices,
-    startAudio: () => {
-      allowSound()
-      return Promise.resolve()
-    },
+    startAudio,
     feeds: () => (me.cameraOn ? [ownFeed(me.identity), ...theirs()] : theirs()),
     setMicrophone: device('microphone', 'micOn'),
     setCamera: device('camera', 'cameraOn'),

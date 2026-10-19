@@ -148,12 +148,18 @@ jobs:
       - run: pnpm test:supabase
 
   studio-browser:
-    name: The room in Chromium, on its fixture page
+    name: The room in Chromium, on its fixture page (${{ matrix.shard }}/2)
     runs-on: ubuntu-24.04
     # The suite alone ran 29.1 minutes on 2026-10-07 (857 checks): 30 cut it off after its last check passed. On
     # 2026-10-12 the UI kit's stack (about 1,320 checks) was cut off at 45 minutes after 1,287: 60 leaves it room.
     # On 2026-10-16 the 1,714-check suite was cut off at 60 minutes before its end: 90, with the same tests, two workers,
-    # per-test bounds, assertions and retries.
+    # per-test bounds, assertions and retries. On 2026-10-19 the 2,180-check suite was cut off at 90 minutes after 2,002
+    # (#468, run 39250730413): it now runs in two shards side by side (Playwright's --shard, about half the checks each),
+    # as CIROOMLIMIT's handoff said to do next instead of raising the limit again. Neither shard cancels the other.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -164,4 +170,4 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @sophia/studio exec playwright install --with-deps chromium
       # LFE-00's preservation checks: the real Studio components over labelled fixture data, no API, call or provider.
-      - run: pnpm --filter @sophia/studio test:browser
+      - run: pnpm --filter @sophia/studio exec playwright test --shard=${{ matrix.shard }}/2

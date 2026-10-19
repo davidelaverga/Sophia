@@ -14,7 +14,8 @@
 // Sophia leave, or read what happened. Others in the room, the floor, who speaks, Sophia's states and video come from
 // fake-people.ts (`people`, `floor=1|me|absent`, `speaking`,
 // `sophia=here|listening|settling|answering|speaking|blocked`, `voice`, `paused`, `video=camera|screen`,
-// `looking=screen`; docs/plans/room-fixture-people.md).
+// `looking=screen`, `sound=blocked` (the browser blocked the call's sound, whoever speaks; sound-blocked-others.md);
+// docs/plans/room-fixture-people.md).
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { Goal, GoalCommand } from '@sophia/contracts'
@@ -22,6 +23,7 @@ import type { ChatCaption } from '@sophia/contracts/room-chat'
 import { OFFERED } from './invitations-data.ts'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { forgetKept, keptAt, type Kept } from '../src/features/conversations/talk-store.ts'
+import { readSaid } from '../src/features/updates/since-said.ts'
 import { accountOf } from '../src/app/auth-callback.ts'
 import { messagesKey } from '../src/features/conversations/conversation-list.ts'
 import { StrictMode, useEffect, useState, type ReactNode } from 'react'
@@ -65,6 +67,7 @@ import {
   speakWhileMuted,
 } from './fake-livekit.ts'
 import {
+  blockSound,
   count,
   endPause,
   nameOf,
@@ -263,6 +266,8 @@ interface Fixture {
   listMore: (on: boolean) => void
   /** What the view keeps for this project and this page's account (talk-store.ts), as a check reads it. */
   kept: () => Kept | undefined
+  /** The lines of this project's window this account was shown here (since-said.ts), so Home won't say them. */
+  saidSince: () => readonly string[] | null
   /** Whether this page holds a read of the conversation's messages (its query's data), as a check reads it. */
   cachedMessages: (conversationId: string) => boolean
   /** Someone writes in the open conversation (the newest), and the feed moves (conversation-moves.md). */
@@ -380,6 +385,8 @@ interface Fixture {
   sophia: (state: SophiaState) => void
   /** Who speak now: 0 the viewer, `n` the `n`th other person, several at once as a list; null no one. */
   speaking: (who: number | readonly number[] | null) => void
+  /** The browser blocks the call's sound now, as LiveKit's AudioPlaybackStatusChanged says it (fake-people.ts). */
+  blockSound: () => void
   /** How loud a voice is from now on, 0…1: `sophia`, the viewer (0) or the `n`th other person (voice-amplitude.md). */
   voiceLevel: (who: 'sophia' | number, level: number) => void
   /** Another member's change reaches the API just before the page's next pass: that pass is refused as stale. */
@@ -989,6 +996,7 @@ window.fixture = {
     publish(project)
   },
   kept: () => keptAt(`${PROJECT} ${accountOf(identity)}`),
+  saidSince: () => readSaid(accountOf(identity))[PROJECT] ?? null,
   cachedMessages: (conversationId) =>
     queryClient.getQueryData(messagesKey(conversationId, accountOf(identity))) !== undefined,
   conversationMessage: (name, text) => {
@@ -1204,6 +1212,7 @@ window.fixture = {
   },
   sophia: setSophia,
   speaking: setSpeaking,
+  blockSound,
   voiceLevel: setVoiceLevel,
   leaves: personLeaves,
   moveRoom: () => {

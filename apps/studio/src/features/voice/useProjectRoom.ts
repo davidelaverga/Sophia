@@ -106,6 +106,12 @@ export interface ProjectRoom {
   /** Others' cameras come to this browser (incoming-video.md): off for this call only; a shared screen still comes. */
   incomingVideo: boolean
   setIncomingVideo: (on: boolean) => void
+  /**
+   * The dock's «This browser blocked the call’s sound» was put away (Not now) in this call: it says nothing more until
+   * the next call (sound-view.ts).
+   */
+  soundNoticeAway: boolean
+  putSoundNoticeAway: () => void
 }
 
 /** A failed join in words: the API's own refusal, or what to check when the room could not be reached. */
@@ -527,15 +533,26 @@ function usePeopleVolume(connection: { current: RoomConnection | null }) {
   }
 }
 
-/** What this person chose for this call alone: each person's volume and others' cameras. Out of it, both reset. */
+/** The dock's line about a blocked sound, put away for this call alone (sound-blocked-others.md). */
+function useSoundNotice() {
+  const [soundNoticeAway, setAway] = useState(false)
+  return { soundNoticeAway, putSoundNoticeAway: () => setAway(true), resetSoundNotice: () => setAway(false) }
+}
+
+/**
+ * What this person chose for this call alone: each person's volume, others' cameras, and the blocked sound's line put
+ * away. Out of it, all three reset.
+ */
 function useCallChoices(connection: { current: RoomConnection | null }) {
   const { resetVolumes, ...volume } = usePeopleVolume(connection)
   const { resetIncoming, ...incoming } = useIncomingVideo(connection)
+  const { resetSoundNotice, ...sound } = useSoundNotice()
   const resetChoices = () => {
     resetVolumes()
     resetIncoming()
+    resetSoundNotice()
   }
-  return { choices: { ...volume, ...incoming }, resetChoices }
+  return { choices: { ...volume, ...incoming, ...sound }, resetChoices }
 }
 
 /** Leaving, and how many calls the person was in and left by their own press (ProjectRoom.leftByPress). */
@@ -653,7 +670,6 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
       leaveTextMode: () => typedChat.setTextMode(false),
     })
 
-  const startAudio = () => calls.current?.startAudio() ?? Promise.resolve()
   const [relays] = useState(() => relaysOf(calls))
 
   return {
@@ -667,7 +683,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     ...choices,
     setMicrophone,
     ...conversationParts(typedChat),
-    startAudio,
+    startAudio: () => calls.current?.startAudio() ?? Promise.resolve(),
     listDevices,
     backgroundsSupported,
     ...relays,

@@ -5,8 +5,9 @@ import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { ATTENTION } from './attention.ts'
 
-// The attention flag (app/attention.ts) shows what A15 and A34 serve, Home's needs and a project's Updates, without the
-// vision flag; nothing else. Read from the source: which files read it, and where.
+// The attention flag (app/attention.ts) shows what A15 and A34 serve, Home's needs and a project's Updates (and, on
+// Home, what changed since you last looked), without the vision flag; nothing else. Read from the source: which files
+// read it, and where.
 const src = fileURLToPath(new URL('../', import.meta.url))
 const read = (path: string) => readFileSync(`${src}${path}`, 'utf8')
 /** The places a file reads the flag, its import aside. */
@@ -29,10 +30,11 @@ describe('the attention flag (A15, A34)', () => {
     assert.equal(ATTENTION, false)
   })
 
-  it('is read only where Home’s needs and the Updates view are shown', () => {
+  it('is read only where Home’s needs, the Updates view and Home’s word of it are shown', () => {
     assert.deepEqual(readers(src).toSorted(), [
       'app/SignedIn.tsx',
       'features/personal/useNeeds.ts',
+      'features/personal/useSinceNews.ts',
       'features/studio/ProjectShell.tsx',
       'features/studio/ViewNav.tsx',
     ])
@@ -41,6 +43,14 @@ describe('the attention flag (A15, A34)', () => {
   it('opens Home’s needs, by default beside the vision flag', () => {
     assert.deepEqual(uses('features/personal/useNeeds.ts'), ['const NEEDS_SHOWN = VISION || ATTENTION'])
     assert.match(read('features/personal/useNeeds.ts'), /const \{ enabled = NEEDS_SHOWN, locked = false \} = options/)
+  })
+
+  it('reads what changed since you last looked for Home where Updates is shown, by default beside the vision flag', () => {
+    assert.deepEqual(uses('features/personal/useSinceNews.ts'), ['const SINCE_SHOWN = VISION || ATTENTION'])
+    const since = read('features/personal/useSinceNews.ts')
+    assert.match(since, /\{ here, inCall, covered, enabled = SINCE_SHOWN \}: SinceOptions/)
+    // And a call's project once the call ends, wherever the person is (SignedIn), under the same flags.
+    assert.match(since, /useCallSeen\(identity: Account, call: string \| null, enabled = SINCE_SHOWN\)/)
   })
 
   it('opens the Updates view, in the nav, the commands and the address, and nothing else of the project', () => {
