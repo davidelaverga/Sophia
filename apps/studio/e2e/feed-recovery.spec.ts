@@ -18,6 +18,8 @@ declare global {
   interface Window {
     /** The pill's states, recorded from the page's first paint (beforeEach). */
     feedStates?: Seen[]
+    /** The page's asks for the project stream since `countStreamAsks`. */
+    streamAsks?: number
   }
 }
 
@@ -32,6 +34,23 @@ async function backAfter(page: Page, from: number, via: string): Promise<number 
   const live = after.slice(lost + 1).find((s) => s.state === 'live')
   return lost >= 0 && live ? Math.round(live.at - from) : null
 }
+
+/** How long after `from` the pill first said «Up to date»; null while it hasn't. */
+async function liveAfter(page: Page, from: number): Promise<number | null> {
+  const live = (await states(page)).find((s) => s.at >= from && s.state === 'live')
+  return live ? Math.round(live.at - from) : null
+}
+
+/** Counts the page's asks for the project stream from now on (the fixture answers them in the page's own fetch). */
+const countStreamAsks = (page: Page) =>
+  page.evaluate(() => {
+    const inner = window.fetch
+    window.streamAsks = 0
+    window.fetch = (input, init) => {
+      if (typeof input === 'string' && input.includes('/events?')) window.streamAsks = (window.streamAsks ?? 0) + 1
+      return inner(input, init)
+    }
+  })
 
 /** Opens the project with its chat, the feed live. */
 async function open(page: Page) {
@@ -113,4 +132,29 @@ test('feed · a sequence is skipped: Catching up, then Up to date, with the mess
   console.log(`feed · skipped sequence back to Up to date in ${String(took)} ms`)
   expect(took).toBeLessThanOrEqual(3000)
   expect((await states(page)).filter((s) => s.at >= from).map((s) => s.state)).not.toContain('reconnecting')
+})
+
+test('feed · offline, then back online: Up to date within 2 s, not when the pending wait runs out', async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(60_000)
+  await open(page)
+  await countStreamAsks(page)
+  await context.setOffline(true)
+  // The fixture's API answers in the page, so the network goes with its levers: out of reach, the stream ended.
+  await page.evaluate(() => {
+    window.fixture?.outage(true)
+    window.fixture?.dropStream()
+  })
+  await expect(pill(page)).toHaveAttribute('data-state', 'reconnecting')
+  // Three asks refused (after waits of 1, 2 and 4 s): the loop now waits 8 s ± 30 %.
+  await expect.poll(() => page.evaluate(() => window.streamAsks ?? 0), { timeout: 20_000 }).toBeGreaterThanOrEqual(3)
+  await page.evaluate(() => window.fixture?.outage(false))
+  const from = await now(page)
+  await context.setOffline(false)
+  await expect.poll(() => liveAfter(page, from), { timeout: 15_000 }).not.toBeNull()
+  const took = await liveAfter(page, from)
+  console.log(`feed · back online to Up to date in ${String(took)} ms`)
+  expect(took).toBeLessThanOrEqual(2000)
 })
