@@ -119,6 +119,12 @@ export function hostActed(what: keyof typeof ACTED, identity: string): void {
   changed()
 }
 
+/** The `n`th other person turns their own microphone back on, as only they can after an admin's mute. */
+export function unmutes(n: number): void {
+  muted.delete(personId(n))
+  changed()
+}
+
 /** The others in the room, as LiveKit lists remote participants. */
 export function others(): RoomParticipant[] {
   return here()

@@ -128,6 +128,76 @@ test('host · «Mute everyone» asks first, then every other microphone is off',
   ).toBeVisible()
 })
 
+test('host · «Mute everyone» past six seconds says it is slow, as every Studio write does (Codex P2 on #369)', async ({
+  page,
+}) => {
+  await page.clock.install()
+  await enter(page)
+  await page.evaluate(() => window.fixture?.holdHost(true))
+  await page.getByRole('button', { name: 'Mute everyone' }).click()
+  await page.getByRole('button', { name: 'Mute them' }).click()
+  // As the API's, the room server mutes before the answer comes: the waiting press stays with every microphone off.
+  await expect(list(page).getByRole('img', { name: 'Microphone off' })).toHaveCount(2)
+  await expect(page.getByRole('button', { name: 'Muting everyone…' })).toBeVisible()
+  const head = page.locator('.people-head')
+  // fastForward fires the note's one 6 s timer without running every frame of the room in between (project-activity).
+  await page.clock.fastForward(6500)
+  await expect(head.getByRole('status')).toHaveText(
+    'Taking longer than usual. After a quiet spell, the first answer can take up to a minute.',
+  )
+  await page.evaluate(() => window.fixture?.holdHost(false))
+  // Answered, with no one left to mute: the head goes, and its note with it.
+  await expect(head).toHaveCount(0)
+})
+
+test('host · «Mute everyone» refused after every microphone went off says what is true (Codex P2 on #369)', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.failAfterMuteAll())
+  await page.getByRole('button', { name: 'Mute everyone' }).click()
+  await page.getByRole('button', { name: 'Mute them' }).click()
+  await expect.poll(() => served(page)).toContain('mute-all')
+  await expect(list(page).getByRole('img', { name: 'Microphone off' })).toHaveCount(2)
+  // The list shows every microphone off: no «Couldn’t mute», and no «Try again» with nothing to press.
+  await expect(page.locator('.people-head').getByRole('alert')).toHaveText(
+    'Every microphone is off, but the mute wasn’t confirmed.',
+  )
+  await expect(page.getByRole('button', { name: /^Mut(e|ing) everyone/ })).toHaveCount(0)
+})
+
+test('host · a refused «Mute everyone» is old news once a microphone is on again: the press comes back alone', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.failAfterMuteAll())
+  await page.getByRole('button', { name: 'Mute everyone' }).click()
+  await page.getByRole('button', { name: 'Mute them' }).click()
+  const head = page.locator('.people-head')
+  await expect(head.getByRole('alert')).toBeVisible()
+  // Marco turns his microphone back on, minutes later: the refusal is not said beside a fresh press.
+  await page.evaluate(() => window.fixture?.unmutes(1))
+  await expect(list(page).locator('li', { hasText: 'Marco' }).getByRole('img', { name: 'Microphone on' })).toBeVisible()
+  await expect(head.getByRole('button', { name: 'Mute everyone' })).toBeVisible()
+  await expect(head.getByRole('alert')).toHaveCount(0)
+})
+
+test('host · a refused «Mute everyone» stays said as a microphone goes off after it', async ({ page }) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.failHost())
+  await page.getByRole('button', { name: 'Mute everyone' }).click()
+  await page.getByRole('button', { name: 'Mute them' }).click()
+  const head = page.locator('.people-head')
+  await expect(head.getByRole('alert')).toHaveText('Couldn’t mute everyone. Try again.')
+  // The room server's own mutes can reach the call after a refusal: one going off is no reason to drop it.
+  await actions(page, 'Marco').click()
+  await menu(page, 'Marco').getByRole('menuitem', { name: 'Mute microphone' }).click()
+  await expect(
+    list(page).locator('li', { hasText: 'Marco' }).getByRole('img', { name: 'Microphone off' }),
+  ).toBeVisible()
+  await expect(head.getByRole('alert')).toHaveText('Couldn’t mute everyone. Try again.')
+})
+
 test('host · an editor has no «Mute everyone»', async ({ page }) => {
   await enter(page, '&role=editor')
   await expect(list(page)).toBeVisible()

@@ -108,7 +108,10 @@ export function Conversation(props: Props) {
   const empty = nothingSaid(discussion, withdrawnNow, timeline)
   const [replying, setReplying] = useState<Replying | null>(null)
   const replies = useReplies(projectId, identity, snapshot?.cursor)
-  const earlier = useEarlierDiscussion(projectId, identity, discussion, history, withdrawnNow)
+  const earlier = useEarlierDiscussion(projectId, identity, discussion, history, {
+    withdrawn: withdrawnNow,
+    cursor: snapshot?.cursor,
+  })
   const acts = useMessageActs(projectId, identity, earlier.revise)
   const members = useMentionShown(props, history, earlier)
   useReplyGone(replying, earlier.withdrawn, setReplying)

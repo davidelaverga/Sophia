@@ -7,7 +7,7 @@
 // message acts flag) are held as messages are; and the reader's own act shows before the next read brings it.
 // A message a search found beyond the window (A38) is read with the one page that ends at it. Wherever messages between
 // what was read were never read, a gap line says so until the reader fills it, a page at a time (segment-view.ts).
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import type { DiscussionEntry, WithdrawnEntry } from '@sophia/contracts'
 import { getDiscussionPage } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -157,25 +157,29 @@ function useKeptWindows(
   projectId: string,
   discussion: readonly DiscussionEntry[],
   discussionWithdrawn: readonly WithdrawnEntry[],
+  shownNow: readonly DiscussionEntry[],
 ) {
   useEffect(() => {
     setHeld((h) =>
       h && h.projectId === projectId
         ? {
             ...h,
-            entries: withEntries(h.entries, discussion),
+            // What the window shows, not a copy fenced there (R-B66-P1): its place stays in the links, a gap.
+            entries: withEntries(h.entries, shownNow),
             withdrawn: withEntries(h.withdrawn, discussionWithdrawn),
             links: new Map([...h.links, ...windowLinks([...discussion, ...discussionWithdrawn])]),
           }
         : h,
     )
-  }, [setHeld, discussion, discussionWithdrawn, projectId])
+  }, [setHeld, discussion, discussionWithdrawn, projectId, shownNow])
 }
 
 /** The snapshot's window: the latest messages and withdrawn places. */
 interface Latest {
   entries: readonly DiscussionEntry[]
   withdrawn: readonly WithdrawnEntry[]
+  /** Of `entries`, those the window shows: a copy fenced there is not held (R-B66-P1). */
+  shown: readonly DiscussionEntry[]
 }
 
 /**
@@ -191,7 +195,7 @@ function heldWith(
   const { page, before, start } = read
   return {
     projectId,
-    entries: withNewer(withNewer(now?.entries ?? new Map(), page.entries), win.entries),
+    entries: withNewer(withNewer(now?.entries ?? new Map(), page.entries), win.shown),
     withdrawn: withEntries(withEntries(now?.withdrawn ?? new Map(), page.withdrawn ?? []), win.withdrawn),
     atStart: start || (now?.atStart ?? false),
     links: new Map([
@@ -208,15 +212,58 @@ function useHold(
   projectId: string,
   discussion: readonly DiscussionEntry[],
   discussionWithdrawn: readonly WithdrawnEntry[],
+  shownNow: readonly DiscussionEntry[],
 ) {
-  const windowNow = useRef<Latest>({ entries: discussion, withdrawn: discussionWithdrawn })
+  const windowNow = useRef<Latest>({ entries: discussion, withdrawn: discussionWithdrawn, shown: shownNow })
   useLayoutEffect(() => {
-    windowNow.current = { entries: discussion, withdrawn: discussionWithdrawn }
-  }, [discussion, discussionWithdrawn])
+    windowNow.current = { entries: discussion, withdrawn: discussionWithdrawn, shown: shownNow }
+  }, [discussion, discussionWithdrawn, shownNow])
   return (page: Page, before: string | null, start: boolean) =>
     setHeld((h) =>
       heldWith(h?.projectId === projectId ? h : null, projectId, { page, before, start }, windowNow.current),
     )
+}
+
+const idsOf = (list: readonly { id: string }[]) => list.map((e) => e.id).join(',')
+
+/** A page put above keeps the reader where they were: the distance from the bottom is what stays. */
+function useKeptPlace(
+  held: Held | null,
+  history: RefObject<HTMLDivElement | null>,
+  fromBottom: { current: number | null },
+) {
+  useLayoutEffect(() => {
+    const el = history.current
+    if (el && fromBottom.current !== null) el.scrollTop = el.scrollHeight - fromBottom.current
+    fromBottom.current = null
+  }, [held, history, fromBottom])
+}
+
+/** The window kept with the held pages and the way a page read is held, both from what the window shows (R-B66-P1). */
+function useWindowHolding(
+  setHeld: (update: (h: Held | null) => Held | null) => void,
+  projectId: string,
+  discussion: readonly DiscussionEntry[],
+  discussionWithdrawn: readonly WithdrawnEntry[],
+  fencedIds: string,
+) {
+  const shownNow = useShownWindow(discussion, fencedIds)
+  useKeptWindows(setHeld, projectId, discussion, discussionWithdrawn, shownNow)
+  return useHold(setHeld, projectId, discussion, discussionWithdrawn, shownNow)
+}
+
+/** The window as shown, stable while what is fenced in it stays the same (`fencedIds`, comma-joined). */
+function useShownWindow(discussion: readonly DiscussionEntry[], fencedIds: string) {
+  return useMemo(() => {
+    const out = new Set(fencedIds.split(','))
+    return discussion.filter((e) => !out.has(e.id))
+  }, [discussion, fencedIds])
+}
+
+/** The cursor of the reader's own receipt an entry shows, if it shows one (held-pages.ts, R-B56-P1). */
+function receiptOf(acted: ReadonlyMap<string, Acted>, e: DiscussionEntry) {
+  const a = acted.get(e.id)
+  return a?.type === 'corrected' && a.entry === e ? a.cursor : undefined
 }
 
 export function useEarlierDiscussion(
@@ -224,8 +271,9 @@ export function useEarlierDiscussion(
   identity: Identity,
   discussion: readonly DiscussionEntry[],
   history: RefObject<HTMLDivElement | null>,
-  discussionWithdrawn: readonly WithdrawnEntry[] = NONE,
+  snapshot: { withdrawn?: readonly WithdrawnEntry[] | undefined; cursor?: string | undefined } = {},
 ): Earlier {
+  const discussionWithdrawn = snapshot.withdrawn ?? NONE
   const [stored, setHeld] = useState<Held | null>(null)
   const [reading, setReading] = useState<Reading>('idle')
   const fromBottom = useRef<number | null>(null)
@@ -233,15 +281,9 @@ export function useEarlierDiscussion(
   const { acted, revise } = useActed(projectId)
   // The window, consecutive: the latest messages, each one's next among them.
   const latest = windowLinks([...discussion, ...discussionWithdrawn])
-  useKeptWindows(setHeld, projectId, discussion, discussionWithdrawn)
-  // A page put above keeps the reader where they were: the distance from the bottom is what stays.
-  useLayoutEffect(() => {
-    const el = history.current
-    if (el && fromBottom.current !== null) el.scrollTop = el.scrollHeight - fromBottom.current
-    fromBottom.current = null
-  }, [held, history])
+  useKeptPlace(held, history, fromBottom)
   // A held message changed elsewhere is not shown while its page is read again (held-pages.ts, 4309253137).
-  const [stale, epoch] = useHeldRefresh({
+  const [stale, epoch, erased] = useHeldRefresh({
     projectId,
     identity,
     held,
@@ -252,12 +294,15 @@ export function useEarlierDiscussion(
         return r && h ? { ...h, ...r } : null
       }),
     window: [...discussion, ...discussionWithdrawn],
+    reading: reading === 'loading',
+    cursor: snapshot.cursor,
   })
   const view = heldView(held, { entries: discussion, withdrawn: discussionWithdrawn }, acted)
-  const entries = view.entries.filter((e) => !stale.has(e.id))
+  const fenced = (e: DiscussionEntry) => stale.has(e.id) || erased(e, receiptOf(acted, e))
+  const entries = view.entries.filter((e) => !fenced(e))
+  const hold = useWindowHolding(setHeld, projectId, discussion, discussionWithdrawn, idsOf(discussion.filter(fenced)))
   const { withdrawn } = view
   const atStart = held?.atStart ?? false
-  const hold = useHold(setHeld, projectId, discussion, discussionWithdrawn)
   const load = () => {
     const [oldest] = [...entries, ...withdrawn].toSorted(inOrder)
     if (!oldest || reading === 'loading') return

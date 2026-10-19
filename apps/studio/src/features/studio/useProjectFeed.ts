@@ -26,8 +26,8 @@ const historyStart = (cursor: string) => (BigInt(cursor) > HISTORY ? (BigInt(cur
 interface PortsDeps {
   token: string
   projectId: string
-  /** The account and project whose message changes this feed reports (held-pages.ts). */
-  owner: string
+  /** The account whose snapshot this is; with the project, whose message changes this feed reports (held-pages.ts). */
+  identity: string
   key: readonly unknown[]
   queryClient: QueryClient
   feed: { current: Feed | null }
@@ -35,8 +35,12 @@ interface PortsDeps {
   setConnection: (c: Connection) => void
 }
 
-function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => void } {
+export function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => void } {
+  const owner = ownerOf(deps.identity, deps.projectId)
   let refresh: ReturnType<typeof setTimeout> | undefined
+  // A project event since the last refresh (archive-project.md: project.archived / project.unarchived; the fixture's
+  // project.updated). Room, chat and lobby events leave the archived list alone: its read asks LiveKit for rooms.
+  let archiveDue = false
   const current = () => {
     if (!deps.feed.current) throw new Error('feed loop started before the first snapshot')
     return deps.feed.current
@@ -44,13 +48,17 @@ function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => void } {
   const ports: FeedPorts = {
     current,
     apply: (frame) => {
+      if (frame.type.startsWith('project.')) archiveDue = true
       const before = current()
       const next = applyFrame(before, frame)
       // A message corrected or withdrawn, once the feed took the frame (not a replay, not past a gap): kept by id
       // beyond the feed's bounded recent list (held-pages.ts).
       const took = !next.needsSnapshot && next.cursor !== before.cursor
       if (took && 'entityId' in frame && frame.entityType === 'contribution' && ACTS.has(frame.type))
-        contributionChanged(deps.owner, frame.entityId, ERASING.has(frame.type))
+        contributionChanged(owner, frame.entityId, ERASING.has(frame.type), {
+          cursor: next.cursor,
+          revision: frame.entityRevision,
+        })
       deps.store(next)
       return next
     },
@@ -58,7 +66,7 @@ function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => void } {
       await deps.queryClient.refetchQueries({ queryKey: deps.key, exact: true })
       const fresh = deps.queryClient.getQueryData<{ cursor: string }>(deps.key)
       if (fresh) deps.store(rebase(current(), fresh.cursor))
-      feedResynced(deps.owner)
+      feedResynced(owner)
     },
     follow: (after, signal, onOpen, onFrame) =>
       followEvents({ token: deps.token, projectId: deps.projectId, after, signal, onOpen, onFrame }),
@@ -69,10 +77,13 @@ function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => void } {
     },
     eventApplied: () => {
       clearTimeout(refresh)
-      refresh = setTimeout(
-        () => void deps.queryClient.invalidateQueries({ queryKey: deps.key, exact: true }),
-        REFRESH_DEBOUNCE_MS,
-      )
+      refresh = setTimeout(() => {
+        void deps.queryClient.invalidateQueries({ queryKey: deps.key, exact: true })
+        if (!archiveDue) return
+        archiveDue = false
+        // An archive or an unarchive elsewhere: the archived list (Archive.tsx's archivedKey) is read with the snapshot.
+        void deps.queryClient.invalidateQueries({ queryKey: ['projects', deps.identity, 'archived'], exact: true })
+      }, REFRESH_DEBOUNCE_MS)
     },
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   }
@@ -80,7 +91,7 @@ function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => void } {
     ports,
     dispose: () => {
       clearTimeout(refresh)
-      feedStopped(deps.owner)
+      feedStopped(owner)
     },
   }
 }
@@ -116,9 +127,16 @@ export function useProjectFeed(projectId: string, identity: string, token: strin
   useEffect(() => {
     if (!ready) return undefined
     const stop = new AbortController()
-    const owner = ownerOf(identity, projectId)
-    const deps = { token, projectId, owner, key, queryClient, feed: feedRef, store, setConnection }
-    const { ports, dispose } = feedPorts(deps)
+    const { ports, dispose } = feedPorts({
+      token,
+      projectId,
+      identity,
+      key,
+      queryClient,
+      feed: feedRef,
+      store,
+      setConnection,
+    })
     void runFeedLoop(ports, stop.signal)
     return () => {
       stop.abort()

@@ -22,6 +22,11 @@ export function useArchivedProjects(identity: Identity): readonly ProjectSummary
   return read.data?.projects
 }
 
+/** Whether this project is among the person's archived ones: false until that read lands. */
+export function useIsArchived(identity: Identity, projectId: string): boolean {
+  return useArchivedProjects(identity)?.some((p) => p.projectId === projectId) ?? false
+}
+
 const failure = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback)
 
 /** One write per choice: a retry of the same choice keeps its key; the lists are read again once it lands. */
@@ -107,7 +112,7 @@ export function ArchivedLine({
   membership: Membership | undefined
 }) {
   const admin = membership?.role === 'admin'
-  const archived = useArchivedProjects(identity)?.some((p) => p.projectId === projectId) ?? false
+  const archived = useIsArchived(identity, projectId)
   const write = useArchiveWrite(identity, projectId)
   const [state, setState] = useState<{ sending: boolean; failed: string | null }>({ sending: false, failed: null })
   if (!archived) return null

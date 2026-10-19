@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, it } from 'node:test'
 import { LightEngine, type LightMode } from './engine.ts'
 
 // Her light draws with WebGL in the room only (docs/plans/light-webgl-room.md). The page's pieces are stood in for: a
-// canvas whose WebGL context takes every call, counts its frames and says whether it was given back; the light's box;
+// canvas whose WebGL context takes every call (or refuses one check, as a GPU that can't compile the light), counts its
+// frames and says whether it was given back; the light's box;
 // its resize observer; the browser's frames, run when the test says; and the page's clock, which they move on.
 
 /** A WebGL context as the test reads it: the frames drawn in it, and whether it was given back. */
@@ -21,7 +22,10 @@ let lastFrame = 0
 let clock = 0
 const observers = new Set<(width: number, height: number) => void>()
 
-function webgl(): Gl {
+/** The check a context answers false, as a GPU whose compiler refuses the light's shader or its link. */
+type Refused = 'getShaderParameter' | 'getProgramParameter'
+
+function webgl(refused: Refused | null = null): Gl {
   const gl: Gl = { draws: 0, lost: false, context: {} }
   const lose = { loseContext: () => void (gl.lost = true) }
   gl.context = new Proxy(
@@ -31,7 +35,7 @@ function webgl(): Gl {
         if (key === 'getExtension') return (name: string) => (name === 'WEBGL_lose_context' ? lose : null)
         if (key === 'isContextLost') return () => gl.lost
         if (key === 'drawArrays') return () => void gl.draws++
-        if (key === 'getShaderParameter' || key === 'getProgramParameter') return () => true
+        if (key === 'getShaderParameter' || key === 'getProgramParameter') return () => key !== refused
         return () => ({})
       },
     },
@@ -41,7 +45,7 @@ function webgl(): Gl {
 }
 
 /** A canvas: one WebGL context from the first ask on (as a browser's), none on a device without WebGL. */
-function canvas(hasWebgl = true) {
+function canvas(hasWebgl = true, refused: Refused | null = null) {
   let gl: Gl | null = null
   return {
     width: 300,
@@ -52,7 +56,7 @@ function canvas(hasWebgl = true) {
       // The trace's 2D context takes every call; a gradient it asks for takes its stops.
       if (kind === '2d') return new Proxy({}, { get: () => () => ({ addColorStop: () => undefined }) })
       if (kind !== 'webgl' || !hasWebgl) return null
-      gl ??= webgl()
+      gl ??= webgl(refused)
       return gl.context
     },
   }
@@ -243,6 +247,25 @@ describe('her light draws with WebGL in the room only', () => {
     light.setPaper(true, null)
     light.setPaper(false, asCanvas(canvas()))
     assert.equal(b.marks.has('data-fallback'), false)
+    light.stop()
+  })
+
+  // Nobody could give it back otherwise: the engine holds no renderer, and each turn to dark is a new canvas (Codex P2
+  // on #454, focus-and-webgl-follow-ups.md).
+  it('a light the GPU can’t compile or link gives back the context it took, and the room keeps its CSS glow', (t) => {
+    t.mock.method(console, 'warn', () => undefined)
+    const b = box()
+    const light = engine(b)
+    const shader = canvas(true, 'getShaderParameter')
+    light.setPaper(false, asCanvas(shader))
+    assert.equal(b.marks.has('data-fallback'), true)
+    assert.equal(shader.gl()?.lost, true, 'the context its shader failed in, given back')
+    light.setPaper(true, null)
+    const link = canvas(true, 'getProgramParameter')
+    light.setPaper(false, asCanvas(link))
+    assert.equal(b.marks.has('data-fallback'), true)
+    assert.equal(link.gl()?.lost, true, 'the context its program failed to link in, given back')
+    assert.equal(given.length, 2)
     light.stop()
   })
 })
