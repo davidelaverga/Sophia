@@ -128,6 +128,26 @@ test('host · «Mute everyone» asks first, then every other microphone is off',
   ).toBeVisible()
 })
 
+test('host · «Mute everyone» past six seconds says it is slow, as every Studio write does (Codex P2 on #369)', async ({
+  page,
+}) => {
+  await page.clock.install()
+  await enter(page)
+  await page.evaluate(() => window.fixture?.holdHost(true))
+  await page.getByRole('button', { name: 'Mute everyone' }).click()
+  await page.getByRole('button', { name: 'Mute them' }).click()
+  await expect(page.getByRole('button', { name: 'Muting everyone…' })).toBeVisible()
+  const head = page.locator('.people-head')
+  // fastForward fires the note's one 6 s timer without running every frame of the room in between (project-activity).
+  await page.clock.fastForward(6500)
+  await expect(head.getByRole('status')).toHaveText(
+    'Taking longer than usual. After a quiet spell, the first answer can take up to a minute.',
+  )
+  await page.evaluate(() => window.fixture?.holdHost(false))
+  await expect(list(page).getByRole('img', { name: 'Microphone off' })).toHaveCount(2)
+  await expect(head.getByRole('status')).toHaveCount(0)
+})
+
 test('host · an editor has no «Mute everyone»', async ({ page }) => {
   await enter(page, '&role=editor')
   await expect(list(page)).toBeVisible()
