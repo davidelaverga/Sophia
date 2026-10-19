@@ -13,8 +13,8 @@ Runtime unit: Luis's Windows host (Playwright through the session's guard `pw.ps
 two workers); CI as the run on record.
 Existing authority: Luis 2026-10-19, as quoted; local only, nothing pushed; merges on green with no open P1 once
 pushed.
-Ending commit/tree: `0431dbbf6` (tree `363b9c823112`), the last commit that changes code or checks; the next one adds
-only this record. 14 files changed against `56c61c61e`. One branch, local; it can join the next batch PR.
+Ending commit: `0cfcd3518`, the last commit that changes code or checks (the review round); the next one updates only
+this record and the plan. First round ended at `0431dbbf6`. One branch, local; it can join the next batch PR.
 
 ## Outcome
 
@@ -63,6 +63,20 @@ only this record. 14 files changed against `56c61c61e`. One branch, local; it ca
   the row, the refusal under the row, and the read's failure where «Archived» goes. 0 px horizontal overflow on the
   page, the list, the fold, the row and the notice in each. In the session's scratchpad, `archive-keys-and-work/`.
 
+- **Review round (one P2, real):** an unanswered key outlived the other choice landing. An archive whose reply was
+  lost but landed kept its key; once the project was brought back from the line or Work, pressing «Archive project…»
+  again reused that key, and migration 0059 answers a reused key with its first receipt (`ON CONFLICT … DO NOTHING; IF
+  NOT FOUND THEN … RETURN prior.receipt`, no end): the sheet would close as if archived while nothing changed. The
+  mirror held for Unarchive.
+  - written first and failing (`19b512dd3`, unit `archive-keys.test.ts`): 4 passed, 1 failed, «one choice landing
+    lets go of the other’s unanswered key», `AssertionError: archived again, not answered with the lost archive’s
+    receipt`, `actual: 'k1'`, operator `notStrictEqual`. The old case «settling one choice leaves the other’s key»
+    asserted the faulty rule for a landing; it now covers only a refusal or no reply;
+  - fixed (`0cfcd3518`): `settled` with no failure also deletes the key for `archived: !choice.archived`. Unit 5/5;
+    `archive-project` with `app-auth` through `pw.ps1` on the branch at `0cfcd3518`: 53/53, log
+    `archive-keys-review-1.txt`; tsc, Prettier and whole-repo oxlint clean. Nothing visible changed, so no new
+    captures.
+
 ## Decisions and changes
 
 - **Checked against the code first:** the three items held on the branch as the brief quoted them; only the line
@@ -97,7 +111,9 @@ only this record. 14 files changed against `56c61c61e`. One branch, local; it ca
 ## Remaining obligations
 
 - Suppose a reply is lost after the write landed, then another admin undoes it, then this person presses again. The
-  API answers with the first receipt, and nothing changes. The lists are read again, so the page shows the truth.
+  API answers with the first receipt, and nothing changes. The lists are read again, so the page shows the truth. When
+  this person undoes it themselves, the key now goes (review round). Letting go on the feed's `project.archived` /
+  `project.unarchived` would close the other admin's case too; not done here.
 - The store lasts as long as the page and is keyed by account. A reload starts afresh. A retry after signing out and
   back in as the same account is the same write.
 - After Unarchive lands, its row leaves and the focus falls to the page, as before. Take back sends it to Work's

@@ -25,8 +25,11 @@
   shaped like `removal-keys.ts` but kept by the page, not by a component. A write with no reply keeps its key, so the
   next press of the same choice, from the sheet opened again, the line or Work's row, sends it under the same key.
   Once answered, landed or refused, the key goes: the rule of `api/README` and `held-write.ts` (kept after
-  `retry: same_admission_key`, let go otherwise). `useArchiveWrite(identity)` takes the project and the choice at the
-  press. `ArchiveSheet` and `ArchivedLine` use it as before.
+  `retry: same_admission_key`, let go otherwise). A choice that lands also lets go of the other choice's unanswered
+  key (review on this branch): that write is moot, and its key replayed later would get its old receipt and change
+  nothing, while a new key is always safe, since migration 0059 changes nothing when asked for the state the project
+  has. `useArchiveWrite(identity)` takes the project and the choice at the press. `ArchiveSheet` and `ArchivedLine` use
+  it as before.
 - **`useArchivedWork(identity)`, Work's side in `Archive.tsx`:** what Places hands `WorkSpace` as `archived`.
   - Unarchive goes through `usePresses` (`presses.ts`), as Take back does. While it's on its way, the row says
     «Bringing back…» with `aria-disabled`, and a second press sends nothing.
@@ -54,7 +57,9 @@
   projects.» with Try again, which brings the fold. Inside an archived project whose read fails, no line claims
   anything (a guard: it already holds).
 
-`archive-keys.test.ts` (unit) pins the store's rule.
+`archive-keys.test.ts` (unit) pins the store's rule, including, from the review: an archive's reply lost, the
+project then brought back here, Archive pressed again → a new key, not the lost archive's (and the mirror for Unarchive);
+a refusal or no reply leaves the other choice's key.
 
 ## Limits
 
@@ -62,7 +67,9 @@
   write. A reload starts afresh, as a held write's does.
 - A reply lost after the write landed, then another admin brings the project back, then this person presses Archive
   again: the API answers the first receipt and nothing is archived. The lists are read again, so the page shows the
-  truth. The sheet's own key worked the same way before; it now lives longer.
+  truth. The sheet's own key worked the same way before; it now lives longer. When this person brings it back
+  themselves, the lost archive's key goes, so that path is closed; letting go on the feed's `project.unarchived` too
+  would close the other admin's, and is left for later.
 - After Unarchive lands, its row leaves the fold and the focus falls to the page, as before. Take back sends the focus
   to Work's heading; Unarchive could do the same.
 - The sheet's Cancel during «Archiving…» and Work's empty state with archived projects wait for Luis's answers.
