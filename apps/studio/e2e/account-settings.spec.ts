@@ -47,6 +47,23 @@ test('settings · a call’s defaults: the microphone on joining, and the mirror
   await expect(sheet(page).getByRole('checkbox', { name: 'Mirror my video' })).not.toBeChecked()
 })
 
+// The box says what the next join does: the call's own microphone, turned off in the sheet's head, is the next join's
+// too (setMicrophone keeps it), and the box follows at once (Codex P2 on #398).
+test('settings · in a call, the microphone turned off in the sheet’s head unchecks «Join with my microphone on»', async ({
+  page,
+}) => {
+  await openSettings(page, '&call=on')
+  const box = sheet(page).getByRole('checkbox', { name: 'Join with my microphone on' })
+  await expect(box).toBeChecked()
+  const mic = sheet(page)
+    .getByRole('group', { name: 'Your call' })
+    .getByRole('button', { name: 'Microphone', exact: true })
+  await expect(mic).toHaveAttribute('aria-pressed', 'true')
+  await mic.click()
+  await expect(mic).toHaveAttribute('aria-pressed', 'false')
+  await expect(box).not.toBeChecked()
+})
+
 test('settings · Keyboard shortcuts there hands over to the index, one sheet at a time (Codex P1 on #398)', async ({
   page,
 }) => {
