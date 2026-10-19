@@ -218,6 +218,15 @@ and other statuses are unchanged; the fence, retry, draft and restoration paths 
   `doorRead` mutant fails the same way. A mutant that removes the view-side keep still passes 4/4: this fixture does not
   measure that keep as needed. A held older 200 and a view trip are not covered by this spec.
 
+## FND-B-391-409 on mentions (409 P2 4304921244)
+
+- A confirmed room message clears the mention choice only while that choice is still what it named (`sameMembers`,
+  compared by members, not by array). A choice made while it went stays for the next message. An unchanged choice
+  clears as before, and draft and reply matching are unchanged.
+- `e2e/mentions.spec.ts` "chosen again while a message goes" holds the send, switches from Marco to Lucía and writes the
+  next words. The first success leaves Lucía and the words; the request bodies are `[Marco]` then `[Lucía]`. The
+  original unconditional clear, restored as a mutant, fails that case. Definite-failure and unknown-retry cases are not
+  in this spec.
 ## FND-B-UPDATES-INDEX-AND-CAUSAL-QUALIFICATION-01
 
 - 0066 (unapplied, unmerged) gains `project_events_job_admission_idx`, the one name P allocated: a partial index
@@ -282,6 +291,24 @@ and other statuses are unchanged; the fence, retry, draft and restoration paths 
   everything. The old teardown shape hangs that control until an external cap. The production reader is unchanged;
   Linux is unrun here.
 - The Updates remount case runs for 401 and 403; both fail on 0cedd74c.
+
+## FND-B-COMMON-CURRENT-REVIEW-CORRECTION-01 on mentions (#409 4305869903)
+
+- A seen write for a mention that fails is tried again while the same occurrence stays readable where it is: at most
+  three times, later each time (1 s, 2 s, 3 s). Before each try the occurrence is checked for the same element and
+  readable geometry; the view's cleanup cancels every pending try (hidden chat, another account, a changed occurrence).
+  In-flight and done writes are not repeated, and both cache invalidations stay. `e2e/mentions.spec.ts` covers a
+  stationary visible mention whose first write fails (marked once, two attempts), a write that keeps failing (four
+  attempts in all, then none until the next showing), and closing the chat (the pending retry is cancelled).
+
+## FND-B-COMMON-TWO-FOCUSED-HOLDS-01 on mentions (R-CURRENT-MENTIONS-RETRY-OWNERSHIP-02)
+
+- A seen write that fails after its effect was replaced is retried by the effect that is current: a per-hook ref names
+  the live owner, set as each effect starts and cleared as it ends. A cancelled owner never runs again, in-flight
+  dedupe stays, and the current effect's token, occurrence and geometry checks and its bounded budget apply.
+  `e2e/mentions.spec.ts` "after the chat moved on" holds the first write, has a new message restart the effect while
+  the mention stays current, then fails the held write: before the fix the mention stays unacknowledged; after it, it
+  is marked once on the second attempt.
 
 ## Next bounded action
 

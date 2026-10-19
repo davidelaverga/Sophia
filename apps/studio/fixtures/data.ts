@@ -16,10 +16,12 @@ import type { Identity } from '../src/app/dev-identity.ts'
 import { DEMO, DEMO_STATEMENT, PROJECT_NAME } from './demo.ts'
 
 export const PROJECT = '00000000-0000-4000-8000-0000000000aa'
-const ME = '00000000-0000-4000-8000-0000000000a1'
-const OTHER = '00000000-0000-4000-8000-0000000000a2'
+export const ME = '00000000-0000-4000-8000-0000000000a1'
+export const OTHER = '00000000-0000-4000-8000-0000000000a2'
 export const ROOM = '00000000-0000-4000-8000-0000000000ab'
 const SOURCE = '00000000-0000-4000-8000-0000000000ac'
+/** The `n`th message's own source, as a written message has one of its own. */
+const sourceOf = (n: number) => `00000000-0000-4000-9000-${String(n + 1).padStart(12, '0')}`
 export const EXCHANGE = '00000000-0000-4000-8000-0000000000ae'
 const AT = '2026-10-02T00:00:00.000Z'
 
@@ -45,6 +47,21 @@ export interface Said {
   replyTo?: { id: string; actorId: string; excerpt: string }
   /** When it was said; absent, the fixture's fixed moment (chat-times.md). */
   at?: string
+  /** What it is made of (A36, message-acts.md): written, or sharing a report; absent, written. */
+  kind?: 'text' | 'reference'
+  /** Its revision and when its words were last corrected (A36); absent, 1 and never. */
+  revision?: number
+  correctedAt?: string
+  /** When its author withdrew it (A36): then only its place shows, never its words. */
+  withdrawnAt?: string
+  /** The members it mentions (A37), by actor id. */
+  mentions?: string[]
+  /** Which asking of the viewer this is (A37): one more each time they are named again after being removed. */
+  occurrence?: number
+  /** The source its words are kept in; absent, its own. Two messages sharing one are aliases (r4313704366). */
+  sourceId?: string
+  /** Its source was erased by another message's correction or withdrawal: no read lists it any more (0068). */
+  erased?: boolean
 }
 
 /** The `n`th message's entry id in the discussion (0-based), as the snapshot lists it. */
@@ -63,7 +80,7 @@ export const said = (message: string | Said, n: number): DiscussionEntry => ({
   intent: 'discuss',
   origin: 'composer',
   text: typeof message === 'string' ? message : message.text,
-  sourceId: SOURCE,
+  sourceId: (typeof message !== 'string' && message.sourceId) || sourceOf(n),
   sha256: '0'.repeat(64),
   createdAt: (typeof message !== 'string' && message.at) || AT,
 })
