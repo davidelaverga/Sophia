@@ -98,6 +98,8 @@ const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 
 export const unexpected: string[] = []
 /** What was answered, as `snapshot:2`, `mission:2`: a check can tell an update reached the page. */
 export const served: string[] = []
+/** The «since» reads (A34) this page answered, one a read: what a project's open costs (project-arrival-since.md). */
+export const sinceAsked: string[] = []
 
 /** The project as the API holds it now: the revision moves with each event. */
 interface Project {
@@ -921,10 +923,12 @@ function recordsAnswer(project: Project, method: string, url: URL, init: Request
   if (path.startsWith(`${base}/mission`)) return missionAnswer(project, method, path, init)
   if (method === 'GET' && path.startsWith(`${base}/meetings`)) return meetingAnswer(project, path)
   // Home reads it too (home-since-you-looked.md): a project with no meeting has nothing new since its last mark.
-  if (method === 'GET' && path === `${base}/since`)
+  if (method === 'GET' && path === `${base}/since`) {
+    sinceAsked.push(path)
     return json(
       project.meeting ? updatesWindowOf(project.meeting, project.revision) : nothingSince(String(project.revision)),
     )
+  }
   if (project.invitations) return invitationsAnswer(project.invitations, method, path, init, base) ?? undefined
   if (method === 'GET' && path === `${base}/invitations`) return json({ invitations: [] })
   return undefined
