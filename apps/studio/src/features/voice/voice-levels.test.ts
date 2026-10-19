@@ -138,3 +138,67 @@ describe('voices’ levels in the call (docs/plans/voice-amplitude.md)', () => {
     assert.equal(broken.voiceLevel('ana'), 0)
   })
 })
+
+/**
+ * Safari's rule, as a tap maker plays it: a context made or resumed outside a press stays suspended and reads 0; one
+ * made or resumed within a press runs. `press` runs what a press would.
+ */
+function safari() {
+  let pressing = false
+  const press = (act: () => void) => {
+    pressing = true
+    act()
+    pressing = false
+  }
+  const make = (): Tapper => {
+    let running = pressing
+    return {
+      tap: (t) => ({
+        level: () => (running ? (t as MediaStreamTrack & { level: number }).level : 0),
+        stop: () => undefined,
+      }),
+      resume: () => {
+        if (pressing) running = true
+      },
+      close: () => undefined,
+    }
+  }
+  return { press, make }
+}
+
+describe('in Safari the levels’ context is made or woken within a press (orb-follow-ups.md)', () => {
+  it('made within the press that let the room’s sound play, it reads a voice first heard after it', () => {
+    const { press, make } = safari()
+    const { room } = fakeRoom(person('me', null), [person('ana', track(0.6))])
+    const levels = voiceLevels(room, make)
+    press(() => levels.wake())
+    assert.equal(levels.voiceLevel('ana'), 0.6)
+  })
+
+  it('made outside a press, by a voice read before Allow audio, it is woken within Allow audio’s press', () => {
+    const { press, make } = safari()
+    const { room } = fakeRoom(person('me', null), [person('ana', track(0.6))])
+    const levels = voiceLevels(room, make)
+    assert.equal(levels.voiceLevel('ana'), 0)
+    press(() => levels.wake())
+    assert.equal(levels.voiceLevel('ana'), 0.6)
+  })
+
+  it('sound allowed before anyone spoke makes it then, as LiveKit’s runs, not on the first voice after', () => {
+    const { press, make } = safari()
+    const { room, emit } = fakeRoom(person('me', null), [person('ana', track(0.6))])
+    const levels = voiceLevels(room, make)
+    press(() => emit(RoomEvent.AudioPlaybackStatusChanged, true))
+    assert.equal(levels.voiceLevel('ana'), 0.6)
+  })
+
+  it('after the call nothing wakes a context into being', () => {
+    const { made, make } = counting()
+    const { room, emit } = fakeRoom(person('me', null), [person('ana', track(0.6))])
+    const levels = voiceLevels(room, make)
+    emit(RoomEvent.Disconnected)
+    levels.wake()
+    emit(RoomEvent.AudioPlaybackStatusChanged, true)
+    assert.equal(made.contexts, 0)
+  })
+})
