@@ -20,6 +20,8 @@ interface Props {
   projectId: string
   identity: Identity
   me: RoomParticipant | undefined
+  /** Her own Allow audio: she speaks into a blocked sound, and the dock's line about the call's sound doesn't offer it. */
+  allowAudio: boolean
   onAllowAudio: () => void
 }
 
@@ -141,7 +143,7 @@ function Conversation({ view, snapshot, identity, me, exchangeId, busy, run }: C
 }
 
 export function SophiaControls(props: Props) {
-  const { view, snapshot, projectId, identity, onAllowAudio } = props
+  const { view, snapshot, projectId, identity, allowAudio, onAllowAudio } = props
   const { busy, error, run } = useControl(projectId, identity)
   const exchangeId = snapshot.room.sophia.exchangeId
   return (
@@ -149,7 +151,7 @@ export function SophiaControls(props: Props) {
       {/* "Speak with Sophia" names her; once she is in, the label says whose controls these are. */}
       {view.exchange !== 'none' && <span className="floor-label">Sophia</span>}
       {view.exchange === 'none' && <AskIn snapshot={snapshot} identity={identity} busy={busy} run={run} />}
-      {view.needsAudio && (
+      {allowAudio && (
         <button type="button" className="pill warm" onClick={onAllowAudio}>
           <DockWord icon="speaker" said="Allow Sophia’s audio">
             Allow audio

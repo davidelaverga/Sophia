@@ -27,6 +27,7 @@ import { roomKey } from './room-keys.ts'
 import { shortName, type FloorView, type RoomParticipant } from './room-view.ts'
 import { LookingIndicator, SophiaControls } from './SophiaControls.tsx'
 import type { SophiaView } from './sophia-view.ts'
+import { SOUND_BLOCKED, soundView } from './sound-view.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
 import { DockWord } from './DockWord.tsx'
 
@@ -95,6 +96,7 @@ export function RoomDock(props: Props) {
   const micOn = !!room.participants.find((p) => p.local)?.micOn
   const talking = usePushToTalk(micOn, room, live)
   const note = room.mediaError ?? room.error
+  const sound = soundView(room, props.sophia)
   return (
     <>
       {/* Beside the dock, not in it: the dock's measured height (--dock-h) is the dock's alone. */}
@@ -103,6 +105,7 @@ export function RoomDock(props: Props) {
         <LookingIndicator text={props.sophia.looking} />
         {/* What stopped a device, or why this person is out of the call: a failed join, or a call that ended. */}
         <DockNote note={note} className="dock-note" />
+        <SoundBlocked shown={sound.notice} room={room} />
         {/* Speech on a muted microphone (muted-speech.md): said while it is still off. */}
         {live && room.mutedHint && !micOn && (
           <p className="dock-note" role="status">
@@ -117,7 +120,7 @@ export function RoomDock(props: Props) {
         )}
         <nav className="dock" aria-label="Room controls">
           {live ? (
-            <LiveControls {...props} />
+            <LiveControls {...props} sophiaAllow={sound.sophiaAllow} />
           ) : (
             <>
               <JoinButton room={room} />
@@ -128,6 +131,40 @@ export function RoomDock(props: Props) {
         </nav>
       </div>
     </>
+  )
+}
+
+/** A press on a line that goes with it: the focus goes first to the call's anchor in the dock (the microphone). */
+const handingFocus = (act: () => void) => (e: React.MouseEvent<HTMLButtonElement>) => {
+  e.currentTarget
+    .closest('.dock-wrap')
+    ?.querySelector<HTMLElement>('[data-call-anchor]')
+    ?.focus({ preventScroll: true })
+  act()
+}
+
+/**
+ * The browser blocked the call's sound (sound-blocked-others.md): said as a polite status, mounted with the dock so its
+ * words are announced when they come, and out of the layout while it says nothing (theme.css). It never takes the
+ * focus; a press hands it to the microphone beside it.
+ */
+function SoundBlocked({ shown, room }: { shown: boolean; room: ProjectRoom }) {
+  return (
+    <p className={shown ? 'dock-note dock-sound' : 'dock-sound'} role="status">
+      {shown && (
+        <>
+          <span>{SOUND_BLOCKED}</span>
+          <span className="dock-sound-acts">
+            <button type="button" className="text-button" onClick={handingFocus(() => void room.startAudio())}>
+              Allow audio
+            </button>
+            <button type="button" className="text-button" onClick={handingFocus(room.putSoundNoticeAway)}>
+              Not now
+            </button>
+          </span>
+        </>
+      )}
+    </p>
   )
 }
 
@@ -303,7 +340,9 @@ function CallClock({ since }: { since: number | null }) {
   )
 }
 
-function LiveControls({ room, floor, projectId, identity, snapshot, sophia, onPassed }: Props) {
+/** `sophiaAllow`: her own Allow audio, where the dock's line about the call's sound doesn't offer it (sound-view.ts). */
+function LiveControls(props: Props & { sophiaAllow: boolean }) {
+  const { room, floor, projectId, identity, snapshot, sophia, onPassed, sophiaAllow } = props
   const me = room.participants.find((p) => p.local)
   return (
     <>
@@ -323,6 +362,7 @@ function LiveControls({ room, floor, projectId, identity, snapshot, sophia, onPa
             projectId={projectId}
             identity={identity}
             me={me}
+            allowAudio={sophiaAllow}
             onAllowAudio={() => void room.startAudio()}
           />
         </>
