@@ -598,6 +598,8 @@ function overTwoDays(): Said[] {
 /** The source the `alias=1` pair shares (r4313704366). */
 const ALIAS_SOURCE = '00000000-0000-4000-9000-0000000a11a5'
 /** The new source a correction writes A's words to (a source id, as the contract has it). */
+/** Where the pair stands (`aliasAt`, 0-based): the third message by default. */
+const ALIAS_AT = Number(query.get('aliasAt') ?? 2)
 const CORRECTED_SOURCE = '00000000-0000-4000-9000-0000000a11a6'
 
 const project = {
@@ -667,9 +669,9 @@ const project = {
   // `alias=1` with `discussion=60`: the third and fourth messages share one source, so its one body (r4313704366).
   messages: (query.get('alias') === '1'
     ? Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) =>
-        i === 2
+        i === ALIAS_AT
           ? { text: 'SYNTHETIC shared words', sourceId: ALIAS_SOURCE }
-          : i === 3
+          : i === ALIAS_AT + 1
             ? { text: 'SYNTHETIC shared words', sourceId: ALIAS_SOURCE, kind: 'reference' as const }
             : `Message ${i + 1}`,
       )

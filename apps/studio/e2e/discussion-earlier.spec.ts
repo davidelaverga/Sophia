@@ -457,3 +457,39 @@ test('earlier · an erasure learned while a manual «Earlier messages» read is 
   await expect(page.getByText('SYNTHETIC shared words', { exact: true })).toHaveCount(0)
   await expect(earlier(page)).toBeVisible() // still usable: the pages can be read again
 })
+
+// R on 01d05 (F2, named A): A held, its alias pair on a held page; a manual «Earlier messages» read is out when A's
+// correction erases the source. A's targeted reread brings its new words; the manual read, asked before, must not
+// bring A's old ones back when it lands.
+test('earlier · a manual «Earlier messages» read asked before an erasure never brings the named message’s old words back (r4313704366)', async ({
+  page,
+}) => {
+  await heldPageReads(page)
+  await page.goto('/room.html?call=on&discussion=110&acts=1&alias=1&aliasAt=20')
+  await expect(leave(page)).toBeVisible()
+  await chatToggle(page).click()
+  await earlier(page).click()
+  await expect(entries(page)).toHaveCount(100)
+  await page.evaluate(() => (window.holdStale = true))
+  await earlier(page).click()
+  await expect.poll(() => page.evaluate(() => window.staleWaiting ?? 0)).toBe(1) // the manual read, held
+  await page.evaluate((m) => window.fixture?.eraseShared(20, m, 'Message 21, corrected elsewhere'), idOf(20))
+  await expect.poll(() => page.evaluate(() => window.staleWaiting ?? 0)).toBe(2) // A's reread, held too
+  await page.evaluate(() => (window.holdStale = false))
+  await page.evaluate(() => window.releaseStale?.(1))
+  await expect(page.locator(`[data-message="${idOf(20)}"] .contribution-text`)).toHaveText(
+    'Message 21, corrected elsewhere',
+  )
+  await page.evaluate(() => {
+    new MutationObserver(() => {
+      for (const el of document.querySelectorAll('.contribution-text'))
+        if (el.textContent === 'SYNTHETIC shared words') window.sawStale = true
+    }).observe(document.body, { childList: true, subtree: true, characterData: true })
+  })
+  await page.evaluate(() => window.releaseStale?.(0))
+  await page.waitForTimeout(500)
+  expect(await page.evaluate(() => window.sawStale ?? false), 'the erased words never came back').toBe(false)
+  await expect(page.locator(`[data-message="${idOf(20)}"] .contribution-text`)).toHaveText(
+    'Message 21, corrected elsewhere',
+  )
+})

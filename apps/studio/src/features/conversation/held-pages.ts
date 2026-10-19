@@ -296,7 +296,7 @@ export function useHeldRefresh(input: {
   held: Held | null
   setHeld: (next: (h: Held | null) => Held | null) => void
   window: readonly Placed[]
-}): readonly [ReadonlySet<string>, () => number] {
+}): readonly [ReadonlySet<string>, () => string] {
   const { projectId, held, setHeld, window } = input
   const changes = useContributionChanges(ownerOf(input.identity.name, projectId))
   const token = useRef(input.identity.token)
@@ -348,7 +348,8 @@ export function useHeldRefresh(input: {
       setHeld((h) => (h && h.projectId === projectId ? withoutAliases(h, erasure.gone, erasure.acted) : h))
     else if (held) refresher.step(changes, held, window)
   }, [changes, erasure, held, projectId, refresher, setHeld, tick, window])
-  const epoch = () => refresher.epoch
+  // A manual «Earlier» read asked before an erasure was learned brings nothing back (F2: a named message's old words too).
+  const epoch = () => `${refresher.epoch}:${erasure.generation()}`
   if (!held) return [NONE_STALE, epoch] as const
   // At render (F1): the aliases of a source gone, or every held message while which went is unknown, are not shown.
   const hidden = erasure.unknown ? [...held.entries.keys()] : aliasesOf(held, erasure.gone, erasure.acted)
@@ -378,7 +379,14 @@ function useErasure(changes: Changes, held: HeldMaps | null, window: readonly Pl
     else if (g === 'unknown' && fresh && Number(key.slice(key.lastIndexOf('@') + 1)) > handledAt.current) unknown = true
   }
   const acted = new Set(erasing.map(([id]) => id))
-  return { gone, acted, fresh, unknown, handled: () => (handledAt.current = latest) }
+  return {
+    gone,
+    acted,
+    fresh,
+    unknown,
+    handled: () => (handledAt.current = latest),
+    generation: () => handledAt.current,
+  }
 }
 
 const NONE_STALE: ReadonlySet<string> = new Set()
