@@ -996,12 +996,17 @@ test('session · the feed dropped after the token expired comes back up to date,
 }) => {
   const { page, calls } = await renewableIn(context, 'studio')
   await expect(pill(page)).toHaveAttribute('data-state', 'live')
+  const stream = `GET /api/v1/projects/${WORK_PROJECT}/events by ${DAVIDE.id}`
+  const streamAsks = async () => (await askedOf(page)).filter((a) => a === stream).length
+  const before = await streamAsks()
   await page.evaluate(() => {
     window.appFixture?.expireToken()
     window.appFixture?.dropStream()
   })
-  // The feed asked again with the token that expired; what it settles on is «Up to date» or the closed door.
-  await expect.poll(() => refusedOf(page)).toContain(`GET /api/v1/projects/${WORK_PROJECT}/events`)
+  // The feed asked for its stream again, and the expired token was met: by the stream, or by the snapshot's read when
+  // that asks first (a busy machine). What the project settles on is «Up to date» or the closed door.
+  await expect.poll(streamAsks).toBeGreaterThan(before)
+  await expect.poll(async () => (await refusedOf(page)).length).toBeGreaterThan(0)
   await expect(signedOutNotice(page).or(page.locator('.topbar .connection[data-state="live"]'))).toBeVisible()
   await expect(signedOutNotice(page)).toHaveCount(0)
   await expect(pill(page)).toHaveAttribute('data-state', 'live')
