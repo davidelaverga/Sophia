@@ -130,10 +130,24 @@ when checked against the code before any change.
     commits, and `redSince` keeps its true start. On GitHub: `--since 2026-10-18T01:00:00Z` now opens with 1.34 red
     hours (b328ce9 failed at 00:46), counted as 0 before; from 00:00 the run created 23:46 and ended 00:46 opens a
     1.57-hour span.
-- Checks: `node --test tests/unit/reliability-report.test.mjs` 20/20; whole-repo `oxlint --type-aware` clean; `tsc
+- **The room tests that failed most were ranked by `file:line`** (the coordinator's request, from a week's report:
+  `press-answers.spec.ts:128` «×32» was 13 pages under one line, mostly already fixed).
+  - Written first `98dc85fbd`: fixed failures (one file and line, two titles; week-old and recent dates) against a
+    stub; red on «Expected values to be strictly deep-equal: + actual - expected · + []».
+  - Fixed `c9a9a778e`: `rankFailedTests` counts each failed test by its full title, with its last failure and its
+    failures in the last 48 h, recent first; the report's table replaces the «specs that failed most» line.
+  - `--ci` on the week 2026-10-12 21:55 → 10-19 21:55 UTC (1,471 runs; 81 failed room jobs with a summary). Top 5
+    (in the last 48 h / in all / last failed): `home-needs-refusal.spec.ts:111` «needs · semantic: its own read
+    refused (401, malformed body)…» 4/4, 10-19 16:53; `personal-day-pill.spec.ts:16` «the day pill steps aside…» 2/6,
+    10-17 23:46; `personal-day-pill.spec.ts:32` «the pill stepped aside leaves the accessibility tree…» 2/6, 10-17
+    23:46; `personal-day-pill.spec.ts:78` «the days’ menu closed with Escape…» 2/5, 10-17 23:46;
+    `mentions.spec.ts:577` «closing the chat cancels a pending retry of a failed seen write» 2/2, 10-19 09:36.
+    press-answers, resources and home-phone-needs are out of the top 10. Same window: room flake 3.2 % (17/536), 57
+    of 81 failures on one test, main green 80.7 % (146/181), main red 41.5 h in 17 spans.
+- Checks: `node --test tests/unit/reliability-report.test.mjs` 21/21; whole-repo `oxlint --type-aware` clean; `tsc
   --noEmit -p apps/studio` clean; Prettier (repository settings, `--ignore-path ""`) on the three touched `.mjs`
   files clean. No E2E: no spec or Studio code changed.
 - **Decided:** per metric rather than the whole section (the finding allows either), so a deliberate one-spec run
   (`feed.spec.ts` for M3/M4) still publishes what it measured; it exits 1 all the same. Limit kept in the plan: runs
   before the window are read by their latest attempt only.
-- **Next:** Luis decides when this joins #470 (push with the group); the coordinator answers the two Codex threads.
+- **Next:** Luis decides when this joins #470 (push with the group); the coordinator answers the two Codex threads and uses the new top 5.

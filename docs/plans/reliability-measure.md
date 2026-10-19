@@ -37,8 +37,8 @@ too.
   Per job family: the room's shards (`… (1/2)`, `… (2/2)` since #468, `…, part n of 3` on some branches) are one
   family, each shard judged on its own. Also per job: success, failure, timeout and superseded counts, the failure
   share of the decided ones (as the baseline's table), and for failed room jobs the number of failed tests from the
-  Playwright summary: a job that failed on one test of ~2,000 is the flake signature; the specs that failed most are
-  listed.
+  Playwright summary: a job that failed on one test of ~2,000 is the flake signature; the tests that failed most are
+  listed, each by its full title (see «Honest when partial»).
 - **M11 · room job duration.** Median, p90 and maximum of the successful room jobs per day and per part (`whole` or
   the shard), with the margin of p90 to the job's `timeout-minutes`, read from `.github/workflows/ci.yml` (the job
   whose name, without its `${{ … }}`, starts with «The room in Chromium»; GitHub's 360 if it has none). Timeouts per
@@ -113,8 +113,8 @@ script uses, runs it: the same two fixture servers, one desktop project, `grep: 
   ranks), rates of nothing, shard names in both namings, a cancelled job at its limit read as a timeout, carried-over
   jobs counted once, flakes, the job table, the Playwright summary, the room minutes and margin per day and part, the
   limit read from the workflow, main's red hours (a rerun, a late older commit; already red as the window opens, a run
-  begun before it), the four fixture summaries, and the script itself on a fake suite (failed partway, collected
-  short, whole).
+  begun before it), the room's failed tests by full title and recency, the four fixture summaries, and the script
+  itself on a fake suite (failed partway, collected short, whole).
 - **The suite** runs once on this branch (the code before R1) and its numbers are the baseline; it is not part of any
   normal run. Kept out: before `testIgnore`, `playwright test --list` held its 5 first tests (2,288 in all); after,
   2,283 and none of them, and the reliability config lists only its own.
@@ -150,6 +150,13 @@ script uses, runs it: the same two fixture servers, one desktop project, `grep: 
   then keeps only the red time inside the window (a span that began before it counts from `since`; `redSince` keeps
   its true start) and counts in the green share only the commits created in the window. M10 and M11 still read the
   window only.
+- **The room tests that failed most were ranked by `file:line`** (the coordinator, from a week's report). One `test(`
+  line can stand for many pages: `press-answers.spec.ts:128` «×32» was 13 pages under one line, 31 of the 32 «on the
+  work space» on 10-12/13 and already fixed; `resources.spec.ts:461` (×18, all 10-12) and
+  `home-phone-needs.spec.ts:79` (×16, all 10-16) were fixed days before too, and led the list. Now each failed test is
+  counted by its full title (the summary's line: project, file and line, title path), with its last failure (the
+  failed job's start) and how many of its failures fall in the 48 hours before the report's end. The list (top 10)
+  is ordered by those recent failures, then by all of them, then by the latest, so a test fixed days ago sinks.
 
 ## Limits
 
