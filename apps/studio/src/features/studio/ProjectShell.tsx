@@ -26,7 +26,7 @@ import { CarriedIn } from '../artifacts/CarriedIn.tsx'
 import { sendingOf } from '../voice/CallSwitches.tsx'
 import { MiniDock, RoomSwitches } from '../voice/MiniDock.tsx'
 import { CallInReach } from '../../app/call-in-reach.tsx'
-import { shortName } from '../voice/room-view.ts'
+import { askedJoin, shortName } from '../voice/room-view.ts'
 import { lookingText } from '../voice/sophia-view.ts'
 import { useHeldCaptions } from '../voice/StageCaptions.tsx'
 import { useStageMade } from '../voice/StageMade.tsx'
@@ -243,7 +243,7 @@ function useReportCall(
 function useJoinOnOpen(room: ProjectRoom, joinOnOpen: boolean, onHandled: (() => void) | undefined) {
   const done = useRef(false)
   useEffect(() => {
-    if (!joinOnOpen || done.current || !room.ready || room.status !== 'idle') return undefined
+    if (!joinOnOpen || done.current || askedJoin(room.status, room.ready) !== 'join') return undefined
     const settled = setTimeout(() => {
       done.current = true
       void room.join()

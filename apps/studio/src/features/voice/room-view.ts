@@ -6,6 +6,16 @@ import { BackgroundUnavailable } from './camera-background.ts'
 
 export type DockStatus = 'idle' | 'joining' | 'live' | 'reconnecting' | 'failed'
 
+/** What a join asked from elsewhere does now: join the room, or wait for it. */
+export type AskedJoin = 'wait' | 'join'
+
+/**
+ * A join asked from elsewhere (Work's «Join the room», a toast's Rejoin), with the room as it is: it joins once the
+ * project has loaded and the room is out of the call; until then it waits (ProjectShell's useJoinOnOpen).
+ */
+export const askedJoin = (status: DockStatus, ready: boolean): AskedJoin =>
+  ready && status === 'idle' ? 'join' : 'wait'
+
 export type Device = 'microphone' | 'camera' | 'screen'
 
 /** A device that LiveKit wouldn't turn off: what is still on, never that it couldn't start. */
