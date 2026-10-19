@@ -518,21 +518,22 @@ describe('the note that takes the focus once one is forgotten (Codex P2 on #431)
   })
 })
 
+const uuid = (n: number) => `00000000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`
+/** A34's window after a seen mark, holding what `over` gives. */
+const sinceWindow = (over: Partial<Since> = {}): Since => ({
+  fromSequence: '3',
+  toSequence: '9',
+  more: false,
+  decided: [],
+  made: [],
+  noted: [],
+  open: [],
+  work: [],
+  names: {},
+  ...over,
+})
+
 describe('what changed since you last looked, in Sophia’s sentence on Home (home-since-you-looked.md)', () => {
-  const uuid = (n: number) => `00000000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`
-  /** A34's window after a seen mark, holding what `over` gives. */
-  const window = (over: Partial<Since> = {}): Since => ({
-    fromSequence: '3',
-    toSequence: '9',
-    more: false,
-    decided: [],
-    made: [],
-    noted: [],
-    open: [],
-    work: [],
-    names: {},
-    ...over,
-  })
   const decided = (n: number) => ({
     decisionId: uuid(n),
     statement: `Decision ${String(n)}`,
@@ -562,7 +563,7 @@ describe('what changed since you last looked, in Sophia’s sentence on Home (ho
     project({ projectId: id(3), title: 'Design review' }),
   ]
   const news = (...windows: [number, Since][]) => new Map(windows.map(([n, w]) => [id(n), w]))
-  const twoAndOne = window({ decided: [decided(1), decided(2)], made: [made(3)] })
+  const twoAndOne = sinceWindow({ decided: [decided(1), decided(2)], made: [made(3)] })
 
   it('a window of two decided and one made says so: the project strong, Open Updates going to its Updates', () => {
     const said = sophiaSays(quiet, NOW, null, true, news([1, twoAndOne]))
@@ -578,9 +579,9 @@ describe('what changed since you last looked, in Sophia’s sentence on Home (ho
   })
 
   it('an empty window says nothing; nor one never marked seen, which is everything so far, nor proposals and work', () => {
-    assert.deepEqual(sophiaSays(quiet, NOW, null, true, news([1, window()])), [])
+    assert.deepEqual(sophiaSays(quiet, NOW, null, true, news([1, sinceWindow()])), [])
     assert.deepEqual(sophiaSays(quiet, NOW, null, true, news([1, { ...twoAndOne, fromSequence: null }])), [])
-    const leftToUpdates = window({
+    const leftToUpdates = sinceWindow({
       open: [{ proposalId: uuid(7), statement: 'Move the review to Monday?' }],
       work: [{ taskId: uuid(8), kind: 'research', state: 'running' }],
     })
@@ -591,17 +592,23 @@ describe('what changed since you last looked, in Sophia’s sentence on Home (ho
 
   it('the call, a session about to start and a live room come first: it never speaks over them', () => {
     const windows = news([1, twoAndOne])
-    assert.equal(plain(sophiaSays(quiet, NOW, { title: 'Launch plan' }, true, windows)), 'You’re in Launch plan’s room.')
+    assert.equal(
+      plain(sophiaSays(quiet, NOW, { title: 'Launch plan' }, true, windows)),
+      'You’re in Launch plan’s room.',
+    )
     const soon = [...quiet, project({ projectId: id(4), title: 'Weekly standup', nextSession: session(10) })]
     assert.equal(plain(sophiaSays(soon, NOW, null, true, windows)), 'Pitch run in Weekly standup starts in 10 min.')
-    const live = [...quiet, project({ projectId: id(5), title: 'Pitch deck', room: { people: ['Davide'], sophia: true } })]
+    const live = [
+      ...quiet,
+      project({ projectId: id(5), title: 'Pitch deck', room: { people: ['Davide'], sophia: true } }),
+    ]
     assert.equal(plain(sophiaSays(live, NOW, null, true, windows)), 'Davide and Sophia are in Pitch deck.')
     // Nothing while the projects load.
     assert.deepEqual(sophiaSays(undefined, NOW, null, true, windows), [])
   })
 
   it('across projects: the counts are all of theirs, the one with the most is named, then how many more', () => {
-    const oneNote = window({ noted: [noted(4)] })
+    const oneNote = sinceWindow({ noted: [noted(4)] })
     assert.equal(
       plain(sophiaSays(quiet, NOW, null, true, news([2, oneNote], [3, twoAndOne]))),
       'Since you last looked: 2 decisions, a new report and a note kept in Design review and 1 more project. Open Updates',
@@ -618,7 +625,7 @@ describe('what changed since you last looked, in Sophia’s sentence on Home (ho
   })
 
   it('says one of each in words, and that more lies after a window that holds only its first part', () => {
-    const one = window({ decided: [decided(1)], made: [made(2)], noted: [noted(3)] })
+    const one = sinceWindow({ decided: [decided(1)], made: [made(2)], noted: [noted(3)] })
     assert.equal(
       plain(sophiaSays(quiet, NOW, null, true, news([1, one]))),
       'Since you last looked: a decision, a new report and a note kept in Launch plan. Open Updates',

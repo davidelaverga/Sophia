@@ -22,6 +22,7 @@ import type { PersonalTurn } from '@sophia/contracts'
 import {
   dateLine,
   greeting,
+  homeShown,
   READ_FAILED,
   sophiaSays,
   workCount,
@@ -33,12 +34,13 @@ import { VISION } from '../src/app/vision.ts'
 import { Welcome } from '../src/features/personal/Welcome.tsx'
 import { DEMO, DEMO_LABEL, HOME_PROJECT, PROJECT_NAME } from './demo.ts'
 import { PROJECT } from './data.ts'
-import { newMeeting, updatesWindowOf } from './meeting-data.ts'
+import { newMeeting, nothingSince, updatesWindowOf } from './meeting-data.ts'
 import '../src/app/theme.css'
 import '../src/features/personal/personal.css'
 import { bootTheme } from '../src/app/theme.ts'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useNeeds } from '../src/features/personal/useNeeds.ts'
+import { useSaidOnce, useSinceNews } from '../src/features/personal/useSinceNews.ts'
 import { turnShown } from '../src/features/personal/turn-shown.ts'
 import { needsAnswer } from './fixture-api.ts'
 import { InvitedBand } from '../src/features/access/InvitedBand.tsx'
@@ -296,17 +298,6 @@ if (INVITED) {
 const SINCE = query.get('since')
 const sinceReads: string[] = []
 const MARK = '3'
-const nothingSince = (mark: string): ProjectUpdates => ({
-  fromSequence: mark,
-  toSequence: mark,
-  more: false,
-  decided: [],
-  made: [],
-  noted: [],
-  open: [],
-  work: [],
-  names: {},
-})
 const MEMBER = '00000000-0000-4000-8000-0000000000c1'
 const decision = (n: number) => ({
   decisionId: `00000000-0000-4000-8000-0000000000d${String(n)}`,
@@ -488,6 +479,7 @@ const ACTIONS: ComponentProps<typeof Welcome>['actions'] = {
   unlock: () => pressed.push('unlock'),
   room: (projectId, action) => pressed.push(`${action} ${projectId}`),
   say,
+  updates: (projectId) => pressed.push(`updates ${projectId}`),
 }
 
 /** The projects' set Home shows: the query's, until `homeFixture.reread` answers another. */
@@ -499,11 +491,24 @@ function useShown() {
   return shown
 }
 
+/** Sophia's sentence, with what changed since you last looked read as Places reads it (`since=…`). */
+function useSays(projects: readonly ProjectSummary[] | undefined, away: boolean) {
+  const news = useSinceNews('fixture-token', 'fixture-account', homeShown(projects ?? [], NOW), {
+    here: !away,
+    inCall: call !== null,
+    enabled: SINCE !== null,
+  })
+  const says = sophiaSays(projects, NOW, call, answers === true, news)
+  useSaidOnce('fixture-account', news, says)
+  return says
+}
+
 /** Home, with a way to step away from it (as going to another place does), for the checks of what stops out of sight. */
 function Home() {
   const [away, setAway] = useState(query.has('away'))
   const shown = useShown()
   const projects = SETS[shown]
+  const says = useSays(projects, away)
   const fromApi = useNeeds(
     'fixture-token',
     {
@@ -529,7 +534,7 @@ function Home() {
           hello={greeting(NOW.getHours(), null, false)}
           name="Luis"
           date={dateLine(NOW)}
-          says={sophiaSays(projects, NOW, call, answers === true)}
+          says={says}
           you={you}
           reads={
             shown === 'failed'

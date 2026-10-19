@@ -8,14 +8,20 @@ const QUIET = '/home.html?projects=quiet'
 const id = (n: number) => `00000000-0000-4000-8000-00000000000${String(n)}`
 const pressed = (page: Page) => page.evaluate(() => window.homeFixture?.pressed ?? [])
 const reads = (page: Page) => page.evaluate(() => window.homeFixture?.sinceReads() ?? [])
+/**
+ * The projects whose window was read, once each. The fixture page runs under StrictMode, whose second mount reads again
+ * what the first let go (the reads pass their abort signal), so the reads themselves are counted only between moments.
+ */
+const asked = async (page: Page) => [...new Set(await reads(page))].toSorted()
+const SHOWN = [1, 2, 3].map(id)
 const rows = (page: Page) => page.getByRole('list', { name: 'Your projects' }).getByRole('listitem')
 /** Her sentence's polite status under the greeting, mounted all along so that news is announced as it comes. */
 const news = (page: Page) => page.locator('.hw-head').getByRole('status')
 const SOME = 'Since you last looked: 2 decisions and a new report in Launch plan. Open Updates'
 
 /** The windows were asked for and have answered: whatever the visit will say, it has said by now. */
-async function answered(page: Page, count: number) {
-  await expect.poll(() => reads(page)).toHaveLength(count)
+async function answered(page: Page, ids: readonly string[]) {
+  await expect.poll(() => asked(page)).toEqual(ids)
   await page.waitForTimeout(400)
 }
 
@@ -28,7 +34,7 @@ test('home · what changed since you last looked is said as a status, with Open 
   // Said, not focused: the focus stays where the page left it.
   expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true)
   // One read for each project Home shows; none for Product launch, fourth, whose note kept Home doesn't show.
-  expect((await reads(page)).toSorted()).toEqual([id(1), id(2), id(3)])
+  expect(await asked(page)).toEqual(SHOWN)
   await news(page).getByRole('button', { name: 'Open Updates' }).click()
   expect(await pressed(page)).toEqual([`updates ${id(1)}`])
 })
@@ -38,16 +44,17 @@ test('home · said once: not on the way back to Home, nor after a reload; a new 
 }) => {
   await page.goto(`${QUIET}&since=some`)
   await expect(news(page)).toHaveText(SOME)
+  const before = (await reads(page)).length
   // Back on Home within 20 s: nothing is read again, and what was said is not said again.
   await page.getByRole('button', { name: 'Leave Home' }).click()
   await page.getByRole('button', { name: 'Back to Home' }).click()
   await expect(rows(page)).toHaveCount(4)
   await page.waitForTimeout(400)
   await expect(news(page)).toHaveText('')
-  expect(await reads(page)).toHaveLength(3)
+  expect(await reads(page)).toHaveLength(before)
   // A reload reads the same windows again: this device remembers they were said.
   await page.reload()
-  await answered(page, 3)
+  await answered(page, SHOWN)
   await expect(news(page)).toHaveText('')
   // One more decision since: a new window, said.
   await page.goto(`${QUIET}&since=more`)
@@ -61,7 +68,7 @@ test('home · nothing after a seen mark; nothing read in a call; under a session
 }) => {
   // Marked as seen: the windows after the mark hold nothing to say.
   await page.goto(`${QUIET}&since=seen`)
-  await answered(page, 3)
+  await answered(page, SHOWN)
   await expect(news(page)).toHaveText('')
   // In a call its sentence stands, and nothing is read.
   await page.goto(`${QUIET}&since=some&call=${id(2)}`)
@@ -71,7 +78,7 @@ test('home · nothing after a seen mark; nothing read in a call; under a session
   // The Standup in 10 min is Sophia's sentence; the news isn't said, so it isn't kept as said.
   await page.goto('/home.html?projects=four&since=some')
   await expect(page.locator('.hw-says')).toHaveText('Standup in Product launch starts in 10 min.')
-  await answered(page, 3)
+  await answered(page, [1, 2, 4].map(id))
   await expect(news(page)).toHaveText('')
   await page.goto(`${QUIET}&since=some`)
   await expect(news(page)).toHaveText(SOME)

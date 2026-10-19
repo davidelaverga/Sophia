@@ -213,6 +213,19 @@ export function digestOf(m: Meeting, cursor: number): Digest {
  */
 export const updatesWindowOf = (m: Meeting, cursor: number): ProjectUpdates => ({ ...digestOf(m, cursor), more: false })
 
+/** A window after a seen mark at `mark`, with nothing new: what a project without a meeting to read from answers. */
+export const nothingSince = (mark: string): ProjectUpdates => ({
+  fromSequence: mark,
+  toSequence: mark,
+  more: false,
+  decided: [],
+  made: [],
+  noted: [],
+  open: [],
+  work: [],
+  names: {},
+})
+
 /** The running meeting until now (A13's `so-far`): built as its recap is, for whoever joins late. */
 export function soFarOf(m: Meeting, cursor: number): Digest {
   const { decided, made, noted, open, work, names } = current(m)
