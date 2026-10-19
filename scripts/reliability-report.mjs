@@ -21,6 +21,7 @@ import {
   ROOM,
   distinctJobs,
   familyOf,
+  isRoomGate,
   flakeRates,
   jobMinutes,
   jobTable,
@@ -135,7 +136,7 @@ async function readRuns(repo, since, until) {
   return { runs, attempts: attempts.map((a, i) => ({ ...a, jobs: jobs[i] })) }
 }
 
-/** One entry per job, each counted once across a run's attempts, with how it ended. */
+/** One entry per job, each counted once across a run's attempts, with how it ended; the room's gate jobs left out. */
 function jobEntries(attempts, limitOf) {
   const byRun = new Map()
   for (const { run: r, attempt, jobs } of attempts) {
@@ -144,16 +145,18 @@ function jobEntries(attempts, limitOf) {
     byRun.set(r.databaseId, kept)
   }
   return [...byRun.values()].flatMap((jobs) =>
-    distinctJobs(jobs).map((job) => ({
-      id: job.databaseId,
-      sha: job.run.headSha,
-      branch: job.run.headBranch,
-      attempt: job.attempt,
-      name: job.name,
-      startedAt: job.startedAt,
-      minutes: jobMinutes(job),
-      outcome: outcomeOf(job, limitOf(job.name)),
-    })),
+    distinctJobs(jobs)
+      .filter((job) => !isRoomGate(job))
+      .map((job) => ({
+        id: job.databaseId,
+        sha: job.run.headSha,
+        branch: job.run.headBranch,
+        attempt: job.attempt,
+        name: job.name,
+        startedAt: job.startedAt,
+        minutes: jobMinutes(job),
+        outcome: outcomeOf(job, limitOf(job.name)),
+      })),
   )
 }
 

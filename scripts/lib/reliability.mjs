@@ -46,8 +46,14 @@ export function familyOf(name) {
   return name.startsWith(ROOM) ? ROOM : shardOf(name).base
 }
 
-/** Not written yet (its test comes first). */
-export const isRoomGate = () => false
+/**
+ * A room job that runs no Playwright suite: on branches that split the room in parts, a job with the room's name only
+ * gathers them (`echo "The room's three parts"`) and fails in seconds when one does. Not a run of the room.
+ */
+export function isRoomGate(job) {
+  if (familyOf(job.name) !== ROOM) return false
+  return !(job.steps ?? []).some((step) => /playwright test|test:browser/.test(step.name))
+}
 
 /** How long a job ran, in minutes; null if it has not ended. */
 export function jobMinutes(job) {
