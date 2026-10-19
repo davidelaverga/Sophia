@@ -911,7 +911,13 @@ window.fixture = {
         ? { ...base, revision, withdrawnAt: now }
         : { ...base, text, revision, correctedAt: now, sourceId: CORRECTED_SOURCE }
     const type = text === null ? 'contribution.withdrawn' : 'contribution.corrected'
-    eventEntities.set(project.revision + 1, { type, entityType: 'contribution', entityId: id })
+    // As the API's (0068): the event names the message's revision after the act.
+    eventEntities.set(project.revision + 1, {
+      type,
+      entityType: 'contribution',
+      entityId: id,
+      entityRevision: revision,
+    })
     publish(project)
   },
   changeElsewhere: (n, id, text) => {
@@ -923,7 +929,13 @@ window.fixture = {
     project.messages[n] =
       text === null ? { ...base, revision, withdrawnAt: now } : { ...base, text, revision, correctedAt: now }
     const type = text === null ? 'contribution.withdrawn' : 'contribution.corrected'
-    eventEntities.set(project.revision + 1, { type, entityType: 'contribution', entityId: id })
+    // As the API's (0068): the event names the message's revision after the act.
+    eventEntities.set(project.revision + 1, {
+      type,
+      entityType: 'contribution',
+      entityId: id,
+      entityRevision: revision,
+    })
     publish(project)
   },
   update: () => publish(project),

@@ -341,7 +341,10 @@ function hrefOf(input: RequestInfo | URL): string {
 const streams = new Set<ReadableStreamDefaultController<string>>()
 
 /** What an event names, when it is not the project itself: a message corrected or withdrawn elsewhere (held-pages). */
-export const eventEntities = new Map<number, { type: string; entityType: string; entityId: string }>()
+export const eventEntities = new Map<
+  number,
+  { type: string; entityType: string; entityId: string; entityRevision?: number }
+>()
 const frameOf = (sequence: number) =>
   `id: ${sequence}\ndata: ${JSON.stringify({ ...projectEvent(sequence), ...eventEntities.get(sequence) })}\n\n`
 
