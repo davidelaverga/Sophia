@@ -118,17 +118,25 @@ describe('a Join pressed offline from rest (Luis 2026-10-19, offline-join-from-r
   const fromRest = 'You’re offline. Join once you’re back.'
 
   it('offline with no call lost, a join asks for nothing and says so', () => {
-    assert.equal(joinHeld({ online: false, lost: false }), fromRest)
+    assert.equal(joinHeld({ online: false, lost: false, inCall: false }), fromRest)
     assert.equal(OFFLINE_JOIN, fromRest)
   })
 
   it('offline after a lost call, a join says the lost call’s words, as before', () => {
-    assert.equal(joinHeld({ online: false, lost: true }), OFFLINE_END)
+    assert.equal(joinHeld({ online: false, lost: true, inCall: false }), OFFLINE_END)
   })
 
   it('online, every join goes: a true proves nothing', () => {
-    assert.equal(joinHeld({ online: true, lost: false }), null)
-    assert.equal(joinHeld({ online: true, lost: true }), null)
+    assert.equal(joinHeld({ online: true, lost: false, inCall: false }), null)
+    assert.equal(joinHeld({ online: true, lost: true, inCall: false }), null)
+  })
+
+  it('in the call, or on the way into it, a join is answered by that call, offline too: nothing says to join', () => {
+    for (const online of [false, true]) {
+      for (const lost of [false, true]) {
+        assert.equal(joinHeld({ online, lost, inCall: true }), null, `online ${String(online)}, lost ${String(lost)}`)
+      }
+    }
   })
 
   it('keeps saying it offline; back online it goes, and nothing joins on its own', () => {

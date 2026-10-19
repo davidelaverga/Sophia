@@ -375,3 +375,28 @@ test('BASE-03 · offline, Chat with Sophia from rest asks for nothing, and the c
   await expect(leave(page)).toBeVisible()
   expect(await tokens(page), 'one token, asked online').toEqual(['room-token'])
 })
+
+test('BASE-03 · offline in the call, Chat with Sophia is answered by the call: nothing says to join, and Leave stays', async ({
+  page,
+  context,
+}) => {
+  await enter(page, '/room.html?call=on')
+  const polite = page.locator('.dock-wrap > p[role="status"]:not(.dock-sound)')
+  await expect(polite).toHaveText('')
+  await polite.evaluate((el) => el.setAttribute('data-before', ''))
+  await toggle(page, 'Chat').click()
+  const panel = page.getByRole('complementary', { name: 'Chat' })
+  const before = await tokens(page)
+  await context.setOffline(true)
+  await panel.getByRole('button', { name: /^Chat with Sophia/ }).click()
+  await page.waitForTimeout(600) // a join held offline would have said so by now
+  // In the call, the join is that call: nothing tells someone who is in it to join, in the dock or the chat's foot.
+  await expect(page.getByText(FROM_REST)).toHaveCount(0)
+  await expect(page.locator('.dock-wrap > p[data-before]')).toHaveText('')
+  expect(await tokens(page), 'no token beyond the call’s own').toEqual(before)
+  const dock = page.getByRole('navigation', { name: 'Room controls' })
+  await expect(dock.getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  // The press goes on as it does online, into the chat in text (the fixture's fetch ignores setOffline, so Sophia's
+  // ask goes through): the join was never what stopped it.
+  await expect(panel.locator('.message-bar .bar-target')).toHaveText(/^To Sophia/)
+})
