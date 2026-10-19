@@ -59,8 +59,8 @@ export function cameraPresses(kept: string | undefined): CameraPresses {
 let presses: { call: number | null; presses: CameraPresses } | null = null
 
 /**
- * The presses of the call that went live at `call`, from the camera kept for calls at its first press or its first
- * switch that took, whichever comes first.
+ * The presses of the call that went live at `call`, from the camera kept for calls when its first switch is asked, a
+ * press's or one made elsewhere: until then the call is on the camera it began with.
  */
 function callPresses(call: number | null): CameraPresses {
   if (presses?.call !== call) presses = { call, presses: cameraPresses(chosenDevices().videoinput) }
@@ -68,11 +68,19 @@ function callPresses(call: number | null): CameraPresses {
 }
 
 /**
- * A switch of the camera that took in the call that went live at `call`, made anywhere (your tile, Video settings, «In
- * the call»): the next press goes on from it. The room tells every one (useProjectRoom.ts).
+ * A switch of the camera in the call that went live at `call`, made anywhere (your tile, Video settings, «In the
+ * call»), and its answer. The presses begin before it, as the switch keeps its choice even if refused; once it took,
+ * the next press goes on from it. The room asks every one through here (useProjectRoom.ts).
  */
-export const cameraTaken = (call: number | null, id: string): void => {
-  callPresses(call).took(id)
+export async function switchCamera(
+  call: number | null,
+  id: string,
+  switchTo: () => Promise<boolean>,
+): Promise<boolean> {
+  const press = callPresses(call)
+  const took = await switchTo()
+  if (took) press.took(id)
+  return took
 }
 
 interface Devices {
