@@ -112,7 +112,9 @@ script uses, runs it: the same two fixture servers, one desktop project, `grep: 
 - **Unit** (`tests/unit/reliability-report.test.mjs`, in `pnpm test`): percentiles (interpolated between closest
   ranks), rates of nothing, shard names in both namings, a cancelled job at its limit read as a timeout, carried-over
   jobs counted once, flakes, the job table, the Playwright summary, the room minutes and margin per day and part, the
-  limit read from the workflow, main's red hours (a rerun, a late older commit), and the four fixture summaries.
+  limit read from the workflow, main's red hours (a rerun, a late older commit; already red as the window opens, a run
+  begun before it), the four fixture summaries, and the script itself on a fake suite (failed partway, collected
+  short, whole).
 - **The suite** runs once on this branch (the code before R1) and its numbers are the baseline; it is not part of any
   normal run. Kept out: before `testIgnore`, `playwright test --list` held its 5 first tests (2,288 in all); after,
   2,283 and none of them, and the reliability config lists only its own.
@@ -130,10 +132,14 @@ script uses, runs it: the same two fixture servers, one desktop project, `grep: 
   browser crash, a failed scenario) was only logged («collecting what it wrote»): the report was built from the
   records some tests had written and the script exited 0, so a before/after could compare a full run with a third of
   one. The same hole stands without `--run` (the guard path on Luis's machine): the script never knew how many
-  scenarios the suite has. Now the report counts the scenarios it expected (`playwright test … --list`, its «Total: N
-  tests») against the records it found. When the suite exited non-zero, or fewer records than scenarios came back,
-  the fixture section is **incomplete**: it keeps the suite's exit and «n of N scenarios wrote results», publishes no
-  summary (no percentage, no p50), and the script still writes the file but exits 1. A listing that fails leaves N
+  scenarios the suite has. Now the report counts each metric's scenarios from the suite's own listing (`playwright
+  test … --list`: every title path starts `Mn · `, a describe's or the test's; «Total: N tests» proves the listing
+  whole) against the records each metric wrote (each scenario writes one, at its end). **Per metric**, as the finding
+  allows: when the suite exited non-zero, every metric is **incomplete** (a scenario can fail after writing its record,
+  so the records can't say which); otherwise a metric with fewer records than scenarios is. An incomplete metric keeps
+  its samples and «n of N scenarios wrote results», and gives no summary (no percentage, no p50); the whole ones are
+  published as before. The file is still written; the script exits 1 whenever any metric is incomplete. A deliberate
+  run of one spec (only `feed.spec.ts`) so publishes M3/M4 and marks the rest «0 of N». A listing that fails leaves N
   unknown; the suite's exit still decides. The suite command and the results folder can be pointed elsewhere
   (`RELIABILITY_SUITE`, `RELIABILITY_RESULTS`) for the script's own test, which runs a fake suite.
 - **M12 had no state at the window's start.** `--ci` lists runs *created* from `--since`, so main's state at that

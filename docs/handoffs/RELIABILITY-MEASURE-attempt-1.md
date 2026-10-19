@@ -107,3 +107,33 @@ Ending commit: the branch's last commit; code last changed at `2991b58ca`. Again
   M7 3/6 → 5/6 (Knowledge's reports now retried; Updates' «since» keeps `retry: false`); M6 4 → 5 visible (the goal
   sheet's owner and date; the rest judged decorative by `silent-reads`, the archived line left to the archive branch);
   M1 and M2 unchanged. Write-up: `evaluacion-2026-10-19/fiabilidad/medicion-despues.md` (+ JSON).
+
+## Honest when partial (Codex's two P2s on #470)
+
+Branch `reliability/measure-honest` from `origin/group/reliability-r1` (`0b2202a38`); not pushed. Both findings held
+when checked against the code before any change.
+
+- **A failed suite published a whole report** (`measureFixture`, «The suite exited N; collecting what it wrote», exit
+  0). Also true without `--run`: the script never knew how many scenarios the suite has. Plan `9b37306a9`.
+  - Written first `84fbc7a14`: the script on a fake suite (2 M7 scenarios, 1 M2; `RELIABILITY_SUITE` and
+    `RELIABILITY_RESULTS` added so the test never runs the real suite); red on «AssertionError: the script exits
+    non-zero · actual: 0».
+  - Fixed `103c5adcc`: each metric's scenarios are counted from `playwright test … --list` against the records that
+    came back. A failed suite marks every metric incomplete; a short collected run, only the metrics it is short of.
+    Incomplete metrics give «n of N scenarios wrote results» and no summary; the script still writes the file and
+    exits 1. On this worktree's last results (a feed-only run): M3/M4 published, M1/M2/M6/M7 «0 of 2/3/18/2», exit 1.
+- **M12 had no state at the window's start** (`listRuns` lists runs *created* from `--since`).
+  - Written first `35e226bff`: fixed runs, main red at −2 h, green at 5 h of a 10-hour window; red on «red hours from
+    the window’s start: 7» (expected 5).
+  - Fixed `bb2a1cb72`: `--ci` also reads main's 20 newest `ci` push runs created before `--since` (`--created
+    "<since"`); `mainHealth(runs, now, since)` walks them for the opening state, counts only the window's red time and
+    commits, and `redSince` keeps its true start. On GitHub: `--since 2026-10-18T01:00:00Z` now opens with 1.34 red
+    hours (b328ce9 failed at 00:46), counted as 0 before; from 00:00 the run created 23:46 and ended 00:46 opens a
+    1.57-hour span.
+- Checks: `node --test tests/unit/reliability-report.test.mjs` 20/20; whole-repo `oxlint --type-aware` clean; `tsc
+  --noEmit -p apps/studio` clean; Prettier (repository settings, `--ignore-path ""`) on the three touched `.mjs`
+  files clean. No E2E: no spec or Studio code changed.
+- **Decided:** per metric rather than the whole section (the finding allows either), so a deliberate one-spec run
+  (`feed.spec.ts` for M3/M4) still publishes what it measured; it exits 1 all the same. Limit kept in the plan: runs
+  before the window are read by their latest attempt only.
+- **Next:** Luis decides when this joins #470 (push with the group); the coordinator answers the two Codex threads.
