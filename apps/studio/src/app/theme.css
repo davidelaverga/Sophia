@@ -4040,7 +4040,11 @@ button.contribution-quote:hover {
   display: flex;
   align-items: center;
   gap: 12px;
-  max-width: calc(100% - 2 * var(--gutter));
+  /* As wide as its line (toast-phone-width.md): from left: 50% it shrank to the half it had, so a phone gave it half
+     the screen and four lines. On a computer it keeps that half, a reading width; never less than 560 px (about 80
+     characters), nor past the gutters. The translate still centres it. */
+  width: max-content;
+  max-width: min(calc(100% - 2 * var(--gutter)), max(50%, 560px));
   overflow: hidden;
   padding: 9px 14px;
   border-radius: var(--r-3);
@@ -4065,7 +4069,8 @@ button.contribution-quote:hover {
    (Codex on #293). */
 :root:has(.sheet-backdrop:not(.palette-veil)) .toast {
   left: calc((100% - 420px) / 2);
-  max-width: calc(100% - 420px - 2 * var(--gutter));
+  /* Nor wider than the room from its centre to the screen's edge, the width it always had (toast-phone-width.md). */
+  max-width: min(calc(100% - 420px - 2 * var(--gutter)), calc((100% + 420px) / 2));
 }
 /* Where that space is too narrow to read in (just above a phone), it keeps a width of its own at the bottom left,
    under the sheet's head, the panel's lower edge at most behind it (Codex on #293). */
