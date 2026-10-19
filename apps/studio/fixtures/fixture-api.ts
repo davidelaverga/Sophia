@@ -99,6 +99,7 @@ import {
   MEETING,
   markSeen,
   meetingList,
+  nothingSince,
   recapOf,
   soFarOf,
   updatesWindowOf,
@@ -1030,8 +1031,11 @@ function recordsAnswer(project: Project, method: string, url: URL, init: Request
   if (vision !== undefined) return vision
   if (path.startsWith(`${base}/mission`)) return missionAnswer(project, method, path, init)
   if (method === 'GET' && path.startsWith(`${base}/meetings`)) return meetingAnswer(project, path)
-  if (method === 'GET' && path === `${base}/since` && project.meeting)
-    return json(updatesWindowOf(project.meeting, project.revision))
+  // Home reads it too (home-since-you-looked.md): a project with no meeting has nothing new since its last mark.
+  if (method === 'GET' && path === `${base}/since`)
+    return json(
+      project.meeting ? updatesWindowOf(project.meeting, project.revision) : nothingSince(String(project.revision)),
+    )
   if (project.invitations) return invitationsAnswer(project.invitations, method, path, init, base) ?? undefined
   if (method === 'GET' && path === `${base}/invitations`) return json({ invitations: [] })
   return undefined
