@@ -135,12 +135,14 @@ function SoundBlocked({ shown, room }: { shown: boolean; room: ProjectRoom }) {
       {shown && (
         <>
           <span>{SOUND_BLOCKED}</span>
-          <button type="button" className="text-button" onClick={handingFocus(() => void room.startAudio())}>
-            Allow audio
-          </button>
-          <button type="button" className="text-button" onClick={handingFocus(room.putSoundNoticeAway)}>
-            Not now
-          </button>
+          <span className="dock-sound-acts">
+            <button type="button" className="text-button" onClick={handingFocus(() => void room.startAudio())}>
+              Allow audio
+            </button>
+            <button type="button" className="text-button" onClick={handingFocus(room.putSoundNoticeAway)}>
+              Not now
+            </button>
+          </span>
         </>
       )}
     </p>
