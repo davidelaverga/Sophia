@@ -67,13 +67,20 @@ that their scenario ran, never today's numbers.
 - **M2 · unknown outcomes resolved.** A keyed write whose reply is lost (`loseNextContributionReply`, `send=lost`,
   `start=lost`) says it isn't confirmed; sent again under its key, does it resolve, and is it written once? Share
   resolved, any written twice, and the time from the second press to the answer.
-- **M6 · failed reads that show versus fall silent.** A sweep: each view and each of the baseline's ~11 silent reads
-  is opened with its read failing as the fixture's outage fails it (a lost connection), and the view is read after the
-  retries: a visible failure (`role=alert`, a «couldn’t / didn’t load / unreachable» line or a Try again in the view)
-  or silent (an empty state, or nothing). Counted visible/silent per view; a view whose read never went out is «not
-  reached», not counted.
+- **M6 · failed reads that show versus fall silent.** A sweep (`reads.spec.ts`): the 7 views and the baseline's 11
+  silent reads, each opened with its own reads failing as the fixture's outage fails them (a fetch that rejects),
+  **narrowed to those reads**, so the snapshot and the feed keep working and only what the part reads fails (with the
+  whole outage the feed's «Reconnecting» would stand for every view). Once the page's retries are over (5 s with no
+  new failure), the part either shows the failure, an alert or a «couldn’t / can’t be read / didn’t load / Try again»
+  line **that the same part didn't show with nothing failing** (each scenario first loads a control), or falls
+  silent. A part whose read never went out is «not reached», not counted. ContinuityChoice is not reached: no fixture
+  sets a note policy that asks for consent.
 - **M7 · transient errors cured alone.** A read answered 502 or 503 with an HTML body (a proxy's page, not the API's
-  contract) once or twice, then 200: does the view come back without a press, and how long after the first error?
+  contract) once (502) or twice (503), then 200: does the view come back without a press, and how long after the
+  first error? Three reads (the conversations list, Knowledge's reports, Updates' «since you last looked»), **on the
+  Studio app itself** (`app.html`, `work=lost`): the fixture pages build a plain `new QueryClient()`, which retries
+  every failure three times whatever its `retry` says, so only the app has the real `retryRead` (`account-cache.ts`)
+  that gap 2 is about. A control load first proves each view shows what the check looks for.
 - **M3/M4 (feed recovery, gaps)** need stream levers `reliability/feed-reconnect` is adding (`dropStream`,
   `stallStream`, `gap`): listed as «not measurable yet» in the output. M5, M8 and M9 likewise wait for their levers.
 
@@ -83,6 +90,20 @@ The suite lives in `e2e/reliability/`, which `playwright.config.ts` ignores (`te
 (`playwright test --shard`) nor the normal local run picks it up. Only `playwright.reliability.config.ts`, which the
 script uses, runs it: the same two fixture servers, one desktop project, `grep: /@reliability/`.
 
+## How to run it again, and read it
+
+- **CI:** `node scripts/reliability-report.mjs --ci --since <ISO> --out <dir>`. Compare a window after a change with
+  one before it of similar length. A week is about 2,500 run attempts: the first report takes a few minutes (four
+  requests at a time, waiting out GitHub's rate limit), later ones read the cache.
+- **Fixture:** from `apps/studio`, `pnpm exec playwright test -c playwright.reliability.config.ts --workers=2` (on
+  Luis's machine through the guard, `pw.ps1 … -Specs "-c playwright.reliability.config.ts"`), then `node
+  scripts/reliability-report.mjs --fixture --out <dir>`. Same suite, same scenarios: run it on the code after R1 and
+  put the two tables side by side.
+- **Reading it:** M1's total is mostly the hold the scenario puts on the reply; its *overhead* is what the Studio
+  adds. M6 counts parts, not severity: a silent members list in a picker and a silent board weigh the same. M7's
+  «back» can come from another read of the same path already on its way (a second part of the page reading it), not
+  only from a retry: the table lists the errors each read saw.
+
 ## Checks (written first)
 
 - **Unit** (`tests/unit/reliability-report.test.mjs`, in `pnpm test`): percentiles (interpolated between closest
@@ -90,7 +111,12 @@ script uses, runs it: the same two fixture servers, one desktop project, `grep: 
   jobs counted once, flakes, the job table, the Playwright summary, the room minutes and margin per day and part, the
   limit read from the workflow, main's red hours (a rerun, a late older commit), and the four fixture summaries.
 - **The suite** runs once on this branch (the code before R1) and its numbers are the baseline; it is not part of any
-  normal run.
+  normal run. Kept out: before `testIgnore`, `playwright test --list` held its 5 first tests (2,288 in all); after,
+  2,283 and none of them, and the reliability config lists only its own.
+- **Found while building, tested first:** on branches that split the room in three, a job with the room's name only
+  gathers the parts (`echo "The room's three parts"`) and fails in seconds when one fails. Counted, it made 10 of 11
+  room failures in a 6-hour window, two false flakes and a 0.1-minute median. A room job counts only if it runs the
+  Playwright suite (`isRoomGate`).
 
 ## Limits
 
@@ -100,3 +126,9 @@ script uses, runs it: the same two fixture servers, one desktop project, `grep: 
   single-test count is the other half of the signal.
 - The fixture numbers are the page's, with no network: they measure what the Studio does with an answer, not the
   API's latency.
+- **Against the baseline (§1.1):** «a read is retried 3 times by `retryRead`» holds in the app only. The fixture pages
+  (`room.html`, `home.html`, `work.html`) build `new QueryClient()` with no defaults, so TanStack's own rule retries
+  every failure three times, `retry: 'never'` or not. No fixture-page check can see gap 2; M7 runs on the app for that
+  reason, and a check of R1's retry fix belongs there too.
+- GitHub's API limit (5,000 requests an hour) is shared with every tool on the machine; a first weekly report spends
+  about half of it.
