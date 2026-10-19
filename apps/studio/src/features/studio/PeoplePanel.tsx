@@ -265,6 +265,8 @@ function MuteEveryone({
   identity: Identity
 }) {
   const [state, setState] = useState<'idle' | 'sending' | 'failed'>('idle')
+  // Before any return, so the hooks keep their order.
+  const slow = useSlow(state === 'sending')
   if (!people.some((p) => !p.local && p.micOn)) return null
   const mute = () => {
     setState('sending')
@@ -285,6 +287,12 @@ function MuteEveryone({
         disabled={state === 'sending'}
         onConfirm={mute}
       />
+      {/* Past six seconds it says it is slow, as a row's control does (Codex P2 on #369). */}
+      {slow && (
+        <p role="status" className="person-pending">
+          {SLOW_NOTE}
+        </p>
+      )}
       {state === 'failed' && (
         <p role="alert" className="person-failed">
           Couldn’t mute everyone. Try again.
