@@ -178,6 +178,24 @@ test('@phone · flip · where nothing can be kept, a camera chosen in Video sett
     .toEqual(['device:videoinput:cam-desk', 'device:videoinput:cam-built-in'])
 })
 
+// A camera Video settings couldn't switch to is kept for the next call all the same, while this one stays on its own:
+// your tile's first press goes on from the call's camera, not the one kept.
+test('@phone · flip · after Video settings couldn’t switch the camera, your tile’s first press goes on from the call’s own', async ({
+  page,
+}) => {
+  await enter(page, 'people=2&refuse=switch')
+  await cameraOn(page)
+  await expect(flip(page)).toBeVisible()
+  await sideways(page)
+  await chooseInVideoSettings(page, 'Desk camera')
+  await expect(page.locator('.dock-note')).toHaveText('Couldn’t switch to that camera. Another app may be using it.')
+  await portrait(page)
+  await flip(page).click()
+  await expect
+    .poll(() => switches(page), 'the desk camera asked again: the call is still on the built-in one')
+    .toEqual(['device:videoinput:cam-desk', 'device:videoinput:cam-desk'])
+})
+
 // A finger's width as well as its height on a touch screen (Codex P2 on #422). The narrowest gallery a phone lays out,
 // three across at 320 px (91 px tiles), still keeps Hide my tile clear of it.
 test('@phone · flip · in the gallery Switch camera is a 40 px square, clear of Hide my tile (320 px, three across)', async ({
