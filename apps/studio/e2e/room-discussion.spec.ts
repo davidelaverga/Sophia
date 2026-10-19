@@ -81,6 +81,30 @@ test('discussion · a message whose reply is lost says so; Try again sends the s
   expect(await toRoom(page)).toEqual(['contribution:discuss'])
 })
 
+test('discussion · offline, the bar says so before any press and sends nothing; back online, one message', async ({
+  page,
+  context,
+}) => {
+  await enter(page, 'people=2&floor=1')
+  await bar(page).fill('From the train.')
+  await context.setOffline(true)
+  const line = page.locator('.composer .outcome')
+  await expect(line).toHaveText('You’re offline, so this wasn’t sent. It waits here; send it once you’re back.')
+  await expect(line.getByRole('button', { name: 'Try again' })).toHaveCount(0)
+  await bar(page).press('Enter')
+  await page.waitForTimeout(600) // a send let through would have gone by now
+  expect(await toRoom(page)).toEqual([])
+  await expect(page.getByText('Not confirmed')).toHaveCount(0)
+  await expect(bar(page)).toHaveValue('From the train.')
+  // Back online, the line goes and does not come back with the next press.
+  await context.setOffline(false)
+  await expect(line).toHaveCount(0)
+  await bar(page).press('Enter')
+  await expect(discussion(page).getByText('From the train.')).toHaveCount(1)
+  await expect(line).toHaveCount(0)
+  expect(await toRoom(page)).toEqual(['contribution:discuss'])
+})
+
 test('discussion · Shift+Enter starts a new line; Enter sends', async ({ page }) => {
   await enter(page, 'people=2&floor=1')
   await bar(page).fill('First line')

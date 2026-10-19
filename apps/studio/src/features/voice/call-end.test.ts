@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { CALL_END, keepsTextMode } from './call-end.ts'
+import { BACK_ONLINE, CALL_END, keepsTextMode, noteFor, noteRole, OFFLINE_END } from './call-end.ts'
 
 describe('why a call ended', () => {
   it('only a lost connection is a failure: the others were on purpose, here or elsewhere', () => {
@@ -24,5 +24,46 @@ describe('why a call ended', () => {
     assert.equal(keepsTextMode('dropped'), true, 'trying again keeps a microphone that was off, off')
     for (const why of ['elsewhere', 'removed', 'closed'] as const) assert.equal(keepsTextMode(why), false, why)
     assert.equal(keepsTextMode(null), false, 'leaving on purpose')
+  })
+})
+
+describe('a call lost offline (costuras seam #8)', () => {
+  const lost = CALL_END.dropped.note
+
+  it('says offline while the browser is, in Personal’s voice', () => {
+    assert.equal(noteFor(lost, false), 'You’re offline, so the call ended here. Join again once you’re back.')
+    assert.equal(noteFor(OFFLINE_END, false), OFFLINE_END, 'and keeps saying it')
+  })
+
+  it('back online, says that Try again rejoins', () => {
+    assert.equal(noteFor(OFFLINE_END, true), 'You’re back online. Try again rejoins the call.')
+    assert.equal(BACK_ONLINE, 'You’re back online. Try again rejoins the call.')
+  })
+
+  it('online, a lost call keeps its own words: a true proves nothing', () => {
+    assert.equal(noteFor(lost, true), lost)
+  })
+
+  it('leaves every other note as it is, offline too: another end, a join refused, no note', () => {
+    const others = [
+      CALL_END.elsewhere.note,
+      CALL_END.removed.note,
+      CALL_END.closed.note,
+      'The room isn’t available right now. Try again in a moment.',
+      'You aren’t a member of this project.',
+    ]
+    for (const note of others) {
+      assert.equal(noteFor(note, false), note, note)
+      assert.equal(noteFor(note, true), note, note)
+    }
+    assert.equal(noteFor(null, false), null)
+    assert.equal(noteFor(null, true), null)
+  })
+
+  it('says the two offline notes politely; the others stay alerts', () => {
+    assert.equal(noteRole(OFFLINE_END), 'status')
+    assert.equal(noteRole(BACK_ONLINE), 'status')
+    assert.equal(noteRole(lost), 'alert')
+    assert.equal(noteRole('The room isn’t available right now. Try again in a moment.'), 'alert')
   })
 })

@@ -200,3 +200,28 @@ test('BASE-03 @phone · after a lost call, Chat with Sophia in the open panel br
   expect(since.slice(0, 2)).toEqual(['connect', 'text:on'])
   expect(since, 'no microphone turns on').not.toContain('microphone:on')
 })
+
+test('BASE-03 · offline, a lost call says so; Try again waits for the network, then rejoins (costuras seam #8)', async ({
+  page,
+  context,
+}) => {
+  await enter(page, '/room.html?call=on')
+  await context.setOffline(true)
+  await page.evaluate(() => window.fixture?.drop()) // the connection is lost with the network
+  const note = page.locator('.dock-wrap .dock-note')
+  const offline = 'You’re offline, so the call ended here. Join again once you’re back.'
+  await expect(note).toHaveText(offline)
+  await expect(note).toHaveAttribute('role', 'status')
+  const before = (await asked(page)).length
+  await page.getByRole('button', { name: /^Try again/ }).click()
+  await page.waitForTimeout(600) // a join let through would have connected by now
+  expect((await asked(page)).slice(before), 'nothing is asked offline').toEqual([])
+  await expect(note).toHaveText(offline)
+  await expect(page.getByText('The room isn’t available')).toHaveCount(0)
+  await context.setOffline(false)
+  await expect(note).toHaveText('You’re back online. Try again rejoins the call.')
+  await page.getByRole('button', { name: /^Try again/ }).click()
+  await expect(leave(page)).toBeVisible()
+  await expect(note).toHaveCount(0)
+  expect((await asked(page)).slice(before).filter((a) => a === 'connect')).toEqual(['connect'])
+})
