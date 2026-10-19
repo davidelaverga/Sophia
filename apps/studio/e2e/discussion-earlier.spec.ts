@@ -492,4 +492,6 @@ test('earlier · a manual «Earlier messages» read asked before an erasure neve
   await expect(page.locator(`[data-message="${idOf(20)}"] .contribution-text`)).toHaveText(
     'Message 21, corrected elsewhere',
   )
+  await expect(page.locator(`[data-message="${idOf(19)}"] .contribution-text`)).toHaveText('Message 20') // unrelated C
+  await expect(earlier(page)).toBeVisible() // the manual read still usable
 })
