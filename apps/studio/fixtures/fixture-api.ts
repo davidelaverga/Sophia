@@ -485,6 +485,29 @@ function tokenAnswer(project: Project): Response {
   return unavailable()
 }
 
+/** A decision at the door (`POST /api/v1/lobby/{entryId}/decision`), by the entry it answers. */
+const DOOR_DECISION = /^\/api\/v1\/lobby\/([0-9a-f-]{36})\/decision$/
+
+/**
+ * The door answered (Let in, Decline, Block), as the API answers it: recorded (`lobby:admit`…), and no one waits any
+ * more, so the snapshot the lobby reads again after it says so (the fixture's door holds one knock at a time).
+ */
+function doorAnswered(project: Project, entryId: string, init: RequestInit | undefined): Response {
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  const decision: unknown = typeof body === 'object' && body !== null ? Reflect.get(body, 'decision') : null
+  served.push(`lobby:${String(decision)}`)
+  project.waiting = false
+  const status = decision === 'admit' ? 'admitted' : decision === 'block' ? 'blocked' : 'denied'
+  return json({ ...waitingAtTheDoor, id: entryId, status, decidedAt: new Date().toISOString() })
+}
+
+/** What the page posts about coming in: a room token, or an answer at the door; undefined for anything else. */
+function doorPosted(project: Project, path: string, init: RequestInit | undefined): Response | undefined {
+  if (path === `/api/v1/projects/${PROJECT}/room-token`) return tokenAnswer(project)
+  const entry = DOOR_DECISION.exec(path)?.[1]
+  return entry ? doorAnswered(project, entry, init) : undefined
+}
+
 /** An admin archives the project, or brings it back (A30): recorded, and the lists read it so. */
 function archived(project: Project, init: RequestInit | undefined): Response {
   const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
@@ -1662,7 +1685,10 @@ const isContribution = (value: unknown): value is { text: string; intent: Contri
   'intent' in value &&
   typeof value.intent === 'string'
 
-/** What the page posts: a room token, a goal's command, the floor passed on, a message to the room, or Sophia asked in. */
+/**
+ * What the page posts: a room token, an answer at the door, a goal's command, the floor passed on, a message to the
+ * room, or Sophia asked in.
+ */
 function posted(project: Project, path: string, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/contributions`) return contributed(project, init)
@@ -1672,7 +1698,8 @@ function posted(project: Project, path: string, init: RequestInit | undefined) {
   const doneOf = TASK_DONE.exec(path)?.[1]
   if (doneOf) return taskDone(project, doneOf, init)
   if (path === `/api/v1/rooms/${ROOM}/meetings/${MEETING}/close`) return meetingClosed(project, init)
-  if (path === `${base}/room-token`) return tokenAnswer(project)
+  const door = doorPosted(project, path, init)
+  if (door) return door
   const own = projectWritten(project, path, init)
   if (own) return own
   if (path === `${base}/commands`) return admitted(project, init)

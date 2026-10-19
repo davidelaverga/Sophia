@@ -3,7 +3,7 @@
 // status with Open Updates. `seen=earlier` puts the viewer's seen mark after the Oct 2 meeting and reads as that viewer:
 // since then Lucía and Sophia each kept a note, besides the viewer's own decision, readout and note. Every word is
 // synthetic.
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 const PAGE = '/room.html?demo=1&seen=earlier'
 const LINE = 'Since you last looked: 2 notes kept.'
@@ -13,6 +13,16 @@ const since = (page: Page) => page.getByRole('region', { name: 'Since you last l
 const sinceReads = (page: Page) => page.evaluate(() => window.fixture?.sinceReads() ?? 0)
 const saidSince = (page: Page) => page.evaluate(() => window.fixture?.saidSince() ?? null)
 const views = (page: Page) => page.getByRole('navigation', { name: 'Project views' })
+/** The lobby: it floats in the same corner under the bar. */
+const door = (page: Page) => page.getByRole('complementary', { name: 'Waiting to come in' })
+/** The arrival's card itself, inside its status. */
+const card = (page: Page) => arrival(page).locator('.arrival-band')
+/** A press at the middle of this control reaches it, with nothing drawn over it. */
+const reached = (el: Locator) =>
+  el.evaluate((node) => {
+    const r = node.getBoundingClientRect()
+    return node.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2))
+  })
 
 declare global {
   interface Window {
@@ -128,6 +138,55 @@ test('arrival · a door that closes under the line takes it: the notice stands a
   await expect(page.locator('.page.notice h2')).toBeVisible()
   await expect(arrival(page)).toHaveText('')
   await expect(page.getByRole('button', { name: 'Open Updates' })).toHaveCount(0)
+})
+
+test('arrival · someone at the door as it opens: the door has the corner, nothing is read until it is answered', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&lobby=waiting`)
+  const letIn = door(page).getByRole('button', { name: 'Let in' })
+  await expect(letIn).toBeVisible()
+  // The project drew with someone already waiting: the visit holds before it reads, so nothing hangs on a wait.
+  expect(await sinceReads(page)).toBe(0)
+  await expect(arrival(page)).toHaveText('')
+  await letIn.click()
+  await expect(door(page)).toHaveCount(0)
+  await expect(arrival(page)).toContainText(LINE)
+  await expect(card(page)).toBeVisible()
+})
+
+test('arrival · a knock while the line is said: the door takes the corner and the line goes for good', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await expect(arrival(page)).toContainText(LINE)
+  const read = await sinceReads(page)
+  await page.evaluate(() => window.fixture?.knock())
+  const letIn = door(page).getByRole('button', { name: 'Let in' })
+  await expect(letIn).toBeVisible()
+  await expect(arrival(page)).toHaveText('')
+  expect(await reached(letIn)).toBe(true)
+  await letIn.click()
+  await expect(door(page)).toHaveCount(0)
+  // Answered, the door gives the corner back to nothing: the line was said, and isn't read or said again.
+  await expect(arrival(page)).toHaveText('')
+  expect(await sinceReads(page)).toBe(read)
+})
+
+test('arrival · a guest declined: while the door offers to let them in instead, the line keeps out of its way', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&lobby=waiting`)
+  await door(page).getByRole('button', { name: 'Decline', exact: true }).click()
+  const instead = door(page).getByRole('button', { name: 'Let in instead' })
+  await expect(instead).toBeVisible()
+  // No one waits now, so the window is read and the line said; the door's last offer still holds the corner.
+  await expect(arrival(page)).toContainText(LINE)
+  await expect(card(page)).toBeHidden()
+  expect(await reached(instead)).toBe(true)
+  // The offer lasts 8 s; then the line has the corner.
+  await expect(door(page)).toHaveCount(0, { timeout: 12_000 })
+  await expect(card(page)).toBeVisible()
 })
 
 test('arrival · never marked seen, the demo says nothing: its window is everything so far', async ({ page }) => {
