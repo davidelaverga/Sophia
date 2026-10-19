@@ -298,6 +298,9 @@ export class HeldRefresher {
   }
 }
 
+/** Whether a message as shown has words known erased (R-B55-P1). */
+type Erased = (shown: { id: string; sourceId?: string; revision?: number }) => boolean
+
 /** Keeps the held pages honest as the feed reports changes: returns the held ids not to show (fenced at render). */
 export function useHeldRefresh(input: {
   projectId: string
@@ -307,7 +310,7 @@ export function useHeldRefresh(input: {
   window: readonly Placed[]
   /** A manual «Earlier» read is out: what is learned meanwhile stays new for the page it brings (4316503672). */
   reading?: boolean
-}): readonly [ReadonlySet<string>, () => string] {
+}): readonly [ReadonlySet<string>, () => string, Erased] {
   const { projectId, held, setHeld, window } = input
   const changes = useContributionChanges(ownerOf(input.identity.name, projectId))
   const token = useRef(input.identity.token)
@@ -362,10 +365,10 @@ export function useHeldRefresh(input: {
   // A manual «Earlier» read asked before an erasure was learned brings nothing back (F2: a named message's old words too).
   const epoch = () => `${refresher.epoch}:${erasure.generation()}`
   const inWindow = windowAliasesOf(window, erasure.gone, erasure.acted)
-  if (!held) return [inWindow.length > 0 ? new Set(inWindow) : NONE_STALE, epoch] as const
+  if (!held) return [inWindow.length > 0 ? new Set(inWindow) : NONE_STALE, epoch, erasure.erased] as const
   // At render (F1): the aliases of a source gone, or every held message while which went is unknown, are not shown.
   const hidden = erasure.unknown ? [...held.entries.keys()] : aliasesOf(held, erasure.gone, erasure.acted)
-  return [new Set([...refresher.fence(changes, held, window), ...hidden, ...inWindow]), epoch] as const
+  return [new Set([...refresher.fence(changes, held, window), ...hidden, ...inWindow]), epoch, erasure.erased] as const
 }
 
 /**
@@ -377,13 +380,20 @@ function learnGone(
   erasing: readonly [string, number][],
   held: HeldMaps | null,
   window: readonly Placed[],
+  shownAt: Map<string, number>,
 ) {
   for (const [id, at] of erasing) {
     const key = `${id}@${at}`
     const gone = known.has(key) ? undefined : goneOf(id, held, window)
-    if (gone !== undefined && (held || gone !== 'unknown')) known.set(key, gone)
+    if (gone === undefined || (!held && gone === 'unknown')) continue
+    known.set(key, gone)
+    // The revision it showed then: its erased words are that one, or older (R-B55-P1).
+    if (typeof gone === 'object') shownAt.set(id, revisionOf(held?.entries.get(id) ?? window.find((w) => w.id === id)))
   }
 }
+
+const revisionOf = (shown: object | undefined) =>
+  shown && 'revision' in shown && typeof shown.revision === 'number' ? shown.revision : 1
 
 /**
  * The erasures learned (r4313704366), as this chat can tell them: the sources gone, the messages acted on, and whether
@@ -391,9 +401,10 @@ function learnGone(
  */
 function useErasure(changes: Changes, held: HeldMaps | null, window: readonly Placed[], reading: boolean) {
   const known = useRef(new Map<string, Gone>())
+  const shownAt = useRef(new Map<string, number>())
   const handledAt = useRef(0)
   const erasing = [...(changes.erasing ?? [])]
-  learnGone(known.current, erasing, held, window)
+  learnGone(known.current, erasing, held, window, shownAt.current)
   // With none held and no read out, what is learned is handled at once: the first page read after it is read since,
   // and is not dropped for it (4316503672). Learned while a manual read is out, it stays new for the page that read
   // brings, so that page is fenced or let go for it as before (F2).
@@ -413,6 +424,12 @@ function useErasure(changes: Changes, held: HeldMaps | null, window: readonly Pl
     unknown,
     handled: () => (handledAt.current = latest),
     generation: () => handledAt.current,
+    // A message shown with a source known gone is not shown (R-B55-P1): a snapshot read since that lags or fails still
+    // has it so, the one acted on too. The acted one shows again at a newer revision (a read since, the reader's receipt).
+    erased: (shown: { id: string; sourceId?: string; revision?: number }) =>
+      shown.sourceId !== undefined &&
+      gone.has(shown.sourceId) &&
+      (shown.revision ?? 1) <= (shownAt.current.get(shown.id) ?? Infinity),
   }
 }
 
