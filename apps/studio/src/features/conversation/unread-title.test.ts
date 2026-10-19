@@ -125,3 +125,40 @@ test('the divider goes above the first drawn among those counted', () => {
   assert.equal(dividerAt({ ids: ['x'], reached: false }, drawn), null)
   assert.equal(dividerAt(null, drawn), null)
 })
+
+// The viewer's own message, wherever they wrote it, puts what came before it behind them (review P2 on seam #10).
+
+/** Shown, hidden, these messages read while hidden, shown again. */
+const backFrom = (came: readonly DiscussionEntry[], me: string | null = 'me') =>
+  reads(
+    [
+      [before, false],
+      [before, true],
+      [[...before, ...came], true],
+      [[...before, ...came], false],
+    ],
+    me,
+  )!
+
+test('answered from another device while the tab was hidden, nothing is left to mark', () => {
+  assert.equal(backFrom([entry('a', 'marco'), entry('m', 'me')]).away, null)
+  // Written first, then Marco: his is still to read.
+  assert.deepEqual(backFrom([entry('m', 'me'), entry('a', 'marco')]).away, { ids: ['a'], reached: false })
+  // A turn the viewer spoke in the call reads nothing of the chat: what came stays.
+  assert.deepEqual(backFrom([entry('a', 'marco'), entry('v', 'me', 'voice')]).away, { ids: ['a'], reached: false })
+})
+
+test('an earlier absence the viewer answered goes with what came after it, reached or not', () => {
+  const more = [...after, entry('c', 'marco'), entry('m', 'me')]
+  assert.equal(nextUnseen(nextUnseen(back(), more, true, 'me'), more, false, 'me').away, null)
+  const reached = { ...back(), away: reachedAway(back().away, 'a') }
+  assert.equal(nextUnseen(nextUnseen(reached, more, true, 'me'), more, false, 'me').away, null)
+})
+
+test('the viewer known only once the tab is shown: their own message and what came before it leave', () => {
+  const came = [entry('a', 'marco'), entry('m', 'me'), entry('b', 'lucia')]
+  const shown = backFrom(came, null)
+  assert.deepEqual(shown.away, { ids: ['a', 'm', 'b'], reached: false }, 'not known yet: all of it came')
+  const known = nextUnseen(shown, [...before, ...came], false, 'me')
+  assert.deepEqual(known.away, { ids: ['b'], reached: false })
+})

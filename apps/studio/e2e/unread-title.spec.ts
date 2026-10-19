@@ -181,6 +181,8 @@ test('away · hidden and shown with nothing new adds nothing, nor does a message
   await chatToggle(page).click()
   await away(page, true)
   await away(page, false)
+  // Shown a moment: what the tab reads as it comes back has been read.
+  await page.waitForTimeout(300)
   await page.evaluate(() => window.fixture?.say('Seen as it comes.'))
   await expect(page.getByText('Seen as it comes.')).toBeVisible()
   await expect(page.getByText(/came while you were away/)).toHaveCount(0)
@@ -242,4 +244,78 @@ test('away · the chat open and read far back while the tab was hidden: its head
   await expect(mark).toBeFocused()
   await expect.poll(() => inHistory(page, mark)).toBe(true)
   await expect(line(page)).toHaveCount(0)
+})
+
+// The viewer's own message, written on another device while the tab was hidden, puts what came before it behind them
+// (review P2 on seam #10): the report's «gone on sending» holds wherever they sent it.
+
+test('away · answered from another device while the tab was hidden, nothing is left to mark', async ({ page }) => {
+  await page.goto('/room.html?discussion=3')
+  await expect(page).toHaveTitle('Fixture project · Sophia')
+  await away(page, true)
+  await page.evaluate(() => window.fixture?.say('The deck is in Resources.'))
+  await page.evaluate(() => window.fixture?.sayElsewhere('Got it, reading it now.'))
+  await expect(page).toHaveTitle('(1) Fixture project · Sophia')
+  await away(page, false)
+  await expect(page).toHaveTitle('Fixture project · Sophia')
+  await chatToggle(page).click()
+  await expect(contributions(page).last()).toContainText('Got it, reading it now.')
+  await page.waitForTimeout(300)
+  await expect(page.getByText(/came while you were away/)).toHaveCount(0)
+})
+
+test('away · written from another device first, what came after it is still marked', async ({ page }) => {
+  await page.goto('/room.html?discussion=3')
+  await expect(page).toHaveTitle('Fixture project · Sophia')
+  await away(page, true)
+  await page.evaluate(() => window.fixture?.sayElsewhere('On my way.'))
+  await page.evaluate(() => window.fixture?.say('The deck is in Resources.'))
+  await expect(page).toHaveTitle('(1) Fixture project · Sophia')
+  await away(page, false)
+  await chatToggle(page).click()
+  const marco = contributions(page).nth(4)
+  await expect(marco).toContainText('The deck is in Resources.')
+  await expect(marco.getByText('1 message came while you were away', { exact: true })).toBeVisible()
+  await expect(
+    contributions(page)
+      .nth(3)
+      .getByText(/came while you were away/),
+  ).toHaveCount(0)
+})
+
+// What the feed brings only once the tab is shown came while away all the same (review P2 on seam #10): a phone's
+// frozen page, or a laptop woken from sleep, gets the events after `visibilitychange`. `holdFeed` holds them meanwhile.
+
+test('away · nothing reached the hidden page, the feed held: back, the chat still marks the two', async ({ page }) => {
+  await page.goto('/room.html?discussion=3')
+  await expect(page).toHaveTitle('Fixture project · Sophia')
+  await away(page, true)
+  await page.evaluate(() => window.fixture?.holdFeed(true))
+  await page.evaluate(() => window.fixture?.say('The deck is in Resources.'))
+  await page.evaluate(() => window.fixture?.say('And the numbers too.'))
+  await page.waitForTimeout(300)
+  await expect(page).toHaveTitle('Fixture project · Sophia')
+  await away(page, false)
+  await page.evaluate(() => window.fixture?.holdFeed(false))
+  await chatToggle(page).click()
+  await expect(divider(page, '2 messages came while you were away')).toBeVisible()
+  await expect(contributions(page).nth(3)).toContainText('The deck is in Resources.')
+  await expect(contributions(page).nth(3)).toContainText('2 messages came while you were away')
+})
+
+test('away · one counted before the feed was held, two after: back, the divider counts all three', async ({ page }) => {
+  await page.goto('/room.html?discussion=3')
+  await expect(page).toHaveTitle('Fixture project · Sophia')
+  await away(page, true)
+  await page.evaluate(() => window.fixture?.say('The deck is in Resources.'))
+  await expect(page).toHaveTitle('(1) Fixture project · Sophia')
+  await page.evaluate(() => window.fixture?.holdFeed(true))
+  await page.evaluate(() => window.fixture?.say('And the numbers too.'))
+  await page.evaluate(() => window.fixture?.say('And the plan.'))
+  await away(page, false)
+  await page.evaluate(() => window.fixture?.holdFeed(false))
+  await chatToggle(page).click()
+  await expect(contributions(page)).toHaveCount(6)
+  await expect(divider(page, '3 messages came while you were away')).toBeVisible()
+  await expect(contributions(page).nth(3)).toContainText('3 messages came while you were away')
 })

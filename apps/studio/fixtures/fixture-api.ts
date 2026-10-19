@@ -391,10 +391,26 @@ function withFocus(project: Project, now: Snapshot): Snapshot {
   }
 }
 
-/** The project moves one revision, and the event saying so goes to every open stream. */
+/** While set, the events published wait here, as a frozen page's stream holds them (`window.fixture.holdFeed`). */
+let feedHeld: string[] | null = null
+
+/** The project moves one revision, and the event saying so goes to every open stream, unless the feed is held. */
 export function publish(project: Project): void {
   project.revision += 1
-  for (const controller of streams) controller.enqueue(frameOf(project.revision))
+  const frame = frameOf(project.revision)
+  if (feedHeld) feedHeld.push(frame)
+  else for (const controller of streams) controller.enqueue(frame)
+}
+
+/**
+ * While on, the events published wait instead of reaching the page, as a phone's frozen page or a sleeping laptop
+ * leaves them; off, they come, in order (messages-while-away.md). A read of the snapshot meanwhile has them all.
+ */
+export function holdFeed(on: boolean): void {
+  const held = feedHeld ?? []
+  feedHeld = on ? held : null
+  if (on) return
+  for (const frame of held) for (const controller of streams) controller.enqueue(frame)
 }
 
 const isCommand = (value: unknown): value is GoalCommand =>
