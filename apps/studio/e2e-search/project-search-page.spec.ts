@@ -472,8 +472,8 @@ for (const status of [401, 403])
     await expect.poll(() => page.evaluate(() => (window as Denying).searchDenied)).toBeGreaterThan(0)
     await expect(hits(page)).toHaveCount(0)
     await expect(goal).toHaveCount(0)
-    // A read set out since, and answered: what was found shows again.
+    // A read set out since, and answered (a new query: one read before the refusal is not shown again): found again.
     await page.evaluate(() => ((window as Denying).denySearch = false))
-    await field(page).fill('checklist')
+    await field(page).fill('checkl')
     await expect(goal).toBeVisible()
   })
