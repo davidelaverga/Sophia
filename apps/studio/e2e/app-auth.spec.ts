@@ -1201,3 +1201,101 @@ test('places · Rejoin pressed once back in that call by its own Join joins noth
   expect(await roomTokens(page)).toBe(joins)
   await expect(dock.getByRole('button', { name: 'Leave the room' })).toHaveCount(0)
 })
+
+/**
+ * The shown toast once its rise has ended: its frame, the lines its words take, the page's gutter, the width its own
+ * words and press would take on one line, and how far the page scrolls sideways.
+ */
+async function toastFrame(page: Page) {
+  const toast = shownToast(page)
+  await expect.poll(() => toast.evaluate((t) => t.getAnimations().length)).toBe(0)
+  return toast.evaluate((t) => {
+    const box = t.getBoundingClientRect()
+    const words = t.querySelector('span')
+    const probe = document.createElement('div')
+    probe.style.width = 'var(--gutter)'
+    const alone = t.cloneNode(true)
+    if (!(alone instanceof HTMLElement)) throw new Error('A toast clones as an element')
+    alone.style.cssText = 'position: absolute; left: 0; width: max-content; max-width: none; visibility: hidden'
+    document.body.append(probe, alone)
+    const gutter = probe.getBoundingClientRect().width
+    const oneLine = alone.getBoundingClientRect().width
+    probe.remove()
+    alone.remove()
+    return {
+      left: box.left,
+      right: box.right,
+      width: box.width,
+      height: box.height,
+      foot: box.bottom,
+      centre: box.left + box.width / 2,
+      lines: words
+        ? Math.round(words.getBoundingClientRect().height / parseFloat(getComputedStyle(words).lineHeight))
+        : 0,
+      gutter,
+      oneLine,
+      sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    }
+  })
+}
+
+// At 320 px the gutters leave the words 209.1 px beside Rejoin, and the sentence's second half needs 211.4 px: three
+// lines there, by the words' own length (toast-phone-width.md).
+for (const { width, height, lines } of [
+  { width: 390, height: 844, lines: 2 },
+  { width: 360, height: 740, lines: 2 },
+  { width: 320, height: 640, lines: 3 },
+]) {
+  test.describe(`at ${String(width)}×${String(height)}`, () => {
+    test.use({ viewport: { width, height } })
+
+    test(`toast · on a phone the call-ended line takes the width the gutters leave, centred, ${String(lines)} lines at most (toast-phone-width.md)`, async ({
+      context,
+    }) => {
+      const page = await inCallAtHome(context)
+      await openResearchNotes(page)
+      await expect(shownToast(page).getByRole('button', { name: 'Rejoin' })).toBeVisible()
+      const at = await toastFrame(page)
+      expect(at.lines).toBeLessThanOrEqual(lines)
+      // Its line is longer than the screen is wide: the toast is as wide as its max-width, inside the gutters.
+      expect(at.width).toBeCloseTo(width - 2 * at.gutter, 0)
+      expect(at.left).toBeGreaterThanOrEqual(at.gutter - 0.5)
+      expect(at.right).toBeLessThanOrEqual(width - at.gutter + 0.5)
+      expect(Math.abs(at.centre - width / 2)).toBeLessThanOrEqual(1)
+      expect(at.sideways).toBe(0)
+    })
+  })
+}
+
+test.describe('at 1280×800', () => {
+  test.use({ viewport: { width: 1280, height: 800 } })
+
+  test('toast · on a computer the toast keeps its frame: its words on one line, centred, its foot above the floor (toast-phone-width.md)', async ({
+    context,
+  }) => {
+    // Measured on main e395d63ea at 1280×800: #466's line 495.6 × 44 px, «You left Fixture project.» 165.7 × 40 px,
+    // each centred on 640, their foot at 718 (the floor's 18 px and 64 above the bottom).
+    const page = await inCallAtHome(context)
+    await openResearchNotes(page)
+    const toast = shownToast(page)
+    await expect(toast.getByRole('button', { name: 'Rejoin' })).toBeVisible()
+    const ended = await toastFrame(page)
+    expect(ended.width).toBeCloseTo(ended.oneLine, 0)
+    expect(ended.height).toBe(44)
+    expect(Math.abs(ended.centre - 640)).toBeLessThanOrEqual(1)
+    expect(ended.foot).toBeCloseTo(718, 0)
+    await toast.getByRole('button', { name: 'Rejoin' }).click()
+    await expect(
+      page.getByRole('navigation', { name: 'Room controls' }).getByRole('button', { name: 'Leave the room' }),
+    ).toBeVisible()
+    await page.keyboard.press('h')
+    await page.locator('.places .room-pill').getByRole('button', { name: 'Leave the room' }).click()
+    await expect(toast).toContainText('You left Fixture project.')
+    const left = await toastFrame(page)
+    expect(left.width).toBeCloseTo(left.oneLine, 0)
+    expect(left.height).toBe(40)
+    expect(Math.abs(left.centre - 640)).toBeLessThanOrEqual(1)
+    expect(left.foot).toBeCloseTo(718, 0)
+    expect(left.sideways).toBe(0)
+  })
+})

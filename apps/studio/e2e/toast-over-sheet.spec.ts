@@ -2,15 +2,27 @@
 // screen it is centred in what the panel leaves.
 import { expect, test, type Page } from '@playwright/test'
 
-/** A notice as the Studio's Toast draws it, shown now: its frame is what is measured. */
-const notice = (page: Page) =>
-  page.evaluate(() => {
-    const toast = document.createElement('div')
-    toast.className = 'toast'
-    toast.dataset['shown'] = ''
-    toast.textContent = 'Deleted. Sophia starts fresh.'
-    document.body.append(toast)
-  })
+/** A notice as the Studio's Toast draws it, shown now: its words, its press when it has one. Its frame is measured. */
+const notice = (page: Page, words = 'Deleted. Sophia starts fresh.', act?: string) =>
+  page.evaluate(
+    ([said, press]) => {
+      const toast = document.createElement('div')
+      toast.className = 'toast'
+      toast.dataset['shown'] = ''
+      const line = document.createElement('span')
+      line.textContent = said
+      toast.append(line)
+      if (press) {
+        const button = document.createElement('button')
+        button.className = 'text-button'
+        button.type = 'button'
+        button.textContent = press
+        toast.append(button)
+      }
+      document.body.append(toast)
+    },
+    [words, act] as const,
+  )
 
 const meet = (page: Page) =>
   page.evaluate(() => {
@@ -89,4 +101,31 @@ test('toast · just above a phone, with a sheet open, a notice keeps a width it 
   expect(t?.width ?? 0).toBeGreaterThanOrEqual(240)
   expect((t?.y ?? 0) >= head.bottom || (t?.y ?? 0) + (t?.height ?? 0) <= head.top).toBe(true)
   await expect(page.locator('.toast')).toBeInViewport()
+})
+
+test('toast · on a phone with a sheet open, a long notice takes the width the gutters leave, at the top, centred (toast-phone-width.md)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/room.html?demo=1')
+  await page.getByRole('button', { name: 'Invite' }).first().click()
+  await expect(page.locator('.sheet')).toBeVisible()
+  await notice(page, 'Your call in “Fixture project” ended when you opened “Research notes”.', 'Rejoin')
+  await page.waitForTimeout(400)
+  expect(await meet(page)).toBe(false)
+  const at = await page.locator('.toast').evaluate((t) => {
+    const box = t.getBoundingClientRect()
+    const words = t.querySelector('span')
+    return {
+      left: box.left,
+      width: box.width,
+      lines: words
+        ? Math.round(words.getBoundingClientRect().height / parseFloat(getComputedStyle(words).lineHeight))
+        : 0,
+    }
+  })
+  // At 390 px the gutters are 16 px: 358 px for the notice, on two lines, where it had 195 px and four.
+  expect(at.lines).toBeLessThanOrEqual(2)
+  expect(at.width).toBeCloseTo(390 - 2 * 16, 0)
+  expect(at.left).toBeCloseTo(16, 0)
 })
