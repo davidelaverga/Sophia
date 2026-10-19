@@ -12,11 +12,13 @@ Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1` gua
 record.
 Existing authority: Luis 2026-10-19, the quote above, applying the three suggestions; local only, nothing pushed;
 merges on green with no open P1 once pushed. It stacks on #468, which merges first.
-Ending commit/tree: `b7c5f53babb2` (tree `f13af1dc1c32`), the branch's last commit that changes code (the next ones
-touch only plan notes and this record). Against `fc61e4301`: `e2e/room.spec.ts`, `fixtures/fixture-api.ts`,
-`src/features/conversation/Composer.tsx`, `src/features/voice/RoomDock.tsx` (a comment),
-`src/features/voice/call-end.ts`, `src/features/voice/call-end.test.ts`, `src/features/voice/useProjectRoom.ts`, and
-`docs/plans/offline-join-from-rest.md`.
+Ending commit/tree: `e50fe0fac2ac` (tree `994cf922973e`), the branch's last commit that changes code, after the
+review round (the next ones touch only the plan note and this record; before the review it was `b7c5f53babb2`).
+Against `fc61e4301`: `e2e/room.spec.ts`, `e2e/room-discussion.spec.ts`, `fixtures/fixture-api.ts`,
+`fixtures/room.tsx`, `src/features/conversation/Composer.tsx`, `src/features/conversation/discussion-view.ts` and its
+test, `src/features/studio/ProjectShell.tsx`, `src/features/voice/RoomDock.tsx` (a comment),
+`src/features/voice/call-end.ts` and its test, `src/features/voice/room-view.ts` and its test,
+`src/features/voice/useProjectRoom.ts`, and `docs/plans/offline-join-from-rest.md`.
 
 ## Outcome
 
@@ -29,7 +31,15 @@ touch only plan notes and this record). Against `fc61e4301`: `e2e/room.spec.ts`,
     moment.» as an alert, with Try again.
   - #467's lost-call lines keep their words exactly, and the blocked-sound line beside them is untouched.
   - A join that began online and failed offline says the new line too. Chat with Sophia's foot says offline once:
-    the bar's «Your words wait here.» steps aside, as it already did for the lost call.
+    with an empty bar, the bar's «Your words wait here.» steps aside.
+- **After review (three findings, all real, all fixed):**
+  - In the call (live, or reconnecting), offline, Chat with Sophia is no longer held: it goes to the call, as before
+    #467. Nothing tells someone in the call to «Join once you’re back», and text mode stays on.
+  - After a Join pressed offline from rest, a held message keeps Luis's words in the bar, and words written keep
+    «You’re offline, so this wasn’t sent…». Before, the held message turned into «Not confirmed: “…”».
+  - Work's Join the room (or a Rejoin) offline on a project this page hasn't read now says the new line at once.
+    Back online, nothing joins until the next press. Before, it said nothing and joined on its own once the project
+    loaded.
 - **Recorded (question 2), no code.** A message held with no reply, offline, keeps «You’re offline, so “…” isn’t
   confirmed. Send it again once you’re back; it won’t be written twice.» (`offline-work-side.md`, «Decided»).
 - **Recorded (question 3), no code.** Home keeps the held empty line under the greeting when Sophia has nothing to
@@ -72,6 +82,43 @@ touch only plan notes and this record). Against `fc61e4301`: `e2e/room.spec.ts`,
   and on a phone (85–305), and inside the 16 px gutters in the phone's header dock (152–373). Chat with Sophia's foot
   holds one line. In the first desk capture Join's tip covered the line while the pointer rested on Join. The
   capture was taken again with the pointer moved off.
+- **Review round, each finding verified against the code first, then a test commit shown red, then its fix:**
+  - **In the call** (`e326b04b5` tests, `9f1539439` fix, `52d7484c8` test correction):
+    - Unit red: `joinHeld({ online: false, lost: false, inCall: true })` gave `'You’re offline. Join once you’re
+      back.'`, expected `null`.
+    - Browser red (`pw-logs/review-incall-red.txt`): the line was on the page twice, in the dock and the chat's foot
+      (`Expected: 0`, `Received: 2`).
+    - The check's last assertion was first written as the bar turning to Sophia. Offline, the snapshot read that
+      would show her pauses, so that assertion could never pass (`Received: "To the room"`). It now expects text mode
+      to stay on, in its own commit. `9f1539439` alone fails only that last assertion.
+  - **The held message** (`2e30611d2` tests, `ed84a3849` fix):
+    - Unit red: `SyntaxError … does not provide an export named 'offlineBarWords'`.
+    - Control (uncommitted): today's rule behind that name fails the held-message check,
+      `actual: 'Not confirmed: “Once only.”'`.
+    - Browser red (`pw-logs/review-held-red.txt`): the foot held `"Not confirmed: “Once only.” "` where Luis's words
+      belong.
+  - **Work's Join before the project loads** (`d80f95088` tests, `e50fe0fac` fix; the fixture can hold the snapshot,
+    `snapshot=hold`, `releaseSnapshot`):
+    - Unit red: `askedJoin('idle', false, false)` gave `'wait'`.
+    - Browser red (`pw-logs/review-work-join-red.txt`): the polite line stayed `""`.
+    - Control (uncommitted; the line check left out): back online with the project loaded, the room asked a token
+      on its own (`pw-logs/review-work-join-control.txt`, `Received` held `"room-token"`).
+- **At the head of the review (`e50fe0fac`):**
+  - Through `pw.ps1`, `room`, `room-dock`, `dock-header`, `call-devices`, `room-basics`, `room-people` and
+    `room-discussion`: 102 passed.
+  - `voice-chat`, `room-chat-replies`, `join`, `project-conversation-writes`, `app-auth` (Rejoin), `toast-over-sheet`,
+    `room-so-far`, `room-following`, `light-stage` and `work`: 320 passed, 2 failed. Both were phone checks in `work`,
+    one at `net::ERR_NO_BUFFER_SPACE` on `page.goto`. Run again alone: 5 passed.
+  - Every `features/voice` and `features/conversation` unit, plus `online.test.ts`: 359/359.
+  - Type-aware lint (whole repo, exit 0), typecheck and Prettier on every touched non-docs file are clean.
+- **Review captures** (`scratchpad/offline-join-from-rest/review/`), through a spec deleted after. Horizontal overflow
+  is 0 and there is no alert on any of the five.
+  - The held message after Chat with Sophia: at a desk, dark, two lines at 917–1264. On a phone, light, the same two
+    lines at 16–374.
+  - In the call, offline, after Chat with Sophia, desk dark: no offline-join line. The dock's polite line is empty.
+    The foot says the bar's own «Your words wait here.», with Voice mode.
+  - Work's Join before the project loads: the line is centred over a disabled Join, at 530–750 at a desk (dark) and
+    85–305 on a phone (light), under «Opening the project…».
 
 ## Decisions and changes
 
@@ -81,10 +128,25 @@ touch only plan notes and this record). Against `fc61e4301`: `e2e/room.spec.ts`,
   join, the line comes back, as the lost call's lines move with the connection.
 - **The race says offline too:** a refusal offline would be the same false claim #467 removed for a lost call. The
   three ends the server said (another tab, taken out, closed) stay true offline and keep their words.
-- **Said once:** the room's two offline notes share `saysOffline`, which the message bar reads.
+- **Said once, where nothing of its own is lost** (after review): `offlineBarWords` (`discussion-view.ts`) decides the
+  bar's line beside the room's note. Under the lost call's line, #467's rule stands. Under the new line, only an
+  empty bar's «Your words wait here» steps aside. `saysOffline` is gone.
+- **In the call, the call answers** (after review): `joinHeld` takes `inCall`, which is `calls.current` or a join
+  under way, so the fence holds only a join out of the call.
+- **Offline, an asked join waits for nothing** (after review): `askedJoin(status, ready, online)` waits for the
+  project only online. Offline it joins at once, so the held join says the line and the request is used up.
+- **Commits stay append-only:** the in-call check's last assertion was corrected in a commit of its own
+  (`52d7484c8`), not by rewriting the test commit.
 
 ## Remaining obligations
 
+- **For Luis, a question:** under the lost call's line, #467's rule still shortens a held message to «Not confirmed:
+  “…”» in the bar, which is the shape he set aside. If his choice should reach there too, the change is the
+  `OFFLINE_END` branch of `offlineBarWords`, plus its unit check. The brief kept #467's lost-call behaviour as it is,
+  so it is left.
+- Offline, in the call, Chat with Sophia now goes through to the call, as it did before #467. Then the read that asks
+  Sophia in fails offline in the real app, and the foot says «No reply from Sophia», with text mode left on. The base
+  (`fc61e4301`) behaves the same way; it is not changed here.
 - Join's tip covers the dock's note while the pointer rests on Join, as it does for every note there (unchanged here).
 - A refusal the server sent just before the network went is said as the new line if the browser reads offline by
   then. The next press, online, hears it again.
@@ -94,4 +156,5 @@ touch only plan notes and this record). Against `fc61e4301`: `e2e/room.spec.ts`,
 
 - Luis: say when to push; it stacks on #468, so it opens after #468 merges, then merges on green with no open P1.
   Nothing is owed locally.
-- Source IDs consulted: none from the source register; the work read this repository and its plan notes only.
+- Source IDs consulted: none from the source register. The work read this repository, its plan notes and the review
+  findings of 2026-10-19.
