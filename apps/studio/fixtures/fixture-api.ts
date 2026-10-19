@@ -263,6 +263,8 @@ interface Project {
   searchHeld?: (() => void)[] | null
   /** While set, reads of the served board wait for `holdBoard(false)` (search-honest.md). */
   boardHeld?: (() => void)[] | null
+  /** The served board's reads fail, each recorded (`board-refused`): `boardRead=fail`, `window.fixture.failBoard`. */
+  boardFail?: boolean
   /** The versions' reviews (review-data.ts, A16); absent, their requests are unexpected. */
   reviews?: Reviews
   /** What members carried in from Personal (the project list's releases, chapter 1); absent, none. */
@@ -1608,6 +1610,10 @@ function designRead(project: Project): Response | null {
  */
 function workRead(project: Project, path: string) {
   if (path === `/api/v1/projects/${PROJECT}/plans`) {
+    if (project.boardFail) {
+      served.push('board-refused')
+      return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
+    }
     const board: WorkBoardView = {
       schema_version: 'sophia.work.board.v1',
       project_id: PROJECT,

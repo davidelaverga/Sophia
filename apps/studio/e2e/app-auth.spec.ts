@@ -7,6 +7,7 @@
 // sessions and proposals here are synthetic, for accounts at sophia.test; nothing reaches an Auth service or an API
 // (`work=lost` answers the app's reads in the page, fixtures/app.tsx).
 import { expect, test, type BrowserContext, type Page } from '@playwright/test'
+import { withProbe } from './reliability/measure.ts'
 
 const APP = 'http://127.0.0.1:5198'
 /** supabase-js's own key for a session with the synthetic Auth service at 127.0.0.1: `sb-<host's first label>-…`. */
@@ -1108,6 +1109,24 @@ test('session · an API that refuses every token: one refresh, then the door clo
   await page.waitForTimeout(3000)
   expect(await streamAsks()).toBe(settled)
   expect(refreshes(calls)).toBe(1)
+})
+
+// The reliability measure's M7 (docs/plans/silent-views.md): Updates' «Since you last looked» answered twice by
+// a proxy's 503 page comes back by itself, as the other reads do. `work=lost` answers the app's reads in the page, so
+// the measuring suite's probe (e2e/reliability/measure.ts) answers the first two «since» reads before it.
+test('reliability · «Since you last looked» answered twice by a proxy’s 503 page comes back by itself, nothing pressed', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await withProbe(page, [{ pattern: '/since$', answer: 'html503', times: 2 }])
+  await page.goto(`${APP}/p/${WORK_PROJECT}/updates?work=lost`)
+  const since = page.locator('section[aria-labelledby="since-title"]')
+  await expect.poll(() => page.evaluate(() => window.reliability?.hits.length ?? 0)).toBe(2)
+  // TanStack's own waits, 1 s then 2 s, and the window; no Try again pressed.
+  await expect(since.locator('.sheet-lead:not([role])')).toBeVisible({ timeout: 8000 })
+  await expect(since.getByRole('alert')).toHaveCount(0)
+  await expect(since).not.toContainText('This may be out of date.')
 })
 
 test('legal · a sign-out in another tab forgets the views’ unsent words here too (Codex P1 on #366)', async ({
