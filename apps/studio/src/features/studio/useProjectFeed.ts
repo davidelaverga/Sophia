@@ -55,7 +55,10 @@ export function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => v
       // beyond the feed's bounded recent list (held-pages.ts).
       const took = !next.needsSnapshot && next.cursor !== before.cursor
       if (took && 'entityId' in frame && frame.entityType === 'contribution' && ACTS.has(frame.type))
-        contributionChanged(owner, frame.entityId, ERASING.has(frame.type), next.cursor)
+        contributionChanged(owner, frame.entityId, ERASING.has(frame.type), {
+          cursor: next.cursor,
+          revision: frame.entityRevision,
+        })
       deps.store(next)
       return next
     },

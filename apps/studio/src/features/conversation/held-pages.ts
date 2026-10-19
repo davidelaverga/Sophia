@@ -26,6 +26,8 @@ export interface Changes {
   readonly erasing?: ReadonlyMap<string, number>
   /** Of those, the feed cursor of each message's latest correction or withdrawal (R-B56-P1: what supersedes a receipt). */
   readonly erasedAt?: ReadonlyMap<string, string>
+  /** And the revision each such event names (the message's after the act): what is shown older than it is erased. */
+  readonly erasedRevision?: ReadonlyMap<string, number>
 }
 
 /** The events that may erase a message's source, with every message sharing it (A36, 0068; r4313704366). */
@@ -65,16 +67,36 @@ function tell(store: Store, changes: Changes) {
   for (const listener of store.listeners) listener()
 }
 
-/** The feed applied a message's correction or withdrawal (at `cursor`): its id is kept, however many come at once. */
-export function contributionChanged(owner: string, id: string, erasing = false, cursor?: string): void {
+/** One change added to what is kept: an erasing one with its order, cursor and revision. */
+function withChange(kept: Changes, id: string, erasing: boolean, event: { cursor?: string; revision?: number }) {
+  const was = kept.erasing ?? new Map<string, number>()
+  const at = kept.erasedAt ?? new Map<string, string>()
+  const rev = kept.erasedRevision ?? new Map<string, number>()
+  return {
+    ...kept,
+    ids: new Map([...kept.ids, [id, learned]]),
+    erasing: erasing ? new Map([...was, [id, learned]]) : was,
+    erasedAt: erasing && event.cursor !== undefined ? new Map([...at, [id, event.cursor]]) : at,
+    erasedRevision: erasing && event.revision !== undefined ? new Map([...rev, [id, event.revision]]) : rev,
+  }
+}
+
+/**
+ * The feed applied a message's correction or withdrawal (its event's `cursor` and `revision`): its id is kept, however
+ * many come at once. Past KEPT the earlier ones go, as after a resync, but never the change that went past it: an
+ * erasure learned then is still told (4317389250).
+ */
+export function contributionChanged(
+  owner: string,
+  id: string,
+  erasing = false,
+  event: { cursor?: string; revision?: number } = {},
+): void {
   const store = storeOf(owner)
   learned += 1
-  const ids = new Map([...store.changes.ids, [id, learned]])
-  const was = store.changes.erasing ?? new Map<string, number>()
-  const at = store.changes.erasedAt ?? new Map<string, string>()
-  if (ids.size > KEPT) return tell(store, { ids: new Map(), resyncs: store.changes.resyncs + 1 })
-  const erasedAt = erasing && cursor !== undefined ? new Map([...at, [id, cursor]]) : at
-  tell(store, { ...store.changes, ids, erasing: erasing ? new Map([...was, [id, learned]]) : was, erasedAt })
+  const next = withChange(store.changes, id, erasing, event)
+  if (next.ids.size <= KEPT) return tell(store, next)
+  tell(store, withChange({ ids: new Map(), resyncs: store.changes.resyncs + 1 }, id, erasing, event))
 }
 
 /**
@@ -91,10 +113,13 @@ export const superseded = (receipt: string | null | undefined, erased: string | 
  */
 export type Gone = { source: string } | 'kept' | 'unknown'
 
-export function goneOf(id: string, held: HeldMaps | null, window: readonly Placed[]): Gone {
+export function goneOf(id: string, held: HeldMaps | null, window: readonly Placed[], revision?: number): Gone {
   const shown = window.find((w): w is Placed & DiscussionEntry => w.id === id && 'sourceId' in w)
   const entry = held?.entries.get(id) ?? shown
   if (!entry) return 'unknown'
+  // Shown at the event's own revision or later, it is already what the act left (a read since): its old source is not
+  // here, and its current one is not erased (4317389238).
+  if (revision !== undefined && (entry.revision ?? 1) >= revision) return 'unknown'
   return entry.kind === 'reference' ? 'kept' : { source: entry.sourceId }
 }
 
@@ -388,14 +413,14 @@ export function useHeldRefresh(input: {
  */
 function learnGone(
   known: Map<string, Gone>,
-  erasing: readonly [string, number][],
+  changes: Changes,
   held: HeldMaps | null,
   window: readonly Placed[],
   shownAt: Map<string, number>,
 ) {
-  for (const [id, at] of erasing) {
+  for (const [id, at] of changes.erasing ?? []) {
     const key = `${id}@${at}`
-    const gone = known.has(key) ? undefined : goneOf(id, held, window)
+    const gone = known.has(key) ? undefined : goneOf(id, held, window, changes.erasedRevision?.get(id))
     if (gone === undefined || (!held && gone === 'unknown')) continue
     known.set(key, gone)
     // The revision it showed then: its erased words are that one, or older (R-B55-P1).
@@ -415,7 +440,7 @@ function useErasure(changes: Changes, held: HeldMaps | null, window: readonly Pl
   const shownAt = useRef(new Map<string, number>())
   const handledAt = useRef(0)
   const erasing = [...(changes.erasing ?? [])]
-  learnGone(known.current, erasing, held, window, shownAt.current)
+  learnGone(known.current, changes, held, window, shownAt.current)
   // With none held and no read out, what is learned is handled at once: the first page read after it is read since,
   // and is not dropped for it (4316503672). Learned while a manual read is out, it stays new for the page that read
   // brings, so that page is fenced or let go for it as before (F2).

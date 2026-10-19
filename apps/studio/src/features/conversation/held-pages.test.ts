@@ -96,7 +96,8 @@ describe('held pages kept honest (4309253137)', () => {
     assert.equal(changesOf(mine).ids.size, 0)
     const busy = ownerOf('davide', 'p2')
     for (let n = 0; n <= KEPT; n += 1) contributionChanged(busy, id(1000 + n))
-    assert.equal(changesOf(busy).ids.size, 0, 'past the bound: let go')
+    // Past the bound the earlier ones go; the change that went past it is kept (4317389250).
+    assert.deepEqual([...changesOf(busy).ids.keys()], [id(1000 + KEPT)], 'past the bound: let go, but the last')
     assert.equal(changesOf(busy).resyncs, 1, 'as after a resync: the earlier pages go')
   })
 
@@ -335,9 +336,10 @@ describe('a receipt superseded by a later erasure (R-B56-P1)', () => {
 
   it('the feed keeps each message’s latest erasing cursor; a mention keeps none', () => {
     const owner = ownerOf('b57', 'p')
-    contributionChanged(owner, id(1), true, '10')
-    contributionChanged(owner, id(1), true, '12')
-    contributionChanged(owner, id(2), false, '13')
+    contributionChanged(owner, id(1), true, { cursor: '10', revision: 2 })
+    contributionChanged(owner, id(1), true, { cursor: '12', revision: 3 })
+    contributionChanged(owner, id(2), false, { cursor: '13', revision: 2 })
+    assert.deepEqual([...(changesOf(owner).erasedRevision ?? [])], [[id(1), 3]])
     assert.deepEqual([...(changesOf(owner).erasedAt ?? [])], [[id(1), '12']])
     feedStopped(owner)
   })
