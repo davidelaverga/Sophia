@@ -104,6 +104,13 @@ declare global {
       attention: readonly string[]
       hold: (by: string, path: string, method?: string) => void
       release: () => void
+      expireToken: () => void
+      refuseTokens: () => void
+      dropStream: () => void
+      /** Each request refused for its token (`expireToken`, `refuseTokens`), as `METHOD /path`. */
+      refused: readonly string[]
+      /** Each request with an Idempotency-Key, refused or not, as `METHOD /path key`. */
+      keys: readonly string[]
     }
     /** "Review sources" buttons the page added since the check began counting them. */
     reviewSourcesAdded?: number
@@ -117,11 +124,15 @@ test.afterEach(({ context }) => expect(elsewhere.get(context) ?? []).toEqual([])
 /** The code the synthetic Auth refuses a refresh with, when a check sets one (`serve`). */
 const refusedWith = new WeakMap<BrowserContext, string>()
 
+/** Whose session the synthetic Auth renews on a refresh, when a check says so (`serve`): a new access token each time. */
+const renewing = new WeakMap<BrowserContext, Person>()
+
 /**
  * The synthetic Auth service, and an API that answers nothing (the checks need none of its reads). `logout` waits for
  * `release` when given one, and answers `logoutStatus` (a 503: the service unavailable); a refresh is refused as Auth
  * refuses one (API 2024-01-01: a 400 whose body names the cause), a refresh token it no longer knows (every device
- * signed out elsewhere) unless the check set another code (`refusedWith`); every call to the Auth service is counted.
+ * signed out elsewhere) unless the check set another code (`refusedWith`), or renewed when the check says whose
+ * (`renewing`); every call to the Auth service is counted.
  */
 async function serve(context: BrowserContext, logout?: Promise<void>, logoutStatus = 204) {
   const calls: string[] = []
@@ -139,6 +150,12 @@ async function serve(context: BrowserContext, logout?: Promise<void>, logoutStat
       if (logoutStatus !== 204)
         return route.fulfill({ status: logoutStatus, json: { code: logoutStatus, msg: 'Synthetic Auth: unavailable' } })
       return route.fulfill({ status: 204 })
+    }
+    const renewed = renewing.get(context)
+    if (pathname.endsWith('/auth/v1/token') && renewed) {
+      const fresh = session(renewed)
+      const token = fresh.access_token.replace(/synthetic$/u, `renewed-${String(calls.length)}`)
+      return route.fulfill({ json: { ...fresh, access_token: token } })
     }
     if (pathname.endsWith('/auth/v1/token')) {
       const code = refusedWith.get(context) ?? 'refresh_token_not_found'
@@ -922,6 +939,112 @@ test('reliability · a new project answered by a proxy’s 504 page is sent agai
   expect(keys[1]).toBe(keys[0])
   expect(recorded.size).toBe(1)
   await expect(page).toHaveURL(new RegExp(WORK_PROJECT))
+})
+
+// The reliability baseline's gap #3 (auth-session-renewal.md): a laptop that wakes past its token's hour asks the API
+// before supabase-js has refreshed, and the API answers 401. `expireToken` is that moment: every token the API has seen
+// is refused from now on, and the synthetic Auth renews Davide's session when asked. The person is still signed in, so
+// the read, the feed and the write go on, after one refresh, and «You’ve been signed out» is never said.
+
+/** The conversation open as the view opens (reading, the first row): its newest page has 6 messages. */
+const READING = '00000000-0000-4000-8000-0000000000c1'
+/** The second row's (Short or long briefs?), read only once opened: 2 messages. */
+const BRIEFS = '00000000-0000-4000-8000-0000000000c2'
+
+/** Davide on `view` of the project (`work=lost`), his session renewed when the app asks; the Auth service's calls. */
+async function renewableIn(context: BrowserContext, view: string) {
+  renewing.set(context, DAVIDE)
+  const calls = await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.goto(`${APP}/p/${WORK_PROJECT}/${view}?work=lost`)
+  return { page, calls }
+}
+
+/** How many refreshes the app asked the synthetic Auth for. */
+const refreshes = (calls: readonly string[]) => calls.filter((c) => c === 'POST /synthetic-auth/auth/v1/token').length
+const refusedOf = (page: Page) => page.evaluate(() => [...(window.appFixture?.refused ?? [])])
+const keysOf = (page: Page) => page.evaluate(() => [...(window.appFixture?.keys ?? [])])
+const signedOutNotice = (page: Page) => page.getByRole('heading', { name: 'You’ve been signed out' })
+const pill = (page: Page) => page.locator('.topbar .connection')
+
+const rows = (page: Page) => page.locator('section[aria-label="All conversations"] .conv-row')
+
+/** The conversations' list read, and the first one open with its 6 messages: every read the view opens with is in. */
+async function readingOpen(page: Page) {
+  await expect(rows(page)).toHaveCount(3)
+  await expect(page.locator('.conv-open')).toBeVisible()
+  await expect(page.locator('.conv-msg')).toHaveCount(6)
+}
+
+test('session · a conversation opened after the token expired shows its messages: one refresh, asked again (gap #3)', async ({
+  context,
+}) => {
+  const { page, calls } = await renewableIn(context, 'conversations')
+  await readingOpen(page)
+  await page.evaluate(() => window.appFixture?.expireToken())
+  await rows(page).nth(1).click()
+  await expect(page.locator('.conv-msg').filter({ hasText: 'One page. Anything longer, nobody reads.' })).toBeVisible()
+  await expect(page.locator('.conv-msg')).toHaveCount(2)
+  expect(await refusedOf(page)).toContain(`GET /api/v1/projects/${WORK_PROJECT}/conversations/${BRIEFS}/messages`)
+  expect(refreshes(calls)).toBe(1)
+  await expect(signedOutNotice(page)).toHaveCount(0)
+  expect(await unexpectedOf(page)).toEqual([])
+})
+
+test('session · the feed dropped after the token expired comes back up to date, never «signed out» (gap #3)', async ({
+  context,
+}) => {
+  const { page, calls } = await renewableIn(context, 'studio')
+  await expect(pill(page)).toHaveAttribute('data-state', 'live')
+  await page.evaluate(() => {
+    window.appFixture?.expireToken()
+    window.appFixture?.dropStream()
+  })
+  // The feed asked again with the token that expired; what it settles on is «Up to date» or the closed door.
+  await expect.poll(() => refusedOf(page)).toContain(`GET /api/v1/projects/${WORK_PROJECT}/events`)
+  await expect(signedOutNotice(page).or(page.locator('.topbar .connection[data-state="live"]'))).toBeVisible()
+  await expect(signedOutNotice(page)).toHaveCount(0)
+  await expect(pill(page)).toHaveAttribute('data-state', 'live')
+  expect(refreshes(calls)).toBe(1)
+  expect(await unexpectedOf(page)).toEqual([])
+})
+
+test('session · a message sent after the token expired goes again with its key and appears: one refresh (gap #3)', async ({
+  context,
+}) => {
+  const { page, calls } = await renewableIn(context, 'conversations')
+  await readingOpen(page)
+  // No Sophia's answer, which would publish to the feed.
+  await page.getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await page.evaluate(() => window.appFixture?.expireToken())
+  await page.getByLabel('Continue this question with the team').fill('Check the March figures')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.conv-msg').filter({ hasText: 'Check the March figures' })).toBeVisible()
+  const sendPath = `/api/v1/conversations/${READING}/messages`
+  expect(await refusedOf(page)).toContain(`POST ${sendPath}`)
+  const sent = (await keysOf(page)).filter((k) => k.startsWith(`POST ${sendPath} `))
+  expect(sent).toHaveLength(2)
+  expect(sent[1]).toBe(sent[0])
+  expect(refreshes(calls)).toBe(1)
+  expect(await unexpectedOf(page)).toEqual([])
+})
+
+test('session · an API that refuses every token: one refresh, then the door closes as today, and nothing loops (gap #3)', async ({
+  context,
+}) => {
+  const { page, calls } = await renewableIn(context, 'studio')
+  await expect(pill(page)).toHaveAttribute('data-state', 'live')
+  await page.evaluate(() => {
+    window.appFixture?.refuseTokens()
+    window.appFixture?.dropStream()
+  })
+  await expect(signedOutNotice(page)).toBeVisible()
+  await expect.poll(() => refreshes(calls)).toBe(1)
+  // Nothing asks again: the feed's restart on the renewed token ends at the same door. Time is the only witness.
+  const settled = (await refusedOf(page)).length
+  await page.waitForTimeout(3000)
+  expect((await refusedOf(page)).length).toBe(settled)
+  expect(refreshes(calls)).toBe(1)
 })
 
 test('legal · a sign-out in another tab forgets the views’ unsent words here too (Codex P1 on #366)', async ({
