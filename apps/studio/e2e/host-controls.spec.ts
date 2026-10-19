@@ -182,6 +182,22 @@ test('host · a refused «Mute everyone» is old news once a microphone is on ag
   await expect(head.getByRole('alert')).toHaveCount(0)
 })
 
+test('host · a refused «Mute everyone» stays said as a microphone goes off after it', async ({ page }) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.failHost())
+  await page.getByRole('button', { name: 'Mute everyone' }).click()
+  await page.getByRole('button', { name: 'Mute them' }).click()
+  const head = page.locator('.people-head')
+  await expect(head.getByRole('alert')).toHaveText('Couldn’t mute everyone. Try again.')
+  // The room server's own mutes can reach the call after a refusal: one going off is no reason to drop it.
+  await actions(page, 'Marco').click()
+  await menu(page, 'Marco').getByRole('menuitem', { name: 'Mute microphone' }).click()
+  await expect(
+    list(page).locator('li', { hasText: 'Marco' }).getByRole('img', { name: 'Microphone off' }),
+  ).toBeVisible()
+  await expect(head.getByRole('alert')).toHaveText('Couldn’t mute everyone. Try again.')
+})
+
 test('host · an editor has no «Mute everyone»', async ({ page }) => {
   await enter(page, '&role=editor')
   await expect(list(page)).toBeVisible()
