@@ -2,7 +2,10 @@
 // that write has no answer, kept by the page rather than by what pressed it, so the sheet put away and opened again, or
 // Work's Unarchive pressed again, after no reply sends the same write and never a second. Answered, landed or refused,
 // the key goes (api/README: kept for a retry after an unknown outcome, discarded once the server answers), as a held
-// write's does (held-write.ts). Shaped like removal-keys.ts.
+// write's does (held-write.ts). A choice that lands also lets go of the other choice's unanswered key: that write is
+// moot now, and its key replayed later would be answered with its old receipt and change nothing (the server keeps
+// receipts with no end), while a new key is always safe, as asking for the state the project has changes nothing.
+// Shaped like removal-keys.ts.
 import { ApiError } from '../../api/client.ts'
 
 /** One choice: archiving a project (archived), or bringing it back, as one account. */
@@ -15,7 +18,10 @@ export interface ArchiveChoice {
 export interface ArchiveKeys {
   /** The key for this choice now: the one still unanswered, else a new one. */
   keyFor: (choice: ArchiveChoice) => string
-  /** The write was answered (`failure` absent: it landed). Its key goes, unless the failure was no reply. */
+  /**
+   * The write was answered (`failure` absent: it landed, and the other choice's key goes too). Its key goes, unless the
+   * failure was no reply.
+   */
   settled: (choice: ArchiveChoice, failure?: unknown) => void
 }
 
@@ -34,6 +40,7 @@ export function archiveKeys(newKey: () => string = () => crypto.randomUUID()): A
       return key
     },
     settled: (choice, failure) => {
+      if (failure === undefined) keys.delete(at({ ...choice, archived: !choice.archived }))
       if (failure === undefined || !unanswered(failure)) keys.delete(at(choice))
     },
   }
