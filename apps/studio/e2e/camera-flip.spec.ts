@@ -1,3 +1,4 @@
+import type { ChatCaption } from '@sophia/contracts/room-chat'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 // Switch camera on a phone, in a call (docs/plans/camera-flip.md): your own tile offers the next camera, round, once your
@@ -21,6 +22,8 @@ type Box = { x: number; y: number; width: number; height: number }
 /** Whether two boxes share no point. */
 const apart = (a: Box, b: Box) =>
   a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y
+/** How far down the page a box starts. */
+const top = async (el: Locator) => (await el.boundingBox())?.y ?? Number.NaN
 /** Once your tile has arrived (its arrival moves it 3 px), so boxes are read at rest. */
 const atRest = (page: Page) =>
   myTile(page).evaluate((el) =>
@@ -225,6 +228,42 @@ for (const width of [390, 320]) {
     expect(await switches(page)).toEqual([])
   })
 }
+
+// The strip moves without a scroll or a resize: captions lift it while someone speaks (room-stage-captions.md), and the
+// menu goes with its press, 6 px over it (the kit's menu offset), never over the press itself (a review's P2 on this
+// branch).
+test('@phone · flip · beside a shown screen, your tile’s menu stays over its press as captions lift the strip', async ({
+  page,
+}) => {
+  const words = {
+    kind: 'caption',
+    id: '00000000-0000-4000-8000-0000000000c1',
+    exchangeId: '00000000-0000-4000-8000-0000000000ae',
+    speaker: 'member',
+    actorId: '00000000-0000-4000-8000-0000000000b1',
+    sequence: 1,
+    state: 'partial',
+    text: 'Words while your tile’s menu is open',
+  } satisfies ChatCaption
+  /** From the menu's bottom to the press's top. */
+  const gap = async () => {
+    const menu = await tileMenu(page).boundingBox()
+    return menu ? (await top(yourTile(page))) - (menu.y + menu.height) : Number.NaN
+  }
+  await enter(page, 'people=2&video=screen')
+  await cameraOn(page)
+  await yourTile(page).click()
+  await expect(tileMenu(page)).toBeVisible()
+  await expect.poll(gap).toBeCloseTo(6, 0)
+  const before = await top(yourTile(page))
+  await page.evaluate((packet) => window.fixture?.caption(packet), words)
+  await expect(page.locator('.stage-captions .stage-caption')).toHaveCount(1)
+  await expect.poll(() => top(yourTile(page)), 'the strip goes up with the captions').toBeLessThan(before - 12)
+  await expect.poll(gap, 'the menu with it').toBeCloseTo(6, 0)
+  await expect
+    .poll(() => reached(tileMenu(page)), 'each item is what a press at its middle reaches')
+    .toEqual([true, true])
+})
 
 // Safari before 17 has no top layer for the menu (the Popover API), and the build targets Safari 16.4 (shortcuts.ts):
 // there the press stays Switch camera, as before the menu, and the call stays (a review's P1 on this branch). WebKit 16
