@@ -402,3 +402,28 @@ test('earlier · named then no longer at the same revision, the second while the
   await expect(page.getByText('Message 2', { exact: true })).toBeVisible()
   await expect(page.getByText('Message 4', { exact: true })).toBeVisible()
 })
+
+// R on 21dab (r4313704366): A and B share one source, both held beyond the newest 50. Correcting or withdrawing A
+// elsewhere erases that source: B no longer lists in any read, and the one event names A. B's old words must go.
+for (const act of ['correct', 'withdraw'] as const)
+  test(`earlier · ${act === 'correct' ? 'a correction' : 'a withdrawal'} that erases a shared source leaves no held alias showing its words (r4313704366)`, async ({
+    page,
+  }) => {
+    await page.goto('/room.html?call=on&discussion=60&acts=1&alias=1')
+    await expect(leave(page)).toBeVisible()
+    await chatToggle(page).click()
+    await earlier(page).click()
+    await expect(entries(page)).toHaveCount(60)
+    const a = (await items(page).nth(2).getAttribute('data-message')) ?? ''
+    await expect(entries(page).nth(3)).toHaveText('Message 4')
+    await page.evaluate(([m, text]) => window.fixture?.eraseShared(2, m, text), [
+      a,
+      act === 'correct' ? 'Message 3, corrected elsewhere' : null,
+    ] as const)
+    await expect(entries(page).filter({ hasText: /^Message 4$/ })).toHaveCount(0)
+    if (act === 'correct')
+      await expect(page.locator(`[data-message="${a}"] .contribution-text`)).toHaveText(
+        'Message 3, corrected elsewhere',
+      )
+    await expect(entries(page).nth(1)).toHaveText('Message 2')
+  })

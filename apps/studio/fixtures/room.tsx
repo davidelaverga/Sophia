@@ -443,6 +443,7 @@ interface Fixture {
   padlockKey: () => string
   /** Someone else's tab corrects, or withdraws, the n-th message (its id given); the feed names it (4309253137). */
   changeElsewhere: (n: number, id: string, text: string | null) => void
+  eraseShared: (n: number, id: string, text: string | null) => void
 }
 
 declare global {
@@ -594,6 +595,9 @@ function overTwoDays(): Said[] {
   ]
 }
 
+/** The source the `alias=1` pair shares (r4313704366). */
+const ALIAS_SOURCE = '00000000-0000-4000-9000-0000000a11a5'
+
 const project = {
   revision: 1,
   doorShut: false,
@@ -658,21 +662,26 @@ const project = {
   // `discussion=mine`: the viewer's own written message, another member's, and the viewer's own shared report (A36).
   // `discussion=mentioned`: another member's message that mentions the viewer, on its revision 2 (A37).
   // `mentionOld=1` with `discussion=60`: the third message, beyond the chat's 50, mentions the viewer (A37).
-  messages: (query.get('mentionOld') === '1'
+  // `alias=1` with `discussion=60`: the third and fourth messages share one source (r4313704366).
+  messages: (query.get('alias') === '1'
     ? Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) =>
-        i === 2 ? { text: `Message ${i + 1}`, mentions: [ME] } : `Message ${i + 1}`,
+        i === 2 || i === 3 ? { text: `Message ${i + 1}`, sourceId: ALIAS_SOURCE } : `Message ${i + 1}`,
       )
-    : query.get('discussion') === 'mentioned'
-      ? ['Sounds good to me.', MENTIONING]
-      : query.get('discussion') === 'mine'
-        ? [
-            { text: 'Meet at nine by the north door.', me: true },
-            'Sounds good to me.',
-            { text: 'The pilot report, version 2.', me: true, kind: 'reference' },
-          ]
-        : query.get('discussion') === 'days' || query.get('discussion') === 'yesterday'
-          ? overTwoDays().slice(0, query.get('discussion') === 'days' ? 4 : 2)
-          : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`)) as (
+    : query.get('mentionOld') === '1'
+      ? Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) =>
+          i === 2 ? { text: `Message ${i + 1}`, mentions: [ME] } : `Message ${i + 1}`,
+        )
+      : query.get('discussion') === 'mentioned'
+        ? ['Sounds good to me.', MENTIONING]
+        : query.get('discussion') === 'mine'
+          ? [
+              { text: 'Meet at nine by the north door.', me: true },
+              'Sounds good to me.',
+              { text: 'The pilot report, version 2.', me: true, kind: 'reference' },
+            ]
+          : query.get('discussion') === 'days' || query.get('discussion') === 'yesterday'
+            ? overTwoDays().slice(0, query.get('discussion') === 'days' ? 4 : 2)
+            : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`)) as (
     string | Said
   )[],
   contributions: new Map(),
@@ -841,6 +850,26 @@ window.fixture = {
       .filter((data) => data !== undefined),
   padlockKey: () => lockKey(accountOf(identity)),
   lastEventEntity: () => eventEntities.get(project.revision) ?? null,
+  eraseShared: (n, id, text) => {
+    // A corrected or withdrawn elsewhere: its old source is erased, and every message sharing it no longer lists;
+    // the one event names A alone (0068's contribution_erase, r4313704366).
+    const was = project.messages[n]
+    const base = typeof was === 'string' ? { text: was } : was
+    if (!base) return
+    const old = base.sourceId
+    project.messages = project.messages.map((m, i) =>
+      i !== n && typeof m !== 'string' && old !== undefined && m.sourceId === old ? { ...m, erased: true } : m,
+    )
+    const revision = (base.revision ?? 1) + 1
+    const now = new Date().toISOString()
+    project.messages[n] =
+      text === null
+        ? { ...base, revision, withdrawnAt: now }
+        : { ...base, text, revision, correctedAt: now, sourceId: `${String(old)}-new` }
+    const type = text === null ? 'contribution.withdrawn' : 'contribution.corrected'
+    eventEntities.set(project.revision + 1, { type, entityType: 'contribution', entityId: id })
+    publish(project)
+  },
   changeElsewhere: (n, id, text) => {
     const was = project.messages[n]
     const base = typeof was === 'string' ? { text: was } : was

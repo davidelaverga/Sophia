@@ -76,6 +76,8 @@ function windowOf(project: Discussing, end: number, revisions: boolean, limit = 
   const placed = project.messages
     .slice(0, end)
     .map((m, n) => ({ m, n }))
+    // A message whose shared source was erased isn't listed: no words to show, no withdrawal of its own.
+    .filter(({ m }) => typeof m === 'string' || !m.erased)
     .filter(({ m }) => revisions || !isWithdrawn(m))
   const page = placed.slice(-limit)
   const offered = project.messageActs?.offered ?? false
