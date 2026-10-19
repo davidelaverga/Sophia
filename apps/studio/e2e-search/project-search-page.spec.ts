@@ -437,3 +437,43 @@ test('served search · a 200-code-point query of astral words is asked whole, an
   await expect(field(page)).toHaveValue(shorter)
   await expect.poll(qs).toContain(shorter)
 })
+
+// B70 (4319039634): the search's own read refused (401/403) closes the door on everything the sheet found, the goals
+// and tasks it found in what the Studio holds too: none is shown or pressable. A read set out since that answers opens
+// it again. SYNTHETIC: the page's fetch answers the search with that status while denySearch is on.
+for (const status of [401, 403])
+  test(`served search · a ${status} hides the goals and tasks found locally, no press left; a read since shows them (4319039634)`, async ({
+    page,
+  }) => {
+    await page.addInitScript((code) => {
+      const w = window as Denying
+      w.searchDenied = 0
+      const wrap =
+        (f: typeof fetch): typeof fetch =>
+        (input, init) => {
+          const url = new URL(input instanceof Request ? input.url : String(input), location.href)
+          if (!w.denySearch || !url.pathname.endsWith('/search')) return f(input, init)
+          w.searchDenied = (w.searchDenied ?? 0) + 1
+          return Promise.resolve(Response.json({ code: 'forbidden', message: 'Not permitted' }, { status: code }))
+        }
+      let current = wrap(window.fetch.bind(window))
+      Object.defineProperty(window, 'fetch', {
+        configurable: true,
+        get: () => current,
+        set: (f: typeof fetch) => (current = wrap(f)),
+      })
+    }, status)
+    await page.goto('/room.html?demo=1&place=goals')
+    await search(page, 'checklist')
+    const goal = sheet(page).getByRole('button', { name: /Keep teams through an admin change/ })
+    await expect(goal).toBeVisible() // found in what the Studio holds
+    await page.evaluate(() => ((window as Denying).denySearch = true))
+    await field(page).fill('checklis') // a new search: its read refused
+    await expect.poll(() => page.evaluate(() => (window as Denying).searchDenied)).toBeGreaterThan(0)
+    await expect(hits(page)).toHaveCount(0)
+    await expect(goal).toHaveCount(0)
+    // A read set out since, and answered: what was found shows again.
+    await page.evaluate(() => ((window as Denying).denySearch = false))
+    await field(page).fill('checklist')
+    await expect(goal).toBeVisible()
+  })
