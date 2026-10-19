@@ -762,11 +762,8 @@ const listed = (projectId: string, title: string) => ({
   releases: [],
 })
 
-/**
- * Seven projects, past the five where Work offers finding one (find-projects.md): the one check here that has a project
- * list, answered in place of serve()'s unavailable API (a later route wins).
- */
-async function sevenProjects(context: BrowserContext) {
+/** Seven projects, past the five where Work offers finding one (find-projects.md). */
+function seven() {
   const titles = [
     'Copper launch',
     'Fixture project',
@@ -776,9 +773,14 @@ async function sevenProjects(context: BrowserContext) {
     'Delta pitch',
     'Ember notes',
   ]
-  const projects = titles.map((title, i) =>
+  return titles.map((title, i) =>
     listed(title === 'Fixture project' ? WORK_PROJECT : `00000000-0000-4000-8000-0000000000c${String(i)}`, title),
   )
+}
+
+/** The seven as the project list, answered in place of serve()'s unavailable API (a later route wins). */
+async function sevenProjects(context: BrowserContext) {
+  const projects = seven()
   await context.route(`${APP}/api/v1/projects`, (route) => route.fulfill({ json: { projects, personalEpoch: 1 } }))
 }
 
@@ -845,6 +847,36 @@ test('browser-account · ⌘K opens a project by its name (find-projects.md)', a
   await expect(palette.getByRole('option').first()).toContainText('Open Fixture project')
   await page.keyboard.press('Enter')
   await expect(page).toHaveURL(new RegExp(WORK_PROJECT))
+})
+
+// The reliability baseline's gap #2 (reliability-retry-5xx-and-write-timeouts.md): what Render's proxy answers while a
+// deploy or a cold start runs, a 502 page with no contract body, is asked again by a read. The project list goes through
+// the network here (this page fakes no fetch), so the proxy's page is the browser's own reply.
+test('reliability · the project list answered twice by a proxy’s 502 page loads by itself, nothing pressed', async ({
+  context,
+}) => {
+  await serve(context)
+  const projects = seven()
+  let asked = 0
+  await context.route(`${APP}/api/v1/projects`, (route) => {
+    asked += 1
+    if (asked <= 2)
+      return route.fulfill({
+        status: 502,
+        contentType: 'text/html',
+        body: '<html><head><title>502 Bad Gateway</title></head><body><h1>Bad Gateway</h1></body></html>',
+      })
+    return route.fulfill({ json: { projects, personalEpoch: 1 } })
+  })
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await page.keyboard.press('w')
+  const work = page.locator('section[data-place-view="work"]')
+  // TanStack's own waits, 1 s then 2 s, and the list; well before the list's 20 s interval would read it again.
+  await expect(work.locator('.c3-proj h3')).toHaveCount(7, { timeout: 8000 })
+  await expect(work.getByRole('alert')).toHaveCount(0)
+  expect(asked).toBe(3)
 })
 
 test('legal · a sign-out in another tab forgets the views’ unsent words here too (Codex P1 on #366)', async ({

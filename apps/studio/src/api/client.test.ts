@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { getConversationMessages, listConversations } from './conversations.ts'
 import { getSince } from './vision.ts'
 import { afterEach, describe, it } from 'node:test'
+import { retryRead } from '../app/account-cache.ts'
 import {
   admitGoalCommand,
   ApiError,
@@ -9,6 +10,7 @@ import {
   createProject,
   getSnapshot,
   READ_TIMEOUT_MS,
+  setGoalTarget,
   WRITE_TIMEOUT_MS,
 } from './client.ts'
 
@@ -83,7 +85,8 @@ describe('Studio API client', () => {
 
     reply(502, { code: 'from_a_proxy' })
     const proxy = await apiError(getSnapshot('t', P))
-    assert.deepEqual([proxy.status, proxy.code, proxy.retry], [502, 'http_502', 'never'])
+    // A read stopped at a proxy is asked again (the next describe).
+    assert.deepEqual([proxy.status, proxy.code, proxy.retry], [502, 'http_502', 'safe_read'])
     // HTTP/2 carries no status text: the refusal still has words, or it shows as nothing at all; and the same words
     // over HTTP/1.1, whose status text is not ours to show. «Try again» only where it can help; the status is the
     // code's, never the person's to read.
@@ -129,6 +132,64 @@ describe('Studio API client', () => {
     const cancelled = getSnapshot('t', P, caller.signal)
     caller.abort()
     await assert.rejects(cancelled, { name: 'AbortError' })
+  })
+})
+
+/** Answer every fetch with a proxy's own page: HTML, no contract body. */
+const proxyPage = (status: number) => {
+  globalThis.fetch = () =>
+    Promise.resolve(
+      new Response('<html><body><h1>Bad gateway</h1></body></html>', {
+        status,
+        headers: { 'content-type': 'text/html' },
+      }),
+    )
+}
+
+// The reliability baseline's gap #2 (docs/plans/reliability-retry-5xx-and-write-timeouts.md): what Render's proxy
+// answers while a deploy or a cold start runs, a 502/503/504 page with no contract body, is asked again on a read, and
+// never repeated by a write, which waits for the person's press.
+describe('a proxy’s 502/503/504 without the contract', () => {
+  afterEach(() => {
+    globalThis.fetch = realFetch
+  })
+  const target = { ownerId: null, targetDate: '2026-11-20', expectedRevision: 0 }
+
+  for (const status of [502, 503, 504]) {
+    it(`${String(status)} on a read: safe to ask again, and the cache asks it again`, async () => {
+      proxyPage(status)
+      const snapshot = await apiError(getSnapshot('t', P))
+      assert.deepEqual(
+        [snapshot.status, snapshot.code, snapshot.retry],
+        [status, `http_${String(status)}`, 'safe_read'],
+      )
+      assert.equal(retryRead(0, snapshot), true)
+      const listed = await apiError(callApi('/api/v1/projects', { token: 't', method: 'GET' }, (v) => v))
+      assert.equal(listed.retry, 'safe_read')
+      assert.equal(retryRead(2, listed), true)
+      assert.equal(retryRead(3, listed), false, 'three tries, as TanStack’s default')
+    })
+
+    it(`${String(status)} on a write: never repeated by itself`, async () => {
+      proxyPage(status)
+      const posted = await apiError(
+        callApi(`/api/v1/projects/${P}/lobby/${G}`, { token: 't', method: 'POST' }, (v) => v),
+      )
+      assert.deepEqual([posted.status, posted.retry], [status, 'never'])
+      assert.equal(retryRead(0, posted), false)
+      const created = await apiError(createProject('t', 'key-5', 'Sophia'))
+      assert.equal(created.retry, 'never')
+      const set = await apiError(setGoalTarget('t', P, G, target))
+      assert.equal(set.retry, 'never')
+    })
+  }
+
+  it('a 4xx page on a read stays final, as before', async () => {
+    globalThis.fetch = () =>
+      Promise.resolve(new Response('<html>', { status: 404, headers: { 'content-type': 'text/html' } }))
+    const missing = await apiError(callApi('/api/v1/projects', { token: 't', method: 'GET' }, (v) => v))
+    assert.deepEqual([missing.code, missing.retry], ['http_404', 'never'])
+    assert.equal(retryRead(0, missing), false)
   })
 })
 
