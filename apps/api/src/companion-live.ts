@@ -336,16 +336,18 @@ class LiveCall {
 
   /**
    * Reserve before the provider is asked, bound to the turn (0078); anything but 'reserved' asks nothing. 'kept': an
-   * answer already paid for is kept for the turn, and it is written instead.
+   * answer already paid for is kept for the turn, and it is written instead. Only under the turn's claim, while it is
+   * pending: an attempt whose claim went to another, or whose turn was answered meanwhile, is refused (R-C55).
    */
   async reserve(prompt: string): Promise<'reserved' | 'kept'> {
     const { payer, routeId } = this.settings
-    const { turnId } = this.call
+    const { turnId, claim } = this.call
     // Without 0078 a settled answer could not be kept with its cost: nothing is reserved or asked (4319508047).
     if (!turnId || !(await personalSettledAnswersInstalled(this.pool))) throw new CompanionRefused('not_installed')
+    if (!claim) throw new CompanionRefused('not_current')
     const micros = personalReservation(prompt, this.settings)
     const outcome = await this.owned((c, callId) =>
-      reservePersonalAnswer(c, { callId, turnId }, payer, routeId, micros),
+      reservePersonalAnswer(c, { callId, turnId, claim }, payer, routeId, micros),
     )
     if (outcome !== 'reserved' && outcome !== 'kept') throw new CompanionRefused(outcome)
     return outcome

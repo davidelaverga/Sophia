@@ -12,7 +12,8 @@
 -- * The kept answer is bound to its owner and to the turn its call was reserved to answer (personal_answer_calls,
 --   written with the reservation), not to the turn's claim, asked_at or the call's registration, which a lapse or a
 --   normal retry moves while the settlement waits (R-B77-S1-P1, R-B77-F-P1). A reservation for a turn whose answer
---   is already kept is refused under the same lock, so no second call is paid for it. A call settled after an erasure keeps no answer, and
+--   is already kept is refused under the same lock, so no second call is paid for it; so is one by an attempt that no
+--   longer holds the turn's claim, or for a turn no longer pending (R-C55: a stale runner after another answered). A call settled after an erasure keeps no answer, and
 --   an erasure (which deletes the turns) takes the kept answers with them. The cost ledger (0073) stays content-free
 --   and is never touched here beyond the existing settlement.
 -- * Nothing reads the table but these functions, each for the caller's own space (sophia.personal_owner()), in the
@@ -48,10 +49,13 @@ REVOKE ALL ON sophia.personal_answer_calls FROM PUBLIC;
 
 -- The caller's call is reserved to answer p_turn (0073's reserve_personal_companion), and bound to it in the same
 -- transaction, under the space's lock; or, when an answer is already kept for that turn, nothing is reserved:
--- 'kept' (its words are written instead, never asked for again). Settlements of the same space take the same lock,
+-- 'kept' (its words are written instead, never asked for again). Only the attempt holding the turn's claim, p_claim,
+-- while the turn is still pending, reserves (as only it may write the reply, record_personal_reply): an attempt whose
+-- claim lapsed and went to another, or whose turn another answered meanwhile, is 'not_current' and pays nothing
+-- (R-C55-FAULT-DISPOSITION-01). Settlements of the same space take the same lock,
 -- so a kept answer committed just before is seen here (R-B77-F-P1's read-then-reserve race).
-CREATE FUNCTION sophia.reserve_personal_answer(p_call uuid, p_payer text, p_route text, p_micros bigint, p_turn uuid)
- RETURNS text
+CREATE FUNCTION sophia.reserve_personal_answer(p_call uuid, p_payer text, p_route text, p_micros bigint, p_turn uuid,
+ p_claim uuid) RETURNS text
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.personal_owner(); e bigint; outcome text;
 BEGIN
@@ -60,7 +64,8 @@ BEGIN
  IF EXISTS(SELECT FROM sophia.personal_settled_answers k WHERE k.owner_id=a AND k.turn_id=p_turn AND k.epoch=e) THEN
   RETURN 'kept';
  END IF;
- IF NOT EXISTS(SELECT FROM sophia.personal_turns t WHERE t.owner_id=a AND t.id=p_turn AND t.author='person') THEN
+ IF NOT EXISTS(SELECT FROM sophia.personal_turns t WHERE t.owner_id=a AND t.id=p_turn AND t.author='person'
+  AND t.reply='pending' AND t.answering_claim=p_claim) THEN
   RETURN 'not_current';
  END IF;
  outcome:=sophia.reserve_personal_companion(p_call, p_payer, p_route, p_micros);
@@ -131,10 +136,10 @@ BEGIN
  RETURN receipt;
 END $$;
 
-REVOKE ALL ON FUNCTION sophia.reserve_personal_answer(uuid,text,text,bigint,uuid),
+REVOKE ALL ON FUNCTION sophia.reserve_personal_answer(uuid,text,text,bigint,uuid,uuid),
  sophia.settle_personal_companion_answer(uuid,bigint,jsonb,text,text),
  sophia.personal_settled_answer(uuid), sophia.record_personal_settled_reply(uuid,uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION sophia.reserve_personal_answer(uuid,text,text,bigint,uuid),
+GRANT EXECUTE ON FUNCTION sophia.reserve_personal_answer(uuid,text,text,bigint,uuid,uuid),
  sophia.settle_personal_companion_answer(uuid,bigint,jsonb,text,text),
  sophia.personal_settled_answer(uuid), sophia.record_personal_settled_reply(uuid,uuid) TO sophia_api;
 

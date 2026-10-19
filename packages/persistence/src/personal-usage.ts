@@ -86,14 +86,14 @@ export type PersonalSettledOutcome = 'kept' | 'settled' | 'not_settled'
  */
 export async function reservePersonalAnswer(
   c: pg.PoolClient,
-  call: { callId: string; turnId: string },
+  call: { callId: string; turnId: string; claim: string },
   payer: string,
   routeId: string,
   micros: number,
 ): Promise<PersonalReservation | 'kept'> {
   const { rows } = await c.query<{ outcome: string }>(
-    'SELECT sophia.reserve_personal_answer($1, $2, $3, $4, $5) AS outcome',
-    [call.callId, payer, routeId, micros, call.turnId],
+    'SELECT sophia.reserve_personal_answer($1, $2, $3, $4, $5, $6) AS outcome',
+    [call.callId, payer, routeId, micros, call.turnId, call.claim],
   )
   const { outcome } = onlyRow(rows, 'reserve_personal_answer')
   if (outcome !== 'kept' && !isReservation(outcome))
