@@ -57,7 +57,7 @@ describe('task cache (4310419402): an older write answer never rolls back a newe
     const client = new QueryClient()
     const newer = task(2, { revision: 2, owner: B, ownerName: 'Davide' })
     client.setQueryData(tasksKey('report-1', 'davide'), { tasks: [newer], readFrom: 1 })
-    taskRecorded(client, 'report-1', 'davide', task(2, { revision: 1 }), 0)
+    taskRecorded(client, 'report-1', 'davide', task(2, { revision: 1 }))
     const flat = client.getQueryData<{ tasks: ProjectTask[] }>(tasksKey('report-1', 'davide'))
     assert.equal(flat?.tasks.length, 1)
     assert.equal(flat?.tasks[0]?.revision, 2)
@@ -80,7 +80,7 @@ describe('task cache (R on 878): a late write answer at the SAME revision never 
     })
     client.setQueryData(['tasks', 'one', P, read.taskId, 'davide'], read)
     taskChanged(client, late)
-    taskRecorded(client, 'report-1', 'davide', late, 0)
+    taskRecorded(client, 'report-1', 'davide', late)
     const flat = client.getQueryData<{ tasks: ProjectTask[] }>(tasksKey('report-1', 'davide'))
     const pages = client.getQueryData<InfiniteData<Page>>(['tasks', 'project', P, 'davide'])
     const one = client.getQueryData<ProjectTask>(['tasks', 'one', P, read.taskId, 'davide'])
@@ -93,35 +93,49 @@ describe('task cache (R on 878): a late write answer at the SAME revision never 
   })
 })
 
-describe('task cache (R on 36dc): a late create answer never refills a report list a newer read left it out of', () => {
+describe('task cache (P on B20): a report’s task list is read-authoritative; a Create answer never fills it', () => {
   const origin = { artifactId: 'report-1', versionId: 'v-old', versionNumber: 1, passage: 'b1w0c3', quote: null }
   const created = task(5, { from: origin })
   const key = tasksKey('report-1', 'davide')
   const flat = (client: QueryClient) => client.getQueryData<{ tasks: ProjectTask[]; readFrom: number }>(key)
 
-  it('a 200 {tasks: []} read set out after the Create was sent stays empty, and only an allowed read restores it', async () => {
+  it('a 200 {tasks: []} read after the Create was sent stays empty, and only an allowed read restores it', async () => {
     const client = new QueryClient()
-    const sentAt = taskOrder() // the Create is sent; its answer is held
+    taskOrder() // the Create is sent; its answer is held
     // The source turns private; the report's own task read, set out since, answers as persistence/human-tasks.ts does.
     client.setQueryData(key, { tasks: [], next: null, readFrom: taskOrder() })
-    taskRecorded(client, 'report-1', 'davide', created, sentAt) // the delayed answer, its origin as it was
+    taskRecorded(client, 'report-1', 'davide', created) // the delayed answer, its origin as it was
     assert.deepEqual(flat(client)?.tasks, [], 'the newer read’s exclusion is not refilled')
     assert.equal(client.getQueryState(key)?.isInvalidated, true, 'the list is read again instead')
     // A later allowed read (the source shared again) brings it back: only a read restores it.
-    const read = { tasks: [created], next: null, readFrom: taskOrder() }
-    await client.fetchQuery({ queryKey: key, queryFn: () => read })
+    await client.fetchQuery({ queryKey: key, queryFn: () => ({ tasks: [created], next: null, readFrom: taskOrder() }) })
     assert.deepEqual(flat(client)?.tasks[0]?.from, origin)
   })
 
-  it('a list read set out before the Create was sent, or none yet, takes the created task at once', () => {
+  it('after a refused first read (403, no data), a late answer neither seeds the list nor stamps it as read', async () => {
     const client = new QueryClient()
-    client.setQueryData(key, { tasks: [], next: null, readFrom: taskOrder() })
-    taskRecorded(client, 'report-1', 'davide', created, taskOrder())
+    const refused = Object.assign(new Error('forbidden'), { status: 403 })
+    await client.prefetchQuery({ queryKey: key, queryFn: () => Promise.reject(refused), retry: false })
+    taskRecorded(client, 'report-1', 'davide', created)
+    assert.equal(flat(client), undefined, 'no task, no fresh readFrom')
+    assert.equal(client.getQueryState(key)?.status, 'error')
+  })
+
+  it('a legitimate Create shows through the fresh read it asks for, the list read once more and nothing sent again', async () => {
+    const client = new QueryClient()
+    let reads = 0
+    const api = { tasks: [] as ProjectTask[] }
+    const queryFn = () => {
+      reads++
+      return { tasks: [...api.tasks], next: null, readFrom: taskOrder() }
+    }
+    await client.fetchQuery({ queryKey: key, queryFn })
+    api.tasks.push(created) // the Create commits
+    taskRecorded(client, 'report-1', 'davide', created)
+    assert.deepEqual(flat(client)?.tasks, [], 'not from the answer')
+    await client.fetchQuery({ queryKey: key, queryFn, staleTime: 0 })
     assert.deepEqual(flat(client)?.tasks, [created])
-    assert.equal(client.getQueryState(key)?.isInvalidated, false)
-    const seeded = new QueryClient()
-    taskRecorded(seeded, 'report-1', 'davide', created, taskOrder())
-    assert.deepEqual(flat(seeded)?.tasks, [created])
+    assert.equal(reads, 2)
   })
 })
 

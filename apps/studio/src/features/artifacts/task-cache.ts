@@ -2,8 +2,6 @@
 // (infinite) and one task read alone (a deep link's), each in its own shape.
 import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 import type { ProjectTask } from '../../api/vision.ts'
-import { byTime } from './review-view.ts'
-import { taskOrder, type TaskRead } from './task-read.ts'
 
 export const tasksKey = (artifactId: string, viewer: string) => ['vision', 'tasks', artifactId, viewer] as const
 
@@ -26,35 +24,13 @@ export const admits = (held: { revision?: number }, incoming: { revision?: numbe
     : held.revision === undefined || incoming.revision > held.revision
 
 /**
- * A task created: into the report's tasks by its time, once (the feed may bring it too); seeded when the first read is
- * still on its way or failed, so the task made is there at once. A list read set out since the Create was sent
- * (`sentAt`, in `taskOrder`) that does not hold it decides instead: the API leaves out a task whose origin this reader
- * may no longer follow (A39), with a 200 and no refusal, so the answer never refills it — that list is read again, and
- * only that read brings the task back.
+ * A task created (P on B20): a report's task list is read-authoritative. The Create's answer acknowledges the task but
+ * never goes into that list, nor stamps it as read: the API leaves out a task whose origin this reader may no longer
+ * follow (A39, a 200 without it), and a read may have been refused since. The list is read again instead, and only a
+ * successful read of it shows the task; a refused one keeps withholding, as any read does. The answer is the caller's.
  */
-export function taskRecorded(
-  queryClient: QueryClient,
-  artifactId: string,
-  viewer: string,
-  task: ProjectTask,
-  sentAt: number,
-) {
-  const key = tasksKey(artifactId, viewer)
-  const held = queryClient.getQueryData<TaskRead<TaskPage>>(key)
-  if (held && held.readFrom > sentAt && !held.tasks.some((t) => t.taskId === task.taskId)) {
-    void queryClient.invalidateQueries({ queryKey: key, exact: true })
-    return
-  }
-  queryClient.setQueryData<TaskRead<TaskPage>>(key, (was) => ({
-    ...was,
-    // A newer copy already read (the feed's) stays: a late create answer goes in only where it is not older.
-    tasks: (was?.tasks ?? []).some((t) => t.taskId === task.taskId && !admits(t, task))
-      ? (was?.tasks ?? [])
-      : byTime(was?.tasks ?? [], task, (t) => t.taskId),
-    // A list read before a refusal stays so; one seeded now is as new as this write.
-    readFrom: was?.readFrom ?? taskOrder(),
-  }))
-}
+export const taskRecorded = (queryClient: QueryClient, artifactId: string, viewer: string, _task: ProjectTask) =>
+  void queryClient.invalidateQueries({ queryKey: tasksKey(artifactId, viewer), exact: true })
 
 /**
  * A task changed: in every read of tasks that holds it, each kept in its own shape, and never over a newer copy

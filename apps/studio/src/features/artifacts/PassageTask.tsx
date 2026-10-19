@@ -14,7 +14,6 @@ import { canInvite, useMembership } from '../access/useAccess.ts'
 import { keptText, type PassageSource } from './passage.ts'
 import { ownerWords, taskQuote } from './task-view.ts'
 import { taskRecorded } from './TaskList.tsx'
-import { taskOrder } from './task-read.ts'
 
 /** The passage a task is made from: its words, where they came from, and their place in that version. */
 export interface TaskPassage {
@@ -60,10 +59,10 @@ export function usePassageTask(props: {
   const line = useRef<HTMLParagraphElement>(null)
   const write = useCreate(
     (key, ask) => createTask(identity.token, projectId, key, ask),
-    (task, ask, sentAt) => {
+    (task, ask) => {
       setAsked(null)
       setAdded(task)
-      if (ask.from) taskRecorded(queryClient, ask.from.artifactId, identity.name, task, sentAt)
+      if (ask.from) taskRecorded(queryClient, ask.from.artifactId, identity.name, task)
       // The press went with what it did, unless the person has gone on elsewhere (a slow reply, the form closed).
       requestAnimationFrame(() => focusFree() && line.current?.focus())
     },
@@ -166,23 +165,19 @@ type Create = ReturnType<typeof useCreate>
 
 /**
  * Create, once per key: after no reply, it is the only press (Try again), its words and owner held as they were sent,
- * until it is answered — with when it was first sent, in the task reads' order (`taskOrder`; a Try again keeps it).
+ * until it is answered.
  */
 function useCreate(
   send: (key: string, ask: TaskAsk) => Promise<ProjectTask>,
-  onAdded: (task: ProjectTask, ask: TaskAsk, sentAt: number) => void,
+  onAdded: (task: ProjectTask, ask: TaskAsk) => void,
 ) {
-  const sent = useRef<{ key: string; at: number } | null>(null)
-  const write = useAdmission<TaskAsk, ProjectTask>((key, ask) => {
-    if (sent.current?.key !== key) sent.current = { key, at: taskOrder() }
-    return send(key, ask)
-  })
+  const write = useAdmission<TaskAsk, ProjectTask>(send)
   const lost = useRef(false)
   if (write.state.status === 'unknown') lost.current = true
   else if (write.state.status !== 'sending') lost.current = false
   const sending = write.state.status === 'sending'
   const slow = useSlow(sending)
-  const answered = (done: ProjectTask | undefined, ask: TaskAsk) => done && onAdded(done, ask, sent.current?.at ?? 0)
+  const answered = (done: ProjectTask | undefined, ask: TaskAsk) => done && onAdded(done, ask)
   return {
     // A Try again on its way keeps the words it answers, and its button (aria-disabled), so the focus stays on it; a
     // first Create on its way says so too, so the foot is never silent while no other Task is offered.
