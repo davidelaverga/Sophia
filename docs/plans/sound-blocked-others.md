@@ -70,6 +70,20 @@
   - controls: `sound=blocked` alone → nothing; `people=2` without the block → nothing. `sophia=blocked` alone keeps
     her pill (the existing check).
 
+## Found while building
+
+- **The empty region was a second `.dock-note`:** with the note's class on it all along, the checks that read the
+  dock's one note (a refused device, background or camera: `call-devices`, `call-backgrounds`, `camera-flip`) found
+  two. It takes the class, and its glass, only once it has words. `material.test.ts` reads the rule whose selector is
+  exactly `.dock-note`, so the rule stays as it was.
+- **At 44ch, Not now stood alone** under the sentence (captures). The line may run to 64ch: one line on a computer
+  (363 px at 1280); on a phone the sentence, then both answers together (358 px wide at 390, the dock's own width).
+- **Leave opens «This meeting»** on the fixture page, whose backdrop takes the press on Join: the once-per-call check
+  closes it first, as the captions' check does.
+- **Controls** (built off the branch, never on it): Sophia's pill not stepping aside → the check with her line finds 2
+  Allow audio; the dismissal kept in the dock's own state → the line is back after Tasks and Studio. So the single
+  place and the controller's memory are both held by the browser checks.
+
 ## Limits
 
 - From another view the mini dock doesn't say it; back in the room the line is there (unless put away).
