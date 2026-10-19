@@ -1,6 +1,7 @@
 # Settings: follow-ups to #398
 
-> 2026-10-19 · three Codex P2s left on #398 (Settings, in one place), from the follow-up list. Studio only; no API.
+> 2026-10-19 · three Codex P2s left on #398 (Settings, in one place), from the follow-up list, and one review P2 on
+> this branch (Open on the recap brought Settings back over the report). Studio only; no API.
 > Luis 2026-10-18: «Todo trabajo nuevo que hagas ten en cuenta nuestro cuello de botella actual. Si se puede hacer en
 > un pr, excelente o como veas, que alivie la presión pero hay que seguir trabajando». One small PR. #468 is open on
 > `RoomDock.tsx`: here only `JoinButton` and one import line change; `joinTip` and the dock above it stay as they are.
@@ -42,6 +43,12 @@
     gone, and that sheet's opener is the avatar, where Settings gave the focus back as it closed. So Settings, opened
     again, puts the focus on the press itself, after its panel took it (`useDialog`, in the child `Sheet`, runs
     first).
+  - Not when every sheet closes at once (review P2 on this branch). Open on the recap or on After the meeting puts
+    every sheet away for the report (`closeEveryDialog`, `MeetingRecap.tsx:335`, `AfterMeeting.tsx:54`); that calls
+    the same close, and Settings came back over the report. `useDialog` now says when a close is one of
+    `closeEveryDialog`'s (`closingEveryDialog()`), and then the handed sheet gives nothing back. A flag, not an
+    argument to `onClose`: the kit's Close calls `onClose` with its click (`SheetFrame.tsx:64`), so every `onClose`
+    would have to change type.
 
 ## Checks, written first
 
@@ -52,6 +59,9 @@
     and Join's tip says «You join with your microphone off».
 - `crash-feedback.spec.ts`, with a DSN so Send feedback is offered: Settings, Send feedback, Close opens Settings again
   with the focus on its Send feedback; opened from the menu, Close leaves no sheet and the focus on the avatar.
+- `crash-feedback.spec.ts`, in a call (`call=on`): Settings, Send feedback, Leave the room from its call switches, Open
+  on the recap's Made: no sheet is left, and a press at the report's centre lands in it (as `room-recap.spec.ts` checks
+  for Invite).
 
 ## Limits
 
@@ -59,3 +69,7 @@
   only feedback is checked in a browser.
 - Your data, How privacy works, Keyboard shortcuts and Sign out of all devices still leave Settings for good: they go to
   the places' own sheets or sign out (the keys were settled by a Codex P1 on #398).
+- Found on the way, as on main and not changed here: the recap left from an account sheet's call switches (Settings,
+  feedback, Passkeys) is drawn under that sheet, while it takes the focus and the keys. The account's sheets go to
+  `document.body` (`AccountMenu.tsx`, `createPortal`), after the room where the recap is, at the same `z-index: 50`
+  (`theme.css`, `.sheet-backdrop`). The pointer can't reach the recap; the keyboard can. Its own follow-up.
