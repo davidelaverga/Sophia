@@ -104,9 +104,11 @@ export function contributionChanged(
 
 /** What is kept past KEPT: the erasures, the newest KEPT of them, with the ids they name; a resync counted. */
 function erasuresOf(next: Changes, resyncs: number): Changes {
-  const erasing = new Map([...(next.erasing ?? [])].toSorted(([, a], [, b]) => a - b).slice(-KEPT))
-  const keep = <T>(m: ReadonlyMap<string, T> | undefined) => new Map([...(m ?? [])].filter(([k]) => erasing.has(k)))
   const last = [...next.ids].at(-1)
+  // KEPT in all: a last change that erases nothing takes one erasure's place, the oldest, accounted below (R-B61-P2).
+  const room = last && !next.erasing?.has(last[0]) ? KEPT - 1 : KEPT
+  const erasing = new Map([...(next.erasing ?? [])].toSorted(([, a], [, b]) => a - b).slice(-room))
+  const keep = <T>(m: ReadonlyMap<string, T> | undefined) => new Map([...(m ?? [])].filter(([k]) => erasing.has(k)))
   const ids = new Map([...keep(next.ids), ...(last ? [last] : [])])
   // An erasure let go itself (more than KEPT): until a snapshot as new as it is shown, no older one is trusted.
   const lost = [...(next.erasedAt ?? [])].filter(([k]) => !erasing.has(k)).map(([, at]) => at)
