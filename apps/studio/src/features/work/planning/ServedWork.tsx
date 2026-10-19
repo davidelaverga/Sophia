@@ -45,7 +45,10 @@ function useMinute(): Date {
   return now
 }
 
-/** The project's board as served and read, or null while none can be shown; and whether its first read is under way. */
+/**
+ * The project's board as served and read, or null while none can be shown; whether its first read is under way, and
+ * whether it failed with nothing read (a board read once stays through a later failure: the query keeps its data).
+ */
 function useBoard(projectId: string, identity: Identity, feed: Feed | null, enabled: boolean) {
   const board = useQuery({
     queryKey: boardKey(projectId, identity.name),
@@ -64,7 +67,8 @@ function useBoard(projectId: string, identity: Identity, feed: Feed | null, enab
     const read = readBoardView(board.data)
     return read.ok && read.value.project_id === projectId ? read.value : null
   }, [board.data, projectId])
-  return { view, reading: enabled && board.data === undefined && !board.isError }
+  const unread = enabled && board.data === undefined
+  return { view, reading: unread && !board.isError, failed: unread && board.isError, retry: () => void refetch() }
 }
 
 interface Shared {
@@ -124,6 +128,10 @@ export interface ServedWork {
   entry: ((goal: Goal) => React.ReactNode) | undefined
   /** The board's first read is under way: its tasks may still come (search-honest.md). */
   boardReading: boolean
+  /** The board's reads failed with none read: its plans can't be shown, which is not «no plan» (silent-views.md). */
+  boardFailed: boolean
+  /** Reads the board again (Try again). */
+  retryBoard: () => void
 }
 
 export interface ServedFor {
@@ -197,7 +205,8 @@ function Recorded({
 
 /** Tasks' plans and pilot entry from the board Sophia serves for this project, as this viewer sees it. */
 export function useServedWork({ projectId, identity, feed, canAct, enabled }: ServedFor): ServedWork {
-  const { view: board, reading: boardReading } = useBoard(projectId, identity, feed, enabled)
+  const read = useBoard(projectId, identity, feed, enabled)
+  const board = read.view
   const now = useMinute()
   const queryClient = useQueryClient()
   const viewerId = tokenSubject(identity.token) ?? null
@@ -240,5 +249,5 @@ export function useServedWork({ projectId, identity, feed, canAct, enabled }: Se
           )
         }
       : undefined
-  return { plans, entry, boardReading }
+  return { plans, entry, boardReading: read.reading, boardFailed: read.failed, retryBoard: read.retry }
 }
