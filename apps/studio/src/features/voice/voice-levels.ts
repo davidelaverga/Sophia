@@ -65,7 +65,13 @@ export interface VoiceLevels {
    * the room's sound already allowed one made on a later read would read 0 until another press (orb-follow-ups.md).
    */
   wake: () => void
+  /** The call is over: every tap stopped and the context closed, once. A room that never connected ends here too. */
+  end: () => void
 }
+
+/** Someone in the call by identity: this person, or another. */
+const personIn = (room: LevelRoom, identity: string) =>
+  identity === room.localParticipant.identity ? room.localParticipant : room.remoteParticipants.get(identity)
 
 export function voiceLevels(room: LevelRoom, makeTapper: () => Tapper = analyserTapper): VoiceLevels {
   let tapper: Tapper | null = null
@@ -108,18 +114,17 @@ export function voiceLevels(room: LevelRoom, makeTapper: () => Tapper = analyser
   room.on(RoomEvent.AudioPlaybackStatusChanged, (playing: boolean) => {
     if (playing) wake()
   })
-  room.on(RoomEvent.Disconnected, () => {
+  const end = () => {
     if (ended) return
     ended = true
     for (const identity of taps.keys()) drop(identity)
     tapper?.close()
     tapper = null
-  })
-  const person = (identity: string) =>
-    identity === room.localParticipant.identity ? room.localParticipant : room.remoteParticipants.get(identity)
+  }
+  room.on(RoomEvent.Disconnected, end)
   return {
     voiceLevel: (identity) => {
-      const p = person(identity)
+      const p = personIn(room, identity)
       return p && !isSophia(p) ? read(p) : 0
     },
     sophiaLevel: () => {
@@ -127,5 +132,6 @@ export function voiceLevels(room: LevelRoom, makeTapper: () => Tapper = analyser
       return her && isSophia(her) ? read(her) : 0
     },
     wake,
+    end,
   }
 }

@@ -444,13 +444,20 @@ function deviceControls(
 }
 
 /**
- * The voices' levels in this room (voice-levels.ts), their context woken where LiveKit's own is: now, beside the one
- * `connect` makes, so what lets the room's sound play lets them run; and within Allow audio's press, before LiveKit's
- * sound is started (Safari runs only a context made or resumed within a press).
+ * The room connected, with the voices' levels (voice-levels.ts) woken where LiveKit's own sound is: just before
+ * `connect`, which makes LiveKit's context, so what lets the room's sound play lets them run; and within Allow audio's
+ * press, before LiveKit's sound starts (Safari runs only a context made or resumed within a press). A connection
+ * refused before it starts (a browser LiveKit can't run in) says no Disconnected, so the levels are let go here.
  */
-function roomLevels(room: Room) {
-  const { wake, ...levels } = voiceLevels(room)
+async function connectWithLevels(room: Room, serverUrl: string, token: string) {
+  const { wake, end, ...levels } = voiceLevels(room)
   wake()
+  try {
+    await room.connect(serverUrl, token)
+  } catch (err) {
+    end()
+    throw err
+  }
   const startAudio = () => {
     wake()
     return room.startAudio()
@@ -474,9 +481,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
   listenToReactions(room, (heard) => cb.onReaction?.(heard))
   const signalMode = modeSignal(room, () => textOnly)
   const following = followingSignal(room, cb.onChange, { resync: VISION })
-  // Before `connect`, which makes LiveKit's own context.
-  const sound = roomLevels(room)
-  await room.connect(serverUrl, token)
+  const sound = await connectWithLevels(room, serverUrl, token)
   const feedsOf = videoFeeds()
   const after = async (change: Promise<unknown>) => {
     await change
