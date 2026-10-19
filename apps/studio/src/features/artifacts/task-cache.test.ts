@@ -64,6 +64,34 @@ describe('task cache (4310419402): an older write answer never rolls back a newe
   })
 })
 
+describe('task cache (R on 878): a late write answer at the SAME revision never reinstalls an origin a newer read redacted', () => {
+  it('owner answer N with an available origin, after a GET at N said unavailable: project pages, the task alone and the report list keep it unavailable', () => {
+    const client = new QueryClient()
+    const origin = { artifactId: 'report-1', versionId: 'v-old', versionNumber: 1, passage: 'b1w0c3', quote: null }
+    // The newer read: the same revision N, but this reader may no longer follow the source.
+    const read = task(4, { revision: 2, owner: A, ownerName: 'Luis', from: 'unavailable' })
+    // The delayed owner command's own answer: revision N too, with the origin as it was when it was sent.
+    const late = task(4, { revision: 2, owner: A, ownerName: 'Luis', from: origin })
+    client.setQueryData(tasksKey('report-1', 'davide'), { tasks: [read], readFrom: 1 })
+    client.setQueryData<InfiniteData<Page>>(['tasks', 'project', P, 'davide'], {
+      pages: [{ tasks: [read], next: null }],
+      pageParams: [null],
+    })
+    client.setQueryData(['tasks', 'one', P, read.taskId, 'davide'], read)
+    taskChanged(client, late)
+    taskRecorded(client, 'report-1', 'davide', late)
+    const flat = client.getQueryData<{ tasks: ProjectTask[] }>(tasksKey('report-1', 'davide'))
+    const pages = client.getQueryData<InfiniteData<Page>>(['tasks', 'project', P, 'davide'])
+    const one = client.getQueryData<ProjectTask>(['tasks', 'one', P, read.taskId, 'davide'])
+    assert.equal(pages?.pages[0]?.tasks[0]?.from, 'unavailable', 'project page keeps the redaction')
+    assert.equal(one?.from, 'unavailable', 'the task read alone keeps the redaction')
+    assert.equal(flat?.tasks[0]?.from, 'unavailable', 'the report list keeps the redaction (insertion included)')
+    // A later genuine allowed read restores it: a read replaces the query's data whole.
+    client.setQueryData(['tasks', 'one', P, read.taskId, 'davide'], late)
+    assert.deepEqual(client.getQueryData<ProjectTask>(['tasks', 'one', P, read.taskId, 'davide'])?.from, origin)
+  })
+})
+
 /** The project's tasks as the API pages them, with a hold on the next page read when asked. */
 function server(count: number) {
   const tasks = new Map(Array.from({ length: count }, (_, i) => [id(i + 1), task(i + 1)]))

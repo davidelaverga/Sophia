@@ -13,14 +13,17 @@ interface TaskPage {
 }
 
 /**
- * Whether a write's answer may replace what a read holds (4310419402): never an older revision over a newer one — the
- * feed or another member's write may have been read since. An answer without a revision (A17's fixture tasks) stands
+ * Whether a write's answer may replace what a read holds (4310419402): only a strictly newer revision. A read at the
+ * same revision is this reader's current projection of it (an origin it may no longer follow reads 'unavailable'
+ * without a new revision: R on 878), so a write answer at that revision never reinstalls what the read redacted; the
+ * next allowed read replaces the query whole. Never an older revision over a newer one either — the feed or another
+ * member's write may have been read since. An answer without a revision (A17's fixture tasks) stands
  * only over one without one, never over a served revision.
  */
 export const admits = (held: { revision?: number }, incoming: { revision?: number }): boolean =>
   incoming.revision === undefined
     ? held.revision === undefined
-    : held.revision === undefined || incoming.revision >= held.revision
+    : held.revision === undefined || incoming.revision > held.revision
 
 /**
  * A task created: into the report's tasks by its time, once (the feed may bring it too); seeded when the first read is
