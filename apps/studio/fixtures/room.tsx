@@ -635,6 +635,8 @@ const project = {
   staleTarget: false,
   // `archived=1`: the project is archived (archive-project.md).
   archived: query.get('archived') === '1',
+  // `archivedFails=1`: the archived list can't be read (archive-keys-and-work.md).
+  archivedFails: query.get('archivedFails') === '1',
   // `targets=1`: the rollout is Marco's, due 30 October 2026 (goal-owner-date.md); `targets=mine` adds the admin change
   // as the viewer's, due 20 November, and the completed pilot as theirs, due 1 October (goal-overdue.md).
   goalTargets: new Map(goalTargetsAsked(query.get('targets'))),

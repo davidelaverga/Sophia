@@ -191,6 +191,32 @@ test('archive · in Work, an Unarchive refused says so on its row, and its press
   expect(await workKeys(page)).toHaveLength(2)
 })
 
+test('archive · Work says its archived projects couldn’t be read where «Archived» goes, with Try again (Codex on #368)', async ({
+  page,
+}) => {
+  await page.goto('/work-space.html?archived=1&archivedFails=1')
+  const failed = page.getByRole('alert').filter({ hasText: 'Couldn’t load your archived projects.' })
+  await expect(failed).toBeVisible()
+  // After the list, where the fold would be: nothing that failed to load looks like none archived.
+  await expect(page.locator('.c3-projects > *').last()).toContainText('Couldn’t load your archived projects.')
+  await expect(page.getByRole('button', { name: /^Archived/ })).toHaveCount(0)
+  await page.evaluate(() => window.workSpaceFixture?.recover())
+  await failed.getByRole('button', { name: 'Try again' }).click()
+  await expect(page.getByRole('button', { name: 'Archived (1)' })).toBeVisible()
+  await expect(failed).toHaveCount(0)
+})
+
+test('archive · inside an archived project whose archived list can’t be read, no line claims anything', async ({
+  page,
+}) => {
+  await page.goto('/room.html?archived=1&archivedFails=1')
+  // Archived, yet every read of the list refused, its three retries too: the page can't know either way.
+  const refused = async () => (await served(page)).filter((s) => s === 'projects:archived:refused').length
+  await expect.poll(refused, { timeout: 15_000 }).toBeGreaterThanOrEqual(4)
+  await expect(page.getByText('This project is archived')).toHaveCount(0)
+  await expect(page.getByText('Couldn’t load your archived projects.')).toHaveCount(0)
+})
+
 test('archive · an editor opens an archived project, with nothing to bring back; none archived, no fold', async ({
   page,
 }) => {

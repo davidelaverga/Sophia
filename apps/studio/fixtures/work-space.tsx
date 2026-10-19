@@ -5,6 +5,7 @@
 // Idempotency-Key. `role=editor`: the archived one is not theirs to bring back. `unarchive=lost`: the first Unarchive
 // lands and its reply never comes, as one whose answer is lost on the way back; `hold`: each reply waits for
 // `workSpaceFixture.release()`; `fails`: the first is refused with a 503 whose body says nothing, as a proxy's.
+// `archivedFails=1`: the archived list's read is refused the same way until `workSpaceFixture.recover()`.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -20,7 +21,13 @@ import { bootTheme } from '../src/app/theme.ts'
 
 declare global {
   interface Window {
-    workSpaceFixture?: { opened: string[]; unarchived: string[]; keys: string[]; release: () => void }
+    workSpaceFixture?: {
+      opened: string[]
+      unarchived: string[]
+      keys: string[]
+      release: () => void
+      recover: () => void
+    }
   }
 }
 
@@ -28,11 +35,16 @@ const query = new URLSearchParams(window.location.search)
 bootTheme(query.get('theme'))
 /** `unarchive=hold`: lets the held reply go. */
 let release: () => void = () => undefined
+/** `archivedFails=1`: the archived list can't be read until `workSpaceFixture.recover()`. */
+let archivedFailing = query.has('archivedFails')
 const recorded = {
   opened: [] as string[],
   unarchived: [] as string[],
   keys: [] as string[],
   release: () => release(),
+  recover: () => {
+    archivedFailing = false
+  },
 }
 window.workSpaceFixture = recorded
 /** Whom the page reads and writes as: an account of the Studio's, its token unsigned. */
@@ -55,6 +67,8 @@ let archived = query.has('archived')
 
 const json = (value: unknown) =>
   new Response(JSON.stringify(value), { headers: { 'content-type': 'application/json' } })
+/** A refusal whose body says nothing, as a proxy's in front of the API. */
+const unavailable = () => new Response('Service Unavailable', { status: 503 })
 const UNARCHIVE = query.get('unarchive')
 const ARCHIVE = /^\/api\/v1\/projects\/([^/]+)\/archive$/
 
@@ -63,7 +77,7 @@ function unarchived(projectId: string, init: RequestInit | undefined): Promise<R
   recorded.unarchived.push(projectId)
   recorded.keys.push(new Headers(init?.headers).get('idempotency-key') ?? '')
   const first = recorded.keys.length === 1
-  if (UNARCHIVE === 'fails' && first) return Promise.resolve(new Response('Service Unavailable', { status: 503 }))
+  if (UNARCHIVE === 'fails' && first) return Promise.resolve(unavailable())
   archived = archived.filter((p) => p.projectId !== projectId)
   if (UNARCHIVE === 'lost' && first) return Promise.reject(new TypeError('Failed to fetch'))
   const answer = json({ projectId, archived: false, cursor: '1' })
@@ -75,7 +89,9 @@ const real = window.fetch.bind(window)
 window.fetch = (input, init) => {
   const href = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
   const { pathname } = new URL(href, window.location.href)
-  if (pathname === '/api/v1/projects/archived') return Promise.resolve(json({ projects: archived, personalEpoch: 1 }))
+  if (pathname === '/api/v1/projects/archived') {
+    return Promise.resolve(archivedFailing ? unavailable() : json({ projects: archived, personalEpoch: 1 }))
+  }
   const archive = ARCHIVE.exec(pathname)?.[1]
   if (archive && init?.method === 'POST') return unarchived(archive, init)
   return real(input, init)
