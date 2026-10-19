@@ -22,7 +22,12 @@ export const ACTS: ReadonlySet<string> = new Set([
 export interface Changes {
   readonly ids: ReadonlyMap<string, number>
   readonly resyncs: number
+  /** Of those, the corrections and withdrawals (they may erase a source other held messages share), by when learned. */
+  readonly erasing?: ReadonlyMap<string, number>
 }
+
+/** The events that may erase a message's source, with every message sharing it (A36, 0068; r4313704366). */
+export const ERASING: ReadonlySet<string> = new Set(['contribution.corrected', 'contribution.withdrawn'])
 
 interface Store {
   changes: Changes
@@ -59,12 +64,28 @@ function tell(store: Store, changes: Changes) {
 }
 
 /** The feed applied a message's correction or withdrawal: its id is kept, however many come at once. */
-export function contributionChanged(owner: string, id: string): void {
+export function contributionChanged(owner: string, id: string, erasing = false): void {
   const store = storeOf(owner)
   learned += 1
   const ids = new Map([...store.changes.ids, [id, learned]])
+  const was = store.changes.erasing ?? new Map<string, number>()
   if (ids.size > KEPT) tell(store, { ids: new Map(), resyncs: store.changes.resyncs + 1 })
-  else tell(store, { ...store.changes, ids })
+  else tell(store, { ...store.changes, ids, erasing: erasing ? new Map([...was, [id, learned]]) : was })
+}
+
+/**
+ * The held pages without the messages that shared an erased source (r4313704366): a correction or withdrawal of A
+ * erases A's old source and every other message's words kept in it, while the event names A alone, so they are let
+ * go here, at once, by the source A had when held. A held nowhere: which source went is unknown, so every page goes.
+ */
+export function withoutAliases<H extends HeldMaps>(held: H, erased: readonly string[]): H | null {
+  const entries = new Map(held.entries)
+  for (const id of erased) {
+    const source = held.entries.get(id)?.sourceId
+    if (source === undefined) return held.withdrawn.has(id) ? held : null
+    for (const [other, entry] of held.entries) if (other !== id && entry.sourceId === source) entries.delete(other)
+  }
+  return entries.size === held.entries.size ? held : { ...held, entries }
 }
 
 /** The feed lost its place and read the snapshot again: what changed meanwhile is unknown. */
@@ -293,12 +314,21 @@ export function useHeldRefresh(input: {
       ),
   )
   const resyncs = useRef(changes.resyncs)
+  const erased = useRef(new Map<string, number>())
   useEffect(() => {
     if (changes.resyncs !== resyncs.current) {
       resyncs.current = changes.resyncs
       refresher.reset()
       setHeld((h) => (h && h.projectId === projectId ? null : h))
-    } else if (held) refresher.step(changes, held, window)
+      return
+    }
+    const fresh = [...(changes.erasing ?? [])].filter(([id, at]) => erased.current.get(id) !== at)
+    for (const [id, at] of fresh) erased.current.set(id, at)
+    if (held && fresh.length > 0) {
+      const ids = fresh.map(([id]) => id)
+      setHeld((h) => (h && h.projectId === projectId ? withoutAliases(h, ids) : h))
+    }
+    if (held) refresher.step(changes, held, window)
   }, [changes, held, projectId, refresher, setHeld, tick, window])
   const epoch = () => refresher.epoch
   return [held ? refresher.fence(changes, held, window) : NONE_STALE, epoch] as const
