@@ -65,12 +65,19 @@ export class ApiError extends Error {
 const unreadRefusal = (status: number) =>
   `That didn’t go through.${status >= 500 || status === 429 ? ' Try again.' : ''}`
 
-/** The reply's error body when it matches the contract; otherwise the HTTP status speaks, in words. */
-export async function toError(res: Response, retry: ApiErrorBody['retry'] = 'never'): Promise<ApiError> {
+/** A proxy's answer while the API deploys or wakes (Render's 502/503/504 page): the API itself, asked again, may answer. */
+const PROXY_PAUSE = new Set([502, 503, 504])
+
+/**
+ * The reply's error body when it matches the contract; otherwise the HTTP status speaks, in words. Without a body, a
+ * read stopped at the proxy is safe to ask again; anything else is final, and a write never repeats itself
+ * (docs/plans/reliability-retry-5xx-and-write-timeouts.md).
+ */
+export async function toError(res: Response, call: 'read' | 'write'): Promise<ApiError> {
   const body = asErrorBody(await res.json().catch(() => null))
-  return body
-    ? new ApiError(res.status, body.code, body.message, body.retry)
-    : new ApiError(res.status, `http_${res.status}`, unreadRefusal(res.status), retry)
+  if (body) return new ApiError(res.status, body.code, body.message, body.retry)
+  const retry = call === 'read' && PROXY_PAUSE.has(res.status) ? 'safe_read' : 'never'
+  return new ApiError(res.status, `http_${res.status}`, unreadRefusal(res.status), retry)
 }
 
 /**
@@ -114,7 +121,7 @@ async function inTime<T>(ms: number, run: (signal: AbortSignal) => Promise<T>, o
 export function getSnapshot(token: string, projectId: string, signal?: AbortSignal): Promise<Snapshot> {
   const read = async (limit: AbortSignal) => {
     const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/snapshot`), { headers: auth(token), signal: limit })
-    if (!res.ok) throw await toError(res)
+    if (!res.ok) throw await toError(res, 'read')
     return readBody(res, parseSnapshot, 'safe_read')
   }
   return inTime(READ_TIMEOUT_MS, read, signal)
@@ -128,7 +135,7 @@ export function getDiscussionPage(token: string, projectId: string, before: stri
       headers: auth(token),
       signal: limit,
     })
-    if (!res.ok) throw await toError(res)
+    if (!res.ok) throw await toError(res, 'read')
     return readBody(res, parseDiscussionPage, 'safe_read')
   }
   return inTime(READ_TIMEOUT_MS, read)
@@ -138,7 +145,7 @@ export function getDiscussionPage(token: string, projectId: string, before: stri
 function readJson<T>(token: string, path: `/api/${string}`, parse: (value: unknown) => T): Promise<T> {
   const read = async (limit: AbortSignal) => {
     const res = await fetch(apiUrl(path), { headers: auth(token), signal: limit })
-    if (!res.ok) throw await toError(res)
+    if (!res.ok) throw await toError(res, 'read')
     return readBody(res, parse, 'safe_read')
   }
   return inTime(READ_TIMEOUT_MS, read)
@@ -166,7 +173,7 @@ export async function setGoalTarget(
       body: JSON.stringify(body),
       signal: limit,
     })
-    if (!res.ok) throw await toError(res)
+    if (!res.ok) throw await toError(res, 'write')
     return readBody(res, parseGoalTargetSet, 'never')
   }
   return inTime(READ_TIMEOUT_MS, send)
@@ -180,7 +187,7 @@ export function getProjectActivity(token: string, projectId: string, before: str
       headers: auth(token),
       signal: limit,
     })
-    if (!res.ok) throw await toError(res)
+    if (!res.ok) throw await toError(res, 'read')
     return readBody(res, parseActivityPage, 'safe_read')
   }
   return inTime(READ_TIMEOUT_MS, read)
@@ -204,7 +211,7 @@ export async function changeMemberRole(
       body: JSON.stringify({ role }),
       signal: limit,
     })
-    if (!res.ok) throw await toError(res)
+    if (!res.ok) throw await toError(res, 'write')
     return readBody(res, parseMemberRoleSet, 'never')
   }
   return inTime(READ_TIMEOUT_MS, send)
@@ -223,7 +230,7 @@ export async function actInCall(
       headers: auth(token),
       signal: limit,
     })
-    if (!res.ok) throw await toError(res)
+    if (!res.ok) throw await toError(res, 'write')
   }
   return inTime(WRITE_TIMEOUT_MS, send)
 }
@@ -236,7 +243,7 @@ export async function muteEveryoneInCall(token: string, projectId: string): Prom
       headers: auth(token),
       signal: limit,
     })
-    if (!res.ok) throw await toError(res)
+    if (!res.ok) throw await toError(res, 'write')
   }
   return inTime(WRITE_TIMEOUT_MS, send)
 }
@@ -265,7 +272,7 @@ function postIdempotent<T>(
     } catch {
       throw new ApiError(0, 'outcome_unknown', 'No reply from Sophia', 'same_admission_key')
     }
-    if (!res.ok) throw await toError(res)
+    if (!res.ok) throw await toError(res, 'write')
     return readBody(res, parse, 'same_admission_key')
   })
 }
@@ -334,7 +341,7 @@ export function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value
       void res.body?.cancel().catch(() => undefined)
       throw refused
     }
-    if (!res.ok) throw await toError(res)
+    if (!res.ok) throw await toError(res, retry === 'safe_read' ? 'read' : 'write')
     return readBody(res, parse, retry)
   }
   return inTime(method === 'GET' ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS, call, init.signal)
