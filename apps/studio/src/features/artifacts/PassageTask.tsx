@@ -12,7 +12,7 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { canInvite, useMembership } from '../access/useAccess.ts'
 import { keptText, type PassageSource } from './passage.ts'
-import { ownerWords, taskQuote } from './task-view.ts'
+import { noOwnerOption, ownerWords, taskQuote } from './task-view.ts'
 import { taskRecorded } from './TaskList.tsx'
 
 /** The passage a task is made from: its words, where they came from, and their place in that version. */
@@ -308,7 +308,7 @@ function TaskFoot({ owner, setOwner, people, held, words, children }: FootProps)
         For
         <select value={owner} disabled={held} onChange={(e) => setOwner(e.target.value)}>
           <option value="me">Me</option>
-          <option value="anyone">Anyone</option>
+          <option value="anyone">{noOwnerOption(SERVED_TASKS)}</option>
           {people.map((p) => (
             <option key={p.actorId} value={p.actorId}>
               {p.name}

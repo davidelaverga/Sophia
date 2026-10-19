@@ -7,6 +7,7 @@ import {
   fromWords,
   mayAssign,
   mayFinish,
+  noOwnerOption,
   openCount,
   ordered,
   ownerWords,
@@ -148,5 +149,13 @@ describe('A39 served tasks (D-TASKS)', () => {
     assert.equal(fromWords(task({ from: null })), null)
     assert.equal(fromWords(task({ from: 'unavailable' })), 'The passage it came from isn’t available to you')
     assert.equal(fromWords(task({ from: { versionId: 'v', versionNumber: 2, passage: '1.2.3', quote: null } })), 'v2')
+  })
+})
+
+describe('the owner choice for no one (FND-C50)', () => {
+  it('says «Nobody yet» in the served form and keeps A17’s «Anyone»; a viewer still never finishes it', () => {
+    assert.equal(noOwnerOption(true), 'Nobody yet')
+    assert.equal(noOwnerOption(false), 'Anyone')
+    assert.equal(ownerWords(task(), 'me', true), 'nobody yet', 'the list and confirmation agree')
   })
 })

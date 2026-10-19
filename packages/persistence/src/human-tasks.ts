@@ -25,7 +25,7 @@ export const REPORT_TASKS = 100
 const ORIGIN = `LEFT JOIN LATERAL (
     SELECT a.id AS artifact_id, v.id AS version_id, v.version_number, a.title
       FROM sophia.artifact_versions v
-      JOIN sophia.artifacts a ON a.project_id = v.project_id AND a.id = v.artifact_id
+      JOIN sophia.artifacts a ON a.project_id = v.project_id AND a.id = v.artifact_id AND a.format = 'markdown'
       JOIN sophia.source_objects s ON s.project_id = v.project_id AND s.id = v.source_id
      WHERE t.origin_version_id IS NOT NULL AND v.project_id = t.project_id AND v.artifact_id = t.origin_artifact_id
        AND v.id = t.origin_version_id AND v.state IN ('stable', 'superseded') AND s.state = 'ready'
@@ -175,7 +175,7 @@ export async function readProjectTask(
  */
 export async function readReportTasks(c: pg.PoolClient, artifactId: string): Promise<ProjectTaskList> {
   const { rows: report } = await c.query<{ project_id: string }>(
-    `SELECT project_id FROM sophia.artifacts WHERE id = $1`,
+    `SELECT project_id FROM sophia.artifacts WHERE id = $1 AND format = 'markdown'`,
     [artifactId],
   )
   const project = report[0]?.project_id

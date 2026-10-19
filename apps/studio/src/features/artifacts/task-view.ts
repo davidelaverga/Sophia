@@ -5,6 +5,11 @@ import type { Membership } from '@sophia/contracts'
 import type { ProjectTask } from '../../api/vision.ts'
 import type { RoomParticipant } from '../voice/room-view.ts'
 
+/** The owner choice for no one: A39's served form says «Nobody yet» (the payload stays null); A17 keeps «Anyone». */
+export function noOwnerOption(served: boolean): string {
+  return served ? 'Nobody yet' : 'Anyone'
+}
+
 /** Who a task is for: you, the member by the name the API gives, or anyone (A17) / nobody yet (A39, `served`). */
 export function ownerWords(task: ProjectTask, me: string, served = false): string {
   if (task.owner === null) return served ? 'nobody yet' : 'anyone'

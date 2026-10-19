@@ -478,3 +478,129 @@ describe('project human tasks (A39, D-TASKS)', () => {
     assert.equal(ready.statusCode, 200, ready.body)
   })
 })
+
+/** A restricted API connection (the application role) acting as `actor` inside one open transaction. */
+async function actorTx(actor: string): Promise<pg.Client> {
+  const c = new pg.Client({ connectionString: db.apiUrl })
+  await c.connect()
+  await c.query('BEGIN')
+  await c.query("SELECT set_config('sophia.actor_id', $1, true)", [actor])
+  return c
+}
+
+/** Waits until some backend is blocked on a lock: the barrier is the lock queue, never a sleep. */
+async function blockedOnLock(pid: number): Promise<void> {
+  for (let i = 0; i < 200; i++) {
+    const [w] = await owner<{ n: number }>(
+      `SELECT count(*)::int n FROM pg_stat_activity WHERE pid=$1 AND wait_event_type='Lock'`,
+      [pid],
+    )
+    if (w?.n === 1) return
+    await new Promise((r) => setTimeout(r, 10))
+  }
+  assert.fail('the Done never waited for the project lock')
+}
+
+type Revoke = (c: pg.Client, p: string, viewer: string) => Promise<unknown>
+const LEAVE: Revoke = (c, p) => c.query('SELECT sophia.leave_project($1,$2)', [p, randomUUID()])
+const REMOVE: Revoke = (c, p, viewer) => c.query('SELECT sophia.remove_member($1,$2,$3)', [p, viewer, randomUUID()])
+
+async function taskRows(p: string) {
+  return owner<{ t: string; e: number; r: number }>(
+    `SELECT (SELECT json_agg(t ORDER BY id)::text FROM sophia.project_tasks t WHERE project_id=$1) t,
+            (SELECT count(*)::int FROM sophia.project_events WHERE project_id=$1 AND type LIKE 'project.task%') e,
+            (SELECT count(*)::int FROM sophia.project_task_requests WHERE project_id=$1) r`,
+    [p],
+  )
+}
+
+async function raceDone(revoke: Revoke, revokerIsViewer: boolean) {
+  const [admin, viewer] = [randomUUID(), randomUUID()]
+  const { projectId: p } = await seedProject(db.ownerUrl, { admin, viewers: [viewer] })
+  const t = await created(admin, p, { title: 'Theirs', ownerId: viewer })
+  const prior = await taskRows(p)
+  const revoker = await actorTx(revokerIsViewer ? viewer : admin)
+  const doer = await actorTx(viewer)
+  try {
+    await revoke(revoker, p, viewer) // holds the project lock, membership off, not yet committed
+    const [{ pid } = { pid: 0 }] = (await doer.query<{ pid: number }>('SELECT pg_backend_pid() pid')).rows
+    const finishing = doer.query('SELECT sophia.finish_project_task($1,$2,$3,$4)', [p, t.taskId, randomUUID(), 1]).then(
+      () => 'committed',
+      (e: unknown) => (e instanceof Error && 'code' in e ? String(e.code) : 'error'),
+    )
+    await blockedOnLock(pid)
+    await revoker.query('COMMIT')
+    const outcome = await finishing
+    await doer.query(outcome === 'committed' ? 'COMMIT' : 'ROLLBACK')
+    return { outcome, prior, later: await taskRows(p) }
+  } finally {
+    await revoker.end()
+    await doer.end()
+  }
+}
+
+describe('Task revalidation (0077, FND-C50)', () => {
+  it('is ready only with 0077 installed: every Task write locks first, and a new origin is Markdown', async () => {
+    const ready = await app.inject({ method: 'GET', url: '/ready' })
+    assert.equal(ready.statusCode, 200, ready.body)
+  })
+
+  for (const [name, revoke, self] of [
+    ['leaves', LEAVE, true],
+    ['is removed by an admin', REMOVE, false],
+  ] as const) {
+    it(`refuses an assigned viewer's Done that waited for the project lock while the viewer ${name}`, async () => {
+      const { outcome, prior, later } = await raceDone(revoke, self)
+      assert.equal(outcome, '42501', 'the current membership, read after the lock, is gone')
+      assert.deepEqual(later, prior, 'no task revision, state, event or receipt moved')
+    })
+  }
+
+  it('still lets the assigned viewer finish when the revocation comes after (reverse order), once per key', async () => {
+    const [admin, viewer] = [randomUUID(), randomUUID()]
+    const { projectId: p } = await seedProject(db.ownerUrl, { admin, viewers: [viewer] })
+    const t = await created(admin, p, { title: 'Theirs', ownerId: viewer })
+    const key = randomUUID()
+    const first = await done(viewer, p, t, 1, key)
+    assert.equal(first.status, 200, first.raw)
+    assert.deepEqual((await done(viewer, p, t, 1, key)).json, first.json, 'the same key answers the same')
+    assert.equal((await done(viewer, p, t, 1)).status, 409, 'a stale revision')
+    const out = await call(admin, 'POST', `/api/v1/projects/${p}/members/${viewer}/removal`, {
+      body: {},
+      key: randomUUID(),
+    })
+    assert.equal(out.status, 200, out.raw)
+    assert.equal((await done(viewer, p, t, 2, key)).status, 403, 'a replay rechecks current membership')
+  })
+
+  it('links only a Markdown report; a stored non-Markdown origin reads unavailable and its report has no task list', async () => {
+    const [admin, editor] = [randomUUID(), randomUUID()]
+    const seed = await seedProject(db.ownerUrl, { admin, editors: [editor] })
+    const p = seed.projectId
+    const md = await report(seed, editor, 'Markdown report', ['# One\nwords'])
+    const html = await report(seed, editor, 'Not Markdown', ['# One\nwords'])
+    await owner(`UPDATE sophia.artifacts SET format='html' WHERE id=$1`, [html.artifactId])
+    const [hv] = html.versions
+    const [mv] = md.versions
+    assert.ok(hv && mv)
+    const prior = await taskRows(p)
+    const refused = await create(editor, p, { title: 'From HTML', origin: at(html.artifactId, hv.id) })
+    assert.equal(refused.status, 422, refused.raw)
+    assert.deepEqual(await taskRows(p), prior, 'nothing committed')
+    const ok = await created(editor, p, { title: 'From Markdown', origin: at(md.artifactId, mv.id) })
+    assert.deepEqual([ok.origin?.available, ok.origin?.versionId], [true, mv.id], 'the exact version')
+    assert.equal((await reportTasks(editor, md.artifactId)).tasks.length, 1)
+    // An origin stored before 0077 on a report that is not Markdown: kept, but unavailable, and not listed.
+    await owner(`UPDATE sophia.artifacts SET format='html' WHERE id=$1`, [md.artifactId])
+    const seen = await read(editor, p, ok.taskId)
+    assert.deepEqual([seen.taskId, seen.origin?.available], [ok.taskId, false])
+    assert.equal(JSON.stringify(seen).includes('words'), false, 'no copy of the source')
+    const gone = await call(editor, 'GET', `/api/v1/artifacts/${md.artifactId}/tasks`)
+    const unknown = await call(editor, 'GET', `/api/v1/artifacts/${randomUUID()}/tasks`)
+    assert.deepEqual(
+      [gone.status, gone.json?.code],
+      [unknown.status, 'not_found'],
+      'answered as a report that is not there',
+    )
+  })
+})
