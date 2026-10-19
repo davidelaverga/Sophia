@@ -76,6 +76,15 @@ const openRow = (page: Page) =>
   })
 
 /** The dock's presses at rest (not on, not the primary; a clear one left out), with the dock and the page. */
+/**
+ * The room drawn, and its call live in the dock: the call joins once the page's first effects have run
+ * (call-ends-on-open.md), so the dock's presses can come a moment after the room.
+ */
+async function inCall(page: Page) {
+  await drawn(page, DRAWN.room.slice(0, 1))
+  await expect(page.locator('.dock').getByRole('button', { name: 'Leave the room' })).toBeVisible()
+}
+
 const dockPresses = (page: Page) =>
   page.evaluate(() => {
     const dock = document.querySelector('.dock')
@@ -106,7 +115,7 @@ test('light · the room: the lens thumb stands lighter than its track, not 1.18:
 
 test('light · a call: the dock’s presses at rest stand lighter than the dock', async ({ page }) => {
   await page.goto(`${CALL}&theme=light`)
-  await drawn(page, DRAWN.room.slice(0, 1))
+  await inCall(page)
   const read = await dockPresses(page)
   expect(read.presses.length).toBeGreaterThan(0)
   for (const press of read.presses) {
@@ -133,7 +142,7 @@ test('the room keeps its lens thumb, its dock’s presses at rest and its open r
   expect((await lensThumb(page)).piece).toBe('rgba(236, 235, 241, 0.08)')
 
   await page.goto(CALL)
-  await drawn(page, DRAWN.room.slice(0, 1))
+  await inCall(page)
   const dock = await dockPresses(page)
   expect(dock.presses.length).toBeGreaterThan(0)
   for (const press of dock.presses)
