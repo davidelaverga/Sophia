@@ -80,6 +80,7 @@ import {
   setSpeaking,
   sophiaAsked,
   type SophiaState,
+  unmutes,
 } from './fake-people.ts'
 import {
   holdFeed,
@@ -132,6 +133,8 @@ interface Fixture {
   update: () => void
   /** The door shuts under the shell: the next snapshot read is refused (403), with no move of the route. */
   shutDoor: () => void
+  /** Another admin archives the project elsewhere: recorded, and the event saying so goes out (archive-project.md). */
+  archivedElsewhere: () => void
   /** Sophia writes a difficulty on the demo's goal of that title, from a call, and the project's stream moves (goal-notes.md). */
   noteOnGoal: (title: string, text: string) => void
   /** The room's recent discussion goes (it moved past what the snapshot holds): a reply to it is refused (A20). */
@@ -155,6 +158,10 @@ interface Fixture {
   failEarlier: () => void
   /** The next host control fails, as an unreachable room server's (host-controls.md). */
   failHost: () => void
+  /** The next «Mute everyone» mutes everyone, then fails, as a record lost after it (mute-all-follow-ups.md). */
+  failAfterMuteAll: () => void
+  /** The `n`th other person turns their microphone back on, after an admin muted it (fake-people.ts). */
+  unmutes: (n: number) => void
   /** The next goal target saved finds someone else's first (goal-owner-date.md). */
   staleTarget: () => void
   /** The next invitation to this address fails, as an unavailable API's (invite-from-projects.md). */
@@ -290,6 +297,8 @@ interface Fixture {
   holdProjects: (on: boolean) => void
   /** Lets the held membership reads through, and every later one (`membership=hold`). */
   releaseMembership: () => void
+  /** Lets the held snapshot reads through, and every later one (`snapshot=hold`): the project loads. */
+  releaseSnapshot: () => void
   /** While on, Sophia is out of reach: every API request fails as a lost connection (`outage=1`). */
   outage: (on: boolean) => void
   /** While on, only the membership's reads fail (`membership=fail`). */
@@ -622,6 +631,7 @@ const project = {
   editHeld: null as (() => void)[] | null,
   failEarlier: false,
   failHost: false,
+  failAfterMuteAll: false,
   staleTarget: false,
   // `archived=1`: the project is archived (archive-project.md).
   archived: query.get('archived') === '1',
@@ -722,6 +732,8 @@ const project = {
   cardAhead: query.get('card') === 'ahead',
   projectsHeld: query.get('projects') === 'hold' ? waiting() : null,
   membershipHeld: query.get('membership') === 'hold' ? waiting() : null,
+  // `snapshot=hold`: the project's snapshot isn't read until the page lets it through (offline-join-from-rest.md).
+  snapshotHeld: query.get('snapshot') === 'hold' ? waiting() : null,
   membershipFails: query.get('membership') === 'fail',
   outage: query.get('outage') === '1',
   outsider: query.get('member') === '0',
@@ -769,6 +781,10 @@ window.fixture = {
   update: () => publish(project),
   shutDoor: () => {
     project.doorShut = true
+    publish(project)
+  },
+  archivedElsewhere: () => {
+    project.archived = true
     publish(project)
   },
   noteOnGoal: (title, text) => {
@@ -833,6 +849,10 @@ window.fixture = {
   failHost: () => {
     project.failHost = true
   },
+  failAfterMuteAll: () => {
+    project.failAfterMuteAll = true
+  },
+  unmutes,
   staleTarget: () => {
     project.staleTarget = true
   },
@@ -1043,6 +1063,11 @@ window.fixture = {
   releaseMembership: () => {
     const held = project.membershipHeld ?? []
     project.membershipHeld = null
+    for (const answer of held) answer()
+  },
+  releaseSnapshot: () => {
+    const held = project.snapshotHeld ?? []
+    project.snapshotHeld = null
     for (const answer of held) answer()
   },
   outage: (on) => {

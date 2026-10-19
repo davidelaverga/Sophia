@@ -40,6 +40,56 @@ test('feedback · Send feedback sends the words to the crash service, and says s
   )
 })
 
+// One sheet at a time (CONTRIBUTING.md): Settings hands over to feedback, and feedback closed gives Settings back, at the
+// press that opened it. Opened from the menu, it closes to the page (Codex P2 on #398).
+test('feedback · opened from Settings, Close comes back to Settings, at its Send feedback', async ({ page }) => {
+  await page.goto('/room.html?sentry=1')
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Settings…' }).click()
+  const settings = page.getByRole('dialog', { name: 'Settings' })
+  await settings.getByRole('button', { name: 'Send feedback' }).click()
+  await expect(settings).toHaveCount(0)
+  await sheet(page).getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(sheet(page)).toHaveCount(0)
+  await expect(settings.getByRole('button', { name: 'Send feedback' })).toBeFocused()
+})
+
+test('feedback · opened from the menu, Close goes back to the page, at the avatar', async ({ page }) => {
+  await page.goto('/room.html?sentry=1')
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Send feedback' }).click()
+  await sheet(page).getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(sheet(page)).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0)
+  await expect(account(page)).toBeFocused()
+})
+
+// What opens a report from the recap puts every sheet away (room-recap.spec.ts): feedback that Settings handed over to
+// goes too, and Settings doesn't come back over the report (review P2 on the follow-ups to #398).
+test('feedback · opened from Settings, Open on the recap puts it away for good, so the report is in view', async ({
+  page,
+}) => {
+  await page.goto('/room.html?sentry=1&call=on&people=2&floor=1&sophia=listening')
+  await page.evaluate(() => window.fixture?.notice())
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Settings…' }).click()
+  await page.getByRole('dialog', { name: 'Settings' }).getByRole('button', { name: 'Send feedback' }).click()
+  await sheet(page).getByRole('group', { name: 'Your call' }).getByRole('button', { name: 'Leave the room' }).click()
+  // The recap takes the keys, though it is drawn under the account's sheet, which goes over the page (as on main): its
+  // Open is pressed from the keyboard.
+  const recap = page.getByRole('dialog', { name: 'This meeting' })
+  await recap.getByRole('region', { name: 'Made' }).getByRole('button', { name: 'Open' }).press('Enter')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  const report = page.getByRole('complementary', { name: 'Fixture report' })
+  await expect(report).toBeVisible()
+  // Nothing covers it: a press at its centre lands in it.
+  const onTop = await report.evaluate((el) => {
+    const box = el.getBoundingClientRect()
+    return el.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2))
+  })
+  expect(onTop).toBe(true)
+})
+
 test('crash · an error the page throws is reported, without the address’s query or fragment', async ({ page }) => {
   const sent = await ingest(page)
   await page.goto('/room.html?sentry=1#private-token')
