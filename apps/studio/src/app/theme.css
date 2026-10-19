@@ -2847,6 +2847,40 @@ img.avatar {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+/* What came while the tab was hidden (docs/plans/messages-while-away.md): a divider above the first message that came,
+   its words in the halo's ink between two hairlines; and, while it is out of view, the line at the chat's head, set as
+   the panel's own note is. */
+.while-away-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 8px;
+  color: var(--halo-text);
+  font-size: var(--type-small);
+  scroll-margin-top: 8px;
+}
+.while-away-divider::before,
+.while-away-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgb(var(--halo-rgb) / 0.4);
+}
+.while-away-divider:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+  border-radius: var(--r-1);
+}
+.while-away-line {
+  flex: none;
+  margin: 8px var(--panel-pad) 0;
+  padding: 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--glass);
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
 /* Replies (A20, the vision flag's): Reply after a message's words, the quote of what a reply answers above them, and
    above the bar what is being answered, with ✕. */
 .contribution:focus-visible {
