@@ -42,6 +42,16 @@ test('archive · an editor is offered no Archive', async ({ page }) => {
   await expect(menu(page).getByRole('menuitem')).toHaveText(['Leave project…'])
 })
 
+test('archive · an admin of an archived project is offered no Archive, only the line’s Unarchive (Codex on #368)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?archived=1')
+  // Archived as read: archiving it again would change nothing, yet end the call and go to Work.
+  await expect(page.getByRole('status').filter({ hasText: 'This project is archived' })).toBeVisible()
+  await header(page).getByRole('button', { name: 'Fixture project' }).click()
+  await expect(menu(page).getByRole('menuitem')).toHaveText(['Rename…', 'Activity', 'Leave project…'])
+})
+
 test('archive · inside an archived project a line says so, and Unarchive brings it back', async ({ page }) => {
   await page.goto('/room.html?archived=1')
   const line = page.getByRole('status').filter({ hasText: 'This project is archived' })
@@ -56,6 +66,17 @@ test('archive · a viewer reads the line, with nothing to press', async ({ page 
   const line = page.getByRole('status').filter({ hasText: 'This project is archived' })
   await expect(line).toBeVisible()
   await expect(line.getByRole('button')).toHaveCount(0)
+})
+
+test('archive · archived elsewhere, the line says so as the event arrives, with no return to the tab (Codex on #368)', async ({
+  page,
+}) => {
+  await page.goto('/room.html')
+  // The archived list read, and the feed up to date: only the event can tell the page now.
+  await expect.poll(() => served(page)).toContain('projects:archived')
+  await expect(header(page).locator('.connection')).toHaveAttribute('data-state', 'live')
+  await page.evaluate(() => window.fixture?.archivedElsewhere())
+  await expect(page.getByRole('status').filter({ hasText: 'This project is archived' })).toBeVisible({ timeout: 2000 })
 })
 
 test('archive · Work keeps archived projects folded under «Archived»: each opens, and an admin brings one back', async ({
