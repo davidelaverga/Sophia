@@ -3203,6 +3203,16 @@ button.contribution-quote:hover {
 .menu.device-list {
   min-width: 240px;
 }
+/* The dock's device menus open up from it and scroll inside the room above it, not past the stage's top, where they
+   were cut off beyond any scroll: a phone turned sideways has 390 px for Video settings' 576, its rows a finger's 44 px,
+   and its cameras sat out of reach (a review's P1 on camera-flip-resync.md). The room is the stage's height, or the
+   screen's where the stage runs past it (a phone on its side), less the floor, the dock (its notes included), the 6 px
+   between and a margin. */
+.device-menu > .menu {
+  max-height: calc(min(100cqh, 100dvh) - var(--floor) - var(--dock-h, 48px) - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 /* On a touch screen the check before joining is a finger's size wherever it stands (Codex P2 on #434): turned sideways
    a phone has the computer's dock, and the check is 40 px square as Join is; in a phone's own layout, one of its 42 px
    squares (below). */
