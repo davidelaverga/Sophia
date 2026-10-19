@@ -9,6 +9,7 @@ import { acceptInvitation, getLobbyEntry, knockRoom, previewInvitation } from '.
 import { ApiError } from '../../api/client.ts'
 import { authMode, currentToken, guestAccessToken, sendInvitedSignIn, type AuthState } from '../../app/auth.ts'
 import { EMAIL_NOT_CONFIRMED, FIRST_EMAIL_NOT_CONFIRMED } from '../../app/auth-words.ts'
+import { SIGN_OUT_FAILED } from '../../app/sign-out.ts'
 import { useDocumentTitle } from '../../app/document-title.ts'
 import { devIdentities, type Identity } from '../../app/dev-identity.ts'
 import { Centered, CodeForm, HomeLink, LegalLine, sendInTime, SlowNote } from '../../app/SignIn.tsx'
@@ -29,7 +30,8 @@ import { rememberWelcome } from './welcome.ts'
 interface Props {
   auth: AuthState
   onChooseDev: (identity: Identity) => void
-  onSignOut: () => void
+  /** Resolves false when the sign-out failed and this device is still signed in (App's `leaving`). */
+  onSignOut: () => Promise<boolean>
   onOpenProject: (projectId: string) => void
 }
 
@@ -432,7 +434,7 @@ interface MemberProps {
   token: string
   identity: Identity | null
   onChooseDev: (identity: Identity) => void
-  onSignOut: () => void
+  onSignOut: () => Promise<boolean>
   onOpenProject: (projectId: string) => void
 }
 
@@ -459,9 +461,7 @@ function MemberJoin({ preview, token, identity, onChooseDev, onSignOut, onOpenPr
         <p>
           This invitation is for {preview.email}; you’re signed in as {identity.name}.
         </p>
-        <button type="button" className="pill primary" onClick={onSignOut}>
-          Sign out and continue as {preview.email}
-        </button>
+        <SignOutAs email={preview.email ?? ''} onSignOut={onSignOut} />
       </Centered>
     )
   }
@@ -473,6 +473,37 @@ function MemberJoin({ preview, token, identity, onChooseDev, onSignOut, onOpenPr
       <SessionNote preview={preview} />
       <Accept token={token} identity={identity} preview={preview} onOpenProject={onOpenProject} />
     </Centered>
+  )
+}
+
+/**
+ * Signs out to continue as the invitation's address. One that fails leaves the person in, on this page: it says so
+ * with the account menu's words, and Try again runs it once more (invite-sign-out-failure.md, #410).
+ */
+function SignOutAs({ email, onSignOut }: { email: string; onSignOut: () => Promise<boolean> }) {
+  const [failed, setFailed] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const signOut = async () => {
+    if (busy) return
+    setBusy(true)
+    setFailed(false)
+    const out = await onSignOut()
+    // Signed out, App moves the page on; still in, it says so here.
+    setFailed(!out)
+    setBusy(false)
+  }
+  return (
+    <>
+      {/* While it goes it can't be pressed, and keeps the focus (aria-disabled). */}
+      <button type="button" className="pill primary" aria-disabled={busy || undefined} onClick={() => void signOut()}>
+        {failed ? 'Try again' : `Sign out and continue as ${email}`}
+      </button>
+      {failed && (
+        <p className="form-error" role="alert">
+          {SIGN_OUT_FAILED}
+        </p>
+      )}
+    </>
   )
 }
 

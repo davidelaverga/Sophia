@@ -164,7 +164,7 @@ const forgetAllDrafts = () => {
  * Signing out leaves nothing personal on this device: the cache, every message being written to Sophia, what was under
  * way in a project's conversations (talk-store.ts) and any review proposal still unanswered. `end` is this device's
  * sign-out or every device's (sign-out-scope.md); what stays here goes either way. One callback each, never a
- * parameter: the join page hands Sign out straight to a button, whose click would read as «everywhere».
+ * parameter: a Sign out handed straight to a button would read its click as «everywhere».
  */
 const leaving =
   (queryClient: ReturnType<typeof useAccountCache>, signedInAs: string | null) =>
@@ -188,7 +188,7 @@ const leaving =
 function JoinPage(props: {
   queryClient: ReturnType<typeof useAccountCache>
   join: Omit<ComponentProps<typeof JoinFlow>, 'onSignOut'>
-  onSignOut: () => void
+  onSignOut: () => Promise<boolean>
 }) {
   return (
     <QueryClientProvider client={props.queryClient}>
@@ -231,7 +231,7 @@ function AppBody() {
   // ("Continue as …?") still comes first there, so the session it carries is accepted or declined, never lost.
   if (joinPage) {
     const join = { auth: state, onChooseDev: switchIdentity, onOpenProject: routing.open }
-    return <JoinPage queryClient={queryClient} join={join} onSignOut={() => void leaveSession()} />
+    return <JoinPage queryClient={queryClient} join={join} onSignOut={leaveSession} />
   }
   if (state.status === 'loading') return <Centered title="Sophia" busy />
   if (state.status === 'link_offer') {
