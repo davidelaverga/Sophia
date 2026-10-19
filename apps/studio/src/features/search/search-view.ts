@@ -203,3 +203,10 @@ export function shownPages(
   if (!pages || refusedNow) return undefined
   return pages.every((p) => p.readFrom > refusedAt) ? pages : undefined
 }
+
+/**
+ * Whether the search's door is closed (4319039634): its own read refused, or refused before and no page read since has
+ * answered. Then nothing the sheet found is shown or pressed, the goals and tasks found in what the Studio holds too.
+ */
+export const doorClosed = (pages: readonly SearchRead[] | undefined, refusedNow: boolean, refusedAt: number): boolean =>
+  refusedNow || (refusedAt > 0 && shownPages(pages, refusedNow, refusedAt) === undefined)

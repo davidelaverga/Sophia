@@ -437,3 +437,48 @@ test('served search · a 200-code-point query of astral words is asked whole, an
   await expect(field(page)).toHaveValue(shorter)
   await expect.poll(qs).toContain(shorter)
 })
+
+// B70 (4319039634): the search's own read refused (401/403) closes the door on everything the sheet found, the goals
+// and tasks it found in what the Studio holds too: none is shown or pressable. A read set out since that answers opens
+// it again. SYNTHETIC: the page's fetch answers the search with that status while denySearch is on.
+for (const status of [401, 403])
+  test(`served search · a ${status} hides the goals and tasks found locally, no press left; a read since shows them (4319039634)`, async ({
+    page,
+  }) => {
+    await page.addInitScript((code) => {
+      const w = window as Denying
+      w.searchDenied = 0
+      const wrap =
+        (f: typeof fetch): typeof fetch =>
+        (input, init) => {
+          const url = new URL(input instanceof Request ? input.url : String(input), location.href)
+          if (!w.denySearch || !url.pathname.endsWith('/search')) return f(input, init)
+          w.searchDenied = (w.searchDenied ?? 0) + 1
+          return Promise.resolve(Response.json({ code: 'forbidden', message: 'Not permitted' }, { status: code }))
+        }
+      let current = wrap(window.fetch.bind(window))
+      Object.defineProperty(window, 'fetch', {
+        configurable: true,
+        get: () => current,
+        set: (f: typeof fetch) => (current = wrap(f)),
+      })
+    }, status)
+    // vision=off: the fixture answers as A38 does (strict), so the served read succeeds here (B71: with the flag on it
+    // answers as A13 and every read fails as unreadable, which no recovery can pass).
+    await page.goto('/room.html?demo=1&place=goals&vision=off')
+    await search(page, 'checklist')
+    const goal = sheet(page).getByRole('button', { name: /Keep teams through an admin change/ })
+    const unreadable = sheet(page).getByText('The search couldn’t be read.')
+    await expect(goal).toBeVisible() // found in what the Studio holds
+    await expect(unreadable).toHaveCount(0) // and the served read answered
+    await page.evaluate(() => ((window as Denying).denySearch = true))
+    await field(page).fill('checklis') // a new search: its read refused
+    await expect.poll(() => page.evaluate(() => (window as Denying).searchDenied)).toBeGreaterThan(0)
+    await expect(hits(page)).toHaveCount(0)
+    await expect(goal).toHaveCount(0)
+    // A read set out since, and answered (a new query: one read before the refusal is not shown again): found again.
+    await page.evaluate(() => ((window as Denying).denySearch = false))
+    await field(page).fill('checkl')
+    await expect(goal).toBeVisible()
+    await expect(unreadable).toHaveCount(0) // reopened by a read that answered, not by a failure
+  })

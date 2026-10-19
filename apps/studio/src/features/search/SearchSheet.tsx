@@ -40,6 +40,7 @@ import {
   shownPages,
   TASK_LEAD,
   type LocalHit,
+  doorClosed,
 } from './search-view.ts'
 
 /** The head's Search: where the focus goes back to from the search and from what it opened. */
@@ -103,8 +104,10 @@ function useShownSearch(projectId: string, token: string, q: string) {
   const search = useSearch(projectId, token, q)
   const refusedAt = useSearchRefused(projectId)
   // Nothing read before the refusal, its words or its hits' presses, until a read set out since answers.
-  const pages = shownPages(search.data?.pages, search.isError && closedDoor(search.error), refusedAt)
-  return { search, current: pages !== undefined, hits: pages?.flatMap((p) => p.hits) ?? [] }
+  const refusedNow = search.isError && closedDoor(search.error)
+  const pages = shownPages(search.data?.pages, refusedNow, refusedAt)
+  const closed = doorClosed(search.data?.pages, refusedNow, refusedAt)
+  return { search, current: pages !== undefined, hits: pages?.flatMap((p) => p.hits) ?? [], closed }
 }
 
 interface Props {
@@ -252,17 +255,21 @@ function useFound(local: SheetProps['local'], q: string): LocalHit[] {
   return localHits(local.goals, local.plans, q, (g) => (healthKnown ? HEALTH_LABEL[healthOf(g, plans[g.id])] : null))
 }
 
+/** The door closed: nothing found is offered (4319039634). */
+const NONE_FOUND: LocalHit[] = []
+
 function SearchSheet({ projectId, identity, onClose, onHit, onAsk, local }: SheetProps) {
   const [text, setText] = useState('')
   const q = useSettled(text.trim())
-  const { search, current, hits } = useShownSearch(projectId, identity.token, q)
+  const { search, current, hits, closed } = useShownSearch(projectId, identity.token, q)
   const field = useRef<HTMLInputElement>(null)
   // After the sheet's own focus as it opens: the search is typed into.
   useEffect(() => {
     requestAnimationFrame(() => field.current?.focus())
   }, [])
   const asked = q.length >= MIN_QUERY
-  const found = useFound(local, q)
+  const foundHere = useFound(local, q)
+  const found = closed ? NONE_FOUND : foundHere
   const settledText = text.trim() === q
   return (
     <Sheet id="search-title" title="Search this project" onClose={onClose} returnTo={searchAnchor}>
