@@ -60,15 +60,19 @@ const NOT_YET = [
 
 // ——— gh ———
 
-/** Runs `gh` with JSON output. GitHub's API answers a 5xx now and then: asked again up to 3 times, 2, 4 and 8 s on. */
+/**
+ * Runs `gh` with JSON output. GitHub's API answers a 5xx now and then: asked again up to 3 times, 2, 4 and 8 s on. A
+ * rate limit (too many requests at once) waits a minute each time, as GitHub asks.
+ */
 async function gh(args, tries = 3) {
   try {
     const { stdout } = await run('gh', args, { maxBuffer: 256 * 1024 * 1024, windowsHide: true })
     return JSON.parse(stdout)
   } catch (error) {
-    const transient = /HTTP 5\d\d|timeout|ECONNRESET|EOF/i.test(String(error?.stderr ?? error))
-    if (!transient || tries === 0) throw error
-    await new Promise((resolve) => setTimeout(resolve, 2000 * 2 ** (3 - tries)))
+    const said = String(error?.stderr ?? error)
+    const limited = /rate limit/i.test(said)
+    if (!(limited || /HTTP 5\d\d|timeout|ECONNRESET|EOF/i.test(said)) || tries === 0) throw error
+    await new Promise((resolve) => setTimeout(resolve, limited ? 60_000 : 2000 * 2 ** (3 - tries)))
     return gh(args, tries - 1)
   }
 }
@@ -134,7 +138,7 @@ async function readRuns(repo, since, until) {
     .filter((r) => r.status === 'completed')
     .flatMap((r) => Array.from({ length: r.attempt }, (_, i) => ({ run: r, attempt: i + 1 })))
   process.stderr.write(`${runs.length} runs, ${attempts.length} completed attempts to read\n`)
-  const jobs = await pool(attempts, 8, ({ run: r, attempt }) =>
+  const jobs = await pool(attempts, 4, ({ run: r, attempt }) =>
     cached(`run-${r.databaseId}-${attempt}`, async () => {
       const view = ['run', 'view', String(r.databaseId), '-R', repo, '--attempt', String(attempt), '--json', 'jobs']
       return (await gh(view)).jobs
@@ -170,7 +174,7 @@ function jobEntries(attempts, limitOf) {
 /** The Playwright summary of each failed room job (the `github` reporter's notice). */
 async function roomFailures(repo, entries) {
   const failed = entries.filter((e) => familyOf(e.name) === ROOM && e.outcome === 'failure')
-  const summaries = await pool(failed, 8, (e) =>
+  const summaries = await pool(failed, 4, (e) =>
     cached(`annotations-${e.id}`, () => gh(['api', `repos/${repo}/check-runs/${e.id}/annotations?per_page=100`])),
   )
   const read = failed.map((e, i) => {
