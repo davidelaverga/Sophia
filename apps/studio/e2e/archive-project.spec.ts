@@ -42,6 +42,16 @@ test('archive · an editor is offered no Archive', async ({ page }) => {
   await expect(menu(page).getByRole('menuitem')).toHaveText(['Leave project…'])
 })
 
+test('archive · an admin of an archived project is offered no Archive, only the line’s Unarchive (Codex on #368)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?archived=1')
+  // Archived as read: archiving it again would change nothing, yet end the call and go to Work.
+  await expect(page.getByRole('status').filter({ hasText: 'This project is archived' })).toBeVisible()
+  await header(page).getByRole('button', { name: 'Fixture project' }).click()
+  await expect(menu(page).getByRole('menuitem')).toHaveText(['Rename…', 'Activity', 'Leave project…'])
+})
+
 test('archive · inside an archived project a line says so, and Unarchive brings it back', async ({ page }) => {
   await page.goto('/room.html?archived=1')
   const line = page.getByRole('status').filter({ hasText: 'This project is archived' })
