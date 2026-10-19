@@ -38,7 +38,10 @@ right that it shouldn't.
   token, and a closed door isn't asked again, `staleRetry`), so the notice stays until an event or a reload. A read
   that 401s fails as a refusal (`retryRead` doesn't retry `reauthorize`), and a keyed write's 401 is a refusal that
   lets its key go (`held-write.ts`). Nothing anywhere refreshes and asks again.
-- Proven in the browser before the fix: see «Checks».
+- **Proven in the browser before the fix** (the four checks below, red at the test commit, the App unchanged): a
+  conversation opened after the token expired says «This conversation can’t be read now.» (and the project context
+  beside it can't be read either); the feed dropped after it shows «You’ve been signed out»; a message sent after it
+  never appears; and no refresh is ever asked (0). The hypothesis holds.
 
 ## What changes
 
@@ -72,10 +75,11 @@ right that it shouldn't.
   `appFixture`: `expireToken()` (every token the API has seen is refused with the API's 401 until the page sends
   another), `refuseTokens()` (every token, new ones too), `dropStream()` (the feed's stream ends), `refused` and
   `keys`; the synthetic Auth answers a refresh with a new token when the check says so:
-  - a read: a conversation opened after the token expired shows its messages;
+  - a read: a conversation opened after the token expired (the second, not read before) shows its messages;
   - the feed: the stream dropped after the token expired comes back «Up to date», no «signed out»;
   - a keyed write: a message sent after the token expired is sent again with the same Idempotency-Key and appears;
-  - no loop: when the API refuses every token, one refresh is asked and the door closes as today.
+  - no loop: when the API refuses every token, one refresh is asked and the door closes as today; 3 s later the
+    stream has asked no more and there is still one refresh.
 - Unit for the renewal and the request's second try come with the fix (`api/renew.test.ts`,
   `app/token-renewal.test.ts`).
 - Neighbours: `signed-in-later`, `dock-header`, `room`, `project-conversation-writes`.
