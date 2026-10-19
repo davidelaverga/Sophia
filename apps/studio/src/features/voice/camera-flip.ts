@@ -23,27 +23,57 @@ export const hasTopLayer = (
 /** A press of one call's switch, given the cameras listed and the switch, which says whether the call took it. */
 export type CameraPress = (cameras: readonly MediaDevice[], switchTo: (id: string) => Promise<boolean>) => Promise<void>
 
+/** One call's presses, told of each switch of its camera that took, whichever control made it (Codex P2 on #464). */
+export type CameraPresses = CameraPress & { took: (id: string) => void }
+
 /**
  * One call's presses, from the camera it began on (`kept`, as chosen for calls). The kept choice isn't read again: it
  * can part from the call's, where storage can't be written or a refused switch was kept all the same (Codex P2 on #422).
+ * The call's camera is then the last switch that took, a press's or one made elsewhere (`took`): Video settings, which
+ * a phone turned sideways shows.
  */
-export function cameraPresses(kept: string | undefined): CameraPress {
-  let inUse = kept
-  return async (cameras, switchTo) => {
-    const from = inUse
-    const next = nextCamera(cameras, from)
+export function cameraPresses(kept: string | undefined): CameraPresses {
+  let on = kept
+  /** The latest press still waiting for its answer: the next press goes on from the camera it asked for. */
+  let waiting: { id: string } | null = null
+  const press: CameraPress = async (cameras, switchTo) => {
+    const next = nextCamera(cameras, waiting?.id ?? on)
     if (next === null) return
-    // Moved on at the press, so a second press before the first is answered goes on from it; back if refused.
-    inUse = next
-    if (!(await switchTo(next)) && inUse === next) inUse = from
+    const asked = { id: next }
+    waiting = asked
+    // Refused, the call stays on its camera, and the next press asks for the same one again.
+    if (await switchTo(next)) on = next
+    if (waiting === asked) waiting = null
   }
+  return Object.assign(press, {
+    took: (id: string) => {
+      on = id
+    },
+  })
 }
 
 /**
  * The presses of the call under way here, by when it went live: one call at a time in a tab (a second join drops the
  * first), and kept past the video view, which goes while nobody's camera is on.
  */
-let presses: { call: number | null; press: CameraPress } | null = null
+let presses: { call: number | null; presses: CameraPresses } | null = null
+
+/**
+ * The presses of the call that went live at `call`, from the camera kept for calls at its first press or its first
+ * switch that took, whichever comes first.
+ */
+function callPresses(call: number | null): CameraPresses {
+  if (presses?.call !== call) presses = { call, presses: cameraPresses(chosenDevices().videoinput) }
+  return presses.presses
+}
+
+/**
+ * A switch of the camera that took in the call that went live at `call`, made anywhere (your tile, Video settings, «In
+ * the call»): the next press goes on from it. The room tells every one (useProjectRoom.ts).
+ */
+export const cameraTaken = (call: number | null, id: string): void => {
+  callPresses(call).took(id)
+}
 
 interface Devices {
   listDevices: (kind: 'videoinput') => Promise<MediaDevice[]>
@@ -74,11 +104,5 @@ export function useCameraFlip(devices: Devices, cameraOn: boolean): (() => void)
     }
   }, [listDevices, cameraOn])
   if (!cameraOn || cameras.length < 2) return null
-  return () => {
-    // The kept choice, read at the call's first press: no switch of its own has been kept yet.
-    const call =
-      presses?.call === liveSince ? presses : { call: liveSince, press: cameraPresses(chosenDevices().videoinput) }
-    presses = call
-    void call.press(cameras, (id) => switchDevice('videoinput', id))
-  }
+  return () => void callPresses(liveSince)(cameras, (id) => switchDevice('videoinput', id))
 }

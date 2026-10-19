@@ -11,6 +11,7 @@ import type { RoomToken, Snapshot } from '@sophia/contracts'
 import { ApiError, issueRoomToken } from '../../api/client.ts'
 import { CALL_END, keepsTextMode, type CallEnd } from './call-end.ts'
 import { CallFence } from './call-fence.ts'
+import { cameraTaken } from './camera-flip.ts'
 import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts'
 import { rememberBackground, type BackgroundId } from './background-preference.ts'
 import { rememberDevice, type DeviceKind, type MediaDevice } from './device-preference.ts'
@@ -216,6 +217,22 @@ function deviceSwitch(connection: { current: RoomConnection | null }, say: (note
     if (connection.current !== c) return false
     say(null)
     return true
+  }
+}
+
+/**
+ * The room's device switch, each camera switch that took in the call that went live at `liveSince` told to your tile's
+ * presses, whichever control made it: Video settings, which a phone turned sideways shows, or the tile itself. The next
+ * press goes on from the camera the call is on (camera-flip.ts; Codex P2 on #464).
+ */
+function tellingCamera(
+  switchDevice: ProjectRoom['switchDevice'],
+  liveSince: number | null,
+): ProjectRoom['switchDevice'] {
+  return async (kind, id) => {
+    const took = await switchDevice(kind, id)
+    if (took && kind === 'videoinput') cameraTaken(liveSince, id)
+    return took
   }
 }
 
@@ -617,6 +634,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     ...joined,
     ...people,
     ...devices,
+    switchDevice: tellingCamera(devices.switchDevice, joined.liveSince),
     ...choices,
     setMicrophone,
     ...conversationParts(typedChat),
