@@ -200,3 +200,95 @@ test('BASE-03 @phone · after a lost call, Chat with Sophia in the open panel br
   expect(since.slice(0, 2)).toEqual(['connect', 'text:on'])
   expect(since, 'no microphone turns on').not.toContain('microphone:on')
 })
+
+test('BASE-03 · offline, a lost call says so; Try again waits for the network, then rejoins (costuras seam #8)', async ({
+  page,
+  context,
+}) => {
+  await enter(page, '/room.html?call=on')
+  await context.setOffline(true)
+  await page.evaluate(() => window.fixture?.drop()) // the connection is lost with the network
+  const note = page.locator('.dock-wrap .dock-note')
+  const offline = 'You’re offline, so the call ended here. Join again once you’re back.'
+  await expect(note).toHaveText(offline)
+  await expect(note).toHaveAttribute('role', 'status')
+  const before = (await asked(page)).length
+  await page.getByRole('button', { name: /^Try again/ }).click()
+  await page.waitForTimeout(600) // a join let through would have connected by now
+  expect((await asked(page)).slice(before), 'nothing is asked offline').toEqual([])
+  await expect(note).toHaveText(offline)
+  await expect(page.getByText('The room isn’t available')).toHaveCount(0)
+  await context.setOffline(false)
+  await expect(note).toHaveText('You’re back online. Try again rejoins the call.')
+  await page.getByRole('button', { name: /^Try again/ }).click()
+  await expect(leave(page)).toBeVisible()
+  await expect(note).toHaveCount(0)
+  expect((await asked(page)).slice(before).filter((a) => a === 'connect')).toEqual(['connect'])
+})
+
+test('BASE-03 · offline, Try again after a rejoin that failed asks for nothing and never says the room isn’t available', async ({
+  page,
+  context,
+}) => {
+  await enter(page, '/room.html?call=on')
+  await context.setOffline(true)
+  await page.evaluate(() => window.fixture?.drop()) // the connection is lost with the network
+  const note = page.locator('.dock-wrap .dock-note')
+  const offline = 'You’re offline, so the call ended here. Join again once you’re back.'
+  await expect(note).toHaveText(offline)
+  await context.setOffline(false)
+  await expect(note).toHaveText('You’re back online. Try again rejoins the call.')
+  // Online, the rejoin fails as the room's own trouble, and says so.
+  await page.evaluate(() => window.fixture?.failToken())
+  await page.getByRole('button', { name: /^Try again/ }).click()
+  await expect(note).toHaveText('The room isn’t available right now. Try again in a moment.')
+  // Offline again, the call is still lost: Try again could reach nothing, so it asks for nothing and says offline. A
+  // token asked for now would fail as the room's (the fixture's fetch never goes offline).
+  await context.setOffline(true)
+  await page.evaluate(() => window.fixture?.failToken())
+  await page.getByRole('button', { name: /^Try again/ }).click()
+  await expect(note).toHaveText(offline)
+  await expect(page.getByText('The room isn’t available')).toHaveCount(0)
+  await context.setOffline(false)
+  await expect(note).toHaveText('You’re back online. Try again rejoins the call.')
+})
+
+test('BASE-03 · a call lost offline is said from a polite line that was in the dock before it spoke', async ({
+  page,
+  context,
+}) => {
+  await enter(page, '/room.html?call=on')
+  // A live region added with its words is often not read: the polite line is there, empty, before the call is lost.
+  const polite = page.locator('.dock-wrap > p[role="status"]')
+  await expect(polite).toHaveCount(1)
+  await expect(polite).toHaveText('')
+  await polite.evaluate((el) => el.setAttribute('data-before', ''))
+  await context.setOffline(true)
+  await page.evaluate(() => window.fixture?.drop())
+  const offline = 'You’re offline, so the call ended here. Join again once you’re back.'
+  await expect(page.locator('.dock-wrap > p[data-before]')).toHaveText(offline)
+  await expect(page.locator('.dock-wrap [role="alert"]')).toHaveCount(0)
+  await context.setOffline(false)
+  await expect(page.locator('.dock-wrap > p[data-before]')).toHaveText(
+    'You’re back online. Try again rejoins the call.',
+  )
+})
+
+test('BASE-03 · from another view, the header dock says a call lost offline from a polite line there before', async ({
+  page,
+  context,
+}) => {
+  await page.goto('/room.html?call=on&place=work')
+  const dock = page.locator('.mini-dock')
+  await expect(dock.getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  const polite = dock.locator('.dock-notes > p[role="status"]')
+  await expect(polite).toHaveCount(1)
+  await expect(polite).toHaveText('')
+  await polite.evaluate((el) => el.setAttribute('data-before', ''))
+  await context.setOffline(true)
+  await page.evaluate(() => window.fixture?.drop())
+  await expect(dock.locator('.dock-notes > p[data-before]')).toHaveText(
+    'You’re offline, so the call ended here. Join again once you’re back.',
+  )
+  await expect(dock.locator('.dock-notes [role="alert"]')).toHaveCount(0)
+})

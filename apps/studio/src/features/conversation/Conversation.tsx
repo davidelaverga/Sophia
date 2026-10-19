@@ -22,6 +22,7 @@ import { RichText } from '../../app/RichText.tsx'
 import { clock } from '../../app/time-words.ts'
 import { useNow } from '../../app/use-now.ts'
 import { dayBreaks, todayAfter } from './chat-days.ts'
+import { AwayDivider, useWhileAway, type AwayMark } from './WhileAway.tsx'
 
 interface Props {
   projectId: string
@@ -63,20 +64,22 @@ function useFollowing(room: ProjectRoom, discussion: Snapshot['discussion'] | un
     const el = history.current
     if (el) following.current = el.scrollHeight - el.scrollTop - el.clientHeight < 64
   }
-  return { history, onScroll }
+  return { history, following, onScroll }
 }
 
 export function Conversation(props: Props) {
   const { projectId, identity, snapshot, me, names, room, draft, onDraft, onShowRoom } = props
   const discussion = snapshot?.discussion ?? []
-  const { history, onScroll } = useFollowing(room, snapshot?.discussion)
+  const { history, following, onScroll } = useFollowing(room, snapshot?.discussion)
   const timeline = chatTimeline(room.chat, room.notices, room.captions)
   const empty = discussion.length === 0 && timeline.length === 0
   const [replying, setReplying] = useState<Replying | null>(null)
   const replies = useReplies(projectId, identity, snapshot?.cursor)
   const earlier = useEarlierDiscussion(projectId, identity, discussion, history)
+  const away = useWhileAway({ history, following }, earlier.entries)
   return (
     <div className="conversation">
+      {away.line}
       <div className="conversation-history" ref={history} onScroll={onScroll}>
         {empty && (
           <EmptyState className="chat-empty">Messages stay in this conversation. Notes live in the brief.</EmptyState>
@@ -88,6 +91,7 @@ export function Conversation(props: Props) {
           names={names}
           replies={replies.of}
           onReply={VISION ? setReplying : undefined}
+          away={away.divider}
         />
         {VISION && discussion.length > 0 && <RepliesState failed={replies.failed} onRetry={replies.retry} />}
         <TodayLine lastAt={earlier.entries.at(-1)?.createdAt} shown={timeline.length > 0} />
@@ -115,6 +119,7 @@ export function Conversation(props: Props) {
         onShowRoom={onShowRoom}
         replying={replying}
         onStopReplying={() => setReplying(null)}
+        onSend={away.sent}
       />
     </div>
   )
@@ -249,9 +254,11 @@ interface DiscussionProps {
   replies: ReadonlyMap<string, DiscussionReply['replyTo']>
   /** Reply to an entry (the vision flag's): absent, no entry offers it. */
   onReply: ((replying: Replying) => void) | undefined
+  /** What came while the tab was hidden: the divider above the first drawn of it (WhileAway.tsx). */
+  away: AwayMark | null
 }
 
-function Discussion({ entries, me, names: known, replies, onReply }: DiscussionProps) {
+function Discussion({ entries, me, names: known, replies, onReply, away }: DiscussionProps) {
   const now = useNow()
   if (entries.length === 0) return null
   const days = dayBreaks(
@@ -269,6 +276,7 @@ function Discussion({ entries, me, names: known, replies, onReply }: DiscussionP
         return (
           <li key={entry.id} className="contribution" {...(onReply ? { id: `entry-${entry.id}`, tabIndex: -1 } : {})}>
             {days[i] && <span className="chat-day">{days[i]}</span>}
+            {away?.id === entry.id && <AwayDivider words={away.words} />}
             {answers && <Quote answers={answers} here={here.has(answers.id)} me={me} names={names} />}
             <span className="contribution-author">{author}</span>
             <At at={new Date(entry.createdAt)} className="contribution-at" />

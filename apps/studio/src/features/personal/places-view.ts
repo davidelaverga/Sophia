@@ -457,7 +457,8 @@ export function homeLine(locked: boolean, answers: boolean | undefined): HomeLin
 
 /**
  * The one thing that matters now, in Sophia's words, under the greeting: the call you are in, else a session about to
- * start, else people in a room, else that all is as you left it. Nothing while the projects load.
+ * start, else people in a room, else nothing: Home reads nothing of what changed while you were away, so she never says
+ * that nothing did (home-no-false-claim.md). Nothing while the projects load either.
  */
 export function sophiaSays(
   projects: readonly ProjectSummary[] | undefined,
@@ -474,7 +475,7 @@ export function sophiaSays(
         text: answers ? 'Start a project when you’re ready, or just talk to me.' : 'Start a project when you’re ready.',
       },
     ]
-  return sessionSoon(projects, now) ?? roomLive(projects) ?? [{ text: 'Your projects are as you left them.' }]
+  return sessionSoon(projects, now) ?? roomLive(projects) ?? []
 }
 
 /** "Standup in Product launch starts in 10 min.": the session about to start first, if one is. */

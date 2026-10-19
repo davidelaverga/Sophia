@@ -9,7 +9,8 @@ import { arriveWithMicrophone, enterCall, switchMicrophone, useTypedChat } from 
 import { useEffect, useRef, useState } from 'react'
 import type { RoomToken, Snapshot } from '@sophia/contracts'
 import { ApiError, issueRoomToken } from '../../api/client.ts'
-import { CALL_END, keepsTextMode, type CallEnd } from './call-end.ts'
+import { useOnline } from '../personal/online.ts'
+import { CALL_END, keepsTextMode, keptNote, noteFor, OFFLINE_END, type CallEnd } from './call-end.ts'
 import { CallFence } from './call-fence.ts'
 import { switchCamera } from './camera-flip.ts'
 import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts'
@@ -564,6 +565,36 @@ const relaysOf = (calls: CallFence<RoomConnection>) => ({
   sophiaLevel: () => calls.current?.sophiaLevel() ?? 0,
 })
 
+/**
+ * The room's note as the browser's connection stands (noteFor, costuras seam #8): a call lost offline says so, and once
+ * the network is back, that Try again rejoins. The call stays lost until a join gets back in: offline meanwhile, a join
+ * (Try again, Chat with Sophia) asks for nothing, since it could reach nothing, and a join that failed offline keeps
+ * the offline note (keptNote), whatever an earlier try said.
+ */
+function useRoomNote() {
+  const [note, setNote] = useState<string | null>(null)
+  const lost = useRef(false)
+  const online = useOnline()
+  return {
+    error: noteFor(note, online),
+    setError: (next: string | null) => {
+      if (next === CALL_END.dropped.note) lost.current = true
+      setNote(keptNote(next, { online: navigator.onLine, lost: lost.current }))
+    },
+    joinOnline:
+      (join: ProjectRoom['join']) =>
+      async (options?: JoinOptions): Promise<boolean> => {
+        if (!navigator.onLine && lost.current) {
+          setNote(OFFLINE_END)
+          return false
+        }
+        const inCall = await join(options)
+        if (inCall) lost.current = false
+        return inCall
+      },
+  }
+}
+
 /** Null `issue` while nobody may join yet (the project has not loaded): Join waits. */
 export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   /**
@@ -572,7 +603,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
    */
   const [calls] = useState(() => new CallFence<RoomConnection>())
   const [status, setStatus] = useState<DockStatus>('idle')
-  const [error, setError] = useState<string | null>(null)
+  const { error, setError, joinOnline } = useRoomNote()
   const [people, setPeople] = useState<People>(NOBODY)
   const joining = useRef<Promise<boolean> | null>(null)
 
@@ -629,6 +660,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     status,
     error,
     ...joined,
+    join: joinOnline(joined.join),
     ...people,
     ...devices,
     switchDevice: tellingCamera(devices.switchDevice, joined.liveSince),
