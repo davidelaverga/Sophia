@@ -5,7 +5,8 @@
 > cuello de botella actual. Si se puede hacer en un pr, excelente o como veas, que alivie la presión pero hay que seguir
 > trabajando». Studio only, no API: A34 is served. One PR: Home's line; the arrival line in a project is the next step.
 > Review round 1 (one P1, three P2) changed what counts as news, what is remembered and when a visit says it: below.
-> Codex P2 on #468 keeps a call's project waiting when the read after the call fails: its own section, below.
+> Codex P2 on #468 keeps a call's project waiting when the read after the call fails: its own section, below, with the
+> review of that fix (a waiting project Home doesn't show is read as Home is arrived at).
 
 ## What was measured
 
@@ -168,7 +169,8 @@
     Home's on an arrival. Its lines are kept whole, as said, and the mark goes (`settlePending`, in the one read all
     three use).
   - **The retry** is one read per pending project when the browser says it is `online` again. Home's own read of the
-    projects it shows, as a visit begins, counts too, and comes before the next visit decides.
+    projects it shows, as a visit begins, counts too, and comes before the next visit decides. Since the review below,
+    an arrival also reads the pending projects Home doesn't show.
   - There is no timer and no polling: a read that fails again leaves the mark for the next of the two.
   - The mark is per device, not per tab, because a reload or a tab closed after the failure would otherwise lose it, and
     the next page's first read of that window would be said.
@@ -188,6 +190,32 @@
     event then costs one failed read, and Home doesn't show the project.
   - Updates opened on a pending project keeps the lines it shows, as before, but the project still waits. Home's next
     read of it then keeps that whole window, so a line that came between the two isn't said on Home. Updates lists it.
+  - What a wait keeps along with the call's lines: what others did between the call's end and the first read that
+    takes. A34 gives a report (`made`) no time, so a window can't be split at the call's end. Updates lists it all.
+
+### Review of the fix: a pending project Home doesn't show
+
+> P2 from the review of `2629a4117` (`useSinceNews.ts:151`), verified in the code.
+
+- **Read in the code.** Two reads end a wait: the `online` listener, and Home's own read, which covers only the
+  projects Home shows (`homeShown`, `HOME_ROWS = 3`). A call in a project outside those rows that ends on a 503, with
+  the browser still online, waits with nothing to read it, across reloads too. When that project later enters Home's
+  rows, Home's first read of it is kept whole as the call's (`settlePending`). So what others did there since the call
+  is never said on Home: Marco's four decisions over two weeks in Research, fifth in Work's order. Updates lists them.
+- **What changes** (`useSinceNews.ts`): each arrival on Home, once its rows are known, reads each pending project Home
+  doesn't show, once (`readAfter`). It runs beside Home's own reads and under the same conditions: on Home, under the
+  flags, out of a call. Most of the time nothing is pending, so an arrival reads nothing more. There is no timer and no
+  polling. A wait now keeps no more than what others did until the first arrival, or `online`, after the service is
+  back.
+- **Not added:** a read on mount or on `visibilitychange`. It would end a wait a little sooner when the person lands
+  somewhere else, at the cost of a third read path to review.
+- **Check, written first** (`home-since.spec.ts`). The fixture gains `projects=fewer` (Design review archived, so
+  Product launch is Home's third) and `since=later` (a second note kept in Product launch after the call). A call in
+  Product launch, fourth and not shown, ends out of Home, and its read fails. The next arrival reads it once more, and
+  the one after doesn't. Once Design review is archived, the note kept after the call is said («a note kept in
+  **Product launch**»), and the one the call held is not.
+- **No new unit.** What changes is which reads an arrival starts, not a rule over windows; `since-said.ts` stays as
+  it is.
 
 ## Limits
 
