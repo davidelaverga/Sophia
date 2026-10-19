@@ -192,6 +192,17 @@ describe('in Safari the levels’ context is made or woken within a press (orb-f
     assert.equal(levels.voiceLevel('ana'), 0.6)
   })
 
+  it('a room that never connects lets the context made for it go, once, and makes no other', () => {
+    const { made, make } = counting()
+    const { room, emit } = fakeRoom(person('me', null), [person('ana', track(0.6))])
+    const levels = voiceLevels(room, make)
+    levels.wake()
+    levels.end()
+    emit(RoomEvent.Disconnected)
+    levels.wake()
+    assert.deepEqual([made.contexts, made.closes], [1, 1])
+  })
+
   it('after the call nothing wakes a context into being', () => {
     const { made, make } = counting()
     const { room, emit } = fakeRoom(person('me', null), [person('ana', track(0.6))])
