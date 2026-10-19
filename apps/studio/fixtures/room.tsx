@@ -362,6 +362,8 @@ interface Fixture {
   reviseMessage: (n: number, text: string) => void
   /** The discussion's reads (snapshot, pages) lag: they keep what they read now until `releaseSnapshot`. */
   holdSnapshot: () => void
+  /** As `holdSnapshot`, and its reads answer with the cursor held then: consistent, as the API's (4318164723). */
+  holdSnapshotAt: () => void
   /** Every earlier page's read fails until turned off. */
   failEarlierReads: (on: boolean) => void
   /** Earlier pages read before these messages wait until `releaseEarlierReads` (a slow read). */
@@ -734,6 +736,7 @@ const project = {
   messageActs: messageActsOf(query),
   membersFail: query.get('members') === 'fail',
   heldMessages: undefined as (string | Said)[] | undefined,
+  heldAt: undefined as number | undefined,
   failEarlierReads: false,
   earlierHeldBefore: undefined as ReadonlySet<string> | undefined,
   earlierHeld: [] as (() => void)[],
@@ -1249,6 +1252,7 @@ window.fixture = {
     for (const answer of held) answer()
     if (project.heldMessages === undefined) return
     project.heldMessages = undefined
+    project.heldAt = undefined
     publish(project)
   },
   outage: (on) => {
@@ -1360,6 +1364,10 @@ window.fixture = {
   },
   holdSnapshot: () => {
     project.heldMessages = structuredClone(project.messages)
+  },
+  holdSnapshotAt: () => {
+    project.heldMessages = structuredClone(project.messages)
+    project.heldAt = project.revision
   },
   failEarlierReads: (on) => {
     project.failEarlierReads = on

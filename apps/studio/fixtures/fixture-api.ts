@@ -128,6 +128,8 @@ interface Project {
   mentionsSeen?: Set<string>
   /** While set, the snapshot's and the pages' discussion read these messages (`holdSnapshot`): a lagging read. */
   heldMessages?: (string | Said)[] | undefined
+  /** The cursor those held reads answer with: a snapshot is consistent with its own cursor, as the API's is. */
+  heldAt?: number | undefined
   /** While set, every earlier page's read fails as an unavailable API's (`failEarlierReads`). */
   failEarlierReads?: boolean
   /** Earlier pages read before these messages wait for `releaseEarlierReads` (a slow read; A38's concurrent reads). */
@@ -389,10 +391,14 @@ function eventStream(project: Project, after: number, signal: AbortSignal | null
  * The project's snapshot now, with someone at the door when the page asked for it (`lobby=waiting`), and the research
  * task in its work on the Work page (`place=work`).
  */
+/** A held snapshot answers with the cursor it was held at: consistent with what it shows, as the API's is. */
+const heldCursor = (project: Project) => (project.heldAt === undefined ? {} : { cursor: String(project.heldAt) })
+
 function snapshotOf(project: Project, revisions = false) {
   const now = {
     ...snapshot(project.revision, project.exchange, project.messages, project.goals, project.room),
     ...snapshotDiscussion({ ...project, messages: project.heldMessages ?? project.messages }, revisions),
+    ...heldCursor(project),
   }
   const running = project.researching ? researchRunning(project.researching.reads).task : null
   const work = running
