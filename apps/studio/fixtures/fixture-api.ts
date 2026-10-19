@@ -259,6 +259,8 @@ interface Project {
   projectsHeld?: (() => void)[] | null
   /** While set, the membership's reads wait for these (`membership=hold`, `window.fixture.releaseMembership`). */
   membershipHeld?: (() => void)[] | null
+  /** While set, the snapshot's reads wait for these (`snapshot=hold`, `window.fixture.releaseSnapshot`): not loaded. */
+  snapshotHeld?: (() => void)[] | null
   /** Sophia is out of reach (`outage=1`, `window.fixture.outage`): every API request fails as a lost connection. */
   outage?: boolean
   /** The membership's reads fail as the API's `unavailable`, the rest answer (`membership=fail`, `failMembership`). */
@@ -468,8 +470,9 @@ function departed(project: Project): Response {
   return json({ projectId: PROJECT, cursor: String(project.revision) })
 }
 
-/** A room token, unless the next one is to fail (`failToken`). */
+/** A room token, unless the next one is to fail (`failToken`); each one asked for is recorded (`room-token`). */
 function tokenAnswer(project: Project): Response {
+  served.push('room-token')
   if (!project.failToken) return json(roomToken)
   project.failToken = false
   return unavailable()
@@ -762,8 +765,13 @@ function discussionPage(project: Project, url: URL): Response {
   return json({ entries, before: start > 0 ? (entries[0]?.id ?? null) : null })
 }
 
-/** The snapshot as the API serves it; refused once the door is shut under the shell (`window.fixture.shutDoor`). */
-function snapshotAnswer(project: Project) {
+/**
+ * The snapshot as the API serves it; refused once the door is shut under the shell (`window.fixture.shutDoor`). Held
+ * (`snapshot=hold`), it answers once let through, as it is then.
+ */
+function snapshotAnswer(project: Project): Response | Promise<Response> {
+  const held = project.snapshotHeld
+  if (held) return new Promise<Response>((resolve) => held.push(() => resolve(snapshotAnswer(project))))
   served.push(`snapshot:${project.revision}`)
   return project.doorShut ? refused('You no longer have access to this project') : json(snapshotOf(project))
 }

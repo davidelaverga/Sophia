@@ -290,6 +290,8 @@ interface Fixture {
   holdProjects: (on: boolean) => void
   /** Lets the held membership reads through, and every later one (`membership=hold`). */
   releaseMembership: () => void
+  /** Lets the held snapshot reads through, and every later one (`snapshot=hold`): the project loads. */
+  releaseSnapshot: () => void
   /** While on, Sophia is out of reach: every API request fails as a lost connection (`outage=1`). */
   outage: (on: boolean) => void
   /** While on, only the membership's reads fail (`membership=fail`). */
@@ -722,6 +724,8 @@ const project = {
   cardAhead: query.get('card') === 'ahead',
   projectsHeld: query.get('projects') === 'hold' ? waiting() : null,
   membershipHeld: query.get('membership') === 'hold' ? waiting() : null,
+  // `snapshot=hold`: the project's snapshot isn't read until the page lets it through (offline-join-from-rest.md).
+  snapshotHeld: query.get('snapshot') === 'hold' ? waiting() : null,
   membershipFails: query.get('membership') === 'fail',
   outage: query.get('outage') === '1',
   outsider: query.get('member') === '0',
@@ -1043,6 +1047,11 @@ window.fixture = {
   releaseMembership: () => {
     const held = project.membershipHeld ?? []
     project.membershipHeld = null
+    for (const answer of held) answer()
+  },
+  releaseSnapshot: () => {
+    const held = project.snapshotHeld ?? []
+    project.snapshotHeld = null
     for (const answer of held) answer()
   },
   outage: (on) => {

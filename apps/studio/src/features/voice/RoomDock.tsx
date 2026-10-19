@@ -68,7 +68,7 @@ function useDockHeight(ref: RefObject<HTMLDivElement | null>) {
 }
 
 /**
- * The room's note (noteRole): a failure said at once, an alert added with its words; the connection's two said
+ * The room's note (noteRole): a failure said at once, an alert added with its words; the connection's three said
  * politely, from a line there before it speaks (a live region added with its words is often not read), out of sight
  * while it says nothing.
  */
