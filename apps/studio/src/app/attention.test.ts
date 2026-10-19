@@ -47,7 +47,10 @@ describe('the attention flag (A15, A34)', () => {
 
   it('reads what changed since you last looked for Home where Updates is shown, by default beside the vision flag', () => {
     assert.deepEqual(uses('features/personal/useSinceNews.ts'), ['const SINCE_SHOWN = VISION || ATTENTION'])
-    assert.match(read('features/personal/useSinceNews.ts'), /\{ here, inCall, enabled = SINCE_SHOWN \}: SinceOptions/)
+    const since = read('features/personal/useSinceNews.ts')
+    assert.match(since, /\{ here, inCall, covered, enabled = SINCE_SHOWN \}: SinceOptions/)
+    // And a call's project once the call ends, wherever the person is (SignedIn), under the same flags.
+    assert.match(since, /useCallSeen\(identity: Account, call: string \| null, enabled = SINCE_SHOWN\)/)
   })
 
   it('opens the Updates view, in the nav, the commands and the address, and nothing else of the project', () => {

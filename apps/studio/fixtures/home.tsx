@@ -3,7 +3,7 @@
 // Product launch, whose Standup starts in 10 min), `quiet` (the same four, the Standup tomorrow), `live` (Davide and
 // Sophia in Pitch deck's room), `none`, `loading`, `failed` (their read failed); `window.homeFixture.reread(<set>)`
 // reads them again with Home open, as Places does every 20 s, and answers that set; `locked=1` (the personal space
-// locked), `call=<id>` (in that project's call);
+// locked), `call=<id>` (in that project's call, which `window.homeFixture.hangUp()` ends with Home open);
 // `away=1` (Home starts out of sight, as when someone lands on another place); `companion=unavailable|reading` (Sophia
 // can't answer in the personal space; or that isn't known yet), else she answers; `you=new` (no conversation yet), else
 // one from yesterday with 3 notes; `voice=none` (no speech on this device), else one that hears "the launch felt rushed" when
@@ -11,7 +11,7 @@
 // action taken,
 // as "open <id>", "join <id>", "back <id>", "work", "new project", "unlock", "say <words>", "need <id>". `needs=some|none`: what
 // needs you on the right (the vision flag; the demo's some); absent, the Studio's own Home, her light alone.
-// `since=some|more|seen`: what changed in each project since you last looked, read as Home reads it (below).
+// `since=some|more|mine|seen`: what changed in each project since you last looked, read as Home reads it (below).
 import { requestAddress } from '../src/features/resources/link.ts'
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
@@ -66,6 +66,8 @@ declare global {
       reread: (set: string) => void
       /** `since=…`: the projects whose window was read, in the order asked. */
       sinceReads: () => string[]
+      /** `call=<id>`: the call ends with Home open, as Leave in the places' bar ends it. */
+      hangUp: () => void
     }
   }
 }
@@ -75,6 +77,8 @@ bootTheme(query.get('theme'))
 const pressed: string[] = []
 /** What `homeFixture.reread` answers: Home's own set, once it is on the page. */
 let answerWith: (set: string) => void = () => undefined
+/** What `homeFixture.hangUp` ends: Home's call, once it is on the page. */
+let hangUp: () => void = () => undefined
 /** How many times the needs' route was read (`needs=api`): none behind a shut padlock. */
 let needsReads = 0
 window.homeFixture = {
@@ -100,6 +104,7 @@ window.homeFixture = {
   hear: () => HeardRecognition.listening?.hear(),
   reread: (next) => answerWith(next),
   sinceReads: () => [...sinceReads],
+  hangUp: () => hangUp(),
   // Where the focus lands on the way back from Personal (focus.ts): an element's id, else its tag.
   landing: () => {
     const at = homeRowFor('personal')
@@ -154,8 +159,10 @@ const SETS: Record<string, ProjectSummary[] | undefined> = {
   failed: undefined,
 }
 const set = query.get('projects') ?? (DEMO ? 'demo' : 'four')
-const inCall = query.get('call')
-const call = inCall ? { title: SETS[set]?.find((p) => p.projectId === inCall)?.title ?? '' } : null
+/** `call=<id>`: the project whose call the person is in, until `homeFixture.hangUp()`. */
+const CALL = query.get('call')
+const callIn = (projectId: string | null) =>
+  projectId ? { title: SETS[set]?.find((p) => p.projectId === projectId)?.title ?? '' } : null
 
 /** What needs you, one of each kind, given out of order: the page orders them by urgency. */
 const NEEDS: Record<string, Need[] | undefined> = {
@@ -289,16 +296,21 @@ if (INVITED) {
   }
 }
 /**
- * `since=some|more|seen`: A34's window for each project (GET /api/v1/projects/<id>/since), as the fixture's meeting
+ * `since=some|more|mine|seen`: A34's window for each project (GET /api/v1/projects/<id>/since), as the fixture's meeting
  * answers it (meeting-data.ts's updatesWindowOf), after a seen mark. `some`: Launch plan holds 2 decisions and a new
  * report (the fixture's earlier decision and a proposal still open among them), Product launch a note kept, the others
- * nothing; `more`: one more decision in Launch plan's, a new window; `seen`: every window after a seen mark, empty.
- * `homeFixture.sinceReads()` lists the projects asked, in the order asked.
+ * nothing; `more`: one more decision in Launch plan's; `mine`: Launch plan holds the reader's own decision, the report
+ * they asked for and a note kept in their name, and one decision of Marco's; `seen`: every window after a seen mark,
+ * empty. `homeFixture.sinceReads()` lists the projects asked, in the order asked.
  */
 const SINCE = query.get('since')
 const sinceReads: string[] = []
 const MARK = '3'
 const MEMBER = '00000000-0000-4000-8000-0000000000c1'
+/** The person reading, as A34 names actors: none of the fixture meeting's own. */
+const READER = '00000000-0000-4000-8000-0000000000c2'
+/** Their token names them, as a signed-in token's subject does: unsigned, since nothing here checks it. */
+const SINCE_TOKEN = `e30.${btoa(JSON.stringify({ sub: READER }))}.fixture`
 const decision = (n: number) => ({
   decisionId: `00000000-0000-4000-8000-0000000000d${String(n)}`,
   statement: `Fixture decision ${String(n)}`,
@@ -333,8 +345,35 @@ function launchPlanSince(decisions: number): ProjectUpdates {
   meeting.seen.sequence = MARK
   return updatesWindowOf(meeting, 9)
 }
+/** `mine`: Launch plan's window, mostly what the reader did themselves. */
+const theirOwnSince = (): ProjectUpdates => ({
+  ...nothingSince('9'),
+  fromSequence: MARK,
+  decided: [{ ...decision(1), decidedBy: READER }, decision(2)],
+  made: [
+    {
+      artifactId: '00000000-0000-4000-8000-0000000000e7',
+      artifactVersionId: '00000000-0000-4000-8000-0000000000e8',
+      title: 'Launch readout',
+      versionNumber: 1,
+      askedBy: READER,
+    },
+  ],
+  noted: [
+    {
+      entryId: '00000000-0000-4000-8000-0000000000f5',
+      kind: 'observation',
+      text: 'The readout goes out on Friday.',
+      authoredBy: 'sophia',
+      actorId: READER,
+      at: at(-30),
+    },
+  ],
+  names: { [MEMBER]: 'Marco', [READER]: 'Luis' },
+})
 function sinceOf(projectId: string): ProjectUpdates {
   if (SINCE === 'seen') return nothingSince('9')
+  if (projectId === id(1) && SINCE === 'mine') return theirOwnSince()
   if (projectId === id(1)) return launchPlanSince(SINCE === 'more' ? 2 : 1)
   if (projectId !== id(4)) return nothingSince('9')
   const kept = {
@@ -491,9 +530,19 @@ function useShown() {
   return shown
 }
 
+/** The call the person is in (`call=<id>`), until `homeFixture.hangUp()` ends it with Home open. */
+function useCall() {
+  const [inCall, setInCall] = useState(CALL)
+  useEffect(() => {
+    hangUp = () => setInCall(null)
+  }, [])
+  return inCall
+}
+
 /** Sophia's sentence, with what changed since you last looked read as Places reads it (`since=…`). */
-function useSays(projects: readonly ProjectSummary[] | undefined, away: boolean) {
-  const news = useSinceNews('fixture-token', 'fixture-account', homeShown(projects ?? [], NOW), {
+function useSays(projects: readonly ProjectSummary[] | undefined, away: boolean, inCall: string | null) {
+  const call = callIn(inCall)
+  const news = useSinceNews(SINCE_TOKEN, 'fixture-account', homeShown(projects ?? [], NOW), {
     here: !away,
     inCall: call !== null,
     enabled: SINCE !== null,
@@ -508,7 +557,8 @@ function Home() {
   const [away, setAway] = useState(query.has('away'))
   const shown = useShown()
   const projects = SETS[shown]
-  const says = useSays(projects, away)
+  const inCall = useCall()
+  const says = useSays(projects, away, inCall)
   const fromApi = useNeeds(
     'fixture-token',
     {

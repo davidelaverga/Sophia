@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { PersonalExport, PersonalTurn, ProjectSummary } from '@sophia/contracts'
 import type { Since } from '../../api/vision.ts'
+import { unsaid } from '../updates/since-said.ts'
 import { confirmsErasure, exportText, factsOf } from './data-view.ts'
 import { NOTICE } from './notice-view.ts'
 import {
@@ -588,6 +589,17 @@ describe('what changed since you last looked, in Sophia’s sentence on Home (ho
     assert.deepEqual(sophiaSays(quiet, NOW, null, true, news([1, leftToUpdates])), [])
     // A window for a project Home doesn't hold has nobody to name.
     assert.deepEqual(sophiaSays(quiet, NOW, null, true, news([9, twoAndOne])), [])
+  })
+
+  it('a window whose only lines are the reader’s says nothing: what they did is no news to them (review round 1)', () => {
+    // `noted` keeps its notes in uuid(99)'s name: they are the reader here, and decided and asked for the rest.
+    const reader = uuid(99)
+    const theirOwn = sinceWindow({
+      decided: [{ ...decided(1), proposedBy: uuid(98), decidedBy: reader }],
+      made: [{ ...made(2), askedBy: reader }],
+      noted: [noted(3)],
+    })
+    assert.deepEqual(sophiaSays(quiet, NOW, null, true, unsaid(news([1, theirOwn]), {}, reader)), [])
   })
 
   it('the call, a session about to start and a live room come first: it never speaks over them', () => {
