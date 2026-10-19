@@ -2,6 +2,8 @@
 // Pure, so they are unit-tested; the components only render them.
 import type { Invitation, LobbyEntry, Membership, RoomSession, SessionCreate } from '@sophia/contracts'
 import type { AdmissionState } from '../../api/useAdmission.ts'
+import type { AuthState } from '../../app/auth.ts'
+import { OTHER_BROWSER_NOTICE } from '../../app/auth-callback.ts'
 import { ago, dayOf, inTime } from '../../app/time-words.ts'
 
 /**
@@ -78,6 +80,31 @@ export function freshJoinToken(raw: string | null, now: number): string | null {
   } catch {
     return null
   }
+}
+
+/** The join page's heading where a link opens no room. */
+export const DOOR_CLOSED = 'This door is closed'
+
+/**
+ * What the join page says where this device holds no invitation token (docs/plans/join-other-browser.md). Signed in,
+ * the person most likely came back from the sign-in email in another tab. Back from a sign-in link this browser never
+ * asked for (auth.ts says so), the token stayed in the browser that asked: the page says where to finish, instead of
+ * calling a whole link incomplete. Otherwise the link lost its token on the way.
+ */
+export function withoutToken(auth: { status: AuthState['status']; notice?: string }): { title: string; text: string } {
+  if (auth.status === 'signed_in') {
+    return {
+      title: 'You’re signed in',
+      text: 'To accept the invitation, open the invitation email again and use its link.',
+    }
+  }
+  if (auth.notice === OTHER_BROWSER_NOTICE) {
+    return {
+      title: 'You started in another browser',
+      text: 'This sign-in link opened in a different browser from the one you started in. Type the email’s code there, or open your invitation link again here.',
+    }
+  }
+  return { title: DOOR_CLOSED, text: 'This link is incomplete. Ask for the whole link, or a new one.' }
 }
 
 const MINUTE = 60_000
