@@ -9,6 +9,7 @@ import { archiveProject } from '../../api/client.ts'
 import { listArchivedProjects } from '../../api/personal.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
+import { archiveKeys } from './archive-keys.ts'
 
 export const archivedKey = (identity: Identity) => ['projects', identity.name, 'archived'] as const
 
@@ -29,26 +30,32 @@ export function useIsArchived(identity: Identity, projectId: string): boolean {
 
 const failure = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback)
 
-/** One write per choice: a retry of the same choice keeps its key; the lists are read again once it lands. */
-export function useArchiveWrite(identity: Identity, projectId: string) {
+/** Kept while the page lives (archive-keys.ts), not by the sheet, the line or Work's list that pressed. */
+const keys = archiveKeys()
+
+/**
+ * One write per choice: a retry of the same choice keeps its key, wherever it is pressed from, until it is answered;
+ * the lists are read again once it lands.
+ */
+export function useArchiveWrite(identity: Identity) {
   const client = useQueryClient()
-  const keys = useRef(new Map<boolean, string>())
-  return async (archived: boolean) => {
-    const key = keys.current.get(archived) ?? crypto.randomUUID()
-    keys.current.set(archived, key)
-    await archiveProject(identity.token, projectId, key, archived)
-    keys.current.delete(archived)
+  return async (projectId: string, archived: boolean) => {
+    const choice = { account: identity.name, projectId, archived }
+    try {
+      await archiveProject(identity.token, projectId, keys.keyFor(choice), archived)
+    } catch (err: unknown) {
+      keys.settled(choice, err)
+      throw err
+    }
+    keys.settled(choice)
     await client.invalidateQueries({ queryKey: ['projects', identity.name] })
   }
 }
 
 /** Bring an archived project back from Work's list; the lists are read again once it lands. */
 export function useUnarchive(identity: Identity) {
-  const client = useQueryClient()
-  return async (projectId: string) => {
-    await archiveProject(identity.token, projectId, crypto.randomUUID(), false)
-    await client.invalidateQueries({ queryKey: ['projects', identity.name] })
-  }
+  const write = useArchiveWrite(identity)
+  return (projectId: string) => write(projectId, false)
 }
 
 interface SheetProps {
@@ -61,14 +68,14 @@ interface SheetProps {
 }
 
 export function ArchiveSheet({ title, projectId, identity, onClose, onArchived }: SheetProps) {
-  const write = useArchiveWrite(identity, projectId)
+  const write = useArchiveWrite(identity)
   const [state, setState] = useState<{ sending: boolean; failed: string | null }>({ sending: false, failed: null })
   const cancel = useRef<HTMLButtonElement>(null)
   useEffect(() => cancel.current?.focus(), [])
   const archive = async () => {
     setState({ sending: true, failed: null })
     try {
-      await write(true)
+      await write(projectId, true)
     } catch (err: unknown) {
       setState({ sending: false, failed: failure(err, 'Couldn’t archive the project. Try again.') })
       return
@@ -113,13 +120,13 @@ export function ArchivedLine({
 }) {
   const admin = membership?.role === 'admin'
   const archived = useIsArchived(identity, projectId)
-  const write = useArchiveWrite(identity, projectId)
+  const write = useArchiveWrite(identity)
   const [state, setState] = useState<{ sending: boolean; failed: string | null }>({ sending: false, failed: null })
   if (!archived) return null
   const unarchive = async () => {
     setState({ sending: true, failed: null })
     try {
-      await write(false)
+      await write(projectId, false)
       setState({ sending: false, failed: null })
     } catch (err: unknown) {
       setState({ sending: false, failed: failure(err, 'Couldn’t bring the project back. Try again.') })
