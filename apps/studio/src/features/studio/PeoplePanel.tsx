@@ -252,6 +252,30 @@ export function PeoplePanel({ room, projectId, identity }: Props) {
 }
 
 /**
+ * «Mute everyone»'s request: at rest, on its way, or refused. A refusal stays until the next press, or until someone
+ * else's microphone comes on, when it is old news (review of the #369 follow-ups). Microphones going off never clear
+ * it: the room server's mutes can reach the call after the refusal does.
+ */
+function useMuteAll(people: readonly RoomParticipant[], projectId: string, token: string) {
+  const [state, setState] = useState<'idle' | 'sending' | 'failed'>('idle')
+  const on = people.filter((p) => !p.local && p.micOn).map((p) => p.identity)
+  // Whose microphone was on, as state that follows the call, set while rendering (App's account cache does so too).
+  const [wasOn, setWasOn] = useState(on)
+  if (on.join(' ') !== wasOn.join(' ')) {
+    setWasOn(on)
+    if (state === 'failed' && on.some((id) => !wasOn.includes(id))) setState('idle')
+  }
+  const mute = () => {
+    setState('sending')
+    muteEveryoneInCall(token, projectId).then(
+      () => setState('idle'),
+      () => setState('failed'),
+    )
+  }
+  return { state, someoneOn: on.length > 0, mute }
+}
+
+/**
  * «Mute everyone» (host-more.md, A31), for an admin while someone else's microphone is on: it asks first, then every
  * other microphone in the call goes off, guests' too; each turns their own back on. Its request stays said until it
  * is answered, and a refusal after, even once no microphone is left on (Codex P2 on #369).
@@ -265,18 +289,10 @@ function MuteEveryone({
   projectId: string
   identity: Identity
 }) {
-  const [state, setState] = useState<'idle' | 'sending' | 'failed'>('idle')
+  const { state, someoneOn, mute } = useMuteAll(people, projectId, identity.token)
   // Before any return, so the hooks keep their order.
   const slow = useSlow(state === 'sending')
-  const someoneOn = people.some((p) => !p.local && p.micOn)
   if (!someoneOn && state === 'idle') return null
-  const mute = () => {
-    setState('sending')
-    muteEveryoneInCall(identity.token, projectId).then(
-      () => setState('idle'),
-      () => setState('failed'),
-    )
-  }
   return (
     <div className="people-head">
       {/* A press, not a heading: the kit's small pill (room-dock-people.md). Refused with no microphone left on, the
@@ -298,9 +314,11 @@ function MuteEveryone({
           {SLOW_NOTE}
         </p>
       )}
+      {/* With every microphone off, as the list shows, the refusal says only what is unknown: there is nothing to
+          try again (review of the #369 follow-ups). */}
       {state === 'failed' && (
         <p role="alert" className="person-failed">
-          Couldn’t mute everyone. Try again.
+          {someoneOn ? 'Couldn’t mute everyone. Try again.' : 'Every microphone is off, but the mute wasn’t confirmed.'}
         </p>
       )}
     </div>
