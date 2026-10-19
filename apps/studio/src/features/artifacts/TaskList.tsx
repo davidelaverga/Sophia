@@ -4,7 +4,7 @@
 // through the proposed A17; under the tasks flag, A39 served (api/tasks.ts, docs/handoffs/FND-C5-HUMAN-TASKS-attempt-
 // 1.md): D-TASKS decides who finishes, editors and admins also claim, assign and release, a task's passage is a link
 // only (never its words), and one this reader may not follow says so.
-import { useQuery, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { Membership } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
@@ -18,49 +18,14 @@ import { labelOf } from '../conversation/mention-view.ts'
 import { passageLink, readLocator } from './passage-link.ts'
 import { PASSAGE_PARAM } from './report-link.ts'
 import { doneWords, fromWords, mayAssign, mayFinish, ordered, ownerWords } from './task-view.ts'
-import { byTime } from './review-view.ts'
+import { taskChanged, tasksKey } from './task-cache.ts'
 import { useFeedRefetch } from './useFeedRefetch.ts'
-import { reportTasksRefused, shownTaskReads, taskOrder, taskRead, useTasksRefused, type TaskRead } from './task-read.ts'
+import { reportTasksRefused, shownTaskReads, taskRead, useTasksRefused } from './task-read.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { canInvite } from '../access/useAccess.ts'
 
-const tasksKey = (artifactId: string, viewer: string) => ['vision', 'tasks', artifactId, viewer] as const
-
-/**
- * A task created: into the report's tasks by its time, once (the feed may bring it too); seeded when the first read is
- * still on its way or failed, so the task made is there at once.
- */
-export const taskRecorded = (queryClient: QueryClient, artifactId: string, viewer: string, task: ProjectTask) =>
-  queryClient.setQueryData<TaskRead<{ tasks: readonly ProjectTask[] }>>(tasksKey(artifactId, viewer), (was) => ({
-    ...was,
-    tasks: byTime(was?.tasks ?? [], task, (t) => t.taskId),
-    // A list read before a refusal stays so; one seeded now is as new as this write.
-    readFrom: was?.readFrom ?? taskOrder(),
-  }))
-
-/** A page of tasks as a read keeps it: a report's list, or one of the project's pages. */
-interface TaskPage {
-  tasks: readonly ProjectTask[]
-}
-
-/**
- * A task changed: in every read of tasks that holds it, each kept in its own shape (R-C5-01): a report's list (flat),
- * the project's pages (infinite), and one task read alone (a deep link's).
- */
-export function taskChanged(queryClient: QueryClient, task: ProjectTask) {
-  const swap = (list: readonly ProjectTask[]) => list.map((t) => (t.taskId === task.taskId ? task : t))
-  queryClient.setQueriesData<TaskPage>(
-    { queryKey: ['vision', 'tasks'] },
-    (was) => was && { ...was, tasks: swap(was.tasks) },
-  )
-  queryClient.setQueriesData<InfiniteData<TaskPage>>(
-    { queryKey: ['tasks', 'project'] },
-    (was) => was && { ...was, pages: was.pages.map((p) => ({ ...p, tasks: swap(p.tasks) })) },
-  )
-  queryClient.setQueriesData<ProjectTask>({ queryKey: ['tasks', 'one'] }, (was) =>
-    was?.taskId === task.taskId ? task : was,
-  )
-}
+// The cache helpers live in task-cache.ts (tested there); re-exported for the callers that import them from here.
+export { taskChanged, taskRecorded } from './task-cache.ts'
 
 /** A report's tasks, read again as the feed moves (a task is a record); none read without tasks offered. */
 export function useTasks(identity: Identity, projectId: string, artifactId: string, cursor: string | undefined) {

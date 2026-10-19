@@ -223,3 +223,29 @@ change in `ProjectTasks.tsx` and one served case. The shared `useFeedRefetch` an
 
 Stop at the local seal for R's independent review and B's sequenced integration. When B releases 5198/5199 and P
 grants them, write and run the served browser checks.
+
+## Dated clarification — 2026-10-19 (FND-B-TASK465-CACHE-AND-SERVED-REPAIR-19)
+
+The sections above that name `vite.served.config.ts` and an `e2e-served/human-tasks-served.spec.ts` with "8 prepared
+cases", and the 20/40 counts, describe an A39 **route fixture** (`fixtures/human-tasks-data.ts` answering the six routes).
+That was not a signed-in App → API crossing, and those served paths were never committed under those names. The strict
+synthetic route cases that do exist are `e2e-search/human-tasks-page.spec.ts` (page fixture, never counted as the real
+API).
+
+Real served evidence, separately:
+
+- B's private run of 2026-10-19 04:32 UTC passed three real journeys: local Vite 5198 → listening API 5199 on its
+  restricted role → an owned PostgreSQL; synthetic dev auth; no Task response intercepted. Its specs were untracked
+  journal files, so a checkout could not reproduce it. The first private attempt failed (one missing response; the role
+  cases then saw a membership left inactive); that cause stays unknown. The report task refusal there was a 422, not a 403.
+- Committed now, reproducible: `apps/studio/e2e-served/human-tasks-served.spec.ts` (three journeys) with
+  `e2e-served/support/tasks-served.ts`. It runs on the normal served path with Tasks on and vision off, its owner setup
+  comes only from a loopback `SOPHIA_DISPOSABLE_DATABASE_URL`, and every case puts Davide's standing back on exit:
+
+  ```
+  SOPHIA_SERVED_ENV=<node apps/api/scripts/dev-db.ts --json output> SOPHIA_DISPOSABLE_DATABASE_URL=<owned loopback PG> \
+    SOPHIA_SERVED_TASKS=1 SOPHIA_SERVED_BROWSER=chromium pnpm exec playwright test -c playwright.served.config.ts
+  ```
+
+  Run the root check and the `.db` tests before seeding dev-db, never on the same cluster at the same time: dev-db
+  creates cluster-wide roles.

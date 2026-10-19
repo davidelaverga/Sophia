@@ -18,13 +18,26 @@ interface Served {
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dev-db.ts's own output
 const served = JSON.parse(readFileSync(process.env.SOPHIA_SERVED_ENV ?? '', 'utf8')) as Served
 process.env.SOPHIA_SERVED_PROJECT = served.project.projectId
+// SOPHIA_SERVED_TASKS=1: only the project's human tasks journeys (e2e-served/human-tasks-served.spec.ts, A39), on the
+// same normal Vite with VITE_SOPHIA_TASKS=1 and still no VITE_SOPHIA_VISION; the other served specs leave it out. Their
+// owner setup reads SOPHIA_DISPOSABLE_DATABASE_URL (loopback only), never the API's restricted role:
+//   SOPHIA_SERVED_TASKS=1 SOPHIA_SERVED_ENV=<dev-db json> SOPHIA_DISPOSABLE_DATABASE_URL=<owned loopback PostgreSQL> \
+//   SOPHIA_SERVED_BROWSER=chromium pnpm exec playwright test -c playwright.served.config.ts
+// SOPHIA_SERVED_BROWSER=chromium: Playwright's full Chromium build (its new headless mode) instead of the default
+// chrome-headless-shell.
+const tasks = process.env.SOPHIA_SERVED_TASKS === '1'
 
 export default defineConfig({
   testDir: './e2e-served',
+  ...(tasks ? { testMatch: 'human-tasks-served.spec.ts' } : { testIgnore: 'human-tasks-served.spec.ts' }),
   workers: 1,
   retries: 0,
   reporter: 'list',
-  use: { baseURL: 'http://127.0.0.1:5198', viewport: { width: 1440, height: 900 } },
+  use: {
+    baseURL: 'http://127.0.0.1:5198',
+    viewport: { width: 1440, height: 900 },
+    ...(process.env.SOPHIA_SERVED_BROWSER === 'chromium' ? { channel: 'chromium' } : {}),
+  },
   webServer: [
     {
       command: 'node ../api/src/server.ts',
@@ -43,6 +56,7 @@ export default defineConfig({
         VITE_SOPHIA_MESSAGE_ACTS: '1',
         VITE_SOPHIA_MENTIONS: '1',
         VITE_SOPHIA_SEARCH: '1',
+        ...(tasks ? { VITE_SOPHIA_TASKS: '1' } : {}),
         VITE_DEV_PROJECT_ID: served.project.projectId,
         VITE_DEV_IDENTITIES: JSON.stringify(served.identities),
       },
