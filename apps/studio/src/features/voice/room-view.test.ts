@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { Goal, NativeTask } from '@sophia/contracts'
 import {
+  askedJoin,
   floorView,
   mediaMessage,
   mutedMic,
@@ -293,5 +294,22 @@ describe('the one task that is all the work', () => {
     )
     assert.equal(soleWorkingTask({ goals: [], work: [task('g1', 'running'), task('g2', 'running')] }), null)
     assert.equal(soleWorkingTask(undefined), null)
+  })
+})
+
+describe('a join asked from elsewhere (Work’s Join the room, a toast’s Rejoin)', () => {
+  it('waits while the project loads', () => {
+    for (const status of ['idle', 'joining', 'live', 'reconnecting', 'failed'] as const) {
+      assert.equal(askedJoin(status, false), 'wait')
+    }
+  })
+
+  it('joins a room out of the call, after a failed join too, as Try again would', () => {
+    assert.equal(askedJoin('idle', true), 'join')
+    assert.equal(askedJoin('failed', true), 'join')
+  })
+
+  it('is answered by a call the person is in or on the way into, so nothing joins later on its own', () => {
+    for (const status of ['joining', 'live', 'reconnecting'] as const) assert.equal(askedJoin(status, true), 'answered')
   })
 })
