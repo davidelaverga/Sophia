@@ -1176,6 +1176,20 @@ test('places · Leave pressed in the bar keeps «You left …», with nothing to
   await expect(page.locator('.toast')).not.toContainText('ended when you opened')
 })
 
+test('places · ⌘K pressed as Leave in the bar ends the call keeps its typing in the palette (call-ends-on-open.md)', async ({
+  context,
+}) => {
+  const page = await inCallAtHome(context)
+  await page.locator('.places .room-pill').getByRole('button', { name: 'Leave the room' }).click()
+  // The palette opens while the call is still ending: the pill's going must not take the focus from its field.
+  await page.keyboard.press('ControlOrMeta+k')
+  const palette = page.getByRole('dialog', { name: 'Commands' })
+  await expect(palette).toBeVisible()
+  await expect(page.locator('.places .room-pill')).toHaveCount(0)
+  await page.keyboard.type('research notes')
+  await expect(palette.getByRole('option').first()).toContainText('Open Research notes')
+})
+
 /** The room tokens the fixture project's room asked for: one for each join. */
 const roomTokens = async (page: Page) =>
   (await askedOf(page)).filter((a) => a === `POST /api/v1/projects/${WORK_PROJECT}/room-token by ${DAVIDE.id}`).length
