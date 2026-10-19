@@ -246,6 +246,13 @@
   color: var(--text);
   font-weight: 500;
 }
+/* Nothing to say holds one line of her sentence (22 px above, 24 px of words): when one comes (a session nears,
+   someone enters a room) or goes, nothing under the greeting moves under a pointer (home-no-false-claim.md). */
+.places .hw-says-held {
+  min-height: 1lh;
+  margin-top: 22px;
+  font-size: 16px;
+}
 .places .hw .wait-note,
 .places .hw .place-notices {
   margin-top: 18px;

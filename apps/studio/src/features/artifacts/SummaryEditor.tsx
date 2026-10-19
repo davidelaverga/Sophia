@@ -1,17 +1,30 @@
 // A report's description on its Knowledge card (plan §2.9): Sophia's from publication, or a member's edit with its
 // date. An editor's change is saved against the revision they saw when they began (summaryEdit): when someone else
-// changed it first, theirs is shown and nothing is overwritten, even after the cards were read again meanwhile. A save
-// with no reply is never sent again by itself (it may have landed). «Edit description» moves the focus to the text, and
-// leaving the form (Cancel, Esc, a save) hands it back to it. Sophia's own description opens with her mark, which says so to a
-// screen reader and under the pointer; a member's edit is said in words (docs/plans/knowledge-quiet.md). Edit sits at the
-// tile's foot, after what the tile puts there (History).
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+// changed it first, the person is told whose words are there and their typed words stay, and nothing is overwritten
+// unless they save again, even after the cards were read again meanwhile. A save with no reply is never sent again by
+// itself (it may have landed): when the cards read again bring back any words sent, or a stale refusal finds them
+// there, it was saved, said politely, never blamed on a teammate, and only while it stays true
+// (docs/plans/description-reply-lost.md). «Edit description» moves the focus to the text, and leaving the form (Cancel,
+// Esc, a save) hands it back to it. Sophia's own description opens with her mark, which says so to a screen reader and
+// under the pointer; a member's edit is said in words (docs/plans/knowledge-quiet.md). Edit sits at the tile's foot,
+// after what the tile puts there (History).
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ReportCard } from '@sophia/contracts'
 import { editReportSummary } from '../../api/artifacts.ts'
 import { ApiError } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Mark } from '../../app/Mark.tsx'
-import { summaryEdit, type SummaryDraft } from './report-view.ts'
+import {
+  draftFrom,
+  liveNote,
+  settleUnheard,
+  summaryEdit,
+  summaryProblem,
+  unheardWith,
+  type SummaryDraft,
+  type SummaryNote,
+  type UnheardSave,
+} from './report-view.ts'
 import { dayOf } from '../../app/time-words.ts'
 
 const LIMIT = 240
@@ -32,23 +45,22 @@ function attribution(card: ReportCard): string {
   return when ? `Edited by a member · ${when}` : 'Edited by a member'
 }
 
-/** What a refused or unanswered save tells the person. */
-function problemOf(err: unknown): string {
-  if (err instanceof ApiError && err.code === 'stale_revision') {
-    return 'Someone changed this description since you opened it. Theirs is shown; edit again if you need to.'
-  }
-  if (err instanceof ApiError && err.code === 'forbidden') return 'Only editors and admins can change it.'
-  if (err instanceof ApiError && err.code === 'outcome_unknown') {
-    return 'No reply from Sophia: it may have been saved. It will show here when the list reads again.'
-  }
-  return 'The description wasn’t saved. Try again.'
-}
+/** A save the cards read again settle (settleUnheard): its reply was lost, or the API refused it as stale. */
+const unheardBy = (code: string | null): boolean => code === 'outcome_unknown' || code === 'stale_revision'
 
-function Problem({ text }: { text: string | null }) {
-  if (!text) return null
+/** The line under the description: a problem as an alert, a save that went through after all as a status. */
+function Note({ note }: { note: SummaryNote | null }) {
+  if (!note) return null
+  if (note.polite) {
+    return (
+      <p className="report-saved" role="status">
+        {note.words}
+      </p>
+    )
+  }
   return (
     <p className="report-problem" role="alert">
-      {text}
+      {note.words}
     </p>
   )
 }
@@ -65,12 +77,66 @@ function useDraft() {
     const at = document.activeElement
     if (at === null || at === document.body) edit.current?.focus()
   }, [draft])
-  const stop = () => {
+  const stop = useCallback(() => {
     back.current = true
     setDraft(null)
-  }
+  }, [])
   const write = (text: string) => setDraft((d) => (d ? { ...d, text } : d))
-  return { draft, start: setDraft, write, stop, edit }
+  /** The typed words stay, saved next against `base` (the person was told why). */
+  const rebase = useCallback((base: number) => setDraft((d) => (d ? { ...d, base } : d)), [])
+  return { draft, start: setDraft, write, stop, rebase, edit }
+}
+
+type Draft = ReturnType<typeof useDraft>
+
+/**
+ * Saving the draft, and the line it leaves. Saves whose reply was lost, or refused as stale, wait together for the
+ * cards read again to say whose words are there (settleUnheard): the person's own close the form as saved, someone
+ * else's are named and keep the typed words. Edit takes the line away, so each is said once, but never what is still
+ * unheard.
+ */
+function useSave({ card, identity, onSaved }: Pick<Props, 'card' | 'identity' | 'onSaved'>, form: Draft) {
+  const [note, setNote] = useState<SummaryNote | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [unheard, setUnheard] = useState<UnheardSave | null>(null)
+  const { stop, rebase } = form
+  const typed = form.draft?.text ?? null
+  useEffect(() => {
+    const settled = unheard && settleUnheard(unheard, card, typed)
+    if (!settled) return
+    setUnheard(null)
+    setNote(settled.note)
+    if (settled.close) stop()
+    else rebase(settled.base)
+  }, [unheard, card, typed, stop, rebase])
+  const save = async (begun: SummaryDraft) => {
+    const edit = summaryEdit(begun)
+    setSaving(true)
+    try {
+      await editReportSummary(identity.token, card.artifactId, edit)
+      stop()
+      setNote(null)
+      setUnheard(null)
+    } catch (err: unknown) {
+      const code = err instanceof ApiError ? err.code : null
+      const words = summaryProblem(code)
+      setNote(words === null ? null : { words, polite: false })
+      if (unheardBy(code)) setUnheard((prev) => unheardWith(prev, edit))
+    } finally {
+      setSaving(false)
+      onSaved()
+    }
+  }
+  const begin = () => {
+    setNote(null)
+    form.start(draftFrom(card, unheard))
+  }
+  /** Cancel or Esc: the form's line goes with it, unless a save still waits to be heard. */
+  const leave = () => {
+    stop()
+    if (!unheard) setNote(null)
+  }
+  return { note: liveNote(note, card.summary), saving, save, begin, leave }
 }
 
 /** Sophia's mark before her own description: «Description by Sophia» to a screen reader and under the pointer. */
@@ -84,23 +150,9 @@ function SophiasMark() {
 }
 
 export function SummaryEditor({ card, identity, editable, onSaved, children = null }: Props) {
-  const { draft, start, write, stop, edit } = useDraft()
-  const [problem, setProblem] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const save = async (begun: SummaryDraft) => {
-    setSaving(true)
-    try {
-      await editReportSummary(identity.token, card.artifactId, summaryEdit(begun))
-      stop()
-      setProblem(null)
-    } catch (err: unknown) {
-      setProblem(problemOf(err))
-      if (err instanceof ApiError && err.code === 'stale_revision') stop()
-    } finally {
-      setSaving(false)
-      onSaved()
-    }
-  }
+  const form = useDraft()
+  const { note, saving, save, begin, leave } = useSave({ card, identity, onSaved }, form)
+  const { draft, write, edit } = form
   if (draft === null) {
     // No description is no one's: only one that exists is credited.
     const sophias = card.summary !== null && card.summaryAuthorId === null
@@ -111,17 +163,12 @@ export function SummaryEditor({ card, identity, editable, onSaved, children = nu
           {card.summary ?? 'No description yet.'}
         </p>
         {card.summary !== null && !sophias && <p className="report-attribution">{attribution(card)}</p>}
-        <Problem text={problem} />
+        <Note note={note} />
         {/* One key in both forms: the foot, and History in it, stay as the form comes and goes (its focus too). */}
         <div key="foot" className="report-foot">
           {children}
           {editable && (
-            <button
-              ref={edit}
-              type="button"
-              className="text-button"
-              onClick={() => start({ text: card.summary ?? '', base: card.summaryRevision })}
-            >
+            <button ref={edit} type="button" className="text-button" onClick={begin}>
               Edit description
             </button>
           )}
@@ -134,8 +181,8 @@ export function SummaryEditor({ card, identity, editable, onSaved, children = nu
       <SummaryForm
         draft={draft.text}
         saving={saving}
-        problem={problem}
-        onDraft={(text) => (text === null ? stop() : write(text))}
+        note={note}
+        onDraft={(text) => (text === null ? leave() : write(text))}
         onSave={() => void save(draft)}
       />
       <div key="foot" className="report-foot">
@@ -148,13 +195,13 @@ export function SummaryEditor({ card, identity, editable, onSaved, children = nu
 interface FormProps {
   draft: string
   saving: boolean
-  problem: string | null
+  note: SummaryNote | null
   /** A new draft, or null to stop editing. */
   onDraft: (draft: string | null) => void
   onSave: () => void
 }
 
-function SummaryForm({ draft, saving, problem, onDraft, onSave }: FormProps) {
+function SummaryForm({ draft, saving, note, onDraft, onSave }: FormProps) {
   const text = draft.trim()
   const field = useRef<HTMLTextAreaElement>(null)
   useEffect(() => field.current?.focus(), [])
@@ -190,7 +237,7 @@ function SummaryForm({ draft, saving, problem, onDraft, onSave }: FormProps) {
           {saving ? 'Saving…' : 'Save'}
         </button>
       </div>
-      <Problem text={problem} />
+      <Note note={note} />
     </form>
   )
 }

@@ -278,3 +278,82 @@ test('acts · a lost answer can only be asked again: no Cancel, and Escape keeps
   await expect(ask).toHaveCount(0)
   expect((await served(page)).filter((s) => s === 'act:correct')).toHaveLength(1)
 })
+
+// Codex P2 on #409 (r4312346262): an act's answer that arrives after the person has gone on to another control leaves
+// the focus where they put it; the act still shows its result.
+test('acts · a correction answered after the focus went elsewhere leaves it there; the correction shows', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.holdActs())
+  await line(page, MINE).getByRole('button', { name: 'Edit' }).click()
+  await page.getByRole('textbox', { name: 'Edit your message' }).fill('Meet at two.')
+  await page.getByRole('button', { name: 'Save' }).click()
+  await expect.poll(() => served(page)).toContain('act:correct')
+  const elsewhere = line(page, SHARED).getByRole('button', { name: 'Withdraw' })
+  await elsewhere.focus()
+  await page.evaluate(() => window.fixture?.releaseActs())
+  await expect(line(page, 'Meet at two.').getByText('Edited')).toBeVisible()
+  await expect(elsewhere).toBeFocused()
+})
+
+test('acts · a withdrawal answered after the focus went elsewhere leaves it there; the message’s place shows', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.holdActs())
+  await line(page, MINE).getByRole('button', { name: 'Withdraw' }).click()
+  await page
+    .getByRole('group', { name: 'Withdraw your message?' })
+    .getByRole('button', { name: 'Withdraw message' })
+    .click()
+  await expect.poll(() => served(page)).toContain('act:withdraw')
+  const elsewhere = line(page, SHARED).getByRole('button', { name: 'Withdraw' })
+  await elsewhere.focus()
+  await page.evaluate(() => window.fixture?.releaseActs())
+  await expect(discussion(page).getByText('You withdrew this message.')).toBeVisible()
+  await expect(elsewhere).toBeFocused()
+})
+
+test('acts · a correction answered while the chat is closed never takes the focus when it opens again', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.holdActs())
+  await line(page, MINE).getByRole('button', { name: 'Edit' }).click()
+  await page.getByRole('textbox', { name: 'Edit your message' }).fill('Meet at three.')
+  await page.getByRole('button', { name: 'Save' }).click()
+  await expect.poll(() => served(page)).toContain('act:correct')
+  await chatToggle(page).click()
+  await expect(discussion(page)).toBeHidden()
+  await page.evaluate(() => window.fixture?.releaseActs())
+  await chatToggle(page).click()
+  const fixed = line(page, 'Meet at three.')
+  await expect(fixed.getByText('Edited')).toBeVisible()
+  await expect(fixed.getByRole('button', { name: 'Edit' })).not.toBeFocused()
+})
+
+// Codex P2 on #409 (r4313394205): the room counts a message in characters (bar-length.ts), so an edit made of astral
+// characters fits while it is within 4000 of them, though it is longer in UTF-16 units; past 4000, Save waits.
+test('acts · an edit within 4000 characters of astral ones is kept whole and saved; past 4000, Save waits', async ({
+  page,
+}) => {
+  await enter(page)
+  await line(page, MINE).getByRole('button', { name: 'Edit' }).click()
+  const field = page.getByRole('textbox', { name: 'Edit your message' })
+  const astral = '\u{1F33F}'.repeat(2100) // 2100 characters, 4200 UTF-16 units
+  await field.fill('')
+  await page.keyboard.insertText(astral)
+  await expect(field).toHaveValue(astral)
+  await page.getByRole('button', { name: 'Save' }).click()
+  await expect(field).toHaveCount(0)
+  expect(await served(page)).toContain('act:correct')
+  await line(page, '\u{1F33F}\u{1F33F}').getByRole('button', { name: 'Edit' }).click()
+  await field.fill('')
+  await page.keyboard.insertText('a'.repeat(4001))
+  await expect(page.getByRole('status').filter({ hasText: '4001 of 4000 characters' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save' })).toHaveAttribute('aria-disabled', 'true')
+  await page.getByRole('button', { name: 'Save' }).click({ force: true })
+  await expect(field).toBeVisible()
+  expect((await served(page)).filter((s) => s === 'act:correct')).toHaveLength(1)
+})

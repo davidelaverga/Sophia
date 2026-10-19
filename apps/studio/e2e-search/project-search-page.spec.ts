@@ -285,10 +285,9 @@ test('served search · a jump answered before a correction and a let-go never sh
   expect(String(await stale(page, 'window.staleBody(0)'))).toContain(target) // the old page, captured at request
   expect(String(await stale(page, 'window.staleBody(0)'))).toContain('The heron arrived, message 40.') // its old words
   await page.evaluate((m) => window.fixture?.changeElsewhere(39, m, 'The heron arrived again, message 40.'), target)
-  await page.evaluate(() => window.fixture?.failEarlier())
-  await page.evaluate((m) => window.fixture?.changeElsewhere(129, m, 'Message 130, corrected'), entryIdOf(129))
-  await expect.poll(() => stale(page, 'window.staleCount()')).toBe(2) // the held page's refresh: fails (1)
-  await stale(page, 'window.releaseStale(1)') // the refresh fails first: the held pages are let go
+  // The corrected message is neither held nor shown: which source its correction erased can't be told here, so the
+  // held pages are let go at once, fail-closed, with a new epoch (Common r4313704366) — no refresh read is asked.
+  expect(await stale(page, 'window.staleCount()')).toBe(1)
   await expect(discussion(page).locator(`[data-message="${entryIdOf(129)}"]`)).toHaveCount(0)
   await stale(page, 'window.releaseStale(0)') // then the jump's old answer lands
   await page.waitForTimeout(1000)
@@ -336,10 +335,9 @@ test('served search · a gap fill answered before a correction and a let-go neve
       ),
     [n, targetId],
   )
-  await page.evaluate(() => window.fixture?.failEarlier())
-  await page.evaluate((m) => window.fixture?.changeElsewhere(109, m, 'Message 110, corrected'), entryIdOf(109))
-  await expect.poll(() => stale(page, 'window.staleCount()')).toBe(2) // the held page's refresh: fails (1)
-  await stale(page, 'window.releaseStale(1)') // the refresh fails first: the held pages are let go
+  // The corrected message is neither held nor shown: which source its correction erased can't be told here, so the
+  // held pages are let go at once, fail-closed, with a new epoch (Common r4313704366) — no refresh read is asked.
+  expect(await stale(page, 'window.staleCount()')).toBe(1)
   await expect(discussion(page).locator(`[data-message="${entryIdOf(109)}"]`)).toHaveCount(0)
   await stale(page, 'window.releaseStale(0)') // then the fill's old answer lands
   await page.waitForTimeout(1000)

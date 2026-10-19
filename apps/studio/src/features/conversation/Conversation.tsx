@@ -30,6 +30,7 @@ import { RichText } from '../../app/RichText.tsx'
 import { clock } from '../../app/time-words.ts'
 import { useNow } from '../../app/use-now.ts'
 import { dayBreaks, todayAfter } from './chat-days.ts'
+import { AwayDivider, useWhileAway, type AwayMark } from './WhileAway.tsx'
 
 interface Props {
   projectId: string
@@ -73,13 +74,35 @@ function useFollowing(room: ProjectRoom, discussion: Snapshot['discussion'] | un
     const el = history.current
     if (el) following.current = el.scrollHeight - el.scrollTop - el.clientHeight < 64
   }
-  return { history, onScroll }
+  return { history, following, onScroll }
+}
+
+/** The call's lines with Sophia: turns, notices and captions, in order. */
+function Timeline(props: {
+  timeline: ReturnType<typeof chatTimeline>
+  projectId: string
+  identity: Props['identity']
+  me: string
+  names: ReadonlyMap<string, string>
+}) {
+  const { timeline, projectId, identity, me, names } = props
+  return (
+    <ol className="chat-messages" aria-label="Conversation with Sophia">
+      {timeline.map((entry) => (
+        <li key={entryKey(entry)}>
+          {entry.type === 'turn' && <Turn turn={entry.turn} />}
+          {entry.type === 'notice' && <NoticeCard notice={entry.notice} projectId={projectId} identity={identity} />}
+          {entry.type === 'caption' && <Caption caption={entry.caption} me={me} names={names} />}
+        </li>
+      ))}
+    </ol>
+  )
 }
 
 export function Conversation(props: Props) {
   const { projectId, identity, snapshot, me, names, room, draft, onDraft, onShowRoom } = props
   const discussion = snapshot?.discussion ?? []
-  const { history, onScroll } = useFollowing(room, snapshot?.discussion)
+  const { history, following, onScroll } = useFollowing(room, snapshot?.discussion)
   const timeline = chatTimeline(room.chat, room.notices, room.captions)
   const withdrawnNow = snapshot?.discussionWithdrawn
   const empty = nothingSaid(discussion, withdrawnNow, timeline)
@@ -89,8 +112,10 @@ export function Conversation(props: Props) {
   const acts = useMessageActs(projectId, identity, earlier.revise)
   const members = useMentionShown(props, history, earlier)
   useReplyGone(replying, earlier.withdrawn, setReplying)
+  const away = useWhileAway({ history, following }, earlier.entries)
   return (
     <div className="conversation">
+      {away.line}
       <div className="conversation-history" ref={history} onScroll={onScroll}>
         {empty && (
           <EmptyState className="chat-empty">Messages stay in this conversation. Notes live in the brief.</EmptyState>
@@ -104,22 +129,11 @@ export function Conversation(props: Props) {
           names={names}
           replies={replies.of}
           onReply={VISION ? setReplying : undefined}
+          away={away.divider}
         />
         {VISION && discussion.length > 0 && <RepliesState failed={replies.failed} onRetry={replies.retry} />}
         <TodayLine lastAt={lastSaidAt(earlier.entries, earlier.withdrawn)} shown={timeline.length > 0} />
-        {timeline.length > 0 && (
-          <ol className="chat-messages" aria-label="Conversation with Sophia">
-            {timeline.map((entry) => (
-              <li key={entryKey(entry)}>
-                {entry.type === 'turn' && <Turn turn={entry.turn} />}
-                {entry.type === 'notice' && (
-                  <NoticeCard notice={entry.notice} projectId={projectId} identity={identity} />
-                )}
-                {entry.type === 'caption' && <Caption caption={entry.caption} me={me} names={names} />}
-              </li>
-            ))}
-          </ol>
-        )}
+        {timeline.length > 0 && <Timeline {...{ timeline, projectId, identity, me, names }} />}
       </div>
       <Composer
         projectId={projectId}
@@ -131,6 +145,7 @@ export function Conversation(props: Props) {
         onShowRoom={onShowRoom}
         replying={replying}
         onStopReplying={() => setReplying(null)}
+        onSend={away.sent}
       />
     </div>
   )
@@ -380,10 +395,12 @@ interface DiscussionProps {
   onReply: ((replying: Replying) => void) | undefined
   /** Where messages between were never read (A38): a gap's line goes after each of those messages. */
   gaps: Earlier['gaps']
+  /** What came while the tab was hidden: the divider above the first drawn of it (WhileAway.tsx). */
+  away: AwayMark | null
 }
 
 function Discussion(props: DiscussionProps) {
-  const { entries, withdrawn, acts, named, me, names: known, replies, onReply, gaps } = props
+  const { entries, withdrawn, acts, named, me, names: known, replies, onReply, gaps, away } = props
   const now = useNow()
   if (entries.length === 0 && withdrawn.length === 0) return null
   const items = discussionItems(entries, withdrawn)
@@ -413,6 +430,7 @@ function Discussion(props: DiscussionProps) {
         return [
           <li key={entry.id} className="contribution" {...entryAttrs(entry, named.waiting, !!onReply)}>
             {days[i] && <span className="chat-day">{days[i]}</span>}
+            {away?.id === entry.id && <AwayDivider words={away.words} />}
             {answers && <Quote answers={answers} here={here.has(answers.id)} me={me} names={names} />}
             <span className="contribution-author">{author}</span>
             <At at={new Date(entry.createdAt)} className="contribution-at" />

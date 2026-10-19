@@ -14,6 +14,7 @@ import {
   READS,
   staleHeld,
   withPage,
+  withoutAliases,
 } from './held-pages.ts'
 
 const at = (n: number) => `2026-10-16T09:${String(n).padStart(2, '0')}:00.000Z`
@@ -283,5 +284,31 @@ describe('held pages kept honest (4309253137)', () => {
     assert.ok((changesOf(owner).ids.get(id(3)) ?? 0) > first)
     const held = maps(e(1), e(2), e(3), e(4)).entries
     assert.deepEqual(staleHeld(changesOf(owner), new Map([[id(3), first]]), held, new Set()), [id(3)], 'still to read')
+  })
+})
+
+// r4313704366: a correction or withdrawal erases a source; every other held message sharing it goes with it.
+describe('held aliases of an erased source (r4313704366)', () => {
+  const src = (n: number, source: number, kind: 'text' | 'reference' = 'text'): DiscussionEntry => ({
+    ...e(n),
+    sourceId: id(source),
+    kind,
+  })
+
+  it('a batch drops every alias of every source gone, and keeps the rest; a held withdrawn place undoes nothing (F3)', () => {
+    const held = {
+      entries: new Map([1, 2, 3, 4].map((n) => [id(n), src(n, n < 3 ? 700 : n === 3 ? 701 : 702)])),
+      withdrawn: new Map([
+        [id(9), { id: id(9), actorId: id(900), authorName: null, createdAt: at(9), withdrawnAt: at(10) }],
+      ]),
+    }
+    // A = 1 (source 700) and the withdrawn place 9 learned together, A first: 2 shares A's source and goes.
+    const next = withoutAliases(held, new Set([id(700)]), new Set([id(1), id(9)]))
+    assert.deepEqual([...next.entries.keys()], [id(1), id(3), id(4)])
+    // The same with the withdrawn place first: the same result, nothing undone.
+    assert.deepEqual(
+      [...withoutAliases(held, new Set([id(700)]), new Set([id(9), id(1)])).entries.keys()],
+      [id(1), id(3), id(4)],
+    )
   })
 })
