@@ -13,6 +13,7 @@ import { Sheet } from '../../app/Sheet.tsx'
 import { Waiting } from '../../app/Waiting.tsx'
 import { canInvite } from '../access/useAccess.ts'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
+import { clip } from '../personal/characters.ts'
 import { closedDoor } from '../studio/project-door.ts'
 import { useAskSophia } from '../studio/project-go.tsx'
 import { useKnownNames } from '../studio/useKnownNames.ts'
@@ -271,10 +272,10 @@ function SearchSheet({ projectId, identity, onClose, onHit, onAsk, local }: Shee
         className="search-field"
         aria-label="Search this project"
         placeholder="Goals, tasks, decisions, notes, reports, meetings"
-        // The service searches at most 200 characters (A38).
-        maxLength={200}
+        // The service searches at most 200 characters (A38), counted as it counts them, in code points: a field's
+        // maxLength counts UTF-16 units and would refuse an eligible query of astral letters (r4315568923).
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => setText(clip(e.target.value, 200))}
       />
       {asked && (
         <SearchOutcome

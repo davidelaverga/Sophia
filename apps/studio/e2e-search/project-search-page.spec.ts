@@ -393,3 +393,22 @@ for (const status of [401, 403])
     await expect(hits(page)).toHaveCount(0, { timeout: 2000 })
     expect(await page.evaluate(() => (window as Denying).searchBodyCancelled), 'the body is let go').toBeGreaterThan(0)
   })
+
+// R on 8727 (r4315568923): an eligible query of astral letters — two words of 60 Deseret letters, 121 code points,
+// 241 UTF-16 units — typed into the field reaches A38 whole; past 200 code points the field still stops.
+test('served search · an eligible query of astral letters is typed whole and asked whole; past 200 the field stops (r4315568923)', async ({
+  page,
+}) => {
+  await open(page, 'discussion=60&heron=3')
+  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  const query = `${'\u{10428}'.repeat(60)} ${'\u{10429}'.repeat(60)}`
+  await field(page).focus()
+  await page.keyboard.insertText(query)
+  await expect(field(page)).toHaveValue(query)
+  const qs = async () =>
+    (await requests(page)).map((r) => new URL(r, 'http://fixture').searchParams.get('q')).filter(Boolean)
+  await expect.poll(qs).toContain(query) // asked whole: the query A38 receives
+  await field(page).fill('')
+  await page.keyboard.insertText('a'.repeat(201))
+  await expect(field(page)).toHaveValue('a'.repeat(200))
+})
