@@ -41,14 +41,16 @@ import {
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const STUDIO = join(ROOT, 'apps', 'studio')
-const RESULTS = join(STUDIO, 'reliability-results')
+// Both can be pointed elsewhere for the script's own test, which runs a fake suite.
+const RESULTS = process.env.RELIABILITY_RESULTS ?? join(STUDIO, 'reliability-results')
 const CACHE = join(ROOT, '.reliability-cache')
 const WORKFLOW = join(ROOT, '.github', 'workflows', 'ci.yml')
 const DAY = 86_400_000
 const run = promisify(execFile)
 
 /** The suite's command, as the script runs it with `--run` (on Luis's machine, through the guard instead). */
-export const SUITE = 'pnpm exec playwright test -c playwright.reliability.config.ts --workers=2'
+export const SUITE =
+  process.env.RELIABILITY_SUITE ?? 'pnpm exec playwright test -c playwright.reliability.config.ts --workers=2'
 
 /** What the fixture can't measure yet, and why. */
 const NOT_YET = [

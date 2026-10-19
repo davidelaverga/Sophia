@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { test } from 'node:test'
+import { fileURLToPath } from 'node:url'
 import {
   distinctJobs,
   familyOf,
@@ -376,4 +381,80 @@ test('M3/M4: per feed case, the scenarios that ran (their lever there), came bac
     stall: { n: 1, ran: 1, back: 0, p50: null, p95: null },
     online: { n: 1, ran: 0, back: 0, p50: null, p95: null },
   })
+})
+
+// The script itself, on a fake suite: it lists 2 M7 scenarios and 1 M2; `FAKE_M7` M7 records and `FAKE_M2` M2 records
+// are written, and it exits `FAKE_EXIT`.
+const SCRIPT = fileURLToPath(new URL('../../scripts/reliability-report.mjs', import.meta.url))
+const FAKE_SUITE = `
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+if (process.argv.includes('--list')) {
+  console.log('Listing tests:')
+  console.log('  [desktop] › transient.spec.ts:10:3 › M7 · reads answered 502 once @reliability')
+  console.log('  [desktop] › transient.spec.ts:10:3 › M7 · reads answered 503 twice @reliability')
+  console.log('  [desktop] › writes.spec.ts:80:1 › M2 · a message whose reply is lost @reliability')
+  console.log('Total: 3 tests in 2 files')
+  process.exit(0)
+}
+const dir = process.env.RELIABILITY_RESULTS
+rmSync(dir, { recursive: true, force: true })
+mkdirSync(dir, { recursive: true })
+writeFileSync(join(dir, 'run.json'), JSON.stringify({ startedAt: '2026-10-19T12:00:00Z', commit: 'fake', branch: 'b' }))
+const write = (metric, i, sample) =>
+  writeFileSync(join(dir, metric + '-' + i + '.json'), JSON.stringify({ metric, test: metric + ' ' + i, samples: [sample] }))
+for (let i = 0; i < Number(process.env.FAKE_M7); i++) {
+  write('M7', i, { read: 'conversations', failures: 1, errors: 1, recovered: true, ms: 100 })
+}
+for (let i = 0; i < Number(process.env.FAKE_M2); i++) write('M2', i, { resolved: true, writes: 1, resendMs: 30 })
+process.exit(Number(process.env.FAKE_EXIT))
+`
+
+function fixtureReport({ m7, m2, exit, runSuite }) {
+  const dir = mkdtempSync(join(tmpdir(), 'reliability-'))
+  const fake = join(dir, 'fake-suite.mjs')
+  writeFileSync(fake, FAKE_SUITE)
+  const env = {
+    ...process.env,
+    RELIABILITY_SUITE: `${JSON.stringify(process.execPath)} ${JSON.stringify(fake)}`,
+    RELIABILITY_RESULTS: join(dir, 'results'),
+    FAKE_M7: String(m7),
+    FAKE_M2: String(m2),
+    FAKE_EXIT: String(exit),
+  }
+  // Without --run the suite ran before (through the guard, on Luis's machine): the script only collects.
+  if (!runSuite) spawnSync(process.execPath, [fake], { env })
+  const out = join(dir, 'out')
+  const args = [SCRIPT, '--fixture', ...(runSuite ? ['--run'] : []), '--out', out]
+  const { status } = spawnSync(process.execPath, args, { env, encoding: 'utf8' })
+  const json = JSON.parse(readFileSync(join(out, 'reliability.json'), 'utf8'))
+  const md = readFileSync(join(out, 'reliability.md'), 'utf8')
+  rmSync(dir, { recursive: true, force: true })
+  return { status, fixture: json.fixture, md }
+}
+
+test('a suite that fails after some scenarios wrote results gives no numbers, says so, and exits non-zero', () => {
+  // A failed suite can't say which scenario failed (one may fail after writing its record): every metric is partial.
+  const failed = fixtureReport({ m7: 1, m2: 0, exit: 1, runSuite: true })
+  assert.notEqual(failed.status, 0, 'the script exits non-zero')
+  assert.equal(failed.fixture.incomplete.exit, 1)
+  assert.deepEqual(failed.fixture.incomplete.metrics.M7, { ran: 1, expected: 2 })
+  assert.deepEqual(failed.fixture.incomplete.metrics.M2, { ran: 0, expected: 1 })
+  assert.equal(failed.fixture.m7?.share, undefined, 'no summary from a partial run')
+  assert.ok(!failed.md.includes('%'), `no percentage published:\n${failed.md}`)
+  assert.match(failed.md, /M7.*incomplete: 1 of 2 scenarios/)
+
+  // Collected after a run through the guard that wrote fewer records than the suite has: those metrics are partial,
+  // the whole ones are published, and the script still exits non-zero.
+  const short = fixtureReport({ m7: 2, m2: 0, exit: 0, runSuite: false })
+  assert.notEqual(short.status, 0)
+  assert.deepEqual(short.fixture.incomplete, { exit: null, metrics: { M2: { ran: 0, expected: 1 } } })
+  assert.equal(short.fixture.m7.share, 1)
+  assert.equal(short.fixture.m2?.share, undefined)
+
+  const whole = fixtureReport({ m7: 2, m2: 1, exit: 0, runSuite: true })
+  assert.equal(whole.status, 0)
+  assert.equal(whole.fixture.incomplete, undefined)
+  assert.equal(whole.fixture.m7.share, 1)
+  assert.equal(whole.fixture.m2.share, 1)
 })
