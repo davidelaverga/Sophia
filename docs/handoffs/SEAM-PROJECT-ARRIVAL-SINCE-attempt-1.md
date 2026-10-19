@@ -12,8 +12,8 @@ Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1` gua
 record.
 Existing authority: Luis 2026-10-19, the quote above; local only, nothing pushed; merges on green with no open P1 once
 pushed, after #468 and batch 5.
-Ending commit/tree: `f4a188b1d820` (tree `2fdd79f822ee`), the branch's last commit that changes code (the next one
-adds only this record and the note's measured lines). Files changed against `56c61c61e`: `e2e/arrival-since.spec.ts`,
+Ending commit/tree: `b4cd3314f150` (tree `e26175ae77fb`), the branch's last commit that changes code, after the
+review round (the next one updates only this record and the note). The first build ended at `f4a188b1d820`. Files changed against `56c61c61e`: `e2e/arrival-since.spec.ts`,
 `fixtures/data.ts`, `fixtures/fixture-api.ts`, `fixtures/meeting-data.ts`, `fixtures/room.tsx`,
 `src/app/attention.test.ts`, `src/app/theme.css`, `src/features/personal/places-view.ts`,
 `src/features/personal/useSinceNews.ts`, `src/features/studio/ProjectShell.tsx`,
@@ -35,14 +35,21 @@ adds only this record and the note's measured lines). Files changed against `56c
 - **Nothing is said** when the visit begins at Updates or with the newcomer's welcome, in a call in that room (a
   project kept out of sight behind its call is always in one), for an empty window, one never marked seen, one with
   only proposals and tasks, or while the project's call read is pending.
-- **It goes** with Open Updates (which opens Updates), any move to Updates, a call starting, or Dismiss, and doesn't
-  come back in that open.
+- **It goes** with Open Updates (which opens Updates), any move to Updates, a call starting, a door that closes
+  (refused, or the session expired), a knock, or Dismiss, and doesn't come back in that open.
+- **Nothing is read or said while a call is on its way**: Join the room from Work or a toast's Rejoin opens the
+  project with `joinOnOpen`, and a `joining` room counts as a call too.
+- **The door goes first.** While someone waits at the door, whose lobby floats in the same corner, the visit reads
+  nothing; it reads once the door is answered, then says the line. While the lobby stands for a Decline's «Let in
+  instead», the card is hidden (`.shell:has(.lobby)`) and comes back when the offer goes.
 - **Announced, never taking the focus**: an empty `role="status"` element is under the bar from the shell's first
   frame. The card is put in it after a commit, even when the window was already in the cache.
-- **Request budget**: at most one `/since` read per project open, made once the project is drawn (loaded, not refused),
-  under Home's key and freshness (`homeSinceKey`, 20 s). So an open within 20 s of Home's read sends none, and it reads
-  nothing at Updates, in a call, or after it has decided. It is never polled, retried or read on focus. A read of a
-  call's pending project ends that wait, as Home's does (`readOf`).
+- **Request budget**: the arrival reads at most once per project open, once the project is drawn (loaded, not
+  refused, no one at the door), under Home's key and freshness (`homeSinceKey`, 20 s). So an open within 20 s of
+  Home's read sends none, and it reads nothing at Updates, in a call or on its way into one, or after it has decided.
+  It is never polled, retried or read on focus. A read of a call's pending project ends that wait, as Home's does
+  (`readOf`). **Updates is not seeded from it**: Open Updates reads Updates' own window, so arrival plus Open Updates
+  is two reads (the brief asked for one; see the review round).
 
 ## Evidence
 
@@ -85,6 +92,32 @@ adds only this record and the note's measured lines). Files changed against `56c
   - The status is 0 px high in the page's flow, and the card is fixed, so nothing on the page moves when it comes.
     There is no horizontal overflow on the page or the body (0 px in all four).
 
+- **Review round** (five P2s, all verified real; one test-first pair each for the three behaviours):
+  - Call on its way. Written first and failing (`f93c3540d`): `call=on` on a page of its own, «Expected: 0»,
+    «Received: 1» `/since` reads (`pw-logs/arrival-p1-call-red.txt`). The same commit moves the call check out of the
+    Updates test, where Updates' kept window had quieted the line whatever the call did (the fourth P2). Fix
+    `bb923601b`: `callOn` (a `joining` room, or `joinOnOpen`) feeds `inCall`; `UnderTheBar` now takes the shell's
+    props as `shell`, which kept `ProjectShell` within its 60 lines.
+  - Closed door. Written first and failing (`1feecfb01`): after `shutDoor`, «Expected: ""», «Received: "Since you last
+    looked: 2 notes kept. Open UpdatesDismiss"» (`pw-logs/arrival-p2-door-red.txt`). Fix `0cf5a569a`: a line said is
+    over once the project is no longer drawn (`overNow`, split out for the complexity limit).
+  - The lobby's corner. Written first and failing (`df1d85c46`, with the fixture now answering the door as the API
+    does), three red (`pw-logs/arrival-p3-door-red.txt`): with someone waiting, «Expected: 0», «Received: 1»; a knock,
+    «Received: "Since you last looked: …"»; after Decline, the card «Expected: hidden», «Received: visible». Fix
+    `b4cd3314f`: `drawn` also needs no one waiting (`atTheDoor`), and `.shell:has(.lobby) .arrival-band` is hidden.
+  - Control mutant (applied for one run, restored): with the call ignored in `ends`, the call check fails with
+    «Expected: 0», «Received: 1» (`pw-logs/arrival-r2-mutant-call.txt`).
+  - Read budget: wording corrected in the note and here; no code change (see Decisions).
+  - Green at `b4cd3314f` through the guard: `arrival-since`, `lobby-door`, `room-phone-floor`, `room-updates`,
+    `updates-digest`, `updates-refusal`, `newcomer-welcome`, `opening`, `home-since`, `join`: 74/74
+    (`pw-logs/arrival-r2-green1.txt`). Then `room`, `commands`, `dock-header`, `studio-lens-address` (the three that
+    shut the door), `app-auth`, `signed-in-later`, `phone-fits`, `light-mode`, `updates-narrow`, `updates-quiet`:
+    137/137 (`pw-logs/arrival-r2-green2.txt`). Studio unit suite 1912/1914, the same two Windows path failures.
+    Whole-repo `oxlint --type-aware`, `tsc --noEmit -p apps/studio` and Prettier on every touched non-docs file: clean.
+  - Captures `door-{waiting,declined,answered}-knowledge-{1280x800-dark,390x844-light}.png` (with `*.json`), from a
+    throwaway spec, deleted: the lobby alone while someone waits; the card hidden under «Let in instead»; then the card
+    alone where it was. No horizontal overflow in any.
+
 ## Decisions and changes
 
 - **Home's key, not Updates'.** Updates keeps another shape under its key (`SinceRead`, with `readFrom` for its refusal
@@ -106,6 +139,19 @@ adds only this record and the note's measured lines). Files changed against `56c
   What's left is Lucía's note and Sophia's: «2 notes kept». Only pages with `seen=` read as that account. The fixture
   keeps the seen mark across a reload in session storage, as the API keeps it, so «Mark as seen, then reload» is
   tested against a window that is really empty. `said=home` writes what Home's `useSaidOnce` would.
+- **A call on its way is a call.** `joinOnOpen` is asked before the room can join, so it ends the visit before it
+  reads; a `joining` room covers a Join pressed in the room with the line up.
+- **The door goes first, and a knock ends the line.** Stacking the card under the lobby would follow the lobby through
+  its five placements (desk, phone, the Studio's lens bar at two widths, beside an open panel); holding the line while
+  someone waits needs only the snapshot's lobby. A knock while the line is up ends it for good, as a call does (it was
+  on screen, so it is kept as said). The CSS rule covers the one case the snapshot can't see: a Decline's local «Let
+  in instead», 8 s.
+- **Updates is not seeded from the arrival's read.** Updates keeps `SinceRead` under `['vision', 'since', id,
+  cursor]` and reads again on every cursor move, with `readFrom` fencing refusals (R-391). Seeding it would need a
+  staleness rule there and a `readFrom` for a read it didn't make. This departs from the brief («shared with what
+  Updates/Home already read»): only Home's read is shared. Luis decides whether the two reads stand.
+- **The fixture answers the door.** `POST /api/v1/lobby/{id}/decision` now answers as the API does and empties the
+  fixture's one-knock door, so the checks press Let in and Decline as a person does. No spec relied on the old refusal.
 - **Brief against code.** The brief says `room-updates.spec.ts` asserts the demo's Updates lead. It asserts the plain
   room's («You haven’t looked before»), and `updates-digest.spec.ts` pins the demo's lines. Both are unchanged: the
   lever only acts with `seen=`.
@@ -115,7 +161,11 @@ adds only this record and the note's measured lines). Files changed against `56c
 - The note's limits:
   - the memory is this device's;
   - a line drawn but not read is kept;
-  - an open more than 20 s after Home's read reads the window once more, and says lines newer than Home said.
+  - an open more than 20 s after Home's read reads the window once more, and says lines newer than Home said;
+  - a knock ends the line for good;
+  - a line drawn while a Decline's «Let in instead» stands is put in its status hidden, so it may not be heard as it is
+    drawn (seen within 8 s);
+  - arrival plus Open Updates is two `/since` reads, against the brief's one: Luis's call.
 - `e2e-attention` (attention flag, no vision) and `e2e-served` (real API) weren't run here; CI is the run on record.
   Under the attention flag the arrival reads `/since` on a project open outside Updates. Reading
   `attention-page.spec.ts`, none of its checks count that read: they run at Updates, filter by reader, or are on the
