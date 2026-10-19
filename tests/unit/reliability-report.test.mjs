@@ -15,6 +15,7 @@ import {
   roomDurations,
   shardOf,
   specOf,
+  summarizeFeed,
   summarizeM1,
   summarizeM2,
   summarizeM6,
@@ -361,4 +362,18 @@ test('M7: of the reads answered 502/503 in HTML, the share that recover without 
     { read: 'tasks', failures: 2, recovered: false, ms: null },
   ])
   assert.deepEqual(summary, { n: 4, recovered: 2, share: 0.5, time: { p50: 2150, p95: 3095 } })
+})
+
+test('M3/M4: per feed case, the scenarios that ran (their lever there), came back, and in how long', () => {
+  const summary = summarizeFeed([
+    { case: 'drop', lever: true, ms: 1000 },
+    { case: 'drop', lever: true, ms: 1200 },
+    { case: 'stall', lever: true, ms: null },
+    { case: 'online', lever: false, ms: null },
+  ])
+  assert.deepEqual(summary, {
+    drop: { n: 2, ran: 2, back: 2, p50: 1100, p95: 1190 },
+    stall: { n: 1, ran: 1, back: 0, p50: null, p95: null },
+    online: { n: 1, ran: 0, back: 0, p50: null, p95: null },
+  })
 })

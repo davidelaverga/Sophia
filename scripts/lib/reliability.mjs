@@ -337,3 +337,6 @@ export function summarizeM7(samples) {
     time: spread(recovered.map((s) => s.ms)),
   }
 }
+
+/** Not written yet (its test comes first). */
+export const summarizeFeed = () => ({})
