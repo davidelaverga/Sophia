@@ -286,9 +286,13 @@ test('away · written from another device first, what came after it is still mar
 // What the feed brings only once the tab is shown came while away all the same (review P2 on seam #10): a phone's
 // frozen page, or a laptop woken from sleep, gets the events after `visibilitychange`. `holdFeed` holds them meanwhile.
 
+/** A moment for the reads already on their way to land (the feed's first events refresh the snapshot once more). */
+const settled = (page: Page) => page.waitForTimeout(500)
+
 test('away · nothing reached the hidden page, the feed held: back, the chat still marks the two', async ({ page }) => {
   await page.goto('/room.html?discussion=3')
   await expect(page).toHaveTitle('Fixture project · Sophia')
+  await settled(page)
   await away(page, true)
   await page.evaluate(() => window.fixture?.holdFeed(true))
   await page.evaluate(() => window.fixture?.say('The deck is in Resources.'))
@@ -309,9 +313,12 @@ test('away · one counted before the feed was held, two after: back, the divider
   await away(page, true)
   await page.evaluate(() => window.fixture?.say('The deck is in Resources.'))
   await expect(page).toHaveTitle('(1) Fixture project · Sophia')
+  await settled(page)
   await page.evaluate(() => window.fixture?.holdFeed(true))
   await page.evaluate(() => window.fixture?.say('And the numbers too.'))
   await page.evaluate(() => window.fixture?.say('And the plan.'))
+  await page.waitForTimeout(300)
+  await expect(page).toHaveTitle('(1) Fixture project · Sophia')
   await away(page, false)
   await page.evaluate(() => window.fixture?.holdFeed(false))
   await chatToggle(page).click()
