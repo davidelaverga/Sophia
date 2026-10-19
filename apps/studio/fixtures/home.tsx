@@ -40,7 +40,7 @@ import '../src/features/personal/personal.css'
 import { bootTheme } from '../src/app/theme.ts'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useNeeds } from '../src/features/personal/useNeeds.ts'
-import { useSaidOnce, useSinceNews } from '../src/features/personal/useSinceNews.ts'
+import { useCallSeen, useSaidOnce, useSinceNews } from '../src/features/personal/useSinceNews.ts'
 import { turnShown } from '../src/features/personal/turn-shown.ts'
 import { needsAnswer } from './fixture-api.ts'
 import { InvitedBand } from '../src/features/access/InvitedBand.tsx'
@@ -309,8 +309,8 @@ const MARK = '3'
 const MEMBER = '00000000-0000-4000-8000-0000000000c1'
 /** The person reading, as A34 names actors: none of the fixture meeting's own. */
 const READER = '00000000-0000-4000-8000-0000000000c2'
-/** Their token names them, as a signed-in token's subject does: unsigned, since nothing here checks it. */
-const SINCE_TOKEN = `e30.${btoa(JSON.stringify({ sub: READER }))}.fixture`
+/** The account Home reads as: its token names the reader, as a signed-in token's subject does (unsigned here). */
+const SINCE_ACCOUNT = { name: 'fixture-account', token: `e30.${btoa(JSON.stringify({ sub: READER }))}.fixture` }
 const decision = (n: number) => ({
   decisionId: `00000000-0000-4000-8000-0000000000d${String(n)}`,
   statement: `Fixture decision ${String(n)}`,
@@ -539,16 +539,22 @@ function useCall() {
   return inCall
 }
 
-/** Sophia's sentence, with what changed since you last looked read as Places reads it (`since=…`). */
+/**
+ * Sophia's sentence, with what changed since you last looked read as Places reads it (`since=…`), and the call's
+ * project read once as it ends, as SignedIn reads it.
+ */
 function useSays(projects: readonly ProjectSummary[] | undefined, away: boolean, inCall: string | null) {
   const call = callIn(inCall)
-  const news = useSinceNews(SINCE_TOKEN, 'fixture-account', homeShown(projects ?? [], NOW), {
+  const enabled = SINCE !== null
+  useCallSeen(SINCE_ACCOUNT, inCall, enabled)
+  const visit = useSinceNews(SINCE_ACCOUNT, projects && homeShown(projects, NOW), {
     here: !away,
     inCall: call !== null,
-    enabled: SINCE !== null,
+    covered: sophiaSays(projects, NOW, call, answers === true).length > 0,
+    enabled,
   })
-  const says = sophiaSays(projects, NOW, call, answers === true, news)
-  useSaidOnce('fixture-account', news, says)
+  const says = sophiaSays(projects, NOW, call, answers === true, visit.news)
+  useSaidOnce(SINCE_ACCOUNT, visit, says)
   return says
 }
 

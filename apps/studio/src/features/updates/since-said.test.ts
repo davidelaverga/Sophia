@@ -58,6 +58,8 @@ const noted = (n: number, actorId = MARCO) => ({
 })
 const twoDecided = window({ decided: [decided(1), decided(2)] })
 const ids = (w: Since | undefined) => w?.decided.map((d) => d.decisionId)
+/** A token as a signed-in one carries its claims, unsigned: only its subject is read. */
+const token = (claims: object) => `e30.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.unsigned`
 
 describe('what changed since you last looked, said once (home-since-you-looked.md)', () => {
   beforeEach(() => {
@@ -148,7 +150,6 @@ describe('what changed since you last looked, said once (home-since-you-looked.m
   })
 
   it('the reader is the token’s subject, lowered, as the API names its actor; none without one', () => {
-    const token = (claims: object) => `e30.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.unsigned`
     assert.equal(
       readerOf(token({ sub: '0000000A-0000-4000-8000-0000000000AB' })),
       '0000000a-0000-4000-8000-0000000000ab',

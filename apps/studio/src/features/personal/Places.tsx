@@ -400,19 +400,20 @@ const projectsRead = (v: View): Read => ({
 })
 
 /**
- * Sophia's sentence on Home, with what changed since you last looked in the projects it shows (useSinceNews), kept as
- * said once she says it.
+ * Sophia's sentence on Home, with what changed since you last looked in the projects it shows, as the visit began
+ * (useSinceNews), kept as said once she says it.
  */
 function useHomeSays(v: View, answers: boolean | undefined): Said[] {
   const { props, now } = v
   const projects = v.projects.data?.projects
-  const account = accountOf(props.identity)
-  const news = useSinceNews(props.identity.token, account, homeShown(projects ?? [], now), {
+  const call = props.call ?? null
+  const visit = useSinceNews(props.identity, projects && homeShown(projects, now), {
     here: placeAt(v.shown) === 'home',
-    inCall: !!props.call,
+    inCall: call !== null,
+    covered: sophiaSays(projects, now, call, answers === true).length > 0,
   })
-  const says = sophiaSays(projects, now, props.call ?? null, answers === true, news)
-  useSaidOnce(account, news, says)
+  const says = sophiaSays(projects, now, call, answers === true, visit.news)
+  useSaidOnce(props.identity, visit, says)
   return says
 }
 

@@ -9,6 +9,7 @@ import { Places, type Opening } from '../features/personal/Places.tsx'
 import type { InCall } from '../features/personal/PlacesBar.tsx'
 import { OPEN } from '../features/personal/lock.ts'
 import { useLock, useUnlockOnReturn } from '../features/personal/useLock.ts'
+import { useCallSeen } from '../features/personal/useSinceNews.ts'
 import { ProjectShell, type ProjectCall } from '../features/studio/ProjectShell.tsx'
 import { snapshotKey } from '../features/studio/useProjectFeed.ts'
 import { AccountMenu } from './AccountMenu.tsx'
@@ -46,11 +47,13 @@ type OnEnded = (call: ProjectCall, note: string | null, opened: string | null) =
  * One call at a time, wherever the person is (one-call.ts). A project whose room holds the call stays mounted when the
  * person goes home or to their personal space (out of sight, taking no keys), so the call goes on; the places' bar
  * shows it. A call starting in another project ends the one before, without a word: the person asked for the new one.
- * `leaveFor` leaves a call because another project opened, and its end says which (call-ends-on-open.md).
+ * `leaveFor` leaves a call because another project opened, and its end says which (call-ends-on-open.md). What a call
+ * held was in front of the person, so Home never tells them it as news once it ends (home-since-you-looked.md).
  */
-function useCall(ended: RefObject<OnEnded | null>) {
+function useCall(ended: RefObject<OnEnded | null>, identity: Identity) {
   const [call, setCall] = useState<ProjectCall | null>(null)
   const [one] = useState(() => oneCall<ProjectCall>())
+  useCallSeen(identity, call?.projectId ?? null)
   const report = useCallback(
     (projectId: string, next: ProjectCall | null, note: string | null = null) => {
       const said = one.report(projectId, next)
@@ -289,7 +292,7 @@ function SignedIn(props: SignedInProps) {
   const { route, open, openAt, leave, goTo } = routing
   const toast = useToast()
   const ended = useRef<OnEnded | null>(null)
-  const [call, reportCall, leaveFor] = useCall(ended)
+  const [call, reportCall, leaveFor] = useCall(ended, identity)
   const join = useJoinRequest(route.projectId)
   const [lock, setLock, lockedNow] = useLock(accountOf(identity), call?.projectId ?? null)
   const project = route.projectId

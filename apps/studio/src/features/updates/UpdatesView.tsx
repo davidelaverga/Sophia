@@ -31,7 +31,7 @@ import {
   type Narrowing,
 } from './updates-view.ts'
 import { ago, clock, dayOf, sameDay } from '../../app/time-words.ts'
-import { newsKey, rememberSaid } from './since-said.ts'
+import { linesOf, rememberSaid } from './since-said.ts'
 import { useArrival, useProjectGo } from '../studio/project-go.tsx'
 
 interface Props {
@@ -179,9 +179,9 @@ function DigestBody({ digest, projectId, identity, me }: Omit<SinceProps, 'curso
   const lead = digestLead(digest)
   const seen = useMarkSeen(projectId, identity)
   const go = useLineGo()
-  // Looked at here: Home doesn't then tell this person what they just read (home-since-you-looked.md).
+  // Shown here, line by line: Home doesn't then tell this person what they just read (home-since-you-looked.md).
   useEffect(() => {
-    rememberSaid(accountOf(identity), { [projectId]: newsKey(digest) })
+    rememberSaid(accountOf(identity), { [projectId]: linesOf(digest) })
   }, [identity, projectId, digest])
   return (
     <>
