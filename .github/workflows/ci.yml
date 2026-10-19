@@ -153,10 +153,12 @@ jobs:
     # The suite alone ran 29.1 minutes on 2026-10-07 (857 checks): 30 cut it off after its last check passed. On
     # 2026-10-12 the UI kit's stack (about 1,320 checks) was cut off at 45 minutes after 1,287: 60 leaves it room.
     # On 2026-10-16 the 1,714-check suite was cut off at 60 minutes before its end: 90. On 2026-10-19 about 2,250 checks
-    # took 1.1 hours and some heads were cut off at 90 while still passing. So the suite runs as three parts, each on
-    # the same runner and under the same 90-minute bound, with the same tests, default workers, per-test bounds,
-    # assertions and retries. Playwright's --shard splits every listed case of both projects (fullyParallel) into
-    # three disjoint parts whose union is the whole list; a new case lands in some part with no list to keep.
+    # took 1.1 hours and some heads were cut off at 90 while still passing; the 2,180-check suite was cut off at 90
+    # minutes after 2,002 (#468, run 39250730413), and CIROOMLIMIT's handoff said to shard instead of raising the limit
+    # again. So the suite runs as three parts side by side, each on the same runner and under the same 90-minute bound,
+    # with the same tests, default workers, per-test bounds, assertions and retries; no part cancels another.
+    # Playwright's --shard splits every listed case of both projects (fullyParallel) into three disjoint parts whose
+    # union is the whole list; a new case lands in some part with no list to keep.
     timeout-minutes: 90
     strategy:
       fail-fast: false

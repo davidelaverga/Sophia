@@ -1,7 +1,7 @@
 // Who else is in the room on its fixture page, and what Sophia's participant says (docs/plans/room-fixture-people.md):
 // synthetic people, her attributes as the bridge sets them, and canvas streams for cameras and a shared screen. The
-// query string picks them (`people`, `speaking`, `sophia`, `video`); `window.fixture` changes them while the page is
-// open. No one here is real, and nothing reaches a server.
+// query string picks them (`people`, `speaking`, `sophia`, `video`, `sound`); `window.fixture` changes them while the
+// page is open. No one here is real, and nothing reaches a server.
 import type { VideoFeed } from '../src/features/voice/livekit-room.ts'
 import type { RoomParticipant } from '../src/features/voice/room-view.ts'
 import type { SophiaSignal } from '../src/features/voice/sophia-view.ts'
@@ -153,11 +153,23 @@ export function sophiaSignal(): SophiaSignal | null {
   if (!now.sophia) return null
   return paused ? { ...SIGNALS[now.sophia], input: 'paused' } : SIGNALS[now.sophia]
 }
-export const soundBlocked = () => now.sophia === 'blocked'
+/**
+ * `sound=blocked`: the browser blocked the call's sound from the start (autoplay), whoever speaks; `blockSound` blocks
+ * it in a call already live, as LiveKit's AudioPlaybackStatusChanged says it (sound-blocked-others.md).
+ */
+let callSoundBlocked = query.get('sound') === 'blocked'
+export const soundBlocked = () => callSoundBlocked || now.sophia === 'blocked'
 
-/** The person allowed sound (Allow audio): as LiveKit's playback starts, her voice reaches this browser. */
+export function blockSound(): void {
+  callSoundBlocked = true
+  changed()
+}
+
+/** The person allowed sound (Allow audio): as LiveKit's playback starts, every voice reaches this browser, hers too. */
 export function allowSound(): void {
-  if (now.sophia === 'blocked') setSophia('speaking')
+  callSoundBlocked = false
+  if (now.sophia === 'blocked') now.sophia = 'speaking'
+  changed()
 }
 
 /**

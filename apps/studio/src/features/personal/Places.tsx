@@ -36,6 +36,7 @@ import {
   dateLine,
   firstName,
   greeting,
+  homeShown,
   PLACE_TITLE,
   placeAt,
   READ_FAILED,
@@ -43,7 +44,9 @@ import {
   sophiaSays,
   workCount,
   youDoor,
+  type Said,
 } from './places-view.ts'
+import { useSaidOnce, useSinceNews } from './useSinceNews.ts'
 import type { Read } from './ReadNotes.tsx'
 import { useEscape } from './useEscape.ts'
 import {
@@ -396,6 +399,24 @@ const projectsRead = (v: View): Read => ({
   retry: () => void v.projects.refetch(),
 })
 
+/**
+ * Sophia's sentence on Home, with what changed since you last looked in the projects it shows, as the visit began
+ * (useSinceNews), kept as said once she says it.
+ */
+function useHomeSays(v: View, answers: boolean | undefined): Said[] {
+  const { props, now } = v
+  const projects = v.projects.data?.projects
+  const call = props.call ?? null
+  const visit = useSinceNews(props.identity, projects && homeShown(projects, now), {
+    here: placeAt(v.shown) === 'home',
+    inCall: call !== null,
+    covered: sophiaSays(projects, now, call, answers === true).length > 0,
+  })
+  const says = sophiaSays(projects, now, call, answers === true, visit.news)
+  useSaidOnce(props.identity, visit, says)
+  return says
+}
+
 function Home({ v }: { v: View }) {
   const { props, now, nav } = v
   const data = v.personal
@@ -418,13 +439,14 @@ function Home({ v }: { v: View }) {
   const fresh = !!data && data.turns.length === 0 && data.notes.length === 0
   // Whether Sophia answers here, as the API says; unknown until the space is read (home-no-companion.md).
   const answers = data ? data.companion !== 'unavailable' : undefined
+  const says = useHomeSays(v, answers)
   return (
     <div className="c-home" data-place-view="home" data-content hidden={!v.shown.includes('home')}>
       <Welcome
         hello={greeting(now.getHours(), null, fresh)}
         name={firstName(props.identity)}
         date={dateLine(now)}
-        says={sophiaSays(projects, now, props.call ?? null, answers === true)}
+        says={says}
         you={youDoor({ locked: lockedBy(props.lock), turns: data?.turns, notes: data?.notes.length ?? 0, now })}
         reads={needsRead ? [personalRead(v), projectsRead(v), needsRead] : [personalRead(v), projectsRead(v)]}
         needs={needs}
@@ -452,6 +474,7 @@ function Home({ v }: { v: View }) {
             v.hand(text)
             nav.enter('personal')
           },
+          updates: (projectId) => props.onOpenView(projectId, 'updates', {}),
         }}
       />
     </div>
