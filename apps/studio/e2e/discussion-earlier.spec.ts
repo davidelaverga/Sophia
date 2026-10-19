@@ -158,6 +158,7 @@ declare global {
     holdStale?: boolean
     staleWaiting?: number
     releaseStale?: (index: number) => void
+    staleBodies?: string[]
     sawStale?: boolean
   }
 }
@@ -183,6 +184,7 @@ async function heldPageReads(page: Page) {
         const earlierRead = url.pathname.endsWith('/discussion') && url.searchParams.has('before')
         if (earlierRead && w.holdStale) {
           const answer = await f(input, init) // computed now, as the page was when asked
+          ;(w.staleBodies ??= []).push(await answer.clone().text())
           staleWaiting.push(() => {})
           const at = staleWaiting.length - 1
           w.staleWaiting = staleWaiting.length
@@ -347,4 +349,56 @@ test('earlier · a manual «Earlier messages» read that lands after the pages w
   await expect(page.getByText('Message 1', { exact: true })).toHaveCount(0)
   await expect(page.getByText('Message 11', { exact: true })).toHaveCount(0)
   await expect(earlier(page)).toBeVisible()
+})
+
+// 4309755040: a held message, older than the newest 50, named again at the same revision (contribution.mentioned, no
+// new words) shows its new mention after its page is read again.
+test('earlier · a held message that comes to mention me, its words and revision unchanged, shows the mention (4309755040)', async ({
+  page,
+}) => {
+  await heldEarlier(page)
+  const target = (await items(page).nth(2).getAttribute('data-message')) ?? ''
+  await expect(page.locator(`[data-message="${target}"] .contribution-mentions`)).toHaveCount(0)
+  await page.evaluate(() => window.fixture?.mentionMeIn(2))
+  await expect(page.locator(`[data-message="${target}"] .contribution-mentions`)).toHaveText('to you')
+  await expect(page.locator(`[data-message="${target}"] .contribution-text`)).toHaveText('Message 3')
+})
+
+// 4309755040 exact: a held message older than the newest 50 is named, then no longer, at the same revision, the second
+// change learned while the first refresh is still out (answered at request, with the recipient). The older answer
+// leaves it fenced; the fresh page (no recipient) settles it.
+const MENTION_ENTITY = (id: string) => ({
+  type: 'contribution.mentioned',
+  entityType: 'contribution',
+  entityId: id,
+  entityRevision: 1,
+})
+const namesMe = (body: string, id: string) => new RegExp(`"id":"${id}"[^}]*"mentions":\\["`).test(body)
+
+test('earlier · named then no longer at the same revision, the second while the first read is out: the old answer settles nothing; the fresh one shows no mention (4309755040)', async ({
+  page,
+}) => {
+  await heldPageReads(page)
+  await heldEarlier(page)
+  const target = (await items(page).nth(2).getAttribute('data-message')) ?? ''
+  await page.evaluate(() => (window.holdStale = true))
+  await page.evaluate(() => window.fixture?.mentionMeIn(2)) // named: the first refresh, answered now, held (0)
+  expect(await page.evaluate(() => window.fixture?.lastEventEntity())).toEqual(MENTION_ENTITY(target))
+  await expect.poll(() => page.evaluate(() => window.staleWaiting ?? 0)).toBe(1)
+  const firstAnswer = await page.evaluate(() => window.staleBodies?.[0] ?? '')
+  expect(namesMe(firstAnswer, target), 'the recipient, in the answer as asked').toBe(true)
+  await page.evaluate(() => window.fixture?.unmentionMeIn(2)) // no longer named, while that read is out
+  expect(await page.evaluate(() => window.fixture?.lastEventEntity())).toEqual(MENTION_ENTITY(target))
+  await page.evaluate(() => window.releaseStale?.(0)) // the older answer, with the recipient, lands
+  await expect.poll(() => page.evaluate(() => window.staleWaiting ?? 0)).toBe(2) // read again: answered now (1)
+  await expect(page.locator(`[data-message="${target}"]`)).toHaveCount(0) // still fenced, never with the old label
+  const secondAnswer = await page.evaluate(() => window.staleBodies?.[1] ?? '')
+  expect(secondAnswer).toContain(`"id":"${target}"`)
+  expect(namesMe(secondAnswer, target), 'no recipient in the fresh answer').toBe(false)
+  await page.evaluate(() => (window.holdStale = false))
+  await page.evaluate(() => window.releaseStale?.(1))
+  await expect(page.locator(`[data-message="${target}"] .contribution-text`)).toHaveText('Message 3')
+  await expect(page.locator(`[data-message="${target}"] .contribution-mentions`)).toHaveCount(0)
+  await expect(page.getByText('Message 2', { exact: true })).toBeVisible()
+  await expect(page.getByText('Message 4', { exact: true })).toBeVisible()
 })

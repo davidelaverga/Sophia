@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { DiscussionEntry, DiscussionPage } from '@sophia/contracts'
 import {
+  ACTS,
   anchorOf,
   changesOf,
   contributionChanged,
@@ -271,5 +272,16 @@ describe('held pages kept honest (4309253137)', () => {
     assert.deepEqual([...refresher.fence(later, reloaded, [e(60)])], [id(12)])
     refresher.step(later, reloaded, [e(60)])
     assert.equal(reads, 1)
+  })
+
+  it('a held message named again at the same revision (contribution.mentioned) is read again like a correction (4309755040)', () => {
+    assert.ok(ACTS.has('contribution.mentioned'))
+    const owner = ownerOf('davide', 'p-mention')
+    contributionChanged(owner, id(3))
+    const first = changesOf(owner).ids.get(id(3)) ?? 0
+    contributionChanged(owner, id(3)) // a second event for the same message, same revision: learned newer
+    assert.ok((changesOf(owner).ids.get(id(3)) ?? 0) > first)
+    const held = maps(e(1), e(2), e(3), e(4)).entries
+    assert.deepEqual(staleHeld(changesOf(owner), new Map([[id(3), first]]), held, new Set()), [id(3)], 'still to read')
   })
 })

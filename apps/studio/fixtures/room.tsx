@@ -330,6 +330,8 @@ interface Fixture {
   mentionMeIn: (n: number) => void
   /** The `n`th message no longer mentions the viewer, its words and revision unchanged (A37). */
   unmentionMeIn: (n: number) => void
+  /** The entity the last published event named, if any (contribution.mentioned's metadata, exact). */
+  lastEventEntity: () => unknown
   /** Its author corrects the `n`th message's words: a new revision, its recipients (and their occurrence) kept (A36). */
   reviseMessage: (n: number, text: string) => void
   /** The discussion's reads (snapshot, pages) lag: they keep what they read now until `releaseSnapshot`. */
@@ -844,6 +846,7 @@ window.fixture = {
       .map(([, data]) => data)
       .filter((data) => data !== undefined),
   padlockKey: () => lockKey(accountOf(identity)),
+  lastEventEntity: () => eventEntities.get(project.revision) ?? null,
   changeElsewhere: (n, id, text) => {
     const was = project.messages[n]
     const base = typeof was === 'string' ? { text: was } : was
@@ -1224,6 +1227,7 @@ window.fixture = {
     const said = typeof m === 'string' ? { text: m } : m
     if (said.mentions?.includes(ME)) return
     project.messages[n] = { ...said, id: idOf(m, n), mentions: [ME], occurrence: (said.occurrence ?? 0) + 1 }
+    mentionedEvent(idOf(m, n), said.revision ?? 1)
     publish(project)
   },
   reviseMessage: (n, text) => {
@@ -1262,6 +1266,7 @@ window.fixture = {
     const m = project.messages[n]
     if (m === undefined || typeof m === 'string') return
     project.messages[n] = { ...m, id: idOf(m, n), mentions: (m.mentions ?? []).filter((id) => id !== ME) }
+    mentionedEvent(idOf(m, n), m.revision ?? 1)
     publish(project)
   },
   holdActs: () => {
@@ -1574,6 +1579,15 @@ const demoAccount = (privacy: () => void) => ({
   // Every device: the sign-in, saying so, so a check can tell the two apart (sign-out-scope.md).
   signOutEverywhere: () => window.location.assign(`signin.html?everywhere=1${DEMO ? '&demo=1' : ''}`),
 })
+
+/**
+ * As the API does (0069): a message's recipients named again or no longer, at the same revision and body, is a
+ * contribution.mentioned event naming the message at its revision unchanged, on the next sequence (4309755040).
+ */
+function mentionedEvent(id: string, revision: number) {
+  const entity = { type: 'contribution.mentioned', entityType: 'contribution', entityId: id, entityRevision: revision }
+  eventEntities.set(project.revision + 1, entity)
+}
 
 /** The padlock's control for a check (window.fixture.setPadlock), set once the page's padlock is mounted. */
 const padlock = { set: (_locked: boolean) => {} }
