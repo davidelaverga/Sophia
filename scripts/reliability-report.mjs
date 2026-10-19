@@ -271,7 +271,7 @@ function measureFixture({ runSuite }) {
     m1: { ...summarizeM1(samples('M1')), samples: samples('M1') },
     m2: { ...summarizeM2(samples('M2')), samples: samples('M2') },
     m6: { ...summarizeM6(samples('M6')), samples: samples('M6') },
-    m7: { ...summarizeM7(samples('M7')), samples: samples('M7') },
+    m7: { ...summarizeM7(samples('M7').filter((s) => s.reached !== false)), samples: samples('M7') },
   }
 }
 
