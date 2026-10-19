@@ -11,6 +11,7 @@ import { accountOf } from '../../app/auth-callback.ts'
 import { stillSignedIn } from '../../app/signed-in.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { asksFirst, effectWords, failureOf, type MessageAct } from './message-acts.ts'
+import { BAR_MOST, barFits, barLength } from './bar-length.ts'
 
 /** What an act changed, for the chat to show before its next read: the new words, the withdrawal, or a reread. */
 export type Acted =
@@ -297,6 +298,16 @@ function escaped(e: KeyboardEvent<HTMLTextAreaElement>, working: boolean, cancel
 }
 
 /** The message's words in a field: Save, Cancel, Escape. */
+/** Past the room's most, how far: Save waits until the message fits again. */
+function TooLong({ draft }: { draft: string }) {
+  if (barFits('room', draft)) return null
+  return (
+    <span className="bar-count" role="status">
+      {barLength('room', draft)} of {BAR_MOST.room} characters: too long to save.
+    </span>
+  )
+}
+
 function EditForm(props: {
   id: string
   draft: string
@@ -310,13 +321,17 @@ function EditForm(props: {
 }) {
   const field = useRef<HTMLTextAreaElement>(null)
   useEffect(() => field.current?.focus(), [])
+  // The room's own count, in characters (bar-length.ts), never the field's maxLength, which counts UTF-16 units and
+  // would refuse a message of fewer characters made of astral ones (Codex P2 on #409, r4313394205).
+  const over = !barFits('room', props.draft)
+  const held = props.working || props.checking
   return (
     <form
       className="message-edit"
       data-message-acts={props.id}
       onSubmit={(e) => {
         e.preventDefault()
-        if (!props.working && !props.checking) props.onSave()
+        if (!held && !over) props.onSave()
       }}
     >
       <label className="sr-only" htmlFor={`edit-${props.id}`}>
@@ -327,13 +342,14 @@ function EditForm(props: {
         id={`edit-${props.id}`}
         value={props.draft}
         rows={2}
-        maxLength={4000}
+        aria-invalid={over || undefined}
         readOnly={props.working || props.checking}
         onChange={(e) => props.onDraft(e.target.value)}
         onKeyDown={(e) => escaped(e, props.working, props.onCancel)}
       />
       <span className="message-edit-actions">
-        <button className="pill primary" type="submit" aria-disabled={props.working || props.checking || undefined}>
+        <TooLong draft={props.draft} />
+        <button className="pill primary" type="submit" aria-disabled={held || over || undefined}>
           {props.working ? 'Saving…' : 'Save'}
         </button>
         <button

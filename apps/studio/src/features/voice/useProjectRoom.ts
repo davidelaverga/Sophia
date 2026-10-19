@@ -595,12 +595,16 @@ function useRoomNote() {
   }
 }
 
-/** Null `issue` while nobody may join yet (the project has not loaded): Join waits. */
+/** Who the call shows now: its people, feeds, Sophia and whether audio waits for a press; nobody out of a call. */
+const peopleOf = (c: RoomConnection | null): People =>
+  c ? { participants: c.participants(), feeds: c.feeds(), sophia: c.sophia(), audioBlocked: c.audioBlocked() } : NOBODY
+
+/**
+ * Null `issue` while nobody may join yet (the project has not loaded): Join waits. `calls` is the call, and which join
+ * is current: an 'ended' from a call this person already left is expected, not a drop; a join that Leave, the page
+ * going away or a newer join overtook is left as soon as it connects.
+ */
 export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
-  /**
-   * The call, and which join is current. An 'ended' from a call this person already left is expected, not a drop;
-   * a join that Leave, the page going away or a newer join overtook is left as soon as it connects.
-   */
   const [calls] = useState(() => new CallFence<RoomConnection>())
   const [status, setStatus] = useState<DockStatus>('idle')
   const { error, setError, joinOnline } = useRoomNote()
@@ -609,14 +613,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
 
   useEffect(() => () => void calls.end(), [calls])
 
-  const refresh = () => {
-    const c = calls.current
-    setPeople(
-      c
-        ? { participants: c.participants(), feeds: c.feeds(), sophia: c.sophia(), audioBlocked: c.audioBlocked() }
-        : NOBODY,
-    )
-  }
+  const refresh = () => setPeople(peopleOf(calls.current))
   const { clearNote, arrive, silence, ...devices } = useDevices(calls, refresh)
   const { choices, resetChoices } = useCallChoices(calls)
   const typedChat = useConversation(calls, silence)
