@@ -80,6 +80,19 @@ test('a cancelled job that ran to its limit is a timeout; one cut short is super
   assert.equal(outcomeOf({ status: 'in_progress', conclusion: '', startedAt: '2026-10-19T12:00:00Z' }, 30), 'pending')
 })
 
+test('a job cancelled before a runner took it is superseded, however long it waited', () => {
+  const queued = {
+    status: 'completed',
+    conclusion: 'cancelled',
+    startedAt: '2026-10-12T01:11:46Z',
+    completedAt: '2026-10-12T02:35:41Z',
+    steps: [],
+  }
+  assert.equal(outcomeOf(queued, 15), 'superseded')
+  const ran = { ...queued, steps: [{ name: 'Set up job', conclusion: 'success' }] }
+  assert.equal(outcomeOf(ran, 15), 'timeout')
+})
+
 test('a room job that only gathers its parts is a gate, not a run of the room', () => {
   const step = (name) => ({ name, conclusion: 'success' })
   const gate = {
