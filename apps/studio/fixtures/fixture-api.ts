@@ -644,10 +644,11 @@ function targetsAnswer(project: Project): Response | Promise<Response> {
   return targetsNow(project)
 }
 
-/** The goals' targets once let through: refused while they fail, else read. */
+/** The goals' targets once let through: refused while they fail, each refusal recorded (`targets-refused`), else read. */
 function targetsNow(project: Project): Response {
-  if (project.targetsFail) return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
-  return goalTargetsRead(project)
+  if (!project.targetsFail) return goalTargetsRead(project)
+  served.push('targets-refused')
+  return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
 }
 
 /** The goals' owners and dates (A25). */
