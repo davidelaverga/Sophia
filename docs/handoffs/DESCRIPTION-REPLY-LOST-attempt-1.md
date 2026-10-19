@@ -8,13 +8,13 @@ Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`
 Runtime unit: Luis's Windows host (Playwright through the guard, `.claude-guards/safe-run.ps1`, two workers); CI as the
 run on record.
 Existing authority: Luis 2026-10-18, «Que sigue>», after «Todo trabajo nuevo que hagas ten en cuenta nuestro cuello de botella actual. Si se puede hacer en un pr, excelente o como veas, que alivie la presión pero hay que seguir trabajando»: local only, no push and no PR until he says. One PR.
-Ending commit/tree: `9ef7d0e51f2e` (tree `28ec6cbf621e`), the last commit of `seams/description-reply-lost`'s own that changes code (the later commit touches only this record). 9 files changed against `2e151c934` at that commit: `e2e/knowledge-quiet.spec.ts`, `e2e/report.spec.ts`, `fixtures/fixture-api.ts`, `fixtures/room.tsx`, `src/features/artifacts/SummaryEditor.tsx`, `src/features/artifacts/artifacts.css`, `src/features/artifacts/report-view.test.ts`, `src/features/artifacts/report-view.ts`, `docs/plans/description-reply-lost.md`.
+Ending commit/tree: `9ef7d0e51f2e` (tree `28ec6cbf621e`), the last commit of `seams/description-reply-lost`'s own that changes code (the later commit touches only this record). 9 files changed against `2e151c934` at that commit: `e2e/knowledge-quiet.spec.ts`, `e2e/report.spec.ts`, `fixtures/fixture-api.ts`, `fixtures/room.tsx`, `src/features/artifacts/SummaryEditor.tsx`, `src/features/artifacts/artifacts.css`, `src/features/artifacts/report-view.test.ts`, `src/features/artifacts/report-view.ts`, `docs/plans/description-reply-lost.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
 - Before, a description save whose reply was lost kept the form open under «No reply from Sophia: it may have been saved…», even after the cards read back the words sent. A second Save was refused as stale and said «Someone changed this description since you opened it. Theirs is shown…», about the person's own save. Now, when the cards read back the words sent, the form closes and the line says «Saved. The reply was lost on the way, but the description reads as you wrote it.» It is a polite status (`role=status`) in the attribution's ink, not the rose alert. A stale refusal whose current text is the person's says the same line.
-- «Someone changed this description since you opened it. Cancel to see theirs, or Save to use yours.» shows only when the description now reads other words. The typed words then stay in the field, and Save puts them over the revision now read, as ProfileSheet does with a name. Before, the form closed and the words were lost.
-- Said once: Edit clears the line and any save still waiting to be heard. Cancel or Esc take the form's line with them, unless a save still waits to be heard. The focus goes back to Edit only when the form had it.
+- «Someone changed this description to “…” since you opened it. Save to use yours instead.» shows only when the description now reads other words, and names them (review round 1). The typed words then stay in the field, and Save puts them over the revision now read, as ProfileSheet does with a name. Before, the form closed and the words were lost.
+- Said once, and only while true: Edit clears the line, but not a save still waiting to be heard, and starts from the last words sent while one is. Cancel or Esc take the form's line with them, unless a save still waits to be heard. The saved line and the conflict line go once the card reads otherwise. The focus goes back to Edit only when the form had it.
 
 ## Evidence
 
@@ -37,8 +37,28 @@ Ending commit/tree: `9ef7d0e51f2e` (tree `28ec6cbf621e`), the last commit of `se
 - Words sent from another tab read the same as a lost reply here: the card reads them, so the line says saved.
 - A card read that fails right after a stale refusal leaves the form open with no line. Save asks again, and the next read settles it.
 - The `PATCH` still has no Idempotency-Key (costuras, «Dónde lo sabe»). That is the API's to change, not this seam's.
+- After two unheard saves, if the card reads the first while the field holds the second, the saved line shows over the open form. The first save landed, and the second is offered again over the revision now read.
+- The conflict line names the teammate's words in full (up to 240 characters), so it can run to three lines on a phone.
 
 ## Next bounded action
 
 - Luis: say when to push; then merge on green with no open P1.
 - Source IDs consulted: none from the source register. The work read this repository and `evaluacion-2026-10-18/experiencia/costuras.md` (its intro and seam #9).
+
+## Review notes
+
+- **Review round 1: five P2s, all real.** Verified against the code, then answered in one fix commit (`59b7809fe`) after a failing one (`db002eaf1`).
+  - **P2 (two reviewers), a second Save or Cancel→Edit before the read:** `save` replaced the unheard save with the latest words (`setUnheard({ sent: edit.summary, … })`), and `begin()` dropped it, so when the first save's words came back, `settleUnheard` compared them with the second's and said «Someone changed…». Now `unheardWith` keeps every text sent while unheard against the same revision, and any of them on the card is the person's own. Edit keeps what is unheard and starts from the last words sent (`draftFrom`).
+  - **P2, Save over words not shown:** the open form showed only the field and the line, so «Save to use yours» replaced a teammate's description unseen, and Cancel to see it lost the typed words (`edit_report_summary` keeps no history). The line now names theirs, as `conflictWords` does: «Someone changed this description to “A teammate’s description” since you opened it. Save to use yours instead.» A long description runs to three lines on a phone, and that is in the plan's limits.
+  - **P2, the saved line outliving its truth:** after a teammate's later edit, read on focus, the closed card still said «…reads as you wrote it». Each line that speaks of the description now carries the words (`reads`), and `liveNote` drops it once the card reads otherwise.
+  - **P2, a stale refusal unpinned:** the check for «never Someone changed» ran only after the saved line appeared. `problemOf` is now `summaryProblem` in `report-view.ts`, with a unit check that `stale_revision` gives null. The browser checks also record every line as it appears (a `MutationObserver` set before the page loads). With the mutant (stale → the old words), the unit fails («never «Someone changed…» before the text is known») and so does the stale-save check, with `Received: ["Someone changed this description since you opened it. Theirs is shown; edit again if you need to."]` (`pw-logs/seam9-r2-mutant.txt`).
+  - New lever: `window.fixture.holdReports()` / `releaseReports()` hold Knowledge's card reads, then answer them with the cards as they are, as a slow API does.
+- Red at `db002eaf1`:
+  - `report-view.test.ts` does not load: «does not provide an export named 'draftFrom'». With the branch's earlier behaviour behind the new names (a scratch shim, never committed), six cases fail on their assertions. For example, two saves keep only `[ 'My sharper description, again' ]`; Edit starts from `'Sophia’s description'`; the conflict reads «…Cancel to see theirs, or Save to use yours.»; the saved line stays for `'A teammate’s description'`.
+  - Through the guard (`pw-logs/seam9-r2-red.txt`): 5 failed and 8 passed. The second Save got `Received: "Someone changed this description since you opened it. Cancel to see theirs, or Save to use yours."` where the saved line was expected. Cancel→Edit got `Received: "A labelled fixture report, as Sophia described it."` in the field. The saved line after a teammate's edit got `Expected: 0 Received: 1`. The conflict, in both knowledge-quiet and report.spec, did not name the teammate's words.
+- Green at `59b7809fe`:
+  - `report-view.test.ts` passes 58/58. Studio unit tests pass 1778/1780; the two failures are the Windows path ones.
+  - Through the guard, 142 of 143 checks passed across knowledge-quiet, knowledge-quiet-two, report, knowledge-honest, knowledge-library, knowledge-filters, knowledge-origins and room-made (`seam9-r2-green.txt`). The one failure was `report.spec` CX-0026 @phone, «the fixture page did not start», which has nothing to do with the description. Run again alone, CX-0026 passed 12/12 (`seam9-r2-cx0026.txt`).
+  - The seven description checks passed 35/35 with `--repeat-each=5` (`seam9-r2-repeat.txt`).
+  - Whole-repo `oxlint --type-aware` (exit 0; it reported two errors in the new checks before they were fixed), `tsc --noEmit -p apps/studio` and Prettier on the touched files: clean.
+- New captures in `seams-description-reply-lost/`: `named-*` (the conflict naming the teammate's words) and `second-save-*` (the saved line over an open form holding the words typed since), each as the page and as the tile, at 1280×800 dark and 390×844 light. Horizontal overflow is 0 in all four. The named line is 259 × 60 px at 1280 and 328 × 60 at 390.
