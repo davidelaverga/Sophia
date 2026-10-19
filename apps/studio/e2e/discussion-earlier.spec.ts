@@ -831,3 +831,48 @@ for (const others of [200, 199] as const)
         await expect(erased).toHaveCount(0)
         await expect(textOf(page, idOf(57))).toHaveText('Message 58') // unrelated C
       })
+
+// B61 (R-B60-P1): the chat is let go (Knowledge) before the erasure, so it never learns A's old source. A's correction
+// or withdrawal is taken while the snapshot's reads fail (503: the old snapshot kept), then 200 other messages are named
+// again: the store is let go and keeps only the last of them. Back in the Studio, A and its alias B must not show the
+// erased words; once a read succeeds, the current words show. Paired: the snapshot read since answers, no overfence.
+for (const act of ['correct', 'withdraw'] as const)
+  for (const snapshot of ['fails', 'fresh'] as const)
+    test(`earlier · an erasure taken while the chat was away and let go past KEPT, the snapshot ${snapshot} (${act}, R-B60-P1)`, async ({
+      page,
+    }) => {
+      await failingSnapshots(page)
+      await page.goto('/room.html?call=on&discussion=60&acts=1&alias=1&aliasAt=55')
+      await expect(leave(page)).toBeVisible()
+      await chatToggle(page).click()
+      await expect(textOf(page, idOf(56))).toHaveText('SYNTHETIC shared words')
+      await views(page).getByRole('link', { name: 'Knowledge', exact: true }).click()
+      await expect(page.locator('[data-message]')).toHaveCount(0) // the chat is let go
+      const start = await page.evaluate(() => window.fixture?.heldChanges())
+      if (snapshot === 'fails') await page.evaluate(() => (window.failSnapshots = true))
+      await page.evaluate(([m, text]) => window.fixture?.eraseShared(55, m, text), [
+        idOf(55),
+        act === 'correct' ? 'Message 56, corrected elsewhere' : null,
+      ] as const)
+      await expect.poll(() => page.evaluate(() => window.fixture?.heldChanges().erasedAt)).toBe(1)
+      if (snapshot === 'fails')
+        await expect.poll(() => page.evaluate(() => window.snapshotsFailed ?? 0)).toBeGreaterThan(0)
+      await page.evaluate(() => window.fixture?.mentionMany(200))
+      // A and 200 others: past KEPT, the store keeps only the last of them, A's erasure gone with the rest.
+      await expect
+        .poll(() => page.evaluate(() => window.fixture?.heldChanges()))
+        .toEqual({ ids: 1, resyncs: (start?.resyncs ?? 0) + 1, erasedAt: 0 })
+      await views(page).getByRole('link', { name: 'Studio', exact: true }).click()
+      if (!(await page.getByRole('list', { name: 'Recent discussion' }).isVisible())) await chatToggle(page).click()
+      await expect(textOf(page, idOf(57))).toHaveText('Message 58') // unrelated C
+      const erased = page.locator('.contribution-text').filter({ hasText: /^SYNTHETIC shared words$/ })
+      await expect(erased).toHaveCount(0)
+      if (snapshot === 'fails') {
+        // A read that succeeds brings the current words.
+        await page.evaluate(() => (window.failSnapshots = false))
+        await page.evaluate(() => window.fixture?.update())
+      }
+      if (act === 'correct') await expect(textOf(page, idOf(55))).toHaveText('Message 56, corrected elsewhere')
+      else await expect(textOf(page, idOf(55))).toHaveCount(0)
+      await expect(erased).toHaveCount(0)
+    })
