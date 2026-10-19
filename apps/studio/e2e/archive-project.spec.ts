@@ -222,7 +222,8 @@ test('archive · Work says its archived projects couldn’t be read where «Arch
 }) => {
   await page.goto('/work-space.html?archived=1&archivedFails=1')
   const failed = page.getByRole('alert').filter({ hasText: 'Couldn’t load your archived projects.' })
-  await expect(failed).toBeVisible()
+  // A bodiless 503 is a proxy's: the read is asked three more times before it is said (#470).
+  await expect(failed).toBeVisible({ timeout: 15_000 })
   // After the list, where the fold would be: nothing that failed to load looks like none archived.
   await expect(page.locator('.c3-projects > *').last()).toContainText('Couldn’t load your archived projects.')
   await expect(page.getByRole('button', { name: /^Archived/ })).toHaveCount(0)
