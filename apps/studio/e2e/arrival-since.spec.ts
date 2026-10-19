@@ -99,14 +99,22 @@ test('arrival · Dismiss ends it: another view and back brings it no more, and r
   expect(await sinceReads(page)).toBe(read)
 })
 
-test('arrival · nothing is said where Updates is open, or in a call', async ({ page }) => {
+test('arrival · nothing is said where Updates is open', async ({ page }) => {
   await page.goto(`${PAGE}&place=updates`)
   await expect(since(page).getByRole('region', { name: 'Kept' })).toBeVisible()
   await page.waitForTimeout(400)
   await expect(arrival(page)).toHaveText('')
+})
+
+test('arrival · a join asked as the project opens (Join the room, Rejoin): nothing is read, said or kept', async ({
+  page,
+}) => {
+  // A page of its own, Updates never opened before it: what Updates keeps would quiet the line by itself.
   await page.goto(`${PAGE}&call=on`)
   await expect(page.getByRole('button', { name: 'Leave the room' })).toBeVisible()
-  await page.waitForTimeout(400)
+  // The call was on its way as the project drew: the visit was over before it read, so nothing hangs on a wait.
+  expect(await sinceReads(page)).toBe(0)
+  expect(await saidSince(page)).toBeNull()
   await expect(arrival(page)).toHaveText('')
 })
 
