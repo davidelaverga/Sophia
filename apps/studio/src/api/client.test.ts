@@ -194,19 +194,38 @@ describe('a proxy’s 502/503/504 without the contract', () => {
       assert.equal(retryRead(3, listed), false, 'three tries, as TanStack’s default')
     })
 
-    it(`${String(status)} on a write: never repeated by itself`, async () => {
+    it(`${String(status)} on a write without a key: final, never repeated by itself`, async () => {
       proxyPage(status)
       const posted = await apiError(
         callApi(`/api/v1/projects/${P}/lobby/${G}`, { token: 't', method: 'POST' }, (v) => v),
       )
       assert.deepEqual([posted.status, posted.retry], [status, 'never'])
       assert.equal(retryRead(0, posted), false)
-      const created = await apiError(createProject('t', 'key-5', 'Sophia'))
-      assert.equal(created.retry, 'never')
       const set = await apiError(setGoalTarget('t', P, G, target))
       assert.equal(set.retry, 'never')
     })
+
+    // Review P2: the proxy may answer after the API committed (an instance lost mid-request, a gateway timeout), so a
+    // keyed write's outcome is unknown: the key is kept, and only the person's press sends it again, under that key.
+    it(`${String(status)} on an admission: an unknown outcome, sent again only with the same key`, async () => {
+      proxyPage(status)
+      const created = await apiError(createProject('t', 'key-5', 'Sophia'))
+      assert.deepEqual([created.status, created.retry], [status, 'same_admission_key'])
+      const keyed = await apiError(
+        callApi(`/api/v1/projects/${P}/lobby/${G}`, { token: 't', method: 'POST', key: 'key-6' }, (v) => v),
+      )
+      assert.equal(keyed.retry, 'same_admission_key')
+    })
   }
+
+  it('a 500 page stays final, on a read and on an admission: the API’s own 5xx always carries its body', async () => {
+    proxyPage(500)
+    const read = await apiError(callApi('/api/v1/projects', { token: 't', method: 'GET' }, (v) => v))
+    assert.deepEqual([read.code, read.retry], ['http_500', 'never'])
+    assert.equal(retryRead(0, read), false)
+    const created = await apiError(createProject('t', 'key-7', 'Sophia'))
+    assert.equal(created.retry, 'never')
+  })
 
   it('a 4xx page on a read stays final, as before', async () => {
     globalThis.fetch = () =>
