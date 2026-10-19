@@ -3,7 +3,8 @@
 // written by the Studio's own hooks (Archive.tsx), over the API answered here, in the page. What its presses ask is
 // recorded in `window.workSpaceFixture`: `opened` and `unarchived` list project ids, `keys` each Unarchive's
 // Idempotency-Key. `role=editor`: the archived one is not theirs to bring back. `unarchive=lost`: the first Unarchive
-// lands and its reply never comes, as one whose answer is lost on the way back.
+// lands and its reply never comes, as one whose answer is lost on the way back; `hold`: each reply waits for
+// `workSpaceFixture.release()`; `fails`: the first is refused with a 503 whose body says nothing, as a proxy's.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -19,13 +20,20 @@ import { bootTheme } from '../src/app/theme.ts'
 
 declare global {
   interface Window {
-    workSpaceFixture?: { opened: string[]; unarchived: string[]; keys: string[] }
+    workSpaceFixture?: { opened: string[]; unarchived: string[]; keys: string[]; release: () => void }
   }
 }
 
 const query = new URLSearchParams(window.location.search)
 bootTheme(query.get('theme'))
-const recorded = { opened: [] as string[], unarchived: [] as string[], keys: [] as string[] }
+/** `unarchive=hold`: lets the held reply go. */
+let release: () => void = () => undefined
+const recorded = {
+  opened: [] as string[],
+  unarchived: [] as string[],
+  keys: [] as string[],
+  release: () => release(),
+}
 window.workSpaceFixture = recorded
 /** Whom the page reads and writes as: an account of the Studio's, its token unsigned. */
 const IDENTITY = { name: 'fixture-account', role: 'admin', token: 'fixture' }
@@ -47,17 +55,20 @@ let archived = query.has('archived')
 
 const json = (value: unknown) =>
   new Response(JSON.stringify(value), { headers: { 'content-type': 'application/json' } })
+const UNARCHIVE = query.get('unarchive')
 const ARCHIVE = /^\/api\/v1\/projects\/([^/]+)\/archive$/
 
 /** An Unarchive (A30): recorded with its key, and the project leaves the archived list. */
 function unarchived(projectId: string, init: RequestInit | undefined): Promise<Response> {
   recorded.unarchived.push(projectId)
   recorded.keys.push(new Headers(init?.headers).get('idempotency-key') ?? '')
+  const first = recorded.keys.length === 1
+  if (UNARCHIVE === 'fails' && first) return Promise.resolve(new Response('Service Unavailable', { status: 503 }))
   archived = archived.filter((p) => p.projectId !== projectId)
-  if (query.get('unarchive') === 'lost' && recorded.keys.length === 1) {
-    return Promise.reject(new TypeError('Failed to fetch'))
-  }
-  return Promise.resolve(json({ projectId, archived: false, cursor: '1' }))
+  if (UNARCHIVE === 'lost' && first) return Promise.reject(new TypeError('Failed to fetch'))
+  const answer = json({ projectId, archived: false, cursor: '1' })
+  if (UNARCHIVE === 'hold') return new Promise((go) => (release = () => go(answer)))
+  return Promise.resolve(answer)
 }
 
 const real = window.fetch.bind(window)

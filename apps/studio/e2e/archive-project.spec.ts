@@ -160,6 +160,37 @@ test('archive · in Work, Unarchive after no reply sends the same write again, u
   expect(second).toBe(first)
 })
 
+test('archive · in Work, Unarchive waits on its row, «Bringing back…», and a second press sends nothing (Codex on #368)', async ({
+  page,
+}) => {
+  await page.goto('/work-space.html?archived=1&unarchive=hold')
+  await page.getByRole('button', { name: 'Archived (1)' }).click()
+  const row = page.getByRole('listitem').filter({ hasText: 'Old pilot' })
+  await row.getByRole('button', { name: 'Unarchive' }).click()
+  const waiting = row.getByRole('button', { name: 'Bringing back…' })
+  await expect(waiting).toHaveAttribute('aria-disabled', 'true')
+  await waiting.click()
+  await page.evaluate(() => window.workSpaceFixture?.release())
+  // Answered: the lists are read again, and it has left the archived ones.
+  await expect(row).toHaveCount(0)
+  expect(await workKeys(page)).toHaveLength(1)
+})
+
+test('archive · in Work, an Unarchive refused says so on its row, and its press is offered again (Codex on #368)', async ({
+  page,
+}) => {
+  await page.goto('/work-space.html?archived=1&unarchive=fails')
+  await page.getByRole('button', { name: 'Archived (1)' }).click()
+  const row = page.getByRole('listitem').filter({ hasText: 'Old pilot' })
+  await row.getByRole('button', { name: 'Unarchive' }).click()
+  await expect(row.getByRole('alert')).toHaveText('That didn’t go through. Try again.')
+  await expect(row.getByRole('button', { name: 'Unarchive' })).not.toHaveAttribute('aria-disabled')
+  // Pressed again, the failure goes with the press, and this time it lands.
+  await row.getByRole('button', { name: 'Unarchive' }).click()
+  await expect(row).toHaveCount(0)
+  expect(await workKeys(page)).toHaveLength(2)
+})
+
 test('archive · an editor opens an archived project, with nothing to bring back; none archived, no fold', async ({
   page,
 }) => {
