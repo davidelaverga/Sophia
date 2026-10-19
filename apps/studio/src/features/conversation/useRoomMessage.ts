@@ -39,14 +39,22 @@ const sameMembers = (a: readonly string[], b: readonly string[]) =>
 const NO_REPLY: ReplyUnderWay = { id: null, done: () => undefined }
 const NO_MENTIONS: MentionsUnderWay = { ids: [], done: () => undefined }
 
-/** The message the tab kept with no reply, read back (a reload): its key, its words and the entry it answers. */
+/** The members a kept message named (A37), read back; anything else names none. */
+const namedIn = (value: unknown): readonly string[] =>
+  Array.isArray(value) && value.every((id) => typeof id === 'string') ? value : []
+
+/**
+ * The message the tab kept with no reply, read back (a reload): its key, its words, the entry it answers and the
+ * members it names, so it goes again as it first went.
+ */
 function resumedFrom(value: unknown): Resumed<RoomMessage> | null {
   if (typeof value !== 'object' || value === null) return null
   const key: unknown = Reflect.get(value, 'key')
   const text: unknown = Reflect.get(value, 'text')
   const replyTo: unknown = Reflect.get(value, 'replyTo')
   if (typeof key !== 'string' || !key || typeof text !== 'string' || !text) return null
-  return { key, args: { text, replyTo: typeof replyTo === 'string' ? replyTo : null } }
+  const mentions = namedIn(Reflect.get(value, 'mentions'))
+  return { key, args: { text, replyTo: typeof replyTo === 'string' ? replyTo : null, mentions } }
 }
 
 /**

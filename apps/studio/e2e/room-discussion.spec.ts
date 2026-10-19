@@ -129,6 +129,43 @@ test('discussion · a message with no reply is offered again after a reload; Try
   await expect(page.getByText('Not confirmed: “')).toHaveCount(0)
 })
 
+/** What each message to the room named when it reached the synthetic service (`server=kept`'s journal), try by try. */
+const contributionMentions = (page: Page) =>
+  page.evaluate(() => {
+    const journal: unknown = JSON.parse(sessionStorage.getItem('fixture.server.journal') ?? '[]')
+    return (Array.isArray(journal) ? journal : []).flatMap((w: unknown) =>
+      typeof w === 'object' && w !== null && String(Reflect.get(w, 'path')).endsWith('/contributions')
+        ? [Reflect.get(JSON.parse(String(Reflect.get(w, 'body'))), 'mentions') as unknown]
+        : [],
+    )
+  })
+
+test('discussion · a kept message that named members names them again when sent after a reload (A37)', async ({
+  page,
+}) => {
+  await enter(page, 'people=2&floor=1&discussion=mine&acts=1&server=kept')
+  await page.getByRole('button', { name: 'Mention' }).click()
+  await page
+    .getByRole('group', { name: /Mention members/ })
+    .getByRole('checkbox', { name: 'Marco' })
+    .check()
+  await page.getByRole('button', { name: 'Done' }).click()
+  await page.evaluate(() => window.fixture?.loseNextContributionReply())
+  await bar(page).fill('Marco, the door plan.')
+  await bar(page).press('Enter')
+  await expect(page.getByText('Not confirmed: “Marco, the door plan.”')).toBeVisible()
+  await reenter(page)
+  await page.getByRole('button', { name: 'Try again' }).click()
+  await expect(page.getByText('Not confirmed: “')).toHaveCount(0)
+  await expect(
+    discussion(page).locator('.contribution').filter({ hasText: 'the door plan' }).locator('.contribution-mentions'),
+  ).toHaveText('to Marco')
+  const named = await contributionMentions(page)
+  expect(named).toHaveLength(2)
+  expect(named[1]).toEqual(named[0])
+  expect(named[0]).toEqual(['00000000-0000-4000-8000-0000000000b1'])
+})
+
 test('discussion · a message on its way is kept in the tab until its reply lands; reloaded then, nothing is offered', async ({
   page,
 }) => {
