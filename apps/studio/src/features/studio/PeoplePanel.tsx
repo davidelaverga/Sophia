@@ -253,7 +253,8 @@ export function PeoplePanel({ room, projectId, identity }: Props) {
 
 /**
  * «Mute everyone» (host-more.md, A31), for an admin while someone else's microphone is on: it asks first, then every
- * other microphone in the call goes off, guests' too; each turns their own back on.
+ * other microphone in the call goes off, guests' too; each turns their own back on. Its request stays said until it
+ * is answered, and a refusal after, even once no microphone is left on (Codex P2 on #369).
  */
 function MuteEveryone({
   people,
@@ -267,7 +268,8 @@ function MuteEveryone({
   const [state, setState] = useState<'idle' | 'sending' | 'failed'>('idle')
   // Before any return, so the hooks keep their order.
   const slow = useSlow(state === 'sending')
-  if (!people.some((p) => !p.local && p.micOn)) return null
+  const someoneOn = people.some((p) => !p.local && p.micOn)
+  if (!someoneOn && state === 'idle') return null
   const mute = () => {
     setState('sending')
     muteEveryoneInCall(identity.token, projectId).then(
@@ -277,16 +279,19 @@ function MuteEveryone({
   }
   return (
     <div className="people-head">
-      {/* A press, not a heading: the kit's small pill (room-dock-people.md). */}
-      <ConfirmButton
-        className={buttonClass({ size: 'sm' })}
-        label={state === 'sending' ? 'Muting everyone…' : 'Mute everyone'}
-        warning="Everyone else’s microphone goes off; each turns their own back on."
-        confirm="Mute them"
-        keep="Cancel"
-        disabled={state === 'sending'}
-        onConfirm={mute}
-      />
+      {/* A press, not a heading: the kit's small pill (room-dock-people.md). Refused with no microphone left on, the
+          refusal is said alone: the press would mute no one. */}
+      {(someoneOn || state === 'sending') && (
+        <ConfirmButton
+          className={buttonClass({ size: 'sm' })}
+          label={state === 'sending' ? 'Muting everyone…' : 'Mute everyone'}
+          warning="Everyone else’s microphone goes off; each turns their own back on."
+          confirm="Mute them"
+          keep="Cancel"
+          disabled={state === 'sending'}
+          onConfirm={mute}
+        />
+      )}
       {/* Past six seconds it says it is slow, as a row's control does (Codex P2 on #369). */}
       {slow && (
         <p role="status" className="person-pending">
