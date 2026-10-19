@@ -11,7 +11,13 @@ const PAGES = [
   ['home', '/home.html?demo=1', DRAWN.home],
   ['personal', '/personal.html?demo=1', DRAWN.personal],
   ['the room', '/room.html?demo=1', DRAWN.room],
-  ['the room in a call', '/room.html?demo=1&call=on&people=2&floor=1&sophia=listening', DRAWN.room.slice(0, 1)],
+  // In a call: drawn once the call is live, not while it is still joining (C57: under load the room drew its pre-join
+  // controls first, then the call replaced «Check audio and video» and moved Chat, People and Brief along the dock).
+  [
+    'the room in a call',
+    '/room.html?demo=1&call=on&people=2&floor=1&sophia=listening',
+    [...DRAWN.room.slice(0, 1), (page: Page) => page.getByRole('button', { name: 'Leave the room' })],
+  ],
   ['Conversations', '/room.html?demo=1&conversations=1&place=conversations', DRAWN.conversations],
   ['Goals', '/room.html?demo=1&place=goals', DRAWN.goals],
   ['Tasks', '/room.html?demo=1&place=work', DRAWN.tasks],
