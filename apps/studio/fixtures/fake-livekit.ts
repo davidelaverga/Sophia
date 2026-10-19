@@ -319,6 +319,7 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     audioBlocked: soundBlocked,
     ...voices,
     startAudio: () => {
+      asked.push('audio:start')
       allowSound()
       return Promise.resolve()
     },

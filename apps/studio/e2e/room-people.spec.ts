@@ -1,14 +1,23 @@
 import { expect, test, type Page } from '@playwright/test'
 
 // The room's fixture shows what its fake LiveKit couldn't (docs/plans/room-fixture-people.md): other people, who
-// holds the floor and who speaks, Sophia's states, a blocked sound, the gallery and a shared screen. Every name and
-// stream is synthetic, and the page says it is a fixture.
+// holds the floor and who speaks, Sophia's states, a blocked sound (hers, and the call's: sound-blocked-others.md), the
+// gallery and a shared screen. Every name and stream is synthetic, and the page says it is a fixture.
 
 const leave = (page: Page) => page.getByRole('button', { name: 'Leave the room' })
 const line = (page: Page) => page.locator('.sophia-line .line-text')
 const people = (page: Page) => page.getByRole('list', { name: 'In the room' }).getByRole('listitem')
 const light = (page: Page) => page.locator('.light')
 const unexpected = (page: Page) => page.evaluate(() => [...(window.fixture?.unexpected ?? [])])
+const asked = (page: Page) => page.evaluate(() => [...(window.fixture?.asked ?? [])])
+
+/** The dock's line when the browser blocked the call's sound (sound-blocked-others.md), and its region. */
+const SOUND = 'This browser blocked the call’s sound.'
+const soundLine = (page: Page) => page.getByRole('status').filter({ hasText: SOUND })
+const soundRegion = (page: Page) => page.locator('.dock-wrap .dock-sound[role="status"]')
+const allow = (page: Page) => page.getByRole('button', { name: 'Allow audio' })
+const microphone = (page: Page) =>
+  page.getByRole('navigation', { name: 'Room controls' }).getByRole('button', { name: 'Microphone' })
 
 /** Opens the room in the call, with what the query string asks. */
 async function enter(page: Page, query: string) {
@@ -78,6 +87,85 @@ test('sophia · her sound blocked by the browser: Allow audio, pressed, lets it 
   await page.getByRole('button', { name: 'Allow audio' }).click()
   await expect(line(page)).toHaveText('Sophia is speaking')
   await expect(page.getByRole('button', { name: 'Allow audio' })).toHaveCount(0)
+})
+
+test('sound · blocked with others in the call: the dock says so politely, and Allow audio lets everyone through', async ({
+  page,
+}) => {
+  await enter(page, 'sound=blocked&people=2')
+  await expect(soundLine(page)).toContainText(SOUND)
+  await expect(soundLine(page).getByRole('button', { name: 'Not now' })).toBeVisible()
+  // One Allow audio, the line's own, and the line never takes the focus.
+  await expect(allow(page)).toHaveCount(1)
+  await expect(soundLine(page).getByRole('button', { name: 'Allow audio' })).toBeVisible()
+  await expect(soundLine(page).locator(':focus')).toHaveCount(0)
+  await allow(page).click()
+  await expect(soundLine(page)).toHaveCount(0)
+  await expect(allow(page)).toHaveCount(0)
+  expect(await asked(page)).toContain('audio:start')
+  // The press went with the line: the focus is on the call's own microphone, not the page.
+  await expect(microphone(page)).toBeFocused()
+})
+
+test('sound · the block arriving in a call already live: its words come into the status already there', async ({
+  page,
+}) => {
+  await enter(page, 'people=2')
+  await expect(soundRegion(page)).toHaveCount(1)
+  await expect(soundRegion(page)).toHaveText('')
+  const before = await soundRegion(page).elementHandle()
+  await page.evaluate(() => window.fixture?.blockSound())
+  await expect(soundLine(page)).toContainText(SOUND)
+  expect(await before?.evaluate((el) => el.isConnected && el.textContent.includes('blocked'))).toBe(true)
+})
+
+test('sound · put away with Not now, it stays away for that call; the next call says it again', async ({ page }) => {
+  await enter(page, 'sound=blocked&people=2&floor=1')
+  await soundLine(page).getByRole('button', { name: 'Not now' }).click()
+  await expect(soundLine(page)).toHaveCount(0)
+  await expect(microphone(page)).toBeFocused()
+  // A member speaks: nothing more.
+  await page.evaluate(() => window.fixture?.speaking(1))
+  await expect(people(page).filter({ hasText: 'Marco' })).toHaveAttribute('data-speaking')
+  await expect(soundLine(page)).toHaveCount(0)
+  // The link lost and back: nothing more.
+  await page.evaluate(() => window.fixture?.linkLost(true))
+  await page.evaluate(() => window.fixture?.linkLost(false))
+  await expect(leave(page)).toBeVisible()
+  await expect(soundLine(page)).toHaveCount(0)
+  // Tasks and back to the room, whose dock mounts again: nothing more in this call.
+  await page.getByRole('link', { name: 'Tasks' }).click()
+  await expect(page.getByRole('heading', { name: 'Tasks', level: 2 })).toBeVisible()
+  await page.getByRole('link', { name: 'Studio' }).click()
+  await expect(soundRegion(page)).toHaveCount(1)
+  await expect(soundLine(page)).toHaveCount(0)
+  // The next call is another: said again.
+  await leave(page).click()
+  await page.getByRole('button', { name: /^Join the room/ }).click()
+  await expect(soundLine(page)).toContainText(SOUND)
+})
+
+test('sound · Sophia speaking into the block with others here: one Allow audio, the dock’s, lets both through', async ({
+  page,
+}) => {
+  await enter(page, 'sophia=blocked&people=2')
+  await expect(line(page)).toHaveText('Sophia is speaking, but this browser blocked the sound')
+  await expect(soundLine(page)).toContainText(SOUND)
+  await expect(allow(page)).toHaveCount(1)
+  await expect(soundLine(page).getByRole('button', { name: 'Allow audio' })).toBeVisible()
+  await allow(page).click()
+  await expect(line(page)).toHaveText('Sophia is speaking')
+  await expect(soundLine(page)).toHaveCount(0)
+  await expect(allow(page)).toHaveCount(0)
+})
+
+test('sound · controls: blocked but alone, nothing to hear; others here with the sound playing, nothing to say', async ({
+  page,
+}) => {
+  await enter(page, 'sound=blocked')
+  await expect(soundLine(page)).toHaveCount(0)
+  await enter(page, 'people=2')
+  await expect(soundLine(page)).toHaveCount(0)
 })
 
 test('sophia · her voice unavailable: said', async ({ page }) => {

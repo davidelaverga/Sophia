@@ -14,7 +14,8 @@
 // Sophia leave, or read what happened. Others in the room, the floor, who speaks, Sophia's states and video come from
 // fake-people.ts (`people`, `floor=1|me|absent`, `speaking`,
 // `sophia=here|listening|settling|answering|speaking|blocked`, `voice`, `paused`, `video=camera|screen`,
-// `looking=screen`; docs/plans/room-fixture-people.md).
+// `looking=screen`, `sound=blocked` (the browser blocked the call's sound, whoever speaks; sound-blocked-others.md);
+// docs/plans/room-fixture-people.md).
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { Goal, GoalCommand } from '@sophia/contracts'
@@ -65,6 +66,7 @@ import {
   speakWhileMuted,
 } from './fake-livekit.ts'
 import {
+  blockSound,
   count,
   endPause,
   nameOf,
@@ -372,6 +374,8 @@ interface Fixture {
   sophia: (state: SophiaState) => void
   /** Who speak now: 0 the viewer, `n` the `n`th other person, several at once as a list; null no one. */
   speaking: (who: number | readonly number[] | null) => void
+  /** The browser blocks the call's sound now, as LiveKit's AudioPlaybackStatusChanged says it (fake-people.ts). */
+  blockSound: () => void
   /** How loud a voice is from now on, 0…1: `sophia`, the viewer (0) or the `n`th other person (voice-amplitude.md). */
   voiceLevel: (who: 'sophia' | number, level: number) => void
   /** Another member's change reaches the API just before the page's next pass: that pass is refused as stale. */
@@ -1188,6 +1192,7 @@ window.fixture = {
   },
   sophia: setSophia,
   speaking: setSpeaking,
+  blockSound,
   voiceLevel: setVoiceLevel,
   leaves: personLeaves,
   moveRoom: () => {
