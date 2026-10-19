@@ -278,3 +278,57 @@ test('acts · a lost answer can only be asked again: no Cancel, and Escape keeps
   await expect(ask).toHaveCount(0)
   expect((await served(page)).filter((s) => s === 'act:correct')).toHaveLength(1)
 })
+
+// Codex P2 on #409 (r4312346262): an act's answer that arrives after the person has gone on to another control leaves
+// the focus where they put it; the act still shows its result.
+test('acts · a correction answered after the focus went elsewhere leaves it there; the correction shows', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.holdActs())
+  await line(page, MINE).getByRole('button', { name: 'Edit' }).click()
+  await page.getByRole('textbox', { name: 'Edit your message' }).fill('Meet at two.')
+  await page.getByRole('button', { name: 'Save' }).click()
+  await expect.poll(() => served(page)).toContain('act:correct')
+  const elsewhere = line(page, SHARED).getByRole('button', { name: 'Withdraw' })
+  await elsewhere.focus()
+  await page.evaluate(() => window.fixture?.releaseActs())
+  await expect(line(page, 'Meet at two.').getByText('Edited')).toBeVisible()
+  await expect(elsewhere).toBeFocused()
+})
+
+test('acts · a withdrawal answered after the focus went elsewhere leaves it there; the message’s place shows', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.holdActs())
+  await line(page, MINE).getByRole('button', { name: 'Withdraw' }).click()
+  await page
+    .getByRole('group', { name: 'Withdraw your message?' })
+    .getByRole('button', { name: 'Withdraw message' })
+    .click()
+  await expect.poll(() => served(page)).toContain('act:withdraw')
+  const elsewhere = line(page, SHARED).getByRole('button', { name: 'Withdraw' })
+  await elsewhere.focus()
+  await page.evaluate(() => window.fixture?.releaseActs())
+  await expect(discussion(page).getByText('You withdrew this message.')).toBeVisible()
+  await expect(elsewhere).toBeFocused()
+})
+
+test('acts · a correction answered while the chat is closed never takes the focus when it opens again', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.holdActs())
+  await line(page, MINE).getByRole('button', { name: 'Edit' }).click()
+  await page.getByRole('textbox', { name: 'Edit your message' }).fill('Meet at three.')
+  await page.getByRole('button', { name: 'Save' }).click()
+  await expect.poll(() => served(page)).toContain('act:correct')
+  await chatToggle(page).click()
+  await expect(discussion(page)).toBeHidden()
+  await page.evaluate(() => window.fixture?.releaseActs())
+  await chatToggle(page).click()
+  const fixed = line(page, 'Meet at three.')
+  await expect(fixed.getByText('Edited')).toBeVisible()
+  await expect(fixed.getByRole('button', { name: 'Edit' })).not.toBeFocused()
+})

@@ -50,6 +50,15 @@ const codeOf = (err: unknown) => (err instanceof ApiError ? err.code : 'unavaila
 /** Whether the focus is in this message's act (its field or its question), so it goes on with the act. */
 const focusWithin = (id: string) => (document.activeElement?.closest(`[data-message-acts="${id}"]`) ?? null) !== null
 
+/** Whether the focus is nowhere (the page itself): a control of the act that went with it let it drop. */
+const focusLost = () => document.activeElement === null || document.activeElement === document.body
+
+/**
+ * Whether a done act may still hand its focus on: only one it holds, or one its own control let drop, never one the
+ * person has put on another control since (Codex P2 on #409, r4312346262).
+ */
+const focusStillOurs = (id: string) => focusWithin(id) || focusLost()
+
 /**
  * A done act hands the focus it held on (Codex on #396): a correction's to its message's Edit, a withdrawal's to the
  * place the message now shows, which takes it. Never taken from somewhere else on the page.
@@ -67,7 +76,8 @@ export function useHandedFocus(id: string, taker: 'place' | 'edit', el: RefObjec
   useEffect(() => {
     if (handed.get(id) !== taker || !el.current) return
     handed.delete(id)
-    el.current.focus()
+    // Taken only while nothing else has it: a handoff left over (a chat closed and opened again) never steals it.
+    if (focusStillOurs(id)) el.current.focus()
   }, [id, taker, el])
 }
 
@@ -135,7 +145,7 @@ function useMessageAct({ projectId, identity, entry, onActed }: Acting) {
       setStep({ at: 'idle' })
       const acted = actedOf(entry, act, draft, receipt)
       if (acted) onActed(acted)
-      if (focused) handFocus(act, entry.id)
+      if (focused && focusStillOurs(entry.id)) handFocus(act, entry.id)
     } catch (err) {
       failed(act, err, draft, preview)
     }
