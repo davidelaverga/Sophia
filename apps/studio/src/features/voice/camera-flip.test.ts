@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { cameraPresses, nextCamera } from './camera-flip.ts'
+import { cameraPresses, hasTopLayer, nextCamera } from './camera-flip.ts'
 
 const front = { id: 'front', label: 'Front camera' }
 const back = { id: 'back', label: 'Back camera' }
@@ -46,4 +46,13 @@ test('two presses before the first is answered go round, as two answered would',
   const press = cameraPresses(undefined)
   await Promise.all([press([front, back], asking(asked, true)), press([front, back], asking(asked, true))])
   assert.deepEqual(asked, ['back', 'front'])
+})
+
+// Your tile's menu on a phone's strip stands in the top layer (the Popover API), which Safari before 17 lacks; the build
+// targets Safari 16.4 (a review's P1 on this branch).
+test('the top layer is there where the browser shows popovers, not in Safari before 17 nor without a page', () => {
+  assert.equal(hasTopLayer({ showPopover: () => undefined }), true)
+  assert.equal(hasTopLayer({}), false, 'Safari 16: no showPopover')
+  assert.equal(hasTopLayer(undefined), false)
+  assert.equal(hasTopLayer(), false, 'here, no HTMLElement')
 })

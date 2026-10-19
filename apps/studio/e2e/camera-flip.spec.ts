@@ -226,6 +226,31 @@ for (const width of [390, 320]) {
   })
 }
 
+// Safari before 17 has no top layer for the menu (the Popover API), and the build targets Safari 16.4 (shortcuts.ts):
+// there the press stays Switch camera, as before the menu, and the call stays (a review's P1 on this branch). WebKit 16
+// stood in for: no showPopover.
+test('@phone · flip · without the Popover API (Safari before 17), beside a shown screen your tile’s one press switches the camera, and the call stays', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    for (const name of ['showPopover', 'hidePopover', 'togglePopover']) {
+      Reflect.deleteProperty(HTMLElement.prototype, name)
+    }
+  })
+  await enter(page, 'people=2&video=screen')
+  const press = myTile(page).getByRole('button')
+  await expect(press).toHaveAccessibleName('Hide my tile')
+  await cameraOn(page)
+  // Your camera on and its cameras listed: the press is no longer Hide my tile.
+  await expect(press).not.toHaveAccessibleName('Hide my tile')
+  await expect(press).toHaveCount(1)
+  await press.click()
+  await expect.poll(() => switches(page)).toEqual(['device:videoinput:cam-desk'])
+  await expect(dock(page)).toBeVisible()
+  await expect(press).toHaveAccessibleName('Switch camera')
+  await expect(press).not.toHaveAttribute('aria-haspopup')
+})
+
 // On a phone's strip the mute is the tile's corner mark, at its top-left (muted-on-tiles.md); the press keeps clear of
 // it, a finger's size still (Codex P2 on #430).
 for (const width of [390, 320]) {
