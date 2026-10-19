@@ -82,6 +82,8 @@ test('light · on camera, who speaks is ringed: two solid pixels of the warm, 3:
 })
 
 test('the room on camera: who speaks keeps the warm ring and its glow', async ({ page }) => {
+  // Still, as main drew it: moving, the glow follows their voice instead (voice-meters.spec.ts).
+  await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto(CALL)
   const tile = page.locator('.gallery .tile[data-speaking]')
   await expect(tile.locator('video')).toBeVisible()

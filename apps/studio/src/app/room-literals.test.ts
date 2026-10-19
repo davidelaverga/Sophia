@@ -37,6 +37,28 @@ function blanked(css: string, spans: readonly { start: number; end: number }[] =
   return kept.replace(/\/\*[\s\S]*?\*\//g, blank)
 }
 
+/** A selector list cut at its commas, those inside `:is(…)` and the like kept. */
+function selectors(list: string): string[] {
+  const out = ['']
+  let depth = 0
+  for (const ch of list) {
+    if (ch === '(') depth++
+    if (ch === ')') depth--
+    if (ch === ',' && depth === 0) out.push('')
+    else out[out.length - 1] += ch
+  }
+  return out.map((s) => s.trim())
+}
+
+/**
+ * The rules only paper applies (every selector under paper's root, as her orb's, docs/plans/paper-orb.md): the colours
+ * they write are paper's own, never the room's.
+ */
+const paperRules = (css: string) =>
+  [...blanked(css).matchAll(/([^{}]*)\{[^{}]*\}/g)]
+    .filter(({ 1: list = '' }) => selectors(list).every((s) => s.startsWith(PAPER)))
+    .map(({ 0: rule, index }) => ({ start: index, end: index + rule.length }))
+
 /** Each literal, and the properties it is looked for in (any, if none are named). */
 const LITERALS: readonly { what: string; pattern: RegExp; in?: RegExp }[] = [
   // A shadow only: a chip kept dark over video on purpose is another branch's (D22).
@@ -94,7 +116,7 @@ describe('the room’s colours written by hand (docs/plans/light-room-literals.m
     const found = sheets().flatMap((path) => {
       const css = read(path)
       const tokens = path === 'app/theme.css' ? [block(css, ROOM), block(css, PAPER)] : []
-      return literalsIn(path, blanked(css, tokens))
+      return literalsIn(path, blanked(css, [...tokens, ...paperRules(css)]))
     })
     assert.deepEqual(found, [])
   })

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { Goal, NativeTask } from '@sophia/contracts'
 import {
+  arrivedResults,
   floorView,
   mediaMessage,
   mutedMic,
@@ -293,5 +294,25 @@ describe('the one task that is all the work', () => {
     )
     assert.equal(soleWorkingTask({ goals: [], work: [task('g1', 'running'), task('g2', 'running')] }), null)
     assert.equal(soleWorkingTask(undefined), null)
+  })
+})
+
+describe('a result arriving (docs/plans/orb-result.md)', () => {
+  it('is a task at work before, with its result ready now', () => {
+    assert.deepEqual(arrivedResults([task('g1', 'running')], [task('g1', 'result_ready')]), ['task-g1'])
+    assert.deepEqual(
+      arrivedResults(
+        [task('g1', 'queued'), task('g2', 'running')],
+        [task('g1', 'result_ready'), task('g2', 'running')],
+      ),
+      ['task-g1'],
+    )
+  })
+  it('is never the first look, nor a result that was ready already, nor work that failed or stopped', () => {
+    assert.deepEqual(arrivedResults(null, [task('g1', 'result_ready')]), [])
+    assert.deepEqual(arrivedResults([task('g1', 'result_ready')], [task('g1', 'result_ready')]), [])
+    assert.deepEqual(arrivedResults([], [task('g1', 'result_ready')]), [])
+    assert.deepEqual(arrivedResults([task('g1', 'running')], [task('g1', 'failed')]), [])
+    assert.deepEqual(arrivedResults([task('g1', 'running')], [task('g1', 'stopped')]), [])
   })
 })
