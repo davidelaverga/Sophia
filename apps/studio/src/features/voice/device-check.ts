@@ -44,6 +44,18 @@ const CAMERA_BUSY = new Set(['NotReadableError', 'AbortError'])
 export const asksMicAlone = (name: string): boolean => NO_CAMERA.has(name) || CAMERA_BUSY.has(name)
 
 /**
+ * What may bring the camera back while the microphone is checked alone, by the browser's reason for no camera: the
+ * person returning to the page after closing the app that held it, or a camera plugged in. The check then asks again,
+ * so its line lasts only while it is true. A refusal or an unknown reason waits for the sheet to open again: asking on
+ * its own would prompt.
+ */
+export function cameraBackOn(name: string): 'return' | 'plug' | null {
+  if (CAMERA_BUSY.has(name)) return 'return'
+  if (NO_CAMERA.has(name)) return 'plug'
+  return null
+}
+
+/**
  * The sheet's one line in the picture's place, by the browser's reason (the error's name, as room-view.ts's
  * mediaMessage reads it in a call) and whether the microphone is checked alone (seam #5). Site settings are named for a
  * refusal only: a camera missing or busy has nothing to allow. With the microphone failing too, the camera isn't blamed.

@@ -1,14 +1,26 @@
 // The check's camera and microphone (docs/plans/device-check.md): asked for with the chosen devices, and again when one
 // is chosen; the picture for the sheet's video, and the voice's level for its meter. Both are let go when the check
 // closes, so the call opens its own. With the camera missing or busy, the microphone is asked for alone, and a line
-// says why there is no picture (device-check-no-camera.md).
-import { useEffect, useState } from 'react'
+// says why there is no picture until the camera may be back, when both are asked for again (device-check-no-camera.md).
+import { useCallback, useEffect, useState } from 'react'
 import type { DeviceKind } from './device-preference.ts'
-import { asksMicAlone, levelOf, micConstraints, previewConstraints, previewMessage } from './device-check.ts'
+import {
+  asksMicAlone,
+  cameraBackOn,
+  levelOf,
+  micConstraints,
+  previewConstraints,
+  previewMessage,
+} from './device-check.ts'
 
-/** `line`: why there is no picture, in its place; when live, the microphone is checked alone. */
+/**
+ * `line`: why there is no picture, in its place; when live, the microphone is checked alone, and `reason` is the
+ * browser's for no camera.
+ */
 export type Preview =
-  { state: 'asking' } | { state: 'unavailable'; line: string } | { state: 'live'; stream: MediaStream; line?: string }
+  | { state: 'asking' }
+  | { state: 'unavailable'; line: string }
+  | { state: 'live'; stream: MediaStream; line?: string; reason?: string }
 
 type Chosen = Partial<Record<DeviceKind, string>>
 
@@ -43,7 +55,7 @@ function meter(stream: MediaStream, onLevel: (level: number) => void): () => voi
 async function micAlone(chosen: Chosen, name: string): Promise<Preview> {
   try {
     const stream = await navigator.mediaDevices.getUserMedia(micConstraints(chosen))
-    return { state: 'live', stream, line: previewMessage(name, true) }
+    return { state: 'live', stream, line: previewMessage(name, true), reason: name }
   } catch (err) {
     return { state: 'unavailable', line: previewMessage(nameOf(err), false) }
   }
@@ -63,9 +75,49 @@ async function ask(chosen: Chosen, wanted: () => boolean): Promise<Preview> {
   }
 }
 
+/** `then` once, on the first of these events heard while `counts`; returns the stop. */
+function once(heard: readonly (readonly [EventTarget, string])[], then: () => void, counts = () => true): () => void {
+  let done = false
+  const hear = () => {
+    if (done || !counts()) return
+    done = true
+    then()
+  }
+  for (const [target, type] of heard) target.addEventListener(type, hear)
+  return () => {
+    for (const [target, type] of heard) target.removeEventListener(type, hear)
+  }
+}
+
+/**
+ * While the microphone is checked alone, both asked for `again` when the camera may be back (cameraBackOn): the page
+ * shown again after the app holding it closed, or a device plugged in. Once per answer, so one return the browser tells
+ * twice (focus, then the tab shown) asks once; the next answer listens again while the line is still true.
+ */
+function useCameraBack(preview: Preview, again: () => void) {
+  useEffect(() => {
+    const back = preview.state === 'live' && preview.reason ? cameraBackOn(preview.reason) : null
+    if (back === 'plug') return once([[navigator.mediaDevices, 'devicechange']], again)
+    if (back !== 'return') return undefined
+    const shown = () => document.visibilityState === 'visible'
+    return once(
+      [
+        [window, 'focus'],
+        [document, 'visibilitychange'],
+      ],
+      again,
+      shown,
+    )
+  }, [preview, again])
+}
+
 export function useDevicePreview(chosen: Chosen): { preview: Preview; level: number } {
   const [preview, setPreview] = useState<Preview>({ state: 'asking' })
   const [level, setLevel] = useState(0)
+  // Each time the camera may be back, the request is made again with the same devices.
+  const [round, setRound] = useState(0)
+  const again = useCallback(() => setRound((r) => r + 1), [])
+  useCameraBack(preview, again)
   const { audioinput, videoinput } = chosen
   useEffect(() => {
     let live = true
@@ -87,6 +139,6 @@ export function useDevicePreview(chosen: Chosen): { preview: Preview; level: num
       if (stream) letGo(stream)
       setLevel(0)
     }
-  }, [audioinput, videoinput])
+  }, [audioinput, videoinput, round])
   return { preview, level }
 }
