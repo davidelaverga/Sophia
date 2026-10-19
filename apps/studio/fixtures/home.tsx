@@ -11,10 +11,11 @@
 // action taken,
 // as "open <id>", "join <id>", "back <id>", "work", "new project", "unlock", "say <words>", "need <id>". `needs=some|none`: what
 // needs you on the right (the vision flag; the demo's some); absent, the Studio's own Home, her light alone.
+// `since=some|more|seen`: what changed in each project since you last looked, read as Home reads it (below).
 import { requestAddress } from '../src/features/resources/link.ts'
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
-import type { ProjectSummary } from '@sophia/contracts'
+import type { ProjectSummary, ProjectUpdates } from '@sophia/contracts'
 import { StrictMode, useEffect, useState, type ComponentProps } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { PersonalTurn } from '@sophia/contracts'
@@ -32,6 +33,7 @@ import { VISION } from '../src/app/vision.ts'
 import { Welcome } from '../src/features/personal/Welcome.tsx'
 import { DEMO, DEMO_LABEL, HOME_PROJECT, PROJECT_NAME } from './demo.ts'
 import { PROJECT } from './data.ts'
+import { newMeeting, updatesWindowOf } from './meeting-data.ts'
 import '../src/app/theme.css'
 import '../src/features/personal/personal.css'
 import { bootTheme } from '../src/app/theme.ts'
@@ -60,6 +62,8 @@ declare global {
       dropNeed: (id: string) => void
       /** The projects are read again with Home open (Places reads them every 20 s) and answer another set. */
       reread: (set: string) => void
+      /** `since=…`: the projects whose window was read, in the order asked. */
+      sinceReads: () => string[]
     }
   }
 }
@@ -93,6 +97,7 @@ window.homeFixture = {
   },
   hear: () => HeardRecognition.listening?.hear(),
   reread: (next) => answerWith(next),
+  sinceReads: () => [...sinceReads],
   // Where the focus lands on the way back from Personal (focus.ts): an element's id, else its tag.
   landing: () => {
     const at = homeRowFor('personal')
@@ -279,6 +284,86 @@ if (INVITED) {
       return json({ projectId: INVITATION.projectId })
     }
     return real(input, init)
+  }
+}
+/**
+ * `since=some|more|seen`: A34's window for each project (GET /api/v1/projects/<id>/since), as the fixture's meeting
+ * answers it (meeting-data.ts's updatesWindowOf), after a seen mark. `some`: Launch plan holds 2 decisions and a new
+ * report (the fixture's earlier decision and a proposal still open among them), Product launch a note kept, the others
+ * nothing; `more`: one more decision in Launch plan's, a new window; `seen`: every window after a seen mark, empty.
+ * `homeFixture.sinceReads()` lists the projects asked, in the order asked.
+ */
+const SINCE = query.get('since')
+const sinceReads: string[] = []
+const MARK = '3'
+const nothingSince = (mark: string): ProjectUpdates => ({
+  fromSequence: mark,
+  toSequence: mark,
+  more: false,
+  decided: [],
+  made: [],
+  noted: [],
+  open: [],
+  work: [],
+  names: {},
+})
+const MEMBER = '00000000-0000-4000-8000-0000000000c1'
+const decision = (n: number) => ({
+  decisionId: `00000000-0000-4000-8000-0000000000d${String(n)}`,
+  statement: `Fixture decision ${String(n)}`,
+  proposedBy: MEMBER,
+  decidedBy: MEMBER,
+  at: at(-60 * n),
+  undoable: false,
+})
+/** Launch plan's window: the fixture's earlier meeting and `decisions` more since, with one report made. */
+function launchPlanSince(decisions: number): ProjectUpdates {
+  const meeting = newMeeting(
+    () => ({
+      people: [],
+      guests: 0,
+      decided: Array.from({ length: decisions }, (_, i) => decision(i + 1)),
+      made: [
+        {
+          artifactId: '00000000-0000-4000-8000-0000000000e7',
+          artifactVersionId: '00000000-0000-4000-8000-0000000000e8',
+          title: 'Launch readout',
+          versionNumber: 1,
+          askedBy: MEMBER,
+        },
+      ],
+      noted: [],
+      open: [],
+      work: [],
+      names: { [MEMBER]: 'Marco' },
+    }),
+    () => true,
+  )
+  meeting.seen.sequence = MARK
+  return updatesWindowOf(meeting, 9)
+}
+function sinceOf(projectId: string): ProjectUpdates {
+  if (SINCE === 'seen') return nothingSince('9')
+  if (projectId === id(1)) return launchPlanSince(SINCE === 'more' ? 2 : 1)
+  if (projectId !== id(4)) return nothingSince('9')
+  const kept = {
+    entryId: '00000000-0000-4000-8000-0000000000f4',
+    kind: 'observation',
+    text: 'The launch moves to the second week.',
+    authoredBy: 'member' as const,
+    actorId: MEMBER,
+    at: at(-90),
+  }
+  return { ...nothingSince('9'), fromSequence: MARK, noted: [kept], names: { [MEMBER]: 'Marco' } }
+}
+if (SINCE) {
+  const real = window.fetch.bind(window)
+  window.fetch = (input, init) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const asked = /^\/api\/v1\/projects\/([^/]+)\/since$/.exec(new URL(url, window.location.href).pathname)?.[1]
+    if (!asked) return real(input, init)
+    sinceReads.push(asked)
+    return json(sinceOf(asked))
   }
 }
 /** The band Home shows with `invited=1`: the person's own invitations, read and accepted as the Studio does. */

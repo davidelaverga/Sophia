@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { PersonalExport, PersonalTurn, ProjectSummary } from '@sophia/contracts'
+import type { Since } from '../../api/vision.ts'
 import { confirmsErasure, exportText, factsOf } from './data-view.ts'
 import { NOTICE } from './notice-view.ts'
 import {
@@ -514,5 +515,117 @@ describe('the note that takes the focus once one is forgotten (Codex P2 on #431)
 
   it('is none when no note is shown', () => {
     assert.equal(nextShown(ordered, 'n1', []), null)
+  })
+})
+
+describe('what changed since you last looked, in Sophia’s sentence on Home (home-since-you-looked.md)', () => {
+  const uuid = (n: number) => `00000000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`
+  /** A34's window after a seen mark, holding what `over` gives. */
+  const window = (over: Partial<Since> = {}): Since => ({
+    fromSequence: '3',
+    toSequence: '9',
+    more: false,
+    decided: [],
+    made: [],
+    noted: [],
+    open: [],
+    work: [],
+    names: {},
+    ...over,
+  })
+  const decided = (n: number) => ({
+    decisionId: uuid(n),
+    statement: `Decision ${String(n)}`,
+    proposedBy: null,
+    decidedBy: null,
+    at: null,
+    undoable: false,
+  })
+  const made = (n: number) => ({
+    artifactId: uuid(n),
+    artifactVersionId: uuid(n + 50),
+    title: `Report ${String(n)}`,
+    versionNumber: 1,
+    askedBy: null,
+  })
+  const noted = (n: number) => ({
+    entryId: uuid(n),
+    kind: 'observation',
+    text: `Note ${String(n)}`,
+    authoredBy: 'member' as const,
+    actorId: uuid(99),
+    at: '2026-09-30T18:00:00.000Z',
+  })
+  const quiet = [
+    project({ projectId: id(1), title: 'Launch plan' }),
+    project({ projectId: id(2), title: 'Research notes' }),
+    project({ projectId: id(3), title: 'Design review' }),
+  ]
+  const news = (...windows: [number, Since][]) => new Map(windows.map(([n, w]) => [id(n), w]))
+  const twoAndOne = window({ decided: [decided(1), decided(2)], made: [made(3)] })
+
+  it('a window of two decided and one made says so: the project strong, Open Updates going to its Updates', () => {
+    const said = sophiaSays(quiet, NOW, null, true, news([1, twoAndOne]))
+    assert.equal(plain(said), 'Since you last looked: 2 decisions and a new report in Launch plan. Open Updates')
+    assert.deepEqual(
+      said.filter((s) => s.strong).map((s) => s.text),
+      ['Launch plan'],
+    )
+    assert.deepEqual(
+      said.filter((s) => s.updates !== undefined).map((s) => [s.text, s.updates]),
+      [['Open Updates', id(1)]],
+    )
+  })
+
+  it('an empty window says nothing; nor one never marked seen, which is everything so far, nor proposals and work', () => {
+    assert.deepEqual(sophiaSays(quiet, NOW, null, true, news([1, window()])), [])
+    assert.deepEqual(sophiaSays(quiet, NOW, null, true, news([1, { ...twoAndOne, fromSequence: null }])), [])
+    const leftToUpdates = window({
+      open: [{ proposalId: uuid(7), statement: 'Move the review to Monday?' }],
+      work: [{ taskId: uuid(8), kind: 'research', state: 'running' }],
+    })
+    assert.deepEqual(sophiaSays(quiet, NOW, null, true, news([1, leftToUpdates])), [])
+    // A window for a project Home doesn't hold has nobody to name.
+    assert.deepEqual(sophiaSays(quiet, NOW, null, true, news([9, twoAndOne])), [])
+  })
+
+  it('the call, a session about to start and a live room come first: it never speaks over them', () => {
+    const windows = news([1, twoAndOne])
+    assert.equal(plain(sophiaSays(quiet, NOW, { title: 'Launch plan' }, true, windows)), 'You’re in Launch plan’s room.')
+    const soon = [...quiet, project({ projectId: id(4), title: 'Weekly standup', nextSession: session(10) })]
+    assert.equal(plain(sophiaSays(soon, NOW, null, true, windows)), 'Pitch run in Weekly standup starts in 10 min.')
+    const live = [...quiet, project({ projectId: id(5), title: 'Pitch deck', room: { people: ['Davide'], sophia: true } })]
+    assert.equal(plain(sophiaSays(live, NOW, null, true, windows)), 'Davide and Sophia are in Pitch deck.')
+    // Nothing while the projects load.
+    assert.deepEqual(sophiaSays(undefined, NOW, null, true, windows), [])
+  })
+
+  it('across projects: the counts are all of theirs, the one with the most is named, then how many more', () => {
+    const oneNote = window({ noted: [noted(4)] })
+    assert.equal(
+      plain(sophiaSays(quiet, NOW, null, true, news([2, oneNote], [3, twoAndOne]))),
+      'Since you last looked: 2 decisions, a new report and a note kept in Design review and 1 more project. Open Updates',
+    )
+    assert.equal(
+      plain(sophiaSays(quiet, NOW, null, true, news([1, oneNote], [2, oneNote], [3, oneNote]))),
+      'Since you last looked: 3 notes kept in Launch plan and 2 more projects. Open Updates',
+    )
+    // A tie goes to Work's order: the first row.
+    assert.equal(
+      sophiaSays(quiet, NOW, null, true, news([3, oneNote], [2, oneNote])).find((s) => s.updates)?.updates,
+      id(2),
+    )
+  })
+
+  it('says one of each in words, and that more lies after a window that holds only its first part', () => {
+    const one = window({ decided: [decided(1)], made: [made(2)], noted: [noted(3)] })
+    assert.equal(
+      plain(sophiaSays(quiet, NOW, null, true, news([1, one]))),
+      'Since you last looked: a decision, a new report and a note kept in Launch plan. Open Updates',
+    )
+    assert.equal(
+      plain(sophiaSays(quiet, NOW, null, true, news([1, { ...twoAndOne, more: true }]))),
+      'Since you last looked: 2 decisions, a new report and more in Launch plan. Open Updates',
+    )
   })
 })
