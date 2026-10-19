@@ -139,8 +139,9 @@ test('sound · put away with Not now, it stays away for that call; the next call
   await page.getByRole('link', { name: 'Studio' }).click()
   await expect(soundRegion(page)).toHaveCount(1)
   await expect(soundLine(page)).toHaveCount(0)
-  // The next call is another: said again.
+  // The next call is another: said again (past what the meeting left, which Leave opens).
   await leave(page).click()
+  await page.getByRole('dialog', { name: 'This meeting' }).getByRole('button', { name: 'Close', exact: true }).click()
   await page.getByRole('button', { name: /^Join the room/ }).click()
   await expect(soundLine(page)).toContainText(SOUND)
 })
