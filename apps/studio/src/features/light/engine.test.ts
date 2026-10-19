@@ -266,3 +266,41 @@ describe('her springs keep to the clock, however few frames draw them (orb-follo
     light.stop()
   })
 })
+
+/** Her light at work, lit. */
+function litAtWork() {
+  const at = paperLight('work', true)
+  framesFor(8, 60)
+  return at
+}
+
+/** The floor leaves one person for another across the room. */
+const pass = (light: LightEngine) => light.handoff({ x: 100, y: 500 }, { x: 700, y: 500 })
+
+describe('a result arriving while the floor travels blooms once it has landed (orb-follow-ups.md)', () => {
+  it('a result 0.5 s into the floor’s 1.6 s flight takes her past 1.03 after the landing', () => {
+    const { light, sizes } = litAtWork()
+    pass(light)
+    framesFor(0.5, 60)
+    workDone(light)
+    light.arrive()
+    framesFor(1.1, 60)
+    const landed = sizes.length
+    framesFor(1.6, 60)
+    assert.ok(largestFrom(sizes, landed) >= 1.03, `after the landing: ${String(largestFrom(sizes, landed))}`)
+    light.stop()
+  })
+
+  it('a floor that leaves 0.2 s into a bloom holds it, and it plays whole after the landing', () => {
+    const { light, sizes } = litAtWork()
+    workDone(light)
+    light.arrive()
+    framesFor(0.2, 60)
+    pass(light)
+    framesFor(1.6, 60)
+    const landed = sizes.length
+    framesFor(1.6, 60)
+    assert.ok(largestFrom(sizes, landed) >= 1.03, `after the landing: ${String(largestFrom(sizes, landed))}`)
+    light.stop()
+  })
+})
