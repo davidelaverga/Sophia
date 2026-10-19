@@ -1,7 +1,7 @@
 // How loud each voice in the call is now (docs/plans/voice-amplitude.md): read in this browser from the audio it already
 // receives, and nothing is sent anywhere. One AudioContext for the call, made beside LiveKit's own as the room connects
-// (or on the first read), an analyser per microphone track on the device check's scale (levelOf), let go when its person
-// leaves or the call ends.
+// (connectWithLevels; or on the first read), an analyser per microphone track on the device check's scale (levelOf),
+// let go when its person leaves or the call ends.
 // It never throws: what can't be read reads 0, and nothing moves.
 import { RoomEvent, Track, type Participant, type RemoteParticipant, type Room } from 'livekit-client'
 import { levelOf } from './device-check.ts'
@@ -134,4 +134,34 @@ export function voiceLevels(room: LevelRoom, makeTapper: () => Tapper = analyser
     wake,
     end,
   }
+}
+
+type ConnectingRoom = LevelRoom & Pick<Room, 'connect' | 'startAudio'>
+
+/**
+ * The room connected, with its voices' levels woken where LiveKit's own sound is: just before `connect`, which makes
+ * LiveKit's context, so what lets the room's sound play lets them run; and within Allow audio's press, before LiveKit's
+ * sound starts (Safari runs only a context made or resumed within a press, and LiveKit says the sound is allowed only
+ * after an await). A connection refused before it starts (a browser LiveKit can't run in) says no Disconnected, so the
+ * levels are let go here.
+ */
+export async function connectWithLevels(
+  room: ConnectingRoom,
+  serverUrl: string,
+  token: string,
+  makeTapper: () => Tapper = analyserTapper,
+) {
+  const { wake, end, ...levels } = voiceLevels(room, makeTapper)
+  wake()
+  try {
+    await room.connect(serverUrl, token)
+  } catch (err) {
+    end()
+    throw err
+  }
+  const startAudio = () => {
+    wake()
+    return room.startAudio()
+  }
+  return { levels, startAudio }
 }

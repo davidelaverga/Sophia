@@ -48,7 +48,7 @@ import { encodeReaction, REACTION_TOPIC, type ReactionEmoji } from './reactions.
 import { isSophia, listenToSophia } from './sophia-channel.ts'
 import { sophiaVoice } from './sophia-voice.ts'
 import type { SophiaSignal } from './sophia-view.ts'
-import { voiceLevels } from './voice-levels.ts'
+import { connectWithLevels } from './voice-levels.ts'
 
 // LiveKit logs every connection step at info level. A deployed Studio keeps warnings and errors in the
 // console; local development keeps the full trace.
@@ -441,28 +441,6 @@ function deviceControls(
       ),
     switchDevice: (kind, id) => after(switchTo(room, kind, id)),
   }
-}
-
-/**
- * The room connected, with the voices' levels (voice-levels.ts) woken where LiveKit's own sound is: just before
- * `connect`, which makes LiveKit's context, so what lets the room's sound play lets them run; and within Allow audio's
- * press, before LiveKit's sound starts (Safari runs only a context made or resumed within a press). A connection
- * refused before it starts (a browser LiveKit can't run in) says no Disconnected, so the levels are let go here.
- */
-async function connectWithLevels(room: Room, serverUrl: string, token: string) {
-  const { wake, end, ...levels } = voiceLevels(room)
-  wake()
-  try {
-    await room.connect(serverUrl, token)
-  } catch (err) {
-    end()
-    throw err
-  }
-  const startAudio = () => {
-    wake()
-    return room.startAudio()
-  }
-  return { levels, startAudio }
 }
 
 export async function connectRoom(serverUrl: string, token: string, cb: RoomCallbacks): Promise<RoomConnection> {
