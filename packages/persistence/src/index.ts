@@ -229,9 +229,12 @@ export {
 export {
   holdPersonalCompanion,
   personalCompanionAdmitted,
+  readPersonalSettledAnswer,
+  recordPersonalSettledReply,
   releasePersonalCompanion,
   reservePersonalCompanion,
   settlePersonalCompanion,
+  settlePersonalCompanionAnswer,
   type PersonalReservation,
   type PersonalUsageCounts,
 } from './personal-usage.ts'

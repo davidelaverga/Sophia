@@ -76,3 +76,41 @@ export async function personalCompanionAdmitted(
   )
   return onlyRow(rows, 'personal_companion_admitted').admitted
 }
+
+/**
+ * The call settles from its usage and its answer is kept for the turn it was asked for, both or neither (0078,
+ * 4319508047): kept only while that turn is pending under `claim` in the space's current epoch. True if it settled.
+ */
+export async function settlePersonalCompanionAnswer(
+  c: pg.PoolClient,
+  call: { callId: string; turnId: string; claim: string },
+  used: { micros: number; counts: PersonalUsageCounts },
+  answer: { text: string; suggestion: string | null },
+): Promise<boolean> {
+  const { rows } = await c.query<{ done: boolean }>(
+    'SELECT sophia.settle_personal_companion_answer($1, $2, $3, $4, $5, $6, $7) AS done',
+    [call.callId, call.turnId, call.claim, used.micros, JSON.stringify(used.counts), answer.text, answer.suggestion],
+  )
+  return onlyRow(rows, 'settle_personal_companion_answer').done
+}
+
+/** The answer kept for one of the owner's turns (0078), or null: read only. */
+export async function readPersonalSettledAnswer(
+  c: pg.PoolClient,
+  turnId: string,
+): Promise<{ text: string; suggestion: string | null } | null> {
+  const { rows } = await c.query<{ kept: { text: string; suggestion: string | null } | null }>(
+    'SELECT sophia.personal_settled_answer($1) AS kept',
+    [turnId],
+  )
+  return rows[0]?.kept ?? null
+}
+
+/** The turn's reply written from its kept answer under `claim`, the kept answer let go with it (0078); false if not. */
+export async function recordPersonalSettledReply(c: pg.PoolClient, turnId: string, claim: string): Promise<boolean> {
+  const { rows } = await c.query<{ receipt: unknown }>(
+    'SELECT sophia.record_personal_settled_reply($1, $2) AS receipt',
+    [turnId, claim],
+  )
+  return (rows[0]?.receipt ?? null) !== null
+}
