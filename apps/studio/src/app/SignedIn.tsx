@@ -14,6 +14,7 @@ import { snapshotKey } from '../features/studio/useProjectFeed.ts'
 import { AccountMenu } from './AccountMenu.tsx'
 import { forgetPersonalReads } from './account-cache.ts'
 import { accountOf } from './auth-callback.ts'
+import { oneCall } from './one-call.ts'
 import { OpeningPrepares } from './opening-prepares.ts'
 import type { Identity } from './dev-identity.ts'
 import { joinStands, projectOnScreen, shownView, type Place } from './route.ts'
@@ -41,46 +42,31 @@ interface SignedInProps {
  */
 type OnEnded = (call: ProjectCall, note: string | null, opened: string | null) => void
 
-/** A call being left because another project opened, kept while it ends: the call's project and the opened one. */
-interface LeftFor {
-  call: string
-  opened: string
-}
-
-/** The project whose opening ended `call`, read once: every end forgets it, so a later Leave never borrows it. */
-function takeOpened(leftFor: { current: LeftFor | null }, call: ProjectCall): string | null {
-  const left = leftFor.current
-  leftFor.current = null
-  return left?.call === call.projectId ? left.opened : null
-}
-
 /**
- * One call at a time, wherever the person is. A project whose room holds the call stays mounted when the person goes
- * home or to their personal space (out of sight, taking no keys), so the call goes on; the places' bar shows it. A call
- * starting in another project ends the one before, without a word: the person asked for the new one. `leaveFor` leaves
- * a call because another project opened, and its end says which (call-ends-on-open.md).
+ * One call at a time, wherever the person is (one-call.ts). A project whose room holds the call stays mounted when the
+ * person goes home or to their personal space (out of sight, taking no keys), so the call goes on; the places' bar
+ * shows it. A call starting in another project ends the one before, without a word: the person asked for the new one.
+ * `leaveFor` leaves a call because another project opened, and its end says which (call-ends-on-open.md).
  */
 function useCall(ended: RefObject<OnEnded | null>) {
   const [call, setCall] = useState<ProjectCall | null>(null)
-  const current = useRef<ProjectCall | null>(null)
-  const leftFor = useRef<LeftFor | null>(null)
+  const [one] = useState(() => oneCall<ProjectCall>())
   const report = useCallback(
     (projectId: string, next: ProjectCall | null, note: string | null = null) => {
-      const prev = current.current
-      if (!next && prev?.projectId !== projectId) return // a project without a call ends nobody's call
-      if (next && prev && prev.projectId !== projectId) void prev.leave()
-      current.current = next
+      const said = one.report(projectId, next)
+      if (!said) return
+      if (said.leave) void said.leave.leave()
       setCall(next)
-      if (next || !prev) return
-      const opened = takeOpened(leftFor, prev) // read before anyone is told, so it is forgotten either way
-      ended.current?.(prev, note, opened)
+      if (said.ended) ended.current?.(said.ended.call, note, said.ended.opened)
     },
-    [ended],
+    [ended, one],
   )
-  const leaveFor = useCallback((left: ProjectCall, opened: string) => {
-    leftFor.current = { call: left.projectId, opened }
-    void left.leave()
-  }, [])
+  const leaveFor = useCallback(
+    (left: ProjectCall, opened: string) => {
+      if (one.leaving(left, opened)) void left.leave()
+    },
+    [one],
+  )
   return [call, report, leaveFor] as const
 }
 
