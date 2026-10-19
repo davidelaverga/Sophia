@@ -192,23 +192,28 @@ type Store = Pick<Storage, 'length' | 'key' | 'removeItem'>
 /**
  * The device keeps only the draft of `account`, the one signed in; with nobody signed in (null), no draft of anyone's
  * stays. Storage is reached inside the guard: where even reaching it throws (storage blocked), nothing was kept, and
- * signing out goes on.
+ * signing out goes on. True when a draft went, so the sign-in says unsent words were cleared only when some were.
  */
-export function draftsOnlyOf(account: string | null, given?: Store): void {
+export function draftsOnlyOf(account: string | null, given?: Store): boolean {
+  let went = false
   try {
     const store = given ?? localStorage
     const kept = account === null ? null : draftKey(account)
     for (let i = store.length - 1; i >= 0; i -= 1) {
       const key = store.key(i)
-      if (key?.startsWith(FAMILY) && key !== kept) store.removeItem(key)
+      if (key?.startsWith(FAMILY) && key !== kept) {
+        store.removeItem(key)
+        went = true
+      }
     }
   } catch {
     // storage unavailable: nothing was kept
   }
+  return went
 }
 
-/** Signing out: no draft of anyone's stays on this device. */
-export const forgetDrafts = (given?: Store): void => draftsOnlyOf(null, given)
+/** Signing out: no draft of anyone's stays on this device. True when one went. */
+export const forgetDrafts = (given?: Store): boolean => draftsOnlyOf(null, given)
 
 /** Words that didn't go come back ahead of anything written meanwhile, so nothing typed is lost. */
 export const restoredDraft = (words: string, current: string): string =>

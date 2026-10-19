@@ -29,4 +29,19 @@ describe('signing out forgets the views’ unsent words (Codex P1 on #366)', () 
     assert.deepEqual(JSON.parse(store.getItem('sophia.viewer.v1.bea.p2') ?? ''), { lens: 'converse', drafts: {} })
     assert.equal(store.getItem('sophia.theme'), 'dark')
   })
+
+  it('says whether any view held unsent words, so the sign-in says they were cleared only when some were', () => {
+    const held = memoryStorage({
+      'sophia.viewer.v1.ana.p1': JSON.stringify({ lens: 'build', drafts: { build: 'secret plan' } }),
+    })
+    assert.equal(forgetViewerDrafts(held), true)
+    // Forgotten once, nothing is left to forget.
+    assert.equal(forgetViewerDrafts(held), false)
+    const empty = memoryStorage({
+      'sophia.viewer.v1.bea.p2': JSON.stringify({ lens: 'converse', drafts: {} }),
+      'sophia.theme': 'dark',
+    })
+    assert.equal(forgetViewerDrafts(empty), false)
+    assert.deepEqual(JSON.parse(empty.getItem('sophia.viewer.v1.bea.p2') ?? ''), { lens: 'converse', drafts: {} })
+  })
 })
