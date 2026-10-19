@@ -35,6 +35,9 @@ interface PortsDeps {
 
 export function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => void } {
   let refresh: ReturnType<typeof setTimeout> | undefined
+  // A project event since the last refresh (archive-project.md: project.archived / project.unarchived; the fixture's
+  // project.updated). Room, chat and lobby events leave the archived list alone: its read asks LiveKit for rooms.
+  let archiveDue = false
   const current = () => {
     if (!deps.feed.current) throw new Error('feed loop started before the first snapshot')
     return deps.feed.current
@@ -42,6 +45,7 @@ export function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => v
   const ports: FeedPorts = {
     current,
     apply: (frame) => {
+      if (frame.type.startsWith('project.')) archiveDue = true
       const next = applyFrame(current(), frame)
       deps.store(next)
       return next
@@ -62,8 +66,9 @@ export function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => v
       clearTimeout(refresh)
       refresh = setTimeout(() => {
         void deps.queryClient.invalidateQueries({ queryKey: deps.key, exact: true })
-        // An archive or an unarchive elsewhere is an event too (archive-project.md): the archived list (Archive.tsx's
-        // archivedKey) is read again with the snapshot. Any event does it, as the fixture's carry no type.
+        if (!archiveDue) return
+        archiveDue = false
+        // An archive or an unarchive elsewhere: the archived list (Archive.tsx's archivedKey) is read with the snapshot.
         void deps.queryClient.invalidateQueries({ queryKey: ['projects', deps.identity, 'archived'], exact: true })
       }, REFRESH_DEBOUNCE_MS)
     },
