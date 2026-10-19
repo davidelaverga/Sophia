@@ -25,9 +25,11 @@
 - **A feed is a person's camera or screen while it is on** (`feeds()`): each feed is read from the people
   `others()` lists, a camera where `cameraOn`, a screen where `screenOn`. A camera turned off or a screen stopped
   leaves the stage, as LiveKit's unpublish does, and so do the feeds of someone removed from the call. What the
-  address asks is unchanged: `person()` already says who has which on. The one difference past the brief: a
-  `screenBy` past the number of people now shows no screen, where it showed a screen with no one behind it. No spec
-  asks for one (`camera-flip` and `room-tiles` use `screenBy=8` with nine people).
+  address asks is unchanged: `person()` already says who has which on. Two differences past the brief, both toward
+  what LiveKit does: a person who leaves (`window.fixture.leaves`) takes their shared screen with them, as they
+  already took their camera; and a `screenBy` past the number of people shows no screen, where it showed one with no
+  one behind it. No spec leans on either (`room-pin-fullscreen`'s leaver has a camera; `camera-flip` and
+  `room-tiles` use `screenBy=8` with nine people).
 - **`addressOf` is the one builder.** The conversation's «Copy link» copies `addressOf(c.id, CONVERSATION)`, and
   `conversationLink` goes. Nothing on screen changes.
 
