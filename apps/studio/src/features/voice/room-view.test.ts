@@ -321,16 +321,26 @@ describe('a result arriving (docs/plans/orb-result.md)', () => {
 describe('a join asked from elsewhere (Work’s Join the room, a toast’s Rejoin)', () => {
   it('waits while the project loads', () => {
     for (const status of ['idle', 'joining', 'live', 'reconnecting', 'failed'] as const) {
-      assert.equal(askedJoin(status, false), 'wait')
+      assert.equal(askedJoin(status, false, true), 'wait')
     }
   })
 
   it('joins a room out of the call, after a failed join too, as Try again would', () => {
-    assert.equal(askedJoin('idle', true), 'join')
-    assert.equal(askedJoin('failed', true), 'join')
+    for (const online of [true, false]) {
+      assert.equal(askedJoin('idle', true, online), 'join')
+      assert.equal(askedJoin('failed', true, online), 'join')
+    }
   })
 
   it('is answered by a call the person is in or on the way into, so nothing joins later on its own', () => {
-    for (const status of ['joining', 'live', 'reconnecting'] as const) assert.equal(askedJoin(status, true), 'answered')
+    for (const online of [true, false]) {
+      for (const status of ['joining', 'live', 'reconnecting'] as const) {
+        assert.equal(askedJoin(status, true, online), 'answered')
+      }
+    }
+  })
+
+  it('offline, joins at once though the project hasn’t loaded: that join says offline, and none waits for the network', () => {
+    assert.equal(askedJoin('idle', false, false), 'join')
   })
 })

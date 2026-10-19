@@ -27,6 +27,7 @@ import { sendingOf } from '../voice/CallSwitches.tsx'
 import { MiniDock, RoomSwitches } from '../voice/MiniDock.tsx'
 import { CallInReach } from '../../app/call-in-reach.tsx'
 import { askedJoin, shortName } from '../voice/room-view.ts'
+import { useOnline } from '../personal/online.ts'
 import { lookingText } from '../voice/sophia-view.ts'
 import { useHeldCaptions } from '../voice/StageCaptions.tsx'
 import { useStageMade } from '../voice/StageMade.tsx'
@@ -239,16 +240,18 @@ function useReportCall(
 
 /**
  * "Join the room" from Work, or a toast's Rejoin: once the project has loaded and the room can be joined, join it,
- * once. A tick after the shell's effects, not during them: a project already read can join on its first effects, and
- * a remount at once (React's strict mode, in development) would end that join as the room unmounts (useRoomConnection),
- * leaving «Joining…» (call-ends-on-open.md). A call already there answers it (askedJoin): the person joined it
- * themselves before pressing Rejoin.
+ * once. Offline, at once: that join says offline and asks for nothing, and none waits to join on its own once the
+ * network is back (askedJoin). A tick after the shell's effects, not during them: a project already read can join on
+ * its first effects, and a remount at once (React's strict mode, in development) would end that join as the room
+ * unmounts (useRoomConnection), leaving «Joining…» (call-ends-on-open.md). A call already there answers it
+ * (askedJoin): the person joined it themselves before pressing Rejoin.
  */
 function useJoinOnOpen(room: ProjectRoom, joinOnOpen: boolean, onHandled: (() => void) | undefined) {
   const done = useRef(false)
+  const online = useOnline()
   useEffect(() => {
     if (!joinOnOpen || done.current) return undefined
-    const asked = askedJoin(room.status, room.ready)
+    const asked = askedJoin(room.status, room.ready, online)
     if (asked === 'answered') {
       done.current = true
       onHandled?.()
@@ -260,7 +263,7 @@ function useJoinOnOpen(room: ProjectRoom, joinOnOpen: boolean, onHandled: (() =>
       onHandled?.()
     }, 0)
     return () => clearTimeout(settled)
-  }, [joinOnOpen, room, onHandled])
+  }, [joinOnOpen, room, onHandled, online])
 }
 
 /**

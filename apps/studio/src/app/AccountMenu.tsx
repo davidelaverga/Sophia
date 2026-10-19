@@ -18,7 +18,8 @@ import { signedInWith } from './profile.ts'
 import { type Theme, useTheme } from './theme.ts'
 import { reportsOn } from './crash-report.ts'
 import { FeedbackSheet } from './FeedbackSheet.tsx'
-import { SettingsSheet } from './SettingsSheet.tsx'
+import { type Handover, SettingsSheet } from './SettingsSheet.tsx'
+import { closingEveryDialog } from './useDialog.ts'
 import { useMyProfile } from './useMyProfile.ts'
 
 export interface AccountActions {
@@ -134,7 +135,14 @@ function AccountSheet(props: {
   onSheet: (sheet: SheetName) => void
 }) {
   const { which, actions, onSheet } = props
+  // The sheet Settings handed over to: closed, it gives Settings back, at the press that opened it (CONTRIBUTING.md, one
+  // sheet at a time; Codex P2 on #398). It lasts while a sheet is open, so one the menu opens has none.
+  const [handed, setHanded] = useState<Handover | null>(null)
   const close = () => onSheet(null)
+  const handOver = (to: Handover) => () => {
+    setHanded(to)
+    onSheet(to)
+  }
   // «Your name», only for the account it was opened for, keyed by it (Codex P1 on #388).
   if (which.startsWith('name:')) {
     const account = which.slice('name:'.length)
@@ -142,8 +150,10 @@ function AccountSheet(props: {
       <ProfileSheet key={account} identity={props.identity} onClose={close} />
     ) : null
   }
-  if (which === 'passkeys') return <PasskeySheet onClose={close} />
-  if (which === 'feedback') return <FeedbackSheet onClose={close} />
+  // Put away with every sheet (Open on the recap, for a report), it gives nothing back: Settings would cover the report.
+  const closeHanded = handed === which ? () => onSheet(closingEveryDialog() ? null : 'settings') : close
+  if (which === 'passkeys') return <PasskeySheet onClose={closeHanded} />
+  if (which === 'feedback') return <FeedbackSheet onClose={closeHanded} />
   const leaveFor = (run: () => void) => () => {
     close()
     run()
@@ -154,10 +164,11 @@ function AccountSheet(props: {
       onData={leaveFor(actions.data)}
       onPrivacy={leaveFor(actions.privacy)}
       onSignOutEverywhere={leaveFor(actions.signOutEverywhere)}
-      onPasskeys={() => onSheet('passkeys')}
-      onFeedback={() => onSheet('feedback')}
+      onPasskeys={handOver('passkeys')}
+      onFeedback={handOver('feedback')}
       onShortcuts={leaveFor(() => askCommands('index'))}
       onClose={close}
+      back={handed}
     />
   )
 }

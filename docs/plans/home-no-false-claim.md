@@ -67,3 +67,9 @@
   project with Open Updates. Both are left for the next step (see the handoff).
 - `docs/plans/home-welcome.md` still lists the old sentence. It is the record of that design, and this note
   supersedes that line.
+
+## Decided (2026-10-19)
+
+- **Home keeps the held empty line under the greeting** when Sophia has nothing to say (Luis 2026-10-19: «Pon tus
+  sugerencias a esas preguntas»). It is where «Since you last looked…» appears (`home-since-you-looked.md`), and
+  nothing below it moves. No code changes.
