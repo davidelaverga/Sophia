@@ -12,7 +12,16 @@ import { EMAIL_NOT_CONFIRMED, FIRST_EMAIL_NOT_CONFIRMED } from '../../app/auth-w
 import { useDocumentTitle } from '../../app/document-title.ts'
 import { devIdentities, type Identity } from '../../app/dev-identity.ts'
 import { Centered, CodeForm, HomeLink, LegalLine, sendInTime, SlowNote } from '../../app/SignIn.tsx'
-import { askAgainIn, clock, countdown, freshJoinToken, readJoinToken, sessionLabel } from './access-view.ts'
+import {
+  askAgainIn,
+  clock,
+  countdown,
+  DOOR_CLOSED,
+  freshJoinToken,
+  readJoinToken,
+  sessionLabel,
+  withoutToken,
+} from './access-view.ts'
 import { GuestRoom, VisitEnd } from './GuestRoom.tsx'
 import { useNow } from '../../app/use-now.ts'
 import { rememberWelcome } from './welcome.ts'
@@ -65,7 +74,7 @@ export function JoinFlow({ auth, onChooseDev, onSignOut, onOpenProject }: Props)
     enabled: !!token,
     retry: false,
   })
-  if (!token) return <MissingToken signedIn={auth.status === 'signed_in'} />
+  if (!token) return <MissingToken auth={auth} />
   if (preview.isPending) {
     return (
       <Centered title="Opening the room…" busy>
@@ -94,19 +103,19 @@ export function JoinFlow({ auth, onChooseDev, onSignOut, onOpenProject }: Props)
 
 function Closed({ text }: { text: string }) {
   return (
-    <Centered title="This door is closed">
+    <Centered title={DOOR_CLOSED}>
       <p>{text}</p>
       <HomeLink />
     </Centered>
   )
 }
 
-/** A signed-in person without a token most likely came back from the sign-in email in another tab. */
-function MissingToken({ signedIn }: { signedIn: boolean }) {
-  if (!signedIn) return <Closed text="This link is incomplete. Ask for the whole link, or a new one." />
+/** No token on this device: what that most likely means, by who is in, and the way on (`withoutToken`). */
+function MissingToken({ auth }: { auth: AuthState }) {
+  const { title, text } = withoutToken(auth)
   return (
-    <Centered title="You’re signed in">
-      <p>To accept the invitation, open the invitation email again and use its link.</p>
+    <Centered title={title}>
+      <p>{text}</p>
       <HomeLink />
     </Centered>
   )

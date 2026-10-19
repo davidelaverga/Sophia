@@ -51,6 +51,13 @@ describe('drafts on this device', () => {
     draftsOnlyOf('ana', s)
     assert.deepEqual(s.held, [draftKey('ana'), 'sophia.mic.v1'])
   })
+
+  it('say whether any went, so the sign-in says unsent words were cleared only when some were', () => {
+    assert.equal(draftsOnlyOf(null, store([draftKey('ana'), 'sophia.mic.v1'])), true)
+    assert.equal(draftsOnlyOf(null, store(['sophia.mic.v1', 'sophia.personal.lock.v1.ana@sophia.test'])), false)
+    assert.equal(draftsOnlyOf('ana', store([draftKey('ana')])), false)
+    assert.equal(forgetDrafts(store([])), false)
+  })
 })
 
 describe('a draft and the erasures since it was written', () => {
@@ -208,5 +215,6 @@ describe('signing out where the browser keeps nothing', () => {
   it('never throws: a page without storage still signs out', () => {
     // Node has no localStorage: reaching it throws, as it does in a browser that blocks storage.
     assert.doesNotThrow(() => forgetDrafts())
+    assert.equal(forgetDrafts(), false)
   })
 })

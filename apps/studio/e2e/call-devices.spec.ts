@@ -7,6 +7,18 @@ import { expect, test, type Page } from '@playwright/test'
 const dock = (page: Page) => page.getByRole('navigation', { name: 'Room controls' })
 const asked = (page: Page) => page.evaluate(() => [...(window.fixture?.asked ?? [])])
 const menu = (page: Page, name: string) => page.getByRole('menu', { name })
+/** A box's middle, down the page: two controls on one line share it. */
+const middle = (b: { y: number; height: number } | null) => Math.round((b?.y ?? 0) + (b?.height ?? 0) / 2)
+/** Once the dock has risen (its arrival moves it 8 px), so boxes are read at rest. */
+const atRest = (page: Page) =>
+  page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished),
+    ),
+  )
 
 test.beforeEach(async ({ page }) => {
   await page.route(
@@ -122,15 +134,7 @@ test('@phone · devices · before joining, the check beside Join is a finger-siz
   await page.goto('/room.html')
   const check = dock(page).getByRole('button', { name: 'Check audio and video', exact: true })
   await expect(check).toBeVisible()
-  // Once the dock has risen (its arrival moves it 8 px), so both boxes are read at rest.
-  await page.evaluate(() =>
-    Promise.all(
-      document
-        .getAnimations()
-        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
-        .map((a) => a.finished),
-    ),
-  )
+  await atRest(page)
   const c = await check.boundingBox()
   const j = await dock(page)
     .getByRole('button', { name: /^Join the room/ })
@@ -138,6 +142,25 @@ test('@phone · devices · before joining, the check beside Join is a finger-siz
   expect(Math.round(c?.width ?? 0), 'its width').toBe(42)
   expect(Math.round(c?.height ?? 0), 'its height').toBe(42)
   expect(Math.round(c?.y ?? 0), 'on Join’s row').toBe(Math.round(j?.y ?? -1))
+})
+
+// Turned sideways a phone is wider than its portrait layout, and still a touch screen: the dock is a computer's, and the
+// check beside Join a finger's size as Join is (Codex P2 on #434).
+test('@phone · devices · turned sideways, the check beside Join is still a finger’s size, on Join’s line', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 844, height: 390 })
+  await page.goto('/room.html')
+  const check = dock(page).getByRole('button', { name: 'Check audio and video', exact: true })
+  await expect(check).toBeVisible()
+  await atRest(page)
+  const c = await check.boundingBox()
+  const j = await dock(page)
+    .getByRole('button', { name: /^Join the room/ })
+    .boundingBox()
+  expect(Math.round(c?.width ?? 0), 'its width').toBeGreaterThanOrEqual(40)
+  expect(Math.round(c?.height ?? 0), 'its height').toBeGreaterThanOrEqual(40)
+  expect(middle(c), 'on Join’s line').toBe(middle(j))
 })
 
 test('@phone · devices · before joining, the check stands beside Join and chooses the camera the call opens with', async ({
