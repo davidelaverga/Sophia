@@ -34,7 +34,7 @@ import { showRenderOf } from '../voice/StagePresent.tsx'
 import { ProjectSearch, SearchButton } from '../search/SearchSheet.tsx'
 import { VIEW_LABEL } from './ViewNav.tsx'
 import { useCatchUp } from '../voice/CatchUp.tsx'
-import { CameWhileAway, useUnseenWhileHidden } from '../conversation/unread-title.ts'
+import { CameWhileAway, useUnseenWhileHidden, type Reads } from '../conversation/unread-title.ts'
 import { openAcross } from '../work/planning/decision-alert.ts'
 import { useDecisionAlert } from '../work/planning/useDecisionAlert.ts'
 import { MeetingRecapOnLeave } from '../voice/MeetingRecap.tsx'
@@ -92,10 +92,11 @@ function useLeaveBehindClosedDoor(blocked: Blocked | null, room: ProjectRoom) {
  * The tab names the project and counts what waits: who is at its door, the messages written in the room while the tab
  * was hidden (unread-title.md), and what waits on this person (`mine`): the requests in their tools and the decisions on
  * the board (decision-alert.md), so a tab in the background still calls. Shown again, the messages it counted are what
- * came while the person was away, for the room's chat to mark (messages-while-away.md).
+ * came while the person was away, for the room's chat to mark, with what the snapshot read again then brings
+ * (messages-while-away.md).
  */
-function useTabTitle(snapshot: Snapshot | undefined, me: string | null, mine = 0) {
-  const { count, whileAway } = useUnseenWhileHidden(snapshot?.discussion, me)
+function useTabTitle(snapshot: Snapshot | undefined, me: string | null, mine = 0, reads?: Reads) {
+  const { count, whileAway } = useUnseenWhileHidden(snapshot?.discussion, me, reads)
   const waiting = (snapshot?.lobby.filter((e) => e.status === 'waiting').length ?? 0) + mine + count
   useDocumentTitle(snapshot ? projectTitle(snapshot.title, waiting) : null)
   return whileAway
@@ -266,12 +267,13 @@ function useBeyondTheView(
   snapshot: Snapshot | undefined,
   room: ProjectRoom,
   blocked: Blocked | null,
-  viewer: { me: string | null; plans: ServedWork['plans'] },
+  viewer: { me: string | null; plans: ServedWork['plans']; reads: Reads },
 ) {
   useLeaveBehindClosedDoor(blocked, room)
   const shown = props.background ? undefined : snapshot
   const decisions = useDecisionsWaiting(shown, viewer.plans, props.projectId)
-  const whileAway = useTabTitle(shown, viewer.me, (props.resourcesWaiting ?? 0) + decisions)
+  const reads = props.background ? undefined : viewer.reads
+  const whileAway = useTabTitle(shown, viewer.me, (props.resourcesWaiting ?? 0) + decisions, reads)
   const looking = lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))
   useReportCall(props.projectId, snapshot?.title, room, looking, props.onCall)
   useJoinOnOpen(room, props.joinOnOpen ?? false, props.onJoinHandled)
@@ -498,7 +500,7 @@ export function ProjectShell(props: Props) {
   const { loaded, blocked, shown } = doorOf(snapshot)
   const dockAt = useDockPlace(room, snapshot.data, () => onShow('studio'), dockShown(view, blocked))
   const work = useTasksWork(props, feed, membership, blocked, searching)
-  const viewer = { me: membership?.actorId ?? null, plans: work.plans }
+  const viewer = { me: membership?.actorId ?? null, plans: work.plans, reads: snapshot }
   const whileAway = useBeyondTheView(props, snapshot.data, room, blocked, viewer)
   const at = { view, inviting, mayInvite: !!shown && canInvite(membership), shown: !!shown, blocked: !!blocked }
   useProjectKeys({ onLeave, onWork, invite, search, show: onShow }, at)

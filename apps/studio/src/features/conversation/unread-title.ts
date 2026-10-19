@@ -1,7 +1,8 @@
 // The room's messages that came while the tab was hidden (docs/plans/unread-title.md): typed ones, never the viewer's
 // own. The tab shown again, all are seen. Each is counted as it comes, so one that rolls out of the snapshot's latest 50
 // still counts, and the number never goes down while the tab is hidden (Codex P2 on #418). Shown again, what was counted
-// is kept as what came while the person was away, for the room's chat to mark (docs/plans/messages-while-away.md).
+// is kept as what came while the person was away, for the room's chat to mark (docs/plans/messages-while-away.md), with
+// what the snapshot read as the tab is shown brings: a frozen page's feed comes late.
 import { createContext, useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import type { DiscussionEntry } from '@sophia/contracts'
 
@@ -125,15 +126,48 @@ export interface WhileAway {
 /** The project's shell hands what came while away to the room's chat (WhileAway.tsx); outside a project, nothing. */
 export const CameWhileAway = createContext<WhileAway | null>(null)
 
-/** Whether the page is hidden, followed as it changes. */
-function useHidden(): boolean {
-  const [hidden, setHidden] = useState(() => document.hidden)
+/** The shell's query of the snapshot, as far as this reads it: read again, and when it was last read. */
+export interface Reads {
+  refetch: () => Promise<unknown>
+  dataUpdatedAt: number
+}
+
+/** How long the read made as the tab is shown again is waited for: what it hasn't brought by then is seen. */
+const CATCH_UP_MS = 5000
+
+/** Whether the page is hidden; and the moment it was shown again, while the snapshot is read once more. */
+interface Visibility {
+  hidden: boolean
+  back: number | null
+}
+
+/**
+ * Whether the page is hidden, followed as it changes. Shown again, the snapshot is read once more (`again`): a phone's
+ * frozen page or a woken laptop gets the feed's events only after the tab is shown. `back` is when, given up after
+ * CATCH_UP_MS; without `again` (the shell in the background), shown is shown.
+ */
+function useVisibility(again: (() => Promise<unknown>) | undefined): Visibility {
+  const [now, setNow] = useState<Visibility>(() => ({ hidden: document.hidden, back: null }))
+  const catches = again !== undefined
   useEffect(() => {
-    const follow = () => setHidden(document.hidden)
+    const follow = () => {
+      const at = Date.now()
+      setNow((was) => {
+        if (document.hidden) return { hidden: true, back: null }
+        return was.hidden ? { hidden: false, back: catches ? at : null } : was
+      })
+    }
     document.addEventListener('visibilitychange', follow)
     return () => document.removeEventListener('visibilitychange', follow)
-  }, [])
-  return hidden
+  }, [catches])
+  const { back } = now
+  useEffect(() => {
+    if (back === null || !again) return undefined
+    void again()
+    const cap = setTimeout(() => setNow((was) => (was.back === back ? { ...was, back: null } : was)), CATCH_UP_MS)
+    return () => clearTimeout(cap)
+  }, [back, again])
+  return now
 }
 
 /** What came while away, with what ends its line (`reach`) and all of it (`sent`): the same object while it stands. */
@@ -153,15 +187,22 @@ function useWhileAway(away: Away | null, setUnseen: Dispatch<SetStateAction<Unse
 
 /**
  * How many messages came while the tab is hidden, for its title; and, shown again, what came while away, kept past a
- * visit to another view until its divider is reached or the person sends something. A reload starts with nothing.
+ * visit to another view until its divider is reached or the person sends something. Shown again, still counted until
+ * the snapshot has been read since, and what that read brings with it. A reload starts with nothing.
  */
-export function useUnseenWhileHidden(entries: readonly DiscussionEntry[] | undefined, me: string | null) {
-  const hidden = useHidden()
+export function useUnseenWhileHidden(
+  entries: readonly DiscussionEntry[] | undefined,
+  me: string | null,
+  reads?: Reads,
+) {
+  const { hidden, back } = useVisibility(reads?.refetch)
+  // Whichever read lands first after the tab is shown, its own or the feed's, ends the absence with what it brings.
+  const catching = back !== null && (reads?.dataUpdatedAt ?? 0) < back
   const [unseen, setUnseen] = useState<Unseen | null>(null)
   useEffect(() => {
     if (!entries) return // the shell in the background reads no discussion
-    setUnseen((was) => nextUnseen(was, entries, hidden, me))
-  }, [entries, hidden, me])
+    setUnseen((was) => nextUnseen(was, entries, hidden || catching, me))
+  }, [entries, hidden, catching, me])
   const count = hidden && entries && unseen ? withUnseen(unseen.counted, entries, unseen.seen, me).size : 0
   return { count, whileAway: useWhileAway(unseen?.away ?? null, setUnseen) }
 }
