@@ -25,6 +25,7 @@ const historyStart = (cursor: string) => (BigInt(cursor) > HISTORY ? (BigInt(cur
 interface PortsDeps {
   token: string
   projectId: string
+  identity: string
   key: readonly unknown[]
   queryClient: QueryClient
   feed: { current: Feed | null }
@@ -59,10 +60,12 @@ function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => void } {
     },
     eventApplied: () => {
       clearTimeout(refresh)
-      refresh = setTimeout(
-        () => void deps.queryClient.invalidateQueries({ queryKey: deps.key, exact: true }),
-        REFRESH_DEBOUNCE_MS,
-      )
+      refresh = setTimeout(() => {
+        void deps.queryClient.invalidateQueries({ queryKey: deps.key, exact: true })
+        // An archive or an unarchive elsewhere is an event too (archive-project.md): the archived list (Archive.tsx's
+        // archivedKey) is read again with the snapshot. Any event does it, as the fixture's carry no type.
+        void deps.queryClient.invalidateQueries({ queryKey: ['projects', deps.identity, 'archived'], exact: true })
+      }, REFRESH_DEBOUNCE_MS)
     },
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   }
@@ -100,13 +103,22 @@ export function useProjectFeed(projectId: string, identity: string, token: strin
   useEffect(() => {
     if (!ready) return undefined
     const stop = new AbortController()
-    const { ports, dispose } = feedPorts({ token, projectId, key, queryClient, feed: feedRef, store, setConnection })
+    const { ports, dispose } = feedPorts({
+      token,
+      projectId,
+      identity,
+      key,
+      queryClient,
+      feed: feedRef,
+      store,
+      setConnection,
+    })
     void runFeedLoop(ports, stop.signal)
     return () => {
       stop.abort()
       dispose()
     }
-  }, [ready, token, projectId, key, queryClient, store])
+  }, [ready, token, projectId, identity, key, queryClient, store])
 
   return { snapshot, feed, connection }
 }
