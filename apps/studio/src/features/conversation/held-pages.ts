@@ -8,8 +8,15 @@ import type { DiscussionEntry, DiscussionPage, WithdrawnEntry } from '@sophia/co
 import { getDiscussionPage } from '../../api/client.ts'
 import { inOrder } from './message-acts.ts'
 
-/** The events that change a message's words: a correction or a withdrawal (A36). */
-export const ACTS: ReadonlySet<string> = new Set(['contribution.corrected', 'contribution.withdrawn'])
+/**
+ * The events that change what a held message shows: a correction or a withdrawal (A36), and its recipients named again
+ * at the same revision (A37's contribution.mentioned: no new words, a new mention; 4309755040).
+ */
+export const ACTS: ReadonlySet<string> = new Set([
+  'contribution.corrected',
+  'contribution.withdrawn',
+  'contribution.mentioned',
+])
 
 /** The messages changed elsewhere, each with the order it was learned in, and how many times the feed resynced. */
 export interface Changes {

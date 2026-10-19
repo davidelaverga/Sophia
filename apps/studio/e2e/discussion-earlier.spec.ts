@@ -348,3 +348,16 @@ test('earlier · a manual «Earlier messages» read that lands after the pages w
   await expect(page.getByText('Message 11', { exact: true })).toHaveCount(0)
   await expect(earlier(page)).toBeVisible()
 })
+
+// 4309755040: a held message, older than the newest 50, named again at the same revision (contribution.mentioned, no
+// new words) shows its new mention after its page is read again.
+test('earlier · a held message that comes to mention me, its words and revision unchanged, shows the mention (4309755040)', async ({
+  page,
+}) => {
+  await heldEarlier(page)
+  const target = (await items(page).nth(2).getAttribute('data-message')) ?? ''
+  await expect(page.locator(`[data-message="${target}"] .contribution-mentions`)).toHaveCount(0)
+  await page.evaluate(() => window.fixture?.mentionMeIn(2))
+  await expect(page.locator(`[data-message="${target}"] .contribution-mentions`)).toHaveText('to you')
+  await expect(page.locator(`[data-message="${target}"] .contribution-text`)).toHaveText('Message 3')
+})

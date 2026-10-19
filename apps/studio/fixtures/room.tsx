@@ -1201,6 +1201,12 @@ window.fixture = {
     const said = typeof m === 'string' ? { text: m } : m
     if (said.mentions?.includes(ME)) return
     project.messages[n] = { ...said, id: idOf(m, n), mentions: [ME], occurrence: (said.occurrence ?? 0) + 1 }
+    // As the API does (0069): the event names the message, at its revision unchanged (4309755040).
+    eventEntities.set(project.revision + 1, {
+      type: 'contribution.mentioned',
+      entityType: 'contribution',
+      entityId: idOf(m, n),
+    })
     publish(project)
   },
   reviseMessage: (n, text) => {
