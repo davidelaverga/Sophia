@@ -895,7 +895,7 @@ test('mentions · another tab shuts the padlock (device storage): the read is fo
 })
 
 /** The members read from here on: as served, without Marco, or failing; and how many reads the page sent. */
-async function membersAs(page: Page, as: 'served' | 'withoutMarco' | 'failing') {
+async function membersAs(page: Page, as: 'served' | 'withoutMarco' | 'failing' | 'marcoRenamed') {
   await page.evaluate(
     ({ mode, marco }) => {
       const w = window as Window & { membersAs?: string; membersReads?: number; membersInner?: typeof fetch }
@@ -906,6 +906,16 @@ async function membersAs(page: Page, as: 'served' | 'withoutMarco' | 'failing') 
         body && typeof body === 'object' && 'members' in body && Array.isArray(body.members)
           ? { ...body, members: body.members.filter((m: unknown) => !isMarco(m)) }
           : body
+      // The same member under a new name: what they are called changes, never who they are.
+      const marcoRenamed = (body: unknown) =>
+        body && typeof body === 'object' && 'members' in body && Array.isArray(body.members)
+          ? {
+              ...body,
+              members: body.members.map((m: unknown) =>
+                isMarco(m) && typeof m === 'object' ? { ...m, name: 'Marco Rossi' } : m,
+              ),
+            }
+          : body
       const inner = window.fetch
       w.membersInner = inner
       w.membersReads = 0
@@ -915,8 +925,9 @@ async function membersAs(page: Page, as: 'served' | 'withoutMarco' | 'failing') 
         w.membersReads = (w.membersReads ?? 0) + 1
         if (w.membersAs === 'failing') return new Response('{}', { status: 503 })
         const res = await inner(input, init)
-        if (w.membersAs !== 'withoutMarco') return res
-        return new Response(JSON.stringify(withoutMarco(await res.json())), {
+        if (w.membersAs !== 'withoutMarco' && w.membersAs !== 'marcoRenamed') return res
+        const body: unknown = await res.json()
+        return new Response(JSON.stringify(w.membersAs === 'withoutMarco' ? withoutMarco(body) : marcoRenamed(body)), {
           status: res.status,
           headers: res.headers,
         })
@@ -977,6 +988,25 @@ test('mentions · chosen, then removed by a successful read and back: not named 
   await expect(line(page, 'SYNTHETIC words for Marco, chosen again').locator('.contribution-mentions')).toHaveText(
     'to Marco',
   )
+  expect(await served(page)).toContain(`mentions:${MARCO}`)
+})
+
+test('mentions · a member renamed by a successful read stays chosen and is named under the new name (4311940162)', async ({
+  page,
+}) => {
+  await page.clock.install()
+  await enter(page)
+  await membersAs(page, 'served')
+  await page.getByRole('button', { name: 'Mention' }).click()
+  const options = page.getByRole('group', { name: /Mention members/ })
+  await options.getByRole('checkbox', { name: 'Marco' }).check()
+  await page.getByRole('button', { name: 'Done' }).click()
+  await membersAs(page, 'marcoRenamed')
+  await membersReadAgain(page, 1)
+  await expect(page.getByText('Mentions Marco Rossi')).toBeVisible()
+  await bar(page).fill('SYNTHETIC words for Marco under his new name')
+  await bar(page).press('Enter')
+  await expect(line(page, 'SYNTHETIC words for Marco under his new name')).toBeVisible()
   expect(await served(page)).toContain(`mentions:${MARCO}`)
 })
 
