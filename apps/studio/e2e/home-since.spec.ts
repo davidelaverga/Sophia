@@ -162,6 +162,31 @@ test('home · a call ended out of Home whose read failed is read again once onli
   await expect(news(page)).toHaveText('')
 })
 
+test('home · a call’s project Home doesn’t show, whose read failed, is read as Home is arrived at; what came after is said once shown', async ({
+  page,
+}) => {
+  // Product launch, fourth, isn't among Home's rows. Its call ends out of Home and the read after it fails, while the
+  // browser stays online: no `online` comes.
+  const productLaunch = async () => (await reads(page)).filter((p) => p === id(4))
+  await page.goto(`${QUIET}&since=some&call=${id(4)}&sinceFail=1&away=1`)
+  await page.evaluate(() => window.homeFixture?.hangUp())
+  await expect.poll(() => reads(page)).toEqual([id(4)])
+  // The service is back. Arriving on Home reads it once more, beside Home's own rows; the next arrival reads it no more.
+  await page.getByRole('button', { name: 'Back to Home' }).click()
+  await expect.poll(productLaunch).toHaveLength(2)
+  await answered(page, [...SHOWN, id(4)])
+  await again(page)
+  await expect(news(page)).toHaveText(SOME)
+  expect(await productLaunch()).toHaveLength(2)
+  // Later, Marco kept one more note there, and Design review was archived, so Product launch is among Home's rows: the
+  // note kept after the call is said, the one the call held is not.
+  await page.goto('/home.html?projects=fewer&since=later')
+  await answered(page, [1, 2, 4].map(id))
+  await page.getByRole('button', { name: 'Leave Home' }).click()
+  await page.getByRole('button', { name: 'Back to Home' }).click()
+  await expect(news(page)).toHaveText('Since you last looked: a note kept in Product launch. Open Updates')
+})
+
 test('home · under a session soon it waits, unsaid, even as the session passes with Home open; nothing after a seen mark', async ({
   page,
 }) => {

@@ -1,7 +1,8 @@
 // Home's fixture page (e2e/home.spec.ts): the Studio's own Welcome, inside Places' frame, over labelled simulated
 // projects. The query string picks them: `projects=four` (default: Launch plan, Research notes, Design review, and
-// Product launch, whose Standup starts in 10 min), `quiet` (the same four, the Standup tomorrow), `live` (Davide and
-// Sophia in Pitch deck's room), `none`, `loading`, `failed` (their read failed); `window.homeFixture.reread(<set>)`
+// Product launch, whose Standup starts in 10 min), `quiet` (the same four, the Standup tomorrow), `fewer` (`quiet`
+// without Design review), `live` (Davide and Sophia in Pitch deck's room), `none`, `loading`, `failed` (their read
+// failed); `window.homeFixture.reread(<set>)`
 // reads them again with Home open, as Places does every 20 s, and answers that set; `locked=1` (the personal space
 // locked), `call=<id>` (in that project's call, which `window.homeFixture.hangUp()` ends with Home open);
 // `away=1` (Home starts out of sight, as when someone lands on another place); `companion=unavailable|reading` (Sophia
@@ -11,7 +12,7 @@
 // action taken,
 // as "open <id>", "join <id>", "back <id>", "work", "new project", "unlock", "say <words>", "need <id>". `needs=some|none`: what
 // needs you on the right (the vision flag; the demo's some); absent, the Studio's own Home, her light alone.
-// `since=some|more|mine|seen`: what changed in each project since you last looked, read as Home reads it (below);
+// `since=some|more|later|mine|seen`: what changed in each project since you last looked, read as Home reads it (below);
 // `sinceFail=1`: its first read fails.
 import { requestAddress } from '../src/features/resources/link.ts'
 import '@fontsource-variable/geist/wght.css'
@@ -140,6 +141,12 @@ const SETS: Record<string, ProjectSummary[] | undefined> = {
     project(1, 'Launch plan'),
     project(2, 'Research notes', { members: 2 }),
     project(3, 'Design review'),
+    project(4, HOME_PROJECT, { nextSession: { ...standup, startsAt: at(24 * 60 + 10), endsAt: at(24 * 60 + 40) } }),
+  ],
+  // The quiet four with Design review archived (`fewer`): Product launch is now among Home's rows.
+  fewer: [
+    project(1, 'Launch plan'),
+    project(2, 'Research notes', { members: 2 }),
     project(4, HOME_PROJECT, { nextSession: { ...standup, startsAt: at(24 * 60 + 10), endsAt: at(24 * 60 + 40) } }),
   ],
   live: [
@@ -297,10 +304,11 @@ if (INVITED) {
   }
 }
 /**
- * `since=some|more|mine|seen`: A34's window for each project (GET /api/v1/projects/<id>/since), as the fixture's meeting
- * answers it (meeting-data.ts's updatesWindowOf), after a seen mark. `some`: Launch plan holds 2 decisions and a new
- * report (the fixture's earlier decision and a proposal still open among them), Product launch a note kept, the others
- * nothing; `more`: one more decision in Launch plan's; `mine`: Launch plan holds the reader's own decision, the report
+ * `since=some|more|later|mine|seen`: A34's window for each project (GET /api/v1/projects/<id>/since), as the fixture's
+ * meeting answers it (meeting-data.ts's updatesWindowOf), after a seen mark. `some`: Launch plan holds 2 decisions and
+ * a new report (the fixture's earlier decision and a proposal still open among them), Product launch a note kept, the
+ * others nothing; `more`: one more decision in Launch plan's; `later`: one more note kept in Product launch's; `mine`:
+ * Launch plan holds the reader's own decision, the report
  * they asked for and a note kept in their name, and one decision of Marco's; `seen`: every window after a seen mark,
  * empty. `homeFixture.sinceReads()` lists the projects asked, in the order asked. `sinceFail=1`: the first window read
  * answers 503, as when a call ends because the service went away; the reads after it answer.
@@ -387,7 +395,10 @@ function sinceOf(projectId: string): ProjectUpdates {
     actorId: MEMBER,
     at: at(-90),
   }
-  return { ...nothingSince('9'), fromSequence: MARK, noted: [kept], names: { [MEMBER]: 'Marco' } }
+  // `later`: Marco kept one more note there since.
+  const after = { ...kept, entryId: '00000000-0000-4000-8000-0000000000f6', text: 'The venue is booked.', at: at(-10) }
+  const noted = SINCE === 'later' ? [kept, after] : [kept]
+  return { ...nothingSince('9'), fromSequence: MARK, noted, names: { [MEMBER]: 'Marco' } }
 }
 if (SINCE) {
   const real = window.fetch.bind(window)
