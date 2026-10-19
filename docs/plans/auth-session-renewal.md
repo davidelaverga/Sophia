@@ -60,7 +60,16 @@ right that it shouldn't.
   - The renewal waits within the request's own bound: the caller's or the read's signal ends it, as an abort.
   - Where the token comes from is the App's (`app/token-renewal.ts`, registered by `auth.ts` when Supabase is
     configured): the session's current token if it is already another (the ticker or another request renewed it),
-    else `refreshSession()`. One renewal per refused token, shared by every request it refused.
+    else `refreshSession()`. One renewal per refused token while it is on its way, shared by every request it
+    refused; once settled it is let go, so a failure or a sign-out is never answered from memory (review P3).
+  - **Only the refused token's own sign-in** (independent review, P1): supabase-js reads the session from the storage
+    every tab shares (`__loadSession`, in `getSession` and in `refreshSession`), so another tab's sign-in can be there
+    before this tab hears of it. A token is given only when it names the refused token's account (`tokenSubject`) and,
+    where both carry one, its sign-in (`tokenSession`, which a refresh keeps). Anything else, another account or a new
+    sign-in of the same one, gives nothing, and a session of another sign-in is never refreshed. Without this, Davide's
+    refused reads went out as Luis (measured below); a keyed write would have become a new write as him.
+  - `apiFetch` takes `ResendableInit`: a body, if any, is a string, so a stream body can't be resent silently (review
+    P3).
   - **No loop:** a token a renewal brought that the API refuses within a minute isn't renewed again (the API refusing
     a fresh token is another cause, not an expiry), so the feed's restart on the new token ends at the closed door.
     A renewal that fails (Auth down, the refresh refused) gives nothing: the 401 stands and the words are today's. A
@@ -79,7 +88,11 @@ right that it shouldn't.
   - the feed: the stream dropped after the token expired comes back «Up to date», no «signed out»;
   - a keyed write: a message sent after the token expired is sent again with the same Idempotency-Key and appears;
   - no loop: when the API refuses every token, one refresh is asked and the door closes as today; 3 s later the
-    stream has asked no more and there is still one refresh.
+    stream has asked no more and there is still one refresh;
+  - another account (review P1): another tab keeps Luis's session in the shared storage without a word to this tab,
+    then Davide's token expires and he opens a conversation. No request goes out as Luis, the read says «This
+    conversation can’t be read now.», and no refresh is asked. Red before the fix: `GET …/mission` and
+    `GET …/conversations/…c2/messages` went out with Luis's bearer.
 - Unit for the renewal and the request's second try come with the fix (`api/renew.test.ts`,
   `app/token-renewal.test.ts`).
 - Neighbours: `signed-in-later`, `dock-header`, `room`, `project-conversation-writes`.
@@ -89,3 +102,7 @@ right that it shouldn't.
 - The snapshot's query still keeps a 401 it got before a renewal that came later by itself (a refused renewal, then
   the ticker's); the door stays closed until an event or a reload, as before. Out of this change.
 - No telemetry: how often a renewal happens in production stays unseen (gap #5).
+- If the storage changes to another sign-in between the renewal's `getSession` and its `refreshSession`, supabase-js
+  refreshes that other session (it reads the storage itself, and this tab has no refresh token of its own to pass).
+  Its token is refused here, so nothing is sent as them; the refresh itself is the other tab's session moving on, which
+  it would do anyway.

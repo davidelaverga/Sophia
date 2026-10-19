@@ -12,8 +12,8 @@ Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`
 Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1` guard, two workers); CI as the run on
 record.
 Existing authority: Luis 2026-10-19 (above); local only, nothing pushed.
-Ending commit/tree: `5d82552a3`, the last commit that changes code or checks (the next one adds only this record and
-the note's evidence). Files changed against `0b2202a38`: `src/app/bounded-fetch.ts`, `src/app/bounded-fetch.test.ts`
+Ending commit/tree: `20d436d6c`, the last commit that changes code or checks, after the independent review's P1 and
+two P3s (see «Independent review»; the next commit updates only this record and the note). Files changed against `0b2202a38`: `src/app/bounded-fetch.ts`, `src/app/bounded-fetch.test.ts`
 (new), `src/api/renew.ts` (new), `src/api/renew.test.ts` (new), `src/app/token-renewal.ts` (new),
 `src/app/token-renewal.test.ts` (new), `src/api/client.ts`, `src/api/stream.ts`, `src/app/auth.ts`, `fixtures/app.tsx`,
 `e2e/app-auth.spec.ts`, `docs/plans/auth-session-renewal.md`, and this record.
@@ -65,6 +65,33 @@ the note's evidence). Files changed against `0b2202a38`: `src/app/bounded-fetch.
   `browser-imports.test.ts`). New: `bounded-fetch.test.ts` 4/4, `renew.test.ts` 8/8, `token-renewal.test.ts` 8/8.
 - Whole-repo `oxlint --type-aware` is clean, `tsc --noEmit -p apps/studio` is clean, and Prettier is clean on every
   touched non-docs file.
+
+## Independent review
+
+The design held, with one P1 and two P3s. Each behavioural one is a test-first pair, and each was red before its fix.
+
+- **P1: a refused request could be resent with another account's token.** `renewed()` accepted any token other than
+  the refused one, but supabase-js reads the session from the storage every tab shares, in `getSession` and in
+  `refreshSession`. So another tab's sign-in as Luis, not yet heard here, lent his token to Davide's request.
+  - `2a7d0bdfa` (failing). Unit: four new tests (another account in the storage, a new sign-in of the same account, a
+    refresh that comes back as another account, a refused token that names no one) fail with B's token where null was
+    expected. Browser (`auth-p1-red-1`): «another account signed in by another tab…» fails `toEqual([])`: received
+    `GET …/mission by …e001` and `GET …/conversations/…c2/messages by …e001`, Luis's subject.
+  - `47bf6f0c3` (fix): a token is given only when it names the refused token's account and, where both carry one, its
+    sign-in (`tokenSubject`, `tokenSession` from `auth-callback.ts`). A session of another sign-in is never refreshed.
+    Green: unit 20/20 with `renew.test.ts`; browser, the five session checks 5/5 (`auth-p1-green-1`).
+- **P3: the memo kept every renewal for good.**
+  - `cbb0a7b3b` (failing): «a renewal that failed isn’t kept…» got `null` where a new token was expected; «signed out
+    since…» got the old renewal where `null` was expected.
+  - `f9d8e4796` (fix): only the renewal in flight is shared; it is let go once settled.
+- **P3: a resendable body is a string by type.** `20d436d6c` adds `ResendableInit` (`body?: string`) to `apiFetch`.
+  It is type-only, so it has no test pair; `tsc` holds it.
+- At `20d436d6c`: app-auth, signed-in-later, dock-header, room and project-conversation-writes, 113/113
+  (`auth-review-green-1`). The Studio's unit suite passes 1952/1954; the two failures are the Windows path ones.
+  Whole-repo oxlint, `tsc` and Prettier are clean.
+- **Same account, new sign-in.** It gives nothing too: the stricter reading of the review. The tab's auth listener
+  hears of that sign-in on its own, and sending this tab's request on someone else's sign-in, even the same
+  account's, isn't the renewal's call.
 
 ## Decisions and changes
 
