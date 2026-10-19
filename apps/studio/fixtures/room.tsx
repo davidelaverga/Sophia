@@ -742,6 +742,8 @@ const project = {
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
   failToken: false,
+  // `token=late`: the call's token answers 1.5 s late, so the call goes live after the room has drawn (press-answers).
+  tokenLate: query.get('token') === 'late',
   failEdit: false,
   editHeld: null as (() => void)[] | null,
   failEarlier: false,
