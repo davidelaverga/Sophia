@@ -76,8 +76,8 @@
   count is only what is new to them («a decision», not «3 decisions» of which two were said), and the same line is
   never said twice however far the feed moved. A new mark starts a window of new lines. Kept in `localStorage`
   (`sophia.since.said.v1.<account>`); where storage refuses, for as long as the page lives. Nothing names the account.
-- **A call's end** (`useCallSeen`, in `SignedIn`, wherever the person is then): its project's window is read once and
-  kept. What was decided, made and kept by then was in front of them, in the room or its recap. One read per call, after
+- **A call's end** (`useCallSeen`, in `SignedIn`'s `useCall`, which owns the one call, wherever the person is then):
+  its project's window is read once and kept. What was decided, made and kept by then was in front of them, in the room or its recap. One read per call, after
   it, never during.
 - **A visit says it as it begins, or not at all** (`useSinceNews`): a visit begins at each arrival on Home. It says the
   windows this page read before it began, for the projects drawn with it, decided at its first frame and never after.
@@ -135,6 +135,11 @@
 - **Measured once green**: the fixture page runs under StrictMode, whose second mount reads again what the first let go
   (the reads pass their abort signal). The spec therefore counts the projects asked, and raw reads only between two
   moments. A production build mounts once.
+- **Measured once green, round 1** (captures at 1280×800 dark and 390×844 light):
+  - The first arrival is drawn and read at the same offsets («You and Sophia» 222 px and 206 px).
+  - The next arrival has the news in its first frame (status 48 px, «You and Sophia» 246 px and 230 px) and keeps it
+    as its reads come back.
+  - No horizontal overflow on the page or in Home's scroller.
 - **The attention guard** (`app/attention.test.ts`) lists the flag's readers, and now names `useSinceNews.ts` with its
   one use (`const SINCE_SHOWN = VISION || ATTENTION`).
 
