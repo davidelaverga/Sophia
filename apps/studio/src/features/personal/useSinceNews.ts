@@ -57,6 +57,8 @@ export interface SinceOptions {
   inCall: boolean
   /** Sophia's sentence says something else now: the call, a session soon, a live room, the first project. */
   covered: boolean
+  /** Every project the person has, by id, once read: an arrival reads a call's pending project only among them. */
+  theirs: readonly string[] | undefined
   /** The vision or attention flag by default; a fixture decides for itself. */
   enabled?: boolean
 }
@@ -85,23 +87,31 @@ function useWindows(identity: Account, ids: readonly string[], active: boolean):
 }
 
 /**
- * The calls' projects still pending that `ids` (Home's rows) leave out, read once each as Home is arrived at with its
- * rows known, or as they change (Codex P2 on #468, its review): else nothing reads one Home doesn't show until the
- * browser is `online` again, and the read once it is shown keeps whole what others did there since the call.
+ * The calls' projects still pending that the person has (`theirs`) and Home's rows (`ids`) leave out, read once each as
+ * Home is arrived at with both known, or as they change (Codex P2 on #468, its review): else nothing reads one Home
+ * doesn't show until the browser is `online` again, and the read once it is shown keeps whole what others did there
+ * since the call. One the person no longer has is left to `online`: Home can't show it, and a read would be refused.
  */
-function usePendingReads(identity: Account, ids: readonly string[] | undefined, active: boolean): void {
+function usePendingReads(
+  identity: Account,
+  ids: readonly string[] | undefined,
+  theirs: readonly string[] | undefined,
+  active: boolean,
+): void {
   const client = useQueryClient()
   const rows = ids?.join(' ')
+  const all = theirs?.join(' ')
   useEffect(() => {
-    if (!active || rows === undefined) return
+    if (!active || rows === undefined || all === undefined) return
     const shown = rows.split(' ')
+    const had = all.split(' ')
     for (const projectId of readPending(accountOf(identity)))
-      if (!shown.includes(projectId)) readAfter(client, identity, projectId)
-  }, [client, identity, active, rows])
+      if (had.includes(projectId) && !shown.includes(projectId)) readAfter(client, identity, projectId)
+  }, [client, identity, active, rows, all])
 }
 
 /** Whether an arrival may say anything: on Home, under the flags, out of a call, under no other sentence, rows known. */
-const mayTell = (o: Required<SinceOptions>, ids: readonly string[] | undefined) =>
+const mayTell = (o: Required<Omit<SinceOptions, 'theirs'>>, ids: readonly string[] | undefined) =>
   o.here && o.enabled && !o.inCall && !o.covered && ids !== undefined
 
 /**
@@ -125,11 +135,11 @@ function arrival(windows: ReadonlyMap<string, Since>, identity: Account): Visit 
 export function useSinceNews(
   identity: Account,
   ids: readonly string[] | undefined,
-  { here, inCall, covered, enabled = SINCE_SHOWN }: SinceOptions,
+  { here, inCall, covered, theirs, enabled = SINCE_SHOWN }: SinceOptions,
 ): Visit {
   const reads = enabled && here && !inCall
   const windows = useWindows(identity, ids ?? [], reads)
-  usePendingReads(identity, ids, reads)
+  usePendingReads(identity, ids, theirs, reads)
   const [visit, setVisit] = useState(QUIET)
   const [wasHere, setWasHere] = useState(false)
   if (here !== wasHere) {

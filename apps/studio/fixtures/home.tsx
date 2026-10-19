@@ -568,6 +568,7 @@ function useSays(projects: readonly ProjectSummary[] | undefined, away: boolean,
     here: !away,
     inCall: call !== null,
     covered: sophiaSays(projects, NOW, call, answers === true).length > 0,
+    theirs: projects?.map((p) => p.projectId),
     enabled,
   })
   const says = sophiaSays(projects, NOW, call, answers === true, visit.news)
