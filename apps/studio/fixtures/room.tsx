@@ -358,6 +358,8 @@ interface Fixture {
   reviseMessage: (n: number, text: string) => void
   /** The discussion's reads (snapshot, pages) lag: they keep what they read now until `releaseSnapshot`. */
   holdSnapshot: () => void
+  /** As `holdSnapshot`, and its reads answer with the cursor held then: consistent, as the API's (4318164723). */
+  holdSnapshotAt: () => void
   /** Every earlier page's read fails until turned off. */
   failEarlierReads: (on: boolean) => void
   /** The next previews list this many running research tasks as reading the words. */
@@ -1337,6 +1339,9 @@ window.fixture = {
     publish(project)
   },
   holdSnapshot: () => {
+    project.heldMessages = structuredClone(project.messages)
+  },
+  holdSnapshotAt: () => {
     project.heldMessages = structuredClone(project.messages)
     project.heldAt = project.revision
   },

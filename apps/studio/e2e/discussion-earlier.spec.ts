@@ -894,7 +894,7 @@ for (const act of ['correct', 'withdraw'] as const)
       await expect(entries(page)).toHaveCount(50)
       await expect(page.locator(`[data-message="${idOf(9)}"]`)).toHaveCount(0) // A: not in the window
       await expect(textOf(page, idOf(10))).toHaveText('SYNTHETIC shared words') // B: in it, a reference
-      if (refresh === 'lags') await page.evaluate(() => window.fixture?.holdSnapshot())
+      if (refresh === 'lags') await page.evaluate(() => window.fixture?.holdSnapshotAt())
       if (refresh === 'fails') await page.evaluate(() => (window.failSnapshots = true))
       await page.evaluate(([m, text]) => window.fixture?.eraseShared(9, m, text), [
         idOf(9),
