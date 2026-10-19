@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { BACK_ONLINE, CALL_END, keepsTextMode, keptNote, noteFor, noteRole, OFFLINE_END } from './call-end.ts'
+import {
+  BACK_ONLINE,
+  CALL_END,
+  joinHeld,
+  keepsTextMode,
+  keptNote,
+  noteFor,
+  noteRole,
+  OFFLINE_END,
+  OFFLINE_JOIN,
+  saysOffline,
+} from './call-end.ts'
 
 describe('why a call ended', () => {
   it('only a lost connection is a failure: the others were on purpose, here or elsewhere', () => {
@@ -86,12 +97,58 @@ describe('what the room keeps when it says something, offline (review of costura
     for (const note of [lost, down, unreached]) assert.equal(keptNote(note, { online: true, lost: true }), note, note)
   })
 
-  it('offline with no call lost (a Join from rest), the note is kept as said', () => {
-    assert.equal(keptNote(down, { online: false, lost: false }), down)
+  it('offline with no call lost, a join that began online and failed offline says offline, never the room', () => {
+    assert.equal(keptNote(down, { online: false, lost: false }), OFFLINE_JOIN)
+    assert.equal(keptNote(unreached, { online: false, lost: false }), OFFLINE_JOIN)
+  })
+
+  it('offline with no call lost, the ends the server said keep their words', () => {
+    for (const why of ['elsewhere', 'removed', 'closed'] as const) {
+      assert.equal(keptNote(CALL_END[why].note, { online: false, lost: false }), CALL_END[why].note, why)
+    }
   })
 
   it('a join that begins says nothing yet', () => {
     assert.equal(keptNote(null, { online: false, lost: true }), null)
     assert.equal(keptNote(null, { online: true, lost: false }), null)
+  })
+})
+
+describe('a Join pressed offline from rest (Luis 2026-10-19, offline-join-from-rest.md)', () => {
+  const fromRest = 'You’re offline. Join once you’re back.'
+
+  it('offline with no call lost, a join asks for nothing and says so', () => {
+    assert.equal(joinHeld({ online: false, lost: false }), fromRest)
+    assert.equal(OFFLINE_JOIN, fromRest)
+  })
+
+  it('offline after a lost call, a join says the lost call’s words, as before', () => {
+    assert.equal(joinHeld({ online: false, lost: true }), OFFLINE_END)
+  })
+
+  it('online, every join goes: a true proves nothing', () => {
+    assert.equal(joinHeld({ online: true, lost: false }), null)
+    assert.equal(joinHeld({ online: true, lost: true }), null)
+  })
+
+  it('keeps saying it offline; back online it goes, and nothing joins on its own', () => {
+    assert.equal(noteFor(fromRest, false), fromRest)
+    assert.equal(noteFor(fromRest, true), null)
+  })
+
+  it('says it politely, as the lost call’s two', () => {
+    assert.equal(noteRole(fromRest), 'status')
+  })
+
+  it('tells the room’s two offline notes from the rest, so the message bar says offline once', () => {
+    assert.equal(saysOffline(fromRest), true)
+    assert.equal(saysOffline(OFFLINE_END), true)
+    for (const note of [
+      BACK_ONLINE,
+      CALL_END.dropped.note,
+      'The room isn’t available right now. Try again in a moment.',
+    ])
+      assert.equal(saysOffline(note), false, note)
+    assert.equal(saysOffline(null), false)
   })
 })

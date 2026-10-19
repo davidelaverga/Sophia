@@ -468,8 +468,9 @@ function departed(project: Project): Response {
   return json({ projectId: PROJECT, cursor: String(project.revision) })
 }
 
-/** A room token, unless the next one is to fail (`failToken`). */
+/** A room token, unless the next one is to fail (`failToken`); each one asked for is recorded (`room-token`). */
 function tokenAnswer(project: Project): Response {
+  served.push('room-token')
   if (!project.failToken) return json(roomToken)
   project.failToken = false
   return unavailable()
