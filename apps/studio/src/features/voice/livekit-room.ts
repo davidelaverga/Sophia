@@ -48,7 +48,7 @@ import { encodeReaction, REACTION_TOPIC, type ReactionEmoji } from './reactions.
 import { isSophia, listenToSophia } from './sophia-channel.ts'
 import { sophiaVoice } from './sophia-voice.ts'
 import type { SophiaSignal } from './sophia-view.ts'
-import { voiceLevels } from './voice-levels.ts'
+import { connectWithLevels } from './voice-levels.ts'
 
 // LiveKit logs every connection step at info level. A deployed Studio keeps warnings and errors in the
 // console; local development keeps the full trace.
@@ -459,7 +459,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
   listenToReactions(room, (heard) => cb.onReaction?.(heard))
   const signalMode = modeSignal(room, () => textOnly)
   const following = followingSignal(room, cb.onChange, { resync: VISION })
-  await room.connect(serverUrl, token)
+  const sound = await connectWithLevels(room, serverUrl, token)
   const feedsOf = videoFeeds()
   const after = async (change: Promise<unknown>) => {
     await change
@@ -483,8 +483,8 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     participants: () => [toView(room.localParticipant, true), ...people().map(other)],
     sophia: () => sophiaSignal([...room.remoteParticipants.values()].find(isSophia)),
     audioBlocked: () => !room.canPlaybackAudio,
-    ...voiceLevels(room),
-    startAudio: () => after(room.startAudio()),
+    ...sound.levels,
+    startAudio: () => after(sound.startAudio()),
     feeds: () => [...feedsOf(room.localParticipant, true), ...people().flatMap((p) => feedsOf(p, false))],
     ...deviceControls(
       room,

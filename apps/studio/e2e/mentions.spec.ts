@@ -529,15 +529,59 @@ test('mentions · a seen write that keeps failing is tried a bounded number of t
   expect((await served(page)).filter((s) => s.startsWith('seen:'))).toEqual([])
 })
 
-test('mentions · closing the chat cancels a pending retry of a failed seen write', async ({ page }) => {
-  await failingSeen(page, 99)
+/**
+ * The first seen write held, then answered 503 on a stopped page clock, so its retry is surely pending (1 s on): a slow
+ * runner can't let the retry go before the step meant to come first (#452's 1 vs 2). Closed, the clock then runs 2.5 s;
+ * kept open, just past the retry's time (600 ms more), where the one retry goes and the next is 2 s off.
+ */
+async function pendingSeenRetry(page: Page, close: boolean) {
+  await page.clock.install()
+  await page.addInitScript(() => {
+    let held = true
+    window.seenAttempts = 0
+    const wrap =
+      (f: typeof fetch): typeof fetch =>
+      async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href)
+        if (init?.method === 'POST' && /^\/api\/v1\/me\/needs\/[^/]+\/seen$/.test(url.pathname)) {
+          window.seenAttempts = (window.seenAttempts ?? 0) + 1
+          if (held) {
+            held = false
+            await new Promise<void>((resolve) => (window.releaseSeen = resolve))
+          }
+          return new Response(JSON.stringify({ code: 'unavailable', message: 'Busy', retry: 'safe' }), { status: 503 })
+        }
+        return f(input, init)
+      }
+    let current = wrap(window.fetch.bind(window))
+    Object.defineProperty(window, 'fetch', {
+      configurable: true,
+      get: () => current,
+      set: (f: typeof fetch) => (current = wrap(f)),
+    })
+  })
   await page.goto(`/room.html?call=on&people=2&floor=1&discussion=mentioned#message-${MENTIONED_IN}`)
   await expect(discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)).toBeInViewport()
-  await expect.poll(() => seenAttempts(page)).toBe(1)
-  await chatToggle(page).click()
-  await expect(discussion(page)).toHaveCount(0)
-  await page.waitForTimeout(2500)
+  await expect.poll(() => page.evaluate(() => typeof window.releaseSeen)).toBe('function') // the first write, held
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1))
+  await page.evaluate(() => window.releaseSeen?.()) // its 503, answered with the clock stopped: the retry waits
+  await page.clock.runFor(500) // half its wait: still pending, nothing sent again
   expect(await seenAttempts(page)).toBe(1)
+  if (close) {
+    await chatToggle(page).click()
+    await expect(discussion(page)).toHaveCount(0)
+  }
+  await page.clock.runFor(close ? 2500 : 600)
+}
+
+test('mentions · closing the chat cancels a pending retry of a failed seen write', async ({ page }) => {
+  await pendingSeenRetry(page, true)
+  expect(await seenAttempts(page)).toBe(1)
+})
+
+test('mentions · with the chat kept open, the same pending retry goes when its time comes', async ({ page }) => {
+  await pendingSeenRetry(page, false)
+  expect(await seenAttempts(page)).toBe(2)
 })
 
 // #409 R-CURRENT-MENTIONS-RETRY-OWNERSHIP-02: the first seen write is held; while it is in flight the same mounted chat's
@@ -848,4 +892,147 @@ test('mentions · another tab shuts the padlock (device storage): the read is fo
   await page.waitForTimeout(1500)
   expect(await needsGets(page)).toBe(shut)
   expect(await kept(page)).toBe('[]')
+})
+
+/** The members read from here on: as served, without Marco, or failing; and how many reads the page sent. */
+async function membersAs(page: Page, as: 'served' | 'withoutMarco' | 'failing' | 'marcoRenamed') {
+  await page.evaluate(
+    ({ mode, marco }) => {
+      const w = window as Window & { membersAs?: string; membersReads?: number; membersInner?: typeof fetch }
+      w.membersAs = mode
+      if (w.membersInner) return
+      const isMarco = (m: unknown) => !!m && typeof m === 'object' && 'actorId' in m && m.actorId === marco
+      const withoutMarco = (body: unknown) =>
+        body && typeof body === 'object' && 'members' in body && Array.isArray(body.members)
+          ? { ...body, members: body.members.filter((m: unknown) => !isMarco(m)) }
+          : body
+      // The same member under a new name: what they are called changes, never who they are.
+      const marcoRenamed = (body: unknown) =>
+        body && typeof body === 'object' && 'members' in body && Array.isArray(body.members)
+          ? {
+              ...body,
+              members: body.members.map((m: unknown) =>
+                isMarco(m) && typeof m === 'object' ? { ...m, name: 'Marco Rossi' } : m,
+              ),
+            }
+          : body
+      const inner = window.fetch
+      w.membersInner = inner
+      w.membersReads = 0
+      window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = new URL(input instanceof Request ? input.url : String(input), location.href).pathname
+        if ((init?.method ?? 'GET') !== 'GET' || !path.endsWith('/members')) return inner(input, init)
+        w.membersReads = (w.membersReads ?? 0) + 1
+        if (w.membersAs === 'failing') return new Response('{}', { status: 503 })
+        const res = await inner(input, init)
+        if (w.membersAs !== 'withoutMarco' && w.membersAs !== 'marcoRenamed') return res
+        const body: unknown = await res.json()
+        return new Response(JSON.stringify(w.membersAs === 'withoutMarco' ? withoutMarco(body) : marcoRenamed(body)), {
+          status: res.status,
+          headers: res.headers,
+        })
+      }
+    },
+    { mode: as, marco: MARCO },
+  )
+}
+const membersReads = (page: Page) =>
+  page.evaluate(() => (window as Window & { membersReads?: number }).membersReads ?? 0)
+
+/** The members read again, as the page would on coming back to it once the last read is a minute old. */
+async function membersReadAgain(page: Page, reads: number) {
+  const before = await membersReads(page)
+  await page.clock.fastForward(61_000)
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+  await expect
+    .poll(async () => {
+      await page.clock.fastForward(5_000) // a failed read's own retries
+      return membersReads(page)
+    })
+    .toBeGreaterThanOrEqual(before + reads)
+}
+
+test('mentions · chosen, then removed by a successful read and back: not named again until chosen again (4311940162)', async ({
+  page,
+}) => {
+  await page.clock.install()
+  await enter(page)
+  await membersAs(page, 'served')
+  await page.getByRole('button', { name: 'Mention' }).click()
+  const options = page.getByRole('group', { name: /Mention members/ })
+  await options.getByRole('checkbox', { name: 'Marco' }).check()
+  await expect(page.getByText('Mentions Marco')).toBeVisible()
+  // Marco is removed: a successful read without him; the picker stays open throughout.
+  await membersAs(page, 'withoutMarco')
+  await membersReadAgain(page, 1)
+  await expect(options.getByRole('checkbox', { name: 'Marco' })).toHaveCount(0)
+  await expect(page.getByText('Mentions Marco')).toHaveCount(0)
+  // Marco rejoins: offered again, not chosen.
+  await membersAs(page, 'served')
+  await membersReadAgain(page, 1)
+  await expect(options.getByRole('checkbox', { name: 'Marco' })).not.toBeChecked()
+  await expect(page.getByText('Mentions Marco')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Done' }).click()
+  await bar(page).fill('SYNTHETIC words after Marco came back')
+  await bar(page).press('Enter')
+  const after = line(page, 'SYNTHETIC words after Marco came back')
+  await expect(after).toBeVisible()
+  await expect(after.locator('.contribution-mentions')).toHaveCount(0)
+  expect(await served(page)).not.toContain(`mentions:${MARCO}`)
+  // Chosen again, he is named.
+  await page.getByRole('button', { name: 'Mention' }).click()
+  await options.getByRole('checkbox', { name: 'Marco' }).check()
+  await page.getByRole('button', { name: 'Done' }).click()
+  await bar(page).fill('SYNTHETIC words for Marco, chosen again')
+  await bar(page).press('Enter')
+  await expect(line(page, 'SYNTHETIC words for Marco, chosen again').locator('.contribution-mentions')).toHaveText(
+    'to Marco',
+  )
+  expect(await served(page)).toContain(`mentions:${MARCO}`)
+})
+
+test('mentions · a member renamed by a successful read stays chosen and is named under the new name (4311940162)', async ({
+  page,
+}) => {
+  await page.clock.install()
+  await enter(page)
+  await membersAs(page, 'served')
+  await page.getByRole('button', { name: 'Mention' }).click()
+  const options = page.getByRole('group', { name: /Mention members/ })
+  await options.getByRole('checkbox', { name: 'Marco' }).check()
+  await page.getByRole('button', { name: 'Done' }).click()
+  await membersAs(page, 'marcoRenamed')
+  await membersReadAgain(page, 1)
+  await expect(page.getByText('Mentions Marco Rossi')).toBeVisible()
+  await bar(page).fill('SYNTHETIC words for Marco under his new name')
+  await bar(page).press('Enter')
+  await expect(line(page, 'SYNTHETIC words for Marco under his new name')).toBeVisible()
+  expect(await served(page)).toContain(`mentions:${MARCO}`)
+})
+
+test('mentions · a members read that fails after the choice proves no removal: the choice stays and goes with the message (4311940162)', async ({
+  page,
+}) => {
+  await page.clock.install()
+  await enter(page)
+  await membersAs(page, 'served')
+  await page.getByRole('button', { name: 'Mention' }).click()
+  const options = page.getByRole('group', { name: /Mention members/ })
+  await options.getByRole('checkbox', { name: 'Marco' }).check()
+  await page.getByRole('button', { name: 'Done' }).click()
+  await expect(page.getByText('Mentions Marco')).toBeVisible()
+  // The read fails (its retries too): nothing is offered meanwhile, and nothing is discarded.
+  await membersAs(page, 'failing')
+  await membersReadAgain(page, 4)
+  await expect(page.getByRole('button', { name: 'Mention' })).toHaveCount(0)
+  // Read again successfully, with Marco: still chosen, never chosen again by hand.
+  await membersAs(page, 'served')
+  await membersReadAgain(page, 1)
+  await expect(page.getByText('Mentions Marco')).toBeVisible()
+  await bar(page).fill('SYNTHETIC words for Marco after a failed read')
+  await bar(page).press('Enter')
+  await expect(
+    line(page, 'SYNTHETIC words for Marco after a failed read').locator('.contribution-mentions'),
+  ).toHaveText('to Marco')
+  expect(await served(page)).toContain(`mentions:${MARCO}`)
 })

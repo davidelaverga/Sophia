@@ -2,7 +2,7 @@
 import type { SophiaPresence } from '@sophia/contracts'
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { type SophiaContext, type SophiaSignal, sophiaView } from './sophia-view.ts'
+import { lightSound, type SophiaContext, type SophiaSignal, sophiaView } from './sophia-view.ts'
 
 const LUIS = '11111111-1111-4111-8111-111111111111'
 
@@ -148,6 +148,14 @@ describe('her presence, for her light (docs/plans/orb-presence.md)', () => {
     const v = sophiaView(presence(), signal({ input: 'admitted' }), ctx({ reconnecting: true }))
     assert.deepEqual([v.presence, v.light], ['joining', 'rest'])
     assert.equal(sophiaView(presence(), signal(), ctx({ reconnecting: true, working: true })).light, 'work')
+  })
+
+  it('reconnecting while she speaks into a blocked sound: joining, no call on her light, and Allow audio stays', () => {
+    const playing = signal({ output: 'playing', audible: true })
+    const v = sophiaView(presence(), playing, ctx({ reconnecting: true, audioBlocked: true }))
+    assert.deepEqual([v.presence, v.needsAudio, lightSound(v)], ['joining', true, null])
+    assert.equal(lightSound(sophiaView(presence(), playing, ctx({ audioBlocked: true }))), 'blocked')
+    assert.equal(lightSound(sophiaView(presence(), playing, ctx())), null)
   })
 
   it('is paused while her conversation is, for a guest or the holder gone', () => {

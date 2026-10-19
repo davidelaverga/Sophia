@@ -28,7 +28,7 @@ import { CarriedIn } from '../artifacts/CarriedIn.tsx'
 import { sendingOf } from '../voice/CallSwitches.tsx'
 import { MiniDock, RoomSwitches } from '../voice/MiniDock.tsx'
 import { CallInReach } from '../../app/call-in-reach.tsx'
-import { shortName } from '../voice/room-view.ts'
+import { askedJoin, shortName } from '../voice/room-view.ts'
 import { lookingText } from '../voice/sophia-view.ts'
 import { useHeldCaptions } from '../voice/StageCaptions.tsx'
 import { useStageMade } from '../voice/StageMade.tsx'
@@ -236,14 +236,29 @@ function useReportCall(
   useEffect(() => () => report.current?.(null), [])
 }
 
-/** "Join the room" from Work: once the project has loaded and the room can be joined, join it, once. */
+/**
+ * "Join the room" from Work, or a toast's Rejoin: once the project has loaded and the room can be joined, join it,
+ * once. A tick after the shell's effects, not during them: a project already read can join on its first effects, and
+ * a remount at once (React's strict mode, in development) would end that join as the room unmounts (useRoomConnection),
+ * leaving «Joining…» (call-ends-on-open.md). A call already there answers it (askedJoin): the person joined it
+ * themselves before pressing Rejoin.
+ */
 function useJoinOnOpen(room: ProjectRoom, joinOnOpen: boolean, onHandled: (() => void) | undefined) {
   const done = useRef(false)
   useEffect(() => {
-    if (!joinOnOpen || done.current || !room.ready || room.status !== 'idle') return
-    done.current = true
-    void room.join()
-    onHandled?.()
+    if (!joinOnOpen || done.current) return undefined
+    const asked = askedJoin(room.status, room.ready)
+    if (asked === 'answered') {
+      done.current = true
+      onHandled?.()
+    }
+    if (asked !== 'join') return undefined
+    const settled = setTimeout(() => {
+      done.current = true
+      void room.join()
+      onHandled?.()
+    }, 0)
+    return () => clearTimeout(settled)
   }, [joinOnOpen, room, onHandled])
 }
 

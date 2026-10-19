@@ -1,6 +1,6 @@
 // What the toast says (app/Toast.tsx) about the places: one line for a result whose place is not on screen, the
-// padlock that shut, a note carried away, a room left from elsewhere. A result whose place stays on screen is said
-// there instead. Pure, so the words are tested.
+// padlock that shut, a note carried away, a room left from elsewhere or by opening another project. A result whose
+// place stays on screen is said there instead. Pure, so the words are tested.
 
 export const NOTICE = {
   locked: 'Your personal space is locked. Opening it asks you to confirm it’s you.',
@@ -24,12 +24,32 @@ export interface CallEnd {
   note: string | null
   /** The call's project is on screen: its dock or mini dock already says what happened. */
   here: boolean
+  /**
+   * The project whose opening ended it (SignedIn's useOneCallInSight), by its title, or null while this page hasn't read
+   * that title; absent when no opening did (this person pressed Leave).
+   */
+  opened?: string | null
 }
+
+/** The toast's line for a call's end, and its one press when the call can be had back (call-ends-on-open.md). */
+export interface CallEndSaid {
+  message: string
+  act: 'Rejoin' | null
+}
+
+/** A call that opening another project ended: said as when it ended, never as the person's doing. */
+const endedOnOpening = (title: string, opened: string | null) =>
+  `Your call in “${title}” ended when you opened ${opened === null ? 'another project' : `“${opened}”`}.`
 
 /**
  * What a call that ended says in the toast, or null when the room on screen says it all. Where the room can't be seen
- * the toast says why it ended (or that this person left it). It never says the personal space opened: a call's end
- * opens nothing (lock.ts), only the person does.
+ * the toast says why it ended: the room's own reason first, then the project whose opening ended it (with Rejoin), else
+ * that this person left it. It never says the personal space opened: a call's end opens nothing (lock.ts), only the
+ * person does.
  */
-export const callEnded = ({ title, note, here }: CallEnd): string | null =>
-  here ? null : (note ?? `You left ${title}.`)
+export const callEnded = ({ title, note, here, opened }: CallEnd): CallEndSaid | null => {
+  if (here) return null
+  if (note !== null) return { message: note, act: null }
+  if (opened === undefined) return { message: `You left ${title}.`, act: null }
+  return { message: endedOnOpening(title, opened), act: 'Rejoin' }
+}
