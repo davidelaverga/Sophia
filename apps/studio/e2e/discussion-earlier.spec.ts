@@ -88,3 +88,46 @@ test('earlier · from the keyboard the focus stays in the chat: on the button wh
   await expect(start).toBeVisible()
   await expect(start).toBeFocused()
 })
+
+// 4309253137: a message older than the snapshot's 50, already read on an earlier page, corrected or withdrawn by someone
+// else's tab. The feed names it; the chat reads again only the page that holds it and shows its committed state.
+const items = (page: Page) => page.getByRole('list', { name: 'Recent discussion' }).locator('[data-message]')
+const pageReads = async (page: Page) => (await served(page)).filter((s) => s.startsWith('discussion:')).length
+
+async function heldEarlier(page: Page) {
+  await page.goto('/room.html?call=on&discussion=60&acts=1')
+  await expect(leave(page)).toBeVisible()
+  await chatToggle(page).click()
+  await earlier(page).click()
+  await expect(entries(page)).toHaveCount(60)
+}
+
+test('earlier · a held message corrected elsewhere shows its committed words, in place, after one page read (4309253137)', async ({
+  page,
+}) => {
+  await heldEarlier(page)
+  const reads = await pageReads(page)
+  const target = (await items(page).nth(2).getAttribute('data-message')) ?? ''
+  await page.evaluate((m) => window.fixture?.changeElsewhere(2, m, 'Message 3, corrected elsewhere'), target)
+  await expect(page.locator(`[data-message="${target}"] .contribution-text`)).toHaveText(
+    'Message 3, corrected elsewhere',
+  )
+  await expect(entries(page).nth(1)).toHaveText('Message 2')
+  await expect(entries(page).nth(3)).toHaveText('Message 4')
+  expect(await pageReads(page)).toBe(reads + 1)
+  // An ordinary new message reads no earlier page again.
+  await page.evaluate(() => window.fixture?.say('SYNTHETIC: an ordinary new message.'))
+  await expect(page.getByText('an ordinary new message')).toBeVisible()
+  expect(await pageReads(page)).toBe(reads + 1)
+})
+
+test('earlier · a held message withdrawn elsewhere loses its words; its neighbours stay in order (4309253137)', async ({
+  page,
+}) => {
+  await heldEarlier(page)
+  const target = (await items(page).nth(3).getAttribute('data-message')) ?? ''
+  await page.evaluate((m) => window.fixture?.changeElsewhere(3, m, null), target)
+  await expect(page.getByText('Message 4', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('Message 3', { exact: true })).toBeVisible()
+  await expect(page.getByText('Message 5', { exact: true })).toBeVisible()
+})

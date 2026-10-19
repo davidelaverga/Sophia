@@ -100,7 +100,10 @@ hook; B reconciles it with the accepted source.
 ## Known limits
 
 - A message withdrawn or corrected by someone else's tab, older than the snapshot's window and already read on an
-  earlier page, shows its old state until that page is read again.
+  earlier page: the feed's `contribution.corrected` / `contribution.withdrawn` event names it, its held words stop
+  showing at once, and only the page that holds it is read again (`features/conversation/held-pages.ts`). A failed read
+  or a feed resync lets the earlier pages go; «Earlier messages» reads them again. Proven on the room fixture only
+  (synthetic events), not against a served API.
 - `draft_brief` admission (0012) still accepts a withdrawn *shared* message's id among its inputs, since its source is
   still eligible. The Studio no longer lists it.
 

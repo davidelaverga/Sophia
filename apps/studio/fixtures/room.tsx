@@ -91,6 +91,7 @@ import {
   releaseCovers,
   served,
   unexpected,
+  eventEntities,
 } from './fixture-api.ts'
 import { messageActsOf } from './message-acts.ts'
 import { idOf, ME } from './data.ts'
@@ -417,6 +418,8 @@ interface Fixture {
   cachedMentionNeeds: () => unknown[]
   /** The device storage key of this account's padlock (lock.ts), for another tab's lock. */
   padlockKey: () => string
+  /** Someone else's tab corrects, or withdraws, the n-th message (its id given); the feed names it (4309253137). */
+  changeElsewhere: (n: number, id: string, text: string | null) => void
 }
 
 declare global {
@@ -808,6 +811,18 @@ window.fixture = {
       .map(([, data]) => data)
       .filter((data) => data !== undefined),
   padlockKey: () => lockKey(accountOf(identity)),
+  changeElsewhere: (n, id, text) => {
+    const was = project.messages[n]
+    const base = typeof was === 'string' ? { text: was } : was
+    if (!base) return
+    const revision = (base.revision ?? 1) + 1
+    const now = new Date().toISOString()
+    project.messages[n] =
+      text === null ? { ...base, revision, withdrawnAt: now } : { ...base, text, revision, correctedAt: now }
+    const type = text === null ? 'contribution.withdrawn' : 'contribution.corrected'
+    eventEntities.set(project.revision + 1, { type, entityType: 'contribution', entityId: id })
+    publish(project)
+  },
   update: () => publish(project),
   shutDoor: () => {
     project.doorShut = true

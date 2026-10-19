@@ -324,7 +324,10 @@ function hrefOf(input: RequestInfo | URL): string {
 
 const streams = new Set<ReadableStreamDefaultController<string>>()
 
-const frameOf = (sequence: number) => `id: ${sequence}\ndata: ${JSON.stringify(projectEvent(sequence))}\n\n`
+/** What an event names, when it is not the project itself: a message corrected or withdrawn elsewhere (held-pages). */
+export const eventEntities = new Map<number, { type: string; entityType: string; entityId: string }>()
+const frameOf = (sequence: number) =>
+  `id: ${sequence}\ndata: ${JSON.stringify({ ...projectEvent(sequence), ...eventEntities.get(sequence) })}\n\n`
 
 /**
  * The project's event stream, open until the page drops it; pings keep it from looking stalled. Dropped by its

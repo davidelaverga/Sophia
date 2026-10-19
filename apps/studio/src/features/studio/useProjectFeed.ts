@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError, getSnapshot } from '../../api/client.ts'
 import { followEvents } from '../../api/stream.ts'
 import { applyFrame, initialFeed, rebase, type Feed } from '../../projectors/projection.ts'
+import { ACTS, contributionChanged, feedResynced } from '../conversation/held-pages.ts'
 import { runFeedLoop, type Connection, type FeedPorts } from './feed-loop.ts'
 import { closedDoor, staleRetry } from './project-door.ts'
 
@@ -41,6 +42,9 @@ function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => void } {
   const ports: FeedPorts = {
     current,
     apply: (frame) => {
+      // A message corrected or withdrawn: kept by id beyond the feed's bounded recent list (held-pages.ts).
+      if ('entityId' in frame && frame.entityType === 'contribution' && ACTS.has(frame.type))
+        contributionChanged(deps.projectId, frame.entityId)
       const next = applyFrame(current(), frame)
       deps.store(next)
       return next
@@ -49,6 +53,7 @@ function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => void } {
       await deps.queryClient.refetchQueries({ queryKey: deps.key, exact: true })
       const fresh = deps.queryClient.getQueryData<{ cursor: string }>(deps.key)
       if (fresh) deps.store(rebase(current(), fresh.cursor))
+      feedResynced(deps.projectId)
     },
     follow: (after, signal, onOpen, onFrame) =>
       followEvents({ token: deps.token, projectId: deps.projectId, after, signal, onOpen, onFrame }),

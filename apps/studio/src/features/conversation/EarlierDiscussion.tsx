@@ -10,6 +10,7 @@ import type { DiscussionEntry, WithdrawnEntry } from '@sophia/contracts'
 import { getDiscussionPage } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Acted } from './MessageActions.tsx'
+import { useHeldRefresh } from './held-pages.ts'
 import { heldView, inOrder } from './message-acts.ts'
 
 /** How many entries the snapshot holds, withdrawn places included: with fewer, it holds the whole discussion. */
@@ -90,7 +91,12 @@ export function useEarlierDiscussion(
     if (el && fromBottom.current !== null) el.scrollTop = el.scrollHeight - fromBottom.current
     fromBottom.current = null
   }, [held, history])
-  const { entries, withdrawn } = heldView(held, { entries: discussion, withdrawn: discussionWithdrawn }, acted)
+  // A held message changed elsewhere is not shown while its page is read again (held-pages.ts, 4309253137).
+  const window = [...discussion, ...discussionWithdrawn]
+  const stale = useHeldRefresh({ projectId, token: identity.token, held, setHeld, window })
+  const view = heldView(held, { entries: discussion, withdrawn: discussionWithdrawn }, acted)
+  const entries = view.entries.filter((e) => !stale.has(e.id))
+  const { withdrawn } = view
   const atStart = held?.atStart ?? false
   const load = () => {
     const [oldest] = [...entries, ...withdrawn].toSorted(inOrder)
