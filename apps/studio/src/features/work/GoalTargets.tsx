@@ -2,9 +2,9 @@
 // cursor, as the notes are, so a change made elsewhere is read as the project moves. Its row says them («Marco · due
 // 30 Oct 2026»); its sheet lets an editor or an admin set them, compare-and-set: a save someone else beat is said, and
 // the sheet shows what stands now. A viewer reads them.
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import type { GoalTarget, ProjectMember } from '@sophia/contracts'
+import type { GoalTarget, GoalTargetList, ProjectMember } from '@sophia/contracts'
 import { Button } from '@sophia/ui'
 import { ApiError, getGoalTargets, getProjectMembers, setGoalTarget } from '../../api/client.ts'
 import { useMembership } from '../access/useAccess.ts'
@@ -19,15 +19,29 @@ type At = Pick<NotesFor, 'projectId' | 'identity' | 'cursor'>
 
 const targetsKey = (at: At) => ['goal-targets', at.projectId, at.identity.name]
 
+/** The newest targets read for this project and viewer, at whichever cursor: what the next cursor's read starts from. */
+function lastRead(client: QueryClient, at: At) {
+  const [newest] = client
+    .getQueryCache()
+    .findAll({ queryKey: targetsKey(at) })
+    .filter((query) => query.state.data !== undefined)
+    .toSorted((a, b) => b.state.dataUpdatedAt - a.state.dataUpdatedAt)
+  return newest && { data: client.getQueryData<GoalTargetList>(newest.queryKey), at: newest.state.dataUpdatedAt }
+}
+
 /**
  * The goals' targets, by goal id, read again as the project moves, with how the read stands: a goal's health waits on
  * its date (targets-robust.md; Codex P2 on #372), so an empty list while reading, or after a failure, is not «no dates».
+ * Each cursor's read starts from the last one read, as stale, so it is read at once, and a read that fails after the
+ * project moved keeps what was read (`stale`), never «failed» over an owner and a date on screen (silent-reads.md).
  */
 export function useTargetsRead(at: At) {
+  const client = useQueryClient()
   const read = useQuery({
     queryKey: [...targetsKey(at), at.cursor],
     queryFn: () => getGoalTargets(at.identity.token, at.projectId),
-    placeholderData: keepPreviousData,
+    initialData: () => lastRead(client, at)?.data,
+    initialDataUpdatedAt: () => lastRead(client, at)?.at,
   })
   const targets: ReadonlyMap<string, GoalTarget> = new Map((read.data?.targets ?? []).map((t) => [t.goalId, t]))
   return { targets, state: notesRead(read), refetch: () => void read.refetch() }
