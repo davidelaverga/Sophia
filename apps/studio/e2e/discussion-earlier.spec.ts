@@ -701,3 +701,54 @@ for (const act of ['correct', 'withdraw'] as const)
         await expect(erased).toHaveCount(0)
       }
     })
+
+// B59 (R-B57-P1): a receipt known superseded stays so past the bounded store's reset. The reader's own Edit (receipt
+// r2) is superseded by a correction or withdrawal elsewhere and goes; then more than KEPT other messages are named again
+// elsewhere (contribution.mentioned, each its own), so the chat's store of changes is let go, its erasing cursors with
+// it. The snapshot still lags or fails: the receipt's erased words must not come back.
+for (const act of ['correct', 'withdraw'] as const)
+  for (const refresh of ['lags', 'fails'] as const)
+    test(`earlier · a superseded receipt stays gone after the store of changes overflows, the snapshot ${refresh} (${act}, R-B57-P1)`, async ({
+      page,
+    }) => {
+      await failingSnapshots(page)
+      await page.goto('/room.html?call=on&discussion=mine&acts=1')
+      await expect(leave(page)).toBeVisible()
+      await chatToggle(page).click()
+      const mine = page
+        .getByRole('list', { name: 'Recent discussion' })
+        .locator('.contribution')
+        .filter({ hasText: MINE })
+      await expect(mine).toBeVisible()
+      const id = (await mine.getAttribute('data-message')) ?? ''
+      if (refresh === 'lags') await page.evaluate(() => window.fixture?.holdSnapshot())
+      else await page.evaluate(() => (window.failSnapshots = true))
+      await mine.getByRole('button', { name: 'Edit' }).click()
+      await page.getByRole('textbox', { name: 'Edit your message' }).fill(EDITED)
+      await page.getByRole('button', { name: 'Save' }).click()
+      await expect(textOf(page, id)).toHaveText(EDITED)
+      await page.evaluate(([m, text]) => window.fixture?.eraseShared(0, m, text), [
+        id,
+        act === 'correct' ? 'Meet at eleven, corrected elsewhere' : null,
+      ] as const)
+      const erased = page.locator('.contribution-text').filter({ hasText: /^Meet at (ten|nine) by the north door\.$/ })
+      await expect(erased).toHaveCount(0)
+      const before = await page.evaluate(() => window.fixture?.heldChanges())
+      expect(before?.erasedAt, 'the erasure is kept before the overflow').toBe(1)
+      await page.evaluate(() => {
+        window.sawStale = false
+        new MutationObserver(() => {
+          for (const el of document.querySelectorAll('.contribution-text'))
+            if (/^Meet at (ten|nine) by the north door\.$/.test(el.textContent)) window.sawStale = true
+        }).observe(document.body, { childList: true, subtree: true, characterData: true })
+      })
+      await page.evaluate(() => window.fixture?.mentionMany(205))
+      // The store was let go (past KEPT = 200): a resync counted, its erasing cursors gone, and the feed went on.
+      await expect
+        .poll(() => page.evaluate(() => window.fixture?.heldChanges()))
+        .toEqual(expect.objectContaining({ resyncs: (before?.resyncs ?? 0) + 1, erasedAt: 0 }))
+      await page.waitForTimeout(1000) // past the feed's debounced snapshot read, which lags or fails
+      if (refresh === 'fails') expect(await page.evaluate(() => window.snapshotsFailed ?? 0)).toBeGreaterThan(0)
+      expect(await page.evaluate(() => window.sawStale ?? false), 'the erased words never came back').toBe(false)
+      await expect(erased).toHaveCount(0)
+    })

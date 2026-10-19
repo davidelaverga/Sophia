@@ -25,6 +25,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { forgetKept, keptAt, type Kept } from '../src/features/conversations/talk-store.ts'
 import { readSaid } from '../src/features/updates/since-said.ts'
 import { accountOf } from '../src/app/auth-callback.ts'
+import { changesOf, ownerOf } from '../src/features/conversation/held-pages.ts'
 import { PersonalLocked, forgetPersonalReads } from '../src/app/account-cache.ts'
 import { setSignedIn } from '../src/app/signed-in.ts'
 import { lockKey, OPEN } from '../src/features/personal/lock.ts'
@@ -349,6 +350,10 @@ interface Fixture {
   unmentionMeIn: (n: number) => void
   /** The entity the last published event named, if any (contribution.mentioned's metadata, exact). */
   lastEventEntity: () => unknown
+  /** `count` other messages, each its own, named again elsewhere (contribution.mentioned): the feed takes each. */
+  mentionMany: (count: number) => void
+  /** What the chat's held-pages store keeps for this account and project: messages, resyncs, erasing cursors. */
+  heldChanges: () => { ids: number; resyncs: number; erasedAt: number }
   /** Its author corrects the `n`th message's words: a new revision, its recipients (and their occurrence) kept (A36). */
   reviseMessage: (n: number, text: string) => void
   /** The discussion's reads (snapshot, pages) lag: they keep what they read now until `releaseSnapshot`. */
@@ -879,6 +884,16 @@ window.fixture = {
       .filter((data) => data !== undefined),
   padlockKey: () => lockKey(accountOf(identity)),
   lastEventEntity: () => eventEntities.get(project.revision) ?? null,
+  mentionMany: (many) => {
+    for (let k = 0; k < many; k++) {
+      mentionedEvent(`00000000-0000-4000-8000-${String(900000 + k).padStart(12, '0')}`, 1)
+      publish(project)
+    }
+  },
+  heldChanges: () => {
+    const changes = changesOf(ownerOf(identity.name, PROJECT))
+    return { ids: changes.ids.size, resyncs: changes.resyncs, erasedAt: changes.erasedAt?.size ?? 0 }
+  },
   eraseShared: (n, id, text) => {
     // A corrected or withdrawn elsewhere: its old source is erased, and every message sharing it no longer lists;
     // the one event names A alone (0068's contribution_erase, r4313704366).
