@@ -40,9 +40,6 @@ export const BACK_ONLINE = 'You’re back online. Try again rejoins the call.'
 /** A join pressed while the browser is offline with no call lost before it, which asks for nothing (Luis 2026-10-19). */
 export const OFFLINE_JOIN = 'You’re offline. Join once you’re back.'
 
-/** The room's two offline notes: where one is said, nothing beside it says offline again (the message bar's line). */
-export const saysOffline = (note: string | null): boolean => note === OFFLINE_END || note === OFFLINE_JOIN
-
 /** Offline, what the room says of a join: the lost call's line after one, the Join from rest's with none. */
 const offlineNote = (lost: boolean) => (lost ? OFFLINE_END : OFFLINE_JOIN)
 
