@@ -15,9 +15,11 @@ import {
 import {
   holdPersonalCompanion,
   personalCompanionAdmitted,
+  personalSettledAnswersInstalled,
   releasePersonalCompanion,
   reservePersonalCompanion,
   settlePersonalCompanion,
+  settlePersonalCompanionAnswer,
   withActor,
   type CompanionContext,
   type PersonalReservation,
@@ -221,6 +223,9 @@ export function personalReservation(prompt: string, settings: Pick<LiveCompanion
 const isCount = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 
+/** What a completed call used: its amount and the token counts it is settled from. */
+type Used = { micros: number; counts: PersonalUsageCounts }
+
 /** What a call used, from its one unambiguous usage report (B2's usedOf), or null: then it stays uncertain. */
 export function personalUsed(
   usage: TokenUsage | null,
@@ -294,7 +299,8 @@ export function personalReply(text: string): CompanionReply | null {
   return { text: body, suggestion: storableNote(note) ? note : null }
 }
 
-type Refusal = Exclude<PersonalReservation, 'reserved'> | 'unstorable' | 'no_answer' | 'route_mismatch'
+type Refusal =
+  Exclude<PersonalReservation, 'reserved'> | 'unstorable' | 'no_answer' | 'route_mismatch' | 'not_installed'
 
 /** A call that gave no answer, its reason a content-free code (the runner logs only a failure's name and code). */
 export class CompanionRefused extends Error {
@@ -330,6 +336,8 @@ class LiveCall {
   /** Reserve before the provider is asked; anything but 'reserved' asks nothing. */
   async reserve(prompt: string): Promise<void> {
     const { payer, routeId } = this.settings
+    // Without 0078 a settled answer could not be kept with its cost: nothing is reserved or asked (4319508047).
+    if (!(await personalSettledAnswersInstalled(this.pool))) throw new CompanionRefused('not_installed')
     const micros = personalReservation(prompt, this.settings)
     const outcome = await this.owned((c, id) => reservePersonalCompanion(c, id, payer, routeId, micros))
     if (outcome !== 'reserved') throw new CompanionRefused(outcome)
@@ -367,8 +375,15 @@ class LiveCall {
     return prepared
   }
 
-  /** The one provider call; from here it may have been asked, so it is settled from its usage or held, never released. */
-  async ask(prepared: Prepared, prompt: string, signal: AbortSignal): Promise<Collected> {
+  /**
+   * The one provider call; from here it may have been asked, so it is settled from its usage (`settle`, with its answer)
+   * or held here, never released. Its usage, when the provider completed and reported it.
+   */
+  async ask(
+    prepared: Prepared,
+    prompt: string,
+    signal: AbortSignal,
+  ): Promise<{ result: Collected; used: Used | null }> {
     const options: GenerateOptions = {
       ...prepared.config,
       system: PERSONAL_SYSTEM,
@@ -391,12 +406,27 @@ class LiveCall {
     // Usage counts only from a response the provider completed: on an error or a stop the adapter still reports the
     // counts it had (pi-ai yields its error's usage), which the provider never confirmed, so that call stays uncertain.
     const used = completed(result) && !result.ambiguousUsage ? personalUsed(result.usage, this.settings.prices) : null
-    if (used) await this.owned((c, id) => settlePersonalCompanion(c, id, used.micros, used.counts))
-    else {
+    if (!used) {
       const reason = result.finish === 'aborted' ? 'stopped_usage_unknown' : 'usage_unknown'
       await this.owned((c, id) => holdPersonalCompanion(c, id, reason))
     }
-    return result
+    return { result, used }
+  }
+
+  /**
+   * A completed call settles from its usage, and its answer, when there is one to keep, is kept with it for the turn in
+   * the same transaction (0078): a reply that can't be written then is written later from it, never asked again.
+   */
+  async settle(used: Used, reply: CompanionReply | null): Promise<void> {
+    const { turnId } = this.call
+    if (reply && turnId)
+      await this.owned((c, callId) =>
+        settlePersonalCompanionAnswer(c, { callId, turnId }, used, {
+          text: reply.text,
+          suggestion: reply.suggestion,
+        }),
+      )
+    else await this.owned((c, id) => settlePersonalCompanion(c, id, used.micros, used.counts))
   }
 }
 
@@ -408,11 +438,13 @@ export function liveCompanion(settings: LiveCompanionSettings, llm: PersonalLlm,
     const prompt = personalPrompt(context)
     await live.reserve(prompt)
     const prepared = await live.prepare(llm, signal)
-    const result = await live.ask(prepared, prompt, signal)
+    const { result, used } = await live.ask(prepared, prompt, signal)
+    const answered = !stopped(signal) && !result.toolCall && result.finish === 'stop'
+    const reply = answered ? personalReply(result.text) : null
+    if (used) await live.settle(used, reply)
     // Told to stop (time up, or an erasure): its cost is settled or held above, and nothing of it is shown.
     if (stopped(signal)) throw new Error('The companion was told to stop')
     if (result.toolCall || result.finish !== 'stop') throw new CompanionRefused('no_answer')
-    const reply = personalReply(result.text)
     if (!reply) throw new CompanionRefused('unstorable')
     return reply
   }
@@ -424,6 +456,8 @@ export function liveCompanion(settings: LiveCompanionSettings, llm: PersonalLlm,
     greet: (_context, name) => Promise.resolve(rehearsalWelcome(name)),
     // Its payer is still admitted (0073 installed, and the operator's row kept).
     owner: settings.owner,
-    ready: () => personalCompanionAdmitted(pool, settings.payer, settings.owner),
+    ready: async () =>
+      (await personalSettledAnswersInstalled(pool)) &&
+      (await personalCompanionAdmitted(pool, settings.payer, settings.owner)),
   }
 }

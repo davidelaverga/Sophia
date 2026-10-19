@@ -77,21 +77,27 @@ export async function personalCompanionAdmitted(
   return onlyRow(rows, 'personal_companion_admitted').admitted
 }
 
+/** What a settlement with its answer did (0078): kept with the answer, settled with nothing kept, or not settled. */
+export type PersonalSettledOutcome = 'kept' | 'settled' | 'not_settled'
+
 /**
- * The call settles from its usage and its answer is kept for the turn it was asked for, both or neither (0078,
- * 4319508047): kept only while that turn is pending under `claim` in the space's current epoch. True if it settled.
+ * The call settles from its usage and its answer is kept for its live turn, in one transaction (0078, 4319508047):
+ * bound by the call's usage row and the turn, not by a claim; after an erasure nothing is kept.
  */
 export async function settlePersonalCompanionAnswer(
   c: pg.PoolClient,
-  call: { callId: string; turnId: string; claim: string },
+  call: { callId: string; turnId: string },
   used: { micros: number; counts: PersonalUsageCounts },
   answer: { text: string; suggestion: string | null },
-): Promise<boolean> {
-  const { rows } = await c.query<{ done: boolean }>(
-    'SELECT sophia.settle_personal_companion_answer($1, $2, $3, $4, $5, $6, $7) AS done',
-    [call.callId, call.turnId, call.claim, used.micros, JSON.stringify(used.counts), answer.text, answer.suggestion],
+): Promise<PersonalSettledOutcome> {
+  const { rows } = await c.query<{ outcome: string }>(
+    'SELECT sophia.settle_personal_companion_answer($1, $2, $3, $4, $5, $6) AS outcome',
+    [call.callId, call.turnId, used.micros, JSON.stringify(used.counts), answer.text, answer.suggestion],
   )
-  return onlyRow(rows, 'settle_personal_companion_answer').done
+  const { outcome } = onlyRow(rows, 'settle_personal_companion_answer')
+  if (outcome !== 'kept' && outcome !== 'settled' && outcome !== 'not_settled')
+    throw new Error('settle_personal_companion_answer answered an unknown outcome')
+  return outcome
 }
 
 /** The answer kept for one of the owner's turns (0078), or null: read only. */
@@ -113,4 +119,13 @@ export async function recordPersonalSettledReply(c: pg.PoolClient, turnId: strin
     [turnId, claim],
   )
   return (rows[0]?.receipt ?? null) !== null
+}
+
+/** Whether 0078 is installed: a live call is not admitted without it, so no answer is paid for that can't be kept. */
+export async function personalSettledAnswersInstalled(c: pg.ClientBase | pg.Pool): Promise<boolean> {
+  const { rows } = await c.query<{ installed: boolean }>(
+    `SELECT to_regprocedure('sophia.settle_personal_companion_answer(uuid,uuid,bigint,jsonb,text,text)') IS NOT NULL
+      AS installed`,
+  )
+  return onlyRow(rows, 'personal_settled_answers_installed').installed
 }

@@ -24,7 +24,9 @@ import {
   readPersonalEpoch,
   readWelcomeContext,
   recordPersonalGreeting,
+  readPersonalSettledAnswer,
   recordPersonalReply,
+  recordPersonalSettledReply,
   releasePersonalGreeting,
   renewPersonalGreeting,
   renewPersonalReply,
@@ -46,6 +48,9 @@ export interface CompanionReply {
 export interface CompanionCall {
   readonly actorId: string
   readonly callId: string
+  /** The turn the call answers, under the claim it was made for: its settled answer is kept for it (0078). */
+  readonly turnId?: string
+  readonly claim?: string
 }
 
 export interface Companion {
@@ -322,16 +327,47 @@ export class CompanionRunner {
       },
     )
     if (!claim) return
-    let reply: CompanionReply | null
+    // An answer already paid for and kept with its cost (0078), its reply not written yet (by this process or another,
+    // before a restart): written now, the companion not asked again. If even the read fails, nothing is asked.
+    let kept: { text: string; suggestion: string | null } | null
     try {
-      reply = await this.withCall(
+      kept = await withActor(this.pool, actorId, 'read', (c) => readPersonalSettledAnswer(c, turnId))
+    } catch (err: unknown) {
+      this.onError(err)
+      return
+    }
+    const reply = kept ?? (await this.ask(actorId, turnId, claim))
+    if (!reply) return
+    const { text, suggestion } = reply
+    // The companion answered: its words are written, tried again while the database is away for a moment, from the
+    // answer kept with its cost when there is one (else as given, a rehearsal's). The turn is never marked failed for
+    // that, nor the companion asked again; should every try fail, the claim lapses, and asked again the kept answer is
+    // written then.
+    await again(() =>
+      withActor(this.pool, actorId, 'write', async (c) => {
+        if (!(await recordPersonalSettledReply(c, turnId, claim)))
+          await recordPersonalReply(c, turnId, claim, text, suggestion)
+      }),
+    ).catch((err: unknown) => {
+      this.onError(err)
+    })
+  }
+
+  /** The companion asked for the turn under its claim; null when nothing is to be written (failed, or not due). */
+  private async ask(actorId: string, turnId: string, claim: string): Promise<CompanionReply | null> {
+    try {
+      return await this.withCall(
         actorId,
         (c) => renewPersonalReply(c, turnId, claim),
         async (stop, callId) => {
           // Its lease is renewed as the context goes to the companion: no other attempt takes the turn meanwhile.
           const context = await withActor(this.pool, actorId, 'write', (c) => readCompanionContext(c, turnId, claim))
           return context
-            ? withinLimit((signal) => this.companion.answer(context, signal, { actorId, callId }), this.limitMs, stop)
+            ? withinLimit(
+                (signal) => this.companion.answer(context, signal, { actorId, callId, turnId, claim }),
+                this.limitMs,
+                stop,
+              )
             : null
         },
       )
@@ -340,18 +376,8 @@ export class CompanionRunner {
       // The companion couldn't answer: the turn says it failed; if even that write fails, it stays pending and the
       // person's client says so in time.
       await withActor(this.pool, actorId, 'write', (c) => failPersonalReply(c, turnId, claim)).catch(() => undefined)
-      return
+      return null
     }
-    if (!reply) return
-    const { text, suggestion } = reply
-    // The companion answered: its words are written, tried again while the database is away for a moment. The turn is
-    // never marked failed for that, nor the companion asked again; should every try fail, the claim lapses and the
-    // turn reads as lost.
-    await again(() =>
-      withActor(this.pool, actorId, 'write', (c) => recordPersonalReply(c, turnId, claim, text, suggestion)),
-    ).catch((err: unknown) => {
-      this.onError(err)
-    })
   }
 }
 

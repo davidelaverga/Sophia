@@ -351,7 +351,8 @@ before(async () => {
     `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES
     ('test-payer', $1, 1000000), ('tight-payer', $1, 10), ('held-payer', $1, 1000000), ('stop-payer', $1, 1000000),
     ('prompt-payer', $1, 1000000), ('note-payer', $1, 1000000), ('owner-payer', $1, 1000000), ('first-payer', $1, 1000000), ('fay-payer', $1, 1000000),
-    ('settled-payer', $1, 1000000)`,
+    ('settled-payer', $1, 1000000), ('erased-payer', $1, 1000000),
+    ('stale-payer', $1, 1000000)`,
     [NOBODY],
   )
 })
@@ -622,6 +623,7 @@ describe('the live personal companion (local provider double)', () => {
       BEGIN RAISE EXCEPTION 'b76: the database is away'; END $$`)
     await owner(`CREATE TRIGGER b76_refuse_reply BEFORE INSERT ON sophia.personal_turns FOR EACH ROW
       WHEN (NEW.author = 'sophia' AND NEW.owner_id = '${DEV}') EXECUTE FUNCTION sophia.b76_refuse_reply()`)
+    let asked: { id: string; reply?: string | null } | undefined
     try {
       double.script({ text: 'The one answer.', usage: { input_tokens: 10, output_tokens: 5 } })
       await write(at, '/api/v1/personal/turns', DEV, { text: 'Answer me once.' })
@@ -640,24 +642,141 @@ describe('the live personal companion (local provider double)', () => {
         [DEV],
       )
       const failed = await settled(at, DEV)
-      const asked = failed.turns.find((t) => t.author === 'person')
+      asked = failed.turns.find((t) => t.author === 'person')
       assert.equal(asked?.reply, 'failed')
-      // Nothing scripted for a second request: the double is shared with the other cases, and none is due here.
-      await write(at, `/api/v1/personal/turns/${asked.id}/retry`, DEV, {})
-      // Long enough for a second call to be asked and settled, were it made.
-      for (let i = 0; i < 60 && recorded().length - sentBefore < 2; i++)
-        await new Promise((resolve) => setTimeout(resolve, 50))
-      await new Promise((resolve) => setTimeout(resolve, 500))
     } finally {
       await owner(`DROP TRIGGER IF EXISTS b76_refuse_reply ON sophia.personal_turns`)
       await owner(`DROP FUNCTION IF EXISTS sophia.b76_refuse_reply()`)
     }
+    assert.ok(asked)
+    // Asked again through another API and runner (as after a restart): nothing of the first lives in its memory.
+    // Nothing is scripted for a second request: the double is shared with the other cases, and none is due here.
+    const fresh = await liveApi('settled-payer', DEV, false)
+    await write(fresh, `/api/v1/personal/turns/${asked.id}/retry`, DEV, {})
+    for (let i = 0; i < 60 && recorded().length - sentBefore < 2; i++)
+      await new Promise((resolve) => setTimeout(resolve, 50))
     assert.equal(recorded().length - sentBefore, 1, 'one provider request for the one answer requested')
     assert.deepEqual(
       (await usage('settled-payer')).map((r) => r.state),
       ['settled'],
       'one settled cost',
     )
+    const page = await settled(fresh, DEV)
+    assert.deepEqual(
+      page.turns.filter((t) => t.author === 'sophia').map((t) => t.text),
+      ['The one answer.'],
+      'the answer paid for, written once',
+    )
+    assert.deepEqual(
+      await owner(`SELECT 1 FROM sophia.personal_settled_answers WHERE owner_id=$1`, [DEV]),
+      [],
+      'nothing kept once written',
+    )
+  })
+
+  // R-B77-S1-P1: the turn's claim is replaced while the settlement waits (another runner took the lapsed turn). The
+  // turn is still the person's and live: its answer must be kept with the cost, and asked again (another runner, as
+  // after a restart) it is written, never asked for again. FIXTURE: a test-only trigger replaces the claim inside the
+  // settlement, before the answer is kept.
+  it('a settled answer is kept for its live turn even when the turn’s claim changed meanwhile', async () => {
+    const STA = randomUUID()
+    const at = await liveApi('stale-payer', STA)
+    const sentBefore = recorded().length
+    await owner(`CREATE OR REPLACE FUNCTION sophia.b77_replace_claim() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        UPDATE sophia.personal_turns SET answering_claim=gen_random_uuid()
+         WHERE owner_id=NEW.owner_id AND author='person' AND reply='pending';
+        RETURN NEW;
+      END $$`)
+    await owner(`CREATE TRIGGER b77_replace_claim BEFORE UPDATE ON sophia.personal_companion_usage FOR EACH ROW
+      WHEN (OLD.state = 'reserved' AND NEW.state = 'settled' AND NEW.owner_id = '${STA}')
+      EXECUTE FUNCTION sophia.b77_replace_claim()`)
+    let asked: { id: string; reply?: string | null } | undefined
+    try {
+      double.script({ text: 'The kept answer.', usage: { input_tokens: 10, output_tokens: 5 } })
+      await write(at, '/api/v1/personal/turns', STA, { text: 'Answer me while the claim moves.' })
+      for (let i = 0; i < 100 && (await usage('stale-payer')).length === 0; i++)
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      for (let i = 0; i < 100 && (await usage('stale-payer'))[0]?.state !== 'settled'; i++)
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      assert.deepEqual(
+        (await usage('stale-payer')).map((r) => r.state),
+        ['settled'],
+      )
+      await new Promise((resolve) => setTimeout(resolve, 1500)) // the first runner's write, under its old claim
+      await owner(
+        `UPDATE sophia.personal_turns SET answering_since=now()-interval '10 minutes', asked_at=now()-interval '10 minutes'
+         WHERE owner_id=$1 AND author='person'`,
+        [STA],
+      )
+      const failed = await settled(at, STA)
+      asked = failed.turns.find((t) => t.author === 'person')
+      assert.equal(asked?.reply, 'failed', 'its claim lapsed, nothing written')
+    } finally {
+      await owner(`DROP TRIGGER IF EXISTS b77_replace_claim ON sophia.personal_companion_usage`)
+      await owner(`DROP FUNCTION IF EXISTS sophia.b77_replace_claim()`)
+    }
+    assert.ok(asked)
+    const fresh = await liveApi('stale-payer', STA, false)
+    await write(fresh, `/api/v1/personal/turns/${asked.id}/retry`, STA, {})
+    for (let i = 0; i < 60 && recorded().length - sentBefore < 2; i++)
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    assert.equal(recorded().length - sentBefore, 1, 'one provider request for the one answer requested')
+    const page = await settled(fresh, STA)
+    assert.deepEqual(
+      page.turns.filter((t) => t.author === 'sophia').map((t) => t.text),
+      ['The kept answer.'],
+    )
+    assert.deepEqual(
+      (await usage('stale-payer')).map((r) => r.state),
+      ['settled'],
+    )
+  })
+
+  // B77: the answer kept with its settled cost is the person's: an erasure takes it, the cost stays (content-free).
+  it('an erasure takes a kept answer whose reply was not written; its settled cost stays', async () => {
+    const ERA = randomUUID()
+    const at = await liveApi('erased-payer', ERA)
+    const sentBefore = recorded().length
+    await owner(`CREATE OR REPLACE FUNCTION sophia.b77_refuse_reply() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'b77: the database is away'; END $$`)
+    await owner(`CREATE TRIGGER b77_refuse_reply BEFORE INSERT ON sophia.personal_turns FOR EACH ROW
+      WHEN (NEW.author = 'sophia' AND NEW.owner_id = '${ERA}') EXECUTE FUNCTION sophia.b77_refuse_reply()`)
+    try {
+      double.script({ text: 'Words to be erased.', usage: { input_tokens: 10, output_tokens: 5 } })
+      await write(at, '/api/v1/personal/turns', ERA, { text: 'Keep this private.' })
+      for (let i = 0; i < 100 && (await usage('erased-payer')).length === 0; i++)
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      for (let i = 0; i < 60; i++) {
+        const kept = await owner(`SELECT 1 FROM sophia.personal_settled_answers WHERE owner_id=$1`, [ERA])
+        if (kept.length > 0) break
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+      assert.equal(
+        (await owner(`SELECT 1 FROM sophia.personal_settled_answers WHERE owner_id=$1`, [ERA])).length,
+        1,
+        'the answer is kept with its cost',
+      )
+      await new Promise((resolve) => setTimeout(resolve, 3000)) // the reply's writes tried and failed
+      await owner(`UPDATE sophia.personal_turns SET answering_since=now()-interval '10 minutes' WHERE owner_id=$1`, [
+        ERA,
+      ])
+      await write(at, '/api/v1/personal/erasure', ERA, { confirm: 'delete' })
+    } finally {
+      await owner(`DROP TRIGGER IF EXISTS b77_refuse_reply ON sophia.personal_turns`)
+      await owner(`DROP FUNCTION IF EXISTS sophia.b77_refuse_reply()`)
+    }
+    assert.deepEqual(
+      await owner(`SELECT 1 FROM sophia.personal_settled_answers WHERE owner_id=$1`, [ERA]),
+      [],
+      'nothing kept after the erasure',
+    )
+    assert.deepEqual(
+      (await usage('erased-payer')).map((r) => r.state),
+      ['settled'],
+      'its cost stays',
+    )
+    assert.equal(recorded().length - sentBefore, 1, 'one provider request')
   })
 
   it('a provider refusal fails the turn, holds its unknown cost, and holds the payer until an operator reconciles', async () => {

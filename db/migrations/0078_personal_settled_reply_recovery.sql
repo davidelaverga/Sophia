@@ -9,10 +9,11 @@
 -- the same transaction as the reply is kept; a later attempt at the turn (another process, a restart, Ask again)
 -- finds the kept answer and writes it, asking the companion nothing.
 --
--- * The kept answer is bound to its owner, its turn (still pending under the claim the call was made for), its call
---   (registered to that owner in the space's current epoch) and that epoch; a call settled after an erasure keeps no
---   answer, and an erasure (which deletes the turns) takes the kept answers with them. The cost ledger (0073) stays
---   content-free and is never touched here beyond the existing settlement.
+-- * The kept answer is bound to its owner, its call's own usage row (the owner and the epoch it was reserved in) and
+--   its live turn (asked no later than the call was reserved), not to the turn's claim or the call's registration,
+--   which may move on while the settlement waits (R-B77-S1-P1). A call settled after an erasure keeps no answer, and
+--   an erasure (which deletes the turns) takes the kept answers with them. The cost ledger (0073) stays content-free
+--   and is never touched here beyond the existing settlement.
 -- * Nothing reads the table but these functions, each for the caller's own space (sophia.personal_owner()), in the
 --   space's lock order (the space first, as 0021 and 0073 take it).
 BEGIN;
@@ -31,29 +32,36 @@ CREATE TABLE sophia.personal_settled_answers (
 ALTER TABLE sophia.personal_settled_answers ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON sophia.personal_settled_answers FROM PUBLIC;
 
--- The caller's reserved call settles from its usage, and its answer is kept for the turn it was asked for, both or
--- neither: kept only while that turn is the caller's, pending under p_claim, and the call registered to the caller in
--- the space's current epoch. True if the call settled here (as settle_personal_companion answers).
-CREATE FUNCTION sophia.settle_personal_companion_answer(p_call uuid, p_turn uuid, p_claim uuid, p_used bigint,
- p_usage jsonb, p_body text, p_suggestion text) RETURNS boolean
+-- The caller's reserved call settles from its usage, and its answer is kept for the turn it was asked for, in one
+-- transaction. The answer is bound by the call's own usage row (its owner and the epoch it was reserved in, 0073) and
+-- by the turn being live: the caller's person turn, pending or failed, asked no later than the call was reserved, in
+-- the space's current epoch. Not by the turn's claim or the call's registration: either may have moved on while this
+-- waited (another runner took the lapsed turn, R-B77-S1-P1), and the answer still belongs to the live turn. After an
+-- erasure (another epoch, the turn gone) the cost is settled and nothing is kept. The outcome says which:
+--   'kept'        settled, and this answer is kept for the turn;
+--   'settled'     settled, nothing kept here (erased, the turn answered or gone, or an answer already kept for it);
+--   'not_settled' this call was not the caller's reserved one (already settled, held, released or unknown).
+CREATE FUNCTION sophia.settle_personal_companion_answer(p_call uuid, p_turn uuid, p_used bigint, p_usage jsonb,
+ p_body text, p_suggestion text) RETURNS text
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
-DECLARE a uuid:=sophia.personal_owner(); e bigint; settled boolean;
+DECLARE a uuid:=sophia.personal_owner(); u sophia.personal_companion_usage; kept uuid;
 BEGIN
  IF p_body IS NULL OR length(p_body) NOT BETWEEN 1 AND 4000 THEN
   RAISE EXCEPTION 'A kept answer has its words' USING ERRCODE='22023';
  END IF;
  PERFORM sophia.personal_hold();
- settled:=sophia.settle_personal_companion(p_call, p_used, p_usage);
- IF NOT settled THEN RETURN false; END IF;
- SELECT c.epoch INTO e FROM sophia.personal_companion_calls c WHERE c.owner_id=a AND c.call_id=p_call;
- IF FOUND AND e=coalesce((SELECT s.epoch FROM sophia.personal_spaces s WHERE s.owner_id=a),0)
-  AND EXISTS(SELECT FROM sophia.personal_turns t WHERE t.owner_id=a AND t.id=p_turn AND t.author='person'
-   AND t.reply='pending' AND t.answering_claim=p_claim) THEN
-  INSERT INTO sophia.personal_settled_answers(owner_id,turn_id,call_id,epoch,body,suggestion)
-   VALUES(a,p_turn,p_call,e,p_body,p_suggestion)
-   ON CONFLICT (owner_id,turn_id) DO NOTHING;
+ SELECT * INTO u FROM sophia.personal_companion_usage WHERE call_id=p_call AND owner_id=a;
+ IF NOT FOUND OR NOT sophia.settle_personal_companion(p_call, p_used, p_usage) THEN RETURN 'not_settled'; END IF;
+ IF u.epoch<>coalesce((SELECT s.epoch FROM sophia.personal_spaces s WHERE s.owner_id=a),0)
+  OR NOT EXISTS(SELECT FROM sophia.personal_turns t WHERE t.owner_id=a AND t.id=p_turn AND t.author='person'
+   AND t.reply IN ('pending','failed') AND t.asked_at<=u.reserved_at) THEN
+  RETURN 'settled';
  END IF;
- RETURN true;
+ INSERT INTO sophia.personal_settled_answers(owner_id,turn_id,call_id,epoch,body,suggestion)
+  VALUES(a,p_turn,p_call,u.epoch,p_body,p_suggestion)
+  ON CONFLICT (owner_id,turn_id) DO NOTHING
+  RETURNING call_id INTO kept;
+ RETURN CASE WHEN kept IS NULL THEN 'settled' ELSE 'kept' END;
 END $$;
 
 -- The answer kept for one of the caller's turns, in the space's current epoch, or nothing: read only, so a reply
@@ -84,9 +92,9 @@ BEGIN
  RETURN receipt;
 END $$;
 
-REVOKE ALL ON FUNCTION sophia.settle_personal_companion_answer(uuid,uuid,uuid,bigint,jsonb,text,text),
+REVOKE ALL ON FUNCTION sophia.settle_personal_companion_answer(uuid,uuid,bigint,jsonb,text,text),
  sophia.personal_settled_answer(uuid), sophia.record_personal_settled_reply(uuid,uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION sophia.settle_personal_companion_answer(uuid,uuid,uuid,bigint,jsonb,text,text),
+GRANT EXECUTE ON FUNCTION sophia.settle_personal_companion_answer(uuid,uuid,bigint,jsonb,text,text),
  sophia.personal_settled_answer(uuid), sophia.record_personal_settled_reply(uuid,uuid) TO sophia_api;
 
 COMMIT;
