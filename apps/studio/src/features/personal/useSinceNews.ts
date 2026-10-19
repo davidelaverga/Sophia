@@ -192,7 +192,10 @@ export function useCallSeen(identity: Account, call: string | null, enabled = SI
 
 /** What a project's arrival weighs (project-arrival-since.md). */
 export interface ArrivalOptions {
-  /** The project is drawn: loaded, not refused. One kept out of sight behind its call is in a call (`inCall`). */
+  /**
+   * The project is drawn: loaded, not refused. One kept out of sight behind its call is in a call (`inCall`). A line
+   * said is over once it isn't: behind a closed door nothing acts on the project.
+   */
   drawn: boolean
   /** Its room holds a call, or one on its way (joining, or asked as it opens): a call has its sentence and Catch up. */
   inCall: boolean
@@ -220,12 +223,17 @@ function arrivalNow(identity: Account, projectId: string, window: Since): Arriva
   return { step: 'said', arrival: said }
 }
 
+/** A visit ends at any step with a call or Updates (`ends`), and once said with a closed door: the project not drawn. */
+const overNow = (visit: ArrivalStep, ends: boolean, drawn: boolean) =>
+  visit.step !== 'over' && (ends || (!drawn && visit.step === 'said'))
+
 /**
  * What a project says as the person arrives in it: what others decided, made and kept since they last looked, once per
  * window, project, account and device, with Home (since-said.ts). One open, one visit (ProjectShell is keyed by the
  * project): it reads once the project is drawn, under Home's key and freshness, so an open just after Home reads
  * nothing, and decides after a commit, so the status that says it is there before its words. Nothing when the visit
- * begins at Updates or with the welcome; a call or Updates ends it, as `dismiss` does. Never polled or retried.
+ * begins at Updates or with the welcome; a call, Updates or a closed door ends it, as `dismiss` does. Never polled or
+ * retried.
  */
 export function useArrivalSince(
   identity: Account,
@@ -234,7 +242,7 @@ export function useArrivalSince(
 ) {
   const [visit, setVisit] = useState<ArrivalStep>(() => ({ step: atUpdates || welcomed ? 'over' : 'reading' }))
   const ends = inCall || atUpdates
-  if (ends && visit.step !== 'over') setVisit({ step: 'over' })
+  if (overNow(visit, ends, drawn)) setVisit({ step: 'over' })
   const reading = enabled && drawn && !ends && visit.step === 'reading'
   const read = useQuery({
     queryKey: homeSinceKey(projectId),
