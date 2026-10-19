@@ -40,6 +40,12 @@
   your archived projects.»). `ArchivedFold` draws it with Try again, through `FailedReads`, the failed half of
   `ReadNotes`, taken out so the fold doesn't add a second slow note. Inside the project nothing changes: no line, and
   no claim either way.
+- **Inside the project, archived is known or not (Codex P2 on #469):** `useIsArchived` answered false while the archived
+  list loaded, and for good when it failed, so an admin opening an archived project was offered «Archive project…»;
+  confirming re-sent the idempotent archive, yet still ended the call and went to Work, what #469 meant to prevent.
+  `useArchiveStatus` answers `archived`, `not-archived`, or `unknown` while the read has nothing (loading, or failed
+  with nothing read before). The project-name menu offers «Archive project…» only when `not-archived`; `ArchivedLine`
+  draws only when `archived`, as before, and Work is untouched.
 - **`fixtures/work-space.tsx`:** `WorkSpace` handed by the Studio's own hooks, over an API answered in the page, with
   levers for the checks (`unarchive=lost|hold|fails`, `archivedFails=1`). `workSpaceFixture.keys` records each POST's
   key.
@@ -57,6 +63,11 @@
   projects.» with Try again, which brings the fold. Inside an archived project whose read fails, no line claims
   anything (a guard: it already holds).
 
+- **Archive while unknown (#469):** the room with `hold=archived` (a new lever: the archived list's reads wait for
+  `fixture.releaseArchived`): archived, the menu has no «Archive project…» while held, nor once let through; not
+  archived, none while held, offered once let through. With `archivedFails=1`, after the refusals and their retries,
+  none either.
+
 `archive-keys.test.ts` (unit) pins the store's rule, including, from the review: an archive's reply lost, the
 project then brought back here, Archive pressed again → a new key, not the lost archive's (and the mirror for Unarchive);
 a refusal or no reply leaves the other choice's key.
@@ -72,4 +83,6 @@ a refusal or no reply leaves the other choice's key.
   would close the other admin's, and is left for later.
 - After Unarchive lands, its row leaves the fold and the focus falls to the page, as before. Take back sends the focus
   to Work's heading; Unarchive could do the same.
+- While the archived list can't be read, an admin can't archive from inside the project either: Archive comes back
+  once a read answers (the lists are read again on focus and after writes). Saying so in the menu is left for later.
 - The sheet's Cancel during «Archiving…» and Work's empty state with archived projects wait for Luis's answers.
