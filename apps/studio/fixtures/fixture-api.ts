@@ -329,7 +329,14 @@ function hrefOf(input: RequestInfo | URL): string {
   return input
 }
 
-const streams = new Set<ReadableStreamDefaultController<string>>()
+/** An open stream: what reaches it, how the server ends it, and how it goes silent with its socket still open. */
+interface OpenStream {
+  send: (chunk: string) => void
+  end: () => void
+  stall: () => void
+}
+
+const streams = new Set<OpenStream>()
 
 const frameOf = (sequence: number) => `id: ${sequence}\ndata: ${JSON.stringify(projectEvent(sequence))}\n\n`
 
@@ -339,19 +346,33 @@ const frameOf = (sequence: number) => `id: ${sequence}\ndata: ${JSON.stringify(p
  */
 function eventStream(project: Project, after: number, signal: AbortSignal | null | undefined): Response {
   let ping: ReturnType<typeof setInterval> | undefined
-  let mine: ReadableStreamDefaultController<string> | undefined
+  let mine: OpenStream | undefined
   const close = () => {
     clearInterval(ping)
     if (mine) streams.delete(mine)
   }
   const body = new ReadableStream<string>({
     start: (controller) => {
-      mine = controller
-      streams.add(controller)
-      controller.enqueue(': ping\n\n')
+      let silent = false
+      const open: OpenStream = {
+        send: (chunk) => {
+          if (!silent) controller.enqueue(chunk)
+        },
+        end: () => {
+          close()
+          controller.close()
+        },
+        stall: () => {
+          silent = true
+          clearInterval(ping)
+        },
+      }
+      mine = open
+      streams.add(open)
+      open.send(': ping\n\n')
       // The events after the page's cursor come first, as the API sends its history.
-      for (let sequence = after + 1; sequence <= project.revision; sequence += 1) controller.enqueue(frameOf(sequence))
-      ping = setInterval(() => controller.enqueue(': ping\n\n'), 5000)
+      for (let sequence = after + 1; sequence <= project.revision; sequence += 1) open.send(frameOf(sequence))
+      ping = setInterval(() => open.send(': ping\n\n'), 5000)
       signal?.addEventListener('abort', () => {
         close()
         controller.error(new DOMException('The stream was dropped', 'AbortError'))
@@ -408,12 +429,16 @@ function withFocus(project: Project, now: Snapshot): Snapshot {
 /** While set, the events published wait here, as a frozen page's stream holds them (`window.fixture.holdFeed`). */
 let feedHeld: string[] | null = null
 
+/** While set, the next event published skips a sequence (`window.fixture.gap`). */
+let skipNext = false
+
 /** The project moves one revision, and the event saying so goes to every open stream, unless the feed is held. */
 export function publish(project: Project): void {
-  project.revision += 1
+  project.revision += skipNext ? 2 : 1
+  skipNext = false
   const frame = frameOf(project.revision)
   if (feedHeld) feedHeld.push(frame)
-  else for (const controller of streams) controller.enqueue(frame)
+  else for (const stream of streams) stream.send(frame)
 }
 
 /**
@@ -424,7 +449,25 @@ export function holdFeed(on: boolean): void {
   const held = feedHeld ?? []
   feedHeld = on ? held : null
   if (on) return
-  for (const frame of held) for (const controller of streams) controller.enqueue(frame)
+  for (const frame of held) for (const stream of streams) stream.send(frame)
+}
+
+// The feed's failures, from the server's side (feed-reconnect.md). Each acts on the streams open now; the page's next
+// stream is a healthy one.
+
+/** The server ends every open stream, as an API restart or a proxy's idle cut does: the page reconnects. */
+export function dropStream(): void {
+  for (const stream of streams) stream.end()
+}
+
+/** The open streams stay open and send nothing more, no ping either, as a zombie proxy connection: the page stalls. */
+export function stallStream(): void {
+  for (const stream of streams) stream.stall()
+}
+
+/** The next event published skips a sequence, as a lost frame would: the page reads the snapshot again. */
+export function gap(): void {
+  skipNext = true
 }
 
 const isCommand = (value: unknown): value is GoalCommand =>

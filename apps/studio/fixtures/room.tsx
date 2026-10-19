@@ -83,6 +83,8 @@ import {
   unmutes,
 } from './fake-people.ts'
 import {
+  dropStream,
+  gap,
   holdFeed,
   installFixtureApi,
   publish,
@@ -93,6 +95,7 @@ import {
   releaseText,
   releaseCovers,
   served,
+  stallStream,
   unexpected,
 } from './fixture-api.ts'
 import { missionWrites } from './mission-writes.ts'
@@ -174,6 +177,12 @@ interface Fixture {
   sayElsewhere: (text: string) => void
   /** While on, the project's events wait, as a frozen page's stream holds them; off, they come (messages-while-away.md). */
   holdFeed: (on: boolean) => void
+  /** The server ends the project's open stream, as an API restart does: the page reconnects (feed-reconnect.md). */
+  dropStream: () => void
+  /** The open stream stays open and sends nothing, no ping either: the page gives it up after 25 s and reconnects. */
+  stallStream: () => void
+  /** The next event published skips a sequence, as a lost frame would: the page reads the snapshot again. */
+  gap: () => void
   /** Someone starts waiting at the door, and the event saying so goes out (knock-alert.md). */
   knock: () => void
   /** The call's connection is lost. */
@@ -808,6 +817,9 @@ window.fixture = {
     publish(project)
   },
   holdFeed,
+  dropStream,
+  stallStream,
+  gap,
   knock: () => {
     project.waiting = true
     publish(project)
