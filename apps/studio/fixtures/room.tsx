@@ -289,6 +289,8 @@ interface Fixture {
   failTargets: (on: boolean) => void
   /** While on, the goals' targets reads wait; off, the waiting ones are answered. */
   holdTargets: (on: boolean) => void
+  /** The project's members reads fail, or read again (silent-reads.md). */
+  failMembers: (on: boolean) => void
   /** The running meeting closes (another member closed it), and the feed moves (chapter 7's update). */
   endMeeting: () => void
   /** The project list's reads fail, or read again (chapter 1). */
@@ -727,6 +729,8 @@ const project = {
   // `targetsRead=hold` or `fail`: the goals' targets wait, or fail, from the first (targets-robust.md).
   targetsHeld: query.get('targetsRead') === 'hold' ? waiting() : null,
   targetsFail: query.get('targetsRead') === 'fail',
+  // `membersRead=fail`: the project's members fail from the first (silent-reads.md).
+  membersFail: query.get('membersRead') === 'fail',
   carriedElsewhere: query.get('carried') === 'elsewhere',
   reportsElsewhere: query.get('reports') === 'elsewhere',
   cardAhead: query.get('card') === 'ahead',
@@ -1051,6 +1055,9 @@ window.fixture = {
     const held = project.targetsHeld ?? []
     project.targetsHeld = on ? held : null
     if (!on) for (const answer of held) answer()
+  },
+  failMembers: (on) => {
+    project.membersFail = on
   },
   failProjects: (on) => {
     project.projectsFail = on

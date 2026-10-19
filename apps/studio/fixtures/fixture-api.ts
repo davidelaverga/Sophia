@@ -292,6 +292,8 @@ interface Project {
   targetsFail?: boolean
   /** While set, the goals' targets reads wait for these (`targetsRead=hold`, `window.fixture.holdTargets`). */
   targetsHeld?: (() => void)[] | null
+  /** The project's members read fails (`membersRead=fail`, `window.fixture.failMembers`). */
+  membersFail?: boolean
 }
 
 /** The conversations as the fixtures keep them (A33 serves them, conversation-wire.ts), and the reads that fail. */
@@ -631,7 +633,8 @@ function projectRead(project: Project, url: URL): Response | Promise<Response> |
     return project.activityHeld ? new Promise<Response>(() => undefined) : activityRead(url)
   if (url.pathname.startsWith(`${base}/discussion`)) return discussionRead(project, url)
   if (url.pathname === `${base}/goal-targets`) return targetsAnswer(project)
-  return url.pathname === `${base}/members` ? membersRead(project) : null
+  if (url.pathname !== `${base}/members`) return null
+  return project.membersFail ? new Response(JSON.stringify(UNAVAILABLE), { status: 503 }) : membersRead(project)
 }
 
 /** The goals' targets as read: held while asked (`holdTargets`), refused while they fail (`failTargets`). */
@@ -641,10 +644,11 @@ function targetsAnswer(project: Project): Response | Promise<Response> {
   return targetsNow(project)
 }
 
-/** The goals' targets once let through: refused while they fail, else read. */
+/** The goals' targets once let through: refused while they fail, each refusal recorded (`targets-refused`), else read. */
 function targetsNow(project: Project): Response {
-  if (project.targetsFail) return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
-  return goalTargetsRead(project)
+  if (!project.targetsFail) return goalTargetsRead(project)
+  served.push('targets-refused')
+  return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
 }
 
 /** The goals' owners and dates (A25). */
