@@ -444,6 +444,55 @@ test('sign out · one that fails says so, the person still in; Try again signs o
   await expect(page.locator('input[type="email"]')).toBeVisible()
 })
 
+/** A member invitation for Luis's address, opened by Davide: the join page offers to sign out and continue as Luis. */
+const FOR_LUIS = {
+  projectTitle: 'Fixture project',
+  inviterName: 'Ana',
+  kind: 'member',
+  role: 'editor',
+  email: LUIS.email,
+  expiresAt: '2099-01-01T00:00:00Z',
+  session: null,
+  state: 'open',
+}
+
+test('join · a sign-out that fails says so, the person still in; Try again signs out (invite-sign-out-failure.md)', async ({
+  context,
+}) => {
+  await serve(context)
+  // The invitation's preview, answered in the page (serve's API answers nothing else).
+  await context.route(`${APP}/api/v1/join/preview`, (route) => route.fulfill({ json: FOR_LUIS }))
+  const page = await signedInTab(context, DAVIDE)
+  // The link's token, kept on this device as the join page keeps it (JoinFlow's PENDING).
+  await page.evaluate(() =>
+    localStorage.setItem('sophia.join', JSON.stringify({ token: 'synthetic-join-token-0001', at: Date.now() })),
+  )
+  await page.goto(`${APP}/join`)
+  const signOut = page.getByRole('button', { name: `Sign out and continue as ${LUIS.email}` })
+  await expect(signOut).toBeVisible()
+  // The browser's storage refuses to let the session go while the root says so, as in #410's check above.
+  await page.evaluate((key) => {
+    const removeItem = Storage.prototype.removeItem.bind(localStorage)
+    Storage.prototype.removeItem = (name: string) => {
+      if (name === key && document.documentElement.dataset['refuse'] === 'yes') throw new Error('Storage refused')
+      removeItem(name)
+    }
+    document.documentElement.dataset['refuse'] = 'yes'
+  }, SESSION_KEY)
+  await signOut.click()
+  await expect(page.getByRole('alert')).toHaveText(
+    'Couldn’t sign out: this device is still signed in. Check your connection and try again.',
+  )
+  // Still in, on the same page: the line naming who is in stays.
+  await expect(page.getByText(`you’re signed in as ${DAVIDE.email}`)).toBeVisible()
+  await page.evaluate(() => {
+    delete document.documentElement.dataset['refuse']
+  })
+  await page.getByRole('button', { name: 'Try again' }).click()
+  await expect(page.getByText(`Sign in with ${LUIS.email}`, { exact: false })).toBeVisible()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+})
+
 test('codex · 6e9e2a9b · signing out forgets every proposal at once, before the Auth service answers', async ({
   context,
 }) => {
