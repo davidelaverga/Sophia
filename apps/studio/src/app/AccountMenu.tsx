@@ -19,6 +19,7 @@ import { type Theme, useTheme } from './theme.ts'
 import { reportsOn } from './crash-report.ts'
 import { FeedbackSheet } from './FeedbackSheet.tsx'
 import { type Handover, SettingsSheet } from './SettingsSheet.tsx'
+import { closingEveryDialog } from './useDialog.ts'
 import { useMyProfile } from './useMyProfile.ts'
 
 export interface AccountActions {
@@ -149,7 +150,8 @@ function AccountSheet(props: {
       <ProfileSheet key={account} identity={props.identity} onClose={close} />
     ) : null
   }
-  const closeHanded = handed === which ? () => onSheet('settings') : close
+  // Put away with every sheet (Open on the recap, for a report), it gives nothing back: Settings would cover the report.
+  const closeHanded = handed === which ? () => onSheet(closingEveryDialog() ? null : 'settings') : close
   if (which === 'passkeys') return <PasskeySheet onClose={closeHanded} />
   if (which === 'feedback') return <FeedbackSheet onClose={closeHanded} />
   const leaveFor = (run: () => void) => () => {
