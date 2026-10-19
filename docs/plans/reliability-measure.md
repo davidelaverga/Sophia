@@ -37,8 +37,8 @@ too.
   Per job family: the room's shards (`… (1/2)`, `… (2/2)` since #468, `…, part n of 3` on some branches) are one
   family, each shard judged on its own. Also per job: success, failure, timeout and superseded counts, the failure
   share of the decided ones (as the baseline's table), and for failed room jobs the number of failed tests from the
-  Playwright summary: a job that failed on one test of ~2,000 is the flake signature; the specs that failed most are
-  listed.
+  Playwright summary: a job that failed on one test of ~2,000 is the flake signature; the tests that failed most are
+  listed, each by its full title (see «Honest when partial»).
 - **M11 · room job duration.** Median, p90 and maximum of the successful room jobs per day and per part (`whole` or
   the shard), with the margin of p90 to the job's `timeout-minutes`, read from `.github/workflows/ci.yml` (the job
   whose name, without its `${{ … }}`, starts with «The room in Chromium»; GitHub's 360 if it has none). Timeouts per
@@ -112,7 +112,9 @@ script uses, runs it: the same two fixture servers, one desktop project, `grep: 
 - **Unit** (`tests/unit/reliability-report.test.mjs`, in `pnpm test`): percentiles (interpolated between closest
   ranks), rates of nothing, shard names in both namings, a cancelled job at its limit read as a timeout, carried-over
   jobs counted once, flakes, the job table, the Playwright summary, the room minutes and margin per day and part, the
-  limit read from the workflow, main's red hours (a rerun, a late older commit), and the four fixture summaries.
+  limit read from the workflow, main's red hours (a rerun, a late older commit; already red as the window opens, a run
+  begun before it), the room's failed tests by full title and recency, the four fixture summaries, and the script
+  itself on a fake suite (failed partway, collected short, whole).
 - **The suite** runs once on this branch (the code before R1) and its numbers are the baseline; it is not part of any
   normal run. Kept out: before `testIgnore`, `playwright test --list` held its 5 first tests (2,288 in all); after,
   2,283 and none of them, and the reliability config lists only its own.
@@ -121,8 +123,45 @@ script uses, runs it: the same two fixture servers, one desktop project, `grep: 
   room failures in a 6-hour window, two false flakes and a 0.1-minute median. A room job counts only if it runs the
   Playwright suite (`isRoomGate`).
 
+## Honest when partial (Codex on #470)
+
+> 2026-10-19 · two P2s on #470, both verified against the code before any change. Luis: «Lo que no se mide, no se
+> puede mejorar»; a number taken from half a run, or from half a window, is worse than none.
+
+- **A failed suite published a whole report.** With `--fixture --run`, a suite that exited non-zero (a timeout, a
+  browser crash, a failed scenario) was only logged («collecting what it wrote»): the report was built from the
+  records some tests had written and the script exited 0, so a before/after could compare a full run with a third of
+  one. The same hole stands without `--run` (the guard path on Luis's machine): the script never knew how many
+  scenarios the suite has. Now the report counts each metric's scenarios from the suite's own listing (`playwright
+  test … --list`: every title path starts `Mn · `, a describe's or the test's; «Total: N tests» proves the listing
+  whole) against the records each metric wrote (each scenario writes one, at its end). **Per metric**, as the finding
+  allows: when the suite exited non-zero, every metric is **incomplete** (a scenario can fail after writing its record,
+  so the records can't say which); otherwise a metric with fewer records than scenarios is. An incomplete metric keeps
+  its samples and «n of N scenarios wrote results», and gives no summary (no percentage, no p50); the whole ones are
+  published as before. The file is still written; the script exits 1 whenever any metric is incomplete. A deliberate
+  run of one spec (only `feed.spec.ts`) so publishes M3/M4 and marks the rest «0 of N». A listing that fails leaves N
+  unknown; the suite's exit still decides. The suite command and the results folder can be pointed elsewhere
+  (`RELIABILITY_SUITE`, `RELIABILITY_RESULTS`) for the script's own test, which runs a fake suite.
+- **M12 had no state at the window's start.** `--ci` lists runs *created* from `--since`, so main's state at that
+  moment was unknown: if main was already red, the red time until the first green in the window counted 0, and a run
+  created before `since` that ended inside the window was missed. Now `--ci` also reads main's 20 newest `ci` push
+  runs created before `since` (`gh run list --branch main --event push --created "<since"`), latest attempts only.
+  `mainHealth(runs, now, since)` walks every end in time, so the state at `since` is the one the earlier runs left,
+  then keeps only the red time inside the window (a span that began before it counts from `since`; `redSince` keeps
+  its true start) and counts in the green share only the commits created in the window. M10 and M11 still read the
+  window only.
+- **The room tests that failed most were ranked by `file:line`** (the coordinator, from a week's report). One `test(`
+  line can stand for many pages: `press-answers.spec.ts:128` «×32» was 13 pages under one line, 31 of the 32 «on the
+  work space» on 10-12/13 and already fixed; `resources.spec.ts:461` (×18, all 10-12) and
+  `home-phone-needs.spec.ts:79` (×16, all 10-16) were fixed days before too, and led the list. Now each failed test is
+  counted by its full title (the summary's line: project, file and line, title path), with its last failure (the
+  failed job's start) and how many of its failures fall in the 48 hours before the report's end. The list (top 10)
+  is ordered by those recent failures, then by all of them, then by the latest, so a test fixed days ago sinks.
+
 ## Limits
 
+- M12's runs before the window are read by their latest attempt only: an earlier attempt of one of them that ended
+  red before `since`, rerun green after, is not seen as red at the start.
 - `scripts/**/*.mjs` and `tests/` are outside the repository's lint and Prettier gates (S1-01's runtime-unit areas);
   these files are formatted with the repository's Prettier settings anyway.
 - M10 sees only what reruns and double runs show: a flake on a commit nobody reran is a plain failure. The
