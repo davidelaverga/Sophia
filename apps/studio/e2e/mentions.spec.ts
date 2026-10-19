@@ -563,7 +563,10 @@ async function pendingSeenRetry(page: Page, close: boolean) {
   await page.goto(`/room.html?call=on&people=2&floor=1&discussion=mentioned#message-${MENTIONED_IN}`)
   await expect(discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)).toBeInViewport()
   await expect.poll(() => page.evaluate(() => typeof window.releaseSeen)).toBe('function') // the first write, held
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1))
+  // Stopped a second ahead of the time read: the page's clock runs on while the test reads it and asks for the pause,
+  // and a slow runner took more than 1 ms there (#409 CI: «Cannot fast-forward to the past»). The write is still held,
+  // so no retry is waiting yet for that second to bring.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000))
   await page.evaluate(() => window.releaseSeen?.()) // its 503, answered with the clock stopped: the retry waits
   await page.clock.runFor(500) // half its wait: still pending, nothing sent again
   expect(await seenAttempts(page)).toBe(1)
