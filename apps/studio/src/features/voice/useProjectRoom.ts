@@ -670,7 +670,6 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
       leaveTextMode: () => typedChat.setTextMode(false),
     })
 
-  const startAudio = () => calls.current?.startAudio() ?? Promise.resolve()
   const [relays] = useState(() => relaysOf(calls))
 
   return {
@@ -684,7 +683,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     ...choices,
     setMicrophone,
     ...conversationParts(typedChat),
-    startAudio,
+    startAudio: () => calls.current?.startAudio() ?? Promise.resolve(),
     listDevices,
     backgroundsSupported,
     ...relays,
