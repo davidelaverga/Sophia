@@ -81,6 +81,70 @@ test('discussion · a message whose reply is lost says so; Try again sends the s
   expect(await toRoom(page)).toEqual(['contribution:discuss'])
 })
 
+/** The keys each message to the room reached the synthetic service with (`server=kept`'s journal), try by try. */
+const contributionKeys = (page: Page) =>
+  page.evaluate(() => {
+    const journal: unknown = JSON.parse(sessionStorage.getItem('fixture.server.journal') ?? '[]')
+    return (Array.isArray(journal) ? journal : []).flatMap((w: unknown) =>
+      typeof w === 'object' && w !== null && String(Reflect.get(w, 'path')).endsWith('/contributions')
+        ? [String(Reflect.get(w, 'key'))]
+        : [],
+    )
+  })
+/** What the tab keeps of the Studio's held writes (held-in-tab.ts), by its keys. */
+const heldInTab = (page: Page) =>
+  page.evaluate(() => Object.keys(sessionStorage).filter((k) => k.startsWith('sophia.held.v1:')))
+
+/** The page reloaded, back in the call, the chat open. */
+async function reenter(page: Page) {
+  await page.reload()
+  await expect(leave(page)).toBeVisible()
+  await chatToggle(page).click()
+  await expect(bar(page)).toBeVisible()
+}
+
+test('discussion · a message with no reply is offered again after a reload; Try again sends it once, under its key (baseline gap #8)', async ({
+  page,
+}) => {
+  await enter(page, 'people=2&floor=1&server=kept')
+  await page.evaluate(() => window.fixture?.loseNextContributionReply())
+  await bar(page).fill('Once only.')
+  await bar(page).press('Enter')
+  await expect(page.getByText('Not confirmed: “Once only.”')).toBeVisible()
+  await reenter(page)
+  // The service holds it (it landed; its reply was lost), and the bar says it may not be confirmed.
+  await expect(page.getByText('Not confirmed: “Once only.”')).toBeVisible()
+  await expect(bar(page)).toHaveValue('')
+  await page.getByRole('button', { name: 'Try again' }).click()
+  await expect(page.getByText('Not confirmed: “')).toHaveCount(0)
+  await expect(discussion(page).getByText('Once only.')).toHaveCount(1)
+  expect(await toRoom(page)).toEqual(['contribution:discuss'])
+  const keys = await contributionKeys(page)
+  expect(keys).toHaveLength(2)
+  expect(new Set(keys).size).toBe(1)
+  // Answered, it is let go: reloaded again, nothing is offered.
+  expect(await heldInTab(page)).toEqual([])
+  await reenter(page)
+  await expect(discussion(page).getByText('Once only.')).toHaveCount(1)
+  await expect(page.getByText('Not confirmed: “')).toHaveCount(0)
+})
+
+test('discussion · a message on its way is kept in the tab until its reply lands; reloaded then, nothing is offered', async ({
+  page,
+}) => {
+  await enter(page, 'people=2&floor=1&server=kept')
+  await page.evaluate(() => window.fixture?.holdMessages(true))
+  await bar(page).fill('Slow but sure.')
+  await bar(page).press('Enter')
+  await expect.poll(() => heldInTab(page)).toHaveLength(1)
+  await page.evaluate(() => window.fixture?.releaseMessages())
+  await expect(bar(page)).toHaveValue('')
+  await expect.poll(() => heldInTab(page)).toEqual([])
+  await reenter(page)
+  await expect(discussion(page).getByText('Slow but sure.')).toHaveCount(1)
+  await expect(page.getByText('Not confirmed: “')).toHaveCount(0)
+})
+
 test('discussion · offline, the bar says so before any press and sends nothing; back online, one message', async ({
   page,
   context,
