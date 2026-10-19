@@ -642,7 +642,7 @@ describe('the live personal companion (local provider double)', () => {
       const failed = await settled(at, DEV)
       const asked = failed.turns.find((t) => t.author === 'person')
       assert.equal(asked?.reply, 'failed')
-      double.script({ text: 'A second paid answer.', usage: { input_tokens: 10, output_tokens: 5 } })
+      // Nothing scripted for a second request: the double is shared with the other cases, and none is due here.
       await write(at, `/api/v1/personal/turns/${asked.id}/retry`, DEV, {})
       // Long enough for a second call to be asked and settled, were it made.
       for (let i = 0; i < 60 && recorded().length - sentBefore < 2; i++)
