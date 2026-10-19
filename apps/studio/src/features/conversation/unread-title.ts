@@ -63,10 +63,23 @@ function cameWhileAway(was: Away | null, counted: Counted): Away | null {
 }
 
 /**
+ * What came, less what the viewer answered: a message they typed, here or on another device, puts itself and all
+ * before it behind them (one that left the snapshot came before). A turn they spoke reads nothing of the chat.
+ */
+function unanswered(away: Away | null, entries: readonly DiscussionEntry[], me: string | null): Away | null {
+  const last = entries.findLastIndex((e) => e.origin === 'composer' && e.actorId === me)
+  if (!away || last < 0) return away
+  const after = new Set(entries.slice(last + 1).map((e) => e.id))
+  const ids = away.ids.filter((id) => after.has(id))
+  if (ids.length === away.ids.length) return away
+  return ids.length > 0 ? { ...away, ids } : null
+}
+
+/**
  * The next read of the discussion. Hidden, what comes is counted: the same state when nothing changes, so a refresh
- * alone renders nothing. Shown, all is seen, and shown again, what was counted came while away. Seen are those there
- * while it was shown, or when the discussion was first read: a tab opened in the background counts only what comes
- * after.
+ * alone renders nothing. Shown, all is seen, and shown again, what was counted came while away, less what the viewer
+ * answered. Seen are those there while it was shown, or when the discussion was first read: a tab opened in the
+ * background counts only what comes after.
  */
 export function nextUnseen(
   was: Unseen | null,
@@ -78,10 +91,10 @@ export function nextUnseen(
     const counted = withUnseen(was.counted, entries, was.seen, me)
     return counted === was.counted && was.hidden ? was : { ...was, counted, hidden }
   }
-  const away = was?.hidden
+  const came = was?.hidden
     ? cameWhileAway(was.away, withUnseen(was.counted, entries, was.seen, me))
     : (was?.away ?? null)
-  return { seen: new Set(entries.map((e) => e.id)), counted: new Map(), hidden, away }
+  return { seen: new Set(entries.map((e) => e.id)), counted: new Map(), hidden, away: unanswered(came, entries, me) }
 }
 
 /** The divider of the absence its first message names was seen; another absence's is left as it is. */
