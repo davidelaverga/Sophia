@@ -403,8 +403,8 @@ test('earlier · named then no longer at the same revision, the second while the
   await expect(page.getByText('Message 4', { exact: true })).toBeVisible()
 })
 
-// R on 21dab (r4313704366): A and B share one source, both held beyond the newest 50. Correcting or withdrawing A
-// elsewhere erases that source: B no longer lists in any read, and the one event names A. B's old words must go.
+// R on 21dab (r4313704366): A and B share one source, so one body, both held beyond the newest 50. Correcting or
+// withdrawing A elsewhere erases that source: B no longer lists in any read, and the one event names A. B must go.
 for (const act of ['correct', 'withdraw'] as const)
   test(`earlier · ${act === 'correct' ? 'a correction' : 'a withdrawal'} that erases a shared source leaves no held alias showing its words (r4313704366)`, async ({
     page,
@@ -415,12 +415,13 @@ for (const act of ['correct', 'withdraw'] as const)
     await earlier(page).click()
     await expect(entries(page)).toHaveCount(60)
     const a = (await items(page).nth(2).getAttribute('data-message')) ?? ''
-    await expect(entries(page).nth(3)).toHaveText('Message 4')
+    const b = (await items(page).nth(3).getAttribute('data-message')) ?? ''
+    await expect(page.locator(`[data-message="${b}"] .contribution-text`)).toHaveText('SYNTHETIC shared words')
     await page.evaluate(([m, text]) => window.fixture?.eraseShared(2, m, text), [
       a,
       act === 'correct' ? 'Message 3, corrected elsewhere' : null,
     ] as const)
-    await expect(entries(page).filter({ hasText: /^Message 4$/ })).toHaveCount(0)
+    await expect(page.locator(`[data-message="${b}"]`)).toHaveCount(0)
     if (act === 'correct')
       await expect(page.locator(`[data-message="${a}"] .contribution-text`)).toHaveText(
         'Message 3, corrected elsewhere',

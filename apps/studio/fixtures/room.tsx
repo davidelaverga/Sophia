@@ -597,6 +597,8 @@ function overTwoDays(): Said[] {
 
 /** The source the `alias=1` pair shares (r4313704366). */
 const ALIAS_SOURCE = '00000000-0000-4000-9000-0000000a11a5'
+/** The new source a correction writes A's words to (a source id, as the contract has it). */
+const CORRECTED_SOURCE = '00000000-0000-4000-9000-0000000a11a6'
 
 const project = {
   revision: 1,
@@ -662,10 +664,10 @@ const project = {
   // `discussion=mine`: the viewer's own written message, another member's, and the viewer's own shared report (A36).
   // `discussion=mentioned`: another member's message that mentions the viewer, on its revision 2 (A37).
   // `mentionOld=1` with `discussion=60`: the third message, beyond the chat's 50, mentions the viewer (A37).
-  // `alias=1` with `discussion=60`: the third and fourth messages share one source (r4313704366).
+  // `alias=1` with `discussion=60`: the third and fourth messages share one source, so its one body (r4313704366).
   messages: (query.get('alias') === '1'
     ? Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) =>
-        i === 2 || i === 3 ? { text: `Message ${i + 1}`, sourceId: ALIAS_SOURCE } : `Message ${i + 1}`,
+        i === 2 || i === 3 ? { text: 'SYNTHETIC shared words', sourceId: ALIAS_SOURCE } : `Message ${i + 1}`,
       )
     : query.get('mentionOld') === '1'
       ? Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) =>
@@ -865,7 +867,7 @@ window.fixture = {
     project.messages[n] =
       text === null
         ? { ...base, revision, withdrawnAt: now }
-        : { ...base, text, revision, correctedAt: now, sourceId: `${String(old)}-new` }
+        : { ...base, text, revision, correctedAt: now, sourceId: CORRECTED_SOURCE }
     const type = text === null ? 'contribution.withdrawn' : 'contribution.corrected'
     eventEntities.set(project.revision + 1, { type, entityType: 'contribution', entityId: id })
     publish(project)
