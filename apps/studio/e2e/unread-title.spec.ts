@@ -133,11 +133,8 @@ test('away · the chat open while the tab was hidden: the divider shows all the 
   await expect(contributions(page).nth(3)).toContainText('2 messages came while you were away')
 })
 
-test('away · thirty while away, the chat opened at the newest: its head says so, and Jump goes to the first, once', async ({
-  page,
-}) => {
-  await page.goto('/room.html?discussion=3')
-  await expect(page).toHaveTitle('Fixture project · Sophia')
+/** Thirty messages from another member while the tab is hidden, then back: the chat opens at the newest. */
+async function backFromThirty(page: Page) {
   await away(page, true)
   await page.evaluate(() => {
     window.fixture?.say('The deck is in Resources.')
@@ -145,6 +142,22 @@ test('away · thirty while away, the chat opened at the newest: its head says so
   })
   await expect(page).toHaveTitle('(30) Fixture project · Sophia')
   await away(page, false)
+  await expect(page).toHaveTitle('Fixture project · Sophia')
+}
+
+/** The history moved, as the reader scrolls it, until the divider sits at its top. */
+const readDownTo = (page: Page) =>
+  history(page).evaluate((el) => {
+    const at = el.querySelector('.while-away-divider')
+    if (at) el.scrollTop += at.getBoundingClientRect().top - el.getBoundingClientRect().top - 8
+  })
+
+test('away · thirty while away, the chat opened at the newest: its head says so, and Jump goes to the first, once', async ({
+  page,
+}) => {
+  await page.goto('/room.html?discussion=3')
+  await expect(page).toHaveTitle('Fixture project · Sophia')
+  await backFromThirty(page)
   await chatToggle(page).click()
   await expect(line(page)).toHaveText('30 messages came while you were away. Jump to the first')
   const mark = divider(page, '30 messages came while you were away')
@@ -182,4 +195,51 @@ test('away · sending from the bar ends it', async ({ page }) => {
   await page.locator('#converse-draft').press('Enter')
   await expect(contributions(page).last()).toContainText('Reading them now.')
   await expect(page.getByText(/came while you were away/)).toHaveCount(0)
+})
+
+test('away · reading down to the divider, without Jump, ends the line for good', async ({ page }) => {
+  await page.goto('/room.html?discussion=3')
+  await expect(page).toHaveTitle('Fixture project · Sophia')
+  await backFromThirty(page)
+  await chatToggle(page).click()
+  await expect(line(page)).toBeVisible()
+  const mark = divider(page, '30 messages came while you were away')
+  await readDownTo(page)
+  await expect.poll(() => inHistory(page, mark)).toBe(true)
+  await expect(line(page)).toHaveCount(0)
+  // Back at the newest, the divider far again: the line doesn't come back.
+  await history(page).evaluate((el) => (el.scrollTop = el.scrollHeight))
+  await expect.poll(() => inHistory(page, mark)).toBe(false)
+  await page.waitForTimeout(300)
+  await expect(line(page)).toHaveCount(0)
+})
+
+test('away · the divider seen as the chat opens, reading back up brings no line', async ({ page }) => {
+  await page.goto('/room.html?discussion=40')
+  await expect(page).toHaveTitle('Fixture project · Sophia')
+  await backFromTwo(page)
+  await chatToggle(page).click()
+  const mark = divider(page, '2 messages came while you were away')
+  await expect.poll(() => inHistory(page, mark)).toBe(true)
+  await history(page).evaluate((el) => (el.scrollTop = 0))
+  await expect.poll(() => inHistory(page, mark)).toBe(false)
+  await page.waitForTimeout(300)
+  await expect(line(page)).toHaveCount(0)
+})
+
+test('away · the chat open and read far back while the tab was hidden: its head says so, and Jump goes down', async ({
+  page,
+}) => {
+  await page.goto('/room.html?discussion=40')
+  await chatToggle(page).click()
+  await expect(contributions(page)).toHaveCount(40)
+  await history(page).evaluate((el) => (el.scrollTop = 0))
+  await backFromTwo(page)
+  const mark = divider(page, '2 messages came while you were away')
+  await expect(line(page)).toHaveText('2 messages came while you were away. Jump to the first')
+  expect(await inHistory(page, mark)).toBe(false)
+  await page.getByRole('button', { name: 'Jump to the first' }).click()
+  await expect(mark).toBeFocused()
+  await expect.poll(() => inHistory(page, mark)).toBe(true)
+  await expect(line(page)).toHaveCount(0)
 })
