@@ -110,3 +110,5 @@
 - **A message held with no reply, offline, keeps these words** (Luis 2026-10-19: «Pon tus sugerencias a esas
   preguntas»): «You’re offline, so “…” isn’t confirmed. Send it again once you’re back; it won’t be written twice.» The
   other option, «Not confirmed» with Send waiting, is set aside. No code changes.
+- **The first limit, a Join pressed offline from rest, is answered** by the same reply: it asks for nothing and says
+  «You’re offline. Join once you’re back.» (`offline-join-from-rest.md`).
