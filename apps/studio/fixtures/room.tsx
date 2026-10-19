@@ -720,6 +720,7 @@ const project = {
   messageActs: messageActsOf(query),
   membersFail: query.get('members') === 'fail',
   heldMessages: undefined as (string | Said)[] | undefined,
+  heldAt: undefined as number | undefined,
   failEarlierReads: false,
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
@@ -1231,6 +1232,7 @@ window.fixture = {
     for (const answer of held) answer()
     if (project.heldMessages === undefined) return
     project.heldMessages = undefined
+    project.heldAt = undefined
     publish(project)
   },
   outage: (on) => {
@@ -1336,6 +1338,7 @@ window.fixture = {
   },
   holdSnapshot: () => {
     project.heldMessages = structuredClone(project.messages)
+    project.heldAt = project.revision
   },
   failEarlierReads: (on) => {
     project.failEarlierReads = on
