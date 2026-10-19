@@ -3937,8 +3937,10 @@ button.contribution-quote:hover {
   gap: 8px;
 }
 /* What changed since you last looked (docs/plans/project-arrival-since.md): the welcome's card, one line and Dismiss in
-   its corner. Its status is an empty box in the page's flow until the card is put in it. */
+   its corner, wide enough at a desk for a short line to stay one. Its status is an empty box in the page's flow until
+   the card is put in it. */
 .arrival-band {
+  width: min(420px, calc(100% - 2 * var(--gutter)));
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 12px;
