@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { DiscussionEntry } from '@sophia/contracts'
-import { anchorOf, changesOf, contributionChanged, feedResynced, staleHeld, withPage } from './held-pages.ts'
+import {
+  KEPT,
+  anchorOf,
+  changesOf,
+  contributionChanged,
+  feedResynced,
+  feedStopped,
+  ownerOf,
+  staleHeld,
+  withPage,
+} from './held-pages.ts'
 
 const at = (n: number) => `2026-10-16T09:${String(n).padStart(2, '0')}:00.000Z`
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
@@ -39,7 +49,7 @@ describe('held pages kept honest (4309253137)', () => {
   })
 
   it('a burst beyond the feed’s 30 recent events loses none: every id is kept', () => {
-    const project = '00000000-0000-4000-8000-0000000000ab'
+    const project = ownerOf('davide', '00000000-0000-4000-8000-0000000000ab')
     const many = Array.from({ length: 40 }, (_, i) => id(100 + i))
     for (const m of many) contributionChanged(project, m)
     contributionChanged(project, many[0] ?? '') // a replay counts once, newest
@@ -57,13 +67,30 @@ describe('held pages kept honest (4309253137)', () => {
     assert.equal(anchorOf(id(9), items), undefined)
   })
 
-  it('a page read again decides for its span: a correction replaces the words, a withdrawal leaves, neighbours stay', () => {
-    const held = maps(e(1), e(2), e(3), e(4), e(5))
-    const corrected = withPage(held, { entries: [e(2), e(3, 'Fixed'), e(4)], before: null })
+  it('a page read again settles only the messages it was read for; a newer neighbour is never set back (R F1)', () => {
+    const held = maps(e(1), e(2, 'Newer 2'), e(3), e(4), e(5))
+    const corrected = withPage(held, { entries: [e(2), e(3, 'Fixed'), e(4)], before: null }, [id(3)])
     assert.equal(corrected.entries.get(id(3))?.text, 'Fixed')
-    assert.equal(corrected.entries.size, 5)
-    const gone = withPage(held, { entries: [e(2), e(4)], before: null })
+    assert.equal(corrected.entries.get(id(2))?.text, 'Newer 2', 'the page’s older copy of a neighbour is not used')
+    assert.deepEqual(corrected.settled, [id(3)])
+    const gone = withPage(held, { entries: [e(2), e(4)], before: null }, [id(3)])
     assert.equal(gone.entries.has(id(3)), false)
-    assert.deepEqual([...gone.entries.keys()].toSorted(), [id(1), id(2), id(4), id(5)])
+    assert.equal(gone.entries.size, 4)
+    const elsewhere = withPage(held, { entries: [e(4), e(5)], before: null }, [id(1)])
+    assert.deepEqual(elsewhere.settled, [], 'a page that doesn’t cover the message settles nothing')
+    assert.equal(elsewhere.entries.has(id(1)), true)
+  })
+
+  it('each account and project keeps its own changes, bounded, and forgets them when its feed stops (R F3)', () => {
+    const mine = ownerOf('davide', 'p1')
+    const theirs = ownerOf('lucia', 'p1')
+    contributionChanged(mine, id(1))
+    assert.equal(changesOf(theirs).ids.size, 0)
+    feedStopped(mine)
+    assert.equal(changesOf(mine).ids.size, 0)
+    const busy = ownerOf('davide', 'p2')
+    for (let n = 0; n <= KEPT; n += 1) contributionChanged(busy, id(1000 + n))
+    assert.equal(changesOf(busy).ids.size, 0, 'past the bound: let go')
+    assert.equal(changesOf(busy).resyncs, 1, 'as after a resync: the earlier pages go')
   })
 })

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError, getSnapshot } from '../../api/client.ts'
 import { followEvents } from '../../api/stream.ts'
 import { applyFrame, initialFeed, rebase, type Feed } from '../../projectors/projection.ts'
-import { ACTS, contributionChanged, feedResynced } from '../conversation/held-pages.ts'
+import { ACTS, contributionChanged, feedResynced, feedStopped, ownerOf } from '../conversation/held-pages.ts'
 import { runFeedLoop, type Connection, type FeedPorts } from './feed-loop.ts'
 import { closedDoor, staleRetry } from './project-door.ts'
 
@@ -26,6 +26,8 @@ const historyStart = (cursor: string) => (BigInt(cursor) > HISTORY ? (BigInt(cur
 interface PortsDeps {
   token: string
   projectId: string
+  /** The account and project whose message changes this feed reports (held-pages.ts). */
+  owner: string
   key: readonly unknown[]
   queryClient: QueryClient
   feed: { current: Feed | null }
@@ -42,10 +44,13 @@ function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => void } {
   const ports: FeedPorts = {
     current,
     apply: (frame) => {
-      // A message corrected or withdrawn: kept by id beyond the feed's bounded recent list (held-pages.ts).
-      if ('entityId' in frame && frame.entityType === 'contribution' && ACTS.has(frame.type))
-        contributionChanged(deps.projectId, frame.entityId)
-      const next = applyFrame(current(), frame)
+      const before = current()
+      const next = applyFrame(before, frame)
+      // A message corrected or withdrawn, once the feed took the frame (not a replay, not past a gap): kept by id
+      // beyond the feed's bounded recent list (held-pages.ts).
+      const took = !next.needsSnapshot && next.cursor !== before.cursor
+      if (took && 'entityId' in frame && frame.entityType === 'contribution' && ACTS.has(frame.type))
+        contributionChanged(deps.owner, frame.entityId)
       deps.store(next)
       return next
     },
@@ -53,7 +58,7 @@ function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => void } {
       await deps.queryClient.refetchQueries({ queryKey: deps.key, exact: true })
       const fresh = deps.queryClient.getQueryData<{ cursor: string }>(deps.key)
       if (fresh) deps.store(rebase(current(), fresh.cursor))
-      feedResynced(deps.projectId)
+      feedResynced(deps.owner)
     },
     follow: (after, signal, onOpen, onFrame) =>
       followEvents({ token: deps.token, projectId: deps.projectId, after, signal, onOpen, onFrame }),
@@ -71,7 +76,13 @@ function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => void } {
     },
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   }
-  return { ports, dispose: () => clearTimeout(refresh) }
+  return {
+    ports,
+    dispose: () => {
+      clearTimeout(refresh)
+      feedStopped(deps.owner)
+    },
+  }
 }
 
 export function useProjectFeed(projectId: string, identity: string, token: string) {
@@ -105,13 +116,15 @@ export function useProjectFeed(projectId: string, identity: string, token: strin
   useEffect(() => {
     if (!ready) return undefined
     const stop = new AbortController()
-    const { ports, dispose } = feedPorts({ token, projectId, key, queryClient, feed: feedRef, store, setConnection })
+    const owner = ownerOf(identity, projectId)
+    const deps = { token, projectId, owner, key, queryClient, feed: feedRef, store, setConnection }
+    const { ports, dispose } = feedPorts(deps)
     void runFeedLoop(ports, stop.signal)
     return () => {
       stop.abort()
       dispose()
     }
-  }, [ready, token, projectId, key, queryClient, store])
+  }, [ready, token, projectId, identity, key, queryClient, store])
 
   return { snapshot, feed, connection }
 }

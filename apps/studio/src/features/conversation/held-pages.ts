@@ -22,15 +22,28 @@ interface Store {
   listeners: Set<() => void>
 }
 
+/** The stores, one per account and project the feed follows (`owner`: `<account>:<project>`), forgotten when it stops. */
 const stores = new Map<string, Store>()
 let learned = 0
+/** At most this many messages are kept: past it, the earlier pages are let go as after a resync. */
+export const KEPT = 200
 
-function storeOf(projectId: string): Store {
-  const found = stores.get(projectId)
+function storeOf(owner: string): Store {
+  const found = stores.get(owner)
   if (found) return found
   const made: Store = { changes: { ids: new Map(), resyncs: 0 }, listeners: new Set() }
-  stores.set(projectId, made)
+  stores.set(owner, made)
   return made
+}
+
+export const ownerOf = (account: string, projectId: string) => `${account}:${projectId}`
+
+/** The feed stopped (another account, the project left): what it learned goes, and anyone listening is told. */
+export function feedStopped(owner: string): void {
+  const store = stores.get(owner)
+  if (!store) return
+  tell(store, { ids: new Map(), resyncs: store.changes.resyncs + 1 })
+  if (store.listeners.size === 0) stores.delete(owner)
 }
 
 function tell(store: Store, changes: Changes) {
@@ -39,23 +52,25 @@ function tell(store: Store, changes: Changes) {
 }
 
 /** The feed applied a message's correction or withdrawal: its id is kept, however many come at once. */
-export function contributionChanged(projectId: string, id: string): void {
-  const store = storeOf(projectId)
+export function contributionChanged(owner: string, id: string): void {
+  const store = storeOf(owner)
   learned += 1
-  tell(store, { ...store.changes, ids: new Map([...store.changes.ids, [id, learned]]) })
+  const ids = new Map([...store.changes.ids, [id, learned]])
+  if (ids.size > KEPT) tell(store, { ids: new Map(), resyncs: store.changes.resyncs + 1 })
+  else tell(store, { ...store.changes, ids })
 }
 
 /** The feed lost its place and read the snapshot again: what changed meanwhile is unknown. */
-export function feedResynced(projectId: string): void {
-  const store = storeOf(projectId)
+export function feedResynced(owner: string): void {
+  const store = storeOf(owner)
   tell(store, { ...store.changes, resyncs: store.changes.resyncs + 1 })
 }
 
 /** What the feed reported for a project so far. */
-export const changesOf = (projectId: string): Changes => storeOf(projectId).changes
+export const changesOf = (owner: string): Changes => storeOf(owner).changes
 
-export function useContributionChanges(projectId: string): Changes {
-  const store = storeOf(projectId)
+export function useContributionChanges(owner: string): Changes {
+  const store = storeOf(owner)
   return useSyncExternalStore(
     (listener) => {
       store.listeners.add(listener)
@@ -89,26 +104,50 @@ export function anchorOf(id: string, items: readonly Placed[]): string | undefin
   return at < 0 ? undefined : sorted[at + 1]?.id
 }
 
+/** The changed messages grouped by the page that holds them: one read per page, however many changed in it. */
+export function pagesFor(ids: readonly string[], items: readonly Placed[]): Map<string, string[]> {
+  const byAnchor = new Map<string, string[]>()
+  for (const id of ids) {
+    const anchor = anchorOf(id, items)
+    if (anchor) byAnchor.set(anchor, [...(byAnchor.get(anchor) ?? []), id])
+  }
+  return byAnchor
+}
+
 interface HeldMaps {
   entries: ReadonlyMap<string, DiscussionEntry>
   withdrawn: ReadonlyMap<string, WithdrawnEntry>
 }
 
 /**
- * A page read again over what was held: the page decides for its own span only (from its oldest to its newest), so a
- * message withdrawn there leaves and one corrected shows its words; what lies outside the span stays.
+ * What a page read again says of the messages it was read for, and nothing else (a neighbour may be newer than this
+ * page): one listed takes its words, one withdrawn there leaves, one its span covers but no longer lists leaves.
+ * Returns the held maps and the ids the page settled.
  */
-export function withPage(held: HeldMaps, page: DiscussionPage): HeldMaps {
+export function withPage(
+  held: HeldMaps,
+  page: DiscussionPage,
+  ids: readonly string[],
+): HeldMaps & { settled: string[] } {
   const entries = new Map(held.entries)
   const withdrawn = new Map(held.withdrawn)
   const span = [...page.entries, ...(page.withdrawn ?? [])].toSorted(inOrder)
   const [start, end] = [span[0], span.at(-1)]
-  if (start && end)
-    for (const [id, entry] of entries) if (inOrder(entry, start) >= 0 && inOrder(entry, end) <= 0) entries.delete(id)
-  for (const entry of page.entries) entries.set(entry.id, entry)
-  for (const w of page.withdrawn ?? []) withdrawn.set(w.id, w)
-  for (const id of withdrawn.keys()) entries.delete(id)
-  return { entries, withdrawn }
+  const settled: string[] = []
+  for (const id of ids) {
+    const listed = page.entries.find((e) => e.id === id)
+    const gone = page.withdrawn?.find((w) => w.id === id)
+    const was = entries.get(id)
+    const covered = was && start && end && inOrder(was, start) >= 0 && inOrder(was, end) <= 0
+    if (listed) entries.set(id, listed)
+    else if (gone) {
+      entries.delete(id)
+      withdrawn.set(id, gone)
+    } else if (covered) entries.delete(id)
+    else continue
+    settled.push(id)
+  }
+  return { entries, withdrawn, settled }
 }
 
 interface Held extends HeldMaps {
@@ -122,44 +161,63 @@ interface Held extends HeldMaps {
  */
 export function useHeldRefresh(input: {
   projectId: string
-  token: string
+  identity: { name: string; token: string }
   held: Held | null
   setHeld: (next: (h: Held | null) => Held | null) => void
   window: readonly Placed[]
 }): ReadonlySet<string> {
-  const { projectId, token, held, setHeld, window } = input
-  const changes = useContributionChanges(projectId)
+  const { projectId, held, setHeld, window } = input
+  const { token } = input.identity
+  const owner = ownerOf(input.identity.name, projectId)
+  const changes = useContributionChanges(owner)
   const asked = useRef(new Map<string, number>())
-  const resyncs = useRef(changes.resyncs)
+  // Bumped by every resync: an answer asked before it is ignored (R F1).
+  const generation = useRef(changes.resyncs)
   const [stale, setStale] = useState<ReadonlySet<string>>(new Set())
   useEffect(() => {
-    const drop = () => setHeld((h) => (h && h.projectId === projectId ? null : h))
-    if (changes.resyncs !== resyncs.current) {
-      resyncs.current = changes.resyncs
+    const drop = () => {
+      setHeld((h) => (h && h.projectId === projectId ? null : h))
+      setStale(new Set())
+    }
+    if (changes.resyncs !== generation.current) {
+      generation.current = changes.resyncs
+      asked.current = new Map()
       if (held) drop()
       return
     }
     if (!held) return
     const ids = staleHeld(changes, asked.current, held.entries, new Set(window.map((w) => w.id)))
     if (ids.length === 0) return
-    const now = new Map(ids.map((id) => [id, changes.ids.get(id) ?? 0]))
-    for (const [id, n] of now) asked.current.set(id, n)
+    for (const id of ids) asked.current.set(id, changes.ids.get(id) ?? 0)
     setStale((s) => new Set([...s, ...ids]))
-    const items = [...held.entries.values(), ...held.withdrawn.values(), ...window]
-    const anchors = new Set(ids.map((id) => anchorOf(id, items)).filter((a): a is string => a !== undefined))
-    const current = () => [...now].every(([id, n]) => asked.current.get(id) === n)
-    for (const anchor of anchors)
+    const byAnchor = pagesFor(ids, [...held.entries.values(), ...held.withdrawn.values(), ...window])
+    // Bounded: past READS pages at once, the earlier pages go and «Earlier messages» reads them again (R F2).
+    if (byAnchor.size > READS) return drop()
+    const asOf = generation.current
+    for (const [anchor, mine] of byAnchor) {
+      const sent = new Map(mine.map((id) => [id, asked.current.get(id)]))
       getDiscussionPage(token, projectId, anchor).then(
         (page) => {
-          if (!current()) return
-          setHeld((h) => (h && h.projectId === projectId ? { ...h, ...withPage(h, page) } : h))
-          setStale((s) => new Set([...s].filter((id) => !now.has(id))))
+          if (generation.current !== asOf) return
+          // Only the messages nothing newer was learned for since this read was sent (R F1).
+          const current = mine.filter((id) => asked.current.get(id) === sent.get(id))
+          let settled: string[] = []
+          setHeld((h) => {
+            if (!h || h.projectId !== projectId) return h
+            const next = withPage(h, page, current)
+            settled = next.settled
+            return { ...h, entries: next.entries, withdrawn: next.withdrawn }
+          })
+          setStale((s) => new Set([...s].filter((id) => !settled.includes(id))))
         },
         () => {
-          drop()
-          setStale(new Set())
+          if (generation.current === asOf) drop()
         },
       )
+    }
   }, [changes, held, projectId, setHeld, token, window])
   return stale
 }
+
+/** At most this many pages are read again at once. */
+export const READS = 3

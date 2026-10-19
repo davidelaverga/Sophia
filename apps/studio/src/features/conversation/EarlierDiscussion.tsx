@@ -92,8 +92,7 @@ export function useEarlierDiscussion(
     fromBottom.current = null
   }, [held, history])
   // A held message changed elsewhere is not shown while its page is read again (held-pages.ts, 4309253137).
-  const window = [...discussion, ...discussionWithdrawn]
-  const stale = useHeldRefresh({ projectId, token: identity.token, held, setHeld, window })
+  const stale = useHeldRefresh({ projectId, identity, held, setHeld, window: [...discussion, ...discussionWithdrawn] })
   const view = heldView(held, { entries: discussion, withdrawn: discussionWithdrawn }, acted)
   const entries = view.entries.filter((e) => !stale.has(e.id))
   const { withdrawn } = view
