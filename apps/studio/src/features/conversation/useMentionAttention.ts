@@ -112,11 +112,18 @@ function readNeedsAgain(client: QueryClient, subject: string) {
   void client.invalidateQueries({ queryKey: ['vision', 'needs', subject] })
 }
 
+/** The page is in the background (another tab, minimised): nothing on it is being read (R on db88, r4314628605). */
+const backgrounded = () => typeof document !== 'undefined' && document.visibilityState === 'hidden'
+
 /**
  * Calls `look` once a frame as the chat's scroll moves (`false`), and when the last visible modal over the page closes
- * (`true`, 4308744385): the page's modals watched as they change. Returns its stop.
+ * or the page comes back to the foreground (`true`, 4308744385, r4314628605). Returns its stop.
  */
 function watchShown(root: HTMLElement, look: (uncovered: boolean) => void): () => void {
+  const onVisible = () => {
+    if (!backgrounded()) look(true)
+  }
+  document.addEventListener('visibilitychange', onVisible)
   let frame = 0
   const onScroll = () => {
     if (frame) return
@@ -144,6 +151,7 @@ function watchShown(root: HTMLElement, look: (uncovered: boolean) => void): () =
     attributeFilter: ['aria-modal', 'hidden', 'inert', 'open'],
   })
   return () => {
+    document.removeEventListener('visibilitychange', onVisible)
     root.removeEventListener('scroll', onScroll)
     cancelAnimationFrame(frame)
     cover.disconnect()
@@ -183,7 +191,8 @@ export function useMentionsSeen(
     // One falling due under a visible modal waits, due, for the last one to close (R92 on 4308744385).
     const retries = seenRetries((id) => {
       const el = [...waitingEls()].find((e) => e instanceof HTMLElement && e.dataset.mentionNeed === id)
-      if (modalOnScreen()) due.add(id)
+      // Due while a modal covers the page or the page is in the background: it waits, due, for the reader's return.
+      if (modalOnScreen() || backgrounded()) due.add(id)
       else if (el) seen(shownNeed(el, root))
     })
     retryOwner.current = retries
@@ -192,7 +201,7 @@ export function useMentionsSeen(
     // A message under a visible modal (a sheet, a dialog) is not shown to the reader: nothing is marked or sent while one
     // covers the page (4308744385); the last one closing looks again at what the chat shows, as it stands.
     const seen = (id: string | undefined) => {
-      if (!id || marked.current.has(id) || modalOnScreen()) return
+      if (!id || marked.current.has(id) || modalOnScreen() || backgrounded()) return
       marked.current.add(id)
       due.delete(id)
       void markNeedSeen(identity.token, id).then(again, () => {

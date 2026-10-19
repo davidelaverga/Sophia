@@ -22,6 +22,8 @@ declare global {
     heldSends?: { held: (() => void)[]; bodies: { mentions: string[] | undefined }[]; hold: boolean }
     /** Seen writes the page attempted (the failing-seen cases below). */
     seenAttempts?: number
+    /** SYNTHETIC document visibility (the backgrounded cases): hidden or not, as the page reads it. */
+    setHidden?: (hidden: boolean) => void
     /** The held seen write's release: answers it 503 (the held-write case below). */
     releaseSeen?: () => void
     /** GET /me/needs the page sent, a held one's release, and whether the next is held (the padlock cases below). */
@@ -1038,4 +1040,52 @@ test('mentions · a members read that fails after the choice proves no removal: 
     line(page, 'SYNTHETIC words for Marco after a failed read').locator('.contribution-mentions'),
   ).toHaveText('to Marco')
   expect(await served(page)).toContain(`mentions:${MARCO}`)
+})
+
+/**
+ * SYNTHETIC document visibility (R on db88, r4314628605): document.visibilityState and hidden answer as set, and a
+ * change dispatches visibilitychange, as a browser does when the tab goes to the background and back. Starts hidden.
+ */
+async function backgroundable(page: Page, hidden = true) {
+  await page.addInitScript((start) => {
+    let now = start
+    Object.defineProperty(Document.prototype, 'visibilityState', {
+      configurable: true,
+      get: () => (now ? 'hidden' : 'visible'),
+    })
+    Object.defineProperty(Document.prototype, 'hidden', { configurable: true, get: () => now })
+    window.setHidden = (next) => {
+      now = next
+      document.dispatchEvent(new Event('visibilitychange'))
+    }
+  }, hidden)
+}
+
+test('mentions · shown while the page is in the background, nothing is marked seen; back in front, exactly once (r4314628605)', async ({
+  page,
+}) => {
+  await backgroundable(page)
+  await page.goto(`/room.html?call=on&people=2&floor=1&discussion=mentioned#message-${MENTIONED_IN}`)
+  await expect(discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)).toBeInViewport()
+  await page.waitForTimeout(1500)
+  expect(await seenOf(page)).toEqual([])
+  await page.evaluate(() => window.setHidden?.(false))
+  await expect.poll(() => seenOf(page)).toEqual([`seen:${NEED}`])
+})
+
+test('mentions · a failed seen write whose retry falls due in the background waits, and goes once back in front (r4314628605)', async ({
+  page,
+}) => {
+  await backgroundable(page, false)
+  await failingSeen(page, 1)
+  await page.goto(`/room.html?call=on&people=2&floor=1&discussion=mentioned#message-${MENTIONED_IN}`)
+  await expect(discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)).toBeInViewport()
+  await expect.poll(() => seenAttempts(page)).toBe(1) // the first write, failed
+  await page.evaluate(() => window.setHidden?.(true))
+  await page.waitForTimeout(2500) // its retry falls due (1 s) in the background
+  expect(await seenAttempts(page)).toBe(1)
+  expect(await seenOf(page)).toEqual([])
+  await page.evaluate(() => window.setHidden?.(false))
+  await expect.poll(() => seenOf(page)).toEqual([`seen:${NEED}`])
+  expect(await seenAttempts(page)).toBe(2)
 })
