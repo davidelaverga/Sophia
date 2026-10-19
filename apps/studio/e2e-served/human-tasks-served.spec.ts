@@ -191,3 +191,55 @@ test('served tasks · a viewer finishes only a task explicitly theirs: no create
     expect([claim.status, done.status, create.status]).toEqual([403, 403, 403])
   })
 })
+
+const created = (page: Page) =>
+  page.waitForRequest((r) => r.method() === 'POST' && new URL(r.url()).pathname === `/api/v1/projects/${PROJECT}/tasks`)
+
+test('served tasks · both creation forms offer «Nobody yet», send no owner, and link the exact Markdown version (FND-C51)', async ({
+  page,
+}) => {
+  await asEditor(async () => {
+    const report = await seedReport(`heron${RUN}n`)
+    // The passage form, made in the report reader from a selected passage.
+    await openReport(page, report)
+    await page.getByRole('tab', { name: 'Document' }).click()
+    await page.locator('.md p', { hasText: 'We walked the north bank at dawn.' }).selectText()
+    await page.getByRole('toolbar', { name: 'The selected passage' }).getByRole('button', { name: 'Task' }).click()
+    let form = page.getByRole('form', { name: 'New task' })
+    await expect(form.getByRole('combobox', { name: 'For' }).locator('option').nth(1)).toHaveText('Nobody yet')
+    await expect(form.getByRole('combobox', { name: 'For' })).not.toContainText('Anyone')
+    await form.getByRole('textbox', { name: 'What needs doing?' }).fill(`Passage task ${RUN}`)
+    await form.getByRole('combobox', { name: 'For' }).selectOption('anyone')
+    let sent = created(page)
+    await form.getByRole('button', { name: 'Create' }).click()
+    const passage: unknown = (await sent).postDataJSON()
+    expect(pick(passage, 'ownerId') ?? null).toBeNull()
+    expect(pick(pick(passage, 'origin'), 'versionId')).toBe(report.versionId)
+    await expect(page.getByText(/Task added for nobody yet/i).first()).toBeVisible()
+    // The project brief's form.
+    // The project's tasks live under the Brief (StudioShell's BriefWithTasks), not on the bare project page.
+    await page.goto(`/p/${PROJECT}`)
+    await page.getByRole('button', { name: 'Brief', exact: true }).click({ timeout: 15_000 })
+    await page.getByRole('button', { name: 'New task' }).click({ timeout: 15_000 })
+    form = page.getByRole('form', { name: 'New task' })
+    await expect(form.getByRole('combobox', { name: 'For' }).locator('option').nth(1)).toHaveText('Nobody yet')
+    await form.getByRole('textbox', { name: 'What needs doing?' }).fill(`Project task ${RUN}`)
+    await form.getByRole('combobox', { name: 'For' }).selectOption('anyone')
+    sent = created(page)
+    await form.getByRole('button', { name: 'Create' }).click()
+    const project: unknown = (await sent).postDataJSON()
+    expect(pick(project, 'ownerId') ?? null).toBeNull()
+    expect(pick(project, 'origin') ?? null).toBeNull()
+    await expect(page.getByText('Task added for nobody yet.')).toBeVisible()
+    // The project's list says it too, and the passage task's link is its exact version, which it opens.
+    const tasksList = page.getByRole('region', { name: 'Tasks' }).getByRole('listitem')
+    await expect(tasksList.filter({ hasText: `Project task ${RUN}` })).toContainText(/nobody yet/i)
+    const row = tasksList.filter({ hasText: `Passage task ${RUN}` })
+    await expect(row).toContainText(/nobody yet/i)
+    const href = await row.getByRole('link').getAttribute('href')
+    expect(href).toContain(`version=${report.versionId}`)
+    await page.goto(href ?? '')
+    expect(new URL(page.url()).searchParams.get('version')).toBe(report.versionId)
+    await expect(page.locator('.md p', { hasText: 'We walked the north bank at dawn.' })).toBeVisible()
+  })
+})
