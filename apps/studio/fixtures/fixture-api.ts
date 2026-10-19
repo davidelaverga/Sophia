@@ -575,7 +575,11 @@ function doorAnswered(project: Project, entryId: string, init: RequestInit | und
 }
 
 /** What the page posts about coming in: a room token, or an answer at the door; undefined for anything else. */
-function doorPosted(project: Project, path: string, init: RequestInit | undefined): Response | undefined {
+function doorPosted(
+  project: Project,
+  path: string,
+  init: RequestInit | undefined,
+): Response | Promise<Response> | undefined {
   if (path === `/api/v1/projects/${PROJECT}/room-token`) return tokenAnswer(project)
   const entry = DOOR_DECISION.exec(path)?.[1]
   return entry ? doorAnswered(project, entry, init) : undefined
