@@ -337,3 +337,21 @@ export function summarizeM7(samples) {
     time: spread(recovered.map((s) => s.ms)),
   }
 }
+
+/**
+ * M3/M4. Per feed case (the stream ended, silenced, a sequence skipped, the network back): the scenarios that ran
+ * (their lever was on the page), those that came back to «Up to date», and p50/p95 of how long they took.
+ */
+export function summarizeFeed(samples) {
+  const result = {}
+  for (const [name, group] of groupBy(samples, (s) => s.case)) {
+    const back = group.filter((s) => s.lever && s.ms !== null)
+    result[name] = {
+      n: group.length,
+      ran: group.filter((s) => s.lever).length,
+      back: back.length,
+      ...spread(back.map((s) => s.ms)),
+    }
+  }
+  return result
+}

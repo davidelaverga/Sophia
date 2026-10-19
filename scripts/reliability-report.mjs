@@ -35,6 +35,7 @@ import {
   summarizeM2,
   summarizeM6,
   summarizeM7,
+  summarizeFeed,
   timeoutMinutes,
 } from './lib/reliability.mjs'
 
@@ -51,8 +52,8 @@ export const SUITE = 'pnpm exec playwright test -c playwright.reliability.config
 
 /** What the fixture can't measure yet, and why. */
 const NOT_YET = [
-  { metric: 'M3', what: 'feed recovery', why: 'needs the stream levers reliability/feed-reconnect adds' },
-  { metric: 'M4', what: 'gaps and resyncs', why: 'needs the gap lever reliability/feed-reconnect adds' },
+  { metric: 'M3', what: 'feed recovery', why: 'needs the stream levers reliability/feed-reconnect adds', feed: true },
+  { metric: 'M4', what: 'gaps and resyncs', why: 'needs the gap lever reliability/feed-reconnect adds', feed: true },
   { metric: 'M5', what: 'call re-join', why: 'not in this suite yet (linkLost/drop levers exist)' },
   { metric: 'M8', what: 'session through sleep', why: 'needs an expired-token lever (R1 gap 3)' },
   { metric: 'M9', what: 'tabs on an old version', why: 'needs a version probe' },
@@ -272,6 +273,7 @@ function measureFixture({ runSuite }) {
     m2: { ...summarizeM2(samples('M2')), samples: samples('M2') },
     m6: { ...summarizeM6(samples('M6')), samples: samples('M6') },
     m7: { ...summarizeM7(samples('M7').filter((s) => s.reached !== false)), samples: samples('M7') },
+    feed: { cases: summarizeFeed([...samples('M3'), ...samples('M4')]), samples: [...samples('M3'), ...samples('M4')] },
   }
 }
 
@@ -318,6 +320,27 @@ function ciMarkdown(ci) {
   return lines
 }
 
+/** M3/M4's rows: per case, back to «Up to date» in how long, or not run (its lever isn't on this page). */
+const FEED_CASES = {
+  drop: 'M3 · stream ended by the server → Up to date',
+  stall: 'M3 · stream gone silent → Up to date',
+  online: 'M3 · network back → Up to date',
+  gap: 'M4 · sequence skipped → Up to date',
+}
+function feedRows(cases) {
+  return Object.entries(FEED_CASES).map(([name, label]) => {
+    const c = cases[name]
+    if (!c || c.ran === 0) return `| ${label} | not run (no lever on this page) |`
+    return `| ${label} | ${c.back}/${c.ran} back · p50 ${ms(c.p50)} · p95 ${ms(c.p95)} |`
+  })
+}
+
+/** What can't be measured yet: M3/M4 only while no feed scenario ran. */
+const notYet = (report) => {
+  const ran = Object.values(report.fixture?.feed?.cases ?? {}).some((c) => c.ran > 0)
+  return NOT_YET.filter((n) => !(n.feed && ran))
+}
+
 function fixtureMarkdown(fx) {
   const lines = [
     `## Fixture · ${fx.run?.commit ?? 'unknown commit'} · ${fx.run?.startedAt ?? ''}`,
@@ -329,6 +352,7 @@ function fixtureMarkdown(fx) {
     `| M2 · unknown outcome resolved by resend, same key | ${pct(fx.m2.share)} (${fx.m2.resolved}/${fx.m2.n}; written twice: ${fx.m2.duplicates}; resend → answer p50 ${ms(fx.m2.resend.p50)}) |`,
     `| M6 · failed reads shown / silent | ${fx.m6.visible} visible · ${fx.m6.silent} silent of ${fx.m6.reached} reached (${fx.m6.notReached.length} not reached) |`,
     `| M7 · 502/503 in HTML cured without a press | ${pct(fx.m7.share)} (${fx.m7.recovered}/${fx.m7.n}; time p50 ${ms(fx.m7.time.p50)} · p95 ${ms(fx.m7.time.p95)}) |`,
+    ...feedRows(fx.feed?.cases ?? {}),
     '',
     '| M6 view | Failed reads | Shown |',
     '| --- | --- | --- |',
@@ -350,7 +374,7 @@ function markdown(report) {
   const lines = ['# Reliability report', '', `Generated ${report.generatedAt}.`, '']
   if (report.ci) lines.push(...ciMarkdown(report.ci), '')
   if (report.fixture) lines.push(...fixtureMarkdown(report.fixture), '')
-  lines.push('## Not measurable yet', '', ...NOT_YET.map((n) => `- ${n.metric} (${n.what}): ${n.why}.`), '')
+  lines.push('## Not measurable yet', '', ...notYet(report).map((n) => `- ${n.metric} (${n.what}): ${n.why}.`), '')
   return lines.join('\n')
 }
 
@@ -358,7 +382,8 @@ function write(outDir, section, value) {
   mkdirSync(outDir, { recursive: true })
   const file = join(outDir, 'reliability.json')
   const kept = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {}
-  const report = { ...kept, generatedAt: new Date().toISOString(), [section]: value, notMeasurable: NOT_YET }
+  const merged = { ...kept, generatedAt: new Date().toISOString(), [section]: value }
+  const report = { ...merged, notMeasurable: notYet(merged) }
   writeFileSync(file, `${JSON.stringify(report, null, 2)}\n`)
   const text = markdown(report)
   writeFileSync(join(outDir, 'reliability.md'), text)

@@ -81,8 +81,11 @@ that their scenario ran, never today's numbers.
   Studio app itself** (`app.html`, `work=lost`): the fixture pages build a plain `new QueryClient()`, which retries
   every failure three times whatever its `retry` says, so only the app has the real `retryRead` (`account-cache.ts`)
   that gap 2 is about. A control load first proves each view shows what the check looks for.
-- **M3/M4 (feed recovery, gaps)** need stream levers `reliability/feed-reconnect` is adding (`dropStream`,
-  `stallStream`, `gap`): listed as «not measurable yet» in the output. M5, M8 and M9 likewise wait for their levers.
+- **M3/M4 (feed recovery, gaps)** use the stream levers `reliability/feed-reconnect` adds (`dropStream`,
+  `stallStream`, `gap`), in `feed.spec.ts`: from the lever to the header's «Up to date» through «Reconnecting» (M3:
+  the stream ended ×3, silenced ×1) or «Catching up» (M4: a skipped sequence ×3), and from the network back to «Up to
+  date» after the feed's third refused ask. On a page without the levers each scenario is recorded as not run, and
+  M3/M4 stay listed as not measurable. M5, M8 and M9 wait for their levers.
 
 ## Kept out of the room job
 
