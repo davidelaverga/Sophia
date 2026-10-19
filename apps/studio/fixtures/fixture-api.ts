@@ -2003,12 +2003,67 @@ const outside = () =>
     { status: 403, headers: { 'content-type': 'application/json' } },
   )
 
+/** Where `server=kept` journals the keyed writes that reached the service, in the tab: each try, with its key. */
+export const JOURNAL = 'fixture.server.journal'
+
+/** A keyed write as it reached the service. */
+interface Journaled {
+  method: string
+  path: string
+  key: string
+  body: string | null
+}
+
+const isJournaled = (w: unknown): w is Journaled =>
+  typeof w === 'object' &&
+  w !== null &&
+  typeof Reflect.get(w, 'method') === 'string' &&
+  typeof Reflect.get(w, 'path') === 'string' &&
+  typeof Reflect.get(w, 'key') === 'string'
+
+function journaled(): Journaled[] {
+  try {
+    const kept: unknown = JSON.parse(sessionStorage.getItem(JOURNAL) ?? '[]')
+    return Array.isArray(kept) ? kept.filter(isJournaled) : []
+  } catch {
+    return []
+  }
+}
+
+/** A keyed write that reached the service goes into the journal, whatever it is answered. */
+function journal(method: string, url: URL, init: RequestInit | undefined): void {
+  const key = new Headers(init?.headers).get('idempotency-key')
+  if (method !== 'POST' || !key || !url.pathname.startsWith('/api/')) return
+  const body = typeof init?.body === 'string' ? init.body : null
+  sessionStorage.setItem(JOURNAL, JSON.stringify([...journaled(), { method, path: url.pathname, key, body }]))
+}
+
+/** The journal applied again as the page loads, its answers unheard: the service holds what it held before. */
+function replayJournal(project: Project): void {
+  for (const w of journaled()) {
+    const init = {
+      method: w.method,
+      headers: { 'idempotency-key': w.key },
+      ...(w.body === null ? {} : { body: w.body }),
+    }
+    const reply = answer(project, w.method, new URL(w.path, window.location.href), init)
+    void Promise.resolve(reply).catch(() => undefined)
+  }
+}
+
+/**
+ * `server=kept`: the synthetic service outlives a reload of the tab, as a real one does (reliability-held-on-reload.md).
+ * Each keyed write that reaches it is journaled in the tab and applied again, unanswered, as the page loads.
+ */
 export function installFixtureApi(project: Project): void {
+  const kept = new URLSearchParams(window.location.search).get('server') === 'kept'
+  if (kept) replayJournal(project)
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
     const url = new URL(hrefOf(input), window.location.href)
     if (project.outage && url.pathname.startsWith('/api/')) return Promise.reject(new TypeError('Failed to fetch'))
     if (project.outsider && url.pathname.startsWith(`/api/v1/projects/${PROJECT}/`)) return Promise.resolve(outside())
+    if (kept) journal(method, url, init)
     // The person's own profile (A32): one per token, whatever the page shows (profile-data.ts).
     const profile = profileAnswer(method, url.pathname, init)
     if (profile) return Promise.resolve(profile)
