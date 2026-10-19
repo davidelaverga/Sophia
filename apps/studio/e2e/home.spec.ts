@@ -59,6 +59,31 @@ test('home · the call you are in: Sophia says so, and its row takes you back, n
   expect(await pressed(page)).toEqual([`back ${id(1)}`])
 })
 
+// Home reads nothing of what changed while you were away, so with nothing soon and nobody in a room Sophia says
+// nothing rather than that nothing changed (docs/plans/home-no-false-claim.md).
+test('home · nothing soon and nobody in a room: Sophia claims nothing she hasn’t read', async ({ page }) => {
+  await page.goto(`${PAGE}?projects=quiet`)
+  await expect(index(page).getByRole('listitem')).toHaveCount(4)
+  await expect(page.getByText('Your projects are as you left them.')).toHaveCount(0)
+  await expect(page.locator('.hw-says')).toHaveCount(0)
+})
+
+test('home · quiet projects come without moving the greeting or «You and Sophia»: laid out as while they load', async ({
+  page,
+}) => {
+  // Layout offsets, not painted boxes: the greeting's words are still rising in as the page opens.
+  const offsets = () =>
+    page
+      .locator('.hw-hello, .hw-you')
+      .evaluateAll((els) => els.map((el) => (el instanceof HTMLElement ? el.offsetTop : null)))
+  await page.goto(`${PAGE}?projects=quiet`)
+  await expect(index(page).getByRole('listitem')).toHaveCount(4)
+  const quiet = await offsets()
+  await page.goto(`${PAGE}?projects=loading`)
+  await expect(page.locator('.skeleton-shape')).toHaveCount(3)
+  expect(await offsets()).toEqual(quiet)
+})
+
 test('home · ↑ and ↓ move in the index, Enter opens', async ({ page }) => {
   await page.goto(PAGE)
   await row(page, 'Product launch').focus()

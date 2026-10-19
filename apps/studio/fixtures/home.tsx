@@ -1,6 +1,7 @@
 // Home's fixture page (e2e/home.spec.ts): the Studio's own Welcome, inside Places' frame, over labelled simulated
 // projects. The query string picks them: `projects=four` (default: Launch plan, Research notes, Design review, and
-// Product launch, whose Standup starts in 10 min), `live` (Davide and Sophia in Pitch deck's room), `none`, `loading`,
+// Product launch, whose Standup starts in 10 min), `quiet` (the same four, the Standup tomorrow), `live` (Davide and
+// Sophia in Pitch deck's room), `none`, `loading`,
 // `failed` (their read failed); `locked=1` (the personal space locked), `call=<id>` (in that project's call);
 // `away=1` (Home starts out of sight, as when someone lands on another place); `companion=unavailable|reading` (Sophia
 // can't answer in the personal space; or that isn't known yet), else she answers; `you=new` (no conversation yet), else
@@ -113,6 +114,14 @@ const SETS: Record<string, ProjectSummary[] | undefined> = {
     project(2, 'Research notes', { members: 2 }),
     project(3, 'Design review'),
     project(4, HOME_PROJECT, { nextSession: standup }),
+  ],
+  // The four after a while away (`quiet`): Product launch's Standup is tomorrow, so nothing starts soon and nobody is
+  // in a room.
+  quiet: [
+    project(1, 'Launch plan'),
+    project(2, 'Research notes', { members: 2 }),
+    project(3, 'Design review'),
+    project(4, HOME_PROJECT, { nextSession: { ...standup, startsAt: at(24 * 60 + 10), endsAt: at(24 * 60 + 40) } }),
   ],
   live: [
     project(1, 'Launch plan'),

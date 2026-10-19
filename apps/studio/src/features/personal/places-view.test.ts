@@ -214,12 +214,14 @@ describe('home, as a place that knows where you’ll go', () => {
     assert.equal(homeNextAsk([started, live], NOW), null)
   })
 
-  it('Sophia says the one thing that matters: your call, else a session soon, else a live room, else all is well', () => {
+  it('Sophia says the one thing that matters: your call, else a session soon, else a live room, else nothing', () => {
     assert.equal(plain(sophiaSays(undefined, NOW, null)), '')
     assert.equal(plain(sophiaSays([], NOW, null)), 'Start a project when you’re ready, or just talk to me.')
     // Where she can't answer, she doesn't offer to talk (prod-honesty's home-no-companion.md).
     assert.equal(plain(sophiaSays([], NOW, null, false)), 'Start a project when you’re ready.')
-    assert.equal(plain(sophiaSays([project()], NOW, null)), 'Your projects are as you left them.')
+    // Home reads nothing of what changed while you were away, so she never says nothing did (home-no-false-claim.md).
+    assert.deepEqual(sophiaSays([project()], NOW, null), [])
+    assert.deepEqual(sophiaSays([project(), project({ projectId: id(6), nextSession: session(90) })], NOW, null), [])
     assert.equal(plain(sophiaSays(four, NOW, null)), 'Pitch run in Weekly standup starts in 10 min.')
     const live = project({
       projectId: id(5),
