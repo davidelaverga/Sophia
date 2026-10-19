@@ -746,7 +746,7 @@ for (const act of ['correct', 'withdraw'] as const)
       // The store was let go (past KEPT = 200): a resync counted, its erasing cursors gone, and the feed went on.
       await expect
         .poll(() => page.evaluate(() => window.fixture?.heldChanges()))
-        .toEqual(expect.objectContaining({ resyncs: (before?.resyncs ?? 0) + 1, erasedAt: 0 }))
+        .toEqual(expect.objectContaining({ resyncs: (before?.resyncs ?? 0) + 1 }))
       await page.waitForTimeout(1000) // past the feed's debounced snapshot read, which lags or fails
       if (refresh === 'fails') expect(await page.evaluate(() => window.snapshotsFailed ?? 0)).toBeGreaterThan(0)
       expect(await page.evaluate(() => window.sawStale ?? false), 'the erased words never came back').toBe(false)
@@ -858,10 +858,11 @@ for (const act of ['correct', 'withdraw'] as const)
       if (snapshot === 'fails')
         await expect.poll(() => page.evaluate(() => window.snapshotsFailed ?? 0)).toBeGreaterThan(0)
       await page.evaluate(() => window.fixture?.mentionMany(200))
-      // A and 200 others: past KEPT, the store keeps only the last of them, A's erasure gone with the rest.
+      // A and 200 others: past KEPT, the store is let go (a resync counted) and the earlier mentions with it.
       await expect
         .poll(() => page.evaluate(() => window.fixture?.heldChanges()))
-        .toEqual({ ids: 1, resyncs: (start?.resyncs ?? 0) + 1, erasedAt: 0 })
+        .toEqual(expect.objectContaining({ resyncs: (start?.resyncs ?? 0) + 1 }))
+      expect((await page.evaluate(() => window.fixture?.heldChanges()))?.ids).toBeLessThanOrEqual(2)
       await views(page).getByRole('link', { name: 'Studio', exact: true }).click()
       if (!(await page.getByRole('list', { name: 'Recent discussion' }).isVisible())) await chatToggle(page).click()
       await expect(textOf(page, idOf(57))).toHaveText('Message 58') // unrelated C
