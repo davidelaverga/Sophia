@@ -75,16 +75,32 @@ const OF: Readonly<Partial<Record<ReviewOf, string>>> = {
   unmatched: 'no single current version to match it to',
 }
 
-/** What its review says, and of which version: "Review passed for fixture-v1, not this version". */
+/**
+ * Each version's name for people, `v1`, `v2`…, in the order made (when, then id), withdrawn ones counted: they were
+ * made. The id stays the key and what a read is sent with; it never reaches the words, where it is a UUID in
+ * production (docs/plans/version-names.md). Names count what the view lists.
+ */
+export function versionNames(view: ItemView | null): ReadonlyMap<string, string> {
+  const made = (view?.candidates ?? []).toSorted(
+    (a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.version_id.localeCompare(b.version_id),
+  )
+  return new Map(made.map((c, i) => [c.version_id, `v${String(i + 1)}`]))
+}
+
+/** A version's name, or what it is when the view no longer lists it. */
+export const nameIn = (names: ReadonlyMap<string, string>, id: string): string =>
+  names.get(id) ?? 'a version not listed'
+
+/** What its review says, and of which version: "Review passed for v1, not this version". */
 export function reviewSaid(view: ItemView | null): string | null {
   const said = view ? REVIEW[view.review.state] : null
   if (!view || !said) return null
   const of = OF[reviewOf(view)]
-  return of ? `${said} for ${view.review.candidate_version_ref ?? ''}, ${of}` : said
+  return of ? `${said} for ${nameIn(versionNames(view), view.review.candidate_version_ref ?? '')}, ${of}` : said
 }
 
 /** What a version is, in words: Markdown, a page or a PDF; another type is not named. */
 const KIND: Record<string, string> = { 'text/markdown': 'Markdown', 'text/html': 'Page', 'application/pdf': 'PDF' }
 
-/** A version in a few words: its name and its kind, never its media type or a piece of its hash. */
-export const versionSaid = (c: Candidate) => [c.version_id, KIND[c.media_type]].filter(Boolean).join(' · ')
+/** A version in a few words: its name (versionNames) and its kind, never its id, media type or a piece of its hash. */
+export const versionSaid = (name: string, c: Candidate) => [name, KIND[c.media_type]].filter(Boolean).join(' · ')

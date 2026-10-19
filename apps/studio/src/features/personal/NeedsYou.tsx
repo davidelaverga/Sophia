@@ -57,7 +57,8 @@ export function NeedsYou({ needs, now, onOpen }: Props) {
   const rows = needsOrder(needs)
   return (
     <section className="hw-section hw-needs" aria-labelledby="hw-needs-h">
-      <h3 id="hw-needs-h" className="hw-label">
+      {/* Out of the Tab order, but focusable: it takes the focus when the need that had it left (useNeedsFocus). */}
+      <h3 id="hw-needs-h" className="hw-label" tabIndex={-1}>
         Needs you
       </h3>
       {rows.length === 0 ? (

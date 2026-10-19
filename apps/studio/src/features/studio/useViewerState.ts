@@ -2,12 +2,14 @@
 // (private mode, blocked site data) the state still works for this page and is simply not kept.
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import { ADDRESS_MOVED, pathIsFor } from '../../app/route.ts'
+import { VISION } from '../../app/vision.ts'
 import {
   LENS_FOR_KEY,
   addressLensFor,
   lensAddress,
   readLensWrite,
   readViewerState,
+  shownLens,
   storedViewerState,
   viewerKey,
   viewerReducer,
@@ -65,6 +67,8 @@ function load(key: string, inAddress: boolean) {
 export function useViewerState(viewer: string, projectId: string, inAddress = true) {
   const key = viewerKey(viewer, projectId)
   const [state, dispatch] = useReducer(viewerReducer, key, (k) => load(k, inAddress))
+  // The lens shown: a stored or linked one this Studio doesn't offer opens as Converse, the stored choice kept.
+  const shown = shownLens(state.lens, VISION)
   // Another subject (or project) at the same page: their own stored state, and not the lens the address kept for the
   // last one (the address is then rewritten from theirs, below).
   const loadedFor = useRef(key)
@@ -97,7 +101,7 @@ export function useViewerState(viewer: string, projectId: string, inAddress = tr
   useEffect(() => {
     if (!inAddress) return
     const { pathname, search, hash } = window.location
-    const next = withLensInAddress(search, state.lens)
+    const next = withLensInAddress(search, shown)
     if (next !== search) window.history.replaceState(window.history.state, '', `${pathname}${next}${hash}`)
     // Whose lens the address carries, and which address, so another subject at this page does not read it as theirs.
     try {
@@ -105,7 +109,7 @@ export function useViewerState(viewer: string, projectId: string, inAddress = tr
     } catch {
       /* no storage: the address's lens is read as any link's */
     }
-  }, [state.lens, inAddress, key, moves])
+  }, [shown, inAddress, key, moves])
   // The Studio view gone without a move of the route (the door shut under it: AccessNotice): the address stops
   // naming a lens nothing shows, the rest of it kept (Codex on #242). A move of the route rewrites the address itself.
   useEffect(() => {
@@ -121,7 +125,7 @@ export function useViewerState(viewer: string, projectId: string, inAddress = tr
   }, [inAddress, projectId])
 
   return {
-    state,
+    state: shown === state.lens ? state : { ...state, lens: shown },
     setLens: (lens: Lens) => dispatch({ type: 'lens', lens }),
     setDraft: (lens: Lens, text: string) => dispatch({ type: 'draft', lens, text }),
   }

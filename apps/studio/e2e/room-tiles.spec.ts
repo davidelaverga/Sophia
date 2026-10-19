@@ -196,6 +196,46 @@ test('tiles · on a phone beside a shown screen, your tile hidden: five tiles on
   await expect(place).toContainText('Your tile is hidden')
 })
 
+test('tiles · at 320 px, the narrowest phone, «Your tile is hidden» fits its 51 px tile: the eye and Show inside its padding (Codex P2 on #450)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 640 })
+  await enter(page, 'people=9&video=screen')
+  await hideMine(page)
+  await expect(tiles(page)).toHaveCount(5)
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished),
+    ),
+  )
+  const place = room(page).locator('.tile-hidden-self')
+  // The tile's box less its edge and its padding: where the eye and Show belong. The tile clips what passes it.
+  const fit = await place.evaluate((el) => {
+    const style = getComputedStyle(el)
+    const box = el.getBoundingClientRect()
+    const top = box.top + el.clientTop + parseFloat(style.paddingTop)
+    const bottom = box.top + el.clientTop + el.clientHeight - parseFloat(style.paddingBottom)
+    const parts = [el.querySelector('svg'), el.querySelector('button')].map((part) => part?.getBoundingClientRect())
+    return {
+      tile: box.height,
+      overflow: el.scrollHeight - el.clientHeight,
+      inside: parts.every((part) => part !== undefined && part.top >= top - 0.5 && part.bottom <= bottom + 0.5),
+    }
+  })
+  expect(fit.tile).toBeLessThan(52)
+  expect(fit.overflow).toBeLessThanOrEqual(1)
+  expect(fit.inside).toBe(true)
+  await expect(place.locator('svg')).toBeInViewport({ ratio: 1 })
+  await expect(place.getByRole('button', { name: 'Show' })).toBeInViewport({ ratio: 1 })
+  await expect(place).toContainText('Your tile is hidden')
+  // And Show, whole, still brings your tile back.
+  await place.getByRole('button', { name: 'Show' }).click()
+  await expect(place).toHaveCount(0)
+})
+
 /** What a screen reader is given for a tile's label (its accessibility tree, not its text nodes). */
 const said = (page: Page, name: string) => room(page).locator('.tile-name').filter({ hasText: name }).ariaSnapshot()
 

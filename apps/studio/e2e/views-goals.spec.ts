@@ -81,6 +81,8 @@ test('goals · in the demo, Tasks draw the rollout’s plan as a board, in the p
   await expect(sheet.getByRole('textbox', { name: 'Guidance for its session' })).toHaveCount(0)
   for (const press of ['Hold', 'Stop'])
     await expect(sheet.getByRole('button', { name: press, exact: true })).toHaveCount(0)
+  // Nor are their keys said (informe-25 DL-12): the foot names J and K only.
+  await expect(sheet.locator('.task-sheet-plan kbd')).toHaveText(['J', 'K'])
 })
 
 test('goals · without the demo, Goals opens and says there are none yet', async ({ page }) => {

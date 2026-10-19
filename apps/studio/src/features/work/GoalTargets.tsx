@@ -9,6 +9,7 @@ import { Button } from '@sophia/ui'
 import { ApiError, getGoalTargets, getProjectMembers, setGoalTarget } from '../../api/client.ts'
 import { useMembership } from '../access/useAccess.ts'
 import type { NotesFor } from './GoalNotes.tsx'
+import { notesRead } from './goal-notes.ts'
 import { dayOf } from './goal-day.ts'
 import { dueOf, dueWords, type Due } from './goal-due.ts'
 
@@ -18,15 +19,22 @@ type At = Pick<NotesFor, 'projectId' | 'identity' | 'cursor'>
 
 const targetsKey = (at: At) => ['goal-targets', at.projectId, at.identity.name]
 
-/** The goals' targets, by goal id, read again as the project moves. */
-export function useGoalTargets(at: At): ReadonlyMap<string, GoalTarget> {
+/**
+ * The goals' targets, by goal id, read again as the project moves, with how the read stands: a goal's health waits on
+ * its date (targets-robust.md; Codex P2 on #372), so an empty list while reading, or after a failure, is not «no dates».
+ */
+export function useTargetsRead(at: At) {
   const read = useQuery({
     queryKey: [...targetsKey(at), at.cursor],
     queryFn: () => getGoalTargets(at.identity.token, at.projectId),
     placeholderData: keepPreviousData,
   })
-  return new Map((read.data?.targets ?? []).map((t) => [t.goalId, t]))
+  const targets: ReadonlyMap<string, GoalTarget> = new Map((read.data?.targets ?? []).map((t) => [t.goalId, t]))
+  return { targets, state: notesRead(read), refetch: () => void read.refetch() }
 }
+
+/** The goals' targets alone, by goal id: what the sheet's own date reads. */
+export const useGoalTargets = (at: At): ReadonlyMap<string, GoalTarget> => useTargetsRead(at).targets
 
 /** The project's members, for naming an owner and choosing one. */
 export function useMembers(at: At): readonly ProjectMember[] {

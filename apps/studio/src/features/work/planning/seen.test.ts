@@ -97,7 +97,7 @@ describe('what changed since the last look', () => {
     const away = whileAway(after, [decision('accepted')], seen, { viewerId: 'davide', people, now: NOW })
     assert.deepEqual(away.phrases, [
       'You chose Ship it now: Ship it?',
-      'Task c has a new result: c-v1',
+      'Task c has a new result: v1',
       'Task b now waits on you',
     ])
     assert.deepEqual(away.rest, ['Task d failed', 'Task a started'])
@@ -154,7 +154,8 @@ describe('a result lost while away (Codex F-012)', () => {
   }
 
   it('is said lost, and no move its mark didn’t make: removed, withdrawn, or two claiming to be current', () => {
-    assert.deepEqual(away([]), ['Task a has no current result now: v1 isn’t current any more'])
+    // Gone from the list, it is said gone, never by its id (version-names.md).
+    assert.deepEqual(away([]), ['Task a has no current result now: its last result isn’t listed any more'])
     assert.deepEqual(away([{ ...had, state: 'withdrawn' }]), [
       'Task a has no current result now: v1 isn’t current any more',
     ])
@@ -164,7 +165,8 @@ describe('a result lost while away (Codex F-012)', () => {
   })
 
   it('still says a new result, and a mark that moved', () => {
-    assert.deepEqual(away([candidate('v2')]), ['Task a has a new result: v2'])
+    // Said by its name, in the order made (version-names.md).
+    assert.deepEqual(away([{ ...had, state: 'previous' }, candidate('v2')]), ['Task a has a new result: v2'])
     const waiting = { ...waitingOn('davide'), candidates: [had] }
     const waited = whileAway(rowsOf([['a', waiting]]), [], seen, { viewerId: 'davide', people, now: NOW })
     assert.deepEqual(waited.phrases, ['Task a now waits on you'])

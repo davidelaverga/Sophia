@@ -19,6 +19,15 @@ export type ViewerAction =
 
 export const INITIAL_VIEWER_STATE: ViewerState = { lens: 'converse', drafts: {} }
 
+/**
+ * The lenses a project's Studio offers: Converse alone outside the vision flag, where Explore and Build would only say
+ * they are coming; every lens under it (docs/plans/prod-honesty.md, as route.ts `viewsShown`).
+ */
+export const lensesShown = (vision: boolean): readonly Lens[] => (vision ? LENSES : ['converse'])
+
+/** The lens shown for a stored or linked one: itself when offered, else Converse. The stored choice is kept. */
+export const shownLens = (lens: Lens, vision: boolean): Lens => (lensesShown(vision).includes(lens) ? lens : 'converse')
+
 const isLens = (value: unknown): value is Lens => LENSES.some((l) => l === value)
 
 export function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {

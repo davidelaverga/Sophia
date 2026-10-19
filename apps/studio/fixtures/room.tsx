@@ -58,11 +58,13 @@ import {
   deliverCaption,
   deliverNotice,
   dropCall,
+  disabling,
   enabling,
   joined,
   leaving,
   linkLost,
   reactFrom,
+  setVoiceLevel,
   sophiaLeaves,
   speakWhileMuted,
 } from './fake-livekit.ts'
@@ -168,6 +170,8 @@ interface Fixture {
   holdHost: (on: boolean) => void
   /** Another member writes in the room's discussion, and the event saying so goes out. */
   say: (text: string) => void
+  /** The viewer writes in it from another device, a phone, and the event saying so goes out (unread-title.md). */
+  sayElsewhere: (text: string) => void
   /** Someone starts waiting at the door, and the event saying so goes out (knock-alert.md). */
   knock: () => void
   /** The call's connection is lost. */
@@ -277,6 +281,10 @@ interface Fixture {
   holdMission: (on: boolean) => void
   /** The brief's reads are refused (403), as to a reader no longer in the project; or answer again. */
   refuseMission: (on: boolean) => void
+  /** The goals' targets reads fail, or read again (targets-robust.md). */
+  failTargets: (on: boolean) => void
+  /** While on, the goals' targets reads wait; off, the waiting ones are answered. */
+  holdTargets: (on: boolean) => void
   /** The running meeting closes (another member closed it), and the feed moves (chapter 7's update). */
   endMeeting: () => void
   /** The project list's reads fail, or read again (chapter 1). */
@@ -343,6 +351,9 @@ interface Fixture {
   /** Turning the microphone on waits until `releaseMicrophone`, as a browser still asking for it. */
   holdMicrophone: () => void
   releaseMicrophone: () => void
+  /** Turning the microphone off waits until `releaseMute`, as LiveKit's mute does while a republish settles. */
+  holdMute: () => void
+  releaseMute: () => void
   /** Leaving the call waits until `releaseLeave`, as a slow disconnect. */
   holdLeave: () => void
   /** Leaving the call fails on LiveKit's side, as a disconnect that rejects. */
@@ -395,6 +406,8 @@ interface Fixture {
   sophia: (state: SophiaState) => void
   /** Who speak now: 0 the viewer, `n` the `n`th other person, several at once as a list; null no one. */
   speaking: (who: number | readonly number[] | null) => void
+  /** How loud a voice is from now on, 0…1: `sophia`, the viewer (0) or the `n`th other person (voice-amplitude.md). */
+  voiceLevel: (who: 'sophia' | number, level: number) => void
   /** Another member's change reaches the API just before the page's next pass: that pass is refused as stale. */
   moveRoom: () => void
   /** Whom the floor was passed to, by name, in order. */
@@ -755,6 +768,9 @@ const project = {
     : [],
   projectsFail: query.get('projects') === 'fail',
   missionHeld: query.get('mission') === 'hold' ? waiting() : null,
+  // `targetsRead=hold` or `fail`: the goals' targets wait, or fail, from the first (targets-robust.md).
+  targetsHeld: query.get('targetsRead') === 'hold' ? waiting() : null,
+  targetsFail: query.get('targetsRead') === 'fail',
   carriedElsewhere: query.get('carried') === 'elsewhere',
   reportsElsewhere: query.get('reports') === 'elsewhere',
   cardAhead: query.get('card') === 'ahead',
@@ -838,6 +854,10 @@ window.fixture = {
   },
   say: (text) => {
     project.messages.push(text)
+    publish(project)
+  },
+  sayElsewhere: (text) => {
+    project.messages.push({ text, me: true })
     publish(project)
   },
   knock: () => {
@@ -1075,6 +1095,14 @@ window.fixture = {
     project.missionHeld = on ? held : null
     if (!on) for (const answer of held) answer()
   },
+  failTargets: (on) => {
+    project.targetsFail = on
+  },
+  holdTargets: (on) => {
+    const held = project.targetsHeld ?? []
+    project.targetsHeld = on ? held : null
+    if (!on) for (const answer of held) answer()
+  },
   failProjects: (on) => {
     project.projectsFail = on
   },
@@ -1240,6 +1268,13 @@ window.fixture = {
     enabling.held = false
     for (const done of enabling.waiting.splice(0)) done()
   },
+  holdMute: () => {
+    disabling.held = true
+  },
+  releaseMute: () => {
+    disabling.held = false
+    for (const done of disabling.waiting.splice(0)) done()
+  },
   holdLeave: () => {
     leaving.held = true
   },
@@ -1302,6 +1337,7 @@ window.fixture = {
   },
   sophia: setSophia,
   speaking: setSpeaking,
+  voiceLevel: setVoiceLevel,
   leaves: personLeaves,
   moveRoom: () => {
     project.roomMoves = true
