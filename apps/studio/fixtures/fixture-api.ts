@@ -170,6 +170,10 @@ interface Project {
   invitations?: Invitations
   /** The report's description on Knowledge (report-data.ts). */
   description: Description
+  /** The next edit of it lands, but its reply is lost (`summary=lost`, description-reply-lost.md). */
+  summaryLost?: boolean
+  /** Knowledge's reads of the cards wait until the page lets them through (`holdReports`), as a slow API's do. */
+  reportsHeld?: boolean
   /**
    * How reads of the report's versions fail from now on: `unavailable`, as an API that lost its database answers;
    * `not_found`, as it refuses a report this person may not read; false, they succeed.
@@ -408,10 +412,26 @@ function withFocus(project: Project, now: Snapshot): Snapshot {
   }
 }
 
-/** The project moves one revision, and the event saying so goes to every open stream. */
+/** While set, the events published wait here, as a frozen page's stream holds them (`window.fixture.holdFeed`). */
+let feedHeld: string[] | null = null
+
+/** The project moves one revision, and the event saying so goes to every open stream, unless the feed is held. */
 export function publish(project: Project): void {
   project.revision += 1
-  for (const controller of streams) controller.enqueue(frameOf(project.revision))
+  const frame = frameOf(project.revision)
+  if (feedHeld) feedHeld.push(frame)
+  else for (const controller of streams) controller.enqueue(frame)
+}
+
+/**
+ * While on, the events published wait instead of reaching the page, as a phone's frozen page or a sleeping laptop
+ * leaves them; off, they come, in order (messages-while-away.md). A read of the snapshot meanwhile has them all.
+ */
+export function holdFeed(on: boolean): void {
+  const held = feedHeld ?? []
+  feedHeld = on ? held : null
+  if (on) return
+  for (const frame of held) for (const controller of streams) controller.enqueue(frame)
 }
 
 const isCommand = (value: unknown): value is GoalCommand =>
@@ -1411,6 +1431,21 @@ function reportsAnswer(project: Project, url: URL) {
   return json({ ...list, projects })
 }
 
+/** Reads of the report cards the page holds, each waiting to be let through (`window.fixture.releaseReports`). */
+const heldReports: (() => void)[] = []
+
+/** Knowledge's cards; while the page holds them, a read that answers once let through, with the cards as they are. */
+function reportsRead(project: Project, url: URL): Response | Promise<Response> {
+  if (!project.reportsHeld) return reportsAnswer(project, url)
+  return new Promise((resolve) => heldReports.push(() => resolve(reportsAnswer(project, url))))
+}
+
+/** Lets the held reads of the cards through, and every later one. */
+export function releaseReports(project: Project): void {
+  project.reportsHeld = false
+  for (const release of heldReports.splice(0)) release()
+}
+
 /**
  * The report viewer's and Knowledge's requests (SMC-M03): the fixture report's versions, their sources and text, its
  * task, its card, and an edit of its description.
@@ -1419,7 +1454,7 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
   const path = url.pathname
   if (method === 'PATCH') return edited(project, path, init)
   if (method !== 'GET') return null
-  if (path === '/api/v1/knowledge/reports') return reportsAnswer(project, url)
+  if (path === '/api/v1/knowledge/reports') return reportsRead(project, url)
   const listed = versionsOf(project, path)
   if (listed) return listed
   const source = /^\/api\/v1\/sources\/([0-9a-f-]{36})\/content$/.exec(path)?.[1]
@@ -1561,7 +1596,9 @@ function edited(project: Project, path: string, init: RequestInit | undefined) {
   if (path !== `/api/v1/artifacts/${REPORT}/summary`) return null
   const { next, reply } = editDescription(project.description, init?.body, membership.actorId)
   project.description = next
-  return reply
+  if (!project.summaryLost) return reply
+  project.summaryLost = false
+  return Promise.reject(new TypeError('Failed to fetch')) // it landed; the page never hears so
 }
 
 /** The brief, and a note written in it, its withdrawal's preview and its withdrawal (brief-data.ts). */

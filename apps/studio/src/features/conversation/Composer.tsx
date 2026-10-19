@@ -26,7 +26,9 @@ import { useBarTarget, useRoomMessage, type ReplyUnderWay } from './useRoomMessa
 import { getSnapshot } from '../../api/client.ts'
 import { startExchange } from '../../api/exchange.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { offlineWords, useOnline } from '../personal/online.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
+import { OFFLINE_END } from '../voice/call-end.ts'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 
 interface Props {
@@ -41,9 +43,20 @@ interface Props {
   /** The room's message being answered (A20, the vision flag's), and how to stop answering it. */
   replying?: Replying | null
   onStopReplying?: () => void
+  /** A message goes from the bar: what came while the tab was hidden is behind the person (WhileAway.tsx). */
+  onSend?: (() => void) | undefined
 }
 
 const NOTHING = () => undefined
+
+/** Send, said first to whoever waits on it. */
+const telling = (send: () => Promise<void>, onSend: (() => void) | undefined) =>
+  onSend
+    ? () => {
+        onSend()
+        return send()
+      }
+    : send
 
 /** The room's message being answered, if any (A20): the bar moves to the room, and the reply goes with the message. */
 function useReply(
@@ -301,7 +314,7 @@ function useTypeNext(entry: ChatEntry, field: RefObject<HTMLTextAreaElement | nu
 
 /**
  * What Send does and whether it can: to Sophia once she can take it; to the room once a message is written. A held
- * message (begun for Sophia, who can't take it now) sends nowhere until the person moves it.
+ * message (begun for Sophia, who can't take it now) sends nowhere until the person moves it; offline, nothing goes.
  */
 function sendingTo(
   bar: { target: Target; held: boolean },
@@ -310,11 +323,12 @@ function sendingTo(
     toRoom: { state: string; send: () => Promise<void> }
     starting: boolean
     draft: string
+    online: boolean
   },
 ) {
   // Past the most a message holds, nothing goes: the count over the bar says how far over (bar-length.ts).
   const written = !!at.draft.trim() && barFits(bar.target, at.draft)
-  if (bar.held) return { can: false, send: () => Promise.resolve() }
+  if (bar.held || !at.online) return { can: false, send: () => Promise.resolve() }
   if (bar.target === 'sophia') {
     return { can: at.chat.ready && !at.chat.busy && !at.starting && written, send: at.chat.send }
   }
@@ -329,6 +343,25 @@ interface FootLineProps {
   /** A message held for Sophia: why it waits, and moving it to the room. */
   held: boolean
   onMove: () => void
+}
+
+/**
+ * What the bar's line says of the room's message. Offline (navigator.onLine false; a true proves nothing), what waits
+ * (offlineWords) in place of what it said, with no Try again that could only wait. Said once: when the room's note
+ * above already says the call ended offline, the bar adds no line of its own, and of a held message says only that it
+ * isn't confirmed (costuras seam #8).
+ */
+function useFootWords(
+  toRoom: { words: string | null; state: string; held: string | null },
+  draft: string,
+  roomNote: { text: string } | null,
+) {
+  const online = useOnline()
+  if (online) return { online, words: toRoom.words, unknown: toRoom.state === 'unknown' }
+  if (roomNote?.text === OFFLINE_END)
+    return { online, words: toRoom.held === null ? null : toRoom.words, unknown: false }
+  const waits = offlineWords({ going: toRoom.state === 'sending', held: toRoom.held, written: draft.trim() !== '' })
+  return { online, words: waits ?? toRoom.words, unknown: false }
 }
 
 /** One line above the bar for what the room's message or a held one needs. */
@@ -408,13 +441,13 @@ export function Composer(props: Props) {
     void room.setTextMode(false)
     field.current?.focus({ preventScroll: true }) // the pressed link goes; the focus stays at the bar
   }
-  const sophia = target.target === 'sophia'
-  const sending = sendingTo(target, { chat, toRoom, starting, draft })
+  const foot = useFootWords(toRoom, draft, error)
+  const sending = sendingTo(target, { chat, toRoom, starting, draft, online: foot.online })
   return (
     <div className="composer">
       <ContinuityChoice projectId={projectId} identity={identity} cursor={snapshot?.cursor} withBar={bar} />
       <ChatLine
-        presence={bar && sophia ? chat.presence : undefined}
+        presence={bar && target.target === 'sophia' ? chat.presence : undefined}
         moment={moment}
         voice={room.textMode && !starting && inRoom}
         busy={chat.busy}
@@ -423,8 +456,8 @@ export function Composer(props: Props) {
       />
       <FootError error={error} />
       <FootLine
-        words={toRoom.words}
-        unknown={toRoom.state === 'unknown'}
+        words={foot.words}
+        unknown={foot.unknown}
         onRetry={() => void toRoom.send()}
         held={target.held}
         onMove={target.moveToRoom}
@@ -438,7 +471,7 @@ export function Composer(props: Props) {
         draft={draft}
         onDraft={onDraft}
         canSend={sending.can}
-        send={sending.send}
+        send={telling(sending.send, props.onSend)}
         target={target.target}
         other={target.other}
         onSwitch={target.choose}

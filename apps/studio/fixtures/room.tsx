@@ -83,10 +83,12 @@ import {
   type SophiaState,
 } from './fake-people.ts'
 import {
+  holdFeed,
   MENTIONED_IN,
   installFixtureApi,
   publish,
   type Conversations,
+  releaseReports,
   releaseSources,
   releaseTask,
   releaseText,
@@ -172,6 +174,8 @@ interface Fixture {
   say: (text: string) => void
   /** The viewer writes in it from another device, a phone, and the event saying so goes out (unread-title.md). */
   sayElsewhere: (text: string) => void
+  /** While on, the project's events wait, as a frozen page's stream holds them; off, they come (messages-while-away.md). */
+  holdFeed: (on: boolean) => void
   /** Someone starts waiting at the door, and the event saying so goes out (knock-alert.md). */
   knock: () => void
   /** The call's connection is lost. */
@@ -384,6 +388,10 @@ interface Fixture {
   linkLost: (lost: boolean) => void
   /** A teammate edits the report's description elsewhere (the page learns of it when it reads the cards again). */
   describeElsewhere: (text: string) => void
+  /** Knowledge's reads of the report cards wait from now on, until released (as a slow API's do). */
+  holdReports: () => void
+  /** The held reads of the report cards are answered now, with the cards as they are, and every later one. */
+  releaseReports: () => void
   /** Reads of the report's versions fail from now on: unavailable, or refused (`not_found`); given false, they succeed. */
   failVersions: (how?: 'unavailable' | 'not_found' | false) => void
   /** Reads of the design task fail from now on: refused (403) or unavailable (503); given false, they succeed. */
@@ -709,6 +717,9 @@ const project = {
     failFor: null as string | null,
   },
   description: SOPHIAS_DESCRIPTION,
+  // `summary=lost`: the first edit of the description lands, and its reply is lost (description-reply-lost.md).
+  summaryLost: query.get('summary') === 'lost',
+  reportsHeld: false,
   versionsFail: false as false | 'unavailable' | 'not_found',
   // `designcard=on`: the design task itself is in the project's work (its own DesignCard); `failDesign` fails its read.
   designCard: query.get('designcard') === 'on',
@@ -863,6 +874,7 @@ window.fixture = {
     project.messages.push({ text, me: true })
     publish(project)
   },
+  holdFeed,
   knock: () => {
     project.waiting = true
     publish(project)
@@ -1318,6 +1330,10 @@ window.fixture = {
   describeElsewhere: (text) => {
     project.description = { text, revision: project.description.revision + 1, author: TEAMMATE }
   },
+  holdReports: () => {
+    project.reportsHeld = true
+  },
+  releaseReports: () => releaseReports(project),
   failVersions: (how = 'unavailable') => {
     project.versionsFail = how
   },

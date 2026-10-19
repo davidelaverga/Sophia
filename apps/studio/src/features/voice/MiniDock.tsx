@@ -10,7 +10,7 @@ import { Tip } from '@sophia/ui'
 import { useCommands } from '../../app/useCommands.ts'
 import { callCommands } from './call-commands.ts'
 import { CallSwitches, sendingOf } from './CallSwitches.tsx'
-import { joinTip, TextMode } from './RoomDock.tsx'
+import { DockNote, joinTip, TextMode } from './RoomDock.tsx'
 import { LookingIndicator } from './SophiaControls.tsx'
 import type { ProjectRoom } from './useProjectRoom.ts'
 
@@ -95,11 +95,7 @@ export function MiniDock({ room, looking, onOpen }: Props) {
     <div className="mini-dock" role="group" aria-label="Project room" data-live={live || undefined}>
       {/* What the dock says, stacked by its own height: a note (a join or device error) first, her looking under it. */}
       <div className="dock-notes" ref={notes}>
-        {note && (
-          <p className="dock-note mini-note" role="alert">
-            {note}
-          </p>
-        )}
+        <DockNote note={note} className="dock-note mini-note" />
         <LookingIndicator text={looking} />
       </div>
       {live ? (
