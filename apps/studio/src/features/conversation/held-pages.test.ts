@@ -181,4 +181,65 @@ describe('held pages kept honest (4309253137)', () => {
     refresher.step(newer, held, [e(60)])
     assert.equal(answers.length, 2, 'read again for the newer change')
   })
+
+  it('reads still out from an older epoch keep their place: after failure and reload, no more than READS are ever out (R physical pending)', async () => {
+    const answers: { resolve: (p: DiscussionPage) => void; reject: (e: Error) => void }[] = []
+    let active = 0
+    let most = 0
+    let drops = 0
+    const refresher = new HeldRefresher(
+      () =>
+        new Promise((resolve, reject) => {
+          active += 1
+          most = Math.max(most, active)
+          answers.push({
+            resolve: (p) => {
+              active -= 1
+              resolve(p)
+            },
+            reject: (error) => {
+              active -= 1
+              reject(error)
+            },
+          })
+        }),
+      (_page, ids) => ids,
+      () => (drops += 1),
+    )
+    const held = maps(...Array.from({ length: 20 }, (_, n) => e(n + 1)))
+    refresher.step(
+      {
+        ids: new Map([
+          [id(3), 1],
+          [id(12), 2],
+        ]),
+        resyncs: 0,
+      },
+      held,
+      [e(60)],
+    )
+    assert.equal(active, 2)
+    answers[0]?.reject(new Error('503'))
+    await Promise.resolve()
+    assert.equal(drops, 1)
+    // The pages are read again; three other held messages change while the older read is still out.
+    const fresh = maps(...Array.from({ length: 20 }, (_, n) => e(n + 1)))
+    const later = {
+      ids: new Map([
+        [id(5), 3],
+        [id(9), 4],
+        [id(15), 5],
+      ]),
+      resyncs: 0,
+    }
+    refresher.step(later, fresh, [e(60)])
+    assert.ok(active <= READS, `at most ${READS} reads out, the older one included (was ${active})`)
+    answers[1]?.reject(new Error('late')) // the older read ends, late
+    await Promise.resolve()
+    await Promise.resolve()
+    assert.equal(drops, 1, 'its late failure drops nothing')
+    refresher.step(later, fresh, [e(60)])
+    assert.equal(active, 3, 'drained: the waiting work goes, within READS')
+    assert.ok(most <= READS)
+  })
 })

@@ -163,21 +163,27 @@ interface Held extends HeldMaps {
 export class HeldRefresher {
   epoch = 0
   inflight = 0
+  /** The reads actually out, of any epoch: each counted until it really ends, once (R physical pending). */
+  physical = 0
   private asked = new Map<string, number>()
   private pending = new Set<string>()
 
   private readonly read: (anchor: string) => Promise<DiscussionPage>
   private readonly apply: (page: DiscussionPage, ids: readonly string[]) => readonly string[]
   private readonly drop: () => void
+  /** A read ended: waiting work may now fit. */
+  private readonly wake: () => void
 
   constructor(
     read: (anchor: string) => Promise<DiscussionPage>,
     apply: (page: DiscussionPage, ids: readonly string[]) => readonly string[],
     drop: () => void,
+    wake: () => void = () => {},
   ) {
     this.read = read
     this.apply = apply
     this.drop = drop
+    this.wake = wake
   }
 
   /** The held ids not to show: changed and not yet read again, or being read again. */
@@ -200,6 +206,8 @@ export class HeldRefresher {
     if (ids.length === 0) return
     const byAnchor = pagesFor(ids, [...held.entries.values(), ...held.withdrawn.values(), ...window])
     if (byAnchor.size > READS) return this.giveUp()
+    // Older reads still out keep their place: new ones go only within what is left.
+    if (this.physical + byAnchor.size > READS) return
     const asOf = this.epoch
     for (const id of ids) {
       this.asked.set(id, changes.ids.get(id) ?? 0)
@@ -208,14 +216,19 @@ export class HeldRefresher {
     this.inflight = byAnchor.size
     for (const [anchor, mine] of byAnchor) {
       const sent = new Map(mine.map((id) => [id, this.asked.get(id)]))
+      this.physical += 1
       this.read(anchor).then(
         (page) => {
+          this.physical -= 1
+          this.wake()
           if (this.epoch !== asOf) return
           this.inflight -= 1
           const current = mine.filter((id) => this.asked.get(id) === sent.get(id))
           for (const id of this.apply(page, current)) this.pending.delete(id)
         },
         () => {
+          this.physical -= 1
+          this.wake()
           if (this.epoch === asOf) this.giveUp()
         },
       )
@@ -240,7 +253,7 @@ export function useHeldRefresh(input: {
   const changes = useContributionChanges(ownerOf(input.identity.name, projectId))
   const token = useRef(input.identity.token)
   token.current = input.identity.token
-  const [, rendered] = useState(0)
+  const [tick, rendered] = useState(0)
   const latest = useRef(held)
   latest.current = held
   // One refresher for this chat's life (its project is fixed for it: another project mounts another chat).
@@ -261,6 +274,7 @@ export function useHeldRefresh(input: {
           return settled
         },
         () => setHeld((h) => (h && h.projectId === projectId ? null : h)),
+        () => rendered((n) => n + 1),
       ),
   )
   const resyncs = useRef(changes.resyncs)
@@ -270,7 +284,7 @@ export function useHeldRefresh(input: {
       refresher.reset()
       setHeld((h) => (h && h.projectId === projectId ? null : h))
     } else if (held) refresher.step(changes, held, window)
-  }, [changes, held, projectId, refresher, setHeld, window])
+  }, [changes, held, projectId, refresher, setHeld, tick, window])
   return held ? refresher.fence(changes, held, window) : NONE_STALE
 }
 
