@@ -148,6 +148,20 @@ test('host · «Mute everyone» past six seconds says it is slow, as every Studi
   await expect(head.getByRole('status')).toHaveCount(0)
 })
 
+test('host · «Mute everyone» refused after every microphone went off still says so (Codex P2 on #369)', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.failAfterMuteAll())
+  await page.getByRole('button', { name: 'Mute everyone' }).click()
+  await page.getByRole('button', { name: 'Mute them' }).click()
+  await expect.poll(() => served(page)).toContain('mute-all')
+  await expect(list(page).getByRole('img', { name: 'Microphone off' })).toHaveCount(2)
+  await expect(page.locator('.people-head').getByRole('alert')).toHaveText('Couldn’t mute everyone. Try again.')
+  // No press is left with no one to mute.
+  await expect(page.getByRole('button', { name: /^Mut(e|ing) everyone/ })).toHaveCount(0)
+})
+
 test('host · an editor has no «Mute everyone»', async ({ page }) => {
   await enter(page, '&role=editor')
   await expect(list(page)).toBeVisible()

@@ -133,6 +133,11 @@ interface Project {
   memberRoles?: Map<string, Membership['role']>
   /** The next host control is refused as an unreachable room server's (`window.fixture.failHost`). */
   failHost?: boolean
+  /**
+   * The next «Mute everyone» mutes everyone, then is refused, as the API's when its record fails after the room server
+   * acted (`window.fixture.failAfterMuteAll`).
+   */
+  failAfterMuteAll?: boolean
   /** While set, host controls land but their replies wait for `holdHost(false)` (`window.fixture.holdHost`). */
   hostHeld?: (() => void)[] | null
   /** The next read of the earlier discussion fails as the API's `unavailable` (`window.fixture.failEarlier`). */
@@ -555,13 +560,15 @@ function mutedAll(project: Project): Response | Promise<Response> {
   }
   served.push('mute-all')
   const held = project.hostHeld
-  return held ? new Promise((resolve) => held.push(() => resolve(othersMuted()))) : othersMuted()
+  return held ? new Promise((resolve) => held.push(() => resolve(othersMuted(project)))) : othersMuted(project)
 }
 
-/** LiveKit's server mutes every other microphone in the fake room. */
-function othersMuted(): Response {
+/** LiveKit's server mutes every other microphone in the fake room; with `failAfterMuteAll`, the answer is refused. */
+function othersMuted(project: Project): Response {
   for (const p of others()) hostActed('mute', p.identity)
-  return new Response(null, { status: 204 })
+  if (!project.failAfterMuteAll) return new Response(null, { status: 204 })
+  project.failAfterMuteAll = false
+  return unavailable()
 }
 
 /** An admin acts on someone (A24, A31): recorded, and LiveKit's server applies it to the fake room. */
