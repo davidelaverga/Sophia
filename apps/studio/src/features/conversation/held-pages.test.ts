@@ -376,3 +376,22 @@ describe('erasures past the bound (R-B60-P1)', () => {
     assert.equal(changesOf(busy).lostAt, undefined, 'a stopped feed keeps nothing')
   })
 })
+
+describe('the store holds at most KEPT messages in all (R-B61-P2)', () => {
+  it('KEPT erasures, then a new change that erases nothing: it is kept, the oldest erasure goes and is accounted', () => {
+    const owner = ownerOf('b62', 'p')
+    for (let n = 0; n < KEPT; n += 1) contributionChanged(owner, id(4000 + n), true, { cursor: String(n), revision: 2 })
+    contributionChanged(owner, id(4999), false, { cursor: String(KEPT), revision: 1 })
+    const after = changesOf(owner)
+    assert.ok(after.ids.size <= KEPT, `${String(after.ids.size)} messages kept`)
+    assert.equal(after.ids.has(id(4999)), true, 'the change that went past KEPT is kept')
+    assert.equal(after.erasing?.size, KEPT - 1)
+    assert.equal(after.erasing?.has(id(4000)), false, 'the oldest erasure goes')
+    assert.equal(after.lostAt, '0', 'and is accounted')
+    assert.equal(untrusted(after.lostAt, undefined), true, 'no snapshot: not trusted')
+    assert.equal(untrusted(after.lostAt, '-1'), true, 'an older one: not trusted')
+    assert.equal(untrusted(after.lostAt, '0'), false, 'one as new: trusted')
+    assert.equal(untrusted(after.lostAt, '7'), false, 'a newer one: trusted')
+    feedStopped(owner)
+  })
+})
