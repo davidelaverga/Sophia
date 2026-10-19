@@ -46,6 +46,9 @@ export function familyOf(name) {
   return name.startsWith(ROOM) ? ROOM : shardOf(name).base
 }
 
+/** Not written yet (its test comes first). */
+export const isRoomGate = () => false
+
 /** How long a job ran, in minutes; null if it has not ended. */
 export function jobMinutes(job) {
   if (!job.startedAt || !job.completedAt) return null

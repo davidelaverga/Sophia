@@ -4,6 +4,7 @@ import {
   distinctJobs,
   familyOf,
   flakeRates,
+  isRoomGate,
   jobMinutes,
   jobTable,
   mainHealth,
@@ -77,6 +78,31 @@ test('a cancelled job that ran to its limit is a timeout; one cut short is super
   assert.equal(outcomeOf(ran('2026-10-19T12:00:00Z', '2026-10-19T12:08:00Z', 'timed_out'), 30), 'timeout')
   assert.equal(outcomeOf(ran('2026-10-19T12:00:00Z', '2026-10-19T12:08:00Z', 'skipped'), 30), 'skipped')
   assert.equal(outcomeOf({ status: 'in_progress', conclusion: '', startedAt: '2026-10-19T12:00:00Z' }, 30), 'pending')
+})
+
+test('a room job that only gathers its parts is a gate, not a run of the room', () => {
+  const step = (name) => ({ name, conclusion: 'success' })
+  const gate = {
+    name: 'The room in Chromium, on its fixture page',
+    steps: [step('Run echo "The room’s three parts: $PARTS"')],
+  }
+  const whole = {
+    name: 'The room in Chromium, on its fixture page',
+    steps: [step('Run pnpm --filter @sophia/studio test:browser')],
+  }
+  const part = {
+    name: 'The room in Chromium, on its fixture page (1/2)',
+    steps: [step('Run pnpm --filter @sophia/studio exec playwright test --shard=1/2')],
+  }
+  const install = {
+    name: 'The room in Chromium, part 1 of 3',
+    steps: [step('Run pnpm --filter @sophia/studio exec playwright install --with-deps chromium')],
+  }
+  assert.equal(isRoomGate(gate), true)
+  assert.equal(isRoomGate(whole), false)
+  assert.equal(isRoomGate(part), false)
+  assert.equal(isRoomGate(install), true, 'installing the browser is not running the suite')
+  assert.equal(isRoomGate({ name: 'runtime-unit', steps: [step('Run pnpm check')] }), false, 'only the room has gates')
 })
 
 test('a rerun of failed jobs carries the others over: each job is counted once', () => {
