@@ -194,7 +194,7 @@ export function useCallSeen(identity: Account, call: string | null, enabled = SI
 export interface ArrivalOptions {
   /** The project is drawn: loaded, not refused. One kept out of sight behind its call is in a call (`inCall`). */
   drawn: boolean
-  /** Its room holds a call, which has its own sentence and Catch up. */
+  /** Its room holds a call, or one on its way (joining, or asked as it opens): a call has its sentence and Catch up. */
   inCall: boolean
   /** Updates is the view: it says it all, and keeps what it shows. */
   atUpdates: boolean

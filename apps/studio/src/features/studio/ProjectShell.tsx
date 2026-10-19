@@ -4,7 +4,7 @@
 // project for home or the personal space: the shell stays mounted out of sight (`background`), takes no keys,
 // and reports the call upward (`onCall`) so the places' bar shows it with Leave one tap away.
 import { taskPeople } from '../artifacts/task-view.ts'
-import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState, type ComponentProps } from 'react'
+import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -121,29 +121,31 @@ function OpeningNote({ loaded, blocked }: { loaded: boolean; blocked: Blocked | 
  * Under the bar: a slow opening said, or, once open, the newcomer's welcome (newcomer-welcome.md); and, its status there
  * from the first frame, what changed since the person last looked (project-arrival-since.md).
  */
-interface UnderProps extends Omit<ComponentProps<typeof WelcomeBand>, 'onGoals'> {
+interface UnderProps {
+  /** The shell's own: its project, viewer and view, and whether it opened to join its call (Join the room, Rejoin). */
+  shell: Pick<Props, 'projectId' | 'identity' | 'view' | 'onShow' | 'joinOnOpen'>
   loaded: boolean
   blocked: Blocked | null
-  onShow: (view: View) => void
-  view: View
   /** Its call: a project kept out of sight (`background`) is always in one, so that says nothing here either. */
   room: ProjectRoom
+  snapshot: Snapshot | undefined
 }
 
-function UnderTheBar({ loaded, blocked, onShow, view, room, ...welcome }: UnderProps) {
+function UnderTheBar({ shell, loaded, blocked, room, snapshot }: UnderProps) {
+  const { projectId, identity, view, onShow } = shell
   const open = loaded && !blocked
   return (
     <>
       <ArrivalSince
-        projectId={welcome.projectId}
-        identity={welcome.identity}
+        projectId={projectId}
+        identity={identity}
         drawn={open}
-        inCall={isInCall(room)}
+        inCall={callOn(room, shell.joinOnOpen ?? false)}
         atUpdates={view === 'updates'}
         onUpdates={() => onShow('updates')}
       />
       {open ? (
-        <WelcomeBand {...welcome} onGoals={() => onShow('goals')} />
+        <WelcomeBand projectId={projectId} identity={identity} snapshot={snapshot} onGoals={() => onShow('goals')} />
       ) : (
         <OpeningNote loaded={loaded} blocked={blocked} />
       )}
@@ -152,6 +154,9 @@ function UnderTheBar({ loaded, blocked, onShow, view, room, ...welcome }: UnderP
 }
 
 const isInCall = (room: ProjectRoom) => room.status === 'live' || room.status === 'reconnecting'
+
+/** In its call, or on the way in: joining, or asked to join as the project opens, before the room can. */
+const callOn = (room: ProjectRoom, asked: boolean) => asked || room.status === 'joining' || isInCall(room)
 
 interface ShareProps {
   invites: boolean
@@ -558,7 +563,7 @@ export function ProjectShell(props: Props) {
           onLeave={onLeave}
           onWork={onWork}
         />
-        <UnderTheBar {...{ loaded, blocked, projectId, identity, onShow, view, room, snapshot: snapshot.data }} />
+        <UnderTheBar shell={props} {...{ loaded, blocked, room, snapshot: snapshot.data }} />
         <CommandsHost onSearch={VISION && shown ? search : undefined} />
         {inviting && shown && (
           <LazyInvite from={{ projectId, identity, membership, shown, room }} onClose={() => setInviting(false)} />
