@@ -60,9 +60,9 @@ let presses: { call: number | null; presses: CameraPresses } | null = null
 
 /**
  * The presses of the call that went live at `call`, from the camera kept for calls when its first switch is asked, a
- * press's or one made elsewhere: until then the call is on the camera it began with.
+ * press's or one made elsewhere: until then the call is on the camera it began with. Your tile presses through it.
  */
-function callPresses(call: number | null): CameraPresses {
+export function callPresses(call: number | null): CameraPresses {
   if (presses?.call !== call) presses = { call, presses: cameraPresses(chosenDevices().videoinput) }
   return presses.presses
 }

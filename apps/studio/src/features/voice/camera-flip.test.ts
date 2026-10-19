@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { cameraPresses, hasTopLayer, nextCamera } from './camera-flip.ts'
+import { callPresses, cameraPresses, hasTopLayer, nextCamera, switchCamera } from './camera-flip.ts'
+import { chosenDevices, rememberDevice } from './device-preference.ts'
 
 const front = { id: 'front', label: 'Front camera' }
 const back = { id: 'back', label: 'Back camera' }
@@ -95,6 +96,46 @@ test('the call’s own switches, told back as any switch is, don’t hold three 
   later.answer()
   await Promise.all([second, third])
   assert.deepEqual(asked, ['back', 'front', 'back'])
+})
+
+/** The browser's storage, as a page has it: kept between calls, gone with the page's data. */
+function storage(): Storage {
+  const kept = new Map<string, string>()
+  return {
+    get length() {
+      return kept.size
+    },
+    clear: () => kept.clear(),
+    getItem: (k) => kept.get(k) ?? null,
+    key: (i) => [...kept.keys()][i] ?? null,
+    removeItem: (k) => void kept.delete(k),
+    setItem: (k, v) => void kept.set(k, v),
+  }
+}
+
+// Every camera switch in a call goes through one place (`switchCamera`, from the room's own switch), whichever control
+// made it, and the call's presses begin there: the seam the fix rests on (a review's P2 on camera-flip-resync.md).
+test('a camera switch that took, made anywhere in the call, is where its next press goes on from', async () => {
+  Object.defineProperty(globalThis, 'localStorage', { value: storage(), configurable: true })
+  assert.equal(await switchCamera(1, 'back', () => Promise.resolve(true)), true)
+  const asked: string[] = []
+  await callPresses(1)([front, back], asking(asked, true))
+  assert.deepEqual(asked, ['front'], 'the back is on: the front, not the back again')
+})
+
+test('a camera Video settings couldn’t switch to, kept for the next call all the same, is asked again by the first press', async () => {
+  Object.defineProperty(globalThis, 'localStorage', { value: storage(), configurable: true })
+  rememberDevice('videoinput', 'front')
+  // The room keeps a choice before it switches (`deviceSwitch`, useProjectRoom.ts), and keeps it if refused.
+  const refused = await switchCamera(2, 'back', () => {
+    rememberDevice('videoinput', 'back')
+    return Promise.resolve(false)
+  })
+  assert.equal(refused, false)
+  assert.equal(chosenDevices().videoinput, 'back', 'kept for the next call')
+  const asked: string[] = []
+  await callPresses(2)([front, back], asking(asked, true))
+  assert.deepEqual(asked, ['back'], 'the call is still on the front: the back, asked again')
 })
 
 // Your tile's menu on a phone's strip stands in the top layer (the Popover API), which Safari before 17 lacks; the build
