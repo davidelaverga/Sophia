@@ -28,6 +28,8 @@ export interface Changes {
   readonly erasedAt?: ReadonlyMap<string, string>
   /** And the revision each such event names (the message's after the act): what is shown older than it is erased. */
   readonly erasedRevision?: ReadonlyMap<string, number>
+  /** The latest cursor of an erasure let go past KEPT before a chat could learn it: older snapshots are not trusted. */
+  readonly lostAt?: string
 }
 
 /** The events that may erase a message's source, with every message sharing it (A36, 0068; r4313704366). */
@@ -83,8 +85,9 @@ function withChange(kept: Changes, id: string, erasing: boolean, event: { cursor
 
 /**
  * The feed applied a message's correction or withdrawal (its event's `cursor` and `revision`): its id is kept, however
- * many come at once. Past KEPT the earlier ones go, as after a resync, but never the change that went past it: an
- * erasure learned then is still told (4317389250).
+ * many come at once. Past KEPT the earlier ones go, as after a resync, but never the change that went past it (an
+ * erasure learned then is still told, 4317389250), nor the erasures, at most KEPT of them, newest kept: one taken while
+ * no chat was there to learn its source is still owed to the next (R-B60-P1).
  */
 export function contributionChanged(
   owner: string,
@@ -96,8 +99,28 @@ export function contributionChanged(
   learned += 1
   const next = withChange(store.changes, id, erasing, event)
   if (next.ids.size <= KEPT) return tell(store, next)
-  tell(store, withChange({ ids: new Map(), resyncs: store.changes.resyncs + 1 }, id, erasing, event))
+  tell(store, erasuresOf(next, store.changes.resyncs + 1))
 }
+
+/** What is kept past KEPT: the erasures, the newest KEPT of them, with the ids they name; a resync counted. */
+function erasuresOf(next: Changes, resyncs: number): Changes {
+  const erasing = new Map([...(next.erasing ?? [])].toSorted(([, a], [, b]) => a - b).slice(-KEPT))
+  const keep = <T>(m: ReadonlyMap<string, T> | undefined) => new Map([...(m ?? [])].filter(([k]) => erasing.has(k)))
+  const last = [...next.ids].at(-1)
+  const ids = new Map([...keep(next.ids), ...(last ? [last] : [])])
+  // An erasure let go itself (more than KEPT): until a snapshot as new as it is shown, no older one is trusted.
+  const lost = [...(next.erasedAt ?? [])].filter(([k]) => !erasing.has(k)).map(([, at]) => at)
+  const lostAt = [...lost, ...(next.lostAt ? [next.lostAt] : [])].reduce<string | undefined>(
+    (a, b) => (a === undefined || BigInt(b) > BigInt(a) ? b : a),
+    undefined,
+  )
+  const kept = { ids, resyncs, erasing, erasedAt: keep(next.erasedAt), erasedRevision: keep(next.erasedRevision) }
+  return lostAt === undefined ? kept : { ...kept, lostAt }
+}
+
+/** Whether a snapshot at `cursor` predates an erasure let go unlearned (`lostAt`): then nothing it shows is trusted. */
+export const untrusted = (lostAt: string | undefined, cursor: string | undefined): boolean =>
+  lostAt !== undefined && (cursor === undefined || BigInt(cursor) < BigInt(lostAt))
 
 /**
  * Whether the reader's own receipt (its act's event at `receipt`) was superseded by a correction or withdrawal learned
@@ -334,11 +357,17 @@ export class HeldRefresher {
   }
 }
 
+/** The window's messages not shown: all of them while the snapshot is untrusted (R-B60-P1), else its aliases. */
+const windowFenced = (
+  window: readonly Placed[],
+  erasure: { gone: ReadonlySet<string>; acted: ReadonlySet<string> },
+  untrustedNow: boolean,
+) => (untrustedNow ? window.map((w) => w.id) : windowAliasesOf(window, erasure.gone, erasure.acted))
+
 /** Whether a message as shown has words known erased (R-B55-P1). */
 type Erased = (shown: { id: string; sourceId?: string; revision?: number }, receipt?: string | null) => boolean
 
-/** Keeps the held pages honest as the feed reports changes: returns the held ids not to show (fenced at render). */
-export function useHeldRefresh(input: {
+interface HeldRefreshInput {
   projectId: string
   identity: { name: string; token: string }
   held: Held | null
@@ -346,7 +375,12 @@ export function useHeldRefresh(input: {
   window: readonly Placed[]
   /** A manual «Earlier» read is out: what is learned meanwhile stays new for the page it brings (4316503672). */
   reading?: boolean
-}): readonly [ReadonlySet<string>, () => string, Erased] {
+  /** The shown snapshot's cursor (R-B60-P1: older than an erasure let go unlearned, nothing it shows is trusted). */
+  cursor?: string | undefined
+}
+
+/** Keeps the held pages honest as the feed reports changes: returns the held ids not to show (fenced at render). */
+export function useHeldRefresh(input: HeldRefreshInput): readonly [ReadonlySet<string>, () => string, Erased] {
   const { projectId, held, setHeld, window } = input
   const changes = useContributionChanges(ownerOf(input.identity.name, projectId))
   const token = useRef(input.identity.token)
@@ -400,7 +434,7 @@ export function useHeldRefresh(input: {
   }, [changes, erasure, held, projectId, refresher, setHeld, tick, window])
   // A manual «Earlier» read asked before an erasure was learned brings nothing back (F2: a named message's old words too).
   const epoch = () => `${refresher.epoch}:${erasure.generation()}`
-  const inWindow = windowAliasesOf(window, erasure.gone, erasure.acted)
+  const inWindow = windowFenced(window, erasure, untrusted(changes.lostAt, input.cursor))
   if (!held) return [inWindow.length > 0 ? new Set(inWindow) : NONE_STALE, epoch, erasure.erased] as const
   // At render (F1): the aliases of a source gone, or every held message while which went is unknown, are not shown.
   const hidden = erasure.unknown ? [...held.entries.keys()] : aliasesOf(held, erasure.gone, erasure.acted)

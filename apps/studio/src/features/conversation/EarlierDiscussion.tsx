@@ -86,8 +86,9 @@ export function useEarlierDiscussion(
   identity: Identity,
   discussion: readonly DiscussionEntry[],
   history: RefObject<HTMLDivElement | null>,
-  discussionWithdrawn: readonly WithdrawnEntry[] = NONE,
+  shown: { withdrawn?: readonly WithdrawnEntry[] | undefined; cursor?: string | undefined } = {},
 ): Earlier {
+  const discussionWithdrawn = shown.withdrawn ?? NONE
   const [stored, setHeld] = useState<Held | null>(null)
   const [reading, setReading] = useState<Reading>('idle')
   const fromBottom = useRef<number | null>(null)
@@ -108,6 +109,7 @@ export function useEarlierDiscussion(
     setHeld,
     window: [...discussion, ...discussionWithdrawn],
     reading: reading === 'loading',
+    cursor: shown.cursor,
   })
   const view = heldView(held, { entries: discussion, withdrawn: discussionWithdrawn }, acted)
   const receiptOf = (e: DiscussionEntry) => {

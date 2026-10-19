@@ -14,6 +14,7 @@ import {
   READS,
   staleHeld,
   superseded,
+  untrusted,
   withPage,
   windowAliasesOf,
   withoutAliases,
@@ -342,5 +343,36 @@ describe('a receipt superseded by a later erasure (R-B56-P1)', () => {
     assert.deepEqual([...(changesOf(owner).erasedRevision ?? [])], [[id(1), 3]])
     assert.deepEqual([...(changesOf(owner).erasedAt ?? [])], [[id(1), '12']])
     feedStopped(owner)
+  })
+})
+
+describe('erasures past the bound (R-B60-P1)', () => {
+  it('past KEPT the mentions go but not the erasures, at most KEPT of them, newest kept; a resync counted', () => {
+    const owner = ownerOf('b61', 'p')
+    contributionChanged(owner, id(1), true, { cursor: '5', revision: 2 })
+    for (let n = 0; n < KEPT; n += 1) contributionChanged(owner, id(2000 + n))
+    const after = changesOf(owner)
+    assert.equal(after.resyncs, 1)
+    assert.deepEqual([...after.ids.keys()], [id(1), id(2000 + KEPT - 1)])
+    assert.deepEqual([...(after.erasedAt ?? [])], [[id(1), '5']])
+    assert.deepEqual([...(after.erasedRevision ?? [])], [[id(1), 2]])
+    feedStopped(owner)
+    const busy = ownerOf('b61', 'erasures')
+    for (let n = 0; n <= KEPT; n += 1) contributionChanged(busy, id(3000 + n), true, { cursor: String(n), revision: 2 })
+    const kept = changesOf(busy)
+    assert.equal(kept.erasing?.size, KEPT)
+    assert.equal(kept.erasing?.has(id(3000)), false, 'the oldest erasure goes')
+    assert.equal(kept.erasing?.has(id(3000 + KEPT)), true)
+    assert.ok(kept.ids.size <= KEPT)
+    // The oldest erasure let go unlearned: until a snapshot as new as it is shown, none older is trusted (addendum).
+    assert.equal(kept.lostAt, '0')
+    assert.equal(untrusted(kept.lostAt, undefined), true)
+    assert.equal(untrusted(kept.lostAt, '0'), false)
+    assert.equal(untrusted(undefined, undefined), false)
+    contributionChanged(busy, id(3999), true, { cursor: String(KEPT + 1), revision: 2 })
+    assert.equal(changesOf(busy).lostAt, '1', 'the next one let go raises it')
+    assert.equal(untrusted(changesOf(busy).lostAt, '0'), true)
+    feedStopped(busy)
+    assert.equal(changesOf(busy).lostAt, undefined, 'a stopped feed keeps nothing')
   })
 })
