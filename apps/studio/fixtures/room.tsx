@@ -79,6 +79,7 @@ import {
   type SophiaState,
 } from './fake-people.ts'
 import {
+  holdFeed,
   installFixtureApi,
   publish,
   type Conversations,
@@ -161,6 +162,8 @@ interface Fixture {
   say: (text: string) => void
   /** The viewer writes in it from another device, a phone, and the event saying so goes out (unread-title.md). */
   sayElsewhere: (text: string) => void
+  /** While on, the project's events wait, as a frozen page's stream holds them; off, they come (messages-while-away.md). */
+  holdFeed: (on: boolean) => void
   /** Someone starts waiting at the door, and the event saying so goes out (knock-alert.md). */
   knock: () => void
   /** The call's connection is lost. */
@@ -777,6 +780,7 @@ window.fixture = {
     project.messages.push({ text, me: true })
     publish(project)
   },
+  holdFeed,
   knock: () => {
     project.waiting = true
     publish(project)

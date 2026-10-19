@@ -42,9 +42,20 @@ interface Props {
   /** The room's message being answered (A20, the vision flag's), and how to stop answering it. */
   replying?: Replying | null
   onStopReplying?: () => void
+  /** A message goes from the bar: what came while the tab was hidden is behind the person (WhileAway.tsx). */
+  onSend?: (() => void) | undefined
 }
 
 const NOTHING = () => undefined
+
+/** Send, said first to whoever waits on it. */
+const telling = (send: () => Promise<void>, onSend: (() => void) | undefined) =>
+  onSend
+    ? () => {
+        onSend()
+        return send()
+      }
+    : send
 
 /** The room's message being answered, if any (A20): the bar moves to the room, and the reply goes with the message. */
 function useReply(
@@ -436,7 +447,7 @@ export function Composer(props: Props) {
         draft={draft}
         onDraft={onDraft}
         canSend={sending.can}
-        send={sending.send}
+        send={telling(sending.send, props.onSend)}
         target={target.target}
         other={target.other}
         onSwitch={target.choose}
