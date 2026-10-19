@@ -23,6 +23,8 @@ export interface SophiaSignal {
 export interface SophiaContext {
   /** This person is in the room (live or reconnecting). */
   inCall: boolean
+  /** This person's link is coming back: what her participant last said is stale meanwhile. */
+  reconnecting: boolean
   /** The browser refused to start audio until the person interacts. */
   audioBlocked: boolean
   /** The floor holder's short name, or null when the floor is open. */
@@ -35,8 +37,19 @@ export interface SophiaContext {
   nameOf: (identity: string) => string
 }
 
+/**
+ * Where she is, for her light (docs/plans/orb-presence.md): here; away (not in the conversation, or her voice
+ * unavailable, and no work of hers running: working, she is busy, not dormant); joining (her voice getting ready or
+ * recovering, not in the room yet, or this person's link coming back); or paused (her conversation is).
+ */
+export type Presence = 'here' | 'away' | 'joining' | 'paused'
+
+/** Away, unless her work runs: then she is here at work. */
+const away = (working: boolean): Presence => (working ? 'here' : 'away')
+
 export interface SophiaView extends SophiaLineView {
   light: LightMode
+  presence: Presence
   exchange: SophiaPresence['exchange']
   /** Offer Stop Speaking: she is answering or speaking right now. */
   speaking: boolean
@@ -58,8 +71,9 @@ export function lookingText(presence: SophiaPresence | undefined, nameOf: (ident
 
 type Base = Omit<SophiaView, 'exchange' | 'looking'>
 
-const view = (light: LightMode, label: string, note: string | null = null): Base => ({
+const view = (light: LightMode, label: string, note: string | null = null, presence: Presence = 'here'): Base => ({
   light,
+  presence,
   label,
   note,
   inConversation: true,
@@ -72,18 +86,21 @@ function notHearing(presence: SophiaPresence, ctx: SophiaContext): Base | null {
   const rest = idle(ctx.working)
   if (presence.exchange === 'paused') {
     if (presence.pauseReason === 'guest')
-      return view(rest, 'Sophia is paused while a guest is here', 'Resume when the room is members only')
+      return view(rest, 'Sophia is paused while a guest is here', 'Resume when the room is members only', 'paused')
     return view(
       rest,
       `Sophia paused: ${ctx.holderName ?? 'the speaker'} was not in the room`,
       'Resume to talk with her again',
+      'paused',
     )
   }
   if (presence.voice === 'unavailable') {
-    return view(rest, 'Sophia’s voice is unavailable', presence.reason ?? 'Work and discussion still work.')
+    const why = presence.reason ?? 'Work and discussion still work.'
+    return view(rest, 'Sophia’s voice is unavailable', why, away(ctx.working))
   }
-  if (presence.voice === 'recovering') return view(rest, 'Reconnecting to Sophia…', 'Work carries on meanwhile.')
-  if (presence.voice !== 'ready') return view(rest, 'Sophia is joining…')
+  if (presence.voice === 'recovering')
+    return view(rest, 'Reconnecting to Sophia…', 'Work carries on meanwhile.', 'joining')
+  if (presence.voice !== 'ready') return view(rest, 'Sophia is joining…', null, 'joining')
   return null
 }
 
@@ -110,7 +127,7 @@ function inputView(signal: SophiaSignal, ctx: SophiaContext): Base {
     return view('listen', `Sophia is listening to ${holder}`, note)
   }
   if (signal.input === 'settling') return view('think', `Handing over to ${holder}…`)
-  if (signal.input === 'paused') return view(idle(ctx.working), 'Sophia is paused')
+  if (signal.input === 'paused') return view(idle(ctx.working), 'Sophia is paused', null, 'paused')
   if (!ctx.holderName) return view(idle(ctx.working), 'Sophia is here', 'Take the floor to talk with her')
   return view(idle(ctx.working), 'Sophia is here, not listening yet')
 }
@@ -124,14 +141,16 @@ export function sophiaView(
   const exchange = presence?.exchange ?? 'none'
   const looking = lookingText(presence, ctx.nameOf)
   if (!presence || exchange === 'none') {
-    return { ...view(idle(ctx.working), ''), inConversation: false, exchange, looking }
+    return { ...view(idle(ctx.working), '', null, away(ctx.working)), inConversation: false, exchange, looking }
   }
   const base =
     notHearing(presence, ctx) ??
     (!ctx.inCall
       ? view(idle(ctx.working), 'Sophia is in the conversation', 'Join the room to hear her')
       : !signal
-        ? view(idle(ctx.working), 'Sophia is joining…')
+        ? view(idle(ctx.working), 'Sophia is joining…', null, 'joining')
         : (speakingView(signal, ctx) ?? inputView(signal, ctx)))
-  return { ...base, exchange, looking }
+  // Over a link coming back, what her participant last said is stale: her light rests, joining, never listening.
+  const stale = ctx.reconnecting ? { light: idle(ctx.working), presence: 'joining' as const } : {}
+  return { ...base, ...stale, exchange, looking }
 }

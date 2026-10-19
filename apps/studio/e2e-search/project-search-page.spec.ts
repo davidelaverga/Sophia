@@ -227,3 +227,130 @@ test('served search · a slow search open, then a Show them answering first: bot
     `discussion:${entryIdOf(210)}`,
   ])
 })
+
+declare global {
+  interface Window {
+    /** Earlier pages answered at request time and delivered on release (the discard-ordering cases below). */
+    staleOn?: boolean
+    staleCount?: () => number
+    staleBody?: (i: number) => string | undefined
+    releaseStale?: (i: number) => void
+  }
+}
+
+// FND-B-SEARCH-DISCARD-ORDERING-PROOF-10 (R-SEARCH-AB2F-DISCARDED-READ): an earlier page answered AT REQUEST TIME
+// (the page as it was when asked), delivered only when released, so a found-page jump can answer after a discard.
+async function staleAtRequest(page: Page) {
+  await page.addInitScript(() => {
+    const w = window
+    const waiting: (() => void)[] = []
+    const bodies: string[] = []
+    w.staleOn = false
+    w.staleCount = () => waiting.length
+    w.staleBody = (i: number) => bodies[i]
+    w.releaseStale = (i: number) => waiting[i]?.()
+    const wrap =
+      (f: typeof fetch): typeof fetch =>
+      async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href)
+        const earlier = url.pathname.endsWith('/discussion') && url.searchParams.has('before')
+        if (!earlier || !w.staleOn) return f(input, init)
+        const answer = await f(input, init) // computed now
+        bodies.push(await answer.clone().text())
+        const at = waiting.length
+        waiting.push(() => {})
+        await new Promise<void>((resolve) => (waiting[at] = resolve))
+        return answer
+      }
+    let current = wrap(window.fetch.bind(window))
+    Object.defineProperty(window, 'fetch', {
+      configurable: true,
+      get: () => current,
+      set: (f: typeof fetch) => (current = wrap(f)),
+    })
+  })
+}
+const stale = (page: Page, script: string) => page.evaluate(script)
+
+test('served search · a jump answered before a correction and a let-go never shows the old words nor brings the pages back; asked again, the new words (10)', async ({
+  page,
+}) => {
+  await staleAtRequest(page)
+  await open(page, 'discussion=260&heron=40,150')
+  await openHeron(page, 150) // pages held: the one that ends at message 150
+  await stale(page, 'window.staleOn = true')
+  await pressHeron(page, 40) // the jump to message 40: answered now, held (0)
+  await expect.poll(() => stale(page, 'window.staleCount()')).toBe(1)
+  const target = entryIdOf(39)
+  expect(String(await stale(page, 'window.staleBody(0)'))).toContain(target) // the old page, captured at request
+  expect(String(await stale(page, 'window.staleBody(0)'))).toContain('The heron arrived, message 40.') // its old words
+  await page.evaluate((m) => window.fixture?.changeElsewhere(39, m, 'The heron arrived again, message 40.'), target)
+  await page.evaluate(() => window.fixture?.failEarlier())
+  await page.evaluate((m) => window.fixture?.changeElsewhere(129, m, 'Message 130, corrected'), entryIdOf(129))
+  await expect.poll(() => stale(page, 'window.staleCount()')).toBe(2) // the held page's refresh: fails (1)
+  await stale(page, 'window.releaseStale(1)') // the refresh fails first: the held pages are let go
+  await expect(discussion(page).locator(`[data-message="${entryIdOf(129)}"]`)).toHaveCount(0)
+  await stale(page, 'window.releaseStale(0)') // then the jump's old answer lands
+  await page.waitForTimeout(1000)
+  await expect(discussion(page).locator(`[data-message="${target}"]`)).toHaveCount(0) // no old words, no page back
+  await expect(discussion(page).locator(`[data-message="${entryIdOf(129)}"]`)).toHaveCount(0)
+  await stale(page, 'window.staleOn = false')
+  // The corrected words keep what the search finds («heron», «message 40.»): the result is the corrected one.
+  await search(page, 'heron')
+  await expect(hits(page).filter({ hasText: 'The heron arrived again, message 40.' })).toHaveCount(1)
+  await page.keyboard.press('Escape')
+  await openHeron(page, 40) // asked again: admitted, the new words
+  await expect(discussion(page).locator(`[data-message="${target}"] .contribution-text`)).toHaveText(
+    'The heron arrived again, message 40.',
+  )
+})
+
+test('served search · a gap fill answered before a correction and a let-go never shows the old words nor brings the pages back; filled again, the new words (12)', async ({
+  page,
+}) => {
+  await staleAtRequest(page)
+  await open(page, 'discussion=260&heron=100,125')
+  await openHeron(page, 100)
+  await openHeron(page, 125)
+  await expect(gapLine(page)).toHaveCount(1)
+  await stale(page, 'window.staleOn = true')
+  await gapLine(page).getByRole('button', { name: 'Show them' }).click() // the fill: answered now, held (0)
+  await expect.poll(() => stale(page, 'window.staleCount()')).toBe(1)
+  // A message the fill brings that the chat doesn't show yet: its old words are in the captured answer.
+  const target = await page.evaluate(() => {
+    const ids = [...(window.staleBody?.(0) ?? '').matchAll(/"id":"([0-9a-f-]{36})"/g)].map((m) => m[1])
+    const shown = new Set([...document.querySelectorAll('[data-message]')].map((el) => el.getAttribute('data-message')))
+    const unseen = ids.find((id) => id !== undefined && !shown.has(id))
+    return unseen ? { id: unseen } : null
+  })
+
+  expect(target).not.toBeNull()
+  const targetId = target?.id ?? ''
+  const n = Number(targetId.slice(-12)) - 1
+  await page.evaluate(
+    ([i, m]) =>
+      window.fixture?.changeElsewhere(
+        Number(i),
+        String(m),
+        `Message ${Number(i) + 1}, corrected after the fill was asked`,
+      ),
+    [n, targetId],
+  )
+  await page.evaluate(() => window.fixture?.failEarlier())
+  await page.evaluate((m) => window.fixture?.changeElsewhere(109, m, 'Message 110, corrected'), entryIdOf(109))
+  await expect.poll(() => stale(page, 'window.staleCount()')).toBe(2) // the held page's refresh: fails (1)
+  await stale(page, 'window.releaseStale(1)') // the refresh fails first: the held pages are let go
+  await expect(discussion(page).locator(`[data-message="${entryIdOf(109)}"]`)).toHaveCount(0)
+  await stale(page, 'window.releaseStale(0)') // then the fill's old answer lands
+  await page.waitForTimeout(1000)
+  await expect(discussion(page).locator(`[data-message="${targetId}"]`)).toHaveCount(0) // no old words back
+  await expect(discussion(page).locator(`[data-message="${entryIdOf(109)}"]`)).toHaveCount(0) // no pages back
+  await stale(page, 'window.staleOn = false')
+  // Read again from the start: the found pages, then the gap, filled now with the current words.
+  await openHeron(page, 100)
+  await openHeron(page, 125)
+  await gapLine(page).getByRole('button', { name: 'Show them' }).click()
+  await expect(discussion(page).locator(`[data-message="${targetId}"] .contribution-text`)).toHaveText(
+    `Message ${n + 1}, corrected after the fill was asked`,
+  )
+})

@@ -91,9 +91,13 @@ export function topicOf(text: string): string {
 /** What Find asks Sophia when nothing matches: the words looked for, as typed (docs/plans/find-ask-sophia.md). */
 export const askAbout = (query: string): string => `What did I tell you about ${query.trim()}?`
 
-/** Sophia's first words in a new conversation. Not a stored turn: the space's own introduction. */
-export function introText(name: string | null): string {
-  return `Hi${name ? ` ${name}` : ''}, I’m Sophia. This space is just for you: nothing here reaches your projects unless you carry it. What’s on your mind?`
+/**
+ * Sophia's first words in a new conversation. Not a stored turn: the space's own introduction. Where she can't answer
+ * it asks nothing (docs/plans/home-no-companion.md).
+ */
+export function introText(name: string | null, answers = true): string {
+  const intro = `Hi${name ? ` ${name}` : ''}, I’m Sophia. This space is just for you: nothing here reaches your projects unless you carry it.`
+  return answers ? `${intro} What’s on your mind?` : intro
 }
 
 interface Layout {
@@ -211,7 +215,7 @@ export interface ConversationInput {
  */
 function introduce(layout: Layout, { turns, sending, now, name, answers = true, ready = null }: ConversationInput) {
   addDay(layout, turns[0] ? new Date(turns[0].createdAt) : now, now)
-  layout.rows.push({ kind: 'intro', key: 'intro', text: introText(name) })
+  layout.rows.push({ kind: 'intro', key: 'intro', text: introText(name, answers) })
   layout.lastSide = 'sophia'
   const first = !sending && !turns.some((t) => t.author === 'person')
   if (answers && first) {

@@ -20,6 +20,7 @@ import {
   ownFeed,
   onPeopleChange,
   others,
+  personId,
   setSophia,
   sophiaSignal,
   soundBlocked,
@@ -210,9 +211,26 @@ export function signViewerAs(standing: RoomParticipant['standing']): void {
   signed = standing
 }
 
+/** The viewer's identity in the call. */
+const VIEWER_ID = '00000000-0000-4000-8000-0000000000a1'
+
+/** How loud each voice is now, by identity (`window.fixture.voiceLevel`): 0 until a check says otherwise. */
+const levels = new Map<string, number>()
+
+/** A voice's level from now on: `sophia`, the viewer (0) or the `n`th other person. */
+export function setVoiceLevel(who: 'sophia' | number, level: number): void {
+  levels.set(who === 'sophia' ? 'sophia' : who === 0 ? VIEWER_ID : personId(who), level)
+}
+
+/** The levels as the room's connection reads them (voice-levels.ts in the Studio). */
+const voices = {
+  voiceLevel: (identity: string) => levels.get(identity) ?? 0,
+  sophiaLevel: () => levels.get('sophia') ?? 0,
+}
+
 /** The viewer as LiveKit lists the local participant, devices off until the call turns them on. */
 const viewer = (): RoomParticipant => ({
-  identity: '00000000-0000-4000-8000-0000000000a1',
+  identity: VIEWER_ID,
   name: VIEWER_NAME,
   speaking: false,
   micOn: false,
@@ -299,6 +317,7 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     participants: () => [{ ...me, speaking: viewerSpeaks() }, ...others()],
     sophia: sophiaSignal,
     audioBlocked: soundBlocked,
+    ...voices,
     startAudio: () => {
       allowSound()
       return Promise.resolve()

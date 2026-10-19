@@ -48,6 +48,7 @@ import { encodeReaction, REACTION_TOPIC, type ReactionEmoji } from './reactions.
 import { isSophia, listenToSophia } from './sophia-channel.ts'
 import { sophiaVoice } from './sophia-voice.ts'
 import type { SophiaSignal } from './sophia-view.ts'
+import { voiceLevels } from './voice-levels.ts'
 
 // LiveKit logs every connection step at info level. A deployed Studio keeps warnings and errors in the
 // console; local development keeps the full trace.
@@ -84,6 +85,10 @@ export interface RoomConnection {
   sophia: () => SophiaSignal | null
   /** The browser blocked audio until the person interacts (autoplay). */
   audioBlocked: () => boolean
+  /** How loud this person is now, 0…1, read in this browser only (voice-levels.ts); 0 when it can't be read. */
+  voiceLevel: (identity: string) => number
+  /** How loud Sophia is now, 0…1, the same way. */
+  sophiaLevel: () => number
   startAudio: () => Promise<void>
   feeds: () => VideoFeed[]
   setMicrophone: (on: boolean) => Promise<void>
@@ -478,6 +483,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     participants: () => [toView(room.localParticipant, true), ...people().map(other)],
     sophia: () => sophiaSignal([...room.remoteParticipants.values()].find(isSophia)),
     audioBlocked: () => !room.canPlaybackAudio,
+    ...voiceLevels(room),
     startAudio: () => after(room.startAudio()),
     feeds: () => [...feedsOf(room.localParticipant, true), ...people().flatMap((p) => feedsOf(p, false))],
     ...deviceControls(

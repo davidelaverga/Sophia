@@ -1,20 +1,23 @@
-// Her light breathes on paper (docs/plans/light-breath.md): in light the light's halo is a pseudo-element with one running
-// animation, none under reduced motion; the trace canvas sits above it; Home's light blends as ink; in the room the
-// light carries no CSS animation (its canvas breathes instead).
+// Her light breathes on paper (docs/plans/light-breath.md): in light she is an orb drawn by the light's pseudo-elements
+// (docs/plans/paper-orb.md), drifting and breathing, still under reduced motion; the trace canvas sits above it; Home's
+// light blends as ink; on the dark page the light carries no CSS animation (its canvas breathes instead).
 import { expect, test, type Page } from '@playwright/test'
 import { DRAWN, drawn } from './drawn.ts'
 
-/** The light as drawn: its running animations (the pseudo-element's included), the halo's first stops, the trace's layer. */
+/** The light as drawn: its running animations (the pseudo-elements' included), the orb's first layer, the trace's layer. */
 const lightRead = (page: Page) =>
   page.evaluate(() => {
     const light = document.querySelector<HTMLElement>('.light')
     if (!light) return null
-    const running = light.getAnimations({ subtree: true }).filter((a) => a.playState === 'running')
+    // Its loops, not the transitions its states ease through as the page arrives.
+    const running = light
+      .getAnimations({ subtree: true })
+      .filter((a) => a.playState === 'running' && a instanceof CSSAnimation)
     const trace = light.querySelector<HTMLElement>('.light-trace')
     return {
       animations: running.length,
       names: running.map((a) => (a instanceof CSSAnimation ? a.animationName : a.constructor.name)),
-      halo: getComputedStyle(light, '::after').backgroundImage.slice(0, 70),
+      halo: getComputedStyle(light, '::after').backgroundImage.slice(0, 100),
       traceZ: trace ? getComputedStyle(trace).zIndex : null,
       haloZ: getComputedStyle(light, '::after').zIndex,
       isolation: getComputedStyle(light).isolation,
@@ -22,24 +25,26 @@ const lightRead = (page: Page) =>
     }
   })
 
-for (const [name, url, parts] of [
-  ['sign-in', '/signin.html?theme=light', DRAWN.signin],
-  ['the room', '/room.html?demo=1&theme=light', DRAWN.room],
+// Sign-in and the room alike: the orb's glass begins with its glint (paper-orb.md), and it drifts and breathes.
+const GLINT = /^radial-gradient\(13% 8% at 34% 24%, rgba?\(255,? 255,? 255,? \/? ?0\.92\)/
+// The demo's room has her work running, so she is here at work (orb-presence.md): she drifts and breathes there too.
+for (const [name, url, parts, loops] of [
+  ['sign-in', '/signin.html?theme=light', DRAWN.signin, ['gc-drift', 'gc-breathe']],
+  ['the room', '/room.html?demo=1&theme=light', DRAWN.room, ['gc-drift', 'gc-breathe']],
 ] as const) {
   test(`light · ${name}: her light breathes on paper, behind what the light holds`, async ({ page }) => {
     await page.goto(url)
     await drawn(page, parts)
     const read = await lightRead(page)
-    expect(read?.animations).toBe(1)
-    expect(read?.names).toEqual(['paper-breathe'])
-    expect(read?.halo).toMatch(/^radial-gradient\(circle at 50% 42%, rgba\(255, 255, 255, 0\.96\) 0px/)
+    expect(read?.names).toEqual(loops)
+    expect(read?.halo).toMatch(GLINT)
     // The halo at the back of the light's own stacking: the trace and the formed mark paint over it.
     expect(read?.haloZ).toBe('-1')
     expect(read?.isolation).toBe('isolate')
   })
 }
 
-test('light · without WebGL the paper halo stands alone: no dark fallback radial under it', async ({ page }) => {
+test('light · without WebGL the paper orb stands alone: no dark fallback radial under it', async ({ page }) => {
   await page.goto('/signin.html?theme=light')
   await drawn(page, DRAWN.signin)
   // The engine marks the fallback itself when WebGL fails; here the mark is set as it would be.

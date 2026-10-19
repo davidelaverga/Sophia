@@ -30,6 +30,12 @@ export function openAcross(
   return plans && Object.values(plans).flatMap((p) => p.toDecide ?? [])
 }
 
+/**
+ * The open decisions as one value that changes when they do, for an effect to run on; undefined while the board hasn't
+ * been read. Their ids as JSON, not joined: an id may hold a comma, and ['a,b'] is not ['a', 'b'] (Codex P2 on #458).
+ */
+export const openKey = (open: readonly OpenDecision[] | undefined) => open && JSON.stringify(open.map((d) => d.id))
+
 /** The ones not there at the last look: news. */
 export const newSince = (seen: ReadonlySet<string>, open: readonly OpenDecision[]) =>
   open.filter((d) => !seen.has(d.id))

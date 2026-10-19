@@ -21,10 +21,24 @@
   --lh-head: 1.5rem; /* 24 */
   --lh-view: 2rem; /* 32 */
   color-scheme: dark;
+  /* The surfaces, by level (docs/plans/light-surfaces.md): the page; a well, the first step over it (a list, a panel,
+     a sheet's ground, a card's cover); a raised sheet; an overlay, as raised, set apart by its shadow. They climb in
+     both themes, and a rule paints its level, never a plane: paper's plane sat under its page (informe-claro D6). */
+  --surface-page: var(--void);
+  --surface-well: var(--plane);
+  --surface-raised: var(--plane-2);
+  --surface-overlay: var(--plane-2);
+  /* A raised panel (a sheet, the report pane) and what dims the page under a modal one: in the room a well under half
+     the void, as it always stood; on paper the raised surface under a veil of ink (docs/plans/light-elevation.md). */
+  --sheet-plane: var(--surface-well);
+  --veil: rgb(var(--void-rgb) / 0.5);
   --void: #050408;
   --plane: #0b0a0f;
   --plane-2: #121118;
   --glass: rgba(12, 11, 17, 0.74);
+  /* Glass where it floats over the stage, over her orb and the tiles' video: the room's glass; on paper the only glass
+     left, the rest an opaque sheet (docs/plans/light-material.md). */
+  --glass-stage: var(--glass);
   --text: #ecebf1;
   --text-2: rgb(var(--ink-rgb) / 0.66);
   /* The third ink still reads: 4.6:1 or more on the void, the plane and a raised plane (it was 3.8:1 at 0.44). */
@@ -34,6 +48,8 @@
   --line-2: rgb(var(--ink-rgb) / 0.14);
   --line-3: rgb(var(--ink-rgb) / 0.22);
   --lift: inset 0 1px 0 rgb(var(--sheen-rgb) / 0.04);
+  /* A filled press's lower edge, darker than its face as light from above leaves it: in the room, the void. */
+  --bevel: inset 0 -1px 0 rgb(var(--void-rgb) / 0.16);
   --halo: #9c82f5;
   --halo-text: #b9a8ff;
   --core: #f4f0ff;
@@ -60,10 +76,41 @@
   --on-warm: #1a1512;
   --soon: #e8c48d;
   --claude-ink: #b3a3f5;
+  /* Claude's ink as channels, for its alphas; Ultracode's glint and sparks over its dots, and a light that flies (a note
+     kept, the glow leaving Home's light): white and pale lavender in the room, on paper the paper mark's violet, as a
+     light there is an ink (docs/plans/light-room-literals.md). */
+  --claude-ink-rgb: 179 163 245;
+  --claude-glint: var(--core);
+  --claude-spark: #e4dcff;
+  --flight-core: rgba(250, 248, 255, 0.95);
+  --flight-rim: rgba(214, 204, 255, 0.55);
   --rose-rgb: 238 159 176;
-  /* A shadow's ink and its strength: black at full in the room; on paper the ink, a third as strong. */
+  /* A shadow's ink: black in the room, the paper's ink on paper. */
   --shadow-rgb: 0 0 0;
-  --shadow-k: 1;
+  /* Elevation (docs/plans/light-shadows.md): what each piece casts, by role; no piece writes a shadow of its own. In
+     the room each is one black layer at the depth that piece was drawn with; paper points every role at one of its
+     three levels, the side sheets' level, or the page's upward pair. A card is flat here: a shadow of nothing, which a piece's own list can still carry. */
+  --elev-card: 0 0 transparent;
+  --elev-task: 0 1px 2px rgb(var(--shadow-rgb) / 0.3);
+  --elev-knob: 0 1px 4px rgb(var(--shadow-rgb) / 0.45);
+  --elev-thumb: 0 4px 12px rgb(var(--shadow-rgb) / 0.5);
+  --elev-page: 0 -1px 12px rgb(var(--shadow-rgb) / 0.35);
+  --elev-task-hover: 0 14px 34px rgb(var(--shadow-rgb) / 0.4);
+  --elev-turn: 0 6px 18px rgb(var(--shadow-rgb) / 0.45);
+  --elev-daypill: 0 8px 24px rgb(var(--shadow-rgb) / 0.4);
+  --elev-passage: 0 12px 32px rgb(var(--shadow-rgb) / 0.45);
+  --elev-mini-dock: 0 12px 40px rgb(var(--shadow-rgb) / 0.45);
+  --elev-dock: 0 16px 48px rgb(var(--shadow-rgb) / 0.5);
+  --elev-composer: 0 18px 50px rgb(var(--shadow-rgb) / 0.55);
+  --elev-tip: 0 8px 24px rgb(var(--shadow-rgb) / 0.5);
+  --elev-welcome: 0 12px 32px rgb(var(--shadow-rgb) / 0.32);
+  --elev-toast: 0 12px 40px rgb(var(--shadow-rgb) / 0.5);
+  --elev-lobby: 0 16px 48px rgb(var(--shadow-rgb) / 0.45);
+  --elev-menu: 0 18px 50px rgb(var(--shadow-rgb) / 0.55);
+  --elev-pane: -24px 0 48px rgb(var(--shadow-rgb) / 0.35);
+  --elev-notes: -24px 0 60px rgb(var(--shadow-rgb) / 0.45);
+  --elev-sheet: -24px 0 64px rgb(var(--shadow-rgb) / 0.5);
+  --elev-context: -30px 0 80px rgb(var(--shadow-rgb) / 0.6);
   /* The mark's two inks (Umbral, docs/plans/brand-umbral.md): you warm and Sophia core in the room; on paper the brand's
      ink and halo-deep, the favicon's (docs/plans/light-paper-mark.md). */
   --mark-you: var(--warm);
@@ -76,6 +123,53 @@
   --on-amber: var(--void);
   --rose-fill: var(--rose);
   --on-rose: var(--void);
+  /* Glows (docs/plans/light-live.md): what a live or lit piece casts around it, by role; no piece writes a glow of its
+     own. In the room each is the light the piece was drawn with; paper rings a large live piece and lets a small light
+     be its own fill. */
+  --glow-dot: 0 0 8px 1px rgb(var(--halo-rgb) / 0.8);
+  --glow-her: 0 0 10px 2px rgb(var(--halo-rgb) / 0.55);
+  --glow-sdot: 0 0 8px 2px rgb(var(--halo-rgb) / 0.5);
+  --glow-by: 0 0 6px 1px rgb(var(--halo-rgb) / 0.6);
+  --glow-spark: 0 0 10px var(--halo);
+  --glow-spark-peak: 0 0 16px var(--halo);
+  --glow-section: 0 0 8px var(--halo);
+  --glow-worker: 0 0 10px rgb(var(--halo-rgb) / 0.35);
+  --glow-rail: 0 0 12px rgb(var(--halo-rgb) / 0.6);
+  --glow-running: 0 0 8px rgb(var(--teal-rgb) / 0.6);
+  --glow-mine: 0 0 8px rgb(var(--amber-rgb) / 0.7);
+  --glow-full: 0 0 8px color-mix(in srgb, var(--rose) 45%, transparent);
+  --glow-ticked: 0 0 12px rgb(var(--halo-text-rgb) / 0.8);
+  --glow-composer: 0 0 30px rgb(var(--halo-rgb) / 0.08);
+  --glow-speaking: 0 0 0 1px rgb(var(--warm-rgb) / 0.6), 0 0 28px rgb(var(--warm-rgb) / 0.16);
+  --glow-orbit: 0 0 0 3px rgb(var(--warm-rgb) / 0.12), 0 0 24px rgb(var(--warm-rgb) / 0.22);
+  --glow-lit: 0 0 0 4px rgb(var(--halo-rgb) / 0.14), 0 0 28px rgb(var(--halo-rgb) / 0.2);
+  --glow-asked: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.8));
+  --glow-who: drop-shadow(0 0 5px rgb(var(--halo-rgb) / 0.7));
+  --glow-thread: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.85));
+  --glow-thread-spark: drop-shadow(0 0 6px var(--halo));
+  --glow-qr: drop-shadow(0 0 32px rgb(var(--halo-rgb) / 0.24));
+  --glow-mark: drop-shadow(0 0 2px rgb(var(--halo-rgb) / 0.45));
+  --glow-mark-live: drop-shadow(0 0 4px rgb(var(--halo-rgb) / 0.85));
+  --glow-threshold-from: drop-shadow(0 0 4px rgb(var(--halo-rgb) / 0.45));
+  --glow-threshold-to: drop-shadow(0 0 12px rgb(var(--halo-rgb) / 0.85));
+  --glow-threshold-still: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.6));
+  /* The states (docs/plans/light-states.md): what a field, a control and the one chosen lay under their words, in the
+     room at the alphas their rules wrote by hand. On paper a field, a control at rest and the one chosen on its track
+     are white pieces over what holds them, where the ink sank them (informe-claro D20); hover, selection and the focus
+     ring are the ink in both, their channels carrying the theme. A quiet step is the square's and the conversations'
+     quiet page's: its own alpha in the room, its sibling's white on paper. */
+  --field: rgb(var(--ink-rgb) / 0.03);
+  --field-focus: rgb(var(--ink-rgb) / 0.05);
+  --control: rgb(var(--ink-rgb) / 0.04);
+  --control-quiet: rgb(var(--ink-rgb) / 0.03);
+  --control-selected: rgb(var(--ink-rgb) / 0.08);
+  --control-selected-quiet: rgb(var(--ink-rgb) / 0.075);
+  /* Under the one chosen: nothing in the room (no room rule reads it), where the ink lifts it; on paper a level. */
+  --control-selected-shadow: 0 0 transparent;
+  --control-track: var(--glass);
+  --state-hover: rgb(var(--ink-rgb) / 0.06);
+  --state-selected: rgb(var(--ink-rgb) / 0.06);
+  --focus-ring: rgb(var(--halo-text-rgb) / 0.7);
   --sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Consolas, monospace;
   --r-1: 4px;
@@ -98,10 +192,20 @@
    white plane), Sophia's light is a halo on paper, the grain goes. */
 :root[data-theme='light'] {
   color-scheme: light;
+  /* Paper's well is a step toward white, where its plane (#f4f0ea) sat 1.07:1 under the page: the room's two steps,
+     1.036:1 from the void to the plane and 1.051:1 on to the raised one, kept in proportion inside the 1.059:1 from
+     paper to white (1.026:1 and 1.033:1). */
+  --surface-well: #fdfbf8;
+  /* A raised panel is the raised surface, white, and the veil is ink, so a sheet rises over the page it covers
+     (informe-25 X7: on the plane it sat 1.07:1 under it; at the well it would stand only 1.026:1 over it). */
+  --sheet-plane: var(--surface-raised);
+  --veil: rgb(var(--ink-rgb) / 0.18);
   --void: #fbf8f3;
   --plane: #f4f0ea;
   --plane-2: #ffffff;
-  --glass: rgba(251, 248, 243, 0.8);
+  /* Opaque off the stage: glass over paper composed the page's own colour, and a field stood 1.00:1 apart from it. */
+  --glass: var(--plane-2);
+  --glass-stage: rgba(251, 248, 243, 0.8);
   --text: #1d1b22;
   --text-2: rgba(29, 27, 34, 0.74);
   --text-3: rgba(29, 27, 34, 0.64);
@@ -109,7 +213,10 @@
   --line: rgba(29, 27, 34, 0.1);
   --line-2: rgba(29, 27, 34, 0.16);
   --line-3: rgba(29, 27, 34, 0.24);
-  --lift: inset 0 1px 0 rgb(var(--sheen-rgb) / 0.7);
+  /* Light from above, in ink: the lift a line under the face as strong as the room's sheen over it (1.08:1), where
+     white over a white sheet painted nothing; the bevel the room's step (1.42:1), where the paper's void lit it. */
+  --lift: inset 0 -1px 0 rgb(var(--ink-rgb) / 0.04);
+  --bevel: inset 0 -1px 0 rgb(var(--ink-rgb) / 0.36);
   --halo: #6d5bd0;
   --halo-text: #5546b8;
   /* The primary press and Sophia's deepest fill on paper: the brand's violet (6.7:1 under the paper's ink), not a navy. */
@@ -120,6 +227,8 @@
   --rose: #a8375a;
   --ink-rgb: 29 27 34;
   --void-rgb: 251 248 243;
+  /* White over a white sheet, the lit plane already: on paper a sheen paints nothing, by decision. */
+  --sheen-rgb: 255 255 255;
   --halo-rgb: 109 91 208;
   --halo-text-rgb: 85 70 184;
   --core-rgb: 85 70 184;
@@ -132,9 +241,42 @@
   --on-warm: #fbf8f3;
   --soon: #8f5717;
   --claude-ink: #5546b8;
+  --claude-ink-rgb: 85 70 184;
+  --claude-glint: #8468ee;
+  --claude-spark: #8468ee;
+  --flight-core: #8468ee;
+  --flight-rim: rgb(132 104 238 / 0.5);
   --rose-rgb: 168 55 90;
   --shadow-rgb: 29 27 34;
-  --shadow-k: 0.35;
+  /* Paper's three levels: resting on the page, at hand over it, over everything. Each is a crisp contact under the
+     edge and a soft ambient, kept under the piece by a negative spread from the second level up: a third of the room's one layer left a grey
+     blotch around what floats (D7, ~1.4:1 under the dock on a phone). A sheet's is turned to its left edge, a page
+     rising from a cover's foot to its top. */
+  --elev-1: 0 1px 2px rgb(var(--shadow-rgb) / 0.1), 0 2px 6px rgb(var(--shadow-rgb) / 0.04);
+  --elev-2: 0 1px 2px rgb(var(--shadow-rgb) / 0.1), 0 6px 16px -2px rgb(var(--shadow-rgb) / 0.08);
+  --elev-3: 0 1px 3px rgb(var(--shadow-rgb) / 0.1), 0 12px 32px -6px rgb(var(--shadow-rgb) / 0.14);
+  --elev-side: -1px 0 2px rgb(var(--shadow-rgb) / 0.08), -16px 0 40px -8px rgb(var(--shadow-rgb) / 0.12);
+  --elev-card: var(--elev-1);
+  --elev-task: var(--elev-1);
+  --elev-knob: var(--elev-1);
+  --elev-thumb: var(--elev-1);
+  --elev-page: 0 -1px 2px rgb(var(--shadow-rgb) / 0.08), 0 -2px 8px rgb(var(--shadow-rgb) / 0.05);
+  --elev-task-hover: var(--elev-2);
+  --elev-turn: var(--elev-2);
+  --elev-daypill: var(--elev-2);
+  --elev-passage: var(--elev-2);
+  --elev-mini-dock: var(--elev-2);
+  --elev-dock: var(--elev-2);
+  --elev-composer: var(--elev-2);
+  --elev-tip: var(--elev-3);
+  --elev-welcome: var(--elev-3);
+  --elev-toast: var(--elev-3);
+  --elev-lobby: var(--elev-3);
+  --elev-menu: var(--elev-3);
+  --elev-pane: var(--elev-side);
+  --elev-notes: var(--elev-side);
+  --elev-sheet: var(--elev-side);
+  --elev-context: var(--elev-side);
   --mark-you: #16151b;
   --mark-sophia: #8468ee;
   /* The tints are the accent at 14 % over the paper, mixed once and opaque: a tag over a cover or a plane keeps the
@@ -145,56 +287,431 @@
   --on-amber: var(--amber);
   --rose-fill: #efddde;
   --on-rose: var(--rose);
+  /* Paper's two answers to a glow, which the roles point at: a small light is its own opaque fill and casts nothing (a
+     halo of colour only darkened the paper around it, D21); a large live piece is ringed, two solid pixels of the
+     accent its role names after it. Her mark keeps its soft light (docs/plans/light-paper-mark.md). */
+  --glow-sm: 0 0 transparent;
+  --glow-lg: 0 0 0 2px;
+  --glow-dot: var(--glow-sm);
+  --glow-her: var(--glow-sm);
+  --glow-sdot: var(--glow-sm);
+  --glow-by: var(--glow-sm);
+  --glow-spark: var(--glow-sm);
+  --glow-spark-peak: var(--glow-sm);
+  --glow-section: var(--glow-sm);
+  --glow-worker: var(--glow-sm);
+  --glow-rail: var(--glow-sm);
+  --glow-running: var(--glow-sm);
+  --glow-mine: var(--glow-sm);
+  --glow-full: var(--glow-sm);
+  --glow-ticked: var(--glow-sm);
+  --glow-composer: var(--glow-sm);
+  --glow-speaking: var(--glow-lg) var(--warm);
+  --glow-orbit: var(--glow-lg) var(--warm);
+  --glow-lit: var(--glow-lg) var(--halo);
+  --glow-asked: none;
+  --glow-who: none;
+  --glow-thread: none;
+  --glow-thread-spark: none;
+  --glow-qr: none;
+  --glow-mark: drop-shadow(0 0 2px rgb(var(--halo-rgb) / 0.45));
+  --glow-mark-live: drop-shadow(0 0 3px rgb(132 104 238 / 0.5));
+  --glow-threshold-from: drop-shadow(0 0 4px rgb(var(--halo-rgb) / 0.45));
+  --glow-threshold-to: drop-shadow(0 0 12px rgb(var(--halo-rgb) / 0.85));
+  --glow-threshold-still: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.6));
+  /* A field, a control at rest and the one chosen: the white sheet, over the paper and its wells; the chosen one
+     grounded by a contact shadow (the lens thumb stood 1.18:1 under its track, an open conversation under its list). */
+  --field: var(--plane-2);
+  --field-focus: var(--field);
+  --control: var(--plane-2);
+  --control-quiet: var(--control);
+  --control-selected: var(--plane-2);
+  --control-selected-quiet: var(--control-selected);
+  --control-selected-shadow: var(--elev-1);
+  --control-track: rgb(var(--ink-rgb) / 0.04);
 }
 :root[data-theme='light'] body::after {
   display: none;
 }
-/* Her light on paper: a violet halo, not the screen-blended canvas. */
+/* Her light on paper: an orb drawn in CSS, not the screen-blended canvas (docs/plans/paper-orb.md). */
 :root[data-theme='light'] .light-gl {
   display: none;
 }
-/* A light with a bright heart on paper, as the canvas has in the room: white at the centre, the halo around it; and
-   it breathes, as the canvas does (docs/plans/light-breath.md). The light isolates its stacking, and the halo sits at
-   the back of it: the formed mark and the trace are its children and paint over the heart (Codex on #251). */
+/* On paper Sophia is a solid orb, glass with a heart of clouds (docs/plans/paper-orb.md; Luis, 2026-10-17: «un orbe
+   sólido, tipo ChatGPT»). It stands where the engine draws her (--lx, --ly), 0.6 of her radius (--lr) across times her
+   size now (--ls, at most 1.2, so a swell on a loud voice never reaches the words under her), and the room moves it:
+   her state (data-mode), her voice while she is heard (--amp), whom she attends to (--ldx, --ldy). Two layers on the
+   light, which isolates its stacking so the trace and the formed mark paint over her: the clouds (::before) and the
+   glass (::after). Without WebGL the engine marks a fallback, and the room's radial stays off the paper (Codex on #251). */
+@property --gc-turn {
+  syntax: '<angle>';
+  inherits: true;
+  initial-value: 0deg;
+}
+@property --gc-b {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+@property --gc-ponder {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+@property --gc-swirl {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+/* Her scale, a number from her radius: 0.6 of it across a 200 px glass (registered: a bad --lr falls back, never breaks). */
+@property --gc-k {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0.78;
+}
+/* What her state sets, eased over 1.4 s: how far the clouds roam and stir, her heart, her breath, how far it dims while
+   she thinks, her glow, how far she leans, whether she shows, and the clouds' tint. */
+@property --gc-reach {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
+}
+@property --gc-stir {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+@property --gc-heart {
+  syntax: '<percentage>';
+  inherits: true;
+  initial-value: 24%;
+}
+@property --gc-depth {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0.012;
+}
+@property --gc-dim {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+@property --gc-glow {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0.5;
+}
+@property --gc-lean {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
+}
+@property --gc-op {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
+}
+/* Where she is (orb-presence.md): her inner light's saturation and brightness, forming while she joins, and a call on her
+   rim while her sound is blocked. */
+@property --gc-sat {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
+}
+@property --gc-lit {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
+}
+@property --gc-forming {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+@property --gc-calling {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+@property --gc-call {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+@property --gc-wave {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+@property --gc-tint {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgb(168 176 255 / 0.8);
+}
 :root[data-theme='light'] .light {
   isolation: isolate;
-  /* Without WebGL the engine marks a fallback and the room paints its radial on the element; on paper the halo is the
-     pseudo-element's alone (Codex on #251). */
   background: none;
+  --gc-k: max(0.01, 3 * tan(atan2(var(--lr, min(32vmin, 300px)), 1000px)));
+  --gc-px: calc(1px / var(--gc-k));
+  --gc-voice: var(--amp, 0);
+  --gc-ear: var(--hear, 0);
+  --gc-breath: calc(var(--gc-depth) * (2 * var(--gc-b) - 1));
+  animation:
+    gc-drift 48s linear infinite,
+    gc-breathe 6.5s ease-in-out infinite alternate,
+    gc-call 2.4s ease-in-out infinite alternate paused;
+  transition: 1.4s ease;
+  transition-property:
+    --gc-reach, --gc-stir, --gc-heart, --gc-depth, --gc-dim, --gc-glow, --gc-lean, --gc-op, --gc-tint, --gc-sat,
+    --gc-lit, --gc-forming, --gc-calling;
 }
+/* Listening she opens; thinking she gathers inward and dims, slowly; speaking her voice opens her heart; at work she is
+   smaller (--ls) with a warm ember among the clouds, still lit. Rest is the defaults. */
+:root[data-theme='light'] .light[data-mode='listen'] {
+  --gc-reach: 1.15;
+  --gc-stir: 0.4;
+  --gc-heart: 32%;
+  --gc-depth: 0.018;
+  --gc-glow: 0.72;
+}
+:root[data-theme='light'] .light[data-mode='think'] {
+  --gc-reach: 0.45;
+  --gc-heart: 14%;
+  --gc-depth: 0.004;
+  --gc-dim: 0.14;
+  --gc-glow: 0.34;
+}
+:root[data-theme='light'] .light[data-mode='speak'] {
+  --gc-reach: 1.05;
+  --gc-stir: 0.3;
+  --gc-heart: 28%;
+  --gc-depth: 0.006;
+  --gc-glow: 0.7;
+}
+:root[data-theme='light'] .light[data-mode='work'] {
+  --gc-reach: 0.8;
+  --gc-heart: 20%;
+  --gc-depth: 0.01;
+  --gc-glow: 0.4;
+  --gc-tint: rgb(232 172 128 / 0.5);
+}
+/* Where she is when not simply here (orb-presence.md), none of it moved by a voice or leaning toward anyone. Away (not in
+   the conversation, or her voice unavailable): dormant, her violet greyed and her inner light low, nothing turning but a
+   shallow breath. Joining (her voice getting ready, or a link coming back): gathered and still, the light inside her
+   forming, fading between 0.9 and 0.55 of itself. Paused: the clouds drawn in and held, her violet kept. */
+:root[data-theme='light'] .light[data-presence] {
+  --gc-voice: 0;
+  --gc-ear: 0;
+  --gc-lean: 0;
+}
+:root[data-theme='light'] .light[data-presence='away'] {
+  --gc-sat: 0.6;
+  --gc-lit: 0.45;
+  --gc-heart: 16%;
+  --gc-glow: 0;
+  --gc-depth: 0.006;
+  animation-play-state: paused, running, paused;
+}
+:root[data-theme='light'] .light[data-presence='joining'] {
+  --gc-forming: 1;
+  --gc-reach: 0.6;
+  --gc-glow: 0.2;
+  --gc-depth: 0;
+  animation-play-state: paused;
+}
+:root[data-theme='light'] .light[data-presence='paused'] {
+  --gc-reach: 0.7;
+  --gc-stir: 0;
+  --gc-glow: 0.22;
+  --gc-depth: 0;
+  animation-play-state: paused;
+}
+/* She speaks but this browser blocked her sound: no voice in her, a slow call on her rim and in her glow until it is
+   allowed (Allow audio). */
+:root[data-theme='light'] .light[data-sound='blocked'] {
+  --gc-voice: 0;
+  --gc-ear: 0;
+  --gc-calling: 1;
+  animation-play-state: running;
+}
+/* Where the light forms the mark (sign-in once through, Home, Talk), the mark is her: the orb steps back, and still. */
+:root[data-theme='light'] .light[data-mark] {
+  --gc-op: 0;
+  animation-play-state: paused;
+  transition-duration: 0.6s;
+}
+/* Read, not heard: no voice moves anything inside her (the levels are cut at the source too, RoomStage). */
+:root[data-theme='light'] .room-stage[data-conversation-mode='text'] > .light {
+  --gc-voice: 0;
+  --gc-ear: 0;
+}
+:root[data-theme='light'] .light::before,
 :root[data-theme='light'] .light::after {
   content: '';
   position: absolute;
-  inset: 0;
   z-index: -1;
-  /* A soft heart and a deeper ring (Luis, 2026-10-11: the halo lost itself against the white): the heart fades to
-     the deep violet at the rim, then the halo thins to nothing by 48 %. */
-  background: radial-gradient(
-    circle at 50% 42%,
-    rgb(255 255 255 / 0.96) 0,
-    rgb(255 255 255 / 0.86) 4%,
-    rgb(85 70 184 / 0.4) 8.5%,
-    rgb(var(--halo-rgb) / 0.44) 11.5%,
-    rgb(var(--halo-rgb) / 0.24) 18%,
-    rgb(var(--halo-rgb) / 0.1) 28%,
-    transparent 48%
+  top: 0;
+  left: 0;
+  translate: var(--lx, 50vw) var(--ly, 42vh);
+  scale: calc(var(--gc-k) * min(var(--ls, 1), 1.2));
+  transform-origin: 50% 50%;
+  opacity: var(--gc-op);
+}
+/* The clouds: a square past the glass by the blur's reach, blurred, then cut to the circle, so the inside is soft and
+   the edge clean. They turn and stir (her voice swirls them, smoothed over 0.3 s), lean toward whom she attends to (6 px
+   of the glass's 100: the glint and the rim stay put), and her strength (--le) whitens and saturates them. */
+:root[data-theme='light'] .light::before {
+  --gc-swirl: calc(0.6 * var(--gc-voice) + 0.3 * var(--gc-ear));
+  --gc-s: calc(var(--gc-stir) + var(--gc-swirl));
+  --gc-sx: calc(var(--gc-s) * 4.5% * cos(var(--gc-turn) * 8));
+  --gc-sy: calc(var(--gc-s) * 4.5% * sin(var(--gc-turn) * 8));
+  --gc-pull: calc(var(--gc-lean) * (1 + 0.7 * var(--gc-ear)) * 6px);
+  --gc-l: calc(var(--gc-lit) * (1 - var(--gc-forming) * (0.1 + 0.35 * var(--gc-wave))));
+  --gc-white: calc(
+    var(--gc-l) * (0.3 + 0.55 * var(--gc-reach)) * (0.55 + 0.45 * var(--le, 1)) * (1 + 8 * var(--gc-breath)) *
+      (1 - var(--gc-dim) * (0.5 + 0.5 * var(--gc-ponder))) + 0.08 * var(--gc-ear)
   );
-  transform-origin: 50% 42%;
-  animation: paper-breathe 6s ease-in-out infinite alternate;
+  --gc-h: calc(var(--gc-heart) + 16% * var(--gc-voice) + 3% * var(--gc-ear) + 250% * var(--gc-breath));
+  width: 260px;
+  height: 260px;
+  margin: -130px;
+  clip-path: circle(98.5px);
+  filter: blur(max(8px, var(--gc-px))) saturate(calc(var(--gc-sat) * (0.72 + 0.28 * var(--le, 1))))
+    brightness(calc(1 + 0.1 * var(--gc-voice)));
+  background-position: calc(var(--ldx, 0) * var(--gc-pull)) calc(var(--ldy, 0) * var(--gc-pull));
+  background-image:
+    radial-gradient(
+      26% 18% at calc(50% + 12% * var(--gc-reach) * cos(var(--gc-turn)) + var(--gc-sx))
+        calc(42% + 7% * var(--gc-reach) * sin(var(--gc-turn)) + var(--gc-sy)),
+      rgb(255 255 255 / var(--gc-white)),
+      40%,
+      transparent
+    ),
+    radial-gradient(
+      16% 11% at calc(52% + 15% * var(--gc-reach) * cos(140deg - var(--gc-turn) * 2) + var(--gc-sy))
+        calc(55% + 11% * var(--gc-reach) * sin(140deg - var(--gc-turn) * 2) + var(--gc-sx)),
+      rgb(255 255 255 / calc(var(--gc-white) * 0.8)),
+      transparent
+    ),
+    radial-gradient(
+      20% 14% at calc(48% + 14% * var(--gc-reach) * cos(var(--gc-turn) * 3 + 230deg) - var(--gc-sx))
+        calc(47% + 12% * var(--gc-reach) * sin(var(--gc-turn) * 3 + 230deg) - var(--gc-sy)),
+      var(--gc-tint),
+      transparent
+    ),
+    radial-gradient(
+      24% 15% at calc(50% + 15% * var(--gc-reach) * cos(300deg - var(--gc-turn)) - var(--gc-sy))
+        calc(64% + 6% * var(--gc-reach) * sin(300deg - var(--gc-turn)) - var(--gc-sx)),
+      rgb(var(--core-rgb) / 0.5),
+      transparent
+    ),
+    conic-gradient(
+      from calc(var(--gc-turn) * -1) at 48% 52%,
+      rgb(255 255 255 / 0.16),
+      rgb(var(--core-rgb) / 0.14),
+      rgb(255 255 255 / 0.1),
+      rgb(var(--halo-rgb) / 0.16),
+      rgb(255 255 255 / 0.16)
+    ),
+    radial-gradient(
+      circle 100px at 50% 54%,
+      color-mix(in oklab, rgb(250 248 255) calc(var(--gc-l) * 100%), rgb(176 160 246)),
+      rgb(206 195 255) var(--gc-h),
+      rgb(148 122 242) calc(var(--gc-h) + 32%),
+      rgb(106 86 212) 84%,
+      rgb(var(--core-rgb))
+    );
+  transition: --gc-swirl 0.3s linear;
 }
-@keyframes paper-breathe {
-  from {
-    transform: scale(1);
-    opacity: 0.92;
-  }
+/* Thinking, a slow dim and clear over 11 s, from the start each time; joining, the light inside her forming. */
+:root[data-theme='light'] .light[data-mode='think']::before {
+  animation: gc-ponder 11s ease-in-out infinite alternate;
+}
+:root[data-theme='light'] .light[data-presence='joining']::before {
+  animation: gc-form 2.8s ease-in-out infinite alternate;
+}
+/* The glass: its glint, a soft sheen above and below, a translucent rim; a grounding shadow and her glow, which her
+   breath and her voice lift. */
+:root[data-theme='light'] .light::after {
+  width: 200px;
+  height: 200px;
+  margin: -100px;
+  border-radius: 50%;
+  filter: saturate(calc(0.5 + 0.5 * var(--gc-sat)));
+  background-image:
+    radial-gradient(ellipse 13% 8% at 34% 24%, rgb(255 255 255 / 0.92), rgb(255 255 255 / 0.85) 62%, transparent 86%),
+    radial-gradient(ellipse 66% 38% at 46% 7%, rgb(255 255 255 / 0.18), transparent 72%),
+    radial-gradient(ellipse 44% 17% at 55% 88%, rgb(255 248 240 / 0.5), transparent),
+    radial-gradient(
+      closest-side,
+      transparent 80%,
+      rgb(var(--halo-rgb) / calc(0.35 * var(--gc-calling) * var(--gc-call))) 95%,
+      transparent
+    ),
+    radial-gradient(
+      closest-side,
+      transparent 44%,
+      rgb(var(--core-rgb) / 0.22) 72%,
+      rgb(var(--core-rgb) / 0.66) min(93%, 100% - 2.5 * var(--gc-px)),
+      rgb(222 214 255 / 0.85) min(98.4%, 100% - var(--gc-px)),
+      rgb(var(--core-rgb) / 0.4)
+    );
+  box-shadow:
+    inset 0 4px 7px rgb(255 255 255 / 0.42),
+    0 16px 36px -12px rgb(var(--core-rgb) / 0.3),
+    0 2px 5px rgb(var(--ink-rgb) / 0.08),
+    0 0 calc(50px + 40px * var(--gc-glow)) 3px
+      rgb(
+        var(--halo-rgb) /
+          calc(
+            (0.26 * var(--gc-glow) + 0.12 * var(--gc-voice)) * (1 + 12 * var(--gc-breath)) + 0.12 * var(--gc-calling) *
+              var(--gc-call)
+          )
+      );
+}
+@keyframes gc-drift {
   to {
-    transform: scale(1.04);
-    opacity: 1;
+    --gc-turn: 1turn;
   }
 }
+@keyframes gc-breathe {
+  to {
+    --gc-b: 1;
+  }
+}
+@keyframes gc-ponder {
+  to {
+    --gc-ponder: 1;
+  }
+}
+@keyframes gc-call {
+  to {
+    --gc-call: 1;
+  }
+}
+@keyframes gc-form {
+  to {
+    --gc-wave: 1;
+  }
+}
+/* Under reduced motion she stands still, her states told apart by their values alone: no voice, no lean. */
 @media (prefers-reduced-motion: reduce) {
-  :root[data-theme='light'] .light::after {
+  :root[data-theme='light'] .light {
+    --gc-voice: 0;
+    --gc-ear: 0;
+    --gc-lean: 0;
+    --gc-b: 0.5;
+    --gc-call: 0.6;
     animation: none;
+    transition: none;
+  }
+  :root[data-theme='light'] .light::before,
+  :root[data-theme='light'] .light[data-mode]::before,
+  :root[data-theme='light'] .light[data-presence]::before {
+    --gc-ponder: 0.5;
+    --gc-wave: 0.6;
+    animation: none;
+    transition: none;
   }
 }
 /* The bar's mark on paper carries no glow at rest (the brand's paper mark); live, a soft halo-deep still says so. Only
@@ -203,7 +720,7 @@
   filter: none;
 }
 :root[data-theme='light'] .umbral[data-live] .umbral-sophia {
-  filter: drop-shadow(0 0 3px rgb(132 104 238 / 0.5));
+  filter: var(--glow-mark-live);
 }
 
 *,
@@ -284,7 +801,7 @@ a {
   text-underline-offset: 3px;
 }
 :focus-visible {
-  outline: 2px solid rgb(var(--halo-text-rgb) / 0.7);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 /* `hidden` always hides. A rule that sets `display` would otherwise win over the browser's own, and the element
@@ -411,7 +928,7 @@ button:disabled,
   padding: 0 12px;
   border-radius: var(--r-2);
   border: 1px solid var(--line-2);
-  background: rgb(var(--ink-rgb) / 0.04);
+  background: var(--control);
   color: var(--text);
   font-size: 13px;
   font-weight: 500;
@@ -434,7 +951,7 @@ button:disabled,
   border-color: transparent;
   background: var(--core);
   color: var(--void);
-  box-shadow: inset 0 -1px 0 rgb(var(--void-rgb) / 0.16);
+  box-shadow: var(--bevel);
 }
 .pill.primary:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--core-hover);
@@ -476,7 +993,7 @@ button:disabled,
 }
 .pill-dot[data-live] {
   background: var(--core);
-  box-shadow: 0 0 8px 1px rgb(var(--halo-rgb) / 0.8);
+  box-shadow: var(--glow-dot);
 }
 /* Keys inside buttons: quiet until they matter; on the light primary they are ink. */
 .pill kbd {
@@ -519,7 +1036,7 @@ select option {
 }
 .ghost:hover {
   color: var(--text);
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 /* Pressed, the kit's kinds sink half a pixel, as the pill does (docs/plans/press-answers.md). */
 .ghost:active:not(:disabled, [aria-disabled='true']),
@@ -536,7 +1053,7 @@ select option {
   flex: none;
   border-radius: var(--r-3);
   border: 1px solid var(--line);
-  background: rgb(var(--ink-rgb) / 0.03);
+  background: var(--control-quiet);
   color: var(--text-2);
   transition:
     background var(--fast) var(--ease),
@@ -546,7 +1063,7 @@ select option {
 .round:hover {
   color: var(--text);
   border-color: var(--line-2);
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 .round[aria-pressed='true'] {
   color: var(--void);
@@ -627,7 +1144,7 @@ textarea {
   padding: 0 11px;
   border-radius: var(--r-2);
   border: 1px solid var(--line-2);
-  background: rgb(var(--ink-rgb) / 0.03);
+  background: var(--field);
   color: var(--text);
   font-size: var(--type-body);
   transition:
@@ -647,7 +1164,7 @@ input:focus-visible,
 textarea:focus-visible {
   outline: none;
   border-color: rgb(var(--halo-text-rgb) / 0.6);
-  background: rgb(var(--ink-rgb) / 0.05);
+  background: var(--field-focus);
   box-shadow: 0 0 0 3px rgb(var(--halo-rgb) / 0.14);
 }
 /* On paper the focus edge is the halo's ink whole: the only sign of the keyboard's place, at 3:1 and more (Codex on
@@ -661,7 +1178,7 @@ select {
   padding: 0 10px;
   border-radius: var(--r-2);
   border: 1px solid var(--line-2);
-  background: rgb(var(--ink-rgb) / 0.03);
+  background: var(--field);
   color: var(--text-2);
   font-size: 13px;
 }
@@ -706,7 +1223,7 @@ input[type='checkbox']:hover:not(:disabled) {
   border-radius: var(--r-2);
   border: 1px solid var(--line-2);
   background: var(--plane-2);
-  box-shadow: 0 8px 24px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  box-shadow: var(--elev-tip);
   color: var(--text);
   font-size: 12px;
   font-weight: 500;
@@ -830,11 +1347,11 @@ button.mark:hover {
 }
 .umbral-sophia {
   fill: var(--mark-sophia);
-  filter: drop-shadow(0 0 2px rgb(var(--halo-rgb) / 0.45));
+  filter: var(--glow-mark);
   transition: filter 1s var(--ease);
 }
 .umbral[data-live] .umbral-sophia {
-  filter: drop-shadow(0 0 4px rgb(var(--halo-rgb) / 0.85));
+  filter: var(--glow-mark-live);
 }
 .mark-word {
   font-weight: 600;
@@ -1026,7 +1543,7 @@ button.mark:hover {
   border-radius: var(--r-3);
   border: 1px solid var(--line-2);
   background: var(--plane-2);
-  box-shadow: 0 18px 50px rgb(var(--shadow-rgb) / calc(0.55 * var(--shadow-k)));
+  box-shadow: var(--elev-menu);
   animation: arrive var(--base) var(--ease) both;
 }
 /* In a field (the resources' sort) the plane's box is the field's padding box, 1 px inside its edge: one more pixel,
@@ -1091,7 +1608,7 @@ button.mark:hover {
 }
 .menu [role^='menuitem']:is(:hover, :focus-visible):not([aria-disabled='true']) {
   outline: none;
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 .menu [aria-disabled='true'] {
   color: var(--text-3);
@@ -1240,16 +1757,16 @@ img.avatar {
 }
 @keyframes threshold-breathe {
   from {
-    filter: drop-shadow(0 0 4px rgb(var(--halo-rgb) / 0.45));
+    filter: var(--glow-threshold-from);
   }
   to {
-    filter: drop-shadow(0 0 12px rgb(var(--halo-rgb) / 0.85));
+    filter: var(--glow-threshold-to);
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .threshold .umbral-sophia {
     animation: none;
-    filter: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.6));
+    filter: var(--glow-threshold-still);
   }
 }
 .light[data-fallback] .light-gl {
@@ -1600,7 +2117,7 @@ img.avatar {
   transition: background var(--fast) var(--ease);
 }
 .recent button:hover {
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 .home-hint {
   margin-top: -8px;
@@ -1643,6 +2160,8 @@ img.avatar {
     radial-gradient(ellipse closest-side at 50% 50%, transparent 55%, rgb(var(--warm-rgb) / 0.05) 100%);
   pointer-events: none;
 }
+/* In the room the paper orb follows the light the engine draws (docs/plans/light-room-paper.md, paper-orb.md): its centre
+   is hers (in her tile in a video call), its size her radius's times hers now, over the stage's words and tiles. */
 :root[data-theme='light'] .room-stage > .light {
   z-index: 1;
 }
@@ -1665,7 +2184,7 @@ img.avatar {
   padding: 3px;
   border-radius: var(--r-3);
   border: 1px solid var(--line);
-  background: var(--glass);
+  background: var(--control-track);
   box-shadow: var(--lift);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
@@ -1679,8 +2198,14 @@ img.avatar {
   height: var(--thumb-h, 0);
   transform: translate(var(--thumb-x, 0), var(--thumb-y, 0));
   border-radius: var(--r-2);
-  background: rgb(var(--ink-rgb) / 0.08);
+  background: var(--control-selected);
   box-shadow: inset 0 0 0 1px rgb(var(--ink-rgb) / 0.08);
+}
+/* On paper the chosen piece rests on its level (light-states.md): paper's rule alone, as light as the thumb's. */
+:where(:root[data-theme='light']) .segmented::before {
+  box-shadow:
+    inset 0 0 0 1px rgb(var(--ink-rgb) / 0.08),
+    var(--control-selected-shadow);
 }
 .segmented[data-thumb-ready]::before {
   transition:
@@ -1779,10 +2304,22 @@ img.avatar {
   border-color: rgb(var(--warm-rgb) / 0.7);
   box-shadow: 0 0 0 3px rgb(var(--warm-rgb) / 0.08);
 }
+/* A speaker's ring: its role's (light-live.md), the room's still ring and glow, two solid pixels of the warm on paper. */
 .presence[data-speaking] .orbit {
-  box-shadow:
-    0 0 0 3px rgb(var(--warm-rgb) / 0.12),
-    0 0 24px rgb(var(--warm-rgb) / 0.22);
+  box-shadow: var(--glow-orbit);
+}
+/* In the room, moving, it follows their voice (`--level`, useVoiceMeters; voice-meters.md): wider and brighter as they
+   speak louder, its shadow untransitioned so a syllable is not blunted. A level is set on each speaker, so no root token
+   can carry it; under reduced motion the ring stands at its role's, and paper keeps its ring. */
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-theme='light']) .presence[data-speaking] .orbit {
+    box-shadow:
+      0 0 0 calc(2px + var(--level, 0) * 3px) rgb(var(--warm-rgb) / 0.12),
+      0 0 24px rgb(var(--warm-rgb) / calc(0.1 + var(--level, 0) * 0.36));
+    transition:
+      border-color var(--base) var(--ease),
+      color var(--base) var(--ease);
+  }
 }
 .ignite {
   position: absolute;
@@ -1850,31 +2387,17 @@ img.avatar {
   height: 14px;
   border-radius: 1px;
   background: var(--warm);
-  transform: scaleY(0.2);
-}
-.presence[data-speaking] .meter i {
-  animation: voice 0.9s ease-in-out infinite;
+  /* How loud they are now (`--level`), not a loop: the middle bars reach most, so the four never move as one. */
+  transform: scaleY(calc(0.2 + var(--level, 0) * var(--reach, 0.5)));
 }
 .meter i:nth-child(2) {
-  animation-delay: -0.3s !important;
+  --reach: 0.8;
 }
 .meter i:nth-child(3) {
-  animation-delay: -0.55s !important;
+  --reach: 0.7;
 }
 .meter i:nth-child(4) {
-  animation-delay: -0.15s !important;
-}
-@keyframes voice {
-  0%,
-  100% {
-    transform: scaleY(0.2);
-  }
-  30% {
-    transform: scaleY(0.85);
-  }
-  60% {
-    transform: scaleY(0.45);
-  }
+  --reach: 0.4;
 }
 
 .sophia-line {
@@ -1934,12 +2457,10 @@ img.avatar {
   padding: 12px;
   border-radius: var(--r-4);
   border: 1px solid var(--line-2);
-  background: var(--glass);
+  background: var(--glass-stage);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
-  box-shadow:
-    var(--lift),
-    0 16px 48px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  box-shadow: var(--lift), var(--elev-dock);
 }
 .stage-made.born {
   animation: made-born 0.9s var(--ease) both;
@@ -2566,12 +3087,10 @@ button.contribution-quote:hover {
   padding: 5px;
   border-radius: var(--r-4);
   border: 1px solid var(--line-2);
-  background: var(--glass);
+  background: var(--glass-stage);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
-  box-shadow:
-    var(--lift),
-    0 16px 48px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  box-shadow: var(--lift), var(--elev-dock);
   animation: rise 0.45s var(--ease) 0.1s backwards;
 }
 @keyframes rise {
@@ -2701,7 +3220,7 @@ button.contribution-quote:hover {
   padding: 7px 11px;
   border-radius: var(--r-2);
   border: 1px solid var(--line);
-  background: var(--glass);
+  background: var(--glass-stage);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   color: var(--text-2);
@@ -2782,7 +3301,7 @@ button.contribution-quote:hover {
 .device-open:hover,
 .device-open[aria-expanded='true'] {
   color: var(--text);
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 .device-open svg {
   width: 14px;
@@ -2791,6 +3310,19 @@ button.contribution-quote:hover {
 }
 .menu.device-list {
   min-width: 240px;
+}
+/* On a touch screen the check before joining is a finger's size wherever it stands (Codex P2 on #434): turned sideways
+   a phone has the computer's dock, and the check is 40 px square as Join is; in a phone's own layout, one of its 42 px
+   squares (below). */
+@media (pointer: coarse) {
+  .device-menu.device-check-open {
+    margin-left: 0;
+  }
+  .device-check-open .device-open {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--r-3);
+  }
 }
 @media (max-width: 600px) {
   .device-menu {
@@ -2880,7 +3412,7 @@ button.contribution-quote:hover {
   padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: var(--r-2);
-  background: rgb(var(--ink-rgb) / 0.03);
+  background: var(--field);
   color: var(--text);
   font-size: 13px;
   text-align: left;
@@ -2888,7 +3420,7 @@ button.contribution-quote:hover {
 .device-choice-open:hover,
 .device-choice-open[aria-expanded='true'] {
   border-color: var(--line-2);
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 .device-choice-name {
   flex: 1;
@@ -2930,7 +3462,7 @@ button.contribution-quote:hover {
   padding: 6px 11px;
   border-radius: 999px;
   border: 1px solid rgb(var(--warm-rgb) / 0.28);
-  background: var(--glass);
+  background: var(--glass-stage);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   color: var(--warm);
@@ -3110,6 +3642,17 @@ button.contribution-quote:hover {
   color: var(--text-2);
   font-size: var(--type-small);
 }
+/* Your camera's switch at your line's end, while your tile isn't on the stage (Codex P2 on #422): on a phone only, as
+   on the tile; on a computer Video settings chooses. */
+.in-the-call-flip {
+  display: none;
+  margin-left: auto;
+}
+@media (max-width: 600px) {
+  .in-the-call-flip {
+    display: inline-block;
+  }
+}
 /* A card (docs/plans/card-scale.md): a raised plane with a 1 px edge, 12 px of radius and 14 of padding; the board's
    tile 8 and 10 × 12. A live one answers: the edge lights and the plane rises a step under the pointer, a press sinks
    it half a pixel, the keyboard draws the ring. A card names its own layout; the kit gives it its surface. */
@@ -3119,6 +3662,12 @@ button.contribution-quote:hover {
   border-radius: var(--r-4);
   background-color: var(--plane-2);
   color: var(--text);
+}
+/* On paper a card rests on the page on its contact shadow (light-shadows.md); in the room no rule: it is flat, as it
+   was. Named with no weight, so a card that casts its own (a board's tile, a resource's rim) replaces it whatever the
+   sheets' order. */
+:where(:root[data-theme='light'] .card) {
+  box-shadow: var(--elev-card);
 }
 .card-tile {
   padding: 10px 12px;
@@ -3149,7 +3698,7 @@ button.contribution-quote:hover {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--r-3);
-  background: var(--plane);
+  background: var(--surface-well);
 }
 .tile {
   position: relative;
@@ -3159,7 +3708,7 @@ button.contribution-quote:hover {
   overflow: hidden;
   border-radius: var(--r-4);
   border: 1px solid var(--line);
-  background: var(--plane);
+  background: var(--surface-well);
   animation: arrive 0.4s var(--ease) both;
   transition:
     border-color var(--base) var(--ease),
@@ -3169,9 +3718,16 @@ button.contribution-quote:hover {
   border-color: rgb(var(--warm-rgb) / 0.5);
 }
 .tile[data-speaking] {
-  box-shadow:
-    0 0 0 1px rgb(var(--warm-rgb) / 0.6),
-    0 0 28px rgb(var(--warm-rgb) / 0.16);
+  box-shadow: var(--glow-speaking);
+}
+/* In the room, moving, a speaking tile glows with their voice (`--level`, as the presence's ring), untransitioned. */
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-theme='light']) .tile[data-speaking] {
+    box-shadow:
+      0 0 0 1px rgb(var(--warm-rgb) / 0.6),
+      0 0 calc(16px + var(--level, 0) * 36px) rgb(var(--warm-rgb) / calc(0.08 + var(--level, 0) * 0.24));
+    transition: border-color var(--base) var(--ease);
+  }
 }
 .sophia-tile {
   background: transparent;
@@ -3294,9 +3850,7 @@ button.contribution-quote:hover {
   background: var(--glass);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
-  box-shadow:
-    var(--lift),
-    0 12px 40px rgb(var(--shadow-rgb) / calc(0.45 * var(--shadow-k)));
+  box-shadow: var(--lift), var(--elev-mini-dock);
   animation: rise 0.4s var(--ease) backwards;
 }
 .mini-dock .pill {
@@ -3305,7 +3859,7 @@ button.contribution-quote:hover {
   box-shadow: none;
 }
 .mini-dock .pill:hover {
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 .mini-dock .round {
   width: 32px;
@@ -3391,7 +3945,7 @@ button.contribution-quote:hover {
   border: 1px solid var(--line-2);
   border-radius: 12px;
   background: var(--plane-2);
-  box-shadow: 0 12px 32px rgb(0 0 0 / 0.32);
+  box-shadow: var(--elev-welcome);
 }
 .welcome-words {
   display: grid;
@@ -3481,7 +4035,7 @@ button.contribution-quote:hover {
   border-radius: var(--r-3);
   border: 1px solid var(--line-2);
   background: var(--plane-2);
-  box-shadow: 0 12px 40px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  box-shadow: var(--elev-toast);
   color: var(--text);
   font-size: 13px;
 }
@@ -3527,7 +4081,7 @@ button.contribution-quote:hover {
   border-radius: var(--r-3);
   border: 1px solid var(--line-2);
   background: var(--plane-2);
-  box-shadow: 0 12px 40px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  box-shadow: var(--elev-toast);
   font-size: 13px;
   opacity: 0;
   pointer-events: none;
@@ -3603,9 +4157,7 @@ button.contribution-quote:hover {
   background: var(--glass);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
-  box-shadow:
-    var(--lift),
-    0 16px 48px rgb(var(--shadow-rgb) / calc(0.45 * var(--shadow-k)));
+  box-shadow: var(--lift), var(--elev-lobby);
 }
 /* Who is at the door, in a sentence, after a warm dot that breathes. */
 .lobby-title {
@@ -3770,7 +4322,7 @@ button.contribution-quote:hover {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgb(var(--void-rgb) / 0.5);
+  background: var(--veil);
   animation: veil var(--base) var(--ease) both;
 }
 /* The palette (docs/plans/commands.md): a dialog in the middle of the screen, high; the kit's search field over rows
@@ -3791,7 +4343,7 @@ button.contribution-quote:hover {
   border: 1px solid var(--line-2);
   border-radius: var(--r-4);
   background: var(--plane-2);
-  box-shadow: 0 18px 50px rgb(var(--shadow-rgb) / calc(0.55 * var(--shadow-k)));
+  box-shadow: var(--elev-menu);
   outline: none;
 }
 /* In a call the call's row comes first: three rows, the list still the one that shrinks and scrolls (Codex on #238). */
@@ -3822,7 +4374,7 @@ button.contribution-quote:hover {
   cursor: pointer;
 }
 .palette-row[aria-selected='true'] {
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-selected);
 }
 .palette-group {
   flex: none;
@@ -3877,8 +4429,8 @@ button.contribution-quote:hover {
   overflow-y: auto;
   padding: var(--sheet-top) 20px 28px;
   border-left: 1px solid var(--line-2);
-  background: var(--plane);
-  box-shadow: -24px 0 64px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  background: var(--sheet-plane);
+  box-shadow: var(--elev-sheet);
   animation: slide var(--base) var(--ease) both;
 }
 .sheet:focus-visible {
@@ -3892,7 +4444,12 @@ button.contribution-quote:hover {
   z-index: 2;
   margin-top: calc(-1 * var(--sheet-top));
   padding-top: var(--sheet-top);
-  background: var(--plane);
+  background: var(--sheet-plane);
+}
+/* On paper a borderless box a raised panel holds (a report's comparison, an update's text) would vanish on its white:
+   it sits a step down, in the well. */
+:root[data-theme='light'] :is(.report-compare, .update-text) {
+  background: var(--surface-well);
 }
 /* A live call's switches under a sheet's head: the sheet covers the room's own (call-in-reach.tsx). */
 .sheet-call {
@@ -3929,7 +4486,7 @@ button.contribution-quote:hover {
   background: transparent;
 }
 .sheet-head .round:hover {
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 /* Tabs as a line under words, on the panel's own hairline. */
 /* A tab strip (`Tabs` in @sophia/ui, docs/plans/tabs-scale.md): 36 px tabs on the field scale, the third ink at rest,
@@ -4007,7 +4564,7 @@ button.contribution-quote:hover {
 .qr {
   margin: 0;
   width: min(200px, 64%);
-  filter: drop-shadow(0 0 32px rgb(var(--halo-rgb) / 0.24));
+  filter: var(--glow-qr);
 }
 .qr svg {
   display: block;
@@ -4701,10 +5258,11 @@ button.contribution-quote:hover {
     border-color: var(--warm);
   }
   /* «Your tile is hidden» in a fifth of a phone (65 px): an eye struck through over Show, the words kept for a screen
-     reader; three lines of them didn't fit (Codex P2 follow-up on #380). */
+     reader; three lines of them didn't fit (Codex P2 follow-up on #380). At 320 px a fifth is 51 px: the eye, its gap
+     and Show (42 px) keep 3 px above and below, inside the tile's edge; 6 px there passed it (Codex P2 on #450). */
   .tile-strip .tile-hidden-self {
     justify-items: center;
-    padding: 6px;
+    padding: 3px 6px;
   }
   .tile-strip .tile-hidden-self > svg {
     display: block;
@@ -4884,6 +5442,12 @@ button.contribution-quote:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* A speaker stands still at today's look (useVoiceMeters doesn't run): the ring and glow their roles', the bars at a
+     third of their reach. */
+  .presence[data-speaking],
+  .tile[data-speaking] {
+    --level: 0.34;
+  }
   .arrive,
   .presence,
   .tile,
@@ -4893,7 +5457,6 @@ button.contribution-quote:hover {
   .dock,
   .mini-dock,
   .ignite,
-  .presence[data-speaking] .meter i,
   .sheet,
   .sheet-backdrop,
   .sheet-body,
@@ -5057,7 +5620,7 @@ button.contribution-quote:hover {
   width: min(380px, 42vw);
   min-height: 0;
   border-left: 1px solid var(--line-2);
-  background: var(--plane);
+  background: var(--surface-well);
   animation: slide var(--base) var(--ease) both;
 }
 /* The tabs sit in the lens bar's band (16 px down, 36 px tall), so the two rows of words share a line. Close's
@@ -5078,7 +5641,7 @@ button.contribution-quote:hover {
   background: transparent;
 }
 .side-panel-head > .round:hover {
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 /* The panel's top: its head, then (where the panel covers the room) the call's switches and the note. Someone at the
    door is shown under it there (--panel-top), never over the tabs or Close. */
@@ -5306,12 +5869,10 @@ button.contribution-quote:hover {
   padding: 5px;
   border-radius: var(--r-4);
   border: 1px solid var(--line-2);
-  background: var(--glass);
+  background: var(--glass-stage);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
-  box-shadow:
-    var(--lift),
-    0 16px 48px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  box-shadow: var(--lift), var(--elev-dock);
   animation: rise 0.45s var(--ease) 0.1s backwards;
 }
 /* Something new behind a closed panel: a dot of Sophia's violet on its toggle. */
@@ -5323,7 +5884,7 @@ button.contribution-quote:hover {
   height: 7px;
   border-radius: 50%;
   background: var(--core);
-  box-shadow: 0 0 8px 1px rgb(var(--halo-rgb) / 0.8);
+  box-shadow: var(--glow-dot);
 }
 .chat-show-room {
   display: none;
@@ -5372,7 +5933,7 @@ button.contribution-quote:hover {
   overflow: hidden;
   border-radius: var(--r-4);
   border: 1px solid var(--line-2);
-  background: var(--plane);
+  background: var(--surface-well);
   animation: arrive 0.4s var(--ease) both;
 }
 .report-main-head {
@@ -5427,7 +5988,7 @@ button.contribution-quote:hover {
   padding: 8px 8px 8px 14px;
   border-radius: var(--r-4);
   border: 1px solid var(--line-2);
-  background: var(--glass);
+  background: var(--glass-stage);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow: var(--lift);
@@ -5471,7 +6032,7 @@ button.contribution-quote:hover {
   padding: 5px 12px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-3);
-  background: var(--glass);
+  background: var(--glass-stage);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   color: var(--text);
@@ -5561,7 +6122,7 @@ button.contribution-quote:hover {
 /* Her mark: the dot takes her colour and glows, where she is speaking. */
 .report-sections a[data-sophia]::before {
   background: var(--halo-text);
-  box-shadow: 0 0 8px var(--halo);
+  box-shadow: var(--glow-section);
 }
 .report-sections a:focus-visible {
   outline: 2px solid var(--halo);
@@ -5598,7 +6159,7 @@ button.contribution-quote:hover {
   cursor: pointer;
 }
 .message-bar button.bar-target:hover {
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 .message-bar button.bar-target:focus-visible {
   outline: 2px solid var(--halo);
@@ -6189,7 +6750,7 @@ button.contribution-quote:hover {
   outline: none;
 }
 .goal-press:focus-visible::after {
-  box-shadow: 0 0 0 2px rgb(var(--halo-text-rgb) / 0.7);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 .goal-row-line {
   margin: 0;
@@ -6461,7 +7022,7 @@ button.contribution-quote:hover {
   gap: 8px;
   padding: 4px 10px 4px 6px;
   border-radius: var(--r-4);
-  background: var(--glass);
+  background: var(--glass-stage);
   border: 1px solid var(--line);
   font-size: 13px;
   animation: reaction-rise 4s var(--ease) both;
@@ -6516,7 +7077,7 @@ button.contribution-quote:hover {
 .spotlight-main {
   display: grid;
   place-items: center;
-  background: var(--plane);
+  background: var(--surface-well);
 }
 .spotlight-initial {
   font-size: 64px;
@@ -6548,9 +7109,70 @@ button.contribution-quote:hover {
   right: auto;
   left: 8px;
 }
+/* A touch press, so a finger's width too (Codex P2 on #422): the shared touch rule raises only its height. */
+@media (pointer: coarse) {
+  .tile-pin.tile-flip {
+    min-width: 40px;
+  }
+}
+/* Your tile's menu of both its presses (TileMenu.tsx): on a phone's strip only (below). */
+.tile-menu {
+  display: none;
+}
+/* The press's box in the top layer (a manual popover): the kit's menu hangs from it as from the press, past the tile's
+   clip, the strip's edge and the room's layers. A press goes through it to the press under it. */
+.tile-menu-layer {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  background: none;
+  color: inherit;
+  pointer-events: none;
+}
+.tile-menu-layer > .menu {
+  pointer-events: auto;
+}
 @media (max-width: 600px) {
   .tile-pin.tile-flip {
     display: inline-grid;
+  }
+  /* A tile a fifth of a phone (51 to 65 px) holds one finger-sized press, not two side by side (Codex P2 on #422):
+     with both of yours (your camera on, two cameras), the press that opens them as a menu (Luis 2026-10-18); with one,
+     that one. Its wrap draws no box, so the press stands where the tile's own do. The gallery keeps both. */
+  .tile-strip .tile-menu {
+    display: contents;
+  }
+  .tile-strip .tile:has(> .tile-menu) > .tile-pin {
+    display: none;
+  }
+  /* Where the browser has no top layer for that menu (Safari before 17: no menu, VideoStage.tsx), the one press is
+     Switch camera, as before it, a phone having it nowhere else. */
+  .tile-strip .tile:has(> .tile-flip) > .tile-pin:not(.tile-flip) {
+    display: none;
+  }
+  /* The press at the top-right, clear of the mute mark at the top-left (Codex P2 on #430): a 28 px square, as the
+     strip's initial and chip are small; a 40 px one would leave 9 px of a 51 px tile. Its target is still a finger's,
+     40 px from the tile's corner, over the mark and the chip, which aren't presses. */
+  .tile-strip .tile-pin {
+    top: 4px;
+    right: 4px;
+    left: auto;
+    width: 28px;
+    height: 28px;
+    min-width: 0;
+    min-height: 0;
+  }
+  .tile-strip .tile-pin::after {
+    content: '';
+    position: absolute;
+    /* To the tile's corner: the press's 4 px inset and its 1 px edge. */
+    top: -5px;
+    right: -5px;
+    width: 40px;
+    height: 40px;
   }
 }
 
@@ -6682,7 +7304,7 @@ button.contribution-quote:hover {
 }
 .project-name-open:hover,
 .project-name-open[aria-expanded='true'] {
-  background: rgb(var(--ink-rgb) / 0.06);
+  background: var(--state-hover);
 }
 .project-name-text {
   min-width: 0;
@@ -6850,11 +7472,14 @@ button.contribution-quote:hover {
 .person:hover {
   background: rgb(var(--ink-rgb) / 0.04);
 }
-/* Touch: the menu is a finger's 40 px, and its column follows, so it never passes its row; the volume's square keeps
-   its 36 px column (people-volume.md). */
+/* Touch: the menu and the volume are each a finger's 40 px square, and their columns follow, so neither passes its row.
+   The shared touch rule lifts a round button's height only: the volume stayed 36 px wide (Codex P2 on #425). */
 @media (pointer: coarse) {
   .person {
-    grid-template-columns: minmax(0, 1fr) auto 20px 36px 40px;
+    grid-template-columns: minmax(0, 1fr) auto 20px 40px 40px;
+  }
+  .person-volume .round {
+    min-width: 40px;
   }
 }
 .person-name {

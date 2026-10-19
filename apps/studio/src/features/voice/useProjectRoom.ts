@@ -52,6 +52,10 @@ export interface ProjectRoom {
   /** Sophia's participant as this browser observes it; null when she is not in the room. */
   sophia: SophiaSignal | null
   audioBlocked: boolean
+  /** How loud this person is now, 0…1, read in this browser only (voice-levels.ts); 0 out of a call. */
+  voiceLevel: (identity: string) => number
+  /** How loud Sophia is now, 0…1; 0 out of a call. */
+  sophiaLevel: () => number
   startAudio: () => Promise<void>
   /** The project has loaded, so Join can run. Until then the room says it is opening and Join waits. */
   ready: boolean
@@ -75,8 +79,11 @@ export interface ProjectRoom {
   chosenStill: () => () => boolean
   setCamera: (on: boolean) => Promise<void>
   setScreenShare: (on: boolean) => Promise<void>
-  /** The person's choice of microphone, speaker or camera: kept for their next call, and this one switched to it. */
-  switchDevice: (kind: DeviceKind, id: string) => Promise<void>
+  /**
+   * The person's choice of microphone, speaker or camera: kept for their next call, and this one switched to it;
+   * resolves true once this call did.
+   */
+  switchDevice: (kind: DeviceKind, id: string) => Promise<boolean>
   /** The devices of a kind, through LiveKit (loaded only now); rejects where the browser refuses access. */
   listDevices: (kind: DeviceKind) => Promise<MediaDevice[]>
   /** The person's camera background: kept for their next call, and drawn in this one (call-backgrounds.md). */
@@ -191,19 +198,24 @@ function backgroundSwitch(connection: { current: RoomConnection | null }, say: (
   }
 }
 
-/** A device chosen: kept for the next call; in this one, switched, the note saying it if the browser refused. */
+/**
+ * A device chosen: kept for the next call; in this one, switched, the note saying it if the browser refused. It
+ * resolves true once this call switched: kept, even refused, is not taken (camera-flip.ts follows the call's camera).
+ */
 function deviceSwitch(connection: { current: RoomConnection | null }, say: (note: string | null) => void) {
   return async (kind: DeviceKind, id: string) => {
     rememberDevice(kind, id)
     const c = connection.current
-    if (!c) return
+    if (!c) return false
     try {
       await c.switchDevice(kind, id)
     } catch {
       if (connection.current === c) say(SWITCH_REFUSED[kind])
-      return
+      return false
     }
-    if (connection.current === c) say(null)
+    if (connection.current !== c) return false
+    say(null)
+    return true
   }
 }
 
@@ -527,9 +539,16 @@ function useLeave(calls: CallFence<RoomConnection>, outOfCall: (why: CallEnd | n
   return { leave, leftByPress }
 }
 
-/** Saying what this person follows to the call they are in; out of a call, there is no one to tell. */
-const followingOf = (calls: CallFence<RoomConnection>) => (versionId: string | null) =>
-  calls.current?.setFollowing(versionId) ?? Promise.resolve()
+/**
+ * What reaches through to the call this person is in, read live so a new call is its own: saying what they follow
+ * (out of a call there is no one to tell), and how loud each voice is (out of a call, silence). Made once, so their
+ * readers stay the same and nothing that takes them runs again.
+ */
+const relaysOf = (calls: CallFence<RoomConnection>) => ({
+  setFollowing: (versionId: string | null) => calls.current?.setFollowing(versionId) ?? Promise.resolve(),
+  voiceLevel: (identity: string) => calls.current?.voiceLevel(identity) ?? 0,
+  sophiaLevel: () => calls.current?.sophiaLevel() ?? 0,
+})
 
 /** Null `issue` while nobody may join yet (the project has not loaded): Join waits. */
 export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
@@ -590,7 +609,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     })
 
   const startAudio = () => calls.current?.startAudio() ?? Promise.resolve()
-  const [setFollowing] = useState(() => followingOf(calls))
+  const [relays] = useState(() => relaysOf(calls))
 
   return {
     status,
@@ -604,7 +623,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     startAudio,
     listDevices,
     backgroundsSupported,
-    setFollowing,
+    ...relays,
     ready: issue !== null,
     leave,
     leftByPress,

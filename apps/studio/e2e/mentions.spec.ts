@@ -24,6 +24,15 @@ declare global {
     seenAttempts?: number
     /** The held seen write's release: answers it 503 (the held-write case below). */
     releaseSeen?: () => void
+    /** GET /me/needs the page sent, a held one's release, and whether the next is held (the padlock cases below). */
+    needsGets?: number
+    holdNeeds?: boolean
+    releaseNeeds?: () => void
+    /** The one seen write held before it reaches the fixture (its need id), those held, and their release. */
+    holdSeenNeed?: string
+    heldSeen?: string[]
+    seenPosts?: string[]
+    releaseHeldSeen?: () => void
   }
 }
 const seenOf = async (page: Page) => (await served(page)).filter((s) => s.startsWith('seen:'))
@@ -690,4 +699,153 @@ test('mentions · covered and revealed again and again, a failing seen write kee
   await page.waitForTimeout(1000)
   expect(await seenAttempts(page)).toBe(4)
   expect(await seenOf(page)).toEqual([])
+})
+
+// P1 4309009938: the room's mentions are read from the person's mixed Needs list (their replies' words beside the
+// mentions: the fixture's reply:t9). While the personal padlock is shut it is never read, nothing of it is kept, and a
+// read on its way refills nothing; opened, it is read afresh.
+async function countedNeeds(page: Page) {
+  await page.addInitScript(() => {
+    // One controller for the page's fetch: GET /me/needs counted (and the next held when asked), and the seen write of
+    // exactly `holdSeenNeed` held before it reaches the fixture's handler, until released.
+    const control = { gets: 0, seen: [] as string[], held: [] as string[] }
+    window.needsGets = 0
+    window.seenPosts = control.seen
+    window.heldSeen = control.held
+    const wrap =
+      (f: typeof fetch): typeof fetch =>
+      async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href)
+        const method = init?.method ?? 'GET'
+        if (method === 'GET' && url.pathname === '/api/v1/me/needs') {
+          control.gets += 1
+          window.needsGets = control.gets
+          if (window.holdNeeds) {
+            window.holdNeeds = false
+            await new Promise<void>((resolve) => (window.releaseNeeds = resolve))
+          }
+        }
+        const seen = /^\/api\/v1\/me\/needs\/([^/]+)\/seen$/.exec(url.pathname)
+        if (method === 'POST' && seen?.[1]) {
+          const need = decodeURIComponent(seen[1])
+          control.seen.push(need)
+          if (need === window.holdSeenNeed) {
+            control.held.push(need)
+            await new Promise<void>((resolve) => (window.releaseHeldSeen = resolve))
+          }
+        }
+        return f(input, init)
+      }
+    let current = wrap(window.fetch.bind(window))
+    Object.defineProperty(window, 'fetch', {
+      configurable: true,
+      get: () => current,
+      set: (f: typeof fetch) => (current = wrap(f)),
+    })
+  })
+}
+const needsGets = (page: Page) => page.evaluate(() => window.needsGets ?? 0)
+const kept = (page: Page) => page.evaluate(() => JSON.stringify(window.fixture?.cachedMentionNeeds() ?? []))
+const setPadlock = (page: Page, locked: boolean) => page.evaluate((l) => window.fixture?.setPadlock(l), locked)
+const MENTIONED_ROOM = `/room.html?call=on&people=2&floor=1&discussion=mentioned`
+
+test('mentions · padlock shut from the start: the hidden room and its chat read nothing of the person’s Needs; opened, the mention is read afresh and on its message (P1 4309009938)', async ({
+  page,
+}) => {
+  await countedNeeds(page)
+  await page.goto(`${MENTIONED_ROOM}&padlock=shut`)
+  await expect(leave(page)).toBeVisible()
+  await expect(discussion(page)).toHaveCount(0) // the chat is hidden
+  await page.waitForTimeout(1000)
+  expect(await needsGets(page), 'chat hidden: no mixed read').toBe(0)
+  expect(await kept(page)).toBe('[]')
+  await chatToggle(page).click()
+  await expect(discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)).toBeAttached()
+  await page.waitForTimeout(1500)
+  expect(await needsGets(page), 'chat shown, padlock shut: still no mixed read').toBe(0)
+  expect(await kept(page)).toBe('[]')
+  await expect(discussion(page).locator('[data-mention-need]')).toHaveCount(0)
+  expect(await seenOf(page)).toEqual([])
+  // Positive control: the current Need's seen write is held before it reaches the fixture, so its marker can't leave
+  // before it is checked; released, it is written exactly once and the Need leaves the list.
+  await page.evaluate((need) => (window.holdSeenNeed = need), NEED)
+  await setPadlock(page, false)
+  await expect.poll(() => needsGets(page)).toBeGreaterThan(0)
+  await expect.poll(() => kept(page)).toContain(NEED)
+  const marked = discussion(page).locator(`[data-mention-need="${NEED}"]`)
+  await expect(marked).toHaveAttribute('data-message', MENTIONED_IN)
+  await marked.scrollIntoViewIfNeeded()
+  await expect.poll(() => page.evaluate(() => window.heldSeen ?? [])).toEqual([NEED]) // pending, exactly this one
+  expect(await page.evaluate(() => window.seenPosts ?? [])).toEqual([NEED]) // no other seen write
+  expect(await seenOf(page)).toEqual([])
+  await expect(marked).toHaveAttribute('data-message', MENTIONED_IN) // still on its message while held
+  await page.evaluate(() => window.releaseHeldSeen?.())
+  await expect.poll(() => seenOf(page)).toEqual([`seen:${NEED}`])
+  await expect(marked).toHaveCount(0)
+  await page.waitForTimeout(1000)
+  expect(await seenOf(page)).toEqual([`seen:${NEED}`])
+  expect(await page.evaluate(() => window.seenPosts ?? [])).toEqual([NEED])
+})
+
+test('mentions · a read on its way, kept under two cursors, then the padlock shut: stopped, forgotten, its late answer refills nothing, nothing read while shut (P1 4309009938)', async ({
+  page,
+}) => {
+  await countedNeeds(page)
+  await page.goto(MENTIONED_ROOM)
+  await expect(leave(page)).toBeVisible()
+  await chatToggle(page).click()
+  await expect.poll(() => kept(page)).toContain('reply:t9') // the mixed list, with the person's reply, kept
+  const before = await needsGets(page)
+  await page.evaluate(() => (window.holdNeeds = true))
+  await page.evaluate(() => window.fixture?.say('SYNTHETIC: the project moves on, its cursor with it.'))
+  await expect.poll(() => needsGets(page)).toBe(before + 1) // read again under the new cursor, held
+  const variants: unknown = JSON.parse(await kept(page))
+  expect(Array.isArray(variants) ? variants.length : 0).toBeGreaterThanOrEqual(2) // the earlier cursor's, and the held one's
+  await setPadlock(page, true)
+  await expect.poll(() => kept(page)).toBe('[]')
+  const shut = await needsGets(page)
+  await page.evaluate(() => window.releaseNeeds?.()) // the held read answers, late
+  await page.waitForTimeout(1500)
+  expect(await kept(page), 'the late answer refills nothing').toBe('[]')
+  expect(await needsGets(page), 'nothing read while shut').toBe(shut)
+  await expect(discussion(page).locator('[data-mention-need]')).toHaveCount(0)
+  await setPadlock(page, false)
+  await expect.poll(() => needsGets(page)).toBeGreaterThan(shut)
+  await expect.poll(() => kept(page)).toContain('reply:t9')
+})
+
+test('mentions · a call that shuts the padlock: the room’s mentions read is forgotten and not read again while it is shut (P1 4309009938)', async ({
+  page,
+}) => {
+  await countedNeeds(page)
+  await page.goto(`${MENTIONED_ROOM}&padlock=call`)
+  await expect(leave(page)).toBeVisible()
+  await chatToggle(page).click()
+  await expect(discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)).toBeVisible()
+  await expect.poll(() => kept(page)).toBe('[]')
+  const shut = await needsGets(page)
+  await page.waitForTimeout(1500)
+  expect(await needsGets(page)).toBe(shut)
+  expect(await kept(page)).toBe('[]')
+  await expect(discussion(page).locator('[data-mention-need]')).toHaveCount(0)
+})
+
+test('mentions · another tab shuts the padlock (device storage): the read is forgotten here too and not read while shut (P1 4309009938)', async ({
+  page,
+}) => {
+  await countedNeeds(page)
+  await page.goto(MENTIONED_ROOM)
+  await expect(leave(page)).toBeVisible()
+  await chatToggle(page).click()
+  await expect.poll(() => kept(page)).toContain('reply:t9')
+  await page.evaluate(() => {
+    const key = window.fixture?.padlockKey() ?? ''
+    localStorage.setItem(key, 'you')
+    window.dispatchEvent(new StorageEvent('storage', { key, newValue: 'you' }))
+  })
+  await expect.poll(() => kept(page)).toBe('[]')
+  const shut = await needsGets(page)
+  await page.waitForTimeout(1500)
+  expect(await needsGets(page)).toBe(shut)
+  expect(await kept(page)).toBe('[]')
 })

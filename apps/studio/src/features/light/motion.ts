@@ -26,6 +26,20 @@ export function settle(s: Spring): void {
   s.velocity = 0
 }
 
+/** Her voice's envelope (docs/plans/voice-amplitude.md): it rises within 30 ms of a syllable, and falls over 180 ms. */
+export const ATTACK_S = 0.03
+export const RELEASE_S = 0.18
+
+/** What she hears, by its own slower envelope: receiving reads calmer than her own voice (docs/plans/orb-hears.md). */
+export const HEAR_ATTACK_S = 0.12
+export const HEAR_RELEASE_S = 0.45
+
+/** One step of the envelope toward the level heard now: fast up, slower down, exact at any frame rate. */
+export function envelope(value: number, level: number, dt: number, attack = ATTACK_S, release = RELEASE_S): number {
+  const tau = level > value ? attack : release
+  return level + (value - level) * Math.exp(-dt / tau)
+}
+
 export interface Point {
   x: number
   y: number

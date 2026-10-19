@@ -12,6 +12,7 @@ import type { DiscussionEntry, WithdrawnEntry } from '@sophia/contracts'
 import { getDiscussionPage } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Acted } from './MessageActions.tsx'
+import { useHeldRefresh } from './held-pages.ts'
 import { heldView, inOrder } from './message-acts.ts'
 import { afterGap, gapsIn, jumpReading, pageLinks, windowLinks } from './segment-view.ts'
 
@@ -101,6 +102,8 @@ interface Holding {
   gaps: readonly string[]
   /** A page read before `before`, kept with everything held. */
   hold: (page: Page, before: string | null, atStart: boolean) => void
+  /** The held pages' epoch (held-pages.ts): a page asked for before a let-go is not kept (R-SEARCH-AB2F-DISCARDED-READ). */
+  epoch: () => number
 }
 
 /**
@@ -116,8 +119,10 @@ function useFoundPage(projectId: string, token: string, at: Holding): Pick<Earli
   const jump = (before: string | null, owner: string) => {
     if (jumped.reading === 'loading') return
     setJumped({ owner, reading: 'loading' })
+    const asOf = at.epoch()
     getDiscussionPage(token, projectId, before).then(
       (page) => {
+        if (at.epoch() !== asOf) return setJumped({ owner, reading: 'idle' })
         hold(page, before, page.before === null || at.atStart)
         setJumped({ owner, reading: 'idle' })
       },
@@ -128,8 +133,10 @@ function useFoundPage(projectId: string, token: string, at: Holding): Pick<Earli
     const below = at.gaps.includes(after) ? afterGap(shown, after) : undefined
     if (!below || filling?.reading === 'loading') return
     setFilling({ after, reading: 'loading' })
+    const asOf = at.epoch()
     getDiscussionPage(token, projectId, below.id).then(
       (page) => {
+        if (at.epoch() !== asOf) return setFilling(null)
         hold(page, below.id, page.before === null || at.atStart)
         setFilling(null)
       },
@@ -230,15 +237,33 @@ export function useEarlierDiscussion(
     if (el && fromBottom.current !== null) el.scrollTop = el.scrollHeight - fromBottom.current
     fromBottom.current = null
   }, [held, history])
-  const { entries, withdrawn } = heldView(held, { entries: discussion, withdrawn: discussionWithdrawn }, acted)
+  // A held message changed elsewhere is not shown while its page is read again (held-pages.ts, 4309253137).
+  const [stale, epoch] = useHeldRefresh({
+    projectId,
+    identity,
+    held,
+    // Search's held pages also keep their links (gaps, A38): a refresh changes entries only and keeps the rest.
+    setHeld: (next) =>
+      setHeld((h) => {
+        const r = next(h)
+        return r && h ? { ...h, ...r } : null
+      }),
+    window: [...discussion, ...discussionWithdrawn],
+  })
+  const view = heldView(held, { entries: discussion, withdrawn: discussionWithdrawn }, acted)
+  const entries = view.entries.filter((e) => !stale.has(e.id))
+  const { withdrawn } = view
   const atStart = held?.atStart ?? false
   const hold = useHold(setHeld, projectId, discussion, discussionWithdrawn)
   const load = () => {
     const [oldest] = [...entries, ...withdrawn].toSorted(inOrder)
     if (!oldest || reading === 'loading') return
     setReading('loading')
+    const asOf = epoch()
     getDiscussionPage(identity.token, projectId, oldest.id).then(
       (page) => {
+        // Pages let go while this was read: what it brings may be older than what is known; it is not kept.
+        if (epoch() !== asOf) return setReading('idle')
         const el = history.current
         fromBottom.current = el ? el.scrollHeight - el.scrollTop : null
         hold(page, oldest.id, page.before === null)
@@ -250,7 +275,7 @@ export function useEarlierDiscussion(
   const shown = [...entries, ...withdrawn]
   // Without a page read, the window alone: consecutive, no gap.
   const gaps = held ? gapsIn(shown, new Map([...held.links, ...latest])) : []
-  const found = useFoundPage(projectId, identity.token, { shown, atStart, gaps, hold })
+  const found = useFoundPage(projectId, identity.token, { shown, atStart, gaps, hold, epoch })
   const offered = !atStart && shown.length >= WINDOW
   return { entries, withdrawn, offered, atStart, reading, load, revise, ...found }
 }
