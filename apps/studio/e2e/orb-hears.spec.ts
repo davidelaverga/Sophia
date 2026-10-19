@@ -52,7 +52,7 @@ test('hears · while she listens, the holder’s voice stirs her inside and draw
   await expect(light(page)).toHaveAttribute('data-mode', 'listen')
   await expect(page.locator('.presence[data-floor]')).toHaveAttribute('data-actor', MARCO)
   await voice(page, 1, 0)
-  // Her light ignites on arrival (about 4 s to within 1 %) and her listening state eases in: read once both have.
+  // Her light ignites on arrival (0.99 reads after 4.43 s) and her listening state eases in: read once both have.
   await expect
     .poll(() => light(page).evaluate((el) => Number(getComputedStyle(el).getPropertyValue('--ls') || 0)), {
       timeout: 8000,
