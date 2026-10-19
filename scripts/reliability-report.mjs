@@ -336,6 +336,12 @@ function fixtureMarkdown(fx) {
       (s) =>
         `| ${s.view} | ${s.failedReads} | ${s.failedReads === 0 ? 'not reached' : s.visible ? 'visible' : 'silent'} |`,
     ),
+    '',
+    '| M7 read | Answered 502/503 | Errors seen | Back without a press | After |',
+    '| --- | --- | --- | --- | --- |',
+    ...fx.m7.samples.map(
+      (s) => `| ${s.read} | ${s.failures} | ${s.errors} | ${s.recovered ? 'yes' : 'no'} | ${ms(s.ms)} |`,
+    ),
   ]
   return lines
 }
