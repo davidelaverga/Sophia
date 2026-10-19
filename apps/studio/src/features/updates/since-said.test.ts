@@ -1,7 +1,18 @@
 import assert from 'node:assert/strict'
 import { beforeEach, describe, it } from 'node:test'
 import type { Since } from '../../api/vision.ts'
-import { freshIn, linesOf, newsOf, readerOf, readSaid, rememberSaid, unsaid } from './since-said.ts'
+import {
+  freshIn,
+  linesOf,
+  markPending,
+  newsOf,
+  readerOf,
+  readPending,
+  readSaid,
+  rememberSaid,
+  settlePending,
+  unsaid,
+} from './since-said.ts'
 
 function storage(): Storage {
   const kept = new Map<string, string>()
@@ -147,6 +158,52 @@ describe('what changed since you last looked, said once (home-since-you-looked.m
     assert.deepEqual(readSaid('acct-4'), {})
     rememberSaid('acct-4', { [uuid(11)]: ['d:1'] })
     assert.deepEqual(readSaid('acct-4'), { [uuid(11)]: ['d:1'] })
+  })
+
+  it('a call’s project waits for a read after the call: never said meanwhile, its first window read kept (Codex P2 on #468)', () => {
+    assert.deepEqual(readPending('acct-1'), [])
+    markPending('acct-1', uuid(11))
+    markPending('acct-1', uuid(11))
+    assert.deepEqual(readPending('acct-1'), [uuid(11)])
+    assert.deepEqual(readPending('acct-2'), [])
+    const another = window({ decided: [decided(3)] })
+    const windows = new Map([
+      [uuid(11), twoDecided],
+      [uuid(12), another],
+    ])
+    // While it waits, a visit says nothing of it, whatever its window holds; the others' news stands.
+    assert.deepEqual([...unsaid(windows, readSaid('acct-1'), READER, readPending('acct-1')).keys()], [uuid(12)])
+    // A window read for a project that doesn't wait keeps nothing.
+    settlePending('acct-1', uuid(12), another)
+    assert.deepEqual(readSaid('acct-1'), {})
+    assert.deepEqual(readPending('acct-1'), [uuid(11)])
+    // The first window read for it once the call ended is what the call held: kept whole, and the wait is over.
+    settlePending('acct-1', uuid(11), twoDecided)
+    assert.deepEqual(readSaid('acct-1'), { [uuid(11)]: linesOf(twoDecided) })
+    assert.deepEqual(readPending('acct-1'), [])
+    assert.deepEqual([...unsaid(windows, readSaid('acct-1'), READER, readPending('acct-1')).keys()], [uuid(12)])
+    // Over, it keeps nothing more: a decision after the call is news.
+    const later = window({ decided: [decided(1), decided(2), decided(3)] })
+    settlePending('acct-1', uuid(11), later)
+    const after = unsaid(new Map([[uuid(11), later]]), readSaid('acct-1'), READER, readPending('acct-1'))
+    assert.deepEqual(ids(after.get(uuid(11))), [uuid(3)])
+    // Anything else kept as the wait reads as none.
+    localStorage.setItem('sophia.since.pending.v1.acct-3', '{"x": "4"}')
+    assert.deepEqual(readPending('acct-3'), [])
+  })
+
+  it('where storage refuses, a call’s project waits for as long as the page lives', () => {
+    Object.defineProperty(globalThis, 'localStorage', {
+      get: () => {
+        throw new Error('blocked')
+      },
+      configurable: true,
+    })
+    markPending('acct-5', uuid(11))
+    assert.deepEqual(readPending('acct-5'), [uuid(11)])
+    settlePending('acct-5', uuid(11), twoDecided)
+    assert.deepEqual(readPending('acct-5'), [])
+    assert.deepEqual(readSaid('acct-5'), { [uuid(11)]: linesOf(twoDecided) })
   })
 
   it('the reader is the token’s subject, lowered, as the API names its actor; none without one', () => {

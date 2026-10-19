@@ -47,6 +47,44 @@ test('settings · a call’s defaults: the microphone on joining, and the mirror
   await expect(sheet(page).getByRole('checkbox', { name: 'Mirror my video' })).not.toBeChecked()
 })
 
+// The box says what the next join does: the call's own microphone, turned off in the sheet's head, is the next join's
+// too (setMicrophone keeps it), and the box follows at once (Codex P2 on #398).
+test('settings · in a call, the microphone turned off in the sheet’s head unchecks «Join with my microphone on»', async ({
+  page,
+}) => {
+  await openSettings(page, '&call=on')
+  const box = sheet(page).getByRole('checkbox', { name: 'Join with my microphone on' })
+  await expect(box).toBeChecked()
+  const mic = sheet(page)
+    .getByRole('group', { name: 'Your call' })
+    .getByRole('button', { name: 'Microphone', exact: true })
+  await expect(mic).toHaveAttribute('aria-pressed', 'true')
+  await mic.click()
+  await expect(mic).toHaveAttribute('aria-pressed', 'false')
+  await expect(box).not.toBeChecked()
+})
+
+// Join's tip says how the next join starts as Settings leaves it, with no reload: the room's own dock, and the mini dock
+// on another view (Codex P2 on #398).
+for (const [where, query, role, dock] of [
+  ['the room', '', 'navigation', 'Room controls'],
+  ['Tasks', '&place=work', 'group', 'Project room'],
+] as const) {
+  test(`settings · ${where}: «Join with my microphone on» unchecked, Join’s tip says so without a reload`, async ({
+    page,
+  }) => {
+    await page.goto(`/room.html?people=2${query}`)
+    const tip = page.getByRole(role, { name: dock }).getByRole('button', { name: 'Join the room' }).locator('.tip')
+    await expect(tip).toContainText('You join with your microphone on')
+    await page.getByRole('button', { name: 'Account' }).click()
+    await page.getByRole('menuitem', { name: 'Settings…' }).click()
+    await sheet(page).getByRole('checkbox', { name: 'Join with my microphone on' }).uncheck()
+    await page.keyboard.press('Escape')
+    await expect(sheet(page)).toHaveCount(0)
+    await expect(tip).toContainText('You join with your microphone off')
+  })
+}
+
 test('settings · Keyboard shortcuts there hands over to the index, one sheet at a time (Codex P1 on #398)', async ({
   page,
 }) => {

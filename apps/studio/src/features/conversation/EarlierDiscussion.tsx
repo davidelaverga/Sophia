@@ -219,13 +219,20 @@ function useHold(
     )
 }
 
+/** The cursor of the reader's own receipt an entry shows, if it shows one (held-pages.ts, R-B56-P1). */
+function receiptOf(acted: ReadonlyMap<string, Acted>, e: DiscussionEntry) {
+  const a = acted.get(e.id)
+  return a?.type === 'corrected' && a.entry === e ? a.cursor : undefined
+}
+
 export function useEarlierDiscussion(
   projectId: string,
   identity: Identity,
   discussion: readonly DiscussionEntry[],
   history: RefObject<HTMLDivElement | null>,
-  discussionWithdrawn: readonly WithdrawnEntry[] = NONE,
+  snapshot: { withdrawn?: readonly WithdrawnEntry[] | undefined; cursor?: string | undefined } = {},
 ): Earlier {
+  const discussionWithdrawn = snapshot.withdrawn ?? NONE
   const [stored, setHeld] = useState<Held | null>(null)
   const [reading, setReading] = useState<Reading>('idle')
   const fromBottom = useRef<number | null>(null)
@@ -241,7 +248,7 @@ export function useEarlierDiscussion(
     fromBottom.current = null
   }, [held, history])
   // A held message changed elsewhere is not shown while its page is read again (held-pages.ts, 4309253137).
-  const [stale, epoch] = useHeldRefresh({
+  const [stale, epoch, erased] = useHeldRefresh({
     projectId,
     identity,
     held,
@@ -252,9 +259,11 @@ export function useEarlierDiscussion(
         return r && h ? { ...h, ...r } : null
       }),
     window: [...discussion, ...discussionWithdrawn],
+    reading: reading === 'loading',
+    cursor: snapshot.cursor,
   })
   const view = heldView(held, { entries: discussion, withdrawn: discussionWithdrawn }, acted)
-  const entries = view.entries.filter((e) => !stale.has(e.id))
+  const entries = view.entries.filter((e) => !stale.has(e.id) && !erased(e, receiptOf(acted, e)))
   const { withdrawn } = view
   const atStart = held?.atStart ?? false
   const hold = useHold(setHeld, projectId, discussion, discussionWithdrawn)

@@ -13,7 +13,10 @@ import {
   ownerOf,
   READS,
   staleHeld,
+  superseded,
+  untrusted,
   withPage,
+  windowAliasesOf,
   withoutAliases,
 } from './held-pages.ts'
 
@@ -94,7 +97,8 @@ describe('held pages kept honest (4309253137)', () => {
     assert.equal(changesOf(mine).ids.size, 0)
     const busy = ownerOf('davide', 'p2')
     for (let n = 0; n <= KEPT; n += 1) contributionChanged(busy, id(1000 + n))
-    assert.equal(changesOf(busy).ids.size, 0, 'past the bound: let go')
+    // Past the bound the earlier ones go; the change that went past it is kept (4317389250).
+    assert.deepEqual([...changesOf(busy).ids.keys()], [id(1000 + KEPT)], 'past the bound: let go, but the last')
     assert.equal(changesOf(busy).resyncs, 1, 'as after a resync: the earlier pages go')
   })
 
@@ -310,5 +314,84 @@ describe('held aliases of an erased source (r4313704366)', () => {
       [...withoutAliases(held, new Set([id(700)]), new Set([id(9), id(1)])).entries.keys()],
       [id(1), id(3), id(4)],
     )
+  })
+
+  it('in the snapshot’s own window, nothing held, every alias of a source gone is named; the acted, a withdrawn place and other sources are not (4316503664)', () => {
+    const withdrawn = { id: id(9), actorId: id(900), authorName: null, createdAt: at(9), withdrawnAt: at(10) }
+    const window = [src(1, 700), src(2, 700), src(3, 701), src(4, 700, 'reference'), withdrawn]
+    assert.deepEqual(windowAliasesOf(window, new Set([id(700)]), new Set([id(1)])), [id(2), id(4)])
+    assert.deepEqual(windowAliasesOf(window, new Set(), new Set([id(1)])), [])
+    assert.deepEqual(windowAliasesOf(window, new Set([id(799)]), new Set()), [])
+  })
+})
+
+describe('a receipt superseded by a later erasure (R-B56-P1)', () => {
+  it('a correction or withdrawal at a later cursor supersedes it; its own act’s event, or none, does not', () => {
+    assert.equal(superseded('41', '42'), true)
+    assert.equal(superseded('41', '41'), false) // its own act's event
+    assert.equal(superseded('41', '40'), false)
+    assert.equal(superseded('41', undefined), false)
+    assert.equal(superseded(null, '42'), false) // nothing changed: no receipt shown
+    assert.equal(superseded('9007199254740993', '9007199254740994'), true) // beyond 2^53, exact
+  })
+
+  it('the feed keeps each message’s latest erasing cursor; a mention keeps none', () => {
+    const owner = ownerOf('b57', 'p')
+    contributionChanged(owner, id(1), true, { cursor: '10', revision: 2 })
+    contributionChanged(owner, id(1), true, { cursor: '12', revision: 3 })
+    contributionChanged(owner, id(2), false, { cursor: '13', revision: 2 })
+    assert.deepEqual([...(changesOf(owner).erasedRevision ?? [])], [[id(1), 3]])
+    assert.deepEqual([...(changesOf(owner).erasedAt ?? [])], [[id(1), '12']])
+    feedStopped(owner)
+  })
+})
+
+describe('erasures past the bound (R-B60-P1)', () => {
+  it('past KEPT the mentions go but not the erasures, at most KEPT of them, newest kept; a resync counted', () => {
+    const owner = ownerOf('b61', 'p')
+    contributionChanged(owner, id(1), true, { cursor: '5', revision: 2 })
+    for (let n = 0; n < KEPT; n += 1) contributionChanged(owner, id(2000 + n))
+    const after = changesOf(owner)
+    assert.equal(after.resyncs, 1)
+    assert.deepEqual([...after.ids.keys()], [id(1), id(2000 + KEPT - 1)])
+    assert.deepEqual([...(after.erasedAt ?? [])], [[id(1), '5']])
+    assert.deepEqual([...(after.erasedRevision ?? [])], [[id(1), 2]])
+    feedStopped(owner)
+    const busy = ownerOf('b61', 'erasures')
+    for (let n = 0; n <= KEPT; n += 1) contributionChanged(busy, id(3000 + n), true, { cursor: String(n), revision: 2 })
+    const kept = changesOf(busy)
+    assert.equal(kept.erasing?.size, KEPT)
+    assert.equal(kept.erasing?.has(id(3000)), false, 'the oldest erasure goes')
+    assert.equal(kept.erasing?.has(id(3000 + KEPT)), true)
+    assert.ok(kept.ids.size <= KEPT)
+    // The oldest erasure let go unlearned: until a snapshot as new as it is shown, none older is trusted (addendum).
+    assert.equal(kept.lostAt, '0')
+    assert.equal(untrusted(kept.lostAt, undefined), true)
+    assert.equal(untrusted(kept.lostAt, '0'), false)
+    assert.equal(untrusted(undefined, undefined), false)
+    contributionChanged(busy, id(3999), true, { cursor: String(KEPT + 1), revision: 2 })
+    assert.equal(changesOf(busy).lostAt, '1', 'the next one let go raises it')
+    assert.equal(untrusted(changesOf(busy).lostAt, '0'), true)
+    feedStopped(busy)
+    assert.equal(changesOf(busy).lostAt, undefined, 'a stopped feed keeps nothing')
+  })
+})
+
+describe('the store holds at most KEPT messages in all (R-B61-P2)', () => {
+  it('KEPT erasures, then a new change that erases nothing: it is kept, the oldest erasure goes and is accounted', () => {
+    const owner = ownerOf('b62', 'p')
+    for (let n = 0; n < KEPT; n += 1) contributionChanged(owner, id(4000 + n), true, { cursor: String(n), revision: 2 })
+    contributionChanged(owner, id(4999), false, { cursor: String(KEPT), revision: 1 })
+    const after = changesOf(owner)
+    assert.ok(after.ids.size <= KEPT, `${String(after.ids.size)} messages kept`)
+    assert.equal(after.ids.has(id(4999)), true, 'the change that went past KEPT is kept')
+    assert.equal(after.erasing?.size, KEPT - 1)
+    assert.equal(after.erasing?.has(id(4000)), false, 'the oldest erasure goes')
+    assert.equal(after.lostAt, '0', 'and is accounted')
+    assert.equal(untrusted(after.lostAt, undefined), true, 'no snapshot: not trusted')
+    assert.equal(untrusted(after.lostAt, '-1'), true, 'an older one: not trusted')
+    assert.equal(untrusted(after.lostAt, '0'), false, 'one as new: trusted')
+    assert.equal(untrusted(after.lostAt, '7'), false, 'a newer one: trusted')
+    feedStopped(owner)
   })
 })

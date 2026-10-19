@@ -149,6 +149,11 @@ interface Project {
   memberRoles?: Map<string, Membership['role']>
   /** The next host control is refused as an unreachable room server's (`window.fixture.failHost`). */
   failHost?: boolean
+  /**
+   * The next «Mute everyone» mutes everyone, then is refused, as the API's when its record fails after the room server
+   * acted (`window.fixture.failAfterMuteAll`).
+   */
+  failAfterMuteAll?: boolean
   /** While set, host controls land but their replies wait for `holdHost(false)` (`window.fixture.holdHost`). */
   hostHeld?: (() => void)[] | null
   /** The next read of the earlier discussion fails as the API's `unavailable` (`window.fixture.failEarlier`). */
@@ -278,6 +283,8 @@ interface Project {
   projectsHeld?: (() => void)[] | null
   /** While set, the membership's reads wait for these (`membership=hold`, `window.fixture.releaseMembership`). */
   membershipHeld?: (() => void)[] | null
+  /** While set, the snapshot's reads wait for these (`snapshot=hold`, `window.fixture.releaseSnapshot`): not loaded. */
+  snapshotHeld?: (() => void)[] | null
   /** Sophia is out of reach (`outage=1`, `window.fixture.outage`): every API request fails as a lost connection. */
   outage?: boolean
   /** The membership's reads fail as the API's `unavailable`, the rest answer (`membership=fail`, `failMembership`). */
@@ -342,7 +349,10 @@ function hrefOf(input: RequestInfo | URL): string {
 const streams = new Set<ReadableStreamDefaultController<string>>()
 
 /** What an event names, when it is not the project itself: a message corrected or withdrawn elsewhere (held-pages). */
-export const eventEntities = new Map<number, { type: string; entityType: string; entityId: string }>()
+export const eventEntities = new Map<
+  number,
+  { type: string; entityType: string; entityId: string; entityRevision?: number }
+>()
 const frameOf = (sequence: number) =>
   `id: ${sequence}\ndata: ${JSON.stringify({ ...projectEvent(sequence), ...eventEntities.get(sequence) })}\n\n`
 
@@ -493,8 +503,9 @@ function departed(project: Project): Response {
   return json({ projectId: PROJECT, cursor: String(project.revision) })
 }
 
-/** A room token, unless the next one is to fail (`failToken`). */
+/** A room token, unless the next one is to fail (`failToken`); each one asked for is recorded (`room-token`). */
 function tokenAnswer(project: Project): Response {
+  served.push('room-token')
   if (!project.failToken) return json(roomToken)
   project.failToken = false
   return unavailable()
@@ -573,15 +584,21 @@ type HostAct = 'mute' | 'remove' | 'stop-camera' | 'stop-screen'
 const isHostAct = (what: string | undefined): what is HostAct =>
   what === 'mute' || what === 'remove' || what === 'stop-camera' || what === 'stop-screen'
 
-/** An admin mutes everyone else (A31): recorded, and every other microphone in the fake room goes off. */
-function mutedAll(project: Project): Response {
+/**
+ * An admin mutes everyone else (A31), in the API's order (rooms.ts): every other microphone in the fake room goes off,
+ * then the act is recorded and answered. Held, only the answer waits. With `failAfterMuteAll`, the answer is refused.
+ */
+function mutedAll(project: Project): Response | Promise<Response> {
   if (project.failHost) {
     project.failHost = false
     return unavailable()
   }
   served.push('mute-all')
   for (const p of others()) hostActed('mute', p.identity)
-  return new Response(null, { status: 204 })
+  const reply = project.failAfterMuteAll ? unavailable() : new Response(null, { status: 204 })
+  project.failAfterMuteAll = false
+  const held = project.hostHeld
+  return held ? new Promise((resolve) => held.push(() => resolve(reply))) : reply
 }
 
 /** An admin acts on someone (A24, A31): recorded, and LiveKit's server applies it to the fake room. */
@@ -803,8 +820,13 @@ function earlierPage(project: Project, url: URL, anchor: string | null): Respons
   )
 }
 
-/** The snapshot as the API serves it; refused once the door is shut under the shell (`window.fixture.shutDoor`). */
-function snapshotAnswer(project: Project, url: URL) {
+/**
+ * The snapshot as the API serves it; refused once the door is shut under the shell (`window.fixture.shutDoor`). Held
+ * (`snapshot=hold`), it answers once let through, as it is then.
+ */
+function snapshotAnswer(project: Project, url: URL): Response | Promise<Response> {
+  const held = project.snapshotHeld
+  if (held) return new Promise<Response>((resolve) => held.push(() => resolve(snapshotAnswer(project, url))))
   served.push(`snapshot:${project.revision}`)
   const revisions = url.searchParams.get('revisions') === '1'
   return project.doorShut ? refused('You no longer have access to this project') : json(snapshotOf(project, revisions))
@@ -827,8 +849,13 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
 
 /** A message's correction or withdrawal and their preview (A36, message-acts.ts); undefined for any other request. */
 const actAnswer = (project: Project, method: string, url: URL, init: RequestInit | undefined) =>
-  messageActAnswer(project, method, url, init, { served, publish: () => publish(project) }) ??
-  needSeen(project, method, url)
+  messageActAnswer(project, method, url, init, {
+    served,
+    publish: () => {
+      publish(project)
+      return String(project.revision)
+    },
+  }) ?? needSeen(project, method, url)
 
 /** markNeedSeen (A15, A37's mention): recorded as `seen:<id>`, that exact occurrence no longer listed; 204 as the API. */
 function needSeen(project: Project, method: string, url: URL): Response | undefined {

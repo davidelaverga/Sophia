@@ -35,6 +35,37 @@ test('boundary · Try again draws the view anew, once what it reads is whole aga
   await expect(page.getByRole('heading', { name: 'Resources', level: 2 })).toBeVisible()
 })
 
+// The pressed button goes with the fallback, so a keyboard would start again from the top of the page: the focus goes on
+// from where Try again was (Codex P2 on #416, focus-and-webgl-follow-ups.md).
+const focusedNow = (page: Page) =>
+  page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName || null)
+
+/** Resources failing to draw, its Try again focused as a keyboard reaches it. */
+async function againFocused(page: Page) {
+  await page.goto('/room.html?demo=1&place=resources&resources=crash')
+  const again = failed(page).getByRole('button', { name: 'Try again' })
+  await again.focus()
+  return again
+}
+
+test('boundary · Try again from the keyboard leaves the focus on the view drawn again, at its heading', async ({
+  page,
+}) => {
+  await againFocused(page)
+  await page.evaluate(() => window.fixture?.healView())
+  await page.keyboard.press('Enter')
+  await expect(failed(page)).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Resources', level: 2 })).toBeVisible()
+  await expect.poll(() => focusedNow(page)).toBe('resources-title')
+})
+
+test('boundary · Try again from the keyboard, still failing, keeps the focus on Try again', async ({ page }) => {
+  const again = await againFocused(page)
+  await page.keyboard.press('Enter')
+  await expect(failed(page)).toBeVisible()
+  await expect(again).toBeFocused()
+})
+
 test('boundary · in Tasks, its pulse is the view’s too: drawn inside the view’s boundary (Codex P1 on #416)', async ({
   page,
 }) => {
