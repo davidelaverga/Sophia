@@ -12,8 +12,8 @@ Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`
 Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1` guard, two workers); CI as the run on
 record.
 Existing authority: Luis 2026-10-19 (above); local only, nothing pushed.
-Ending commit/tree: `4f829862ab9d` (tree `836e25e64504`), the last commit that changes code (the next one adds only
-this record). Files changed against `56c61c61e`: `e2e/feed-recovery.spec.ts` (new), `fixtures/fixture-api.ts`,
+Ending commit/tree: `76408c939`, the last commit that changes code (the review's P3, after this record was first
+written; the next one updates only this record). Files changed against `56c61c61e`: `e2e/feed-recovery.spec.ts` (new), `fixtures/fixture-api.ts`,
 `fixtures/room.tsx`, `src/features/studio/feed-loop.ts`, `src/features/studio/feed-loop.test.ts`,
 `src/features/studio/useProjectFeed.ts`, `docs/plans/feed-reconnect.md`, and this record.
 
@@ -25,6 +25,8 @@ this record). Files changed against `56c61c61e`: `e2e/feed-recovery.spec.ts` (ne
 - The waits after a lost stream are spread ±30 %, so pages that lost the stream together (an API restart) come back
   over 0.6 s at the first step and 6 s at the cap instead of all at once. The first wait the person sees is still about
   1 s (0.7-1.3 s).
+- Leaving the project, or a token change, ends a pending wait at once: its timer and its `online`/`visibilitychange`
+  listeners no longer stay behind for up to 13 s (independent review, P3).
 - The fixture can now end (`dropStream`), silence (`stallStream`) or break (`gap`) the project stream from the server's
   side, on the room page's `window.fixture`. `StreamStalled` has its first test. The measurement branch can use the
   levers for M3/M4.
@@ -45,13 +47,17 @@ this record). Files changed against `56c61c61e`: `e2e/feed-recovery.spec.ts` (ne
     «nothing listens for a wake while the stream is open…» fails `0 !== 1` (nothing listens during the wait either).
     Browser (`feed-wake-red-1`): «offline, then back online…» fails at `feed-recovery.spec.ts:159`,
     `toBeLessThanOrEqual`, Expected `<= 2000`, Received `7150`. Fixed at `4f829862a`.
+  - `1067284c1` (unit, review P3): «stopping during the wait ends it at once…» fails «stopped, nothing listens any
+    more», `1 !== 0`. Fixed at `76408c939` (`wait` also ends on `stop`).
 - Playwright through the guard, two workers, at `4f829862a`. `feed-wake-green-1`: feed-recovery, unread-title (the
   `holdFeed` checks), dock-header and room, 55/55. Recovery there: dropped 1062 ms, gap 32 ms, back online 19 ms,
   stalled 25583 ms. `feed-wake-green-2`: every other spec that uses `outage`, `shutDoor`, the feed pill or
   `setOffline` on the project (archive-project, commands, design-refusal, project-conversation-writes, room-discussion,
   studio-lens-address, workcard-refusal, fence-frame, reconnecting-on-video), 75/75.
-- Unit: the Studio suite passes 1910/1912. The two failures are the Windows path ones (`attention.test.ts`,
-  `browser-imports.test.ts`). `feed-loop.test.ts` 10/10 and `project-feed-refresh.test.ts` 3/3.
+- At `76408c939` (`feed-stop-green-1`): feed-recovery, unread-title, dock-header and room, 55/55. Recovery: dropped
+  1217 ms, gap 27 ms, back online 18 ms, stalled 25201 ms.
+- Unit: the Studio suite passes 1911/1913 at `76408c939`. The two failures are the Windows path ones (`attention.test.ts`,
+  `browser-imports.test.ts`). `feed-loop.test.ts` 11/11 and `project-feed-refresh.test.ts` 3/3.
 - Whole-repo `oxlint --type-aware` is clean, `tsc --noEmit -p apps/studio` is clean, and Prettier is clean on every
   touched non-docs file.
 
@@ -63,7 +69,7 @@ this record). Files changed against `56c61c61e`: `e2e/feed-recovery.spec.ts` (ne
   10 s cap. Clamping to 10 s would pile half the pages at exactly 10 s, during the long outages where spreading matters
   most.
 - **The loop owns the wake policy.** `FeedPorts` gains `wakes(wake)` and `random()`, and `sleep` takes a signal. The
-  loop listens only while it waits, and the first wake ends that wait (`wait`, `feed-loop.ts`), so the policy is unit
+  loop listens only while it waits, and the first wake or the loop's stop ends that wait (`wait`, `feed-loop.ts`), so the policy is unit
   tested. The page's ports (`pageWakes` and `sleep`, `useProjectFeed.ts`) only wire the window's `online` and
   `visibilitychange` to visible, and clear the timer.
 - **A wake doesn't reset the backoff.** Only a live stream resets it. A woken ask that fails waits the next step.
