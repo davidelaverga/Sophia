@@ -40,3 +40,5 @@
 ## Limits
 
 - The dark page's WebGL light doesn't draw these yet: only the paper orb reads `data-presence` and `data-sound`.
+- Over a link coming back she is joining, and her light carries no blocked-sound call; Allow audio stays
+  (`orb-follow-ups.md`).

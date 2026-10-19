@@ -28,3 +28,6 @@
 In `phone-tiles-follow-ups.md`: the switch follows the call's own camera, is 40 px wide on a touch screen, and «In the
 call» has it while your tile is in «+N». On a phone's strip your tile holds one press: «Your tile», a menu of Switch
 camera and Hide my tile (Luis, 2026-10-18).
+
+In `camera-flip-resync.md` (Codex P2 on #464): a camera chosen in Video settings, which a phone turned sideways shows,
+is where your tile's next press goes on from.

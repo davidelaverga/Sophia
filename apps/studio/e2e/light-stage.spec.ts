@@ -22,6 +22,15 @@ const stageRead = (page: Page) =>
     }
   })
 
+/**
+ * The room drawn, and its call on the stage: the floor's presence and its role are there. The call joins once the
+ * page's first effects have run (call-ends-on-open.md), so the stage's people can come a moment after the room.
+ */
+async function inCall(page: Page) {
+  await drawn(page, DRAWN.room.slice(0, 1))
+  await expect(page.locator('.presence[data-floor] .role')).toBeVisible()
+}
+
 const channel = (c: number) => {
   const v = c / 255
   return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
@@ -34,7 +43,7 @@ const ratio = (a: string, b: string) => (Math.max(lum(a), lum(b)) + 0.05) / (Mat
 
 test('light · the room in a call: lit paper behind the light, the floor’s role at 4.5:1 or more', async ({ page }) => {
   await page.goto(`${CALL}&theme=light`)
-  await drawn(page, DRAWN.room.slice(0, 1))
+  await inCall(page)
   const read = await stageRead(page)
   expect(read.field).toMatch(/^radial-gradient\(80% 70% at 50% [\d.]+px, rgba\(109, 91, 208, 0\.06\)/)
   expect(read.field).toContain('rgba(150, 83, 40, 0.05)')
@@ -46,7 +55,7 @@ test('light · the room in a call: lit paper behind the light, the floor’s rol
 
 test('the room in a call: no field under the stage, the floor’s role the warm at 0.85', async ({ page }) => {
   await page.goto(CALL)
-  await drawn(page, DRAWN.room.slice(0, 1))
+  await inCall(page)
   const read = await stageRead(page)
   expect(read.field).toBe('none')
   expect(read.role).toBe('rgba(241, 220, 199, 0.85)')
@@ -54,7 +63,7 @@ test('the room in a call: no field under the stage, the floor’s role the warm 
 
 test('light · the warm vignette reaches the stage’s edges, as drawn (Codex on #252)', async ({ page }) => {
   await page.goto(`${CALL}&theme=light`)
-  await drawn(page, DRAWN.room.slice(0, 1))
+  await inCall(page)
   // The vignette alone: the stage's parts hidden, the field's first layer (the halo's) taken off.
   await page.evaluate(() => {
     const stage = document.querySelector<HTMLElement>('.room-stage')

@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import type { Goal, NativeTask } from '@sophia/contracts'
 import {
   arrivedResults,
+  askedJoin,
   floorView,
   mediaMessage,
   mutedMic,
@@ -314,5 +315,22 @@ describe('a result arriving (docs/plans/orb-result.md)', () => {
     assert.deepEqual(arrivedResults([], [task('g1', 'result_ready')]), [])
     assert.deepEqual(arrivedResults([task('g1', 'running')], [task('g1', 'failed')]), [])
     assert.deepEqual(arrivedResults([task('g1', 'running')], [task('g1', 'stopped')]), [])
+  })
+})
+
+describe('a join asked from elsewhere (Work’s Join the room, a toast’s Rejoin)', () => {
+  it('waits while the project loads', () => {
+    for (const status of ['idle', 'joining', 'live', 'reconnecting', 'failed'] as const) {
+      assert.equal(askedJoin(status, false), 'wait')
+    }
+  })
+
+  it('joins a room out of the call, after a failed join too, as Try again would', () => {
+    assert.equal(askedJoin('idle', true), 'join')
+    assert.equal(askedJoin('failed', true), 'join')
+  })
+
+  it('is answered by a call the person is in or on the way into, so nothing joins later on its own', () => {
+    for (const status of ['joining', 'live', 'reconnecting'] as const) assert.equal(askedJoin(status, true), 'answered')
   })
 })

@@ -1094,3 +1094,110 @@ test('places · in the bar’s call, Leave is rose at rest and its plane answers
   await out.hover()
   await expect(out).not.toHaveCSS('background-color', rest.plane)
 })
+
+/** `projects=two`'s second project (fixtures/app.tsx): listed after the fixture project, and read as it is. */
+const SECOND_PROJECT = '00000000-0000-4000-8000-00000000009a'
+
+/** In the fixture project's call, then Home: the call follows in the places' bar. */
+async function inCallAtHome(context: BrowserContext) {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/p/${WORK_PROJECT}/studio?work=lost&projects=two`)
+  await page
+    .getByRole('navigation', { name: 'Room controls' })
+    .getByRole('button', { name: /^Join the room/ })
+    .click()
+  await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
+  await page.keyboard.press('h')
+  await expect(page.locator('.places .room-pill')).toBeVisible()
+  return page
+}
+
+/** From the places, ⌘K «Open <title>»; its project is on screen once any call before it has gone. */
+async function openFromPlaces(page: Page, title: string, projectId: string) {
+  await page.keyboard.press('ControlOrMeta+k')
+  const palette = page.getByRole('dialog', { name: 'Commands' })
+  await expect(palette).toBeVisible()
+  await page.keyboard.type(title.toLowerCase())
+  await expect(palette.getByRole('option').first()).toContainText(`Open ${title}`)
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(new RegExp(`/p/${projectId}`))
+  await expect(page.locator('h1.project-name:visible')).toContainText(title)
+}
+
+const openResearchNotes = (page: Page) => openFromPlaces(page, 'Research notes', SECOND_PROJECT)
+
+const shownToast = (page: Page) => page.locator('.toast[data-shown]')
+
+test('places · opening another project in a call says it ended the call, with Rejoin back into it (call-ends-on-open.md)', async ({
+  context,
+}) => {
+  const page = await inCallAtHome(context)
+  await openResearchNotes(page)
+  const toast = shownToast(page)
+  await expect(toast).toHaveAttribute('role', 'status')
+  await expect(toast).toContainText('Your call in “Fixture project” ended when you opened “Research notes”.')
+  const rejoin = toast.getByRole('button', { name: 'Rejoin' })
+  await expect(rejoin).toBeVisible()
+  // Polite: the line never takes the focus.
+  await expect(rejoin).not.toBeFocused()
+  await rejoin.click()
+  await expect(page).toHaveURL(new RegExp(`/p/${WORK_PROJECT}`))
+  await expect(
+    page.getByRole('navigation', { name: 'Room controls' }).getByRole('button', { name: 'Leave the room' }),
+  ).toBeVisible()
+  // Each hang-up is its own: left the same way again, it is said again.
+  await page.keyboard.press('h')
+  await expect(page.locator('.places .room-pill')).toBeVisible()
+  await openResearchNotes(page)
+  await expect(toast).toContainText('ended when you opened “Research notes”.')
+  await toast.getByRole('button', { name: 'Rejoin' }).click()
+  await expect(
+    page.getByRole('navigation', { name: 'Room controls' }).getByRole('button', { name: 'Leave the room' }),
+  ).toBeVisible()
+  // Each end forgets its cause: a Leave pressed after is said as a Leave, with nothing to press (from Home, where the
+  // room is out of sight and the toast says it).
+  await page.keyboard.press('h')
+  await page.locator('.places .room-pill').getByRole('button', { name: 'Leave the room' }).click()
+  await expect(toast).toContainText('You left Fixture project.')
+  await expect(toast.getByRole('button')).toHaveCount(0)
+})
+
+test('places · Leave pressed in the bar keeps «You left …», with nothing to press (call-ends-on-open.md)', async ({
+  context,
+}) => {
+  const page = await inCallAtHome(context)
+  await page.locator('.places .room-pill').getByRole('button', { name: 'Leave the room' }).click()
+  const toast = shownToast(page)
+  await expect(toast).toContainText('You left Fixture project.')
+  await expect(toast.getByRole('button')).toHaveCount(0)
+  // With no call left, opening another project ends nothing, so nothing is said of it.
+  await openResearchNotes(page)
+  await expect(page.locator('.toast')).not.toContainText('ended when you opened')
+})
+
+/** The room tokens the fixture project's room asked for: one for each join. */
+const roomTokens = async (page: Page) =>
+  (await askedOf(page)).filter((a) => a === `POST /api/v1/projects/${WORK_PROJECT}/room-token by ${DAVIDE.id}`).length
+
+test('places · Rejoin pressed once back in that call by its own Join joins nothing later: Leave stays out (call-ends-on-open.md)', async ({
+  context,
+}) => {
+  const page = await inCallAtHome(context)
+  await openResearchNotes(page)
+  const rejoin = shownToast(page).getByRole('button', { name: 'Rejoin' })
+  await expect(rejoin).toBeVisible()
+  // Back in the fixture project's call by the dock's own Join, while the line still offers Rejoin (it shows for 8 s).
+  await page.keyboard.press('h')
+  await openFromPlaces(page, 'Fixture project', WORK_PROJECT)
+  const dock = page.getByRole('navigation', { name: 'Room controls' })
+  await dock.getByRole('button', { name: /^Join the room/ }).click()
+  await expect(dock.getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  await rejoin.click()
+  const joins = await roomTokens(page)
+  await dock.getByRole('button', { name: 'Leave the room' }).click()
+  // The call it found answered Rejoin: out of the call, the room asks for no token of its own and stays out.
+  await page.waitForTimeout(1500)
+  expect(await roomTokens(page)).toBe(joins)
+  await expect(dock.getByRole('button', { name: 'Leave the room' })).toHaveCount(0)
+})
