@@ -4,6 +4,7 @@
 > `evaluacion-2026-10-18/experiencia/costuras.md`); Luis 2026-10-18: «Todo trabajo nuevo que hagas ten en cuenta nuestro
 > cuello de botella actual. Si se puede hacer en un pr, excelente o como veas, que alivie la presión pero hay que seguir
 > trabajando». Studio only, no API: A34 is served. One PR: Home's line; the arrival line in a project is the next step.
+> Review round 1 (one P1, three P2) changed what counts as news, what is remembered and when a visit says it: below.
 
 ## What was measured
 
@@ -34,24 +35,59 @@
 - The arrival line's lever, `room.html?demo=1`, holds no seen mark (`newMeeting`'s `seen.sequence` is null), so its
   window is «everything so far» and, by the rule above, says nothing; `room-updates.spec.ts` asserts that lead.
 
+### Review round 1, verified against the code
+
+- **P1, Home told the person what they did themselves.** A34's window is every line after the mark; it leaves out only
+  what is private to someone else (`0066`: `visibility_owner IS NULL OR visibility_owner=a`), never what the reader did.
+  Their decision (`decided_by` is the actor who took it, `0018_mission_ledger.sql:666`), a note Sophia kept in their own
+  turn (`mission_entries.actor_id` is the transaction's actor, `0018:279`) and the report they asked for
+  (`update_asker`) are all in it. Only Mark as seen moves the mark (`UpdatesView.tsx`, one caller of `markSeen`).
+  So deciding in a project, then Home 20 s later, said «Since you last looked: a decision…». A call ending with Home open
+  did it at once: the reads ran as `inCall` turned false and the visit was fixed then.
+- **P2, the news moved what is under the greeting.** It came one read after the rows (the ids come from the projects),
+  two lines where one is held: «You and Sophia» went 222 → 246 px at a desk and 206 → 230 px on a phone, measured in
+  round 0. It also came mid-visit: after a call ended with Home open, and when a session soon or a live room that
+  covered it went away.
+- **P2, nothing tested «opening Updates ends it».** No check read what `DigestBody` writes; `since=seen` is an empty
+  window, not a Mark as seen.
+- What A34 names to tell them apart: `decidedBy` (and `proposedBy`), `askedBy`, `noted.actorId`. The actor A34 compares
+  is the token's subject, lowered (`apps/api/src/auth.ts:70`, `id: payload.sub.toLowerCase()`); the Studio already reads
+  the viewer that way (`ServedWork.tsx`, `tokenSubject(identity.token)`).
+- What the page keeps: the projects and the windows are queries with the default 5 min of cache once nothing observes
+  them (`@tanstack/query-core`, `removable.js`, `3e5`). Places observes them while mounted, so going to Work or Personal
+  and back keeps both. A first load, or a return after more than 5 min in a project, reads Home afresh. Nothing under
+  the greeting can be drawn after those reads without moving: «You and Sophia» is a press even while the space loads
+  (`youDoor` gives «Open»).
+
 ## What changes
 
 - **The read** (`useSinceNews.ts`): one `getSince` for each project Home shows, under the vision or attention flag
   only. It is kept 20 s, as fresh as the projects' own read, so an arrival sooner reads nothing again. It is read only
   while Home is the place arrived at, never during a call, never polled, never retried. That is at most 3 reads per
   arrival, and none on most.
-- **The news** (`features/updates/since-said.ts`, `newsOf`): what was decided, made and kept, and whether events lie
-  after the window (`more`). A window with no seen mark, or with nothing decided, made or kept, has none: proposals still
-  open and tasks that moved stay in Updates, and a decision that waits on the person is A15's need on Home already.
-- **Once** (`newsKey`, `unsaid`, `readSaid`, `rememberSaid`): per account on this device, each project keeps the key
-  of the news last said or looked at: where the window starts (`fromSequence`) and what it counts, never its end. The
-  same news after any number of room events is the same key; one more decision, or a new seen mark with news after it,
-  is news again. Kept in `localStorage` (`sophia.since.said.v1.<account>`); where storage refuses, for as long as the
-  page lives. Nothing names the account on screen.
-- **A visit says it at its start**: the news a visit may say is fixed once its reads settle, from what was remembered
-  when Home was arrived at, and it is remembered as said only once Sophia's sentence says it. The call, a session soon
-  and a live room keep their priority. News they cover is not remembered, so the next arrival says it. Leaving Home and
-  coming back is a new visit, and the news said is not said again.
+- **Only what someone else did** (`since-said.ts`, `freshIn`): a decision they took (`decidedBy`), a report they asked
+  for (`askedBy`) and a note kept in their name (`actorId`, Sophia's in their turn too) are never news to them. A
+  decision they proposed and someone else took is: it happened without them. A line whose person A34 can't name is
+  someone else's.
+- **What was said, shown or seen, by line** (`linesOf`, `readSaid`, `rememberSaid`): per account on this device, each
+  project keeps the lines of its window the person was told on Home, shown in Updates, or had in front of them when a
+  call there ended (`d:<decision>`, `m:<report version>`, `n:<note>`). Each write keeps a project's whole window as read
+  then, so the memory is never bigger than one window per project. News is what is in a window and not kept, so the
+  count is only what is new to them («a decision», not «3 decisions» of which two were said), and the same line is
+  never said twice however far the feed moved. A new mark starts a window of new lines. Kept in `localStorage`
+  (`sophia.since.said.v1.<account>`); where storage refuses, for as long as the page lives. Nothing names the account.
+- **A call's end** (`useCallSeen`, in `SignedIn`, wherever the person is then): its project's window is read once and
+  kept. What was decided, made and kept by then was in front of them, in the room or its recap. One read per call, after
+  it, never during.
+- **A visit says it as it begins, or not at all** (`useSinceNews`): a visit begins at each arrival on Home. It says the
+  windows this page read before it began, for the projects drawn with it, decided at its first frame and never after.
+  So Sophia's sentence is drawn with the news from the first frame, and nothing under the greeting moves while Home
+  stays open. A visit says nothing when:
+  - it begins in a call, or under another sentence (a session soon, a live room, the first project);
+  - its projects aren't known yet;
+  - nothing was read before it (the first arrival of a page reads, the next says).
+  Its reads then serve the next arrival, and it remembers nothing. A sentence that covers the news mid-visit ends it
+  for that visit, so it never comes back with Home open.
 - **The words** (`sophiaSays`, a fifth argument): «Since you last looked: 2 decisions and a new report in **Launch
   plan**. Open Updates». Counts are the Studio's (a digit, or «a» for one: «a decision», «a new report», «a note kept»),
   every kind that has any, «and more» when events lie after the window. Across projects the counts are summed, the
@@ -63,15 +99,17 @@
   the news when that is the sentence, holds her sentence's place when there is none (the first cut's held line, now
   this element), and is empty and 0 px high beside the other sentences, which stay out of it, since a countdown said
   every minute would be noise.
-- **Opening Updates ends it** (`UpdatesView.tsx`, `DigestBody`): the window Updates shows is remembered as looked at, so
-  Home doesn't then say «since you last looked» about what was just read there. Mark as seen moves the mark; the next
-  window holds nothing to say.
+- **Opening Updates ends it** (`UpdatesView.tsx`, `DigestBody`): the window Updates shows is kept, line by line, so Home
+  doesn't then say «since you last looked» about what was just read there. Mark as seen moves the mark; the next window
+  holds only new lines.
 - **Levers**: `home.html?since=some` answers `/api/v1/projects/{id}/since` from `updatesWindowOf`
   (`fixtures/meeting-data.ts`): Launch plan holds 2 decisions and a new report after a seen mark (the fixture's earlier
   decision and a proposal still open among them), Product launch, not shown in `quiet`, holds a note kept, and the others
-  hold nothing. `since=more` adds one decision to Launch plan's (a new window), and `since=seen` is every window after
-  a seen mark, empty. `homeFixture.sinceReads()` lists the projects asked. The app's fixture API answers `/since` with
-  an empty window for a project without a meeting.
+  hold nothing. `since=more` adds one decision to Launch plan's, `since=mine` holds only the reader's own lines, and
+  `since=seen` is every window after a seen mark, empty. The page reads as an account whose token names a reader.
+  `homeFixture.sinceReads()` lists the projects asked, and `homeFixture.hangUp()` ends `call=<id>` with Home open. The
+  room page's `fixture.saidSince()` reads what this account keeps for its project. The app's fixture API answers `/since`
+  with an empty window for a project without a meeting.
 
 ## Checks, written first
 
@@ -79,14 +117,21 @@
   decisions and a new report in Launch plan. Open Updates», Launch plan strong, Open Updates naming its project. An empty
   window, one never marked seen, and one with only proposals and tasks say nothing. The call, a session soon and a live
   room come first. Several projects give summed counts, the most named, «and 1 more project». Every kind is named,
-  and `more` adds «and more».
-- **Unit** (`since-said.test.ts`): the key ignores `toSequence` and changes with a count or the seen mark; `unsaid`
-  drops what was said and what names nothing; the memory is per account, and kept for the page when storage refuses.
-- **Browser** (`home-since.spec.ts`, `home.html?projects=quiet&since=some`): the line as a status, Launch plan strong,
-  the focus not taken. One read for each of the three rows and none for Product launch. Open Updates presses
-  `updates <Launch plan>`. Once: Leave Home and back says nothing and reads nothing (kept 20 s); a reload says nothing;
-  `since=more` says the new window. `since=seen` says nothing. In a call nothing is read and the call's sentence
-  stands. Under the session soon (`projects=four`) the news isn't said and isn't remembered, so `quiet` then says it.
+  and `more` adds «and more». Review round 1: a window whose only lines are the reader's says nothing.
+- **Unit** (`since-said.test.ts`): the reader's own lines are no news, a decision they proposed and another took is;
+  lines kept for a project are no news there; the memory keeps a project's whole window, per account, and for the page
+  when storage refuses; the reader is the token's subject, lowered.
+- **Browser** (`home-since.spec.ts`, `home.html?projects=quiet&since=some`):
+  - The first arrival reads one window per row (none for Product launch) and says nothing, moving nothing.
+  - The next arrival says the line as a status from its first frame: Launch plan strong, the focus not taken, and
+    nothing under the greeting moving as its reads come back. Open Updates presses `updates <Launch plan>`.
+  - Once: the way back and a reload say nothing; `since=more` says only the new decision.
+  - `since=mine` says nothing.
+  - A call ended with Home open (`hangUp`) says nothing then or on the next arrival; what came after it is said.
+  - A session soon covers it and stays quiet when it passes with Home open; the next arrival says it.
+  - `since=seen` says nothing.
+- **Browser** (`room-updates.spec.ts`): Updates keeps the lines it shows for its project, and after Mark as seen keeps
+  the empty window.
 - **Measured once green**: the fixture page runs under StrictMode, whose second mount reads again what the first let go
   (the reads pass their abort signal). The spec therefore counts the projects asked, and raw reads only between two
   moments. A production build mounts once.
@@ -95,21 +140,26 @@
 
 ## Limits
 
-- **It moves the rows once.** The news comes one read after the projects, and it is two lines where one is held (at a
-  desk and on a phone, measured: the status 24 → 48 px, «You and Sophia» 222 → 246 px and 206 → 230 px). On the
-  arrival that says it, what is under the greeting moves down 24 px. This happens once per window: a visit's news is
-  fixed, and an arrival that says nothing moves nothing. A session soon or a room replacing it with Home open moves it
-  back, as a wrapped sentence did on main.
-- **A row that comes in mid-visit is read, not said.** A session nearing can bring a project into the three rows while
-  Home is open. Its window is read then (one more read), and anything in it is said on the next arrival.
+- **A cold arrival says nothing.** A page's first arrival, or a return after more than 5 min in a project, draws Home
+  before its reads come back, and anything said after that would move what is under the greeting. Its reads are kept, so
+  the next arrival (Work, Personal or a project and back) says it. The alternatives cost more:
+  - holding what is under the greeting until the windows come delays every cold Home by a read;
+  - reserving two lines leaves air under the greeting on every quiet Home;
+  - keeping the projects longer would let rows reorder under a pointer on the way back.
+- **Covered mid-visit, it moves once.** A session nearing or someone entering a room with the news said takes its
+  place, and what is under the greeting moves up a line, as any sentence replacing a longer one does on main.
+- **Seen where it happened, beyond a call.** A colleague's decision while the person had the project open without a
+  call isn't known to have been in front of them, so it is news.
+- **What a call swallows.** The window read at a call's end is kept whole, so a line from before the call that was
+  never said is not said after it. Updates still lists it.
 - **The name may break across the two lines** («Launch / plan» at a desk). Keeping it whole would overflow a phone
   with a long title.
 - **Never marked, never said.** Someone who has never pressed Mark as seen in a project hears nothing about it on Home.
   Their window is everything so far, and Updates says so. Once they mark it, Home starts.
-- **Same counts, same news.** One decision withdrawn and another made in the same window count the same, so the line
-  isn't said again. Updates lists both.
-- **This device only.** A line said, or Updates opened, on another device is said here again. The memory is per device,
-  as the report asks.
+- **Home says less than Updates lists.** Home counts only what is new to the person; Updates lists everything since
+  the mark, theirs included.
+- **This device only.** A line said, or Updates opened, on another device is said here again. The memory is per
+  device, as the report asks. Their own lines are never said anywhere, since A34 names them.
 - **Next step: the arrival line inside a project.** Under the bar, where a newcomer's welcome goes: «Since you last
   looked: 2 decisions and a new report. Open Updates», `role=status`, with the same news and memory (`since-said.ts`).
   Not in this PR because:
