@@ -46,27 +46,35 @@ async function renewed(auth: SessionAuth, stale: string): Promise<string | null>
 }
 
 /**
- * The renewal the API's requests use: one per refused token, shared by every request it refused, and none for a token
- * a renewal gave less than a minute ago. A renewal that fails gives null: the 401 stands, and so do today's words. A
- * refresh the Auth service refuses still signs out as before (refresh-refusal.ts).
+ * The renewal the API's requests use: one per refused token while it is on its way, shared by every request it refused,
+ * and none for a token a renewal gave less than a minute ago. Once it settles it is let go: a later refusal asks the
+ * session again, which then holds the renewed token, or none after a sign-out (review P3). A renewal that fails gives
+ * null: the 401 stands, and so do today's words. A refresh the Auth service refuses still signs out as before
+ * (refresh-refusal.ts).
  */
 export function tokenRenewal(
   auth: SessionAuth,
   now: () => number = Date.now,
 ): (stale: string) => Promise<string | null> {
-  let last: { stale: string; fresh: Promise<string | null> } | null = null
+  let pending: { stale: string; fresh: Promise<string | null> } | null = null
   let gave: { token: string; at: number } | null = null
   return (stale) => {
-    if (last?.stale === stale) return last.fresh
+    if (pending?.stale === stale) return pending.fresh
     if (gave?.token === stale && now() - gave.at < RENEWED_LATELY_MS) return Promise.resolve(null)
-    const fresh = renewed(auth, stale).then(
-      (token) => {
-        if (token) gave = { token, at: now() }
-        return token
-      },
-      () => null,
-    )
-    last = { stale, fresh }
-    return fresh
+    const renewal = {
+      stale,
+      fresh: renewed(auth, stale).then(
+        (token) => {
+          if (token) gave = { token, at: now() }
+          return token
+        },
+        () => null,
+      ),
+    }
+    pending = renewal
+    void renewal.fresh.then(() => {
+      if (pending === renewal) pending = null
+    })
+    return renewal.fresh
   }
 }
