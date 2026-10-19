@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { asksMicAlone, levelOf, micConstraints, previewConstraints, previewMessage } from './device-check.ts'
+import {
+  asksMicAlone,
+  cameraBackOn,
+  levelOf,
+  micConstraints,
+  previewConstraints,
+  previewMessage,
+} from './device-check.ts'
 
 describe('the check before joining (device-check.md)', () => {
   it('reads a voice’s level from the microphone’s samples: silence is nothing, a voice moves it, loud fills it', () => {
@@ -52,6 +59,17 @@ describe('the check before joining (device-check.md)', () => {
       assert.equal(asksMicAlone(name), true, name)
     for (const name of ['NotAllowedError', 'SecurityError', 'TypeError', ''])
       assert.equal(asksMicAlone(name), false, name)
+  })
+
+  // The line lasts only while true: what brings the camera back asks for it again, and the picture can show.
+  it('asks for the camera again on the return after closing the app that held it, or once one is plugged in', () => {
+    assert.equal(cameraBackOn('NotReadableError'), 'return')
+    assert.equal(cameraBackOn('AbortError'), 'return')
+    assert.equal(cameraBackOn('NotFoundError'), 'plug')
+    assert.equal(cameraBackOn('OverconstrainedError'), 'plug')
+    // A refusal, or an unknown reason, waits for the sheet to open again: asking on its own would prompt.
+    for (const name of ['NotAllowedError', 'SecurityError', 'TypeError', ''])
+      assert.equal(cameraBackOn(name), null, name)
   })
 
   it('asks for the microphone alone as chosen, else the default', () => {

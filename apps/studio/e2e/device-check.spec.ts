@@ -4,12 +4,17 @@ import { expect, test, type Page } from '@playwright/test'
 // camera's picture, a meter that moves with the voice, and the devices to choose; its Join enters the call with them.
 // The browser's camera and microphone are stood in for here: a painted canvas and a steady tone, and every request
 // for them is recorded. `gum=refuse` turns every request down; `gum=nocamera` and `gum=busy` turn down any that asks for
-// video, as the browser does with no camera plugged in or one another app holds (seam #5). Every name and stream is
-// synthetic.
+// video, as the browser does with no camera plugged in or one another app holds (seam #5), until a test frees the
+// camera (`checkMedia.camera = null`: the other app closed, or one plugged in). Every name and stream is synthetic.
 
 declare global {
   interface Window {
-    checkMedia?: { asked: MediaStreamConstraints[]; stopped: number; refuse: boolean }
+    checkMedia?: {
+      asked: MediaStreamConstraints[]
+      stopped: number
+      refuse: boolean
+      camera: 'nocamera' | 'busy' | null
+    }
   }
 }
 
@@ -23,13 +28,16 @@ test.beforeEach(async ({ page }) => {
   )
   await page.addInitScript(() => {
     const gum = new URLSearchParams(location.search).get('gum')
-    const media = { asked: [] as MediaStreamConstraints[], stopped: 0, refuse: gum === 'refuse' }
+    const camera = gum === 'nocamera' || gum === 'busy' ? gum : null
+    const media: NonNullable<Window['checkMedia']> = { asked: [], stopped: 0, refuse: gum === 'refuse', camera }
     window.checkMedia = media
     // A request is all or nothing: without its camera, the microphone asked with it is turned down too.
     const turnedDown = (asked?: MediaStreamConstraints) => {
       if (media.refuse) return new DOMException('Permission denied', 'NotAllowedError')
-      if (asked?.video && gum === 'nocamera') return new DOMException('Requested device not found', 'NotFoundError')
-      if (asked?.video && gum === 'busy') return new DOMException('Could not start video source', 'NotReadableError')
+      if (asked?.video && media.camera === 'nocamera')
+        return new DOMException('Requested device not found', 'NotFoundError')
+      if (asked?.video && media.camera === 'busy')
+        return new DOMException('Could not start video source', 'NotReadableError')
       return null
     }
     navigator.mediaDevices.getUserMedia = (asked?: MediaStreamConstraints) => {
@@ -78,6 +86,27 @@ test.afterEach(async ({ page }) => {
 const lastAsked = (page: Page) => page.evaluate(() => window.checkMedia?.asked.at(-1))
 /** The requests for the microphone alone, with no camera. */
 const micAlone = (page: Page) => page.evaluate(() => window.checkMedia?.asked.filter((asked) => !asked.video))
+const askedCount = (page: Page) => page.evaluate(() => window.checkMedia?.asked.length ?? 0)
+/** The camera freed: the app that held it closed, or one plugged in. */
+const freeCamera = (page: Page) =>
+  page.evaluate(() => {
+    if (window.checkMedia) window.checkMedia.camera = null
+  })
+/** The person back on the page: the window's focus, then the tab shown, as a browser tells of one return. */
+const comeBack = (page: Page) =>
+  page.evaluate(() => {
+    window.dispatchEvent(new Event('focus'))
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+const plugIn = (page: Page) => page.evaluate(() => navigator.mediaDevices.dispatchEvent(new Event('devicechange')))
+/** Two frames: whatever the page was going to draw or ask after the last step has been drawn or asked. */
+const settled = (page: Page) =>
+  page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))))
+/** The camera tracks in the sheet's picture. */
+const pictureTracks = (page: Page) =>
+  sheet(page)
+    .locator('video.device-preview-video')
+    .evaluate((v: HTMLVideoElement) => (v.srcObject instanceof MediaStream ? v.srcObject.getVideoTracks().length : 0))
 
 test('check · before joining, the camera’s picture, a meter that moves with the voice, and the devices to choose', async ({
   page,
@@ -216,6 +245,12 @@ test('check · with access refused, it says how to give it, and Join still enter
   )
   // A refusal isn't asked again for the microphone alone: a second prompt would nag (seam #5).
   expect(await micAlone(page)).toEqual([])
+  // Nor on coming back to the page, or with a device plugged in: it waits for the sheet to open again.
+  const asked = await askedCount(page)
+  await comeBack(page)
+  await plugIn(page)
+  await settled(page)
+  expect(await askedCount(page)).toBe(asked)
   await sheet(page).getByRole('button', { name: 'Join the room' }).click()
   await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
 })
@@ -252,4 +287,44 @@ test('check · with the camera busy in another app, it says so, names no site se
   const meter = sheet(page).getByRole('meter', { name: 'Microphone level' })
   await expect.poll(async () => Number(await meter.getAttribute('aria-valuenow'))).toBeGreaterThan(0)
   expect(await micAlone(page)).toEqual([{ audio: true }])
+})
+
+test('check · back from closing the app that held the camera, the line goes and the camera shows, asked for once', async ({
+  page,
+}) => {
+  await page.goto('/room.html?gum=busy')
+  await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()
+  const line = sheet(page).locator('.device-preview p[role="status"]')
+  const busy = 'Another app is using your camera. Close it to see yourself here; you can still join.'
+  await expect(line).toHaveText(busy)
+  await expect.poll(() => micAlone(page)).toEqual([{ audio: true }])
+  await settled(page)
+  // Back while the other app still holds it: asked again, and the line stays, since it is still true.
+  await comeBack(page)
+  await expect.poll(async () => (await micAlone(page))?.length).toBe(2)
+  await expect(line).toHaveText(busy)
+  await settled(page)
+  // Back once it is closed: the line goes, and the camera's picture and switch are there, as when the sheet opens.
+  const asked = await askedCount(page)
+  await freeCamera(page)
+  await comeBack(page)
+  await expect(line).toHaveCount(0)
+  await expect.poll(() => pictureTracks(page)).toBe(1)
+  await expect(sheet(page).getByRole('button', { name: 'Camera', exact: true })).toBeVisible()
+  // One return, heard twice (focus, then the tab shown), asks once.
+  await settled(page)
+  expect(await askedCount(page)).toBe(asked + 1)
+})
+
+test('check · with no camera, one plugged in takes the line’s place with its picture', async ({ page }) => {
+  await page.goto('/room.html?gum=nocamera')
+  await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()
+  const line = sheet(page).locator('.device-preview p[role="status"]')
+  await expect(line).toHaveText('No camera found, so this checks your microphone only.')
+  await settled(page)
+  await freeCamera(page)
+  await plugIn(page)
+  await expect(line).toHaveCount(0)
+  await expect.poll(() => pictureTracks(page)).toBe(1)
+  await expect(sheet(page).getByRole('button', { name: 'Camera', exact: true })).toBeVisible()
 })
