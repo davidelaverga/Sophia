@@ -6,15 +6,19 @@ import { BackgroundUnavailable } from './camera-background.ts'
 
 export type DockStatus = 'idle' | 'joining' | 'live' | 'reconnecting' | 'failed'
 
-/** What a join asked from elsewhere does now: join the room, or wait for it. */
-export type AskedJoin = 'wait' | 'join'
+/** What a join asked from elsewhere does now: join the room, wait for it, or nothing, answered by the call it found. */
+export type AskedJoin = 'wait' | 'join' | 'answered'
 
 /**
- * A join asked from elsewhere (Work's «Join the room», a toast's Rejoin), with the room as it is: it joins once the
- * project has loaded and the room is out of the call; until then it waits (ProjectShell's useJoinOnOpen).
+ * A join asked from elsewhere (Work's «Join the room», a toast's Rejoin), with the room as it is: it waits while the
+ * project loads, then joins a room out of the call (after a failed join too, as Try again would). A room the person is
+ * in, or on the way into, answers it: kept, it would join again by itself after their next Leave (ProjectShell's
+ * useJoinOnOpen; call-ends-on-open.md).
  */
-export const askedJoin = (status: DockStatus, ready: boolean): AskedJoin =>
-  ready && status === 'idle' ? 'join' : 'wait'
+export function askedJoin(status: DockStatus, ready: boolean): AskedJoin {
+  if (!ready) return 'wait'
+  return status === 'idle' || status === 'failed' ? 'join' : 'answered'
+}
 
 export type Device = 'microphone' | 'camera' | 'screen'
 

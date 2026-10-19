@@ -238,12 +238,19 @@ function useReportCall(
  * "Join the room" from Work, or a toast's Rejoin: once the project has loaded and the room can be joined, join it,
  * once. A tick after the shell's effects, not during them: a project already read can join on its first effects, and
  * a remount at once (React's strict mode, in development) would end that join as the room unmounts (useRoomConnection),
- * leaving «Joining…» (call-ends-on-open.md).
+ * leaving «Joining…» (call-ends-on-open.md). A call already there answers it (askedJoin): the person joined it
+ * themselves before pressing Rejoin.
  */
 function useJoinOnOpen(room: ProjectRoom, joinOnOpen: boolean, onHandled: (() => void) | undefined) {
   const done = useRef(false)
   useEffect(() => {
-    if (!joinOnOpen || done.current || askedJoin(room.status, room.ready) !== 'join') return undefined
+    if (!joinOnOpen || done.current) return undefined
+    const asked = askedJoin(room.status, room.ready)
+    if (asked === 'answered') {
+      done.current = true
+      onHandled?.()
+    }
+    if (asked !== 'join') return undefined
     const settled = setTimeout(() => {
       done.current = true
       void room.join()
