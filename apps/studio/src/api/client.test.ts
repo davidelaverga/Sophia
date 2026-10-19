@@ -7,6 +7,7 @@ import {
   admitGoalCommand,
   ApiError,
   callApi,
+  changeMemberRole,
   createProject,
   getSnapshot,
   READ_TIMEOUT_MS,
@@ -116,6 +117,29 @@ describe('Studio API client', () => {
     t.mock.timers.tick(WRITE_TIMEOUT_MS)
     assert.deepEqual([(await decided).code, (await decided).retry], ['outcome_unknown', 'never'])
   })
+
+  // The reliability baseline's gap #10: a PUT is a write, and may be the call that wakes an idle server.
+  for (const [label, put] of [
+    ['setGoalTarget', () => setGoalTarget('t', P, G, { ownerId: null, targetDate: null, expectedRevision: 0 })],
+    ['changeMemberRole', () => changeMemberRole('t', P, G, 'editor')],
+  ] as const) {
+    it(`${label} waits as a write: not cut at a read’s time, ended at a write’s`, async (t) => {
+      t.mock.timers.enable({ apis: ['setTimeout'] })
+      silence()
+      const seen = { outcome: 'waiting' as unknown, now: (): unknown => seen.outcome }
+      void put().then(
+        () => (seen.outcome = 'answered'),
+        (err: unknown) => (seen.outcome = err),
+      )
+      t.mock.timers.tick(READ_TIMEOUT_MS)
+      await new Promise((resolve) => setImmediate(resolve))
+      assert.equal(seen.now(), 'waiting', `cut at a read’s ${String(READ_TIMEOUT_MS)} ms`)
+      t.mock.timers.tick(WRITE_TIMEOUT_MS - READ_TIMEOUT_MS)
+      await new Promise((resolve) => setImmediate(resolve))
+      const late = seen.now()
+      assert.equal(late instanceof DOMException && late.name, 'AbortError')
+    })
+  }
 
   it('a read gives up sooner than a write, and a caller that stops waiting ends it at once', async (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] })
