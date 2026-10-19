@@ -1133,3 +1133,301 @@ describe('the live companion’s configuration', () => {
     await assert.rejects(personalCompanionFrom({ SOPHIA_COMPANION: 'on' }, pool), /rehearse, live or unset/)
   })
 })
+
+// FND-C55 (test only, on the sealed ADC): the durable boundaries B's run did not execute, through the same live path.
+describe('the live companion without 0078 (FND-C55)', () => {
+  it('a live API whose database lacks 0078 is not ready and answers no turn: nothing reserved, no provider request', async () => {
+    // FIXTURE, labelled: 0078's installation is read from its binding table (personalSettledAnswersInstalled); the
+    // owner moves that table aside for this case only and puts it back. Not a whole old schema: a second installation
+    // in this cluster is refused by design (0070, Q13), so a fresh 0078-less database cannot sit beside this file's.
+    const ANA = randomUUID()
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('old-payer', $1, 1000000)`,
+      [ANA],
+    )
+    await owner(`ALTER TABLE sophia.personal_answer_calls RENAME TO personal_answer_calls_c55_absent`)
+    try {
+      const at = await liveApi('old-payer', ANA)
+      const ready = await fetch(`${at}/ready`)
+      assert.equal(ready.status, 503, await ready.text())
+      const sentBefore = recorded().length
+      const { epoch } = await space(at, ANA)
+      const turn = await call(at, '/api/v1/personal/turns', ANA, { text: 'Without 0078.' }, epoch)
+      const page = await settled(at, ANA)
+      assert.equal(recorded().length, sentBefore, `no provider request (the turn answered ${String(turn.status)})`)
+      assert.equal(page.turns.filter((t) => t.author === 'sophia').length, 0, 'no answer')
+      assert.deepEqual(await usage('old-payer'), [], 'nothing reserved')
+    } finally {
+      await owner(`ALTER TABLE sophia.personal_answer_calls_c55_absent RENAME TO personal_answer_calls`)
+    }
+  })
+})
+
+type CommitFault = 'fail_before_commit' | 'lose_commit_ack'
+
+/**
+ * FIXTURE (C55): the companion's own pool on the restricted role. Once a client has sent the settlement statement, its
+ * next COMMIT is either refused before it is sent (the settlement's transaction never commits) or sent and its answer
+ * replaced by an error (it committed; the acknowledgement is lost). Every other statement goes as it is. `witness`
+ * records what happened, so a case is never satisfied by a timeout or an unrelated failure.
+ */
+function commitFaultPool(mode: CommitFault, witness: string[]): pg.Pool {
+  const own = createPool(db.apiUrl, { max: 4 })
+  gatedPools.push(own)
+  const wrap = (client: pg.PoolClient): pg.PoolClient => {
+    if (gatedClients.has(client)) return client
+    gatedClients.add(client)
+    const query = client.query.bind(client) as (...args: unknown[]) => Promise<unknown>
+    let armed = false
+    return Object.assign(client, {
+      query: async (...args: unknown[]) => {
+        const sql = typeof args[0] === 'string' ? args[0] : JSON.stringify(args[0] ?? '')
+        if (/settle_personal_companion_answer/.test(sql)) {
+          armed = true
+          const answer = await query(...args)
+          witness.push('settle statement answered in its transaction')
+          return answer
+        }
+        if (!armed || !/^\s*COMMIT\b/i.test(sql)) return query(...args)
+        armed = false
+        if (mode === 'fail_before_commit') {
+          witness.push('COMMIT refused before it was sent')
+          throw new Error('C55 fixture: the settlement transaction failed before COMMIT')
+        }
+        await query(...args)
+        witness.push('COMMIT sent and answered; acknowledgement replaced by an error')
+        throw new Error('C55 fixture: the COMMIT acknowledgement was lost')
+      },
+    })
+  }
+  const connect = own.connect.bind(own) as (
+    callback?: (err: Error | undefined, client: pg.PoolClient | undefined, release: (e?: unknown) => void) => void,
+  ) => Promise<pg.PoolClient> | undefined
+  Object.assign(own, {
+    connect: (
+      callback?: (err: Error | undefined, client: pg.PoolClient | undefined, release: (e?: unknown) => void) => void,
+    ) =>
+      callback
+        ? connect((err, client, release) => callback(err, client && wrap(client), release))
+        : connect()?.then((client) => wrap(client)),
+  })
+  return own
+}
+
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+describe('the live companion’s settlement, its COMMIT failed or its acknowledgement lost (FND-C55)', () => {
+  it('a settlement whose transaction fails before COMMIT settles nothing, keeps nothing, and asks the provider no more', async () => {
+    const EVE = randomUUID()
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('c55-fail-payer', $1, 1000000)`,
+      [EVE],
+    )
+    const witness: string[] = []
+    const at = await liveApi('c55-fail-payer', EVE, true, commitFaultPool('fail_before_commit', witness))
+    const sentBefore = recorded().length
+    double.script({ text: 'Answer before a failed commit.', usage: { input_tokens: 10, output_tokens: 5 } })
+    await write(at, '/api/v1/personal/turns', EVE, { text: 'Settle me.' })
+    for (let i = 0; i < 100 && witness.length < 2; i++) await pause(50)
+    assert.deepEqual(witness, ['settle statement answered in its transaction', 'COMMIT refused before it was sent'])
+    await pause(1500) // anything the runner would do next has had its time
+    assert.equal(recorded().length - sentBefore, 1, 'one provider request, none again')
+    const rows = await usage('c55-fail-payer')
+    assert.equal(rows.length, 1, 'one reservation')
+    assert.notEqual(rows[0]?.state, 'settled', 'not settled: the settlement never committed')
+    assert.equal(rows[0]?.used_micros, null, 'no used cost recorded, no zero, no refund')
+    assert.deepEqual(
+      await owner(`SELECT 1 FROM sophia.personal_settled_answers WHERE owner_id=$1`, [EVE]),
+      [],
+      'nothing kept',
+    )
+    const page = parsePersonalTurnPage((await call(at, '/api/v1/personal/turns?after=0', EVE)).json)
+    assert.equal(page.turns.filter((t) => t.author === 'sophia').length, 0, 'no answer shown')
+    witness.push(`usage state after: ${rows[0]?.state ?? 'none'}`)
+  })
+
+  it('a settlement that committed but whose acknowledgement was lost is kept once; a later retry writes it, asking nothing', async () => {
+    const FAY = randomUUID()
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('c55-ack-payer', $1, 1000000)`,
+      [FAY],
+    )
+    const witness: string[] = []
+    const at = await liveApi('c55-ack-payer', FAY, true, commitFaultPool('lose_commit_ack', witness))
+    const sentBefore = recorded().length
+    double.script({
+      text: 'The answer whose commit was not acknowledged.',
+      usage: { input_tokens: 10, output_tokens: 5 },
+    })
+    await write(at, '/api/v1/personal/turns', FAY, { text: 'Keep me once.' })
+    for (let i = 0; i < 100 && witness.length < 2; i++) await pause(50)
+    assert.deepEqual(witness, [
+      'settle statement answered in its transaction',
+      'COMMIT sent and answered; acknowledgement replaced by an error',
+    ])
+    await pause(1500)
+    assert.equal(recorded().length - sentBefore, 1, 'one provider request')
+    assert.deepEqual(
+      (await usage('c55-ack-payer')).map((r) => r.state),
+      ['settled'],
+      'one settled cost, committed',
+    )
+    // Its claim lapsed (as after two minutes) unless the reply was written already; then a normal retry elsewhere.
+    await owner(
+      `UPDATE sophia.personal_turns SET answering_since=now()-interval '10 minutes', asked_at=now()-interval '10 minutes'
+       WHERE owner_id=$1 AND author='person'`,
+      [FAY],
+    )
+    const first = await settled(at, FAY)
+    const asked = first.turns.find((t) => t.author === 'person')
+    assert.ok(asked)
+    if (first.turns.every((t) => t.author !== 'sophia')) {
+      const fresh = await liveApi('c55-ack-payer', FAY, false)
+      await write(fresh, `/api/v1/personal/turns/${asked.id}/retry`, FAY, {})
+      await settled(fresh, FAY)
+    }
+    await pause(500)
+    assert.equal(
+      recorded().length - sentBefore,
+      1,
+      'still one provider request: the kept answer was written, not asked again',
+    )
+    assert.deepEqual(
+      (await usage('c55-ack-payer')).map((r) => r.state),
+      ['settled'],
+      'still one settled cost, no second reservation',
+    )
+    const page = parsePersonalTurnPage((await call(at, '/api/v1/personal/turns?after=0', FAY)).json)
+    assert.deepEqual(
+      page.turns.filter((t) => t.author === 'sophia').map((t) => t.text),
+      ['The answer whose commit was not acknowledged.'],
+      'the original answer, once',
+    )
+  })
+})
+
+// R-B77-FOCUSED-CLOSURE-01 left untested: a stale runner released AFTER another runner wrote the reply and its kept
+// answer was let go. Runner 1 has read «nothing kept» (its read committed) and waits at its reservation statement,
+// holding no lock (only its transaction's BEGIN was sent); runner 2 takes the lapsed turn by a normal retry and answers
+// it; then runner 1 goes on. Expected of the boundary: no second provider request and no second settled cost.
+/** FIXTURE (C55 control 5): while `stalled.on`, this pool's claim renewals fail before reaching the database. */
+function renewalsStalled(own: pg.Pool, stalled: { on: boolean; refused: number }): pg.Pool {
+  const wrapped = new WeakSet<pg.PoolClient>()
+  const wrap = (client: pg.PoolClient): pg.PoolClient => {
+    if (wrapped.has(client)) return client
+    wrapped.add(client)
+    const query = client.query.bind(client) as (...args: unknown[]) => Promise<unknown>
+    return Object.assign(client, {
+      query: async (...args: unknown[]) => {
+        const sql = typeof args[0] === 'string' ? args[0] : JSON.stringify(args[0] ?? '')
+        if (stalled.on && /renew_personal_reply/.test(sql)) {
+          stalled.refused += 1
+          throw new Error('C55 fixture: runner 1 is stalled; its renewal did not reach the database')
+        }
+        return query(...args)
+      },
+    })
+  }
+  const connect = own.connect.bind(own) as (
+    callback?: (err: Error | undefined, client: pg.PoolClient | undefined, release: (e?: unknown) => void) => void,
+  ) => Promise<pg.PoolClient> | undefined
+  Object.assign(own, {
+    connect: (
+      callback?: (err: Error | undefined, client: pg.PoolClient | undefined, release: (e?: unknown) => void) => void,
+    ) =>
+      callback
+        ? connect((err, client, release) => callback(err, client && wrap(client), release))
+        : connect()?.then((client) => wrap(client)),
+  })
+  return own
+}
+
+describe('a stale runner released after another wrote the reply (FND-C55, control 5)', () => {
+  it('asks the provider nothing more and pays nothing more once another runner has answered the turn', async () => {
+    const GUS = randomUUID()
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('c55-stale-payer', $1, 1000000)`,
+      [GUS],
+    )
+    const held = gate()
+    // FIXTURE, labelled: runner 1 is stalled as a whole while held. Its claim renewals (the watch, every 2 s) do not
+    // reach the database (the watch ignores a failed renewal); left to renew, its claim never lapses and a normal retry
+    // is refused «it is pending» (C55 log 30-…GUARD: the upstream guard, witnessed).
+    const stalled = { on: false, refused: 0 }
+    // Runner 1's own API: its runner's pool renews (stalled here), its companion's pool reserves (held at the gate).
+    await owner(`UPDATE sophia.personal_companion_payers SET owner_id=$2 WHERE payer=$1`, ['c55-stale-payer', GUS])
+    const runnerPool = createPool(db.apiUrl, { max: 4 })
+    gatedPools.push(runnerPool)
+    const configured = await personalCompanionFrom(env('c55-stale-payer', GUS), gatedPool(held))
+    companions.push(configured)
+    const verifyActor = createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET })
+    const runner1 = buildApp({
+      pool: renewalsStalled(runnerPool, stalled),
+      verifyActor,
+      companion: configured.companion,
+    })
+    apps.push(runner1)
+    await runner1.listen({ port: 0, host: '127.0.0.1' })
+    const first = `http://127.0.0.1:${String((runner1.server.address() as AddressInfo).port)}`
+    const sentBefore = recorded().length
+    await write(first, '/api/v1/personal/turns', GUS, { text: 'Answer me once, whoever does.' })
+    await within(10_000, 'runner 1 at its reservation', held.reached)
+    assert.equal(held.delegated, 1, 'runner 1 read nothing kept and waits at its one reservation statement')
+    stalled.on = true // from here runner 1 is stalled as a whole: its context was read, its reservation is held
+    try {
+      for (let i = 0; i < 80 && stalled.refused === 0; i++) await pause(50) // one renewal refused: the stall is real
+      // Runner 2: the claim lapsed (as after two minutes), a normal retry through another API and runner.
+      await owner(
+        `UPDATE sophia.personal_turns SET answering_since=now()-interval '10 minutes', asked_at=now()-interval '10 minutes'
+         WHERE owner_id=$1 AND author='person'`,
+        [GUS],
+      )
+      const asked = (await settled(first, GUS)).turns.find((t) => t.author === 'person')
+      assert.ok(asked)
+      double.script({ text: 'Answered by runner 2.', usage: { input_tokens: 10, output_tokens: 5 } })
+      const second = await liveApi('c55-stale-payer', GUS, false)
+      await write(second, `/api/v1/personal/turns/${asked.id}/retry`, GUS, {})
+      const answered = await settled(second, GUS)
+      assert.deepEqual(
+        answered.turns.filter((t) => t.author === 'sophia').map((t) => t.text),
+        ['Answered by runner 2.'],
+      )
+      assert.equal(recorded().length - sentBefore, 1, 'runner 2 asked once')
+      assert.deepEqual(
+        (await usage('c55-stale-payer')).map((r) => r.state),
+        ['settled'],
+      )
+      assert.deepEqual(
+        await owner(`SELECT 1 FROM sophia.personal_settled_answers WHERE owner_id=$1`, [GUS]),
+        [],
+        'its kept answer let go',
+      )
+    } finally {
+      stalled.on = false
+      held.open()
+    }
+    assert.ok(stalled.refused > 0, 'runner 1 tried to renew while stalled')
+    // Runner 1 goes on from its reservation statement.
+    for (let i = 0; i < 60 && held.outcome.length < 1; i++) await pause(50)
+    await pause(2000)
+    const states = (await usage('c55-stale-payer')).map((r) => r.state)
+    const outcome = JSON.stringify(held.outcome)
+    assert.equal(
+      recorded().length - sentBefore,
+      1,
+      `no second provider request (runner 1's reservation: ${outcome}; costs ${JSON.stringify(states)})`,
+    )
+    assert.equal(
+      states.filter((st) => st === 'settled').length,
+      1,
+      `one settled cost (costs ${JSON.stringify(states)})`,
+    )
+    assert.deepEqual(
+      parsePersonalTurnPage((await call(first, '/api/v1/personal/turns?after=0', GUS)).json)
+        .turns.filter((t) => t.author === 'sophia')
+        .map((t) => t.text),
+      ['Answered by runner 2.'],
+      'one reply',
+    )
+  })
+})
