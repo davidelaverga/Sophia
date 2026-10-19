@@ -183,8 +183,11 @@
       does the one after. One more decision since is said alone.
     - A call ends with Home out of sight and its read fails. The `online` event reads it again, and Home then says
       nothing of it.
-- **Limit.** A project the person can no longer read (removed from it, or deleted) stays pending on this device. Each
-  `online` event then costs one failed read, and Home doesn't show the project.
+- **Limits.**
+  - A project the person can no longer read (removed from it, or deleted) stays pending on this device. Each `online`
+    event then costs one failed read, and Home doesn't show the project.
+  - Updates opened on a pending project keeps the lines it shows, as before, but the project still waits. Home's next
+    read of it then keeps that whole window, so a line that came between the two isn't said on Home. Updates lists it.
 
 ## Limits
 

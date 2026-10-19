@@ -191,3 +191,56 @@ review round 1 (the next one updates only this record). Files changed against `f
   - It is a second surface, with one read on every project open.
   - One concern per PR, given the bottleneck.
 - Source IDs consulted: none from the source register; the work read this repository and costuras.md only.
+
+## Codex P2 on #468: a failed post-call read
+
+- Source: Codex P2 on #468 (`useSinceNews.ts:126`), not a P1. Luis 2026-10-18: «Todo trabajo nuevo que hagas ten en
+  cuenta nuestro cuello de botella actual. Si se puede hacer en un pr, excelente o como veas, que alivie la presión pero
+  hay que seguir trabajando».
+- Worktree and range: `D:\Descargas\SophiaV4\Sophia-paper-9`, branch `home/call-seen-retry` from `origin/group/seams-4`
+  `e7940b963` (#468, open). The ending code commit is `2629a4117fd6` (tree `87654c5be08e`); the next commit updates
+  only the note and this record. Local only, nothing pushed.
+- Files: `src/features/updates/since-said.ts`, `src/features/personal/useSinceNews.ts`, `fixtures/home.tsx` (the
+  `sinceFail=1` lever), `src/features/updates/since-said.test.ts`, `e2e/home-since.spec.ts`,
+  `docs/plans/home-since-you-looked.md` (its own section), and this record.
+- **Outcome.** A call's end marks its project pending (per account on this device, `sophia.since.pending.v1.<account>`;
+  for the page's life where storage refuses) before the read. While it is pending, Home says nothing of it. The first
+  window read that takes is kept whole as said, and the mark goes. That read can be the call's own, its retry when the
+  browser is `online` again, or Home's read as a visit begins. There is no timer and no polling.
+  - Before: a failed read was dropped (`.catch(() => undefined)`), and the next arrival after Home read that window
+    said «Since you last looked: 2 decisions and a new report in Launch plan».
+- **Evidence.**
+  - Note committed first (`0bc9a7e29`). Tests alone, failing (`d8d071c29`):
+    - `since-said.test.ts`: «does not provide an export named 'markPending'».
+    - `home-since.spec.ts` (log `pw-logs/call-seen-retry-red.txt`): 2 failed, 5 passed.
+      - Home open: the second arrival after the failed read said «Since you last looked: 2 decisions and a new report in
+        Launch plan. Open Updates» where `""` was expected (line 141).
+      - Home out of sight: the `online` event read nothing again. The reads expected `[id1, id1]`, and there was one
+        (line 157).
+  - Fix `2629a4117`. Unit since-said 9/9, places-view and attention 42/43; the one failure is attention's Windows
+    separators. The Studio suite passes 1889/1891, the two Windows path ones.
+  - Green through the guard at `2629a4117`: `home-since`, `home`, `app-auth` 71/71 (`pw-logs/call-seen-retry-green.txt`).
+  - **Control mutants**, each for one run and restored:
+    - Unit: `unsaid` ignoring the pending list fails 1 (the pending project is said). `settlePending` keeping nothing
+      fails 2 (`{}` where the call's lines were expected).
+    - Browser, a throwaway detached commit `9fc09307d`, now unreachable (`pw-logs/call-seen-retry-mutant.txt`). Home's
+      read doesn't settle and the `online` listener is gone: both new checks fail.
+      - Home open never says the one later decision («Received: ""»), since the project stays pending.
+      - Out of Home, there is no read again.
+  - Whole-repo `oxlint --type-aware` (0 diagnostics, 1371 files), `tsc --noEmit -p apps/studio` and Prettier on the
+    touched non-docs files are clean.
+- **Decisions.**
+  - Per device, not per tab: a reload or a tab closed after the failure keeps the mark.
+  - The settle lives in the one read that Home, the call's end and the retry share (`readOf`), so whichever takes
+    first counts.
+  - Only a fresh read settles, never a window cached from before the call. While pending, a visit leaves that project
+    out (`unsaid`'s `pending`), whatever the page holds.
+  - The retry is the browser's `online` event plus Home's own reads. TanStack already holds a read while the browser
+    knows it is offline (`networkMode: 'online'`), so what is lost is a read that fails: a 503, a request cut, a network
+    the browser still calls online.
+- **Remaining.**
+  - The note's two limits: a project the person can't read any more stays pending (one failed read per `online`
+    event), and Updates opened on a pending project doesn't end the wait.
+  - CI is the run on record. `e2e-attention` and `e2e-served` weren't run here.
+- **Next bounded action.** Luis says whether this goes onto #468's branch or into its own PR once #468 merges. It is
+  pushed only on his word, and merges on green with no open P1.
