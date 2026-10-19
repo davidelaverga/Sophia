@@ -102,6 +102,8 @@ interface Holding {
   gaps: readonly string[]
   /** A page read before `before`, kept with everything held. */
   hold: (page: Page, before: string | null, atStart: boolean) => void
+  /** The held pages' epoch (held-pages.ts): a page asked for before a let-go is not kept (R-SEARCH-AB2F-DISCARDED-READ). */
+  epoch: () => number
 }
 
 /**
@@ -117,8 +119,10 @@ function useFoundPage(projectId: string, token: string, at: Holding): Pick<Earli
   const jump = (before: string | null, owner: string) => {
     if (jumped.reading === 'loading') return
     setJumped({ owner, reading: 'loading' })
+    const asOf = at.epoch()
     getDiscussionPage(token, projectId, before).then(
       (page) => {
+        if (at.epoch() !== asOf) return setJumped({ owner, reading: 'idle' })
         hold(page, before, page.before === null || at.atStart)
         setJumped({ owner, reading: 'idle' })
       },
@@ -129,8 +133,10 @@ function useFoundPage(projectId: string, token: string, at: Holding): Pick<Earli
     const below = at.gaps.includes(after) ? afterGap(shown, after) : undefined
     if (!below || filling?.reading === 'loading') return
     setFilling({ after, reading: 'loading' })
+    const asOf = at.epoch()
     getDiscussionPage(token, projectId, below.id).then(
       (page) => {
+        if (at.epoch() !== asOf) return setFilling(null)
         hold(page, below.id, page.before === null || at.atStart)
         setFilling(null)
       },
@@ -269,7 +275,7 @@ export function useEarlierDiscussion(
   const shown = [...entries, ...withdrawn]
   // Without a page read, the window alone: consecutive, no gap.
   const gaps = held ? gapsIn(shown, new Map([...held.links, ...latest])) : []
-  const found = useFoundPage(projectId, identity.token, { shown, atStart, gaps, hold })
+  const found = useFoundPage(projectId, identity.token, { shown, atStart, gaps, hold, epoch })
   const offered = !atStart && shown.length >= WINDOW
   return { entries, withdrawn, offered, atStart, reading, load, revise, ...found }
 }
