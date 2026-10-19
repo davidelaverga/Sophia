@@ -10,9 +10,10 @@
 // the tab too): Updates' «since» and «seen» are A34's, strict and each account's own (attention-data.ts), and
 // `appFixture.attention` says what they were asked. `projects=two` (kept in the tab too): Work's list holds Research
 // notes after the fixture project, so a call can be left by opening another (call-ends-on-open.md).
-// `appFixture.expireToken()`: every token the API has seen is refused from now on, as the API refuses an expired one (a
-// 401), until the page sends another; `refuseTokens()` refuses every token, new ones too; `dropStream()` ends the feed's
-// stream; `refused` says each request refused so, and `keys` each request's Idempotency-Key (auth-session-renewal.md).
+// `appFixture.expireToken()`: every token the API has seen is refused from now on, as the API refuses an expired one
+// (a 401), until the page sends another; `refuseTokens()` refuses every token, new ones too; `dropStream()` ends the
+// feed's stream; `refused` says each request refused so, and `keys` each request's Idempotency-Key
+// (auth-session-renewal.md).
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { StrictMode } from 'react'

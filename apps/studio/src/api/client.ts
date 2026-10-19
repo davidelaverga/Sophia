@@ -1,6 +1,7 @@
 // Typed calls to the Sophia API (packages/contracts). The browser talks only to this API.
 // No hidden retries: an ambiguous admission surfaces as outcome_unknown and the caller decides to
-// retry with the SAME Idempotency-Key.
+// retry with the SAME Idempotency-Key. The one exception is a token the API refused (401): it is
+// renewed once and the request sent again (renew.ts), since the API did nothing with it.
 import type {
   Error as ApiErrorBody,
   ExchangeReceipt,
@@ -42,6 +43,7 @@ import {
   parseSnapshot,
 } from '@sophia/contracts/validate'
 import { apiUrl } from './base.ts'
+import { apiFetch } from './renew.ts'
 import { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS } from './timeouts.ts'
 
 export class ApiError extends Error {
@@ -137,7 +139,10 @@ async function inTime<T>(ms: number, run: (signal: AbortSignal) => Promise<T>, o
 
 export function getSnapshot(token: string, projectId: string, signal?: AbortSignal): Promise<Snapshot> {
   const read = async (limit: AbortSignal) => {
-    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/snapshot`), { headers: auth(token), signal: limit })
+    const res = await apiFetch(apiUrl(`/api/v1/projects/${projectId}/snapshot`), {
+      headers: auth(token),
+      signal: limit,
+    })
     if (!res.ok) throw await toError(res, 'read')
     return readBody(res, parseSnapshot, 'safe_read')
   }
@@ -148,7 +153,7 @@ export function getSnapshot(token: string, projectId: string, signal?: AbortSign
 export function getDiscussionPage(token: string, projectId: string, before: string | null): Promise<DiscussionPage> {
   const query = before ? `?before=${encodeURIComponent(before)}` : ''
   const read = async (limit: AbortSignal) => {
-    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/discussion${query}`), {
+    const res = await apiFetch(apiUrl(`/api/v1/projects/${projectId}/discussion${query}`), {
       headers: auth(token),
       signal: limit,
     })
@@ -161,7 +166,7 @@ export function getDiscussionPage(token: string, projectId: string, before: stri
 /** A JSON read under the person's token, validated as `parse` (A25's goal targets and members). */
 function readJson<T>(token: string, path: `/api/${string}`, parse: (value: unknown) => T): Promise<T> {
   const read = async (limit: AbortSignal) => {
-    const res = await fetch(apiUrl(path), { headers: auth(token), signal: limit })
+    const res = await apiFetch(apiUrl(path), { headers: auth(token), signal: limit })
     if (!res.ok) throw await toError(res, 'read')
     return readBody(res, parse, 'safe_read')
   }
@@ -184,7 +189,7 @@ export async function setGoalTarget(
   body: GoalTargetRequest,
 ): Promise<GoalTargetSet> {
   const send = async (limit: AbortSignal) => {
-    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/goals/${goalId}/target`), {
+    const res = await apiFetch(apiUrl(`/api/v1/projects/${projectId}/goals/${goalId}/target`), {
       method: 'PUT',
       headers: { ...auth(token), 'content-type': 'application/json' },
       body: JSON.stringify(body),
@@ -200,7 +205,7 @@ export async function setGoalTarget(
 export function getProjectActivity(token: string, projectId: string, before: string | null): Promise<ActivityPage> {
   const query = before ? `?before=${encodeURIComponent(before)}` : ''
   const read = async (limit: AbortSignal) => {
-    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/activity${query}`), {
+    const res = await apiFetch(apiUrl(`/api/v1/projects/${projectId}/activity${query}`), {
       headers: auth(token),
       signal: limit,
     })
@@ -222,7 +227,7 @@ export async function changeMemberRole(
   role: 'admin' | 'editor' | 'viewer',
 ): Promise<MemberRoleSet> {
   const send = async (limit: AbortSignal) => {
-    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/members/${actorId}/role`), {
+    const res = await apiFetch(apiUrl(`/api/v1/projects/${projectId}/members/${actorId}/role`), {
       method: 'PUT',
       headers: { ...auth(token), 'content-type': 'application/json' },
       body: JSON.stringify({ role }),
@@ -242,7 +247,7 @@ export async function actInCall(
   what: 'mute' | 'remove' | 'stop-camera' | 'stop-screen',
 ): Promise<void> {
   const send = async (limit: AbortSignal) => {
-    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/room/people/${identity}/${what}`), {
+    const res = await apiFetch(apiUrl(`/api/v1/projects/${projectId}/room/people/${identity}/${what}`), {
       method: 'POST',
       headers: auth(token),
       signal: limit,
@@ -255,7 +260,7 @@ export async function actInCall(
 /** An admin mutes everyone else in the call (A31): members and guests. No key: twice is once. */
 export async function muteEveryoneInCall(token: string, projectId: string): Promise<void> {
   const send = async (limit: AbortSignal) => {
-    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/room/mute-all`), {
+    const res = await apiFetch(apiUrl(`/api/v1/projects/${projectId}/room/mute-all`), {
       method: 'POST',
       headers: auth(token),
       signal: limit,
@@ -280,7 +285,7 @@ function postIdempotent<T>(
   return inTime(WRITE_TIMEOUT_MS, async (signal) => {
     let res: Response
     try {
-      res = await fetch(apiUrl(path), {
+      res = await apiFetch(apiUrl(path), {
         method: 'POST',
         headers: { ...auth(token), 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
         body: JSON.stringify(body),
@@ -340,7 +345,7 @@ export function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value
   const send = async (signal: AbortSignal) => {
     let res: Response
     try {
-      res = await fetch(apiUrl(path), {
+      res = await apiFetch(apiUrl(path), {
         method,
         headers: {
           ...(init.token ? auth(init.token) : {}),

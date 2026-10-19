@@ -124,7 +124,7 @@ test.afterEach(({ context }) => expect(elsewhere.get(context) ?? []).toEqual([])
 /** The code the synthetic Auth refuses a refresh with, when a check sets one (`serve`). */
 const refusedWith = new WeakMap<BrowserContext, string>()
 
-/** Whose session the synthetic Auth renews on a refresh, when a check says so (`serve`): a new access token each time. */
+/** Whose session the synthetic Auth renews on a refresh, when a check says (`serve`): a new access token each time. */
 const renewing = new WeakMap<BrowserContext, Person>()
 
 /**
@@ -1040,10 +1040,12 @@ test('session · an API that refuses every token: one refresh, then the door clo
   })
   await expect(signedOutNotice(page)).toBeVisible()
   await expect.poll(() => refreshes(calls)).toBe(1)
-  // Nothing asks again: the feed's restart on the renewed token ends at the same door. Time is the only witness.
-  const settled = (await refusedOf(page)).length
+  // Nothing asks again: the feed's restart on the renewed token ends at the same door. Time is the only witness; the
+  // stream's asks are counted, not every read (a list's own interval may ask meanwhile).
+  const streamAsks = async () => (await refusedOf(page)).filter((r) => r.endsWith('/events')).length
+  const settled = await streamAsks()
   await page.waitForTimeout(3000)
-  expect((await refusedOf(page)).length).toBe(settled)
+  expect(await streamAsks()).toBe(settled)
   expect(refreshes(calls)).toBe(1)
 })
 
