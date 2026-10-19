@@ -59,28 +59,39 @@ and two cameras, a phone's strip had Switch camera and no Hide my tile.
   them.
 - **Its icon, the kit's `more`** (three dots), already the opener of a row's actions in People (`PeoplePanel.tsx`): no
   new icon.
-- **Over the clips, measured.** The tile clips what it holds (`.tile { overflow: hidden }`), and its arrival (`animation:
-  arrive … both`) leaves it `transform: matrix(1, 0, 0, 1, 0, 0)`, so even a `position: fixed` box inside it lands at
-  the tile's own corner, clipped (measured at 390 and 320 px); the strip clips too. No menu in the Studio leaves its
-  container today; sheets do, by a portal to `document.body`, but a menu moved there would leave the kit's popover wrap,
-  whose press-outside check reads the page's tree. So the menu hangs from a layer in the top layer: a manual popover
+- **Over the clips, measured.** The tile clips what it holds (`.tile { overflow: hidden }`), and its arrival
+  (`animation: arrive … both`) leaves it `transform: matrix(1, 0, 0, 1, 0, 0)`, so even a `position: fixed` box inside
+  it lands at the tile's own corner, clipped (measured at 390 and 320 px); the strip clips too. No menu in the Studio
+  leaves its container today; sheets do, by a portal to `document.body`, but a menu moved there would leave the kit's
+  popover wrap, whose press-outside check reads the page's tree. So the menu hangs from a layer in the top layer: a manual popover
   holding the press's box (`TileMenu.tsx`). It stays inside the tile's markup, so the kit's keys and press-outside
   check work as anywhere; it escapes every clip and the room's layers; presses go through the layer to the press under
-  it. It follows the press if the page scrolls or resizes, and closes if the press goes (turned past a phone's width).
+  it. While open it follows the press each frame, drawing again only when the press has moved: a scroll or a turn
+  moves it, and so does the strip without either, as stage captions lift it by their height or the dock grows (a
+  review's P2: placed only on a scroll or a resize, it stayed over its own press). It closes if the press goes
+  (turned past a phone's width).
+- **Where the browser has no top layer** (the Popover API: Safari before 17, so an iPhone stuck on iOS 16, while the
+  build targets Safari 16.4), the menu isn't drawn (`hasTopLayer`, `camera-flip.ts`) and the press is Switch camera,
+  as before the menu (a review's P1: showing it there threw and took the call down). Moving the menu out of the tile
+  without the top layer would need a portal, and so a change to the kit's popover (above).
 - **Where it opens:** over the tile, 6 px from the press (the kit's `menu-top`), at the press's end, or at its start
   when the end would come within 16 px of the screen's left edge. Your tile is always the strip's second (the call
   lists you first, `livekit-room.ts`; the tiles keep that order, `tile-view.ts`), so on a phone up to 456 px it opens
   at the press's start.
 - **Measured** (captures, menu open, dark and light): 160 × 104 px; at 390 × 844 x 121–281, y 578–682, over the shown
   screen, the strip starting at 683; at 320 × 640 x 93–253, y 342–446, the strip at 447; at 560 px, at the press's end,
-  x 58–218. Nothing scrolls sideways; at each item's middle `document.elementFromPoint` is the item itself.
+  x 58–218. Nothing scrolls sideways; at each item's middle `document.elementFromPoint` is the item itself. With the
+  menu open at 390 px, a caption lifts the strip 26 px (683 to 657) and the menu with it (y 552–656), still 6 px over
+  the press. Without the Popover API at 390 px: one press, Switch camera, 28 × 28 at the tile's top-right, reached
+  where drawn.
 - **The press keeps the strip's geometry** (`.tile-strip .tile-pin`): a 28 px square 4 px from the top-right corner,
   clear of the mute mark, its target 40 px from the tile's corner.
 
 ## Checks (written first)
 
 - **Unit** (`camera-flip.test.ts`): with nothing kept, the presses go round; after a refused switch the next press asks
-  for the same camera; two presses before the first is answered go round.
+  for the same camera; two presses before the first is answered go round; the top layer is there where the browser
+  shows popovers, not in Safari before 17 nor without a page.
 - **Browser, `@phone`** (`e2e/camera-flip.spec.ts`):
   - where storage can't be written, the switch still goes to the next camera, then back;
   - a refused switch leaves the call where it was: the next press asks for the same camera;
@@ -92,6 +103,10 @@ and two cameras, a phone's strip had Switch camera and no Hide my tile.
     reaches; Switch camera switches to the next camera and the focus is back on the press; Hide my tile hides your
     tile («Your tile is hidden», the focus on Show); Escape closes and the focus is back on the press; a press outside
     closes;
+  - beside a shown screen at 390 px, the menu open: a caption lifts the strip and the menu goes with it, 6 px over the
+    press, each item still what a press at its middle reaches;
+  - without the Popover API (WebKit 16 stood in for), beside a shown screen: your tile's one press is Switch camera, no
+    menu; it switches and the call stays;
   - beside a shown screen at 390 and 320 px, muted: the mark is clear of the press drawn, and its target is 40 px;
   - your tile in «+N»: «In the call» switches your camera.
 - **Browser, computer** (`e2e/camera-flip.spec.ts`): beside a shown screen, your tile keeps Hide my tile, no menu.
@@ -100,6 +115,9 @@ and two cameras, a phone's strip had Switch camera and no Hide my tile.
 
 ## Limits
 
+- On a browser without the top layer (Safari before 17), a phone's strip keeps the old limit: with your camera on and
+  two cameras the press is Switch camera, and Hide my tile isn't there. If the build's floor rises to Safari 17, the
+  fallback goes.
 - In light, while the menu is open, the press under the finger keeps the shared `.round:hover` plane (ink at 6 %),
   which over a camera's black reads as almost nothing; at rest it is the white square. Every press on a tile has it
   (Switch camera did, same colours before and after): a follow-up.
