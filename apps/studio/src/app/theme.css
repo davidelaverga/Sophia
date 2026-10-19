@@ -3119,8 +3119,9 @@ button.contribution-quote:hover {
   font-size: var(--type-small);
   text-align: center;
 }
-/* The call's sound blocked (sound-blocked-others.md): the line, then its two answers at its size, each kept whole as
-   the sentence wraps. Mounted all along so its words are announced; while it says nothing it is out of the layout. */
+/* The call's sound blocked (sound-blocked-others.md), a note once it speaks: the line, then its two answers at its
+   size, each kept whole as the sentence wraps. Mounted all along so its words are announced; while it says nothing it
+   is out of the layout. */
 .dock-sound {
   display: flex;
   flex-wrap: wrap;

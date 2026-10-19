@@ -131,7 +131,7 @@ const handingFocus = (act: () => void) => (e: React.MouseEvent<HTMLButtonElement
  */
 function SoundBlocked({ shown, room }: { shown: boolean; room: ProjectRoom }) {
   return (
-    <p className="dock-note dock-sound" role="status">
+    <p className={shown ? 'dock-note dock-sound' : 'dock-sound'} role="status">
       {shown && (
         <>
           <span>{SOUND_BLOCKED}</span>
