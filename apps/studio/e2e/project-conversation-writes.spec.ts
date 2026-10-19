@@ -158,6 +158,61 @@ test('writes · offline, the line says so before any press and nothing is writte
   expect(await written(page, 'conversation-message')).toEqual(['conversation-message:Sent from the train.:no'])
 })
 
+test('writes · offline, an empty field says words wait, never that a message wasn’t sent (review of seam #8)', async ({
+  page,
+  context,
+}) => {
+  await openBriefs(page)
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await field(page).fill('Ship it Friday.')
+  await send(page).click()
+  await expect(messages(page).last()).toContainText('Ship it Friday.')
+  await expect(field(page)).toHaveValue('')
+  // A live region added with its words is often not read: the polite line is there, empty, before the network goes.
+  const polite = open(page).locator('.conv-compose p[role="status"]')
+  await expect(polite).toHaveCount(1)
+  await expect(polite).toHaveText('')
+  await context.setOffline(true)
+  await expect(polite).toHaveText('You’re offline. Your words wait here.')
+  await expect(open(page)).not.toContainText('wasn’t sent')
+  await field(page).fill('And the sources.')
+  await expect(polite).toHaveText('You’re offline, so this wasn’t sent. It waits here; send it once you’re back.')
+  await context.setOffline(false)
+  await expect(polite).toHaveText('')
+  expect(await written(page, 'conversation-message')).toEqual(['conversation-message:Ship it Friday.:no'])
+})
+
+test('writes · offline, a message held with no reply is not confirmed, never unsent; back online, Send sends it once', async ({
+  page,
+  context,
+}) => {
+  await openBriefs(page, '&send=lost')
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await field(page).fill('Did this one land?')
+  await send(page).click()
+  const line = open(page).locator('.conv-compose .conv-note:not(.conv-notice)')
+  await expect(line).toHaveText(/^Not confirmed: “Did this one land\?”/)
+  // It landed; its reply was lost, as a dropped connection loses one.
+  expect(await written(page, 'conversation-message')).toHaveLength(1)
+  await context.setOffline(true)
+  await expect(line).toHaveText(
+    'You’re offline, so “Did this one land?” isn’t confirmed. Send it again once you’re back; it won’t be written twice.',
+  )
+  await expect(line).toHaveAttribute('role', 'status')
+  await expect(open(page)).not.toContainText('wasn’t sent')
+  await expect(send(page)).toHaveAttribute('aria-disabled', 'true')
+  await field(page).press('Enter')
+  await send(page).click({ force: true })
+  await page.waitForTimeout(600) // a send let through would have gone by now
+  expect(await written(page, 'conversation-message')).toHaveLength(1)
+  await context.setOffline(false)
+  await expect(line).toHaveText(/^Not confirmed: “Did this one land\?”/)
+  await send(page).click()
+  await expect(open(page)).not.toContainText('Not confirmed')
+  await expect(messages(page).filter({ hasText: 'Did this one land?' })).toHaveCount(1)
+  expect(await written(page, 'conversation-message')).toHaveLength(1)
+})
+
 test('writes · words written while a message is on its way stay when it lands', async ({ page }) => {
   await openBriefs(page, '&send=slow')
   await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()

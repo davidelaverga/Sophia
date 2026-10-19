@@ -105,6 +105,49 @@ test('discussion · offline, the bar says so before any press and sends nothing;
   expect(await toRoom(page)).toEqual(['contribution:discuss'])
 })
 
+test('discussion · offline, an empty bar says words wait, never that a message wasn’t sent (review of seam #8)', async ({
+  page,
+  context,
+}) => {
+  await enter(page, 'people=2&floor=1')
+  await bar(page).fill('The deck is in Resources.')
+  await bar(page).press('Enter')
+  await expect(discussion(page).getByText('The deck is in Resources.')).toBeVisible()
+  await expect(bar(page)).toHaveValue('')
+  await context.setOffline(true)
+  const line = page.locator('.composer .outcome')
+  await expect(line).toHaveText('You’re offline. Your words wait here.')
+  await expect(page.getByText('wasn’t sent')).toHaveCount(0)
+  await context.setOffline(false)
+  await expect(line).toHaveCount(0)
+})
+
+test('discussion · offline, a message held with no reply is not confirmed, never unsent; back online, once', async ({
+  page,
+  context,
+}) => {
+  await enter(page, 'people=2&floor=1')
+  await page.evaluate(() => window.fixture?.loseNextContributionReply())
+  await bar(page).fill('Once only.')
+  await bar(page).press('Enter')
+  await expect(page.getByText('Not confirmed: “Once only.”')).toBeVisible()
+  await context.setOffline(true)
+  const line = page.locator('.composer .outcome')
+  await expect(line).toHaveText(
+    'You’re offline, so “Once only.” isn’t confirmed. Send it again once you’re back; it won’t be written twice.',
+  )
+  await expect(line.getByRole('button', { name: 'Try again' })).toHaveCount(0)
+  await bar(page).press('Enter')
+  await page.waitForTimeout(600) // a send let through would have gone by now
+  expect(await toRoom(page)).toEqual(['contribution:discuss']) // the first one, which landed
+  await context.setOffline(false)
+  await expect(page.getByText('Not confirmed: “Once only.”')).toBeVisible()
+  await page.getByRole('button', { name: 'Try again' }).click()
+  await expect(page.getByText('Not confirmed: “')).toHaveCount(0)
+  await expect(discussion(page).getByText('Once only.')).toHaveCount(1)
+  expect(await toRoom(page)).toEqual(['contribution:discuss'])
+})
+
 test('discussion · Shift+Enter starts a new line; Enter sends', async ({ page }) => {
   await enter(page, 'people=2&floor=1')
   await bar(page).fill('First line')

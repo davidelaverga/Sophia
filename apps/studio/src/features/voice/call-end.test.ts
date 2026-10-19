@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { BACK_ONLINE, CALL_END, keepsTextMode, noteFor, noteRole, OFFLINE_END } from './call-end.ts'
+import { BACK_ONLINE, CALL_END, keepsTextMode, keptNote, noteFor, noteRole, OFFLINE_END } from './call-end.ts'
 
 describe('why a call ended', () => {
   it('only a lost connection is a failure: the others were on purpose, here or elsewhere', () => {
@@ -65,5 +65,33 @@ describe('a call lost offline (costuras seam #8)', () => {
     assert.equal(noteRole(BACK_ONLINE), 'status')
     assert.equal(noteRole(lost), 'alert')
     assert.equal(noteRole('The room isn’t available right now. Try again in a moment.'), 'alert')
+  })
+})
+
+describe('what the room keeps when it says something, offline (review of costuras seam #8)', () => {
+  const lost = CALL_END.dropped.note
+  const down = 'The room isn’t available right now. Try again in a moment.'
+  const unreached = 'Couldn’t connect to the room. Check your connection and try again.'
+
+  it('offline, a join after a lost call that fails keeps the offline note: it never says the room isn’t there', () => {
+    assert.equal(keptNote(down, { online: false, lost: true }), OFFLINE_END)
+    assert.equal(keptNote(unreached, { online: false, lost: true }), OFFLINE_END)
+  })
+
+  it('offline, the call lost says so', () => {
+    assert.equal(keptNote(lost, { online: false, lost: true }), OFFLINE_END)
+  })
+
+  it('online, every note is kept as said: a true proves nothing', () => {
+    for (const note of [lost, down, unreached]) assert.equal(keptNote(note, { online: true, lost: true }), note, note)
+  })
+
+  it('offline with no call lost (a Join from rest), the note is kept as said', () => {
+    assert.equal(keptNote(down, { online: false, lost: false }), down)
+  })
+
+  it('a join that begins says nothing yet', () => {
+    assert.equal(keptNote(null, { online: false, lost: true }), null)
+    assert.equal(keptNote(null, { online: true, lost: false }), null)
   })
 })
