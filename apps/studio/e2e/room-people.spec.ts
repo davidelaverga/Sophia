@@ -116,7 +116,7 @@ test('sound · the block arriving in a call already live: its words come into th
   const before = await soundRegion(page).elementHandle()
   await page.evaluate(() => window.fixture?.blockSound())
   await expect(soundLine(page)).toContainText(SOUND)
-  expect(await before?.evaluate((el) => el.isConnected && el.textContent.includes('blocked'))).toBe(true)
+  expect(await before.evaluate((el) => el.isConnected && el.textContent.includes('blocked'))).toBe(true)
 })
 
 test('sound · put away with Not now, it stays away for that call; the next call says it again', async ({ page }) => {
