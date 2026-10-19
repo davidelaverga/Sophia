@@ -3119,6 +3119,29 @@ button.contribution-quote:hover {
   font-size: var(--type-small);
   text-align: center;
 }
+/* The call's sound blocked (sound-blocked-others.md): the line, then its two answers at its size, each kept whole as
+   the sentence wraps. Mounted all along so its words are announced; while it says nothing it is out of the layout. */
+.dock-sound {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  column-gap: 12px;
+}
+.dock-sound .text-button {
+  flex: none;
+  font-size: inherit;
+  white-space: nowrap;
+}
+.dock-sound:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
 /* The same note from other views, above the mini dock. */
 /* What the dock says, in one stack above it (below it in the header): each line takes its own height, so a note that
    wraps never meets her looking (Codex on #254). */
