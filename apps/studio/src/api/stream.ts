@@ -78,7 +78,7 @@ export async function followEvents(opts: FollowOptions): Promise<void> {
       headers: { authorization: `Bearer ${opts.token}`, accept: 'text/event-stream' },
       signal: watch.signal,
     })
-    if (!res.ok || !res.body) throw await toError(res)
+    if (!res.ok || !res.body) throw await toError(res, 'read')
     opts.onOpen()
     watch.alive()
     await readFrames(res.body, watch, opts.onFrame)

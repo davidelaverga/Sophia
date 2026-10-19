@@ -23,6 +23,29 @@ export function snapshotKey(projectId: string, identity: string) {
 
 const historyStart = (cursor: string) => (BigInt(cursor) > HISTORY ? (BigInt(cursor) - HISTORY).toString() : '0')
 
+/** The network came back, or the page was shown again: the feed asks now instead of waiting out its backoff. */
+function pageWakes(wake: () => void): () => void {
+  const shown = () => {
+    if (document.visibilityState === 'visible') wake()
+  }
+  window.addEventListener('online', wake)
+  document.addEventListener('visibilitychange', shown)
+  return () => {
+    window.removeEventListener('online', wake)
+    document.removeEventListener('visibilitychange', shown)
+  }
+}
+
+/** Waits `ms`, or until `woken`. */
+const sleep = (ms: number, woken: AbortSignal) =>
+  new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms)
+    woken.addEventListener('abort', () => {
+      clearTimeout(timer)
+      resolve()
+    })
+  })
+
 interface PortsDeps {
   token: string
   projectId: string
@@ -85,7 +108,9 @@ export function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => v
         void deps.queryClient.invalidateQueries({ queryKey: ['projects', deps.identity, 'archived'], exact: true })
       }, REFRESH_DEBOUNCE_MS)
     },
-    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    sleep,
+    wakes: pageWakes,
+    random: Math.random,
   }
   return {
     ports,
