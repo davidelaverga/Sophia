@@ -1011,6 +1011,41 @@ test('session · a conversation opened after the token expired shows its message
   expect(await unexpectedOf(page)).toEqual([])
 })
 
+/**
+ * Another tab of this browser signs in as `person` and keeps the session where every tab reads it, and its word hasn't
+ * reached this tab yet (no BroadcastChannel message): supabase-js here reads that session on its next look.
+ */
+async function storedByAnotherTab(context: BrowserContext, person: Person) {
+  const other = await context.newPage()
+  await other.goto(`${APP}/favicon.svg`)
+  await other.evaluate(([key, kept]) => localStorage.setItem(key, JSON.stringify(kept)), [
+    SESSION_KEY,
+    session(person),
+  ] as const)
+  await other.close()
+}
+
+// Independent review, P1: the session a renewal reads is the storage every tab shares. Another tab signed in as Luis,
+// not yet heard here, must never lend his token to Davide's refused read: no request goes out as Luis, and the read
+// fails as it did before renewals.
+test('session · another account signed in by another tab, not yet heard here: Davide’s refused read is never sent as them (review P1)', async ({
+  context,
+}) => {
+  const { page, calls } = await renewableIn(context, 'conversations')
+  await readingOpen(page)
+  await quiet(page)
+  await storedByAnotherTab(context, LUIS)
+  await page.evaluate(() => window.appFixture?.expireToken())
+  await rows(page).nth(1).click()
+  const briefs = `GET /api/v1/projects/${WORK_PROJECT}/conversations/${BRIEFS}/messages`
+  await expect.poll(() => refusedOf(page)).toContain(briefs)
+  const cannotRead = page.getByText('This conversation can’t be read now.')
+  await expect(cannotRead.or(page.locator('.conv-msg').filter({ hasText: 'One page.' }))).toBeVisible()
+  expect((await askedOf(page)).filter((a) => a.endsWith(` by ${LUIS.id}`))).toEqual([])
+  await expect(cannotRead).toBeVisible()
+  expect(refreshes(calls)).toBe(0)
+})
+
 test('session · the feed dropped after the token expired comes back up to date, never «signed out» (gap #3)', async ({
   context,
 }) => {
