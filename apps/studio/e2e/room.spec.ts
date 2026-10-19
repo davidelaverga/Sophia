@@ -396,7 +396,7 @@ test('BASE-03 · offline in the call, Chat with Sophia is answered by the call: 
   expect(await tokens(page), 'no token beyond the call’s own').toEqual(before)
   const dock = page.getByRole('navigation', { name: 'Room controls' })
   await expect(dock.getByRole('button', { name: 'Leave the room' })).toBeVisible()
-  // The press goes on as it does online, into the chat in text (the fixture's fetch ignores setOffline, so Sophia's
-  // ask goes through): the join was never what stopped it.
-  await expect(panel.locator('.message-bar .bar-target')).toHaveText(/^To Sophia/)
+  // The press goes on as it does online, into the call in text: text mode stays on. A join held here would have put it
+  // back as it was (chat-start.ts), leaving the microphone silenced and the chat unstarted.
+  await expect(page.getByRole('button', { name: /^Text mode/ })).toHaveAttribute('aria-pressed', 'true')
 })
