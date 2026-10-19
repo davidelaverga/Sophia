@@ -58,6 +58,17 @@ test('archive · a viewer reads the line, with nothing to press', async ({ page 
   await expect(line.getByRole('button')).toHaveCount(0)
 })
 
+test('archive · archived elsewhere, the line says so as the event arrives, with no return to the tab (Codex on #368)', async ({
+  page,
+}) => {
+  await page.goto('/room.html')
+  // The archived list read, and the feed up to date: only the event can tell the page now.
+  await expect.poll(() => served(page)).toContain('projects:archived')
+  await expect(header(page).locator('.connection')).toHaveAttribute('data-state', 'live')
+  await page.evaluate(() => window.fixture?.archivedElsewhere())
+  await expect(page.getByRole('status').filter({ hasText: 'This project is archived' })).toBeVisible({ timeout: 2000 })
+})
+
 test('archive · Work keeps archived projects folded under «Archived»: each opens, and an admin brings one back', async ({
   page,
 }) => {
