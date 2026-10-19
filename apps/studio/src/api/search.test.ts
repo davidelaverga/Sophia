@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ContractViolation, parseSearchPage } from '@sophia/contracts/validate'
-import { servedPage } from './search.ts'
+import { ApiError } from './client.ts'
+import { searchServed, servedPage } from './search.ts'
 
 const R = '00000000-0000-4000-8000-000000000001'
 const V = '00000000-0000-4000-8000-000000000002'
@@ -57,4 +58,34 @@ describe('the served search (A38) through the generated validator', () => {
     const unhashed = { ...recap, kind: 'note', cite: { recordId: M } }
     assert.throws(() => parseSearchPage({ hits: [unhashed], next: null }), ContractViolation)
   })
+})
+
+// R on 0d25 (r4315060306): A38's refusal is known from its status; an error body that never ends must not hold it back.
+describe('the served search refused (A38 401/403)', () => {
+  for (const status of [401, 403])
+    it(`a ${status} whose body never ends is refused at once, from its status (SYNTHETIC stalled body)`, async () => {
+      const real = globalThis.fetch
+      let cancelled = false
+      globalThis.fetch = () =>
+        Promise.resolve(
+          new Response(new ReadableStream({ cancel: () => void (cancelled = true) }), {
+            status,
+            headers: { 'content-type': 'application/json' },
+          }),
+        )
+      try {
+        const outcome = await Promise.race([
+          searchServed('token', R, 'heron', null).then(
+            () => 'answered',
+            (error: unknown) => error,
+          ),
+          new Promise((settle) => setTimeout(() => settle('still waiting on the body'), 500)),
+        ])
+        assert.ok(outcome instanceof ApiError, String(outcome))
+        assert.equal(outcome.status, status)
+        assert.equal(cancelled, true, 'the body is let go')
+      } finally {
+        globalThis.fetch = real
+      }
+    })
 })
