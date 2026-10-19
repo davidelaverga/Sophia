@@ -244,3 +244,49 @@ review round 1 (the next one updates only this record). Files changed against `f
   - CI is the run on record. `e2e-attention` and `e2e-served` weren't run here.
 - **Next bounded action.** Luis says whether this goes onto #468's branch or into its own PR once #468 merges. It is
   pushed only on his word, and merges on green with no open P1.
+
+## Review of the fix: a pending project Home doesn't show
+
+- Source: a P2 from the review of `2629a4117` (`useSinceNews.ts:151`), verified in the code. Only `online` and Home's
+  own read (its three rows, `homeShown`) ended a wait. So a call in a project outside those rows, ended on a 503 with
+  the browser still online, waited until the project entered Home's rows. That first read was then kept whole as the
+  call's, and what others did there meanwhile was never said on Home.
+- Commits, same branch and worktree, local only:
+  - `2e3a92852`: note.
+  - `a618458ba`: test, failing.
+  - `86c2b2e27`: fix.
+  - `d55724523`: second test, failing.
+  - `c9aaec65b`: second fix.
+  - `9f64318ab`: the attention guard's pattern.
+  - Then this record. The ending code commit is `9f64318ab179` (tree `2294289b0eb5`).
+- **Outcome** (`useSinceNews.ts` `usePendingReads`; `Places.tsx` and `fixtures/home.tsx` pass `theirs`): each arrival
+  on Home, once its rows are known, reads once each pending project that is among the person's projects but not among
+  Home's rows, and again if those rows change while Home is open. Its conditions are Home's own: on Home, under the
+  flags, out of a call. There is no timer and no polling, and most arrivals read nothing more. A project the person no
+  longer has is left to `online`, so an arrival never sends a read the service would refuse.
+- **Evidence.**
+  - Red at `a618458ba` (`pw-logs/call-seen-arrival-red.txt`): 1 failed, 7 passed. At line 176, the arrival read Product
+    launch once, the failed read, where two reads were expected.
+  - The same check with its read counts taken out, on a throwaway detached commit `b86f2b00c`, now unreachable
+    (`pw-logs/call-seen-arrival-red-harm.txt`), failed at the harm itself: «Received: ""» where «Since you last looked:
+    a note kept in Product launch. Open Updates» was expected.
+  - Red at `d55724523` (`pw-logs/call-seen-theirs-red.txt`): 1 failed, 8 passed. At line 202, a project the person
+    was removed from was read twice where once was expected.
+  - Green through the guard at `86c2b2e27`: 72/72. At `9f64318ab`: `home-since`, `home`, `app-auth` 73/73
+    (`pw-logs/call-seen-theirs-green.txt`).
+  - The Studio unit suite passes 1889/1891. The two failures are the known Windows path ones (`app/attention.test.ts`'s
+    first case, `features/conversations/browser-imports.test.ts`).
+  - Whole-repo `oxlint --type-aware` (0 diagnostics, 1371 files), `tsc --noEmit -p apps/studio` and Prettier on the
+    touched non-docs files are clean.
+- **Decisions.**
+  - No read on mount or on `visibilitychange`. It would end a wait a little sooner when the person lands elsewhere, at
+    the cost of a third read path.
+  - No new unit, because the change is which reads an arrival starts. `since-said.ts` is untouched.
+  - The arrival's read leaves Home's rows to Home's own read, so a project is read once per arrival.
+- **Remaining.**
+  - `c9aaec65b` alone fails the attention guard's pattern on any OS. The next commit, `9f64318ab`, names `theirs` in it;
+    history is never rewritten here.
+  - The note's limits stand. A wait keeps, along with the call's lines, what others did until the first read that
+    takes, because A34 gives a report no time. A project the person can't read any more costs one failed read per
+    `online` event. Updates opened on a pending project doesn't end the wait.
+  - CI is the run on record. `e2e-attention` and `e2e-served` weren't run here.

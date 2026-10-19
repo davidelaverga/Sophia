@@ -187,7 +187,7 @@
       nothing of it.
 - **Limits.**
   - A project the person can no longer read (removed from it, or deleted) stays pending on this device. Each `online`
-    event then costs one failed read, and Home doesn't show the project.
+    event then costs one failed read, and Home doesn't show the project. An arrival doesn't read it (review, below).
   - Updates opened on a pending project keeps the lines it shows, as before, but the project still waits. Home's next
     read of it then keeps that whole window, so a line that came between the two isn't said on Home. Updates lists it.
   - What a wait keeps along with the call's lines: what others did between the call's end and the first read that
@@ -202,20 +202,30 @@
   the browser still online, waits with nothing to read it, across reloads too. When that project later enters Home's
   rows, Home's first read of it is kept whole as the call's (`settlePending`). So what others did there since the call
   is never said on Home: Marco's four decisions over two weeks in Research, fifth in Work's order. Updates lists them.
-- **What changes** (`useSinceNews.ts`): each arrival on Home, once its rows are known, reads each pending project Home
-  doesn't show, once (`readAfter`). It runs beside Home's own reads and under the same conditions: on Home, under the
-  flags, out of a call. Most of the time nothing is pending, so an arrival reads nothing more. There is no timer and no
-  polling. A wait now keeps no more than what others did until the first arrival, or `online`, after the service is
-  back.
+- **What changes** (`useSinceNews.ts`, `usePendingReads`): each arrival on Home, once its rows are known, reads each
+  pending project Home doesn't show, once (`readAfter`). So does a change in Home's rows while it stays open. It runs
+  beside Home's own reads and under the same conditions: on Home, under the flags, out of a call. Most of the time
+  nothing is pending, so an arrival reads nothing more. There is no timer and no polling. A wait now keeps no more than
+  what others did until the first arrival, or `online`, after the service is back.
+- **Only the person's projects.** An arrival reads a pending project only if it is still among the person's projects
+  (`theirs`, which Places hands Home). One they were removed from, or that was deleted, can never be on Home, and each
+  arrival would otherwise send a read the service refuses, for good on that device. It is left to `online`, as before.
 - **Not added:** a read on mount or on `visibilitychange`. It would end a wait a little sooner when the person lands
   somewhere else, at the cost of a third read path to review.
 - **Check, written first** (`home-since.spec.ts`). The fixture gains `projects=fewer` (Design review archived, so
   Product launch is Home's third) and `since=later` (a second note kept in Product launch after the call). A call in
   Product launch, fourth and not shown, ends out of Home, and its read fails. The next arrival reads it once more, and
   the one after doesn't. Once Design review is archived, the note kept after the call is said («a note kept in
-  **Product launch**»), and the one the call held is not.
+  **Product launch**»), and the one the call held is not. A second check: the same call, then the projects read again
+  without Product launch. An arrival doesn't read it, and `online` does, once.
 - **No new unit.** What changes is which reads an arrival starts, not a rule over windows; `since-said.ts` stays as
   it is.
+- **Measured.**
+  - Before the fix, the first check failed at the arrival: Product launch was read once (the failed read) where two
+    reads were expected. With its read counts taken out, the same check failed at the harm itself: «Received: ""»
+    where «a note kept in **Product launch**» was expected.
+  - Before the filter, the second check failed at the arrival: Product launch was read twice where once was expected.
+  - After both: `home-since`, `home` and `app-auth` pass, 73/73.
 
 ## Limits
 
