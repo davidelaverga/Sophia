@@ -3,7 +3,9 @@ import { expect, test, type Page } from '@playwright/test'
 // The check before joining (docs/plans/device-check.md): beside Join, «Check audio and video» opens a sheet with the
 // camera's picture, a meter that moves with the voice, and the devices to choose; its Join enters the call with them.
 // The browser's camera and microphone are stood in for here: a painted canvas and a steady tone, and every request
-// for them is recorded. Every name and stream is synthetic.
+// for them is recorded. `gum=refuse` turns every request down; `gum=nocamera` and `gum=busy` turn down any that asks for
+// video, as the browser does with no camera plugged in or one another app holds (seam #5). Every name and stream is
+// synthetic.
 
 declare global {
   interface Window {
@@ -20,11 +22,20 @@ test.beforeEach(async ({ page }) => {
     (route) => route.abort(),
   )
   await page.addInitScript(() => {
-    const media = { asked: [] as MediaStreamConstraints[], stopped: 0, refuse: location.search.includes('gum=refuse') }
+    const gum = new URLSearchParams(location.search).get('gum')
+    const media = { asked: [] as MediaStreamConstraints[], stopped: 0, refuse: gum === 'refuse' }
     window.checkMedia = media
+    // A request is all or nothing: without its camera, the microphone asked with it is turned down too.
+    const turnedDown = (asked?: MediaStreamConstraints) => {
+      if (media.refuse) return new DOMException('Permission denied', 'NotAllowedError')
+      if (asked?.video && gum === 'nocamera') return new DOMException('Requested device not found', 'NotFoundError')
+      if (asked?.video && gum === 'busy') return new DOMException('Could not start video source', 'NotReadableError')
+      return null
+    }
     navigator.mediaDevices.getUserMedia = (asked?: MediaStreamConstraints) => {
       media.asked.push(structuredClone(asked ?? {}))
-      if (media.refuse) return Promise.reject(new DOMException('Permission denied', 'NotAllowedError'))
+      const refusal = turnedDown(asked)
+      if (refusal) return Promise.reject(refusal)
       const tracks: MediaStreamTrack[] = []
       if (asked?.video) {
         const canvas = document.createElement('canvas')
@@ -65,6 +76,8 @@ test.afterEach(async ({ page }) => {
 })
 
 const lastAsked = (page: Page) => page.evaluate(() => window.checkMedia?.asked.at(-1))
+/** The requests for the microphone alone, with no camera. */
+const micAlone = (page: Page) => page.evaluate(() => window.checkMedia?.asked.filter((asked) => !asked.video))
 
 test('check · before joining, the camera’s picture, a meter that moves with the voice, and the devices to choose', async ({
   page,
@@ -201,6 +214,42 @@ test('check · with access refused, it says how to give it, and Join still enter
   await expect(sheet(page).locator('.device-preview')).toHaveText(
     'Allow the camera and microphone in your browser’s site settings to check them here.',
   )
+  // A refusal isn't asked again for the microphone alone: a second prompt would nag (seam #5).
+  expect(await micAlone(page)).toEqual([])
   await sheet(page).getByRole('button', { name: 'Join the room' }).click()
   await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
+})
+
+test('check · with no camera, it says so in one line and checks the microphone alone, the meter moving', async ({
+  page,
+}) => {
+  await page.goto('/room.html?gum=nocamera')
+  await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()
+  // One line in the picture's place, a status: no «Your camera is off» under it, no site settings.
+  const line = sheet(page).locator('.device-preview p')
+  await expect(line).toHaveText('No camera found, so this checks your microphone only.')
+  await expect(line).toHaveAttribute('role', 'status')
+  // A second request, for the microphone alone, and its voice moves the meter. Once: StrictMode's first run of the
+  // sheet, let go before its answer, asks nothing more.
+  await expect.poll(() => micAlone(page)).toEqual([{ audio: true }])
+  const meter = sheet(page).getByRole('meter', { name: 'Microphone level' })
+  await expect.poll(async () => Number(await meter.getAttribute('aria-valuenow'))).toBeGreaterThan(0)
+  // The microphone's switch stays on the picture; there is no camera's to press.
+  await expect(sheet(page).getByRole('button', { name: 'Microphone', exact: true })).toBeVisible()
+  await expect(sheet(page).getByRole('button', { name: 'Camera', exact: true })).toHaveCount(0)
+  await sheet(page).getByRole('button', { name: 'Join the room' }).click()
+  await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
+})
+
+test('check · with the camera busy in another app, it says so, names no site settings, and checks the microphone', async ({
+  page,
+}) => {
+  await page.goto('/room.html?gum=busy')
+  await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()
+  const line = sheet(page).locator('.device-preview p')
+  await expect(line).toHaveText('Another app is using your camera. Close it to see yourself here; you can still join.')
+  await expect(sheet(page).locator('.device-preview')).not.toContainText('site settings')
+  const meter = sheet(page).getByRole('meter', { name: 'Microphone level' })
+  await expect.poll(async () => Number(await meter.getAttribute('aria-valuenow'))).toBeGreaterThan(0)
+  expect(await micAlone(page)).toEqual([{ audio: true }])
 })
