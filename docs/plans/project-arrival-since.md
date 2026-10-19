@@ -34,8 +34,8 @@
 
 ## What changes
 
-- **The line** (`ArrivalSince.tsx`, under the bar, where the welcome goes): «Since you last looked: 2 notes kept. Open
-  Updates», with a Dismiss press (×). The counts in words are Home's (`newsWords`, moved to `since-said.ts` beside
+- **The line** (`ArrivalSince.tsx`, under the bar, where the welcome goes, in its card): «Since you last looked: 2
+  notes kept. Open Updates», with a Dismiss press (×). The counts in words are Home's (`newsWords`, moved to `since-said.ts` beside
   `newsOf` so both surfaces say them the same way). There is no project name, since the bar already shows it. It is
   only what someone else did, and nothing already said, shown or seen on this device (`freshIn`, `unsaid`).
 - **A status mounted before its words**: an empty `role="status"` element is under the bar from the shell's first frame.
@@ -85,6 +85,19 @@
   - Dismiss ends it, and a move to Knowledge and back doesn't bring it or read again;
   - `place=updates`: no line; `call=on`: no line;
   - plain `demo=1` (no seen mark): no line.
+
+## Measured once green
+
+- **The read** (`seams/project-arrival-since` at `f4a188b1d`): one `/since` read per open, after the project is
+  drawn. Dismiss, then Knowledge and back, reads nothing more. The fixture page runs under StrictMode, whose second
+  mount reads again what the first let go, so the spec counts reads only between two moments, as `home-since.spec.ts`
+  does.
+- **The card**, from captures at 1280×800 dark and 390×844 light:
+  - at a desk it is 420 × 66 px, 16 px under the bar, on one line (at 360 px, its first width, the line broke after
+    «notes», hence 420);
+  - on a phone it is 358 × 86 px inside the gutters;
+  - its status is 0 px high in the flow, so nothing moves;
+  - no horizontal overflow.
 
 ## Limits
 
