@@ -118,7 +118,9 @@ function HeadingView({ block, citing }: { block: Extract<Block, { kind: 'heading
   const H = HEADINGS[block.level - 1] ?? 'h6'
   const mark = citing.marks?.get(block.anchor)
   return (
-    <H id={block.anchor ? `md-${block.anchor}` : undefined}>
+    // A heading of only punctuation or emoji has an empty anchor: it is named "_" (no slug can be), as Search names
+    // its hits, so a hit opens it (4306435438; persistence search.ts EMPTY_SECTION).
+    <H id={`md-${block.anchor || '_'}`}>
       <Inlines inline={block.children} citing={citing} />
       {mark && <span className="md-mark">{mark}</span>}
     </H>

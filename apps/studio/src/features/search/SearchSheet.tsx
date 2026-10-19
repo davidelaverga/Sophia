@@ -1,16 +1,19 @@
 // Search the project (docs/plans/room-search.md): A13's `search`, in a sheet from the project's head (or `/`). Every
-// hit shows its title, the record's own words and where it is from, and opens it: a report at its version (a section
-// at its heading), a meeting's recap, or the brief for a decision or a note. Only under the vision flag.
+// hit shows its title, the record's own words and where it is from, and opens it: a report at its version (a section at
+// its heading), a meeting's recap, the brief for a decision or a note, or the room's chat at a message. Under the
+// vision flag (the proposal), or the search flag (A38, served: docs/handoffs/FND-C4-PROJECT-SEARCH-attempt-1.md).
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { Goal, Membership, Snapshot } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
-import { listMeetings, searchProject, type SearchHit } from '../../api/vision.ts'
+import { searchProject } from '../../api/search.ts'
+import { listMeetings, type SearchHit } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import { Waiting } from '../../app/Waiting.tsx'
 import { canInvite } from '../access/useAccess.ts'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
+import { closedDoor } from '../studio/project-door.ts'
 import { useAskSophia } from '../studio/project-go.tsx'
 import { useKnownNames } from '../studio/useKnownNames.ts'
 import { DATE_WORDS } from '../updates/UpdatesView.tsx'
@@ -25,7 +28,18 @@ import { HEALTH_LABEL, healthOf, withDue } from '../work/goals-glance.ts'
 import { useTargetsRead } from '../work/GoalTargets.tsx'
 import { todayOf } from '../work/goal-due.ts'
 import { useNow } from '../../app/use-now.ts'
-import { around, hitRunning, hitSource, localHits, marked, TASK_LEAD, type LocalHit } from './search-view.ts'
+import {
+  around,
+  hitRunning,
+  hitSource,
+  localHits,
+  marked,
+  searchPages,
+  searchRefusedKey,
+  shownPages,
+  TASK_LEAD,
+  type LocalHit,
+} from './search-view.ts'
 
 /** The head's Search: where the focus goes back to from the search and from what it opened. */
 const searchAnchor = () => document.querySelector<HTMLElement>('[data-search-anchor]')
@@ -56,13 +70,40 @@ function useSettled(text: string, ms = 250): string {
 function useSearch(projectId: string, token: string, q: string) {
   return useInfiniteQuery({
     queryKey: ['vision', 'search', projectId, q],
-    queryFn: ({ pageParam, signal }) => searchProject(token, projectId, q, pageParam, signal),
+    // Each page with when its read was set out; a refusal kept as it settles (searchPages, R-C4-SEARCH-READ-01).
+    queryFn: searchPages(projectId, (cursor, signal) => searchProject(token, projectId, q, cursor, signal)),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.next,
     enabled: q.length >= MIN_QUERY,
     placeholderData: keepPreviousData,
     retry: false,
   })
+}
+
+/**
+ * When this person's own search of the project was last refused (401, 403), in this page's order (`searchOrder`, taken
+ * as the refused read settles, by searchPages; never the clock); 0 when never. Kept in the account's query cache (one
+ * per account, app/account-cache.ts), for every query of the project, whether or not a sheet saw it. Only read here: a
+ * refusal recorded later, when a render sees it, could hide a read set out in between.
+ */
+function useSearchRefused(projectId: string): number {
+  return useQuery({
+    queryKey: searchRefusedKey(projectId),
+    queryFn: () => 0,
+    initialData: 0,
+    enabled: false,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  }).data
+}
+
+/** The search, and the hits it may show: none read before this person's own refusal (R-C4-SEARCH-READ-01). */
+function useShownSearch(projectId: string, token: string, q: string) {
+  const search = useSearch(projectId, token, q)
+  const refusedAt = useSearchRefused(projectId)
+  // Nothing read before the refusal, its words or its hits' presses, until a read set out since answers.
+  const pages = shownPages(search.data?.pages, search.isError && closedDoor(search.error), refusedAt)
+  return { search, current: pages !== undefined, hits: pages?.flatMap((p) => p.hits) ?? [] }
 }
 
 interface Props {
@@ -76,6 +117,8 @@ interface Props {
   onClose: () => void
   /** A decision or a note: the room, with the brief open. */
   onBrief: () => void
+  /** A message (A38): the room's chat, at that message. */
+  onMessage: (hit: SearchHit) => void
   /** The project's plans, when read: the search finds tasks in them (search-goals.md). */
   plans: Readonly<Record<string, GoalPlan>> | undefined
   /** The served board's first read is under way: zero found is no answer yet (search-honest.md). */
@@ -105,7 +148,7 @@ function useLocal(props: Props, names: ReadonlyMap<string, string>): SheetProps[
 
 /** The search's sheet, and the meeting a recap hit opens. */
 export function ProjectSearch(props: Props) {
-  const { projectId, identity, snapshot, membership, room, open, onClose, onBrief } = props
+  const { projectId, identity, snapshot, membership, room, open, onClose, onBrief, onMessage } = props
   const names = useKnownNames(room)
   const local = useLocal(props, names)
   const [meeting, setMeeting] = useState<string | null>(null)
@@ -127,7 +170,8 @@ export function ProjectSearch(props: Props) {
     else if (hit.kind === 'report' || hit.kind === 'report_section') {
       const at = hit.cite.anchor ? { section: hit.cite.anchor } : {}
       viewer?.open({ artifactId: hit.id, versionId: hit.cite.recordId, ...at })
-    } else onBrief()
+    } else if (hit.kind === 'message') onMessage(hit)
+    else onBrief()
   }
   return (
     <>
@@ -210,13 +254,12 @@ function useFound(local: SheetProps['local'], q: string): LocalHit[] {
 function SearchSheet({ projectId, identity, onClose, onHit, onAsk, local }: SheetProps) {
   const [text, setText] = useState('')
   const q = useSettled(text.trim())
-  const search = useSearch(projectId, identity.token, q)
+  const { search, current, hits } = useShownSearch(projectId, identity.token, q)
   const field = useRef<HTMLInputElement>(null)
   // After the sheet's own focus as it opens: the search is typed into.
   useEffect(() => {
     requestAnimationFrame(() => field.current?.focus())
   }, [])
-  const hits = search.data?.pages.flatMap((p) => p.hits) ?? []
   const asked = q.length >= MIN_QUERY
   const found = useFound(local, q)
   const settledText = text.trim() === q
@@ -228,6 +271,8 @@ function SearchSheet({ projectId, identity, onClose, onHit, onAsk, local }: Shee
         className="search-field"
         aria-label="Search this project"
         placeholder="Goals, tasks, decisions, notes, reports, meetings"
+        // The service searches at most 200 characters (A38).
+        maxLength={200}
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
@@ -236,6 +281,7 @@ function SearchSheet({ projectId, identity, onClose, onHit, onAsk, local }: Shee
           search={search}
           q={q}
           hits={hits.length + found.length}
+          current={current}
           typing={!settledText}
           boardReading={local.reading}
           onAsk={onAsk}
@@ -250,7 +296,7 @@ function SearchSheet({ projectId, identity, onClose, onHit, onAsk, local }: Shee
           settledText &&
           hits.map((hit, i) => <Hit key={`${String(i)} ${hit.kind} ${hit.id}`} hit={hit} q={q} onHit={onHit} />)}
       </ul>
-      {asked && text.trim() === q && search.hasNextPage && !search.isPlaceholderData && <MoreResults search={search} />}
+      {asked && settledText && <MoreResults search={search} current={current} />}
     </Sheet>
   )
 }
@@ -261,10 +307,11 @@ type Search = ReturnType<typeof useSearch>
  * Whether the search has its answer, and whether it is still being read: while the words settle, or the board's tasks
  * are still on their way, the count so far is no answer (search-honest.md).
  */
-function stateOf(search: Search, typing: boolean, boardReading: boolean) {
+function stateOf(search: Search, current: boolean, typing: boolean, boardReading: boolean) {
   const fetching = (search.isFetching || search.isPending) && !search.isFetchingNextPage
   return {
-    settled: search.isSuccess && !search.isPlaceholderData && !typing && !boardReading,
+    // Pages read before a refusal are no answer: nothing found is not said over them (R-C4-SEARCH-READ-01).
+    settled: search.isSuccess && current && !search.isPlaceholderData && !typing && !boardReading,
     reading: fetching || boardReading,
   }
 }
@@ -274,13 +321,15 @@ function SearchOutcome(props: {
   search: ReturnType<typeof useSearch>
   q: string
   hits: number
+  /** The pages read may be shown: none read before this person's own refusal (`shownPages`). */
+  current: boolean
   typing: boolean
   /** The board's first read under way: its tasks may still answer (search-honest.md). */
   boardReading: boolean
   onAsk: ((q: string) => void) | null
 }) {
   const { search, q, hits } = props
-  const { settled, reading } = stateOf(search, props.typing, props.boardReading)
+  const { settled, reading } = stateOf(search, props.current, props.typing, props.boardReading)
   return (
     <>
       {/* Fetching, waiting for the network, or for the board: either way the list waits for this query. */}
@@ -312,9 +361,10 @@ function AskInstead({ q, onAsk }: { q: string; onAsk: ((q: string) => void) | nu
   )
 }
 
-/** The next page; the press keeps its focus while it is read. */
-function MoreResults({ search }: { search: ReturnType<typeof useSearch> }) {
+/** The next page, under this query's own current pages; the press keeps its focus while it is read. */
+function MoreResults({ search, current }: { search: ReturnType<typeof useSearch>; current: boolean }) {
   const reading = search.isFetchingNextPage
+  if (!current || !search.hasNextPage || search.isPlaceholderData) return null
   return (
     <button
       type="button"

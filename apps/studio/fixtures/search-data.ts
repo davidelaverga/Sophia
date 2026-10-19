@@ -1,7 +1,8 @@
 // A project search, answered as A13 proposes (issue #105): the decisions of every meeting, the notes kept, the report's
 // title and its sections, and the meetings' recaps, matched against the query ignoring case, three hits a page. Every
 // snippet is the record's own words. Every word is synthetic.
-import type { SearchHit, SearchPage } from '../src/api/vision.ts'
+import type { SearchHit as ServedHit } from '@sophia/contracts'
+import type { SearchHit } from '../src/api/vision.ts'
 import { anchorOf } from '../src/features/artifacts/markdown.ts'
 import { allRecaps, type Meeting } from './meeting-data.ts'
 import { DEMO } from './demo.ts'
@@ -11,6 +12,8 @@ export const SEARCH_PAGE = 3
 
 interface Searched {
   meeting: Meeting
+  /** The room's messages as the chat lists them, oldest first (A38 finds them; `before` is the next one's id). */
+  messages?: readonly { id: string; text: string; createdAt: string }[]
   kept: readonly { id: string; text: string | null; recordedAt: string }[]
   report: { versions: number; title: string; pilot: boolean | undefined }
 }
@@ -122,11 +125,49 @@ export function searchHits(s: Searched, q: string): SearchHit[] {
       at: r.startedAt,
       cite: { recordId: r.meetingId },
     }))
-  return [...decisions, ...notes, ...reportHits(s, q), ...meetings]
+  return [...decisions, ...notes, ...reportHits(s, q), ...messageHits(s, q), ...meetings]
+}
+
+/** The room's messages that say `q`, newest first, each with the message after it (A38's `before`). */
+function messageHits(s: Searched, q: string): SearchHit[] {
+  const all = s.messages ?? []
+  return all
+    .map((m, i) => ({ m, next: all[i + 1]?.id ?? null }))
+    .filter(({ m }) => has(m.text, q))
+    .toReversed()
+    .map(({ m, next }): SearchHit => ({
+      kind: 'message',
+      id: m.id,
+      title: 'Marco',
+      snippet: m.text,
+      meetingId: null,
+      at: m.createdAt,
+      cite: { recordId: m.id },
+      before: next,
+    }))
+}
+
+/**
+ * The hits as A38 serves them (the served page, VITE_SOPHIA_SEARCH without the vision flag): no recap, no meeting, each
+ * with its source's hash; only a message has `before`.
+ */
+export function servedHits(all: readonly SearchHit[]): ServedHit[] {
+  return all.flatMap(({ meetingId: _meeting, before, ...h }): ServedHit[] =>
+    h.kind === 'recap'
+      ? []
+      : [
+          {
+            ...h,
+            kind: h.kind,
+            cite: { ...h.cite, sha256: h.cite.sha256 ?? '0'.repeat(64) },
+            ...(h.kind === 'message' ? { before: before ?? null } : {}),
+          },
+        ],
+  )
 }
 
 /** One page of the hits, from the cursor (an offset, for the fixture). */
-export function searchPage(all: readonly SearchHit[], cursor: string | null): SearchPage {
+export function searchPage<T>(all: readonly T[], cursor: string | null): { hits: T[]; next: string | null } {
   const from = Number(cursor ?? '0')
   const to = from + SEARCH_PAGE
   return { hits: all.slice(from, to), next: to < all.length ? String(to) : null }
