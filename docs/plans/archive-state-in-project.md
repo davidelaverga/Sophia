@@ -21,11 +21,12 @@
 
 ## What changes
 
-- **`useProjectFeed.ts`, the debounced refresh:** an applied event also invalidates the archived list
-  (`['projects', identity, 'archived']`, `Archive.tsx`'s `archivedKey`), so the line comes or goes with the event. Not
-  filtered by type: the fixture's events all say `project.updated` (`fixture-api.ts`'s `frameOf`), and that file
-  belongs to the mute-all branch. The 120 ms debounce coalesces a burst into one read, and only an observed list is
-  read again (in a project, the line observes it).
+- **`useProjectFeed.ts`, the debounced refresh:** a burst holding a project event (`project.*`) also invalidates the
+  archived list (`['projects', identity, 'archived']`, `Archive.tsx`'s `archivedKey`), so the line comes or goes with
+  the event. The API's are `project.archived` / `project.unarchived`; the fixture's all say `project.updated`
+  (`fixtures/data.ts`'s `projectEvent`, sent by `fixture-api.ts`, which stays untouched), so the prefix passes both.
+  Room, chat and lobby events refresh the snapshot alone. The 120 ms debounce coalesces a burst into one read, and only
+  an observed list is read again (in a project, the line observes it). (Changed after the review, below.)
 - **`Archive.tsx`, one read helper:** `useIsArchived(identity, projectId)`, whether this project is among the archived
   ones, false until the read lands. The line uses it as it did inline.
 - **`ProjectName.tsx`:** the menu calls it before its early return (hook order) and offers «Archive project…» only to
@@ -39,10 +40,26 @@
   - in an archived project (`archived=1`), once the line says so, an admin's menu reads Rename…, Activity, Leave
     project…, with no Archive.
 
+## After the independent review (round 1: one P2)
+
+- **Every event re-read the archived list, and that read calls LiveKit (real):** `/api/v1/projects/archived`
+  (`apps/api/src/routes/projects.ts`) runs `roomsNow`, which asks LiveKit's `listRooms` whenever a listed project has a
+  room, then `listParticipants` for each live one; the snapshot route asks LiveKit nothing. So every room, chat and
+  lobby burst in a call cost each viewer that read, the history replay on open read it a second time, and a burst
+  landing while the read was out (up to `ROOM_LOOKUP_MS`, 2.5 s) cancelled it, so the line could lag. The «carry no
+  type» premise was wrong: the fixture's events do carry one, `project.updated`. Now `feedPorts`'s `apply` raises a
+  flag on a `project.*` frame, and the debounced refresh invalidates the archived list only while it is raised, then
+  lowers it. `project-feed-refresh.test.ts` (unit, written first) pins it: room events alone leave the list alone; a
+  project event anywhere in a burst reads it; the flag clears once read. `feedPorts` is exported for it.
+
 ## Limits
 
-- Every applied event reads the archived list once more while a project is open: one small read per burst. A filter on
-  `project.archived` / `project.unarchived` waits for the fixture's events to carry a type.
+- A burst holding any `project.*` event reads the archived list once more: archives and unarchives, and also renames,
+  joins, leaves and role changes, all rare beside room events. A narrower filter on `project.archived` /
+  `project.unarchived` waits for the fixture to send those types.
+- The events inside a gap (the feed resyncs from a snapshot) are never seen, so an archive among them reaches the line
+  with the next project event, or on focus once the list's 30 s `staleTime` has passed. Before the review any later
+  event did it; on `main` only the focus did.
 - Before the archived list lands, an admin's menu still offers Archive, as the line is still absent meanwhile.
 - The state still comes from the archived list; «Decouple archive status from the capped list» (#368) stays on the
   follow-up list, and `useIsArchived` is where it would change.
