@@ -154,6 +154,11 @@ declare global {
     pagesPending?: number
     pagesMost?: number
     releasePages?: () => void
+    /** 07: answers computed when asked but delivered only when released (a stale answer), one at a time. */
+    holdStale?: boolean
+    staleWaiting?: number
+    releaseStale?: (index: number) => void
+    sawStale?: boolean
   }
 }
 
@@ -163,6 +168,8 @@ async function heldPageReads(page: Page) {
   await page.addInitScript(() => {
     const w = window
     const control = { waiting: [] as (() => void)[] }
+    const staleWaiting: (() => void)[] = []
+    w.releaseStale = (index) => staleWaiting[index]?.()
     w.pagesPending = 0
     w.pagesMost = 0
     w.releasePages = () => {
@@ -174,6 +181,14 @@ async function heldPageReads(page: Page) {
       async (input, init) => {
         const url = new URL(input instanceof Request ? input.url : String(input), location.href)
         const earlierRead = url.pathname.endsWith('/discussion') && url.searchParams.has('before')
+        if (earlierRead && w.holdStale) {
+          const answer = await f(input, init) // computed now, as the page was when asked
+          staleWaiting.push(() => {})
+          const at = staleWaiting.length - 1
+          w.staleWaiting = staleWaiting.length
+          await new Promise<void>((resolve) => (staleWaiting[at] = resolve))
+          return answer
+        }
         if (!earlierRead || !w.holdPages) return f(input, init)
         w.pagesPending = (w.pagesPending ?? 0) + 1
         w.pagesMost = Math.max(w.pagesMost ?? 0, w.pagesPending)
@@ -282,4 +297,54 @@ test('earlier · a burst of held changes while reads are held keeps at most 3 re
   for (const n of [1, 3, 5, 7, 9]) await expect(page.getByText(`burst ${n}`, { exact: true })).toBeVisible()
   for (const n of [2, 4, 6, 8, 10]) await expect(page.getByText(`Message ${n}`, { exact: true })).toHaveCount(0)
   expect((await pending(page)).most).toBeLessThanOrEqual(3)
+})
+
+// 07 ordering (R fallback-reload): stale answers to a manual «Earlier messages» read, against the real caller.
+const idOf = (n: number) => `00000000-0000-4000-8000-${String(n + 1).padStart(12, '0')}`
+
+test('earlier · a message corrected elsewhere while a manual «Earlier messages» read is out: its stale answer never shows the old words (07)', async ({
+  page,
+}) => {
+  await heldPageReads(page)
+  await enter(page, 60)
+  await page.evaluate(() => (window.holdStale = true))
+  await earlier(page).click()
+  await expect.poll(() => page.evaluate(() => window.staleWaiting ?? 0)).toBe(1) // answered as it was, held
+  await page.evaluate((m) => window.fixture?.changeElsewhere(2, m, 'Message 3, corrected during the read'), idOf(2))
+  await page.evaluate(() => {
+    window.holdStale = false
+    new MutationObserver(() => {
+      for (const el of document.querySelectorAll('.contribution-text'))
+        if (el.textContent === 'Message 3') window.sawStale = true
+    }).observe(document.body, { childList: true, subtree: true, characterData: true })
+  })
+  await page.evaluate(() => window.releaseStale?.(0))
+  await expect(page.getByText('Message 3, corrected during the read', { exact: true })).toBeVisible()
+  expect(await page.evaluate(() => window.sawStale ?? false), 'the stale words were never on the page').toBe(false)
+  await expect(page.getByText('Message 2', { exact: true })).toBeVisible()
+})
+
+test('earlier · a manual «Earlier messages» read that lands after the pages were let go installs nothing (07)', async ({
+  page,
+}) => {
+  await heldPageReads(page)
+  await page.goto('/room.html?call=on&discussion=110&acts=1')
+  await expect(leave(page)).toBeVisible()
+  await chatToggle(page).click()
+  await earlier(page).click()
+  await expect(entries(page)).toHaveCount(100)
+  await page.evaluate(() => (window.holdStale = true))
+  await earlier(page).click() // the manual read of the oldest page: answered now, held (index 0)
+  await expect.poll(() => page.evaluate(() => window.staleWaiting ?? 0)).toBe(1)
+  await page.evaluate(() => window.fixture?.failEarlier())
+  await page.evaluate((m) => window.fixture?.changeElsewhere(20, m, 'Message 21, corrected'), idOf(20))
+  await expect.poll(() => page.evaluate(() => window.staleWaiting ?? 0)).toBe(2) // its refresh: fails, held (index 1)
+  await page.evaluate(() => window.releaseStale?.(1)) // the refresh fails first: the pages are let go
+  await expect(entries(page)).toHaveCount(50)
+  await page.evaluate(() => window.releaseStale?.(0)) // then the older manual read lands
+  await page.waitForTimeout(1000)
+  await expect(entries(page)).toHaveCount(50)
+  await expect(page.getByText('Message 1', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('Message 11', { exact: true })).toHaveCount(0)
+  await expect(earlier(page)).toBeVisible()
 })
