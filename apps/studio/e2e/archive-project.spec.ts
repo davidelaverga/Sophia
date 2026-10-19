@@ -103,6 +103,32 @@ test('archive · an admin of an archived project is offered no Archive, only the
   await expect(menu(page).getByRole('menuitem')).toHaveText(['Rename…', 'Activity', 'Leave project…'])
 })
 
+test('archive · Archive is offered only once the project is known not archived, never while its list loads (Codex on #469)', async ({
+  page,
+}) => {
+  const unknown = ['Rename…', 'Activity', 'Leave project…']
+  await page.goto('/room.html?archived=1&hold=archived')
+  await expect.poll(() => served(page)).toContain('projects:archived')
+  // Archived, its list not read yet: archiving it again would change nothing, yet end the call and go to Work.
+  await header(page).getByRole('button', { name: 'Fixture project' }).click()
+  await expect(menu(page).getByRole('menuitem')).toHaveText(unknown)
+  await page.evaluate(() => window.fixture?.releaseArchived())
+  await expect(page.getByRole('status').filter({ hasText: 'This project is archived' })).toBeVisible()
+  await expect(menu(page).getByRole('menuitem')).toHaveText(unknown)
+  // Not archived: offered once the list says so, and not before.
+  await page.goto('/room.html?hold=archived')
+  await expect.poll(() => served(page)).toContain('projects:archived')
+  await header(page).getByRole('button', { name: 'Fixture project' }).click()
+  await expect(menu(page).getByRole('menuitem')).toHaveText(unknown)
+  await page.evaluate(() => window.fixture?.releaseArchived())
+  await expect(menu(page).getByRole('menuitem')).toHaveText([
+    'Rename…',
+    'Activity',
+    'Archive project…',
+    'Leave project…',
+  ])
+})
+
 test('archive · inside an archived project a line says so, and Unarchive brings it back', async ({ page }) => {
   await page.goto('/room.html?archived=1')
   const line = page.getByRole('status').filter({ hasText: 'This project is archived' })
@@ -206,7 +232,7 @@ test('archive · Work says its archived projects couldn’t be read where «Arch
   await expect(failed).toHaveCount(0)
 })
 
-test('archive · inside an archived project whose archived list can’t be read, no line claims anything', async ({
+test('archive · inside an archived project whose archived list can’t be read, no line claims anything, and no Archive is offered (Codex on #469)', async ({
   page,
 }) => {
   await page.goto('/room.html?archived=1&archivedFails=1')
@@ -215,6 +241,8 @@ test('archive · inside an archived project whose archived list can’t be read,
   await expect.poll(refused, { timeout: 15_000 }).toBeGreaterThanOrEqual(4)
   await expect(page.getByText('This project is archived')).toHaveCount(0)
   await expect(page.getByText('Couldn’t load your archived projects.')).toHaveCount(0)
+  await header(page).getByRole('button', { name: 'Fixture project' }).click()
+  await expect(menu(page).getByRole('menuitem')).toHaveText(['Rename…', 'Activity', 'Leave project…'])
 })
 
 test('archive · an editor opens an archived project, with nothing to bring back; none archived, no fold', async ({

@@ -116,6 +116,8 @@ interface Project {
   archived?: boolean
   /** The archived list can't be read (`archivedFails=1`): every read of it is refused (503). */
   archivedFails?: boolean
+  /** The archived list's reads wait (`hold=archived`) until `window.fixture.releaseArchived` lets them through. */
+  archivedHeld?: boolean
   exchange: boolean
   /** The door shut under the shell (`window.fixture.shutDoor`): every snapshot read from now on is refused (403). */
   doorShut?: boolean
@@ -880,13 +882,28 @@ export function needsAnswer(now = Date.now()) {
   }
 }
 
-/** The person's archived projects (A30): this one, when it is; refused while `archivedFails`, recorded so. */
-function archivedListAnswer(project: Project): Response {
-  served.push(project.archivedFails ? 'projects:archived:refused' : 'projects:archived')
-  if (project.archivedFails) return unavailable()
+/** The person's archived projects (A30): this one, when it is. */
+function archivedList(project: Project): Response {
   const listed = { projectId: PROJECT, title: 'Fixture project', role: project.role ?? membership.role, members: 3 }
   const projects = project.archived && !project.left ? [{ ...listed, room: null, nextSession: null, releases: [] }] : []
   return json({ projects, personalEpoch: 1 })
+}
+
+/** Reads of the archived list the page holds, each waiting to be let through (`window.fixture.releaseArchived`). */
+const heldArchived: (() => void)[] = []
+
+/** The archived list's read: refused while `archivedFails`, recorded so; held while `archivedHeld`. */
+function archivedListAnswer(project: Project): Response | Promise<Response> {
+  served.push(project.archivedFails ? 'projects:archived:refused' : 'projects:archived')
+  if (project.archivedFails) return unavailable()
+  if (!project.archivedHeld) return archivedList(project)
+  return new Promise((resolve) => heldArchived.push(() => resolve(archivedList(project))))
+}
+
+/** Lets the held reads of the archived list through, and every later one. */
+export function releaseArchived(project: Project): void {
+  project.archivedHeld = false
+  for (const release of heldArchived.splice(0)) release()
 }
 
 /** The person's own reads (the projects they are in, what needs them); undefined for any other request. */

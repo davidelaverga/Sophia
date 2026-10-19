@@ -91,6 +91,7 @@ import {
   releaseSources,
   releaseTask,
   releaseText,
+  releaseArchived,
   releaseCovers,
   served,
   unexpected,
@@ -384,6 +385,8 @@ interface Fixture {
   holdSources: () => void
   /** The report's text, held since the page opened (`hold=text`), comes now. */
   releaseText: () => void
+  /** The archived list, held since the page opened (`hold=archived`), comes now. */
+  releaseArchived: () => void
   /** The library's covers, held since the page opened (`hold=covers`), come now, 400 ms apart. */
   releaseCovers: () => void
   /** The person goes home: the project is kept out of sight for its call, and the address is the places'. */
@@ -637,6 +640,8 @@ const project = {
   archived: query.get('archived') === '1',
   // `archivedFails=1`: the archived list can't be read (archive-keys-and-work.md).
   archivedFails: query.get('archivedFails') === '1',
+  // `hold=archived`: the archived list's reads wait for `releaseArchived` (archive-keys-and-work.md).
+  archivedHeld: query.get('hold') === 'archived',
   // `targets=1`: the rollout is Marco's, due 30 October 2026 (goal-owner-date.md); `targets=mine` adds the admin change
   // as the viewer's, due 20 November, and the completed pilot as theirs, due 1 October (goal-overdue.md).
   goalTargets: new Map(goalTargetsAsked(query.get('targets'))),
@@ -1228,6 +1233,7 @@ window.fixture = {
     project.sourcesHeld = true
   },
   releaseText: () => releaseText(project),
+  releaseArchived: () => releaseArchived(project),
   releaseCovers: () => releaseCovers(project),
   away: () => {
     window.history.pushState({ fixture: 'home' }, '', '/room.html?place=home') // the places' own entry
