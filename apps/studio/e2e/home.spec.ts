@@ -68,7 +68,9 @@ test('home · nothing soon and nobody in a room: Sophia claims nothing she hasn�
   await expect(page.locator('.hw-says')).toHaveCount(0)
 })
 
-test('home · quiet projects come without moving the greeting or «You and Sophia»: laid out as while they load', async ({
+// Her sentence comes and goes with Home open (the projects are read every 20 s, the clock moves): it keeps its place, so
+// nothing under the greeting moves under a pointer about to press (docs/plans/home-no-false-claim.md).
+test('home · Sophia’s sentence keeps its place: nothing under the greeting moves as the projects come, a session nears and passes', async ({
   page,
 }) => {
   // Layout offsets, not painted boxes: the greeting's words are still rising in as the page opens.
@@ -76,12 +78,19 @@ test('home · quiet projects come without moving the greeting or «You and Sophi
     page
       .locator('.hw-hello, .hw-you')
       .evaluateAll((els) => els.map((el) => (el instanceof HTMLElement ? el.offsetTop : null)))
-  await page.goto(`${PAGE}?projects=quiet`)
-  await expect(index(page).getByRole('listitem')).toHaveCount(4)
-  const quiet = await offsets()
+  const reread = (set: string) => page.evaluate((s) => window.homeFixture?.reread(s), set)
   await page.goto(`${PAGE}?projects=loading`)
   await expect(page.locator('.skeleton-shape')).toHaveCount(3)
-  expect(await offsets()).toEqual(quiet)
+  const loading = await offsets()
+  await reread('quiet')
+  await expect(index(page).getByRole('listitem')).toHaveCount(4)
+  expect(await offsets()).toEqual(loading)
+  await reread('four')
+  await expect(page.locator('.hw-says')).toHaveText('Standup in Product launch starts in 10 min.')
+  expect(await offsets()).toEqual(loading)
+  await reread('quiet')
+  await expect(page.locator('.hw-says')).toHaveCount(0)
+  expect(await offsets()).toEqual(loading)
 })
 
 test('home · ↑ and ↓ move in the index, Enter opens', async ({ page }) => {

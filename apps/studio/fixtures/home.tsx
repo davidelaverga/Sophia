@@ -1,8 +1,9 @@
 // Home's fixture page (e2e/home.spec.ts): the Studio's own Welcome, inside Places' frame, over labelled simulated
 // projects. The query string picks them: `projects=four` (default: Launch plan, Research notes, Design review, and
 // Product launch, whose Standup starts in 10 min), `quiet` (the same four, the Standup tomorrow), `live` (Davide and
-// Sophia in Pitch deck's room), `none`, `loading`,
-// `failed` (their read failed); `locked=1` (the personal space locked), `call=<id>` (in that project's call);
+// Sophia in Pitch deck's room), `none`, `loading`, `failed` (their read failed); `window.homeFixture.reread(<set>)`
+// reads them again with Home open, as Places does every 20 s, and answers that set; `locked=1` (the personal space
+// locked), `call=<id>` (in that project's call);
 // `away=1` (Home starts out of sight, as when someone lands on another place); `companion=unavailable|reading` (Sophia
 // can't answer in the personal space; or that isn't known yet), else she answers; `you=new` (no conversation yet), else
 // one from yesterday with 3 notes; `voice=none` (no speech on this device), else one that hears "the launch felt rushed" when
@@ -14,7 +15,7 @@ import { requestAddress } from '../src/features/resources/link.ts'
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { ProjectSummary } from '@sophia/contracts'
-import { StrictMode, useState } from 'react'
+import { StrictMode, useEffect, useState, type ComponentProps } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { PersonalTurn } from '@sophia/contracts'
 import {
@@ -57,6 +58,8 @@ declare global {
       urgentNeed: () => void
       /** `needs=api`: a need leaves (answered elsewhere), and the list is read again. */
       dropNeed: (id: string) => void
+      /** The projects are read again with Home open (Places reads them every 20 s) and answer another set. */
+      reread: (set: string) => void
     }
   }
 }
@@ -64,6 +67,8 @@ declare global {
 const query = new URLSearchParams(window.location.search)
 bootTheme(query.get('theme'))
 const pressed: string[] = []
+/** What `homeFixture.reread` answers: Home's own set, once it is on the page. */
+let answerWith: (set: string) => void = () => undefined
 /** How many times the needs' route was read (`needs=api`): none behind a shut padlock. */
 let needsReads = 0
 window.homeFixture = {
@@ -87,6 +92,7 @@ window.homeFixture = {
     void client.invalidateQueries({ queryKey: ['vision', 'needs'] })
   },
   hear: () => HeardRecognition.listening?.hear(),
+  reread: (next) => answerWith(next),
   // Where the focus lands on the way back from Personal (focus.ts): an element's id, else its tag.
   landing: () => {
     const at = homeRowFor('personal')
@@ -141,9 +147,8 @@ const SETS: Record<string, ProjectSummary[] | undefined> = {
   failed: undefined,
 }
 const set = query.get('projects') ?? (DEMO ? 'demo' : 'four')
-const projects = SETS[set]
 const inCall = query.get('call')
-const call = inCall ? { title: projects?.find((p) => p.projectId === inCall)?.title ?? '' } : null
+const call = inCall ? { title: SETS[set]?.find((p) => p.projectId === inCall)?.title ?? '' } : null
 
 /** What needs you, one of each kind, given out of order: the page orders them by urgency. */
 const NEEDS: Record<string, Need[] | undefined> = {
@@ -389,9 +394,31 @@ function FixtureLog({ hidden }: { hidden: boolean }) {
 const personalShown = (turnId: string | null) =>
   TURNS && turnId ? turnShown(turnId, TURNS === 'hidden' ? { within: 400 } : {}) : Promise.resolve(true)
 
+/** What Home's presses do here: each is recorded in `homeFixture.pressed`. */
+const ACTIONS: ComponentProps<typeof Welcome>['actions'] = {
+  personal: () => pressed.push('personal'),
+  notes: () => pressed.push('notes'),
+  work: () => pressed.push('work'),
+  newProject: () => pressed.push('new project'),
+  unlock: () => pressed.push('unlock'),
+  room: (projectId, action) => pressed.push(`${action} ${projectId}`),
+  say,
+}
+
+/** The projects' set Home shows: the query's, until `homeFixture.reread` answers another. */
+function useShown() {
+  const [shown, setShown] = useState(set)
+  useEffect(() => {
+    answerWith = setShown
+  }, [])
+  return shown
+}
+
 /** Home, with a way to step away from it (as going to another place does), for the checks of what stops out of sight. */
 function Home() {
   const [away, setAway] = useState(query.has('away'))
+  const shown = useShown()
+  const projects = SETS[shown]
   const fromApi = useNeeds(
     'fixture-token',
     {
@@ -420,14 +447,14 @@ function Home() {
           says={sophiaSays(projects, NOW, call, answers === true)}
           you={you}
           reads={
-            set === 'failed'
+            shown === 'failed'
               ? [{ state: 'failed', failed: READ_FAILED.projects, retry: () => undefined }]
               : fromApi.read
                 ? [fromApi.read]
                 : []
           }
           projects={projects}
-          loadingProjects={set === 'loading'}
+          loadingProjects={shown === 'loading'}
           now={NOW}
           inCallProject={inCall}
           count={workCount(projects)}
@@ -436,15 +463,7 @@ function Home() {
           needs={
             fromApi.seen ?? (needs ? { items: needs, open: (need) => pressed.push(`need ${need.id}`) } : undefined)
           }
-          actions={{
-            personal: () => pressed.push('personal'),
-            notes: () => pressed.push('notes'),
-            work: () => pressed.push('work'),
-            newProject: () => pressed.push('new project'),
-            unlock: () => pressed.push('unlock'),
-            room: (projectId, action) => pressed.push(`${action} ${projectId}`),
-            say,
-          }}
+          actions={ACTIONS}
         />
       </div>
     </div>
