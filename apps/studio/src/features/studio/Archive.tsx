@@ -24,12 +24,18 @@ const useArchivedRead = (identity: Identity) =>
     staleTime: 30_000,
   })
 
+/** Whether a project is archived, as the read of the archived ones says: unknown while it has nothing to say. */
+export type ArchiveStatus = 'archived' | 'not-archived' | 'unknown'
+
 /**
- * Whether this project is among the person's archived ones: false until that read lands, and while it fails, so
- * nothing inside the project claims it either way (only Work says the read failed).
+ * Whether this project is among the person's archived ones: unknown until that read lands, and while it fails with
+ * nothing read before, so nothing inside the project claims it, or acts on it, either way (only Work says the read
+ * failed; Codex on #469).
  */
-export function useIsArchived(identity: Identity, projectId: string): boolean {
-  return useArchivedRead(identity).data?.projects.some((p) => p.projectId === projectId) ?? false
+export function useArchiveStatus(identity: Identity, projectId: string): ArchiveStatus {
+  const projects = useArchivedRead(identity).data?.projects
+  if (!projects) return 'unknown'
+  return projects.some((p) => p.projectId === projectId) ? 'archived' : 'not-archived'
 }
 
 const failure = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback)
@@ -166,10 +172,10 @@ export function ArchivedLine({
   membership: Membership | undefined
 }) {
   const admin = membership?.role === 'admin'
-  const archived = useIsArchived(identity, projectId)
+  const status = useArchiveStatus(identity, projectId)
   const write = useArchiveWrite(identity)
   const [state, setState] = useState<{ sending: boolean; failed: string | null }>({ sending: false, failed: null })
-  if (!archived) return null
+  if (status !== 'archived') return null
   const unarchive = async () => {
     setState({ sending: true, failed: null })
     try {
