@@ -635,6 +635,8 @@ const project = {
     failFor: null as string | null,
   },
   description: SOPHIAS_DESCRIPTION,
+  // `summary=lost`: the first edit of the description lands, and its reply is lost (description-reply-lost.md).
+  summaryLost: query.get('summary') === 'lost',
   versionsFail: false as false | 'unavailable' | 'not_found',
   // `designcard=on`: the design task itself is in the project's work (its own DesignCard); `failDesign` fails its read.
   designCard: query.get('designcard') === 'on',

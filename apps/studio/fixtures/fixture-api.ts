@@ -159,6 +159,8 @@ interface Project {
   invitations?: Invitations
   /** The report's description on Knowledge (report-data.ts). */
   description: Description
+  /** The next edit of it lands, but its reply is lost (`summary=lost`, description-reply-lost.md). */
+  summaryLost?: boolean
   /**
    * How reads of the report's versions fail from now on: `unavailable`, as an API that lost its database answers;
    * `not_found`, as it refuses a report this person may not read; false, they succeed.
@@ -1471,7 +1473,9 @@ function edited(project: Project, path: string, init: RequestInit | undefined) {
   if (path !== `/api/v1/artifacts/${REPORT}/summary`) return null
   const { next, reply } = editDescription(project.description, init?.body, membership.actorId)
   project.description = next
-  return reply
+  if (!project.summaryLost) return reply
+  project.summaryLost = false
+  return Promise.reject(new TypeError('Failed to fetch')) // it landed; the page never hears so
 }
 
 /** The brief, and a note written in it, its withdrawal's preview and its withdrawal (brief-data.ts). */

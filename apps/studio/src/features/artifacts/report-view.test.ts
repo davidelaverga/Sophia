@@ -32,9 +32,12 @@ import {
   rereadFor,
   researchState,
   returnFrom,
+  settleUnheard,
   sourceTitle,
   sourceWords,
   spendText,
+  SUMMARY_KEPT,
+  SUMMARY_THEIRS,
   summaryEdit,
   versionMissing,
   versionReadFailure,
@@ -835,6 +838,49 @@ describe('a description edit', () => {
       summary: 'A sharper description',
       expectedRevision: 3,
     })
+  })
+})
+
+describe('a description save its reply never confirmed', () => {
+  const sent = { sent: 'My sharper description', base: 1 }
+  it('settles nothing while the card holds the revision it was sent against', () => {
+    assert.equal(settleUnheard(sent, { summary: 'Sophia’s description', summaryRevision: 1 }, sent.sent), null)
+    const unchanged = { sent: 'Sophia’s description', base: 1 }
+    assert.equal(
+      settleUnheard(unchanged, { summary: 'Sophia’s description', summaryRevision: 1 }, unchanged.sent),
+      null,
+      'the same words at the same revision prove nothing landed',
+    )
+  })
+  it('went through when a newer card reads the words sent: the form closes, said politely', () => {
+    const card = { summary: 'My sharper description', summaryRevision: 2 }
+    assert.deepEqual(settleUnheard(sent, card, '  My sharper description '), {
+      note: SUMMARY_KEPT,
+      close: true,
+      base: 2,
+    })
+    assert.equal(SUMMARY_KEPT.words, 'Saved. The reply was lost on the way, but the description reads as you wrote it.')
+    assert.equal(SUMMARY_KEPT.polite, true, 'a status in the past tense, never an alert')
+    assert.deepEqual(settleUnheard(sent, card, null), { note: SUMMARY_KEPT, close: false, base: 2 }, 'form closed')
+  })
+  it('keeps words typed since, over the revision now read', () => {
+    const card = { summary: 'My sharper description', summaryRevision: 2 }
+    assert.deepEqual(settleUnheard(sent, card, 'My sharper description, and more'), {
+      note: SUMMARY_KEPT,
+      close: false,
+      base: 2,
+    })
+  })
+  it('is someone else’s when a newer card reads other words: the typed words stay, offered over it', () => {
+    const card = { summary: 'A teammate’s description', summaryRevision: 3 }
+    assert.deepEqual(settleUnheard(sent, card, sent.sent), { note: SUMMARY_THEIRS, close: false, base: 3 })
+    assert.match(SUMMARY_THEIRS.words, /^Someone changed this description since you opened it\. /)
+    assert.equal(SUMMARY_THEIRS.polite, false)
+    assert.deepEqual(
+      settleUnheard(sent, card, null),
+      { note: null, close: false, base: 3 },
+      'the form closed: theirs shows on the card, attributed, and nothing more is said',
+    )
   })
 })
 

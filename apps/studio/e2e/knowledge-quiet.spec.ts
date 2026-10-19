@@ -82,3 +82,69 @@ test('quiet · every word on the tiles reads: no contrast under 4.5:1', async ({
   await expect(page.locator('.report-cover[data-cover="lines"]')).toHaveCount(2)
   expect(await lowContrast(page, '.report-cards')).toEqual([])
 })
+
+// Seam #9 (docs/plans/description-reply-lost.md): a save whose reply was lost is said as saved once the cards read back
+// the words sent, never blamed on a teammate; only other words are a conflict, and the typed ones stay.
+const SAVED = 'Saved. The reply was lost on the way, but the description reads as you wrote it.'
+
+test('quiet · a save whose reply was lost says it was saved, once, never that someone changed it', async ({ page }) => {
+  await page.goto('/room.html?place=knowledge&summary=lost')
+  const card = tile(page, 'Fixture report')
+  const edit = card.getByRole('button', { name: 'Edit description', exact: true })
+  const field = card.getByRole('textbox', { name: 'Description' })
+  await edit.click()
+  await field.fill('My sharper description')
+  await card.getByRole('button', { name: 'Save' }).click()
+  // No reply came, but the cards read again bring back the words sent: the form closes, said as saved, politely.
+  await expect(card.getByText(SAVED)).toHaveAttribute('role', 'status')
+  await expect(card.getByRole('alert')).toHaveCount(0)
+  await expect(field).toHaveCount(0)
+  await expect(card.getByText('My sharper description', { exact: true })).toBeVisible()
+  await expect(edit).toBeFocused() // the form had it: it comes back to Edit, nothing takes it elsewhere
+  // Once: the next Edit takes the line away, and a Save with no change is saved, never refused as someone else's.
+  await edit.click()
+  await expect(card.getByText(SAVED)).toHaveCount(0)
+  await card.getByRole('button', { name: 'Save' }).click()
+  await expect(field).toHaveCount(0)
+  await expect(card.getByText('My sharper description', { exact: true })).toBeVisible()
+  await expect(card.getByText(/Someone changed this description/)).toHaveCount(0)
+  await expect(card.getByText(SAVED)).toHaveCount(0)
+})
+
+test('quiet · a stale save whose words are the description already says it was saved, not someone else’s', async ({
+  page,
+}) => {
+  await page.goto('/room.html?place=knowledge')
+  const card = tile(page, 'Fixture report')
+  await card.getByRole('button', { name: 'Edit description', exact: true }).click()
+  const field = card.getByRole('textbox', { name: 'Description' })
+  await field.fill('My sharper description')
+  // The same words landed meanwhile, as a save whose reply this page never heard: unread here until Save is refused.
+  await page.evaluate(() => window.fixture?.describeElsewhere('My sharper description'))
+  await card.getByRole('button', { name: 'Save' }).click()
+  await expect(card.getByText(SAVED)).toHaveAttribute('role', 'status')
+  await expect(field).toHaveCount(0)
+  await expect(card.getByText(/Someone changed this description/)).toHaveCount(0)
+})
+
+test('quiet · other words saved meanwhile are a conflict: the typed words stay, and Save puts them in place', async ({
+  page,
+}) => {
+  await page.goto('/room.html?place=knowledge')
+  const card = tile(page, 'Fixture report')
+  await card.getByRole('button', { name: 'Edit description', exact: true }).click()
+  const field = card.getByRole('textbox', { name: 'Description' })
+  await field.fill('My own description')
+  await page.evaluate(() => window.fixture?.describeElsewhere('A teammate’s description'))
+  await card.getByRole('button', { name: 'Save' }).click()
+  await expect(card.getByRole('alert')).toHaveText(
+    'Someone changed this description since you opened it. Cancel to see theirs, or Save to use yours.',
+  )
+  await expect(field).toHaveValue('My own description')
+  await expect(card.getByText(SAVED)).toHaveCount(0)
+  // Told, the person saves theirs over the description now read.
+  await card.getByRole('button', { name: 'Save' }).click()
+  await expect(field).toHaveCount(0)
+  await expect(card.getByText('My own description', { exact: true })).toBeVisible()
+  await expect(card.getByRole('alert')).toHaveCount(0)
+})
