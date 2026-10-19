@@ -3,6 +3,7 @@
 // (Luis 2026-10-18). The tile clips what it holds, and its arrival leaves it the box of anything fixed inside it: the
 // menu hangs from a layer in the top layer (a manual popover) that stands over the press, so no clip, scroll or room
 // layer holds it. It opens over the tile, at the press's end, or at its start where the end would run off the screen.
+// Drawn only where the browser has that top layer (hasTopLayer); Safari before 17 keeps Switch camera.
 import { useLayoutEffect, useRef, useState } from 'react'
 import { Icon, MENU, Menu, MenuItem, Tip, usePopover, type MenuAlign } from '@sophia/ui'
 

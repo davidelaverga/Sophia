@@ -18,6 +18,7 @@ import {
   type StageMode,
 } from './room-view.ts'
 import { arrivalOrder, peopleTiles, tilesFor } from './tile-view.ts'
+import { hasTopLayer } from './camera-flip.ts'
 import { TileMenu } from './TileMenu.tsx'
 import { useMirror } from './mirror-preference.ts'
 
@@ -68,7 +69,8 @@ function TileAct(props: { label: string; icon: 'expand' | 'eyeOff' | 'flip'; onP
 
 /**
  * A tile's presses: Pin on others', Hide my tile and Switch camera on yours. A phone's strip holds one press a tile
- * (theme.css): with both of yours, the press that opens them as a menu (TileMenu, Luis 2026-10-18).
+ * (theme.css): with both of yours, the press that opens them as a menu (TileMenu, Luis 2026-10-18), where the browser
+ * has the top layer it stands in; Switch camera where it hasn't (Safari before 17).
  */
 function TilePresses({
   name,
@@ -84,7 +86,7 @@ function TilePresses({
         onPin && <TileAct label={`Pin ${name}`} icon="expand" onPress={onPin} />
       )}
       {onFlip && <TileAct label="Switch camera" icon="flip" onPress={onFlip} left />}
-      {onHide && onFlip && <TileMenu onFlip={onFlip} onHide={onHide} />}
+      {onHide && onFlip && hasTopLayer() && <TileMenu onFlip={onFlip} onHide={onHide} />}
     </>
   )
 }

@@ -11,6 +11,15 @@ export function nextCamera(cameras: readonly MediaDevice[], chosen: string | und
   return cameras[(at + 1) % cameras.length]?.id ?? null
 }
 
+/**
+ * Whether the browser has the top layer your tile's menu stands in on a phone's strip (the Popover API; TileMenu.tsx).
+ * Safari before 17 has none, and the build targets Safari 16.4: showing the menu there threw and took the call down, so
+ * the press stays Switch camera, as before the menu (a review's P1, phone-tiles-follow-ups.md).
+ */
+export const hasTopLayer = (
+  proto: object | undefined = typeof HTMLElement === 'undefined' ? undefined : HTMLElement.prototype,
+): boolean => proto !== undefined && 'showPopover' in proto
+
 /** A press of one call's switch, given the cameras listed and the switch, which says whether the call took it. */
 export type CameraPress = (cameras: readonly MediaDevice[], switchTo: (id: string) => Promise<boolean>) => Promise<void>
 

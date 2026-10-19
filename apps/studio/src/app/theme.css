@@ -6678,6 +6678,11 @@ button.contribution-quote:hover {
   .tile-strip .tile:has(> .tile-menu) > .tile-pin {
     display: none;
   }
+  /* Where the browser has no top layer for that menu (Safari before 17: no menu, VideoStage.tsx), the one press is
+     Switch camera, as before it, a phone having it nowhere else. */
+  .tile-strip .tile:has(> .tile-flip) > .tile-pin:not(.tile-flip) {
+    display: none;
+  }
   /* The press at the top-right, clear of the mute mark at the top-left (Codex P2 on #430): a 28 px square, as the
      strip's initial and chip are small; a 40 px one would leave 9 px of a 51 px tile. Its target is still a finger's,
      40 px from the tile's corner, over the mark and the chip, which aren't presses. */
