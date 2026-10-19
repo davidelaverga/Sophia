@@ -42,15 +42,19 @@ const isAccessError = (err: unknown) => err instanceof ApiError && (err.status =
 
 /**
  * The wait before asking again, ended by the first wake: one ask per wait, so the network coming back and the page
- * shown together still ask once. Nothing listens outside the wait.
+ * shown together still ask once. Nothing listens outside the wait. `stop` ends it too, so a page that leaves keeps
+ * no timer and no listener behind.
  */
-async function wait(ports: FeedPorts, ms: number): Promise<void> {
+async function wait(ports: FeedPorts, ms: number, stop: AbortSignal): Promise<void> {
   const woken = new AbortController()
-  const stopListening = ports.wakes(() => woken.abort())
+  const end = () => woken.abort()
+  const stopListening = ports.wakes(end)
+  stop.addEventListener('abort', end)
   try {
     await ports.sleep(ms, woken.signal)
   } finally {
     stopListening()
+    stop.removeEventListener('abort', end)
   }
 }
 
@@ -98,7 +102,7 @@ export async function runFeedLoop(ports: FeedPorts, stop: AbortSignal): Promise<
     }
     if (stopped() || ports.current().needsSnapshot) continue
     ports.setConnection('reconnecting')
-    await wait(ports, spread(backoff, ports.random()))
+    await wait(ports, spread(backoff, ports.random()), stop)
     backoff = Math.min(backoff * 2, MAX_BACKOFF_MS)
   }
 }
