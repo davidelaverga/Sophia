@@ -24,6 +24,8 @@ export interface Changes {
   readonly resyncs: number
   /** Of those, the corrections and withdrawals (they may erase a source other held messages share), by when learned. */
   readonly erasing?: ReadonlyMap<string, number>
+  /** Of those, the feed cursor of each message's latest correction or withdrawal (R-B56-P1: what supersedes a receipt). */
+  readonly erasedAt?: ReadonlyMap<string, string>
 }
 
 /** The events that may erase a message's source, with every message sharing it (A36, 0068; r4313704366). */
@@ -63,15 +65,24 @@ function tell(store: Store, changes: Changes) {
   for (const listener of store.listeners) listener()
 }
 
-/** The feed applied a message's correction or withdrawal: its id is kept, however many come at once. */
-export function contributionChanged(owner: string, id: string, erasing = false): void {
+/** The feed applied a message's correction or withdrawal (at `cursor`): its id is kept, however many come at once. */
+export function contributionChanged(owner: string, id: string, erasing = false, cursor?: string): void {
   const store = storeOf(owner)
   learned += 1
   const ids = new Map([...store.changes.ids, [id, learned]])
   const was = store.changes.erasing ?? new Map<string, number>()
-  if (ids.size > KEPT) tell(store, { ids: new Map(), resyncs: store.changes.resyncs + 1 })
-  else tell(store, { ...store.changes, ids, erasing: erasing ? new Map([...was, [id, learned]]) : was })
+  const at = store.changes.erasedAt ?? new Map<string, string>()
+  if (ids.size > KEPT) return tell(store, { ids: new Map(), resyncs: store.changes.resyncs + 1 })
+  const erasedAt = erasing && cursor !== undefined ? new Map([...at, [id, cursor]]) : at
+  tell(store, { ...store.changes, ids, erasing: erasing ? new Map([...was, [id, learned]]) : was, erasedAt })
 }
+
+/**
+ * Whether the reader's own receipt (its act's event at `receipt`) was superseded by a correction or withdrawal learned
+ * later (at `erased`, R-B56-P1): its words are erased then. Its own act's event, at the same cursor, does not.
+ */
+export const superseded = (receipt: string | null | undefined, erased: string | undefined): boolean =>
+  receipt !== null && receipt !== undefined && erased !== undefined && BigInt(erased) > BigInt(receipt)
 
 /**
  * What a correction or withdrawal of a message took with it (r4313704366): its old source, and with it the words of
@@ -299,7 +310,7 @@ export class HeldRefresher {
 }
 
 /** Whether a message as shown has words known erased (R-B55-P1). */
-type Erased = (shown: { id: string; sourceId?: string; revision?: number }) => boolean
+type Erased = (shown: { id: string; sourceId?: string; revision?: number }, receipt?: string | null) => boolean
 
 /** Keeps the held pages honest as the feed reports changes: returns the held ids not to show (fenced at render). */
 export function useHeldRefresh(input: {
@@ -426,10 +437,12 @@ function useErasure(changes: Changes, held: HeldMaps | null, window: readonly Pl
     generation: () => handledAt.current,
     // A message shown with a source known gone is not shown (R-B55-P1): a snapshot read since that lags or fails still
     // has it so, the one acted on too. The acted one shows again at a newer revision (a read since, the reader's receipt).
-    erased: (shown: { id: string; sourceId?: string; revision?: number }) =>
-      shown.sourceId !== undefined &&
-      gone.has(shown.sourceId) &&
-      (shown.revision ?? 1) <= (shownAt.current.get(shown.id) ?? Infinity),
+    // A receipt shown (`receipt`: its act's cursor) goes once a later correction or withdrawal erased it (R-B56-P1).
+    erased: (shown: { id: string; sourceId?: string; revision?: number }, receipt?: string | null) =>
+      superseded(receipt, changes.erasedAt?.get(shown.id)) ||
+      (shown.sourceId !== undefined &&
+        gone.has(shown.sourceId) &&
+        (shown.revision ?? 1) <= (shownAt.current.get(shown.id) ?? Infinity)),
   }
 }
 

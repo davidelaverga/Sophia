@@ -110,7 +110,11 @@ export function useEarlierDiscussion(
     reading: reading === 'loading',
   })
   const view = heldView(held, { entries: discussion, withdrawn: discussionWithdrawn }, acted)
-  const entries = view.entries.filter((e) => !stale.has(e.id) && !erased(e))
+  const receiptOf = (e: DiscussionEntry) => {
+    const a = acted.get(e.id)
+    return a?.type === 'corrected' && a.entry === e ? a.cursor : undefined
+  }
+  const entries = view.entries.filter((e) => !stale.has(e.id) && !erased(e, receiptOf(e)))
   const { withdrawn } = view
   const atStart = held?.atStart ?? false
   const load = () => {

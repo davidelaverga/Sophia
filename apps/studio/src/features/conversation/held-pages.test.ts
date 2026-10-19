@@ -13,6 +13,7 @@ import {
   ownerOf,
   READS,
   staleHeld,
+  superseded,
   withPage,
   windowAliasesOf,
   withoutAliases,
@@ -319,5 +320,25 @@ describe('held aliases of an erased source (r4313704366)', () => {
     assert.deepEqual(windowAliasesOf(window, new Set([id(700)]), new Set([id(1)])), [id(2), id(4)])
     assert.deepEqual(windowAliasesOf(window, new Set(), new Set([id(1)])), [])
     assert.deepEqual(windowAliasesOf(window, new Set([id(799)]), new Set()), [])
+  })
+})
+
+describe('a receipt superseded by a later erasure (R-B56-P1)', () => {
+  it('a correction or withdrawal at a later cursor supersedes it; its own act’s event, or none, does not', () => {
+    assert.equal(superseded('41', '42'), true)
+    assert.equal(superseded('41', '41'), false) // its own act's event
+    assert.equal(superseded('41', '40'), false)
+    assert.equal(superseded('41', undefined), false)
+    assert.equal(superseded(null, '42'), false) // nothing changed: no receipt shown
+    assert.equal(superseded('9007199254740993', '9007199254740994'), true) // beyond 2^53, exact
+  })
+
+  it('the feed keeps each message’s latest erasing cursor; a mention keeps none', () => {
+    const owner = ownerOf('b57', 'p')
+    contributionChanged(owner, id(1), true, '10')
+    contributionChanged(owner, id(1), true, '12')
+    contributionChanged(owner, id(2), false, '13')
+    assert.deepEqual([...(changesOf(owner).erasedAt ?? [])], [[id(1), '12']])
+    feedStopped(owner)
   })
 })
