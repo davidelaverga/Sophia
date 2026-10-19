@@ -21,6 +21,7 @@ import {
   ROOM,
   distinctJobs,
   familyOf,
+  fixtureCompleteness,
   isRoomGate,
   flakeRates,
   jobMinutes,
@@ -29,6 +30,7 @@ import {
   outcomeOf,
   parseRunSummary,
   roomDurations,
+  scenarioCounts,
   shardOf,
   specOf,
   summarizeM1,
@@ -255,27 +257,51 @@ function readResults() {
   return { run: runFile, records }
 }
 
-function measureFixture({ runSuite }) {
-  if (runSuite) {
-    const ran = spawnSync(SUITE, { cwd: STUDIO, stdio: 'inherit', shell: true })
-    if (ran.status !== 0) process.stderr.write(`The suite exited ${ran.status}; collecting what it wrote.\n`)
-  }
+/** How many scenarios the suite has per metric, from its listing; null if it can't be listed. */
+function expectedScenarios() {
+  const listed = spawnSync(`${SUITE} --list`, { cwd: STUDIO, encoding: 'utf8', shell: true, windowsHide: true })
+  return listed.status === 0 ? scenarioCounts(listed.stdout) : null
+}
+
+/** Runs the suite; its exit code, or the signal that ended it. */
+function runSuite() {
+  const ran = spawnSync(SUITE, { cwd: STUDIO, stdio: 'inherit', shell: true })
+  if (ran.status !== 0) process.stderr.write(`The suite exited ${ran.status ?? ran.signal}.\n`)
+  return ran.status ?? ran.signal
+}
+
+/**
+ * The fixture section. A metric whose scenarios didn't all write results (or every metric, when the suite failed)
+ * gives no summary, only how many of its scenarios wrote results of how many: half a run beside a whole one misleads.
+ */
+function measureFixture({ run: runFirst }) {
+  const exit = runFirst ? runSuite() : null
   const results = readResults()
   if (!results || results.records.length === 0) {
     process.stderr.write(`No results in ${RESULTS}. Run the suite first, from apps/studio:\n  ${SUITE}\n`)
     process.stderr.write('or run this script with --fixture --run.\n')
     process.exit(1)
   }
+  const written = {}
+  for (const r of results.records) written[r.metric] = (written[r.metric] ?? 0) + 1
+  const incomplete = fixtureCompleteness({ exit, written, expected: expectedScenarios() })
   const samples = (metric) => results.records.filter((r) => r.metric === metric).flatMap((r) => r.samples)
+  const metric = (name, summarize, kept = () => true) => {
+    const partial = incomplete?.metrics[name]
+    if (partial) return { incomplete: partial, samples: samples(name) }
+    return { ...summarize(samples(name).filter(kept)), samples: samples(name) }
+  }
+  const feed = ['M3', 'M4'].filter((name) => !incomplete?.metrics[name]).flatMap(samples)
   return {
     command: `cd apps/studio && ${SUITE}`,
     run: results.run,
     tests: results.records.map((r) => ({ metric: r.metric, test: r.test, samples: r.samples.length })),
-    m1: { ...summarizeM1(samples('M1')), samples: samples('M1') },
-    m2: { ...summarizeM2(samples('M2')), samples: samples('M2') },
-    m6: { ...summarizeM6(samples('M6')), samples: samples('M6') },
-    m7: { ...summarizeM7(samples('M7').filter((s) => s.reached !== false)), samples: samples('M7') },
-    feed: { cases: summarizeFeed([...samples('M3'), ...samples('M4')]), samples: [...samples('M3'), ...samples('M4')] },
+    ...(incomplete ? { incomplete } : {}),
+    m1: metric('M1', summarizeM1),
+    m2: metric('M2', summarizeM2),
+    m6: metric('M6', summarizeM6),
+    m7: metric('M7', summarizeM7, (s) => s.reached !== false),
+    feed: { cases: summarizeFeed(feed), samples: feed },
   }
 }
 
@@ -329,12 +355,58 @@ const FEED_CASES = {
   online: 'M3 · network back → Up to date',
   gap: 'M4 · sequence skipped → Up to date',
 }
-function feedRows(cases) {
-  return Object.entries(FEED_CASES).map(([name, label]) => {
-    const c = cases[name]
-    if (!c || c.ran === 0) return `| ${label} | not run (no lever on this page) |`
-    return `| ${label} | ${c.back}/${c.ran} back · p50 ${ms(c.p50)} · p95 ${ms(c.p95)} |`
-  })
+function feedRows(fx) {
+  return Object.entries(FEED_CASES).map(([name, label]) =>
+    row(fx, label, () => {
+      const c = fx.feed?.cases?.[name]
+      if (!c || c.ran === 0) return 'not run (no lever on this page)'
+      return `${c.back}/${c.ran} back · p50 ${ms(c.p50)} · p95 ${ms(c.p95)}`
+    }),
+  )
+}
+
+/** A metric's row; for a metric the run is partial for, how many of its scenarios wrote results instead of a value. */
+function row(fx, label, value) {
+  const partial = fx.incomplete?.metrics[/^M\d+/.exec(label)[0]]
+  if (partial) return `| ${label} | incomplete: ${partial.ran} of ${partial.expected ?? '?'} scenarios wrote results |`
+  return `| ${label} | ${value()} |`
+}
+
+/** Why some metrics give no numbers. */
+function incompleteNote(incomplete) {
+  if (!incomplete) return []
+  const why =
+    incomplete.exit === null
+      ? 'some metrics have fewer results than the suite has scenarios'
+      : `the suite exited ${incomplete.exit}, so no metric can be read as whole`
+  return [`**Incomplete:** ${why}. Those give no numbers: run the whole suite again.`, '']
+}
+
+/** M6's views, one line each; none for a partial run. */
+function m6Table(fx) {
+  if (fx.incomplete?.metrics.M6) return []
+  return [
+    '',
+    '| M6 view | Failed reads | Shown |',
+    '| --- | --- | --- |',
+    ...fx.m6.samples.map(
+      (s) =>
+        `| ${s.view} | ${s.failedReads} | ${s.failedReads === 0 ? 'not reached' : s.visible ? 'visible' : 'silent'} |`,
+    ),
+  ]
+}
+
+/** M7's reads, one line each; none for a partial run. */
+function m7Table(fx) {
+  if (fx.incomplete?.metrics.M7) return []
+  return [
+    '',
+    '| M7 read | Answered 502/503 | Errors seen | Back without a press | After |',
+    '| --- | --- | --- | --- | --- |',
+    ...fx.m7.samples.map(
+      (s) => `| ${s.read} | ${s.failures} | ${s.errors} | ${s.recovered ? 'yes' : 'no'} | ${ms(s.ms)} |`,
+    ),
+  ]
 }
 
 /** What can't be measured yet: M3/M4 only while no feed scenario ran. */
@@ -344,32 +416,41 @@ const notYet = (report) => {
 }
 
 function fixtureMarkdown(fx) {
-  const lines = [
+  const { m1, m2, m6, m7 } = fx
+  return [
     `## Fixture · ${fx.run?.commit ?? 'unknown commit'} · ${fx.run?.startedAt ?? ''}`,
     '',
+    ...incompleteNote(fx.incomplete),
     '| Metric | Value |',
     '| --- | --- |',
-    `| M1 · keyed write, press → answer | p50 ${ms(fx.m1.total.p50)} · p95 ${ms(fx.m1.total.p95)} (${fx.m1.definitive}/${fx.m1.n} definitive; ${pct(fx.m1.withinFiveSeconds)} within 5 s) |`,
-    `| M1 · overhead past the held reply | p50 ${ms(fx.m1.overhead.p50)} · p95 ${ms(fx.m1.overhead.p95)} |`,
-    `| M2 · unknown outcome resolved by resend, same key | ${pct(fx.m2.share)} (${fx.m2.resolved}/${fx.m2.n}; written twice: ${fx.m2.duplicates}; resend → answer p50 ${ms(fx.m2.resend.p50)}) |`,
-    `| M6 · failed reads shown / silent | ${fx.m6.visible} visible · ${fx.m6.silent} silent of ${fx.m6.reached} reached (${fx.m6.notReached.length} not reached) |`,
-    `| M7 · 502/503 in HTML cured without a press | ${pct(fx.m7.share)} (${fx.m7.recovered}/${fx.m7.n}; time p50 ${ms(fx.m7.time.p50)} · p95 ${ms(fx.m7.time.p95)}) |`,
-    ...feedRows(fx.feed?.cases ?? {}),
-    '',
-    '| M6 view | Failed reads | Shown |',
-    '| --- | --- | --- |',
-    ...fx.m6.samples.map(
-      (s) =>
-        `| ${s.view} | ${s.failedReads} | ${s.failedReads === 0 ? 'not reached' : s.visible ? 'visible' : 'silent'} |`,
+    row(
+      fx,
+      'M1 · keyed write, press → answer',
+      () =>
+        `p50 ${ms(m1.total.p50)} · p95 ${ms(m1.total.p95)} (${m1.definitive}/${m1.n} definitive; ${pct(m1.withinFiveSeconds)} within 5 s)`,
     ),
-    '',
-    '| M7 read | Answered 502/503 | Errors seen | Back without a press | After |',
-    '| --- | --- | --- | --- | --- |',
-    ...fx.m7.samples.map(
-      (s) => `| ${s.read} | ${s.failures} | ${s.errors} | ${s.recovered ? 'yes' : 'no'} | ${ms(s.ms)} |`,
+    row(fx, 'M1 · overhead past the held reply', () => `p50 ${ms(m1.overhead.p50)} · p95 ${ms(m1.overhead.p95)}`),
+    row(
+      fx,
+      'M2 · unknown outcome resolved by resend, same key',
+      () =>
+        `${pct(m2.share)} (${m2.resolved}/${m2.n}; written twice: ${m2.duplicates}; resend → answer p50 ${ms(m2.resend.p50)})`,
     ),
+    row(
+      fx,
+      'M6 · failed reads shown / silent',
+      () =>
+        `${m6.visible} visible · ${m6.silent} silent of ${m6.reached} reached (${m6.notReached.length} not reached)`,
+    ),
+    row(
+      fx,
+      'M7 · 502/503 in HTML cured without a press',
+      () => `${pct(m7.share)} (${m7.recovered}/${m7.n}; time p50 ${ms(m7.time.p50)} · p95 ${ms(m7.time.p95)})`,
+    ),
+    ...feedRows(fx),
+    ...m6Table(fx),
+    ...m7Table(fx),
   ]
-  return lines
 }
 
 function markdown(report) {
@@ -411,7 +492,11 @@ async function main() {
     const since = values.since ?? new Date(Date.now() - 7 * DAY).toISOString()
     write(values.out, 'ci', await measureCi({ repo: values.repo, since }))
   }
-  if (values.fixture) write(values.out, 'fixture', measureFixture({ runSuite: values.run }))
+  if (values.fixture) {
+    const fixture = measureFixture({ run: values.run })
+    write(values.out, 'fixture', fixture)
+    if (fixture.incomplete) process.exitCode = 1
+  }
 }
 
 await main()

@@ -355,3 +355,36 @@ export function summarizeFeed(samples) {
   }
   return result
 }
+
+/** The fixture's metrics, each written by its own scenarios (their titles start `Mn · `, a describe's or their own). */
+const FIXTURE_METRICS = ['M1', 'M2', 'M3', 'M4', 'M6', 'M7']
+
+/**
+ * How many scenarios a suite has per metric, from `playwright test --list` (one line per test, `… › file:line:col ›
+ * Mn · …`); null if the listing doesn't end with its «Total: N tests».
+ */
+export function scenarioCounts(listing) {
+  if (!/^Total: \d+ tests? in /m.test(listing)) return null
+  const counts = {}
+  for (const [, metric] of listing.matchAll(/^\s+\[[^\]]+\] › \S+ › (M\d+) · /gm)) {
+    counts[metric] = (counts[metric] ?? 0) + 1
+  }
+  return counts
+}
+
+/**
+ * Which fixture metrics can be published. `exit`: the suite's (null when it ran elsewhere, through the guard);
+ * `written`: records per metric; `expected`: scenarios per metric (null: unknown). A failed suite leaves every metric
+ * partial (a scenario can fail after writing its record); otherwise a metric with fewer records than scenarios is.
+ * Null when all are whole; else the exit and, per partial metric, how many scenarios wrote results of how many.
+ */
+export function fixtureCompleteness({ exit, written, expected }) {
+  const failed = exit !== null && exit !== 0
+  const metrics = {}
+  for (const metric of FIXTURE_METRICS) {
+    const ran = written[metric] ?? 0
+    const of = expected?.[metric] ?? null
+    if (failed || (of !== null && ran < of)) metrics[metric] = { ran, expected: of }
+  }
+  return Object.keys(metrics).length === 0 ? null : { exit, metrics }
+}
