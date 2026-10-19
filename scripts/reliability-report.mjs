@@ -48,6 +48,7 @@ const RESULTS = process.env.RELIABILITY_RESULTS ?? join(STUDIO, 'reliability-res
 const CACHE = join(ROOT, '.reliability-cache')
 const WORKFLOW = join(ROOT, '.github', 'workflows', 'ci.yml')
 const DAY = 86_400_000
+const RUN_FIELDS = 'databaseId,headSha,headBranch,event,status,conclusion,attempt,createdAt,updatedAt'
 const run = promisify(execFile)
 
 /** The suite's command, as the script runs it with `--run` (on Luis's machine, through the guard instead). */
@@ -123,17 +124,26 @@ function limitsFrom(workflowText) {
  * runs, and a busy week has more.
  */
 async function listRuns(repo, since, until) {
-  const fields = 'databaseId,headSha,headBranch,event,status,conclusion,attempt,createdAt,updatedAt'
   const days = []
   for (let from = Date.parse(since); from < Date.parse(until); from += DAY) {
     const to = new Date(Math.min(from + DAY, Date.parse(until))).toISOString()
     days.push(`${new Date(from).toISOString().slice(0, 19)}Z..${to.slice(0, 19)}Z`)
   }
   const lists = await pool(days, 4, (range) =>
-    gh(['run', 'list', '-R', repo, '--workflow', 'ci', '--created', range, '--limit', '1000', '--json', fields]),
+    gh(['run', 'list', '-R', repo, '--workflow', 'ci', '--created', range, '--limit', '1000', '--json', RUN_FIELDS]),
   )
   const seen = new Set()
   return lists.flat().filter((r) => !seen.has(r.databaseId) && seen.add(r.databaseId))
+}
+
+/**
+ * Main's 20 newest `ci` push runs created before `since` (M12): they set the state main was in as the window opens,
+ * and hold the runs begun before it that end inside.
+ */
+function mainRunsBefore(repo, since) {
+  const before = `<${new Date(Date.parse(since)).toISOString().slice(0, 19)}Z`
+  const filters = ['--workflow', 'ci', '--branch', 'main', '--event', 'push', '--created', before]
+  return gh(['run', 'list', '-R', repo, ...filters, '--limit', '20', '--json', RUN_FIELDS])
 }
 
 /** The `ci` runs of the window, every attempt's jobs for the completed ones. */
@@ -236,13 +246,15 @@ async function measureCi({ repo, since }) {
   const limitOf = limitsFrom(workflowText)
   const { runs, attempts } = await readRuns(repo, since, until)
   const entries = jobEntries(attempts, limitOf)
+  const listed = new Set(runs.map((r) => r.databaseId))
+  const before = (await mainRunsBefore(repo, since)).filter((r) => !listed.has(r.databaseId))
   return {
     repo,
     window: { since, until, runs: runs.length, completedAttempts: attempts.length, jobs: entries.length },
     roomLimit: limitOf(ROOM),
     m10: { flakes: flakeRates(entries), jobs: jobTable(entries), roomFailures: await roomFailures(repo, entries) },
     m11: roomDurations(entries, limitOf(ROOM)),
-    m12: mainHealth(mainAttempts(runs, attempts), until),
+    m12: mainHealth(mainAttempts([...before, ...runs], attempts), until, since),
   }
 }
 

@@ -257,18 +257,31 @@ function redSpans(runs, commits, now) {
   return spans
 }
 
+/** The red time inside the window from `since`: a span begun before it counts from `since`; one over by then, not. */
+function withinWindow(spans, since) {
+  if (!since) return spans
+  const start = Date.parse(since)
+  return spans
+    .filter((span) => Date.parse(span.to) > start)
+    .map((span) => (Date.parse(span.from) < start ? { ...span, from: since } : span))
+}
+
 /**
  * M12. `runs`: one entry per attempt of main's `ci` runs ({ sha, attempt, conclusion, createdAt, completedAt }).
  * The share of commits whose latest attempt is green, and the hours main stayed red: from a red commit's end until a
- * newer commit (or a rerun of it) ends green; a window that ends red counts until `now`.
+ * newer commit (or a rerun of it) ends green; a window that ends red counts until `now`, and says since when. With
+ * `since`, `runs` may hold runs created before it: they set main's state as the window opens (and a run begun before
+ * it may end inside), but only the window's commits and red time are counted.
  */
-export function mainHealth(runs, now) {
-  const commits = commitStates(runs)
+export function mainHealth(runs, now, since = null) {
+  const all = commitStates(runs)
+  const commits = since ? all.filter((c) => Date.parse(c.createdAt) >= Date.parse(since)) : all
   const count = (state) => commits.filter((c) => c.state === state).length
   const [green, red] = [count('green'), count('red')]
-  const spans = redSpans(runs, commits, now)
+  const walked = redSpans(runs, all, now)
+  const spans = withinWindow(walked, since)
   const hours = (span) => (Date.parse(span.to) - Date.parse(span.from)) / 3_600_000
-  const last = spans.at(-1)
+  const last = walked.at(-1)
   return {
     commits: commits.length,
     green,
