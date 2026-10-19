@@ -3,7 +3,7 @@
 > 2026-10-19 · costuras.md seam #7, first cut (`evaluacion-2026-10-18/experiencia/costuras.md`); Luis 2026-10-18:
 > «Que sigue>» after «Todo trabajo nuevo que hagas ten en cuenta nuestro cuello de botella actual. Si se puede hacer en
 > un pr, excelente o como veas, que alivie la presión pero hay que seguir trabajando». Studio only; one line taken
-> away, none added.
+> away, none added; its place held.
 
 ## What was measured
 
@@ -21,6 +21,11 @@
 - Arriving with quiet projects moves the page today. While the projects load there is no sentence. When they come,
   the claim arrives and pushes «You and Sophia» and the rows down by its height, 46 px at a desk (a 22 px margin
   and a 24 px line).
+- The sentence comes and goes with Home open. Places reads the projects every 20 s (`usePersonal.ts`,
+  `refetchInterval: 20_000`) and its clock moves every 20 s (`Places.tsx`, `useNow(20_000)`), so a session nearing,
+  someone entering a room or a call ending changes it under the person's eyes. On main the claim kept the place and
+  one sentence replaced another where it stood. Emptied, the place would close and open: 46 px of movement under a
+  pointer about to press the line would put the press on «Continue» (review P2, first round).
 
 ## What changes
 
@@ -30,8 +35,11 @@
   session, a room, or no projects. None of them fits a person whose projects are quiet. A new sentence, even «You have
   4 projects», would be a claim of its own, and the rows already say each project's people. Saying nothing claims
   nothing and adds no element. Once since reads exist, the full #7 puts a true line in this place.
-- **Nothing moves when quiet projects arrive.** The page draws them as it draws the loading state, so the greeting
-  and «You and Sophia» stay where they were.
+- **Her sentence's place is held** (`Welcome.tsx`, `.hw-says-held` in `personal.css`). With nothing to say, `Greeting`
+  draws one empty line of the sentence (aria-hidden, 22 px above it and 24 px of its type, `min-height: 1lh`) instead
+  of closing up, as `.hw-held` holds the line's place while it is unknown (home-no-companion.md). Loading, quiet
+  projects and any one-line sentence lay out the same: nothing under the greeting moves when a sentence comes or goes,
+  and the projects' arrival no longer pushes the page down either.
 - **The lever:** `home.html?projects=quiet`. It holds the same four projects, with Product launch's Standup moved to
   tomorrow, so nothing starts soon and nobody is in a room. That is a return after a while away.
 
@@ -41,15 +49,19 @@
   old assertion of the claim is inverted. The cases for the call, the session soon, the live room and no projects stay
   as they are, word for word, with the strong part on the project's name.
 - **Browser** (`home.spec.ts`, `home.html?projects=quiet`): the four rows are there, and there is neither «Your projects
-  are as you left them.» nor a `.hw-says`. The greeting and «You and Sophia» sit at the same offsets as on
-  `?projects=loading` (on main «You and Sophia» sits 46 px lower). The greeting's own checks (`home-first-glance`, the
-  phone mark checks in `home.spec`, `home-needs`, `home-phone-needs`) run on `four` and stay as they are.
+  are as you left them.» nor a `.hw-says`. The greeting's own checks (`home-first-glance`, the phone mark checks in
+  `home.spec`, `home-needs`, `home-phone-needs`) run on `four` and stay as they are.
+- **Browser, in place** (`home.spec.ts`, `homeFixture.reread(set)`, the projects read again with Home open as Places
+  does every 20 s): from `loading`, then `quiet`, then `four` (the Standup in 10 min), then `quiet` again, the greeting
+  and «You and Sophia» keep their offsets. Without the held place it fails when the Standup's sentence comes: «You and
+  Sophia» at 222 px against 176 px while loading.
 
 ## Limits
 
-- The line now arrives into an empty place. If a session comes within 10 min, or someone enters a room, while Home is
-  open, everything under the greeting moves down by the line's height. Before, the claim held that place and was
-  replaced where it stood. Keeping an empty place would leave a gap on every quiet Home, and on loading too.
+- The held place is a line of air under the greeting on a quiet Home and while the projects load (46 px at a desk and
+  on a phone). That is the price of nothing moving; the full #7 fills it with a true line.
+- One line is held. A sentence that wraps to two (a long project's name on a narrow phone) still moves what is below
+  by one line when it comes, as it did on main.
 - First cut only. The full #7 needs a since read per project on Home. Its line would be «Since you last looked: 2
   decisions and a new report in “Product launch”. Open Updates», said once per window, plus an arrival line inside the
   project with Open Updates. Both are left for the next step (see the handoff).
