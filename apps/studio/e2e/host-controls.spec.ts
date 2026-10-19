@@ -169,3 +169,82 @@ test('host · the corner keeps room for its three toggles beside the dock (Codex
   expect(fits).not.toBeNull()
   expect(fits?.room ?? 0).toBeGreaterThanOrEqual((fits?.corner ?? 0) + 12)
 })
+
+/** Once what is arriving has arrived (the panel slides in): boxes are read where they rest. */
+const arrived = (page: Page) =>
+  page.evaluate(async () => {
+    const arriving = document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity)
+    await Promise.all(arriving.map((a) => a.finished.catch(() => null)))
+  })
+
+/** Where People's parts stand against the panel's: the tabs' line, Close's end, «Mute everyone», and each row, with its
+ * menu's opener where it has one. A part that is absent measures NaN, so every check on it fails. */
+const peopleRead = (page: Page) =>
+  page.evaluate(() => {
+    // oxlint-disable-next-line unicorn/consistent-function-scoping -- page.evaluate sends only this function to the page
+    const edges = (el: Element | null | undefined) => {
+      const r = el?.getBoundingClientRect()
+      return { left: r?.left ?? NaN, right: r?.right ?? NaN, width: r?.width ?? NaN, height: r?.height ?? NaN }
+    }
+    const panel = document.querySelector('.side-panel')
+    return {
+      line: edges(panel?.querySelector('#side-tab-chat')).left,
+      close: edges(panel?.querySelector('.side-panel-head > [aria-label="Close"]')).right,
+      mute: edges(panel?.querySelector('.people-head button')),
+      rows: [...(panel?.querySelectorAll('.people > li') ?? [])].map((li) => ({
+        row: edges(li),
+        name: edges(li.querySelector('.person-name')),
+      })),
+      openers: [...(panel?.querySelectorAll('.people > li') ?? [])].flatMap((li) => {
+        const opener = li.querySelector('.person-actions > button')
+        return opener ? [{ row: edges(li), opener: edges(opener) }] : []
+      }),
+      edge: innerWidth,
+    }
+  })
+
+test('host · People sits on the panel’s gutter; each menu ends where Close does (room-dock-people.md)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await enter(page)
+  await arrived(page)
+  const { line, close, mute, rows, openers, edge } = await peopleRead(page)
+  expect(rows).toHaveLength(3)
+  for (const { row, name } of rows) {
+    expect(name.left).toBeCloseTo(line, 0)
+    // The row's own plane frames its name: 8 px before it.
+    expect(name.left - row.left).toBeCloseTo(8, 0)
+  }
+  // «Mute everyone» is a press on the same line, not a heading.
+  expect(mute.left).toBeCloseTo(line, 0)
+  expect(mute.height).toBe(28)
+  expect(openers).toHaveLength(2)
+  for (const { row, opener } of openers) {
+    expect(opener).toMatchObject({ width: 32, height: 32 })
+    expect(opener.right).toBeCloseTo(close, 0)
+    expect(opener.right).toBeLessThanOrEqual(edge - 12)
+    expect(opener.right).toBeLessThanOrEqual(row.right + 0.5)
+  }
+  // Under the pointer, a row's plane shows.
+  const marco = list(page).locator('li', { hasText: 'Marco' })
+  await marco.hover()
+  await expect(marco).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+})
+
+test('host · @phone People on a phone: rows on the gutter, every menu a finger’s size inside its row', async ({
+  page,
+}) => {
+  await enter(page)
+  await arrived(page)
+  const { rows, openers, edge } = await peopleRead(page)
+  expect(rows).toHaveLength(3)
+  for (const { name } of rows) expect(name.left).toBeCloseTo(16, 0)
+  expect(openers).toHaveLength(2)
+  for (const { row, opener } of openers) {
+    expect(opener.width).toBeGreaterThanOrEqual(40)
+    expect(opener.height).toBeGreaterThanOrEqual(40)
+    expect(opener.right).toBeLessThanOrEqual(row.right + 0.5)
+    expect(opener.right).toBeLessThanOrEqual(edge - 8)
+  }
+})

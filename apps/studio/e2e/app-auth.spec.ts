@@ -33,15 +33,18 @@ const WORK_GOAL = '00000000-0000-4000-8000-0000000000b1'
 
 const part = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
 
-/** A synthetic session, unsigned: only the synthetic Auth service ever sees it, and it signs nothing. */
-function session(person: Person) {
-  const exp = Math.floor(Date.now() / 1000) + 24 * 3600
+/**
+ * A synthetic session, unsigned: only the synthetic Auth service ever sees it, and it signs nothing. `life`: seconds its
+ * access token has left, a day unless told; below zero it has expired, and supabase-js asks for a refresh as it loads.
+ */
+function session(person: Person, life = 24 * 3600) {
+  const exp = Math.floor(Date.now() / 1000) + life
   const claims = { sub: person.id, email: person.email, role: 'authenticated', aud: 'authenticated', exp }
   return {
     access_token: `${part({ alg: 'none', typ: 'JWT' })}.${part({ ...claims, is_anonymous: false })}.synthetic`,
     refresh_token: `synthetic-refresh-${person.id}`,
     token_type: 'bearer',
-    expires_in: 24 * 3600,
+    expires_in: Math.max(0, life),
     expires_at: exp,
     user: {
       id: person.id,
@@ -111,10 +114,14 @@ declare global {
 const elsewhere = new WeakMap<BrowserContext, string[]>()
 test.afterEach(({ context }) => expect(elsewhere.get(context) ?? []).toEqual([]))
 
+/** The code the synthetic Auth refuses a refresh with, when a check sets one (`serve`). */
+const refusedWith = new WeakMap<BrowserContext, string>()
+
 /**
  * The synthetic Auth service, and an API that answers nothing (the checks need none of its reads). `logout` waits for
- * `release` when given one, and answers `logoutStatus` (a 503: the service unavailable); every call to the Auth service
- * is counted.
+ * `release` when given one, and answers `logoutStatus` (a 503: the service unavailable); a refresh is refused as Auth
+ * refuses one (API 2024-01-01: a 400 whose body names the cause), a refresh token it no longer knows (every device
+ * signed out elsewhere) unless the check set another code (`refusedWith`); every call to the Auth service is counted.
  */
 async function serve(context: BrowserContext, logout?: Promise<void>, logoutStatus = 204) {
   const calls: string[] = []
@@ -132,6 +139,11 @@ async function serve(context: BrowserContext, logout?: Promise<void>, logoutStat
       if (logoutStatus !== 204)
         return route.fulfill({ status: logoutStatus, json: { code: logoutStatus, msg: 'Synthetic Auth: unavailable' } })
       return route.fulfill({ status: 204 })
+    }
+    if (pathname.endsWith('/auth/v1/token')) {
+      const code = refusedWith.get(context) ?? 'refresh_token_not_found'
+      const refused = { code, message: `Invalid Refresh Token (synthetic Auth: ${code})` }
+      return route.fulfill({ status: 400, headers: { 'x-supabase-api-version': '2024-01-01' }, json: refused })
     }
     return route.fulfill({ status: 404, json: { code: 404, msg: 'Synthetic Auth: nothing here' } })
   })
@@ -155,8 +167,8 @@ async function serve(context: BrowserContext, logout?: Promise<void>, logoutStat
   return calls
 }
 
-/** A tab whose Supabase session is `person`'s, and whose session storage holds `held`, before the app first loads. */
-async function signedInTab(context: BrowserContext, person: Person, held: Record<string, string> = HELD) {
+/** A tab whose kept Supabase session is `kept`, and whose session storage holds `held`, before the app first loads. */
+async function keptTab(context: BrowserContext, kept: ReturnType<typeof session>, held: Record<string, string>) {
   const page = await context.newPage()
   await page.goto(`${APP}/favicon.svg`)
   await page.evaluate(
@@ -164,10 +176,14 @@ async function signedInTab(context: BrowserContext, person: Person, held: Record
       localStorage.setItem(key, JSON.stringify(signedIn))
       for (const [k, v] of Object.entries(items)) sessionStorage.setItem(k, v)
     },
-    [SESSION_KEY, session(person), held] as const,
+    [SESSION_KEY, kept, held] as const,
   )
   return page
 }
+
+/** A tab whose Supabase session is `person`'s, and whose session storage holds `held`, before the app first loads. */
+const signedInTab = (context: BrowserContext, person: Person, held: Record<string, string> = HELD) =>
+  keptTab(context, session(person), held)
 
 const account = (page: Page) => page.getByRole('button', { name: 'Account' }).first()
 
@@ -850,6 +866,128 @@ test('legal · a sign-out in another tab forgets the views’ unsent words here 
     .toEqual({ lens: 'build', drafts: {} })
 })
 
+// --- Signed out by a cause this tab did not start: the sign-in says so, once (docs/plans/signed-out-elsewhere.md). ---
+
+const ENDED_ELSEWHERE = 'You were signed out in another tab or on another device, so this tab signed out too.'
+const ENDED_REFUSED = 'Your sign-in on this device ended, so this tab signed out.'
+const ENDED_AWAY = 'Your sign-in on this device ended while you were away.'
+const WORDS_CLEARED = 'Unsent words here were cleared.'
+/** A first visit's line under the title, which the sign-in says when nothing else happened. */
+const LEDE = 'Where your team and Sophia think together.'
+const emailField = (page: Page) => page.locator('#email')
+
+test('seam · signed out in another tab: the sign-in says so politely, once, and the email field keeps the focus', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await anotherTab(context, null)
+  await expect(emailField(page)).toBeVisible()
+  // A status in the lede's place, not the form's alert; no unsent words were kept here, so it says none went.
+  await expect(page.getByRole('status')).toHaveText(ENDED_ELSEWHERE)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(page.getByText(LEDE)).toHaveCount(0)
+  await expect(emailField(page)).toBeFocused()
+  // Said once: after a reload nothing signed this tab out, and the sign-in is a first visit's again.
+  await page.reload()
+  await expect(emailField(page)).toBeVisible()
+  await expect(page.getByText(LEDE)).toBeVisible()
+  await expect(page.getByText(ENDED_ELSEWHERE)).toHaveCount(0)
+  await expect(page.getByRole('status')).toHaveCount(0)
+})
+
+test('seam · a sign-in that ended while the page was closed: said once as it loads, with the unsent words that went', async ({
+  context,
+}) => {
+  const calls = await serve(context)
+  // Davide's session, kept on this device, expired an hour ago, and the Auth service refuses its refresh.
+  const page = await keptTab(context, session(DAVIDE, -3600), { [OTHER_PART]: '{}' })
+  const key = viewerKeyOf(DAVIDE.id, WORK_PROJECT)
+  await page.evaluate(
+    (k) => localStorage.setItem(k, JSON.stringify({ lens: 'build', drafts: { build: 'secret plan' } })),
+    key,
+  )
+  await page.goto(`${APP}/app.html`)
+  await expect(emailField(page)).toBeVisible()
+  await expect(page.getByRole('status')).toHaveText(`${ENDED_AWAY} ${WORDS_CLEARED}`)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(emailField(page)).toBeFocused()
+  expect(calls).toContain('POST /synthetic-auth/auth/v1/token')
+  // The words it says went are gone: the view keeps its lens, never its unsent words.
+  expect(await page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? '{}') as unknown, key)).toEqual({
+    lens: 'build',
+    drafts: {},
+  })
+  await page.reload()
+  await expect(emailField(page)).toBeVisible()
+  await expect(page.getByText(LEDE)).toBeVisible()
+  await expect(page.getByText(ENDED_AWAY)).toHaveCount(0)
+  await expect(page.getByRole('status')).toHaveCount(0)
+})
+
+/**
+ * In an open tab, the access token runs out: the session kept here as supabase-js finds it then, expired, and the tab
+ * shown again, which has the client refresh at once (`visibilitychange`) instead of at its next 30 s tick.
+ */
+const tokenRunsOut = (page: Page, person: Person) =>
+  page.evaluate(
+    ([key, kept]) => {
+      localStorage.setItem(key, JSON.stringify(kept))
+      window.dispatchEvent(new Event('visibilitychange'))
+    },
+    [SESSION_KEY, session(person, -60)] as const,
+  )
+
+test('seam · an open tab’s refresh refused for another cause: its sign-in ended, and no one elsewhere is blamed', async ({
+  context,
+}) => {
+  const calls = await serve(context)
+  // A refresh token used twice: an earlier refresh's answer was lost on the way, and the client tried the old token.
+  refusedWith.set(context, 'refresh_token_already_used')
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await tokenRunsOut(page, DAVIDE)
+  await expect(emailField(page)).toBeVisible()
+  await expect(page.getByRole('status')).toHaveText(ENDED_REFUSED)
+  await expect(page.getByText(ENDED_ELSEWHERE)).toHaveCount(0)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(emailField(page)).toBeFocused()
+  expect(calls).toContain('POST /synthetic-auth/auth/v1/token')
+})
+
+test('seam · every device signed out elsewhere: an open tab’s refused refresh says it was signed out elsewhere', async ({
+  context,
+}) => {
+  // The Auth service no longer knows the refresh token: «Sign out of all devices» ran on another device.
+  const calls = await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await tokenRunsOut(page, DAVIDE)
+  await expect(emailField(page)).toBeVisible()
+  await expect(page.getByRole('status')).toHaveText(ENDED_ELSEWHERE)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(emailField(page)).toBeFocused()
+  expect(calls).toContain('POST /synthetic-auth/auth/v1/token')
+})
+
+test('seam · this tab’s own Sign out says nothing of it: the sign-in is a first visit’s (control)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
+  await expect(emailField(page)).toBeVisible()
+  await expect(page.getByText(LEDE)).toBeVisible()
+  await expect(page.getByRole('status')).toHaveCount(0)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+})
+
 test('legal · /terms and /privacy keep their address and their page, signed out or in (Codex P1 on #366)', async ({
   context,
 }) => {
@@ -866,6 +1004,44 @@ test('legal · /terms and /privacy keep their address and their page, signed out
   await signedIn.waitForTimeout(1500)
   expect(new URL(signedIn.url()).pathname).toBe('/privacy')
   await expect(signedIn.getByRole('heading', { level: 1 })).toHaveText('Privacy notice')
+})
+
+/** What the join page says back from a sign-in link opened in a browser that never asked for it. */
+const OTHER_BROWSER_LINE =
+  'This sign-in link opened in a different browser from the one you started in. Type the email’s code there, or open your invitation link again here.'
+
+test('join · a sign-in link opened in another browser says where to finish, once (join-other-browser.md)', async ({
+  context,
+}) => {
+  const calls = await serve(context)
+  const page = await context.newPage()
+  // The sign-in email's link, in a browser that holds no invitation token and never asked for the link.
+  await page.goto(`${APP}/join?code=synthetic-code`)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('You started in another browser')
+  await expect(page.getByText(OTHER_BROWSER_LINE)).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Go to Sophia' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'This door is closed' })).toHaveCount(0)
+  await expect(page.getByText('This link is incomplete', { exact: false })).toHaveCount(0)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  // Nothing was exchanged or asked: this browser holds no sign-in of its own to finish.
+  expect(calls).toEqual([])
+  // The code has left the address, so a reload is an ordinary visit: said once per link opened.
+  expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe('/join')
+  await page.reload()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('This door is closed')
+  await expect(page.getByText(OTHER_BROWSER_LINE)).toHaveCount(0)
+})
+
+test('join · with no invitation token and no sign-in’s return, the page keeps its closed door (join-other-browser.md)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await context.newPage()
+  await page.goto(`${APP}/join`)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('This door is closed')
+  await expect(page.getByText('This link is incomplete. Ask for the whole link, or a new one.')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Go to Sophia' })).toBeVisible()
+  await expect(page.getByText(OTHER_BROWSER_LINE)).toHaveCount(0)
 })
 
 test('feedback · opened from Home during a call, the call’s switches stay in reach (Codex P1 on #367)', async ({
@@ -887,4 +1063,34 @@ test('feedback · opened from Home during a call, the call’s switches stay in 
   await expect(
     sheet.getByRole('group', { name: 'Your call' }).getByRole('button', { name: 'Leave the room' }),
   ).toBeVisible()
+})
+
+test('places · in the bar’s call, Leave is rose at rest and its plane answers the pointer (room-dock-people.md)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/p/${WORK_PROJECT}/studio?work=lost`)
+  await page
+    .getByRole('navigation', { name: 'Room controls' })
+    .getByRole('button', { name: /^Join the room/ })
+    .click()
+  await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
+  await page.keyboard.press('h')
+  const out = page.locator('.places .room-pill').getByRole('button', { name: 'Leave the room' })
+  await expect(out).toBeVisible()
+  await page.mouse.move(0, 0)
+  const rest = await out.evaluate((b) => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--rose)'
+    document.body.append(probe)
+    const rose = getComputedStyle(probe).color
+    probe.remove()
+    return { color: getComputedStyle(b).color, plane: getComputedStyle(b).backgroundColor, rose }
+  })
+  // The bar keeps its squares bare at rest: the rose ink alone says the way out.
+  expect(rest.color).toBe(rest.rose)
+  expect(rest.plane).toBe('rgba(0, 0, 0, 0)')
+  await out.hover()
+  await expect(out).not.toHaveCSS('background-color', rest.plane)
 })

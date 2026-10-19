@@ -266,9 +266,12 @@ export const getSoFar = (token: string, projectId: string, meetingId: string, si
     parseDigest,
   )
 
-/** A13: one hit of a project search; its snippet is from the record itself, and `cite` names the record. */
+/**
+ * A13: one hit of a project search; its snippet is from the record itself, and `cite` names the record. A38 serves
+ * all but recaps and adds messages (api/search.ts): a message's `before` is the message just after it in the chat.
+ */
 export interface SearchHit {
-  kind: 'decision' | 'note' | 'report' | 'report_section' | 'recap'
+  kind: 'decision' | 'note' | 'report' | 'report_section' | 'recap' | 'message'
   /** The record; a report's (and a report section's) is the artifact, its version in `cite.recordId`. */
   id: string
   title: string
@@ -276,6 +279,7 @@ export interface SearchHit {
   meetingId: string | null
   at: string
   cite: { recordId: string; sha256?: string; anchor?: string }
+  before?: string | null
 }
 
 export interface SearchPage {
@@ -284,7 +288,7 @@ export interface SearchPage {
   next: string | null
 }
 
-const HIT_KINDS = new Set(['decision', 'note', 'report', 'report_section', 'recap'])
+const HIT_KINDS = new Set(['decision', 'note', 'report', 'report_section', 'recap', 'message'])
 const isCite = (v: unknown) =>
   fields(v, { recordId: isStr }) && ['sha256', 'anchor'].every((k) => !(k in v) || isStr(v[k]))
 const parseSearchPage = checked<SearchPage>(
@@ -297,6 +301,7 @@ const parseSearchPage = checked<SearchPage>(
       meetingId: isStrOrNull,
       at: isStr,
       cite: isCite,
+      before: (v) => v === undefined || isStrOrNull(v),
     }),
     next: isStrOrNull,
   },

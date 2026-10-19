@@ -77,7 +77,8 @@ import {
   type TalkWrites,
 } from './conversation-writes.ts'
 import type { ProjectRelease, ReportList } from '@sophia/contracts'
-import { searchHits, searchPage } from './search-data.ts'
+import { searchHits, searchPage, servedHits } from './search-data.ts'
+import { VISION } from '../src/app/vision.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
 import {
   closed,
@@ -128,6 +129,9 @@ interface Project {
   heldMessages?: (string | Said)[] | undefined
   /** While set, every earlier page's read fails as an unavailable API's (`failEarlierReads`). */
   failEarlierReads?: boolean
+  /** Earlier pages read before these messages wait for `releaseEarlierReads` (a slow read; A38's concurrent reads). */
+  earlierHeldBefore?: ReadonlySet<string> | undefined
+  earlierHeld?: (() => void)[]
   /** The viewer's messages to the room, by their Idempotency-Key: the same key again replays the receipt. */
   contributions?: Map<string, { text: string; receipt: ContributionReceipt }>
   /** The next message lands, but its reply is lost on the way (`window.fixture.loseNextContributionReply`). */
@@ -175,6 +179,10 @@ interface Project {
    * `not_found`, as it refuses a report this person may not read; false, they succeed.
    */
   versionsFail: false | 'unavailable' | 'not_found'
+  /** The design task itself is in the project's work, as its own card (`designcard=on`). */
+  designCard?: boolean
+  /** Reads of the design task fail: refused (403, this person's own), or unavailable (503); false, they succeed. */
+  designFail?: false | 'unavailable' | 'forbidden'
   /** Reads of a version's sources wait until the page lets them through (`hold=sources`), as a slow API's do. */
   sourcesHeld: boolean
   /** So do reads of a version's text (`hold=text`). */
@@ -191,6 +199,8 @@ interface Project {
   researching?: { reads: number } | null
   /** Reads of the research task fail (`window.fixture.failTask`), as an API that lost its database answers. */
   taskFails?: boolean
+  /** Reads of the research task are refused to this person (403), as after a revoked membership (`refuseTask`). */
+  taskRefused?: boolean
   /** A version's text arrives as bytes its record does not name (`tamper=text`). */
   textTampered: boolean
   /** Version 1 carries a designed HTML page (SDD-01, `designed=on`), and the research task lists it. */
@@ -243,6 +253,10 @@ interface Project {
   showing?: Showing
   /** While set, searches wait for `holdSearch(false)` (A13). */
   searchHeld?: (() => void)[] | null
+  /** While set, searches fail as an unavailable API's (`failSearch`, A38). */
+  failSearch?: boolean
+  /** The next search is answered as the A13 proposal (recaps, meetings) even on the served page (A38's parser refuses). */
+  searchAsProposed?: boolean
   /** While set, reads of the served board wait for `holdBoard(false)` (search-honest.md). */
   boardHeld?: (() => void)[] | null
   /** The versions' reviews (review-data.ts, A16); absent, their requests are unexpected. */
@@ -281,6 +295,10 @@ interface Project {
   missionRefused?: boolean
   /** While set, the brief's reads wait for these (`mission=hold`, `window.fixture.holdMission`). */
   missionHeld?: (() => void)[] | null
+  /** The goals' targets read fails (`targetsRead=fail`, `window.fixture.failTargets`). */
+  targetsFail?: boolean
+  /** While set, the goals' targets reads wait for these (`targetsRead=hold`, `window.fixture.holdTargets`). */
+  targetsHeld?: (() => void)[] | null
 }
 
 /** The conversations as the fixtures keep them (A33 serves them, conversation-wire.ts), and the reads that fail. */
@@ -318,7 +336,10 @@ function hrefOf(input: RequestInfo | URL): string {
 
 const streams = new Set<ReadableStreamDefaultController<string>>()
 
-const frameOf = (sequence: number) => `id: ${sequence}\ndata: ${JSON.stringify(projectEvent(sequence))}\n\n`
+/** What an event names, when it is not the project itself: a message corrected or withdrawn elsewhere (held-pages). */
+export const eventEntities = new Map<number, { type: string; entityType: string; entityId: string }>()
+const frameOf = (sequence: number) =>
+  `id: ${sequence}\ndata: ${JSON.stringify({ ...projectEvent(sequence), ...eventEntities.get(sequence) })}\n\n`
 
 /**
  * The project's event stream, open until the page drops it; pings keep it from looking stalled. Dropped by its
@@ -364,7 +385,10 @@ function snapshotOf(project: Project, revisions = false) {
     : project.work
       ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing).task] }
       : now
-  const reported = project.goalReports ? withGoalReports(project, work) : work
+  const designed = project.designCard
+    ? { ...work, work: [...work.work, designingTask(project.designed ? 'published' : 'designing').task] }
+    : work
+  const reported = project.goalReports ? withGoalReports(project, designed) : designed
   const titled = project.title ? { ...reported, title: project.title } : reported
   return withFocus(project, project.waiting ? { ...titled, lobby: lobbyOf(project.lobbyAsked) } : titled)
 }
@@ -596,8 +620,21 @@ function projectRead(project: Project, url: URL): Response | Promise<Response> |
   if (url.pathname === `${base}/activity`)
     return project.activityHeld ? new Promise<Response>(() => undefined) : activityRead(url)
   if (url.pathname.startsWith(`${base}/discussion`)) return discussionRead(project, url)
-  if (url.pathname === `${base}/goal-targets`) return goalTargetsRead(project)
+  if (url.pathname === `${base}/goal-targets`) return targetsAnswer(project)
   return url.pathname === `${base}/members` ? membersRead(project) : null
+}
+
+/** The goals' targets as read: held while asked (`holdTargets`), refused while they fail (`failTargets`). */
+function targetsAnswer(project: Project): Response | Promise<Response> {
+  const held = project.targetsHeld
+  if (held) return new Promise<Response>((resolve) => held.push(() => resolve(targetsNow(project))))
+  return targetsNow(project)
+}
+
+/** The goals' targets once let through: refused while they fail, else read. */
+function targetsNow(project: Project): Response {
+  if (project.targetsFail) return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
+  return goalTargetsRead(project)
 }
 
 /** The goals' owners and dates (A25). */
@@ -708,13 +745,23 @@ const discussionRead = (project: Project, url: URL) =>
   url.pathname.endsWith('/replies') ? repliesRead(project) : discussionPage(project, url)
 
 /** A page of the room's discussion (A23): the 50 before `before`, oldest first; `before` again while older ones remain. */
-function discussionPage(project: Project, url: URL): Response {
+function discussionPage(project: Project, url: URL): Response | Promise<Response> {
   const anchor = url.searchParams.get('before')
   served.push(`discussion:${anchor ?? 'newest'}`)
   if (project.failEarlier || project.failEarlierReads) {
     project.failEarlier = false
     return unavailable()
   }
+  // A held read is answered when released, from the discussion as it is then.
+  if (anchor && project.earlierHeldBefore?.has(anchor)) {
+    const held = (project.earlierHeld ??= [])
+    return new Promise<Response>((resolve) => held.push(() => resolve(earlierPage(project, url, anchor))))
+  }
+  return earlierPage(project, url, anchor)
+}
+
+/** The 50 before `anchor` (or the newest), as A23 answers them. */
+function earlierPage(project: Project, url: URL, anchor: string | null): Response {
   const all = (project.heldMessages ?? project.messages).map(said)
   const end = anchor ? all.findIndex((e) => e.id === anchor) : all.length
   if (end < 0) {
@@ -955,10 +1002,18 @@ function searchAnswer(project: Project, url: URL): Response | Promise<Response> 
   const meeting = project.meeting
   if (!meeting) return null
   served.push(`search:${q}:${cursor ?? '0'}`)
+  // The request as it was sent, endpoint and query, so a check sees what the Studio asked for.
+  served.push(`search-request:${url.pathname}${url.search}`)
+  if (project.failSearch) return unavailable()
   const held = project.searchHeld
   const kept = project.notes?.kept ?? []
   const report = { versions: project.reportVersions, title: project.reportTitle, pilot: project.pilot }
-  const page = () => json(searchPage(searchHits({ meeting, kept, report }, q), cursor))
+  const messages = project.messages.map(said)
+  const found = searchHits({ meeting, kept, report, messages }, q)
+  // Without the vision flag, the page is served as A38 is (strict); `searchAsProposed` answers once as A13 instead.
+  const strict = !VISION && !project.searchAsProposed
+  project.searchAsProposed = false
+  const page = () => (strict ? json(searchPage(servedHits(found), cursor)) : json(searchPage(found, cursor)))
   return held ? new Promise<Response>((resolve) => held.push(() => resolve(page()))) : page()
 }
 
@@ -1445,7 +1500,13 @@ export function releaseCovers(project: Project): void {
 
 /** The design task of the research's page, read while it is designed (`design=designing`, B-19), then published. */
 function designRead(project: Project): Response | null {
-  if (!project.designing && !project.designed) return null
+  if (project.designFail) {
+    const [status, retry] = project.designFail === 'forbidden' ? [403, 'never'] : [503, 'safe_read']
+    served.push(`design:${project.designFail}`)
+    const body = { code: project.designFail, message: 'No', requestId: '00000000-0000-4000-8000-0000000000bb', retry }
+    return new Response(JSON.stringify(body), { status })
+  }
+  if (!project.designing && !project.designed && !project.designCard) return null
   return json(designingTask(project.designed ? 'published' : 'designing'))
 }
 
@@ -1806,6 +1867,15 @@ function taskRead(project: Project): Response | Promise<Response> {
         : researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing),
     )
   served.push(`task:${String(project.taskRevision ?? 1)}`)
+  if (project.taskRefused) {
+    const body = {
+      code: 'forbidden',
+      message: 'Not permitted',
+      requestId: '00000000-0000-4000-8000-0000000000bd',
+      retry: 'never',
+    }
+    return new Response(JSON.stringify(body), { status: 403 })
+  }
   if (project.taskFails) {
     const body = {
       code: 'unavailable',

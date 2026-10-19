@@ -62,6 +62,9 @@ export function needFor(waiting: Waiting | undefined, shownRevision: number | un
 /** What became of a message the address named (a mention from Home), said in the chat when it can't be shown. */
 export type AddressState = 'none' | 'looking' | 'found' | 'gone' | 'further'
 
+/** The page that ends at a message a search found couldn't be read (A38): the reader tries again. */
+export const JUMP_FAILED = 'The message you opened couldn’t be loaded.'
+
 export const ADDRESS_WORDS: Readonly<Partial<Record<AddressState, string>>> = {
   gone: 'The message you opened isn’t in the chat anymore.',
   further: 'The message you opened is further back. Earlier messages shows more.',
@@ -73,6 +76,8 @@ export const ADDRESS_PAGES = 4
 /**
  * The next step in looking for a message the address names: found (bring it into view), gone (withdrawn, or not there
  * by the chat's start), further (not within ADDRESS_PAGES earlier pages), read an earlier page, or wait for one being read.
+ * A message a search found (A38) is not looked for page by page: the one page that ends at it is read (jump), and if
+ * it isn't there, it is gone.
  */
 export function nextLook(at: {
   found: boolean
@@ -83,10 +88,14 @@ export function nextLook(at: {
   offered: boolean
   atStart: boolean
   pages: number
-}): 'found' | 'gone' | 'further' | 'load' | 'wait' {
+  /** A search found it (its next message known): the page that ends at it is still to read, or has been. */
+  jump?: 'none' | 'unread' | 'read'
+}): 'found' | 'gone' | 'further' | 'load' | 'wait' | 'jump' {
   if (at.found) return 'found'
   if (at.withdrawn) return 'gone'
   if (at.reading || at.failed) return 'wait'
+  if (at.jump === 'unread') return 'jump'
+  if (at.jump === 'read') return 'gone'
   if (at.offered && at.pages < ADDRESS_PAGES) return 'load'
   return at.atStart || !at.offered ? 'gone' : 'further'
 }

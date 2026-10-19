@@ -15,9 +15,17 @@ export interface TalkKey {
 
 export type TalkAct = 'start' | 'stop' | 'swallow' | null
 
-export function pushToTalk(phase: 'down' | 'up', key: TalkKey, call: { micOn: boolean; holding: boolean }): TalkAct {
+/**
+ * What a key does now. `muting`: push to talk's own turn-off is still the call's last microphone choice, so a microphone
+ * not off yet counts as off, and Space pressed again talks (Codex P2 on #381).
+ */
+export function pushToTalk(
+  phase: 'down' | 'up',
+  key: TalkKey,
+  call: { micOn: boolean; holding: boolean; muting: boolean },
+): TalkAct {
   if (key.key !== ' ') return null
   if (call.holding) return phase === 'up' ? 'stop' : 'swallow'
   const free = !key.repeat && !key.modified && key.fromNowhere && !key.modal
-  return phase === 'down' && free && !call.micOn ? 'start' : null
+  return phase === 'down' && free && (!call.micOn || call.muting) ? 'start' : null
 }

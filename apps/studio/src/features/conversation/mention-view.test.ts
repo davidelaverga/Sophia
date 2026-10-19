@@ -122,3 +122,21 @@ describe('nextLook after a failed read', () => {
     assert.equal(nextLook({ ...at, pages: 4 }), 'wait')
   })
 })
+
+describe('nextLook for a message a search found (A38)', () => {
+  const at = { found: false, withdrawn: false, reading: false, failed: false, offered: true, atStart: false, pages: 0 }
+  it('reads the one page that ends at it, never page by page; not there after it, gone', () => {
+    assert.equal(nextLook({ ...at, jump: 'unread' }), 'jump')
+    assert.equal(nextLook({ ...at, jump: 'read' }), 'gone')
+    assert.equal(nextLook({ ...at, jump: 'read', found: true }), 'found')
+    assert.equal(nextLook({ ...at, jump: 'unread', withdrawn: true }), 'gone')
+  })
+  it('waits while that page is read, and after it failed, for the reader’s Try again', () => {
+    assert.equal(nextLook({ ...at, jump: 'read', reading: true }), 'wait')
+    assert.equal(nextLook({ ...at, jump: 'read', failed: true }), 'wait')
+  })
+  it('without a search’s hint, looks as a mention does', () => {
+    assert.equal(nextLook({ ...at, jump: 'none' }), 'load')
+    assert.equal(nextLook(at), 'load')
+  })
+})

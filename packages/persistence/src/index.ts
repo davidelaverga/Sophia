@@ -116,9 +116,11 @@ export {
   readReportSource,
   REPORT_PAGE,
   searchQuery,
+  searchWords,
   type ReportQuery,
   type ReportSource,
 } from './artifacts.ts'
+export { LONGEST_WORD, SEARCH_PAGE, searchProject, type SearchQuery } from './search.ts'
 export {
   enqueueRenderJob,
   claimObjectWrite,

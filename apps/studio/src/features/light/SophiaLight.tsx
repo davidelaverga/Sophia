@@ -2,7 +2,7 @@
 // whom she attends to, whether work runs); the engine draws it outside React's render cycle.
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref, type RefObject } from 'react'
 import { usePaper } from '../../app/theme.ts'
-import { defaultTarget, LightEngine, type LightInput, type LightTarget } from './engine.ts'
+import { defaultTarget, LightEngine, type LightInput, type LightMode, type LightTarget, type MarkAt } from './engine.ts'
 import type { Point } from './motion.ts'
 import { highRest, restsHigh, sameRest } from './screen-rest.ts'
 import { markSize, shapedTarget } from './threshold.ts'
@@ -11,6 +11,8 @@ import { Threshold } from './Threshold.tsx'
 export interface SophiaLightHandle {
   /** The floor travels from one person, through Sophia, to the next. */
   handoff: (from: Point, to: Point) => void
+  /** A result arrived: one soft bloom (orb-result.md). */
+  arrive: () => void
 }
 
 interface Props extends LightInput {
@@ -24,6 +26,10 @@ interface Props extends LightInput {
    * words are the `.screen-body` beside it. The light rests higher and smaller when they would not fit under it.
    */
   screen?: boolean
+  /** Where she is when not simply here (orb-presence.md): `data-presence` on the box, for the paper orb. */
+  presence?: 'away' | 'joining' | 'paused' | null
+  /** She speaks but this browser blocked her sound: `data-sound` on the box, a call on the paper orb's rim. */
+  sound?: 'blocked' | null
 }
 
 /**
@@ -97,14 +103,38 @@ function useShapingSize(box: RefObject<HTMLDivElement | null>, shaping: boolean)
   return shaping ? size : null
 }
 
+/**
+ * The box's marks: what she is doing, whom she attends to and where the mark forms, as the engine was told, for the checks
+ * to read; and where she is and whether her sound is blocked, for the paper orb to draw (orb-presence.md).
+ */
+function boxData(
+  mode: LightMode,
+  attention: Point | null,
+  mark: MarkAt | null,
+  presence: Props['presence'],
+  sound: Props['sound'],
+) {
+  return {
+    'data-mode': mode,
+    'data-attention': attention ? `${String(Math.round(attention.x))} ${String(Math.round(attention.y))}` : undefined,
+    'data-mark': mark ? `${String(Math.round(mark.x))} ${String(Math.round(mark.y))} ${String(mark.size)}` : undefined,
+    'data-presence': presence ?? undefined,
+    'data-sound': sound ?? undefined,
+  }
+}
+
 export function SophiaLight({
   mode,
   target,
   attention,
   working,
+  voice = null,
+  hearing = null,
   screen = false,
   pull = null,
   formed = null,
+  presence,
+  sound,
   ref,
 }: Props) {
   const box = useRef<HTMLDivElement>(null)
@@ -116,13 +146,14 @@ export function SophiaLight({
   const size = useShapingSize(box, shaping)
   // Where the light rests once through, for the mark to form there: the same numbers the engine is given.
   const [restsAt, setRestsAt] = useState<LightTarget | null>(null)
-  // On paper the trace writes in the paper's inks (trace.ts); the root's theme is followed as it changes.
+  // On paper the trace writes in the paper's inks (trace.ts) and no WebGL canvas is kept; the root's theme is followed
+  // as it changes.
   const paper = usePaper()
   const markAt = formed && restsAt ? { x: restsAt.x, y: restsAt.y, size: markSize(restsAt.radius) } : null
 
   useEffect(() => {
-    if (!box.current || !glCanvas.current || !traceCanvas.current) return undefined
-    const running = new LightEngine(box.current, glCanvas.current, traceCanvas.current)
+    if (!box.current || !traceCanvas.current) return undefined
+    const running = new LightEngine(box.current, traceCanvas.current)
     engine.current = running
     return () => {
       running.stop()
@@ -131,7 +162,7 @@ export function SophiaLight({
   }, [])
 
   useEffect(() => {
-    engine.current?.setPaper(paper)
+    engine.current?.setPaper(paper, glCanvas.current)
   }, [paper])
 
   useEffect(() => {
@@ -141,25 +172,20 @@ export function SophiaLight({
     const shaped = base ? shapedTarget(base, pull, formed !== null) : placed
     const through = formed ? base : null
     const mark = through ? { x: through.x, y: through.y, size: markSize(through.radius) } : null
-    engine.current?.update({ mode, target: shaped, attention, working, mark })
+    engine.current?.update({ mode, target: shaped, attention, working, mark, voice, hearing })
     setRestsAt((was) => (sameRest(was, through) ? was : through))
-  }, [mode, target, rest, attention, working, pull, formed, shaping, size])
+  }, [mode, target, rest, attention, working, voice, hearing, pull, formed, shaping, size])
 
-  useImperativeHandle(ref, () => ({ handoff: (from, to) => engine.current?.handoff(from, to) }), [])
+  useImperativeHandle(
+    ref,
+    () => ({ handoff: (from, to) => engine.current?.handoff(from, to), arrive: () => engine.current?.arrive() }),
+    [],
+  )
 
   return (
-    <div
-      ref={box}
-      className="light"
-      aria-hidden
-      // What she is doing, and whom she attends to, as the engine was told: for the checks to read, never shown.
-      data-mode={mode}
-      data-attention={attention ? `${String(Math.round(attention.x))} ${String(Math.round(attention.y))}` : undefined}
-      data-mark={
-        markAt ? `${String(Math.round(markAt.x))} ${String(Math.round(markAt.y))} ${String(markAt.size)}` : undefined
-      }
-    >
-      <canvas ref={glCanvas} className="light-gl" />
+    <div ref={box} className="light" aria-hidden {...boxData(mode, attention, markAt, presence, sound)}>
+      {/* The WebGL light is the room's: on paper no canvas, so no context held for a light never drawn there. */}
+      {!paper && <canvas ref={glCanvas} className="light-gl" />}
       <canvas ref={traceCanvas} className="light-trace" />
       {formed && restsAt && <Threshold at={restsAt} from={formed.from} />}
     </div>

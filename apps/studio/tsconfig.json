@@ -15,13 +15,16 @@
     "vite.fixtures.config.ts",
     "vite.app.config.ts",
     "vite.attention.config.ts",
+    "vite.search.config.ts",
     "playwright.config.ts",
     "playwright.served.config.ts",
     "playwright.attention.config.ts",
+    "playwright.search.config.ts",
     "fixtures/**/*.ts",
     "fixtures/**/*.tsx",
     "e2e/**/*.ts",
     "e2e-served/**/*.ts",
-    "e2e-attention/**/*.ts"
+    "e2e-attention/**/*.ts",
+    "e2e-search/**/*.ts"
   ]
 }

@@ -10,6 +10,7 @@ import { Button } from '@sophia/ui'
 import { getMission } from '../../api/mission.ts'
 import type { Snapshot } from '@sophia/contracts'
 import { accountOf } from '../../app/auth-callback.ts'
+import { VISION } from '../../app/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useCommands } from '../../app/useCommands.ts'
 import { useMembership } from '../access/useAccess.ts'
@@ -34,7 +35,7 @@ import { useKnownNames } from './useKnownNames.ts'
 import { PeoplePanel } from './PeoplePanel.tsx'
 import { PanelToggles, SidePanel, useBriefUpdates, useUnread } from './SidePanel.tsx'
 import { useViewerState } from './useViewerState.ts'
-import type { Lens } from './viewer-state.ts'
+import { lensesShown, type Lens } from './viewer-state.ts'
 
 /** What each lens will hold, stated plainly instead of showing fake content (the goal is noted for us). */
 const COMING: Record<Exclude<Lens, 'converse'>, { title: string; body: string }> = {
@@ -263,6 +264,10 @@ const PANEL_ALSO = {
 
 const PANEL_KEY = { chat: 'c', people: 'p', brief: 'b' } as const
 
+/** The lenses this Studio offers; one is no choice, so then no bar, no palette row and no key (prod-honesty.md). */
+const LENSES_SHOWN = lensesShown(VISION)
+const CHOOSES = LENSES_SHOWN.length > 1
+
 /** The room's own keys, as commands: a lens by its number, Chat and the brief by their letters, said by their state. */
 function useShellKeys(setLens: (lens: Lens) => void, panel: RoomPanel) {
   const toggle = (which: 'chat' | 'people' | 'brief', words: string) => ({
@@ -273,10 +278,15 @@ function useShellKeys(setLens: (lens: Lens) => void, panel: RoomPanel) {
     also: PANEL_ALSO[which],
     run: () => panel.toggle(which),
   })
+  const lenses = CHOOSES ? LENSES_SHOWN : []
   useCommands([
-    { id: 'lens-converse', words: 'Converse lens', group: 'view', key: '1', run: () => setLens('converse') },
-    { id: 'lens-explore', words: 'Explore lens', group: 'view', key: '2', run: () => setLens('explore') },
-    { id: 'lens-build', words: 'Build lens', group: 'view', key: '3', run: () => setLens('build') },
+    ...lenses.map((l, i) => ({
+      id: `lens-${l}`,
+      words: `${LENS_LABEL[l]} lens`,
+      group: 'view' as const,
+      key: String(i + 1),
+      run: () => setLens(l),
+    })),
     toggle('chat', 'chat'),
     toggle('people', 'people in the call'),
     toggle('brief', 'brief'),
@@ -306,8 +316,8 @@ export function StudioShell(props: Props) {
         snapshot={snapshot}
         projectId={projectId}
         identity={identity}
-        lensBar={<LensSwitcher lens={state.lens} onChange={setLens} />}
-        lensBody={<LensBody lens={state.lens} made={under} />}
+        lensBar={CHOOSES ? <LensSwitcher lens={state.lens} onChange={setLens} /> : null}
+        lensBody={<LensBody lens={state.lens} made={under} tabs={CHOOSES} />}
         captions={captions}
         presented={present.presented}
         showing={showing}
@@ -344,10 +354,13 @@ export function StudioShell(props: Props) {
   )
 }
 
-/** The lens's own body under Sophia's line: what she made, in Converse; what is coming, in the others. */
-function LensBody({ lens, made }: { lens: Lens; made: ReactNode }) {
+/**
+ * The lens's own body under Sophia's line: what she made, in Converse; what is coming, in the others. `tabs`: a lens
+ * bar labels it; with one lens offered nothing does, so it is no tab's panel.
+ */
+function LensBody({ lens, made, tabs }: { lens: Lens; made: ReactNode; tabs: boolean }) {
   return (
-    <div id="lens-stage" className="lens-body" role="tabpanel" aria-labelledby={`lens-${lens}`}>
+    <div id="lens-stage" className="lens-body" {...(tabs && { role: 'tabpanel', 'aria-labelledby': `lens-${lens}` })}>
       {lens === 'converse' ? made : <ComingLens lens={lens} />}
     </div>
   )

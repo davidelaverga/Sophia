@@ -85,3 +85,5 @@ the group's `multiply` did reach the paper: the formed mark drew as `#8265e3` (a
 reads no `#8468ee` pixel in the mark). The blend is dropped on paper, for Home and Talk: the halo carries its own paper
 inks, so it reads as ink unblended, and the mark draws as the brand's ink wherever the light stands. light-breath.spec
 reads the mark's pixels in the three places.
+
+> 2026-10-17: on paper the halo became a solid orb; see `paper-orb.md`.

@@ -312,6 +312,17 @@ export function findNotes<T extends { text: string }>(notes: readonly T[], typed
   return wanted ? notes.filter((n) => plain(n.text).includes(wanted)) : [...notes]
 }
 
+/**
+ * The note that takes the focus once one is forgotten: the nearest after it in the order chosen (`ordered`, ids) among
+ * those shown once it is gone, else the nearest before it; null when none is shown. Shown after, not before: forgetting
+ * one of six takes Find away, and every note is shown again (Codex P2 on #431).
+ */
+export function nextShown(ordered: readonly string[], gone: string, shown: readonly string[]): string | null {
+  const at = ordered.indexOf(gone)
+  const isShown = (id: string) => shown.includes(id)
+  return ordered.slice(at + 1).find(isShown) ?? ordered.slice(0, at).findLast(isShown) ?? null
+}
+
 /** The projects whose title holds what is typed, whatever its case or accents; all of them for nothing typed. */
 export function findProjects(projects: readonly ProjectSummary[], typed: string): ProjectSummary[] {
   const wanted = plain(typed.trim())
@@ -431,6 +442,19 @@ export interface Said {
   strong?: boolean
 }
 
+/** What Home shows for the line to Sophia (docs/plans/home-no-companion.md). */
+export type HomeLine = 'line' | 'cannot' | 'held'
+
+/**
+ * Nothing while the space is locked (your row unlocks it); the line where she answers; where the API says she can't,
+ * that, and a note instead; while that is unknown, the line's place held, so nothing below moves when it is.
+ */
+export function homeLine(locked: boolean, answers: boolean | undefined): HomeLine | null {
+  if (locked) return null
+  if (answers === undefined) return 'held'
+  return answers ? 'line' : 'cannot'
+}
+
 /**
  * The one thing that matters now, in Sophia's words, under the greeting: the call you are in, else a session about to
  * start, else people in a room, else that all is as you left it. Nothing while the projects load.
@@ -439,10 +463,17 @@ export function sophiaSays(
   projects: readonly ProjectSummary[] | undefined,
   now: Date,
   call: { title: string } | null,
+  answers = true,
 ): Said[] {
   if (!projects) return []
   if (call) return [{ text: 'You’re in ' }, { text: call.title, strong: true }, { text: '’s room.' }]
-  if (projects.length === 0) return [{ text: 'Start a project when you’re ready, or just talk to me.' }]
+  // Where she can't answer, she doesn't offer to talk (home-no-companion.md).
+  if (projects.length === 0)
+    return [
+      {
+        text: answers ? 'Start a project when you’re ready, or just talk to me.' : 'Start a project when you’re ready.',
+      },
+    ]
   return sessionSoon(projects, now) ?? roomLive(projects) ?? [{ text: 'Your projects are as you left them.' }]
 }
 

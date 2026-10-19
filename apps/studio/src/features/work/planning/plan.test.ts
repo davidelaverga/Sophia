@@ -18,6 +18,7 @@ import {
   progressOf,
   latestDecisions,
   outsideOf,
+  outsideSaid,
   relation,
   shownPlan,
   waitsOn,
@@ -403,6 +404,21 @@ describe('work outside the plan observed more than once (Codex F-045)', () => {
     )
     assert.ok(board?.problems.includes('A task is observed twice'))
     assert.ok(board?.problems.includes('3 observed tasks aren’t in the plan in force'))
+  })
+
+  it('says each in words, never its id; rows that would read alike are told apart by their order (version-names.md)', () => {
+    assert.deepEqual(
+      outsideSaid(outsideOf(goal(null, twice), null)).map((o) => [o.work_id, o.name, o.where]),
+      [
+        ['stray', 'Observed more than once (1 of 2)', 'which is current isn’t known'],
+        ['same', 'Observed more than once (2 of 2)', 'which is current isn’t known'],
+        ['extra', 'No one assigned', 'running'],
+      ],
+    )
+    const one = [view('old', { lifecycle: 'running', assignment: assignment('old') })]
+    assert.deepEqual(outsideSaid(outsideOf(goal(null, one), null)), [
+      { work_id: 'old', name: 'Davide’s Claude Code', where: 'running', ambiguous: false },
+    ])
   })
 
   it('does the same with no plan in force: each once, by the same rule', () => {

@@ -20,6 +20,8 @@ interface ImportMetaEnv {
   readonly VITE_SOPHIA_MESSAGE_ACTS?: string
   /** "1" once A37's mentions are deployed: the chat offers them and Home lists them (app/mentions.ts). */
   readonly VITE_SOPHIA_MENTIONS?: string
+  /** "1" once A38's project search is deployed: the project's head offers it (app/search.ts). */
+  readonly VITE_SOPHIA_SEARCH?: string
   /** The Sentry project crash reports and feedback go to; unset, there are none (docs/plans/crash-feedback.md). */
   readonly VITE_SENTRY_DSN?: string
   /** Sentry's environment for this deploy; «production» unless set. */

@@ -10,6 +10,10 @@ const nowhere = (page: Page) =>
   page.evaluate(() => {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
   })
+const micAsks = (page: Page) =>
+  page.evaluate(() => (window.fixture?.asked ?? []).filter((a) => a.startsWith('microphone:')))
+/** What the release's microtasks asked is read after them: a late turn-off is only true for a moment. */
+const settled = (page: Page) => page.evaluate(() => new Promise((done) => setTimeout(done, 0)))
 
 test.beforeEach(async ({ page }) => {
   await page.route(
@@ -118,6 +122,70 @@ test('talk · pressed again before a slow microphone arrives, it stays on while 
   await page.keyboard.up('Space')
   await page.keyboard.down('Space')
   await page.evaluate(() => window.fixture?.releaseMicrophone())
+  await expect(mic(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect(talking(page)).toHaveText('Talking. Let go of Space to mute again.')
+  await page.keyboard.up('Space')
+  await expect(mic(page)).toHaveAttribute('aria-pressed', 'false')
+})
+
+// A late microphone's turn-off answers to push to talk's own turn-off being the last choice in the same call (Codex P2
+// on #381): a choice made since, or another call, keeps what it chose.
+test('talk · the microphone turned on from the dock while a slow one arrives stays on (Codex P2 on #381)', async ({
+  page,
+}) => {
+  await mic(page).click()
+  await expect(mic(page)).toHaveAttribute('aria-pressed', 'false')
+  await page.evaluate(() => window.fixture?.holdMicrophone())
+  await nowhere(page)
+  await page.keyboard.down('Space')
+  await page.keyboard.up('Space')
+  await mic(page).click() // still off on screen: this asks for on, and waits as the first did
+  await page.evaluate(() => window.fixture?.releaseMicrophone())
+  await settled(page)
+  expect((await micAsks(page)).slice(-3)).toEqual(['microphone:on', 'microphone:off', 'microphone:on'])
+  await expect(mic(page)).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('talk · a slow microphone from before leaving doesn’t mute the call joined again (Codex P2 on #381)', async ({
+  page,
+}) => {
+  await mic(page).click()
+  await expect(mic(page)).toHaveAttribute('aria-pressed', 'false')
+  await page.evaluate(() => window.fixture?.holdMicrophone())
+  await nowhere(page)
+  await page.keyboard.down('Space')
+  await page.keyboard.up('Space')
+  await page.getByRole('button', { name: 'Leave the room' }).first().click()
+  await page.keyboard.press('Escape') // the recap goes
+  await expect(page.getByRole('dialog', { name: 'This meeting' })).toHaveCount(0)
+  // The person joins with the microphone on, as the door's switch keeps it.
+  await page.evaluate(() => localStorage.setItem('sophia.mic.v1', 'on'))
+  await page.getByRole('button', { name: 'Join the room' }).first().click()
+  await expect(mic(page)).toBeVisible()
+  await page.evaluate(() => window.fixture?.releaseMicrophone())
+  await settled(page)
+  expect((await micAsks(page)).at(-1)).toBe('microphone:on')
+  await expect(mic(page)).toHaveAttribute('aria-pressed', 'true')
+  expect(await page.evaluate(() => localStorage.getItem('sophia.mic.v1'))).toBe('on')
+})
+
+test('talk · pressed again while its own mute is still settling, it talks again (Codex P2 on #381)', async ({
+  page,
+}) => {
+  await mic(page).click()
+  await expect(mic(page)).toHaveAttribute('aria-pressed', 'false')
+  await nowhere(page)
+  await page.keyboard.down('Space')
+  await expect(talking(page)).toBeVisible()
+  await page.evaluate(() => window.fixture?.holdMute())
+  await page.keyboard.up('Space')
+  await expect(talking(page)).toHaveCount(0)
+  await expect(mic(page)).toHaveAttribute('aria-pressed', 'true') // the mute is still on its way
+  await page.keyboard.down('Space')
+  await page.evaluate(() => window.fixture?.releaseMute())
+  await expect
+    .poll(async () => (await micAsks(page)).slice(-3))
+    .toEqual(['microphone:on', 'microphone:off', 'microphone:on'])
   await expect(mic(page)).toHaveAttribute('aria-pressed', 'true')
   await expect(talking(page)).toHaveText('Talking. Let go of Space to mute again.')
   await page.keyboard.up('Space')

@@ -55,8 +55,10 @@ test('served · VISION off: the conversations tab is the real A33 list, and noth
   expect((await listed).status()).toBe(200)
   await expect(list(page)).toBeVisible()
   expect(calls).toContain(`GET /api/v1/projects/${PROJECT}/conversations`)
-  // VISION-only controls (ProjectShell): the project search is absent from a served build.
-  await expect(page.getByRole('button', { name: /search/i })).toHaveCount(0)
+  // The project's search is served under its own flag (A38, VITE_SOPHIA_SEARCH=1 in this build), not the vision flag;
+  // nothing VISION-only is read (meetings, recaps, so-far, focus, source origins).
+  await expect(page.getByRole('button', { name: 'Search', exact: true })).toHaveCount(1)
+  expect(calls.filter((c) => /\/(meetings|recap|so-far|focus|source-origins)\b/.test(c))).toEqual([])
 })
 
 test('served · a conversation started with Ask off is kept: its question after a reload, no answer asked of anyone', async ({
