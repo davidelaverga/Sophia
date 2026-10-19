@@ -1,6 +1,7 @@
 // A result arriving blooms her orb once (docs/plans/orb-result.md): when work she was doing finishes, she swells a little
 // and settles; never for what was already finished, nor under reduced motion. Every name is synthetic.
 import { expect, test, type Page } from '@playwright/test'
+import { slowFramesFromNow } from './frames.ts'
 
 const light = (page: Page) => page.locator('.room-stage > .light')
 
@@ -40,6 +41,19 @@ test('result · when her research finishes, she blooms once, then rests', async 
   const peak = peakSize(page)
   await page.evaluate(() => window.fixture?.researchDone())
   // Out of work she grows back to 1; the bloom takes her past it, and she settles.
+  expect(await peak).toBeGreaterThanOrEqual(1.03)
+  await expect.poll(() => size(page), { timeout: 3000 }).toBe(1)
+})
+
+test('result · on a slow machine (8 frames a second) she still blooms once, then rests', async ({ page }) => {
+  await page.goto('/room.html?research=running&theme=light')
+  await expect(light(page)).toHaveAttribute('data-mode', 'work')
+  await expect.poll(() => size(page), { timeout: 8000 }).toBe(0.9)
+  // 0.9 is read from 0.994 of her light on: a second more lights her to within a thousandth, then the frames slow.
+  await page.waitForTimeout(1000)
+  await slowFramesFromNow(page)
+  const peak = peakSize(page)
+  await page.evaluate(() => window.fixture?.researchDone())
   expect(await peak).toBeGreaterThanOrEqual(1.03)
   await expect.poll(() => size(page), { timeout: 3000 }).toBe(1)
 })

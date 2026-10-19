@@ -3,6 +3,7 @@
 // her state, her voice while she is heard, whom she attends to. Where the light forms the mark, the mark is her. Every
 // name is synthetic.
 import { expect, test, type Page } from '@playwright/test'
+import { slowFrames } from './frames.ts'
 
 const stage = (page: Page) => page.locator('.room-stage > .light')
 
@@ -118,6 +119,17 @@ test('orb · her voice swells her and lifts her heart while she speaks, and only
   await voice(page, 0.9)
   await expect.poll(async () => (await orbRead(page)).scale / quiet, { timeout: 2000 }).toBeGreaterThanOrEqual(1.15)
   await expect.poll(() => brightness(page), { timeout: 2000 }).toBeGreaterThanOrEqual(1.06)
+})
+
+test('orb · on a slow machine (8 frames a second) she ignites in the clock’s time, as on a fast one', async ({
+  page,
+}) => {
+  await slowFrames(page)
+  await page.goto('/room.html?call=on&sophia=speaking&theme=light')
+  await expect(stage(page)).toHaveAttribute('data-mode', 'speak')
+  await voice(page, 0)
+  // Reading 0.99 of her light takes 4.43 s of the clock, however few frames draw it.
+  await expect.poll(async () => (await orbRead(page)).ls, { timeout: 8000 }).toBeGreaterThanOrEqual(0.99)
 })
 
 test('orb · she leans toward the one who holds the floor', async ({ page }) => {

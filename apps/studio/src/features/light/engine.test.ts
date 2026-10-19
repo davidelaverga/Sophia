@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, it } from 'node:test'
-import { LightEngine } from './engine.ts'
+import { LightEngine, type LightMode } from './engine.ts'
 
 // Her light draws with WebGL in the room only (docs/plans/light-webgl-room.md). The page's pieces are stood in for: a
 // canvas whose WebGL context takes every call, counts its frames and says whether it was given back; the light's box;
-// its resize observer; and the browser's frames, run when the test says.
+// its resize observer; the browser's frames, run when the test says; and the page's clock, which they move on.
 
 /** A WebGL context as the test reads it: the frames drawn in it, and whether it was given back. */
 interface Gl {
@@ -17,6 +17,8 @@ interface Gl {
 let given: Gl[] = []
 let frames = new Map<number, FrameRequestCallback>()
 let lastFrame = 0
+/** The page's clock, in ms: it moves only with `framesFor`. */
+let clock = 0
 const observers = new Set<(width: number, height: number) => void>()
 
 function webgl(): Gl {
@@ -47,7 +49,8 @@ function canvas(hasWebgl = true) {
     offsetParent: {},
     gl: () => gl,
     getContext: (kind: string) => {
-      if (kind === '2d') return new Proxy({}, { get: () => () => undefined })
+      // The trace's 2D context takes every call; a gradient it asks for takes its stops.
+      if (kind === '2d') return new Proxy({}, { get: () => () => ({ addColorStop: () => undefined }) })
       if (kind !== 'webgl' || !hasWebgl) return null
       gl ??= webgl()
       return gl.context
@@ -55,13 +58,19 @@ function canvas(hasWebgl = true) {
   }
 }
 
-/** The light's box: the marks the engine sets on it. */
+/** The light's box: the marks the engine sets on it, and each size the paper orb is given (`--ls`), in order. */
 function box() {
   const marks = new Set<string>()
+  const sizes: number[] = []
   return {
     marks,
+    sizes,
     dataset: {},
-    style: { setProperty: () => undefined },
+    style: {
+      setProperty: (name: string, value: string) => {
+        if (name === '--ls') sizes.push(Number(value))
+      },
+    },
     getBoundingClientRect: () => ({ left: 0, top: 0 }),
     toggleAttribute: (name: string, on?: boolean) => {
       if (on ?? !marks.has(name)) marks.add(name)
@@ -96,9 +105,33 @@ function runFrames(n: number) {
   }
 }
 
+/** The browser's frames at `fps` for `seconds` of the page's clock, which each moves on before it runs. */
+function framesFor(seconds: number, fps: number) {
+  for (let i = 0; i < Math.round(seconds * fps); i++) {
+    clock += 1000 / fps
+    runFrames(1)
+  }
+}
+
 const asCanvas = (c: object) => c as unknown as HTMLCanvasElement
 const asBox = (b: object) => b as unknown as HTMLElement
 const engine = (b = box()) => new LightEngine(asBox(b), asCanvas(canvas()))
+
+/** Her light on paper in an 800 × 600 room, doing `mode`; its box keeps the sizes it is given. */
+function paperLight(mode: LightMode, working = false) {
+  const b = box()
+  const light = engine(b)
+  light.setPaper(true, null)
+  light.update({ mode, target: null, attention: null, working })
+  resize(800, 600)
+  return { light, sizes: b.sizes }
+}
+
+/** Her research finished: out of work, at rest. */
+const workDone = (light: LightEngine) => light.update({ mode: 'rest', target: null, attention: null, working: false })
+
+/** Her largest size among those given from the `from`th on. */
+const largestFrom = (sizes: number[], from: number) => Math.max(...sizes.slice(from))
 
 beforeEach(() => {
   given = []
@@ -117,11 +150,14 @@ beforeEach(() => {
     return lastFrame
   })
   Reflect.set(globalThis, 'cancelAnimationFrame', (id: number) => frames.delete(id))
+  clock = 0
+  Reflect.set(performance, 'now', () => clock)
 })
 
 afterEach(() => {
   for (const name of ['window', 'ResizeObserver', 'requestAnimationFrame', 'cancelAnimationFrame'])
     Reflect.deleteProperty(globalThis, name)
+  Reflect.deleteProperty(performance, 'now')
 })
 
 describe('her light draws with WebGL in the room only', () => {
@@ -207,6 +243,26 @@ describe('her light draws with WebGL in the room only', () => {
     light.setPaper(true, null)
     light.setPaper(false, asCanvas(canvas()))
     assert.equal(b.marks.has('data-fallback'), false)
+    light.stop()
+  })
+})
+
+describe('her springs keep to the clock, however few frames draw them (orb-follow-ups.md)', () => {
+  it('at 8 frames a second her light reads 0.99 within 4.6 s, as at 60 (4.43 s)', () => {
+    const { light, sizes } = paperLight('listen')
+    framesFor(4.6, 8)
+    assert.ok((sizes.at(-1) ?? 0) >= 0.99, `her size after 4.6 s: ${String(sizes.at(-1))}`)
+    light.stop()
+  })
+
+  it('at 8 frames a second a result’s bloom still takes her past 1.03', () => {
+    const { light, sizes } = paperLight('work', true)
+    framesFor(8, 60)
+    workDone(light)
+    light.arrive()
+    const from = sizes.length
+    framesFor(1.6, 8)
+    assert.ok(largestFrom(sizes, from) >= 1.03, `her largest size: ${String(largestFrom(sizes, from))}`)
     light.stop()
   })
 })
