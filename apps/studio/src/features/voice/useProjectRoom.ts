@@ -11,6 +11,7 @@ import type { RoomToken, Snapshot } from '@sophia/contracts'
 import { ApiError, issueRoomToken } from '../../api/client.ts'
 import { CALL_END, keepsTextMode, type CallEnd } from './call-end.ts'
 import { CallFence } from './call-fence.ts'
+import { switchCamera } from './camera-flip.ts'
 import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts'
 import { rememberBackground, type BackgroundId } from './background-preference.ts'
 import { rememberDevice, type DeviceKind, type MediaDevice } from './device-preference.ts'
@@ -79,8 +80,11 @@ export interface ProjectRoom {
   chosenStill: () => () => boolean
   setCamera: (on: boolean) => Promise<void>
   setScreenShare: (on: boolean) => Promise<void>
-  /** The person's choice of microphone, speaker or camera: kept for their next call, and this one switched to it. */
-  switchDevice: (kind: DeviceKind, id: string) => Promise<void>
+  /**
+   * The person's choice of microphone, speaker or camera: kept for their next call, and this one switched to it;
+   * resolves true once this call did.
+   */
+  switchDevice: (kind: DeviceKind, id: string) => Promise<boolean>
   /** The devices of a kind, through LiveKit (loaded only now); rejects where the browser refuses access. */
   listDevices: (kind: DeviceKind) => Promise<MediaDevice[]>
   /** The person's camera background: kept for their next call, and drawn in this one (call-backgrounds.md). */
@@ -195,20 +199,38 @@ function backgroundSwitch(connection: { current: RoomConnection | null }, say: (
   }
 }
 
-/** A device chosen: kept for the next call; in this one, switched, the note saying it if the browser refused. */
+/**
+ * A device chosen: kept for the next call; in this one, switched, the note saying it if the browser refused. It
+ * resolves true once this call switched: kept, even refused, is not taken (camera-flip.ts follows the call's camera).
+ */
 function deviceSwitch(connection: { current: RoomConnection | null }, say: (note: string | null) => void) {
   return async (kind: DeviceKind, id: string) => {
     rememberDevice(kind, id)
     const c = connection.current
-    if (!c) return
+    if (!c) return false
     try {
       await c.switchDevice(kind, id)
     } catch {
       if (connection.current === c) say(SWITCH_REFUSED[kind])
-      return
+      return false
     }
-    if (connection.current === c) say(null)
+    if (connection.current !== c) return false
+    say(null)
+    return true
   }
+}
+
+/**
+ * The room's device switch, each camera switch in the call that went live at `liveSince` told to your tile's presses,
+ * whichever control made it: Video settings, which a phone turned sideways shows, or the tile itself. The next press
+ * goes on from the camera the call is on (camera-flip.ts; Codex P2 on #464).
+ */
+function tellingCamera(
+  switchDevice: ProjectRoom['switchDevice'],
+  liveSince: number | null,
+): ProjectRoom['switchDevice'] {
+  return (kind, id) =>
+    kind === 'videoinput' ? switchCamera(liveSince, id, () => switchDevice(kind, id)) : switchDevice(kind, id)
 }
 
 /**
@@ -609,6 +631,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     ...joined,
     ...people,
     ...devices,
+    switchDevice: tellingCamera(devices.switchDevice, joined.liveSince),
     ...choices,
     setMicrophone,
     ...conversationParts(typedChat),

@@ -3203,6 +3203,29 @@ button.contribution-quote:hover {
 .menu.device-list {
   min-width: 240px;
 }
+/* The dock's device menus open up from it and scroll inside the room above it, not past the stage's top, where they
+   were cut off beyond any scroll: a phone turned sideways has 390 px for Video settings' 576, its rows a finger's 44 px,
+   and its cameras sat out of reach (a review's P1 on camera-flip-resync.md). The room is the stage's height, or the
+   screen's where the stage runs past it (a phone on its side), less the floor, the dock (its notes included), the 6 px
+   between and a margin. */
+.device-menu > .menu {
+  max-height: calc(min(100cqh, 100dvh) - var(--floor) - var(--dock-h, 48px) - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* On a touch screen the check before joining is a finger's size wherever it stands (Codex P2 on #434): turned sideways
+   a phone has the computer's dock, and the check is 40 px square as Join is; in a phone's own layout, one of its 42 px
+   squares (below). */
+@media (pointer: coarse) {
+  .device-menu.device-check-open {
+    margin-left: 0;
+  }
+  .device-check-open .device-open {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--r-3);
+  }
+}
 @media (max-width: 600px) {
   .device-menu {
     display: none;
@@ -3520,6 +3543,17 @@ button.contribution-quote:hover {
 .in-the-call-role {
   color: var(--text-2);
   font-size: var(--type-small);
+}
+/* Your camera's switch at your line's end, while your tile isn't on the stage (Codex P2 on #422): on a phone only, as
+   on the tile; on a computer Video settings chooses. */
+.in-the-call-flip {
+  display: none;
+  margin-left: auto;
+}
+@media (max-width: 600px) {
+  .in-the-call-flip {
+    display: inline-block;
+  }
 }
 /* A card (docs/plans/card-scale.md): a raised plane with a 1 px edge, 12 px of radius and 14 of padding; the board's
    tile 8 and 10 × 12. A live one answers: the edge lights and the plane rises a step under the pointer, a press sinks
@@ -6977,9 +7011,70 @@ button.contribution-quote:hover {
   right: auto;
   left: 8px;
 }
+/* A touch press, so a finger's width too (Codex P2 on #422): the shared touch rule raises only its height. */
+@media (pointer: coarse) {
+  .tile-pin.tile-flip {
+    min-width: 40px;
+  }
+}
+/* Your tile's menu of both its presses (TileMenu.tsx): on a phone's strip only (below). */
+.tile-menu {
+  display: none;
+}
+/* The press's box in the top layer (a manual popover): the kit's menu hangs from it as from the press, past the tile's
+   clip, the strip's edge and the room's layers. A press goes through it to the press under it. */
+.tile-menu-layer {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  background: none;
+  color: inherit;
+  pointer-events: none;
+}
+.tile-menu-layer > .menu {
+  pointer-events: auto;
+}
 @media (max-width: 600px) {
   .tile-pin.tile-flip {
     display: inline-grid;
+  }
+  /* A tile a fifth of a phone (51 to 65 px) holds one finger-sized press, not two side by side (Codex P2 on #422):
+     with both of yours (your camera on, two cameras), the press that opens them as a menu (Luis 2026-10-18); with one,
+     that one. Its wrap draws no box, so the press stands where the tile's own do. The gallery keeps both. */
+  .tile-strip .tile-menu {
+    display: contents;
+  }
+  .tile-strip .tile:has(> .tile-menu) > .tile-pin {
+    display: none;
+  }
+  /* Where the browser has no top layer for that menu (Safari before 17: no menu, VideoStage.tsx), the one press is
+     Switch camera, as before it, a phone having it nowhere else. */
+  .tile-strip .tile:has(> .tile-flip) > .tile-pin:not(.tile-flip) {
+    display: none;
+  }
+  /* The press at the top-right, clear of the mute mark at the top-left (Codex P2 on #430): a 28 px square, as the
+     strip's initial and chip are small; a 40 px one would leave 9 px of a 51 px tile. Its target is still a finger's,
+     40 px from the tile's corner, over the mark and the chip, which aren't presses. */
+  .tile-strip .tile-pin {
+    top: 4px;
+    right: 4px;
+    left: auto;
+    width: 28px;
+    height: 28px;
+    min-width: 0;
+    min-height: 0;
+  }
+  .tile-strip .tile-pin::after {
+    content: '';
+    position: absolute;
+    /* To the tile's corner: the press's 4 px inset and its 1 px edge. */
+    top: -5px;
+    right: -5px;
+    width: 40px;
+    height: 40px;
   }
 }
 

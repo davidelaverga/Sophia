@@ -93,6 +93,25 @@ test('presence · speaking while this browser blocked her sound, a call on her r
   await expect(light(page)).not.toHaveAttribute('data-sound', /./)
 })
 
+test('presence · her link coming back as she speaks into a blocked sound: still, and Allow audio kept', async ({
+  page,
+}) => {
+  await page.goto('/room.html?call=on&sophia=blocked&theme=light')
+  await expect(light(page)).toHaveAttribute('data-sound', 'blocked')
+  await page.evaluate(() => window.fixture?.linkLost(true))
+  await expect(light(page)).toHaveAttribute('data-presence', 'joining')
+  await expect.poll(async () => (await presenceRead(page)).running).toContain('gc-form')
+  // Only the light inside her forms: no drift, no breath, no call on her rim.
+  const read = await presenceRead(page)
+  expect(read.running.filter((name) => name.startsWith('gc-'))).toEqual(['gc-form'])
+  expect(read.sound).toBeNull()
+  // The browser's block is its own, not stale: a press now still lets her sound play when the link is back.
+  await expect(page.getByRole('button', { name: /Allow audio/ }).first()).toBeVisible()
+  await page.evaluate(() => window.fixture?.linkLost(false))
+  await expect(light(page)).toHaveAttribute('data-sound', 'blocked')
+  await expect.poll(async () => (await presenceRead(page)).running).toContain('gc-call')
+})
+
 test('presence · under reduced motion her presence still reads, standing still', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/room.html?theme=light')

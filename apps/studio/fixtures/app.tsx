@@ -8,7 +8,8 @@
 // request with the account its token names, and any request the fixture did not expect. `appFixture.hold(by, path)`
 // holds that account's requests for that path until `release()`, as a slow API's answer is. `attention=a34` (kept in
 // the tab too): Updates' «since» and «seen» are A34's, strict and each account's own (attention-data.ts), and
-// `appFixture.attention` says what they were asked.
+// `appFixture.attention` says what they were asked. `projects=two` (kept in the tab too): Work's list holds Research
+// notes after the fixture project, so a call can be left by opening another (call-ends-on-open.md).
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { StrictMode } from 'react'
@@ -45,6 +46,11 @@ const ATTENTION_KEY = 'fixture.app.attention'
 const SENT_KEY = 'fixture.app.proposals'
 const ASKED_KEY = 'fixture.app.asked'
 const UNEXPECTED_KEY = 'fixture.app.unexpected'
+const PROJECTS_KEY = 'fixture.app.projects'
+/** The project the fixture serves (data.ts's PROJECT), and `projects=two`'s second, which reads as it does. */
+const FIRST_BASE = '/api/v1/projects/00000000-0000-4000-8000-0000000000aa'
+const SECOND = { projectId: '00000000-0000-4000-8000-00000000009a', title: 'Research notes' }
+const SECOND_BASE = `/api/v1/projects/${SECOND.projectId}`
 
 /** What the fixture's service was told before a reload of the tab, under `key`: it remembers. */
 function before(key: string): unknown[] {
@@ -68,12 +74,14 @@ function subjectOf(headers: Headers): string {
   }
 }
 
-/** A request's path, its method and the account its token names, whatever form fetch was called with. */
+/** A request's address and path, its method and the account its token names, whatever form fetch was called with. */
 function described(input: RequestInfo | URL, init?: RequestInit) {
   const given = input instanceof Request ? input : null
   const href = input instanceof Request ? input.url : input instanceof URL ? input.href : input
+  const url = new URL(href, window.location.href)
   return {
-    pathname: new URL(href, window.location.href).pathname,
+    url,
+    pathname: url.pathname,
     method: (init?.method ?? given?.method ?? 'GET').toUpperCase(),
     by: subjectOf(new Headers(init?.headers ?? given?.headers)),
   }
@@ -87,6 +95,42 @@ const sentBefore = (): { key: string; body: unknown }[] =>
       : [],
   )
 
+const jsonOf = (body: unknown) =>
+  new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
+
+/** The contracts' validators, imported only once `projects=two` reads: a page at rest never asks for them. */
+const validators = () => import('@sophia/contracts/validate')
+
+/** The fixture's list with Research notes after its project, shaped as the project is. */
+async function listedWithSecond(answer: Response): Promise<Response> {
+  if (!answer.ok) return answer
+  const { parseProjectList } = await validators()
+  const list = parseProjectList(await answer.json())
+  const first = list.projects[0]
+  return jsonOf({
+    ...list,
+    projects: first ? [...list.projects, { ...first, ...SECOND, releases: [] }] : list.projects,
+  })
+}
+
+/**
+ * `projects=two`: the fixture serves one project, so the second's reads are answered as the first's, its snapshot under
+ * its own id and title. Under the page's own fetch, so what the page asked names the second project.
+ */
+function withSecondProject(): void {
+  const fixture = window.fetch
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const { url, pathname, method } = described(input, init)
+    if (method === 'GET' && pathname === '/api/v1/projects') return listedWithSecond(await fixture(input, init))
+    if (!pathname.startsWith(`${SECOND_BASE}/`)) return fixture(input, init)
+    url.pathname = pathname.replace(SECOND_BASE, FIRST_BASE)
+    const answer = await fixture(input instanceof Request ? new Request(url, input) : url.href, init)
+    if (!pathname.endsWith('/snapshot') || !answer.ok) return answer
+    const { parseSnapshot } = await validators()
+    return jsonOf({ ...parseSnapshot(await answer.json()), ...SECOND })
+  }
+}
+
 // This page's browser recognises no speech on the device, as the other fixture pages give theirs a labelled one: the
 // headless shell CI runs has none, and asked (Home's dictation, signed in) it ends the page's renderer.
 Reflect.set(globalThis, 'SpeechRecognition', undefined)
@@ -94,6 +138,7 @@ Reflect.set(globalThis, 'SpeechRecognition', undefined)
 bootTheme(new URLSearchParams(window.location.search).get('theme'))
 if (new URLSearchParams(window.location.search).get('work') === 'lost') sessionStorage.setItem(WORK_KEY, 'lost')
 if (new URLSearchParams(window.location.search).get('attention') === 'a34') sessionStorage.setItem(ATTENTION_KEY, 'a34')
+if (new URLSearchParams(window.location.search).get('projects') === 'two') sessionStorage.setItem(PROJECTS_KEY, 'two')
 if (sessionStorage.getItem(WORK_KEY) === 'lost') {
   const proposals = { lose: 1, how: 'lost' as const, sent: sentBefore(), held: [] }
   const asked = before(ASKED_KEY).map(String)
@@ -135,6 +180,7 @@ if (sessionStorage.getItem(WORK_KEY) === 'lost') {
     },
     missionPlus: conversationMission(),
   })
+  if (sessionStorage.getItem(PROJECTS_KEY) === 'two') withSecondProject()
   const fixture = window.fetch
   const a34 = sessionStorage.getItem(ATTENTION_KEY) === 'a34'
   const marks = new Map<string, string | null>()
