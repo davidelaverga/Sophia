@@ -6,6 +6,7 @@ import type {
   ArtifactVersion,
   NativeTask,
   NativeTaskDetail,
+  ReportCard,
   ReportSections,
   ReportSource,
   ReportSummaryEdit,
@@ -628,9 +629,60 @@ export interface SummaryDraft {
 /**
  * A description edit as the API takes it: against the revision the editor saw when they began, never the one a later
  * read of the cards brought (the window's focus reads them again), which would overwrite a teammate's newer description
- * without a word.
+ * without a word. Only once the person is told of it (settleUnheard) does the edit move to the newer revision.
  */
 export const summaryEdit = (draft: SummaryDraft): ReportSummaryEdit => ({
   summary: draft.text.trim(),
   expectedRevision: draft.base,
 })
+
+/** A save whose reply never said it was kept: none came, or the API refused it as stale (it may be the person's own). */
+export interface UnheardSave {
+  /** The words sent, as summaryEdit sent them. */
+  sent: string
+  /** The revision they were sent against. */
+  base: number
+}
+
+/** The line under a description: a problem, said as an alert, or a save that went through, said politely. */
+export interface SummaryNote {
+  words: string
+  polite: boolean
+}
+
+export const SUMMARY_KEPT: SummaryNote = {
+  words: 'Saved. The reply was lost on the way, but the description reads as you wrote it.',
+  polite: true,
+}
+
+export const SUMMARY_THEIRS: SummaryNote = {
+  words: 'Someone changed this description since you opened it. Cancel to see theirs, or Save to use yours.',
+  polite: false,
+}
+
+/** What a newer read of the card settles about an unheard save. */
+export interface Settled {
+  note: SummaryNote | null
+  /** The form closes: it holds just the words sent, and they are the description now. */
+  close: boolean
+  /** Else the typed words stay, saved next against the revision now read. */
+  base: number
+}
+
+/**
+ * What the card, read again, says of an unheard save (costuras seam #9): nothing while it holds the revision the save
+ * was sent against. Newer and reading the words sent, the save went through: the person's own, never blamed on a
+ * teammate. Newer with other words, someone else's are there, and the typed words stay, offered over the revision now
+ * read. `typed` is the form's text, or null once it closed: theirs then shows on the card, attributed, and nothing more
+ * is said.
+ */
+export function settleUnheard(
+  save: UnheardSave,
+  card: Pick<ReportCard, 'summary' | 'summaryRevision'>,
+  typed: string | null,
+): Settled | null {
+  if (card.summaryRevision <= save.base) return null
+  const base = card.summaryRevision
+  if (card.summary === save.sent) return { note: SUMMARY_KEPT, close: typed?.trim() === save.sent, base }
+  return { note: typed === null ? null : SUMMARY_THEIRS, close: false, base }
+}
