@@ -147,16 +147,21 @@ test('earlier · a held message withdrawn elsewhere whose page fails to read aga
   await expect(page.getByText('Message 4', { exact: true })).toHaveCount(0)
 })
 
+declare global {
+  interface Window {
+    /** Earlier-page reads held until released, and how many are out (the 06 cases below). */
+    holdPages?: boolean
+    pagesPending?: number
+    pagesMost?: number
+    releasePages?: () => void
+  }
+}
+
 // FND-B-COMMON-HELD-INTERACTIONS-06: the real EarlierDiscussion / useProjectFeed path with earlier-page reads genuinely
 // held (the page's fetch waits until released), not an immediate fixture answer. Counts the reads actually pending.
 async function heldPageReads(page: Page) {
   await page.addInitScript(() => {
-    const w = window as unknown as {
-      holdPages?: boolean
-      pagesPending?: number
-      pagesMost?: number
-      releasePages?: () => void
-    }
+    const w = window
     const control = { waiting: [] as (() => void)[] }
     w.pagesPending = 0
     w.pagesMost = 0
@@ -184,15 +189,9 @@ async function heldPageReads(page: Page) {
     })
   })
 }
-const pending = (page: Page) =>
-  page.evaluate(() => {
-    const w = window as unknown as { pagesPending?: number; pagesMost?: number }
-    return { now: w.pagesPending ?? 0, most: w.pagesMost ?? 0 }
-  })
-const holdPages = (page: Page, on: boolean) =>
-  page.evaluate((v) => ((window as unknown as { holdPages?: boolean }).holdPages = v), on)
-const release = (page: Page) =>
-  page.evaluate(() => (window as unknown as { releasePages?: () => void }).releasePages?.())
+const pending = (page: Page) => page.evaluate(() => ({ now: window.pagesPending ?? 0, most: window.pagesMost ?? 0 }))
+const holdPages = (page: Page, on: boolean) => page.evaluate((v) => (window.holdPages = v), on)
+const release = (page: Page) => page.evaluate(() => window.releasePages?.())
 const idAt = async (page: Page, n: number) => (await items(page).nth(n).getAttribute('data-message')) ?? ''
 const textOf = (page: Page, message: string) => page.locator(`[data-message="${message}"] .contribution-text`)
 
