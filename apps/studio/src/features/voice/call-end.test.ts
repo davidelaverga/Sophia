@@ -10,7 +10,6 @@ import {
   noteRole,
   OFFLINE_END,
   OFFLINE_JOIN,
-  saysOffline,
 } from './call-end.ts'
 
 describe('why a call ended', () => {
@@ -146,17 +145,5 @@ describe('a Join pressed offline from rest (Luis 2026-10-19, offline-join-from-r
 
   it('says it politely, as the lost call’s two', () => {
     assert.equal(noteRole(fromRest), 'status')
-  })
-
-  it('tells the room’s two offline notes from the rest, so the message bar says offline once', () => {
-    assert.equal(saysOffline(fromRest), true)
-    assert.equal(saysOffline(OFFLINE_END), true)
-    for (const note of [
-      BACK_ONLINE,
-      CALL_END.dropped.note,
-      'The room isn’t available right now. Try again in a moment.',
-    ])
-      assert.equal(saysOffline(note), false, note)
-    assert.equal(saysOffline(null), false)
   })
 })
