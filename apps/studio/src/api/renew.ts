@@ -26,13 +26,16 @@ function untilAborted<T>(work: Promise<T>, signal: AbortSignal | null | undefine
 
 const bearerOf = (headers: Headers) => /^Bearer (.+)$/.exec(headers.get('authorization') ?? '')?.[1]
 
+/** A request that can be sent twice: its body, if any, is a string (a stream would be spent by the first send). */
+export type ResendableInit = Omit<RequestInit, 'body'> & { body?: string }
+
 /**
  * fetch for the API. A 401 to a request with a bearer renews the token once and sends the same request again with the
  * new one: its other headers (the Idempotency-Key) and its body unchanged. 401 means the API refused the token before
  * handling anything, so nothing is done twice. A second 401 is the answer, as is a 401 nothing renews; a 403 never
  * renews. A request aborted while its token is renewed ends as an abort.
  */
-export async function apiFetch(input: string, init: RequestInit): Promise<Response> {
+export async function apiFetch(input: string, init: ResendableInit): Promise<Response> {
   const reply = await fetch(input, init)
   const renew = renewal
   if (reply.status !== 401 || !renew) return reply

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
-import { apiFetch, renewTokensWith } from './renew.ts'
+import { apiFetch, renewTokensWith, type ResendableInit } from './renew.ts'
 
 // The reliability baseline's gap #3 (docs/plans/auth-session-renewal.md): a 401 renews the token once and the same
 // request goes again with it; anything else is the answer as it came.
@@ -37,7 +37,7 @@ function renewingTo(fresh: string | null) {
   return asked
 }
 
-const write = (token: string, signal?: AbortSignal): RequestInit => ({
+const write = (token: string, signal?: AbortSignal): ResendableInit => ({
   method: 'POST',
   headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', 'idempotency-key': 'k-1' },
   body: '{"text":"Check the March figures"}',
