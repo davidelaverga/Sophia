@@ -115,6 +115,12 @@ const RELAYOUT_S = 0.25
 const BLOOM_S = 0.9
 
 /**
+ * A bloom this far along has hardly shown (a quarter of its swell, under 2 % of her size); one further along has been
+ * seen. A floor leaving holds only the first for its landing (orb-follow-ups.md).
+ */
+const BLOOM_UNSEEN_S = 0.25
+
+/**
  * A frame longer than this is a stall (a tab coming back, a debugger), not load: `pace` doesn't count it, and the
  * springs step no more than this in one frame, so nothing leaps for the time the page was away (orb-follow-ups.md).
  */
@@ -314,13 +320,14 @@ export class LightEngine {
   }
 
   /**
-   * What swells her now: the floor in flight, else a result's bloom. While the floor travels, a bloom not yet over waits
-   * for its landing and plays whole then (orb-follow-ups.md): the flight holds the swell meanwhile.
+   * What swells her now: the floor in flight, else a result's bloom. A bloom that arrives while the floor travels, or
+   * hadn't yet shown when it left, waits for the landing and plays whole then; one already seen ends under the flight,
+   * not again after it: one result, one bloom (orb-follow-ups.md). The flight holds the swell meanwhile.
    */
   private swell(t: number, flight: HandoffStep | null): number {
     const h = this.handoffState
     if (!flight || !h || this.reduced) return this.bloom(t)
-    if (t - this.bloomAt <= BLOOM_S) this.bloomAt = h.started + HANDOFF_SECONDS
+    if (h.started - this.bloomAt < BLOOM_UNSEEN_S) this.bloomAt = h.started + HANDOFF_SECONDS
     return flight.frame.swell
   }
 
