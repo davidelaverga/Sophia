@@ -48,7 +48,8 @@ The overview's rows with the members unread say «A member · due …»: generic
   failed.
 - One line for both reads: without the members the owner can't be named or chosen, and without the targets the form
   would save against the wrong revision, so neither half can be drawn honestly.
-- A read that fails later, with a list kept (`stale`), keeps showing what was read, as the overview does.
+- A read that fails later, with a list kept (`stale`), keeps showing what was read, as the overview does. For the
+  targets this needed the change in the review section below: as first written it held only until the project moved.
 
 ## Checks
 
@@ -67,3 +68,28 @@ The overview's rows with the members unread say «A member · due …»: generic
 - `InProject` is the closest call among the decorative ones: a project always has at least its viewer, so an empty
   list can only be unread, and an admin who opens the sheet to change a role finds no list and no reason. It is a
   candidate for the same line in its own change.
+
+## Review: a kept read must outlast the project's moves
+
+> The independent review of this branch, one P2, no P1.
+
+- **What was measured.** The targets are keyed by the project's cursor with `placeholderData: keepPreviousData`.
+  TanStack uses a placeholder only while the query is pending (`queryObserver`'s `createResult`: placeholder only when
+  `status === 'pending'` and no data). Once the project moved, a failing read at the new cursor ended with no data,
+  so `notesRead` said `failed`: the sheet swapped the owner and date on screen for the alert, and an admin's typed,
+  unsaved date went with the form. The overview's «The dates can’t be read right now» came up the same way. The line
+  above, «keeps showing what was read», held only until the first move.
+- **The choice.** Each cursor's read starts from the newest targets read for the project and viewer (`initialData`
+  from the query cache, with that read's own `initialDataUpdatedAt`, so it is stale and read at once). A failure then
+  leaves data in place: `stale`, never `failed`. Weighed against the other two:
+  - taking the cursor out of the key and invalidating on each move needs an effect in every reader (the overview and
+    the sheet both read it), so each move reads twice, or a shared record of which move was read; the cursor key is the
+    notes' pattern, kept here on purpose;
+  - keeping the last map in a ref is per component: a sheet opened after the failure would have nothing to keep.
+- **Check.** `goal-owner-date.spec.ts`: an admin with the owner shown types a date, the targets start failing, the
+  project moves (`fixture.say`), and once the four tries are refused (the fixture records `targets-refused`) the sheet
+  has no alert, the owner is still Marco and the typed date is still there.
+- **Not done, the optional P3** (Try again shown busy while its retries run): the overview's `ReadFailed` doesn't do
+  it either, and the two should change together rather than give one area two idioms.
+- **Limit.** The notes (`useLedger`) keep the same cursor key with `keepPreviousData`, so the overview's notes alert can
+  come up the same way after a move. Outside this change; a candidate for the same seed.
