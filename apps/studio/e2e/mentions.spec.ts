@@ -529,15 +529,59 @@ test('mentions · a seen write that keeps failing is tried a bounded number of t
   expect((await served(page)).filter((s) => s.startsWith('seen:'))).toEqual([])
 })
 
-test('mentions · closing the chat cancels a pending retry of a failed seen write', async ({ page }) => {
-  await failingSeen(page, 99)
+/**
+ * The first seen write held, then answered 503 on a stopped page clock, so its retry is surely pending (1 s on): a slow
+ * runner can't let the retry go before the step meant to come first (#452's 1 vs 2). Closed, the clock then runs 2.5 s;
+ * kept open, just past the retry's time (600 ms more), where the one retry goes and the next is 2 s off.
+ */
+async function pendingSeenRetry(page: Page, close: boolean) {
+  await page.clock.install()
+  await page.addInitScript(() => {
+    let held = true
+    window.seenAttempts = 0
+    const wrap =
+      (f: typeof fetch): typeof fetch =>
+      async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href)
+        if (init?.method === 'POST' && /^\/api\/v1\/me\/needs\/[^/]+\/seen$/.test(url.pathname)) {
+          window.seenAttempts = (window.seenAttempts ?? 0) + 1
+          if (held) {
+            held = false
+            await new Promise<void>((resolve) => (window.releaseSeen = resolve))
+          }
+          return new Response(JSON.stringify({ code: 'unavailable', message: 'Busy', retry: 'safe' }), { status: 503 })
+        }
+        return f(input, init)
+      }
+    let current = wrap(window.fetch.bind(window))
+    Object.defineProperty(window, 'fetch', {
+      configurable: true,
+      get: () => current,
+      set: (f: typeof fetch) => (current = wrap(f)),
+    })
+  })
   await page.goto(`/room.html?call=on&people=2&floor=1&discussion=mentioned#message-${MENTIONED_IN}`)
   await expect(discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)).toBeInViewport()
-  await expect.poll(() => seenAttempts(page)).toBe(1)
-  await chatToggle(page).click()
-  await expect(discussion(page)).toHaveCount(0)
-  await page.waitForTimeout(2500)
+  await expect.poll(() => page.evaluate(() => typeof window.releaseSeen)).toBe('function') // the first write, held
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1))
+  await page.evaluate(() => window.releaseSeen?.()) // its 503, answered with the clock stopped: the retry waits
+  await page.clock.runFor(500) // half its wait: still pending, nothing sent again
   expect(await seenAttempts(page)).toBe(1)
+  if (close) {
+    await chatToggle(page).click()
+    await expect(discussion(page)).toHaveCount(0)
+  }
+  await page.clock.runFor(close ? 2500 : 600)
+}
+
+test('mentions · closing the chat cancels a pending retry of a failed seen write', async ({ page }) => {
+  await pendingSeenRetry(page, true)
+  expect(await seenAttempts(page)).toBe(1)
+})
+
+test('mentions · with the chat kept open, the same pending retry goes when its time comes', async ({ page }) => {
+  await pendingSeenRetry(page, false)
+  expect(await seenAttempts(page)).toBe(2)
 })
 
 // #409 R-CURRENT-MENTIONS-RETRY-OWNERSHIP-02: the first seen write is held; while it is in flight the same mounted chat's
