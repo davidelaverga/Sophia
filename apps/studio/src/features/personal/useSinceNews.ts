@@ -1,7 +1,8 @@
 // What changed since you last looked, read for Home (docs/plans/home-since-you-looked.md): A34's window for each
 // project Home shows, where Updates is served (the vision or the attention flag); the news Sophia's sentence says as a
 // visit begins, once per line, project, account and device (features/updates/since-said.ts); and a call's project, read
-// once as the call ends, since what it held was in front of the person, and again while that read hasn't taken.
+// once as the call ends, since what it held was in front of the person, and again while that read hasn't taken: as
+// Home is arrived at, or the browser is online again.
 import { useQueries, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { getSince, type Since } from '../../api/vision.ts'
@@ -43,6 +44,12 @@ const readOf =
     return since
   }
 
+/** A call's project read after the call, kept as it comes (readOf); one that fails leaves it pending. */
+const readAfter = (client: QueryClient, identity: Account, projectId: string) =>
+  void client
+    .fetchQuery({ queryKey: homeSinceKey(projectId), queryFn: readOf(identity, projectId), staleTime: 0, retry: false })
+    .catch(() => undefined)
+
 export interface SinceOptions {
   /** Home is the place arrived at: a visit begins each time it is again. */
   here: boolean
@@ -77,6 +84,22 @@ function useWindows(identity: Account, ids: readonly string[], active: boolean):
   })
 }
 
+/**
+ * The calls' projects still pending that `ids` (Home's rows) leave out, read once each as Home is arrived at with its
+ * rows known, or as they change (Codex P2 on #468, its review): else nothing reads one Home doesn't show until the
+ * browser is `online` again, and the read once it is shown keeps whole what others did there since the call.
+ */
+function usePendingReads(identity: Account, ids: readonly string[] | undefined, active: boolean): void {
+  const client = useQueryClient()
+  const rows = ids?.join(' ')
+  useEffect(() => {
+    if (!active || rows === undefined) return
+    const shown = rows.split(' ')
+    for (const projectId of readPending(accountOf(identity)))
+      if (!shown.includes(projectId)) readAfter(client, identity, projectId)
+  }, [client, identity, active, rows])
+}
+
 /** Whether an arrival may say anything: on Home, under the flags, out of a call, under no other sentence, rows known. */
 const mayTell = (o: Required<SinceOptions>, ids: readonly string[] | undefined) =>
   o.here && o.enabled && !o.inCall && !o.covered && ids !== undefined
@@ -104,7 +127,9 @@ export function useSinceNews(
   ids: readonly string[] | undefined,
   { here, inCall, covered, enabled = SINCE_SHOWN }: SinceOptions,
 ): Visit {
-  const windows = useWindows(identity, ids ?? [], enabled && here && !inCall)
+  const reads = enabled && here && !inCall
+  const windows = useWindows(identity, ids ?? [], reads)
+  usePendingReads(identity, ids, reads)
   const [visit, setVisit] = useState(QUIET)
   const [wasHere, setWasHere] = useState(false)
   if (here !== wasHere) {
@@ -125,18 +150,12 @@ export function useSaidOnce(identity: Account, visit: Visit, says: readonly Said
   }, [said, account, visit])
 }
 
-/** A call's project read after the call, kept as it comes (readOf); one that fails leaves it pending. */
-const readAfter = (client: QueryClient, identity: Account, projectId: string) =>
-  void client
-    .fetchQuery({ queryKey: homeSinceKey(projectId), queryFn: readOf(identity, projectId), staleTime: 0, retry: false })
-    .catch(() => undefined)
-
 /**
  * A call's end, wherever the person is then (SignedIn): what its project held by then was in front of them, in the room
  * or its recap, so its window is read once and kept, and Home never tells them what their own call decided, made or
  * kept. One read per call, after it; under the flags only. Its project is pending until a read takes (Codex P2 on
- * #468): Home says nothing of it, Home's own read of it counts as the call's, and the browser back online reads it once
- * more. No timer, no polling.
+ * #468): Home says nothing of it, Home's own read of it counts as the call's, an arrival on Home reads it if Home
+ * doesn't show it (usePendingReads), and the browser back online reads it once more. No timer, no polling.
  */
 export function useCallSeen(identity: Account, call: string | null, enabled = SINCE_SHOWN): void {
   const client = useQueryClient()
