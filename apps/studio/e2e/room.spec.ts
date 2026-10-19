@@ -400,3 +400,31 @@ test('BASE-03 · offline in the call, Chat with Sophia is answered by the call: 
   // back as it was (chat-start.ts), leaving the microphone silenced and the chat unstarted.
   await expect(page.getByRole('button', { name: /^Text mode/ })).toHaveAttribute('aria-pressed', 'true')
 })
+
+test('BASE-03 · offline, Work’s Join the room before the project loads says so, and nothing joins once back', async ({
+  page,
+  context,
+}) => {
+  // Opened by Work's Join the room (or a toast's Rejoin), asking to join (`call=on`), before its snapshot is read.
+  await page.goto('/room.html?call=on&snapshot=hold')
+  const join = page.getByRole('navigation', { name: 'Room controls' }).getByRole('button', { name: /^Join the room/ })
+  await expect(join).toBeDisabled() // nothing to join until the project has loaded
+  const polite = page.locator('.dock-wrap > p[role="status"]:not(.dock-sound)')
+  await expect(polite).toHaveText('')
+  await polite.evaluate((el) => el.setAttribute('data-before', ''))
+  await context.setOffline(true)
+  // Offline the project can't load, so the join asked is answered now: it asks for nothing and says so, politely.
+  const said = page.locator('.dock-wrap > p[data-before]')
+  await expect(said).toHaveText(FROM_REST)
+  await expect(page.locator('.dock-wrap [role="alert"]')).toHaveCount(0)
+  expect(await tokens(page), 'no token is asked offline').toEqual([])
+  await context.setOffline(false)
+  await page.evaluate(() => window.fixture?.releaseSnapshot())
+  await expect(join).toBeEnabled() // the project has loaded
+  await expect(said).toHaveText('')
+  await page.waitForTimeout(600) // back online and loaded, a join still standing would have asked by now
+  expect(await tokens(page), 'nothing joins on its own').toEqual([])
+  await join.click()
+  await expect(leave(page)).toBeVisible()
+  expect(await tokens(page), 'one token, asked online').toEqual(['room-token'])
+})
