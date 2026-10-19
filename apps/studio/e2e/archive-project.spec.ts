@@ -169,7 +169,7 @@ test('archive · in Work, Unarchive waits on its row, «Bringing back…», and 
   await row.getByRole('button', { name: 'Unarchive' }).click()
   const waiting = row.getByRole('button', { name: 'Bringing back…' })
   await expect(waiting).toHaveAttribute('aria-disabled', 'true')
-  await waiting.click()
+  await waiting.click({ force: true }) // waiting: nothing more is sent
   await page.evaluate(() => window.workSpaceFixture?.release())
   // Answered: the lists are read again, and it has left the archived ones.
   await expect(row).toHaveCount(0)
