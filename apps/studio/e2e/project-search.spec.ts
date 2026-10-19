@@ -287,3 +287,44 @@ test('project search · a slow search open and a Show them meanwhile: the fill a
   await expect(page.getByText('The start of the room’s chat')).toBeVisible()
   expect(await reads(page)).toHaveLength(3)
 })
+
+// B67 (R-B66-P1): A (message 10) owns a source and is older than the chat's 50; B (message 11), a reference to it, is in
+// the window. A's correction or withdrawal is taken while the snapshot lags at its own older cursor: which source went
+// is unknown here, so B is fenced. Then a search opens C (message 3), older than A: its page is held, and the window as
+// cached (B's old words) with it. A new message moves the window past B, and a snapshot as new as the erasure answers:
+// B's erased words must not come back from what was held. Paired: no erasure, B stays readable.
+for (const act of ['correct', 'withdraw', 'none'] as const)
+  test(`project search · a held window does not bring back a reference's erased words once the window moves past it (${act}, R-B66-P1)`, async ({
+    page,
+  }) => {
+    await page.goto('/room.html?people=2&call=on&discussion=60&acts=1&alias=1&aliasAt=9&heron=3')
+    await expect(page.getByRole('button', { name: 'Leave the room' })).toBeVisible()
+    await page.getByRole('button', { name: /^Chat/ }).first().click()
+    const b = discussion(page).locator(`[data-message="${entryIdOf(10)}"] .contribution-text`)
+    await expect(b).toHaveText('SYNTHETIC shared words')
+    await expect(discussion(page).locator(`[data-message="${entryIdOf(9)}"]`)).toHaveCount(0) // A: not in the window
+    await page.evaluate(() => window.fixture?.holdSnapshotAt())
+    if (act !== 'none') {
+      await page.evaluate(([m, text]) => window.fixture?.eraseShared(9, m, text), [
+        entryIdOf(9),
+        act === 'correct' ? 'Message 10, corrected elsewhere' : null,
+      ] as const)
+      await expect.poll(() => page.evaluate(() => window.fixture?.heldChanges().erasedAt)).toBe(1)
+      await expect(b).toHaveCount(0) // fenced: its source is unknown here
+    }
+    await openHeron(page, 3) // C, older than A: its page is read and held
+    expect((await reads(page)).length).toBeGreaterThan(0)
+    await page.evaluate(() => window.fixture?.say('A new message moves the window.'))
+    await page.evaluate(() => window.fixture?.releaseSnapshot()) // a read as new as the erasure
+    await expect(discussion(page).getByText('A new message moves the window.')).toBeVisible()
+    await page.waitForTimeout(800)
+    const erased = discussion(page)
+      .locator('.contribution-text')
+      .filter({ hasText: /^SYNTHETIC shared words$/ })
+    if (act === 'none')
+      await expect(erased).not.toHaveCount(0) // no erasure: B readable
+    else await expect(erased).toHaveCount(0)
+    await expect(discussion(page).locator(`[data-message="${entryIdOf(59)}"] .contribution-text`)).toHaveText(
+      'Message 60',
+    )
+  })
