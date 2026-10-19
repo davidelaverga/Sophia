@@ -161,7 +161,7 @@ interface Project {
   description: Description
   /** The next edit of it lands, but its reply is lost (`summary=lost`, description-reply-lost.md). */
   summaryLost?: boolean
-  /** Knowledge's reads of the report cards wait until the page lets them through (`holdReports`), as a slow API's do. */
+  /** Knowledge's reads of the cards wait until the page lets them through (`holdReports`), as a slow API's do. */
   reportsHeld?: boolean
   /**
    * How reads of the report's versions fail from now on: `unavailable`, as an API that lost its database answers;
@@ -1328,7 +1328,7 @@ function reportsAnswer(project: Project, url: URL) {
 /** Reads of the report cards the page holds, each waiting to be let through (`window.fixture.releaseReports`). */
 const heldReports: (() => void)[] = []
 
-/** Knowledge's cards; while the page holds them, a read that answers once let through, with the cards as they are then. */
+/** Knowledge's cards; while the page holds them, a read that answers once let through, with the cards as they are. */
 function reportsRead(project: Project, url: URL): Response | Promise<Response> {
   if (!project.reportsHeld) return reportsAnswer(project, url)
   return new Promise((resolve) => heldReports.push(() => resolve(reportsAnswer(project, url))))

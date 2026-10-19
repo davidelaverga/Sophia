@@ -845,9 +845,11 @@ describe('a description edit', () => {
   })
 })
 
+/** The saved line as settled: it speaks of the words the description reads. */
+const kept = (reads: string) => ({ ...SUMMARY_KEPT, reads })
+
 describe('a description save its reply never confirmed', () => {
   const sent = { sent: ['My sharper description'], base: 1 }
-  const kept = (reads: string) => ({ ...SUMMARY_KEPT, reads })
   it('settles nothing while the card holds the revision it was sent against', () => {
     assert.equal(settleUnheard(sent, { summary: 'Sophia’s description', summaryRevision: 1 }, 'x'), null)
     const unchanged = { sent: ['Sophia’s description'], base: 1 }

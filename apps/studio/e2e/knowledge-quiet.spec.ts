@@ -93,7 +93,7 @@ const recordLines = (page: Page) =>
     const said: string[] = []
     Reflect.set(window, 'linesSaid', said)
     new MutationObserver(() => {
-      for (const line of document.querySelectorAll('.report-problem, .report-saved')) said.push(line.textContent ?? '')
+      for (const line of document.querySelectorAll('.report-problem, .report-saved')) said.push(line.textContent)
     }).observe(document, { childList: true, subtree: true, characterData: true })
   })
 

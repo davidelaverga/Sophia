@@ -1,19 +1,30 @@
 // A report's description on its Knowledge card (plan §2.9): Sophia's from publication, or a member's edit with its
 // date. An editor's change is saved against the revision they saw when they began (summaryEdit): when someone else
-// changed it first, the person is told and their typed words stay, and nothing is overwritten unless they save again,
-// even after the cards were read again meanwhile. A save with no reply is never sent again by itself (it may have
-// landed): when the cards read again bring back the words sent, or a stale refusal finds them there, it was saved, said
-// politely and never blamed on a teammate (docs/plans/description-reply-lost.md). «Edit description» moves the focus
-// to the text, and leaving the form (Cancel, Esc, a save) hands it back to it. Sophia's own description opens with her
-// mark, which says so to a screen reader and under the pointer; a member's edit is said in words
-// (docs/plans/knowledge-quiet.md). Edit sits at the tile's foot, after what the tile puts there (History).
+// changed it first, the person is told whose words are there and their typed words stay, and nothing is overwritten
+// unless they save again, even after the cards were read again meanwhile. A save with no reply is never sent again by
+// itself (it may have landed): when the cards read again bring back any words sent, or a stale refusal finds them
+// there, it was saved, said politely, never blamed on a teammate, and only while it stays true
+// (docs/plans/description-reply-lost.md). «Edit description» moves the focus to the text, and leaving the form (Cancel,
+// Esc, a save) hands it back to it. Sophia's own description opens with her mark, which says so to a screen reader and
+// under the pointer; a member's edit is said in words (docs/plans/knowledge-quiet.md). Edit sits at the tile's foot,
+// after what the tile puts there (History).
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ReportCard } from '@sophia/contracts'
 import { editReportSummary } from '../../api/artifacts.ts'
 import { ApiError } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Mark } from '../../app/Mark.tsx'
-import { settleUnheard, summaryEdit, type SummaryDraft, type SummaryNote, type UnheardSave } from './report-view.ts'
+import {
+  draftFrom,
+  liveNote,
+  settleUnheard,
+  summaryEdit,
+  summaryProblem,
+  unheardWith,
+  type SummaryDraft,
+  type SummaryNote,
+  type UnheardSave,
+} from './report-view.ts'
 import { dayOf } from '../../app/time-words.ts'
 
 const LIMIT = 240
@@ -34,19 +45,8 @@ function attribution(card: ReportCard): string {
   return when ? `Edited by a member · ${when}` : 'Edited by a member'
 }
 
-/** What a refused or unanswered save tells the person. A stale one says nothing until the cards settle whose it is. */
-function problemOf(err: unknown): string | null {
-  if (err instanceof ApiError && err.code === 'stale_revision') return null
-  if (err instanceof ApiError && err.code === 'forbidden') return 'Only editors and admins can change it.'
-  if (err instanceof ApiError && err.code === 'outcome_unknown') {
-    return 'No reply from Sophia: it may have been saved. It will show here when the list reads again.'
-  }
-  return 'The description wasn’t saved. Try again.'
-}
-
 /** A save the cards read again settle (settleUnheard): its reply was lost, or the API refused it as stale. */
-const unheardBy = (err: unknown): boolean =>
-  err instanceof ApiError && (err.code === 'outcome_unknown' || err.code === 'stale_revision')
+const unheardBy = (code: string | null): boolean => code === 'outcome_unknown' || code === 'stale_revision'
 
 /** The line under the description: a problem as an alert, a save that went through after all as a status. */
 function Note({ note }: { note: SummaryNote | null }) {
@@ -90,9 +90,10 @@ function useDraft() {
 type Draft = ReturnType<typeof useDraft>
 
 /**
- * Saving the draft, and the line it leaves. A save whose reply was lost, or refused as stale, waits for the cards read
- * again to say whose words are there (settleUnheard): the person's own close the form as saved, someone else's keep the
- * typed words. Edit starts afresh, so each line is said once.
+ * Saving the draft, and the line it leaves. Saves whose reply was lost, or refused as stale, wait together for the
+ * cards read again to say whose words are there (settleUnheard): the person's own close the form as saved, someone
+ * else's are named and keep the typed words. Edit takes the line away, so each is said once, but never what is still
+ * unheard.
  */
 function useSave({ card, identity, onSaved }: Pick<Props, 'card' | 'identity' | 'onSaved'>, form: Draft) {
   const [note, setNote] = useState<SummaryNote | null>(null)
@@ -117,9 +118,10 @@ function useSave({ card, identity, onSaved }: Pick<Props, 'card' | 'identity' | 
       setNote(null)
       setUnheard(null)
     } catch (err: unknown) {
-      const words = problemOf(err)
+      const code = err instanceof ApiError ? err.code : null
+      const words = summaryProblem(code)
       setNote(words === null ? null : { words, polite: false })
-      if (unheardBy(err)) setUnheard({ sent: edit.summary, base: edit.expectedRevision })
+      if (unheardBy(code)) setUnheard((prev) => unheardWith(prev, edit))
     } finally {
       setSaving(false)
       onSaved()
@@ -127,15 +129,14 @@ function useSave({ card, identity, onSaved }: Pick<Props, 'card' | 'identity' | 
   }
   const begin = () => {
     setNote(null)
-    setUnheard(null)
-    form.start({ text: card.summary ?? '', base: card.summaryRevision })
+    form.start(draftFrom(card, unheard))
   }
   /** Cancel or Esc: the form's line goes with it, unless a save still waits to be heard. */
   const leave = () => {
     stop()
     if (!unheard) setNote(null)
   }
-  return { note, saving, save, begin, leave }
+  return { note: liveNote(note, card.summary), saving, save, begin, leave }
 }
 
 /** Sophia's mark before her own description: «Description by Sophia» to a screen reader and under the pointer. */
