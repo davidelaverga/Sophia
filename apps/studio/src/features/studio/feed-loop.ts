@@ -23,7 +23,10 @@ export interface FeedPorts {
    * door is closed and the screen shows its notice (project-door.ts). If not, only the stream stumbled.
    */
   refused(): Promise<boolean>
-  sleep(ms: number): Promise<void>
+  /** Waits `ms`, or less if `woken` aborts first. */
+  sleep(ms: number, woken: AbortSignal): Promise<void>
+  /** Calls `wake` when asking now is worth it (the network is back, the page is shown); returns how to stop. */
+  wakes(wake: () => void): () => void
   /** A number in [0, 1), as Math.random: spreads each wait. */
   random(): number
 }
@@ -36,6 +39,20 @@ export const JITTER = 0.3
 const spread = (ms: number, random: number) => Math.round(ms * (1 + JITTER * (2 * random - 1)))
 
 const isAccessError = (err: unknown) => err instanceof ApiError && (err.status === 401 || err.status === 403)
+
+/**
+ * The wait before asking again, ended by the first wake: one ask per wait, so the network coming back and the page
+ * shown together still ask once. Nothing listens outside the wait.
+ */
+async function wait(ports: FeedPorts, ms: number): Promise<void> {
+  const woken = new AbortController()
+  const stopListening = ports.wakes(() => woken.abort())
+  try {
+    await ports.sleep(ms, woken.signal)
+  } finally {
+    stopListening()
+  }
+}
 
 /** One stream attempt. A gap aborts it so the loop can resync. */
 async function followOnce(ports: FeedPorts, stop: AbortSignal, onLive: () => void): Promise<'ended' | 'denied'> {
@@ -81,7 +98,7 @@ export async function runFeedLoop(ports: FeedPorts, stop: AbortSignal): Promise<
     }
     if (stopped() || ports.current().needsSnapshot) continue
     ports.setConnection('reconnecting')
-    await ports.sleep(spread(backoff, ports.random()))
+    await wait(ports, spread(backoff, ports.random()))
     backoff = Math.min(backoff * 2, MAX_BACKOFF_MS)
   }
 }
