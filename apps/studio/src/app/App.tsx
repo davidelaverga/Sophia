@@ -6,6 +6,7 @@ import { draftsOnlyOf, forgetDrafts } from '../features/personal/draft.ts'
 import { cacheFor, cacheOf } from './account-cache.ts'
 import { accountOf } from './auth-callback.ts'
 import { forgetKept } from '../features/conversations/talk-store.ts'
+import { forgetHeld, heldOnlyOf } from './held-in-tab.ts'
 import { forgetProposals, proposalsKeptFor, proposalsOnlyOf } from '../features/work/planning/review-proposal.ts'
 import { setSignedIn } from './signed-in.ts'
 import { useAuth, type AuthState } from './auth.ts'
@@ -77,11 +78,21 @@ function useProposalsOnlyOfWhoIsIn(state: AuthState) {
 }
 
 /**
- * What a person had under way on this device: a project's conversations (talk-store.ts), unanswered proposals, and the
- * palette's «Recent» (palette-recent.ts).
+ * The tab keeps only the held writes (sent with no reply, held-in-tab.ts) of the account signed in, as it keeps its
+ * proposals: anyone else's go once the app knows who is in, all once it knows nobody is, none while it finds out.
+ */
+function useHeldOnlyOfWhoIsIn(state: AuthState) {
+  const who = proposalsKeptFor(state)
+  useEffect(() => heldOnlyOf(who), [who])
+}
+
+/**
+ * What a person had under way on this device: a project's conversations (talk-store.ts) and the writes the tab holds
+ * with no reply (held-in-tab.ts), unanswered proposals, and the palette's «Recent» (palette-recent.ts).
  */
 function forgetUnderWay() {
   forgetKept()
+  forgetHeld()
   forgetProposals()
   forgetRecent()
 }
@@ -208,6 +219,7 @@ function AppBody() {
   const queryClient = useAccountCache(signedInAs)
   useRecentOnlyOf(signedInAs)
   useProposalsOnlyOfWhoIsIn(state)
+  useHeldOnlyOfWhoIsIn(state)
   // Who is in, for writes that outlive their part (signed-in.ts): set as it changes, cleared at once on leaving.
   useEffect(() => setSignedIn(signedInAs), [signedInAs])
   const wordsWent = useDraftsOnlyOfWhoIsIn(state)

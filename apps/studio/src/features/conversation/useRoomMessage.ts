@@ -1,12 +1,16 @@
 // A message to the room (docs/plans/room-discussion.md): the project's discussion, attributed, recorded through the
 // contributions API (A05) with one Idempotency-Key per message. It is never sent to Sophia and never starts work. The
-// feed carries it to every member's chat; this page reads the snapshot again at once.
+// feed carries it to every member's chat; this page reads the snapshot again at once. On its way or sent with no reply,
+// it is kept in the tab (held-in-tab.ts), so a reload offers it again under its key (reliability-held-on-reload.md).
 import { useQueryClient } from '@tanstack/react-query'
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import type { ContributionReceipt } from '@sophia/contracts'
+import { ApiError } from '../../api/client.ts'
 import { submitContribution } from '../../api/conversation.ts'
-import { useAdmission } from '../../api/useAdmission.ts'
+import { useAdmission, type Resumed } from '../../api/useAdmission.ts'
+import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { keepHeld, readHeld, type HeldAt } from '../../app/held-in-tab.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
 import { barTarget, type Target } from './discussion-view.ts'
 import type { MentionsUnderWay } from './MentionPicker.tsx'
@@ -35,6 +39,32 @@ const sameMembers = (a: readonly string[], b: readonly string[]) =>
 const NO_REPLY: ReplyUnderWay = { id: null, done: () => undefined }
 const NO_MENTIONS: MentionsUnderWay = { ids: [], done: () => undefined }
 
+/** The message the tab kept with no reply, read back (a reload): its key, its words and the entry it answers. */
+function resumedFrom(value: unknown): Resumed<RoomMessage> | null {
+  if (typeof value !== 'object' || value === null) return null
+  const key: unknown = Reflect.get(value, 'key')
+  const text: unknown = Reflect.get(value, 'text')
+  const replyTo: unknown = Reflect.get(value, 'replyTo')
+  if (typeof key !== 'string' || !key || typeof text !== 'string' || !text) return null
+  return { key, args: { text, replyTo: typeof replyTo === 'string' ? replyTo : null } }
+}
+
+/**
+ * The tab's place for this account's message to the project's room: what it kept, read back once as the bar opens, and
+ * how to keep one before it is sent and let it go once answered (only that one: a newer kept since stays).
+ */
+function useKeptMessage(projectId: string, identity: Identity) {
+  const at: HeldAt = { account: accountOf(identity), part: 'room', project: projectId }
+  const [resumed] = useState(() => resumedFrom(readHeld(at)))
+  return {
+    resumed,
+    keep: (key: string, message: RoomMessage) => keepHeld(at, { key, ...message }),
+    letGo: (key: string) => {
+      if (resumedFrom(readHeld(at))?.key === key) keepHeld(at, null)
+    },
+  }
+}
+
 export function useRoomMessage(
   projectId: string,
   identity: Identity,
@@ -44,9 +74,12 @@ export function useRoomMessage(
   { reply = NO_REPLY, mentions = NO_MENTIONS }: { reply?: ReplyUnderWay; mentions?: MentionsUnderWay } = {},
 ) {
   const queryClient = useQueryClient()
+  const kept = useKeptMessage(projectId, identity)
   const write = useAdmission<RoomMessage, ContributionReceipt>(async (key, message) => {
+    // Kept before it goes: a page that goes, or reloads, before the reply finds it.
+    kept.keep(key, message)
     try {
-      return await submitContribution(identity.token, projectId, key, {
+      const receipt = await submitContribution(identity.token, projectId, key, {
         source: null,
         text: message.text,
         threadId: message.replyTo,
@@ -54,10 +87,16 @@ export function useRoomMessage(
         intent: 'discuss',
         ...(message.mentions.length > 0 ? { mentions: [...message.mentions] } : {}),
       })
+      kept.letGo(key)
+      return receipt
+    } catch (err: unknown) {
+      // Refused for good, it is let go; with no reply, kept (useAdmission reads anything but an ApiError as none).
+      if (err instanceof ApiError && err.retry !== 'same_admission_key') kept.letGo(key)
+      throw err
     } finally {
       void queryClient.invalidateQueries({ queryKey: snapshotKey(projectId, identity.name) })
     }
-  })
+  }, kept.resumed)
   // The draft and the reply as they are now: read after the answer, never from the press's render.
   const latest = useRef({ draft, reply, mentions })
   useLayoutEffect(() => {

@@ -1129,6 +1129,61 @@ test('reliability · «Since you last looked» answered twice by a proxy’s 503
   await expect(since).not.toContainText('This may be out of date.')
 })
 
+// --- A message sent with no reply, kept in the tab across a reload (docs/plans/reliability-held-on-reload.md). ---
+
+const HELD_PREFIX = 'sophia.held.v1:'
+/** The first conversation `work=lost` serves (reading): its newest page has six messages. */
+const READING_TALK = '00000000-0000-4000-8000-0000000000c1'
+const heldKeyOf = (person: Person, kind: 'talk' | 'room', project: string) =>
+  `${HELD_PREFIX}${JSON.stringify([person.id, kind, project])}`
+/** Davide's message to the reading conversation, sent with no reply, as the tab keeps it: its key and its words. */
+const DAVIDE_TALK = heldKeyOf(DAVIDE, 'talk', WORK_PROJECT)
+const DAVIDE_HELD = JSON.stringify({
+  [READING_TALK]: {
+    key: '6f1c7d3e-0b5a-4c2e-9d8f-00000000d0c1',
+    ask: { text: 'Check the March figures', askSophia: false },
+  },
+})
+/** Luis's message to the room, held in this tab before Davide came in. */
+const LUIS_ROOM = heldKeyOf(LUIS, 'room', WORK_PROJECT)
+const LUIS_HELD = JSON.stringify({ key: '6f1c7d3e-0b5a-4c2e-9d8f-00000000e0c1', text: 'Luis was here', replyTo: null })
+
+/** What the tab keeps of held writes, and the other part's entry. */
+const heldInTab = (page: Page) =>
+  page.evaluate(
+    ([prefix, other]) =>
+      Object.fromEntries(
+        Object.entries(sessionStorage).filter(([k]) => k.startsWith(prefix ?? '') || k === other),
+      ) as Record<string, string>,
+    [HELD_PREFIX, OTHER_PART],
+  )
+
+test('reliability · a message held with no reply is offered again as the page loads, and Sign out forgets it (baseline gap #8)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, {
+    [DAVIDE_TALK]: DAVIDE_HELD,
+    [LUIS_ROOM]: LUIS_HELD,
+    [OTHER_PART]: '{}',
+  })
+  await page.goto(`${APP}/p/${WORK_PROJECT}/conversations?work=lost`)
+  const list = page.locator('section[aria-label="All conversations"]')
+  await list.locator('.conv-row').first().click()
+  const open = page.locator('.conv-open')
+  // Finding out who is in forgot nothing of Davide's: his message is offered again, its words; Luis's went.
+  await expect(open).toContainText('Not confirmed: “Check the March figures”')
+  await expect.poll(() => heldInTab(page)).toEqual({ [DAVIDE_TALK]: DAVIDE_HELD, [OTHER_PART]: '{}' })
+  await page.reload()
+  await list.locator('.conv-row').first().click()
+  await expect(open).toContainText('Not confirmed: “Check the March figures”')
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
+  await expect(page.locator('input[type="email"]')).toBeVisible()
+  expect(await heldInTab(page)).toEqual({ [OTHER_PART]: '{}' })
+  expect(await unexpectedOf(page)).toEqual([])
+})
+
 test('legal · a sign-out in another tab forgets the views’ unsent words here too (Codex P1 on #366)', async ({
   context,
 }) => {
