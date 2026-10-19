@@ -73,6 +73,7 @@ export function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => v
       }, REFRESH_DEBOUNCE_MS)
     },
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    random: Math.random,
   }
   return { ports, dispose: () => clearTimeout(refresh) }
 }

@@ -24,10 +24,16 @@ export interface FeedPorts {
    */
   refused(): Promise<boolean>
   sleep(ms: number): Promise<void>
+  /** A number in [0, 1), as Math.random: spreads each wait. */
+  random(): number
 }
 
 export const MIN_BACKOFF_MS = 1000
 export const MAX_BACKOFF_MS = 10_000
+/** Each wait is its step ±30 %, so pages that lost the stream together (an API restart) don't come back together. */
+export const JITTER = 0.3
+
+const spread = (ms: number, random: number) => Math.round(ms * (1 + JITTER * (2 * random - 1)))
 
 const isAccessError = (err: unknown) => err instanceof ApiError && (err.status === 401 || err.status === 403)
 
@@ -75,7 +81,7 @@ export async function runFeedLoop(ports: FeedPorts, stop: AbortSignal): Promise<
     }
     if (stopped() || ports.current().needsSnapshot) continue
     ports.setConnection('reconnecting')
-    await ports.sleep(backoff)
+    await ports.sleep(spread(backoff, ports.random()))
     backoff = Math.min(backoff * 2, MAX_BACKOFF_MS)
   }
 }
