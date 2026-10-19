@@ -20,15 +20,19 @@
   the next press goes on from the back and asks for the front, the camera already on. The press seems to do nothing;
   with three cameras it skips one. Where storage can't be written the same happens without a first press: the call's
   first press starts from nothing kept, so after the back was chosen in Video settings it asks for the back again.
+- **A refusal is kept too** (found while reading `deviceSwitch`): a camera Video settings couldn't switch to is kept
+  for the next call all the same, while this call stays on its own, and the call's first press, reading the kept
+  choice, goes on from the camera refused.
 
 ## What changes
 
 1. **The presses hear every switch of the call's camera that took** (`cameraPresses(...).took`): the call is on that
    camera now, and the next press goes on from it, whichever control made the switch.
-2. **The room tells them,** where every switch resolves (`useProjectRoom.ts`): a camera switch that took in this call,
-   from Video settings, your tile, «In the call», reaches `cameraTaken(liveSince, id)`. A refused one tells nothing:
-   the call stays where it was. A call's presses begin at its first press or at its first switch that took, whichever
-   comes first, from the camera kept for calls, so a choice made before any press counts where nothing can be kept.
+2. **The room asks every camera switch through one place** (`switchCamera(liveSince, id, …)`, from the room's
+   `switchDevice` in `useProjectRoom.ts`), whichever control made it: Video settings, your tile, «In the call». The
+   call's presses begin there before the switch, from the camera kept for calls, which the switch is about to replace
+   even if refused; once it took they are told. A refused one tells nothing: the call stays where it was. So a choice
+   made before any press counts where nothing can be kept, and a refused one never becomes the first press's camera.
 3. **A press waiting for its answer still leads** (`cameraPresses`): the next press goes on from the camera the latest
    waiting press asked for, else from the camera the call is on. The call's own switches come back through the room
    too, so a first press answered while a second waits must not pull the third back: three quick presses go round.
@@ -47,11 +51,13 @@ round; turning your camera off and on keeps the presses; each call starts again.
   menu and choice the dock uses, `menuitemradio`), the viewport back to 390 × 844, Switch camera again:
   - after a switch on your tile, the camera chosen in Video settings is where the next press goes on from;
   - where storage can't be written, a camera chosen in Video settings before any press is where the first press goes
-    on from.
+    on from;
+  - where every switch is refused (`refuse=switch`), after Video settings couldn't switch the camera, the first press
+    goes on from the call's own camera, not the one refused (written first in its own commit, after the reading above).
 
 ## Limits
 
-- The room tells the presses once a switch has taken. A switch made elsewhere while a press of your tile still waits
+- The presses hear of a switch once it has taken. A switch made elsewhere while a press of your tile still waits
   for its answer (two controls at once, which a phone's two layouts never show together) is counted, but the waiting
   press still leads the next one.
 - The presses follow the switches this page made. A camera the system changed under the call (unplugged, taken by
