@@ -88,6 +88,8 @@ import {
   unmutes,
 } from './fake-people.ts'
 import {
+  dropStream,
+  gap,
   holdFeed,
   MENTIONED_IN,
   installFixtureApi,
@@ -99,6 +101,7 @@ import {
   releaseText,
   releaseCovers,
   served,
+  stallStream,
   unexpected,
   eventEntities,
 } from './fixture-api.ts'
@@ -188,6 +191,12 @@ interface Fixture {
   sayElsewhere: (text: string) => void
   /** While on, the project's events wait, as a frozen page's stream holds them; off, they come (messages-while-away.md). */
   holdFeed: (on: boolean) => void
+  /** The server ends the project's open stream, as an API restart does: the page reconnects (feed-reconnect.md). */
+  dropStream: () => void
+  /** The open stream stays open and sends nothing, no ping either: the page gives it up after 25 s and reconnects. */
+  stallStream: () => void
+  /** The next event published skips a sequence, as a lost frame would: the page reads the snapshot again. */
+  gap: () => void
   /** Someone starts waiting at the door, and the event saying so goes out (knock-alert.md). */
   knock: () => void
   /** The call's connection is lost. */
@@ -317,6 +326,8 @@ interface Fixture {
   failTargets: (on: boolean) => void
   /** While on, the goals' targets reads wait; off, the waiting ones are answered. */
   holdTargets: (on: boolean) => void
+  /** The project's members reads fail, or read again (silent-reads.md). */
+  failMembers: (on: boolean) => void
   /** The running meeting closes (another member closed it), and the feed moves (chapter 7's update). */
   endMeeting: () => void
   /** The project list's reads fail, or read again (chapter 1). */
@@ -747,7 +758,8 @@ const project = {
   contributions: new Map(),
   // `acts=1`: the viewer's messages offer Edit and Withdraw (message-acts.md, A36).
   messageActs: messageActsOf(query),
-  membersFail: query.get('members') === 'fail',
+  // `members=fail` (A37) and `membersRead=fail` (silent-reads.md): the project's members fail from the first.
+  membersFail: query.get('members') === 'fail' || query.get('membersRead') === 'fail',
   heldMessages: undefined as (string | Said)[] | undefined,
   heldAt: undefined as number | undefined,
   failEarlierReads: false,
@@ -1019,6 +1031,9 @@ window.fixture = {
     publish(project)
   },
   holdFeed,
+  dropStream,
+  stallStream,
+  gap,
   knock: () => {
     project.waiting = true
     publish(project)
@@ -1266,6 +1281,9 @@ window.fixture = {
     const held = project.targetsHeld ?? []
     project.targetsHeld = on ? held : null
     if (!on) for (const answer of held) answer()
+  },
+  failMembers: (on) => {
+    project.membersFail = on
   },
   failProjects: (on) => {
     project.projectsFail = on

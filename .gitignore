@@ -17,3 +17,8 @@ dist/
 /apps/studio/playwright-report/
 # Python bytecode from running the UML launchers' unit tests locally.
 __pycache__/
+# The reliability report (scripts/reliability-report.mjs): its output, its gh cache, and what the @reliability suite
+# writes (docs/plans/reliability-measure.md).
+/reliability-report/
+/.reliability-cache/
+/apps/studio/reliability-results/

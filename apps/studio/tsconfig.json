@@ -20,6 +20,7 @@
     "playwright.served.config.ts",
     "playwright.attention.config.ts",
     "playwright.search.config.ts",
+    "playwright.reliability.config.ts",
     "fixtures/**/*.ts",
     "fixtures/**/*.tsx",
     "e2e/**/*.ts",

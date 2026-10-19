@@ -15,6 +15,7 @@ import {
   UNLOCK_OTHER_ACCOUNT_NOTICE,
   withoutAuthParams,
 } from './auth-callback.ts'
+import { refusals } from './auth-fetch.ts'
 import { sendFailure } from './auth-words.ts'
 import { settleWithin } from './deadline.ts'
 import { devIdentities, loadIdentity, saveIdentity, type Identity } from './dev-identity.ts'
@@ -24,7 +25,6 @@ import { linkAcceptance, type LinkAcceptance } from './link-accept.ts'
 import { passkeysWorkOn } from './passkey-domain.ts'
 import { profileFromMetadata, providerOf } from './profile.ts'
 import { forgetPendingUnlock, pendingUnlock, refuseOtherAccount } from './provider-leave.ts'
-import { watchRefusals } from './refresh-refusal.ts'
 import { endSession, signedOutAfter, type Ended } from './sign-out.ts'
 import { keepReturnAnchor, returnAnchorAfter } from './return-anchor.ts'
 
@@ -38,9 +38,6 @@ const keptAtLoad = accountSessionKept()
 
 /** The Supabase project the Studio signs in with, when one is configured (the key is the publishable one). */
 export const authProject = url && key ? { url, key } : null
-
-/** What the Auth service said when it last refused this tab's refresh, noted as the client fetches. */
-const refusals = watchRefusals((input, init) => fetch(input, init))
 
 export const supabase: SupabaseClient | null = authProject
   ? createClient(authProject.url, authProject.key, {

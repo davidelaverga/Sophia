@@ -5,6 +5,8 @@ import { ApiError } from '../../api/client.ts'
 import { applyFrame, initialFeed, rebase, type Feed } from '../../projectors/projection.ts'
 import { MAX_BACKOFF_MS, MIN_BACKOFF_MS, runFeedLoop, type Connection, type FeedPorts } from './feed-loop.ts'
 
+/** The spread on each wait (feed-reconnect.md): ±30 %. */
+const JITTER = 0.3
 const P = '00000000-0000-0000-0000-000000000001'
 const event = (sequence: string): Frame => ({
   eventId: `e${sequence}`,
@@ -24,9 +26,10 @@ type Attempt = (after: string, onOpen: () => void, onFrame: (f: Frame) => void) 
 
 /**
  * Scripted ports: each stream attempt runs the next scripted behaviour; the loop stops after them. `doors` answers
- * each "was the snapshot refused too?" in turn (a closed door when none is scripted).
+ * each "was the snapshot refused too?" in turn (a closed door when none is scripted). `random` spreads the waits; at
+ * 0.5 they are the exact backoff.
  */
-function harness(attempts: Attempt[], snapshotCursor = '0', doors: boolean[] = []) {
+function harness(attempts: Attempt[], snapshotCursor = '0', doors: boolean[] = [], random = () => 0.5) {
   let feed: Feed = initialFeed('0')
   const connections: Connection[] = []
   const followedFrom: string[] = []
@@ -58,10 +61,14 @@ function harness(attempts: Attempt[], snapshotCursor = '0', doors: boolean[] = [
       sleeps.push(ms)
       return Promise.resolve()
     },
+    random,
+    wakes: () => () => undefined,
   }
   const run = () => runFeedLoop(ports, stop.signal)
   return {
     run,
+    ports,
+    stop,
     connections,
     followedFrom,
     sleeps,
@@ -84,6 +91,34 @@ const stream =
     for (const f of frames) onFrame(f)
     return Promise.resolve()
   }
+
+/**
+ * A wake source the check fires (the network back, the page shown), and waits that end only when woken or stopped,
+ * as a long backoff is from the person's side.
+ */
+function wakeable(h: ReturnType<typeof harness>) {
+  const listening = new Set<() => void>()
+  h.ports.wakes = (wake) => {
+    listening.add(wake)
+    return () => listening.delete(wake)
+  }
+  h.ports.sleep = (ms: number, woken?: AbortSignal) => {
+    h.sleeps.push(ms)
+    return new Promise((resolve) => {
+      woken?.addEventListener('abort', () => resolve())
+      h.stop.signal.addEventListener('abort', () => resolve())
+    })
+  }
+  return {
+    listening,
+    fire: () => {
+      for (const wake of listening) wake()
+    },
+  }
+}
+
+/** Lets the loop run as far as it goes without a wait ending. */
+const settle = () => new Promise((resolve) => setImmediate(resolve))
 
 const denied: Attempt = () => Promise.reject(new ApiError(403, 'forbidden', 'Not permitted', 'never'))
 const fail: Attempt = () => Promise.reject(new Error('network'))
@@ -134,5 +169,106 @@ describe('runFeedLoop', () => {
     const expected = [1, 2, 4, 8, MAX_BACKOFF_MS / MIN_BACKOFF_MS].map((n) => n * MIN_BACKOFF_MS)
     assert.deepEqual(h.sleeps.slice(0, 5), expected)
     assert.equal(h.sleeps[5], MIN_BACKOFF_MS) // the live connection reset the backoff
+  })
+
+  it('spreads each wait by ±30 % so pages that lost the stream together come back apart', async () => {
+    const steps = [1, 2, 4, 8, 10].map((n) => n * MIN_BACKOFF_MS)
+    const low = harness([fail, fail, fail, fail, fail], '0', [], () => 0)
+    await low.run()
+    assert.deepEqual(
+      low.sleeps,
+      steps.map((ms) => Math.round(ms * (1 - JITTER))),
+    )
+    const high = harness([fail, fail, fail, fail, fail], '0', [], () => 0.999_999)
+    await high.run()
+    assert.deepEqual(
+      high.sleeps,
+      steps.map((ms) => Math.round(ms * (1 + JITTER))),
+    )
+  })
+
+  it('keeps every spread wait in its band, the doubling and the reset on the unspread step', async () => {
+    const draws = [0.1, 0.9, 0.3, 0.7, 0.2, 0.8, 0.4]
+    let i = 0
+    const h = harness([fail, fail, fail, fail, fail, stream(), fail], '0', [], () => draws[i++ % draws.length] ?? 0.5)
+    await h.run()
+    const steps = [1, 2, 4, 8, 10, 1, 2].map((n) => n * MIN_BACKOFF_MS)
+    assert.equal(h.sleeps.length, steps.length)
+    h.sleeps.forEach((ms, n) => {
+      const step = steps[n] ?? 0
+      assert.ok(ms >= step * (1 - JITTER) && ms <= step * (1 + JITTER), `wait ${String(n)}: ${String(ms)} ms`)
+      assert.notEqual(ms, step, `wait ${String(n)} is spread`)
+    })
+  })
+
+  it('a wake during the wait asks again at once, and two wakes in the same wait ask once', async () => {
+    const h = harness([fail, fail, fail, fail])
+    const source = wakeable(h)
+    const running = h.run()
+    try {
+      await settle()
+      assert.equal(h.followedFrom.length, 1, 'the stream was lost: the loop waits')
+      source.fire() // the network is back
+      await settle()
+      assert.equal(h.followedFrom.length, 2, 'woken, it asks again at once')
+      source.fire() // back online and the page shown, together
+      source.fire()
+      await settle()
+      assert.equal(h.followedFrom.length, 3, 'one ask for the wait those two ended')
+      await settle()
+      assert.equal(h.followedFrom.length, 3, 'and no more until the next wait ends')
+    } finally {
+      h.stop.abort()
+      await running
+    }
+  })
+
+  it('nothing listens for a wake while the stream is open, only while the loop waits', async () => {
+    let end: (() => void) | undefined
+    const open: Attempt = (_after, onOpen) => {
+      onOpen()
+      return new Promise((resolve) => (end = resolve))
+    }
+    const h = harness([open, fail])
+    const source = wakeable(h)
+    const running = h.run()
+    try {
+      await settle()
+      assert.equal(h.connections.at(-1), 'live')
+      assert.equal(source.listening.size, 0)
+      source.fire()
+      await settle()
+      assert.equal(h.followedFrom.length, 1, 'a wake while live asks nothing')
+      end?.() // the server ends the stream: the loop waits, and listens
+      await settle()
+      assert.equal(source.listening.size, 1)
+    } finally {
+      h.stop.abort()
+      await running
+    }
+  })
+
+  it('stopping during the wait ends it at once: nothing listens, no timer is left, nothing more is asked', async () => {
+    const h = harness([fail, fail])
+    const source = wakeable(h)
+    let ended = false
+    // The page's own wait: it ends when woken or when its time is up, never by itself on the loop's stop.
+    h.ports.sleep = (ms: number, woken?: AbortSignal) => {
+      h.sleeps.push(ms)
+      return new Promise((resolve) => woken?.addEventListener('abort', () => resolve()))
+    }
+    const running = h.run().then(() => (ended = true))
+    try {
+      await settle()
+      assert.equal(source.listening.size, 1, 'the stream was lost: the loop waits, and listens')
+      h.stop.abort() // the page leaves, or the token changes
+      await settle()
+      assert.equal(source.listening.size, 0, 'stopped, nothing listens any more')
+      assert.ok(ended, 'the loop ended without its wait running out')
+      assert.equal(h.followedFrom.length, 1)
+    } finally {
+      source.fire() // releases a wait the loop left behind, so the check ends either way
+      await running
+    }
   })
 })
