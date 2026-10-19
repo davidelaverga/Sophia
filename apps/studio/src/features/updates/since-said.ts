@@ -1,7 +1,8 @@
 // What changed since you last looked, said once (docs/plans/home-since-you-looked.md): what a window of A34 holds that
-// Sophia's sentence on Home names, only what someone else did, and, per account on this device, the lines already said
-// there, shown in Updates or in front of the person when a call ended, by project, and the calls' projects whose window
-// is still to be read. Pure but for the storage, which may refuse: the page then remembers for as long as it lives.
+// Sophia's sentence on Home, and a project's arrival line (project-arrival-since.md), name, in words, only what someone
+// else did, and, per account on this device, the lines already said there, shown in Updates or in front of the person
+// when a call ended, by project, and the calls' projects whose window is still to be read. Pure but for the storage,
+// which may refuse: the page then remembers for as long as it lives.
 import type { Since } from '../../api/vision.ts'
 import { tokenSubject } from '../../app/auth-callback.ts'
 
@@ -27,6 +28,22 @@ export function newsOf(window: Since): News | null {
     more: window.more,
   }
   return news.decided + news.made + news.kept > 0 ? news : null
+}
+
+/** Each kind named, one in words and many in digits: «a decision», «2 decisions». */
+const NEWS_WORDS: readonly [Exclude<keyof News, 'more'>, string, string][] = [
+  ['decided', 'a decision', 'decisions'],
+  ['made', 'a new report', 'new reports'],
+  ['kept', 'a note kept', 'notes kept'],
+]
+
+/** «2 decisions, a new report and more»: every kind with any, then whether more lies after a window. */
+export function newsWords(news: News): string {
+  const parts = NEWS_WORDS.filter(([kind]) => news[kind] > 0).map(([kind, one, many]) =>
+    news[kind] === 1 ? one : `${String(news[kind])} ${many}`,
+  )
+  const all = news.more ? [...parts, 'more'] : parts
+  return all.length === 1 ? all.join('') : `${all.slice(0, -1).join(', ')} and ${all.at(-1) ?? ''}`
 }
 
 /** Who reads, as A34 names people: the API's actor is the token's subject, lowered (apps/api/src/auth.ts); else none. */
@@ -75,6 +92,29 @@ export function unsaid(
       return !pending.includes(id) && newsOf(fresh) ? [[id, fresh] as const] : []
     }),
   )
+}
+
+/** What a project's arrival weighs its window against: what this device kept, who reads, the calls still pending. */
+export interface ArrivalAt {
+  said: Known
+  reader: string | null
+  pending: readonly string[]
+}
+
+/** The arrival line's words, and what to keep once it is drawn: the window's lines whole, as Home keeps them. */
+export interface Arrival {
+  words: string
+  lines: Known
+}
+
+/**
+ * What a project says as the person arrives (project-arrival-since.md): «Since you last looked: 2 decisions and a new
+ * report.», from its window by Home's rules (`unsaid`, `newsOf`), or null. The bar names the project, so it doesn't.
+ */
+export function arrivalOf(projectId: string, window: Since, at: ArrivalAt): Arrival | null {
+  const fresh = unsaid(new Map([[projectId, window]]), at.said, at.reader, at.pending).get(projectId)
+  const news = fresh ? newsOf(fresh) : null
+  return news ? { words: `Since you last looked: ${newsWords(news)}.`, lines: { [projectId]: linesOf(window) } } : null
 }
 
 const storeKey = (account: string) => `sophia.since.said.v1.${account}`

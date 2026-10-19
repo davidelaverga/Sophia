@@ -3936,6 +3936,24 @@ button.contribution-quote:hover {
   display: flex;
   gap: 8px;
 }
+/* What changed since you last looked (docs/plans/project-arrival-since.md): the welcome's card, one line and Dismiss in
+   its corner, wide enough at a desk for a short line to stay one. Its status is an empty box in the page's flow until
+   the card is put in it. */
+.arrival-band {
+  width: min(420px, calc(100% - 2 * var(--gutter)));
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  padding-block: 12px;
+}
+.arrival-band .welcome-line {
+  padding-block: 8px;
+}
+/* The lobby floats in the same corner: while it stands (someone waiting, or a Decline's «Let in instead»), the door
+   keeps it and the line stays out of its way. */
+.shell:has(.lobby) .arrival-band {
+  display: none;
+}
 .wait-note {
   position: fixed;
   top: calc(var(--topbar) + 24px);
