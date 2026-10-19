@@ -74,18 +74,30 @@ export function contributionChanged(owner: string, id: string, erasing = false):
 }
 
 /**
- * The held pages without the messages that shared an erased source (r4313704366): a correction or withdrawal of A
- * erases A's old source and every other message's words kept in it, while the event names A alone, so they are let
- * go here, at once, by the source A had when held. A held nowhere: which source went is unknown, so every page goes.
+ * What a correction or withdrawal of a message took with it (r4313704366): its old source, and with it the words of
+ * every other message sharing it; nothing, when it was a shared reference (withdrawing one only detaches it); or
+ * unknown, when the message is not held or shown as a written message here (a withdrawn place says nothing of it).
  */
-export function withoutAliases<H extends HeldMaps>(held: H, erased: readonly string[]): H | null {
-  const entries = new Map(held.entries)
-  for (const id of erased) {
-    const source = held.entries.get(id)?.sourceId
-    if (source === undefined) return held.withdrawn.has(id) ? held : null
-    for (const [other, entry] of held.entries) if (other !== id && entry.sourceId === source) entries.delete(other)
-  }
-  return entries.size === held.entries.size ? held : { ...held, entries }
+export type Gone = { source: string } | 'kept' | 'unknown'
+
+export function goneOf(id: string, held: HeldMaps | null, window: readonly Placed[]): Gone {
+  const shown = window.find((w): w is Placed & DiscussionEntry => w.id === id && 'sourceId' in w)
+  const entry = held?.entries.get(id) ?? shown
+  if (!entry) return 'unknown'
+  return entry.kind === 'reference' ? 'kept' : { source: entry.sourceId }
+}
+
+/** The held messages, other than those acted on, whose words were kept in a source now gone: none is shown. */
+export function aliasesOf(held: HeldMaps | null, gone: ReadonlySet<string>, acted: ReadonlySet<string>): string[] {
+  if (!held || gone.size === 0) return []
+  return [...held.entries].filter(([id, e]) => !acted.has(id) && gone.has(e.sourceId)).map(([id]) => id)
+}
+
+/** The held pages without those aliases, every one of a batch (r4313704366 F3): never a partial undo. */
+export function withoutAliases<H extends HeldMaps>(held: H, gone: ReadonlySet<string>, acted: ReadonlySet<string>): H {
+  const drop = new Set(aliasesOf(held, gone, acted))
+  if (drop.size === 0) return held
+  return { ...held, entries: new Map([...held.entries].filter(([id]) => !drop.has(id))) }
 }
 
 /** The feed lost its place and read the snapshot again: what changed meanwhile is unknown. */
@@ -314,7 +326,7 @@ export function useHeldRefresh(input: {
       ),
   )
   const resyncs = useRef(changes.resyncs)
-  const erased = useRef(new Map<string, number>())
+  const erasure = useErasure(changes, held, window)
   useEffect(() => {
     if (changes.resyncs !== resyncs.current) {
       resyncs.current = changes.resyncs
@@ -322,16 +334,51 @@ export function useHeldRefresh(input: {
       setHeld((h) => (h && h.projectId === projectId ? null : h))
       return
     }
-    const fresh = [...(changes.erasing ?? [])].filter(([id, at]) => erased.current.get(id) !== at)
-    for (const [id, at] of fresh) erased.current.set(id, at)
-    if (held && fresh.length > 0) {
-      const ids = fresh.map(([id]) => id)
-      setHeld((h) => (h && h.projectId === projectId ? withoutAliases(h, ids) : h))
+    if (erasure.fresh) {
+      erasure.handled()
+      // Which source went is unknown here: the held pages go, and a new epoch keeps any answer asked for before (a
+      // page's read again or a manual «Earlier» one) from bringing them back (F2).
+      if (erasure.unknown) {
+        refresher.reset()
+        return setHeld((h) => (h && h.projectId === projectId ? null : h))
+      }
     }
-    if (held) refresher.step(changes, held, window)
-  }, [changes, held, projectId, refresher, setHeld, tick, window])
+    // Every time, not only when learned: a page let in since (a read asked for earlier) can't bring an alias back.
+    if (held && aliasesOf(held, erasure.gone, erasure.acted).length > 0)
+      setHeld((h) => (h && h.projectId === projectId ? withoutAliases(h, erasure.gone, erasure.acted) : h))
+    else if (held) refresher.step(changes, held, window)
+  }, [changes, erasure, held, projectId, refresher, setHeld, tick, window])
   const epoch = () => refresher.epoch
-  return [held ? refresher.fence(changes, held, window) : NONE_STALE, epoch] as const
+  if (!held) return [NONE_STALE, epoch] as const
+  // At render (F1): the aliases of a source gone, or every held message while which went is unknown, are not shown.
+  const hidden = erasure.unknown ? [...held.entries.keys()] : aliasesOf(held, erasure.gone, erasure.acted)
+  return [new Set([...refresher.fence(changes, held, window), ...hidden]), epoch] as const
+}
+
+/**
+ * The erasures learned (r4313704366), as this chat can tell them: the sources gone, the messages acted on, and whether
+ * one learned since the last handling has a source unknown here. Read at render, from the held pages as they are.
+ */
+function useErasure(changes: Changes, held: HeldMaps | null, window: readonly Placed[]) {
+  const known = useRef(new Map<string, Gone>())
+  const handledAt = useRef(0)
+  const erasing = [...(changes.erasing ?? [])]
+  // Told only while pages are held: with none, nothing can show an alias, and the pages a read brings later tell it.
+  if (held)
+    for (const [id, at] of erasing) {
+      const key = `${id}@${at}`
+      if (!known.current.has(key)) known.current.set(key, goneOf(id, held, window))
+    }
+  const latest = held ? Math.max(0, ...erasing.map(([, at]) => at)) : handledAt.current
+  const fresh = latest > handledAt.current
+  const gone = new Set<string>()
+  let unknown = false
+  for (const [key, g] of known.current) {
+    if (typeof g === 'object') gone.add(g.source)
+    else if (g === 'unknown' && fresh && Number(key.slice(key.lastIndexOf('@') + 1)) > handledAt.current) unknown = true
+  }
+  const acted = new Set(erasing.map(([id]) => id))
+  return { gone, acted, fresh, unknown, handled: () => (handledAt.current = latest) }
 }
 
 const NONE_STALE: ReadonlySet<string> = new Set()

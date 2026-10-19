@@ -428,3 +428,32 @@ for (const act of ['correct', 'withdraw'] as const)
       )
     await expect(entries(page).nth(1)).toHaveText('Message 2')
   })
+
+// r4313704366 F2: the alias pair on the oldest page, read by a manual «Earlier messages» while A's source is erased
+// (A is not held then: which source went is unknown). That read, asked before, never shows B's old words.
+test('earlier · an erasure learned while a manual «Earlier messages» read is out: the alias it brings never shows (r4313704366)', async ({
+  page,
+}) => {
+  await heldPageReads(page)
+  await page.goto('/room.html?call=on&discussion=110&acts=1&alias=1')
+  await expect(leave(page)).toBeVisible()
+  await chatToggle(page).click()
+  await earlier(page).click()
+  await expect(entries(page)).toHaveCount(100)
+  await page.evaluate(() => (window.holdStale = true))
+  await earlier(page).click()
+  await expect.poll(() => page.evaluate(() => window.staleWaiting ?? 0)).toBe(1) // answered as it was, held
+  await page.evaluate((m) => window.fixture?.eraseShared(2, m, null), idOf(2))
+  await page.evaluate(() => {
+    window.holdStale = false
+    new MutationObserver(() => {
+      for (const el of document.querySelectorAll('.contribution-text'))
+        if (el.textContent === 'SYNTHETIC shared words') window.sawStale = true
+    }).observe(document.body, { childList: true, subtree: true, characterData: true })
+  })
+  await page.evaluate(() => window.releaseStale?.(0))
+  await page.waitForTimeout(500)
+  expect(await page.evaluate(() => window.sawStale ?? false), 'the erased words were never on the page').toBe(false)
+  await expect(page.getByText('SYNTHETIC shared words', { exact: true })).toHaveCount(0)
+  await expect(earlier(page)).toBeVisible() // still usable: the pages can be read again
+})
