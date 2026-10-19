@@ -16,8 +16,9 @@ import {
   holdPersonalCompanion,
   personalCompanionAdmitted,
   personalSettledAnswersInstalled,
+  readPersonalSettledAnswer,
+  reservePersonalAnswer,
   releasePersonalCompanion,
-  reservePersonalCompanion,
   settlePersonalCompanion,
   settlePersonalCompanionAnswer,
   withActor,
@@ -333,14 +334,27 @@ class LiveCall {
     return withActor(this.pool, this.call.actorId, 'write', (c) => work(c, this.call.callId))
   }
 
-  /** Reserve before the provider is asked; anything but 'reserved' asks nothing. */
-  async reserve(prompt: string): Promise<void> {
+  /**
+   * Reserve before the provider is asked, bound to the turn (0078); anything but 'reserved' asks nothing. 'kept': an
+   * answer already paid for is kept for the turn, and it is written instead.
+   */
+  async reserve(prompt: string): Promise<'reserved' | 'kept'> {
     const { payer, routeId } = this.settings
+    const { turnId } = this.call
     // Without 0078 a settled answer could not be kept with its cost: nothing is reserved or asked (4319508047).
-    if (!(await personalSettledAnswersInstalled(this.pool))) throw new CompanionRefused('not_installed')
+    if (!turnId || !(await personalSettledAnswersInstalled(this.pool))) throw new CompanionRefused('not_installed')
     const micros = personalReservation(prompt, this.settings)
-    const outcome = await this.owned((c, id) => reservePersonalCompanion(c, id, payer, routeId, micros))
-    if (outcome !== 'reserved') throw new CompanionRefused(outcome)
+    const outcome = await this.owned((c, callId) =>
+      reservePersonalAnswer(c, { callId, turnId }, payer, routeId, micros),
+    )
+    if (outcome !== 'reserved' && outcome !== 'kept') throw new CompanionRefused(outcome)
+    return outcome
+  }
+
+  /** The answer kept for the call's turn, read as it is (0078). */
+  kept(): Promise<{ text: string; suggestion: string | null } | null> {
+    const { turnId } = this.call
+    return turnId ? this.owned((c) => readPersonalSettledAnswer(c, turnId)) : Promise.resolve(null)
   }
 
   /** The prepared call, validated before any provider I/O; refused before it, the reservation is released. */
@@ -418,10 +432,9 @@ class LiveCall {
    * the same transaction (0078): a reply that can't be written then is written later from it, never asked again.
    */
   async settle(used: Used, reply: CompanionReply | null): Promise<void> {
-    const { turnId } = this.call
-    if (reply && turnId)
+    if (reply)
       await this.owned((c, callId) =>
-        settlePersonalCompanionAnswer(c, { callId, turnId }, used, {
+        settlePersonalCompanionAnswer(c, callId, used, {
           text: reply.text,
           suggestion: reply.suggestion,
         }),
@@ -436,7 +449,12 @@ export function liveCompanion(settings: LiveCompanionSettings, llm: PersonalLlm,
     if (!call) throw new Error('The live companion answers only inside a registered call')
     const live = new LiveCall(settings, pool, call)
     const prompt = personalPrompt(context)
-    await live.reserve(prompt)
+    if ((await live.reserve(prompt)) === 'kept') {
+      // Already paid for and kept: written from what was kept, nothing asked.
+      const kept = await live.kept()
+      if (!kept) throw new CompanionRefused('no_answer')
+      return kept
+    }
     const prepared = await live.prepare(llm, signal)
     const { result, used } = await live.ask(prepared, prompt, signal)
     const answered = !stopped(signal) && !result.toolCall && result.finish === 'stop'

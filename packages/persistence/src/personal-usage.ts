@@ -81,18 +81,39 @@ export async function personalCompanionAdmitted(
 export type PersonalSettledOutcome = 'kept' | 'settled' | 'not_settled'
 
 /**
- * The call settles from its usage and its answer is kept for its live turn, in one transaction (0078, 4319508047):
- * bound by the call's usage row and the turn, not by a claim; after an erasure nothing is kept.
+ * The call reserved to answer `turnId` and bound to it in the same transaction (0078, R-B77-F-P1); 'kept' when an
+ * answer is already kept for that turn: nothing reserved, its words are written instead.
+ */
+export async function reservePersonalAnswer(
+  c: pg.PoolClient,
+  call: { callId: string; turnId: string },
+  payer: string,
+  routeId: string,
+  micros: number,
+): Promise<PersonalReservation | 'kept'> {
+  const { rows } = await c.query<{ outcome: string }>(
+    'SELECT sophia.reserve_personal_answer($1, $2, $3, $4, $5) AS outcome',
+    [call.callId, payer, routeId, micros, call.turnId],
+  )
+  const { outcome } = onlyRow(rows, 'reserve_personal_answer')
+  if (outcome !== 'kept' && !isReservation(outcome))
+    throw new Error('reserve_personal_answer answered an unknown outcome')
+  return outcome
+}
+
+/**
+ * The call settles from its usage and its answer is kept for the turn it was reserved to answer, in one transaction
+ * (0078, 4319508047): while that turn is live in the call's epoch; after an erasure nothing is kept.
  */
 export async function settlePersonalCompanionAnswer(
   c: pg.PoolClient,
-  call: { callId: string; turnId: string },
+  callId: string,
   used: { micros: number; counts: PersonalUsageCounts },
   answer: { text: string; suggestion: string | null },
 ): Promise<PersonalSettledOutcome> {
   const { rows } = await c.query<{ outcome: string }>(
-    'SELECT sophia.settle_personal_companion_answer($1, $2, $3, $4, $5, $6) AS outcome',
-    [call.callId, call.turnId, used.micros, JSON.stringify(used.counts), answer.text, answer.suggestion],
+    'SELECT sophia.settle_personal_companion_answer($1, $2, $3, $4, $5) AS outcome',
+    [callId, used.micros, JSON.stringify(used.counts), answer.text, answer.suggestion],
   )
   const { outcome } = onlyRow(rows, 'settle_personal_companion_answer')
   if (outcome !== 'kept' && outcome !== 'settled' && outcome !== 'not_settled')
@@ -123,9 +144,9 @@ export async function recordPersonalSettledReply(c: pg.PoolClient, turnId: strin
 
 /** Whether 0078 is installed: a live call is not admitted without it, so no answer is paid for that can't be kept. */
 export async function personalSettledAnswersInstalled(c: pg.ClientBase | pg.Pool): Promise<boolean> {
+  // 0078's binding table, made in the same transaction as its functions.
   const { rows } = await c.query<{ installed: boolean }>(
-    `SELECT to_regprocedure('sophia.settle_personal_companion_answer(uuid,uuid,bigint,jsonb,text,text)') IS NOT NULL
-      AS installed`,
+    `SELECT to_regclass('sophia.personal_answer_calls') IS NOT NULL AS installed`,
   )
   return onlyRow(rows, 'personal_settled_answers_installed').installed
 }

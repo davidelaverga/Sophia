@@ -159,7 +159,7 @@ function gate(): Gate {
 }
 
 const reservesCall = (sql: unknown) =>
-  (typeof sql === 'string' ? sql : JSON.stringify(sql ?? '')).includes('reserve_personal_companion')
+  /reserve_personal_(companion|answer)/.test(typeof sql === 'string' ? sql : JSON.stringify(sql ?? ''))
 
 /** The clients already gated: pg-pool hands the same idle client out again, and it is wrapped once, never twice. */
 const gatedClients = new WeakSet<pg.PoolClient>()
@@ -352,7 +352,7 @@ before(async () => {
     ('test-payer', $1, 1000000), ('tight-payer', $1, 10), ('held-payer', $1, 1000000), ('stop-payer', $1, 1000000),
     ('prompt-payer', $1, 1000000), ('note-payer', $1, 1000000), ('owner-payer', $1, 1000000), ('first-payer', $1, 1000000), ('fay-payer', $1, 1000000),
     ('settled-payer', $1, 1000000), ('erased-payer', $1, 1000000),
-    ('stale-payer', $1, 1000000)`,
+    ('stale-payer', $1, 1000000), ('retry-payer', $1, 1000000)`,
     [NOBODY],
   )
 })
@@ -729,6 +729,65 @@ describe('the live personal companion (local provider double)', () => {
     )
     assert.deepEqual(
       (await usage('stale-payer')).map((r) => r.state),
+      ['settled'],
+    )
+  })
+
+  // R-B77-F-P1: a normal retry (sophia.retry_personal_turn: the claim cleared, asked_at now) commits before the first
+  // call's settlement does. The turn is still the person's and live: its answer is kept with the cost, and asked again
+  // through another runner it is written, never asked for again. FIXTURE: a test-only trigger runs the real retry inside
+  // the settlement, before the answer is kept (as one committed just before it).
+  it('a settled answer is kept for its turn even when a normal retry came first', async () => {
+    const RTY = randomUUID()
+    const at = await liveApi('retry-payer', RTY)
+    const sentBefore = recorded().length
+    await owner(`CREATE OR REPLACE FUNCTION sophia.b77_retry_first() RETURNS trigger LANGUAGE plpgsql AS $$
+      DECLARE t uuid;
+      BEGIN
+        SELECT id INTO t FROM sophia.personal_turns
+         WHERE owner_id=NEW.owner_id AND author='person' AND reply='pending' ORDER BY seq DESC LIMIT 1;
+        UPDATE sophia.personal_turns SET answering_since=now()-interval '10 minutes', asked_at=now()-interval '10 minutes'
+         WHERE owner_id=NEW.owner_id AND id=t;
+        PERFORM sophia.retry_personal_turn('b77-retry-first-0001', t);
+        RETURN NEW;
+      END $$`)
+    await owner(`CREATE TRIGGER b77_retry_first BEFORE UPDATE ON sophia.personal_companion_usage FOR EACH ROW
+      WHEN (OLD.state = 'reserved' AND NEW.state = 'settled' AND NEW.owner_id = '${RTY}')
+      EXECUTE FUNCTION sophia.b77_retry_first()`)
+    try {
+      double.script({ text: 'The answer paid for.', usage: { input_tokens: 10, output_tokens: 5 } })
+      await write(at, '/api/v1/personal/turns', RTY, { text: 'Answer me though I asked again.' })
+      for (let i = 0; i < 100 && (await usage('retry-payer'))[0]?.state !== 'settled'; i++)
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      assert.deepEqual(
+        (await usage('retry-payer')).map((r) => r.state),
+        ['settled'],
+        'the first call settled, after the retry',
+      )
+      await new Promise((resolve) => setTimeout(resolve, 1500)) // the first runner's write, under its cleared claim
+    } finally {
+      await owner(`DROP TRIGGER IF EXISTS b77_retry_first ON sophia.personal_companion_usage`)
+      await owner(`DROP FUNCTION IF EXISTS sophia.b77_retry_first()`)
+    }
+    await owner(
+      `UPDATE sophia.personal_turns SET answering_since=now()-interval '10 minutes', asked_at=now()-interval '10 minutes'
+       WHERE owner_id=$1 AND author='person'`,
+      [RTY],
+    )
+    const asked = (await settled(at, RTY)).turns.find((t) => t.author === 'person')
+    assert.ok(asked)
+    const fresh = await liveApi('retry-payer', RTY, false)
+    await write(fresh, `/api/v1/personal/turns/${asked.id}/retry`, RTY, {})
+    for (let i = 0; i < 60 && recorded().length - sentBefore < 2; i++)
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    assert.equal(recorded().length - sentBefore, 1, 'one provider request for the one answer requested')
+    const page = await settled(fresh, RTY)
+    assert.deepEqual(
+      page.turns.filter((t) => t.author === 'sophia').map((t) => t.text),
+      ['The answer paid for.'],
+    )
+    assert.deepEqual(
+      (await usage('retry-payer')).map((r) => r.state),
       ['settled'],
     )
   })

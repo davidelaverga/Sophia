@@ -329,9 +329,11 @@ export class CompanionRunner {
     if (!claim) return
     // An answer already paid for and kept with its cost (0078), its reply not written yet (by this process or another,
     // before a restart): written now, the companion not asked again. If even the read fails, nothing is asked.
-    let kept: { text: string; suggestion: string | null } | null
+    // Only a live companion keeps answers with their cost (0078); a rehearsal asks no one and needs no 0078.
+    const live = this.companion.mode === 'live'
+    let kept: { text: string; suggestion: string | null } | null = null
     try {
-      kept = await withActor(this.pool, actorId, 'read', (c) => readPersonalSettledAnswer(c, turnId))
+      if (live) kept = await withActor(this.pool, actorId, 'read', (c) => readPersonalSettledAnswer(c, turnId))
     } catch (err: unknown) {
       this.onError(err)
       return
@@ -345,7 +347,7 @@ export class CompanionRunner {
     // written then.
     await again(() =>
       withActor(this.pool, actorId, 'write', async (c) => {
-        if (!(await recordPersonalSettledReply(c, turnId, claim)))
+        if (!live || !(await recordPersonalSettledReply(c, turnId, claim)))
           await recordPersonalReply(c, turnId, claim, text, suggestion)
       }),
     ).catch((err: unknown) => {

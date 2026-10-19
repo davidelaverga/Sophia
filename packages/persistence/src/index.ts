@@ -231,6 +231,7 @@ export {
   personalCompanionAdmitted,
   personalSettledAnswersInstalled,
   readPersonalSettledAnswer,
+  reservePersonalAnswer,
   recordPersonalSettledReply,
   releasePersonalCompanion,
   reservePersonalCompanion,
