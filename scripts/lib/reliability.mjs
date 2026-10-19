@@ -69,6 +69,8 @@ export function outcomeOf(job, limitMinutes) {
   if (job.status !== 'completed') return 'pending'
   if (job.conclusion === 'timed_out') return 'timeout'
   if (job.conclusion !== 'cancelled') return job.conclusion || 'pending'
+  // Cancelled in the queue: no step ran, though its clock may have passed the limit while it waited.
+  if (Array.isArray(job.steps) && job.steps.length === 0) return 'superseded'
   const minutes = jobMinutes(job)
   return minutes !== null && minutes >= limitMinutes ? 'timeout' : 'superseded'
 }
