@@ -3,11 +3,12 @@
 // the fixture pages answer, or the attention flag, where A34 serves the digest: the meetings only under the vision flag
 // (ProjectShell decides); elsewhere Updates is still «Coming» (PendingView).
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { useCallback, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { Button, Icon, Menu, MenuItem, Segmented, usePopover, type SegmentedItem } from '@sophia/ui'
 import { ApiError } from '../../api/client.ts'
 import { getSince, listMeetings, markSeen, type MeetingSummary, type Since } from '../../api/vision.ts'
+import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { canInvite } from '../access/useAccess.ts'
 import { closedDoor } from '../studio/project-door.ts'
@@ -30,6 +31,7 @@ import {
   type Narrowing,
 } from './updates-view.ts'
 import { ago, clock, dayOf, sameDay } from '../../app/time-words.ts'
+import { linesOf, rememberSaid } from './since-said.ts'
 import { useArrival, useProjectGo } from '../studio/project-go.tsx'
 
 interface Props {
@@ -177,6 +179,10 @@ function DigestBody({ digest, projectId, identity, me }: Omit<SinceProps, 'curso
   const lead = digestLead(digest)
   const seen = useMarkSeen(projectId, identity)
   const go = useLineGo()
+  // Shown here, line by line: Home doesn't then tell this person what they just read (home-since-you-looked.md).
+  useEffect(() => {
+    rememberSaid(accountOf(identity), { [projectId]: linesOf(digest) })
+  }, [identity, projectId, digest])
   return (
     <>
       {lead && <p className="sheet-lead">{lead}</p>}

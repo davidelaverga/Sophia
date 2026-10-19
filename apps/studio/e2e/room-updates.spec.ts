@@ -44,6 +44,19 @@ test('updates · Mark as seen writes the digest’s sequence once, and then noth
   expect((await served(page)).filter((s) => s.startsWith('seen:'))).toEqual(['seen:1'])
 })
 
+// What Updates shows is kept, line by line, for this account and project, so Home doesn't then say it as news
+// (docs/plans/home-since-you-looked.md); after Mark as seen, the window it shows holds nothing.
+test('updates · keeps the lines it shows, so Home won’t say them; after Mark as seen, the empty window', async ({
+  page,
+}) => {
+  const kept = () => page.evaluate(() => window.fixture?.saidSince() ?? null)
+  await expect(since(page).getByRole('region', { name: 'Decided' })).toContainText('Keep the room checks on fixtures')
+  await expect.poll(kept).toContain('d:00000000-0000-4000-8000-0000000000da')
+  await since(page).getByRole('button', { name: 'Mark as seen' }).click()
+  await expect(since(page)).toContainText('Nothing new since you last looked.')
+  await expect.poll(kept).toEqual([])
+})
+
 test('updates · a note kept afterwards is new, without a reload', async ({ page }) => {
   await since(page).getByRole('button', { name: 'Mark as seen' }).click()
   await expect(since(page)).toContainText('Nothing new since you last looked.')

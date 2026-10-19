@@ -15,7 +15,9 @@ import { BAR_MOST, barFits, barLength } from './bar-length.ts'
 
 /** What an act changed, for the chat to show before its next read: the new words, the withdrawal, or a reread. */
 export type Acted =
-  { type: 'corrected'; entry: DiscussionEntry } | { type: 'withdrawn'; withdrawn: WithdrawnEntry } | { type: 'reread' }
+  | { type: 'corrected'; entry: DiscussionEntry; cursor?: string | null }
+  | { type: 'withdrawn'; withdrawn: WithdrawnEntry }
+  | { type: 'reread' }
 
 type Step =
   | { at: 'idle'; problem?: string | undefined }
@@ -101,6 +103,8 @@ function actedOf(
   return {
     type: 'corrected',
     entry: { ...entry, text: draft ?? entry.text, revision: receipt.revision, correctedAt: now },
+    // Its act's event: a correction or withdrawal learned at a later cursor supersedes it (held-pages.ts, R-B56-P1).
+    cursor: receipt.cursor,
   }
 }
 

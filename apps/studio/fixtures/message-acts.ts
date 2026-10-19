@@ -109,7 +109,8 @@ const ACT = /^\/api\/v1\/projects\/[0-9a-f-]+\/contributions\/([0-9a-f-]+)\/(pre
 /** Where the fixture answers: what it records as served, and the project moving on. */
 export interface Answering {
   served: string[]
-  publish: () => void
+  /** Publishes the project's next event; its cursor. */
+  publish: () => string
 }
 
 /** The message a request names, if it is the viewer's own; otherwise the API's refusal. */
@@ -188,7 +189,8 @@ interface Acting {
   acts: MessageActs
   at: { n: number; own: Said; operation: ContributionActReceipt['operation'] }
   served: string[]
-  publish: () => void
+  /** Publishes the project's next event; its cursor. */
+  publish: () => string
 }
 
 /** Someone else's tab corrected the message first: the revision shown is no longer the message's. */
@@ -210,12 +212,13 @@ function applied({ project, at, publish }: Acting, id: string, text: string | un
   const revision = (at.own.revision ?? 1) + 1
   const now = new Date().toISOString()
   const changed = at.operation === 'withdraw' || text !== at.own.text
+  let cursor: string | null = null
   if (changed) {
     project.messages[at.n] =
       at.operation === 'withdraw'
         ? { ...at.own, id, revision, withdrawnAt: now }
         : { ...at.own, id, text: text ?? at.own.text, revision, correctedAt: now }
-    publish()
+    cursor = publish()
   }
   return {
     contributionId: id,
@@ -224,7 +227,8 @@ function applied({ project, at, publish }: Acting, id: string, text: string | un
     revision: changed ? revision : (at.own.revision ?? 1),
     state: at.operation === 'withdraw' ? 'withdrawn' : 'current',
     changed,
-    cursor: changed ? '1' : null,
+    // As the API's: the cursor of the act's own event, published above.
+    cursor,
   }
 }
 

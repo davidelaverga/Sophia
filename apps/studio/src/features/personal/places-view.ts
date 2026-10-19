@@ -8,6 +8,8 @@ import type { Way } from './arrive.ts'
 import { dayLabel, topicOf } from './conversation-view.ts'
 import { clock, dayInSentence, inTime } from '../../app/time-words.ts'
 import { foldForSearch } from '../../app/search-fold.ts'
+import type { Since } from '../../api/vision.ts'
+import { newsOf, type News } from '../updates/since-said.ts'
 
 const MINUTE = 60_000
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
@@ -389,6 +391,12 @@ export function projectCard(project: ProjectSummary, now: Date, inCallHere: bool
 /** How many projects Home offers, one press each: the ones Work shows first, which the opening warmed. */
 export const HOME_ROWS = 3
 
+/** The projects Home shows, by id: Work's first ones, in Work's order. */
+export const homeShown = (projects: readonly ProjectSummary[], now: Date): string[] =>
+  workOrder(projects, now)
+    .slice(0, HOME_ROWS)
+    .map((p) => p.projectId)
+
 /**
  * A row's one press on Home: open the project, join its room, or, for the call you are in, go back to it. Leaving
  * stays with the bar's room pill: a press on your own project never hangs up.
@@ -440,6 +448,8 @@ export function homeRows(
 export interface Said {
   text: string
   strong?: boolean
+  /** A press that opens this project at Updates (what changed since you last looked). */
+  updates?: string
 }
 
 /** What Home shows for the line to Sophia (docs/plans/home-no-companion.md). */
@@ -455,16 +465,20 @@ export function homeLine(locked: boolean, answers: boolean | undefined): HomeLin
   return answers ? 'line' : 'cannot'
 }
 
+const NO_NEWS: ReadonlyMap<string, Since> = new Map()
+
 /**
  * The one thing that matters now, in Sophia's words, under the greeting: the call you are in, else a session about to
- * start, else people in a room, else nothing: Home reads nothing of what changed while you were away, so she never says
- * that nothing did (home-no-false-claim.md). Nothing while the projects load either.
+ * start, else people in a room, else what changed since you last looked in the projects Home shows (`news`, their A34
+ * windows not said yet: home-since-you-looked.md), else nothing: she never says that nothing changed
+ * (home-no-false-claim.md). Nothing while the projects load either.
  */
 export function sophiaSays(
   projects: readonly ProjectSummary[] | undefined,
   now: Date,
   call: { title: string } | null,
   answers = true,
+  news: ReadonlyMap<string, Since> = NO_NEWS,
 ): Said[] {
   if (!projects) return []
   if (call) return [{ text: 'You’re in ' }, { text: call.title, strong: true }, { text: '’s room.' }]
@@ -475,7 +489,55 @@ export function sophiaSays(
         text: answers ? 'Start a project when you’re ready, or just talk to me.' : 'Start a project when you’re ready.',
       },
     ]
-  return sessionSoon(projects, now) ?? roomLive(projects) ?? []
+  return sessionSoon(projects, now) ?? roomLive(projects) ?? sinceLooked(projects, now, news) ?? []
+}
+
+/** Each kind Home names, one in words and many in digits: «a decision», «2 decisions». */
+const NEWS_WORDS: readonly [Exclude<keyof News, 'more'>, string, string][] = [
+  ['decided', 'a decision', 'decisions'],
+  ['made', 'a new report', 'new reports'],
+  ['kept', 'a note kept', 'notes kept'],
+]
+
+/** «2 decisions, a new report and more»: every kind with any, then whether more lies after a window. */
+function newsWords(news: News): string {
+  const parts = NEWS_WORDS.filter(([kind]) => news[kind] > 0).map(([kind, one, many]) =>
+    news[kind] === 1 ? one : `${String(news[kind])} ${many}`,
+  )
+  const all = news.more ? [...parts, 'more'] : parts
+  return all.length === 1 ? all.join('') : `${all.slice(0, -1).join(', ')} and ${all.at(-1) ?? ''}`
+}
+
+const linesOf = (n: News) => n.decided + n.made + n.kept
+
+/**
+ * «Since you last looked: 2 decisions and a new report in Launch plan. Open Updates»: the counts of every project with
+ * news, the one with the most named (Work's order breaks a tie), then how many more; Open Updates opens its Updates.
+ */
+function sinceLooked(projects: readonly ProjectSummary[], now: Date, news: ReadonlyMap<string, Since>): Said[] | null {
+  const told = workOrder(projects, now).flatMap((project) => {
+    const window = news.get(project.projectId)
+    const said = window ? newsOf(window) : null
+    return said ? [{ project, said }] : []
+  })
+  const most = told.toSorted((a, b) => linesOf(b.said) - linesOf(a.said))[0]
+  if (!most) return null
+  const sum = told.reduce<News>(
+    (all, { said }) => ({
+      decided: all.decided + said.decided,
+      made: all.made + said.made,
+      kept: all.kept + said.kept,
+      more: all.more || said.more,
+    }),
+    { decided: 0, made: 0, kept: 0, more: false },
+  )
+  const others = told.length - 1
+  return [
+    { text: `Since you last looked: ${newsWords(sum)} in ` },
+    { text: most.project.title, strong: true },
+    { text: others > 0 ? ` and ${String(others)} more project${others === 1 ? '' : 's'}. ` : '. ' },
+    { text: 'Open Updates', updates: most.project.projectId },
+  ]
 }
 
 /** "Standup in Product launch starts in 10 min.": the session about to start first, if one is. */

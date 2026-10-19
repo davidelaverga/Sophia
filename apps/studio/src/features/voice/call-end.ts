@@ -37,27 +37,55 @@ export const keepsTextMode = (why: CallEnd | null): boolean => why !== null && C
 export const OFFLINE_END = 'You’re offline, so the call ended here. Join again once you’re back.'
 /** That note once the browser is back online. */
 export const BACK_ONLINE = 'You’re back online. Try again rejoins the call.'
+/** A join pressed while the browser is offline with no call lost before it, which asks for nothing (Luis 2026-10-19). */
+export const OFFLINE_JOIN = 'You’re offline. Join once you’re back.'
+
+/** Offline, what the room says of a join: the lost call's line after one, the Join from rest's with none. */
+const offlineNote = (lost: boolean) => (lost ? OFFLINE_END : OFFLINE_JOIN)
 
 /**
- * The room's note as the browser's connection stands: offline, a lost call says so; back online, that Try again
- * rejoins. Online, a lost call keeps its own words (a true proves nothing), and every other note stays as it is.
+ * What a join pressed now says instead of asking for a token, with the browser offline or not (navigator.onLine), a
+ * call lost with no join back in since, and whether this person is in the call or on the way into it. Out of the call
+ * and offline, it could reach nothing, so it asks for nothing and says why (offline-join-from-rest.md). Online,
+ * nothing: it goes (a true proves nothing). In the call, nothing either: that call answers it (Chat with Sophia, say),
+ * and nobody in it is told to join.
+ */
+export const joinHeld = (at: { online: boolean; lost: boolean; inCall: boolean }): string | null =>
+  at.online || at.inCall ? null : offlineNote(at.lost)
+
+/**
+ * The room's note as the browser's connection stands: offline, a lost call says so. Back online, that Try again
+ * rejoins, and a Join pressed offline from rest says nothing more (nothing joins on its own). Online, a lost call keeps
+ * its own words (a true proves nothing), and every other note stays as it is.
  */
 export function noteFor(note: string | null, online: boolean): string | null {
-  if (online) return note === OFFLINE_END ? BACK_ONLINE : note
+  if (online) {
+    if (note === OFFLINE_JOIN) return null
+    return note === OFFLINE_END ? BACK_ONLINE : note
+  }
   return note === CALL_END.dropped.note ? OFFLINE_END : note
 }
 
+/** The ends the server said (another tab, taken out, the room closed): still true once the browser reads offline. */
+const SAID_ENDS = new Set(
+  Object.values(CALL_END)
+    .filter((end) => !end.failed)
+    .map((end) => end.note),
+)
+
 /**
  * What the room keeps of a note said with the browser offline or not (navigator.onLine), and whether a call was lost
- * with no join back in since: offline, the lost call, and a join after it that failed, keep the offline note (a join
- * offline could reach nothing, so the note never says the room isn't there). Online, or with no call lost (a Join from
- * rest), the note is kept as said.
+ * with no join back in since. Offline, a join could reach nothing, so the note never says the room isn't there: after
+ * a lost call, the call and a join after it that failed keep the lost call's line; with none, a join that began online
+ * and failed offline says the Join from rest's line. The ends the server said keep their words, and online every note
+ * is kept as said.
  */
 export function keptNote(next: string | null, at: { online: boolean; lost: boolean }): string | null {
   if (next === null || at.online) return next
-  return at.lost || next === CALL_END.dropped.note ? OFFLINE_END : next
+  if (at.lost || next === CALL_END.dropped.note) return OFFLINE_END
+  return SAID_ENDS.has(next) ? next : OFFLINE_JOIN
 }
 
-/** How the dock says its note: the connection's two politely, as Personal's line; a failure, at once. */
+/** How the dock says its note: the connection's three politely, as Personal's line; a failure, at once. */
 export const noteRole = (note: string): 'status' | 'alert' =>
-  note === OFFLINE_END || note === BACK_ONLINE ? 'status' : 'alert'
+  note === OFFLINE_END || note === BACK_ONLINE || note === OFFLINE_JOIN ? 'status' : 'alert'

@@ -32,9 +32,22 @@ export function isTopDialog(panel: Element): boolean {
   return taking.at(-1)?.panel === panel
 }
 
+/** Set while every dialog closes at once, so a sheet that gives another back on closing (Settings) gives none. */
+let closingEvery = false
+
 /** Every open dialog closes, the top one first: what opens next (a report from a recap) must not sit under one. */
 export function closeEveryDialog(): void {
-  for (const dialog of taking.toReversed()) dialog.close()
+  closingEvery = true
+  try {
+    for (const dialog of taking.toReversed()) dialog.close()
+  } finally {
+    closingEvery = false
+  }
+}
+
+/** Whether this close is one of closeEveryDialog's: nothing should open again in its place. */
+export function closingEveryDialog(): boolean {
+  return closingEvery
 }
 
 export function useDialog(

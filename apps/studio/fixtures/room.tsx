@@ -14,7 +14,8 @@
 // Sophia leave, or read what happened. Others in the room, the floor, who speaks, Sophia's states and video come from
 // fake-people.ts (`people`, `floor=1|me|absent`, `speaking`,
 // `sophia=here|listening|settling|answering|speaking|blocked`, `voice`, `paused`, `video=camera|screen`,
-// `looking=screen`; docs/plans/room-fixture-people.md).
+// `looking=screen`, `sound=blocked` (the browser blocked the call's sound, whoever speaks; sound-blocked-others.md);
+// docs/plans/room-fixture-people.md).
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { Goal, GoalCommand } from '@sophia/contracts'
@@ -22,7 +23,9 @@ import type { ChatCaption } from '@sophia/contracts/room-chat'
 import { OFFERED } from './invitations-data.ts'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { forgetKept, keptAt, type Kept } from '../src/features/conversations/talk-store.ts'
+import { readSaid } from '../src/features/updates/since-said.ts'
 import { accountOf } from '../src/app/auth-callback.ts'
+import { changesOf, ownerOf } from '../src/features/conversation/held-pages.ts'
 import { PersonalLocked, forgetPersonalReads } from '../src/app/account-cache.ts'
 import { setSignedIn } from '../src/app/signed-in.ts'
 import { lockKey, OPEN } from '../src/features/personal/lock.ts'
@@ -69,6 +72,7 @@ import {
   speakWhileMuted,
 } from './fake-livekit.ts'
 import {
+  blockSound,
   count,
   endPause,
   nameOf,
@@ -81,6 +85,7 @@ import {
   setSpeaking,
   sophiaAsked,
   type SophiaState,
+  unmutes,
 } from './fake-people.ts'
 import {
   holdFeed,
@@ -141,6 +146,8 @@ interface Fixture {
   update: () => void
   /** The door shuts under the shell: the next snapshot read is refused (403), with no move of the route. */
   shutDoor: () => void
+  /** Another admin archives the project elsewhere: recorded, and the event saying so goes out (archive-project.md). */
+  archivedElsewhere: () => void
   /** Sophia writes a difficulty on the demo's goal of that title, from a call, and the project's stream moves (goal-notes.md). */
   noteOnGoal: (title: string, text: string) => void
   /** The room's recent discussion goes (it moved past what the snapshot holds): a reply to it is refused (A20). */
@@ -164,6 +171,10 @@ interface Fixture {
   failEarlier: () => void
   /** The next host control fails, as an unreachable room server's (host-controls.md). */
   failHost: () => void
+  /** The next «Mute everyone» mutes everyone, then fails, as a record lost after it (mute-all-follow-ups.md). */
+  failAfterMuteAll: () => void
+  /** The `n`th other person turns their microphone back on, after an admin muted it (fake-people.ts). */
+  unmutes: (n: number) => void
   /** The next goal target saved finds someone else's first (goal-owner-date.md). */
   staleTarget: () => void
   /** The next invitation to this address fails, as an unavailable API's (invite-from-projects.md). */
@@ -279,6 +290,8 @@ interface Fixture {
   listMore: (on: boolean) => void
   /** What the view keeps for this project and this page's account (talk-store.ts), as a check reads it. */
   kept: () => Kept | undefined
+  /** The lines of this project's window this account was shown here (since-said.ts), so Home won't say them. */
+  saidSince: () => readonly string[] | null
   /** Whether this page holds a read of the conversation's messages (its query's data), as a check reads it. */
   cachedMessages: (conversationId: string) => boolean
   /** Someone writes in the open conversation (the newest), and the feed moves (conversation-moves.md). */
@@ -301,6 +314,11 @@ interface Fixture {
   holdProjects: (on: boolean) => void
   /** Lets the held membership reads through, and every later one (`membership=hold`). */
   releaseMembership: () => void
+  /**
+   * Lets the held snapshot reads through, and every later one (`snapshot=hold`): the project loads. After
+   * `holdSnapshot`, the discussion's reads read the messages as they are again.
+   */
+  releaseSnapshot: () => void
   /** While on, Sophia is out of reach: every API request fails as a lost connection (`outage=1`). */
   outage: (on: boolean) => void
   /** While on, only the membership's reads fail (`membership=fail`). */
@@ -336,11 +354,16 @@ interface Fixture {
   unmentionMeIn: (n: number) => void
   /** The entity the last published event named, if any (contribution.mentioned's metadata, exact). */
   lastEventEntity: () => unknown
+  /** `count` other messages, each its own, named again elsewhere (contribution.mentioned): the feed takes each. */
+  mentionMany: (count: number) => void
+  /** What the chat's held-pages store keeps for this account and project: messages, resyncs, erasing cursors. */
+  heldChanges: () => { ids: number; resyncs: number; erasedAt: number }
   /** Its author corrects the `n`th message's words: a new revision, its recipients (and their occurrence) kept (A36). */
   reviseMessage: (n: number, text: string) => void
   /** The discussion's reads (snapshot, pages) lag: they keep what they read now until `releaseSnapshot`. */
   holdSnapshot: () => void
-  releaseSnapshot: () => void
+  /** As `holdSnapshot`, and its reads answer with the cursor held then: consistent, as the API's (4318164723). */
+  holdSnapshotAt: () => void
   /** Every earlier page's read fails until turned off. */
   failEarlierReads: (on: boolean) => void
   /** Earlier pages read before these messages wait until `releaseEarlierReads` (a slow read). */
@@ -424,6 +447,8 @@ interface Fixture {
   sophia: (state: SophiaState) => void
   /** Who speak now: 0 the viewer, `n` the `n`th other person, several at once as a list; null no one. */
   speaking: (who: number | readonly number[] | null) => void
+  /** The browser blocks the call's sound now, as LiveKit's AudioPlaybackStatusChanged says it (fake-people.ts). */
+  blockSound: () => void
   /** How loud a voice is from now on, 0…1: `sophia`, the viewer (0) or the `n`th other person (voice-amplitude.md). */
   voiceLevel: (who: 'sophia' | number, level: number) => void
   /** Another member's change reaches the API just before the page's next pass: that pass is refused as stale. */
@@ -711,6 +736,7 @@ const project = {
   messageActs: messageActsOf(query),
   membersFail: query.get('members') === 'fail',
   heldMessages: undefined as (string | Said)[] | undefined,
+  heldAt: undefined as number | undefined,
   failEarlierReads: false,
   earlierHeldBefore: undefined as ReadonlySet<string> | undefined,
   earlierHeld: [] as (() => void)[],
@@ -722,6 +748,7 @@ const project = {
   editHeld: null as (() => void)[] | null,
   failEarlier: false,
   failHost: false,
+  failAfterMuteAll: false,
   staleTarget: false,
   // `archived=1`: the project is archived (archive-project.md).
   archived: query.get('archived') === '1',
@@ -822,6 +849,8 @@ const project = {
   cardAhead: query.get('card') === 'ahead',
   projectsHeld: query.get('projects') === 'hold' ? waiting() : null,
   membershipHeld: query.get('membership') === 'hold' ? waiting() : null,
+  // `snapshot=hold`: the project's snapshot isn't read until the page lets it through (offline-join-from-rest.md).
+  snapshotHeld: query.get('snapshot') === 'hold' ? waiting() : null,
   membershipFails: query.get('membership') === 'fail',
   outage: query.get('outage') === '1',
   outsider: query.get('member') === '0',
@@ -876,6 +905,16 @@ window.fixture = {
       .filter((data) => data !== undefined),
   padlockKey: () => lockKey(accountOf(identity)),
   lastEventEntity: () => eventEntities.get(project.revision) ?? null,
+  mentionMany: (many) => {
+    for (let k = 0; k < many; k++) {
+      mentionedEvent(`00000000-0000-4000-8000-${String(900000 + k).padStart(12, '0')}`, 1)
+      publish(project)
+    }
+  },
+  heldChanges: () => {
+    const changes = changesOf(ownerOf(identity.name, PROJECT))
+    return { ids: changes.ids.size, resyncs: changes.resyncs, erasedAt: changes.erasedAt?.size ?? 0 }
+  },
   eraseShared: (n, id, text) => {
     // A corrected or withdrawn elsewhere: its old source is erased, and every message sharing it no longer lists;
     // the one event names A alone (0068's contribution_erase, r4313704366).
@@ -893,7 +932,13 @@ window.fixture = {
         ? { ...base, revision, withdrawnAt: now }
         : { ...base, text, revision, correctedAt: now, sourceId: CORRECTED_SOURCE }
     const type = text === null ? 'contribution.withdrawn' : 'contribution.corrected'
-    eventEntities.set(project.revision + 1, { type, entityType: 'contribution', entityId: id })
+    // As the API's (0068): the event names the message's revision after the act.
+    eventEntities.set(project.revision + 1, {
+      type,
+      entityType: 'contribution',
+      entityId: id,
+      entityRevision: revision,
+    })
     publish(project)
   },
   changeElsewhere: (n, id, text) => {
@@ -905,12 +950,22 @@ window.fixture = {
     project.messages[n] =
       text === null ? { ...base, revision, withdrawnAt: now } : { ...base, text, revision, correctedAt: now }
     const type = text === null ? 'contribution.withdrawn' : 'contribution.corrected'
-    eventEntities.set(project.revision + 1, { type, entityType: 'contribution', entityId: id })
+    // As the API's (0068): the event names the message's revision after the act.
+    eventEntities.set(project.revision + 1, {
+      type,
+      entityType: 'contribution',
+      entityId: id,
+      entityRevision: revision,
+    })
     publish(project)
   },
   update: () => publish(project),
   shutDoor: () => {
     project.doorShut = true
+    publish(project)
+  },
+  archivedElsewhere: () => {
+    project.archived = true
     publish(project)
   },
   noteOnGoal: (title, text) => {
@@ -975,6 +1030,10 @@ window.fixture = {
   failHost: () => {
     project.failHost = true
   },
+  failAfterMuteAll: () => {
+    project.failAfterMuteAll = true
+  },
+  unmutes,
   staleTarget: () => {
     project.staleTarget = true
   },
@@ -1138,6 +1197,7 @@ window.fixture = {
     publish(project)
   },
   kept: () => keptAt(`${PROJECT} ${accountOf(identity)}`),
+  saidSince: () => readSaid(accountOf(identity))[PROJECT] ?? null,
   cachedMessages: (conversationId) =>
     queryClient.getQueryData(messagesKey(conversationId, accountOf(identity))) !== undefined,
   conversationMessage: (name, text) => {
@@ -1185,6 +1245,15 @@ window.fixture = {
     const held = project.membershipHeld ?? []
     project.membershipHeld = null
     for (const answer of held) answer()
+  },
+  releaseSnapshot: () => {
+    const held = project.snapshotHeld ?? []
+    project.snapshotHeld = null
+    for (const answer of held) answer()
+    if (project.heldMessages === undefined) return
+    project.heldMessages = undefined
+    project.heldAt = undefined
+    publish(project)
   },
   outage: (on) => {
     project.outage = on
@@ -1296,9 +1365,9 @@ window.fixture = {
   holdSnapshot: () => {
     project.heldMessages = structuredClone(project.messages)
   },
-  releaseSnapshot: () => {
-    project.heldMessages = undefined
-    publish(project)
+  holdSnapshotAt: () => {
+    project.heldMessages = structuredClone(project.messages)
+    project.heldAt = project.revision
   },
   failEarlierReads: (on) => {
     project.failEarlierReads = on
@@ -1428,6 +1497,7 @@ window.fixture = {
   },
   sophia: setSophia,
   speaking: setSpeaking,
+  blockSound,
   voiceLevel: setVoiceLevel,
   leaves: personLeaves,
   moveRoom: () => {

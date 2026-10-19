@@ -160,6 +160,9 @@ declare global {
     releaseStale?: (index: number) => void
     staleBodies?: string[]
     sawStale?: boolean
+    /** R-B55-P1: while set, the snapshot's reads fail (503); how many did. */
+    failSnapshots?: boolean
+    snapshotsFailed?: number
   }
 }
 
@@ -495,3 +498,429 @@ test('earlier · a manual «Earlier messages» read asked before an erasure neve
   await expect(page.locator(`[data-message="${idOf(19)}"] .contribution-text`)).toHaveText('Message 20') // unrelated C
   await expect(earlier(page)).toBeVisible() // the manual read still usable
 })
+
+// B55 (4316503664): the alias pair inside the snapshot's own window, no earlier page read (nothing held). The snapshot
+// lags (held as it was), so only the feed's event can tell the source went: B, sharing A's source, goes at once and
+// stays gone while the snapshot still lists its old words; C, unrelated, stays.
+for (const act of ['correct', 'withdraw'] as const)
+  test(`earlier · ${act === 'correct' ? 'a correction' : 'a withdrawal'} erasing a source shared in the current window hides its alias while the snapshot lags (4316503664)`, async ({
+    page,
+  }) => {
+    await page.goto('/room.html?call=on&discussion=60&acts=1&alias=1&aliasAt=55')
+    await expect(leave(page)).toBeVisible()
+    await chatToggle(page).click()
+    await expect(entries(page)).toHaveCount(50)
+    await expect(textOf(page, idOf(56))).toHaveText('SYNTHETIC shared words')
+    await page.evaluate(() => window.fixture?.holdSnapshot())
+    await page.evaluate(([m, text]) => window.fixture?.eraseShared(55, m, text), [
+      idOf(55),
+      act === 'correct' ? 'Message 56, corrected elsewhere' : null,
+    ] as const)
+    await expect(page.locator(`[data-message="${idOf(56)}"]`)).toHaveCount(0)
+    await page.evaluate((b) => {
+      window.sawStale = false
+      new MutationObserver(() => {
+        if (document.querySelector(`[data-message="${b}"]`)) window.sawStale = true
+      }).observe(document.body, { childList: true, subtree: true, characterData: true })
+    }, idOf(56))
+    await page.waitForTimeout(1000) // past the feed's debounced snapshot read, which still answers the old words
+    expect(await page.evaluate(() => window.sawStale ?? false), 'the alias never came back').toBe(false)
+    await expect(page.locator(`[data-message="${idOf(56)}"]`)).toHaveCount(0)
+    await expect(textOf(page, idOf(57))).toHaveText('Message 58') // unrelated C
+    await page.evaluate(() => window.fixture?.releaseSnapshot())
+    if (act === 'correct') await expect(textOf(page, idOf(55))).toHaveText('Message 56, corrected elsewhere')
+    await expect(page.locator(`[data-message="${idOf(56)}"]`)).toHaveCount(0)
+  })
+
+// B55 (4316503672): an erasure learned while nothing earlier is held, its message outside the first earlier page and
+// the window. The first «Earlier messages» read after it is fresh: its page stays.
+test('earlier · an erasure learned before any earlier page is read leaves the first page read after it in place (4316503672)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?call=on&discussion=110&acts=1&alias=1&aliasAt=2')
+  await expect(leave(page)).toBeVisible()
+  await chatToggle(page).click()
+  await expect(entries(page)).toHaveCount(50)
+  await page.evaluate((m) => window.fixture?.eraseShared(2, m, null), idOf(2))
+  await page.waitForTimeout(800) // the event is learned, nothing held
+  await earlier(page).click()
+  await expect(entries(page)).toHaveCount(100)
+  await page.waitForTimeout(800)
+  await expect(entries(page)).toHaveCount(100)
+  await expect(textOf(page, idOf(10))).toHaveText('Message 11')
+  await expect(earlier(page)).toBeVisible()
+})
+
+// B55 (4316503672, its negative): the first manual read is out when an erasure is learned, nothing held yet. Its answer,
+// asked before, is let go before B's old words show (the erasure stays new for it); a fresh read brings the page.
+test('earlier · an erasure learned while the first «Earlier messages» read is out never shows the erased words; a fresh read recovers (4316503672)', async ({
+  page,
+}) => {
+  await heldPageReads(page)
+  await page.goto('/room.html?call=on&discussion=110&acts=1&alias=1&aliasAt=9')
+  await expect(leave(page)).toBeVisible()
+  await chatToggle(page).click()
+  await expect(entries(page)).toHaveCount(50)
+  await page.evaluate(() => (window.holdStale = true))
+  await earlier(page).click()
+  await expect.poll(() => page.evaluate(() => window.staleWaiting ?? 0)).toBe(1) // the first manual read, held
+  await page.evaluate((m) => window.fixture?.eraseShared(9, m, null), idOf(9))
+  await page.waitForTimeout(500)
+  await page.evaluate(() => {
+    window.holdStale = false
+    window.sawStale = false
+    new MutationObserver(() => {
+      for (const el of document.querySelectorAll('.contribution-text'))
+        if (el.textContent === 'SYNTHETIC shared words') window.sawStale = true
+    }).observe(document.body, { childList: true, subtree: true, characterData: true })
+  })
+  await page.evaluate(() => window.releaseStale?.(0))
+  await page.waitForTimeout(500)
+  expect(await page.evaluate(() => window.sawStale ?? false), 'the erased words were never on the page').toBe(false)
+  await earlier(page).click()
+  await expect(textOf(page, idOf(11))).toHaveText('Message 12')
+  await expect(page.getByText('SYNTHETIC shared words', { exact: true })).toHaveCount(0)
+})
+
+// B56 (R-B55-P1): the acted message A itself, in the snapshot's window, nothing held. Its correction or withdrawal
+// learned from the feed erases its source; while the snapshot read since lags (held as it was) or fails (503, the old
+// snapshot kept), neither A nor its alias B shows the erased words; C, unrelated, stays.
+async function failingSnapshots(page: Page) {
+  await page.addInitScript(() => {
+    const w = window
+    const wrap =
+      (f: typeof fetch): typeof fetch =>
+      async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href)
+        if (!w.failSnapshots || !url.pathname.endsWith('/snapshot')) return f(input, init)
+        w.snapshotsFailed = (w.snapshotsFailed ?? 0) + 1
+        return new Response(JSON.stringify({ error: { code: 'unavailable', message: 'Unavailable' } }), {
+          status: 503,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+    let current = wrap(window.fetch.bind(window))
+    Object.defineProperty(window, 'fetch', {
+      configurable: true,
+      get: () => current,
+      set: (f: typeof fetch) => (current = wrap(f)),
+    })
+  })
+}
+
+for (const act of ['correct', 'withdraw'] as const)
+  for (const refresh of ['lags', 'fails'] as const)
+    test(`earlier · ${act === 'correct' ? 'a correction' : 'a withdrawal'} learned while the snapshot ${refresh}: the acted message and its alias show no erased words (R-B55-P1)`, async ({
+      page,
+    }) => {
+      await failingSnapshots(page)
+      await page.goto('/room.html?call=on&discussion=60&acts=1&alias=1&aliasAt=55')
+      await expect(leave(page)).toBeVisible()
+      await chatToggle(page).click()
+      await expect(entries(page)).toHaveCount(50)
+      await expect(textOf(page, idOf(55))).toHaveText('SYNTHETIC shared words')
+      await expect(textOf(page, idOf(56))).toHaveText('SYNTHETIC shared words')
+      if (refresh === 'lags') await page.evaluate(() => window.fixture?.holdSnapshot())
+      else await page.evaluate(() => (window.failSnapshots = true))
+      await page.evaluate(([m, text]) => window.fixture?.eraseShared(55, m, text), [
+        idOf(55),
+        act === 'correct' ? 'Message 56, corrected elsewhere' : null,
+      ] as const)
+      const erased = page.locator('.contribution-text').filter({ hasText: /^SYNTHETIC shared words$/ })
+      await expect(erased).toHaveCount(0)
+      await page.evaluate(() => {
+        window.sawStale = false
+        new MutationObserver(() => {
+          for (const el of document.querySelectorAll('.contribution-text'))
+            if (el.textContent === 'SYNTHETIC shared words') window.sawStale = true
+        }).observe(document.body, { childList: true, subtree: true, characterData: true })
+      })
+      await page.waitForTimeout(1000) // past the feed's debounced snapshot read, which lags or fails
+      if (refresh === 'fails') expect(await page.evaluate(() => window.snapshotsFailed ?? 0)).toBeGreaterThan(0)
+      expect(await page.evaluate(() => window.sawStale ?? false), 'the erased words never came back').toBe(false)
+      await expect(erased).toHaveCount(0)
+      await expect(textOf(page, idOf(57))).toHaveText('Message 58') // unrelated C
+      if (refresh === 'lags') {
+        await page.evaluate(() => window.fixture?.releaseSnapshot())
+        if (act === 'correct') await expect(textOf(page, idOf(55))).toHaveText('Message 56, corrected elsewhere')
+        else await expect(page.locator(`[data-message="${idOf(55)}"] .contribution-text`)).toHaveCount(0)
+        await expect(erased).toHaveCount(0)
+      }
+    })
+
+// B57 (R-B56-P1): the reader's own Edit, through the chat, while the snapshot lags or fails: its receipt shows the new
+// words over the old snapshot (r2 over r1). Then another tab corrects or withdraws that message again, erasing r2's
+// source: the receipt is superseded and its words go too, though the snapshot still has r1 and the receipt is newer.
+const MINE = 'Meet at nine by the north door.'
+const EDITED = 'Meet at ten by the north door.'
+for (const act of ['correct', 'withdraw'] as const)
+  for (const refresh of ['lags', 'fails'] as const)
+    test(`earlier · the reader’s own correction, then ${act === 'correct' ? 'a correction' : 'a withdrawal'} elsewhere while the snapshot ${refresh}: the superseded receipt’s words go (R-B56-P1)`, async ({
+      page,
+    }) => {
+      await failingSnapshots(page)
+      await page.goto('/room.html?call=on&discussion=mine&acts=1')
+      await expect(leave(page)).toBeVisible()
+      await chatToggle(page).click()
+      const mine = page
+        .getByRole('list', { name: 'Recent discussion' })
+        .locator('.contribution')
+        .filter({ hasText: MINE })
+      await expect(mine).toBeVisible()
+      const id = (await mine.getAttribute('data-message')) ?? ''
+      if (refresh === 'lags') await page.evaluate(() => window.fixture?.holdSnapshot())
+      else await page.evaluate(() => (window.failSnapshots = true))
+      await mine.getByRole('button', { name: 'Edit' }).click()
+      await page.getByRole('textbox', { name: 'Edit your message' }).fill(EDITED)
+      await page.getByRole('button', { name: 'Save' }).click()
+      // The fresh receipt shows, and stays past its own event's refresh, the snapshot still at r1.
+      await expect(textOf(page, id)).toHaveText(EDITED)
+      await page.waitForTimeout(1000)
+      await expect(textOf(page, id)).toHaveText(EDITED)
+      await page.evaluate(([m, text]) => window.fixture?.eraseShared(0, m, text), [
+        id,
+        act === 'correct' ? 'Meet at eleven, corrected elsewhere' : null,
+      ] as const)
+      const erased = page.locator('.contribution-text').filter({ hasText: /^Meet at (ten|nine) by the north door\.$/ })
+      await expect(erased).toHaveCount(0)
+      await page.evaluate(() => {
+        window.sawStale = false
+        new MutationObserver(() => {
+          for (const el of document.querySelectorAll('.contribution-text'))
+            if (/^Meet at (ten|nine) by the north door\.$/.test(el.textContent)) window.sawStale = true
+        }).observe(document.body, { childList: true, subtree: true, characterData: true })
+      })
+      await page.waitForTimeout(1000) // past the feed's debounced snapshot read, which lags or fails
+      if (refresh === 'fails') expect(await page.evaluate(() => window.snapshotsFailed ?? 0)).toBeGreaterThan(0)
+      expect(await page.evaluate(() => window.sawStale ?? false), 'the erased words never came back').toBe(false)
+      await expect(erased).toHaveCount(0)
+      if (refresh === 'lags') {
+        await page.evaluate(() => window.fixture?.releaseSnapshot())
+        if (act === 'correct') await expect(textOf(page, id)).toHaveText('Meet at eleven, corrected elsewhere')
+        else await expect(textOf(page, id)).toHaveCount(0)
+        await expect(erased).toHaveCount(0)
+      }
+    })
+
+// B59 (R-B57-P1): a receipt known superseded stays so past the bounded store's reset. The reader's own Edit (receipt
+// r2) is superseded by a correction or withdrawal elsewhere and goes; then more than KEPT other messages are named again
+// elsewhere (contribution.mentioned, each its own), so the chat's store of changes is let go, its erasing cursors with
+// it. The snapshot still lags or fails: the receipt's erased words must not come back.
+for (const act of ['correct', 'withdraw'] as const)
+  for (const refresh of ['lags', 'fails'] as const)
+    test(`earlier · a superseded receipt stays gone after the store of changes overflows, the snapshot ${refresh} (${act}, R-B57-P1)`, async ({
+      page,
+    }) => {
+      await failingSnapshots(page)
+      await page.goto('/room.html?call=on&discussion=mine&acts=1')
+      await expect(leave(page)).toBeVisible()
+      await chatToggle(page).click()
+      const mine = page
+        .getByRole('list', { name: 'Recent discussion' })
+        .locator('.contribution')
+        .filter({ hasText: MINE })
+      await expect(mine).toBeVisible()
+      const id = (await mine.getAttribute('data-message')) ?? ''
+      if (refresh === 'lags') await page.evaluate(() => window.fixture?.holdSnapshot())
+      else await page.evaluate(() => (window.failSnapshots = true))
+      await mine.getByRole('button', { name: 'Edit' }).click()
+      await page.getByRole('textbox', { name: 'Edit your message' }).fill(EDITED)
+      await page.getByRole('button', { name: 'Save' }).click()
+      await expect(textOf(page, id)).toHaveText(EDITED)
+      await page.evaluate(([m, text]) => window.fixture?.eraseShared(0, m, text), [
+        id,
+        act === 'correct' ? 'Meet at eleven, corrected elsewhere' : null,
+      ] as const)
+      const erased = page.locator('.contribution-text').filter({ hasText: /^Meet at (ten|nine) by the north door\.$/ })
+      await expect(erased).toHaveCount(0)
+      const before = await page.evaluate(() => window.fixture?.heldChanges())
+      expect(before?.erasedAt, 'the erasure is kept before the overflow').toBe(1)
+      await page.evaluate(() => {
+        window.sawStale = false
+        new MutationObserver(() => {
+          for (const el of document.querySelectorAll('.contribution-text'))
+            if (/^Meet at (ten|nine) by the north door\.$/.test(el.textContent)) window.sawStale = true
+        }).observe(document.body, { childList: true, subtree: true, characterData: true })
+      })
+      await page.evaluate(() => window.fixture?.mentionMany(205))
+      // The store was let go (past KEPT = 200): a resync counted, its erasing cursors gone, and the feed went on.
+      await expect
+        .poll(() => page.evaluate(() => window.fixture?.heldChanges()))
+        .toEqual(expect.objectContaining({ resyncs: (before?.resyncs ?? 0) + 1 }))
+      await page.waitForTimeout(1000) // past the feed's debounced snapshot read, which lags or fails
+      if (refresh === 'fails') expect(await page.evaluate(() => window.snapshotsFailed ?? 0)).toBeGreaterThan(0)
+      expect(await page.evaluate(() => window.sawStale ?? false), 'the erased words never came back').toBe(false)
+      await expect(erased).toHaveCount(0)
+    })
+
+// B60 (4317389238): the chat is let go (another view, Knowledge here; Work is shown as Tasks) while the feed, kept by the project, takes a correction of A and
+// reads the snapshot again. Back in the Studio, the chat learns that event afresh: A's corrected words (revision 2, the
+// event's own) are already what it shows, so they are not taken for erased. Paired: the snapshot lagging, A's old words
+// (revision 1, older than the event) and its alias B are fenced.
+const views = (page: Page) => page.getByRole('navigation', { name: 'Project views' })
+for (const snapshot of ['fresh', 'lags'] as const)
+  test(`earlier · a correction learned while the chat was away, the snapshot ${snapshot}: ${snapshot === 'fresh' ? 'the corrected words show' : 'the old words stay fenced'} (4317389238)`, async ({
+    page,
+  }) => {
+    await page.goto('/room.html?call=on&discussion=60&acts=1&alias=1&aliasAt=55')
+    await expect(leave(page)).toBeVisible()
+    await chatToggle(page).click()
+    await expect(textOf(page, idOf(55))).toHaveText('SYNTHETIC shared words')
+    await views(page).getByRole('link', { name: 'Knowledge', exact: true }).click()
+    await expect(page.locator('[data-message]')).toHaveCount(0) // the chat is let go
+    if (snapshot === 'lags') await page.evaluate(() => window.fixture?.holdSnapshot())
+    await page.evaluate((m) => window.fixture?.eraseShared(55, m, 'Message 56, corrected elsewhere'), idOf(55))
+    await expect.poll(() => page.evaluate(() => window.fixture?.heldChanges().erasedAt)).toBe(1)
+    await page.waitForTimeout(800) // the feed's debounced snapshot read, answered fresh or as it was
+    await views(page).getByRole('link', { name: 'Studio', exact: true }).click()
+    if (!(await page.getByRole('list', { name: 'Recent discussion' }).isVisible())) await chatToggle(page).click()
+    await expect(textOf(page, idOf(57))).toHaveText('Message 58') // unrelated C
+    if (snapshot === 'fresh') {
+      await expect(textOf(page, idOf(55))).toHaveText('Message 56, corrected elsewhere')
+    } else {
+      await expect(page.locator('.contribution-text').filter({ hasText: /^SYNTHETIC shared words$/ })).toHaveCount(0)
+      await page.evaluate(() => window.fixture?.releaseSnapshot())
+      await expect(textOf(page, idOf(55))).toHaveText('Message 56, corrected elsewhere')
+    }
+    await expect(page.locator('.contribution-text').filter({ hasText: /^SYNTHETIC shared words$/ })).toHaveCount(0)
+  })
+
+// B60 (4317389250): exactly KEPT (200) other messages changed elsewhere, then A's correction or withdrawal is the 201st:
+// the store is let go, but not that change. A and its alias B show no erased words while the snapshot lags or fails.
+// At 199 others, A's change is the 200th and nothing is let go.
+for (const others of [200, 199] as const)
+  for (const act of ['correct', 'withdraw'] as const)
+    for (const refresh of ['lags', 'fails'] as const)
+      test(`earlier · ${act === 'correct' ? 'a correction' : 'a withdrawal'} that is change ${others + 1} of the chat’s store, the snapshot ${refresh}: no erased words (4317389250)`, async ({
+        page,
+      }) => {
+        await failingSnapshots(page)
+        await page.goto('/room.html?call=on&discussion=60&acts=1&alias=1&aliasAt=55')
+        await expect(leave(page)).toBeVisible()
+        await chatToggle(page).click()
+        await expect(textOf(page, idOf(56))).toHaveText('SYNTHETIC shared words')
+        await page.evaluate((n) => window.fixture?.mentionMany(n), others)
+        await expect.poll(() => page.evaluate(() => window.fixture?.heldChanges().ids)).toBe(others)
+        const before = await page.evaluate(() => window.fixture?.heldChanges())
+        if (refresh === 'lags') await page.evaluate(() => window.fixture?.holdSnapshot())
+        else await page.evaluate(() => (window.failSnapshots = true))
+        await page.evaluate(([m, text]) => window.fixture?.eraseShared(55, m, text), [
+          idOf(55),
+          act === 'correct' ? 'Message 56, corrected elsewhere' : null,
+        ] as const)
+        const erased = page.locator('.contribution-text').filter({ hasText: /^SYNTHETIC shared words$/ })
+        await expect(erased).toHaveCount(0)
+        const reset = others === 200
+        await expect
+          .poll(() => page.evaluate(() => window.fixture?.heldChanges()))
+          .toEqual({
+            ids: reset ? 1 : others + 1,
+            resyncs: (before?.resyncs ?? 0) + (reset ? 1 : 0),
+            erasedAt: 1,
+          })
+        await page.evaluate(() => {
+          window.sawStale = false
+          new MutationObserver(() => {
+            for (const el of document.querySelectorAll('.contribution-text'))
+              if (el.textContent === 'SYNTHETIC shared words') window.sawStale = true
+          }).observe(document.body, { childList: true, subtree: true, characterData: true })
+        })
+        await page.waitForTimeout(1000) // past the feed's debounced snapshot read, which lags or fails
+        if (refresh === 'fails') expect(await page.evaluate(() => window.snapshotsFailed ?? 0)).toBeGreaterThan(0)
+        expect(await page.evaluate(() => window.sawStale ?? false), 'the erased words never came back').toBe(false)
+        await expect(erased).toHaveCount(0)
+        await expect(textOf(page, idOf(57))).toHaveText('Message 58') // unrelated C
+      })
+
+// B61 (R-B60-P1): the chat is let go (Knowledge) before the erasure, so it never learns A's old source. A's correction
+// or withdrawal is taken while the snapshot's reads fail (503: the old snapshot kept), then 200 other messages are named
+// again: the store is let go and keeps only the last of them. Back in the Studio, A and its alias B must not show the
+// erased words; once a read succeeds, the current words show. Paired: the snapshot read since answers, no overfence.
+for (const act of ['correct', 'withdraw'] as const)
+  for (const snapshot of ['fails', 'fresh'] as const)
+    test(`earlier · an erasure taken while the chat was away and let go past KEPT, the snapshot ${snapshot} (${act}, R-B60-P1)`, async ({
+      page,
+    }) => {
+      await failingSnapshots(page)
+      await page.goto('/room.html?call=on&discussion=60&acts=1&alias=1&aliasAt=55')
+      await expect(leave(page)).toBeVisible()
+      await chatToggle(page).click()
+      await expect(textOf(page, idOf(56))).toHaveText('SYNTHETIC shared words')
+      await views(page).getByRole('link', { name: 'Knowledge', exact: true }).click()
+      await expect(page.locator('[data-message]')).toHaveCount(0) // the chat is let go
+      const start = await page.evaluate(() => window.fixture?.heldChanges())
+      if (snapshot === 'fails') await page.evaluate(() => (window.failSnapshots = true))
+      await page.evaluate(([m, text]) => window.fixture?.eraseShared(55, m, text), [
+        idOf(55),
+        act === 'correct' ? 'Message 56, corrected elsewhere' : null,
+      ] as const)
+      await expect.poll(() => page.evaluate(() => window.fixture?.heldChanges().erasedAt)).toBe(1)
+      if (snapshot === 'fails')
+        await expect.poll(() => page.evaluate(() => window.snapshotsFailed ?? 0)).toBeGreaterThan(0)
+      await page.evaluate(() => window.fixture?.mentionMany(200))
+      // A and 200 others: past KEPT, the store is let go (a resync counted) and the earlier mentions with it.
+      await expect
+        .poll(() => page.evaluate(() => window.fixture?.heldChanges()))
+        .toEqual(expect.objectContaining({ resyncs: (start?.resyncs ?? 0) + 1 }))
+      expect((await page.evaluate(() => window.fixture?.heldChanges()))?.ids).toBeLessThanOrEqual(2)
+      await views(page).getByRole('link', { name: 'Studio', exact: true }).click()
+      if (!(await page.getByRole('list', { name: 'Recent discussion' }).isVisible())) await chatToggle(page).click()
+      await expect(textOf(page, idOf(57))).toHaveText('Message 58') // unrelated C
+      const erased = page.locator('.contribution-text').filter({ hasText: /^SYNTHETIC shared words$/ })
+      await expect(erased).toHaveCount(0)
+      if (snapshot === 'fails') {
+        // A read that succeeds brings the current words.
+        await page.evaluate(() => (window.failSnapshots = false))
+        await page.evaluate(() => window.fixture?.update())
+      }
+      if (act === 'correct') await expect(textOf(page, idOf(55))).toHaveText('Message 56, corrected elsewhere')
+      else await expect(textOf(page, idOf(55))).toHaveCount(0)
+      await expect(erased).toHaveCount(0)
+    })
+
+// B64 (4318164723): A, which owns the source, is older than the snapshot's 50 (index 9); B, a reference to it, is in
+// the window (index 10); no earlier page is read. A's correction or withdrawal erases that source, but the event names
+// A only and A is not shown, so which source went is unknown here. While the snapshot read since lags or fails, B must
+// not show the erased words; a read that succeeds shows the current window. Paired: the snapshot answers at once.
+for (const act of ['correct', 'withdraw'] as const)
+  for (const refresh of ['lags', 'fails', 'fresh'] as const)
+    test(`earlier · its source erased by a message outside the window, a reference in it, the snapshot ${refresh} (${act}, 4318164723)`, async ({
+      page,
+    }) => {
+      await failingSnapshots(page)
+      await page.goto('/room.html?call=on&discussion=60&acts=1&alias=1&aliasAt=9')
+      await expect(leave(page)).toBeVisible()
+      await chatToggle(page).click()
+      await expect(entries(page)).toHaveCount(50)
+      await expect(page.locator(`[data-message="${idOf(9)}"]`)).toHaveCount(0) // A: not in the window
+      await expect(textOf(page, idOf(10))).toHaveText('SYNTHETIC shared words') // B: in it, a reference
+      if (refresh === 'lags') await page.evaluate(() => window.fixture?.holdSnapshotAt())
+      if (refresh === 'fails') await page.evaluate(() => (window.failSnapshots = true))
+      await page.evaluate(([m, text]) => window.fixture?.eraseShared(9, m, text), [
+        idOf(9),
+        act === 'correct' ? 'Message 10, corrected elsewhere' : null,
+      ] as const)
+      await expect.poll(() => page.evaluate(() => window.fixture?.heldChanges().erasedAt)).toBe(1) // the event taken
+      const erased = page.locator('.contribution-text').filter({ hasText: /^SYNTHETIC shared words$/ })
+      await expect(erased).toHaveCount(0)
+      await page.evaluate(() => {
+        window.sawStale = false
+        new MutationObserver(() => {
+          for (const el of document.querySelectorAll('.contribution-text'))
+            if (el.textContent === 'SYNTHETIC shared words') window.sawStale = true
+        }).observe(document.body, { childList: true, subtree: true, characterData: true })
+      })
+      await page.waitForTimeout(1000) // past the feed's debounced snapshot read
+      if (refresh === 'fails') expect(await page.evaluate(() => window.snapshotsFailed ?? 0)).toBeGreaterThan(0)
+      expect(await page.evaluate(() => window.sawStale ?? false), 'the erased words never came back').toBe(false)
+      await expect(erased).toHaveCount(0)
+      // A read that succeeds: the current window, readable, the unrelated message too.
+      if (refresh === 'lags') await page.evaluate(() => window.fixture?.releaseSnapshot())
+      if (refresh === 'fails') {
+        await page.evaluate(() => (window.failSnapshots = false))
+        await page.evaluate(() => window.fixture?.update())
+      }
+      await expect(textOf(page, idOf(11))).toHaveText('Message 12')
+      await expect(textOf(page, idOf(59))).toHaveText('Message 60')
+      await expect(erased).toHaveCount(0)
+    })

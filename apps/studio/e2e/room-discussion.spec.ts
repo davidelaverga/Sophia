@@ -148,6 +148,28 @@ test('discussion · offline, a message held with no reply is not confirmed, neve
   expect(await toRoom(page)).toEqual(['contribution:discuss'])
 })
 
+test('discussion · offline, a held message keeps its words after a Join pressed from rest (Luis 2026-10-19)', async ({
+  page,
+  context,
+}) => {
+  await page.goto('/room.html')
+  await chatToggle(page).click()
+  await page.evaluate(() => window.fixture?.loseNextContributionReply())
+  await bar(page).fill('Once only.')
+  await bar(page).press('Enter')
+  await expect(page.getByText('Not confirmed: “Once only.”')).toBeVisible()
+  await context.setOffline(true)
+  const line = page.locator('.composer .outcome')
+  const held =
+    'You’re offline, so “Once only.” isn’t confirmed. Send it again once you’re back; it won’t be written twice.'
+  await expect(line).toHaveText([held])
+  await page.getByRole('button', { name: 'Chat with Sophia' }).click()
+  // The room's line says the join waits for the network; the held message keeps the words Luis chose.
+  await expect(line).toHaveText(['You’re offline. Join once you’re back.', held])
+  await expect(page.getByText('Not confirmed: “')).toHaveCount(0)
+  expect(await toRoom(page)).toEqual(['contribution:discuss']) // the first one, which landed; nothing more
+})
+
 test('discussion · Shift+Enter starts a new line; Enter sends', async ({ page }) => {
   await enter(page, 'people=2&floor=1')
   await bar(page).fill('First line')

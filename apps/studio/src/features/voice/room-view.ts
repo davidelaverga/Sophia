@@ -10,13 +10,15 @@ export type DockStatus = 'idle' | 'joining' | 'live' | 'reconnecting' | 'failed'
 export type AskedJoin = 'wait' | 'join' | 'answered'
 
 /**
- * A join asked from elsewhere (Work's «Join the room», a toast's Rejoin), with the room as it is: it waits while the
- * project loads, then joins a room out of the call (after a failed join too, as Try again would). A room the person is
- * in, or on the way into, answers it: kept, it would join again by itself after their next Leave (ProjectShell's
- * useJoinOnOpen; call-ends-on-open.md).
+ * A join asked from elsewhere (Work's «Join the room», a toast's Rejoin), with the room as it is and the browser online
+ * or not (navigator.onLine): it waits while the project loads, then joins a room out of the call (after a failed join
+ * too, as Try again would). Offline it waits for nothing, since the project can't load: it joins at once, and that join
+ * asks for nothing and says offline (joinHeld), so none is left to join on its own once the network is back
+ * (offline-join-from-rest.md). A room the person is in, or on the way into, answers it: kept, it would join again by
+ * itself after their next Leave (ProjectShell's useJoinOnOpen; call-ends-on-open.md).
  */
-export function askedJoin(status: DockStatus, ready: boolean): AskedJoin {
-  if (!ready) return 'wait'
+export function askedJoin(status: DockStatus, ready: boolean, online: boolean): AskedJoin {
+  if (!ready && online) return 'wait'
   return status === 'idle' || status === 'failed' ? 'join' : 'answered'
 }
 

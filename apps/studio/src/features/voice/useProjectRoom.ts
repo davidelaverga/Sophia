@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { RoomToken, Snapshot } from '@sophia/contracts'
 import { ApiError, issueRoomToken } from '../../api/client.ts'
 import { useOnline } from '../personal/online.ts'
-import { CALL_END, keepsTextMode, keptNote, noteFor, OFFLINE_END, type CallEnd } from './call-end.ts'
+import { CALL_END, joinHeld, keepsTextMode, keptNote, noteFor, type CallEnd } from './call-end.ts'
 import { CallFence } from './call-fence.ts'
 import { switchCamera } from './camera-flip.ts'
 import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts'
@@ -106,6 +106,12 @@ export interface ProjectRoom {
   /** Others' cameras come to this browser (incoming-video.md): off for this call only; a shared screen still comes. */
   incomingVideo: boolean
   setIncomingVideo: (on: boolean) => void
+  /**
+   * The dock's «This browser blocked the call’s sound» was put away (Not now) in this call: it says nothing more until
+   * the next call (sound-view.ts).
+   */
+  soundNoticeAway: boolean
+  putSoundNoticeAway: () => void
 }
 
 /** A failed join in words: the API's own refusal, or what to check when the room could not be reached. */
@@ -527,15 +533,26 @@ function usePeopleVolume(connection: { current: RoomConnection | null }) {
   }
 }
 
-/** What this person chose for this call alone: each person's volume and others' cameras. Out of it, both reset. */
+/** The dock's line about a blocked sound, put away for this call alone (sound-blocked-others.md). */
+function useSoundNotice() {
+  const [soundNoticeAway, setAway] = useState(false)
+  return { soundNoticeAway, putSoundNoticeAway: () => setAway(true), resetSoundNotice: () => setAway(false) }
+}
+
+/**
+ * What this person chose for this call alone: each person's volume, others' cameras, and the blocked sound's line put
+ * away. Out of it, all three reset.
+ */
 function useCallChoices(connection: { current: RoomConnection | null }) {
   const { resetVolumes, ...volume } = usePeopleVolume(connection)
   const { resetIncoming, ...incoming } = useIncomingVideo(connection)
+  const { resetSoundNotice, ...sound } = useSoundNotice()
   const resetChoices = () => {
     resetVolumes()
     resetIncoming()
+    resetSoundNotice()
   }
-  return { choices: { ...volume, ...incoming }, resetChoices }
+  return { choices: { ...volume, ...incoming, ...sound }, resetChoices }
 }
 
 /** Leaving, and how many calls the person was in and left by their own press (ProjectRoom.leftByPress). */
@@ -567,11 +584,13 @@ const relaysOf = (calls: CallFence<RoomConnection>) => ({
 
 /**
  * The room's note as the browser's connection stands (noteFor, costuras seam #8): a call lost offline says so, and once
- * the network is back, that Try again rejoins. The call stays lost until a join gets back in: offline meanwhile, a join
- * (Try again, Chat with Sophia) asks for nothing, since it could reach nothing, and a join that failed offline keeps
- * the offline note (keptNote), whatever an earlier try said.
+ * the network is back, that Try again rejoins. The call stays lost until a join gets back in. Offline, out of the call
+ * (`inCall`: in it, or on the way into it), any join asks for nothing, since it could reach nothing, and says why
+ * (joinHeld): after a lost call, the lost call's line; from rest, «You’re offline. Join once you’re back.», gone once
+ * the network is back (offline-join-from-rest.md). In the call, a join goes to the call, which answers it. A join that
+ * failed offline keeps the offline note (keptNote), whatever an earlier try said.
  */
-function useRoomNote() {
+function useRoomNote(inCall: () => boolean) {
   const [note, setNote] = useState<string | null>(null)
   const lost = useRef(false)
   const online = useOnline()
@@ -584,13 +603,14 @@ function useRoomNote() {
     joinOnline:
       (join: ProjectRoom['join']) =>
       async (options?: JoinOptions): Promise<boolean> => {
-        if (!navigator.onLine && lost.current) {
-          setNote(OFFLINE_END)
+        const held = joinHeld({ online: navigator.onLine, lost: lost.current, inCall: inCall() })
+        if (held !== null) {
+          setNote(held)
           return false
         }
-        const inCall = await join(options)
-        if (inCall) lost.current = false
-        return inCall
+        const joined = await join(options)
+        if (joined) lost.current = false
+        return joined
       },
   }
 }
@@ -607,9 +627,9 @@ const peopleOf = (c: RoomConnection | null): People =>
 export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   const [calls] = useState(() => new CallFence<RoomConnection>())
   const [status, setStatus] = useState<DockStatus>('idle')
-  const { error, setError, joinOnline } = useRoomNote()
-  const [people, setPeople] = useState<People>(NOBODY)
   const joining = useRef<Promise<boolean> | null>(null)
+  const { error, setError, joinOnline } = useRoomNote(() => calls.current !== null || joining.current !== null)
+  const [people, setPeople] = useState<People>(NOBODY)
 
   useEffect(() => () => void calls.end(), [calls])
 
@@ -650,7 +670,6 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
       leaveTextMode: () => typedChat.setTextMode(false),
     })
 
-  const startAudio = () => calls.current?.startAudio() ?? Promise.resolve()
   const [relays] = useState(() => relaysOf(calls))
 
   return {
@@ -664,7 +683,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     ...choices,
     setMicrophone,
     ...conversationParts(typedChat),
-    startAudio,
+    startAudio: () => calls.current?.startAudio() ?? Promise.resolve(),
     listDevices,
     backgroundsSupported,
     ...relays,

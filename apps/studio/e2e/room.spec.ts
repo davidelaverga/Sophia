@@ -259,7 +259,8 @@ test('BASE-03 · a call lost offline is said from a polite line that was in the 
 }) => {
   await enter(page, '/room.html?call=on')
   // A live region added with its words is often not read: the polite line is there, empty, before the call is lost.
-  const polite = page.locator('.dock-wrap > p[role="status"]')
+  // The blocked-sound line (sound-blocked-others.md) is the dock's other polite line, and is not this one.
+  const polite = page.locator('.dock-wrap > p[role="status"]:not(.dock-sound)')
   await expect(polite).toHaveCount(1)
   await expect(polite).toHaveText('')
   await polite.evaluate((el) => el.setAttribute('data-before', ''))
@@ -291,4 +292,139 @@ test('BASE-03 · from another view, the header dock says a call lost offline fro
     'You’re offline, so the call ended here. Join again once you’re back.',
   )
   await expect(dock.locator('.dock-notes [role="alert"]')).toHaveCount(0)
+})
+
+/** The room tokens asked for: the fixture records each one (fixtures/fixture-api.ts). */
+const tokens = async (page: Page) => (await fixture(page)).served.filter((s) => s === 'room-token')
+const FROM_REST = 'You’re offline. Join once you’re back.'
+
+test('BASE-03 · offline, Join from rest asks for nothing and says so politely; back online the line goes (Luis 2026-10-19)', async ({
+  page,
+  context,
+}) => {
+  await page.goto('/room.html')
+  const join = page.getByRole('navigation', { name: 'Room controls' }).getByRole('button', { name: /^Join the room/ })
+  await expect(join).toBeEnabled()
+  // The dock's polite line is there, empty, before it says anything; the blocked-sound line beside it is another.
+  const polite = page.locator('.dock-wrap > p[role="status"]:not(.dock-sound)')
+  await expect(polite).toHaveCount(1)
+  await expect(polite).toHaveText('')
+  await polite.evaluate((el) => el.setAttribute('data-before', ''))
+  await context.setOffline(true)
+  await join.click()
+  await page.waitForTimeout(600) // a join let through would have asked for its token and connected by now
+  expect(await tokens(page), 'no token is asked offline').toEqual([])
+  expect(await asked(page), 'nothing connects').not.toContain('connect')
+  const said = page.locator('.dock-wrap > p[data-before]')
+  await expect(said).toHaveText(FROM_REST)
+  await expect(page.locator('.dock-wrap [role="alert"]')).toHaveCount(0)
+  await expect(page.getByText('The room isn’t available')).toHaveCount(0)
+  await expect(join).toBeFocused() // Join keeps its words and the focus: nothing began
+  await context.setOffline(false)
+  await expect(said).toHaveText('')
+  await page.waitForTimeout(600) // back online, nothing joins on its own
+  expect(await tokens(page)).toEqual([])
+  await join.click()
+  await expect(leave(page)).toBeVisible()
+  expect(await tokens(page), 'one token, asked online').toEqual(['room-token'])
+})
+
+test('BASE-03 · from another view, the header dock’s Join offline asks for nothing and says so from its polite line', async ({
+  page,
+  context,
+}) => {
+  await page.goto('/room.html?place=work')
+  const dock = page.locator('.mini-dock')
+  const join = dock.getByRole('button', { name: /^Join the room/ })
+  await expect(join).toBeEnabled()
+  const polite = dock.locator('.dock-notes > p[role="status"]')
+  await expect(polite).toHaveCount(1)
+  await expect(polite).toHaveText('')
+  await polite.evaluate((el) => el.setAttribute('data-before', ''))
+  await context.setOffline(true)
+  await join.click()
+  await page.waitForTimeout(600)
+  expect(await tokens(page), 'no token is asked offline').toEqual([])
+  await expect(dock.locator('.dock-notes > p[data-before]')).toHaveText(FROM_REST)
+  await expect(dock.locator('.dock-notes [role="alert"]')).toHaveCount(0)
+  await context.setOffline(false)
+  await expect(dock.locator('.dock-notes > p[data-before]')).toHaveText('')
+})
+
+test('BASE-03 · offline, Chat with Sophia from rest asks for nothing, and the chat’s foot says offline once', async ({
+  page,
+  context,
+}) => {
+  await page.goto('/room.html')
+  await toggle(page, 'Chat').click()
+  const panel = page.getByRole('complementary', { name: 'Chat' })
+  const start = panel.getByRole('button', { name: /^Chat with Sophia/ })
+  await expect(start).toBeEnabled()
+  await context.setOffline(true)
+  const foot = panel.locator('.composer .outcome')
+  await expect(foot).toHaveText(['You’re offline. Your words wait here.']) // the bar's own line, before any press
+  await start.click()
+  await page.waitForTimeout(600)
+  expect(await tokens(page), 'no token is asked offline').toEqual([])
+  // Said once: the room's note says offline, so the bar adds no offline line of its own.
+  await expect(foot).toHaveText([FROM_REST])
+  await expect(page.getByRole('button', { name: /^Text mode/ })).toHaveCount(0) // put back as it was
+  await context.setOffline(false)
+  await expect(foot).toHaveCount(0)
+  await start.click()
+  await expect(leave(page)).toBeVisible()
+  expect(await tokens(page), 'one token, asked online').toEqual(['room-token'])
+})
+
+test('BASE-03 · offline in the call, Chat with Sophia is answered by the call: nothing says to join, and Leave stays', async ({
+  page,
+  context,
+}) => {
+  await enter(page, '/room.html?call=on')
+  const polite = page.locator('.dock-wrap > p[role="status"]:not(.dock-sound)')
+  await expect(polite).toHaveText('')
+  await polite.evaluate((el) => el.setAttribute('data-before', ''))
+  await toggle(page, 'Chat').click()
+  const panel = page.getByRole('complementary', { name: 'Chat' })
+  const before = await tokens(page)
+  await context.setOffline(true)
+  await panel.getByRole('button', { name: /^Chat with Sophia/ }).click()
+  await page.waitForTimeout(600) // a join held offline would have said so by now
+  // In the call, the join is that call: nothing tells someone who is in it to join, in the dock or the chat's foot.
+  await expect(page.getByText(FROM_REST)).toHaveCount(0)
+  await expect(page.locator('.dock-wrap > p[data-before]')).toHaveText('')
+  expect(await tokens(page), 'no token beyond the call’s own').toEqual(before)
+  const dock = page.getByRole('navigation', { name: 'Room controls' })
+  await expect(dock.getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  // The press goes on as it does online, into the call in text: text mode stays on. A join held here would have put it
+  // back as it was (chat-start.ts), leaving the microphone silenced and the chat unstarted.
+  await expect(page.getByRole('button', { name: /^Text mode/ })).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('BASE-03 · offline, Work’s Join the room before the project loads says so, and nothing joins once back', async ({
+  page,
+  context,
+}) => {
+  // Opened by Work's Join the room (or a toast's Rejoin), asking to join (`call=on`), before its snapshot is read.
+  await page.goto('/room.html?call=on&snapshot=hold')
+  const join = page.getByRole('navigation', { name: 'Room controls' }).getByRole('button', { name: /^Join the room/ })
+  await expect(join).toBeDisabled() // nothing to join until the project has loaded
+  const polite = page.locator('.dock-wrap > p[role="status"]:not(.dock-sound)')
+  await expect(polite).toHaveText('')
+  await polite.evaluate((el) => el.setAttribute('data-before', ''))
+  await context.setOffline(true)
+  // Offline the project can't load, so the join asked is answered now: it asks for nothing and says so, politely.
+  const said = page.locator('.dock-wrap > p[data-before]')
+  await expect(said).toHaveText(FROM_REST)
+  await expect(page.locator('.dock-wrap [role="alert"]')).toHaveCount(0)
+  expect(await tokens(page), 'no token is asked offline').toEqual([])
+  await context.setOffline(false)
+  await page.evaluate(() => window.fixture?.releaseSnapshot())
+  await expect(join).toBeEnabled() // the project has loaded
+  await expect(said).toHaveText('')
+  await page.waitForTimeout(600) // back online and loaded, a join still standing would have asked by now
+  expect(await tokens(page), 'nothing joins on its own').toEqual([])
+  await join.click()
+  await expect(leave(page)).toBeVisible()
+  expect(await tokens(page), 'one token, asked online').toEqual(['room-token'])
 })
