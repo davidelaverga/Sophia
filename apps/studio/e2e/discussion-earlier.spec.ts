@@ -146,3 +146,141 @@ test('earlier · a held message withdrawn elsewhere whose page fails to read aga
   await expect(page.getByText('Message 3', { exact: true })).toBeVisible()
   await expect(page.getByText('Message 4', { exact: true })).toHaveCount(0)
 })
+
+// FND-B-COMMON-HELD-INTERACTIONS-06: the real EarlierDiscussion / useProjectFeed path with earlier-page reads genuinely
+// held (the page's fetch waits until released), not an immediate fixture answer. Counts the reads actually pending.
+async function heldPageReads(page: Page) {
+  await page.addInitScript(() => {
+    const w = window as unknown as {
+      holdPages?: boolean
+      pagesPending?: number
+      pagesMost?: number
+      releasePages?: () => void
+    }
+    const control = { waiting: [] as (() => void)[] }
+    w.pagesPending = 0
+    w.pagesMost = 0
+    w.releasePages = () => {
+      const all = control.waiting.splice(0)
+      for (const go of all) go()
+    }
+    const wrap =
+      (f: typeof fetch): typeof fetch =>
+      async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href)
+        const earlierRead = url.pathname.endsWith('/discussion') && url.searchParams.has('before')
+        if (!earlierRead || !w.holdPages) return f(input, init)
+        w.pagesPending = (w.pagesPending ?? 0) + 1
+        w.pagesMost = Math.max(w.pagesMost ?? 0, w.pagesPending)
+        await new Promise<void>((resolve) => control.waiting.push(resolve))
+        w.pagesPending = (w.pagesPending ?? 1) - 1
+        return f(input, init)
+      }
+    let current = wrap(window.fetch.bind(window))
+    Object.defineProperty(window, 'fetch', {
+      configurable: true,
+      get: () => current,
+      set: (f: typeof fetch) => (current = wrap(f)),
+    })
+  })
+}
+const pending = (page: Page) =>
+  page.evaluate(() => {
+    const w = window as unknown as { pagesPending?: number; pagesMost?: number }
+    return { now: w.pagesPending ?? 0, most: w.pagesMost ?? 0 }
+  })
+const holdPages = (page: Page, on: boolean) =>
+  page.evaluate((v) => ((window as unknown as { holdPages?: boolean }).holdPages = v), on)
+const release = (page: Page) =>
+  page.evaluate(() => (window as unknown as { releasePages?: () => void }).releasePages?.())
+const idAt = async (page: Page, n: number) => (await items(page).nth(n).getAttribute('data-message')) ?? ''
+const textOf = (page: Page, message: string) => page.locator(`[data-message="${message}"] .contribution-text`)
+
+for (const phone of [false, true])
+  test(`earlier${phone ? ' @phone' : ''} · a held message corrected elsewhere while its page read is held: never its old words, its neighbours and place kept, then its new words (06)`, async ({
+    page,
+  }) => {
+    await heldPageReads(page)
+    await heldEarlier(page)
+    const target = await idAt(page, 2)
+    const neighbour = page.getByText('Message 10', { exact: true })
+    await neighbour.scrollIntoViewIfNeeded()
+    const before = await neighbour.boundingBox()
+    const focusedBefore = await page.evaluate(() => document.activeElement?.tagName ?? null)
+    await holdPages(page, true)
+    await page.evaluate((m) => window.fixture?.changeElsewhere(2, m, 'Message 3, corrected elsewhere'), target)
+    await expect.poll(async () => (await pending(page)).now).toBe(1) // the refresh is genuinely out, held
+    await expect(page.getByText('Message 3', { exact: true })).toHaveCount(0) // never the superseded words
+    await page.waitForTimeout(1000)
+    await expect(page.getByText('Message 3', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('Message 2', { exact: true })).toBeVisible()
+    await expect(page.getByText('Message 4', { exact: true })).toBeVisible()
+    const during = await neighbour.boundingBox()
+    await release(page)
+    await expect(textOf(page, target)).toHaveText('Message 3, corrected elsewhere')
+    const after = await neighbour.boundingBox()
+    const focusedAfter = await page.evaluate(() => document.activeElement?.tagName ?? null)
+    test.info().annotations.push({
+      type: 'scroll-focus',
+      description: JSON.stringify({
+        before: before?.y,
+        during: during?.y,
+        after: after?.y,
+        focusedBefore,
+        focusedAfter,
+      }),
+    })
+    expect(Math.abs((after?.y ?? 0) - (before?.y ?? 0))).toBeLessThan(80) // the reader stays where they were
+    expect(focusedAfter).toBe(focusedBefore)
+    expect((await pending(page)).most).toBe(1)
+  })
+
+test('earlier · withdrawn elsewhere while its read is held, and another held message corrected meanwhile: neither shows stale words; both settle (06)', async ({
+  page,
+}) => {
+  await heldPageReads(page)
+  await heldEarlier(page)
+  const withdrawn = await idAt(page, 3)
+  const corrected = await idAt(page, 5)
+  await holdPages(page, true)
+  await page.evaluate((m) => window.fixture?.changeElsewhere(3, m, null), withdrawn)
+  await expect.poll(async () => (await pending(page)).now).toBe(1)
+  await page.evaluate((m) => window.fixture?.changeElsewhere(5, m, 'Message 6, corrected elsewhere'), corrected)
+  await expect(page.getByText('Message 4', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('Message 6', { exact: true })).toHaveCount(0) // fenced at once, waiting its turn
+  await page.waitForTimeout(500)
+  expect((await pending(page)).now, 'the second waits: one batch at a time').toBe(1)
+  await holdPages(page, false)
+  await release(page)
+  await expect(textOf(page, corrected)).toHaveText('Message 6, corrected elsewhere')
+  await expect(page.getByText('Message 4', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('Message 5', { exact: true })).toBeVisible()
+  expect((await pending(page)).most).toBeLessThanOrEqual(3)
+})
+
+test('earlier · a burst of held changes while reads are held keeps at most 3 reads out in this chat (06)', async ({
+  page,
+}) => {
+  await heldPageReads(page)
+  await heldEarlier(page)
+  const ids = [await idAt(page, 1), await idAt(page, 3), await idAt(page, 5), await idAt(page, 7), await idAt(page, 9)]
+  await holdPages(page, true)
+  for (const [k, m] of ids.entries())
+    await page.evaluate(
+      ([n, mid]) => window.fixture?.changeElsewhere(Number(n), String(mid), `burst ${n}`),
+      [[1, 3, 5, 7, 9][k], m],
+    )
+  await page.waitForTimeout(1000)
+  expect((await pending(page)).most).toBeLessThanOrEqual(3)
+  for (const n of [2, 4, 6, 8, 10]) await expect(page.getByText(`Message ${n}`, { exact: true })).toHaveCount(0)
+  await holdPages(page, false)
+  await release(page)
+  // The first read settles; the four waiting need four pages, more than 3: the earlier pages are let go (held-pages)
+  // and «Earlier messages» reads them again, with every change.
+  await expect(earlier(page)).toBeVisible()
+  await expect(entries(page)).toHaveCount(50)
+  await earlier(page).click()
+  for (const n of [1, 3, 5, 7, 9]) await expect(page.getByText(`burst ${n}`, { exact: true })).toBeVisible()
+  for (const n of [2, 4, 6, 8, 10]) await expect(page.getByText(`Message ${n}`, { exact: true })).toHaveCount(0)
+  expect((await pending(page)).most).toBeLessThanOrEqual(3)
+})
