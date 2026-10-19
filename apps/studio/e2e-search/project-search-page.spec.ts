@@ -393,3 +393,47 @@ for (const status of [401, 403])
     await expect(hits(page)).toHaveCount(0, { timeout: 2000 })
     expect(await page.evaluate(() => (window as Denying).searchBodyCancelled), 'the body is let go').toBeGreaterThan(0)
   })
+
+// R on 8727 (r4315568923): an eligible query of astral letters — two words of 60 Deseret letters, 121 code points,
+// 241 UTF-16 units — typed into the field reaches A38 whole; past 200 code points the field still stops.
+test('served search · an eligible query of astral letters is typed whole and asked whole; past 200 the field stops (r4315568923)', async ({
+  page,
+}) => {
+  await open(page, 'discussion=60&heron=3')
+  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  const query = `${'\u{10428}'.repeat(60)} ${'\u{10429}'.repeat(60)}`
+  await field(page).focus()
+  await page.keyboard.insertText(query)
+  await expect(field(page)).toHaveValue(query)
+  const qs = async () =>
+    (await requests(page)).map((r) => new URL(r, 'http://fixture').searchParams.get('q')).filter(Boolean)
+  await expect.poll(qs).toContain(query) // asked whole: the query A38 receives
+  await field(page).fill('')
+  await page.keyboard.insertText('a'.repeat(201))
+  await expect(field(page)).toHaveValue('a'.repeat(200))
+})
+
+// The same bound at its edge: a valid 200-code-point query of astral words (64, 64, 64 and 5 letters, three spaces)
+// is held and asked whole; edited back by Backspace and typed on, the shorter query is asked as it now stands.
+test('served search · a 200-code-point query of astral words is asked whole, and editing it back asks the shorter one (r4315568923)', async ({
+  page,
+}) => {
+  await open(page, 'discussion=60&heron=3')
+  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  const query = ['\u{10428}'.repeat(64), '\u{10429}'.repeat(64), '\u{1042A}'.repeat(64), '\u{1042B}'.repeat(5)].join(
+    ' ',
+  )
+  expect(Array.from(query)).toHaveLength(200)
+  const qs = async () =>
+    (await requests(page)).map((r) => new URL(r, 'http://fixture').searchParams.get('q')).filter(Boolean)
+  await field(page).focus()
+  await page.keyboard.insertText(query)
+  await expect(field(page)).toHaveValue(query)
+  await expect.poll(qs).toContain(query)
+  await page.keyboard.press('Backspace', { delay: 0 })
+  for (let i = 0; i < 5; i++) await page.keyboard.press('Backspace')
+  await page.keyboard.insertText(' ab')
+  const shorter = ['\u{10428}'.repeat(64), '\u{10429}'.repeat(64), '\u{1042A}'.repeat(64)].join(' ') + ' ab'
+  await expect(field(page)).toHaveValue(shorter)
+  await expect.poll(qs).toContain(shorter)
+})
