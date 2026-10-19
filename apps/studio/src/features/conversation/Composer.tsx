@@ -27,7 +27,7 @@ import { startExchange } from '../../api/exchange.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { offlineWords, useOnline } from '../personal/online.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
-import { OFFLINE_END } from '../voice/call-end.ts'
+import { saysOffline } from '../voice/call-end.ts'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 
 interface Props {
@@ -347,8 +347,8 @@ interface FootLineProps {
 /**
  * What the bar's line says of the room's message. Offline (navigator.onLine false; a true proves nothing), what waits
  * (offlineWords) in place of what it said, with no Try again that could only wait. Said once: when the room's note
- * above already says the call ended offline, the bar adds no line of its own, and of a held message says only that it
- * isn't confirmed (costuras seam #8).
+ * above already says offline (saysOffline: the call ended offline, or a join was pressed offline), the bar adds no line
+ * of its own, and of a held message says only that it isn't confirmed (costuras seam #8).
  */
 function useFootWords(
   toRoom: { words: string | null; state: string; held: string | null },
@@ -357,7 +357,7 @@ function useFootWords(
 ) {
   const online = useOnline()
   if (online) return { online, words: toRoom.words, unknown: toRoom.state === 'unknown' }
-  if (roomNote?.text === OFFLINE_END)
+  if (saysOffline(roomNote?.text ?? null))
     return { online, words: toRoom.held === null ? null : toRoom.words, unknown: false }
   const waits = offlineWords({ going: toRoom.state === 'sending', held: toRoom.held, written: draft.trim() !== '' })
   return { online, words: waits ?? toRoom.words, unknown: false }
