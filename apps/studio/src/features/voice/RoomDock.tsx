@@ -14,7 +14,7 @@ import { snapshotKey } from '../studio/useProjectFeed.ts'
 import type { DeviceKind } from './device-preference.ts'
 import { DeviceCheck } from './DeviceCheck.tsx'
 import { DeviceMenu } from './DeviceMenu.tsx'
-import { micOnJoin } from './mic-preference.ts'
+import { micOnJoin, useMicOnJoin } from './mic-preference.ts'
 import { usePushToTalk } from './usePushToTalk.ts'
 import { useMirror } from './mirror-preference.ts'
 import { callClock, callClockWords } from './call-clock.ts'
@@ -212,6 +212,8 @@ function CheckOpener({ room }: { room: ProjectRoom }) {
 }
 
 function JoinButton({ room }: { room: ProjectRoom }) {
+  // Its tip says the microphone's default (joinTip): drawn again as Settings changes it (Codex P2 on #398).
+  useMicOnJoin()
   const label = room.status === 'joining' ? 'joining' : room.status === 'failed' ? 'retry' : 'join'
   return (
     <button
