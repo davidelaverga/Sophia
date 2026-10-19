@@ -79,8 +79,11 @@ export interface ProjectRoom {
   chosenStill: () => () => boolean
   setCamera: (on: boolean) => Promise<void>
   setScreenShare: (on: boolean) => Promise<void>
-  /** The person's choice of microphone, speaker or camera: kept for their next call, and this one switched to it. */
-  switchDevice: (kind: DeviceKind, id: string) => Promise<void>
+  /**
+   * The person's choice of microphone, speaker or camera: kept for their next call, and this one switched to it;
+   * resolves true once this call did.
+   */
+  switchDevice: (kind: DeviceKind, id: string) => Promise<boolean>
   /** The devices of a kind, through LiveKit (loaded only now); rejects where the browser refuses access. */
   listDevices: (kind: DeviceKind) => Promise<MediaDevice[]>
   /** The person's camera background: kept for their next call, and drawn in this one (call-backgrounds.md). */
@@ -195,19 +198,24 @@ function backgroundSwitch(connection: { current: RoomConnection | null }, say: (
   }
 }
 
-/** A device chosen: kept for the next call; in this one, switched, the note saying it if the browser refused. */
+/**
+ * A device chosen: kept for the next call; in this one, switched, the note saying it if the browser refused. It
+ * resolves true once this call switched: kept, even refused, is not taken (camera-flip.ts follows the call's camera).
+ */
 function deviceSwitch(connection: { current: RoomConnection | null }, say: (note: string | null) => void) {
   return async (kind: DeviceKind, id: string) => {
     rememberDevice(kind, id)
     const c = connection.current
-    if (!c) return
+    if (!c) return false
     try {
       await c.switchDevice(kind, id)
     } catch {
       if (connection.current === c) say(SWITCH_REFUSED[kind])
-      return
+      return false
     }
-    if (connection.current === c) say(null)
+    if (connection.current !== c) return false
+    say(null)
+    return true
   }
 }
 
