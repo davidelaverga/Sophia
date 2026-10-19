@@ -93,6 +93,8 @@ interface Props {
     room: (projectId: string, action: HomeAction) => void
     /** Hands the words to Sophia's conversation, which opens and sends them as its own. */
     say: (text: string) => void
+    /** Opens a project at Updates: what changed there since you last looked. */
+    updates: (projectId: string) => void
   }
 }
 
@@ -135,7 +137,23 @@ function usePointerIn(box: RefObject<HTMLDivElement | null>, hidden: boolean) {
   return at
 }
 
-function Greeting({ hello, name, date, says }: Pick<Props, 'hello' | 'name' | 'date' | 'says'>) {
+/** A piece of her sentence: the project's name strong, Open Updates a press to that project's Updates. */
+function Piece({ said, onUpdates }: { said: Said; onUpdates: (projectId: string) => void }) {
+  const { updates } = said
+  if (updates)
+    return (
+      <button className="text-button" type="button" onClick={() => onUpdates(updates)}>
+        {said.text}
+      </button>
+    )
+  return said.strong ? <strong>{said.text}</strong> : <span>{said.text}</span>
+}
+
+function Greeting({ hello, name, date, says, actions }: Pick<Props, 'hello' | 'name' | 'date' | 'says' | 'actions'>) {
+  const words = says.map((s, i) => <Piece key={i} said={s} onUpdates={actions.updates} />)
+  // What changed since you last looked is news: the others are where things stand, and a countdown said every minute
+  // would be noise (docs/plans/home-since-you-looked.md).
+  const news = says.some((s) => s.updates !== undefined)
   return (
     <header className="hw-head">
       <p className="hw-date">{date}</p>
@@ -149,15 +167,13 @@ function Greeting({ hello, name, date, says }: Pick<Props, 'hello' | 'name' | 'd
           <span>{hello}.</span>
         )}
       </h2>
-      {/* With nothing to say her sentence's place is held, so nothing below moves when one comes or goes with Home
-          open (docs/plans/home-no-false-claim.md). */}
-      {says.length > 0 ? (
-        <p className="hw-says">
-          {says.map((s, i) => (s.strong ? <strong key={i}>{s.text}</strong> : <span key={i}>{s.text}</span>))}
-        </p>
-      ) : (
-        <div className="hw-says-held" aria-hidden />
-      )}
+      {says.length > 0 && !news && <p className="hw-says">{words}</p>}
+      {/* Mounted all along, so news is announced as it comes, never taking the focus. With nothing to say it holds her
+          sentence's place, so nothing below moves when one comes or goes with Home open (home-no-false-claim.md);
+          beside another sentence it is empty, 0 px high. */}
+      <p className={news ? 'hw-says' : says.length > 0 ? undefined : 'hw-says-held'} role="status">
+        {news && words}
+      </p>
     </header>
   )
 }
@@ -585,7 +601,7 @@ export function Welcome(props: Props) {
   return (
     <div className="hw" ref={home}>
       <div className="hw-col">
-        <Greeting hello={props.hello} name={props.name} date={props.date} says={props.says} />
+        <Greeting hello={props.hello} name={props.name} date={props.date} says={props.says} actions={props.actions} />
         {props.invited}
         {needs && oneColumn && (
           <aside className="hw-needs-here" aria-label="What needs you">
