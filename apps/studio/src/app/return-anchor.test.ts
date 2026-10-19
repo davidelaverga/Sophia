@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { REQUEST, TASK, linkHash, requestAddress } from '../features/resources/link.ts'
+import { MESSAGE, REQUEST, TASK, linkHash, requestAddress } from '../features/resources/link.ts'
 import { RETURN_ANCHOR_KEY, RETURN_ANCHOR_MS, anchorAfter, keepAnchor, takeAnchor } from './return-anchor.ts'
 
 const memory = () => {
@@ -110,4 +110,24 @@ test('any letter in an anchor’s body is kept; a space, a #, & or = is not', ()
     keepAnchor(store, { pathname: PATH, hash }, AT)
     assert.equal(store.kept.has(RETURN_ANCHOR_KEY), false, hash)
   }
+})
+
+test('a chat message’s anchor (a mention’s link, A37) comes back through a sign-in like any view’s (Codex P2 on #435)', () => {
+  const store = memory()
+  const path = '/p/00000000-0000-4000-8000-0000000000aa/studio'
+  const message = linkHash('00000000-0000-4000-8000-0000000000ab', MESSAGE)
+  keepAnchor(store, { pathname: path, hash: message }, AT)
+  assert.equal(anchorAfter(store, { kind: 'error', signedIn: false, path }, AT + 1_000), message)
+  assert.equal(anchorAfter(store, { kind: 'code', signedIn: false, path }, AT + 2_000), message)
+  assert.equal(anchorAfter(store, { kind: 'code', signedIn: true, path }, AT + 3_000), message)
+  assert.equal(store.kept.size, 0)
+  // Still never a token, a body with a space or &, nor a message kept too long ago or on another path.
+  keepAnchor(store, { pathname: path, hash: '#message-x&access_token=secret' }, AT)
+  assert.equal(store.kept.has(RETURN_ANCHOR_KEY), false)
+  keepAnchor(store, { pathname: path, hash: '#message-a b' }, AT)
+  assert.equal(store.kept.has(RETURN_ANCHOR_KEY), false)
+  keepAnchor(store, { pathname: path, hash: message }, AT)
+  assert.equal(takeAnchor(store, PATH, AT), null)
+  keepAnchor(store, { pathname: path, hash: message }, AT)
+  assert.equal(takeAnchor(store, path, AT + RETURN_ANCHOR_MS + 1), null)
 })

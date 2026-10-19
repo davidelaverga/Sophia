@@ -1201,3 +1201,27 @@ test('places · Rejoin pressed once back in that call by its own Join joins noth
   expect(await roomTokens(page)).toBe(joins)
   await expect(dock.getByRole('button', { name: 'Leave the room' })).toHaveCount(0)
 })
+
+// A chat message's anchor through a sign-in (Codex P2 on #435): kept on leaving, given back on a refused return.
+test('sign-in · a refused return to a project gives back the chat message its link named, kept for the next try', async ({
+  context,
+}) => {
+  await serve(context)
+  const path = '/p/00000000-0000-4000-8000-0000000000aa/studio'
+  const message = '#message-00000000-0000-4000-8000-0000000000ab' // linkHash(that id, MESSAGE)
+  const page = await context.newPage()
+  await page.goto(`${APP}/favicon.svg`)
+  await page.evaluate(
+    ([at, hash]) => localStorage.setItem('sophia.return-anchor', JSON.stringify({ path: at, hash, at: Date.now() })),
+    [path, message] as const,
+  )
+  await page.goto(`${APP}${path}?error=access_denied`)
+  await expect(page.locator('#email')).toBeVisible()
+  await expect
+    .poll(() => {
+      const url = new URL(page.url())
+      return `${url.pathname}${url.search}${url.hash}`
+    })
+    .toBe(`${path}${message}`)
+  expect(await page.evaluate(() => localStorage.getItem('sophia.return-anchor'))).toContain(message)
+})
