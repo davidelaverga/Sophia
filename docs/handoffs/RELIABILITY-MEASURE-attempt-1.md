@@ -91,3 +91,19 @@ Ending commit: the branch's last commit; code last changed at `2991b58ca`. Again
 - Luis: say when to push (with the next group PR); merge on green with no open P1.
 - Source IDs consulted: none from the source register. The work read this repository, the baseline and GitHub
   Actions' run data.
+
+## After R1 (the coordinator's request: the «after», and M3/M4)
+
+- **M3/M4 added on this branch**, test first: `57413e9bb` (the report's feed summary, red on «actual: {}» against the
+  stub), `47380b9af` (`summarizeFeed`, `e2e/reliability/feed.spec.ts`, the report's rows; 18/18 units). Levers are
+  pulled by name, so the spec compiles and runs on a page without them and records «not run»
+  (`pw-logs/rel-feed-before.txt`: 4/4 ran, every case `lever: false`).
+- **Runs** through the guard, each on a local throwaway branch in this worktree (no other worktree touched):
+  `reliability/measure-on-r1` = `group/reliability-r1` + this branch (`pw-logs/rel-after-fixture.txt`, 29/29), and
+  `reliability/measure-on-levers` = this branch + `4c7462a21` (the feed's levers, no fix) for the feed's «before»
+  (`pw-logs/rel-feed-levers-before.txt`, 4/4). On `group/follow-ups-5` itself the feed scenarios can't run: it has no
+  lever to end the stream.
+- **Before → after:** back online 6,927 → 24 ms; stream ended 1,055 → 873 ms; silenced 25.9 → 26.2 s; gap 54 → 48 ms;
+  M7 3/6 → 5/6 (Knowledge's reports now retried; Updates' «since» keeps `retry: false`); M6 4 → 5 visible (the goal
+  sheet's owner and date; the rest judged decorative by `silent-reads`, the archived line left to the archive branch);
+  M1 and M2 unchanged. Write-up: `evaluacion-2026-10-19/fiabilidad/medicion-despues.md` (+ JSON).
