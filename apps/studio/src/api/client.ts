@@ -176,7 +176,7 @@ export async function setGoalTarget(
     if (!res.ok) throw await toError(res, 'write')
     return readBody(res, parseGoalTargetSet, 'never')
   }
-  return inTime(READ_TIMEOUT_MS, send)
+  return inTime(WRITE_TIMEOUT_MS, send)
 }
 
 /** readProjectActivity (A28): who did what in the project, for its admins; newest first, before a sequence. */
@@ -214,7 +214,7 @@ export async function changeMemberRole(
     if (!res.ok) throw await toError(res, 'write')
     return readBody(res, parseMemberRoleSet, 'never')
   }
-  return inTime(READ_TIMEOUT_MS, send)
+  return inTime(WRITE_TIMEOUT_MS, send)
 }
 
 /** An admin's act on a member in the call (A24): mute their microphone, or take them out. No key: twice is once. */
