@@ -136,6 +136,8 @@ test('host · «Mute everyone» past six seconds says it is slow, as every Studi
   await page.evaluate(() => window.fixture?.holdHost(true))
   await page.getByRole('button', { name: 'Mute everyone' }).click()
   await page.getByRole('button', { name: 'Mute them' }).click()
+  // As the API's, the room server mutes before the answer comes: the waiting press stays with every microphone off.
+  await expect(list(page).getByRole('img', { name: 'Microphone off' })).toHaveCount(2)
   await expect(page.getByRole('button', { name: 'Muting everyone…' })).toBeVisible()
   const head = page.locator('.people-head')
   // fastForward fires the note's one 6 s timer without running every frame of the room in between (project-activity).
@@ -144,8 +146,8 @@ test('host · «Mute everyone» past six seconds says it is slow, as every Studi
     'Taking longer than usual. After a quiet spell, the first answer can take up to a minute.',
   )
   await page.evaluate(() => window.fixture?.holdHost(false))
-  await expect(list(page).getByRole('img', { name: 'Microphone off' })).toHaveCount(2)
-  await expect(head.getByRole('status')).toHaveCount(0)
+  // Answered, with no one left to mute: the head goes, and its note with it.
+  await expect(head).toHaveCount(0)
 })
 
 test('host · «Mute everyone» refused after every microphone went off still says so (Codex P2 on #369)', async ({

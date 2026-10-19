@@ -552,23 +552,21 @@ type HostAct = 'mute' | 'remove' | 'stop-camera' | 'stop-screen'
 const isHostAct = (what: string | undefined): what is HostAct =>
   what === 'mute' || what === 'remove' || what === 'stop-camera' || what === 'stop-screen'
 
-/** An admin mutes everyone else (A31): recorded, and every other microphone in the fake room goes off. */
+/**
+ * An admin mutes everyone else (A31), in the API's order (rooms.ts): every other microphone in the fake room goes off,
+ * then the act is recorded and answered. Held, only the answer waits. With `failAfterMuteAll`, the answer is refused.
+ */
 function mutedAll(project: Project): Response | Promise<Response> {
   if (project.failHost) {
     project.failHost = false
     return unavailable()
   }
   served.push('mute-all')
-  const held = project.hostHeld
-  return held ? new Promise((resolve) => held.push(() => resolve(othersMuted(project)))) : othersMuted(project)
-}
-
-/** LiveKit's server mutes every other microphone in the fake room; with `failAfterMuteAll`, the answer is refused. */
-function othersMuted(project: Project): Response {
   for (const p of others()) hostActed('mute', p.identity)
-  if (!project.failAfterMuteAll) return new Response(null, { status: 204 })
+  const reply = project.failAfterMuteAll ? unavailable() : new Response(null, { status: 204 })
   project.failAfterMuteAll = false
-  return unavailable()
+  const held = project.hostHeld
+  return held ? new Promise((resolve) => held.push(() => resolve(reply))) : reply
 }
 
 /** An admin acts on someone (A24, A31): recorded, and LiveKit's server applies it to the fake room. */
