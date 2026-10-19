@@ -7,6 +7,34 @@ const header = (page: Page) => page.locator('header').first()
 const menu = (page: Page) => page.getByRole('menu', { name: 'Project' })
 const sheet = (page: Page) => page.getByRole('dialog', { name: 'Archive project' })
 const served = (page: Page) => page.evaluate(() => [...(window.fixture?.served ?? [])])
+/** Each Unarchive's Idempotency-Key on Work's own page (fixtures/work-space.tsx), in the order sent. */
+const workKeys = (page: Page) => page.evaluate(() => [...(window.workSpaceFixture?.keys ?? [])])
+const OLD_PILOT = '00000000-0000-4000-8000-00000000c003'
+
+declare global {
+  interface Window {
+    archiveKeys?: string[]
+  }
+}
+
+/**
+ * The archive writes' Idempotency-Keys, from the page's own fetch, wrapped: the first one lands and its reply is lost,
+ * as a write whose answer never comes back.
+ */
+const firstArchiveReplyLost = (page: Page) =>
+  page.evaluate(() => {
+    const own = window.fetch
+    const keys: string[] = []
+    window.archiveKeys = keys
+    window.fetch = async (input, init) => {
+      const path = new URL(input instanceof Request ? input.url : String(input), window.location.href).pathname
+      if (!path.endsWith('/archive')) return own(input, init)
+      keys.push(new Headers(init?.headers).get('idempotency-key') ?? '')
+      const answer = await own(input, init)
+      if (keys.length === 1) throw new TypeError('Failed to fetch')
+      return answer
+    }
+  })
 
 test.beforeEach(async ({ page }) => {
   await page.route(
@@ -34,6 +62,29 @@ test('archive · an admin archives from the project’s menu, after a question, 
   await sheet(page).getByRole('button', { name: 'Archive' }).click()
   await expect(sheet(page)).toHaveCount(0)
   await expect.poll(() => served(page)).toEqual(expect.arrayContaining(['archive:true', 'went:work']))
+})
+
+test('archive · after no reply, the sheet opened again sends the same write, under the same key (Codex on #368)', async ({
+  page,
+}) => {
+  await page.goto('/room.html')
+  await expect.poll(() => served(page)).toContain('projects:archived')
+  await firstArchiveReplyLost(page)
+  const archive = async () => {
+    await header(page).getByRole('button', { name: 'Fixture project' }).click()
+    await menu(page).getByRole('menuitem', { name: 'Archive project…' }).click()
+    await sheet(page).getByRole('button', { name: 'Archive' }).click()
+  }
+  await archive()
+  await expect(sheet(page).getByRole('alert')).toHaveText('No reply from Sophia')
+  // Put away and asked again: the write that may have landed goes again as itself, never as a second one.
+  await sheet(page).getByRole('button', { name: 'Cancel' }).click()
+  await expect(sheet(page)).toHaveCount(0)
+  await archive()
+  await expect.poll(() => served(page)).toContain('went:work')
+  const keys = await page.evaluate(() => [...(window.archiveKeys ?? [])])
+  expect(keys).toHaveLength(2)
+  expect(keys[1]).toBe(keys[0])
 })
 
 test('archive · an editor is offered no Archive', async ({ page }) => {
@@ -90,10 +141,23 @@ test('archive · Work keeps archived projects folded under «Archived»: each op
   const row = page.getByRole('listitem').filter({ hasText: 'Old pilot' })
   await row.getByRole('button', { name: 'Old pilot' }).click()
   await row.getByRole('button', { name: 'Unarchive' }).click()
-  expect(await page.evaluate(() => window.workSpaceFixture)).toEqual({
-    opened: ['00000000-0000-4000-8000-00000000c003'],
-    unarchived: ['00000000-0000-4000-8000-00000000c003'],
-  })
+  await expect.poll(() => page.evaluate(() => window.workSpaceFixture?.unarchived)).toEqual([OLD_PILOT])
+  expect(await page.evaluate(() => window.workSpaceFixture?.opened)).toEqual([OLD_PILOT])
+})
+
+test('archive · in Work, Unarchive after no reply sends the same write again, under the same key (Codex on #368)', async ({
+  page,
+}) => {
+  await page.goto('/work-space.html?archived=1&unarchive=lost')
+  await page.getByRole('button', { name: 'Archived (1)' }).click()
+  const row = page.getByRole('listitem').filter({ hasText: 'Old pilot' })
+  await row.getByRole('button', { name: 'Unarchive' }).click()
+  await expect.poll(() => workKeys(page)).toHaveLength(1)
+  // No reply: the row stays, and its press is the same write again.
+  await row.getByRole('button', { name: 'Unarchive' }).click()
+  await expect.poll(() => workKeys(page)).toHaveLength(2)
+  const [first, second] = await workKeys(page)
+  expect(second).toBe(first)
 })
 
 test('archive · an editor opens an archived project, with nothing to bring back; none archived, no fold', async ({
