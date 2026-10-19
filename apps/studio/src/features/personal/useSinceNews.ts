@@ -193,8 +193,9 @@ export function useCallSeen(identity: Account, call: string | null, enabled = SI
 /** What a project's arrival weighs (project-arrival-since.md). */
 export interface ArrivalOptions {
   /**
-   * The project is drawn: loaded, not refused. One kept out of sight behind its call is in a call (`inCall`). A line
-   * said is over once it isn't: behind a closed door nothing acts on the project.
+   * The project is drawn, its corner under the bar free: loaded, not refused, no one waiting at the door (whose lobby
+   * floats there). One kept out of sight behind its call is in a call (`inCall`). A line said is over once it isn't:
+   * behind a closed door nothing acts on the project, and a knock takes the corner.
    */
   drawn: boolean
   /** Its room holds a call, or one on its way (joining, or asked as it opens): a call has its sentence and Catch up. */
@@ -223,7 +224,7 @@ function arrivalNow(identity: Account, projectId: string, window: Since): Arriva
   return { step: 'said', arrival: said }
 }
 
-/** A visit ends at any step with a call or Updates (`ends`), and once said with a closed door: the project not drawn. */
+/** A visit ends at any step with a call or Updates (`ends`), and once said with the project no longer drawn. */
 const overNow = (visit: ArrivalStep, ends: boolean, drawn: boolean) =>
   visit.step !== 'over' && (ends || (!drawn && visit.step === 'said'))
 
@@ -232,8 +233,8 @@ const overNow = (visit: ArrivalStep, ends: boolean, drawn: boolean) =>
  * window, project, account and device, with Home (since-said.ts). One open, one visit (ProjectShell is keyed by the
  * project): it reads once the project is drawn, under Home's key and freshness, so an open just after Home reads
  * nothing, and decides after a commit, so the status that says it is there before its words. Nothing when the visit
- * begins at Updates or with the welcome; a call, Updates or a closed door ends it, as `dismiss` does. Never polled or
- * retried.
+ * begins at Updates or with the welcome, and none is read while someone waits at the door; a call, Updates, a closed
+ * door or a knock ends it, as `dismiss` does. Never polled or retried.
  */
 export function useArrivalSince(
   identity: Account,

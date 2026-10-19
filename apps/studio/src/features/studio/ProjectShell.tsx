@@ -139,7 +139,7 @@ function UnderTheBar({ shell, loaded, blocked, room, snapshot }: UnderProps) {
       <ArrivalSince
         projectId={projectId}
         identity={identity}
-        drawn={open}
+        drawn={open && !atTheDoor(snapshot)}
         inCall={callOn(room, shell.joinOnOpen ?? false)}
         atUpdates={view === 'updates'}
         onUpdates={() => onShow('updates')}
@@ -154,6 +154,9 @@ function UnderTheBar({ shell, loaded, blocked, room, snapshot }: UnderProps) {
 }
 
 const isInCall = (room: ProjectRoom) => room.status === 'live' || room.status === 'reconnecting'
+
+/** Someone waits at the door: the lobby floats in the corner under the bar, where the arrival's card would go. */
+const atTheDoor = (snapshot: Snapshot | undefined) => !!snapshot?.lobby.some((e) => e.status === 'waiting')
 
 /** In its call, or on the way in: joining, or asked to join as the project opens, before the room can. */
 const callOn = (room: ProjectRoom, asked: boolean) => asked || room.status === 'joining' || isInCall(room)
