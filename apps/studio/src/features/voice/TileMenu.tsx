@@ -27,6 +27,15 @@ function over(press: HTMLElement | null): Over | null {
   return { left: r.left, top: r.top, width: r.width, height: r.height, align }
 }
 
+/** What places the menu: the press's box and the side it aligns to. */
+const PLACE = ['left', 'top', 'width', 'height', 'align'] as const
+
+/** Where the open menu stands as its press goes: the same place while the press hasn't moved, so nothing draws again. */
+function following(was: Over | null, now: Over | null): Over | null {
+  if (!was || !now) return null
+  return PLACE.every((k) => was[k] === now[k]) ? was : now
+}
+
 export function TileMenu({ onFlip, onHide }: { onFlip: () => void; onHide: () => void }) {
   const [at, setAt] = useState<Over | null>(null)
   const open = at !== null
@@ -34,18 +43,20 @@ export function TileMenu({ onFlip, onHide }: { onFlip: () => void; onHide: () =>
   const { opener } = menu
   const layer = useRef<HTMLDivElement>(null)
   // Into the top layer before the kit's hook gives the first item the focus (its effect runs after this one), then
-  // after the press as the page scrolls or turns under it.
+  // after the press each frame while open: a scroll or a turn moves it, and so does the strip, without either, as
+  // captions lift it or the dock grows (a review's P2).
   useLayoutEffect(() => {
     const el = layer.current
     if (!open || !el) return undefined
     if (!el.matches(':popover-open')) el.showPopover()
-    const follow = () => setAt(over(opener.current))
-    window.addEventListener('resize', follow)
-    window.addEventListener('scroll', follow, true)
-    return () => {
-      window.removeEventListener('resize', follow)
-      window.removeEventListener('scroll', follow, true)
+    let frame = 0
+    const follow = () => {
+      const now = over(opener.current)
+      setAt((was) => following(was, now))
+      frame = requestAnimationFrame(follow)
     }
+    frame = requestAnimationFrame(follow)
+    return () => cancelAnimationFrame(frame)
   }, [open, opener])
   // The chosen item leaves with the menu: the focus goes back to the press first, as Escape's does.
   const choose = (act: () => void) => () => {
