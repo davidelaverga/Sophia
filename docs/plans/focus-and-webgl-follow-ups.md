@@ -10,7 +10,9 @@
 
 - **#416, Try again.** `ViewFailed`'s Try again only sets `{ failed: false }`. The view draws again in place of the
   fallback, and the pressed button goes with it. Nothing gives the focus on, so a keyboard lands on the page's body and
-  starts again from the top. `view-boundary.spec.ts` presses it with a pointer and reads the heading, never the focus.
+  starts again from the top. A retry that still fails loses it too: the first run of the check found the focus gone
+  from Try again, because React mounts the fallback anew when the boundary catches again. `view-boundary.spec.ts`
+  presses it with a pointer and reads the heading, never the focus.
 - **#454, a light that doesn't compile.** `createLightRenderer` takes the canvas's WebGL context before it compiles the
   light. A shader that doesn't compile, or a program that doesn't link, throws inside `setUp`. The catch warns and
   returns `null` with the context still held. The only `loseContext` is the returned renderer's `release`, so the
@@ -23,9 +25,9 @@
 - **`ViewFailed.tsx`:** Try again remembers that it was pressed. Once the view has drawn again, the view's heading
   takes the focus: its first `h2`, the title every view has (view-titles.md), given `tabIndex={-1}` if it has none, as
   Places does on a move. Codex names the heading first, and a screen reader then says which view came back. A view that
-  draws no heading yet gives the focus to its content (`main[data-content]`), as «Skip to content» does. The flag is
-  dropped on the next update whatever happened, so a retry that fails again, then a move to another view, takes no focus
-  from the link that was pressed.
+  draws no heading yet gives the focus to its content (`main[data-content]`), as «Skip to content» does. A retry that
+  fails again gives it to the new Try again. The flag is dropped on that update, so a later move to another view takes
+  no focus from the link that was pressed.
 - **`renderer.ts`:** the catch gives the context back (`WEBGL_lose_context`) before it returns `null`. The room keeps
   its CSS glow as before. A second engine on the same canvas (StrictMode) gets the lost context, fails the same way and
   keeps the glow, as it already did, because that GPU can't compile the light.
@@ -34,7 +36,8 @@
 
 - **`view-boundary.spec.ts`:** Resources fails to draw (`resources=crash`), is healed, and Try again is pressed by the
   keyboard (focus, Enter). The view draws, and the focus is on its heading («Resources», `#resources-title`). Red today:
-  the body.
+  the body. Pressed while the view still fails, the fallback stays and the focus is on its Try again. Red today: not
+  focused.
 - **`engine.test.ts`:** a canvas whose fake context refuses the shader (`getShaderParameter` false), then one that
   refuses the link (`getProgramParameter` false), each handed over turning dark: the box keeps `data-fallback`, and
   each context taken is given back (`lost === true`). Red today: `false`.
@@ -43,5 +46,3 @@
 
 - After the redraw the focus doesn't go back to Try again's place in the page. It goes to the top of the view, where a
   move to it starts too.
-- A retry that fails again leaves the fallback where it was. Whether the focus stays on Try again then is React's to
-  keep (it reconciles the same fallback), and the check reads it but this change doesn't add anything for it.
