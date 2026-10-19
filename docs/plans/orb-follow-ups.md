@@ -29,8 +29,11 @@
    tell load from a stall, and `stepSpring` is exact for any step. A tab coming back still doesn't leap. The comments
    that said «about 4 s to within 1 %» now give the measured times (reading 0.99 takes 4.43 s, 0.9 at work 5.35 s).
    `motion.ts`'s «4.7 / omega to within 1 %» was the 5 % figure; from rest, 1 % takes 6.6 / omega.
-2. **`engine.ts`:** while the floor is in flight, a bloom that hasn't finished waits for the landing and then plays
-   whole. So the result still blooms once, after the floor has landed, as its own moment. Adding it to the flight's
+2. **`engine.ts`:** a bloom that arrives while the floor is in flight, or that hadn't yet shown when the floor left
+   (its first quarter second, `BLOOM_UNSEEN_S`: a quarter of its swell, under 2 % of her size), waits for the landing
+   and then plays whole. So the result still blooms once, after the floor has landed, as its own moment. A bloom
+   further along has been seen: it ends under the flight and doesn't come back after it. The choice is made from when
+   the floor left, not from the frame that notices, so it holds at any frame rate. Adding the bloom to the flight's
    swell would make one larger swell out of two different events, or hide it behind the flight's peak.
 3. **`sophia-view.ts`:** `lightSound(view)`: the call on her rim needs her to be here, speaking into a blocked sound.
    While the link comes back she is `joining` and the light carries no `data-sound`, so joining's rule holds her
@@ -44,7 +47,9 @@
    - Made before `connect`, the context needs an end of its own when the room never connects. LiveKit says
      Disconnected for most failed connections, but not for one refused before it starts (a browser it can't run in, an
      attempt cancelled while it waits). `end()` (what Disconnected already did) is called when `connect` throws. The
-     connect and both wakes live in `connectWithLevels`, which keeps `connectRoom` within its size limit.
+     connect and both wakes live in `connectWithLevels`, in `voice-levels.ts` beside the levels it wakes, where a
+     unit test can load it (`livekit-room.ts` can't be: it reads `import.meta.env`). That also keeps `connectRoom`
+     within its size limit.
 
 ## Checks (written first)
 
@@ -52,18 +57,25 @@
   - `engine.test.ts`, with a clock the test moves: at 8 frames a second her light on paper reads 0.99 within 4.6 s,
     and a result's bloom takes her past 1.03 (0.81 and 0.97 before the change). A result arriving 0.5 s into a
     floor's flight takes her past 1.03 after the landing, and so does a floor leaving 0.2 s into a bloom (both stayed
-    at 1 before the change).
+    at 1 before the change). A floor leaving 0.6 s into a bloom, at rest so her size is the bloom's alone (1.08 by
+    then), leaves her at 1 after the landing (1.08 again before the review's fix).
   - `sophia-view.test.ts`: reconnecting while she speaks into a blocked sound: joining, Allow audio kept, no sound
     mark on her light; with the link live, the mark.
   - `voice-levels.test.ts`, with a tap maker that plays Safari's rule (a context made or resumed outside a press
     stays suspended and reads 0): a context made within the press reads a voice heard after it. One made before
-    Allow audio is resumed within its press. Sound allowed before anyone spoke makes it then. Nothing is made after
-    the call. A room that never connects lets its context go, once.
+    Allow audio is resumed within its press. Nothing is made after the call. A room that never connects lets its
+    context go, once.
+  - `voice-levels.test.ts`, `connectWithLevels` against a room that connects and starts its sound as LiveKit 2.22.3
+    does (it says the sound is allowed only after an await, `Room.startAudio` and `acquireAudioContext`): connected
+    within a press, its context runs; Allow audio's press wakes it; a connect refused before it starts lets its
+    context go with the refusal, once. Each of the two wakes and the `end()` was removed in turn: each removal fails
+    a check, and the file unchanged passes.
 - **Browser:**
   - `orb-result.spec.ts`: the bloom check at 8 frames a second (`slowFramesFromNow`, once she is lit, and a second
     after her 0.9 reads, so her light is within a thousandth of full): peak ≥ 1.03, 0.97 before the change. A result
     arriving early in a floor pass (`floor=me`, Pass to… Lucía) takes her past 1.03 after the landing, read from 1.7 s
-    after the pass on the page's clock (1 before the change).
+    after the pass on the page's clock (1 before the change). A floor passed 0.6 s after the result arrives, timed by
+    the page, leaves her below 1.03 from 1.7 s after the pass (1.08 before the review's fix: the bloom played again).
   - `paper-orb.spec.ts`: at 8 frames a second (`slowFrames`) her light on paper reads 0.99 within 8 s (0.94 before).
   - `orb-presence.spec.ts`: `sophia=blocked`, then `linkLost(true)`: joining, no sound mark, only her forming running
     (no drift, breath or call), Allow audio still offered. The link back brings the call back.
@@ -72,5 +84,16 @@
 
 ## Not here
 
-- Safari's policy can't be run here: the fixtures replace `livekit-room.ts`, so `connectWithLevels` is read, not run,
-  and the unit tests cover what `wake()` and `end()` do.
+- Safari itself can't be run here, and the fixtures replace `livekit-room.ts`: `connectWithLevels` runs in the unit
+  tests against a room that plays LiveKit's order, not in a browser.
+
+## After the independent review
+
+Two P2s on this branch, each verified against the code and fixed test-first:
+
+- **A floor leaving after a bloom had shown played it again** (`engine.ts:323`). The hold applied to any bloom still in
+  its 0.9 s, so one already seen came back whole after the landing: one result, two blooms. Now only a bloom that
+  hadn't yet shown waits (item 2 above).
+- **`connectWithLevels` was read, not run** (`livekit-room.ts:452`). Removing its two wakes left every check green, and
+  the Safari check that said the sound was allowed within the press played an order LiveKit 2.22.3 never uses. It
+  moved to `voice-levels.ts` and is run by the checks above; the unrealistic check is gone.

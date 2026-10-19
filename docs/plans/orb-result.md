@@ -28,4 +28,5 @@
 
 - Several results at once bloom once.
 - The bloom reads on the dark page too (the canvas reads the same swell), which is the same news there.
-- A result arriving while the floor travels blooms once it has landed, whole (`orb-follow-ups.md`).
+- A result arriving while the floor travels, or whose bloom hadn't yet shown when the floor left, blooms once it has
+  landed, whole. A bloom already seen ends under the flight and doesn't come back after it (`orb-follow-ups.md`).
