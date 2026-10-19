@@ -122,6 +122,46 @@ test('home · a call ended with Home open says nothing, then or after: what it h
   await expect(news(page)).toHaveText(ONE_MORE)
 })
 
+test('home · a call whose read after it failed says nothing once the service is back: the next read is kept (Codex P2 on #468)', async ({
+  page,
+}) => {
+  // `sinceFail=1`: the read as the call ends is the page's first, and the service is away for it.
+  await page.goto(`${QUIET}&since=some&call=${id(1)}&sinceFail=1`)
+  await expect(page.locator('.hw-says')).toHaveText('You’re in Launch plan’s room.')
+  await page.evaluate(() => window.homeFixture?.hangUp())
+  await answered(page, SHOWN)
+  await expect(news(page)).toHaveText('')
+  // Back, the next arrival reads Launch plan again and says nothing: what it held was the call's.
+  await again(page)
+  await expect.poll(async () => (await reads(page)).filter((p) => p === id(1))).toHaveLength(2)
+  await page.waitForTimeout(400)
+  await expect(news(page)).toHaveText('')
+  // Nor the one after, now that Launch plan's window is on the page.
+  await again(page)
+  await expect(news(page)).toHaveText('')
+  // One more decision since the call: that is.
+  await page.goto(`${QUIET}&since=more`)
+  await answered(page, SHOWN)
+  await again(page)
+  await expect(news(page)).toHaveText(ONE_MORE)
+})
+
+test('home · a call ended out of Home whose read failed is read again once online, and Home says nothing of it', async ({
+  page,
+}) => {
+  await page.goto(`${QUIET}&since=some&call=${id(1)}&sinceFail=1&away=1`)
+  await page.evaluate(() => window.homeFixture?.hangUp())
+  await expect.poll(() => reads(page)).toEqual([id(1)])
+  // The browser is online again: the call's project is read again, once, and Home reads nothing out of sight.
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+  await expect.poll(() => reads(page)).toEqual([id(1), id(1)])
+  await page.getByRole('button', { name: 'Back to Home' }).click()
+  await answered(page, SHOWN)
+  await expect(news(page)).toHaveText('')
+  await again(page)
+  await expect(news(page)).toHaveText('')
+})
+
 test('home · under a session soon it waits, unsaid, even as the session passes with Home open; nothing after a seen mark', async ({
   page,
 }) => {

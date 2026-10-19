@@ -11,7 +11,8 @@
 // action taken,
 // as "open <id>", "join <id>", "back <id>", "work", "new project", "unlock", "say <words>", "need <id>". `needs=some|none`: what
 // needs you on the right (the vision flag; the demo's some); absent, the Studio's own Home, her light alone.
-// `since=some|more|mine|seen`: what changed in each project since you last looked, read as Home reads it (below).
+// `since=some|more|mine|seen`: what changed in each project since you last looked, read as Home reads it (below);
+// `sinceFail=1`: its first read fails.
 import { requestAddress } from '../src/features/resources/link.ts'
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
@@ -301,10 +302,12 @@ if (INVITED) {
  * report (the fixture's earlier decision and a proposal still open among them), Product launch a note kept, the others
  * nothing; `more`: one more decision in Launch plan's; `mine`: Launch plan holds the reader's own decision, the report
  * they asked for and a note kept in their name, and one decision of Marco's; `seen`: every window after a seen mark,
- * empty. `homeFixture.sinceReads()` lists the projects asked, in the order asked.
+ * empty. `homeFixture.sinceReads()` lists the projects asked, in the order asked. `sinceFail=1`: the first window read
+ * answers 503, as when a call ends because the service went away; the reads after it answer.
  */
 const SINCE = query.get('since')
 const sinceReads: string[] = []
+let sinceFails = query.get('sinceFail') === '1' ? 1 : 0
 const MARK = '3'
 const MEMBER = '00000000-0000-4000-8000-0000000000c1'
 /** The person reading, as A34 names actors: none of the fixture meeting's own. */
@@ -393,7 +396,10 @@ if (SINCE) {
     const asked = /^\/api\/v1\/projects\/([^/]+)\/since$/.exec(new URL(url, window.location.href).pathname)?.[1]
     if (!asked) return real(input, init)
     sinceReads.push(asked)
-    return json(sinceOf(asked))
+    if (sinceFails === 0) return json(sinceOf(asked))
+    sinceFails -= 1
+    const body = JSON.stringify({ error: { code: 'dependency_unavailable', message: 'The service is away' } })
+    return Promise.resolve(new Response(body, { status: 503, headers: { 'content-type': 'application/json' } }))
   }
 }
 /** The band Home shows with `invited=1`: the person's own invitations, read and accepted as the Studio does. */
