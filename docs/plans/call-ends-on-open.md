@@ -22,11 +22,11 @@
   notes”.» with the act `Rejoin`. When that project's title isn't read here yet (a link to one never listed): «… ended
   when you opened another project.» Without `opened`, today's words and no act. A note the room gives (dropped, joined
   elsewhere, taken out, closed) still comes first: that note names the real cause.
-- **`SignedIn.tsx`:** `useOneCallInSight` records which project's opening is leaving the call (the call's project and
-  the opened one) in a ref, before it leaves. When the call ends, `useSayings` reads the ref and then clears it. Every
-  end clears it, so a Leave pressed later never borrows the cause. The opened project's title comes from what this page
-  already read: Work's list, else that project's snapshot. Rejoin is `opening(…)(callProjectId, true)`: the call's
-  project opens and joins, as «Join the room» from Work does.
+- **`SignedIn.tsx`, `one-call.ts`:** `useOneCallInSight` records which project's opening is leaving the call, before it
+  leaves. The cause lives with the call that runs (`oneCall`, after the review below): each call begins with none, and
+  its end hands it to `useSayings`, so a Leave pressed later never borrows it. The opened project's title comes from
+  what this page already read: Work's list, else that project's snapshot. Rejoin is `opening(…)(callProjectId, true)`:
+  the call's project opens and joins, as «Join the room» from Work does.
 - **One line:** it replaces the toast that already shows, and adds none. Each hang-up gets its own toast. An opening
   with no call says nothing. The toast keeps role=status and never takes the focus.
 - **`ProjectShell.tsx` (`useJoinOnOpen`), found at the first fix:** Rejoin opened the fixture project, but its dock
@@ -40,15 +40,37 @@
 
 - **Unit** (`notice-view.test.ts`): with `opened`, the line and `Rejoin`; with an unread title, «another project» and
   `Rejoin`; without it, «You left Pitch deck, Q4.» and no act; a note wins over the opening; the room on screen says it,
-  so nothing here.
+  so nothing here. After the review: `room-view.test.ts` (`askedJoin`, each status, loaded or not) and
+  `one-call.test.ts` (the order of reports, and the cause).
 - **Browser** (`app-auth.spec.ts`, the app's page with `work=lost&projects=two`): in a call, Home, then ⌘K «Open
   Research notes» → the toast has the line and Rejoin, and the focus stays off it. Rejoin → back in the fixture
   project, in its call. Control: Leave in the places' bar → «You left Fixture project.» with no press. Opening Research
-  notes after that says nothing new.
+  notes after that says nothing new. After the review: back in the call by the dock's own Join, then Rejoin, then
+  Leave → no new room token, and the room stays out.
 - **Lever** (`fixtures/app.tsx`, `projects=two`, kept in the tab as `work=lost` is): Work's list holds «Research notes»
   after the fixture project. Its reads are the fixture project's, and its snapshot carries its own id and title. It
   imports the contracts' validators only when asked: `signed-in-later.spec.ts` requires that a page at rest never
   loads them.
+
+## After the independent review (round 1: three P2s)
+
+- **Rejoin pressed once already back in that call (real):** the person goes back to the call's project and joins with
+  the dock's own Join while the toast still offers Rejoin, then presses it. `useJoinRequest` keeps the request while
+  that project is on screen, and `useJoinOnOpen` skipped any room not `idle` without taking the request as handled, so
+  the next Leave (`idle` again) joined the room by itself. Before this branch nothing reached it: Home and Work turn the
+  call's project into Back and Leave. Now `askedJoin` (`room-view.ts`) decides: wait while the project loads; join a
+  room out of the call, after a failed join too (Rejoin then does what Try again does, never a dead press); a room the
+  person is in, or joining, answers the request.
+- **A cause kept after the call ended (real, inferred from the code, not observed):** `leaveFor` wrote the cause
+  whatever the call's state, so a render still holding a call that had just ended could write it again after the end
+  had read it, and the next Leave in that project would say «ended when you opened …» with Rejoin. The bookkeeping
+  moved, unchanged, into `oneCall` (`app/one-call.ts`, pure), then the rule changed: the cause is part of the running
+  call. An opening asked for a call that no longer runs keeps nothing and leaves nothing; a call that begins has no
+  cause; what the call reports while it ends (who speaks, a device) carries the cause through.
+- **No check for «every end forgets the cause» (real):** `one-call.test.ts` now pins it: read once by that call's end,
+  carried through its reports, never read by another call's end, kept by nothing after the end, taken by no call that
+  begins later. The browser check also presses Rejoin a second time, goes Home and presses Leave in the bar: «You left
+  Fixture project.», with nothing to press.
 
 ## Limits
 
