@@ -2893,6 +2893,114 @@ img.avatar {
   margin-left: 6px;
   font-size: 12px;
 }
+/* A member's own message, corrected or withdrawn (docs/plans/message-acts.md, A36; the message acts flag's): Edit and
+   Withdraw after its words, as Reply is; the words in a field while edited; what an act would do, said before it goes;
+   «Edited» by corrected words; a withdrawn message's place, never its words. */
+.message-acts {
+  margin-left: 6px;
+  font-size: 12px;
+}
+.message-acts .text-button {
+  min-height: 24px;
+  margin-right: 6px;
+}
+.message-edit {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0;
+}
+.message-edit textarea {
+  width: 100%;
+  height: auto;
+  min-height: 52px;
+  padding: 6px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-1);
+  background: rgb(var(--ink-rgb) / 0.03);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+.message-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.message-confirm {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0;
+  padding: 8px 10px;
+  border-left: 2px solid var(--halo);
+  color: var(--text-2);
+  font-size: 12px;
+}
+.message-confirm-title {
+  margin: 0;
+  color: var(--text);
+  font-weight: 600;
+}
+.message-confirm ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding-left: 16px;
+}
+/* Mentions (docs/plans/mentions.md, A37; the mentions flag's): the members chosen above the bar, the choice itself,
+   and the line under a message that names them. */
+.mention-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+.mention-chosen {
+  margin: 0;
+  color: var(--text-2);
+}
+.mention-chosen:empty {
+  display: none;
+}
+.mention-options {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-1);
+}
+.mention-options legend {
+  padding: 0 4px;
+  color: var(--text-2);
+}
+.mention-options label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+}
+.mention-options input {
+  width: auto;
+  height: auto;
+}
+.contribution-mentions {
+  display: block;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.contribution-edited {
+  margin-right: 8px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.contribution-withdrawn {
+  color: var(--text-3);
+  font-style: italic;
+}
 .contribution-quote {
   display: block;
   max-width: 100%;

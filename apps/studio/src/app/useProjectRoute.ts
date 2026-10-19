@@ -2,7 +2,7 @@
 // Back and Forward.
 import { useEffect, useState } from 'react'
 import { reportSearch, withReportLink, type ReportLink } from '../features/artifacts/report-link.ts'
-import { DECISION, REQUEST, requestAddress, TASK, showInAddress } from '../features/resources/link.ts'
+import { DECISION, MESSAGE, REQUEST, requestAddress, TASK, showInAddress } from '../features/resources/link.ts'
 import { lensKept } from '../features/studio/viewer-state.ts'
 import { ADDRESS_NAMED } from '../features/resources/useAddressed.ts'
 import { ADDRESS_MOVED, HOME, isJoinPath, parseRoute, routePath, type Place, type Route, type View } from './route.ts'
@@ -51,16 +51,24 @@ export function useProjectRoute() {
     openAt: (
       projectId: string,
       view: View,
-      at: { taskId?: string; decisionId?: string; requestId?: string; resourceId?: string; report?: ReportLink } = {},
+      at: {
+        taskId?: string
+        decisionId?: string
+        requestId?: string
+        resourceId?: string
+        messageId?: string
+        report?: ReportLink
+      } = {},
     ) => {
       go({ projectId, view, place: 'work' }, false, at.report ? withReportLink('', at.report) : undefined)
       // The request with its resource: two resources may hold one request id (Codex on #245).
       if (at.requestId) showInAddress(requestAddress(at.resourceId ?? null, at.requestId), REQUEST)
       else if (at.decisionId) showInAddress(at.decisionId, DECISION)
       else if (at.taskId) showInAddress(at.taskId, TASK)
+      else if (at.messageId) showInAddress(at.messageId, MESSAGE)
       // A shell kept mounted (Home shown during a call) heard the route move before the record was named: it is told
       // again once the fragment is in (useAddressed; Codex on #245).
-      if (at.requestId || at.decisionId || at.taskId) window.dispatchEvent(new Event(ADDRESS_NAMED))
+      if (at.requestId || at.decisionId || at.taskId || at.messageId) window.dispatchEvent(new Event(ADDRESS_NAMED))
     },
     show: (view: View) => go({ ...route, view }),
     /** Out of the project, back to the two doors. */

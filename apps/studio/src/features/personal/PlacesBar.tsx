@@ -120,15 +120,19 @@ function RoomPill({ call }: { call: InCall }) {
 /**
  * The pill goes when the call ends, however it ends (Leave, another tab taking the call, a lost connection): a focus
  * inside it goes to the bar's mark, which stays, never to the page (where the next letter would be a place's key).
+ * Only a focus the pill took with it: one that went elsewhere meanwhile (⌘K's palette, opened as the call was ending)
+ * stays where it is, or the palette's typing would go to the page's keys.
  */
 function useFocusAfterCall(pill: RefObject<HTMLDivElement | null>) {
   useLayoutEffect(() => {
     const el = pill.current
     return () => {
       if (!el?.contains(document.activeElement)) return
-      requestAnimationFrame(() =>
-        document.querySelector<HTMLElement>('.places-bar .mark')?.focus({ preventScroll: true }),
-      )
+      requestAnimationFrame(() => {
+        const now = document.activeElement
+        if (now !== null && now !== document.body && now.isConnected) return
+        document.querySelector<HTMLElement>('.places-bar .mark')?.focus({ preventScroll: true })
+      })
     }
   }, [pill])
 }

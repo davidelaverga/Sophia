@@ -3,10 +3,14 @@
 // refused before the route (app.ts GUEST_ROUTES). A need leaves where it lives; only a reply has a seen mark.
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
-import { markReplySeen, readNeeds, withActor } from '@sophia/persistence'
+import { markMentionSeen, markReplySeen, readNeeds, withActor } from '@sophia/persistence'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-const KINDS = new Set(['decision', 'permission', 'guest', 'reply'])
+const KINDS = new Set(['decision', 'permission', 'guest', 'reply', 'mention'])
+/** A mention's `within` (A37): `<revision>.<occurrence>`, each a positive integer. */
+const OCCURRENCE = /^([1-9][0-9]{0,18})\.([1-9][0-9]{0,18})$/
+/** The largest number a bigint holds: past it, the need names nothing (404), never a database failure. */
+const MOST_REVISION = 9223372036854775807n
 
 /** A need's id, read back (`<kind>:<projectId, or personal>:<within, or ->:<ref id>`, each part escaped); null if not one. */
 export function parseNeedId(id: string): { kind: string; project: string; within: string | null; ref: string } | null {
@@ -32,9 +36,33 @@ const notFound = (requestId: string) => ({
   requestId,
 })
 
+/**
+ * markNeedSeen for a mention (A37): that occurrence's attention on that revision is seen; an older one's seen changes
+ * nothing (204). False (404) for a `within` that is not `<revision>.<occurrence>`, or a need that is not the person's.
+ */
+async function mentionSeen(
+  pool: pg.Pool,
+  actorId: string,
+  need: { project: string; within: string | null; ref: string },
+) {
+  const at = OCCURRENCE.exec(need.within ?? '')
+  const [revision, occurrence] = [at?.[1], at?.[2]]
+  if (!revision || !occurrence || !UUID.test(need.ref)) return false
+  if (BigInt(revision) > MOST_REVISION || BigInt(occurrence) > MOST_REVISION) return false
+  return withActor(pool, actorId, 'write', (c) => markMentionSeen(c, need.project, need.ref, { revision, occurrence }))
+}
+
 export function needsRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool }): void {
-  app.get('/api/v1/me/needs', { schema: { response: { 200: { $ref: 'NeedList#' } } } }, async (req) =>
-    withActor(pool, req.actorId, 'read', (c) => readNeeds(c)),
+  // mentions=1 (A37): the person's pending mentions too. Without it, exactly A15's kinds, for a reader that knows no other.
+  app.get<{ Querystring: { mentions?: '1' } }>(
+    '/api/v1/me/needs',
+    {
+      schema: {
+        querystring: { type: 'object', properties: { mentions: { type: 'string', enum: ['1'] } } },
+        response: { 200: { $ref: 'NeedList#' } },
+      },
+    },
+    async (req) => withActor(pool, req.actorId, 'read', (c) => readNeeds(c, { mentions: req.query.mentions === '1' })),
   )
 
   // A reply's seen mark moves forward to it; any other kind leaves where it lives, so its seen changes nothing (204).
@@ -54,6 +82,10 @@ export function needsRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool }): 
     async (req, reply) => {
       const need = parseNeedId(req.params.id)
       if (!need) return reply.status(404).send(notFound(req.id))
+      if (need.kind === 'mention') {
+        const marked = await mentionSeen(pool, req.actorId, need)
+        return marked ? reply.status(204).send() : reply.status(404).send(notFound(req.id))
+      }
       if (need.kind !== 'reply') return reply.status(204).send()
       if (need.within !== null || !UUID.test(need.ref)) return reply.status(404).send(notFound(req.id))
       const marked = await withActor(pool, req.actorId, 'write', (c) => markReplySeen(c, need.ref))
