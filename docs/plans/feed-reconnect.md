@@ -60,7 +60,7 @@
   wait asks again once; two wakes in the same wait ask once; nothing listens while the stream is open. Red today:
   the wait never ends.
 - **Browser, offline** (`feed-recovery.spec.ts`): offline, the fixture out of reach and the stream dropped: the pill
-  says «Reconnecting»; after four refused asks (the wait is then 8 s ± 30 %) the fixture comes back and the page goes
+  says «Reconnecting»; after three refused asks (the wait is then 8 s ± 30 %) the fixture comes back and the page goes
   online: «Up to date» within 2 s. Red today: it waits out the 5.6–10.4 s left.
 
 ## Limits
