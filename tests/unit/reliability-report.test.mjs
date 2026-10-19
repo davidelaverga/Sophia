@@ -317,6 +317,54 @@ test('main is red from a red commit’s end until a newer commit ends green; rer
   assert.equal(later.redSince, null)
 })
 
+test('main already red when the window opens counts from its start; a run begun before it and ended inside counts', () => {
+  const run = (sha, attempt, conclusion, createdAt, completedAt) => ({
+    sha,
+    attempt,
+    conclusion,
+    createdAt,
+    completedAt,
+  })
+  // The window is hours 0 to 10. Main went red at -2 (a run before the window) and green at 5: half the window.
+  const seeded = mainHealth(
+    [
+      run('old', 1, 'success', at(-6), at(-5)),
+      run('red', 1, 'failure', at(-3), at(-2)),
+      run('fix', 1, 'success', at(1), at(5)),
+    ],
+    at(10),
+    at(0),
+  )
+  near(seeded.redHours, 5, 'red hours from the window’s start')
+  assert.deepEqual(
+    seeded.spans.map((s) => ({ from: s.from, to: s.to, open: s.open })),
+    [{ from: at(0), to: at(5), open: false }],
+  )
+  assert.equal(seeded.commits, 1, 'only the commits created in the window are counted')
+  assert.equal(seeded.green, 1)
+  assert.equal(seeded.red, 0)
+
+  // A run created before the window that ends red inside it turns main red from its end; still red at the end, main
+  // says since when, the window's hours only.
+  const crossing = mainHealth(
+    [
+      run('old', 1, 'success', at(-6), at(-5)),
+      run('slow', 1, 'failure', at(-1), at(2)),
+      run('next', 1, 'failure', at(3), at(4)),
+    ],
+    at(10),
+    at(0),
+  )
+  near(crossing.redHours, 8, 'red hours from the crossing run’s end')
+  assert.equal(crossing.redSince, at(2))
+
+  // Red since before the window and never green in it: the whole window, and the true start.
+  const allRed = mainHealth([run('red', 1, 'failure', at(-3), at(-2))], at(10), at(0))
+  near(allRed.redHours, 10, 'red the whole window')
+  assert.equal(allRed.redSince, at(-2))
+  assert.equal(allRed.commits, 0)
+})
+
 test('M1: press to a definitive answer, its overhead past the held reply, and the share within 5 s', () => {
   const summary = summarizeM1([
     { kind: 'room-message', delayMs: 0, totalMs: 40, definitive: true },
