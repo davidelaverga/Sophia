@@ -11,7 +11,7 @@ import { focusLater } from './focus.ts'
 import { handing, type Handed } from './handed.ts'
 import { clip, lengthOf } from './characters.ts'
 import { NOTICE } from './notice-view.ts'
-import { useOnline } from './online.ts'
+import { OFFLINE_WAITS, useOnline } from './online.ts'
 import {
   afterSent,
   draftKey,
@@ -52,13 +52,11 @@ const PLACEHOLDER: Record<ComposerState, string> = {
 }
 /** At night (lightOf), a field that can take words asks gently. */
 const NIGHT = 'Still up? Write to Sophia…'
-/** Offline, the words wait in the field: said over its line and in it, before anything is sent. */
-const OFFLINE = 'You’re offline. Your words wait here.'
 
 /** What the field says while empty: offline first, then the night, else its state's words. */
 function placeholderFor(state: ComposerState, online: boolean, night: boolean): string {
   if (state !== 'ready') return PLACEHOLDER[state]
-  if (!online) return OFFLINE
+  if (!online) return OFFLINE_WAITS
   return night ? NIGHT : PLACEHOLDER.ready
 }
 
@@ -641,7 +639,7 @@ export function PersonalComposer(props: Props) {
         void send()
       }}
     >
-      <Over note={offline ? OFFLINE : (handedWaiting(props) ?? note)} count={counted ? length : null} />
+      <Over note={offline ? OFFLINE_WAITS : (handedWaiting(props) ?? note)} count={counted ? length : null} />
       <Bar
         {...{ field, text, state, counted, ready, busy, dictation }}
         over={length > MOST}

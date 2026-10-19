@@ -1,7 +1,8 @@
 // The signed-in Studio (docs/plans/signed-in-later.md): Home, the personal space and the projects, with what keeps
 // them together. Its own chunk: a sign-in page never downloads it; App loads it once a session is there.
 import { withoutResources } from '../api/needs.ts'
-import { useQueryClient } from '@tanstack/react-query'
+import type { ProjectList, Snapshot } from '@sophia/contracts'
+import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { callEnded, NOTICE } from '../features/personal/notice-view.ts'
 import { Places, type Opening } from '../features/personal/Places.tsx'
@@ -9,9 +10,11 @@ import type { InCall } from '../features/personal/PlacesBar.tsx'
 import { OPEN } from '../features/personal/lock.ts'
 import { useLock, useUnlockOnReturn } from '../features/personal/useLock.ts'
 import { ProjectShell, type ProjectCall } from '../features/studio/ProjectShell.tsx'
+import { snapshotKey } from '../features/studio/useProjectFeed.ts'
 import { AccountMenu } from './AccountMenu.tsx'
 import { PersonalLocked, forgetPersonalReads } from './account-cache.ts'
 import { accountOf } from './auth-callback.ts'
+import { oneCall } from './one-call.ts'
 import { OpeningPrepares } from './opening-prepares.ts'
 import type { Identity } from './dev-identity.ts'
 import { joinStands, projectOnScreen, shownView, type Place } from './route.ts'
@@ -33,29 +36,38 @@ interface SignedInProps {
   onSignOutEverywhere: () => Promise<boolean>
 }
 
-/** Told when a call ends: the call as it was, and why when this person didn't leave it (call-end.ts). */
-type OnEnded = (call: ProjectCall, note: string | null) => void
+/**
+ * Told when a call ends: the call as it was, why when this person didn't leave it (call-end.ts), and the project whose
+ * opening ended it (useOneCallInSight), or null.
+ */
+type OnEnded = (call: ProjectCall, note: string | null, opened: string | null) => void
 
 /**
- * One call at a time, wherever the person is. A project whose room holds the call stays mounted when the person goes
- * home or to their personal space (out of sight, taking no keys), so the call goes on; the places' bar shows it. A call
- * starting in another project ends the one before, without a word: the person asked for the new one.
+ * One call at a time, wherever the person is (one-call.ts). A project whose room holds the call stays mounted when the
+ * person goes home or to their personal space (out of sight, taking no keys), so the call goes on; the places' bar
+ * shows it. A call starting in another project ends the one before, without a word: the person asked for the new one.
+ * `leaveFor` leaves a call because another project opened, and its end says which (call-ends-on-open.md).
  */
 function useCall(ended: RefObject<OnEnded | null>) {
   const [call, setCall] = useState<ProjectCall | null>(null)
-  const current = useRef<ProjectCall | null>(null)
+  const [one] = useState(() => oneCall<ProjectCall>())
   const report = useCallback(
     (projectId: string, next: ProjectCall | null, note: string | null = null) => {
-      const prev = current.current
-      if (!next && prev?.projectId !== projectId) return // a project without a call ends nobody's call
-      if (next && prev && prev.projectId !== projectId) void prev.leave()
-      current.current = next
+      const said = one.report(projectId, next)
+      if (!said) return
+      if (said.leave) void said.leave.leave()
       setCall(next)
-      if (!next && prev) ended.current?.(prev, note)
+      if (said.ended) ended.current?.(said.ended.call, note, said.ended.opened)
     },
-    [ended],
+    [ended, one],
   )
-  return [call, report] as const
+  const leaveFor = useCallback(
+    (left: ProjectCall, opened: string) => {
+      if (one.leaving(left, opened)) void left.leave()
+    },
+    [one],
+  )
+  return [call, report, leaveFor] as const
 }
 
 /**
@@ -78,18 +90,34 @@ const inCall = (call: ProjectCall, onReturn: () => void): InCall & { projectId: 
   onScreen: (on) => void call.setScreenShare(on),
 })
 
-/** A call that ends says so in the toast where its room can't (callEnded); so does a sign-in link that failed. */
+/** A project's title as this page last read it for `viewer`: in Work's list, else its own snapshot; null if neither. */
+const titleRead = (client: QueryClient, viewer: string, projectId: string): string | null =>
+  client.getQueryData<ProjectList>(['projects', viewer])?.projects.find((p) => p.projectId === projectId)?.title ??
+  client.getQueryData<Snapshot>(snapshotKey(projectId, viewer))?.title ??
+  null
+
+/**
+ * A call that ends says so in the toast where its room can't (callEnded): when opening another project ended it, with
+ * Rejoin, which opens the call's project and joins it. So does a sign-in link that failed.
+ */
 function useSayings(input: {
   ended: RefObject<OnEnded | null>
   say: ShowToast
   project: string | null
   notice: string | undefined
+  /** The account whose reads name the opened project (titleRead). */
+  viewer: string
+  /** A project opened, its call joined when asked (opening). */
+  open: (projectId: string, joins: boolean) => void
 }) {
-  const { ended, say, project, notice } = input
+  const { ended, say, project, notice, viewer, open } = input
+  const client = useQueryClient()
   useEffect(() => {
-    ended.current = (endedCall, note) => {
-      const message = callEnded({ title: endedCall.title, note, here: project === endedCall.projectId })
-      if (message) say(message)
+    ended.current = (endedCall, note, opened) => {
+      const how = opened === null ? {} : { opened: titleRead(client, viewer, opened) }
+      const said = callEnded({ title: endedCall.title, note, here: project === endedCall.projectId, ...how })
+      if (said?.act) say(said.message, () => open(endedCall.projectId, true), said.act)
+      else if (said) say(said.message)
     }
   })
   useEffect(() => {
@@ -112,13 +140,17 @@ function useJoinRequest(onScreen: string | null) {
 
 /**
  * One call, and the project or place on screen with it: opening another project leaves the call (the toast says
- * so), and the call's project stays on screen until it has (projectOnScreen). A project's bar has no room for another
- * room's call, and nothing may keep sending out of sight.
+ * so, with Rejoin), and the call's project stays on screen until it has (projectOnScreen). A project's bar has no room
+ * for another room's call, and nothing may keep sending out of sight.
  */
-function useOneCallInSight(call: ProjectCall | null, project: string | null) {
+function useOneCallInSight(
+  call: ProjectCall | null,
+  project: string | null,
+  leaveFor: (call: ProjectCall, opened: string) => void,
+) {
   useEffect(() => {
-    if (call && project && project !== call.projectId) void call.leave()
-  }, [call, project])
+    if (call && project && project !== call.projectId) leaveFor(call, project)
+  }, [call, project, leaveFor])
 }
 
 /**
@@ -270,13 +302,14 @@ function SignedIn(props: SignedInProps) {
   const { route, open, openAt, leave, goTo } = routing
   const toast = useToast()
   const ended = useRef<OnEnded | null>(null)
-  const [call, reportCall] = useCall(ended)
+  const [call, reportCall, leaveFor] = useCall(ended)
   const join = useJoinRequest(route.projectId)
   const [lock, setLock, lockedNow] = useLock(accountOf(identity), call?.projectId ?? null)
   const project = route.projectId
+  const openProject = opening(join.ask, open)
   useProviderReturn({ call, project, place: route.place, setLock, goTo, say: toast.show })
-  useOneCallInSight(call, project)
-  useSayings({ ended, say: toast.show, project, notice })
+  useOneCallInSight(call, project, leaveFor)
+  useSayings({ ended, say: toast.show, project, notice, viewer: identity.name, open: openProject })
   const sheets = useSheetsAtHome(leave)
   const out = signOuts(toast.show, props)
   const actions = accountActions(sheets, onChooseDev, out)
@@ -284,7 +317,6 @@ function SignedIn(props: SignedInProps) {
   const ids = [onScreen, call && call.projectId !== onScreen ? call.projectId : null].filter(
     (id): id is string => id !== null,
   )
-  const openProject = opening(join.ask, open)
   return (
     <>
       <ShellsUnderLock

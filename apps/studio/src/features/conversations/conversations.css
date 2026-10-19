@@ -1111,6 +1111,11 @@
   max-width: 760px;
   margin-inline: auto;
 }
+/* The polite line, out of sight while it says nothing, keeps the size that hides it, not the column's (Note). */
+.conv-compose > .sr-only {
+  width: 1px;
+  margin: 0;
+}
 .conv-field-box {
   display: flex;
   align-items: flex-end;

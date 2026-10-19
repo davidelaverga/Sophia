@@ -102,8 +102,11 @@ interface Holding {
   gaps: readonly string[]
   /** A page read before `before`, kept with everything held. */
   hold: (page: Page, before: string | null, atStart: boolean) => void
-  /** The held pages' epoch (held-pages.ts): a page asked for before a let-go is not kept (R-SEARCH-AB2F-DISCARDED-READ). */
-  epoch: () => number
+  /**
+   * The held pages' epoch (held-pages.ts): a page asked for before a let-go, or before an erasure was learned
+   * (r4313704366), is not kept — a jump's or a gap's read as a manual one (R-SEARCH-AB2F-DISCARDED-READ).
+   */
+  epoch: () => string
 }
 
 /**

@@ -999,7 +999,9 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.report-attribution {
+/* A save that went through after its reply was lost is said in the attribution's ink, never the problem's rose. */
+.report-attribution,
+.report-saved {
   margin: 0;
   color: var(--text-2);
   font-size: var(--type-small);

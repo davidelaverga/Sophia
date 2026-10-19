@@ -360,8 +360,11 @@ test('LFE-02.1 · a description edit never overwrites a teammate’s newer one, 
   await page.evaluate(() => window.fixture?.describeElsewhere('A teammate’s description'))
   await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
   await card.getByRole('button', { name: 'Save' }).click()
-  await expect(card.getByRole('alert')).toContainText('Someone changed this description since you opened it.')
+  await expect(card.getByRole('alert')).toContainText('Someone changed this description to “A teammate’s description”')
+  await expect(field).toHaveValue('My own description') // the typed words stay
+  await card.getByRole('button', { name: 'Cancel' }).click()
   await expect(card.getByText('A teammate’s description')).toBeVisible() // theirs is shown, not overwritten
+  await expect(card.getByRole('alert')).toHaveCount(0) // the conflict's line goes with the form
   await expect(edit).toBeFocused()
 })
 

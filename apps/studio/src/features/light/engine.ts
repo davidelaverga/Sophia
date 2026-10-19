@@ -3,6 +3,7 @@
 // It never decides anything about the room; it only shows it.
 import {
   envelope,
+  HANDOFF_SECONDS,
   HEAR_ATTACK_S,
   HEAR_RELEASE_S,
   handoffFrame,
@@ -112,6 +113,18 @@ const RELAYOUT_S = 0.25
 
 /** How long a result's bloom lasts, up and down (orb-result.md). */
 const BLOOM_S = 0.9
+
+/**
+ * A bloom this far along has hardly shown (a quarter of its swell, under 2 % of her size); one further along has been
+ * seen. A floor leaving holds only the first for its landing (orb-follow-ups.md).
+ */
+const BLOOM_UNSEEN_S = 0.25
+
+/**
+ * A frame longer than this is a stall (a tab coming back, a debugger), not load: `pace` doesn't count it, and the
+ * springs step no more than this in one frame, so nothing leaps for the time the page was away (orb-follow-ups.md).
+ */
+const STALL_S = 0.25
 
 /** Where the light sits when the room gives no target: centered, in the upper part of the box. */
 export function defaultTarget(width: number, height: number): LightTarget {
@@ -306,6 +319,18 @@ export class LightEngine {
     return 0.6 * Math.sin((Math.PI * at) / BLOOM_S)
   }
 
+  /**
+   * What swells her now: the floor in flight, else a result's bloom. A bloom that arrives while the floor travels, or
+   * hadn't yet shown when it left, waits for the landing and plays whole then; one already seen ends under the flight,
+   * not again after it: one result, one bloom (orb-follow-ups.md). The flight holds the swell meanwhile.
+   */
+  private swell(t: number, flight: HandoffStep | null): number {
+    const h = this.handoffState
+    if (!flight || !h || this.reduced) return this.bloom(t)
+    if (h.started - this.bloomAt < BLOOM_UNSEEN_S) this.bloomAt = h.started + HANDOFF_SECONDS
+    return flight.frame.swell
+  }
+
   /** The floor travels from one person, through Sophia, to the next. */
   handoff(from: Point, to: Point): void {
     this.handoffState = { from, to, started: performance.now() / 1000 }
@@ -353,8 +378,9 @@ export class LightEngine {
     this.last = t
     if (!this.snapped) this.snap()
     this.pace(raw)
-    // The springs step at most 0.05 s a frame; the voices' envelopes are exact at any step, so they take the clock's.
-    this.draw(t, this.step(t, Math.min(0.05, raw), raw))
+    // Springs and envelopes are exact at any step, so they keep to the clock however few frames draw them; the springs
+    // step no more than a stall's worth, the voices take the clock's own time.
+    this.draw(t, this.step(t, Math.min(STALL_S, raw), raw))
   }
 
   /** The first frame with a size places the light where it belongs instead of flying in from a corner. */
@@ -380,7 +406,7 @@ export class LightEngine {
     aimAt(s, flight ? flight.frame.head : this.input.attention)
     s.occlude.target = this.input.mark ? 1 : 0
     aimSource(s, this.input.mark ?? null, this.aim())
-    s.swell.target = flight && !this.reduced ? flight.frame.swell : this.bloom(t)
+    s.swell.target = this.swell(t, flight)
     for (const sp of Object.values(s)) stepSpring(sp, dt)
     this.hear(wall)
     if (!this.reduced) this.flow += dt * (0.34 * s.think.value - 0.9 * this.amp * s.speak.value - 0.05 * s.listen.value)
@@ -435,7 +461,7 @@ export class LightEngine {
 
   /** Frames slower than ~28 fps for a second step the resolution down; a 30 Hz display is not load. */
   private pace(raw: number): void {
-    this.slowFor = raw > 0.036 && raw < 0.25 ? this.slowFor + raw : Math.max(0, this.slowFor - raw * 0.5)
+    this.slowFor = raw > 0.036 && raw < STALL_S ? this.slowFor + raw : Math.max(0, this.slowFor - raw * 0.5)
     if (this.slowFor > 1) {
       this.slowFor = 0
       this.gl?.degrade()

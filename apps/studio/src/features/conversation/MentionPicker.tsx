@@ -41,6 +41,9 @@ export function useMentions(projectId: string, identity: Identity, toRoom: boole
   const me = membership?.actorId ?? ''
   // Someone who left since being chosen is no longer named.
   const ids = chosen.filter((id) => members.some((m) => m.actorId === id))
+  // A successful read without them lets the choice go: back later, they are named only if chosen again (Codex P2 on
+  // #409, r4311940162). A read still on its way or failed proves nothing, and the choice stays.
+  if (known && ids.length < chosen.length) setChosen(ids)
   return {
     offered,
     options: nameable(members, me),

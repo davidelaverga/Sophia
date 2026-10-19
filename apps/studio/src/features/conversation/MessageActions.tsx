@@ -11,6 +11,7 @@ import { accountOf } from '../../app/auth-callback.ts'
 import { stillSignedIn } from '../../app/signed-in.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { asksFirst, effectWords, failureOf, type MessageAct } from './message-acts.ts'
+import { BAR_MOST, barFits, barLength } from './bar-length.ts'
 
 /** What an act changed, for the chat to show before its next read: the new words, the withdrawal, or a reread. */
 export type Acted =
@@ -50,6 +51,15 @@ const codeOf = (err: unknown) => (err instanceof ApiError ? err.code : 'unavaila
 /** Whether the focus is in this message's act (its field or its question), so it goes on with the act. */
 const focusWithin = (id: string) => (document.activeElement?.closest(`[data-message-acts="${id}"]`) ?? null) !== null
 
+/** Whether the focus is nowhere (the page itself): a control of the act that went with it let it drop. */
+const focusLost = () => document.activeElement === null || document.activeElement === document.body
+
+/**
+ * Whether a done act may still hand its focus on: only one it holds, or one its own control let drop, never one the
+ * person has put on another control since (Codex P2 on #409, r4312346262).
+ */
+const focusStillOurs = (id: string) => focusWithin(id) || focusLost()
+
 /**
  * A done act hands the focus it held on (Codex on #396): a correction's to its message's Edit, a withdrawal's to the
  * place the message now shows, which takes it. Never taken from somewhere else on the page.
@@ -67,7 +77,8 @@ export function useHandedFocus(id: string, taker: 'place' | 'edit', el: RefObjec
   useEffect(() => {
     if (handed.get(id) !== taker || !el.current) return
     handed.delete(id)
-    el.current.focus()
+    // Taken only while nothing else has it: a handoff left over (a chat closed and opened again) never steals it.
+    if (focusStillOurs(id)) el.current.focus()
   }, [id, taker, el])
 }
 
@@ -135,7 +146,7 @@ function useMessageAct({ projectId, identity, entry, onActed }: Acting) {
       setStep({ at: 'idle' })
       const acted = actedOf(entry, act, draft, receipt)
       if (acted) onActed(acted)
-      if (focused) handFocus(act, entry.id)
+      if (focused && focusStillOurs(entry.id)) handFocus(act, entry.id)
     } catch (err) {
       failed(act, err, draft, preview)
     }
@@ -287,6 +298,16 @@ function escaped(e: KeyboardEvent<HTMLTextAreaElement>, working: boolean, cancel
 }
 
 /** The message's words in a field: Save, Cancel, Escape. */
+/** Past the room's most, how far: Save waits until the message fits again. */
+function TooLong({ draft }: { draft: string }) {
+  if (barFits('room', draft)) return null
+  return (
+    <span className="bar-count" role="status">
+      {barLength('room', draft)} of {BAR_MOST.room} characters: too long to save.
+    </span>
+  )
+}
+
 function EditForm(props: {
   id: string
   draft: string
@@ -300,13 +321,17 @@ function EditForm(props: {
 }) {
   const field = useRef<HTMLTextAreaElement>(null)
   useEffect(() => field.current?.focus(), [])
+  // The room's own count, in characters (bar-length.ts), never the field's maxLength, which counts UTF-16 units and
+  // would refuse a message of fewer characters made of astral ones (Codex P2 on #409, r4313394205).
+  const over = !barFits('room', props.draft)
+  const held = props.working || props.checking
   return (
     <form
       className="message-edit"
       data-message-acts={props.id}
       onSubmit={(e) => {
         e.preventDefault()
-        if (!props.working && !props.checking) props.onSave()
+        if (!held && !over) props.onSave()
       }}
     >
       <label className="sr-only" htmlFor={`edit-${props.id}`}>
@@ -317,13 +342,14 @@ function EditForm(props: {
         id={`edit-${props.id}`}
         value={props.draft}
         rows={2}
-        maxLength={4000}
+        aria-invalid={over || undefined}
         readOnly={props.working || props.checking}
         onChange={(e) => props.onDraft(e.target.value)}
         onKeyDown={(e) => escaped(e, props.working, props.onCancel)}
       />
       <span className="message-edit-actions">
-        <button className="pill primary" type="submit" aria-disabled={props.working || props.checking || undefined}>
+        <TooLong draft={props.draft} />
+        <button className="pill primary" type="submit" aria-disabled={held || over || undefined}>
           {props.working ? 'Saving…' : 'Save'}
         </button>
         <button

@@ -9,8 +9,10 @@ import { arriveWithMicrophone, enterCall, switchMicrophone, useTypedChat } from 
 import { useEffect, useRef, useState } from 'react'
 import type { RoomToken, Snapshot } from '@sophia/contracts'
 import { ApiError, issueRoomToken } from '../../api/client.ts'
-import { CALL_END, keepsTextMode, type CallEnd } from './call-end.ts'
+import { useOnline } from '../personal/online.ts'
+import { CALL_END, keepsTextMode, keptNote, noteFor, OFFLINE_END, type CallEnd } from './call-end.ts'
 import { CallFence } from './call-fence.ts'
+import { switchCamera } from './camera-flip.ts'
 import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts'
 import { rememberBackground, type BackgroundId } from './background-preference.ts'
 import { rememberDevice, type DeviceKind, type MediaDevice } from './device-preference.ts'
@@ -217,6 +219,19 @@ function deviceSwitch(connection: { current: RoomConnection | null }, say: (note
     say(null)
     return true
   }
+}
+
+/**
+ * The room's device switch, each camera switch in the call that went live at `liveSince` told to your tile's presses,
+ * whichever control made it: Video settings, which a phone turned sideways shows, or the tile itself. The next press
+ * goes on from the camera the call is on (camera-flip.ts; Codex P2 on #464).
+ */
+function tellingCamera(
+  switchDevice: ProjectRoom['switchDevice'],
+  liveSince: number | null,
+): ProjectRoom['switchDevice'] {
+  return (kind, id) =>
+    kind === 'videoinput' ? switchCamera(liveSince, id, () => switchDevice(kind, id)) : switchDevice(kind, id)
 }
 
 /**
@@ -550,28 +565,55 @@ const relaysOf = (calls: CallFence<RoomConnection>) => ({
   sophiaLevel: () => calls.current?.sophiaLevel() ?? 0,
 })
 
-/** Null `issue` while nobody may join yet (the project has not loaded): Join waits. */
+/**
+ * The room's note as the browser's connection stands (noteFor, costuras seam #8): a call lost offline says so, and once
+ * the network is back, that Try again rejoins. The call stays lost until a join gets back in: offline meanwhile, a join
+ * (Try again, Chat with Sophia) asks for nothing, since it could reach nothing, and a join that failed offline keeps
+ * the offline note (keptNote), whatever an earlier try said.
+ */
+function useRoomNote() {
+  const [note, setNote] = useState<string | null>(null)
+  const lost = useRef(false)
+  const online = useOnline()
+  return {
+    error: noteFor(note, online),
+    setError: (next: string | null) => {
+      if (next === CALL_END.dropped.note) lost.current = true
+      setNote(keptNote(next, { online: navigator.onLine, lost: lost.current }))
+    },
+    joinOnline:
+      (join: ProjectRoom['join']) =>
+      async (options?: JoinOptions): Promise<boolean> => {
+        if (!navigator.onLine && lost.current) {
+          setNote(OFFLINE_END)
+          return false
+        }
+        const inCall = await join(options)
+        if (inCall) lost.current = false
+        return inCall
+      },
+  }
+}
+
+/** Who the call shows now: its people, feeds, Sophia and whether audio waits for a press; nobody out of a call. */
+const peopleOf = (c: RoomConnection | null): People =>
+  c ? { participants: c.participants(), feeds: c.feeds(), sophia: c.sophia(), audioBlocked: c.audioBlocked() } : NOBODY
+
+/**
+ * Null `issue` while nobody may join yet (the project has not loaded): Join waits. `calls` is the call, and which join
+ * is current: an 'ended' from a call this person already left is expected, not a drop; a join that Leave, the page
+ * going away or a newer join overtook is left as soon as it connects.
+ */
 export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
-  /**
-   * The call, and which join is current. An 'ended' from a call this person already left is expected, not a drop;
-   * a join that Leave, the page going away or a newer join overtook is left as soon as it connects.
-   */
   const [calls] = useState(() => new CallFence<RoomConnection>())
   const [status, setStatus] = useState<DockStatus>('idle')
-  const [error, setError] = useState<string | null>(null)
+  const { error, setError, joinOnline } = useRoomNote()
   const [people, setPeople] = useState<People>(NOBODY)
   const joining = useRef<Promise<boolean> | null>(null)
 
   useEffect(() => () => void calls.end(), [calls])
 
-  const refresh = () => {
-    const c = calls.current
-    setPeople(
-      c
-        ? { participants: c.participants(), feeds: c.feeds(), sophia: c.sophia(), audioBlocked: c.audioBlocked() }
-        : NOBODY,
-    )
-  }
+  const refresh = () => setPeople(peopleOf(calls.current))
   const { clearNote, arrive, silence, ...devices } = useDevices(calls, refresh)
   const { choices, resetChoices } = useCallChoices(calls)
   const typedChat = useConversation(calls, silence)
@@ -615,8 +657,10 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     status,
     error,
     ...joined,
+    join: joinOnline(joined.join),
     ...people,
     ...devices,
+    switchDevice: tellingCamera(devices.switchDevice, joined.liveSince),
     ...choices,
     setMicrophone,
     ...conversationParts(typedChat),

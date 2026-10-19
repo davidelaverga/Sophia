@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError, getSnapshot } from '../../api/client.ts'
 import { followEvents } from '../../api/stream.ts'
 import { applyFrame, initialFeed, rebase, type Feed } from '../../projectors/projection.ts'
-import { ACTS, contributionChanged, feedResynced, feedStopped, ownerOf } from '../conversation/held-pages.ts'
+import { ACTS, contributionChanged, ERASING, feedResynced, feedStopped, ownerOf } from '../conversation/held-pages.ts'
 import { runFeedLoop, type Connection, type FeedPorts } from './feed-loop.ts'
 import { closedDoor, staleRetry } from './project-door.ts'
 
@@ -50,7 +50,7 @@ function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => void } {
       // beyond the feed's bounded recent list (held-pages.ts).
       const took = !next.needsSnapshot && next.cursor !== before.cursor
       if (took && 'entityId' in frame && frame.entityType === 'contribution' && ACTS.has(frame.type))
-        contributionChanged(deps.owner, frame.entityId)
+        contributionChanged(deps.owner, frame.entityId, ERASING.has(frame.type))
       deps.store(next)
       return next
     },

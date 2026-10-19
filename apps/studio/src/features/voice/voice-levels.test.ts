@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { RoomEvent, type Room } from 'livekit-client'
-import { voiceLevels, type Tapper } from './voice-levels.ts'
+import { connectWithLevels, voiceLevels, type Tapper } from './voice-levels.ts'
 
 /** A microphone track as far as a tap reads it: how loud it is now. */
 const track = (level: number) => ({ level }) as unknown as MediaStreamTrack & { level: number }
@@ -136,5 +136,125 @@ describe('voices’ levels in the call (docs/plans/voice-amplitude.md)', () => {
       close: () => undefined,
     }))
     assert.equal(broken.voiceLevel('ana'), 0)
+  })
+})
+
+/**
+ * Safari's rule, as a tap maker plays it: a context made or resumed outside a press stays suspended and reads 0; one
+ * made or resumed within a press runs. `press` runs what a press would.
+ */
+function safari() {
+  let pressing = false
+  const press = (act: () => void) => {
+    pressing = true
+    act()
+    pressing = false
+  }
+  const make = (): Tapper => {
+    let running = pressing
+    return {
+      tap: (t) => ({
+        level: () => (running ? (t as MediaStreamTrack & { level: number }).level : 0),
+        stop: () => undefined,
+      }),
+      resume: () => {
+        if (pressing) running = true
+      },
+      close: () => undefined,
+    }
+  }
+  return { press, make }
+}
+
+describe('in Safari the levels’ context is made or woken within a press (orb-follow-ups.md)', () => {
+  it('made within the press that let the room’s sound play, it reads a voice first heard after it', () => {
+    const { press, make } = safari()
+    const { room } = fakeRoom(person('me', null), [person('ana', track(0.6))])
+    const levels = voiceLevels(room, make)
+    press(() => levels.wake())
+    assert.equal(levels.voiceLevel('ana'), 0.6)
+  })
+
+  it('made outside a press, by a voice read before Allow audio, it is woken within Allow audio’s press', () => {
+    const { press, make } = safari()
+    const { room } = fakeRoom(person('me', null), [person('ana', track(0.6))])
+    const levels = voiceLevels(room, make)
+    assert.equal(levels.voiceLevel('ana'), 0)
+    press(() => levels.wake())
+    assert.equal(levels.voiceLevel('ana'), 0.6)
+  })
+
+  it('a room that never connects lets the context made for it go, once, and makes no other', () => {
+    const { made, make } = counting()
+    const { room, emit } = fakeRoom(person('me', null), [person('ana', track(0.6))])
+    const levels = voiceLevels(room, make)
+    levels.wake()
+    levels.end()
+    emit(RoomEvent.Disconnected)
+    levels.wake()
+    assert.deepEqual([made.contexts, made.closes], [1, 1])
+  })
+
+  it('after the call nothing wakes a context into being', () => {
+    const { made, make } = counting()
+    const { room, emit } = fakeRoom(person('me', null), [person('ana', track(0.6))])
+    const levels = voiceLevels(room, make)
+    emit(RoomEvent.Disconnected)
+    levels.wake()
+    emit(RoomEvent.AudioPlaybackStatusChanged, true)
+    assert.equal(made.contexts, 0)
+  })
+})
+
+/**
+ * A room that also connects (`connect`, resolved unless told otherwise) and starts its sound as LiveKit 2.22.3 does: it
+ * says the sound is allowed only after an await (Room.startAudio), never within the press that asked for it.
+ */
+function connecting(others: ReturnType<typeof person>[], connect = () => Promise.resolve()) {
+  const played = fakeRoom(person('me', null), others)
+  const startAudio = async () => {
+    await Promise.resolve()
+    played.emit(RoomEvent.AudioPlaybackStatusChanged, true)
+  }
+  return { ...played, room: Object.assign(played.room, { connect, startAudio }) }
+}
+
+const SERVER = 'wss://room.example.test'
+const TOKEN = 'token'
+
+describe('the room connects with its levels woken where LiveKit’s sound is (connectWithLevels, orb-follow-ups.md)', () => {
+  it('connected within a press, the levels’ context is made in it, before the connect awaits', async () => {
+    const { press, make } = safari()
+    const { room } = connecting([person('ana', track(0.6))])
+    let joined: ReturnType<typeof connectWithLevels> | undefined
+    press(() => {
+      joined = connectWithLevels(room, SERVER, TOKEN, make)
+    })
+    const { levels } = await joined!
+    assert.equal(levels.voiceLevel('ana'), 0.6)
+  })
+
+  it('Allow audio’s press wakes the levels in it: LiveKit says the sound is allowed only after an await', async () => {
+    const { press, make } = safari()
+    const { room } = connecting([person('ana', track(0.6))])
+    const sound = await connectWithLevels(room, SERVER, TOKEN, make)
+    assert.equal(sound.levels.voiceLevel('ana'), 0, 'made outside a press, the context waits')
+    let started: Promise<void> | undefined
+    press(() => {
+      started = sound.startAudio()
+    })
+    await started
+    assert.equal(sound.levels.voiceLevel('ana'), 0.6)
+  })
+
+  it('a connect refused before it starts lets the context made for it go, once, and is said as it came', async () => {
+    const { made, make } = counting()
+    const refused = new Error('LiveKit doesn’t seem to be supported on this browser.')
+    const { room, emit } = connecting([person('ana', track(0.6))], () => Promise.reject(refused))
+    await assert.rejects(connectWithLevels(room, SERVER, TOKEN, make), refused)
+    // LiveKit says no Disconnected for it: the context is let go with the refusal itself.
+    assert.deepEqual([made.contexts, made.closes], [1, 1])
+    emit(RoomEvent.Disconnected)
+    assert.equal(made.closes, 1, 'let go once')
   })
 })
