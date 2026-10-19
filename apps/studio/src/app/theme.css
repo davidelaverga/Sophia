@@ -3977,6 +3977,9 @@ button.contribution-quote:hover {
   display: flex;
   align-items: center;
   gap: 12px;
+  /* As wide as its line, up to the gutters (toast-phone-width.md): from left: 50% it shrank to the half it had, so a
+     phone gave it half the screen and four lines. The translate still centres it. */
+  width: max-content;
   max-width: calc(100% - 2 * var(--gutter));
   overflow: hidden;
   padding: 9px 14px;
