@@ -43,6 +43,18 @@ Read on main 2e151c934 (the report read 787c28fc4; the lines moved, the claims h
   nothing. Sending from the bar ends both the line and the divider.
 - **Steady reading:** the divider is drawn while the reader follows the newest line, so the history keeps to the
   bottom; the line leaving keeps the history's words where they were on screen.
+- **A reply from elsewhere** (review, 2026-10-19): a message the viewer typed, in this tab or on their phone, puts
+  itself and everything before it behind them (`unanswered`, applied at every read while the tab is shown). Marco
+  writes, the viewer answers from the phone: back on the tab, nothing is marked. Written first, then Marco: his is
+  still marked. A turn they spoke in the call reads nothing of the chat and changes nothing. Their own message
+  counted before their membership was read leaves the mark, with what came before it, once it is.
+- **What the feed brings late** (review, 2026-10-19): a phone's page is frozen while another app is in front, a
+  laptop's stream dies in its sleep, so the messages written meanwhile reach the page only after `visibilitychange`.
+  As the tab is shown again the shell reads the snapshot once more (its query's `refetch`), and the absence stays
+  open until a read made since lands (`dataUpdatedAt` at or after the moment of return), that one or the feed's,
+  whichever comes first; what it brings came while away. A read that hasn't come within 5 s is given up. The
+  closing read counts what it brings, so the order in which the query hands data down doesn't matter, and a feed
+  refresh that cancels the catch-up read still ends the absence with the newer data.
 
 ## Checks, written first
 
@@ -63,10 +75,26 @@ Read on main 2e151c934 (the report read 787c28fc4; the lines moved, the claims h
     chat's view with the focus on it and the line goes; hidden and shown again with nothing new, no line;
   - hidden and shown with nothing new: no divider, no line;
   - sending from the bar: the divider goes.
+- **Added after review** (2026-10-19):
+  - unit: answered from another device while hidden, nothing is left; written first, then Marco, his stays; a
+    spoken turn changes nothing; an earlier absence, reached or not, answered after it goes; the viewer known only
+    once shown, their own and what came before it leave;
+  - browser: `say` then `sayElsewhere`, no divider and no line; `sayElsewhere` then `say`, the divider above Marco's;
+  - browser, `holdFeed` (new in the fixture: while on, the events wait as a frozen page's stream holds them): nothing
+    reached the hidden page, back and the divider says «2 messages…»; one counted before the hold and two after, the
+    divider says «3 messages…» (the title still says (1) after the held two, so the late path is the one checked);
+  - browser, reaching by reading: thirty while away, scrolled down to the divider without Jump, the line goes and
+    stays gone back at the newest; the divider seen as the chat opens, reading back up brings no line; the chat open
+    and read far back while hidden, the line shows and Jump goes down to the divider.
 
 ## Limits
 
 - Only the room's chat marks it. Another view (Goals, Tasks) says nothing; the divider waits there for the room.
-- A message of the viewer's own counted before their membership was read, and still unknown as the tab is shown, is
-  counted in the line, as it is in the title meanwhile.
+- A message of the viewer's own counted before their membership was read is counted in the line while their
+  membership stays unknown, as it is in the title meanwhile; once it is known, it leaves with what came before it.
 - With the divider already in view as the tab is shown, nothing is announced: the divider is read where it stands.
+- The title's count while the tab is hidden is as #463 left it: a message the viewer has already answered from their
+  phone still counts there until the tab is shown.
+- One more snapshot read each time the tab is shown. The Studio's other reads already refresh on return (the query
+  library's focus refetch); the snapshot was left to its feed.
+- A read made on return that takes longer than 5 s is given up: what reaches the page after that is seen, as before.

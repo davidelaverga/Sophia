@@ -11,12 +11,10 @@ Runtime unit: Luis's Windows host (Playwright through `.claude-guards/safe-run.p
 record.
 Existing authority: Luis 2026-10-18, «Que sigue>»; local only, nothing pushed; merges on green with no open P1 once
 pushed.
-Ending commit/tree: `72124e89eff8` (tree `48a64a5fe45f`), the last commit of `seams/messages-while-away`'s own that changes
-code (the next one adds only this record). 9 files changed against `2e151c934` at that commit:
-`e2e/unread-title.spec.ts`, `src/app/theme.css`, `src/features/conversation/Composer.tsx`,
-`src/features/conversation/Conversation.tsx`, `src/features/conversation/WhileAway.tsx`,
-`src/features/conversation/unread-title.test.ts`, `src/features/conversation/unread-title.ts`,
-`src/features/studio/ProjectShell.tsx`, `docs/plans/messages-while-away.md`. One branch, one PR when Luis says.
+Ending commit/tree: round 1 ended at `72124e89eff8` (tree `48a64a5fe45f`). Round 2, the review's three P2s, ends at
+`196fe37a0`, the last commit that changes code (the next one updates only this record and the plan). 11 files
+changed against `2e151c934` there: round 1's nine and `fixtures/fixture-api.ts`, `fixtures/room.tsx` (the `holdFeed`
+lever). One branch, one PR when Luis says.
 
 ## Outcome
 
@@ -29,6 +27,10 @@ code (the next one adds only this record). 9 files changed against `2e151c934` a
   Jump; hidden and shown with nothing new adds nothing; sending from the bar ends the line and the divider. Kept past a
   visit to another view, not across a reload. The viewer's own messages still don't count (#463). The title's count is
   unchanged.
+- Round 2: a reply the person sends from their phone while the tab is hidden puts what came before it behind them, so
+  back on the tab no divider sits above a message they already answered. Messages the feed delivers only after the
+  tab is shown (a phone's frozen page, a woken laptop) are marked too: the tab reads the snapshot once more on return,
+  and the absence closes on the first read that lands after it.
 
 ## Evidence
 
@@ -54,6 +56,35 @@ code (the next one adds only this record). 9 files changed against `2e151c934` a
   over thirty, and the divider after Jump, focused from the keyboard. No horizontal overflow on the page, the panel, the
   line or the divider (0 px each). In the session's scratchpad, `seams-messages-while-away/`.
 
+- **Round 2, the review's three P2s** (all verified real against the code, see Decisions):
+  - commits, in order: `610a65d95` reach-by-reading tests; `5811413f7` failing tests for the reply from elsewhere and
+    the late feed, with the fixture's `holdFeed`; `12b5395d9` the reply fix; `5ecaaa9d7` the held-feed cases made to
+    wait for the reads already on their way; `196fe37a0` the late-feed fix;
+  - reach by reading (`610a65d95`): the three cases pass on the branch. The two mutants the review named were run
+    against the whole spec: without `if (seen) reach(open)`, the reading case and the opened-in-view case fail
+    («Expected: 0 Received: 1» on the line, log `pw-logs/seam10-r2-mutant1.txt`); without the history's scroll
+    listener, the reading case fails the same way (`seam10-r2-mutant2.txt`); restored after;
+  - red at `5811413f7`: unit, the three new cases fail on their assertions, e.g. «answered from another device…»
+    `actual: { ids: [ 'a' ], reached: false }, expected: null`, and «the viewer known only once the tab is shown…»
+    `actual: { ids: [ 'a', 'm', 'b' ] …}, expected: { ids: [ 'b' ] …}`; e2e detached, 3 failed and 13 passed: the
+    reply case on `toHaveCount(0)` for /came while you were away/ («Received: 1»), the two held-feed cases on
+    `toBeVisible()` for «2 messages…» and «3 messages…» («element(s) not found»), log `seam10-r2-red.txt`;
+  - red at `5ecaaa9d7` (reply fixed, late feed not): 2 failed, 14 passed, the two held-feed cases on the divider's
+    count (lines 305 and 326), log `seam10-r2-red-2.txt`. The first held-feed run had shown a stray read: the page's
+    first events refresh the snapshot once more a moment after it opens, and when that landed after the held
+    messages the hidden page counted them the usual way; the cases now wait for it, and the second checks the title
+    still says (1) after the held two;
+  - green at `196fe37a0`: unit `unread-title.test.ts` 15/15; the Studio suite 1781/1783, the two failures the known
+    Windows ones (`attention.test.ts`, `browser-imports.test.ts`); e2e `unread-title` 16/16, and with its neighbours
+    (`chat-times`, `discussion-earlier`, `message-format`, `message-links`, `room-chat-replies`, `room-discussion`,
+    `studio-links-in-place`, `decision-alert`, `resources`, `voice-chat`, `room`, `push-to-talk`, `knock-alert`)
+    201/201, log `seam10-r2-neighbours.txt`; whole-repo `oxlint --type-aware`, `tsc --noEmit -p apps/studio` and
+    Prettier on every touched non-docs file: clean;
+  - captures (throwaway spec, deleted), 1280×800 dark and the 390×844 phone in light, in
+    `seams-messages-while-away/round-2/`: the held feed's divider counting all three, the reply from elsewhere with
+    nothing marked, the divider read down to with the line gone. 0 px horizontal overflow on the page, the chat
+    panel, its history and the divider in each.
+
 ## Decisions and changes
 
 - **The report's «in the chat's header when the chat is closed»:** closed, the side panel draws nothing, header
@@ -73,13 +104,33 @@ code (the next one adds only this record). 9 files changed against `2e151c934` a
 - **Sending:** the bar tells the chat as a message goes (`Composer`'s `onSend`), whichever way it goes.
 - **Class names:** `while-away-line` and `while-away-divider`; Resources already has its own `.away-line`, which the
   first capture showed squeezing this one.
+- **Round 2, a reply from elsewhere:** real. `withUnseen` drops only the viewer's own messages and `sent` was wired
+  only to this tab's bar. Now `unanswered`, applied at every read while the tab is shown, drops the viewer's last
+  typed message and all before it from what came (one that left the snapshot came before); an absence left empty is
+  gone. Done at the shown reads only, so the title's count while hidden stays as #463 left it (its own unit test
+  still holds). Spoken turns are left out: speaking in the call reads nothing of the chat.
+- **Round 2, the late feed:** real. Messages reach the snapshot only through the feed's events (`useProjectFeed.ts`,
+  the 120 ms refresh after an event; `refetchOnWindowFocus: false`; reconnects wait the backoff in `feed-loop.ts`),
+  so a frozen page's queued events land after the tab is shown and were taken as seen. Chosen fix: on return the
+  shell reads the snapshot once more (`refetch`), and the absence stays open until a read completed after the return
+  (`dataUpdatedAt` ≥ the moment of return), capped at 5 s. Not the refetch's own promise: the query hands data down
+  on a later timer, and an event refresh can cancel that read, so the first read to land, whichever it is, ends the
+  absence, and the closing read itself counts what it brings. The review's alternative (wait for the feed to be live
+  again) was not taken: a frozen page's feed still says live, and the read on return is the truth either way.
+- **Round 2, reaching by reading:** real gap in the tests, not in the code; covered by three browser cases and shown
+  to catch both mutants.
 
 ## Remaining obligations
 
 - Only the room's chat marks it; another view says nothing, and the divider waits for the room.
 - With the divider already in view as the tab is shown, nothing is announced; the divider is read where it stands.
-- A message of the viewer's own counted before their membership was read, and still unknown as the tab is shown,
-  counts in the line, as it does in the title meanwhile.
+- A message of the viewer's own counted before their membership was read counts in the line while the membership
+  stays unknown, as it does in the title meanwhile; once known, it leaves with what came before it.
+- The title's count while the tab is hidden still counts a message the viewer already answered from their phone, as
+  #463 left it; a follow-up if Luis wants the title to match.
+- One more snapshot read each time the tab is shown; a read on return slower than 5 s is given up, and what comes
+  after it is seen.
+- The branch was cut from `origin/main` `2e151c934`, which has moved on since; nothing was merged forward.
 
 ## Next bounded action
 
