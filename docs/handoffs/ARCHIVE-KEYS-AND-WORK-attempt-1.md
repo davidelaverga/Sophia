@@ -13,8 +13,8 @@ Runtime unit: Luis's Windows host (Playwright through the session's guard `pw.ps
 two workers); CI as the run on record.
 Existing authority: Luis 2026-10-19, as quoted; local only, nothing pushed; merges on green with no open P1 once
 pushed.
-Ending commit: `0cfcd3518`, the last commit that changes code or checks (the review round); the next one updates only
-this record and the plan. First round ended at `0431dbbf6`. One branch, local; it can join the next batch PR.
+Ending commit: `478c98120`, the last commit that changes code or checks (Codex's P2 on #469); the next one updates only
+this record. The review round ended at `0cfcd3518`, the first round at `0431dbbf6`. One branch, local; it can join the next batch PR.
 
 ## Outcome
 
@@ -23,6 +23,9 @@ this record and the plan. First round ended at `0431dbbf6`. One branch, local; i
   write instead of recording a second.
 - In Work's «Archived», Unarchive now waits on its row: «Bringing back…», marked `aria-disabled`, and a second press
   sends nothing. A failure is said under the row until the next press, instead of a toast that goes.
+- Inside a project, «Archive project…» is offered only once the project is known not archived. While the archived list
+  loads, or when it can't be read, an admin of an archived project is no longer offered an Archive that would end the
+  call and send them to Work.
 - When the archived list can't be read, Work says «Couldn’t load your archived projects.» where «Archived» goes, with
   Try again, instead of drawing nothing as if none were archived. Inside a project nothing changes.
 
@@ -77,6 +80,21 @@ this record and the plan. First round ended at `0431dbbf6`. One branch, local; i
     `archive-keys-review-1.txt`; tsc, Prettier and whole-repo oxlint clean. Nothing visible changed, so no new
     captures.
 
+- **Codex's P2 on #469 (verified on the branch):** `useIsArchived` answered `?? false`, so while
+  `/projects/archived` loaded, and for good when it failed, the project-name menu offered «Archive project…» to an
+  admin of an archived project; confirming re-sent the idempotent archive and still ran `onArchived` (`props.onLeft`).
+  - plan updated first (`be0ea6bb4`);
+  - written first and failing (`4e462d559`, with the room fixture's new `hold=archived` lever and
+    `fixture.releaseArchived`): `archive-project.spec.ts --grep "Codex on #469"` at the commit, detached: 2 failed,
+    both on `expect(locator).toHaveText(expected)` for the menu, received with `+ "Archive project…"`: the held read
+    (line 114, before release) and the refused read after its retries (line 245). Log `archive-unknown-red.txt`;
+  - fixed (`478c98120`): `useArchiveStatus` answers `archived`, `not-archived` or `unknown` (no data: loading, or
+    failed with nothing read before); the menu offers Archive only on `not-archived`, `ArchivedLine` draws only on
+    `archived`, Work untouched. `archive-project`, `app-auth`, `project-leave`, `project-rename`, `project-activity`
+    through `pw.ps1` on the branch at `478c98120`: 66/66, log `archive-unknown-green.txt`. Unit: the Studio suite
+    1911/1913, the two known Windows failures. tsc, Prettier on every touched non-docs file, whole-repo oxlint: clean.
+    Nothing new is drawn (an item is left out), so no new captures.
+
 ## Decisions and changes
 
 - **Checked against the code first:** the three items held on the branch as the brief quoted them; only the line
@@ -106,6 +124,9 @@ this record and the plan. First round ended at `0431dbbf6`. One branch, local; i
   came with its fix: before it the module didn't exist, and a red that only says «module not found» proves nothing.
   The force press is its own commit (`0431dbbf6`) rather than a rewrite of the test commit, so the red runs keep the
   commits they ran at.
+- **Archive status is three-valued** (#469): `unknown` covers loading and a failure with nothing read before. A
+  failed refetch over data read earlier keeps that data, so the status stays what was last read, as before. The new
+  lever `hold=archived` holds the room fixture's archived reads as `hold=text` holds the report's text.
 - Untouched, as asked: the sheet's Cancel during «Archiving…» and Work's empty state with archived projects.
 
 ## Remaining obligations
@@ -114,6 +135,8 @@ this record and the plan. First round ended at `0431dbbf6`. One branch, local; i
   API answers with the first receipt, and nothing changes. The lists are read again, so the page shows the truth. When
   this person undoes it themselves, the key now goes (review round). Letting go on the feed's `project.archived` /
   `project.unarchived` would close the other admin's case too; not done here.
+- While the archived list can't be read, an admin can't archive from inside the project: Archive comes back once a
+  read answers (on focus, or after a write). The menu doesn't say why; left for later.
 - The store lasts as long as the page and is keyed by account. A reload starts afresh. A retry after signing out and
   back in as the same account is the same write.
 - After Unarchive lands, its row leaves and the focus falls to the page, as before. Take back sends it to Work's
