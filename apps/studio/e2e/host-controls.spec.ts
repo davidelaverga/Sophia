@@ -150,7 +150,7 @@ test('host · «Mute everyone» past six seconds says it is slow, as every Studi
   await expect(head).toHaveCount(0)
 })
 
-test('host · «Mute everyone» refused after every microphone went off still says so (Codex P2 on #369)', async ({
+test('host · «Mute everyone» refused after every microphone went off says what is true (Codex P2 on #369)', async ({
   page,
 }) => {
   await enter(page)
@@ -159,9 +159,27 @@ test('host · «Mute everyone» refused after every microphone went off still sa
   await page.getByRole('button', { name: 'Mute them' }).click()
   await expect.poll(() => served(page)).toContain('mute-all')
   await expect(list(page).getByRole('img', { name: 'Microphone off' })).toHaveCount(2)
-  await expect(page.locator('.people-head').getByRole('alert')).toHaveText('Couldn’t mute everyone. Try again.')
-  // No press is left with no one to mute.
+  // The list shows every microphone off: no «Couldn’t mute», and no «Try again» with nothing to press.
+  await expect(page.locator('.people-head').getByRole('alert')).toHaveText(
+    'Every microphone is off, but the mute wasn’t confirmed.',
+  )
   await expect(page.getByRole('button', { name: /^Mut(e|ing) everyone/ })).toHaveCount(0)
+})
+
+test('host · a refused «Mute everyone» is old news once a microphone is on again: the press comes back alone', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.failAfterMuteAll())
+  await page.getByRole('button', { name: 'Mute everyone' }).click()
+  await page.getByRole('button', { name: 'Mute them' }).click()
+  const head = page.locator('.people-head')
+  await expect(head.getByRole('alert')).toBeVisible()
+  // Marco turns his microphone back on, minutes later: the refusal is not said beside a fresh press.
+  await page.evaluate(() => window.fixture?.unmutes(1))
+  await expect(list(page).locator('li', { hasText: 'Marco' }).getByRole('img', { name: 'Microphone on' })).toBeVisible()
+  await expect(head.getByRole('button', { name: 'Mute everyone' })).toBeVisible()
+  await expect(head.getByRole('alert')).toHaveCount(0)
 })
 
 test('host · an editor has no «Mute everyone»', async ({ page }) => {
