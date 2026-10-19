@@ -14,6 +14,7 @@ import {
   READS,
   staleHeld,
   withPage,
+  windowAliasesOf,
   withoutAliases,
 } from './held-pages.ts'
 
@@ -310,5 +311,13 @@ describe('held aliases of an erased source (r4313704366)', () => {
       [...withoutAliases(held, new Set([id(700)]), new Set([id(9), id(1)])).entries.keys()],
       [id(1), id(3), id(4)],
     )
+  })
+
+  it('in the snapshot’s own window, nothing held, every alias of a source gone is named; the acted, a withdrawn place and other sources are not (4316503664)', () => {
+    const withdrawn = { id: id(9), actorId: id(900), authorName: null, createdAt: at(9), withdrawnAt: at(10) }
+    const window = [src(1, 700), src(2, 700), src(3, 701), src(4, 700, 'reference'), withdrawn]
+    assert.deepEqual(windowAliasesOf(window, new Set([id(700)]), new Set([id(1)])), [id(2), id(4)])
+    assert.deepEqual(windowAliasesOf(window, new Set(), new Set([id(1)])), [])
+    assert.deepEqual(windowAliasesOf(window, new Set([id(799)]), new Set()), [])
   })
 })

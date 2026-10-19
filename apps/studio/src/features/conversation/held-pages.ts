@@ -93,6 +93,15 @@ export function aliasesOf(held: HeldMaps | null, gone: ReadonlySet<string>, acte
   return [...held.entries].filter(([id, e]) => !acted.has(id) && gone.has(e.sourceId)).map(([id]) => id)
 }
 
+/**
+ * The messages in the snapshot's own window, other than those acted on, whose words were kept in a source now gone
+ * (4316503664): none is shown, held pages or not, while the snapshot read since has yet to land, or failed.
+ */
+export function windowAliasesOf(window: readonly Placed[], gone: ReadonlySet<string>, acted: ReadonlySet<string>) {
+  if (gone.size === 0) return []
+  return window.filter((w) => !acted.has(w.id) && 'sourceId' in w && gone.has(String(w.sourceId))).map((w) => w.id)
+}
+
 /** The held pages without those aliases, every one of a batch (r4313704366 F3): never a partial undo. */
 export function withoutAliases<H extends HeldMaps>(held: H, gone: ReadonlySet<string>, acted: ReadonlySet<string>): H {
   const drop = new Set(aliasesOf(held, gone, acted))
@@ -296,6 +305,8 @@ export function useHeldRefresh(input: {
   held: Held | null
   setHeld: (next: (h: Held | null) => Held | null) => void
   window: readonly Placed[]
+  /** A manual «Earlier» read is out: what is learned meanwhile stays new for the page it brings (4316503672). */
+  reading?: boolean
 }): readonly [ReadonlySet<string>, () => string] {
   const { projectId, held, setHeld, window } = input
   const changes = useContributionChanges(ownerOf(input.identity.name, projectId))
@@ -326,7 +337,7 @@ export function useHeldRefresh(input: {
       ),
   )
   const resyncs = useRef(changes.resyncs)
-  const erasure = useErasure(changes, held, window)
+  const erasure = useErasure(changes, held, window, input.reading ?? false)
   useEffect(() => {
     if (changes.resyncs !== resyncs.current) {
       resyncs.current = changes.resyncs
@@ -350,27 +361,43 @@ export function useHeldRefresh(input: {
   }, [changes, erasure, held, projectId, refresher, setHeld, tick, window])
   // A manual «Earlier» read asked before an erasure was learned brings nothing back (F2: a named message's old words too).
   const epoch = () => `${refresher.epoch}:${erasure.generation()}`
-  if (!held) return [NONE_STALE, epoch] as const
+  const inWindow = windowAliasesOf(window, erasure.gone, erasure.acted)
+  if (!held) return [inWindow.length > 0 ? new Set(inWindow) : NONE_STALE, epoch] as const
   // At render (F1): the aliases of a source gone, or every held message while which went is unknown, are not shown.
   const hidden = erasure.unknown ? [...held.entries.keys()] : aliasesOf(held, erasure.gone, erasure.acted)
-  return [new Set([...refresher.fence(changes, held, window), ...hidden]), epoch] as const
+  return [new Set([...refresher.fence(changes, held, window), ...hidden, ...inWindow]), epoch] as const
+}
+
+/**
+ * What each erasure took, told as learned, pages held or not: the window may hold an alias (4316503664). With none
+ * held, a message not shown is told again once a page holds it (its source may be there).
+ */
+function learnGone(
+  known: Map<string, Gone>,
+  erasing: readonly [string, number][],
+  held: HeldMaps | null,
+  window: readonly Placed[],
+) {
+  for (const [id, at] of erasing) {
+    const key = `${id}@${at}`
+    const gone = known.has(key) ? undefined : goneOf(id, held, window)
+    if (gone !== undefined && (held || gone !== 'unknown')) known.set(key, gone)
+  }
 }
 
 /**
  * The erasures learned (r4313704366), as this chat can tell them: the sources gone, the messages acted on, and whether
  * one learned since the last handling has a source unknown here. Read at render, from the held pages as they are.
  */
-function useErasure(changes: Changes, held: HeldMaps | null, window: readonly Placed[]) {
+function useErasure(changes: Changes, held: HeldMaps | null, window: readonly Placed[], reading: boolean) {
   const known = useRef(new Map<string, Gone>())
   const handledAt = useRef(0)
   const erasing = [...(changes.erasing ?? [])]
-  // Told only while pages are held: with none, nothing can show an alias, and the pages a read brings later tell it.
-  if (held)
-    for (const [id, at] of erasing) {
-      const key = `${id}@${at}`
-      if (!known.current.has(key)) known.current.set(key, goneOf(id, held, window))
-    }
-  const latest = held ? Math.max(0, ...erasing.map(([, at]) => at)) : handledAt.current
+  learnGone(known.current, erasing, held, window)
+  // With none held and no read out, what is learned is handled at once: the first page read after it is read since,
+  // and is not dropped for it (4316503672). Learned while a manual read is out, it stays new for the page that read
+  // brings, so that page is fenced or let go for it as before (F2).
+  const latest = held || !reading ? Math.max(0, ...erasing.map(([, at]) => at)) : handledAt.current
   const fresh = latest > handledAt.current
   const gone = new Set<string>()
   let unknown = false
