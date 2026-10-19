@@ -47,6 +47,17 @@ export function noteFor(note: string | null, online: boolean): string | null {
   return note === CALL_END.dropped.note ? OFFLINE_END : note
 }
 
+/**
+ * What the room keeps of a note said with the browser offline or not (navigator.onLine), and whether a call was lost
+ * with no join back in since: offline, the lost call, and a join after it that failed, keep the offline note (a join
+ * offline could reach nothing, so the note never says the room isn't there). Online, or with no call lost (a Join from
+ * rest), the note is kept as said.
+ */
+export function keptNote(next: string | null, at: { online: boolean; lost: boolean }): string | null {
+  if (next === null || at.online) return next
+  return at.lost || next === CALL_END.dropped.note ? OFFLINE_END : next
+}
+
 /** How the dock says its note: the connection's two politely, as Personal's line; a failure, at once. */
 export const noteRole = (note: string): 'status' | 'alert' =>
   note === OFFLINE_END || note === BACK_ONLINE ? 'status' : 'alert'

@@ -72,7 +72,7 @@ export function useRoomMessage(
     : write.state.status === 'rejected'
       ? write.state.error.message
       : null
-  return { state: write.state.status, words, send }
+  return { state: write.state.status, words, held: unknown ? firstWords(unknown.text) : null, send }
 }
 
 /**

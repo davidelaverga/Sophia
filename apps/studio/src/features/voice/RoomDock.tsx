@@ -66,6 +66,27 @@ function useDockHeight(ref: RefObject<HTMLDivElement | null>) {
   }, [ref])
 }
 
+/**
+ * The room's note (noteRole): a failure said at once, an alert added with its words; the connection's two said
+ * politely, from a line there before it speaks (a live region added with its words is often not read), out of sight
+ * while it says nothing.
+ */
+export function DockNote({ note, className }: { note: string | null; className: string }) {
+  const polite = note !== null && noteRole(note) === 'status'
+  return (
+    <>
+      {note && !polite && (
+        <p className={className} role="alert">
+          {note}
+        </p>
+      )}
+      <p className={polite ? className : 'sr-only'} role="status">
+        {polite ? note : null}
+      </p>
+    </>
+  )
+}
+
 export function RoomDock(props: Props) {
   const { room } = props
   const live = room.status === 'live' || room.status === 'reconnecting'
@@ -81,11 +102,7 @@ export function RoomDock(props: Props) {
       <div ref={wrap} className="dock-wrap">
         <LookingIndicator text={props.sophia.looking} />
         {/* What stopped a device, or why this person is out of the call: a failed join, or a call that ended. */}
-        {note && (
-          <p className="dock-note" role={noteRole(note)}>
-            {note}
-          </p>
-        )}
+        <DockNote note={note} className="dock-note" />
         {/* Speech on a muted microphone (muted-speech.md): said while it is still off. */}
         {live && room.mutedHint && !micOn && (
           <p className="dock-note" role="status">

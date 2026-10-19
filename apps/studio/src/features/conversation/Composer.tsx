@@ -25,7 +25,7 @@ import { useBarTarget, useRoomMessage } from './useRoomMessage.ts'
 import { getSnapshot } from '../../api/client.ts'
 import { startExchange } from '../../api/exchange.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { OFFLINE_UNSENT, useOnline } from '../personal/online.ts'
+import { offlineWords, useOnline } from '../personal/online.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
 import { OFFLINE_END } from '../voice/call-end.ts'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
@@ -334,14 +334,22 @@ interface FootLineProps {
 }
 
 /**
- * What the bar's line says of the room's message. Offline (navigator.onLine false; a true proves nothing), that
- * nothing goes, before any press and in place of «Not confirmed», with no Try again that could only wait; said once,
- * so not when the room's note above already says the call ended offline (costuras seam #8).
+ * What the bar's line says of the room's message. Offline (navigator.onLine false; a true proves nothing), what waits
+ * (offlineWords) in place of what it said, with no Try again that could only wait. Said once: when the room's note
+ * above already says the call ended offline, the bar adds no line of its own, and of a held message says only that it
+ * isn't confirmed (costuras seam #8).
  */
-function useFootWords(toRoom: { words: string | null; state: string }, roomNote: { text: string } | null) {
+function useFootWords(
+  toRoom: { words: string | null; state: string; held: string | null },
+  draft: string,
+  roomNote: { text: string } | null,
+) {
   const online = useOnline()
   if (online) return { online, words: toRoom.words, unknown: toRoom.state === 'unknown' }
-  return { online, words: roomNote?.text === OFFLINE_END ? null : OFFLINE_UNSENT, unknown: false }
+  if (roomNote?.text === OFFLINE_END)
+    return { online, words: toRoom.held === null ? null : toRoom.words, unknown: false }
+  const waits = offlineWords({ going: toRoom.state === 'sending', held: toRoom.held, written: draft.trim() !== '' })
+  return { online, words: waits ?? toRoom.words, unknown: false }
 }
 
 /** One line above the bar for what the room's message or a held one needs. */
@@ -398,7 +406,7 @@ export function Composer(props: Props) {
     void room.setTextMode(false)
     field.current?.focus({ preventScroll: true }) // the pressed link goes; the focus stays at the bar
   }
-  const foot = useFootWords(toRoom, error)
+  const foot = useFootWords(toRoom, draft, error)
   const sending = sendingTo(target, { chat, toRoom, starting, draft, online: foot.online })
   return (
     <div className="composer">

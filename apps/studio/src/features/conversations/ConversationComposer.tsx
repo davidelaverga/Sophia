@@ -17,7 +17,7 @@ import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
-import { OFFLINE_UNSENT, useOnline } from '../personal/online.ts'
+import { offlineWords, useOnline } from '../personal/online.ts'
 import {
   firstWords,
   lastSaid,
@@ -156,15 +156,26 @@ function useMessageWrite(props: Props, askSophia: boolean) {
   const quick = async (words: string) =>
     online && !write.busy && props.canSend && !write.unknown ? await send(words, true, false) : null
   const offline = !online && props.canSend
-  const words = lineOf(write.unknown, write.refused, offline)
-  return { busy: write.busy, ready, go, quick, words, held: write.unknown, offline }
+  const line = lineOf(write, offline, draft)
+  return { busy: write.busy, ready, go, quick, ...line, held: write.unknown, offline }
 }
 
-/** What the field's line says: offline, that nothing goes, in place of «Not confirmed»; else what the last press met. */
-function lineOf(unknown: MessageAsk | null, refused: string | null, offline: boolean): string | null {
-  if (offline) return OFFLINE_UNSENT
-  if (unknown) return `Not confirmed: “${firstWords(unknown.text)}”. Send sends it again; it won’t be written twice.`
-  return refused
+/**
+ * What the field's line says, and whether politely: offline, what waits (offlineWords), in place of what the last press
+ * met; else that press's end.
+ */
+function lineOf(
+  write: { busy: boolean; unknown: MessageAsk | null; refused: string | null },
+  offline: boolean,
+  draft: string,
+): { words: string | null; polite: boolean } {
+  const held = write.unknown ? firstWords(write.unknown.text) : null
+  const waits = offline ? offlineWords({ going: write.busy, held, written: draft.trim() !== '' }) : null
+  if (waits) return { words: waits, polite: true }
+  if (held !== null) {
+    return { words: `Not confirmed: “${held}”. Send sends it again; it won’t be written twice.`, polite: false }
+  }
+  return { words: write.refused, polite: false }
 }
 
 /** Under the field: who the message goes to (Sophia only where she answers here), and how Enter sends. */
@@ -251,7 +262,7 @@ function FieldBox(props: {
 
 export function ConversationComposer(props: Props) {
   const { draft, onDraft } = props
-  const { busy, ready, go, quick, words, held, offline } = useMessageWrite(props, props.askSophia)
+  const { busy, ready, go, quick, words, polite, held, offline } = useMessageWrite(props, props.askSophia)
   // With no reply, the box says what the held message asked, and stays so until it is answered.
   const asks = held?.askSophia ?? props.askSophia
   // A message on its way (sending, or held with no reply) quiets the field's suggestions (Codex on #265).
@@ -296,18 +307,28 @@ export function ConversationComposer(props: Props) {
         />
       )}
       <Hint asks={asks} answers={props.answers} />
-      <Note words={words} slow={slow} polite={offline} />
+      <Note words={words} slow={slow} polite={polite} />
     </form>
   )
 }
 
-/** Under the field: what the last press met, or that the wait goes on; offline, that nothing goes, said politely. */
+/**
+ * Under the field: what the last press met, or that the wait goes on, said at once; offline, what waits, said politely
+ * from a line there before it speaks (a live region added with its words is often not read), out of sight while empty.
+ */
 function Note({ words, slow, polite }: { words: string | null; slow: boolean; polite: boolean }) {
-  if (!words && !slow) return null
+  const said = words ?? (slow ? SLOW_NOTE : null)
   return (
-    <p className="conv-note" role={polite ? 'status' : 'alert'}>
-      {words ?? SLOW_NOTE}
-    </p>
+    <>
+      {said && !polite && (
+        <p className="conv-note" role="alert">
+          {said}
+        </p>
+      )}
+      <p className={polite ? 'conv-note' : 'sr-only'} role="status">
+        {polite ? said : null}
+      </p>
+    </>
   )
 }
 
