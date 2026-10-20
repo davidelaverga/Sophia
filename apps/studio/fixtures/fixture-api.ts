@@ -99,6 +99,8 @@ const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 
 export const unexpected: string[] = []
 /** What was answered, as `snapshot:2`, `mission:2`: a check can tell an update reached the page. */
 export const served: string[] = []
+/** The «since» reads (A34) this page answered, one a read: what a project's open costs (project-arrival-since.md). */
+export const sinceAsked: string[] = []
 
 /** The project as the API holds it now: the revision moves with each event. */
 interface Project {
@@ -115,6 +117,10 @@ interface Project {
   left?: boolean
   /** The project is archived (A30, `archived=1`): out of the list, in the archived one. */
   archived?: boolean
+  /** The archived list can't be read (`archivedFails=1`): every read of it is refused (503). */
+  archivedFails?: boolean
+  /** The archived list's reads wait (`hold=archived`) until `window.fixture.releaseArchived` lets them through. */
+  archivedHeld?: boolean
   exchange: boolean
   /** The door shut under the shell (`window.fixture.shutDoor`): every snapshot read from now on is refused (403). */
   doorShut?: boolean
@@ -550,6 +556,33 @@ function tokenAnswer(project: Project): Response {
   if (!project.failToken) return json(roomToken)
   project.failToken = false
   return unavailable()
+}
+
+/** A decision at the door (`POST /api/v1/lobby/{entryId}/decision`), by the entry it answers. */
+const DOOR_DECISION = /^\/api\/v1\/lobby\/([0-9a-f-]{36})\/decision$/
+
+/**
+ * The door answered (Let in, Decline, Block), as the API answers it: recorded (`lobby:admit`…), and no one waits any
+ * more, so the snapshot the lobby reads again after it says so (the fixture's door holds one knock at a time).
+ */
+function doorAnswered(project: Project, entryId: string, init: RequestInit | undefined): Response {
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  const decision: unknown = typeof body === 'object' && body !== null ? Reflect.get(body, 'decision') : null
+  served.push(`lobby:${String(decision)}`)
+  project.waiting = false
+  const status = decision === 'admit' ? 'admitted' : decision === 'block' ? 'blocked' : 'denied'
+  return json({ ...waitingAtTheDoor, id: entryId, status, decidedAt: new Date().toISOString() })
+}
+
+/** What the page posts about coming in: a room token, or an answer at the door; undefined for anything else. */
+function doorPosted(
+  project: Project,
+  path: string,
+  init: RequestInit | undefined,
+): Response | Promise<Response> | undefined {
+  if (path === `/api/v1/projects/${PROJECT}/room-token`) return tokenAnswer(project)
+  const entry = DOOR_DECISION.exec(path)?.[1]
+  return entry ? doorAnswered(project, entry, init) : undefined
 }
 
 /** An admin archives the project, or brings it back (A30): recorded, and the lists read it so. */
@@ -1025,11 +1058,27 @@ const MENTION_NEED = (at: string) => ({
 })
 
 /** The person's archived projects (A30): this one, when it is. */
-function archivedListAnswer(project: Project): Response {
-  served.push('projects:archived')
+function archivedList(project: Project): Response {
   const listed = { projectId: PROJECT, title: 'Fixture project', role: project.role ?? membership.role, members: 3 }
   const projects = project.archived && !project.left ? [{ ...listed, room: null, nextSession: null, releases: [] }] : []
   return json({ projects, personalEpoch: 1 })
+}
+
+/** Reads of the archived list the page holds, each waiting to be let through (`window.fixture.releaseArchived`). */
+const heldArchived: (() => void)[] = []
+
+/** The archived list's read: refused while `archivedFails`, recorded so; held while `archivedHeld`. */
+function archivedListAnswer(project: Project): Response | Promise<Response> {
+  served.push(project.archivedFails ? 'projects:archived:refused' : 'projects:archived')
+  if (project.archivedFails) return unavailable()
+  if (!project.archivedHeld) return archivedList(project)
+  return new Promise((resolve) => heldArchived.push(() => resolve(archivedList(project))))
+}
+
+/** Lets the held reads of the archived list through, and every later one. */
+export function releaseArchived(project: Project): void {
+  project.archivedHeld = false
+  for (const release of heldArchived.splice(0)) release()
 }
 
 /** The person's own reads (the projects they are in, what needs them); undefined for any other request. */
@@ -1070,10 +1119,12 @@ function recordsAnswer(project: Project, method: string, url: URL, init: Request
   if (path.startsWith(`${base}/mission`)) return missionAnswer(project, method, path, init)
   if (method === 'GET' && path.startsWith(`${base}/meetings`)) return meetingAnswer(project, path)
   // Home reads it too (home-since-you-looked.md): a project with no meeting has nothing new since its last mark.
-  if (method === 'GET' && path === `${base}/since`)
+  if (method === 'GET' && path === `${base}/since`) {
+    sinceAsked.push(path)
     return json(
       project.meeting ? updatesWindowOf(project.meeting, project.revision) : nothingSince(String(project.revision)),
     )
+  }
   if (project.invitations) return invitationsAnswer(project.invitations, method, path, init, base) ?? undefined
   if (method === 'GET' && path === `${base}/invitations`) return json({ invitations: [] })
   return undefined
@@ -1826,7 +1877,10 @@ const isContribution = (value: unknown): value is { text: string; intent: Contri
   'intent' in value &&
   typeof value.intent === 'string'
 
-/** What the page posts: a room token, a goal's command, the floor passed on, a message to the room, or Sophia asked in. */
+/**
+ * What the page posts: a room token, an answer at the door, a goal's command, the floor passed on, a message to the
+ * room, or Sophia asked in.
+ */
 function posted(project: Project, path: string, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/contributions`) return contributed(project, init)
@@ -1836,7 +1890,8 @@ function posted(project: Project, path: string, init: RequestInit | undefined) {
   const doneOf = TASK_DONE.exec(path)?.[1]
   if (doneOf) return taskDone(project, doneOf, init)
   if (path === `/api/v1/rooms/${ROOM}/meetings/${MEETING}/close`) return meetingClosed(project, init)
-  if (path === `${base}/room-token`) return tokenAnswer(project)
+  const door = doorPosted(project, path, init)
+  if (door) return door
   const own = projectWritten(project, path, init)
   if (own) return own
   if (path === `${base}/commands`) return admitted(project, init)

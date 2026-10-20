@@ -128,7 +128,7 @@ createRoot(root).render(
       <JoinFlow
         auth={{ status: 'signed_in', identity: guest }}
         onChooseDev={() => undefined}
-        onSignOut={() => undefined}
+        onSignOut={() => Promise.resolve(true)}
         onOpenProject={() => undefined}
       />
     </QueryClientProvider>

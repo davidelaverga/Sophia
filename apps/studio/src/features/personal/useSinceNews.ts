@@ -2,8 +2,9 @@
 // project Home shows, where Updates is served (the vision or the attention flag); the news Sophia's sentence says as a
 // visit begins, once per line, project, account and device (features/updates/since-said.ts); and a call's project, read
 // once as the call ends, since what it held was in front of the person, and again while that read hasn't taken: as
-// Home is arrived at, or the browser is online again.
-import { useQueries, useQueryClient, type QueryClient } from '@tanstack/react-query'
+// Home is arrived at, or the browser is online again. And a project's own window as the person arrives in it, said once
+// under its bar by the same memory (project-arrival-since.md).
+import { useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { getSince, type Since } from '../../api/vision.ts'
 import { ATTENTION } from '../../app/attention.ts'
@@ -11,6 +12,7 @@ import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { VISION } from '../../app/vision.ts'
 import {
+  arrivalOf,
   linesOf,
   markPending,
   readerOf,
@@ -19,6 +21,7 @@ import {
   rememberSaid,
   settlePending,
   unsaid,
+  type Arrival,
   type Known,
 } from '../updates/since-said.ts'
 import type { Said } from './places-view.ts'
@@ -185,4 +188,75 @@ export function useCallSeen(identity: Account, call: string | null, enabled = SI
     window.addEventListener('online', retry)
     return () => window.removeEventListener('online', retry)
   }, [client, identity, enabled])
+}
+
+/** What a project's arrival weighs (project-arrival-since.md). */
+export interface ArrivalOptions {
+  /**
+   * The project is drawn, its corner under the bar free: loaded, not refused, no one waiting at the door (whose lobby
+   * floats there). One kept out of sight behind its call is in a call (`inCall`). A line said is over once it isn't:
+   * behind a closed door nothing acts on the project, and a knock takes the corner.
+   */
+  drawn: boolean
+  /** Its room holds a call, or one on its way (joining, or asked as it opens): a call has its sentence and Catch up. */
+  inCall: boolean
+  /** Updates is the view: it says it all, and keeps what it shows. */
+  atUpdates: boolean
+  /** The newcomer's welcome held the place under the bar as the project opened. */
+  welcomed: boolean
+  /** The vision or attention flag by default; a fixture decides for itself. */
+  enabled?: boolean
+}
+
+/** A visit to a project, one per open: reading its window, its line said, or over (nothing said, or no longer). */
+type ArrivalStep = { step: 'reading' } | { step: 'said'; arrival: Arrival } | { step: 'over' }
+
+/** What the window read says to this reader here, kept as soon as it is decided: shown is said. */
+function arrivalNow(identity: Account, projectId: string, window: Since): ArrivalStep {
+  const account = accountOf(identity)
+  const said = arrivalOf(projectId, window, {
+    said: readSaid(account),
+    reader: readerOf(identity.token),
+    pending: readPending(account),
+  })
+  if (!said) return { step: 'over' }
+  rememberSaid(account, said.lines)
+  return { step: 'said', arrival: said }
+}
+
+/** A visit ends at any step with a call or Updates (`ends`), and once said with the project no longer drawn. */
+const overNow = (visit: ArrivalStep, ends: boolean, drawn: boolean) =>
+  visit.step !== 'over' && (ends || (!drawn && visit.step === 'said'))
+
+/**
+ * What a project says as the person arrives in it: what others decided, made and kept since they last looked, once per
+ * window, project, account and device, with Home (since-said.ts). One open, one visit (ProjectShell is keyed by the
+ * project): it reads once the project is drawn, under Home's key and freshness, so an open just after Home reads
+ * nothing, and decides after a commit, so the status that says it is there before its words. Nothing when the visit
+ * begins at Updates or with the welcome, and none is read while someone waits at the door; a call, Updates, a closed
+ * door or a knock ends it, as `dismiss` does. Never polled or retried.
+ */
+export function useArrivalSince(
+  identity: Account,
+  projectId: string,
+  { drawn, inCall, atUpdates, welcomed, enabled = SINCE_SHOWN }: ArrivalOptions,
+) {
+  const [visit, setVisit] = useState<ArrivalStep>(() => ({ step: atUpdates || welcomed ? 'over' : 'reading' }))
+  const ends = inCall || atUpdates
+  if (overNow(visit, ends, drawn)) setVisit({ step: 'over' })
+  const reading = enabled && drawn && !ends && visit.step === 'reading'
+  const read = useQuery({
+    queryKey: homeSinceKey(projectId),
+    queryFn: readOf(identity, projectId),
+    enabled: reading,
+    staleTime: FRESH_MS,
+    retry: false,
+    refetchOnWindowFocus: false,
+  })
+  const settled = read.isFetching ? undefined : read.isError ? null : read.data
+  useEffect(() => {
+    if (!reading || settled === undefined) return
+    setVisit(settled ? arrivalNow(identity, projectId, settled) : { step: 'over' })
+  }, [reading, settled, identity, projectId])
+  return { arrival: visit.step === 'said' ? visit.arrival : null, dismiss: () => setVisit({ step: 'over' }) }
 }
