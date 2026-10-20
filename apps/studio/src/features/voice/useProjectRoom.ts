@@ -11,9 +11,9 @@ import type { RoomToken, Snapshot } from '@sophia/contracts'
 import { ApiError, issueRoomToken } from '../../api/client.ts'
 import { useOnline } from '../personal/online.ts'
 import { CALL_END, joinHeld, keepsTextMode, keptNote, noteFor, type CallEnd } from './call-end.ts'
-import { CallFence } from './call-fence.ts'
+import { CallFence, keptIfStill } from './call-fence.ts'
 import { LIVE_BEAT_MS, Rejoin, rejoinLine, type RejoinStep } from './call-rejoin.ts'
-import { anotherTabInCall, sayInCall } from './call-tabs.ts'
+import { browserTabs } from './call-tabs.ts'
 import { switchCamera } from './camera-flip.ts'
 import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts'
 import { rememberBackground, type BackgroundId } from './background-preference.ts'
@@ -145,12 +145,36 @@ export type IssueToken = () => Promise<RoomToken>
  * they came (a Leave during a try back in, the page going) goes no further, so once its token is back the room never
  * sees it flash in and out. Nor does a join no longer wanted (`still`): a try back in whose token came too late.
  */
-async function openRoom(issue: IssueToken, cb: RoomCallbacks, current: () => boolean, still?: () => boolean) {
+async function openRoom(issue: IssueToken, ports: Pick<JoinPorts, 'scoped'>, cb: RoomCallbacks, gate: Gate) {
   const issued = await issue()
+  ports.scoped(scopeOf(issued))
   const { connectRoom } = await import('./livekit-room.ts')
-  if (!current()) throw new Error('This join was overtaken before it connected')
-  if (still && !still()) throw new Error('This try back in came too late to connect')
-  return connectRoom(issued.serverUrl, issued.token, cb)
+  if (!gate.current()) throw new Error('This join was overtaken before it connected')
+  if (gate.still && !gate.still()) throw new Error('This try back in came too late to connect')
+  // Asked again once connected, before it becomes the call and its microphone starts.
+  return keptIfStill(await connectRoom(issued.serverUrl, issued.token, cb), gate.still)
+}
+
+/** What a join asks before LiveKit: whether it is still the current one, and still wanted (a try back in). */
+interface Gate {
+  current: () => boolean
+  still: (() => boolean) | undefined
+}
+
+/**
+ * The call a token names, for this browser's other tabs (call-tabs.ts): its LiveKit room and the person in it, read
+ * from the token's subject (LiveKit's identity) without trusting it for anything else; the room alone where the token
+ * says none.
+ */
+function scopeOf(issued: RoomToken): string {
+  try {
+    const body = issued.token.split('.')[1] ?? ''
+    const claims: unknown = JSON.parse(atob(body.replace(/-/g, '+').replace(/_/g, '/')))
+    const sub = typeof claims === 'object' && claims !== null && 'sub' in claims ? claims.sub : null
+    return typeof sub === 'string' ? `${issued.roomId}:${sub}` : issued.roomId
+  } catch {
+    return issued.roomId
+  }
 }
 
 /** A kind's devices, through the room's own module: the one import of LiveKit, which the fixtures replace. */
@@ -338,6 +362,8 @@ interface JoinPorts {
   /** False when text mode began while the microphone arrived and it couldn't go off again. */
   arrive: () => Promise<boolean>
   outOfCall: (why: CallEnd | null, selfLeft?: boolean) => void
+  /** The token named the call: its LiveKit room and the person (scopeOf). */
+  scoped: (scope: string) => void
   /** A new call began. */
   onLive: () => void
 }
@@ -392,7 +418,7 @@ async function joinConnection(ports: JoinPorts, options?: JoinOptions, still?: (
   setStatus('joining')
   setError(null)
   try {
-    const opened = await openRoom(issue, heardWhile(current, ports), current, still)
+    const opened = await openRoom(issue, ports, heardWhile(current, ports), { current, still })
     // Left, gone or joined again while this join was under way: it has been left, and the screen stays as it is.
     if (!calls.adopt(call, opened)) return false
     await enterCall({
@@ -659,11 +685,10 @@ function useRoomNote(inCall: () => boolean) {
   }
 }
 
-/** The browser's side of a try back in: its clock, its `online`, its other tabs, and its timers. */
+/** The browser's side of a try back in: its clock, its `online`, and its timers. */
 const BROWSER = {
   now: () => Date.now(),
   online: () => navigator.onLine,
-  elsewhere: anotherTabInCall,
   whenOnline: (back: () => void) => {
     window.addEventListener('online', back, { once: true })
     return () => window.removeEventListener('online', back)
@@ -680,6 +705,8 @@ const BROWSER = {
  */
 function useRejoin(status: DockStatus, join: ProjectRoom['join'], say: (note: string) => void) {
   const [step, setStep] = useState<RejoinStep | null>(null)
+  // This room among this browser's tabs (call-tabs.ts): what it claims is its own.
+  const [room] = useState(() => crypto.randomUUID())
   const latest = useRef({ join, say })
   useEffect(() => {
     latest.current = { join, say }
@@ -689,21 +716,23 @@ function useRejoin(status: DockStatus, join: ProjectRoom['join'], say: (note: st
       new Rejoin({
         ...BROWSER,
         show: setStep,
+        held: (scope) => browserTabs.held(scope),
+        claim: (scope, state) => browserTabs.say(room, scope, state),
         join: (still) => latest.current.join(undefined, still),
         say: (note) => latest.current.say(note),
       }),
   )
-  useEffect(() => () => void rejoin.stop(), [rejoin])
-  // Each room tells this browser's other tabs when it holds the call, so none of their tries takes it (call-tabs.ts).
-  const [room] = useState(() => crypto.randomUUID())
-  const inCall = status === 'live' || status === 'reconnecting'
+  useEffect(
+    () => () => {
+      rejoin.stop()
+      rejoin.status('idle')
+    },
+    [rejoin],
+  )
+  // Each status said to this browser's other tabs, so none of their tries takes this call (call-tabs.ts).
   useEffect(() => {
-    sayInCall(room, inCall)
-    return () => sayInCall(room, false)
-  }, [room, inCall])
-  useEffect(() => {
+    rejoin.status(status)
     if (status !== 'live') return undefined
-    rejoin.live()
     const beat = setInterval(() => rejoin.beat(), LIVE_BEAT_MS)
     return () => clearInterval(beat)
   }, [status, rejoin])
@@ -775,12 +804,12 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   // The join (`joined`) and its try back in (`rejoin`) are made below; a call ends only after that.
   const ended = (why: CallEnd | null, selfLeft: boolean) => rejoin.ended(why, selfLeft)
   const stand = (options: JoinOptions | undefined) => joined.stand(options)
+  const scoped = (scope: string) => rejoin.scoped(scope)
   const say = (note: string | null) => (note === null ? rest() : setError(note))
   const outOfCall = outOfCallFor({ calls, joining, typedChat, stand, reset, setStatus, setError: say, ended })
 
-  const joined = useJoin({ calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall }, joining, () =>
-    devices.setCamera(true),
-  )
+  const ports = { calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall, scoped }
+  const joined = useJoin(ports, joining, () => devices.setCamera(true))
   const join = joinOnline(joined.join)
   const { line, rejoining, rejoin } = useRejoin(status, join, setError)
 

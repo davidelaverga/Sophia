@@ -7,6 +7,16 @@ export interface Leavable {
   leave: () => Promise<void>
 }
 
+/**
+ * A connection a join opened, kept only while the join is still wanted (`still`, a try back in: call-rejoin.md): one no
+ * longer wanted once connected (another tab joined meanwhile, the try too old) is left at once, and the join fails.
+ */
+export function keptIfStill<C extends Leavable>(opened: C, still: (() => boolean) | undefined): C {
+  if (!still || still()) return opened
+  void opened.leave().catch(() => undefined)
+  throw new Error('This join is no longer wanted')
+}
+
 export class CallFence<C extends Leavable> {
   private generation = 0
   /** The call this person is in, if any. */

@@ -2,6 +2,8 @@
 // and what the room says meanwhile. The rule is pure and the try runs on ports, so both are unit-tested;
 // useProjectRoom's useRejoin gives it the room's join, the browser's clock and its `online`.
 import { CALL_END, OFFLINE_REJOIN, REJOINED, REJOINING, type CallEnd } from './call-end.ts'
+import type { ClaimState } from './call-tabs.ts'
+import type { DockStatus } from './room-view.ts'
 
 /**
  * LiveKit's own reconnect policy, written out: livekit-client 2.22.3's DefaultReconnectPolicy defaults, ten tries over
@@ -82,8 +84,10 @@ export interface RejoinPorts {
   show: (step: RejoinStep | null) => void
   now: () => number
   online: () => boolean
-  /** Whether another tab of this browser holds the call (call-tabs.ts). */
-  elsewhere: () => boolean
+  /** Whether another tab of this browser holds the call `scope` (the LiveKit room and the person), or joins it. */
+  held: (scope: string) => boolean
+  /** Tells this browser's other tabs where this room stands in the call `scope` (call-tabs.ts). */
+  claim: (scope: string, state: ClaimState | null) => void
   /** Calls `back` once the browser is online again; returns how to stop listening. */
   whenOnline: (back: () => void) => () => void
   /** Calls `run` after `ms`; returns how to cancel it. */
@@ -104,9 +108,35 @@ export class Rejoin {
   private triedAt: number | null = null
   private round = 0
   private cancel: () => void = nothing
+  /** The call this room was in or joins (the LiveKit room and the person), once a token named it; and where it stands. */
+  private scope: string | null = null
+  private standing: ClaimState | null = null
 
   constructor(ports: RejoinPorts) {
     this.ports = ports
+  }
+
+  /** The room's token named the call: its LiveKit room and the person in it. */
+  scoped(scope: string): void {
+    this.scope = scope
+    this.claim(this.standing)
+  }
+
+  /** The room's status moved: told to the other tabs (joining, in the call, or out), and a live call is seen now. */
+  status(status: DockStatus): void {
+    if (status === 'live') this.live()
+    const inCall = status === 'live' || status === 'reconnecting'
+    this.claim(status === 'joining' ? 'joining' : inCall ? 'in' : null)
+  }
+
+  private claim(state: ClaimState | null): void {
+    this.standing = state
+    if (this.scope !== null) this.ports.claim(this.scope, state)
+  }
+
+  /** Whether another tab of this browser holds this room's call, or joins it. */
+  private elsewhere(): boolean {
+    return this.scope !== null && this.ports.held(this.scope)
   }
 
   /** The call went live: a join, or LiveKit's own reconnect. */
@@ -125,9 +155,9 @@ export class Rejoin {
    */
   ended(why: CallEnd | null, selfLeft = false): void {
     this.stop()
-    const { now, online, elsewhere } = this.ports
+    const { now, online } = this.ports
     const at = { why, online: online(), now: now(), seen: this.seen, triedAt: this.triedAt }
-    const plan = rejoinPlan({ ...at, selfLeft, elsewhere: elsewhere() })
+    const plan = rejoinPlan({ ...at, selfLeft, elsewhere: this.elsewhere() })
     if (plan === 'now') this.tryOnce()
     if (plan === 'online') this.waitForNetwork()
   }
@@ -156,10 +186,13 @@ export class Rejoin {
     const triedAt = this.ports.now()
     this.triedAt = triedAt
     this.show('trying')
+    // Said before the token is asked for, so a tab joining meanwhile knows of it.
+    this.claim('joining')
+    // A clock set back since the try began reads as stale too: its age is no longer known.
     const still = () => {
       const now = this.ports.now()
-      const fresh = now - triedAt <= TRY_FRESH_MS && withinWindow(this.seen, now)
-      return round === this.round && fresh && !this.ports.elsewhere()
+      const fresh = now >= triedAt && now - triedAt <= TRY_FRESH_MS && withinWindow(this.seen, now)
+      return round === this.round && fresh && !this.elsewhere()
     }
     // A join that throws is a try that failed, said as one.
     void this.ports
@@ -188,7 +221,7 @@ export class Rejoin {
     const unlisten = this.ports.whenOnline(() => {
       if (round !== this.round) return
       over()
-      if (withinWindow(this.seen, this.ports.now()) && !this.ports.elsewhere()) this.tryOnce()
+      if (withinWindow(this.seen, this.ports.now()) && !this.elsewhere()) this.tryOnce()
       else this.show(null)
     })
     const left = (this.seen ?? 0) + REJOIN_WINDOW_MS - this.ports.now()

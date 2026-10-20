@@ -178,8 +178,9 @@ export function RejoinLeave({ room }: { room: ProjectRoom }) {
 }
 
 /**
- * The focus on this Leave when the try gets back in goes on to the call's own Leave (`data-dock-key`), drawn in its
- * place, instead of to the page. Read before the button leaves the page, so the focus is still known.
+ * The focus on this Leave when the try ends goes on to the call's own Leave (`data-dock-key`), drawn in its place, or
+ * to Try again when the try failed, instead of to the page. Read before the button leaves the page, so the focus is
+ * still known.
  */
 function useFocusOnToLeave(button: RefObject<HTMLButtonElement | null>) {
   useLayoutEffect(() => {
@@ -187,9 +188,12 @@ function useFocusOnToLeave(button: RefObject<HTMLButtonElement | null>) {
     return () => {
       if (!el || document.activeElement !== el) return
       const dock = el.closest('.dock-wrap, .mini-dock')
-      requestAnimationFrame(() =>
-        dock?.querySelector<HTMLElement>('[data-dock-key="leave"]')?.focus({ preventScroll: true }),
-      )
+      // Back in, the call's Leave; a try that failed, Try again.
+      requestAnimationFrame(() => {
+        const next = dock?.querySelector<HTMLElement>('[data-dock-key="leave"]:not(:disabled)')
+        const anchor = dock?.querySelector<HTMLElement>('[data-call-anchor]:not(:disabled)')
+        ;(next ?? anchor)?.focus({ preventScroll: true })
+      })
     }
   }, [button])
 }
