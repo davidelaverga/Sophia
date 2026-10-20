@@ -132,6 +132,7 @@ export interface RoomCallbacks {
   onChange: () => void
   onStatus: (status: RoomStatus) => void
   /** The call is over, and why (call-end.ts). Leaving on purpose ends it too; the caller knows it asked. */
+  /** `selfLeft`: LiveKit left the room itself (CLIENT_INITIATED), as on `pagehide` or `freeze`, not a lost link. */
   onEnded: (why: CallEnd, selfLeft?: boolean) => void
 }
 
@@ -464,7 +465,9 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
   stopsWhenHostStops(room)
   room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
     audio.clear()
-    cb.onEnded((reason !== undefined && ENDS[reason]) || 'dropped')
+    // LiveKit leaving by itself (the page hidden for good, or frozen) reads as a lost connection, said so, but never
+    // tried back on its own (call-rejoin.md).
+    cb.onEnded((reason !== undefined && ENDS[reason]) || 'dropped', reason === DisconnectReason.CLIENT_INITIATED)
   })
   listenToSophia(room, cb)
   listenToReactions(room, (heard) => cb.onReaction?.(heard))

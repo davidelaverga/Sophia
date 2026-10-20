@@ -17,7 +17,7 @@ export const REJOIN_WINDOW_MS = 120_000
 export const LIVE_BEAT_MS = 5000
 
 /** How long after a try began it may still connect: a token that comes back later (a page frozen meanwhile) doesn't. */
-export const TRY_FRESH_MS = 0
+export const TRY_FRESH_MS = 30_000
 
 /** How long «Reconnected.» stays said. */
 export const REJOINED_FOR_MS = 4000
@@ -44,12 +44,12 @@ export const withinWindow = (seen: number | null, now: number): boolean =>
 
 /**
  * After a call ends: try now, try once the browser is online, or never. Only a lost connection tries: leaving, another
- * tab or browser, being taken out and a closed room are over. Never for a call last seen live too long ago (the page
- * slept, or LiveKit tried that long), and never within the window of the last try: one try for one drop, and none for
- * a network that keeps dropping.
+ * tab or browser, being taken out and a closed room are over, and so is a room LiveKit left itself as the page left or
+ * froze. Never for a call last seen live too long ago (the page slept, or LiveKit tried that long), and never within
+ * the window of the last try: one try for one drop, and none for a network that keeps dropping.
  */
 export function rejoinPlan(drop: Drop): 'now' | 'online' | null {
-  if (drop.why !== 'dropped' || !withinWindow(drop.seen, drop.now)) return null
+  if (drop.why !== 'dropped' || drop.selfLeft || !withinWindow(drop.seen, drop.now)) return null
   if (drop.triedAt !== null && drop.now - drop.triedAt < REJOIN_WINDOW_MS) return null
   return drop.online ? 'now' : 'online'
 }
@@ -67,8 +67,11 @@ export const rejoinLine = (step: RejoinStep | null): string | null => (step === 
 
 /** What a try needs from the room and the browser. */
 export interface RejoinPorts {
-  /** The room's join, as Try again presses it: resolves to whether this person is in the call. */
-  join: () => Promise<boolean>
+  /**
+   * The room's join, as Try again presses it: resolves to whether this person is in the call. `still` is asked right
+   * before it connects; false ends it there, as a failed join.
+   */
+  join: (still: () => boolean) => Promise<boolean>
   /** The room's note: the lost call's words again once the try failed. */
   say: (note: string) => void
   /** What the room shows of the try. */
@@ -110,11 +113,14 @@ export class Rejoin {
     this.seen = stillSeen(this.seen, this.ports.now())
   }
 
-  /** The call ended, `why` as call-end.ts says it: one try now, one once the browser is online, or none. */
-  ended(why: CallEnd | null, _selfLeft = false): void {
+  /**
+   * The call ended, `why` as call-end.ts says it (`selfLeft`: LiveKit left the room itself): one try now, one once the
+   * browser is online, or none.
+   */
+  ended(why: CallEnd | null, selfLeft = false): void {
     this.stop()
     const { now, online } = this.ports
-    const plan = rejoinPlan({ why, online: online(), now: now(), seen: this.seen, triedAt: this.triedAt })
+    const plan = rejoinPlan({ why, online: online(), now: now(), seen: this.seen, triedAt: this.triedAt, selfLeft })
     if (plan === 'now') this.tryOnce()
     if (plan === 'online') this.waitForNetwork()
   }
@@ -134,11 +140,20 @@ export class Rejoin {
     this.ports.show(step)
   }
 
+  /**
+   * The try: the room's join, connecting only while the try is young and the call recent (a page frozen with the token
+   * on its way wakes past both), and never once stopped.
+   */
   private tryOnce(): void {
     const round = this.round
-    this.triedAt = this.ports.now()
+    const triedAt = this.ports.now()
+    this.triedAt = triedAt
     this.show('trying')
-    void this.ports.join().then((inCall) => {
+    const still = () => {
+      const now = this.ports.now()
+      return round === this.round && now - triedAt <= TRY_FRESH_MS && withinWindow(this.seen, now)
+    }
+    void this.ports.join(still).then((inCall) => {
       if (round !== this.round) return
       if (!inCall) {
         this.show(null)
