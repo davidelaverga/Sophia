@@ -24,8 +24,10 @@ import {
   summarizeFeed,
   summarizeM1,
   summarizeM2,
+  summarizeM2Reload,
   summarizeM6,
   summarizeM7,
+  summarizeM8,
   timeoutMinutes,
 } from '../../scripts/lib/reliability.mjs'
 
@@ -416,6 +418,73 @@ test('M2: unknown outcomes resolved by sending again under the same key, and any
   assert.deepEqual(summary, { n: 3, resolved: 2, share: 2 / 3, duplicates: 1, resend: { p50: 40, p95: 49 } })
 })
 
+test('M2r kept across a reload: offered again, resent once under the same key, written twice; timed only when so', () => {
+  const reloaded = { offered: true, tries: 2, keys: 1, writes: 1, resolved: true }
+  const summary = summarizeM2Reload([
+    { kind: 'room-message', ...reloaded, resendMs: 60 },
+    // Sent again under a new key: three tries, two keys, recorded twice. Resolved, but not a resend under its key, so
+    // its time is not the resend's.
+    { kind: 'conversation-message', ...reloaded, tries: 3, keys: 2, writes: 2, resendMs: 80 },
+    // Not offered after the reload: nothing pressed, nothing resent.
+    { kind: 'room-message', ...reloaded, offered: false, tries: 1, resolved: false, resendMs: null },
+  ])
+  assert.deepEqual(summary, {
+    n: 3,
+    offered: 2,
+    sameKey: 1,
+    duplicates: 1,
+    resolved: 2,
+    resend: { p50: 60, p95: 60 },
+  })
+})
+
+/** The requests each kind measures, as the app fixture lists those it refused (`METHOD /path`). */
+const READ = 'GET /api/v1/projects/p1/conversations/c2/messages'
+const WRITE = 'POST /api/v1/conversations/c1/messages'
+const STREAM = 'GET /api/v1/projects/p1/events'
+
+test('M8: per kind, the measured request renewed without «signed out», sent again, one refresh, and the time', () => {
+  const renewed = { definitive: true, signedOut: false, resent: true, refreshes: 1 }
+  const summary = summarizeM8([
+    { kind: 'read', ...renewed, refused: [READ], ms: 300 },
+    { kind: 'read', ...renewed, refused: ['GET /api/v1/projects/p1/conversations', READ], ms: 500 },
+    // Signed out: no answer, not renewed, whatever was asked.
+    { kind: 'read', ...renewed, refused: [READ], definitive: false, ms: null, signedOut: true, resent: false },
+    // An answer on screen, and «signed out» too: not renewed.
+    { kind: 'read', ...renewed, refused: [READ], ms: 350, signedOut: true },
+    // The expired token met another request, never the one measured: not reached, whatever the screen shows.
+    { kind: 'read', ...renewed, refused: ['GET /api/v1/projects/p1/mission'], ms: 200 },
+    // No refresh asked: nothing renewed it.
+    { kind: 'read', ...renewed, refused: [READ], refreshes: 0, ms: 250 },
+    // The feed's own requests are its stream and its snapshot (useProjectFeed): the snapshot met the expired token
+    // first, beside the archived list, and was renewed; the stream then went on the new token.
+    { kind: 'feed', ...renewed, refused: ['GET /api/v1/projects/p1/snapshot', 'GET /api/v1/projects/archived'], ms: 110 },
+    { kind: 'feed', ...renewed, refused: [STREAM], ms: 120 },
+    // Only the archived list, not the feed: not reached.
+    { kind: 'feed', ...renewed, refused: ['GET /api/v1/projects/archived'], resent: false, ms: 900 },
+    // Renewed, but refreshed twice: counted as renewed, not as one refresh. A GET of the same path is not the write.
+    { kind: 'write', ...renewed, refused: [WRITE], refreshes: 2, ms: 1200 },
+    { kind: 'write', ...renewed, refused: ['GET /api/v1/conversations/c1/messages'], ms: 90 },
+  ])
+  assert.deepEqual(summary, {
+    read: { n: 6, reached: 5, renewed: 2, signedOut: 2, resent: 5, oneRefresh: 2, time: { p50: 400, p95: 490 } },
+    // Which of the feed's requests met the expired token, round by round: the snapshot once, the stream once.
+    feed: {
+      n: 3,
+      reached: 2,
+      renewed: 2,
+      signedOut: 0,
+      resent: 2,
+      oneRefresh: 2,
+      time: { p50: 115, p95: 119.5 },
+      met: { snapshot: 1, stream: 1 },
+    },
+    write: { n: 2, reached: 1, renewed: 1, signedOut: 0, resent: 2, oneRefresh: 0, time: { p50: 1200, p95: 1200 } },
+  })
+  assert.deepEqual(summarizeM8([]), {})
+})
+
+
 test('M6: per view, failed reads that show versus fall silent; a view with no failed read is not counted', () => {
   const summary = summarizeM6([
     { view: 'Goals · owner picker', failedReads: 2, visible: false },
@@ -456,8 +525,8 @@ test('M3/M4: per feed case, the scenarios that ran (their lever there), came bac
   })
 })
 
-// The script itself, on a fake suite: it lists 2 M7 scenarios and 1 M2; `FAKE_M7` M7 records and `FAKE_M2` M2 records
-// are written, and it exits `FAKE_EXIT`.
+// The script itself, on a fake suite: it lists 2 M7 scenarios, 1 M2, `FAKE_M2R_LISTED` M2r and `FAKE_M8_LISTED` M8;
+// `FAKE_M7` M7 records, `FAKE_M2` M2 records and `FAKE_M8` M8 records are written, and it exits `FAKE_EXIT`.
 const SCRIPT = fileURLToPath(new URL('../../scripts/reliability-report.mjs', import.meta.url))
 const FAKE_SUITE = `
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -467,7 +536,11 @@ if (process.argv.includes('--list')) {
   console.log('  [desktop] › transient.spec.ts:10:3 › M7 · reads answered 502 once @reliability')
   console.log('  [desktop] › transient.spec.ts:10:3 › M7 · reads answered 503 twice @reliability')
   console.log('  [desktop] › writes.spec.ts:80:1 › M2 · a message whose reply is lost @reliability')
-  console.log('Total: 3 tests in 2 files')
+  const m2r = Number(process.env.FAKE_M2R_LISTED)
+  for (let i = 0; i < m2r; i++) console.log('  [desktop] › writes.spec.ts:90:1 › M2r · a message kept across a reload @reliability')
+  const m8 = Number(process.env.FAKE_M8_LISTED)
+  for (let i = 0; i < m8; i++) console.log('  [desktop] › session.spec.ts:40:1 › M8 · a read after the token expired @reliability')
+  console.log('Total: ' + (3 + m2r + m8) + ' tests in 3 files')
   process.exit(0)
 }
 const dir = process.env.RELIABILITY_RESULTS
@@ -480,10 +553,18 @@ for (let i = 0; i < Number(process.env.FAKE_M7); i++) {
   write('M7', i, { read: 'conversations', failures: 1, errors: 1, recovered: true, ms: 100 })
 }
 for (let i = 0; i < Number(process.env.FAKE_M2); i++) write('M2', i, { resolved: true, writes: 1, resendMs: 30 })
+const refused = ['GET /api/v1/projects/p1/conversations/c2/messages']
+const renewed = { kind: 'read', refused, definitive: true, ms: 420, signedOut: false, resent: true, refreshes: 1 }
+// With the read, a feed round whose expired token met the snapshot, not the stream.
+const feed = { ...renewed, kind: 'feed', ms: 120, refused: ['GET /api/v1/projects/p1/snapshot', 'GET /api/v1/projects/archived'] }
+for (let i = 0; i < Number(process.env.FAKE_M8); i++) {
+  const record = { metric: 'M8', test: 'M8 ' + i, samples: [renewed, feed] }
+  writeFileSync(join(dir, 'M8-' + i + '.json'), JSON.stringify(record))
+}
 process.exit(Number(process.env.FAKE_EXIT))
 `
 
-function fixtureReport({ m7, m2, exit, runSuite }) {
+function fixtureReport({ m7, m2, exit, runSuite, m8 = 0, m8Listed = 0, m2rListed = 0 }) {
   const dir = mkdtempSync(join(tmpdir(), 'reliability-'))
   const fake = join(dir, 'fake-suite.mjs')
   writeFileSync(fake, FAKE_SUITE)
@@ -493,6 +574,9 @@ function fixtureReport({ m7, m2, exit, runSuite }) {
     RELIABILITY_RESULTS: join(dir, 'results'),
     FAKE_M7: String(m7),
     FAKE_M2: String(m2),
+    FAKE_M8: String(m8),
+    FAKE_M8_LISTED: String(m8Listed),
+    FAKE_M2R_LISTED: String(m2rListed),
     FAKE_EXIT: String(exit),
   }
   // Without --run the suite ran before (through the guard, on Luis's machine): the script only collects.
@@ -530,4 +614,43 @@ test('a suite that fails after some scenarios wrote results gives no numbers, sa
   assert.equal(whole.fixture.incomplete, undefined)
   assert.equal(whole.fixture.m7.share, 1)
   assert.equal(whole.fixture.m2.share, 1)
+})
+
+test('M8 is measured now: a partial run gives no M8 numbers, a whole one its rows, and it is no longer «not measurable»', () => {
+  const has = (md, line) => assert.ok(md.includes(line), `«${line}» in:\n${md}`)
+  const short = fixtureReport({ m7: 2, m2: 1, m8: 0, m8Listed: 1, exit: 0, runSuite: false })
+  assert.notEqual(short.status, 0, 'the script exits non-zero')
+  assert.deepEqual(short.fixture.incomplete, { exit: null, metrics: { M8: { ran: 0, expected: 1 } } })
+  assert.equal(short.fixture.m8.read, undefined, 'no summary from a partial run')
+  has(short.md, '| M8 · expired token while signed in · read | incomplete: 0 of 1 scenarios wrote results |')
+  assert.ok(!short.md.includes('renewed'), `no M8 numbers:\n${short.md}`)
+
+  const whole = fixtureReport({ m7: 2, m2: 1, m8: 1, m8Listed: 1, exit: 0, runSuite: false })
+  assert.equal(whole.status, 0)
+  assert.equal(whole.fixture.m8.read.renewed, 1)
+  has(
+    whole.md,
+    '| M8 · expired token while signed in · read | 1/1 renewed without «signed out» · 1/1 sent again · 1/1 renewed with one refresh · answer p50 420 ms · p95 420 ms |',
+  )
+  has(whole.md, '| M8 · expired token while signed in · write | not run |')
+  // The feed's row says which of its requests met the expired token: the stream's own renewal may go unexercised.
+  has(
+    whole.md,
+    '| M8 · expired token while signed in · feed | 1/1 renewed without «signed out» · 1/1 sent again · 1/1 renewed with one refresh · answer p50 120 ms · p95 120 ms · met: snapshot 1 · stream 0 |',
+  )
+  has(whole.md, '| M2r · kept across a reload: offered again, resent once under its key | not run |')
+  assert.ok(!whole.md.includes('M8 (session through sleep)'), `M8 is measurable:\n${whole.md}`)
+})
+
+test('a reload scenario that wrote nothing leaves M2r incomplete, and M2’s comparable first line published', () => {
+  const has = (md, line) => assert.ok(md.includes(line), `«${line}» in:\n${md}`)
+  const short = fixtureReport({ m7: 2, m2: 1, m2rListed: 1, exit: 0, runSuite: false })
+  assert.notEqual(short.status, 0, 'the script exits non-zero')
+  assert.deepEqual(short.fixture.incomplete, { exit: null, metrics: { M2r: { ran: 0, expected: 1 } } })
+  assert.equal(short.fixture.m2.share, 1)
+  has(
+    short.md,
+    '| M2r · kept across a reload: offered again, resent once under its key | incomplete: 0 of 1 scenarios wrote results |',
+  )
+  has(short.md, '| M2 · unknown outcome resolved by resend, same key | 100.0 % (1/1;')
 })

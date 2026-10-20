@@ -87,6 +87,39 @@ test('archive · after no reply, the sheet opened again sends the same write, un
   expect(keys[1]).toBe(keys[0])
 })
 
+test('archive · after no reply, landed and then brought back elsewhere, Archive is a new write, not the lost one’s (Codex on #471)', async ({
+  page,
+}) => {
+  await page.goto('/room.html')
+  await expect.poll(() => served(page)).toContain('projects:archived')
+  await expect(header(page).locator('.connection')).toHaveAttribute('data-state', 'live')
+  await firstArchiveReplyLost(page)
+  const archive = async () => {
+    await header(page).getByRole('button', { name: 'Fixture project' }).click()
+    await menu(page).getByRole('menuitem', { name: 'Archive project…' }).click()
+    await sheet(page).getByRole('button', { name: 'Archive' }).click()
+  }
+  await archive()
+  await expect(sheet(page).getByRole('alert')).toHaveText('No reply from Sophia')
+  await sheet(page).getByRole('button', { name: 'Cancel' }).click()
+  // It landed: the project's event has the list read again, which says so (the API's write sends one; the fixture's
+  // doesn't, so an update stands in for it).
+  const line = page.getByRole('status').filter({ hasText: 'This project is archived' })
+  await page.evaluate(() => window.fixture?.update())
+  await expect(line).toBeVisible()
+  // Another admin brings it back: read again, the line goes and Archive is offered. The lost write's key replayed now
+  // would be answered with its old receipt, archiving nothing, yet the sheet would close and go to Work.
+  await page.evaluate(() => window.fixture?.unarchivedElsewhere())
+  await expect(line).toHaveCount(0)
+  await archive()
+  await expect.poll(() => served(page)).toContain('went:work')
+  // Archived anew, not answered with the lost write's receipt (the fixture replays a key sent again, as 0059 does).
+  expect((await served(page)).filter((s) => s.startsWith('archive:'))).toEqual(['archive:true', 'archive:true'])
+  const keys = await page.evaluate(() => [...(window.archiveKeys ?? [])])
+  expect(keys).toHaveLength(2)
+  expect(keys[1]).not.toBe(keys[0])
+})
+
 test('archive · an editor is offered no Archive', async ({ page }) => {
   await page.goto('/room.html?role=editor')
   await header(page).getByRole('button', { name: 'Fixture project' }).click()

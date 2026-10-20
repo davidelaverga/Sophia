@@ -44,7 +44,12 @@ describe('the fixtures’ boundary', () => {
     const shell = readFileSync(join(src, 'features/studio/ProjectShell.tsx'), 'utf8')
     assert.match(shell, /useServedWork/, 'the shell reads its plans from the served board')
     const served = readFileSync(join(src, 'features/work/planning/ServedWork.tsx'), 'utf8')
-    assert.match(served, /readBoardView\(board\.data\)/, 'through the board’s own reader')
+    assert.match(served, /readBoard\(identity\.token, projectId, servedBoard\(projectId\)/, 'as the call’s own parser')
+    assert.match(
+      served,
+      /const servedBoard =\s*\(projectId: string\) =>\s*\(value: unknown\): BoardView => \{\s*const read = readBoardView\(value\)/,
+      'through the board’s own reader, first thing in the call’s parser',
+    )
     assert.match(served, /from '..\/..\/..\/api\/work\.ts'/, 'from Sophia’s work routes only')
   })
 })

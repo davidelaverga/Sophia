@@ -5,6 +5,10 @@
 // write's does (held-write.ts). A choice that lands also lets go of the other choice's unanswered key: that write is
 // moot now, and its key replayed later would be answered with its old receipt and change nothing (the server keeps
 // receipts with no end), while a new key is always safe, as asking for the state the project has changes nothing.
+// So does a read of the archived list started after the reply was lost (Codex on #471): it shows where the project
+// stands, and the press after it is a new choice made on that. Whatever it shows, a new key is safe, while the old one,
+// landed and then undone elsewhere, would be answered with its old receipt. Not that the old write is over: one the
+// client gave up on at 90 s may still reach the database after that read and land (archive-keys-and-work.md, Limits).
 // Shaped like removal-keys.ts.
 import { ApiError } from '../../api/client.ts'
 
@@ -23,6 +27,11 @@ export interface ArchiveKeys {
    * failure was no reply.
    */
   settled: (choice: ArchiveChoice, failure?: unknown) => void
+  /**
+   * A read of the account's archived projects starts; call what it returns once that read has answered. Every key of
+   * the account left with no reply before it started goes then (not one sent again since: its own answer settles it).
+   */
+  reading: (account: string) => () => void
 }
 
 /** No reply, or one that couldn't be read: the write may have landed, so a retry carries the same key. */
@@ -33,15 +42,30 @@ const at = (c: ArchiveChoice) => JSON.stringify([c.account, c.projectId, c.archi
 
 export function archiveKeys(newKey: () => string = () => crypto.randomUUID()): ArchiveKeys {
   const keys = new Map<string, string>()
+  /** The keys left with no reply, each with its account and the moment it was left so: none while on its way. */
+  const left = new Map<string, { account: string; moment: number }>()
+  let moment = 0
+  const drop = (where: string) => {
+    keys.delete(where)
+    left.delete(where)
+  }
   return {
     keyFor: (choice) => {
       const key = keys.get(at(choice)) ?? newKey()
       keys.set(at(choice), key)
+      left.delete(at(choice))
       return key
     },
     settled: (choice, failure) => {
-      if (failure === undefined) keys.delete(at({ ...choice, archived: !choice.archived }))
-      if (failure === undefined || !unanswered(failure)) keys.delete(at(choice))
+      if (failure === undefined) drop(at({ ...choice, archived: !choice.archived }))
+      if (failure === undefined || !unanswered(failure)) drop(at(choice))
+      else if (keys.has(at(choice))) left.set(at(choice), { account: choice.account, moment: (moment += 1) })
+    },
+    reading: (account) => {
+      const started = moment
+      return () => {
+        for (const [where, was] of left) if (was.account === account && was.moment <= started) drop(where)
+      }
     },
   }
 }

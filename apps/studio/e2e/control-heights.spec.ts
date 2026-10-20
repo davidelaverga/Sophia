@@ -11,7 +11,8 @@ const PAGES = [
   ['sign-in', '/signin.html', DRAWN.signin],
   ['the door', '/join.html?demo=1', DRAWN.join],
   ['home', '/home.html?demo=1', DRAWN.home],
-  ['personal', '/personal.html?demo=1', DRAWN.personal],
+  // At midday, a conversation in progress: before 00:06 nothing is said today and Personal shows the new day's presses.
+  ['personal', '/personal.html?demo=1&at=12:00', DRAWN.personal],
   ['the room', '/room.html?demo=1', DRAWN.room],
   ['the room in a call', '/room.html?demo=1&call=on&people=2&floor=1&sophia=listening', DRAWN.room.slice(0, 1)],
   ['Conversations', '/room.html?demo=1&conversations=1&place=conversations', DRAWN.conversations],

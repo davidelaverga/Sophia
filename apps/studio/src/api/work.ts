@@ -1,6 +1,7 @@
 // The work board's calls (WBC-02, amendment A13): the project's board as Sophia serves it, the source-review pilot
 // entry, a decision's answer, a command on an assignment, an operation's receipt and a work item's result. Every
-// reply is checked against its contract here; the board is read once more by the board's own reader (board-view.ts).
+// reply is checked against its contract here; the board by the board's own reader (board-view.ts), which its caller
+// gives.
 // Nothing here reaches Paperclip: the Studio talks to Sophia only.
 import type {
   SourceReviewAvailability,
@@ -21,9 +22,12 @@ import { callApi } from './client.ts'
 
 const project = (projectId: string) => `/api/v1/projects/${encodeURIComponent(projectId)}` as const
 
-/** The board as served, unread: the board’s own reader (board-view.ts) decides whether it can be shown. */
-export const readBoard = (token: string, projectId: string, signal?: AbortSignal) =>
-  callApi<unknown>(`${project(projectId)}/plans`, { token, method: 'GET', ...(signal && { signal }) }, (value) => value)
+/**
+ * The board as served, read by the board’s own reader (board-view.ts), which the caller gives: a reply it refuses fails
+ * the read as any reply that breaks its contract does (silent-views.md).
+ */
+export const readBoard = <T>(token: string, projectId: string, read: (value: unknown) => T, signal?: AbortSignal) =>
+  callApi<T>(`${project(projectId)}/plans`, { token, method: 'GET', ...(signal && { signal }) }, read)
 
 export const reviewAvailability = (token: string, projectId: string, signal?: AbortSignal) =>
   callApi<SourceReviewAvailability>(

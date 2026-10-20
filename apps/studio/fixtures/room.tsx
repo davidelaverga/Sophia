@@ -156,6 +156,8 @@ interface Fixture {
   shutDoor: () => void
   /** Another admin archives the project elsewhere: recorded, and the event saying so goes out (archive-project.md). */
   archivedElsewhere: () => void
+  /** Another admin brings it back elsewhere: recorded, and the event saying so goes out (archive-keys-and-work.md). */
+  unarchivedElsewhere: () => void
   /** Sophia writes a difficulty on the demo's goal of that title, from a call, and the project's stream moves (goal-notes.md). */
   noteOnGoal: (title: string, text: string) => void
   /** The room's recent discussion goes (it moved past what the snapshot holds): a reply to it is refused (A20). */
@@ -269,6 +271,8 @@ interface Fixture {
   holdBoard: (on: boolean) => void
   /** Reads of the served board fail, or read again (silent-views.md). */
   failBoard: (on: boolean) => void
+  /** Reads of the served board answer a board its reader refuses or another project's, or the right one again (null). */
+  answerBoard: (kind: 'malformed' | 'foreign' | null) => void
   /** The conversations' list reads fail, or read again (A18). */
   failConversations: (on: boolean) => void
   /** The list's reads are refused (403), as to a reader no longer in the project, the feed not moving; or answer again. */
@@ -530,6 +534,10 @@ const MENTIONING = {
 /** `designfail=forbidden|unavailable`: the design task's reads fail so from the start. */
 const designFailOf = (v: string | null): false | 'unavailable' | 'forbidden' =>
   v === 'unavailable' || v === 'forbidden' ? v : false
+
+/** `boardRead=malformed|foreign`: the served board is answered so from the start. */
+const wrongBoard = (v: string | null): 'malformed' | 'foreign' | null =>
+  v === 'malformed' || v === 'foreign' ? v : null
 
 const query = new URLSearchParams(window.location.search)
 
@@ -910,6 +918,8 @@ const project = {
   boardHeld: null as (() => void)[] | null,
   // `boardRead=fail`: the served board's reads fail from the first (silent-views.md).
   boardFail: query.get('boardRead') === 'fail',
+  // `boardRead=malformed|foreign`: they answer a board Tasks can't take as this project's (silent-views.md).
+  boardAnswer: wrongBoard(query.get('boardRead')),
   // `mission=fail`: the brief's reads fail from the first (notes-robust.md); `window.fixture.failMission` turns it.
   missionFails: query.get('mission') === 'fail',
   missionRefused: false,
@@ -1061,6 +1071,10 @@ window.fixture = {
   },
   archivedElsewhere: () => {
     project.archived = true
+    publish(project)
+  },
+  unarchivedElsewhere: () => {
+    project.archived = false
     publish(project)
   },
   noteOnGoal: (title, text) => {
@@ -1411,6 +1425,9 @@ window.fixture = {
   },
   failBoard: (on) => {
     project.boardFail = on
+  },
+  answerBoard: (kind) => {
+    project.boardAnswer = kind
   },
   releaseTaskReads: () => {
     const held = project.tasks.heldReads ?? []

@@ -239,10 +239,12 @@ export function useFind(
   useEffect(() => {
     if (current && !(held && sameAs(held)(current))) setHeld(current)
   }, [held, current])
-  // The current match comes into sight when it changes, or is stepped to again.
+  // The current match comes into sight when it changes, or is stepped to again. At once, not smoothly: the list keeps a
+  // reader at its end as it resizes (the finder's count coming in), and a glide not yet away from the end was pulled
+  // back there, the match out of sight.
   const where = current ? `${current.key}:${String(current.n)}` : null
   useEffect(() => {
-    if (where) document.querySelector('.msgs mark.current')?.scrollIntoView({ block: 'center' })
+    if (where) document.querySelector('.msgs mark.current')?.scrollIntoView({ block: 'center', behavior: 'instant' })
   }, [where, steps])
   const asking = useAsk(ask, query, close)
   const bar = open ? (
