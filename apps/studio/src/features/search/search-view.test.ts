@@ -125,6 +125,15 @@ describe('goals and tasks in the search (docs/plans/search-goals.md)', () => {
       ['d1'],
     )
   })
+
+  it('counts the query as typed, not as lowercased: one İ (two code points once lowercased) finds nothing, two letters find', () => {
+    const turkish = [goal('i1', 'İzmir plan')]
+    assert.deepEqual(localHits(turkish, undefined, 'İ', health), [])
+    assert.deepEqual(
+      localHits(turkish, undefined, 'İz', health).map((h) => h.id),
+      ['i1'],
+    )
+  })
 })
 
 describe('the words marked, and a long text cut around them', () => {

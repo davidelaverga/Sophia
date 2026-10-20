@@ -87,8 +87,11 @@ export function localHits(
   query: string,
   health: HealthWords,
 ): LocalHit[] {
-  const q = query.trim().toLowerCase()
-  if (codePoints(q) < MIN_LOCAL) return []
+  // The minimum counts the query as typed, as the search read and A38 do: lowercasing may lengthen it (İ is i and a
+  // combining dot), and one letter typed still finds nothing (R2 on B83).
+  const typed = query.trim()
+  if (codePoints(typed) < MIN_LOCAL) return []
+  const q = typed.toLowerCase()
   const found = goals.flatMap((g) => goalHit(g, q, health) ?? []).slice(0, 3)
   const tasks = goals
     .flatMap((g) => (plans?.[g.id]?.tasksFound ?? []).map((t) => ({ t, goal: g })))
