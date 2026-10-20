@@ -6,8 +6,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Goal, ProjectMember } from '@sophia/contracts'
-import { getProjectMembers } from '../../../api/client.ts'
+import { ApiError, getProjectMembers } from '../../../api/client.ts'
 import { answerDecision, commandWork, operationReceipt, readBoard, workResult } from '../../../api/work.ts'
+import { retryRead } from '../../../app/account-cache.ts'
 import { tokenSubject } from '../../../app/auth-callback.ts'
 import type { Identity } from '../../../app/dev-identity.ts'
 import type { Feed } from '../../../projectors/projection.ts'
@@ -45,6 +46,9 @@ function useMinute(): Date {
   return now
 }
 
+/** The board's reader refused a reply that was read (servedBoard), as against one that couldn't be read at all. */
+class BoardRefused extends Error {}
+
 /**
  * The served board as its reader accepts it, and only this project's: anything else throws, so the read fails as a reply
  * that breaks its contract does (callApi's `contract_violation`), never a success with nothing to show (silent-views.md).
@@ -53,10 +57,17 @@ const servedBoard =
   (projectId: string) =>
   (value: unknown): BoardView => {
     const read = readBoardView(value)
-    if (!read.ok) throw new Error(read.problems.join('; '))
-    if (read.value.project_id !== projectId) throw new Error('$.project_id: another project’s board')
+    if (!read.ok) throw new BoardRefused(read.problems.join('; '))
+    if (read.value.project_id !== projectId) throw new BoardRefused('$.project_id: another project’s board')
     return read.value
   }
+
+/**
+ * How the board is asked again: as any read, except after its reader's refusal, which asking at once won't change (the
+ * next look, a move of the project or Try again asks once more). A reply that isn't JSON may heal: still retried.
+ */
+const retryBoard = (failures: number, error: unknown): boolean =>
+  !(error instanceof ApiError && error.cause instanceof BoardRefused) && retryRead(failures, error)
 
 /**
  * The project's board as served and read, or null while none can be shown; whether its first read is under way, and
@@ -67,6 +78,7 @@ function useBoard(projectId: string, identity: Identity, feed: Feed | null, enab
   const board = useQuery({
     queryKey: boardKey(projectId, identity.name),
     queryFn: ({ signal }) => readBoard(identity.token, projectId, servedBoard(projectId), signal),
+    retry: retryBoard,
     refetchInterval: 30_000,
     refetchOnWindowFocus: false,
     enabled,
