@@ -174,6 +174,26 @@ the code; each was written first.
   person (it errs towards never taking the call). Timestamped claims refreshed on the beat, or a short ask at the
   drop, would clear it; left for when it is seen.
 
+## After the third review (2026-10-20: one P1, P3s)
+
+- **P1, the cap on the microphone was read once, at the drop (real).** A dropped call's microphone was cut by this
+  device's choice when the call dropped, then kept as is: «join with the microphone off» chosen during an offline wait,
+  or before a Try again minutes later, was ignored, and the microphone came on though Join's tip said off. The drop
+  now keeps the call's microphone marked `capped`, and each join that uses it turns the microphone on only if this
+  device's choice is on as that join begins. Checks: drop offline with the microphone on, choose off, back online → no
+  `microphone:on`; the same with Try again after a failed try.
+- **P3s applied:** a try no longer wanted once LiveKit has connected is made quiet before it is left
+  (`keptIfStill`'s `quiet`), so the disconnect LiveKit reports for that leave (CLIENT_INITIATED) is never taken for the
+  call's end; the fixture now reports that disconnect on any leave, as LiveKit does, and can hold LiveKit's connect
+  (`holdConnect`), and a check flips the try's gate while connect waits. A try that fails with no status move (a join
+  held offline, none possible) clears its `joining` claim. A call seen live «later» than now is not recent. The fixture
+  starts each connection, and each drop, with the link up.
+- **Can't be spared by the check after connecting:** another tab of the same person already in that call is taken out
+  by LiveKit as this one connects (a person is in a call once, DUPLICATE_IDENTITY). The checks before the token and
+  before LiveKit are what spare it.
+- **Transient:** the tabs' channel is `sophia.calls.v2` since the claims carry their call; a tab opened before the
+  deploy speaks v1 and isn't heard until it reloads.
+
 ## Limits
 
 - Out of sight, the places' bar keeps the call during the try but says nothing of it (its note is the devices' alert);
@@ -189,8 +209,9 @@ the code; each was written first.
   listing the room's participants, asked before a try, which makes none while this identity is already in).
 - A hidden tab whose timers run less often than every 10 s (a browser's heaviest background throttling) stops counting
   as seen live, so its drop isn't tried; whether a page with a live call is throttled that hard wasn't observed here.
-- Try again's tip still describes this device's own microphone choice, while the join after a drop turns the
-  microphone on only if both the call, as last seen, and that choice have it on.
+- Try again's tip describes this device's own microphone choice, while the join after a drop turns the microphone on
+  only if both the call, as last seen, and that choice (read as the join begins) have it on: the tip can say «on»
+  where the microphone comes back off, never the reverse.
 - The camera comes back off, as after Try again.
 - The two-minute window can't be shown in the browser checks without a clock under the fixture; the unit checks hold
   it.
