@@ -4,7 +4,9 @@
 // (tests/support/mock-responses.mjs). No provider, network, account or real credential: the route's credential reference
 // names a variable this test process sets to a fake value, and nothing leaves 127.0.0.1.
 import assert from 'node:assert/strict'
+import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { createServer } from 'node:net'
 import { readFileSync } from 'node:fs'
 import type { AddressInfo } from 'node:net'
 import { after, before, describe, it } from 'node:test'
@@ -1680,5 +1682,186 @@ describe('shutting down while an accepted answer is mid-stream (FND-C64)', () =>
     )
     assert.deepEqual(usageNow, ['settled'], 'its cost settled, not left reserved')
     assert.equal(witness.requests, 1, 'one provider request, none again')
+  })
+})
+
+/** FIXTURE (C65): a pool whose final reply write (record_personal_reply) waits at `at` before it is sent. */
+function replyGatedPool(at: Gate): pg.Pool {
+  const own = createPool(db.apiUrl, { max: 4 })
+  const wrapped = new WeakSet<pg.PoolClient>()
+  const wrap = (client: pg.PoolClient): pg.PoolClient => {
+    if (wrapped.has(client)) return client
+    wrapped.add(client)
+    const query = client.query.bind(client) as (...args: unknown[]) => Promise<unknown>
+    return Object.assign(client, {
+      query: async (...args: unknown[]) => {
+        const sql = typeof args[0] === 'string' ? args[0] : JSON.stringify(args[0] ?? '')
+        if (/record_personal_(settled_)?reply/.test(sql)) {
+          at.delegated += 1
+          await at.arrive()
+        }
+        return query(...args)
+      },
+    })
+  }
+  const connect = own.connect.bind(own) as (
+    callback?: (err: Error | undefined, client: pg.PoolClient | undefined, release: (e?: unknown) => void) => void,
+  ) => Promise<pg.PoolClient> | undefined
+  Object.assign(own, {
+    connect: (
+      callback?: (err: Error | undefined, client: pg.PoolClient | undefined, release: (e?: unknown) => void) => void,
+    ) =>
+      callback
+        ? connect((err, client, release) => callback(err, client && wrap(client), release))
+        : connect()?.then((client) => wrap(client)),
+  })
+  return own
+}
+
+describe('shutting down between the provider’s result and the final reply write (FND-C65)', () => {
+  it('close waits for the final reply write after the cost is settled and the answer kept; one request', async () => {
+    const KAI = randomUUID()
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('c65-payer', $1, 1000000)`,
+      [KAI],
+    )
+    const held = gate()
+    const apiPool = replyGatedPool(held)
+    const companionPool = createPool(db.apiUrl, { max: 4 })
+    const configured = await personalCompanionFrom(env('c65-payer', KAI), companionPool)
+    const verifyActor = createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET })
+    const app = buildApp({ pool: apiPool, verifyActor, companion: configured.companion })
+    await app.listen({ port: 0, host: '127.0.0.1' })
+    const at = `http://127.0.0.1:${String((app.server.address() as AddressInfo).port)}`
+    const sentBefore = recorded().length
+    double.script({ text: 'Kept before the reply.', usage: { input_tokens: 10, output_tokens: 5 } })
+    await write(at, '/api/v1/personal/turns', KAI, { text: 'Answer, then I stop.' })
+    await within(10_000, 'the final reply write reached', held.reached)
+    const atBarrier = {
+      usage: (await usage('c65-payer')).map((r) => r.state),
+      kept: (
+        await owner<{ n: number }>(`SELECT count(*)::int n FROM sophia.personal_settled_answers WHERE owner_id=$1`, [
+          KAI,
+        ])
+      )[0]?.n,
+    }
+    let closed = false
+    const closing = app.close().then(() => {
+      closed = true
+    })
+    await pause(300) // an observation window, not a gate: close must still be waiting on the held write
+    const closedWhileHeld = closed
+    held.open()
+    await within(15_000, 'app.close after the reply', closing)
+    const replies = (
+      await owner<{ n: number }>(
+        `SELECT count(*)::int n FROM sophia.personal_turns WHERE owner_id=$1 AND author='sophia'`,
+        [KAI],
+      )
+    )[0]?.n
+    const witness = {
+      atBarrier,
+      closedWhileHeld,
+      replies,
+      usage: (await usage('c65-payer')).map((r) => r.state),
+      requests: recorded().length - sentBefore,
+    }
+    console.log(`C65 barrier witness ${JSON.stringify(witness)}`)
+    await configured.dispose()
+    await apiPool.end()
+    await companionPool.end()
+    assert.deepEqual(atBarrier.usage, ['settled'], 'at the barrier the cost is settled')
+    assert.equal(atBarrier.kept, 1, 'and the answer kept')
+    assert.equal(closedWhileHeld, false, 'close waits for the final reply write')
+    assert.equal(replies, 1, 'the reply written before close resolved')
+    assert.equal(witness.requests, 1, 'one provider request')
+  })
+})
+
+/** A free loopback port (FIXTURE: picked, then given to the server it starts). */
+const freePort = () =>
+  new Promise<number>((resolve, reject) => {
+    const probe = createServer()
+    probe.once('error', reject)
+    probe.listen(0, '127.0.0.1', () => {
+      const { port } = probe.address() as AddressInfo
+      probe.close(() => resolve(port))
+    })
+  })
+
+describe('the actual server process: SIGTERM, then SIGINT, while an accepted answer is mid-stream (FND-C65)', () => {
+  it('finishes the accepted answer, chains no queued turn, and exits 0 once, after one provider request', async () => {
+    const LEO = randomUUID()
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('c65-srv-payer', $1, 1000000)`,
+      [LEO],
+    )
+    const port = await freePort()
+    // The actual entry point (apps/api/src/server.ts), its own pool and live companion; the double in this process.
+    const child = spawn(process.execPath, ['apps/api/src/server.ts'], {
+      env: {
+        PATH: process.env.PATH ?? '',
+        HOST: '127.0.0.1',
+        PORT: String(port),
+        SOPHIA_API_DATABASE_URL: db.apiUrl,
+        SUPABASE_JWT_ISSUER: ISSUER,
+        SUPABASE_JWT_SECRET: SECRET,
+        ...env('c65-srv-payer', LEO),
+      },
+      stdio: ['ignore', 'ignore', 'ignore'],
+    })
+    const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) =>
+      child.once('exit', (code, signal) => resolve({ code, signal })),
+    )
+    const at = `http://127.0.0.1:${String(port)}`
+    try {
+      for (let i = 0; i < 150; i++) {
+        const up = await fetch(`${at}/health`).then(
+          (r) => r.ok,
+          () => false,
+        )
+        if (up) break
+        await pause(100)
+      }
+      const sentBefore = recorded().length
+      // A timed hold (the double has no manual gate): its stream stays open 2.5 s after it starts.
+      double.script({ text: 'Answered across SIGTERM.', usage: { input_tokens: 10, output_tokens: 5 }, delayMs: 2500 })
+      await write(at, '/api/v1/personal/turns', LEO, { text: 'First, answered.' })
+      for (let i = 0; i < 100 && recorded().length === sentBefore; i++) await pause(20)
+      assert.equal(recorded().length - sentBefore, 1, 'the first answer’s stream is active')
+      const [reserved] = await owner<{ n: number }>(
+        `SELECT count(*)::int n FROM sophia.personal_companion_usage WHERE payer='c65-srv-payer' AND state='reserved'`,
+      )
+      assert.equal(reserved?.n, 1, 'its call is reserved')
+      await write(at, '/api/v1/personal/turns', LEO, { text: 'Second, queued.' })
+      child.kill('SIGTERM')
+      await pause(200)
+      child.kill('SIGINT') // repeated while the stream is held: one shutdown
+      const sentinel = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 20_000))
+      const end = await Promise.race([exited, sentinel])
+      if (end === 'timeout') child.kill('SIGKILL') // bounded cleanup of this test's own child only
+      const turns = await owner<{ author: string; reply: string | null }>(
+        `SELECT author, reply FROM sophia.personal_turns WHERE owner_id=$1 ORDER BY seq`,
+        [LEO],
+      )
+      const witness = {
+        exit: end,
+        requests: recorded().length - sentBefore,
+        usage: (await usage('c65-srv-payer')).map((r) => r.state),
+        turns: turns.map((t) => `${t.author}:${t.reply ?? '-'}`),
+      }
+      console.log(`C65 server witness ${JSON.stringify(witness)}`)
+      assert.deepEqual(end, { code: 0, signal: null }, `a normal exit: ${JSON.stringify(witness)}`)
+      assert.equal(witness.requests, 1, 'one provider request: the queued turn was not chained into a paid call')
+      assert.deepEqual(witness.usage, ['settled'], 'the first answer’s cost settled before exit')
+      assert.equal(turns.filter((t) => t.author === 'sophia').length, 1, 'the first answer’s reply written before exit')
+      assert.equal(
+        turns.filter((t) => t.author === 'person' && t.reply === 'pending').length,
+        1,
+        'the queued turn stays pending',
+      )
+    } finally {
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+    }
   })
 })

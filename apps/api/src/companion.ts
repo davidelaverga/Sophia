@@ -243,14 +243,24 @@ export class CompanionRunner {
     this.inFlight.add(turnId)
     const run = this.run(actorId, turnId).finally(() => this.inFlight.delete(turnId))
     this.running.add(run)
-    void run.finally(() => this.running.delete(run))
+    // Both outcomes handled on the run itself (R2-C64 P2): no derived promise is left to reject unhandled. An
+    // unexpected failure of the whole run is reported (its words kept out, as every companion failure), never retried.
+    run.then(
+      () => this.running.delete(run),
+      (err: unknown) => {
+        this.running.delete(run)
+        this.onError(err)
+      },
+    )
     return run
   }
 
   /**
-   * Shut down (finding 4321054353): start no answer and chain no next turn, then wait for every accepted one to end,
-   * its cost settled or held, its kept answer and its reply written, while the pool and the model are still open. Each
-   * is bounded by its own limits (ANSWER_LIMIT_MS for the call, its few write retries): nothing is cut short here.
+   * Shut down (finding 4321054353): start no answer and chain no next turn, then wait for every accepted run to end,
+   * while the pool and the model are still open. Its end is observed, not its success: a run may end with its cost held
+   * unknown, its answer kept but its reply unwritten, or failed (reported by onError). The wait has no deadline of its
+   * own: ANSWER_LIMIT_MS only signals the call to stop (cooperative), and a write retries a few times, so a call or
+   * query that never settles keeps shutdown waiting with its resources open, until the platform ends the process.
    */
   async close(): Promise<void> {
     this.closing = true
@@ -334,7 +344,8 @@ export class CompanionRunner {
       this.onError(err)
       return null
     })
-    if (next) await this.answer(actorId, next)
+    // The next turn's run is its own: its failure is reported by its own handler (answer), once.
+    if (next) await this.answer(actorId, next).catch(() => undefined)
   }
 
   private async answerOne(actorId: string, turnId: string): Promise<void> {
