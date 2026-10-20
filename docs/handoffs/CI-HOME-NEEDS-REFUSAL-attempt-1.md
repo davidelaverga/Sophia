@@ -11,8 +11,8 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-paper-1`, branch `ci/hom
 Writable scope: this worktree only (`apps/studio/e2e`, `docs/plans`, `docs/handoffs`); no product code, no API.
 Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1` guard); CI as the run on record.
 Existing authority: Luis, the quotes above; local only, nothing pushed.
-Ending commit/tree: `38520bea9`, the last commit that changes code; the next one updates only this record and the
-plan for the coordinator's follow-up (the two sibling specs). Files changed against `9a6b03a73`:
+Ending commit/tree: `743467b34`, the last commit that changes code; the next one updates only this record and the
+plan for the independent review's two P3s. Files changed against `9a6b03a73`:
 `e2e/home-needs-refusal.spec.ts`, `e2e/updates-refusal.spec.ts`, `e2e/conversations-removal.spec.ts`, `e2e/frames.ts`,
 `docs/plans/ci-home-needs-refusal-flake.md`, and this record.
 
@@ -29,8 +29,10 @@ plan for the coordinator's follow-up (the two sibling specs). Files changed agai
   left free. First with its own lever at about 15 a second (CI's rate); since `e459817d8`, the shared lever's 8.
 - **The siblings (coordinator's follow-up):** Updates' refused read (`updates-refusal.spec.ts:148`) and the open
   thread's (`conversations-removal.spec.ts:1289`) go red under slow frames and now take the same wait, from
-  `e2e/frames.ts` (`framesAfterRefusal`), each with a slow case. The list's refused read (`:1254`) stays green under
-  slow frames and is left as it is (below).
+  `e2e/frames.ts` (`framesAfterRefusal`), each with a slow case. The list's refused read (`:1254`) stayed green under
+  slow frames, but only on frames from before its refusal; after the review it takes the same wait too.
+- **The review's P3s:** each conversations check counts the frames after its own read's 403 (`listFrames`,
+  `threadFrames`), not after whichever 403 came first, nor from before the refusal.
 
 ## Evidence
 
@@ -63,6 +65,15 @@ plan for the coordinator's follow-up (the two sibling specs). Files changed agai
   - **the thread's read, written first and failing** (`711e976cb`, `pw-logs/sib-red-thread.txt`): 5 of 5, `Expected:
     > 10`, received 6 each time. **Fix `38520bea9`**: every `removal · semantic` test `-Repeat 20` (both modes of the
     list and the thread, and the slow case), 100/100 (`pw-logs/sib-green-conv.txt`).
+  - **review P3 (1), the thread's own 403** (`7f9248c75`): no red possible. A probe printing the stamps
+    (`pw-logs/p3-probe-2.txt`) shows the thread tests stamp one 403, the thread's own (the list fails without one), so
+    the old count already equalled the new one (35 or 36 at the machine's rate, 11 at 8 a second). The commit also drops
+    the unused count from any 403 and passes the protected selectors in, to keep the observer within 60 lines;
+  - **review P3 (2), the list, written first and failing** (`9feb7c89e`, `pw-logs/p3-red-list.txt`): the slow list
+    case 3 of 3, `Expected: > 10`, received 5, 4, 5; the other 15 passed. **Fix `743467b34`**: every
+    `removal · semantic` test `-Repeat 20` (both modes of the list and the thread, both slow cases), 120/120
+    (`pw-logs/p3-green-removal.txt`); the whole spec once, 50/50 (`pw-logs/p3-green-whole.txt`). These ran through
+    `pw-direct.ps1` (one worker, below-normal priority), as Luis allowed while the guard waited on WoW;
   - at `38520bea9`, once each, the three specs whole and the other users of `e2e/frames.ts` (`voice-amplitude`,
     `voice-meters`, `orb-result`, `paper-orb`): 97/97 (`pw-logs/sib-green-all.txt`).
 - Whole-repo `oxlint --type-aware` (exit 0), `tsc --noEmit -p apps/studio` (exit 0), Prettier on every touched spec and
@@ -79,15 +90,10 @@ plan for the coordinator's follow-up (the two sibling specs). Files changed agai
   lever (15 a second, which reproduced CI's exact counts) gave way to the shared one (8 a second, slower). Both levers
   delay `requestAnimationFrame` in the page's own world only; Playwright's checks run in their isolated world.
 - **Each spec keeps its own floor** (Home and Updates 400 ms, the thread 500 ms) and its own trace; the helper reads the
-  count through a callback. The conversations trace gained `postFrames`, counted as the other two count it.
+  count through a callback. The conversations trace counts per read (`listFrames`, `threadFrames`): both reads are refused in its tests.
 
 ## Remaining obligations
 
-- **The list's refused read (`conversations-removal.spec.ts:1254`) is left on its fixed 500 ms**, as the coordinator
-  asked for a spec that stays green under slow frames. It stays green because its window opens before Try again, the
-  held reads' release and a trip to another view: about 11 of its 16 or 17 frames come before the refusal, and only
-  about 5 after it at 8 a second. So its `frames > 10` passes without saying the frames after the refusal were
-  sampled. Moving it to `framesAfterRefusal` on `postFrames` (now in its trace) would make it say so; a candidate.
 - The follow-up list's other suggestion, measuring Home's frame rate on main against the orb group with the machine
   free, was not done: CI's rate no longer matters to this test.
 - CI is the run on record.
