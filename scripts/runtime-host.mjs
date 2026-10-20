@@ -68,7 +68,7 @@ const unit = loadRuntimeUnit()
  * The operator's service overlay, checked before anything starts: config-only (executor-identity.ts), its control
  * bridge row setting service replies, and, unless only the digest is printed, the named variable holding 64 hex.
  */
-async function serviceLaunch(file, env, needDigest) {
+async function serviceLaunch(file, env, needDigest, reserved) {
   const { assertConfigOnlyPatch } = await import('../packages/dsh-bundle/dist/executor-identity.js')
   const bytes = readFileSync(file)
   try {
@@ -83,6 +83,8 @@ async function serviceLaunch(file, env, needDigest) {
   if (typeof name !== 'string' || !/^[A-Z_][A-Z0-9_]*$/.test(name) || name.startsWith('SOPHIA_REPLY_')) {
     throw new Error('replies.executorDigestEnv must name an environment variable outside SOPHIA_REPLY_*')
   }
+  // The supervisor applies this variable last (FND-B108): a name it already sets, or a configured credential, is refused.
+  if (reserved.has(name)) throw new Error(`replies.executorDigestEnv: ${name} is already set for the runtime`)
   const value = env[name]
   if (needDigest && (value === undefined || !/^[0-9a-f]{64}$/.test(value))) {
     throw new Error(`${name} must hold the expected executor closure (64 hex; see --print-executor-digest)`)
@@ -90,15 +92,6 @@ async function serviceLaunch(file, env, needDigest) {
   return { file, bytes, name, value }
 }
 
-let service = null
-if (values['service-overlay']) {
-  try {
-    service = await serviceLaunch(resolve(values['service-overlay']), process.env, !printDigest)
-  } catch (error) {
-    console.error(`runtime-host: ${error.message}`)
-    process.exit(2)
-  }
-}
 const credential = unit.model_route.credential_ref
 const credentials = [
   ...new Set([
@@ -107,6 +100,18 @@ const credentials = [
     ...Object.values(unit.research_sources ?? {}).flatMap((source) => (source?.credential_ref ? [source.credential_ref] : [])),
   ]),
 ]
+// What RuntimeSupervisor.environment() sets for the runtime itself, besides the credentials above.
+const SUPERVISOR_ENV = ['HOME', 'TMPDIR', 'DSH_HOME', 'DSH_TELEMETRY_DISABLED', 'LANG', 'PATH', 'SOPHIA_RUNTIME_UNIT', 'SOPHIA_WORKSPACE', 'SOPHIA_BRIDGE_URL', 'SOPHIA_BRIDGE_TOKEN']
+
+let service = null
+if (values['service-overlay']) {
+  try {
+    service = await serviceLaunch(resolve(values['service-overlay']), process.env, !printDigest, new Set([...SUPERVISOR_ENV, ...credentials]))
+  } catch (error) {
+    console.error(`runtime-host: ${error.message}`)
+    process.exit(2)
+  }
+}
 if (!values.rehearse && !printDigest && !process.env[credential]) {
   console.error(`runtime-host needs ${credential} in the environment (reference only; the value is never printed), or --rehearse`)
   process.exit(2)

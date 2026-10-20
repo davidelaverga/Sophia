@@ -17,7 +17,7 @@
 
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
-import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -797,12 +797,37 @@ describe('conversation service crossing (real dsh service executor, API, worker,
 // FND-B105: the shipped runtime-host entry's opt-in (default OFF), without the test launcher. Local and keyless: the
 // provider is the mock, the key a dummy; never live evidence.
 describe('the shipped runtime-host entry: service replies only by an explicit overlay and pinned digest (FND-B105)', () => {
+  test('every variable the actual supervisor sets for the runtime is refused as a digest name (FND-B108)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'b108-keys-'))
+    try {
+      const { RuntimeSupervisor } = await import(pathToFileURL(join(REPO_ROOT, 'apps/execution-host/dist/runtime-supervisor.js')).href)
+      const supervisor = new RuntimeSupervisor({ unit: { id: unit.id, profile: unit.dsh.profile, runtimeDir: RUNTIME_DIR, launcherEntry: DSH_ENTRY },
+        projectRoot: join(dir, 'probe'), bridge: { url: 'http://127.0.0.1:9', token: 'x' }, credentials: [], extraArgs: [], extraEnv: {}, onEvent: () => {} })
+      const keys = Object.keys(supervisor.environment())
+      assert.ok(keys.includes('SOPHIA_BRIDGE_TOKEN') && keys.includes('PATH'), JSON.stringify(keys))
+      const overlay = serviceOverlay('http://127.0.0.1:9')
+      for (const key of keys) {
+        const file = join(dir, `k-${key}.json`)
+        writeFileSync(file, JSON.stringify(JSON.parse(overlay).map((row) => row.id === 'sophia-control-bridge'
+          ? { id: row.id, config: { ...row.config, replies: { ...row.config.replies, executorDigestEnv: key } } } : row)))
+        const r = spawnSync(process.execPath, ['scripts/runtime-host.mjs', '--root', join(dir, 'root'), '--service-overlay', file, '--print-executor-digest'],
+          { cwd: REPO_ROOT, encoding: 'utf8', timeout: 30_000, env: { PATH: process.env.PATH, HOME: process.env.HOME } })
+        assert.equal(r.status, 2, `${key}: ${r.stderr}`)
+        assert.equal(existsSync(join(dir, 'root')), false, `${key}: the root is not touched`)
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   test('refused before anything starts: an overlay that is not config-only, sets no replies, or an unset/malformed digest; with --rehearse', () => {
     const dir = mkdtempSync(join(tmpdir(), 'b105-host-'))
     const run = (args, env = {}) =>
       spawnSync(process.execPath, ['scripts/runtime-host.mjs', '--root', join(dir, 'root'), ...args], {
-        cwd: REPO_ROOT, encoding: 'utf8', env: { PATH: process.env.PATH, HOME: process.env.HOME, SOPHIA_SERVICE_URL: 'http://127.0.0.1:9', SOPHIA_RUNTIME_TOKEN: 'x', OPENAI_API_KEY: DUMMY_KEY, ...env } })
+        cwd: REPO_ROOT, encoding: 'utf8', timeout: 30_000, env: { PATH: process.env.PATH, HOME: process.env.HOME, SOPHIA_SERVICE_URL: 'http://127.0.0.1:9', SOPHIA_RUNTIME_TOKEN: 'x', OPENAI_API_KEY: DUMMY_KEY, ...env } })
     const write = (name, text) => { const f = join(dir, name); writeFileSync(f, text); return f }
+    const namedDigest = (overlay, name) => JSON.stringify(JSON.parse(overlay).map((row) => row.id === 'sophia-control-bridge'
+      ? { id: row.id, config: { ...row.config, replies: { ...row.config.replies, executorDigestEnv: name } } } : row))
     const good = serviceOverlay('http://127.0.0.1:9')
     const noReplies = JSON.stringify(JSON.parse(good).map((row) => row.id === 'sophia-control-bridge' ? { id: row.id, config: { ...row.config, replies: undefined } } : row))
     const cases = [
@@ -811,6 +836,12 @@ describe('the shipped runtime-host entry: service replies only by an explicit ov
       ['digest unset', [ '--service-overlay', write('good.json', good) ], {}, /SOPHIA_EXECUTOR_DIGEST must hold the expected executor closure/],
       ['digest malformed', [ '--service-overlay', write('good2.json', good) ], { SOPHIA_EXECUTOR_DIGEST: 'not-hex' }, /must hold the expected executor closure/],
       ['with --rehearse', [ '--rehearse', '--service-overlay', write('good3.json', good) ], { SOPHIA_EXECUTOR_DIGEST: 'a'.repeat(64) }, /never combined with --rehearse/],
+      // FND-B108 (4324657170): a digest variable that would overwrite one the supervisor sets, or a configured credential
+      // reference (the model route's, a source's), is refused for launch and for --print-executor-digest alike.
+      ...['SOPHIA_BRIDGE_TOKEN', 'OPENAI_API_KEY', 'TAVILY_API_KEY'].flatMap((taken) => [
+        [`launch, digest named ${taken}`, ['--service-overlay', write(`taken-${taken}.json`, namedDigest(good, taken))], { [taken]: 'a'.repeat(64) }, new RegExp(`${taken} is already set for the runtime`)],
+        [`print, digest named ${taken}`, ['--service-overlay', write(`taken-p-${taken}.json`, namedDigest(good, taken)), '--print-executor-digest'], {}, new RegExp(`${taken} is already set for the runtime`)],
+      ]),
     ]
     try {
       for (const [label, args, env, message] of cases) {
@@ -818,6 +849,7 @@ describe('the shipped runtime-host entry: service replies only by an explicit ov
         assert.equal(r.status, 2, `${label}: ${r.stderr}`)
         assert.match(r.stderr, message, label)
         assert.doesNotMatch(r.stdout, /"event":"profile"/, `${label}: refused before the profile`)
+        assert.equal(existsSync(join(dir, 'root')), false, `${label}: the root is not touched`)
       }
     } finally {
       rmSync(dir, { recursive: true, force: true })
