@@ -56,6 +56,21 @@ function tools(service, session = SESSION, patience = QUICK, readMs = undefined)
 
 const RESULT = { verdict: 'supported', report: 'r', findings: [{ status: 'supported', statement: 's', sourceIds: [SOURCE] }], receipts: [RECEIPT] }
 
+/**
+ * A first request that fails at once (502); 110 ms of synchronous work then holds the event loop. It is queued as a
+ * timer before the retry's 1 ms pause is, so it runs first and the pause resumes after it. Any later request hangs.
+ */
+function stalled(sentAt, stalls, op, _body, signal) {
+  sentAt.push([op, Date.now()])
+  if (sentAt.filter(([name]) => name === op).length > 1) return unanswered(_body, signal)
+  setTimeout(() => {
+    const until = performance.now() + 110
+    while (performance.now() < until) {}
+    stalls.push([op, Date.now()])
+  }, 0)
+  return Promise.reject(new TransportError('POST answered 502', 502))
+}
+
 /** A request the service never answers: it ends only when its signal does. */
 const unanswered = (_body, signal) =>
   new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))
@@ -571,4 +586,30 @@ test('a cancelled model call sends no reservation, and cuts one in flight: unkno
   assert.ok(Date.now() - started < 2_000, 'cut by the cancellation, not by its 60 s deadline')
   assert.equal(pending.calls.length, 1, 'not sent again after the cancellation')
   assert.equal(pending.calls[0][2].aborted, true)
+})
+
+test('a resend whose pause resumes after the deadline is not sent: unknown, never permission (A04)', async () => {
+  // Each operation's first request fails at once, ambiguously, so a 1 ms pause is admitted; ordinary synchronous work
+  // then holds the event loop past the 100 ms deadline, and the pause resumes late. No clock is stubbed.
+  const sentAt = []
+  const stalls = []
+  const late = fakeAccounts({
+    reserve: (body, signal) => stalled(sentAt, stalls, 'reserve', body, signal),
+    settle: (body, signal) => stalled(sentAt, stalls, 'settle', body, signal),
+  })
+  const accounts = reviewAccounts(late.client, { tries: 4, pauseMs: 1, maxMs: 100 })
+  const started = Date.now()
+  await assert.rejects(accounts.reserve(RESERVE), /no answer to the reservation; its outcome is unknown/)
+  const settling = Date.now()
+  await assert.rejects(
+    accounts.settle({ ...SESSION, reservationId: RESERVATION.reservationId, outcome: 'uncertain' }),
+    /no answer to the settlement; its outcome is unknown/,
+  )
+  const at = (list, op, from) => list.filter(([name]) => name === op).map(([, when]) => when - from)
+  // The schedule held: each stall ended past its operation's deadline.
+  assert.ok(at(stalls, 'reserve', started)[0] >= 100 && at(stalls, 'settle', settling)[0] >= 100, `stalls ended at ${JSON.stringify(stalls)}`)
+  assert.ok(at(sentAt, 'reserve', started).every((ms) => ms < 100), `reserve sent at ${at(sentAt, 'reserve', started)} ms`)
+  assert.ok(at(sentAt, 'settle', settling).every((ms) => ms < 100), `settle sent at ${at(sentAt, 'settle', settling)} ms`)
+  assert.equal(late.calls.length, 2, 'one request per operation: none after its deadline')
+  assert.ok(late.calls.every(([op, body]) => body === (op === 'reserve' ? late.calls[0][1] : late.calls[1][1])), 'the bodies as given')
 })
