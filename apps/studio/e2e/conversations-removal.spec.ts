@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { slowFramesFromNow } from './frames.ts'
 
 // Removing a message and erasing a conversation (CON-01, A33; binding map §6): the fixture's own member is an admin,
 // who removes any message and erases a conversation; an editor or a viewer withdraws only their own. What a
@@ -1291,3 +1292,31 @@ for (const mode of ['delayed', 'malformed'] as const) {
     expect((await served(page)).filter((s) => s === 'messages-refused:c1')).toHaveLength(1)
   })
 }
+
+// Frames at 8 a second, as a loaded runner draws them (e2e/frames.ts; docs/plans/ci-home-needs-refusal-flake.md).
+test(`removal · semantic, slow frames (8 a second): the open thread's read refused (403, delayed body) as the feed moves: from the client's first sight of it, enough frames are sampled and none shows its messages, composer, a row or Start`, async ({
+  page,
+}, info) => {
+  await page.goto(PAGE)
+  await expect(messages(page)).toHaveCount(6)
+  await expect(field(page)).toBeVisible()
+  await page.evaluate(() => window.fixture?.failConversations(true))
+  await page.evaluate((c) => window.fixture?.refuseMessageReads(c), C1)
+  await observeClientDenials(page, 'delayed')
+  await slowFramesFromNow(page)
+  await page.evaluate(() => window.fixture?.listMore(true))
+  await expect(list(page)).toContainText('This project refused a read of its conversations.')
+  await expect(rows(page)).toHaveCount(0)
+  await page.waitForTimeout(500)
+  const trace = await readDenialTrace(page)
+  await info.attach('denial-trace-thread-slow-frames.json', {
+    body: JSON.stringify(trace, null, 1),
+    contentType: 'application/json',
+  })
+  expect(
+    trace.denials.some((d) => /\/conversations\/[^/]+\/messages$/.test(d.path)),
+    'the thread read was refused, as the client saw',
+  ).toBe(true)
+  expect(trace.frames).toBeGreaterThan(10)
+  expect(trace.hits, 'protected content or controls after the client saw the 403').toEqual([])
+})
