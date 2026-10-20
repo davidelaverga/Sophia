@@ -1625,3 +1625,60 @@ describe('the completed-call fence’s gaps (FND-C62)', () => {
     )
   })
 })
+
+// FND-C64 (finding 4321054353): the server's own shutdown order (server.ts: app.close, then the model service's
+// dispose, then pool.end, then exit) while an accepted turn's answer is mid-stream with no HTTP request left open.
+describe('shutting down while an accepted answer is mid-stream (FND-C64)', () => {
+  it('finishes the accepted answer, its cost and its reply before the model service and the pool close', async () => {
+    const JO = randomUUID()
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('c64-payer', $1, 1000000)`,
+      [JO],
+    )
+    await owner(`UPDATE sophia.personal_companion_payers SET owner_id=$2 WHERE payer=$1`, ['c64-payer', JO])
+    // FIXTURE: this case's own app and pools (closed here, as the server closes its own).
+    const apiPool = createPool(db.apiUrl, { max: 4 })
+    const configured = await personalCompanionFrom(env('c64-payer', JO), apiPool)
+    const verifyActor = createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET })
+    const app = buildApp({ pool: apiPool, verifyActor, companion: configured.companion })
+    await app.listen({ port: 0, host: '127.0.0.1' })
+    const at = `http://127.0.0.1:${String((app.server.address() as AddressInfo).port)}`
+    const sentBefore = recorded().length
+    double.script({ text: 'Answered before shutdown.', usage: { input_tokens: 10, output_tokens: 5 }, delayMs: 1200 })
+    const order: string[] = []
+    await write(at, '/api/v1/personal/turns', JO, { text: 'Answer me, then stop.' })
+    order.push('POST 202 answered')
+    // Witness: the provider request is in flight (the double holds its stream) and the call is reserved.
+    for (let i = 0; i < 100 && recorded().length === sentBefore; i++) await pause(20)
+    assert.equal(recorded().length - sentBefore, 1, 'the provider stream is active')
+    const [reserved] = await owner<{ n: number }>(
+      `SELECT count(*)::int n FROM sophia.personal_companion_usage WHERE payer='c64-payer' AND state='reserved'`,
+    )
+    assert.equal(reserved?.n, 1, 'the call is reserved')
+    const replies = async () =>
+      (
+        await owner<{ n: number }>(
+          `SELECT count(*)::int n FROM sophia.personal_turns WHERE owner_id=$1 AND author='sophia'`,
+          [JO],
+        )
+      )[0]?.n ?? 0
+    // The server's shutdown, in its order (process.exit itself is not called in a test).
+    await app.close()
+    order.push(`app.close (replies ${String(await replies())})`)
+    await configured.dispose()
+    order.push('service.dispose')
+    await apiPool.end()
+    order.push('pool.end')
+    await pause(1600) // past the double's hold: anything left running after the pool closed has had its time
+    const usageNow = (await usage('c64-payer')).map((r) => r.state)
+    const witness = { order, usage: usageNow, replies: await replies(), requests: recorded().length - sentBefore }
+    console.log(`C64 witness ${JSON.stringify(witness)}`)
+    assert.equal(
+      order[1],
+      'app.close (replies 1)',
+      `the reply was written before app.close resolved: ${JSON.stringify(witness)}`,
+    )
+    assert.deepEqual(usageNow, ['settled'], 'its cost settled, not left reserved')
+    assert.equal(witness.requests, 1, 'one provider request, none again')
+  })
+})

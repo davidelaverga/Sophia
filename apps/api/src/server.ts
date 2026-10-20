@@ -91,12 +91,16 @@ const app = buildApp({
   }),
 })
 
-const shutdown = async () => {
-  await app.close()
-  await personal.dispose()
-  await pool.end()
-  process.exit(0)
-}
+// One shutdown however many signals: app.close waits for the companion's accepted answers (its onClose), then the
+// model service and the pool close, then the process ends.
+let stopping: Promise<void> | null = null
+const shutdown = () =>
+  (stopping ??= (async () => {
+    await app.close()
+    await personal.dispose()
+    await pool.end()
+    process.exit(0)
+  })())
 for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => void shutdown())
 
 await app.listen({ host: optional('HOST') ?? '127.0.0.1', port: Number(optional('PORT') ?? 8787) })

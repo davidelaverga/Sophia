@@ -155,6 +155,10 @@ interface Call {
 export class CompanionRunner {
   private readonly inFlight = new Set<string>()
   private readonly calls = new Map<string, Set<Call>>()
+  /** Every accepted answer's whole run (claim, call, cost, kept answer, reply, the next turn), until it ends. */
+  private readonly running = new Set<Promise<void>>()
+  /** Shutting down: no answer is started any more, nor the next turn chained (finding 4321054353). */
+  private closing = false
   private readonly pool: pg.Pool
   private readonly companion: Companion
   private readonly onError: (err: unknown) => void
@@ -230,11 +234,27 @@ export class CompanionRunner {
     return this.companion.owner === undefined || this.companion.owner === actorId.toLowerCase()
   }
 
-  /** Start answering `turnId` for `actorId`; resolves when the reply or the failure is written. */
+  /**
+   * Start answering `turnId` for `actorId`; resolves when the reply or the failure is written. Once shutting down,
+   * nothing is started: the turn stays pending, as it is, for the next process.
+   */
   answer(actorId: string, turnId: string): Promise<void> {
-    if (this.inFlight.has(turnId)) return Promise.resolve()
+    if (this.closing || this.inFlight.has(turnId)) return Promise.resolve()
     this.inFlight.add(turnId)
-    return this.run(actorId, turnId).finally(() => this.inFlight.delete(turnId))
+    const run = this.run(actorId, turnId).finally(() => this.inFlight.delete(turnId))
+    this.running.add(run)
+    void run.finally(() => this.running.delete(run))
+    return run
+  }
+
+  /**
+   * Shut down (finding 4321054353): start no answer and chain no next turn, then wait for every accepted one to end,
+   * its cost settled or held, its kept answer and its reply written, while the pool and the model are still open. Each
+   * is bounded by its own limits (ANSWER_LIMIT_MS for the call, its few write retries): nothing is cut short here.
+   */
+  async close(): Promise<void> {
+    this.closing = true
+    while (this.running.size > 0) await Promise.allSettled(this.running)
   }
 
   /**

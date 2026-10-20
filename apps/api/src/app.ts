@@ -303,6 +303,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         app.log.error({ companion: companionFailure(err) }, 'companion answer failed'),
       )
     : null
+  // Shutdown waits for the answers already accepted (their runs outlive the 202), before the pool or model close.
+  if (companion) app.addHook('onClose', () => companion.close())
   personalRoutes(app, { pool: deps.pool, companion })
   if (deps.conversations) projectConversationRoutes(app, { pool: deps.pool })
   return app
