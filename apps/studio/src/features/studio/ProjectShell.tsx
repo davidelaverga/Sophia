@@ -258,7 +258,9 @@ function useReportCall(
     leaveTextMode: () => latest.current.setTextMode(false),
   }))
   const { microphone, camera, screen } = sendingOf(room.participants.find((p) => p.local))
-  const inCall = isInCall(room)
+  // A dropped call coming back on its own is still this person's call (call-rejoin.md): its project stays mounted out
+  // of sight, and the places' bar keeps it with Leave, which stops the try; a try that fails ends it there.
+  const inCall = isInCall(room) || room.rejoining
   const { textMode, mediaError: note } = room
   useEffect(() => {
     const sending = { microphone, camera, screen }
