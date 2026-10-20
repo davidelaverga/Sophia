@@ -117,11 +117,27 @@ query's data through a failed fetch. The query's data is the accepted board, so 
 - the demo's Tasks with `/plans` answering a board the reader refuses says the line as an alert and draws no board;
   Try again, answered rightly, brings the boards back;
 - the same with another project's board, whole and well formed (no goals), refused by the project check alone;
-- a board read, then answered with a refused board four times after the project moves, stays, with no alert.
+- a board read, then answered with a refused board at the project's moves, stays, with no alert.
+
+**After review: a refusal of the reader isn't asked again at once.** Retried, a refused board meant four requests at
+each read while it lasted (the half-minute look, each move of the project, Try again), and seven seconds of
+«reading» before the line, for a reply that refuses the same on every try. The board's query keeps the shared rule for
+everything else and adds one exception: `retry: (failures, error) => !readerRefused(error) && retryRead(failures,
+error)`, where `readerRefused` is the `contract_violation` whose cause is `servedBoard`'s own refusal
+(`BoardRefused`). A reply that isn't JSON at all (a truncated body, a portal's page answered 200) is still
+`contract_violation` and still retried: it can heal by asking. Checked first in `board-robust.spec.ts`: a board read,
+then refused at two moves, asks once per move (none more past TanStack's first wait) and stays, unsaid.
 
 Neighbours as above (`search-goals`, `task-links`, `targets-robust`, `goal-owner-date`, `views-goals`,
 `goals-overview`, `decision-alert`, `board-why`, `work`); unit `features/work/planning`.
 
-**Limits.** A refused board is now retried three times before the line shows (1, 2 and 4 s), as every parsed read's
-`contract_violation` is; a reader that refuses today refuses on each try, so that is seven seconds of «reading»
-before the truth. Kept for one rule across reads rather than a board-only exception.
+**Limits.**
+
+- ~~A refused board is now retried three times before the line shows (1, 2 and 4 s), as every parsed read's
+  `contract_violation` is.~~ Changed after review (above): a refusal of the reader is asked once per read.
+- **A board kept says nothing of its age.** A board read once stays through later failures, transport or refusal, with
+  its controls live and no line. A refusal for good (the API's board ahead of this Studio's reader, a version skew)
+  now leaves the last accepted board on screen indefinitely, while every new read is refused unsaid. A known
+  trade-off, taken over blanking a board the person may be working from; the follow-up is an «as of …» line on a
+  board kept past a failed read (its `observed_at` is already there), and, for a refusal that lasts, the same «can’t
+  be read» words beside it. No new UI in this change.
