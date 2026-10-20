@@ -42,6 +42,18 @@ export const leaving: { held: boolean; fails: boolean; waiting: (() => void)[] }
 export const enabling: { held: boolean; waiting: (() => void)[] } = { held: false, waiting: [] }
 
 /**
+ * Connecting waits while held (`window.fixture.holdConnect`), as LiveKit's connect takes its seconds: the connection is
+ * made (`connect` recorded) and handed over once let go.
+ */
+export const connecting: { held: boolean; waiting: (() => void)[] } = { held: false, waiting: [] }
+
+/** A connection, handed over now or once connecting is let go. */
+function handedOver(connection: RoomConnection): Promise<RoomConnection> {
+  if (!connecting.held) return Promise.resolve(connection)
+  return new Promise((hand) => connecting.waiting.push(() => hand(connection)))
+}
+
+/**
  * Turning the microphone off waits while held (`window.fixture.holdMute`), as LiveKit's mute does while a republish
  * settles; a change asked after it waits its turn, as LiveKit's mute lock makes it.
  */
@@ -141,6 +153,7 @@ let callbacks: RoomCallbacks | null = null
 /** A connection made: recorded, with the devices it opens with (roomOptions in livekit-room.ts reads the same). */
 function connected(cb: RoomCallbacks): void {
   asked.push('connect')
+  linkDown = false // a new connection starts with its link up
   joined.devices = chosenDevices()
   joined.background = chosenBackground()
   callbacks = cb
@@ -179,6 +192,7 @@ function fromSophia(packet: ChatPacket): void {
  * left the room itself (CLIENT_INITIATED), as it does when the page is hidden for good or frozen.
  */
 export function dropCall(why: CallEnd = 'dropped', selfLeft = false): void {
+  linkDown = false // the link is gone with the call: the next connection's is its own
   ended?.(why, selfLeft)
 }
 
@@ -357,7 +371,7 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     cb.onEnded(why, selfLeft)
   }
   const device = deviceSwitch(me, mic.changed)
-  return Promise.resolve({
+  return handedOver({
     sendChat,
     setTextMode: (on) => {
       asked.push(`text:${on ? 'on' : 'off'}`)
@@ -388,6 +402,9 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     },
     leave: () => {
       asked.push('leave')
+      // LiveKit says the room disconnected when this page leaves it too (CLIENT_INITIATED): the room controller decides
+      // whether that end is still its call's.
+      if (open) cb.onEnded('dropped', true)
       open = false
       // A slow disconnect (`window.fixture.holdLeave`): it ends when released.
       if (leaving.fails) return Promise.reject(new Error('Disconnect failed'))

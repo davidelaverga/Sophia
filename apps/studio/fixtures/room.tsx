@@ -73,6 +73,7 @@ import {
   sophiaLeaves,
   speakWhileMuted,
   muteByHost,
+  connecting,
 } from './fake-livekit.ts'
 import {
   blockSound,
@@ -173,6 +174,8 @@ interface Fixture {
   failToken: () => void
   /** While on, room tokens wait for their answers, as a slow API's do; off, every one held answers. */
   holdToken: (on: boolean) => void
+  /** While on, LiveKit's connect waits after it began; off, the connections held are handed over. */
+  holdConnect: (on: boolean) => void
   /** The next request to revise the page is refused, a design under way (revise-section.md). */
   failEdit: () => void
   /** While on, requests to revise the page wait for their replies; off, they answer. */
@@ -1060,6 +1063,12 @@ window.fixture = {
   },
   failToken: () => {
     project.failToken = true
+  },
+  holdConnect: (on) => {
+    connecting.held = on
+    if (on) return
+    const handed = connecting.waiting.splice(0)
+    for (const hand of handed) hand()
   },
   holdToken: (on) => {
     const held = project.tokenHeld ?? []

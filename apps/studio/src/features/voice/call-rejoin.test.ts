@@ -407,6 +407,22 @@ describe('what this room tells the other tabs, and a clock set back (review roun
     assert.equal(h.claims.at(-1), `${SCOPE} joining`)
   })
 
+  it('a try that fails with no status move says it joins no more (a join held offline, or none possible)', async () => {
+    const h = harness()
+    h.rejoin.status('live')
+    h.rejoin.live()
+    h.rejoin.status('failed')
+    h.rejoin.ended('dropped')
+    assert.equal(h.claims.at(-1), `${SCOPE} joining`)
+    h.joins[0]?.(false)
+    await settle()
+    assert.equal(h.claims.at(-1), `${SCOPE} out`)
+  })
+
+  it('a call seen live «later» than now (a clock set back) is not recent', () => {
+    assert.equal(rejoinPlan({ ...dropped, seen: dropped.now + 60_000 }), null)
+  })
+
   it('a try whose clock went back before it began is stale', () => {
     const h = harness()
     h.rejoin.live()

@@ -603,6 +603,32 @@ test('BASE-03 · a try that fails with the focus on its Leave hands the focus to
   await expect(retry).toBeFocused()
 })
 
+test('BASE-03 · a try no longer wanted once LiveKit has connected is left quietly, and its call’s microphone kept (review round 3)', async ({
+  page,
+}) => {
+  await enter(page, '/room.html?call=on')
+  await expect(microphone(page)).toHaveAttribute('aria-pressed', 'true')
+  const connected = await connects(page)
+  await page.evaluate(() => {
+    window.fixture?.holdConnect(true)
+    window.fixture?.drop()
+  })
+  await expect.poll(() => connects(page)).toBe(connected + 1) // LiveKit's connect began, and waits
+  // The page froze meanwhile and wakes ten minutes later: the try is no longer wanted once its connection lands.
+  await page.evaluate(() => {
+    const real = Date.now.bind(Date)
+    Date.now = () => real() + 10 * 60_000
+    window.fixture?.holdConnect(false)
+  })
+  await expect(page.locator('.dock-wrap .dock-note')).toHaveText('You were disconnected from the room.')
+  const retry = controls(page).getByRole('button', { name: /^Try again/ })
+  await expect(retry).toBeEnabled()
+  expect(await asked(page)).toContain('leave')
+  // That leave was no end of the call's: Try again brings the microphone back as the call had it.
+  await retry.click()
+  await expect(microphone(page)).toHaveAttribute('aria-pressed', 'true')
+})
+
 test('BASE-03 · another tab, being taken out and a closed room never rejoin on their own', async ({ page }) => {
   await enter(page, '/room.html?call=on')
   const join = controls(page).getByRole('button', { name: /^Join the room/ })

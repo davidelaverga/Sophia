@@ -25,6 +25,25 @@ describe('a join still wanted once connected (review round 2)', () => {
     assert.equal(opened.left, 0)
   })
 
+  it('a join no longer wanted once connected is made quiet before it is left (its end is not the call’s)', async () => {
+    const opened = connection()
+    const order: string[] = []
+    const leave = opened.leave
+    opened.leave = async () => {
+      order.push('leave')
+      await leave()
+    }
+    assert.throws(() =>
+      keptIfStill(
+        opened,
+        () => false,
+        () => order.push('quiet'),
+      ),
+    )
+    await Promise.resolve()
+    assert.deepEqual(order, ['quiet', 'leave'])
+  })
+
   it('a join no longer wanted once connected is left at once, and fails', async () => {
     const opened = connection()
     assert.throws(() => keptIfStill(opened, () => false), /no longer wanted/)
