@@ -21,8 +21,9 @@
   read, and nothing waits for it. On a stopped clock a timer counts from the moment it is set: read after the first
   `runFor(500)` reached the page, the retry falls due at 1.5 s, and the open case sees 1 write where it expects 2. The
   close case then passes for the wrong reason: the chat closed before any retry was pending, so it proves nothing.
-- **Reproduced:** the 503's body held 300 ms of real time (`AbortSignal.timeout`, which the page clock doesn't stop):
-  the open case fails 3 of 3, «Expected: 2, Received: 1»; the close case passes.
+- **Reproduced:** the 503's body held 300 ms of real time (`scheduler.postTask` with a delay: Playwright's clock fakes
+  `AbortSignal.timeout` with the timers, not the scheduler): the open case fails 5 of 5, «Expected: 2, Received: 1»;
+  the close case passes.
 - **The call's join tick (#466):** neither case reads the dock. `chatToggle` is the first «Chat…» press, there in and
   out of the call, and the seen effect doesn't depend on the call. Probed with the token late (`token=late`): the call
   was out at the pause every time and went live during the runs or after them; both cases passed 3 of 3.
@@ -32,9 +33,9 @@
 - **The 503 answers slowly every time:** its body arrives 300 ms of real time after the release, so every run meets the
   order a loaded runner can bring.
 - **The cases wait for that answer to be read before the clock moves.** The 503's `json()` notes when it is read
-  (`window.seenAnswerRead`). From that read to the retry's `setTimeout` the client runs only promise steps, and a
-  `page.evaluate` is a task of its own: once it sees the note, the retry is set, on the stopped clock, a second ahead.
-  The assertions are unchanged.
+  (`window.seenAnswerRead`). From that read to the retry's `setTimeout` the client runs only promise steps (`toError`,
+  `inTime`'s `finally`, `markNeedSeen`'s rejection, `retry()`), and a `page.evaluate` is a task of its own: once it sees
+  the note, the retry is set, on the stopped clock, a second ahead. The assertions are unchanged.
 
 ## Checks (written first)
 
