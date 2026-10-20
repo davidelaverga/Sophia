@@ -11,7 +11,8 @@ import type { RoomToken, Snapshot } from '@sophia/contracts'
 import { ApiError, issueRoomToken } from '../../api/client.ts'
 import { useOnline } from '../personal/online.ts'
 import { CALL_END, joinHeld, keepsTextMode, keptNote, noteFor, type CallEnd } from './call-end.ts'
-import { CallFence, keptIfStill } from './call-fence.ts'
+import { CallFence } from './call-fence.ts'
+import { micToStart, openRoom } from './call-open.ts'
 import { LIVE_BEAT_MS, Rejoin, rejoinLine, type RejoinStep } from './call-rejoin.ts'
 import { browserTabs } from './call-tabs.ts'
 import { switchCamera } from './camera-flip.ts'
@@ -140,49 +141,8 @@ const NOBODY: People = { participants: [], feeds: [], sophia: null, audioBlocked
 /** How this person gets a room token: as a member of the project, or as a guest the lobby admitted. */
 export type IssueToken = () => Promise<RoomToken>
 
-/**
- * A token from the API, then LiveKit, which loads only now: it is most of the Studio's weight. A join overtaken while
- * they came (a Leave during a try back in, the page going) goes no further, so once its token is back the room never
- * sees it flash in and out. Nor does a join no longer wanted (`still`): a try back in whose token came too late.
- */
-async function openRoom(issue: IssueToken, ports: Pick<JoinPorts, 'scoped'>, cb: RoomCallbacks, gate: Gate) {
-  const issued = await issue()
-  ports.scoped(scopeOf(issued))
-  const { connectRoom } = await import('./livekit-room.ts')
-  if (!gate.current()) throw new Error('This join was overtaken before it connected')
-  if (gate.still && !gate.still()) throw new Error('This try back in came too late to connect')
-  // Asked again once connected, before it becomes the call and its microphone starts; left quietly if no longer wanted.
-  let quiet = false
-  const ended: RoomCallbacks['onEnded'] = (why, selfLeft) => {
-    if (!quiet) cb.onEnded(why, selfLeft)
-  }
-  const opened = await connectRoom(issued.serverUrl, issued.token, { ...cb, onEnded: ended })
-  return keptIfStill(opened, gate.still, () => {
-    quiet = true
-  })
-}
-
-/** What a join asks before LiveKit: whether it is still the current one, and still wanted (a try back in). */
-interface Gate {
-  current: () => boolean
-  still: (() => boolean) | undefined
-}
-
-/**
- * The call a token names, for this browser's other tabs (call-tabs.ts): its LiveKit room and the person in it, read
- * from the token's subject (LiveKit's identity) without trusting it for anything else; the room alone where the token
- * says none.
- */
-function scopeOf(issued: RoomToken): string {
-  try {
-    const body = issued.token.split('.')[1] ?? ''
-    const claims: unknown = JSON.parse(atob(body.replace(/-/g, '+').replace(/_/g, '/')))
-    const sub = typeof claims === 'object' && claims !== null && 'sub' in claims ? claims.sub : null
-    return typeof sub === 'string' ? `${issued.roomId}:${sub}` : issued.roomId
-  } catch {
-    return issued.roomId
-  }
-}
+/** LiveKit's connect, through the room's own module, which loads only now (call-open.ts opens the connection). */
+const loadLiveKit = async () => (await import('./livekit-room.ts')).connectRoom
 
 /** A kind's devices, through the room's own module: the one import of LiveKit, which the fixtures replace. */
 async function listDevices(kind: DeviceKind): Promise<MediaDevice[]> {
@@ -431,7 +391,7 @@ async function joinConnection(ports: JoinPorts, options?: JoinOptions, still?: (
   setStatus('joining')
   setError(null)
   try {
-    const opened = await openRoom(issue, ports, heardWhile(current, ports), { current, still })
+    const opened = await openRoom(issue, loadLiveKit, ports.scoped, heardWhile(current, ports), { current, still })
     // Left, gone or joined again while this join was under way: it has been left, and the screen stays as it is.
     if (!calls.adopt(call, opened)) return false
     await enterCall({
@@ -443,7 +403,7 @@ async function joinConnection(ports: JoinPorts, options?: JoinOptions, still?: (
         refresh()
       },
       // The choice made before joining is carried, not only kept: a device that keeps nothing still honours it.
-      micOnArrival: options?.mic === undefined ? micOnArrival : () => options.mic === true && micOnJoin(),
+      micOnArrival: micToStart(options?.mic, micOnArrival, micOnJoin),
       arrive,
       leaveTextMode: () => typedChat.setTextMode(false),
     })
