@@ -166,6 +166,8 @@ interface Project {
   failReplies?: boolean
   /** The next room token is refused as an unavailable API's, so the join fails (`window.fixture.failToken`). */
   failToken?: boolean
+  /** While a list, room tokens wait in it until let go (`window.fixture.holdToken`); null or absent, they answer. */
+  tokenHeld?: (() => void)[] | null
   /** Each room token answers 1.5 s late (`token=late`), as a loaded runner brings the call after the room has drawn. */
   tokenLate?: boolean
   /** How many versions of the fixture report are published (report-data.ts). */
@@ -555,8 +557,8 @@ function departed(project: Project): Response {
 }
 
 /**
- * A room token, unless the next one is to fail (`failToken`), 1.5 s late with `tokenLate`; each one asked for is
- * recorded (`room-token`).
+ * A room token, unless the next one is to fail (`failToken`), 1.5 s late with `tokenLate`, kept until let go while
+ * held (`tokenHeld`); each one asked for is recorded (`room-token`).
  */
 function tokenAnswer(project: Project): Response | Promise<Response> {
   served.push('room-token')
@@ -565,6 +567,8 @@ function tokenAnswer(project: Project): Response | Promise<Response> {
     return unavailable()
   }
   if (project.tokenLate) return new Promise((late) => setTimeout(() => late(json(roomToken)), 1500))
+  const held = project.tokenHeld
+  if (held) return new Promise((reply) => held.push(() => reply(json(roomToken))))
   return json(roomToken)
 }
 

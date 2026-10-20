@@ -40,6 +40,13 @@ export const BACK_ONLINE = 'You’re back online. Try again rejoins the call.'
 /** A join pressed while the browser is offline with no call lost before it, which asks for nothing (Luis 2026-10-19). */
 export const OFFLINE_JOIN = 'You’re offline. Join once you’re back.'
 
+/** A dropped call trying once to get back in on its own (call-rejoin.md). */
+export const REJOINING = 'Connection lost. Rejoining the call…'
+/** A call dropped offline whose one try waits for the network. */
+export const OFFLINE_REJOIN = 'You’re offline, so the call ended here. Back online, you rejoin it automatically.'
+/** That try got back in: said once. */
+export const REJOINED = 'Reconnected.'
+
 /** Offline, what the room says of a join: the lost call's line after one, the Join from rest's with none. */
 const offlineNote = (lost: boolean) => (lost ? OFFLINE_END : OFFLINE_JOIN)
 

@@ -205,7 +205,11 @@ test('recap · with no reply, the recap read again says it closed: nothing to pr
 
 test('recap · a dropped call shows no recap: the person didn’t leave', async ({ page }) => {
   await enter(page)
-  await page.evaluate(() => window.fixture?.drop())
+  // The connection is lost, and its one try back in fails (call-rejoin.md): the call stays lost.
+  await page.evaluate(() => {
+    window.fixture?.failToken()
+    window.fixture?.drop()
+  })
   await expect(page.getByRole('button', { name: 'Try again' }).first()).toBeVisible()
   await expect(sheet(page)).toHaveCount(0)
 })

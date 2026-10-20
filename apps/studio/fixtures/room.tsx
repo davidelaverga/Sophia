@@ -170,6 +170,8 @@ interface Fixture {
   failReplies: (on: boolean) => void
   /** The next room token is refused, so that join fails and offers Try again. */
   failToken: () => void
+  /** While on, room tokens wait for their answers, as a slow API's do; off, every one held answers. */
+  holdToken: (on: boolean) => void
   /** The next request to revise the page is refused, a design under way (revise-section.md). */
   failEdit: () => void
   /** While on, requests to revise the page wait for their replies; off, they answer. */
@@ -750,6 +752,7 @@ const project = {
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
   failToken: false,
+  tokenHeld: null as (() => void)[] | null,
   // `token=late`: the call's token answers 1.5 s late, so the call goes live after the room has drawn (press-answers).
   tokenLate: query.get('token') === 'late',
   failEdit: false,
@@ -1054,6 +1057,11 @@ window.fixture = {
   },
   failToken: () => {
     project.failToken = true
+  },
+  holdToken: (on) => {
+    const held = project.tokenHeld ?? []
+    project.tokenHeld = on ? [] : null
+    if (!on) for (const answer of held) answer()
   },
   failEdit: () => {
     project.failEdit = true
