@@ -72,6 +72,7 @@ import {
   validateRoomToken,
   validateSnapshot,
   validateNeedList,
+  validateSearchPage,
 } from './generated/validators.js'
 import type { CursorAdvance, Error as ErrorBody, Event } from './generated-types.ts'
 
@@ -152,6 +153,7 @@ export const parsePersonalExport = parser('PersonalExport', validatePersonalExpo
 export const parsePersonalReceipt = parser('PersonalReceipt', validatePersonalReceipt)
 export const parseProjectList = parser('ProjectList', validateProjectList)
 export const parseNeedList = parser('NeedList', validateNeedList)
+export const parseSearchPage = parser('SearchPage', validateSearchPage)
 export const parseWorkBoardView = parser('WorkBoardView', validateWorkBoardView)
 export const parseWorkReceipt = parser('WorkReceipt', validateWorkReceipt)
 export const parseWorkResult = parser('WorkResult', validateWorkResult)

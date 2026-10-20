@@ -21,7 +21,8 @@ const PAGES = [
   ['home', '/home.html?demo=1', DRAWN.home],
   ['personal', '/personal.html?demo=1', DRAWN.personal],
   ['the room', '/room.html?demo=1', DRAWN.room],
-  // Its token late (`token=late`), as a loaded runner brings the call after the room has drawn (CI on #470).
+  // Its token late (`token=late`), as a loaded runner brings the call after the room has drawn (CI on #470); drawn once
+  // the call is live (C57 saw the pre-join controls listed first under load).
   ['the room in a call', '/room.html?demo=1&call=on&people=2&floor=1&sophia=listening&token=late', IN_CALL],
   ['Conversations', '/room.html?demo=1&conversations=1&place=conversations', DRAWN.conversations],
   ['Goals', '/room.html?demo=1&place=goals', DRAWN.goals],

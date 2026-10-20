@@ -7454,6 +7454,13 @@ button.contribution-quote:hover {
   color: var(--text-3);
   font-size: var(--type-small);
 }
+/* Between a page a search read and the chat's latest (docs/handoffs/FND-C4-PROJECT-SEARCH-attempt-1.md): the messages
+   between, asked for. */
+.discussion-gap {
+  list-style: none;
+  border-block: 1px dashed var(--border);
+  margin: 8px 0;
+}
 
 /* What continuing means, under the sign-in (docs/plans/terms-privacy.md): small, quiet, its links underlined. */
 /* Above `.screen-body p`, which sets the screen's paragraphs in the second ink. */

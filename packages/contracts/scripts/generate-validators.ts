@@ -71,6 +71,7 @@ const EXPORTS = [
   'PersonalReceipt',
   'ProjectList',
   'NeedList',
+  'SearchPage',
   'WorkBoardView',
   'WorkReceipt',
   'WorkResult',

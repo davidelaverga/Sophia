@@ -14,6 +14,8 @@ import { CommandsHost } from '../../app/CommandsHost.tsx'
 import { useCommands, useOffered } from '../../app/useCommands.ts'
 import { ATTENTION } from '../../app/attention.ts'
 import { CONVERSATIONS, VISION } from '../../app/vision.ts'
+import { SEARCHABLE } from '../../api/search.ts'
+import { hintBefore } from '../conversation/message-before.ts'
 import { ProjectGoProvider, useArrival } from './project-go.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
@@ -44,7 +46,7 @@ import { useMedia, WIDE } from '../../app/useMedia.ts'
 import { GoalList, type GoalPlan } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
-import { GOAL, showInAddress } from '../resources/link.ts'
+import { GOAL, MESSAGE, showInAddress } from '../resources/link.ts'
 import { WelcomeBand } from '../access/WelcomeBand.tsx'
 import { ADDRESS_NAMED } from '../resources/useAddressed.ts'
 import { useKnownNames } from './useKnownNames.ts'
@@ -354,8 +356,8 @@ const viewCommands = (view: View, onShow: (view: View) => void) =>
 
 /**
  * H goes home and W to the projects, from a project as from every place; I invites, where the viewer may; `/`
- * searches the project (A13, behind the vision flag); and every other view by its words. All as commands: the keys
- * bound, and the palette and the index told.
+ * searches the project (A13 behind the vision flag, A38 behind the search flag); and every other view by its words.
+ * All as commands: the keys bound, and the palette and the index told.
  */
 function useProjectKeys(
   go: { onLeave: () => void; onWork: () => void; invite: () => void; search: () => void; show: (view: View) => void },
@@ -385,7 +387,7 @@ function useProjectKeys(
         // Tasks view with no plans has none, and `/` stays the project's (Codex on #238).
         key: slashTaken ? undefined : '/',
         also: ['find'],
-        run: VISION && at.shown ? go.search : undefined,
+        run: SEARCHABLE && at.shown ? go.search : undefined,
       },
     ],
     !at.inviting,
@@ -574,7 +576,7 @@ export function ProjectShell(props: Props) {
           onWork={onWork}
         />
         <UnderTheBar shell={props} {...{ loaded, blocked, room, snapshot: snapshot.data }} />
-        <CommandsHost onSearch={VISION && shown ? search : undefined} />
+        <CommandsHost onSearch={SEARCHABLE && shown ? search : undefined} />
         {inviting && shown && (
           <LazyInvite from={{ projectId, identity, membership, shown, room }} onClose={() => setInviting(false)} />
         )}
@@ -625,11 +627,11 @@ interface HeaderProps {
   onWork: () => void
 }
 
-/** The head's actions: Search (A13, the vision flag's), then Invite or the link to copy. */
+/** The head's actions: Search (A13, the vision flag's; A38, the search flag's), then Invite or the link to copy. */
 function HeadActions(props: { may: boolean; projectId: string; go: { invite: () => void; search: () => void } }) {
   return (
     <>
-      {VISION && <SearchButton onClick={props.go.search} />}
+      {SEARCHABLE && <SearchButton onClick={props.go.search} />}
       <Share invites={props.may} projectId={props.projectId} onInvite={props.go.invite} />
     </>
   )
@@ -818,7 +820,7 @@ function ProjectBody(props: BodyProps) {
 
 /**
  * The project's sheets that belong to no view (A12, A13, behind the vision flag): what the meeting left, on leaving it
- * from any view; the meeting so far; the search. After the page, so they open on top of any sheet the page has open,
+ * from any view; the meeting so far; the search (also behind the search flag, A38). After the page, so they open on top of any sheet the page has open,
  * and in the same place in every view, so switching views keeps them.
  */
 function ProjectSheets(props: BodyProps & { panel: RoomPanel; catchUp: React.ReactNode }) {
@@ -829,11 +831,11 @@ function ProjectSheets(props: BodyProps & { panel: RoomPanel; catchUp: React.Rea
     // Already open, it opens nothing: the focus is given to its tab as the view mounts (Codex on #239).
     else focusWhenThere('#side-tab-brief')
   })
-  if (!VISION) return null
+  if (!SEARCHABLE) return null
   return (
     <>
-      <MeetingRecapOnLeave {...{ projectId, identity, room, snapshot, membership }} />
-      {props.catchUp}
+      {VISION && <MeetingRecapOnLeave {...{ projectId, identity, room, snapshot, membership }} />}
+      {VISION && props.catchUp}
       <ProjectSearch
         {...{ projectId, identity, snapshot, membership, room }}
         {...props.search}
@@ -849,6 +851,14 @@ function ProjectSheets(props: BodyProps & { panel: RoomPanel; catchUp: React.Rea
           onShow('studio')
           // Opened as its toggle opens it, so closing it gives the focus back there.
           if (panel.panel !== 'brief') panel.toggle('brief')
+        }}
+        onMessage={(hit) => {
+          // A message (A38): the room's chat opens on it, as on a mention's address; the message after it lets the
+          // chat read the one page that ends at it (message-before.ts).
+          hintBefore(hit.id, hit.before ?? null)
+          onShow('studio')
+          showInAddress(hit.id, MESSAGE)
+          window.dispatchEvent(new Event(ADDRESS_NAMED))
         }}
       />
     </>

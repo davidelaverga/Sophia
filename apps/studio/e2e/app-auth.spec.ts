@@ -206,6 +206,50 @@ const signedInTab = (context: BrowserContext, person: Person, held: Record<strin
 const account = (page: Page) => page.getByRole('button', { name: 'Account' }).first()
 
 /**
+ * FND-C56: the app's FIRST load, to its signed-in Account, as an explicit bounded precondition of the checks that follow
+ * (their own assertions unchanged). INITIAL_READY_MS is a chosen qualification bound, not a product SLO: no source
+ * documents a bootstrap budget; B78 failed here at the default 5 s expect budget and B79's passing cold loads read
+ * 4.2–5.1 s, so twice that default, well inside the 30 s test budget. Not ready in it is a FAILURE carrying its
+ * witnesses: goto time, the screens the page showed (appWatch), console errors and warnings, page errors and failed
+ * requests (paths only, truncated: no bodies or tokens). The measured time is kept on the test (annotation).
+ */
+const INITIAL_READY_MS = 10_000
+
+async function initiallyReady(page: Page, url: string) {
+  const seen = { console: [] as string[], pageErrors: [] as string[], failed: [] as string[] }
+  page.on('console', (m) => {
+    if (m.type() === 'error' || m.type() === 'warning') seen.console.push(`${m.type()}: ${m.text().slice(0, 160)}`)
+  })
+  page.on('pageerror', (e) => seen.pageErrors.push(e.message.slice(0, 160)))
+  page.on('requestfailed', (r) =>
+    seen.failed.push(`${r.method()} ${new URL(r.url()).pathname} ${r.failure()?.errorText ?? ''}`),
+  )
+  const start = Date.now()
+  await page.goto(url)
+  const gotoMs = Date.now() - start
+  try {
+    await expect(account(page)).toBeVisible({ timeout: INITIAL_READY_MS })
+  } catch (error) {
+    const screens = await page.evaluate(() => window.appWatch?.screens ?? []).catch(() => ['unreadable'])
+    throw new Error(
+      `initial App/Auth not ready within ${String(INITIAL_READY_MS)} ms: ${JSON.stringify({ gotoMs, screens, ...seen })}`,
+      { cause: error },
+    )
+  }
+  test.info().annotations.push({
+    type: 'c56-initial-ready',
+    description: JSON.stringify({
+      path: new URL(url).pathname,
+      gotoMs,
+      readyMs: Date.now() - start,
+      console: seen.console.length,
+      pageErrors: seen.pageErrors.length,
+      failed: seen.failed.length,
+    }),
+  })
+}
+
+/**
  * Another tab of this browser, as Supabase's client there tells this one: another account in, or nobody; `event`
  * USER_UPDATED, the same account changed there (its address).
  */
@@ -256,7 +300,7 @@ const unexpectedOf = (page: Page) => page.evaluate(() => window.appFixture?.unex
 /** Davide on Tasks (`work=lost`), with a proposal sent and its reply lost: K1, kept, its form still open. */
 async function lostOnTasks(context: BrowserContext) {
   const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
-  await page.goto(`${APP}/p/${WORK_PROJECT}/work?work=lost`)
+  await initiallyReady(page, `${APP}/p/${WORK_PROJECT}/work?work=lost`)
   await page.getByRole('button', { name: 'Review sources' }).first().click()
   const form = page.getByRole('form', { name: 'Review sources' })
   await form.getByRole('checkbox', { name: 'Press plan v2' }).check()
@@ -275,7 +319,7 @@ test('codex · 6e9e2a9b · a page load keeps the viewer’s proposals: finding o
 }) => {
   await serve(context)
   const page = await signedInTab(context, DAVIDE)
-  await page.goto(`${APP}/app.html`)
+  await initiallyReady(page, `${APP}/app.html`)
   await expect(page.getByRole('note')).toContainText('Simulated')
   await expect(account(page)).toBeVisible()
   // The load went through the boundary the regression was at: the app found out who is in, then signed in.
@@ -291,7 +335,7 @@ test('codex · 6e9e2a9b · a page load keeps the viewer’s proposals: finding o
 test('codex · 6e9e2a9b · another account coming in, in another tab, keeps only theirs', async ({ context }) => {
   await serve(context)
   const page = await signedInTab(context, DAVIDE)
-  await page.goto(`${APP}/app.html`)
+  await initiallyReady(page, `${APP}/app.html`)
   await expect(account(page)).toBeVisible()
   await expect.poll(() => tabHolds(page)).toEqual(only(...DAVIDES, OTHER_PART))
   // Luis's was forgotten as Davide came in; kept again here, it is what Luis's coming in must keep.
@@ -306,7 +350,7 @@ test('codex · 06bf6229 · another account at the viewer’s old address is anot
 }) => {
   await serve(context)
   const page = await signedInTab(context, DAVIDE)
-  await page.goto(`${APP}/app.html`)
+  await initiallyReady(page, `${APP}/app.html`)
   await expect(account(page)).toBeVisible()
   await expect.poll(() => tabHolds(page)).toEqual(only(...DAVIDES, OTHER_PART))
   await anotherTab(context, session(SAME_ADDRESS))
@@ -517,7 +561,7 @@ test('codex · 6e9e2a9b · signing out forgets every proposal at once, before th
   const held = Promise.withResolvers<void>()
   const calls = await serve(context, held.promise)
   const page = await signedInTab(context, DAVIDE)
-  await page.goto(`${APP}/app.html`)
+  await initiallyReady(page, `${APP}/app.html`)
   await expect(account(page)).toBeVisible()
   await expect.poll(() => tabHolds(page)).toEqual(only(...DAVIDES, OTHER_PART))
   await account(page).click()
@@ -550,7 +594,7 @@ test('sign out everywhere · a logout that fails signs out here, and the sign-in
 test('codex · 6e9e2a9b · a sign-out in another tab forgets every proposal here', async ({ context }) => {
   await serve(context)
   const page = await signedInTab(context, DAVIDE)
-  await page.goto(`${APP}/app.html`)
+  await initiallyReady(page, `${APP}/app.html`)
   await expect(account(page)).toBeVisible()
   await expect.poll(() => tabHolds(page)).toEqual(only(...DAVIDES, OTHER_PART))
   await anotherTab(context, null)

@@ -14,6 +14,7 @@ import { MENTIONS } from '../../app/mentions.ts'
 import { MESSAGE } from '../resources/link.ts'
 import { useAddressed } from '../resources/useAddressed.ts'
 import type { Earlier } from './EarlierDiscussion.tsx'
+import { beforeOf } from './message-before.ts'
 import { nextLook, readable, waitingRevision, type AddressState, type Waiting } from './mention-view.ts'
 
 const NONE: ReadonlyMap<string, Waiting> = new Map()
@@ -234,11 +235,43 @@ export function useMentionsSeen(
   }, [client, identity.token, history, inView, ids, shown])
 }
 
+/** Where the look for an addressed message stands, for one following of the address. */
+interface Look {
+  key: string
+  at: AddressState
+  pages: number
+  /** The page a search found it in has been asked for (A38). */
+  jumped: boolean
+}
+
+/** The look after a step: still looking after a read it starts, else what it concluded. */
+const lookAfter = (look: Look, step: Exclude<ReturnType<typeof nextLook>, 'wait'>): Look => {
+  if (step === 'jump') return { ...look, jumped: true }
+  if (step === 'load') return { ...look, pages: look.pages + 1 }
+  return { ...look, at: step }
+}
+
+/** A read under way, or failed, as the look waits on it. */
+const readOf = (reading: Earlier['reading']) => ({ reading: reading === 'loading', failed: reading === 'failed' })
+
+/**
+ * A search's page to read for this message: none without a search's hint, else still to read or read. A latest-page
+ * hint (null) only said it was the newest when found: newer messages may have come since (4307870144), so once that
+ * page is read without it, it is looked for in the bounded earlier pages as any address is, never said gone for that.
+ */
+export const jumpOf = (before: string | null | undefined, jumped: boolean): 'none' | 'unread' | 'read' => {
+  // undefined: no search found it; null: it was the newest when found (the latest page), else the message after it.
+  if (before === undefined) return 'none'
+  if (!jumped) return 'unread'
+  return before === null ? 'none' : 'read'
+}
+
 /**
  * A message named in the address (#message-<id>): brought into the chat's view once it is shown, and only once for
  * each time the address is followed, so later messages never pull the reader back. Not among the messages shown, it is
  * looked for in at most ADDRESS_PAGES earlier pages; withdrawn, or still not found at the chat's start, it is gone; not
- * found within those pages, it is further back.
+ * found within those pages, it is further back. A message a search found (A38) is read with the one page that ends at
+ * it instead (message-before.ts); a failed read waits for the reader's Try again (`retry`).
  */
 export function useMessageAddressed(
   history: RefObject<HTMLElement | null>,
@@ -247,40 +280,54 @@ export function useMessageAddressed(
   /** The chat's discussion has been read: until then nothing is concluded from what it doesn't show yet. */
   loaded: boolean,
   shown: string,
-): AddressState {
+): { at: AddressState; retry: (() => void) | null } {
   const named = useAddressed(MESSAGE)
   const key = named.id ? `${named.id}#${String(named.seq)}` : ''
-  const [state, setState] = useState<{ key: string; at: AddressState; pages: number }>({
-    key: '',
-    at: 'none',
-    pages: 0,
-  })
+  const [state, setState] = useState<Look>({ key: '', at: 'none', pages: 0, jumped: false })
   // Each time the address is followed starts anew; a state for an earlier one is not this one's.
-  const at: AddressState = state.key === key ? state.at : key ? 'looking' : 'none'
-  const pages = state.key === key ? state.pages : 0
-  const { load, offered, atStart, reading, withdrawn } = earlier
+  const look: Look = state.key === key ? state : { key, at: key ? 'looking' : 'none', pages: 0, jumped: false }
+  const { at, pages, jumped } = look
+  const { load, offered, atStart, withdrawn, jump } = earlier
+  // Found by a search, its next message known: the one page that ends at it, whose read is the one waited on.
+  const before = beforeOf(named.id)
+  // The jump's read while the search's page is still the one waited on; once a stale latest-page hint (null) was read
+  // without it and the look goes on earlier (jumpOf "none"), the earlier pages' own read is (R on 4307870144).
+  // A jump requested is not a jump read: while this follow's own jump is under way or failed, that read is the one
+  // waited on (and retried); only once it settled without the message does the earlier lookup's own read govern.
+  const jumpRead = before !== undefined ? earlier.jumping(key) : 'idle'
+  const reading =
+    before !== undefined && (jumpOf(before, jumped) !== 'none' || jumpRead !== 'idle') ? jumpRead : earlier.reading
   useEffect(() => {
     const id = named.id
     if (!inView || !loaded || !id || at !== 'looking') return
     const el = history.current?.querySelector(`[data-message="${CSS.escape(id)}"]`)
-    const step = nextLook({
-      found: !!el,
-      withdrawn: withdrawn.some((w) => w.id === id),
-      reading: reading === 'loading',
-      failed: reading === 'failed',
-      offered,
-      atStart,
-      pages,
-    })
+    const seen = { found: !!el, withdrawn: withdrawn.some((w) => w.id === id), offered, atStart, pages }
+    const step = nextLook({ ...seen, ...readOf(reading), jump: jumpOf(before, jumped) })
     if (step === 'wait') return
-    if (step === 'load') {
-      setState({ key, at: 'looking', pages: pages + 1 })
-      load()
-      return
-    }
+    setState(lookAfter({ key, at, pages, jumped }, step))
+    if (step === 'jump' && before !== undefined) jump(before, key)
+    else if (step === 'load') load()
     // Brought into view once for this following of the address; later messages never pull the reader back.
-    if (step === 'found') el?.scrollIntoView({ block: 'center' })
-    setState({ key, at: step, pages })
-  }, [history, inView, loaded, named.id, key, at, pages, load, offered, atStart, reading, withdrawn, shown])
-  return at
+    else if (step === 'found') el?.scrollIntoView({ block: 'center' })
+  }, [
+    history,
+    inView,
+    loaded,
+    named.id,
+    key,
+    at,
+    pages,
+    jumped,
+    before,
+    load,
+    jump,
+    offered,
+    atStart,
+    reading,
+    withdrawn,
+    shown,
+  ])
+  const retry =
+    at === 'looking' && before !== undefined && earlier.jumping(key) === 'failed' ? () => jump(before, key) : null
+  return { at, retry }
 }

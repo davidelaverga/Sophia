@@ -300,6 +300,8 @@ export type ContributionCorrection = { "text": string; "expectedRevision": numbe
 export type ContributionWithdrawal = { "expectedRevision": number; "reach": ReadonlyArray<{ "taskId": string; "kind": "research" | "design"; "restarts": boolean; }>; "previewToken": string; };
 export type ContributionActReceipt = { "contributionId": string; "projectId": string; "operation": "correct" | "withdraw"; "revision": number; "state": "current" | "withdrawn"; "changed": boolean; "cursor": string | null; };
 export type WithdrawnEntry = { "id": string; "actorId": string; "authorName": string | null; "createdAt": string; "withdrawnAt": string; };
+export type SearchHit = { "kind": "report" | "report_section" | "note" | "decision" | "message"; "id": string; "title": string; "snippet": string; "at": string; "cite": { "recordId": string; "sha256": string; "anchor"?: string; }; "before"?: string | null; };
+export type SearchPage = { "hits": ReadonlyArray<SearchHit>; "next": string | null; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
@@ -479,4 +481,5 @@ export interface Operations {
   "previewContributionAct": { method: "GET"; path: "/api/v1/projects/{projectId}/contributions/{contributionId}/preview"; request: undefined; response: ContributionActPreview; };
   "correctContribution": { method: "POST"; path: "/api/v1/projects/{projectId}/contributions/{contributionId}/correction"; request: ContributionCorrection; response: ContributionActReceipt; };
   "withdrawContribution": { method: "POST"; path: "/api/v1/projects/{projectId}/contributions/{contributionId}/withdrawal"; request: ContributionWithdrawal; response: ContributionActReceipt; };
+  "searchProject": { method: "GET"; path: "/api/v1/projects/{projectId}/search"; request: undefined; response: SearchPage; };
 }

@@ -250,6 +250,10 @@ interface Fixture {
   releaseTaskReads: () => void
   /** While on, searches wait; off, the waiting ones are answered (A13). */
   holdSearch: (on: boolean) => void
+  /** While on, searches fail as an unavailable API's (A38). */
+  failSearch: (on: boolean) => void
+  /** The next search is answered as the A13 proposal (a recap, meetings), which A38's served parser refuses. */
+  searchAsProposed: () => void
   /** Reads of the served board wait while on, as a slow API's do; off, the waiting ones are answered (search-honest.md). */
   holdBoard: (on: boolean) => void
   /** Reads of the served board fail, or read again (silent-views.md). */
@@ -381,6 +385,10 @@ interface Fixture {
   holdSnapshotAt: () => void
   /** Every earlier page's read fails until turned off. */
   failEarlierReads: (on: boolean) => void
+  /** Earlier pages read before these messages wait until `releaseEarlierReads` (a slow read). */
+  holdEarlierBefore: (ids: readonly string[]) => void
+  /** The held earlier reads are answered, and no more are held. */
+  releaseEarlierReads: () => void
   /** The next previews list this many running research tasks as reading the words. */
   reachNextPreview: (tasks: number) => void
   /** Acts on messages land, but their replies wait until `releaseActs`. */
@@ -641,12 +649,20 @@ function overTwoDays(): Said[] {
   ]
 }
 
+/** The messages (1-based) that say «heron», a word the search finds (`heron=100,125`). */
+const HERONS = (query.get('heron') ?? '').split(',').filter(Boolean).map(Number)
 /** The source the `alias=1` pair shares (r4313704366). */
 const ALIAS_SOURCE = '00000000-0000-4000-9000-0000000a11a5'
 /** The new source a correction writes A's words to (a source id, as the contract has it). */
 /** Where the pair stands (`aliasAt`, 0-based): the third message by default. */
 const ALIAS_AT = Number(query.get('aliasAt') ?? 2)
 const CORRECTED_SOURCE = '00000000-0000-4000-9000-0000000a11a6'
+
+/** The demo's first goal again under another id and a title opening with İ, when asked for (`turkish=1`). */
+const turkishGoal = (on: boolean): Goal[] => {
+  const [first] = DEMO_GOALS
+  return on && first ? [{ ...first, id: '00000000-0000-4000-8000-0000000090f1', title: 'İzmir pilot review' }] : []
+}
 
 const project = {
   revision: 1,
@@ -661,7 +677,8 @@ const project = {
   },
   // The demo's goals (demo-goals.ts): Goals reads them; Tasks acts on them. A command moves its goal as the API admits
   // it, and a moment later the runtime confirms where it settles.
-  goals: DEMO ? [...DEMO_GOALS] : ([] as Goal[]),
+  // `turkish=1`: one more goal, its title opening with İ (one code point typed, two once lowercased; B89).
+  goals: DEMO ? [...DEMO_GOALS, ...turkishGoal(query.get('turkish') === '1')] : ([] as Goal[]),
   // The demo's board (demo-work.ts): the rollout's plan, so its Tasks draw a board as a planned goal's do.
   ...(DEMO && { servedGoals: demoServedGoals }),
   ...(DEMO
@@ -713,18 +730,22 @@ const project = {
   // `discussion=mentioned`: another member's message that mentions the viewer, on its revision 2 (A37).
   // `mentionOld=1` with `discussion=60`: the third message, beyond the chat's 50, mentions the viewer (A37).
   // `alias=1` with `discussion=60`: the third and fourth messages share one source, so its one body (r4313704366).
+  // `heron=N` (or `N,M`) with `discussion=N…`: message N says a word a search finds (A38, the FND-C4 handoff).
   messages: (query.get('alias') === '1'
     ? Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) =>
         i === ALIAS_AT
           ? { text: 'SYNTHETIC shared words', sourceId: ALIAS_SOURCE }
           : i === ALIAS_AT + 1
             ? { text: 'SYNTHETIC shared words', sourceId: ALIAS_SOURCE, kind: 'reference' as const }
-            : `Message ${i + 1}`,
+            : HERONS.includes(i + 1)
+              ? `The heron arrived, message ${i + 1}.`
+              : `Message ${i + 1}`,
       )
     : query.get('mentionOld') === '1'
-      ? Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) =>
-          i === 2 ? { text: `Message ${i + 1}`, mentions: [ME] } : `Message ${i + 1}`,
-        )
+      ? Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => {
+          const text = HERONS.includes(i + 1) ? `The heron arrived, message ${i + 1}.` : `Message ${i + 1}`
+          return i === 2 ? { text, mentions: [ME] } : text
+        })
       : query.get('discussion') === 'mentioned'
         ? ['Sounds good to me.', MENTIONING]
         : query.get('discussion') === 'mine'
@@ -735,9 +756,9 @@ const project = {
             ]
           : query.get('discussion') === 'days' || query.get('discussion') === 'yesterday'
             ? overTwoDays().slice(0, query.get('discussion') === 'days' ? 4 : 2)
-            : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`)) as (
-    string | Said
-  )[],
+            : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) =>
+                HERONS.includes(i + 1) ? `The heron arrived, message ${i + 1}.` : `Message ${i + 1}`,
+              )) as (string | Said)[],
   contributions: new Map(),
   // `acts=1`: the viewer's messages offer Edit and Withdraw (message-acts.md, A36).
   messageActs: messageActsOf(query),
@@ -746,6 +767,8 @@ const project = {
   heldMessages: undefined as (string | Said)[] | undefined,
   heldAt: undefined as number | undefined,
   failEarlierReads: false,
+  earlierHeldBefore: undefined as ReadonlySet<string> | undefined,
+  earlierHeld: [] as (() => void)[],
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
@@ -868,6 +891,8 @@ const project = {
   outsider: query.get('member') === '0',
   // A13: searches held while the page asks (`holdSearch`).
   searchHeld: null as (() => void)[] | null,
+  failSearch: false,
+  searchAsProposed: false,
   boardHeld: null as (() => void)[] | null,
   // `boardRead=fail`: the served board's reads fail from the first (silent-views.md).
   boardFail: query.get('boardRead') === 'fail',
@@ -1321,6 +1346,12 @@ window.fixture = {
     if (!on) for (const answer of project.searchHeld ?? []) answer()
     project.searchHeld = on ? waiting() : null
   },
+  failSearch: (on) => {
+    project.failSearch = on
+  },
+  searchAsProposed: () => {
+    project.searchAsProposed = true
+  },
   holdBoard: (on) => {
     if (!on) for (const answer of project.boardHeld ?? []) answer()
     project.boardHeld = on ? waiting() : null
@@ -1411,6 +1442,15 @@ window.fixture = {
   },
   failEarlierReads: (on) => {
     project.failEarlierReads = on
+  },
+  holdEarlierBefore: (ids) => {
+    project.earlierHeldBefore = new Set(ids)
+  },
+  releaseEarlierReads: () => {
+    const held = project.earlierHeld
+    project.earlierHeldBefore = undefined
+    project.earlierHeld = []
+    for (const answer of held) answer()
   },
   unmentionMeIn: (n) => {
     const m = project.messages[n]
