@@ -373,12 +373,13 @@ export function summarizeM2Reload(samples) {
 
 /**
  * The request each M8 kind measures, as the app fixture lists those it refused (`METHOD /path`): the conversation's
- * messages read, the message sent, the feed's stream.
+ * messages read, the message sent, the feed's own requests (its stream, or its snapshot, which `useProjectFeed` reads
+ * and which meets the expired token first when the stream drops: then the stream goes on the renewed token).
  */
 const MEASURED = {
   read: /^GET \/api\/v1\/projects\/[^/]+\/conversations\/[^/]+\/messages$/,
   write: /^POST \/api\/v1\/conversations\/[^/]+\/messages$/,
-  feed: /^GET \/api\/v1\/projects\/[^/]+\/events$/,
+  feed: /^GET \/api\/v1\/projects\/[^/]+\/(?:events|snapshot)$/,
 }
 
 /** The expired token met the request the sample's kind measures. */
