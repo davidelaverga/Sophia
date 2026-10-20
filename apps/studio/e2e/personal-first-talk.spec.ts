@@ -35,7 +35,8 @@ test('personal · a new conversation starts at the optical centre, and keeps its
 })
 
 test('personal · a conversation in progress still rests on the field', async ({ page }) => {
-  await page.goto('/personal.html')
+  // At midday: today's turns are dated back from now, and before 00:06 none is today's, so nothing is in progress.
+  await page.goto('/personal.html?at=12:00')
   const last = page.locator('.msgs .msg').last()
   await expect(last).toBeVisible()
   const [turn, field] = await Promise.all([last.boundingBox(), page.locator('.ps-composer').boundingBox()])

@@ -582,7 +582,8 @@ const expectRests = async (page: Page) => {
 }
 
 test('presence · a short conversation rests on the field, not at the top of an empty room', async ({ page }) => {
-  await page.goto(PAGE)
+  // At midday: before 00:06 none of the fixture's turns is today's, and the new day's presses make the list scroll.
+  await page.goto(`${PAGE}?at=12:00`)
   await expectRests(page)
 })
 
@@ -906,7 +907,8 @@ const findCount = (page: Page) => page.locator('.c3-find-count')
 test('ease · Ctrl F finds in the conversation: each match marked, “1 of N”, Enter on, Shift Enter back, Esc gives the focus back', async ({
   page,
 }) => {
-  await page.goto(PAGE)
+  // At midday: before 00:06 the new day's presses lengthen the list, and the first match is below what shows.
+  await page.goto(`${PAGE}?at=12:00`)
   await field(page).focus()
   // Typed at once, as a person does: every letter lands in the finder, none in the message.
   await page.keyboard.press('ControlOrMeta+f')
@@ -930,6 +932,40 @@ test('ease · Ctrl F finds in the conversation: each match marked, “1 of N”,
   await expect(finder(page)).toHaveCount(0)
   await expect(marks).toHaveCount(0)
   await expect(field(page)).toBeFocused()
+})
+
+// At noon the whole talk fits, so every match is already in view: short enough here that it scrolls, read at its end.
+const findOffScreen = async (page: Page, open: () => Promise<void>) => {
+  await page.goto(`${PAGE}?at=12:00`)
+  await settled(page)
+  const list = page.locator('.msgs')
+  expect(await list.evaluate((l) => l.scrollHeight > l.clientHeight)).toBe(true)
+  // The first «keep» is yesterday's, above what shows.
+  await expect(page.locator('.msgs .msg').filter({ hasText: 'I keep putting off the deck' })).not.toBeInViewport()
+  await open()
+  await page.keyboard.type('keep')
+  await expect(findCount(page)).toHaveText(/^1 of \d+$/)
+  const current = page.locator('.msgs mark.current')
+  await expect(page.locator('.msg:has(mark.current) .body')).toContainText('I keep putting off the deck')
+  await expect(current).toBeInViewport()
+  // Stepped back round to the last, today's: it comes into sight too.
+  await page.keyboard.press('Shift+Enter')
+  await expect(page.locator('.msg:has(mark.current) .body')).toContainText('Keep it here for now')
+  await expect(current).toBeInViewport()
+}
+
+test('ease · in a talk that scrolls, the match Find is on comes into sight, above or below', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 480 })
+  await findOffScreen(page, async () => {
+    await field(page).focus()
+    await page.keyboard.press('ControlOrMeta+f')
+  })
+})
+
+test('@phone · ease · in a talk that scrolls, the match Find is on comes into sight', async ({ page }) => {
+  // A short phone, so the talk scrolls on it too.
+  await page.setViewportSize({ width: 390, height: 600 })
+  await findOffScreen(page, () => page.getByRole('button', { name: 'Find', exact: true }).click())
 })
 
 test('ease · Find from the head; a word not said says so', async ({ page }) => {
