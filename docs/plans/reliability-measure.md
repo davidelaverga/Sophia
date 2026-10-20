@@ -203,6 +203,12 @@ reload case (`reliability-held-on-reload.md`) is checked by `project-conversatio
   the lever never reached, two refreshes), and the script on a fake suite listing one M8 scenario: collected with no
   M8 record it says «incomplete: 0 of 1» and publishes no M8 number, exits non-zero; with one, its row; M8 is no
   longer «not measurable». Red before the code: 4 of 24 failed on their assertions.
+- **First numbers** (the whole suite through the guard, 34/34 scenarios, code at `fc3ef5e16`): M8 read 3/3 renewed,
+  sent again, one refresh, p50 37 ms / p95 43 ms; write 3/3, its key kept, p50 76 / p95 85 ms; feed 3/3 through
+  «Reconnecting», p50 120 / p95 708 ms (one round 774 ms, two 109–120 ms). The feed comes back well under M3's drop
+  (p50 1,059 ms, the backoff's wait) in two rounds of three; consistent with `useProjectFeed`'s loop restarting on a
+  new token (`token` is in its effect's dependencies), not timed apart here. M2 kept across a reload: 6/6 offered
+  again, 6/6 resent once under the same key, written twice 0, press → answer p50 9 ms.
 
 ## Limits
 
