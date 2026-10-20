@@ -3,8 +3,8 @@ import { arm, pressed, record, withProbe, type Timed } from './measure.ts'
 
 // M1 and M2 (docs/plans/reliability-measure.md, the baseline's §4): how long a keyed write takes from the press to a
 // definitive answer on screen while its reply is held, and whether a write whose reply was lost resolves when it is
-// sent again under its key, written once; also across a reload (reliability-held-on-reload.md), the synthetic service
-// outliving it (`server=kept`). Measured in the page; the checks assert only that each scenario ran.
+// sent again under its key, written once; and M2r, the same across a reload (reliability-held-on-reload.md), the
+// synthetic service outliving it (`server=kept`). Measured in the page; the checks assert only that each scenario ran.
 
 const BAR = '#converse-draft'
 const CONVERSATION_FIELD = 'textarea[aria-label="Continue this question with the team"]'
@@ -197,7 +197,6 @@ const reloaded = (
   r: { shown: boolean; keys: string[]; writes: number; timed: Timed; listed: number },
 ) => ({
   kind,
-  afterReload: true,
   offered: r.shown,
   tries: r.keys.length,
   keys: new Set(r.keys).size,
@@ -208,7 +207,7 @@ const reloaded = (
 
 const NONE: Timed = { ms: null, definitive: false }
 
-test('M2 · a message to the room whose reply is lost, kept across a reload and sent again @reliability', async ({
+test('M2r · a message to the room whose reply is lost, kept across a reload and sent again @reliability', async ({
   page,
 }) => {
   test.setTimeout(120_000)
@@ -242,11 +241,11 @@ test('M2 · a message to the room whose reply is lost, kept across a reload and 
     const writes = await written(page, 'contribution')
     samples.push(reloaded('room-message', { shown, keys: await keysOf(page, text), writes, timed, listed }))
   }
-  await record(test.info(), 'M2', samples)
+  await record(test.info(), 'M2r', samples)
   expect(samples).toHaveLength(ROUNDS)
 })
 
-test('M2 · a conversation message whose reply is lost, kept across a reload and sent again @reliability', async ({
+test('M2r · a conversation message whose reply is lost, kept across a reload and sent again @reliability', async ({
   page,
 }) => {
   test.setTimeout(120_000)
@@ -281,6 +280,6 @@ test('M2 · a conversation message whose reply is lost, kept across a reload and
     const writes = await written(page, 'conversation-message')
     samples.push(reloaded('conversation-message', { shown, keys: await keysOf(page, text), writes, timed, listed }))
   }
-  await record(test.info(), 'M2', samples)
+  await record(test.info(), 'M2r', samples)
   expect(samples).toHaveLength(ROUNDS)
 })

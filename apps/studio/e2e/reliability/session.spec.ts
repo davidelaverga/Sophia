@@ -16,7 +16,11 @@ const PROJECT = '00000000-0000-4000-8000-0000000000aa'
 const DAVIDE = { id: '00000000-0000-4000-8000-00000000d001', email: 'davide@sophia.test' }
 /** A line of the second row's conversation (Short or long briefs?), read only once opened. */
 const BRIEFS_LINE = 'One page. Anything longer, nobody reads.'
-const SIGNED_OUT = 'You’ve been signed out'
+/**
+ * What a sign-out says: the project's notice (ProjectShell), and the App's when the tab itself signed out
+ * (ended-notice.ts: «… so this tab signed out.», «Your sign-in on this device ended …»).
+ */
+const SIGNED_OUT = ['You’ve been signed out', 'so this tab signed out', 'Your sign-in on this device ended']
 /** How long an answer is waited for, from the press. */
 const LIMIT = 15_000
 const ROUNDS = 3
@@ -126,8 +130,7 @@ declare global {
 
 /**
  * Arms the clock in the page: it starts at the press (a click, or Enter) or with the lever (the token expired and the
- * stream dropped at once), and stops at the answer on screen; «You’ve been signed out», or the limit, stops it with
- * none.
+ * stream dropped at once), and stops at the answer on screen; a sign-out's words, or the limit, stop it with none.
  */
 const arm = (page: Page, step: Step) =>
   page.evaluate(
@@ -145,7 +148,7 @@ const arm = (page: Page, step: Step) =>
         const tick = () => {
           const now = performance.now()
           if (answered()) resolve({ ms: now - start, definitive: true, via })
-          else if (document.body.innerText.includes(signedOut) || now - start > limit)
+          else if (signedOut.some((words) => document.body.innerText.includes(words)) || now - start > limit)
             resolve({ ms: null, definitive: false, via })
           else requestAnimationFrame(tick)
         }
@@ -176,12 +179,19 @@ const answered = (page: Page): Promise<Clocked> =>
 /** What the page had asked, and the keys it had sent, before the lever. */
 const before = async (page: Page) => ({ asked: (await askedOf(page)).length, keys: (await keysOf(page)).length })
 
+/** Whether the page says it signed out, in any of its words. */
+const saysSignedOut = (page: Page) =>
+  page.evaluate((said) => said.some((words) => document.body.innerText.includes(words)), SIGNED_OUT)
+
 /**
- * A round's sample. `reached`: a request met the expired token. `resent`: every request refused so went again and
- * wasn't refused (a write's tries under one key). `refreshes`: asked of the synthetic Auth since the round began.
+ * A round's sample, read once the page has gone quiet after the answer, so a late second refresh or request counts.
+ * `refused`: the unique requests the expired token met (the report checks the one its kind measures). `resent`: every
+ * request refused so went again and wasn't refused (a write's tries under one key). `refreshes`: asked of the
+ * synthetic Auth since the round began.
  */
 async function sampleOf(kind: string, page: Page, from: { asked: number; keys: number; refreshes: number }) {
   const timed = await answered(page)
+  await quiet(page)
   const refused = await refusedOf(page)
   const asked = (await askedOf(page)).slice(from.asked)
   const keys = (await keysOf(page)).slice(from.keys)
@@ -194,11 +204,11 @@ async function sampleOf(kind: string, page: Page, from: { asked: number; keys: n
   const requests = [...new Set(refused)]
   return {
     kind,
-    reached: refused.length > 0,
+    refused: requests,
     definitive: timed.definitive,
     ms: timed.ms,
     via: timed.via,
-    signedOut: (await page.getByText(SIGNED_OUT).count()) > 0,
+    signedOut: await saysSignedOut(page),
     resent: requests.length > 0 && requests.every((r) => again(r) && oneKey(r)),
     refreshes: (refreshesOf.get(page.context())?.length ?? 0) - from.refreshes,
   }
