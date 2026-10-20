@@ -288,7 +288,11 @@ test('discussion · a message begun for Sophia is held when she can’t take it,
   await enter(page, 'exchange=open')
   await expect(target(page)).toHaveText(/^To Sophia/)
   await bar(page).fill('A question meant only for Sophia.')
-  await page.evaluate(() => window.fixture?.drop())
+  // The connection is lost, and its one try back in fails (call-rejoin.md): the call stays lost.
+  await page.evaluate(() => {
+    window.fixture?.failToken()
+    window.fixture?.drop()
+  })
   await expect(page.getByText('Sophia can’t take this message now. Send it to the room instead?')).toBeVisible()
   await expect(target(page)).toHaveText(/^To Sophia/)
   await bar(page).press('Enter')
@@ -302,6 +306,22 @@ test('discussion · a message begun for Sophia is held when she can’t take it,
   await bar(page).press('Enter')
   await expect(discussion(page).getByText('A question meant only for Sophia.')).toBeVisible()
   expect(await toRoom(page)).toEqual(['contribution:discuss'])
+})
+
+test('discussion · a message begun for Sophia, through a drop that comes back on its own, stays hers and unsent (call-rejoin.md)', async ({
+  page,
+}) => {
+  await enter(page, 'exchange=open')
+  await bar(page).fill('Still meant for Sophia.')
+  const connects = async () => (await view(page)).asked.filter((a) => a === 'connect').length
+  const before = await connects()
+  await page.evaluate(() => window.fixture?.drop())
+  await expect.poll(connects).toBe(before + 1)
+  await expect(leave(page)).toBeVisible()
+  await expect(bar(page)).toHaveValue('Still meant for Sophia.')
+  await expect(target(page)).toHaveText(/^To Sophia/)
+  expect(await toRoom(page), 'nothing moved to the room').toEqual([])
+  expect(await toSophia(page), 'nothing sent on its own').toEqual([])
 })
 
 test('discussion · two Enters in a row post the message once', async ({ page }) => {
@@ -341,7 +361,11 @@ test('discussion · back in Sophia’s conversation, the bar is hers again; an e
   await expect(target(page)).toHaveText(/^To the room/)
   await target(page).click()
   await expect(target(page)).toHaveText(/^To Sophia/)
-  await page.evaluate(() => window.fixture?.drop())
+  // The connection is lost, and its one try back in fails (call-rejoin.md): the call stays lost.
+  await page.evaluate(() => {
+    window.fixture?.failToken()
+    window.fixture?.drop()
+  })
   // Nothing written: nothing is held, and the bar writes to the room meanwhile.
   await expect(target(page)).toHaveText(/^To the room/)
   await expect(page.getByText('Sophia can’t take this message now.', { exact: false })).toHaveCount(0)
@@ -354,7 +378,11 @@ test('discussion · a message moved to the room, then Sophia’s conversation ag
 }) => {
   await enter(page, 'exchange=open')
   await bar(page).fill('Meant for Sophia, sent to the room.')
-  await page.evaluate(() => window.fixture?.drop())
+  // The connection is lost, and its one try back in fails (call-rejoin.md): the call stays lost.
+  await page.evaluate(() => {
+    window.fixture?.failToken()
+    window.fixture?.drop()
+  })
   await page.getByRole('button', { name: 'Move it to the room' }).click()
   await bar(page).press('Enter')
   await expect(discussion(page).getByText('Meant for Sophia, sent to the room.')).toBeVisible()

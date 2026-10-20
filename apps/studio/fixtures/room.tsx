@@ -72,6 +72,8 @@ import {
   setVoiceLevel,
   sophiaLeaves,
   speakWhileMuted,
+  muteByHost,
+  connecting,
 } from './fake-livekit.ts'
 import {
   blockSound,
@@ -173,6 +175,10 @@ interface Fixture {
   failReplies: (on: boolean) => void
   /** The next room token is refused, so that join fails and offers Try again. */
   failToken: () => void
+  /** While on, room tokens wait for their answers, as a slow API's do; off, every one held answers. */
+  holdToken: (on: boolean) => void
+  /** While on, LiveKit's connect waits after it began; off, the connections held are handed over. */
+  holdConnect: (on: boolean) => void
   /** The next request to revise the page is refused, a design under way (revise-section.md). */
   failEdit: () => void
   /** While on, requests to revise the page wait for their replies; off, they answer. */
@@ -206,7 +212,7 @@ interface Fixture {
   /** Someone starts waiting at the door, and the event saying so goes out (knock-alert.md). */
   knock: () => void
   /** The call's connection is lost. */
-  drop: (why?: CallEnd) => void
+  drop: (why?: CallEnd, selfLeft?: boolean) => void
   /** The fixture report's next version is published (the viewer learns of it when it reads the list again). */
   publishReport: () => void
   /** Sophia publishes the report's next version while it is open: the project's feed says so at once. */
@@ -449,6 +455,8 @@ interface Fixture {
   sophiaLeaves: () => void
   /** Speech is heard on this person's muted microphone (muted-speech.md). */
   speakMuted: () => void
+  /** An admin mutes this viewer from the room's server: this device's own microphone choice is left as it was. */
+  mutedByHost: () => void
   /** The call's link is lost for a while (true), or back (false), as LiveKit reconnects (reconnecting-on-video.md). */
   linkLost: (lost: boolean) => void
   /** A teammate edits the report's description elsewhere (the page learns of it when it reads the cards again). */
@@ -794,6 +802,7 @@ const project = {
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
   failToken: false,
+  tokenHeld: null as (() => void)[] | null,
   // `token=late`: the call's token answers 1.5 s late, so the call goes live after the room has drawn (press-answers).
   tokenLate: query.get('token') === 'late',
   failEdit: false,
@@ -1127,6 +1136,18 @@ window.fixture = {
   },
   failToken: () => {
     project.failToken = true
+  },
+  holdConnect: (on) => {
+    connecting.held = on
+    if (on) return
+    const handed = connecting.waiting.splice(0)
+    for (const hand of handed) hand()
+  },
+  holdToken: (on) => {
+    const held = project.tokenHeld ?? []
+    // Held twice, the tokens already waiting keep waiting: none is dropped unanswered.
+    project.tokenHeld = on ? held : null
+    if (!on) for (const answer of held) answer()
   },
   failEdit: () => {
     project.failEdit = true
@@ -1606,6 +1627,7 @@ window.fixture = {
   caption: deliverCaption,
   sophiaLeaves,
   speakMuted: speakWhileMuted,
+  mutedByHost: muteByHost,
   linkLost,
   describeElsewhere: (text) => {
     project.description = { text, revision: project.description.revision + 1, author: TEAMMATE }

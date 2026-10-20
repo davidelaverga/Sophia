@@ -44,6 +44,11 @@ declare global {
       expireToken: () => void
       refuseTokens: () => void
       dropStream: () => void
+      /**
+       * The call's connection is lost, as LiveKit reports it (fake-livekit.ts, loaded only now: a page at rest loads no
+       * LiveKit, fake or not).
+       */
+      drop: () => void
       /** Each request refused for its token (`expireToken`, `refuseTokens`), as `METHOD /path`. */
       refused: readonly string[]
       /** Each request with an Idempotency-Key, refused or not, as `METHOD /path key`. */
@@ -267,6 +272,7 @@ if (sessionStorage.getItem(WORK_KEY) === 'lost') {
       tokens.refuseAll = true
     },
     dropStream,
+    drop: () => void import('./fake-livekit.ts').then((room) => room.dropCall()),
     refused,
     keys,
   }

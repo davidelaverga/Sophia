@@ -7,6 +7,7 @@
 // reaches this browser (S1-05A §6.5).
 import {
   ConnectionState,
+  DefaultReconnectPolicy,
   DisconnectReason,
   LocalVideoTrack,
   Room,
@@ -29,6 +30,7 @@ import {
   type ChatReply,
 } from '@sophia/contracts/room-chat'
 import type { CallEnd } from './call-end.ts'
+import { RECONNECT_DELAYS_MS } from './call-rejoin.ts'
 import type { BackgroundProcessorWrapper } from '@livekit/track-processors'
 import { audioElements } from './audio-elements.ts'
 import { chosenBackground, type BackgroundId } from './background-preference.ts'
@@ -36,6 +38,7 @@ import { backgroundPicture } from './background-pictures.ts'
 import { cameraBackground } from './camera-background.ts'
 import { deviceChange } from './device-change.ts'
 import { incomingCameras } from './incoming-cameras.ts'
+import { micWhileConnected } from './mic-while-connected.ts'
 import { hearWhileMuted, mutedWatch } from './muted-speech.ts'
 import { chosenDevices, deviceName, type DeviceKind, type MediaDevice } from './device-preference.ts'
 import { followingSignal } from './following-signal.ts'
@@ -107,6 +110,11 @@ export interface RoomConnection {
   /** Others' cameras come to this browser, or not (incoming-video.md); a screen shared always comes. */
   setIncomingVideo: (on: boolean) => void
   leave: () => Promise<void>
+  /**
+   * Whether this person's microphone was on while the call was last connected: what a dropped call comes back with
+   * (call-rejoin.md). LiveKit unpublishes the tracks before it says the call ended, so the end itself can't tell.
+   */
+  micWas: () => boolean
 }
 
 export interface RoomCallbacks {
@@ -125,7 +133,8 @@ export interface RoomCallbacks {
   onChange: () => void
   onStatus: (status: RoomStatus) => void
   /** The call is over, and why (call-end.ts). Leaving on purpose ends it too; the caller knows it asked. */
-  onEnded: (why: CallEnd) => void
+  /** `selfLeft`: LiveKit left the room itself (CLIENT_INITIATED), as on `pagehide` or `freeze`, not a lost link. */
+  onEnded: (why: CallEnd, selfLeft?: boolean) => void
 }
 
 const toView = (p: Participant, local: boolean): RoomParticipant => ({
@@ -304,6 +313,9 @@ function roomOptions(): RoomOptions {
     ...(chosen.audioinput && { audioCaptureDefaults: { deviceId: chosen.audioinput } }),
     ...(chosen.audiooutput && { audioOutput: { deviceId: chosen.audiooutput } }),
     publishDefaults: { simulcast: true },
+    // LiveKit's own tries to keep a cut call, written out (call-rejoin.ts): once spent, the call ends as `dropped` and
+    // the room tries once more itself, with a fresh token.
+    reconnectPolicy: new DefaultReconnectPolicy([...RECONNECT_DELAYS_MS]),
   }
 }
 
@@ -446,6 +458,7 @@ function deviceControls(
 export async function connectRoom(serverUrl: string, token: string, cb: RoomCallbacks): Promise<RoomConnection> {
   const room = new Room(roomOptions())
   for (const event of CHANGES) room.on(event, cb.onChange)
+  const mic = micWhileConnected(room, CHANGES)
   room.on(RoomEvent.Reconnecting, () => cb.onStatus('reconnecting'))
   room.on(RoomEvent.Reconnected, () => cb.onStatus('live'))
   let textOnly = false
@@ -453,7 +466,9 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
   stopsWhenHostStops(room)
   room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
     audio.clear()
-    cb.onEnded((reason !== undefined && ENDS[reason]) || 'dropped')
+    // LiveKit leaving by itself (the page hidden for good, or frozen) reads as a lost connection, said so, but never
+    // tried back on its own (call-rejoin.md).
+    cb.onEnded((reason !== undefined && ENDS[reason]) || 'dropped', reason === DisconnectReason.CLIENT_INITIATED)
   })
   listenToSophia(room, cb)
   listenToReactions(room, (heard) => cb.onReaction?.(heard))
@@ -498,5 +513,6 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
       audio.volume.set(identity, level, room.remoteParticipants.get(identity)?.trackPublications.values() ?? []),
     ...incomingVideo(room, cb.onChange),
     leave: () => room.disconnect(),
+    micWas: mic,
   }
 }

@@ -12,6 +12,9 @@ import { ApiError, issueRoomToken } from '../../api/client.ts'
 import { useOnline } from '../personal/online.ts'
 import { CALL_END, joinHeld, keepsTextMode, keptNote, noteFor, type CallEnd } from './call-end.ts'
 import { CallFence } from './call-fence.ts'
+import { micToStart, openRoom } from './call-open.ts'
+import { LIVE_BEAT_MS, Rejoin, rejoinLine, type RejoinStep } from './call-rejoin.ts'
+import { browserTabs } from './call-tabs.ts'
 import { switchCamera } from './camera-flip.ts'
 import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts'
 import { rememberBackground, type BackgroundId } from './background-preference.ts'
@@ -43,6 +46,11 @@ export interface ProjectRoom {
   status: DockStatus
   error: string | null
   /**
+   * A dropped call's one try back in waits for the network or is under way (call-rejoin.md): Leave stays, and stops
+   * it; the room still reports the call as on, so its project stays mounted out of sight.
+   */
+  rejoining: boolean
+  /**
    * Which call this is: it moves when a new one begins, so what belonged to the last (a chat error, what it followed)
    * goes with it. Never another call's, even once the room is mounted again (newCall).
    */
@@ -63,7 +71,8 @@ export interface ProjectRoom {
   ready: boolean
   /** Resolves to whether this person is in the call once it settles. */
   /** `mic`: the microphone this join starts with, as chosen before it (prejoin-toggles.md); else as last left here. */
-  join: (options?: JoinOptions) => Promise<boolean>
+  /** `still`: asked right before LiveKit; false ends the join there, said as a failed one (a try back in, call-rejoin.md). */
+  join: (options?: JoinOptions, still?: () => boolean) => Promise<boolean>
   /**
    * Out of the call. `pressed`: the person's own Leave, which counts in `leftByPress`; any other leave (another
    * project's call, the project closing) is quiet.
@@ -132,12 +141,8 @@ const NOBODY: People = { participants: [], feeds: [], sophia: null, audioBlocked
 /** How this person gets a room token: as a member of the project, or as a guest the lobby admitted. */
 export type IssueToken = () => Promise<RoomToken>
 
-/** A token from the API, then LiveKit, which loads only now: it is most of the Studio's weight. */
-async function openRoom(issue: IssueToken, cb: RoomCallbacks) {
-  const issued = await issue()
-  const { connectRoom } = await import('./livekit-room.ts')
-  return connectRoom(issued.serverUrl, issued.token, cb)
-}
+/** LiveKit's connect, through the room's own module, which loads only now (call-open.ts opens the connection). */
+const loadLiveKit = async () => (await import('./livekit-room.ts')).connectRoom
 
 /** A kind's devices, through the room's own module: the one import of LiveKit, which the fixtures replace. */
 async function listDevices(kind: DeviceKind): Promise<MediaDevice[]> {
@@ -160,6 +165,12 @@ const micOnArrival = () => micOnJoin()
 /** How a new join starts: in text mode or not, and with the microphone chosen before it. */
 export interface JoinOptions {
   textOnly?: boolean
+  /**
+   * The microphone carried to this join: a choice made before it, a failed join's for Try again, or a dropped call's
+   * (call-rejoin.md). Never on unless this device's own choice is on as the join begins, so a «join with the microphone
+   * off» chosen since holds whenever the join comes (the check writes that choice with each press, so its join is as
+   * chosen).
+   */
   mic?: boolean
   /** The camera on once in, as chosen before joining (prejoin-toggles.md). */
   camera?: boolean
@@ -323,52 +334,64 @@ interface JoinPorts {
   refresh: () => void
   /** False when text mode began while the microphone arrived and it couldn't go off again. */
   arrive: () => Promise<boolean>
-  outOfCall: (why: CallEnd | null) => void
+  outOfCall: (why: CallEnd | null, selfLeft?: boolean) => void
+  /** The token named the call: its LiveKit room and the person (scopeOf). */
+  scoped: (scope: string) => void
   /** A new call began. */
   onLive: () => void
+}
+
+/**
+ * What a connection tells the room, heard only while its join is the current one: a superseded join's events are not
+ * this person's call.
+ */
+function heardWhile(current: () => boolean, ports: JoinPorts): RoomCallbacks {
+  const { typedChat, setStatus, refresh, outOfCall } = ports
+  return {
+    onChange: refresh,
+    onChat: (packet) => {
+      if (current()) typedChat.onChat(packet)
+    },
+    onNotice: (packet) => {
+      if (current()) typedChat.onNotice(packet)
+    },
+    onCaption: (packet) => {
+      if (current()) typedChat.onCaption(packet)
+    },
+    onCaptionsLost: () => {
+      if (current()) typedChat.captionsLost()
+    },
+    onReaction: (heard) => {
+      if (current()) typedChat.onReaction(heard)
+    },
+    onSpeakingMuted: () => {
+      if (current()) typedChat.onSpeakingMuted()
+    },
+    onStatus: (s) => {
+      if (current()) setStatus(s)
+    },
+    onEnded: (why, selfLeft) => {
+      if (current()) outOfCall(why, selfLeft)
+    },
+  }
 }
 
 /**
  * Resolves to whether this person is in the call once it settles. `textOnly` is how a new join starts; a call already
  * under way keeps its text mode, which only its own switches change.
  */
-async function joinConnection(ports: JoinPorts, options?: JoinOptions): Promise<boolean> {
-  const { calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall, onLive } = ports
+async function joinConnection(ports: JoinPorts, options?: JoinOptions, still?: () => boolean): Promise<boolean> {
+  const { calls, issue, typedChat, setStatus, setError, refresh, arrive, onLive } = ports
   // Already in the call: a second connection would be a second microphone nobody sees.
   if (calls.current) return true
   if (!issue) return false
   typedChat.rememberTextMode(options?.textOnly ?? typedChat.textModeNow())
   const call = calls.begin()
+  const current = () => calls.isCurrent(call)
   setStatus('joining')
   setError(null)
   try {
-    const opened = await openRoom(issue, {
-      onChange: refresh,
-      onChat: (packet) => {
-        if (calls.isCurrent(call)) typedChat.onChat(packet)
-      },
-      onNotice: (packet) => {
-        if (calls.isCurrent(call)) typedChat.onNotice(packet)
-      },
-      onCaption: (packet) => {
-        if (calls.isCurrent(call)) typedChat.onCaption(packet)
-      },
-      onCaptionsLost: () => {
-        if (calls.isCurrent(call)) typedChat.captionsLost()
-      },
-      onReaction: (heard) => {
-        if (calls.isCurrent(call)) typedChat.onReaction(heard)
-      },
-      onSpeakingMuted: () => {
-        if (calls.isCurrent(call)) typedChat.onSpeakingMuted()
-      },
-      onStatus: (s) => {
-        if (calls.isCurrent(call)) setStatus(s)
-      },
-      onEnded: (why) => {
-        if (calls.isCurrent(call)) outOfCall(why)
-      },
-    })
+    const opened = await openRoom(issue, loadLiveKit, ports.scoped, heardWhile(current, ports), { current, still })
     // Left, gone or joined again while this join was under way: it has been left, and the screen stays as it is.
     if (!calls.adopt(call, opened)) return false
     await enterCall({
@@ -380,14 +403,14 @@ async function joinConnection(ports: JoinPorts, options?: JoinOptions): Promise<
         refresh()
       },
       // The choice made before joining is carried, not only kept: a device that keeps nothing still honours it.
-      micOnArrival: options?.mic === undefined ? micOnArrival : () => options.mic === true,
+      micOnArrival: micToStart(options?.mic, micOnArrival, micOnJoin),
       arrive,
       leaveTextMode: () => typedChat.setTextMode(false),
     })
     // Left, or the connection lost, while the microphone arrived: out of the call, whatever this join began as.
     return calls.holds(opened)
   } catch (err: unknown) {
-    if (!calls.isCurrent(call)) return false
+    if (!current()) return false
     setStatus('failed')
     setError(joinMessage(err))
     return false
@@ -413,18 +436,21 @@ function useJoin(
 ) {
   const [call, setCall] = useState(newCall)
   const [liveSince, setLiveSince] = useState<number | null>(null)
-  // The choices of a join that failed stand for the next one asked without its own (Try again; Codex P1 on #361).
+  // The choices of a join that failed stand for the next one asked without its own (Try again; Codex P1 on #361), and
+  // so does the microphone of a call that dropped (`stand`): its try back in and Try again bring it back as it was.
   const failedWith = useRef<JoinOptions | undefined>(undefined)
-  const join = (options?: JoinOptions) => {
+  const join = (options?: JoinOptions, still?: () => boolean) => {
     if (joining.current) return joining.current
     const onLive = () => {
       setCall(newCall())
       setLiveSince(Date.now())
     }
     const used = options ?? failedWith.current
-    const attempt: Promise<boolean> = joinConnection({ ...ports, onLive }, used)
+    const attempt: Promise<boolean> = joinConnection({ ...ports, onLive }, used, still)
       .then(async (inCall) => {
-        failedWith.current = inCall ? undefined : used
+        // Only the join still current writes the next one's choices: one overtaken (a Leave, another project opened)
+        // has had its end clear them (`stand`), and its late answer must not write them back.
+        if (joining.current === attempt) failedWith.current = inCall ? undefined : used
         if (inCall && used?.camera) await startCamera()
         return inCall
       })
@@ -434,7 +460,10 @@ function useJoin(
     joining.current = attempt
     return attempt
   }
-  return { call, liveSince, join }
+  const stand = (options: JoinOptions | undefined) => {
+    failedWith.current = options
+  }
+  return { call, liveSince, join, stand }
 }
 
 /**
@@ -555,18 +584,27 @@ function useCallChoices(connection: { current: RoomConnection | null }) {
   return { choices: { ...volume, ...incoming, ...sound }, resetChoices }
 }
 
-/** Leaving, and how many calls the person was in and left by their own press (ProjectRoom.leftByPress). */
-function useLeave(calls: CallFence<RoomConnection>, outOfCall: (why: CallEnd | null) => void) {
+/**
+ * Leaving, and how many calls the person was in and left by their own press (ProjectRoom.leftByPress). Every leave,
+ * pressed or quiet (another project opened, a shut door), first stops a dropped call's try back in (call-rejoin.md),
+ * and then ends its join: the drop ended the call, so that Leave opens no recap.
+ */
+function useLeave(
+  calls: CallFence<RoomConnection>,
+  outOfCall: (why: CallEnd | null) => void,
+  stopRejoin: () => boolean,
+) {
   const [leftByPress, setLeftByPress] = useState(0)
   const leave = async (how?: LeaveHow) => {
+    const pressed = !stopRejoin() && how?.pressed
     // A second press while the call is still ending (a slow disconnect) does nothing: the first ends it and says so,
     // so no Join shows meanwhile, and no join it began could be ended by the first press's late finish.
-    if (how?.pressed && calls.current === null) return
+    if (pressed && calls.current === null) return
     // A teardown that fails (LiveKit's disconnect rejecting) still leaves this person out of the call here: the call
     // is no longer theirs, and the room says so instead of staying live with a Leave that does nothing.
     await calls.end().catch(() => undefined)
     outOfCall(null)
-    if (how?.pressed) setLeftByPress((n) => n + 1)
+    if (pressed) setLeftByPress((n) => n + 1)
   }
   return { leave, leftByPress }
 }
@@ -600,18 +638,112 @@ function useRoomNote(inCall: () => boolean) {
       if (next === CALL_END.dropped.note) lost.current = true
       setNote(keptNote(next, { online: navigator.onLine, lost: lost.current }))
     },
+    /** A leave: the room rests, no call lost, whatever ended before (a Leave during a try back in, call-rejoin.md). */
+    rest: () => {
+      lost.current = false
+      setNote(null)
+    },
     joinOnline:
       (join: ProjectRoom['join']) =>
-      async (options?: JoinOptions): Promise<boolean> => {
+      async (options?: JoinOptions, still?: () => boolean): Promise<boolean> => {
         const held = joinHeld({ online: navigator.onLine, lost: lost.current, inCall: inCall() })
         if (held !== null) {
           setNote(held)
           return false
         }
-        const joined = await join(options)
+        const joined = await join(options, still)
         if (joined) lost.current = false
         return joined
       },
+  }
+}
+
+/** The browser's side of a try back in: its clock, its `online`, and its timers. */
+const BROWSER = {
+  now: () => Date.now(),
+  online: () => navigator.onLine,
+  whenOnline: (back: () => void) => {
+    window.addEventListener('online', back, { once: true })
+    return () => window.removeEventListener('online', back)
+  },
+  after: (ms: number, run: () => void) => {
+    const timer = setTimeout(run, ms)
+    return () => clearTimeout(timer)
+  },
+}
+
+/**
+ * A dropped call's one try back in (call-rejoin.md), made with the latest render's join and note: Try again, pressed
+ * for the person. The call is seen live every few seconds while it is; when the room goes, whatever waits or runs stops.
+ */
+function useRejoin(status: DockStatus, join: ProjectRoom['join'], say: (note: string) => void) {
+  const [step, setStep] = useState<RejoinStep | null>(null)
+  // This room among this browser's tabs (call-tabs.ts): what it claims is its own.
+  const [room] = useState(() => crypto.randomUUID())
+  const latest = useRef({ join, say })
+  useEffect(() => {
+    latest.current = { join, say }
+  })
+  const [rejoin] = useState(
+    () =>
+      new Rejoin({
+        ...BROWSER,
+        show: setStep,
+        held: (scope) => browserTabs.held(scope),
+        claim: (scope, state) => browserTabs.say(room, scope, state),
+        join: (still) => latest.current.join(undefined, still),
+        say: (note) => latest.current.say(note),
+      }),
+  )
+  useEffect(
+    () => () => {
+      rejoin.stop()
+      rejoin.status('idle')
+    },
+    [rejoin],
+  )
+  // Each status said to this browser's other tabs, so none of their tries takes this call (call-tabs.ts).
+  useEffect(() => {
+    rejoin.status(status)
+    if (status !== 'live') return undefined
+    const beat = setInterval(() => rejoin.beat(), LIVE_BEAT_MS)
+    return () => clearInterval(beat)
+  }, [status, rejoin])
+  return { line: rejoinLine(step), rejoining: step === 'waiting' || step === 'trying', rejoin }
+}
+
+/**
+ * Out of the call: nobody is shown as still here. A call that ended without this person leaving says why
+ * (call-end.ts) instead of silently resetting: a lost connection offers to try again, and tries once on its own
+ * (call-rejoin.md); a call that moved to another tab, or was ended on purpose, offers the plain way back. Text mode
+ * ends with the call, unless the connection was lost (keepsTextMode): the next join says how it starts (the dock by
+ * voice, the chat by text). So does the microphone: after a lost connection the next join brings it back as the call
+ * had it, and never on unless this device's choice is on too (an admin's mute, «on» chosen in Settings meanwhile, or a
+ * mute while LiveKit reconnected); any other end leaves it to the person's choice (`stand`).
+ */
+function outOfCallFor(room: {
+  calls: CallFence<RoomConnection>
+  joining: { current: Promise<boolean> | null }
+  typedChat: ReturnType<typeof useConversation>
+  stand: (options: JoinOptions | undefined) => void
+  reset: () => void
+  setStatus: (status: DockStatus) => void
+  setError: (error: string | null) => void
+  ended: (why: CallEnd | null, selfLeft: boolean) => void
+}) {
+  return (why: CallEnd | null, selfLeft = false) => {
+    room.typedChat.interrupted()
+    if (!keepsTextMode(why)) room.typedChat.rememberTextMode(false)
+    // The call's microphone as last seen; the next join caps it by this person's choice then (a mute the call missed,
+    // or «off» chosen since): never on unless both have it on (JoinOptions.mic).
+    const micWas = room.calls.current?.micWas() ?? false
+    room.stand(why === 'dropped' ? { mic: micWas } : undefined)
+    room.calls.current = null
+    room.joining.current = null
+    room.reset()
+    room.setStatus(why && CALL_END[why].failed ? 'failed' : 'idle')
+    room.setError(why ? CALL_END[why].note : null)
+    room.ended(why, selfLeft)
   }
 }
 
@@ -628,7 +760,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   const [calls] = useState(() => new CallFence<RoomConnection>())
   const [status, setStatus] = useState<DockStatus>('idle')
   const joining = useRef<Promise<boolean> | null>(null)
-  const { error, setError, joinOnline } = useRoomNote(() => calls.current !== null || joining.current !== null)
+  const { error, setError, rest, joinOnline } = useRoomNote(() => calls.current !== null || joining.current !== null)
   const [people, setPeople] = useState<People>(NOBODY)
 
   useEffect(() => () => void calls.end(), [calls])
@@ -638,29 +770,24 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   const { choices, resetChoices } = useCallChoices(calls)
   const typedChat = useConversation(calls, silence)
 
-  /**
-   * Out of the call: nobody is shown as still here. A call that ended without this person leaving says why
-   * (call-end.ts) instead of silently resetting: a lost connection offers to try again; a call that moved to
-   * another tab, or was ended on purpose, offers the plain way back. Text mode ends with the call, unless the
-   * connection was lost (keepsTextMode): the next join says how it starts (the dock by voice, the chat by text).
-   */
-  const outOfCall = (why: CallEnd | null) => {
-    typedChat.interrupted()
-    if (!keepsTextMode(why)) typedChat.rememberTextMode(false)
-    calls.current = null
-    joining.current = null
+  const reset = () => {
     setPeople(NOBODY)
     clearNote()
     resetChoices()
-    setStatus(why && CALL_END[why].failed ? 'failed' : 'idle')
-    setError(why ? CALL_END[why].note : null)
   }
+  // The join (`joined`) and its try back in (`rejoin`) are made below; a call ends only after that.
+  const ended = (why: CallEnd | null, selfLeft: boolean) => rejoin.ended(why, selfLeft)
+  const stand = (options: JoinOptions | undefined) => joined.stand(options)
+  const scoped = (scope: string) => rejoin.scoped(scope)
+  const say = (note: string | null) => (note === null ? rest() : setError(note))
+  const outOfCall = outOfCallFor({ calls, joining, typedChat, stand, reset, setStatus, setError: say, ended })
 
-  const joined = useJoin({ calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall }, joining, () =>
-    devices.setCamera(true),
-  )
+  const ports = { calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall, scoped }
+  const joined = useJoin(ports, joining, () => devices.setCamera(true))
+  const join = joinOnline(joined.join)
+  const { line, rejoining, rejoin } = useRejoin(status, join, setError)
 
-  const { leave, leftByPress } = useLeave(calls, outOfCall)
+  const { leave, leftByPress } = useLeave(calls, outOfCall, () => rejoin.stop())
 
   // Speaking is voice: a microphone that came on leaves text mode, so Sophia is heard again (switchMicrophone).
   const setMicrophone = (on: boolean) =>
@@ -674,9 +801,10 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
 
   return {
     status,
-    error,
+    error: line ?? error,
+    rejoining,
     ...joined,
-    join: joinOnline(joined.join),
+    join,
     ...people,
     ...devices,
     switchDevice: tellingCamera(devices.switchDevice, joined.liveSince),

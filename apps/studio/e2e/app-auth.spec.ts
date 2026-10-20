@@ -108,6 +108,8 @@ declare global {
       expireToken: () => void
       refuseTokens: () => void
       dropStream: () => void
+      /** The call's connection is lost, as LiveKit reports it (fixtures/app.tsx). */
+      drop: () => void
       /** Each request refused for its token (`expireToken`, `refuseTokens`), as `METHOD /path`. */
       refused: readonly string[]
       /** Each request with an Idempotency-Key, refused or not, as `METHOD /path key`. */
@@ -789,6 +791,68 @@ test('browser-account · pending Send survives USER_UPDATED: sent message appear
   await page.evaluate(() => window.appFixture?.release())
   await expect(page.locator('.conv-msg').filter({ hasText: 'Check the March figures' })).toBeVisible()
   expect(await unexpectedOf(page)).toEqual([])
+})
+
+/** The account a request's bearer token names (its `sub`), unverified: the synthetic sessions sign nothing. */
+function subjectOfRequest(authorization: string | undefined): string {
+  const payload = /^Bearer [^.]+\.([^.]+)\./u.exec(authorization ?? '')?.[1]
+  const claims: unknown = payload ? JSON.parse(Buffer.from(payload, 'base64url').toString()) : null
+  const sub: unknown = typeof claims === 'object' && claims !== null ? Reflect.get(claims, 'sub') : null
+  return typeof sub === 'string' ? sub : 'nobody'
+}
+
+test('browser-account · another account at the same address sends its own Unarchive key, never the last one’s unanswered one (Codex on #473)', async ({
+  context,
+}) => {
+  await serve(context)
+  const archivedProject = { projectId: WORK_PROJECT, title: 'Old pilot', role: 'admin', members: 2 }
+  const listed = { ...archivedProject, room: null, nextSession: null, releases: [] }
+  await context.route(`${APP}/api/v1/projects`, (route) => route.fulfill({ json: { projects: [], personalEpoch: 1 } }))
+  await context.route(`${APP}/api/v1/projects/archived`, (route) =>
+    route.fulfill({ json: { projects: [listed], personalEpoch: 1 } }),
+  )
+  // Each Unarchive, with the account its token names and its key. Davide's first waits until let go, then its reply
+  // is lost; any other is answered.
+  const sent: { by: string; key: string | undefined }[] = []
+  const held = Promise.withResolvers<void>()
+  await context.route(`${APP}/api/v1/projects/${WORK_PROJECT}/archive`, async (route) => {
+    const headers = route.request().headers()
+    const by = subjectOfRequest(headers.authorization)
+    sent.push({ by, key: headers['idempotency-key'] })
+    if (by === DAVIDE.id && sent.length === 1) {
+      await held.promise
+      return route.abort('failed')
+    }
+    return route.fulfill({ json: { projectId: WORK_PROJECT, archived: false, cursor: '2' } })
+  })
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  const work = page.locator('section[data-place-view="work"]')
+  const unarchive = async () => {
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    })
+    await page.keyboard.press('w')
+    await work.getByRole('button', { name: 'Archived (1)' }).click()
+    await work.getByRole('button', { name: 'Unarchive' }).click()
+  }
+  // Davide's Unarchive is on its way when another account at his address comes in.
+  await unarchive()
+  await expect.poll(() => sent.length).toBe(1)
+  await anotherTab(context, session(SAME_ADDRESS))
+  await expect.poll(() => signedInAs(page)).toBe(SAME_ADDRESS.email)
+  // Its list is read while Davide's write still has no answer, which then never comes.
+  await expect(work.getByRole('button', { name: 'Archived (1)' })).toBeVisible()
+  const lost = page.waitForEvent('requestfailed', (r) => r.url().endsWith('/archive'))
+  held.resolve()
+  await lost
+  // Its own Unarchive is its own write: never Davide's key, sent under its token.
+  await unarchive()
+  await expect.poll(() => sent.length).toBe(2)
+  expect(sent.map((s) => s.by)).toEqual([DAVIDE.id, SAME_ADDRESS.id])
+  expect(sent[1]?.key).toBeTruthy()
+  expect(sent[1]?.key).not.toBe(sent[0]?.key)
 })
 
 test('browser-account · blocked storage does not break navigation or account transitions', async ({ context }) => {
@@ -1644,6 +1708,40 @@ test('places · Rejoin pressed once back in that call by its own Join joins noth
   await page.waitForTimeout(1500)
   expect(await roomTokens(page)).toBe(joins)
   await expect(dock.getByRole('button', { name: 'Leave the room' })).toHaveCount(0)
+})
+
+test('places · a call dropped out of sight comes back on its own: the places’ bar keeps it, and no toast says it ended (call-rejoin.md)', async ({
+  context,
+}) => {
+  const page = await inCallAtHome(context)
+  const joins = await roomTokens(page)
+  await page.evaluate(() => window.appFixture?.drop())
+  await expect.poll(() => roomTokens(page), { message: 'one try, with a fresh token' }).toBe(joins + 1)
+  const callPill = page.locator('.places .room-pill')
+  await expect(callPill.getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  await page.waitForTimeout(600)
+  await expect(callPill).toBeVisible()
+  await expect(shownToast(page)).toHaveCount(0)
+  expect(await roomTokens(page)).toBe(joins + 1)
+})
+
+test('places · while a call dropped out of sight tries to come back, the bar’s Leave stops it and says you left (call-rejoin.md)', async ({
+  context,
+}) => {
+  const page = await inCallAtHome(context)
+  const joins = await roomTokens(page)
+  const tokenPath = `/api/v1/projects/${WORK_PROJECT}/room-token`
+  await page.evaluate(([by, path]) => window.appFixture?.hold(by, path, 'POST'), [DAVIDE.id, tokenPath] as const)
+  await page.evaluate(() => window.appFixture?.drop())
+  await expect.poll(() => roomTokens(page)).toBe(joins + 1)
+  const callPill = page.locator('.places .room-pill')
+  await callPill.getByRole('button', { name: 'Leave the room' }).click()
+  const toast = shownToast(page)
+  await expect(toast).toContainText('You left Fixture project.')
+  await page.evaluate(() => window.appFixture?.release())
+  await page.waitForTimeout(600) // the token let go would have joined by now
+  await expect(callPill).toHaveCount(0)
+  expect(await roomTokens(page)).toBe(joins + 1)
 })
 
 // A chat message's anchor through a sign-in (Codex P2 on #435): kept on leaving, given back on a refused return.

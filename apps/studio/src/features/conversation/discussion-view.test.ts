@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { OFFLINE_UNSENT, OFFLINE_WAITS } from '../personal/online.ts'
-import { OFFLINE_END, OFFLINE_JOIN } from '../voice/call-end.ts'
+import { OFFLINE_END, OFFLINE_JOIN, OFFLINE_REJOIN } from '../voice/call-end.ts'
 import { barTarget, defaultTarget, offlineBarWords, TARGET_WORDS, targetsOf } from './discussion-view.ts'
 
 describe('who the message bar writes to', () => {
@@ -59,6 +59,12 @@ describe('what the bar’s line says of the room’s message offline, beside the
     assert.equal(offlineBarWords(held, notConfirmed, OFFLINE_END), notConfirmed)
     assert.equal(offlineBarWords(written, null, OFFLINE_END), null)
     assert.equal(offlineBarWords(empty, null, OFFLINE_END), null)
+  })
+
+  it('under a lost call’s line that rejoins once back online (call-rejoin.md), the same as under #467’s', () => {
+    assert.equal(offlineBarWords(held, notConfirmed, OFFLINE_REJOIN), notConfirmed)
+    assert.equal(offlineBarWords(written, null, OFFLINE_REJOIN), null)
+    assert.equal(offlineBarWords(empty, null, OFFLINE_REJOIN), null)
   })
 
   it('says nothing of a message on its way: how it ends is said when it does', () => {
