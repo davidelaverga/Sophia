@@ -1,6 +1,6 @@
 # A dropped call rejoins on its own, once
 
-> 2026-10-20 · the reliability baseline's gap #9 (`evaluacion-2026-10-19/fiabilidad/linea-base.md` §1.5, §5 row 9;
+> 2026-10-19 · the reliability baseline's gap #9 (`evaluacion-2026-10-19/fiabilidad/linea-base.md` §1.5, §5 row 9;
 > metric M5); Luis 2026-10-20: «Procede con el próximo lote y arregla tú los de Davide», and earlier «Lo que no se
 > mide, no se puede mejorar». Studio only, no API. Read beside the call-end seams already merged (`costuras.md` #1, #2,
 > #3, #6, #8: `call-ends-on-open.md`, `signed-out-elsewhere.md`, `join-other-browser.md`, `sound-blocked-others.md`,
@@ -42,8 +42,8 @@
 - **The try is a Try again pressed for the person** (`Rejoin`, beside the rule, its timers and the browser's `online`
   passed in): the room's own `join`, through the offline fence (`joinOnline`), with the microphone as last chosen and
   text mode kept, as Try again joins. A fresh token, a new call.
-- **What it says** (one polite line, `role=status`, the dock's line that is there before it speaks; never an alert,
-  never the focus):
+- **What it says** (the try's lines are polite, `role=status`, from the dock's line that is there before it speaks;
+  never an alert, never the focus):
   - while it tries: «Connection lost. Rejoining the call…»
   - offline, waiting: «You’re offline, so the call ended here. Back online, you rejoin it automatically.»
   - back in: «Reconnected.», said once, gone after 4 s.
@@ -71,8 +71,8 @@
   after 4 s; a failed try says the dropped words once and tries no more; offline, nothing until `online`, then one try;
   past the window, `online` brings nothing; the window closing offline ends the wait; Leave (`stop`) during a try or a
   wait ends it, and a late answer changes nothing; a second drop right after a try brings none.
-  (`call-end.test.ts`): the three lines are polite. (`discussion-view.test.ts`): under the offline waiting line, an
-  empty bar says nothing more and a held message keeps its words.
+  (`call-end.test.ts`): the three lines are polite. (`discussion-view.test.ts`): under the offline waiting line, as
+  under #467's, the bar adds nothing of its own and a held message says only that it isn't confirmed.
 - **Browser** (`room.spec.ts`, `room.html?call=on`; a new lever `holdToken(on)` keeps room tokens until let go):
   - `drop()` → back in without a press within 10 s: one more token and one more `connect`, the polite line there
     before says «Reconnected.», no alert, no recap; the line empties after.
@@ -87,8 +87,30 @@
   - The checks that test the lost call's own state (its words in the chat's foot and the panels, Chat with Sophia after
     it, a held message, no recap, captions and the mode's hello after Try again, #467's lines after a failed rejoin)
     first make the one try fail (`failToken()`), the state a person reaches when the room can't be reached again.
+- **Browser, out of sight** (`app-auth.spec.ts`, from Home): a drop comes back with one token, the places' bar keeps
+  the call and no toast says it ended; tokens held, the bar's Leave stops the try, says «You left Fixture project.»,
+  and nothing joins once the token is let go.
+
+## Found while building
+
+- **The function-size limit.** `useRoomConnection` stayed under 60 lines by moving `outOfCall` out as `outOfCallFor`
+  (unchanged but for the end telling the try). The new argument to `openRoom` took `joinConnection` to 61, so its
+  callbacks moved out, unchanged, as `heardWhile`.
+- **A pressed Leave during a try returned early** (`useLeave` ignores a press with no call, so a slow disconnect isn't
+  ended twice), and the try's join would have landed. A leave that stops a try now always ends its join, and counts no
+  press: no recap. Only the room's own Leave sends a press, and it isn't shown during a try; the palette's could.
+- **Out of sight, checked first and controlled** (`app-auth.spec.ts`, the app's own page, a new `appFixture.drop()`
+  that loads the fake LiveKit only when called, so a page at rest still loads none): built without the line in
+  `useReportCall`, the bar's pill went and the bar's Leave couldn't be found, while the room token count still rose by
+  one: the try began before the shell unmounted, the wasted token the measurement predicted.
+- **Red before the fix, for the right reasons:** the eight new or changed `BASE-03` checks failed on the missing words,
+  the missing token (expected 2, received 1) and the missing connection; the two `@phone` checks failed because no try
+  took the one refused token, so the person's own Try again met it.
 
 ## Limits
+
+- Out of sight, the places' bar keeps the call during the try but says nothing of it (its note is the devices' alert);
+  back in, nothing is said there, and a failed try is said by the toast.
 
 - A long outage past the window (a black-holed network where each of LiveKit's tries waits its full 15 s) ends as
   today: the lost call and Try again.
