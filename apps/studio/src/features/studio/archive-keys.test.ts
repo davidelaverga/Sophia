@@ -12,12 +12,13 @@ const counter = () => {
 
 const archive = { account: 'ana', projectId: 'p1', archived: true }
 
+const bringBack = { ...archive, archived: false }
+
 /** Who is in, as an identity names them: the address, and an unsigned token whose `sub` is the account. */
 const signedIn = (sub: string, email: string) => ({
   name: email,
   token: `h.${Buffer.from(JSON.stringify({ sub, email })).toString('base64url')}.s`,
 })
-const bringBack = { ...archive, archived: false }
 
 describe('archive keys (A30; Codex on #368)', () => {
   it('keeps one key per account, project and choice while unanswered', () => {

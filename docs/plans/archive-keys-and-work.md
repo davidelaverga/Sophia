@@ -75,8 +75,9 @@ a refusal or no reply leaves the other choice's key.
 ## Limits
 
 - The store lasts as long as the page and is keyed by account, its token's subject (see «Keys by the account, not the
-  address» below). Signing out and back in reads the archived list afresh, which lets go of an unanswered key, so the
-  retry after it is a new write. A reload starts afresh, as a held write's does.
+  address» below). Signing out and back in reads the archived list afresh, which lets go of a key already left with no
+  reply when that read starts, so the retry after it is a new write. A write still on its way across the sign-in is the
+  case of the next limit: a press before any read has answered since its loss still sends the old key. A reload starts afresh, as a held write's does.
 - A reply lost after the write landed, then another admin brings the project back: closed by «A read lets go of an
   unanswered key» below (Codex P2 on #471).
 - After Unarchive lands, its row leaves the fold and the focus falls to the page, as before. Take back sends the focus
