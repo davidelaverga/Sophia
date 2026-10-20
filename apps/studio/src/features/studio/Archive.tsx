@@ -16,11 +16,22 @@ import { archiveKeys } from './archive-keys.ts'
 
 export const archivedKey = (identity: Identity) => ['projects', identity.name, 'archived'] as const
 
-/** The read of the person's archived projects (A30), read again as the lists are. */
+/** Kept while the page lives (archive-keys.ts), not by the sheet, the line or Work's list that pressed. */
+const keys = archiveKeys()
+
+/**
+ * The read of the person's archived projects (A30), read again as the lists are. Once it answers, it says where each
+ * project stands, so a write left with no reply before it started is no longer unknown (Codex on #471).
+ */
 const useArchivedRead = (identity: Identity) =>
   useQuery({
     queryKey: archivedKey(identity),
-    queryFn: ({ signal }) => listArchivedProjects(identity.token, signal),
+    queryFn: async ({ signal }) => {
+      const answered = keys.reading(identity.name)
+      const list = await listArchivedProjects(identity.token, signal)
+      answered()
+      return list
+    },
     staleTime: 30_000,
   })
 
@@ -39,9 +50,6 @@ export function useArchiveStatus(identity: Identity, projectId: string): Archive
 }
 
 const failure = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback)
-
-/** Kept while the page lives (archive-keys.ts), not by the sheet, the line or Work's list that pressed. */
-const keys = archiveKeys()
 
 /**
  * One write per choice: a retry of the same choice keeps its key, wherever it is pressed from, until it is answered;
