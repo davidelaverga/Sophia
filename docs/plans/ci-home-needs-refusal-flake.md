@@ -50,6 +50,20 @@
 
 - Slow frames sample more thinly per millisecond: a cached row shown for less than a frame can slip between samples,
   here as on CI. The slow case is one variant; the other four still sample at the machine's own rate.
-- `updates-refusal.spec.ts:148` and `conversations-removal.spec.ts:1254`/`:1289` count frames in the same fixed
-  window. They have not failed in these logs (their pages draw no light), so they are left as they are; the same wait
-  would fit them.
+
+## The two sibling specs (coordinator's follow-up, same day)
+
+`updates-refusal.spec.ts:148` and `conversations-removal.spec.ts:1254`/`:1289` count frames in the same fixed window.
+They have not failed in these logs (their pages draw no light). Each was put under the slow-frames lever that
+`e2e/frames.ts` already had (`slowFramesFromNow`, every frame 125 ms late: 8 a second, from `voice-amplitude.md`):
+
+- **Updates' variants (`:148`): red.** 4 or 5 frames. A slow case, written first, then the same wait.
+- **The open thread's refused read (`:1289`): red.** 6 frames. A slow case, written first; the trace gains
+  `postFrames`, and the wait has a 500 ms floor, its own.
+- **The list's refused read (`:1254`): green**, 16 or 17 frames in 10 of 10 runs. Its window opens before Try again,
+  the release of the held thread reads and a trip to another view. About 11 of its frames come before the refusal, and
+  only about 5 after it at 8 a second (the refusal reaches the app about 630 ms before the trace is read). Left as it
+  is, as asked. Its count does not say how many frames came after the refusal; the same wait on `postFrames` would.
+
+The wait moved to `e2e/frames.ts` (`framesAfterRefusal(page, counted, frames = 10, floorMs = 400)`), beside the lever.
+Home's own copy of the wait and of its 15-a-second lever gave way to those two; its slow case runs at 8 a second.

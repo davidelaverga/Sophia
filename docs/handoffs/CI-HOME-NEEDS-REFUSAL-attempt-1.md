@@ -11,8 +11,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-paper-1`, branch `ci/hom
 Writable scope: this worktree only (`apps/studio/e2e`, `docs/plans`, `docs/handoffs`); no product code, no API.
 Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1` guard); CI as the run on record.
 Existing authority: Luis, the quotes above; local only, nothing pushed.
-Ending commit/tree: `51c41b311`, the last commit that changes code; the next one adds only this record and the plan's
-measured lever. Files changed against `9a6b03a73`: `e2e/home-needs-refusal.spec.ts`,
+Ending commit/tree: `38520bea9`, the last commit that changes code; the next one updates only this record and the
+plan for the coordinator's follow-up (the two sibling specs). Files changed against `9a6b03a73`:
+`e2e/home-needs-refusal.spec.ts`, `e2e/updates-refusal.spec.ts`, `e2e/conversations-removal.spec.ts`, `e2e/frames.ts`,
 `docs/plans/ci-home-needs-refusal-flake.md`, and this record.
 
 ## Outcome
@@ -24,8 +25,12 @@ measured lever. Files changed against `9a6b03a73`: `e2e/home-needs-refusal.spec.
   `expect.poll` until more than ten frames have run since the client saw the refusal. The bound is asserted on
   `postFrames` (frames after the refusal), which is stronger than the old `frames` (which also counted the few before).
   The four variants and the phone case use it.
-- **New slow-frames case**: «403, delayed body» with every animation frame the page asks for running 50 ms late
-  (`slowFrames`), script left free: about 15 frames a second, CI's rate, on every run.
+- **New slow-frames case**: «403, delayed body» with every animation frame the page asks for running late, script
+  left free. First with its own lever at about 15 a second (CI's rate); since `e459817d8`, the shared lever's 8.
+- **The siblings (coordinator's follow-up):** Updates' refused read (`updates-refusal.spec.ts:148`) and the open
+  thread's (`conversations-removal.spec.ts:1289`) go red under slow frames and now take the same wait, from
+  `e2e/frames.ts` (`framesAfterRefusal`), each with a slow case. The list's refused read (`:1254`) stays green under
+  slow frames and is left as it is (below).
 
 ## Evidence
 
@@ -46,7 +51,22 @@ measured lever. Files changed against `9a6b03a73`: `e2e/home-needs-refusal.spec.
   - the whole spec with `-Repeat 20`: 180/180, the slow case included (`pw-logs/hnr-green-1.txt`);
   - `home-needs-refusal`, `home-needs`, `home-phone-needs`, `home-since`, `home`, `updates-refusal`: 74/74
     (`pw-logs/hnr-green-2.txt`).
-- Whole-repo `oxlint --type-aware` (exit 0), `tsc --noEmit -p apps/studio` (exit 0), Prettier on the spec: clean.
+- **Siblings, under `slowFramesFromNow` (8 a second):**
+  - a probe on the existing tests (`pw-logs/sib-probe-1.txt`; the guard stopped it for memory at 22 of 24): Updates'
+    variants failed with 4 or 5 frames, the thread's read with 6 or 7 (6 of 6), the list's read passed 6 of 6;
+  - the list's read again with its count printed (`pw-logs/sib-probe-2.txt`): 10 of 10 passed with 16 or 17 frames,
+    the refusal about 630 ms before the trace was read;
+  - **Updates, written first and failing** (`bfe1c4a8c`, `pw-logs/sib-red-updates.txt`): 5 of 5, `Expected: > 10`,
+    received 4, 4, 4, 4, 5. **Fix `70fe3ef80`**: the whole spec `-Repeat 20`, 220/220 (`pw-logs/sib-green-updates-2.txt`,
+    one worker through `pw-gentle.ps1`: the guard refused two workers for memory);
+  - **Home on the shared helpers** (`e459817d8`): the whole spec `-Repeat 20`, 180/180 (`pw-logs/sib-green-home.txt`);
+  - **the thread's read, written first and failing** (`711e976cb`, `pw-logs/sib-red-thread.txt`): 5 of 5, `Expected:
+    > 10`, received 6 each time. **Fix `38520bea9`**: every `removal · semantic` test `-Repeat 20` (both modes of the
+    list and the thread, and the slow case), 100/100 (`pw-logs/sib-green-conv.txt`).
+  - at `38520bea9`, once each, the three specs whole and the other users of `e2e/frames.ts` (`voice-amplitude`,
+    `voice-meters`, `orb-result`, `paper-orb`): 97/97 (`pw-logs/sib-green-all.txt`).
+- Whole-repo `oxlint --type-aware` (exit 0), `tsc --noEmit -p apps/studio` (exit 0), Prettier on every touched spec and
+  `e2e/frames.ts`: clean.
 
 ## Decisions and changes
 
@@ -54,14 +74,20 @@ measured lever. Files changed against `9a6b03a73`: `e2e/home-needs-refusal.spec.
   time to show, and the frame count can no longer be short.
 - **The slow case is a separate test, not a lever on the four variants.** Slow frames sample more thinly per
   millisecond; the variants keep the machine's own rate, and one case proves the wait holds at CI's.
-- **`slowFrames` delays `requestAnimationFrame` in the page's own world** (with a matching `cancelAnimationFrame`),
-  from just before the refusal. Playwright's own checks run in their isolated world and are not slowed.
+- **One lever and one wait for the three specs**, in `e2e/frames.ts`: `slowFramesFromNow` was already there
+  (`voice-amplitude.md`), and `framesAfterRefusal(page, counted, frames = 10, floorMs = 400)` joined it. Home's own
+  lever (15 a second, which reproduced CI's exact counts) gave way to the shared one (8 a second, slower). Both levers
+  delay `requestAnimationFrame` in the page's own world only; Playwright's checks run in their isolated world.
+- **Each spec keeps its own floor** (Home and Updates 400 ms, the thread 500 ms) and its own trace; the helper reads the
+  count through a callback. The conversations trace gained `postFrames`, counted as the other two count it.
 
 ## Remaining obligations
 
-- `updates-refusal.spec.ts:148` and `conversations-removal.spec.ts:1254`/`:1289` count frames in the same fixed window.
-  They did not fail in these logs (their pages draw no light); the same wait would fit them. Not changed here (one
-  concern).
+- **The list's refused read (`conversations-removal.spec.ts:1254`) is left on its fixed 500 ms**, as the coordinator
+  asked for a spec that stays green under slow frames. It stays green because its window opens before Try again, the
+  held reads' release and a trip to another view: about 11 of its 16 or 17 frames come before the refusal, and only
+  about 5 after it at 8 a second. So its `frames > 10` passes without saying the frames after the refusal were
+  sampled. Moving it to `framesAfterRefusal` on `postFrames` (now in its trace) would make it say so; a candidate.
 - The follow-up list's other suggestion, measuring Home's frame rate on main against the orb group with the machine
   free, was not done: CI's rate no longer matters to this test.
 - CI is the run on record.
