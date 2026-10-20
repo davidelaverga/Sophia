@@ -410,6 +410,21 @@ test('BASE-03 · a microphone off when the call dropped comes back off, whatever
   expect((await asked(page)).slice(before), 'the microphone stays off').not.toContain('microphone:on')
 })
 
+test('BASE-03 · a microphone muted while the call reconnects comes back off when the call then drops (review P1, round 2)', async ({
+  page,
+}) => {
+  await enter(page, '/room.html?call=on')
+  await expect(microphone(page)).toHaveAttribute('aria-pressed', 'true')
+  await page.evaluate(() => window.fixture?.linkLost(true)) // «Reconnecting…»
+  await microphone(page).click()
+  await expect(microphone(page)).toHaveAttribute('aria-pressed', 'false')
+  const [before, connected] = [(await asked(page)).length, await connects(page)]
+  await page.evaluate(() => window.fixture?.drop()) // LiveKit gives up
+  await expect.poll(() => connects(page)).toBe(connected + 1)
+  await expect(microphone(page)).toHaveAttribute('aria-pressed', 'false')
+  expect((await asked(page)).slice(before), 'the microphone stays off').not.toContain('microphone:on')
+})
+
 test('BASE-03 · muted by an admin, a dropped call’s Try again keeps the microphone off too (review P1)', async ({
   page,
 }) => {

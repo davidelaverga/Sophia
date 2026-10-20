@@ -38,6 +38,7 @@ import { backgroundPicture } from './background-pictures.ts'
 import { cameraBackground } from './camera-background.ts'
 import { deviceChange } from './device-change.ts'
 import { incomingCameras } from './incoming-cameras.ts'
+import { micWhileConnected } from './mic-while-connected.ts'
 import { hearWhileMuted, mutedWatch } from './muted-speech.ts'
 import { chosenDevices, deviceName, type DeviceKind, type MediaDevice } from './device-preference.ts'
 import { followingSignal } from './following-signal.ts'
@@ -457,7 +458,7 @@ function deviceControls(
 export async function connectRoom(serverUrl: string, token: string, cb: RoomCallbacks): Promise<RoomConnection> {
   const room = new Room(roomOptions())
   for (const event of CHANGES) room.on(event, cb.onChange)
-  const mic = micWhileConnected(room)
+  const mic = micWhileConnected(room, CHANGES)
   room.on(RoomEvent.Reconnecting, () => cb.onStatus('reconnecting'))
   room.on(RoomEvent.Reconnected, () => cb.onStatus('live'))
   let textOnly = false
@@ -514,14 +515,4 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     leave: () => room.disconnect(),
     micWas: mic,
   }
-}
-
-/** The microphone as it was while the room was last connected: not as it is while LiveKit reconnects or tears down. */
-function micWhileConnected(room: Room): () => boolean {
-  let on = false
-  const note = () => {
-    if (room.state === ConnectionState.Connected) on = room.localParticipant.isMicrophoneEnabled
-  }
-  for (const event of CHANGES) room.on(event, note)
-  return () => on
 }

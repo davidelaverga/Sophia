@@ -148,8 +148,16 @@ function connected(cb: RoomCallbacks): void {
 
 /** The call's link is lost for a while, or back, as LiveKit's Reconnecting and Reconnected events say it. */
 export function linkLost(lost: boolean): void {
+  linkDown = lost
   callbacks?.onStatus(lost ? 'reconnecting' : 'live')
 }
+
+/**
+ * Whether the link is down (`linkLost`). The microphone the connection keeps for a dropped call (`micWas`) is then left
+ * as it was, the strictest a room module could be: a change made while LiveKit reconnects may not be in it, so the
+ * checks hold the room controller to what this person chose since (call-rejoin.md, the review's P1).
+ */
+let linkDown = false
 
 let ended: RoomCallbacks['onEnded'] | null = null
 /** The room events this call's Sophia listener waits on, by name. */
@@ -335,7 +343,12 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     open = false
     cb.onEnded(why, selfLeft)
   }
-  const device = deviceSwitch(me, () => cb.onChange())
+  // The microphone as last seen with the link up (see `linkDown`).
+  const micKept = { on: me.micOn }
+  const device = deviceSwitch(me, () => {
+    if (!linkDown) micKept.on = me.micOn
+    cb.onChange()
+  })
   return Promise.resolve({
     sendChat,
     setTextMode: (on) => {
@@ -343,7 +356,7 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
       textOnly = on
     },
     textMode: () => textOnly,
-    micWas: () => me.micOn,
+    micWas: () => micKept.on,
     participants: () => [{ ...me, speaking: viewerSpeaks() }, ...others()],
     sophia: sophiaSignal,
     audioBlocked: soundBlocked,
