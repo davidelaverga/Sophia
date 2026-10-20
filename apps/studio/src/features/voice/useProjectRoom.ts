@@ -449,7 +449,9 @@ function useJoin(
     const used = options ?? failedWith.current
     const attempt: Promise<boolean> = joinConnection({ ...ports, onLive }, used, still)
       .then(async (inCall) => {
-        failedWith.current = inCall ? undefined : used
+        // Only the join still current writes the next one's choices: one overtaken (a Leave, another project opened)
+        // has had its end clear them (`stand`), and its late answer must not write them back.
+        if (joining.current === attempt) failedWith.current = inCall ? undefined : used
         if (inCall && used?.camera) await startCamera()
         return inCall
       })
