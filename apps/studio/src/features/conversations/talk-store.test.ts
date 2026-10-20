@@ -350,3 +350,63 @@ function keptWith(fields: Partial<Kept>): Kept {
   assert.ok(kept)
   return kept
 }
+
+/** This tab's session storage, as the page has it: what a reload keeps. */
+function inTab() {
+  const items = new Map<string, string>()
+  Reflect.set(globalThis, 'sessionStorage', {
+    getItem: (k: string) => items.get(k) ?? null,
+    setItem: (k: string, v: string) => void items.set(k, v),
+    removeItem: (k: string) => void items.delete(k),
+    key: (i: number) => [...items.keys()][i] ?? null,
+    get length() {
+      return items.size
+    },
+  })
+  return items
+}
+const outOfTab = () => Reflect.deleteProperty(globalThis, 'sessionStorage')
+
+describe('messages held with no reply, kept in the tab (reliability-held-on-reload.md)', () => {
+  const TAB_PLACE = 'project-tab luis'
+  const TAB_KEY = 'sophia.held.v1:["luis","talk","project-tab"]'
+  const ASK = { text: 'Did this one land?', askSophia: false }
+
+  it('keeps each message held in the tab, its key and words, and lets it go once answered', () => {
+    const items = inTab()
+    try {
+      forgetKept()
+      changeKept(TAB_PLACE, (was) => ({ ...was, holds: { c1: { key: 'k1', ask: ASK, sending: true } } }))
+      assert.deepEqual(JSON.parse(items.get(TAB_KEY) ?? 'null'), { c1: { key: 'k1', ask: ASK } })
+      changeKept(TAB_PLACE, (was) => ({ ...was, holds: { c1: null } }))
+      assert.equal(items.has(TAB_KEY), false)
+    } finally {
+      outOfTab()
+    }
+  })
+
+  it('reads it back after a reload as sent with no reply: its key, its words', () => {
+    const items = inTab()
+    try {
+      forgetKept()
+      changeKept(TAB_PLACE, (was) => ({ ...was, holds: { c1: { key: 'k1', ask: ASK, sending: true } } }))
+      // A reload: this page's memory is gone, the tab's storage stays (forgetting the memory leaves the tab's).
+      forgetKept()
+      assert.equal(items.has(TAB_KEY), true)
+      assert.deepEqual(keptAt(TAB_PLACE)?.holds, { c1: { key: 'k1', ask: ASK, sending: false } })
+    } finally {
+      outOfTab()
+    }
+  })
+
+  it('reads nothing back from an entry that isn’t a held message', () => {
+    const items = inTab()
+    try {
+      forgetKept()
+      items.set(TAB_KEY, JSON.stringify({ c1: { key: '', ask: ASK }, c2: { key: 'k2', ask: { text: 3 } } }))
+      assert.equal(keptAt(TAB_PLACE), undefined)
+    } finally {
+      outOfTab()
+    }
+  })
+})

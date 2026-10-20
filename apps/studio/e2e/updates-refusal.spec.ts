@@ -265,3 +265,20 @@ for (const status of [401, 403] as const) {
     expect(await seenWrites(page)).toBe(0)
   })
 }
+
+// A passing failure is asked again by itself (docs/plans/silent-views.md); a refusal is not: asking again
+// changes nothing, and the refusal is said at once, never after the waits.
+for (const status of [401, 403] as const) {
+  test(`updates · its own read refused (${status}) is not asked again by itself`, async ({ page }) => {
+    await page.goto(PAGE)
+    const since = page.locator(SINCE)
+    await expect(since.locator('li').first()).toBeVisible()
+    await observe(page, { status, body: 'malformed' })
+    await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+    await expect(since).toContainText('What changed couldn’t be read.')
+    const asked = await page.evaluate(() => window.updatesTrace?.sinceReads ?? -1)
+    // Past TanStack's first wait (1 s): a retry would have gone by now.
+    await page.waitForTimeout(1500)
+    expect(await page.evaluate(() => window.updatesTrace?.sinceReads)).toBe(asked)
+  })
+}

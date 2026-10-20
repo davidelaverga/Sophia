@@ -15,7 +15,9 @@
 // fake-people.ts (`people`, `floor=1|me|absent`, `speaking`,
 // `sophia=here|listening|settling|answering|speaking|blocked`, `voice`, `paused`, `video=camera|screen`,
 // `looking=screen`, `sound=blocked` (the browser blocked the call's sound, whoever speaks; sound-blocked-others.md);
-// docs/plans/room-fixture-people.md).
+// docs/plans/room-fixture-people.md). `seen=earlier`: the viewer last marked seen after the Oct 2 meeting, kept across a
+// reload as the API keeps it, and the page reads as that viewer; `said=home`: Home said that window first
+// (project-arrival-since.md).
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { Goal, GoalCommand } from '@sophia/contracts'
@@ -23,7 +25,7 @@ import type { ChatCaption } from '@sophia/contracts/room-chat'
 import { OFFERED } from './invitations-data.ts'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { forgetKept, keptAt, type Kept } from '../src/features/conversations/talk-store.ts'
-import { readSaid } from '../src/features/updates/since-said.ts'
+import { linesOf, readSaid, rememberSaid } from '../src/features/updates/since-said.ts'
 import { accountOf } from '../src/app/auth-callback.ts'
 import { changesOf, ownerOf } from '../src/features/conversation/held-pages.ts'
 import { PersonalLocked, forgetPersonalReads } from '../src/app/account-cache.ts'
@@ -44,7 +46,7 @@ import { goalNote, noteKept, type Notes } from './brief-data.ts'
 import { noShowing, walked } from './focus-data.ts'
 import { noReviews } from './review-data.ts'
 import { noTasks, taskOf } from './task-data.ts'
-import { finishedAfter, newMeeting, type Meeting } from './meeting-data.ts'
+import { finishedAfter, newMeeting, seenEarlier, updatesWindowOf, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
 import type { CallEnd } from '../src/features/voice/call-end.ts'
 import {
@@ -99,8 +101,10 @@ import {
   releaseSources,
   releaseTask,
   releaseText,
+  releaseArchived,
   releaseCovers,
   served,
+  sinceAsked,
   stallStream,
   unexpected,
   eventEntities,
@@ -252,6 +256,8 @@ interface Fixture {
   searchAsProposed: () => void
   /** Reads of the served board wait while on, as a slow API's do; off, the waiting ones are answered (search-honest.md). */
   holdBoard: (on: boolean) => void
+  /** Reads of the served board fail, or read again (silent-views.md). */
+  failBoard: (on: boolean) => void
   /** The conversations' list reads fail, or read again (A18). */
   failConversations: (on: boolean) => void
   /** The list's reads are refused (403), as to a reader no longer in the project, the feed not moving; or answer again. */
@@ -301,6 +307,8 @@ interface Fixture {
   kept: () => Kept | undefined
   /** The lines of this project's window this account was shown here (since-said.ts), so Home won't say them. */
   saidSince: () => readonly string[] | null
+  /** How many «since» reads (A34) the page has answered (project-arrival-since.md). */
+  sinceReads: () => number
   /** Whether this page holds a read of the conversation's messages (its query's data), as a check reads it. */
   cachedMessages: (conversationId: string) => boolean
   /** Someone writes in the open conversation (the newest), and the feed moves (conversation-moves.md). */
@@ -448,6 +456,8 @@ interface Fixture {
   holdSources: () => void
   /** The report's text, held since the page opened (`hold=text`), comes now. */
   releaseText: () => void
+  /** The archived list, held since the page opened (`hold=archived`), comes now. */
+  releaseArchived: () => void
   /** The library's covers, held since the page opened (`hold=covers`), come now, 400 ms apart. */
   releaseCovers: () => void
   /** The person goes home: the project is kept out of sight for its call, and the address is the places'. */
@@ -756,6 +766,8 @@ const project = {
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
   failToken: false,
+  // `token=late`: the call's token answers 1.5 s late, so the call goes live after the room has drawn (press-answers).
+  tokenLate: query.get('token') === 'late',
   failEdit: false,
   editHeld: null as (() => void)[] | null,
   failEarlier: false,
@@ -764,6 +776,10 @@ const project = {
   staleTarget: false,
   // `archived=1`: the project is archived (archive-project.md).
   archived: query.get('archived') === '1',
+  // `archivedFails=1`: the archived list can't be read (archive-keys-and-work.md).
+  archivedFails: query.get('archivedFails') === '1',
+  // `hold=archived`: the archived list's reads wait for `releaseArchived` (archive-keys-and-work.md).
+  archivedHeld: query.get('hold') === 'archived',
   // `targets=1`: the rollout is Marco's, due 30 October 2026 (goal-owner-date.md); `targets=mine` adds the admin change
   // as the viewer's, due 20 November, and the completed pilot as theirs, due 1 October (goal-overdue.md).
   goalTargets: new Map(goalTargetsAsked(query.get('targets'))),
@@ -871,6 +887,8 @@ const project = {
   failSearch: false,
   searchAsProposed: false,
   boardHeld: null as (() => void)[] | null,
+  // `boardRead=fail`: the served board's reads fail from the first (silent-views.md).
+  boardFail: query.get('boardRead') === 'fail',
   // `mission=fail`: the brief's reads fail from the first (notes-robust.md); `window.fixture.failMission` turns it.
   missionFails: query.get('mission') === 'fail',
   missionRefused: false,
@@ -907,6 +925,30 @@ const project = {
   } as Notes,
 }
 installFixtureApi(project)
+
+/** Where `seen=` keeps the viewer's seen mark across a reload, as the API keeps it (project-arrival-since.md). */
+const SEEN_KEY = 'fixture.room.seen'
+
+/** The mark a Mark as seen left before this reload, if the page kept one. */
+function seenKept(): { sequence: string; records: string[] } | null {
+  const kept: unknown = JSON.parse(sessionStorage.getItem(SEEN_KEY) ?? 'null')
+  if (typeof kept !== 'object' || kept === null || !('sequence' in kept) || !('records' in kept)) return null
+  const { sequence, records } = kept
+  const ok = typeof sequence === 'string' && Array.isArray(records) && records.every((r) => typeof r === 'string')
+  return ok ? { sequence, records } : null
+}
+
+if (query.get('seen') === 'earlier') {
+  const seen = project.meeting.seen
+  const kept = seenKept()
+  if (kept) {
+    seen.sequence = kept.sequence
+    for (const record of kept.records) seen.records.add(record)
+  } else seenEarlier(project.meeting)
+  addEventListener('pagehide', () =>
+    sessionStorage.setItem(SEEN_KEY, JSON.stringify({ sequence: seen.sequence, records: [...seen.records] })),
+  )
+}
 
 window.fixture = {
   setPadlock: (locked) => padlock.set(locked),
@@ -1213,6 +1255,7 @@ window.fixture = {
   },
   kept: () => keptAt(`${PROJECT} ${accountOf(identity)}`),
   saidSince: () => readSaid(accountOf(identity))[PROJECT] ?? null,
+  sinceReads: () => sinceAsked.length,
   cachedMessages: (conversationId) =>
     queryClient.getQueryData(messagesKey(conversationId, accountOf(identity))) !== undefined,
   conversationMessage: (name, text) => {
@@ -1305,6 +1348,9 @@ window.fixture = {
   holdBoard: (on) => {
     if (!on) for (const answer of project.boardHeld ?? []) answer()
     project.boardHeld = on ? waiting() : null
+  },
+  failBoard: (on) => {
+    project.boardFail = on
   },
   releaseTaskReads: () => {
     const held = project.tasks.heldReads ?? []
@@ -1504,6 +1550,7 @@ window.fixture = {
     project.sourcesHeld = true
   },
   releaseText: () => releaseText(project),
+  releaseArchived: () => releaseArchived(project),
   releaseCovers: () => releaseCovers(project),
   away: () => {
     window.history.pushState({ fixture: 'home' }, '', '/room.html?place=home') // the places' own entry
@@ -1802,6 +1849,11 @@ function DemoResources() {
 
 const root = document.getElementById('root')
 if (!root) throw new Error('room.html must contain #root')
+
+// `said=home`: Home said this project's window before the page opened, as its sentence keeps it (useSaidOnce). Here,
+// once every record the window is built from is defined (`readoutMade`, below the project).
+if (query.get('said') === 'home')
+  rememberSaid(accountOf(identity), { [PROJECT]: linesOf(updatesWindowOf(project.meeting, project.revision)) })
 
 /** The page's reads, which `forgetAccount` clears as App clears them. */
 const queryClient = new QueryClient()

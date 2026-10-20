@@ -4,7 +4,7 @@
 // project for home or the personal space: the shell stays mounted out of sight (`background`), takes no keys,
 // and reports the call upward (`onCall`) so the places' bar shows it with Leave one tap away.
 import { taskPeople } from '../artifacts/task-view.ts'
-import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState, type ComponentProps } from 'react'
+import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -50,6 +50,7 @@ import { GOAL, MESSAGE, showInAddress } from '../resources/link.ts'
 import { WelcomeBand } from '../access/WelcomeBand.tsx'
 import { ADDRESS_NAMED } from '../resources/useAddressed.ts'
 import { useKnownNames } from './useKnownNames.ts'
+import { ArrivalSince } from '../updates/ArrivalSince.tsx'
 import { UpdatesView } from '../updates/UpdatesView.tsx'
 import { Connections } from '../connections/Connections.tsx'
 import { ConversationsView } from '../conversations/ConversationsView.tsx'
@@ -118,19 +119,49 @@ function OpeningNote({ loaded, blocked }: { loaded: boolean; blocked: Blocked | 
   )
 }
 
-/** Under the bar: a slow opening said, or, once open, the newcomer's welcome (newcomer-welcome.md). */
-interface UnderProps extends Omit<ComponentProps<typeof WelcomeBand>, 'onGoals'> {
+/**
+ * Under the bar: a slow opening said, or, once open, the newcomer's welcome (newcomer-welcome.md); and, its status there
+ * from the first frame, what changed since the person last looked (project-arrival-since.md).
+ */
+interface UnderProps {
+  /** The shell's own: its project, viewer and view, and whether it opened to join its call (Join the room, Rejoin). */
+  shell: Pick<Props, 'projectId' | 'identity' | 'view' | 'onShow' | 'joinOnOpen'>
   loaded: boolean
   blocked: Blocked | null
-  onShow: (view: View) => void
+  /** Its call: a project kept out of sight (`background`) is always in one, so that says nothing here either. */
+  room: ProjectRoom
+  snapshot: Snapshot | undefined
 }
 
-function UnderTheBar({ loaded, blocked, onShow, ...welcome }: UnderProps) {
-  if (!loaded || blocked) return <OpeningNote loaded={loaded} blocked={blocked} />
-  return <WelcomeBand {...welcome} onGoals={() => onShow('goals')} />
+function UnderTheBar({ shell, loaded, blocked, room, snapshot }: UnderProps) {
+  const { projectId, identity, view, onShow } = shell
+  const open = loaded && !blocked
+  return (
+    <>
+      <ArrivalSince
+        projectId={projectId}
+        identity={identity}
+        drawn={open && !atTheDoor(snapshot)}
+        inCall={callOn(room, shell.joinOnOpen ?? false)}
+        atUpdates={view === 'updates'}
+        onUpdates={() => onShow('updates')}
+      />
+      {open ? (
+        <WelcomeBand projectId={projectId} identity={identity} snapshot={snapshot} onGoals={() => onShow('goals')} />
+      ) : (
+        <OpeningNote loaded={loaded} blocked={blocked} />
+      )}
+    </>
+  )
 }
 
 const isInCall = (room: ProjectRoom) => room.status === 'live' || room.status === 'reconnecting'
+
+/** Someone waits at the door: the lobby floats in the corner under the bar, where the arrival's card would go. */
+const atTheDoor = (snapshot: Snapshot | undefined) => !!snapshot?.lobby.some((e) => e.status === 'waiting')
+
+/** In its call, or on the way in: joining, or asked to join as the project opens, before the room can. */
+const callOn = (room: ProjectRoom, asked: boolean) => asked || room.status === 'joining' || isInCall(room)
 
 interface ShareProps {
   invites: boolean
@@ -423,7 +454,14 @@ function useTasksWork(
     enabled: readsServedBoard(props.view, blocked, !!props.plans, searching),
   })
   // A page's own plans are read already; else the board's first read may still bring tasks (search-honest.md).
-  return { plans: props.plans ?? served.plans, entry: served.entry, boardReading: !props.plans && served.boardReading }
+  const own = !!props.plans
+  return {
+    plans: props.plans ?? served.plans,
+    entry: served.entry,
+    boardReading: !own && served.boardReading,
+    boardFailed: !own && served.boardFailed,
+    retryBoard: served.retryBoard,
+  }
 }
 
 /** What the door lets through: whether a snapshot ever loaded, why the project is closed, and what may be acted on. */
@@ -537,7 +575,7 @@ export function ProjectShell(props: Props) {
           onLeave={onLeave}
           onWork={onWork}
         />
-        <UnderTheBar {...{ loaded, blocked, projectId, identity, onShow, snapshot: snapshot.data }} />
+        <UnderTheBar shell={props} {...{ loaded, blocked, room, snapshot: snapshot.data }} />
         <CommandsHost onSearch={SEARCHABLE && shown ? search : undefined} />
         {inviting && shown && (
           <LazyInvite from={{ projectId, identity, membership, shown, room }} onClose={() => setInviting(false)} />
@@ -685,6 +723,9 @@ interface BodyProps {
   entry?: ServedWork['entry']
   /** The served board's first read is under way (search-honest.md). */
   boardReading?: boolean
+  /** The served board's reads failed with none read, and how to read it again (silent-views.md). */
+  boardFailed?: boolean
+  retryBoard?: () => void
   /** The project's search (A13): open from the head's Search, or `/`. */
   search: { open: boolean; onClose: () => void }
   /** The room's dock when the header has no room for it (a narrow screen): floating, mounted outside the header. */
@@ -915,6 +956,8 @@ function Goals(props: BodyProps) {
         window.dispatchEvent(new Event(ADDRESS_NAMED))
       }}
       entry={work ? entry : undefined}
+      boardFailed={work && props.boardFailed === true}
+      onRetryBoard={props.retryBoard}
       onOpenStudio={() => onShow('studio')}
       onInvite={onInvite}
     />

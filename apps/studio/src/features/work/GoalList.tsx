@@ -61,6 +61,9 @@ interface Props {
   plans?: Readonly<Record<string, GoalPlan>> | undefined
   /** Tasks: what Sophia offers to start under a goal (the source-review pilot, WBC-02), under its plan. */
   entry?: ((goal: Goal) => React.ReactNode) | undefined
+  /** Tasks: the plans' board couldn't be read, none read before: said, with Try again (silent-views.md). */
+  boardFailed?: boolean
+  onRetryBoard?: (() => void) | undefined
   /** Goals: the goals as an overview (GoalsOverview), each plan read at a glance, its board left to Tasks, where
    * `onOpenGoal` takes the goal. */
   summary?: boolean
@@ -196,6 +199,30 @@ function Head(props: {
   )
 }
 
+/**
+ * The board unread, with goals it would plan: said, never shown as goals with no plan, with the way to read it again.
+ * The area's words and idiom (GoalsOverview's dates, GoalTargets' owner and date).
+ */
+function BoardFailed({
+  failed,
+  snapshot,
+  onRetry,
+}: {
+  failed: boolean | undefined
+  snapshot: Snapshot | undefined
+  onRetry: (() => void) | undefined
+}) {
+  if (!failed || !snapshot?.goals.length) return null
+  return (
+    <p className="view-note" role="alert">
+      The tasks can’t be read right now.{' '}
+      <button type="button" className="text-button" onClick={onRetry}>
+        Try again
+      </button>
+    </p>
+  )
+}
+
 /** Tasks' search, when it leaves no goal and no task. */
 function NoAnswer({ found, query }: { found: boolean; query: string }) {
   if (found || !query) return null
@@ -267,6 +294,8 @@ export function GoalList({
   onInvite,
   plans: given,
   entry,
+  boardFailed,
+  onRetryBoard,
   summary,
   onOpenGoal,
   me,
@@ -280,6 +309,7 @@ export function GoalList({
   return (
     <section className="goals" aria-labelledby="goals-title">
       <Head tasks={controls} anyPlan={anyPlan} snapshot={snapshot} query={query} onQuery={setQuery} />
+      <BoardFailed failed={boardFailed} snapshot={snapshot} onRetry={onRetryBoard} />
       <NoAnswer found={!anyPlan || tabbed.length + listed.length > 0} query={query} />
       {!snapshot && <Skeleton label="Reading the goals…" />}
       {snapshot?.goals.length === 0 && <NoGoals canAct={canAct} onOpenStudio={onOpenStudio} onInvite={onInvite} />}

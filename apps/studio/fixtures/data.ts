@@ -25,11 +25,17 @@ const sourceOf = (n: number) => `00000000-0000-4000-9000-${String(n + 1).padStar
 export const EXCHANGE = '00000000-0000-4000-8000-0000000000ae'
 const AT = '2026-10-02T00:00:00.000Z'
 
+/**
+ * `seen=…` (room.html): the page reads as A34 names its reader, the token's subject this viewer's actor, so what they
+ * did themselves is no news to them (project-arrival-since.md). Unsigned, as home.html's `since=` reader is.
+ */
+const NAMED = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('seen')
+
 /** A dev identity: the fixture page never signs in, and no request carries this token anywhere. */
 export const identity: Identity = {
   name: DEMO ? 'luis@sophia.test' : 'fixture@sophia.test',
   role: 'admin',
-  token: 'fixture-no-api',
+  token: NAMED ? `e30.${btoa(JSON.stringify({ sub: ME }))}.fixture` : 'fixture-no-api',
   // How the demo's viewer signed in, said in the account menu's head (account-menu.md).
   provider: 'email',
 }

@@ -2,9 +2,11 @@
 // project and account while the Studio is open, whatever is on screen: the view goes on a trip to Work or the room,
 // and coming back finds it all. Each draft; each message on its way, or sent with no reply (its key and its words);
 // a refusal that answered one meanwhile; since when Sophia was asked; and the start's words and intent. Forgotten on
-// signing out or switching identity (App), as the cached reads are.
+// signing out or switching identity (App), as the cached reads are. Each message on its way or sent with no reply is
+// also kept in the tab (held-in-tab.ts), so a reload offers it again under its key (reliability-held-on-reload.md).
 import { useMemo, useSyncExternalStore } from 'react'
 import type { ConversationAsk, ConversationStarted, ConversationSummary, MessageAsk } from '../../api/conversations.ts'
+import { keepHeld, readHeld, type HeldAt } from '../../app/held-in-tab.ts'
 import type { DecisionAsk, ProposedMark } from './decide.ts'
 import type { Held } from './held-write.ts'
 
@@ -153,9 +155,59 @@ const EMPTY: Kept = {
 }
 
 const kept = new Map<string, Kept>()
+/** The places whose messages held in the tab were read back since the last forgetting: each is read once. */
+const looked = new Set<string>()
 const listeners = new Set<() => void>()
 /** Moves each time everything kept is forgotten: a write that began before never writes after. */
 let generation = 0
+
+/** Where the tab keeps a place's messages held: `${projectId} ${account}`, a project id holding no space. */
+function tabOf(place: string): HeldAt {
+  const at = place.indexOf(' ')
+  return { account: place.slice(at + 1), part: 'talk', project: place.slice(0, at) }
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
+
+/** A message held as the tab keeps it: its key and its words, whether Sophia is asked. */
+function heldFrom(value: unknown): Held<MessageAsk> | null {
+  if (!isRecord(value) || typeof value.key !== 'string' || value.key === '' || !isRecord(value.ask)) return null
+  const { text, askSophia } = value.ask
+  if (typeof text !== 'string' || typeof askSophia !== 'boolean') return null
+  return { key: value.key, ask: { text, askSophia }, sending: false }
+}
+
+/**
+ * The messages the tab keeps held for a place (a reload): each as sent with no reply, whether it was on its way when
+ * the page went or not, since either way only its key can tell whether it landed. Null for none.
+ */
+function heldInTab(place: string): Kept['holds'] | null {
+  const value = readHeld(tabOf(place))
+  if (!isRecord(value)) return null
+  const holds = Object.entries(value).flatMap(([id, held]) => {
+    const back = heldFrom(held)
+    return back ? [[id, back] as const] : []
+  })
+  return holds.length > 0 ? Object.fromEntries(holds) : null
+}
+
+/** The messages held for a place, kept in the tab as they are now (their key and words); none, and the tab keeps none. */
+function keepInTab(place: string, holds: Kept['holds']): void {
+  const now = Object.entries(holds).flatMap(([id, held]) => (held ? [[id, { key: held.key, ask: held.ask }]] : []))
+  keepHeld(tabOf(place), now.length > 0 ? Object.fromEntries(now) : null)
+}
+
+/** What is kept for a place: in this page's memory, or the messages the tab kept held for it, read back once. */
+function placeAt(place: string): Kept | undefined {
+  const was = kept.get(place)
+  if (was || looked.has(place)) return was
+  looked.add(place)
+  const holds = heldInTab(place)
+  if (!holds) return undefined
+  const back = { ...EMPTY, holds }
+  kept.set(place, back)
+  return back
+}
 
 const subscribe = (listener: () => void) => {
   listeners.add(listener)
@@ -169,7 +221,10 @@ const subscribe = (listener: () => void) => {
  * answer's write included: `retired`); everyone reading it reads it again.
  */
 export function changeKept(place: string, change: (was: Kept) => Kept): void {
-  kept.set(place, retired(change(kept.get(place) ?? EMPTY)))
+  const was = placeAt(place) ?? EMPTY
+  const now = retired(change(was))
+  kept.set(place, now)
+  if (now.holds !== was.holds) keepInTab(place, now.holds)
   for (const listener of listeners) listener()
 }
 
@@ -182,12 +237,17 @@ export function changeIfCurrent(place: string, born: number, change: (was: Kept)
 }
 
 /** What is kept for one project and account, read outside React (a check, a test). */
-export const keptAt = (place: string): Kept | undefined => kept.get(place)
+export const keptAt = (place: string): Kept | undefined => placeAt(place)
 
-/** Everything kept goes (signing out, another identity). */
+/**
+ * Everything kept in this page's memory goes (signing out, another identity). The tab's messages held stay: the App
+ * forgets them itself (heldOnlyOf, forgetHeld), since this runs too as every page load finds out who is in, and there
+ * it would lose exactly what a reload must find.
+ */
 export function forgetKept(): void {
   generation += 1
   kept.clear()
+  looked.clear()
   for (const listener of listeners) listener()
 }
 
@@ -199,14 +259,14 @@ export function keptFor(place: string, born: number) {
   return {
     change: (f: (was: Kept) => Kept) => changeIfCurrent(place, born, f),
     /** What is kept now (not as a render read it): for an answer that comes late. */
-    latest: (): Kept => (born === generation ? (kept.get(place) ?? EMPTY) : EMPTY),
+    latest: (): Kept => (born === generation ? (placeAt(place) ?? EMPTY) : EMPTY),
   }
 }
 
 /** What is kept for this project and account, and how to change it. */
 export function useKept(projectId: string, name: string) {
   const place = `${projectId} ${name}`
-  const value = useSyncExternalStore(subscribe, () => kept.get(place) ?? EMPTY)
+  const value = useSyncExternalStore(subscribe, () => placeAt(place) ?? EMPTY)
   const born = useSyncExternalStore(subscribe, currentGeneration)
   const { change, latest } = useMemo(() => keptFor(place, born), [place, born])
   return { kept: value, change, latest }
