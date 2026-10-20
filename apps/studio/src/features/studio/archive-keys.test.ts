@@ -98,4 +98,15 @@ describe('archive keys (A30; Codex on #368)', () => {
     keys.reading('beto')()
     assert.equal(keys.keyFor(archive), lost)
   })
+
+  it('a read started while the key is on its way again, answered after that send is lost too, leaves it', () => {
+    const keys = archiveKeys(counter())
+    const lost = keys.keyFor(archive)
+    keys.settled(archive, new TypeError('Failed to fetch'))
+    keys.keyFor(archive) // sent again, under the same key
+    const answered = keys.reading('ana')
+    keys.settled(archive, new TypeError('Failed to fetch'))
+    answered()
+    assert.equal(keys.keyFor(archive), lost, 'the read started before this send was lost: it says nothing of it')
+  })
 })
