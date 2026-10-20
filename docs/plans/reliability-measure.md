@@ -233,6 +233,10 @@ reload case (`reliability-held-on-reload.md`) is checked by `project-conversatio
 
 - M8's three kinds are one view each (Conversations, Studio); a renewal elsewhere follows the same `apiFetch`, but is
   not timed.
+- **M8 · feed has never exercised the stream's own renewal** (`stream.ts`): in every measured round the expired token
+  met the snapshot first, and the stream went on the renewed token. The feed's row says so, «met: snapshot n · stream
+  m», counted from each round's refused requests (review P3; the last run regenerated reads «met: snapshot 3 · stream
+  0»). A round where the stream meets it would need the snapshot answered first, a lever this suite doesn't have.
 - M12's runs before the window are read by their latest attempt only: an earlier attempt of one of them that ended
   red before `since`, rerun green after, is not seen as red at the start.
 - `scripts/**/*.mjs` and `tests/` are outside the repository's lint and Prettier gates (S1-01's runtime-unit areas);
