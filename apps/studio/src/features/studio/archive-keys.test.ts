@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ApiError } from '../../api/client.ts'
+import { accountOf } from '../../app/auth-callback.ts'
 import { archiveKeys } from './archive-keys.ts'
 
 /** Keys k1, k2, … in the order asked for. */
@@ -10,6 +11,12 @@ const counter = () => {
 }
 
 const archive = { account: 'ana', projectId: 'p1', archived: true }
+
+/** Who is in, as an identity names them: the address, and an unsigned token whose `sub` is the account. */
+const signedIn = (sub: string, email: string) => ({
+  name: email,
+  token: `h.${Buffer.from(JSON.stringify({ sub, email })).toString('base64url')}.s`,
+})
 const bringBack = { ...archive, archived: false }
 
 describe('archive keys (A30; Codex on #368)', () => {
@@ -108,5 +115,20 @@ describe('archive keys (A30; Codex on #368)', () => {
     keys.settled(archive, new TypeError('Failed to fetch'))
     answered()
     assert.equal(keys.keyFor(archive), lost, 'the read started before this send was lost: it says nothing of it')
+  })
+
+  it('keys by the account (accountOf), so another account at the same address keeps out of it (Codex on #473)', () => {
+    const davide = signedIn('00000000-0000-4000-8000-00000000d001', 'davide@sophia.test')
+    const sameAddress = signedIn('00000000-0000-4000-8000-00000000d002', 'davide@sophia.test')
+    const renamed = signedIn('00000000-0000-4000-8000-00000000d001', 'davide.new@sophia.test')
+    const keys = archiveKeys(counter())
+    const his = { ...bringBack, account: accountOf(davide) }
+    const lost = keys.keyFor(his)
+    keys.settled(his, new TypeError('Failed to fetch'))
+    keys.reading(accountOf(sameAddress))()
+    assert.equal(keys.keyFor({ ...his, account: accountOf(renamed) }), lost, 'his own, under his new address')
+    keys.settled(his, new TypeError('Failed to fetch'))
+    assert.notEqual(keys.keyFor({ ...his, account: accountOf(sameAddress) }), lost, 'the other account’s own write')
+    assert.equal(keys.keyFor(his), lost, 'its read and its write left his key as it was')
   })
 })

@@ -14,6 +14,7 @@ import { ApiError } from '../../api/client.ts'
 
 /** One choice: archiving a project (archived), or bringing it back, as one account. */
 export interface ArchiveChoice {
+  /** accountOf: the token's subject, never the address, which two accounts can share (Codex on #473). */
   account: string
   projectId: string
   archived: boolean
