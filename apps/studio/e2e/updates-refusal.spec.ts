@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { framesAfterRefusal, slowFramesFromNow } from './frames.ts'
 
 // R-391-UPDATES-01 (semantic): Updates' own «since» read refused (401, 403) hides the cached window and Mark as seen from
 // the CLIENT's first sight of the refusal status. The page's fetch is wrapped after load; the wrapper answers the next
@@ -135,7 +136,7 @@ for (const status of [401, 403] as const) {
       // The window is read again (the page comes back into view): refused.
       await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
       await expect(since).toContainText('What changed couldn’t be read.')
-      await page.waitForTimeout(400)
+      await framesAfterRefusal(page, () => page.evaluate(() => window.updatesTrace?.postFrames ?? 0))
       const trace = await readTrace(page)
       await info.attach(`updates-trace-${status}-${body}.json`, {
         body: JSON.stringify(trace, null, 1),
@@ -145,7 +146,7 @@ for (const status of [401, 403] as const) {
         trace.denials.some((d) => d.path.endsWith('/since')),
         'its own read refused, as the client saw',
       ).toBe(true)
-      expect(trace.frames).toBeGreaterThan(10)
+      expect(trace.postFrames, 'frames since the client saw the refusal').toBeGreaterThan(10)
       expect(trace.hits, 'a cached line or Mark as seen after the client saw the refusal').toEqual([])
       // A later ordinary failure does not bring the old window back.
       await setControl(page, '503')
@@ -223,6 +224,32 @@ for (const status of [401, 403] as const) {
     expect(await seenWrites(page), 'reading never marks seen').toBe(0)
   })
 }
+
+// Frames at 8 a second, as a loaded runner draws them (e2e/frames.ts; docs/plans/ci-home-needs-refusal-flake.md).
+test(`updates · semantic, slow frames (8 a second): its own read refused (403, delayed body): from the client's first sight of it, enough frames are sampled and none shows a cached line or Mark as seen`, async ({
+  page,
+}, info) => {
+  await page.goto(PAGE)
+  const since = page.locator(SINCE)
+  await expect(since.locator('li').first()).toBeVisible()
+  await observe(page, { status: 403, body: 'delayed' })
+  await slowFramesFromNow(page)
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+  await expect(since).toContainText('What changed couldn’t be read.')
+  await framesAfterRefusal(page, () => page.evaluate(() => window.updatesTrace?.postFrames ?? 0))
+  const trace = await readTrace(page)
+  await info.attach('updates-trace-slow-frames.json', {
+    body: JSON.stringify(trace, null, 1),
+    contentType: 'application/json',
+  })
+  expect(
+    trace.denials.some((d) => d.path.endsWith('/since')),
+    'its own read refused, as the client saw',
+  ).toBe(true)
+  expect(trace.postFrames, 'frames since the client saw the refusal').toBeGreaterThan(10)
+  expect(trace.hits, 'a cached line or Mark as seen after the client saw the refusal').toEqual([])
+  expect(await seenWrites(page), 'reading never marks seen').toBe(0)
+})
 
 // #391 4305867088: a refusal cached in the account's query cache is not recorded again when Updates mounts anew. The
 // remount's own first read (held until every effect has run, then answered 200) shows the digest and Mark as seen again,
