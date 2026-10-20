@@ -577,6 +577,31 @@ describe('project search (A38)', () => {
     assert.deepEqual(forA, [[target.contributionId, hiddenPrivate.contributionId]])
   })
 
+  it('names no next message when only messages hidden from this reader follow the hit (FND-C63, R2 addendum)', async () => {
+    const [admin, a, b] = [randomUUID(), randomUUID(), randomUUID()]
+    const { projectId } = await seedProject(db.ownerUrl, { admin, editors: [a, b] })
+    const target = await say(b, projectId, 'The avocet wades.')
+    const mine = await textSource(projectId, a, 'Only A reads this.')
+    await owner(`UPDATE sophia.source_objects SET scope='private' WHERE id=$1`, [mine.sourceId])
+    const hidden = await share(a, projectId, mine)
+    assert.equal(
+      (await chat(b, projectId)).entries.some((e) => e.id === hidden.contributionId),
+      false,
+      'precondition',
+    )
+    // B: nothing B may read follows the hit, so no boundary (the latest page), and never the hidden id.
+    assert.deepEqual(
+      (await found(b, projectId, 'avocet')).map((h) => [h.id, h.before]),
+      [[target.contributionId, null]],
+      `hidden id: ${hidden.contributionId}`,
+    )
+    assert.deepEqual(
+      (await found(a, projectId, 'avocet')).map((h) => [h.id, h.before]),
+      [[target.contributionId, hidden.contributionId]],
+      'its owner reads it: for A it is the next one',
+    )
+  })
+
   it('splits sections as 0036 and the viewer do, in a pure invoker function the API role may call; no definer, table or index is added', async () => {
     const texts = [
       'Intro\n# A\none\n## B #\ntwo\n# A\nthree\n```\n# fenced\n```\n# A\nfour',
