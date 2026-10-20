@@ -7,7 +7,7 @@
  *   node scripts/reliability-report.mjs --fixture [--run] [--out <dir>]
  *
  * `--ci` reads GitHub Actions through `gh` (M10 flakes, M11 the room job's minutes, M12 main green). `--fixture`
- * collects what the `@reliability` Playwright suite wrote (M1, M2, M6, M7); `--run` runs the suite first. Each mode
+ * collects what the `@reliability` Playwright suite wrote (M1–M4, M6–M8); `--run` runs the suite first. Each mode
  * writes its section of `<out>/reliability.json` (default `reliability-report/`), keeping the other's, and the short
  * table `<out>/reliability.md`, which it also prints.
  */
@@ -37,6 +37,7 @@ import {
   summarizeM2,
   summarizeM6,
   summarizeM7,
+  summarizeM8,
   summarizeFeed,
   timeoutMinutes,
 } from './lib/reliability.mjs'
@@ -60,7 +61,6 @@ const NOT_YET = [
   { metric: 'M3', what: 'feed recovery', why: 'needs the stream levers reliability/feed-reconnect adds', feed: true },
   { metric: 'M4', what: 'gaps and resyncs', why: 'needs the gap lever reliability/feed-reconnect adds', feed: true },
   { metric: 'M5', what: 'call re-join', why: 'not in this suite yet (linkLost/drop levers exist)' },
-  { metric: 'M8', what: 'session through sleep', why: 'needs an expired-token lever (R1 gap 3)' },
   { metric: 'M9', what: 'tabs on an old version', why: 'needs a version probe' },
 ]
 
@@ -317,6 +317,7 @@ function measureFixture({ run: runFirst }) {
     m2: metric('M2', summarizeM2),
     m6: metric('M6', summarizeM6),
     m7: metric('M7', summarizeM7, (s) => s.reached !== false),
+    m8: metric('M8', summarizeM8),
     feed: { cases: summarizeFeed(feed), samples: feed },
   }
 }
@@ -382,6 +383,28 @@ function feedRows(fx) {
       const c = fx.feed?.cases?.[name]
       if (!c || c.ran === 0) return 'not run (no lever on this page)'
       return `${c.back}/${c.ran} back · p50 ${ms(c.p50)} · p95 ${ms(c.p95)}`
+    }),
+  )
+}
+
+/** M2's reload row: offered again after the reload, resent once under its key, written twice; or not run. */
+function reloadRow(fx) {
+  return row(fx, 'M2 · kept across a reload: offered again, resent once under its key', () => {
+    const r = fx.m2.reload
+    if (!r || r.n === 0) return 'not run'
+    return `${r.offered}/${r.n} offered again · ${r.sameKey}/${r.n} resent once under the same key · written twice: ${r.duplicates} · resend → answer p50 ${ms(r.resend.p50)}`
+  })
+}
+
+/** M8's rows, per kind: renewed without «signed out», sent again, one refresh, the time to answer; or not run. */
+const SESSION_KINDS = ['read', 'write', 'feed']
+function sessionRows(fx) {
+  return SESSION_KINDS.map((kind) =>
+    row(fx, `M8 · expired token while signed in · ${kind}`, () => {
+      const c = fx.m8?.[kind]
+      if (!c || c.n === 0) return 'not run'
+      const met = c.reached < c.n ? ` (the expired token met ${c.reached}/${c.n})` : ''
+      return `${c.renewed}/${c.n} renewed without «signed out» · ${c.resent}/${c.n} sent again · ${c.oneRefresh}/${c.n} one refresh · answer p50 ${ms(c.time.p50)} · p95 ${ms(c.time.p95)}${met}`
     }),
   )
 }
@@ -457,6 +480,7 @@ function fixtureMarkdown(fx) {
       () =>
         `${pct(m2.share)} (${m2.resolved}/${m2.n}; written twice: ${m2.duplicates}; resend → answer p50 ${ms(m2.resend.p50)})`,
     ),
+    reloadRow(fx),
     row(
       fx,
       'M6 · failed reads shown / silent',
@@ -469,6 +493,7 @@ function fixtureMarkdown(fx) {
       () => `${pct(m7.share)} (${m7.recovered}/${m7.n}; time p50 ${ms(m7.time.p50)} · p95 ${ms(m7.time.p95)})`,
     ),
     ...feedRows(fx),
+    ...sessionRows(fx),
     ...m6Table(fx),
     ...m7Table(fx),
   ]

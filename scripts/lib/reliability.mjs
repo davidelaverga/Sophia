@@ -1,7 +1,7 @@
 /**
  * The arithmetic behind scripts/reliability-report.mjs (docs/plans/reliability-measure.md, the baseline's §4):
  * percentiles and rates, how a CI job's end is read, flakes, the room job's minutes and margin, main's red hours, and
- * the fixture suite's four metrics. Pure functions over plain data; the script does the reading and the writing.
+ * the fixture suite's metrics. Pure functions over plain data; the script does the reading and the writing.
  */
 
 import { parse } from 'yaml'
@@ -338,17 +338,60 @@ export function summarizeM1(samples) {
 
 /**
  * M2. Samples of a write whose reply was lost, sent again under its key: resolved or not, how many times it was
- * written, and the time from the second press to the answer.
+ * written, and the time from the second press to the answer. The samples taken across a reload (`afterReload`) are
+ * counted apart, in `reload`, so the first line stays comparable with runs from before they were measured.
  */
 export function summarizeM2(samples) {
+  const resolved = samples.filter((s) => s.resolved && !s.afterReload)
+  const before = samples.filter((s) => !s.afterReload)
+  return {
+    n: before.length,
+    resolved: resolved.length,
+    share: rate(resolved.length, before.length),
+    duplicates: before.filter((s) => s.writes > 1).length,
+    resend: spread(resolved.map((s) => s.resendMs)),
+    reload: summarizeReload(samples.filter((s) => s.afterReload)),
+  }
+}
+
+/**
+ * M2 kept across a reload: the write's reply lost, the page reloaded. Offered again (its «Not confirmed» line back),
+ * resent once under the same key (two tries reached the service, one key), written twice, resolved, and the time from
+ * the press after the reload to the answer.
+ */
+function summarizeReload(samples) {
   const resolved = samples.filter((s) => s.resolved)
   return {
     n: samples.length,
-    resolved: resolved.length,
-    share: rate(resolved.length, samples.length),
+    offered: samples.filter((s) => s.offered).length,
+    sameKey: samples.filter((s) => s.tries === 2 && s.keys === 1).length,
     duplicates: samples.filter((s) => s.writes > 1).length,
+    resolved: resolved.length,
     resend: spread(resolved.map((s) => s.resendMs)),
   }
+}
+
+/**
+ * M8. Per kind (a read, a keyed write, the feed): the API refused the token as expired while the person was still
+ * signed in. `reached`: the expired token met a request; renewed: reached, answered on screen, and never «signed
+ * out»; `resent`: the refused request went again (a write, under its key); one refresh asked of the Auth service; and
+ * p50/p95 of the time from the press (or the lever) to the answer, of the renewed ones.
+ */
+export function summarizeM8(samples) {
+  const result = {}
+  for (const [kind, group] of groupBy(samples, (s) => s.kind)) {
+    const renewed = group.filter((s) => s.reached && s.definitive && !s.signedOut)
+    result[kind] = {
+      n: group.length,
+      reached: group.filter((s) => s.reached).length,
+      renewed: renewed.length,
+      signedOut: group.filter((s) => s.signedOut).length,
+      resent: group.filter((s) => s.resent).length,
+      oneRefresh: group.filter((s) => s.refreshes === 1).length,
+      time: spread(renewed.map((s) => s.ms)),
+    }
+  }
+  return result
 }
 
 /** M6. Per view: its read failed (`failedReads` > 0) and it showed so, or fell silent; no failed read, not reached. */
@@ -394,7 +437,7 @@ export function summarizeFeed(samples) {
 }
 
 /** The fixture's metrics, each written by its own scenarios (their titles start `Mn · `, a describe's or their own). */
-const FIXTURE_METRICS = ['M1', 'M2', 'M3', 'M4', 'M6', 'M7']
+const FIXTURE_METRICS = ['M1', 'M2', 'M3', 'M4', 'M6', 'M7', 'M8']
 
 /**
  * How many scenarios a suite has per metric, from `playwright test --list` (one line per test, `… › file:line:col ›
