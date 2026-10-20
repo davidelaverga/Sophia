@@ -36,6 +36,8 @@ export interface Drop {
   triedAt: number | null
   /** LiveKit left the room itself (CLIENT_INITIATED): the page leaving or freezing, not a lost link. */
   selfLeft?: boolean
+  /** Another tab of this browser holds the call (call-tabs.ts). */
+  elsewhere?: boolean
 }
 
 /** Whether a call last seen live at `seen` is still recent enough to come back on its own. */
@@ -78,6 +80,8 @@ export interface RejoinPorts {
   show: (step: RejoinStep | null) => void
   now: () => number
   online: () => boolean
+  /** Whether another tab of this browser holds the call (call-tabs.ts). */
+  elsewhere?: () => boolean
   /** Calls `back` once the browser is online again; returns how to stop listening. */
   whenOnline: (back: () => void) => () => void
   /** Calls `run` after `ms`; returns how to cancel it. */

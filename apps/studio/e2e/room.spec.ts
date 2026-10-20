@@ -455,6 +455,32 @@ test('BASE-03 · a try whose token comes back too late goes no further and says 
   expect(await connects(page), 'nothing connected').toBe(connected)
 })
 
+test('BASE-03 · a dropped call never comes back on its own while another tab of this browser holds it (review P2)', async ({
+  page,
+  context,
+}) => {
+  await enter(page, '/room.html?call=on')
+  // The person moved to another tab of this browser and joined there.
+  const other = await context.newPage()
+  await other.goto('/room.html?call=on')
+  await expect(controls(other).getByRole('button', { name: 'Microphone' })).toBeVisible()
+  const asking = (await tokens(page)).length
+  await page.evaluate(() => window.fixture?.drop())
+  await expect(page.locator('.dock-wrap .dock-note')).toHaveText('You were disconnected from the room.')
+  await page.waitForTimeout(600) // a try would have asked for its token by now
+  expect(await tokens(page), 'the call stays in the other tab').toHaveLength(asking)
+  // Once the other tab has left, this one's next drop comes back on its own again.
+  await controls(other).getByRole('button', { name: 'Leave the room' }).click()
+  await controls(page)
+    .getByRole('button', { name: /^Try again/ })
+    .click()
+  await expect(microphone(page)).toBeVisible()
+  const back = (await tokens(page)).length
+  await page.evaluate(() => window.fixture?.drop())
+  await expect.poll(() => tokens(page).then((t) => t.length)).toBe(back + 1)
+  await expect(microphone(page)).toBeVisible()
+})
+
 test('BASE-03 · another tab, being taken out and a closed room never rejoin on their own', async ({ page }) => {
   await enter(page, '/room.html?call=on')
   const join = controls(page).getByRole('button', { name: /^Join the room/ })

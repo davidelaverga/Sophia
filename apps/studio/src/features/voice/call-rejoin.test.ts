@@ -73,7 +73,14 @@ const settle = () => new Promise<void>((done) => setTimeout(done, 0))
 
 /** The browser, the clock and the room, in the check's hands. */
 function harness(online = true) {
-  const t = { now: 10 * MIN, online, back: [] as (() => void)[], timers: [] as { at: number; run: () => void }[] }
+  const t = {
+    now: 10 * MIN,
+    online,
+    /** Another tab of this browser holds the call. */
+    elsewhere: false,
+    back: [] as (() => void)[],
+    timers: [] as { at: number; run: () => void }[],
+  }
   const said: string[] = []
   const shown: (RejoinStep | null)[] = []
   const joins: ((inCall: boolean) => void)[] = []
@@ -89,6 +96,7 @@ function harness(online = true) {
     show: (step) => shown.push(step),
     now: () => t.now,
     online: () => t.online,
+    elsewhere: () => t.elsewhere,
     whenOnline: (back) => {
       t.back.push(back)
       return () => {
@@ -129,6 +137,10 @@ function harness(online = true) {
     },
     goOffline: () => {
       t.online = false
+    },
+    /** Another tab of this browser joins the call, or leaves it. */
+    otherTab: (inCall: boolean) => {
+      t.elsewhere = inCall
     },
     listening: () => t.back.length,
   }
@@ -328,6 +340,36 @@ describe('a try that would connect late, or for a page leaving (review P2)', () 
     assert.equal(h.stills[0]?.(), true)
     h.jump(REJOIN_WINDOW_MS - 100_000 + 1)
     assert.equal(h.stills[0]?.(), false, 'past the window, even inside the try’s own 30 s')
+  })
+})
+
+describe('a try never takes the call from another tab of this browser (review P2, seam #3)', () => {
+  it('never tries while another tab holds the call', () => {
+    assert.equal(rejoinPlan({ ...dropped, elsewhere: true }), null)
+    const h = harness()
+    h.rejoin.live()
+    h.otherTab(true)
+    h.rejoin.ended('dropped')
+    assert.equal(h.joins.length, 0)
+  })
+
+  it('offline, another tab that joined meanwhile is left with the call once the network is back', () => {
+    const h = harness(false)
+    h.rejoin.live()
+    h.rejoin.ended('dropped')
+    h.otherTab(true)
+    h.reconnect()
+    assert.equal(h.joins.length, 0)
+    assert.equal(h.shown.at(-1), null)
+  })
+
+  it('a try under way goes no further once another tab joins', () => {
+    const h = harness()
+    h.rejoin.live()
+    h.rejoin.ended('dropped')
+    assert.equal(h.stills[0]?.(), true)
+    h.otherTab(true)
+    assert.equal(h.stills[0]?.(), false)
   })
 })
 
