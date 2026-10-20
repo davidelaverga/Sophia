@@ -413,6 +413,22 @@ test('served search · an eligible query of astral letters is typed whole and as
   await expect(field(page)).toHaveValue('a'.repeat(200))
 })
 
+// 4320173114: the shortest query is counted as A38 counts it (queryOf), in code points. One Deseret letter is one code
+// point but two UTF-16 units: it asks nothing; a second letter makes a query that is asked.
+test('served search · one astral letter asks nothing, two are asked (4320173114)', async ({ page }) => {
+  await open(page, 'discussion=60&heron=3')
+  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  const qs = async () =>
+    (await requests(page)).map((r) => new URL(r, 'http://fixture').searchParams.get('q')).filter(Boolean)
+  await field(page).focus()
+  await page.keyboard.insertText('\u{10428}')
+  await expect(field(page)).toHaveValue('\u{10428}')
+  await page.waitForTimeout(600) // past the field's settling (250 ms): a query would have been asked by now
+  expect(await qs()).toEqual([])
+  await page.keyboard.insertText('\u{10429}')
+  await expect.poll(qs).toContain('\u{10428}\u{10429}')
+})
+
 // The same bound at its edge: a valid 200-code-point query of astral words (64, 64, 64 and 5 letters, three spaces)
 // is held and asked whole; edited back by Backspace and typed on, the shorter query is asked as it now stands.
 test('served search · a 200-code-point query of astral words is asked whole, and editing it back asks the shorter one (r4315568923)', async ({

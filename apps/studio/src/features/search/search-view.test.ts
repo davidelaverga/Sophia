@@ -116,6 +116,15 @@ describe('goals and tasks in the search (docs/plans/search-goals.md)', () => {
     const many = Array.from({ length: 5 }, (_, i) => goal(`m${String(i)}`, `Report ${String(i)}`))
     assert.equal(localHits(many, undefined, 'report', health).length, 3)
   })
+
+  it('counts letters in code points, as the API does: one Deseret letter finds nothing, two find (4320173114)', () => {
+    const deseret = [goal('d1', '\u{10428}\u{10429} plan')]
+    assert.deepEqual(localHits(deseret, undefined, '\u{10428}', health), [])
+    assert.deepEqual(
+      localHits(deseret, undefined, '\u{10428}\u{10429}', health).map((h) => h.id),
+      ['d1'],
+    )
+  })
 })
 
 describe('the words marked, and a long text cut around them', () => {

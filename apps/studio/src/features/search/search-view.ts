@@ -77,6 +77,9 @@ function goalHit(goal: Goal, q: string, health: HealthWords): LocalHit | null {
   }
 }
 
+/** A query's length as A38 counts it (queryOf), in code points: an astral letter is one, not two UTF-16 units (4320173114). */
+export const codePoints = (q: string): number => Array.from(q).length
+
 /** At most three goals, then three tasks, found by their words; nothing under two letters. */
 export function localHits(
   goals: readonly Goal[],
@@ -85,7 +88,7 @@ export function localHits(
   health: HealthWords,
 ): LocalHit[] {
   const q = query.trim().toLowerCase()
-  if (q.length < MIN_LOCAL) return []
+  if (codePoints(q) < MIN_LOCAL) return []
   const found = goals.flatMap((g) => goalHit(g, q, health) ?? []).slice(0, 3)
   const tasks = goals
     .flatMap((g) => (plans?.[g.id]?.tasksFound ?? []).map((t) => ({ t, goal: g })))
