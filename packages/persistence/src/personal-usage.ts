@@ -144,7 +144,8 @@ export async function recordPersonalSettledReply(c: pg.PoolClient, turnId: strin
 
 /**
  * Whether 0078, 0079 and 0080 are installed: a live call is not admitted without them, so no answer is paid for that can't be
- * kept, nor asked again after one was lost (R2-B85-P1-SCHEMA79). 0078's binding table; 0079's reservation, by its marker.
+ * kept, nor asked again after one was lost (R2-B85-P1-SCHEMA79). 0078's binding table; 0080's reservation, by its marker
+ * (0079's marker stays in it): a database whose reservation is 0079's alone is not ready (FND-C67).
  * Its name is joined in SQL so this read is never taken for a reservation statement (the live tests' pool gates).
  */
 export async function personalSettledAnswersInstalled(c: pg.ClientBase | pg.Pool): Promise<boolean> {

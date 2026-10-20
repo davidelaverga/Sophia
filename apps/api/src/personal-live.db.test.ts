@@ -1606,26 +1606,37 @@ describe('the completed-call fence’s gaps (FND-C62)', () => {
       `UPDATE sophia.personal_companion_usage SET state='settled', reason=NULL, used_micros=0,
          usage='{"inputTokens":0,"outputTokens":0}', settled_at=now() WHERE payer='c62-f3-payer'`,
     )
-    await owner(migration('0079_personal_completed_call_fence.sql'))
-    const [row] = await owner<{ reason: string | null }>(
-      `SELECT reason FROM sophia.personal_companion_usage WHERE payer='c62-f3-payer'`,
-    )
-    await write(at, `/api/v1/personal/turns/${asked.id}/retry`, IVY, {})
-    const fenced = await settled(at, IVY)
-    assert.equal(
-      recorded().length,
-      sentBefore + 1,
-      `no second generation for the old turn (reason ${String(row?.reason)})`,
-    )
-    assert.equal(fenced.turns.find((t) => t.id === asked.id)?.reply, 'failed')
-    assert.equal((await usage('c62-f3-payer')).length, 1, 'cost history kept, nothing new reserved')
-    double.script({ text: 'A new answer.' })
-    await write(at, '/api/v1/personal/turns', IVY, { text: 'Something new' })
-    const page = await settled(at, IVY)
-    assert.deepEqual(
-      page.turns.filter((t) => t.author === 'sophia').map((t) => t.text),
-      ['A new answer.'],
-    )
+    // 0079 applied over that row: its backfill classifies it 'settled_before_fence'. Re-running 0079 also replaces the
+    // latest reservation, so 0080 is restored before any API check (and in finally): 0080's backfill touches only rows
+    // with no reason, so this one keeps 0079's reason (FND-B101, R2-C67 item 1).
+    const reasonOf = async () =>
+      (
+        await owner<{ reason: string | null }>(
+          `SELECT reason FROM sophia.personal_companion_usage WHERE payer='c62-f3-payer'`,
+        )
+      ).map((r) => r.reason)
+    try {
+      await owner(migration('0079_personal_completed_call_fence.sql'))
+      assert.deepEqual(await reasonOf(), ['settled_before_fence'], '0079 classifies the legacy row')
+      await owner(migration('0080_personal_unusable_completion_fence.sql'))
+      assert.deepEqual(await reasonOf(), ['settled_before_fence'], '0080 leaves an already-reasoned row as it is')
+      assert.equal((await fetch(`${at}/ready`)).status, 200, 'ready again with 0080')
+      await write(at, `/api/v1/personal/turns/${asked.id}/retry`, IVY, {})
+      const fenced = await settled(at, IVY)
+      assert.equal(recorded().length, sentBefore + 1, 'no second generation for the old turn')
+      assert.equal(fenced.turns.find((t) => t.id === asked.id)?.reply, 'failed')
+      assert.equal((await usage('c62-f3-payer')).length, 1, 'cost history kept, nothing new reserved')
+      double.script({ text: 'A new answer.' })
+      await write(at, '/api/v1/personal/turns', IVY, { text: 'Something new' })
+      const page = await settled(at, IVY)
+      assert.deepEqual(
+        page.turns.filter((t) => t.author === 'sophia').map((t) => t.text),
+        ['A new answer.'],
+      )
+    } finally {
+      await owner(migration('0079_personal_completed_call_fence.sql'))
+      await owner(migration('0080_personal_unusable_completion_fence.sql')) // the latest reservation again
+    }
   })
 })
 
@@ -1740,6 +1751,7 @@ describe('shutting down between the provider’s result and the final reply writ
     await within(10_000, 'the final reply write reached', held.reached)
     const atBarrier = {
       usage: (await usage('c65-payer')).map((r) => r.state),
+      reasons: (await usage('c65-payer')).map((r) => r.reason),
       kept: (
         await owner<{ n: number }>(`SELECT count(*)::int n FROM sophia.personal_settled_answers WHERE owner_id=$1`, [
           KAI,
@@ -1773,6 +1785,22 @@ describe('shutting down between the provider’s result and the final reply writ
     await companionPool.end()
     assert.deepEqual(atBarrier.usage, ['settled'], 'at the barrier the cost is settled')
     assert.equal(atBarrier.kept, 1, 'and the answer kept')
+    // A usable answer, kept: its cost carries no without-answer class, nor after the final write (FND-B101, 0080).
+    assert.deepEqual(atBarrier.reasons, [null], 'kept answer: reason NULL at the barrier')
+    assert.deepEqual(
+      (await usage('c65-payer')).map((r) => [r.state, r.reason]),
+      [['settled', null]],
+      'and after the final write',
+    )
+    assert.equal(
+      (
+        await owner<{ n: number }>(`SELECT count(*)::int n FROM sophia.personal_settled_answers WHERE owner_id=$1`, [
+          KAI,
+        ])
+      )[0]?.n,
+      0,
+      'the kept answer let go once written',
+    )
     assert.equal(closedWhileHeld, false, 'close waits for the final reply write')
     assert.equal(replies, 1, 'the reply written before close resolved')
     assert.equal(witness.requests, 1, 'one provider request')
@@ -1887,9 +1915,10 @@ describe('a completed call with known usage and no usable reply (FND-C67)', () =
           MAY,
         ])
       )[0]?.n
+    const firstRows = await usage('c67-payer')
     const first = {
       reply: asked.reply,
-      usage: (await usage('c67-payer')).map((r) => [r.state, r.reason, r.used_micros]),
+      usage: firstRows.map((r) => [r.state, r.reason, r.used_micros]),
       kept: await kept(),
       requests: recorded().length - sentBefore,
     }
@@ -1914,7 +1943,34 @@ describe('a completed call with known usage and no usable reply (FND-C67)', () =
     assert.equal(retried.requests, 1, 'no second generation for the same turn')
     assert.equal(retried.usage.length, 1, 'no second reservation or cost')
     assert.equal(retried.sophia, 0, 'no reply made up')
-    // A genuinely new turn is answered, once, under its own admission.
+    assert.equal(retried.reply, 'failed', 'the same turn stays failed')
+    // Its known cost, as first settled, unchanged by the retry: amount and token counts (FND-B101, R2-C67 item 2).
+    assert.deepEqual(
+      (await usage('c67-payer')).map((r) => [r.state, r.reason, r.used_micros, r.usage]),
+      firstRows.map((r) => [r.state, 'settled_without_answer', r.used_micros, r.usage]),
+    )
+    assert.ok(Number(firstRows[0]?.used_micros ?? 0) > 0, 'a known, nonzero cost')
+    // Asked again through a fresh API instance and runner: still nothing asked, reserved or paid.
+    const second = await liveApi('c67-payer', MAY)
+    await write(second, `/api/v1/personal/turns/${asked.id}/retry`, MAY, {})
+    await settled(second, MAY)
+    await pause(1000)
+    assert.equal(recorded().length - sentBefore, 1, 'a fresh runner asks nothing for that turn')
+    assert.equal((await usage('c67-payer')).length, 1, 'and reserves nothing')
+    // The same retry sent twice under one Idempotency-Key: the second replays the first's receipt; nothing asked.
+    const { epoch } = await space(at, MAY)
+    const replayKey = randomUUID()
+    const retryPath = `/api/v1/personal/turns/${asked.id}/retry`
+    const once = await call(at, retryPath, MAY, {}, { epoch, key: replayKey })
+    await settled(at, MAY)
+    const twice = await call(at, retryPath, MAY, {}, { epoch, key: replayKey })
+    assert.equal(once.status, 202, JSON.stringify(once.json))
+    assert.equal(twice.status, 202, JSON.stringify(twice.json))
+    assert.deepEqual(twice.json, once.json, 'the same key replays the receipt')
+    await pause(1000)
+    assert.equal(recorded().length - sentBefore, 1, 'a replayed retry asks nothing')
+    assert.equal((await usage('c67-payer')).length, 1, 'and pays nothing')
+    // A genuinely new turn is answered, once, under its own admission (the queued valid step above).
     await write(at, '/api/v1/personal/turns', MAY, { text: 'Something new.' })
     const fresh = await settled(at, MAY)
     assert.equal(fresh.turns.filter((t) => t.author === 'sophia').length, 1)
@@ -1927,5 +1983,143 @@ describe('a completed call with known usage and no usable reply (FND-C67)', () =
         ['settled', null],
       ],
     )
+  })
+
+  it('a tool call with known usage is fenced the same way: its turn is not asked again (FND-B101)', async () => {
+    const NED = randomUUID()
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('b101-tool-payer', $1, 1000000)`,
+      [NED],
+    )
+    const at = await liveApi('b101-tool-payer', NED)
+    const sentBefore = recorded().length
+    double.script({
+      toolCall: { name: 'synthetic_tool', arguments: {} },
+      usage: { input_tokens: 10, output_tokens: 5 },
+    })
+    await write(at, '/api/v1/personal/turns', NED, { text: 'Use a tool.' })
+    const asked = (await settled(at, NED)).turns.find((t) => t.author === 'person')
+    assert.ok(asked)
+    assert.equal(asked.reply, 'failed')
+    assert.equal(recorded().length - sentBefore, 1)
+    assert.deepEqual(
+      (await usage('b101-tool-payer')).map((r) => [r.state, r.reason]),
+      [['settled', 'settled_without_answer']],
+    )
+    await write(at, `/api/v1/personal/turns/${asked.id}/retry`, NED, {})
+    await settled(at, NED)
+    await pause(1000)
+    assert.equal(recorded().length - sentBefore, 1, 'no second generation for that turn')
+    assert.equal((await usage('b101-tool-payer')).length, 1)
+  })
+})
+
+// FND-B101 (R2-C67 item 3): 0080's backfill and the versions around it, on the live path's own rows.
+describe('0080 over costs settled before it, and the versions around it (FND-B101)', () => {
+  it('classifies failed and pending bound turns with no answer kept; leaves answered and held rows; amounts and times unchanged', async () => {
+    const OLA = randomUUID()
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('b101-backfill-payer', $1, 1000000)`,
+      [OLA],
+    )
+    const at = await liveApi('b101-backfill-payer', OLA)
+    const known = { input_tokens: 10, output_tokens: 5 }
+    double.script({ text: 'Bad\u0000one', usage: known })
+    await write(at, '/api/v1/personal/turns', OLA, { text: 'One.' })
+    await settled(at, OLA)
+    double.script({ text: 'Fine.', usage: known })
+    await write(at, '/api/v1/personal/turns', OLA, { text: 'Two.' })
+    await settled(at, OLA)
+    double.script({ text: 'Bad\u0000three', usage: known })
+    await write(at, '/api/v1/personal/turns', OLA, { text: 'Three.' })
+    await settled(at, OLA)
+    double.script({ status: 500 })
+    await write(at, '/api/v1/personal/turns', OLA, { text: 'Four.' })
+    const page = await settled(at, OLA)
+    const turns = page.turns.filter((t) => t.author === 'person')
+    assert.deepEqual(
+      turns.map((t) => t.reply),
+      ['failed', 'answered', 'failed', 'failed'],
+    )
+    const rows = () =>
+      owner<{
+        turn_id: string | null
+        state: string
+        reason: string | null
+        used_micros: string | null
+        usage: unknown
+        settled_at: string | null
+        reserved_at: string
+      }>(
+        `SELECT b.turn_id, u.state, u.reason, u.used_micros, u.usage, u.settled_at::text, u.reserved_at::text
+           FROM sophia.personal_companion_usage u LEFT JOIN sophia.personal_answer_calls b USING (call_id)
+          WHERE u.payer='b101-backfill-payer' ORDER BY u.reserved_at`,
+      )
+    // FIXTURE, labelled: rows as settled before 0080 (no reason), and turn three left pending by a retry.
+    await owner(
+      `UPDATE sophia.personal_companion_usage SET reason=NULL WHERE payer='b101-backfill-payer' AND state='settled'`,
+    )
+    await owner(`UPDATE sophia.personal_turns SET reply='pending', answering_claim=NULL WHERE id=$1`, [turns[2]?.id])
+    const before = await rows()
+    assert.deepEqual(
+      before.map((r) => [r.state, r.reason]),
+      [
+        ['settled', null],
+        ['settled', null],
+        ['settled', null],
+        ['uncertain', 'usage_unknown'],
+      ],
+    )
+    await owner(migration('0080_personal_unusable_completion_fence.sql'))
+    const after = await rows()
+    assert.deepEqual(
+      after.map((r) => [r.turn_id, r.state, r.reason]),
+      [
+        [turns[0]?.id, 'settled', 'settled_without_answer'],
+        [turns[1]?.id, 'settled', null],
+        [turns[2]?.id, 'settled', 'settled_without_answer'],
+        [turns[3]?.id, 'uncertain', 'usage_unknown'],
+      ],
+      'failed and pending classified; answered and held untouched',
+    )
+    assert.deepEqual(
+      after.map((r) => [r.used_micros, r.usage, r.settled_at, r.reserved_at]),
+      before.map((r) => [r.used_micros, r.usage, r.settled_at, r.reserved_at]),
+      'amounts, counts and times unchanged',
+    )
+  })
+
+  it('a database whose reservation is 0079 alone is not ready for this API and reserves nothing; 0080 keeps 0079 marker and signature', async () => {
+    const PIA = randomUUID()
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('b101-mixed-payer', $1, 1000000)`,
+      [PIA],
+    )
+    try {
+      await owner(migration('0079_personal_completed_call_fence.sql')) // the reservation as 0079 wrote it
+      const at = await liveApi('b101-mixed-payer', PIA)
+      assert.equal((await fetch(`${at}/ready`)).status, 503, 'not ready with 0079 alone')
+      const sentBefore = recorded().length
+      await write(at, '/api/v1/personal/turns', PIA, { text: 'Without 0080.' })
+      await settled(at, PIA)
+      assert.equal(recorded().length, sentBefore, 'no provider request')
+      assert.deepEqual(await usage('b101-mixed-payer'), [], 'nothing reserved')
+    } finally {
+      await owner(migration('0079_personal_completed_call_fence.sql'))
+      await owner(migration('0080_personal_unusable_completion_fence.sql')) // the latest reservation again
+    }
+    // FUNCTION-LEVEL compatibility, not an older API process: 261's readiness query looks for 0079's marker in the
+    // reservation, and calls it with the same six arguments; 0080's reservation keeps both.
+    const [proc] = await owner<{ has79: boolean; has80: boolean; args: string }>(
+      `SELECT position('0079 completed-call fence' IN p.prosrc) > 0 AS has79,
+              position('0080 unusable-completion fence' IN p.prosrc) > 0 AS has80,
+              pg_get_function_identity_arguments(p.oid) AS args
+         FROM pg_catalog.pg_proc p WHERE p.pronamespace='sophia'::regnamespace AND p.proname='reserve_personal_answer'`,
+    )
+    assert.deepEqual(proc, {
+      has79: true,
+      has80: true,
+      args: 'p_call uuid, p_payer text, p_route text, p_micros bigint, p_turn uuid, p_claim uuid',
+    })
   })
 })

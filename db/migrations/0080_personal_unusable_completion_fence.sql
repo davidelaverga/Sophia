@@ -8,7 +8,7 @@
 --   row update as its cost: this call's answer was not retained. No provider cause is claimed.
 -- * When 0078's settlement keeps THIS call's own answer (kept = p_call), that classification is cleared for this call
 --   only, in the same transaction. Not retained (epoch gone, turn not pending/failed, another call's answer already
---   kept): it stays, which is true; reservation answers 'kept' or 'not_current' first for those turns anyway.
+--   kept): it stays, which is true. For a turn whose answer is kept, reservation answers 'kept' before this fence.
 -- * Reservation fences 'settled_without_answer' as it fences 0079's reasons (kept answer first, then the fence, then
 --   the claim), so a retry of that turn asks nothing; a new turn is answered as before.
 -- * Unbound ledger calls keep their reason as it was (the base settlement's ELSE). Locks are unchanged: settle+keep and
