@@ -16,8 +16,8 @@
  */
 
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
-import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { spawn, spawnSync } from 'node:child_process'
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -297,6 +297,46 @@ describe('conversation service crossing (real dsh service executor, API, worker,
         await w.until(() => /readiness=ready/.test(other.stderr()), 'the second bridge readiness')
         return other
       },
+      /**
+       * FND-B105: the SHIPPED entry, scripts/runtime-host.mjs, as an operator runs it: --service-overlay with this
+       * world's overlay (unless `overlay` is false, the default-off launch), the expected digest in the variable it
+       * names, the route credential by name; only SOPHIA_SERVICE_URL/TOKEN, PATH and HOME besides.
+       */
+      async startShipped({ expected = runtimeDigest, overlay: withOverlay = true } = {}) {
+        const file = join(layout.root, 'service-overlay.json')
+        writeFileSync(file, overlay)
+        const args = ['scripts/runtime-host.mjs', '--root', layout.root, ...(withOverlay ? ['--service-overlay', file] : [])]
+        const child = spawn(process.execPath, args, {
+          cwd: REPO_ROOT,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: { PATH: process.env.PATH, HOME: process.env.HOME, SOPHIA_SERVICE_URL: base, SOPHIA_RUNTIME_TOKEN: rt.token,
+            OPENAI_API_KEY: DUMMY_KEY, ...(expected ? { SOPHIA_EXECUTOR_DIGEST: expected } : {}) },
+        })
+        let out = ''
+        child.stderr.on('data', (chunk) => { out += chunk })
+        child.stdout.on('data', (chunk) => { out += chunk })
+        const exited = new Promise((resolve) => child.on('exit', resolve))
+        runtime = { stderr: () => out, stop: async () => { if (child.exitCode === null) child.kill('SIGTERM'); return exited } }
+        // runtime-host prints its own lines (the dsh child's output stays in the supervisor's diagnostics): its ready line,
+        // then the bridge's hello as the server stored it.
+        try {
+          await w.until(() => /runtime \S+ ready against/.test(w.stderr()), 'runtime-host ready')
+          await w.until(async () => (await owner('SELECT 1 FROM sophia.runtime_instances WHERE project_id=$1', [projectId])).length > 0, 'the bridge hello')
+        } catch (error) {
+          throw new Error(`${error.message}; runtime-host said: ${out.slice(-1500)}`)
+        }
+      },
+      /** The shipped entry's --print-executor-digest for this world's root and overlay. */
+      printedDigest() {
+        const file = join(layout.root, 'service-overlay.json')
+        writeFileSync(file, overlay)
+        const r = spawnSync(process.execPath, ['scripts/runtime-host.mjs', '--root', layout.root, '--service-overlay', file, '--print-executor-digest'], {
+          cwd: REPO_ROOT, encoding: 'utf8', env: { PATH: process.env.PATH, HOME: process.env.HOME } })
+        assert.equal(r.status, 0, r.stderr)
+        const line = r.stdout.split('\n').map((l) => { try { return JSON.parse(l) } catch { return null } }).find((e) => e?.event === 'executor_digest')
+        assert.equal(line?.variable, 'SOPHIA_EXECUTOR_DIGEST')
+        return line?.digest
+      },
       stderr: () => runtime?.stderr() ?? '',
       async until(predicate, what, timeoutMs = 45_000) {
         const deadline = Date.now() + timeoutMs
@@ -439,6 +479,81 @@ describe('conversation service crossing (real dsh service executor, API, worker,
 
   // A40: the runtime advertises the executor it runs, so a grant it cannot execute is refused at the Ask, before any
   // attempt, binding or create (it used to be bound, dispatched and refused by the executor: reply_executor_mismatch).
+  // FND-B105: the same allowed answer through the SHIPPED entry (scripts/runtime-host.mjs), not the test launcher.
+  test('shipped runtime-host: --print-executor-digest is the closure; --service-overlay with it serves one allowed answer', async (t) => {
+    const w = await world(t)
+    const printed = w.printedDigest()
+    assert.equal(printed, w.closure, 'the operator-printed digest is the executor closure the runtime will advertise')
+    w.llm.script({ text: `The summary. ${ANSWER_CANARY}`, usage: { input_tokens: 900, output_tokens: 40 } })
+    await w.startShipped({ expected: printed })
+    assert.match(w.stderr(), /"event":"service_replies"/)
+    assert.doesNotMatch(w.stderr(), new RegExp(printed), 'the digest value is never logged by the host')
+    // The bridge verified the closure and advertised the conversation role with exactly this executor tuple.
+    await w.until(async () => {
+      const [stored] = await owner('SELECT roles FROM sophia.runtime_instances WHERE project_id=$1', [w.projectId])
+      return stored?.roles?.some((role) => role.id === 'sophia-conversation-v1') ?? false
+    }, 'the conversation role advertised')
+    const [stored] = await owner('SELECT roles FROM sophia.runtime_instances WHERE project_id=$1', [w.projectId])
+    assert.deepEqual(stored.roles.find((role) => role.id === 'sophia-conversation-v1')?.executor, w.tuple)
+    // FND-B115 (4326076019): the operator's file is rewritten after admission (its bridge without replies) and the dsh
+    // child is killed; the supervisor's restart composes the admitted bytes, so the role is advertised again.
+    const operatorFile = join(w.layout.root, 'service-overlay.json')
+    writeFileSync(operatorFile, JSON.stringify(JSON.parse(readFileSync(operatorFile, 'utf8')).map((row) => {
+      if (row.id !== 'sophia-control-bridge') return row
+      const config = { ...row.config }
+      delete config.replies
+      return { id: row.id, config }
+    })))
+    const [{ lease_epoch: before }] = await owner('SELECT lease_epoch FROM sophia.runtime_instances WHERE project_id=$1', [w.projectId])
+    const dsh = spawnSync('ps', ['-ax', '-o', 'pid=,command='], { encoding: 'utf8' }).stdout.split('\n')
+      .filter((line) => line.includes(DSH_ENTRY) && line.includes(w.layout.root))
+    assert.equal(dsh.length, 1, dsh.join('\n'))
+    process.kill(Number(dsh[0].trim().split(/\s+/)[0]), 'SIGKILL')
+    await w.until(async () => {
+      const [row] = await owner('SELECT lease_epoch, ready_state FROM sophia.runtime_instances WHERE project_id=$1', [w.projectId])
+      return Number(row.lease_epoch) > Number(before) && row.ready_state === 'ready'
+    }, 'the restarted bridge hello', 60_000)
+    const [again] = await owner('SELECT roles FROM sophia.runtime_instances WHERE project_id=$1', [w.projectId])
+    assert.deepEqual(again.roles.find((role) => role.id === 'sophia-conversation-v1')?.executor, w.tuple, 'the restart runs the admitted overlay')
+    const r = await w.ask()
+    await w.until(async () => (await w.reply(r)).state === 'answered', 'the published answer')
+    const answers = await w.answers(r)
+    assert.equal(answers.length, 1)
+    assert.equal(answers[0].body, `The summary. ${ANSWER_CANARY}`)
+    assert.equal(w.llm.requests.length, 1, 'one request on the pinned route')
+    assert.equal(w.llm.requests[0].headers.authorization, `Bearer ${DUMMY_KEY}`)
+    assert.deepEqual((await w.reservations(r)).map((v) => [v.state, v.used_calls]), [['settled', '1']])
+    await w.until(async () => (await w.binding(r)) === 'retired', 'the retired binding')
+    // FND-B116 (B115-R2): the staged overlay is this invocation's own; its exit removes it and never another holder's
+    // (the shared pathname of the previous scheme, or another invocation's file).
+    const staged = readdirSync(w.layout.root).filter((name) => name.startsWith('service-overlay.admitted'))
+    assert.equal(staged.length, 1, staged.join(', '))
+    const others = ['service-overlay.admitted.json', 'service-overlay.admitted.1.next-holder.json']
+    for (const name of others) writeFileSync(join(w.layout.root, name), 'the next holder')
+    await w.stop()
+    assert.equal(existsSync(join(w.layout.root, staged[0])) && readFileSync(join(w.layout.root, staged[0]), 'utf8') !== 'the next holder', false, 'its own staged overlay is gone')
+    for (const name of others) assert.equal(readFileSync(join(w.layout.root, name), 'utf8'), 'the next holder', `${name} survives this exit`)
+    assert.equal(existsSync(join(w.layout.root, 'supervisor.lease')), false, 'the lease is released')
+  })
+
+  test('shipped runtime-host without --service-overlay: ready, no conversation role, no reply mode (default OFF)', async (t) => {
+    const w = await world(t)
+    await w.startShipped({ overlay: false })
+    assert.doesNotMatch(w.stderr(), /"event":"service_replies"/)
+    const [stored] = await owner('SELECT roles FROM sophia.runtime_instances WHERE project_id=$1', [w.projectId])
+    assert.equal(stored.roles.find((role) => role.id === 'sophia-conversation-v1'), undefined)
+    assert.equal(w.llm.requests.length, 0)
+  })
+
+  test('shipped runtime-host with a digest that is not the closure: unavailable, no role, nothing sent (no fallback)', async (t) => {
+    const w = await world(t)
+    await w.startShipped({ expected: 'c'.repeat(64) })
+    assert.match(w.stderr(), /"event":"service_replies"/, 'the host passed the overlay and the named digest')
+    const [stored] = await owner('SELECT roles FROM sophia.runtime_instances WHERE project_id=$1', [w.projectId])
+    assert.equal(stored.roles.find((role) => role.id === 'sophia-conversation-v1'), undefined)
+    assert.equal(w.llm.requests.length, 0)
+  })
+
   test('wrong scope: a grant pinned to another executor artifact is refused at the Ask; nothing reaches a runtime or the provider', async (t) => {
     const w = await world(t, { pin: OTHER_DIGEST })
     await w.start()
@@ -705,6 +820,219 @@ describe('conversation service crossing (real dsh service executor, API, worker,
     assert.equal((await w.grant()).spent_calls, '0')
     for (const stage of await w.stages(r)) {
       assert.notEqual(stage.executor?.executorArtifactDigest, otherClosure, 'no receipt under the other closure')
+    }
+  })
+})
+
+// FND-B105: the shipped runtime-host entry's opt-in (default OFF), without the test launcher. Local and keyless: the
+// provider is the mock, the key a dummy; never live evidence.
+describe('the shipped runtime-host entry: service replies only by an explicit overlay and pinned digest (FND-B105)', () => {
+  test('every variable the actual supervisor sets for the runtime is refused as a digest name (FND-B108)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'b108-keys-'))
+    try {
+      const { RuntimeSupervisor } = await import(pathToFileURL(join(REPO_ROOT, 'apps/execution-host/dist/runtime-supervisor.js')).href)
+      const supervisor = new RuntimeSupervisor({ unit: { id: unit.id, profile: unit.dsh.profile, runtimeDir: RUNTIME_DIR, launcherEntry: DSH_ENTRY },
+        projectRoot: join(dir, 'probe'), bridge: { url: 'http://127.0.0.1:9', token: 'x' }, credentials: [], extraArgs: [], extraEnv: {}, onEvent: () => {} })
+      const keys = Object.keys(supervisor.environment())
+      assert.ok(keys.includes('SOPHIA_BRIDGE_TOKEN') && keys.includes('PATH'), JSON.stringify(keys))
+      const overlay = serviceOverlay('http://127.0.0.1:9')
+      for (const key of keys) {
+        const file = join(dir, `k-${key}.json`)
+        writeFileSync(file, JSON.stringify(JSON.parse(overlay).map((row) => row.id === 'sophia-control-bridge'
+          ? { id: row.id, config: { ...row.config, replies: { ...row.config.replies, executorDigestEnv: key } } } : row)))
+        const r = spawnSync(process.execPath, ['scripts/runtime-host.mjs', '--root', join(dir, 'root'), '--service-overlay', file, '--print-executor-digest'],
+          { cwd: REPO_ROOT, encoding: 'utf8', timeout: 30_000, env: { PATH: process.env.PATH, HOME: process.env.HOME } })
+        assert.equal(r.status, 2, `${key}: ${r.stderr}`)
+        assert.equal(existsSync(join(dir, 'root')), false, `${key}: the root is not touched`)
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  // FND-B111 (4324948988, 4324948997): each class in its own test, so one refusal cannot hide the other. A print-only
+  // case needs no value; a launch case leaves the variable unset, so the name is refused before the digest is read.
+  const hostRefuses = (prefix, name, message) => {
+    const dir = mkdtempSync(join(tmpdir(), prefix))
+    try {
+      const file = join(dir, 'named.json')
+      writeFileSync(file, JSON.stringify(JSON.parse(serviceOverlay('http://127.0.0.1:9')).map((row) => row.id === 'sophia-control-bridge'
+        ? { id: row.id, config: { ...row.config, replies: { ...row.config.replies, executorDigestEnv: name } } } : row)))
+      for (const mode of [['--print-executor-digest'], []]) {
+        const r = spawnSync(process.execPath, ['scripts/runtime-host.mjs', '--root', join(dir, 'root'), '--service-overlay', file, ...mode], {
+          cwd: REPO_ROOT, encoding: 'utf8', timeout: 30_000,
+          env: { PATH: process.env.PATH, HOME: process.env.HOME, SOPHIA_SERVICE_URL: 'http://127.0.0.1:9', SOPHIA_RUNTIME_TOKEN: 'x', OPENAI_API_KEY: DUMMY_KEY } })
+        const label = `${name} ${mode.length ? 'print' : 'launch'}`
+        assert.equal(r.status, 2, `${label}: ${r.stdout}${r.stderr}`)
+        assert.match(r.stderr, message, label)
+        assert.doesNotMatch(r.stdout, /"event":"(profile|executor_digest)"/, `${label}: refused before the profile`)
+        assert.equal(existsSync(join(dir, 'root')), false, `${label}: the root is not touched`)
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }
+
+  test('a digest name the bridge cannot parse (leading underscore) is refused, print and launch (FND-B111)', () => {
+    hostRefuses('b111-grammar-', '_EXECUTOR_DIGEST', /replies\.executorDigestEnv must be an upper-case name that starts with a letter/)
+  })
+
+  test('a Node launch modifier is refused as a digest name, print and launch (FND-B111)', () => {
+    for (const name of ['NODE_OPTIONS', 'NODE_PATH', 'NODE_PRESERVE_SYMLINKS', 'NODE_PRESERVE_SYMLINKS_MAIN']) {
+      hostRefuses('b111-modifier-', name, new RegExp(`replies\\.executorDigestEnv: ${name} is a Node launch modifier`))
+    }
+  })
+
+  // FND-B114 (4325334689, 4325334698): the overlay is the recorded bundle's whole bridge row plus its service replies, and
+  // at most the recorded provider row with the selected route pointed at a numeric loopback test endpoint. Each class
+  // has its own test, so one refusal cannot hide another; print-only needs no value and no child starts.
+  const canonical = () => JSON.parse(serviceOverlay('http://127.0.0.1:9/v1'))
+  const edit = (id, change) => JSON.stringify(canonical().map((row) => (row.id === id ? { id, config: change(structuredClone(row.config)) } : row)))
+  const printRefuses = (prefix, cases) => {
+    const dir = mkdtempSync(join(tmpdir(), prefix))
+    try {
+      for (const [label, text, message] of cases) {
+        const file = join(dir, 'overlay.json')
+        writeFileSync(file, text)
+        const r = spawnSync(process.execPath, ['scripts/runtime-host.mjs', '--root', join(dir, 'root'), '--service-overlay', file, '--print-executor-digest'],
+          { cwd: REPO_ROOT, encoding: 'utf8', timeout: 30_000, env: { PATH: process.env.PATH, HOME: process.env.HOME } })
+        assert.equal(r.status, 2, `${label}: ${r.stdout}${r.stderr}`)
+        assert.match(r.stderr, message, label)
+        assert.doesNotMatch(r.stdout, /"event":"(profile|executor_digest)"/, `${label}: refused before the profile`)
+        assert.equal(existsSync(join(dir, 'root')), false, `${label}: the root is not touched`)
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }
+  const invalidBridge = /bridge configuration is invalid/
+  const notRecorded = /differs from the recorded bundle/
+
+  test('a bridge configuration the bundle cannot parse is refused before printing (FND-B114)', () => {
+    printRefuses('b114-bridge-', [
+      ['no protocolVersion', edit('sophia-control-bridge', (c) => { delete c.protocolVersion; return c }), invalidBridge],
+      ['no reply route', edit('sophia-control-bridge', (c) => ({ ...c, replies: { mode: 'service', executorDigestEnv: 'SOPHIA_EXECUTOR_DIGEST' } })), invalidBridge],
+      ['unknown reply route', edit('sophia-control-bridge', (c) => ({ ...c, replies: { ...c.replies, routeId: 'no-such-route-v1' } })), invalidBridge],
+      ['extra replies field', edit('sophia-control-bridge', (c) => ({ ...c, replies: { ...c.replies, extra: true } })), invalidBridge],
+      ['extra config field', edit('sophia-control-bridge', (c) => ({ ...c, extra: true })), invalidBridge],
+      ['another recorded route', edit('sophia-control-bridge', (c) => ({ ...c, replies: { ...c.replies, routeId: 'source-review-luna-high-v1' } })), /routeId must be conversation-service-luna-high-v1/],
+    ])
+  })
+
+  test('a provider or credential the recorded unit does not declare is refused before printing (FND-B114)', () => {
+    const custom = (digest) => JSON.stringify(JSON.parse(edit('llm-pi-ai', (c) => {
+      c.providers['openai-conversation'].apiKeyEnv = 'CUSTOM_KEY'
+      return c
+    })).map((row) => (row.id === 'sophia-control-bridge' ? { id: row.id, config: { ...row.config, replies: { ...row.config.replies, executorDigestEnv: digest } } } : row)))
+    const provider = /llm-pi-ai may only restate the recorded providers/
+    printRefuses('b114-provider-', [
+      ['custom provider key, separate digest', custom('SOPHIA_EXECUTOR_DIGEST'), provider],
+      ['custom provider key named as the digest', custom('CUSTOM_KEY'), provider],
+      ['provider model changed', edit('llm-pi-ai', (c) => { c.providers['openai-conversation'].models[0].maxTokens = 128000; return c }), provider],
+      ['another provider pointed elsewhere', edit('llm-pi-ai', (c) => { c.providers.openai.baseURL = 'http://127.0.0.1:9/v1'; return c }), provider],
+      ['external endpoint', edit('llm-pi-ai', (c) => { c.providers['openai-conversation'].baseURL = 'https://api.example.com/v1'; return c }), provider],
+      ['user info in the endpoint', edit('llm-pi-ai', (c) => { c.providers['openai-conversation'].baseURL = 'http://user@127.0.0.1:9/v1'; return c }), provider],
+      ['bridge token variable', edit('sophia-control-bridge', (c) => ({ ...c, tokenEnv: 'OTHER_TOKEN' })), notRecorded],
+      ['route cap', edit('sophia-control-bridge', (c) => { c.routes['conversation-service-luna-high-v1'].maxTokens = 8192; return c }), notRecorded],
+      ['route prices', edit('sophia-control-bridge', (c) => { c.routes['conversation-service-luna-high-v1'].prices.output = 0.05; return c }), notRecorded],
+      ['route provider alias', edit('sophia-control-bridge', (c) => { c.routes['conversation-service-luna-high-v1'].provider = 'openai'; return c }), notRecorded],
+      ['an unexpected row', JSON.stringify([...canonical(), { id: 'agent-default-model', config: {} }]), /may set only sophia-control-bridge/],
+      ['the bridge twice', JSON.stringify([...canonical(), canonical().find((row) => row.id === 'sophia-control-bridge')]), /names a row twice/],
+    ])
+  })
+
+  test('the recorded bridge with service replies alone, without any provider row, is admitted (FND-B114)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'b114-normal-'))
+    try {
+      const file = join(dir, 'normal.json')
+      writeFileSync(file, JSON.stringify(canonical().filter((row) => row.id === 'sophia-control-bridge')))
+      const r = spawnSync(process.execPath, ['scripts/runtime-host.mjs', '--root', join(dir, 'root'), '--service-overlay', file, '--print-executor-digest'],
+        { cwd: REPO_ROOT, encoding: 'utf8', timeout: 60_000, env: { PATH: process.env.PATH, HOME: process.env.HOME } })
+      assert.equal(r.status, 0, r.stderr)
+      assert.match(r.stdout, /"event":"executor_digest","variable":"SOPHIA_EXECUTOR_DIGEST","digest":"[0-9a-f]{64}"/)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('a root leased by a live runtime is refused before its profile is reconciled, print and launch (FND-B115)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'b115-lease-'))
+    const root = join(dir, 'root')
+    try {
+      const file = join(dir, 'overlay.json')
+      writeFileSync(file, serviceOverlay('http://127.0.0.1:9'))
+      const host = (args, env = {}) => spawnSync(process.execPath, ['scripts/runtime-host.mjs', '--root', root, ...args],
+        { cwd: REPO_ROOT, encoding: 'utf8', timeout: 60_000, env: { PATH: process.env.PATH, HOME: process.env.HOME, ...env } })
+      assert.equal(host(['--service-overlay', file, '--print-executor-digest']).status, 0, 'an inactive root is printed (installed)')
+      // A live runtime holds the root (this test process, alive, not the host) while its profile has drifted.
+      appendFileSync(join(root, 'dsh-home', 'profiles', unit.dsh.profile, 'cordis.patch.yml'), '\n# drifted under a live runtime\n')
+      writeFileSync(join(root, 'supervisor.lease'), `${process.pid}\n`)
+      const home = treeDigest(join(root, 'dsh-home')).digest
+      for (const [label, args, env] of [
+        ['print', ['--service-overlay', file, '--print-executor-digest'], {}],
+        ['launch', [], { SOPHIA_SERVICE_URL: 'http://127.0.0.1:9', SOPHIA_RUNTIME_TOKEN: 'x', OPENAI_API_KEY: DUMMY_KEY }],
+      ]) {
+        const r = host(args, env)
+        assert.equal(r.status, 2, `${label}: ${r.stdout}${r.stderr}`)
+        assert.match(r.stderr, /is leased by live runtime pid \d+/, label)
+        assert.doesNotMatch(r.stdout, /"event":"(profile|executor_digest)"/, `${label}: refused before the profile`)
+        assert.equal(treeDigest(join(root, 'dsh-home')).digest, home, `${label}: the live root's profile and history are untouched`)
+        assert.equal(readFileSync(join(root, 'supervisor.lease'), 'utf8'), `${process.pid}\n`, `${label}: the live lease stands`)
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('a loopback test endpoint must be a valid port, 1 to 65535 (FND-B115)', () => {
+    const port = (p) => edit('llm-pi-ai', (c) => { c.providers['openai-conversation'].baseURL = `http://127.0.0.1:${p}/v1`; return c })
+    const provider = /llm-pi-ai may only restate the recorded providers/
+    printRefuses('b115-port-', [['port 65536', port(65536), provider], ['port 99999', port(99999), provider]])
+    const dir = mkdtempSync(join(tmpdir(), 'b115-port-ok-'))
+    try {
+      const file = join(dir, 'overlay.json')
+      writeFileSync(file, port(65535))
+      const r = spawnSync(process.execPath, ['scripts/runtime-host.mjs', '--root', join(dir, 'root'), '--service-overlay', file, '--print-executor-digest'],
+        { cwd: REPO_ROOT, encoding: 'utf8', timeout: 60_000, env: { PATH: process.env.PATH, HOME: process.env.HOME } })
+      assert.equal(r.status, 0, r.stderr)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('refused before anything starts: an overlay that is not config-only, sets no replies, or an unset/malformed digest; with --rehearse', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'b105-host-'))
+    const run = (args, env = {}) =>
+      spawnSync(process.execPath, ['scripts/runtime-host.mjs', '--root', join(dir, 'root'), ...args], {
+        cwd: REPO_ROOT, encoding: 'utf8', timeout: 30_000, env: { PATH: process.env.PATH, HOME: process.env.HOME, SOPHIA_SERVICE_URL: 'http://127.0.0.1:9', SOPHIA_RUNTIME_TOKEN: 'x', OPENAI_API_KEY: DUMMY_KEY, ...env } })
+    const write = (name, text) => { const f = join(dir, name); writeFileSync(f, text); return f }
+    const namedDigest = (overlay, name) => JSON.stringify(JSON.parse(overlay).map((row) => row.id === 'sophia-control-bridge'
+      ? { id: row.id, config: { ...row.config, replies: { ...row.config.replies, executorDigestEnv: name } } } : row))
+    const good = serviceOverlay('http://127.0.0.1:9')
+    const noReplies = JSON.stringify(JSON.parse(good).map((row) => row.id === 'sophia-control-bridge' ? { id: row.id, config: { ...row.config, replies: undefined } } : row))
+    const cases = [
+      ['not config-only', [ '--service-overlay', write('yaml.yml', 'plugins: {}\n') ], { SOPHIA_EXECUTOR_DIGEST: 'a'.repeat(64) }, /not a config-only JSON patch list/],
+      ['no replies', [ '--service-overlay', write('none.json', noReplies) ], { SOPHIA_EXECUTOR_DIGEST: 'a'.repeat(64) }, /sets no service replies/],
+      ['digest unset', [ '--service-overlay', write('good.json', good) ], {}, /SOPHIA_EXECUTOR_DIGEST must hold the expected executor closure/],
+      ['digest malformed', [ '--service-overlay', write('good2.json', good) ], { SOPHIA_EXECUTOR_DIGEST: 'not-hex' }, /must hold the expected executor closure/],
+      ['with --rehearse', [ '--rehearse', '--service-overlay', write('good3.json', good) ], { SOPHIA_EXECUTOR_DIGEST: 'a'.repeat(64) }, /never combined with --rehearse/],
+      // FND-B108 (4324657170): a digest variable that would overwrite one the supervisor sets, or a configured credential
+      // reference (the model route's, a source's), is refused for launch and for --print-executor-digest alike.
+      ...['SOPHIA_BRIDGE_TOKEN', 'OPENAI_API_KEY', 'TAVILY_API_KEY'].flatMap((taken) => [
+        [`launch, digest named ${taken}`, ['--service-overlay', write(`taken-${taken}.json`, namedDigest(good, taken))], { [taken]: 'a'.repeat(64) }, new RegExp(`${taken} is already set for the runtime`)],
+        [`print, digest named ${taken}`, ['--service-overlay', write(`taken-p-${taken}.json`, namedDigest(good, taken)), '--print-executor-digest'], {}, new RegExp(`${taken} is already set for the runtime`)],
+      ]),
+    ]
+    try {
+      for (const [label, args, env, message] of cases) {
+        const r = run(args, env)
+        assert.equal(r.status, 2, `${label}: ${r.stderr}`)
+        assert.match(r.stderr, message, label)
+        assert.doesNotMatch(r.stdout, /"event":"profile"/, `${label}: refused before the profile`)
+        assert.equal(existsSync(join(dir, 'root')), false, `${label}: the root is not touched`)
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
     }
   })
 })
