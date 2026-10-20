@@ -582,7 +582,8 @@ const expectRests = async (page: Page) => {
 }
 
 test('presence · a short conversation rests on the field, not at the top of an empty room', async ({ page }) => {
-  await page.goto(PAGE)
+  // At midday: before 00:06 none of the fixture's turns is today's, and the new day's presses make the list scroll.
+  await page.goto(`${PAGE}?at=12:00`)
   await expectRests(page)
 })
 
@@ -906,7 +907,8 @@ const findCount = (page: Page) => page.locator('.c3-find-count')
 test('ease · Ctrl F finds in the conversation: each match marked, “1 of N”, Enter on, Shift Enter back, Esc gives the focus back', async ({
   page,
 }) => {
-  await page.goto(PAGE)
+  // At midday: before 00:06 the new day's presses lengthen the list, and the first match is below what shows.
+  await page.goto(`${PAGE}?at=12:00`)
   await field(page).focus()
   // Typed at once, as a person does: every letter lands in the finder, none in the message.
   await page.keyboard.press('ControlOrMeta+f')
