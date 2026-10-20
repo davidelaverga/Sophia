@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { CallFence } from './call-fence.ts'
+import { CallFence, keptIfStill } from './call-fence.ts'
 
 /** A connection that records whether it was left. */
 const connection = () => {
@@ -13,6 +13,26 @@ const connection = () => {
   }
   return c
 }
+
+describe('a join still wanted once connected (review round 2)', () => {
+  it('a join still wanted keeps its connection', () => {
+    const opened = connection()
+    assert.equal(
+      keptIfStill(opened, () => true),
+      opened,
+    )
+    assert.equal(keptIfStill(opened, undefined), opened)
+    assert.equal(opened.left, 0)
+  })
+
+  it('a join no longer wanted once connected is left at once, and fails', async () => {
+    const opened = connection()
+    assert.throws(() => keptIfStill(opened, () => false), /no longer wanted/)
+    await Promise.resolve()
+    await Promise.resolve()
+    assert.equal(opened.left, 1)
+  })
+})
 
 describe('which join is the call', () => {
   it('a join that finishes while still the latest becomes the call', () => {

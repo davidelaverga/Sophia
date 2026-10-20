@@ -560,15 +560,16 @@ function departed(project: Project): Response {
  * A room token, unless the next one is to fail (`failToken`), 1.5 s late with `tokenLate`, kept until let go while
  * held (`tokenHeld`); each one asked for is recorded (`room-token`).
  */
-function tokenAnswer(project: Project): Response | Promise<Response> {
-  served.push('room-token')
+function tokenAnswer(project: Project, release = false): Response | Promise<Response> {
+  if (!release) served.push('room-token')
   if (project.failToken) {
     project.failToken = false
     return unavailable()
   }
   if (project.tokenLate) return new Promise((late) => setTimeout(() => late(json(roomToken)), 1500))
   const held = project.tokenHeld
-  if (held) return new Promise((reply) => held.push(() => reply(json(roomToken))))
+  // Held, it is answered when let go, as it would be then: refused if the next token is to fail by that time.
+  if (held) return new Promise((reply) => held.push(() => reply(tokenAnswer(project, true))))
   return json(roomToken)
 }
 

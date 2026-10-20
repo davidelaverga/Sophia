@@ -552,6 +552,25 @@ test('BASE-03 · back in on its own with the focus on Leave, the focus stays on 
   await expect(controls(page).getByRole('button', { name: 'Leave the room' })).toBeFocused()
 })
 
+test('BASE-03 · a try that fails with the focus on its Leave hands the focus to Try again (review round 2)', async ({
+  page,
+}) => {
+  await enter(page, '/room.html?call=on')
+  await page.evaluate(() => {
+    window.fixture?.holdToken(true)
+    window.fixture?.drop()
+  })
+  const stop = controls(page).getByRole('button', { name: 'Leave the room' })
+  await stop.focus()
+  await page.evaluate(() => {
+    window.fixture?.failToken()
+    window.fixture?.holdToken(false)
+  })
+  const retry = controls(page).getByRole('button', { name: /^Try again/ })
+  await expect(retry).toBeEnabled()
+  await expect(retry).toBeFocused()
+})
+
 test('BASE-03 · another tab, being taken out and a closed room never rejoin on their own', async ({ page }) => {
   await enter(page, '/room.html?call=on')
   const join = controls(page).getByRole('button', { name: /^Join the room/ })

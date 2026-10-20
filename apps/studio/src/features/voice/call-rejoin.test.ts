@@ -69,6 +69,9 @@ describe('when a call that ended tries to come back on its own (call-rejoin.md)'
   })
 })
 
+/** The room and person of the call the harness drops: what the tabs' claims are scoped by. */
+const SCOPE = 'room-1:actor-1'
+
 /** The promises already answered have run their callbacks. */
 const settle = () => new Promise<void>((done) => setTimeout(done, 0))
 
@@ -85,6 +88,8 @@ function harness(online = true) {
     timers: [] as { at: number; run: () => void }[],
   }
   const said: string[] = []
+  /** What this room told the other tabs, as `scope state`. */
+  const claims: string[] = []
   const shown: (RejoinStep | null)[] = []
   const joins: ((inCall: boolean) => void)[] = []
   /** Each try's gate, asked right before it connects. */
@@ -100,7 +105,8 @@ function harness(online = true) {
     show: (step) => shown.push(step),
     now: () => t.now,
     online: () => t.online,
-    elsewhere: () => t.elsewhere,
+    held: (scope: string) => t.elsewhere && scope === SCOPE,
+    claim: (scope: string, state: 'joining' | 'in' | null) => claims.push(`${scope} ${state ?? 'out'}`),
     whenOnline: (back) => {
       t.back.push(back)
       return () => {
@@ -115,8 +121,10 @@ function harness(online = true) {
       }
     },
   })
+  rejoin.scoped(SCOPE)
   return {
     rejoin,
+    claims,
     said,
     shown,
     joins,
@@ -377,6 +385,34 @@ describe('a try never takes the call from another tab of this browser (review P2
     h.rejoin.ended('dropped')
     assert.equal(h.stills[0]?.(), true)
     h.otherTab(true)
+    assert.equal(h.stills[0]?.(), false)
+  })
+})
+
+describe('what this room tells the other tabs, and a clock set back (review round 2)', () => {
+  it('says it is joining, in the call and out, for its room and person', () => {
+    const h = harness()
+    h.rejoin.status('joining')
+    h.rejoin.status('live')
+    h.rejoin.status('failed')
+    assert.deepEqual(h.claims.slice(-3), [`${SCOPE} joining`, `${SCOPE} in`, `${SCOPE} out`])
+  })
+
+  it('a try says it is joining before its token is asked for, so a tab joining meanwhile sees it', () => {
+    const h = harness()
+    h.rejoin.status('live')
+    h.rejoin.live()
+    h.rejoin.status('failed')
+    h.rejoin.ended('dropped')
+    assert.equal(h.claims.at(-1), `${SCOPE} joining`)
+  })
+
+  it('a try whose clock went back before it began is stale', () => {
+    const h = harness()
+    h.rejoin.live()
+    h.rejoin.ended('dropped')
+    assert.equal(h.stills[0]?.(), true)
+    h.jump(-60_000)
     assert.equal(h.stills[0]?.(), false)
   })
 })
