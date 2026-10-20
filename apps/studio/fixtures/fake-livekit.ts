@@ -313,14 +313,26 @@ function deviceSwitch(me: RoomParticipant, changed: () => void) {
 }
 
 /** What reaches this viewer while the connection is open: speech heard on a muted microphone, an admin's mute. */
-function fromTheServer(me: RoomParticipant, cb: RoomCallbacks, open: () => boolean): void {
+function fromTheServer(me: RoomParticipant, cb: RoomCallbacks, open: () => boolean, changed: () => void): void {
   mutedSpeech = () => {
     if (open() && !me.micOn) cb.onSpeakingMuted?.()
   }
   hostMute = () => {
     if (!open()) return
     me.micOn = false
-    cb.onChange()
+    changed()
+  }
+}
+
+/** The microphone as last seen with the link up (see `linkDown`), told on each change, an admin's mute included. */
+function keptMic(me: RoomParticipant, cb: RoomCallbacks) {
+  let on = me.micOn
+  return {
+    changed: () => {
+      if (!linkDown) on = me.micOn
+      cb.onChange()
+    },
+    micWas: () => on,
   }
 }
 
@@ -337,18 +349,14 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
   onPeopleChange(() => {
     if (open) cb.onChange()
   })
-  fromTheServer(me, cb, () => open)
+  const mic = keptMic(me, cb)
+  fromTheServer(me, cb, () => open, mic.changed)
   ended = (why, selfLeft) => {
     if (!open) return
     open = false
     cb.onEnded(why, selfLeft)
   }
-  // The microphone as last seen with the link up (see `linkDown`).
-  const micKept = { on: me.micOn }
-  const device = deviceSwitch(me, () => {
-    if (!linkDown) micKept.on = me.micOn
-    cb.onChange()
-  })
+  const device = deviceSwitch(me, mic.changed)
   return Promise.resolve({
     sendChat,
     setTextMode: (on) => {
@@ -356,7 +364,7 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
       textOnly = on
     },
     textMode: () => textOnly,
-    micWas: () => micKept.on,
+    micWas: mic.micWas,
     participants: () => [{ ...me, speaking: viewerSpeaks() }, ...others()],
     sophia: sophiaSignal,
     audioBlocked: soundBlocked,
