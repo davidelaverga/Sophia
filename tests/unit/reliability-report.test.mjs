@@ -456,16 +456,19 @@ test('M8: per kind, the measured request renewed without «signed out», sent ag
     { kind: 'read', ...renewed, refused: ['GET /api/v1/projects/p1/mission'], ms: 200 },
     // No refresh asked: nothing renewed it.
     { kind: 'read', ...renewed, refused: [READ], refreshes: 0, ms: 250 },
-    // The stream never met the expired token (the snapshot did): not reached.
-    { kind: 'feed', ...renewed, refused: ['GET /api/v1/projects/p1/snapshot'], resent: false, ms: 900 },
+    // The feed's own requests are its stream and its snapshot (useProjectFeed): the snapshot met the expired token
+    // first, beside the archived list, and was renewed; the stream then went on the new token.
+    { kind: 'feed', ...renewed, refused: ['GET /api/v1/projects/p1/snapshot', 'GET /api/v1/projects/archived'], ms: 110 },
     { kind: 'feed', ...renewed, refused: [STREAM], ms: 120 },
+    // Only the archived list, not the feed: not reached.
+    { kind: 'feed', ...renewed, refused: ['GET /api/v1/projects/archived'], resent: false, ms: 900 },
     // Renewed, but refreshed twice: counted as renewed, not as one refresh. A GET of the same path is not the write.
     { kind: 'write', ...renewed, refused: [WRITE], refreshes: 2, ms: 1200 },
     { kind: 'write', ...renewed, refused: ['GET /api/v1/conversations/c1/messages'], ms: 90 },
   ])
   assert.deepEqual(summary, {
     read: { n: 6, reached: 5, renewed: 2, signedOut: 2, resent: 5, oneRefresh: 2, time: { p50: 400, p95: 490 } },
-    feed: { n: 2, reached: 1, renewed: 1, signedOut: 0, resent: 1, oneRefresh: 1, time: { p50: 120, p95: 120 } },
+    feed: { n: 3, reached: 2, renewed: 2, signedOut: 0, resent: 2, oneRefresh: 2, time: { p50: 115, p95: 119.5 } },
     write: { n: 2, reached: 1, renewed: 1, signedOut: 0, resent: 2, oneRefresh: 0, time: { p50: 1200, p95: 1200 } },
   })
   assert.deepEqual(summarizeM8([]), {})
