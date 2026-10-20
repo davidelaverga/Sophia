@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { slowFramesFromNow } from './frames.ts'
+import { framesAfterRefusal, slowFramesFromNow } from './frames.ts'
 
 // Removing a message and erasing a conversation (CON-01, A33; binding map §6): the fixture's own member is an admin,
 // who removes any message and erases a conversation; an editor or a viewer withdraws only their own. What a
@@ -1156,6 +1156,8 @@ interface DenialTrace {
   denials: { id: number; path: string; at: number }[]
   hits: { at: number; afterMs: number; what: string }[]
   frames: number
+  /** rAF callbacks after the first 403 reached the app. */
+  postFrames: number
 }
 declare global {
   interface Window {
@@ -1165,7 +1167,13 @@ declare global {
 
 async function observeClientDenials(page: Page, mode: DenialMode) {
   await page.evaluate((m) => {
-    const trace: DenialTrace & { stop: boolean } = { denials: [], hits: [], frames: 0, stop: false }
+    const trace: DenialTrace & { stop: boolean } = {
+      denials: [],
+      hits: [],
+      frames: 0,
+      postFrames: 0,
+      stop: false,
+    }
     window.denialTrace = trace
     let seq = 0
     const inner = window.fetch
@@ -1202,6 +1210,7 @@ async function observeClientDenials(page: Page, mode: DenialMode) {
       trace.frames++
       const first = trace.denials[0]
       if (first) {
+        trace.postFrames++
         const now = performance.now()
         for (const selector of protectedSelectors) {
           const shown = [...document.querySelectorAll(selector)].some((el) => {
@@ -1220,9 +1229,9 @@ async function observeClientDenials(page: Page, mode: DenialMode) {
 const readDenialTrace = (page: Page) =>
   page.evaluate(() => {
     const t = window.denialTrace
-    if (!t) return { denials: [], hits: [], frames: 0 }
+    if (!t) return { denials: [], hits: [], frames: 0, postFrames: 0 }
     t.stop = true
-    return { denials: t.denials, hits: t.hits, frames: t.frames }
+    return { denials: t.denials, hits: t.hits, frames: t.frames, postFrames: t.postFrames }
   })
 
 for (const mode of ['delayed', 'malformed'] as const) {
@@ -1277,7 +1286,7 @@ for (const mode of ['delayed', 'malformed'] as const) {
     await page.evaluate(() => window.fixture?.listMore(true))
     await expect(list(page)).toContainText('This project refused a read of its conversations.')
     await expect(rows(page)).toHaveCount(0)
-    await page.waitForTimeout(500)
+    await framesAfterRefusal(page, () => page.evaluate(() => window.denialTrace?.postFrames ?? 0), 10, 500)
     const trace = await readDenialTrace(page)
     await info.attach(`denial-trace-thread-${mode}.json`, {
       body: JSON.stringify(trace, null, 1),
@@ -1287,7 +1296,7 @@ for (const mode of ['delayed', 'malformed'] as const) {
       trace.denials.some((d) => /\/conversations\/[^/]+\/messages$/.test(d.path)),
       'the thread read was refused, as the client saw',
     ).toBe(true)
-    expect(trace.frames).toBeGreaterThan(10)
+    expect(trace.postFrames, 'frames since the client saw the 403').toBeGreaterThan(10)
     expect(trace.hits, 'protected content or controls after the client saw the 403').toEqual([])
     expect((await served(page)).filter((s) => s === 'messages-refused:c1')).toHaveLength(1)
   })
@@ -1307,7 +1316,7 @@ test(`removal · semantic, slow frames (8 a second): the open thread's read refu
   await page.evaluate(() => window.fixture?.listMore(true))
   await expect(list(page)).toContainText('This project refused a read of its conversations.')
   await expect(rows(page)).toHaveCount(0)
-  await page.waitForTimeout(500)
+  await framesAfterRefusal(page, () => page.evaluate(() => window.denialTrace?.postFrames ?? 0), 10, 500)
   const trace = await readDenialTrace(page)
   await info.attach('denial-trace-thread-slow-frames.json', {
     body: JSON.stringify(trace, null, 1),
@@ -1317,6 +1326,6 @@ test(`removal · semantic, slow frames (8 a second): the open thread's read refu
     trace.denials.some((d) => /\/conversations\/[^/]+\/messages$/.test(d.path)),
     'the thread read was refused, as the client saw',
   ).toBe(true)
-  expect(trace.frames).toBeGreaterThan(10)
+  expect(trace.postFrames, 'frames since the client saw the 403').toBeGreaterThan(10)
   expect(trace.hits, 'protected content or controls after the client saw the 403').toEqual([])
 })
