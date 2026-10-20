@@ -613,7 +613,7 @@ function archived(project: Project, init: RequestInit | undefined): Response {
   project.archived = wanted
   served.push(`archive:${String(wanted)}`)
   const receipt = { archived: wanted, cursor: String(project.revision) }
-  project.archives = (project.archives ?? new Map()).set(key, receipt)
+  project.archives = (project.archives ?? new Map<string, { archived: boolean; cursor: string }>()).set(key, receipt)
   return json({ projectId: PROJECT, ...receipt })
 }
 
