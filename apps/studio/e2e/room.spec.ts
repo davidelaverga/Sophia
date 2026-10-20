@@ -391,6 +391,37 @@ test('BASE-03 · a call that drops again right after it came back is left to the
   expect(await tokens(page), 'the one try only').toHaveLength(asking + 1)
 })
 
+test('BASE-03 · a microphone off when the call dropped comes back off, whatever this device chose since (review P1)', async ({
+  page,
+}) => {
+  await enter(page, '/room.html?call=on')
+  await microphone(page).click() // muted by the dock
+  await expect(microphone(page)).toHaveAttribute('aria-pressed', 'false')
+  // Settings, or another tab, then chose to join with the microphone on: this call's microphone stays as it was.
+  await page.evaluate(() => localStorage.setItem('sophia.mic.v1', 'on'))
+  const [before, connected] = [(await asked(page)).length, await connects(page)]
+  await page.evaluate(() => window.fixture?.drop())
+  await expect.poll(() => connects(page)).toBe(connected + 1)
+  await expect(microphone(page)).toHaveAttribute('aria-pressed', 'false')
+  expect((await asked(page)).slice(before), 'the microphone stays off').not.toContain('microphone:on')
+})
+
+test('BASE-03 · muted by an admin, a dropped call’s Try again keeps the microphone off too (review P1)', async ({
+  page,
+}) => {
+  await enter(page, '/room.html?call=on')
+  await expect(microphone(page)).toHaveAttribute('aria-pressed', 'true')
+  await page.evaluate(() => window.fixture?.mutedByHost()) // from the server: this device's own choice is still «on»
+  await expect(microphone(page)).toHaveAttribute('aria-pressed', 'false')
+  const before = (await asked(page)).length
+  await dropForGood(page)
+  await controls(page)
+    .getByRole('button', { name: /^Try again/ })
+    .click()
+  await expect(microphone(page)).toHaveAttribute('aria-pressed', 'false')
+  expect((await asked(page)).slice(before), 'the microphone stays off').not.toContain('microphone:on')
+})
+
 test('BASE-03 · another tab, being taken out and a closed room never rejoin on their own', async ({ page }) => {
   await enter(page, '/room.html?call=on')
   const join = controls(page).getByRole('button', { name: /^Join the room/ })

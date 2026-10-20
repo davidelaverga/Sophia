@@ -72,6 +72,7 @@ import {
   setVoiceLevel,
   sophiaLeaves,
   speakWhileMuted,
+  muteByHost,
 } from './fake-livekit.ts'
 import {
   blockSound,
@@ -428,6 +429,8 @@ interface Fixture {
   sophiaLeaves: () => void
   /** Speech is heard on this person's muted microphone (muted-speech.md). */
   speakMuted: () => void
+  /** An admin mutes this viewer from the room's server: this device's own microphone choice is left as it was. */
+  mutedByHost: () => void
   /** The call's link is lost for a while (true), or back (false), as LiveKit reconnects (reconnecting-on-video.md). */
   linkLost: (lost: boolean) => void
   /** A teammate edits the report's description elsewhere (the page learns of it when it reads the cards again). */
@@ -1504,6 +1507,7 @@ window.fixture = {
   caption: deliverCaption,
   sophiaLeaves,
   speakMuted: speakWhileMuted,
+  mutedByHost: muteByHost,
   linkLost,
   describeElsewhere: (text) => {
     project.description = { text, revision: project.description.revision + 1, author: TEAMMATE }

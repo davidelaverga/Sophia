@@ -203,6 +203,15 @@ export function speakWhileMuted(): void {
   mutedSpeech()
 }
 
+let hostMute: () => void = () => undefined
+/**
+ * An admin mutes this viewer from the room's server (host-controls.md): the microphone goes off as LiveKit reports it,
+ * and this device's own choice (mic-preference.ts) is left as it was.
+ */
+export function muteByHost(): void {
+  hostMute()
+}
+
 export function sophiaLeaves(): void {
   setSophia(null)
   emit(RoomEvent.ParticipantDisconnected, SOPHIA)
@@ -292,6 +301,18 @@ function deviceSwitch(me: RoomParticipant, changed: () => void) {
   }
 }
 
+/** What reaches this viewer while the connection is open: speech heard on a muted microphone, an admin's mute. */
+function fromTheServer(me: RoomParticipant, cb: RoomCallbacks, open: () => boolean): void {
+  mutedSpeech = () => {
+    if (open() && !me.micOn) cb.onSpeakingMuted?.()
+  }
+  hostMute = () => {
+    if (!open()) return
+    me.micOn = false
+    cb.onChange()
+  }
+}
+
 export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallbacks): Promise<RoomConnection> {
   connected(cb)
   said = null // a new connection has said nothing yet, as following-signal.ts starts each one
@@ -305,9 +326,7 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
   onPeopleChange(() => {
     if (open) cb.onChange()
   })
-  mutedSpeech = () => {
-    if (open && !me.micOn) cb.onSpeakingMuted?.()
-  }
+  fromTheServer(me, cb, () => open)
   ended = (why) => {
     if (!open) return
     open = false
