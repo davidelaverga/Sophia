@@ -273,6 +273,11 @@ interface Project {
   boardHeld?: (() => void)[] | null
   /** The served board's reads fail, each recorded (`board-refused`): `boardRead=fail`, `window.fixture.failBoard`. */
   boardFail?: boolean
+  /**
+   * The served board's reads answer 200 with a board its reader refuses (`malformed`) or another project's, whole
+   * (`foreign`), each recorded (`board-answered:<kind>`): `boardRead=malformed|foreign`, `window.fixture.answerBoard`.
+   */
+  boardAnswer?: 'malformed' | 'foreign' | null
   /** The versions' reviews (review-data.ts, A16); absent, their requests are unexpected. */
   reviews?: Reviews
   /** What members carried in from Personal (the project list's releases, chapter 1); absent, none. */
@@ -1668,22 +1673,7 @@ function designRead(project: Project): Response | null {
  * Review sources.
  */
 function workRead(project: Project, path: string) {
-  if (path === `/api/v1/projects/${PROJECT}/plans`) {
-    if (project.boardFail) {
-      served.push('board-refused')
-      return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
-    }
-    const board: WorkBoardView = {
-      schema_version: 'sophia.work.board.v1',
-      project_id: PROJECT,
-      snapshot_cursor: String(project.revision),
-      observed_at: new Date().toISOString(),
-      coverage: 'complete',
-      goals: project.servedGoals?.() ?? [],
-    }
-    const held = project.boardHeld
-    return held ? new Promise<Response>((resolve) => held.push(() => resolve(json(board)))) : json(board)
-  }
+  if (path === `/api/v1/projects/${PROJECT}/plans`) return boardRead(project)
   if (path === `/api/v1/projects/${PROJECT}/plans/source-review`) {
     if (project.review) served.push(`review:offered:${String(project.review.sources.length)}`)
     return json(project.review ?? REVIEW_NOT_ENABLED)
@@ -1691,6 +1681,32 @@ function workRead(project: Project, path: string) {
   const key = PROPOSAL_READ.exec(path)?.[1]
   if (key !== undefined && project.proposals) return proposalRead(project.proposals, decodeURIComponent(key))
   return null
+}
+
+/** The served board, or its failure as the page asks: a 503, or a 200 the Studio can't take as this project's board. */
+function boardRead(project: Project): Response | Promise<Response> {
+  if (project.boardFail) {
+    served.push('board-refused')
+    return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
+  }
+  const board: WorkBoardView = {
+    schema_version: 'sophia.work.board.v1',
+    project_id: PROJECT,
+    snapshot_cursor: String(project.revision),
+    observed_at: new Date().toISOString(),
+    coverage: 'complete',
+    goals: project.servedGoals?.() ?? [],
+  }
+  if (project.boardAnswer) {
+    served.push(`board-answered:${project.boardAnswer}`)
+    const wrong =
+      project.boardAnswer === 'malformed'
+        ? { ...board, coverage: 'most of it' }
+        : { ...board, project_id: ELSEWHERE.projectId, goals: [] }
+    return json(wrong)
+  }
+  const held = project.boardHeld
+  return held ? new Promise<Response>((resolve) => held.push(() => resolve(json(board)))) : json(board)
 }
 
 const PROPOSAL_READ = new RegExp(`^/api/v1/projects/${PROJECT}/plans/source-review/proposals/([^/]+)$`)
