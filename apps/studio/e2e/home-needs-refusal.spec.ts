@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { framesAfterRefusal, slowFramesFromNow } from './frames.ts'
 
 // R-NEEDS-OWN-READ-01 (semantic, #391 4305645985): Home's own account Needs read (GET /api/v1/me/needs) refused (401,
 // 403) hides every cached row, title, count and action from the CLIENT's first sight of the refusal status; adapted from
@@ -106,14 +107,10 @@ const readTrace = (page: Page) =>
 
 const seenWrites = (page: Page) => page.evaluate(() => window.needsTrace?.seenWrites ?? -1)
 
-/**
- * After the refusal's note: at least 400 ms, then more than ten frames since the client saw the refusal, however slowly
- * the runner draws (CI's drew 7 to 10 in a fixed 400 ms: docs/plans/ci-home-needs-refusal-flake.md). Then the trace.
- */
+/** After the refusal's note, the shared wait for frames since the client saw it (e2e/frames.ts); then the trace. */
 async function sampleAfterRefusal(page: Page) {
   await expect(page.locator('body')).toContainText('Couldn’t read what needs you.')
-  await page.waitForTimeout(400)
-  await expect.poll(() => page.evaluate(() => window.needsTrace?.postFrames ?? 0)).toBeGreaterThan(10)
+  await framesAfterRefusal(page, () => page.evaluate(() => window.needsTrace?.postFrames ?? 0))
   return readTrace(page)
 }
 
@@ -249,45 +246,14 @@ test(`needs @phone · semantic: its own read refused (403, delayed body), on a p
   expect(await seenWrites(page), 'no seen write from a retired control').toBe(0)
 })
 
-/**
- * CI's loaded runners drew Home at 8 to 15 frames a second while its script ran freely
- * (docs/plans/ci-home-needs-refusal-flake.md). From here on every animation-frame callback the page asks for (the
- * trace's, Home's light) runs at the first frame `ms` after it was asked, so every run meets that rate; the main thread
- * is not held.
- */
-const slowFrames = (page: Page, ms: number) =>
-  page.evaluate((gap) => {
-    const raf = window.requestAnimationFrame.bind(window)
-    const caf = window.cancelAnimationFrame.bind(window)
-    const pending = new Map<number, { timer?: number; frame?: number }>()
-    let seq = 0
-    window.requestAnimationFrame = (callback) => {
-      const id = ++seq
-      const entry: { timer?: number; frame?: number } = {}
-      entry.timer = window.setTimeout(() => {
-        entry.frame = raf((at) => {
-          pending.delete(id)
-          callback(at)
-        })
-      }, gap)
-      pending.set(id, entry)
-      return id
-    }
-    window.cancelAnimationFrame = (id) => {
-      const entry = pending.get(id)
-      pending.delete(id)
-      window.clearTimeout(entry?.timer)
-      if (entry?.frame !== undefined) caf(entry.frame)
-    }
-  }, ms)
-
-test(`needs · semantic, slow frames (about 15 a second, as CI drew): its own read refused (403, delayed body): from the client's first sight of it, enough frames are sampled and none shows a cached need, title, count or action`, async ({
+// Frames at 8 a second, as a loaded runner draws them (e2e/frames.ts; docs/plans/ci-home-needs-refusal-flake.md).
+test(`needs · semantic, slow frames (8 a second): its own read refused (403, delayed body): from the client's first sight of it, enough frames are sampled and none shows a cached need, title, count or action`, async ({
   page,
 }, info) => {
   await page.goto(PAGE)
   await expect(page.locator(`${NEEDS} button`).first()).toBeVisible()
   await observe(page, { status: 403, body: 'delayed' })
-  await slowFrames(page, 50)
+  await slowFramesFromNow(page)
   await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
   const trace = await sampleAfterRefusal(page)
   await info.attach('needs-trace-slow-frames.json', {
