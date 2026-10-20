@@ -236,6 +236,21 @@ export {
   takeBackPersonalRelease,
   type CompanionContext,
 } from './personal.ts'
+export {
+  holdPersonalCompanion,
+  personalCompanionAdmitted,
+  personalSettledAnswersInstalled,
+  readPersonalSettledAnswer,
+  reservePersonalAnswer,
+  recordPersonalSettledReply,
+  releasePersonalCompanion,
+  reservePersonalCompanion,
+  settlePersonalCompanion,
+  settlePersonalCompanionAnswer,
+  type PersonalReservation,
+  type PersonalSettledOutcome,
+  type PersonalUsageCounts,
+} from './personal-usage.ts'
 export { listProjects, PROJECT_LIST_BOUNDS, type ProjectListing } from './project-list.ts'
 export {
   admitWorkCommand,

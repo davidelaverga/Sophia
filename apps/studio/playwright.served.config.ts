@@ -1,4 +1,6 @@
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { defineConfig } from '@playwright/test'
 
 // The narrow served path (FND-B-C1-SERVED-PATH-01), never the fixture pages: the normal Studio dev server (vite.config.ts,
@@ -23,27 +25,69 @@ process.env.SOPHIA_SERVED_PROJECT = served.project.projectId
 // owner setup reads SOPHIA_DISPOSABLE_DATABASE_URL (loopback only), never the API's restricted role:
 //   SOPHIA_SERVED_TASKS=1 SOPHIA_SERVED_ENV=<dev-db json> SOPHIA_DISPOSABLE_DATABASE_URL=<owned loopback PostgreSQL> \
 //   SOPHIA_SERVED_BROWSER=chromium pnpm exec playwright test -c playwright.served.config.ts
-// SOPHIA_SERVED_BROWSER=chromium: Playwright's full Chromium build (its new headless mode) instead of the default
-// chrome-headless-shell.
 const tasks = process.env.SOPHIA_SERVED_TASKS === '1'
+// SOPHIA_SERVED_PERSONAL=1: the Personal journey (e2e-served/personal-served.spec.ts). The API starts through
+// apps/api/scripts/personal-served.ts: the loopback model double, one ephemeral payer for Luis through the disposable
+// database's owner connection (SOPHIA_DISPOSABLE_DATABASE_URL), then the real API on its restricted role, live.
+const personal = process.env.SOPHIA_SERVED_PERSONAL === '1'
+// The double's request count (a number only), which the Personal journey reads to see a press made no generation: a
+// file of this run's own, in a new temporary directory, unless the caller names one (4320910978). Set before the
+// launcher and the workers start, both inherit it; a worker loading this config again finds it set.
+if (personal && !process.env.SOPHIA_SERVED_PERSONAL_COUNT_FILE?.trim()) {
+  const own = mkdtempSync(join(tmpdir(), 'sophia-served-count-'))
+  process.env.SOPHIA_SERVED_PERSONAL_COUNT_FILE = join(own, 'count')
+  // This process made it and goes last (the launcher is stopped without its own exit): it removes it.
+  process.on('exit', () => rmSync(own, { recursive: true, force: true }))
+}
+const subjectOf = (token: string): string => {
+  const payload: unknown = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8'))
+  return payload && typeof payload === 'object' && 'sub' in payload ? String(payload.sub) : ''
+}
+const luis = served.identities.find((i) => i.name === 'Luis')
+
+// Each journey of its own mode runs alone (Personal needs its launcher, Tasks its flag); every other served spec runs as
+// before, without either (FND-B104: both modes kept as each branch had them).
+const only = personal
+  ? { testMatch: 'personal-served.spec.ts' }
+  : tasks
+    ? { testMatch: 'human-tasks-served.spec.ts' }
+    : { testIgnore: ['personal-served.spec.ts', 'human-tasks-served.spec.ts'] }
 
 export default defineConfig({
   testDir: './e2e-served',
-  ...(tasks ? { testMatch: 'human-tasks-served.spec.ts' } : { testIgnore: 'human-tasks-served.spec.ts' }),
+  ...only,
   workers: 1,
   retries: 0,
   reporter: 'list',
   use: {
     baseURL: 'http://127.0.0.1:5198',
     viewport: { width: 1440, height: 900 },
+    // SOPHIA_SERVED_GL=swiftshader: Chromium's software GL (ANGLE on SwiftShader) for the page's WebGL, for comparing
+    // with the default headless backend; the product's light and its canvas stay as they are.
+    ...(process.env.SOPHIA_SERVED_GL === 'swiftshader' ? { launchOptions: { args: ['--use-angle=swiftshader'] } } : {}),
+    // SOPHIA_SERVED_BROWSER=chromium: Playwright's full Chromium build (its new headless mode) instead of
+    // chrome-headless-shell, the pinned revision's other build (playwright-core browsers.json, chromium 1243).
     ...(process.env.SOPHIA_SERVED_BROWSER === 'chromium' ? { channel: 'chromium' } : {}),
   },
   webServer: [
     {
-      command: 'node ../api/src/server.ts',
+      command: personal ? 'node ../api/scripts/personal-served.ts' : 'node ../api/src/server.ts',
       url: 'http://127.0.0.1:5199/health',
       reuseExistingServer: false,
-      env: { ...served.api, HOST: '127.0.0.1', PORT: '5199', SOPHIA_CONVERSATIONS: 'on' },
+      env: {
+        ...served.api,
+        HOST: '127.0.0.1',
+        PORT: '5199',
+        SOPHIA_CONVERSATIONS: 'on',
+        ...(personal
+          ? {
+              SOPHIA_SERVED_PERSONAL_OWNER: subjectOf(luis?.token ?? ''),
+              // The journey's answers: the first question answered, the second refused once (a provider 503), then "ok".
+              SOPHIA_SERVED_PERSONAL_SCRIPT: JSON.stringify([{ text: 'ok' }, { status: 503 }]),
+              SOPHIA_DISPOSABLE_DATABASE_URL: process.env.SOPHIA_DISPOSABLE_DATABASE_URL ?? '',
+            }
+          : {}),
+      },
     },
     {
       command: 'pnpm exec vite --port 5198 --strictPort',

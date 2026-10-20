@@ -274,7 +274,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   registerCors(app, deps.corsOrigins ?? [])
   registerAuthentication(app, deps.verifyActor, deps.mediaBridgeTokenSha256 ?? null)
   app.setErrorHandler(handleError)
-  registerHealth(app, deps.pool, Boolean(deps.byteStore), Boolean(deps.conversations))
+  registerHealth(app, deps.pool, Boolean(deps.byteStore), Boolean(deps.conversations), deps.companion ?? null)
   const store = writeOnceStore(deps.pool, deps.byteStore)
 
   projectRoutes(app, { pool: deps.pool, livekit: deps.livekit })
@@ -304,14 +304,24 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   humanTaskRoutes(app, { pool: deps.pool })
   coordinationRoutes(app, { pool: deps.pool })
   eventRoutes(app, { pool: deps.pool, hub, heartbeatMs: deps.eventPollMs ?? 10_000 })
+  registerPersonal(app, deps)
+  if (deps.conversations) projectConversationRoutes(app, { pool: deps.pool })
+  return app
+}
+
+/**
+ * The owner's Personal space: its companion's runner, if one is configured, and its routes. Kept apart from buildApp so
+ * the composed app stays within its length (FND-B104: Task's routes and this one's close hook, each its own branch's).
+ */
+function registerPersonal(app: FastifyInstance, deps: AppDeps): void {
   const companion = deps.companion
     ? new CompanionRunner(deps.pool, deps.companion, (err) =>
         app.log.error({ companion: companionFailure(err) }, 'companion answer failed'),
       )
     : null
+  // Shutdown waits for the answers already accepted (their runs outlive the 202), before the pool or model close.
+  if (companion) app.addHook('onClose', () => companion.close())
   personalRoutes(app, { pool: deps.pool, companion })
-  if (deps.conversations) projectConversationRoutes(app, { pool: deps.pool })
-  return app
 }
 
 /** Routes anyone may call. Everything else, matched or not, needs a verified actor. */
@@ -433,7 +443,17 @@ function handleError(err: FastifyError | DomainError, req: FastifyRequest, reply
   return sendError(req, reply, 503, { code: 'unavailable', message: 'Unavailable', retry: 'safe_read' })
 }
 
-function registerHealth(app: FastifyInstance, pool: pg.Pool, stores: boolean, conversations: boolean): void {
+/** Whether the companion has what it needs outside this process (none needed: ready). */
+const companionReady = async (companion: Companion | null): Promise<boolean> =>
+  companion?.ready ? companion.ready() : true
+
+function registerHealth(
+  app: FastifyInstance,
+  pool: pg.Pool,
+  stores: boolean,
+  conversations: boolean,
+  companion: Companion | null,
+): void {
   app.get('/health', () => ({ ok: true }))
   app.get('/ready', async (_req, reply) => {
     try {
@@ -442,6 +462,8 @@ function registerHealth(app: FastifyInstance, pool: pg.Pool, stores: boolean, co
       const store = stores ? (await pool.query<{ ok: boolean }>(STORE_SCHEMA)).rows[0]?.ok : true
       const talk = conversations ? (await pool.query<{ ok: boolean }>(CONVERSATION_SCHEMA)).rows[0]?.ok : true
       if (!rows[0]?.ok || !store || !talk) return await reply.status(503).send({ ready: false, reason: 'schema' })
+      // The live companion's payer is still admitted (0073): without it no personal answer could be asked.
+      if (!(await companionReady(companion))) return await reply.status(503).send({ ready: false, reason: 'companion' })
       return { ready: true }
     } catch {
       return reply.status(503).send({ ready: false, reason: 'database' })

@@ -18,14 +18,14 @@
     ],
     "artifact_kind": "pnpm deploy --prod of runtime/dsh (@sophia/dsh-runtime) from pnpm-lock.yaml",
     "artifact_primary_platform": "linux-x64",
-    "artifact_digest": "sophia-tree-v2:sha256:4552d08f78b47b7d0f16e79a92c487cffdfc5bb0a05eaef867c89ba837479a12",
+    "artifact_digest": "sophia-tree-v2:sha256:bff106c3b9841b5c93afc3508c8a29b379fcb1b8b5ce4235eec89b0b3960872a",
     "artifacts_by_platform": {
       "linux-x64": {
-        "digest": "sophia-tree-v2:sha256:4552d08f78b47b7d0f16e79a92c487cffdfc5bb0a05eaef867c89ba837479a12",
+        "digest": "sophia-tree-v2:sha256:bff106c3b9841b5c93afc3508c8a29b379fcb1b8b5ce4235eec89b0b3960872a",
         "entries": 27747
       },
       "darwin-arm64": {
-        "digest": "sophia-tree-v2:sha256:e24cb887c7a710069c2f2ac1dfa681611c25f129e39b990b09ce378aa133374c",
+        "digest": "sophia-tree-v2:sha256:4f6f256bbe4ae68be366372af5e0de8d4b99e3a21f13d9115a1b0e5fecd58a4a",
         "entries": 28427
       }
     },
@@ -69,7 +69,7 @@
     "live_verified": false,
     "compat_note": "SMC-M02 R1: pins the request shape of sophia-runtime-s1-03-dev. pi-ai 0.87.1 ships gpt-6-luna with supportsStrictMode true, which adds `strict: false` to every tool; the gate requires this compat value (checkModelRoute) and tests/integration/request-shape.test.mjs holds the whole shape"
   },
-  "workspace_lock_sha256": "b868da081c95de25e2ff5713d86dcd58b85f5718a65d407389eb8ca674f03d11",
+  "workspace_lock_sha256": "6614784dc6e57c71e1a2e9a658b91f022da7a005dd107d086807f0070cf14a56",
   "google_sdk": {
     "package": "@google/genai",
     "version": "2.24.0",
