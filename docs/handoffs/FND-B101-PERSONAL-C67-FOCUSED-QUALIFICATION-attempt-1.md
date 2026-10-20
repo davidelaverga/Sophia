@@ -81,3 +81,15 @@ typecheck and prettier: 0. Reused from B101 without rerunning, because their exe
 the ordinary `pnpm check` (05:06–05:10), keyless 28/28, usage 6/6, `test:sql` 78 migrations, and artifacts. My
 first native-call attempt answered `not_current` because I hadn't registered the call (0073 requires it), and three
 lint findings in my own new code were fixed before the final runs.
+
+## FND-B103: the legacy-call test needs no historical Git object
+
+Branch `integration/personal-legacy-fixture-20261020-b103` from `802f210c`. The 261 native-call test no longer runs
+`git show 261be63f…` at test time. The statements it sends are a committed constant, `LEGACY_261`, in
+`personal-live.db.test.ts`, with their provenance: commit `261be63f`, path `packages/persistence/src/personal-usage.ts`,
+blob `951dc67d`. When this was written, the embedded readiness query was checked to equal that blob's template exactly,
+and each of the four call strings was checked to be present in it (journal B103-logs/10). The API-role readiness,
+reserve, keep, write, base settle, `lost` and no-extra-cost assertions are unchanged. The test was run in this
+worktree, where the 261 objects are present but no longer read at test time; no shallow or source-only checkout was
+run. Selected legacy control: 1/1 on the final bytes (B103-logs/22). Reused from B102 without rerunning: the full
+36/36 and the protected-backfill and cleanup controls. Reused from B101: the ordinary checks.

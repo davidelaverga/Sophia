@@ -4,7 +4,7 @@
 // (tests/support/mock-responses.mjs). No provider, network, account or real credential: the route's credential reference
 // names a variable this test process sets to a fake value, and nothing leaves 127.0.0.1.
 import assert from 'node:assert/strict'
-import { execFileSync, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { createServer } from 'node:net'
 import { readFileSync } from 'node:fs'
@@ -2194,6 +2194,26 @@ describe('0080 over costs settled before it, and the versions around it (FND-B10
   })
 })
 
+/**
+ * The statements the published 261 API's persistence sends, copied byte for byte (FND-B103, R2-B102): the test needs no
+ * historical Git object at run time. Provenance: commit 261be63f91c6b3649bc40f15be1f447719b4fb81, file
+ * packages/persistence/src/personal-usage.ts, blob 951dc67ddd3d409df53b54dc57b6a4b00d265b7f — `installed` is that file's
+ * personalSettledAnswersInstalled template; the four calls are its reserve, settle-and-keep, base settle and
+ * settled-reply strings. Checked against that blob when written (journal B103-logs).
+ */
+const LEGACY_261 = {
+  installed: `SELECT to_regclass('sophia.personal_answer_calls') IS NOT NULL
+       AND EXISTS (SELECT 1 FROM pg_catalog.pg_proc p
+        WHERE p.pronamespace = 'sophia'::regnamespace AND p.proname = 'reserve_' || 'personal_answer'
+          AND position('0079 completed-call fence' IN p.prosrc) > 0) AS installed`,
+  sql: {
+    reserve: 'SELECT sophia.reserve_personal_answer($1, $2, $3, $4, $5, $6) AS outcome',
+    keep: 'SELECT sophia.settle_personal_companion_answer($1, $2, $3, $4, $5) AS outcome',
+    settle: 'SELECT sophia.settle_personal_companion($1, $2, $3) AS done',
+    write: 'SELECT sophia.record_personal_settled_reply($1, $2) AS receipt',
+  },
+} as const
+
 // FND-B102 (R2-B101 items 1 and 2): 0080's backfill beside the rows it must leave, and the 261 API's own calls against it.
 describe('0080 beside protected rows, and the 261 API calls against it (FND-B102)', () => {
   it('backfill: a failed bound turn with no answer kept is classified; kept, unbound, other-epoch, reserved, released and answered rows are not', async () => {
@@ -2282,25 +2302,10 @@ describe('0080 beside protected rows, and the 261 API calls against it (FND-B102
   })
 
   it('FUNCTION-LEVEL, as the API role: the 261 API readiness and calls, exact SQL from its source, against 0080', async () => {
-    // Not an older API process: the statements 261's persistence sends, read from its immutable source, run as the
-    // API's restricted role for an enrolled owner. Shared calling code beyond them is source-equivalent, not run here.
-    const old = execFileSync(
-      'git',
-      ['show', '261be63f91c6b3649bc40f15be1f447719b4fb81:packages/persistence/src/personal-usage.ts'],
-      {
-        encoding: 'utf8',
-      },
-    )
-    const installed =
-      /`(SELECT to_regclass\('sophia\.personal_answer_calls'\)[\s\S]*?AS installed)`/.exec(old)?.[1] ?? ''
-    const SQL = {
-      reserve: 'SELECT sophia.reserve_personal_answer($1, $2, $3, $4, $5, $6) AS outcome',
-      keep: 'SELECT sophia.settle_personal_companion_answer($1, $2, $3, $4, $5) AS outcome',
-      settle: 'SELECT sophia.settle_personal_companion($1, $2, $3) AS done',
-      write: 'SELECT sophia.record_personal_settled_reply($1, $2) AS receipt',
-    }
+    // Not an older API process: the statements 261's persistence sends (LEGACY_261, committed with their provenance), run
+    // as the API's restricted role for an enrolled owner. Shared calling code beyond them is source-equivalent, not run.
+    const { installed, sql: SQL } = LEGACY_261
     assert.ok(installed.includes('0079 completed-call fence'), "261's readiness query, by its marker")
-    for (const q of Object.values(SQL)) assert.ok(old.includes(q), `261 sends: ${q}`)
     const RHO = randomUUID()
     const payer = 'b102-native-payer'
     await owner(
