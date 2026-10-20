@@ -225,6 +225,27 @@ test('check · a join that fails keeps the choices for Try again: muted, the cam
   await expect(dock(page).getByRole('button', { name: 'Camera', exact: true })).toHaveAttribute('aria-pressed', 'true')
 })
 
+test('check · a join from the check that failed with the microphone on keeps «off» chosen since for Try again (fourth review)', async ({
+  page,
+}) => {
+  await page.goto('/room.html')
+  await page.evaluate(() => window.fixture?.failToken())
+  await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()
+  await sheet(page).getByRole('button', { name: 'Join the room' }).click() // the microphone on, as this device chose
+  const retry = dock(page).getByRole('button', { name: /^Try again/ })
+  await expect(retry).toBeEnabled()
+  await page.evaluate(() => localStorage.setItem('sophia.mic.v1', 'off')) // Settings, or another tab, since
+  const before = (await page.evaluate(() => [...(window.fixture?.asked ?? [])])).length
+  await retry.click()
+  await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  await expect(dock(page).getByRole('button', { name: 'Microphone', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  )
+  const since = (await page.evaluate(() => [...(window.fixture?.asked ?? [])])).slice(before)
+  expect(since, 'the microphone stays off, as Join’s tip says').not.toContain('microphone:on')
+})
+
 test('check · closed without joining, the camera and the microphone are let go', async ({ page }) => {
   await page.goto('/room.html')
   await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()
