@@ -64,6 +64,9 @@ if (values.rehearse && values['service-overlay']) {
 assertToolchain()
 const unit = loadRuntimeUnit()
 
+/** Node's code-loading and resolution environment: the loaded closure refuses any of them (executor-identity.ts). */
+const NODE_MODIFIER_ENV = ['NODE_OPTIONS', 'NODE_PATH', 'NODE_PRESERVE_SYMLINKS', 'NODE_PRESERVE_SYMLINKS_MAIN']
+
 /**
  * The operator's service overlay, checked before anything starts: config-only (executor-identity.ts), its control
  * bridge row setting service replies, and, unless only the digest is printed, the named variable holding 64 hex.
@@ -80,9 +83,11 @@ async function serviceLaunch(file, env, needDigest, reserved) {
   const replies = bridge?.config?.replies
   if (!replies || replies.mode !== 'service') throw new Error('the service overlay sets no service replies on sophia-control-bridge')
   const name = replies.executorDigestEnv
-  if (typeof name !== 'string' || !/^[A-Z_][A-Z0-9_]*$/.test(name) || name.startsWith('SOPHIA_REPLY_')) {
-    throw new Error('replies.executorDigestEnv must name an environment variable outside SOPHIA_REPLY_*')
+  // The bridge's own grammar (dsh-bundle parseReplies, FND-B111): a name it cannot parse is never pinned or launched.
+  if (typeof name !== 'string' || !/^[A-Z][A-Z0-9_]*$/.test(name) || name.startsWith('SOPHIA_REPLY_')) {
+    throw new Error('replies.executorDigestEnv must be an upper-case name that starts with a letter, outside SOPHIA_REPLY_*')
   }
+  if (NODE_MODIFIER_ENV.includes(name)) throw new Error(`replies.executorDigestEnv: ${name} is a Node launch modifier`)
   // The supervisor applies this variable last (FND-B108): a name it already sets, or a configured credential, is refused.
   if (reserved.has(name)) throw new Error(`replies.executorDigestEnv: ${name} is already set for the runtime`)
   const value = env[name]

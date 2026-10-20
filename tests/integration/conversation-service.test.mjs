@@ -820,6 +820,39 @@ describe('the shipped runtime-host entry: service replies only by an explicit ov
     }
   })
 
+  // FND-B111 (4324948988, 4324948997): each class in its own test, so one refusal cannot hide the other. A print-only
+  // case needs no value; a launch case leaves the variable unset, so the name is refused before the digest is read.
+  const hostRefuses = (prefix, name, message) => {
+    const dir = mkdtempSync(join(tmpdir(), prefix))
+    try {
+      const file = join(dir, 'named.json')
+      writeFileSync(file, JSON.stringify(JSON.parse(serviceOverlay('http://127.0.0.1:9')).map((row) => row.id === 'sophia-control-bridge'
+        ? { id: row.id, config: { ...row.config, replies: { ...row.config.replies, executorDigestEnv: name } } } : row)))
+      for (const mode of [['--print-executor-digest'], []]) {
+        const r = spawnSync(process.execPath, ['scripts/runtime-host.mjs', '--root', join(dir, 'root'), '--service-overlay', file, ...mode], {
+          cwd: REPO_ROOT, encoding: 'utf8', timeout: 30_000,
+          env: { PATH: process.env.PATH, HOME: process.env.HOME, SOPHIA_SERVICE_URL: 'http://127.0.0.1:9', SOPHIA_RUNTIME_TOKEN: 'x', OPENAI_API_KEY: DUMMY_KEY } })
+        const label = `${name} ${mode.length ? 'print' : 'launch'}`
+        assert.equal(r.status, 2, `${label}: ${r.stdout}${r.stderr}`)
+        assert.match(r.stderr, message, label)
+        assert.doesNotMatch(r.stdout, /"event":"(profile|executor_digest)"/, `${label}: refused before the profile`)
+        assert.equal(existsSync(join(dir, 'root')), false, `${label}: the root is not touched`)
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }
+
+  test('a digest name the bridge cannot parse (leading underscore) is refused, print and launch (FND-B111)', () => {
+    hostRefuses('b111-grammar-', '_EXECUTOR_DIGEST', /replies\.executorDigestEnv must be an upper-case name that starts with a letter/)
+  })
+
+  test('a Node launch modifier is refused as a digest name, print and launch (FND-B111)', () => {
+    for (const name of ['NODE_OPTIONS', 'NODE_PATH', 'NODE_PRESERVE_SYMLINKS', 'NODE_PRESERVE_SYMLINKS_MAIN']) {
+      hostRefuses('b111-modifier-', name, new RegExp(`replies\\.executorDigestEnv: ${name} is a Node launch modifier`))
+    }
+  })
+
   test('refused before anything starts: an overlay that is not config-only, sets no replies, or an unset/malformed digest; with --rehearse', () => {
     const dir = mkdtempSync(join(tmpdir(), 'b105-host-'))
     const run = (args, env = {}) =>
