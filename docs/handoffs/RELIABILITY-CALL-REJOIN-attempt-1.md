@@ -185,3 +185,31 @@ Neither game was open, so the runs went through the guarded `pw.ps1`. The plan's
   `app-auth.spec.ts:808`, «page.goto: net::ERR_NO_BUFFER_SPACE» on the fixture's favicon (the machine out of socket
   buffers, nothing of this branch's); `app-auth.spec.ts` alone right after: 53/53 (`review4-green-app-again`). Units
   453/453 over `features/voice` and `features/conversation`. Whole-repo oxlint, tsc, Prettier: clean.
+
+## After Codex's P2 on #475 (2026-10-20: a call that froze once was never seen live again)
+
+Source: `seguimientos-p2.md`, last entry. Worktree `D:\Descargas\SophiaV4\Sophia-paper-1`, branch
+`reliability/rejoin-liveness` from `origin/main` `a8a66d260` (#475 merged); not pushed. The plan's «After Codex's P2
+on #475» says how.
+
+- **Real, as read.** `stillSeen` compared every beat with the same old «seen», so after one gap over 10 s no later beat
+  moved it: two minutes on, that call's drop never tried again, however long it ran in the foreground.
+- **Checked first:** LiveKit's pong timeout, which decides how fast a woken page finds a dead link, is the server's
+  `pingTimeout`: 15 s, pings every 5 s, read from the join response of `livekit-server` v1.13.7 `--dev` (a throwaway
+  container on `127.0.0.1:17880`, stopped after; the repo sets neither). livekit-client 2.22.3 resets that timer on
+  each pong, so after a longer gap it is past due and fires as the page wakes.
+- **Written first** `158e4c6e7`; red: «a page that froze once counts as live again once it runs steadily · actual: 0,
+  expected: 1». Its partner, «never for a laptop that woke into a dead link» (an hour asleep, beats for 25 s, then
+  «Reconnecting…» and the drop 50 s on), passes before and after: it guards the earlier reviews' rule.
+- **Fixed** `ad020bca6`: each beat is compared with the beat before (`Liveness`: seen, last beat, when the run began);
+  a gap (over two beats, or a clock set back) leaves «seen» and starts a run; after 30 s of beats on time
+  (`STEADY_MS`, twice the pong timeout) each beat is «seen» again; going live is seen at once, as before. The pure
+  check of `stillSeen` took the new shape in the same commit (its cases kept, plus the run, its renewal at 30 s, a
+  gap inside the run, a clock set back).
+- **Mutants (local, not committed):** «previous beat only» (every beat on time renews) fails the laptop check, «never
+  for a page that slept past the window» and the run check («actual: 1, expected: 0»; «actual: 65000, expected: 0»);
+  `STEADY_MS` 20 s fails the laptop check and the pin.
+- No browser check: the fixture has no clock, and a run of beats past the two-minute window takes minutes of real time.
+- **Green at `ad020bca6`** (guarded `pw.ps1`, after waiting for Blender to close): `room.spec.ts` + `room-dock.spec.ts`
+  50/50 (`liveness-green-room`). Units: `call-rejoin.test.ts` 37/37; `features/voice` 345/345. Whole-repo oxlint,
+  tsc, Prettier on the two touched files: clean.
