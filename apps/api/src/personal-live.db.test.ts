@@ -4,7 +4,7 @@
 // (tests/support/mock-responses.mjs). No provider, network, account or real credential: the route's credential reference
 // names a variable this test process sets to a fake value, and nothing leaves 127.0.0.1.
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { createServer } from 'node:net'
 import { readFileSync } from 'node:fs'
@@ -14,7 +14,7 @@ import type { FastifyInstance } from 'fastify'
 import { SignJWT } from 'jose'
 import pg from 'pg'
 import { parsePersonalReceipt, parsePersonalSpace, parsePersonalTurnPage } from '@sophia/contracts/validate'
-import { createPool } from '@sophia/persistence'
+import { createPool, withActor } from '@sophia/persistence'
 import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
 import {
   startMockResponses,
@@ -1732,26 +1732,66 @@ function replyGatedPool(at: Gate): pg.Pool {
 
 describe('shutting down between the provider’s result and the final reply write (FND-C65)', () => {
   it('close waits for the final reply write after the cost is settled and the answer kept; one request', async () => {
-    const KAI = randomUUID()
-    await owner(
-      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('c65-payer', $1, 1000000)`,
-      [KAI],
+    await c65Episode('c65-payer')
+  })
+
+  // FND-B102 (R2-B101 item 3): the episode's own app, pools and gate are released even when its witness fails early.
+  it('a witness that fails right after the barrier is reached still opens the gate and closes its app and pools', async () => {
+    const owned: Owned = {}
+    await assert.rejects(
+      c65Episode('b102-early-payer', { failAfterReached: true, owned }),
+      /synthetic early witness failure/,
     )
-    const held = gate()
-    const apiPool = replyGatedPool(held)
-    const companionPool = createPool(db.apiUrl, { max: 4 })
-    const configured = await personalCompanionFrom(env('c65-payer', KAI), companionPool)
-    const verifyActor = createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET })
-    const app = buildApp({ pool: apiPool, verifyActor, companion: configured.companion })
+    assert.equal(owned.opened, true, 'the gate was opened')
+    assert.equal(owned.app?.server.listening, false, 'its app is closed')
+    assert.equal(owned.apiPool?.ended, true, 'its API pool ended')
+    assert.equal(owned.companionPool?.ended, true, 'its companion pool ended')
+    assert.equal(owned.disposed, true, 'its model service disposed')
+  })
+})
+
+/** What a C65 episode owns, for a check of its cleanup (FND-B102). */
+interface Owned {
+  app?: FastifyInstance
+  apiPool?: pg.Pool
+  companionPool?: pg.Pool
+  opened?: boolean
+  disposed?: boolean
+}
+
+/**
+ * The C65 barrier episode: the final reply write held, close observed while it waits, then released. Whatever fails
+ * (the write, the barrier, the observation, close, a witness), its gate is opened and its app, model service and pools
+ * are closed in finally; a cleanup failure is reported with the witness failure, never instead of it (FND-B102).
+ */
+async function c65Episode(payer: string, opts: { failAfterReached?: boolean; owned?: Owned } = {}) {
+  const KAI = randomUUID()
+  const owned = opts.owned ?? {}
+  await owner(
+    `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ($1, $2, 1000000)`,
+    [payer, KAI],
+  )
+  const held = gate()
+  const apiPool = replyGatedPool(held)
+  const companionPool = createPool(db.apiUrl, { max: 4 })
+  owned.apiPool = apiPool
+  owned.companionPool = companionPool
+  const configured = await personalCompanionFrom(env(payer, KAI), companionPool)
+  const verifyActor = createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET })
+  const app = buildApp({ pool: apiPool, verifyActor, companion: configured.companion })
+  owned.app = app
+  let witnessError: unknown
+  try {
     await app.listen({ port: 0, host: '127.0.0.1' })
     const at = `http://127.0.0.1:${String((app.server.address() as AddressInfo).port)}`
     const sentBefore = recorded().length
     double.script({ text: 'Kept before the reply.', usage: { input_tokens: 10, output_tokens: 5 } })
     await write(at, '/api/v1/personal/turns', KAI, { text: 'Answer, then I stop.' })
     await within(10_000, 'the final reply write reached', held.reached)
+    if (opts.failAfterReached) throw new Error('synthetic early witness failure')
     const atBarrier = {
-      usage: (await usage('c65-payer')).map((r) => r.state),
-      reasons: (await usage('c65-payer')).map((r) => r.reason),
+      usage: (await usage(payer)).map((r) => r.state),
+      reasons: (await usage(payer)).map((r) => r.reason),
       kept: (
         await owner<{ n: number }>(`SELECT count(*)::int n FROM sophia.personal_settled_answers WHERE owner_id=$1`, [
           KAI,
@@ -1765,6 +1805,7 @@ describe('shutting down between the provider’s result and the final reply writ
     await pause(300) // an observation window, not a gate: close must still be waiting on the held write
     const closedWhileHeld = closed
     held.open()
+    owned.opened = true
     await within(15_000, 'app.close after the reply', closing)
     const replies = (
       await owner<{ n: number }>(
@@ -1776,19 +1817,16 @@ describe('shutting down between the provider’s result and the final reply writ
       atBarrier,
       closedWhileHeld,
       replies,
-      usage: (await usage('c65-payer')).map((r) => r.state),
+      usage: (await usage(payer)).map((r) => r.state),
       requests: recorded().length - sentBefore,
     }
     console.log(`C65 barrier witness ${JSON.stringify(witness)}`)
-    await configured.dispose()
-    await apiPool.end()
-    await companionPool.end()
     assert.deepEqual(atBarrier.usage, ['settled'], 'at the barrier the cost is settled')
     assert.equal(atBarrier.kept, 1, 'and the answer kept')
     // A usable answer, kept: its cost carries no without-answer class, nor after the final write (FND-B101, 0080).
     assert.deepEqual(atBarrier.reasons, [null], 'kept answer: reason NULL at the barrier')
     assert.deepEqual(
-      (await usage('c65-payer')).map((r) => [r.state, r.reason]),
+      (await usage(payer)).map((r) => [r.state, r.reason]),
       [['settled', null]],
       'and after the final write',
     )
@@ -1804,8 +1842,40 @@ describe('shutting down between the provider’s result and the final reply writ
     assert.equal(closedWhileHeld, false, 'close waits for the final reply write')
     assert.equal(replies, 1, 'the reply written before close resolved')
     assert.equal(witness.requests, 1, 'one provider request')
-  })
-})
+  } catch (err) {
+    witnessError = err
+  } finally {
+    await releaseEpisode({ held, app, configured, pools: [apiPool, companionPool], owned }, witnessError)
+  }
+  if (witnessError !== undefined)
+    throw witnessError instanceof Error
+      ? witnessError
+      : new Error('C65 episode witness failed', { cause: witnessError })
+}
+
+/**
+ * A C65 episode's own resources released, whatever happened: its gate opened, its app closed, its model service
+ * disposed and its pools ended. A cleanup failure is thrown with the witness failure, never instead of it (FND-B102).
+ */
+async function releaseEpisode(
+  r: { held: Gate; app: FastifyInstance; configured: ConfiguredCompanion; pools: pg.Pool[]; owned: Owned },
+  witnessError: unknown,
+) {
+  const cleanup: unknown[] = []
+  r.held.open()
+  r.owned.opened = true
+  await r.app.close().catch((e: unknown) => cleanup.push(e))
+  await r.configured.dispose().then(
+    () => (r.owned.disposed = true),
+    (e: unknown) => cleanup.push(e),
+  )
+  for (const each of r.pools) if (!each.ended) await each.end().catch((e: unknown) => cleanup.push(e))
+  if (cleanup.length > 0)
+    throw new AggregateError(
+      witnessError === undefined ? cleanup : [witnessError, ...cleanup],
+      'C65 episode cleanup failed',
+    )
+}
 
 /** A free loopback port (FIXTURE: picked, then given to the server it starts). */
 const freePort = () =>
@@ -2121,5 +2191,172 @@ describe('0080 over costs settled before it, and the versions around it (FND-B10
       has80: true,
       args: 'p_call uuid, p_payer text, p_route text, p_micros bigint, p_turn uuid, p_claim uuid',
     })
+  })
+})
+
+// FND-B102 (R2-B101 items 1 and 2): 0080's backfill beside the rows it must leave, and the 261 API's own calls against it.
+describe('0080 beside protected rows, and the 261 API calls against it (FND-B102)', () => {
+  it('backfill: a failed bound turn with no answer kept is classified; kept, unbound, other-epoch, reserved, released and answered rows are not', async () => {
+    const QUN = randomUUID()
+    const payer = 'b102-protected-payer'
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ($1, $2, 1000000)`,
+      [payer, QUN],
+    )
+    const at = await liveApi(payer, QUN)
+    const known = { input_tokens: 10, output_tokens: 5 }
+    const names = ['positive', 'kept', 'unbound', 'epoch', 'reserved', 'released', 'answered'] as const
+    for (const name of names) {
+      double.script(name === 'answered' ? { text: 'Fine.', usage: known } : { text: `Bad\u0000${name}`, usage: known })
+      await write(at, '/api/v1/personal/turns', QUN, { text: `Turn ${name}.` })
+      await settled(at, QUN)
+    }
+    const calls = await owner<{ call_id: string; turn_id: string }>(
+      `SELECT b.call_id, b.turn_id FROM sophia.personal_answer_calls b JOIN sophia.personal_companion_usage u USING (call_id)
+        WHERE u.payer=$1 ORDER BY u.reserved_at`,
+      [payer],
+    )
+    assert.equal(calls.length, names.length)
+    const callOf = (name: (typeof names)[number]) => calls[names.indexOf(name)]?.call_id ?? ''
+    const turn = (name: (typeof names)[number]) => calls[names.indexOf(name)]?.turn_id ?? ''
+    // FIXTURES, labelled: every settled row back to no reason (as before 0080), then each protected shape.
+    await owner(`UPDATE sophia.personal_companion_usage SET reason=NULL WHERE payer=$1 AND state='settled'`, [payer])
+    await owner(
+      `INSERT INTO sophia.personal_settled_answers(owner_id, turn_id, call_id, epoch, body)
+       SELECT owner_id, turn_id, call_id, epoch, 'Kept words.' FROM sophia.personal_answer_calls WHERE call_id=$1`,
+      [callOf('kept')],
+    )
+    await owner(`DELETE FROM sophia.personal_answer_calls WHERE call_id=$1`, [callOf('unbound')])
+    await owner(`UPDATE sophia.personal_answer_calls SET epoch=epoch+1 WHERE call_id=$1`, [callOf('epoch')])
+    await owner(
+      `UPDATE sophia.personal_companion_usage SET state='reserved', used_micros=NULL, usage=NULL, settled_at=NULL WHERE call_id=$1`,
+      [callOf('reserved')],
+    )
+    await owner(
+      `UPDATE sophia.personal_companion_usage SET state='released', reason='not_prepared', used_micros=NULL, usage=NULL, settled_at=NULL WHERE call_id=$1`,
+      [callOf('released')],
+    )
+    const rows = async () =>
+      new Map(
+        (
+          await owner<{
+            call_id: string
+            state: string
+            reason: string | null
+            used_micros: string | null
+            usage: unknown
+            settled_at: string | null
+            reserved_at: string
+          }>(
+            `SELECT call_id, state, reason, used_micros, usage, settled_at::text, reserved_at::text
+               FROM sophia.personal_companion_usage WHERE payer=$1`,
+            [payer],
+          )
+        ).map((r) => [r.call_id, r]),
+      )
+    const was = await rows()
+    await owner(migration('0080_personal_unusable_completion_fence.sql'))
+    const now = await rows()
+    assert.deepEqual(
+      names.map((n) => [n, now.get(callOf(n))?.state, now.get(callOf(n))?.reason]),
+      [
+        ['positive', 'settled', 'settled_without_answer'],
+        ['kept', 'settled', null],
+        ['unbound', 'settled', null],
+        ['epoch', 'settled', null],
+        ['reserved', 'reserved', null],
+        ['released', 'released', 'not_prepared'],
+        ['answered', 'settled', null],
+      ],
+    )
+    for (const n of names) {
+      const prior = was.get(callOf(n))
+      const later = now.get(callOf(n))
+      assert.deepEqual(
+        [later?.used_micros, later?.usage, later?.settled_at, later?.reserved_at],
+        [prior?.used_micros, prior?.usage, prior?.settled_at, prior?.reserved_at],
+        `${n}: amounts, counts and times unchanged`,
+      )
+    }
+    assert.ok(turn('positive'))
+  })
+
+  it('FUNCTION-LEVEL, as the API role: the 261 API readiness and calls, exact SQL from its source, against 0080', async () => {
+    // Not an older API process: the statements 261's persistence sends, read from its immutable source, run as the
+    // API's restricted role for an enrolled owner. Shared calling code beyond them is source-equivalent, not run here.
+    const old = execFileSync(
+      'git',
+      ['show', '261be63f91c6b3649bc40f15be1f447719b4fb81:packages/persistence/src/personal-usage.ts'],
+      {
+        encoding: 'utf8',
+      },
+    )
+    const installed =
+      /`(SELECT to_regclass\('sophia\.personal_answer_calls'\)[\s\S]*?AS installed)`/.exec(old)?.[1] ?? ''
+    const SQL = {
+      reserve: 'SELECT sophia.reserve_personal_answer($1, $2, $3, $4, $5, $6) AS outcome',
+      keep: 'SELECT sophia.settle_personal_companion_answer($1, $2, $3, $4, $5) AS outcome',
+      settle: 'SELECT sophia.settle_personal_companion($1, $2, $3) AS done',
+      write: 'SELECT sophia.record_personal_settled_reply($1, $2) AS receipt',
+    }
+    assert.ok(installed.includes('0079 completed-call fence'), "261's readiness query, by its marker")
+    for (const q of Object.values(SQL)) assert.ok(old.includes(q), `261 sends: ${q}`)
+    const RHO = randomUUID()
+    const payer = 'b102-native-payer'
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ($1, $2, 1000000)`,
+      [payer, RHO],
+    )
+    const apiRole = createPool(db.apiUrl, { max: 2 })
+    try {
+      const as = <T>(work: (c: pg.PoolClient) => Promise<T>) => withActor(apiRole, RHO, 'write', work)
+      const one = async <T>(sql: string, args: unknown[]) =>
+        (await as((c) => c.query<Record<string, T>>(sql, args))).rows[0] ?? {}
+      assert.deepEqual(await one(installed, []), { installed: true }, '261 readiness: ready against 0080')
+      const counts = '{"inputTokens":10,"outputTokens":5}'
+      const turnOf = async (text: string) => {
+        await one('SELECT sophia.send_personal_turn($1, $2) AS receipt', [randomUUID(), text])
+        const [t] = await owner<{ id: string }>(
+          `SELECT id FROM sophia.personal_turns WHERE owner_id=$1 AND author='person' ORDER BY created_at DESC LIMIT 1`,
+          [RHO],
+        )
+        const claim = (await one<string>('SELECT sophia.claim_personal_reply($1) AS claim', [t?.id])).claim
+        return { id: t?.id ?? '', claim }
+      }
+      // Each call registered first, as the runner does (personal.ts begin_companion_call, unchanged since 261).
+      const begin = (id: string) => one('SELECT sophia.begin_companion_call($1) AS epoch', [id])
+      const reasons = async () => (await usage(payer)).map((r) => [r.state, r.reason, r.used_micros])
+      // A usable answer: reserved, settled and kept, then written; its cost has no reason throughout.
+      const usable = await turnOf('Usable.')
+      const c1 = randomUUID()
+      await begin(c1)
+      assert.deepEqual(await one(SQL.reserve, [c1, payer, 'personal-test', 1000, usable.id, usable.claim]), {
+        outcome: 'reserved',
+      })
+      assert.deepEqual(await one(SQL.keep, [c1, 4, counts, 'Usable words.', null]), { outcome: 'kept' })
+      assert.deepEqual(await reasons(), [['settled', null, '4']])
+      assert.notEqual((await one(SQL.write, [usable.id, usable.claim])).receipt ?? null, null, 'the reply written')
+      assert.deepEqual(await reasons(), [['settled', null, '4']])
+      // An unusable completion: the base settlement classifies it; the same turn reserved again is refused 'lost'.
+      const unusable = await turnOf('Unusable.')
+      const c2 = randomUUID()
+      await begin(c2)
+      assert.deepEqual(await one(SQL.reserve, [c2, payer, 'personal-test', 1000, unusable.id, unusable.claim]), {
+        outcome: 'reserved',
+      })
+      assert.deepEqual(await one(SQL.settle, [c2, 4, counts]), { done: true })
+      assert.deepEqual(await reasons(), [
+        ['settled', null, '4'],
+        ['settled', 'settled_without_answer', '4'],
+      ])
+      const c3 = randomUUID()
+      await begin(c3)
+      assert.deepEqual(await one(SQL.reserve, [c3, payer, 'personal-test', 1000, unusable.id, unusable.claim]), {
+        outcome: 'lost',
+      })
+      assert.equal((await usage(payer)).length, 2, 'no extra reservation or cost')
+    } finally {
+      await apiRole.end()
+    }
   })
 })
