@@ -429,6 +429,22 @@ test('served search · one astral letter asks nothing, two are asked (4320173114
   await expect.poll(qs).toContain('\u{10428}\u{10429}')
 })
 
+// R2 on B83: the local goals' minimum counts the query as typed. One İ (one code point; i and a combining dot once
+// lowercased) shows nothing found, from what the Studio holds or served; İz finds the goal it opens. SYNTHETIC: the
+// fixture's `turkish=1` adds a goal titled «İzmir pilot review».
+test('served search · one typed İ finds no goal held here, İz does (R2 on B83)', async ({ page }) => {
+  await page.goto('/room.html?demo=1&place=goals&vision=off&turkish=1')
+  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  const goal = sheet(page).getByRole('button', { name: /İzmir pilot review/ })
+  await field(page).focus()
+  await page.keyboard.insertText('İ')
+  await expect(field(page)).toHaveValue('İ')
+  await page.waitForTimeout(600) // past the field's settling (250 ms): a goal found would be shown by now
+  await expect(goal).toHaveCount(0)
+  await page.keyboard.insertText('z')
+  await expect(goal).toBeVisible()
+})
+
 // The same bound at its edge: a valid 200-code-point query of astral words (64, 64, 64 and 5 letters, three spaces)
 // is held and asked whole; edited back by Backspace and typed on, the shorter query is asked as it now stands.
 test('served search · a 200-code-point query of astral words is asked whole, and editing it back asks the shorter one (r4315568923)', async ({

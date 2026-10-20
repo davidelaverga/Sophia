@@ -658,6 +658,12 @@ const ALIAS_SOURCE = '00000000-0000-4000-9000-0000000a11a5'
 const ALIAS_AT = Number(query.get('aliasAt') ?? 2)
 const CORRECTED_SOURCE = '00000000-0000-4000-9000-0000000a11a6'
 
+/** The demo's first goal again under another id and a title opening with İ, when asked for (`turkish=1`). */
+const turkishGoal = (on: boolean): Goal[] => {
+  const [first] = DEMO_GOALS
+  return on && first ? [{ ...first, id: '00000000-0000-4000-8000-0000000090f1', title: 'İzmir pilot review' }] : []
+}
+
 const project = {
   revision: 1,
   doorShut: false,
@@ -671,7 +677,8 @@ const project = {
   },
   // The demo's goals (demo-goals.ts): Goals reads them; Tasks acts on them. A command moves its goal as the API admits
   // it, and a moment later the runtime confirms where it settles.
-  goals: DEMO ? [...DEMO_GOALS] : ([] as Goal[]),
+  // `turkish=1`: one more goal, its title opening with İ (one code point typed, two once lowercased; B89).
+  goals: DEMO ? [...DEMO_GOALS, ...turkishGoal(query.get('turkish') === '1')] : ([] as Goal[]),
   // The demo's board (demo-work.ts): the rollout's plan, so its Tasks draw a board as a planned goal's do.
   ...(DEMO && { servedGoals: demoServedGoals }),
   ...(DEMO
