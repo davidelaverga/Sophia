@@ -1,4 +1,6 @@
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { defineConfig } from '@playwright/test'
 
 // The narrow served path (FND-B-C1-SERVED-PATH-01), never the fixture pages: the normal Studio dev server (vite.config.ts,
@@ -22,6 +24,15 @@ process.env.SOPHIA_SERVED_PROJECT = served.project.projectId
 // apps/api/scripts/personal-served.ts: the loopback model double, one ephemeral payer for Luis through the disposable
 // database's owner connection (SOPHIA_DISPOSABLE_DATABASE_URL), then the real API on its restricted role, live.
 const personal = process.env.SOPHIA_SERVED_PERSONAL === '1'
+// The double's request count (a number only), which the Personal journey reads to see a press made no generation: a
+// file of this run's own, in a new temporary directory, unless the caller names one (4320910978). Set before the
+// launcher and the workers start, both inherit it; a worker loading this config again finds it set.
+if (personal && !process.env.SOPHIA_SERVED_PERSONAL_COUNT_FILE?.trim()) {
+  const own = mkdtempSync(join(tmpdir(), 'sophia-served-count-'))
+  process.env.SOPHIA_SERVED_PERSONAL_COUNT_FILE = join(own, 'count')
+  // This process made it and goes last (the launcher is stopped without its own exit): it removes it.
+  process.on('exit', () => rmSync(own, { recursive: true, force: true }))
+}
 const subjectOf = (token: string): string => {
   const payload: unknown = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8'))
   return payload && typeof payload === 'object' && 'sub' in payload ? String(payload.sub) : ''

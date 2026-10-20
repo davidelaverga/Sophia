@@ -8,7 +8,7 @@ import { spawn } from 'node:child_process'
 import pg from 'pg'
 import { startMockResponses } from '../../../tests/support/mock-responses.mjs'
 import { PERSONAL_ROLE_DIGEST } from '../src/companion-live.ts'
-import { writeFileSync } from 'node:fs'
+import { rmSync, writeFileSync } from 'node:fs'
 
 const KEY_REF = 'SOPHIA_SERVED_PERSONAL_ROUTE_KEY'
 const FAKE_KEY = 'served-test-only-not-a-credential'
@@ -31,10 +31,12 @@ const steps: unknown = JSON.parse(process.env.SOPHIA_SERVED_PERSONAL_SCRIPT ?? '
 for (const step of Array.isArray(steps) ? (steps as unknown[]) : []) double.script(step)
 // SOPHIA_SERVED_PERSONAL_COUNT_FILE (local checks only): how many requests the double has had, a number and nothing
 // else, kept current in that file, so a check sees whether a press made a new generation (FND-B93).
+// playwright.served.config.ts names one of the run's own when the caller doesn't (and removes it after the run).
 const countFile = process.env.SOPHIA_SERVED_PERSONAL_COUNT_FILE?.trim()
 if (countFile) {
   writeFileSync(countFile, '0')
   setInterval(() => writeFileSync(countFile, String(double.requests.length)), 50).unref()
+  process.on('exit', () => rmSync(countFile, { force: true }))
 }
 const client = new pg.Client({ connectionString: ownerDb.href })
 await client.connect()

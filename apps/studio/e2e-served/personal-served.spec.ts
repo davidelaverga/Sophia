@@ -31,7 +31,11 @@ process.stdout.write(String(r.rows.length)); await c.end()`
 }
 
 /** The loopback double's requests so far (the launcher's count file): each one a generation the companion asked for. */
-const dispatched = () => Number(readFileSync(process.env.SOPHIA_SERVED_PERSONAL_COUNT_FILE ?? '', 'utf8'))
+const dispatched = () => {
+  const file = process.env.SOPHIA_SERVED_PERSONAL_COUNT_FILE
+  if (!file) throw new Error('no count file: run through playwright.served.config.ts with SOPHIA_SERVED_PERSONAL=1')
+  return Number(readFileSync(file, 'utf8'))
+}
 
 /** Signed in as one of dev-db's identities, every API call recorded. */
 async function as(page: Page, name: string) {
