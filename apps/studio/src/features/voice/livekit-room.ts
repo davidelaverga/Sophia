@@ -109,6 +109,11 @@ export interface RoomConnection {
   /** Others' cameras come to this browser, or not (incoming-video.md); a screen shared always comes. */
   setIncomingVideo: (on: boolean) => void
   leave: () => Promise<void>
+  /**
+   * Whether this person's microphone was on while the call was last connected: what a dropped call comes back with
+   * (call-rejoin.md). LiveKit unpublishes the tracks before it says the call ended, so the end itself can't tell.
+   */
+  micWas: () => boolean
 }
 
 export interface RoomCallbacks {
@@ -451,6 +456,7 @@ function deviceControls(
 export async function connectRoom(serverUrl: string, token: string, cb: RoomCallbacks): Promise<RoomConnection> {
   const room = new Room(roomOptions())
   for (const event of CHANGES) room.on(event, cb.onChange)
+  const mic = micWhileConnected(room)
   room.on(RoomEvent.Reconnecting, () => cb.onStatus('reconnecting'))
   room.on(RoomEvent.Reconnected, () => cb.onStatus('live'))
   let textOnly = false
@@ -503,5 +509,16 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
       audio.volume.set(identity, level, room.remoteParticipants.get(identity)?.trackPublications.values() ?? []),
     ...incomingVideo(room, cb.onChange),
     leave: () => room.disconnect(),
+    micWas: mic,
   }
+}
+
+/** The microphone as it was while the room was last connected: not as it is while LiveKit reconnects or tears down. */
+function micWhileConnected(room: Room): () => boolean {
+  let on = false
+  const note = () => {
+    if (room.state === ConnectionState.Connected) on = room.localParticipant.isMicrophoneEnabled
+  }
+  for (const event of CHANGES) room.on(event, note)
+  return () => on
 }

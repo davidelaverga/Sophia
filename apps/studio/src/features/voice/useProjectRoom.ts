@@ -433,7 +433,8 @@ function useJoin(
 ) {
   const [call, setCall] = useState(newCall)
   const [liveSince, setLiveSince] = useState<number | null>(null)
-  // The choices of a join that failed stand for the next one asked without its own (Try again; Codex P1 on #361).
+  // The choices of a join that failed stand for the next one asked without its own (Try again; Codex P1 on #361), and
+  // so does the microphone of a call that dropped (`stand`): its try back in and Try again bring it back as it was.
   const failedWith = useRef<JoinOptions | undefined>(undefined)
   const join = (options?: JoinOptions) => {
     if (joining.current) return joining.current
@@ -454,7 +455,10 @@ function useJoin(
     joining.current = attempt
     return attempt
   }
-  return { call, liveSince, join }
+  const stand = (options: JoinOptions | undefined) => {
+    failedWith.current = options
+  }
+  return { call, liveSince, join, stand }
 }
 
 /**
@@ -692,12 +696,15 @@ function useRejoin(status: DockStatus, join: ProjectRoom['join'], say: (note: st
  * (call-end.ts) instead of silently resetting: a lost connection offers to try again, and tries once on its own
  * (call-rejoin.md); a call that moved to another tab, or was ended on purpose, offers the plain way back. Text mode
  * ends with the call, unless the connection was lost (keepsTextMode): the next join says how it starts (the dock by
- * voice, the chat by text).
+ * voice, the chat by text). So does the microphone: after a lost connection the next join brings it back as the call
+ * had it, never as this device last chose (an admin's mute, or «on» chosen in Settings meanwhile); any other end
+ * leaves it to the person's choice (`stand`).
  */
 function outOfCallFor(room: {
   calls: CallFence<RoomConnection>
   joining: { current: Promise<boolean> | null }
   typedChat: ReturnType<typeof useConversation>
+  stand: (options: JoinOptions | undefined) => void
   reset: () => void
   setStatus: (status: DockStatus) => void
   setError: (error: string | null) => void
@@ -706,6 +713,7 @@ function outOfCallFor(room: {
   return (why: CallEnd | null) => {
     room.typedChat.interrupted()
     if (!keepsTextMode(why)) room.typedChat.rememberTextMode(false)
+    room.stand(why === 'dropped' ? { mic: room.calls.current?.micWas() ?? false } : undefined)
     room.calls.current = null
     room.joining.current = null
     room.reset()
@@ -743,9 +751,10 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     clearNote()
     resetChoices()
   }
-  // The try back in (`rejoin`) is made below, with the join it presses; a call ends only after that.
+  // The join (`joined`) and its try back in (`rejoin`) are made below; a call ends only after that.
   const ended = (why: CallEnd | null) => rejoin.ended(why)
-  const outOfCall = outOfCallFor({ calls, joining, typedChat, reset, setStatus, setError, ended })
+  const stand = (options: JoinOptions | undefined) => joined.stand(options)
+  const outOfCall = outOfCallFor({ calls, joining, typedChat, stand, reset, setStatus, setError, ended })
 
   const joined = useJoin({ calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall }, joining, () =>
     devices.setCamera(true),
