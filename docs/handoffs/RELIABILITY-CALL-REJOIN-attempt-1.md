@@ -11,8 +11,8 @@ Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1` and
 workers).
 Existing authority: Luis 2026-10-20, «Procede con el próximo lote y arregla tú los de Davide»; earlier «Lo que no se
 mide, no se puede mejorar».
-Ending commit: the branch's last commit; code last changed at `11d3c1bd5` (after the review). Against `9a6b03a73`:
-`apps/studio/src/features/voice/{call-rejoin.ts,call-rejoin.test.ts,call-tabs.ts}` (new), `call-end.ts`, `call-end.test.ts`,
+Ending commit: the branch's last commit; code last changed at `0281cf271` (after the second review). Against `9a6b03a73`:
+`apps/studio/src/features/voice/{call-rejoin,call-tabs,mic-while-connected}{,.test}.ts` (new), `call-fence{,.test}.ts`, `call-end.ts`, `call-end.test.ts`,
 `useProjectRoom.ts`, `livekit-room.ts`, `RoomDock.tsx`, `MiniDock.tsx`,
 `apps/studio/src/features/conversation/discussion-view{,.test}.ts`, `apps/studio/src/features/studio/ProjectShell.tsx`,
 `apps/studio/fixtures/{fixture-api.ts,room.tsx,app.tsx,fake-livekit.ts}`, `apps/studio/e2e/{room,room-discussion,room-recap,
@@ -120,3 +120,31 @@ session's `pw-logs/`.
   315/315 (`call-rejoin.test.ts` 29/29). Whole-repo oxlint, tsc, Prettier: clean.
 - Plan: `02c1476f2` (written while the worktree was briefly detached by an interrupted run, then cherry-picked
   onto the branch; the detached copy `da0ce5100` is unreferenced).
+
+## After the second review (2026-10-20: one P1, one P2, P3s)
+
+Same rules; runs through `pw-direct.ps1` while Luis played WoW, none while Aion 2 was open (the runs waited for it to
+close). The plan's «After the second review» says how each point was closed.
+
+- **P1, a microphone muted during «Reconnecting…» came back on.** Written first `35e325371` (the rule moved, unchanged,
+  into `mic-while-connected.ts`; the fixture keeps the microphone as strictly as that rule); units red «actual: true,
+  expected: false» (a mute in Reconnecting; Reconnected not read again); browser red (`review2-red-p1`): «Expected:
+  "false" Received: "true"». Fixed `07444167f`: `micWas() && micOnJoin()` at the drop, and the rule hears mutes in any
+  state but disconnected and reads again on `Reconnected`.
+- **P2, a try left with Leave wrote the old microphone back.** Written first `2dc3186d5`; browser red
+  (`review2-red-p2`): «Expected: "false" Received: "true"». Fixed `4bfde864a`: only the current join writes the next
+  join's choices.
+- **P3s.** Written first `83d9c7bcf` (this commit doesn't type-check until the fix: the checks ask for the new shapes);
+  units red: «does not provide an export named 'callTabs'», «rejoin.scoped is not a function», «does not provide an
+  export named 'keptIfStill'»; browser red (`review2-red-p3`): «toBeFocused() failed · Received: inactive». Fixed
+  `0281cf271`: scoped claims (`scopeOf`, the token's subject), `joining` claims, `keptIfStill` after connecting, a clock
+  set back is stale, focus to Try again after a failed try, `call-tabs.ts` as a factory with 7 unit checks.
+- **Found in the green run:** the round-2 fixture model missed an admin's mute, so «muted by an admin, Try again keeps
+  the microphone off» failed for the fixture (`review2-green-room`: 30 passed, that 1 failed); fixed in the fixture
+  alone, `5874795e6`.
+- **Green:** `room.spec.ts` 31/31 at `5874795e6` (`review2-green-room-2`); the call specs (room-discussion,
+  room-recap, voice-chat, muted-speech, room-dock, join, host-controls, dock-header, app-auth, call-keys,
+  call-devices, room-people, room-basics, room-return, signed-in-later) 220/220 at `5aeb4e272`, before the fixture-only
+  fix (`review2-green-calls`). Units: 443/443 over `features/voice` and `features/conversation` (`call-rejoin` 32,
+  `call-tabs` 7, `call-fence` 6, `mic-while-connected` 5). Whole-repo oxlint, tsc, Prettier: clean.
+- Plan: `5aeb4e272`. Not built, recorded: a crashed tab's stale claim (the try waits for the person).
