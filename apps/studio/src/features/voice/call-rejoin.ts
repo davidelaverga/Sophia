@@ -84,7 +84,7 @@ export const liveAt = (now: number): Liveness => ({ seen: now, beat: now, since:
  * does a beat while LiveKit isn't `connected` (resuming its signal, reconnecting). It is seen now while no gap came
  * since it went live, or once the run has lasted `STEADY_MS`.
  */
-export function stillSeen(live: Liveness, now: number, connected = true): Liveness {
+export function stillSeen(live: Liveness, now: number, connected: boolean): Liveness {
   const { seen, beat, since } = live
   if (seen === null || beat === null) return live
   if (!connected || now < beat || now - beat > 2 * LIVE_BEAT_MS) return { seen, beat: now, since: now }
@@ -171,7 +171,7 @@ export class Rejoin {
   }
 
   /** A beat while the call is live (stillSeen); `connected`: LiveKit reads the room connected. */
-  beat(connected = true): void {
+  beat(connected: boolean): void {
     this.liveness = stillSeen(this.liveness, this.ports.now(), connected)
   }
 
