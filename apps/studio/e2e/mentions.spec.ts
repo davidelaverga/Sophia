@@ -551,7 +551,16 @@ async function pendingSeenRetry(page: Page, close: boolean) {
             held = false
             await new Promise<void>((resolve) => (window.releaseSeen = resolve))
           }
-          return new Response(JSON.stringify({ code: 'unavailable', message: 'Busy', retry: 'safe' }), { status: 503 })
+          // Its body comes 300 ms of real time later (a task the page clock doesn't stop), as a loaded runner reads it.
+          const busy = new TextEncoder().encode(JSON.stringify({ code: 'unavailable', message: 'Busy', retry: 'safe' }))
+          const body = new ReadableStream<Uint8Array>({
+            async pull(sink) {
+              await scheduler.postTask(() => undefined, { delay: 300 })
+              sink.enqueue(busy)
+              sink.close()
+            },
+          })
+          return new Response(body, { status: 503 })
         }
         return f(input, init)
       }
