@@ -445,6 +445,38 @@ test('BASE-03 · a try left with Leave leaves the next Join to the person’s ow
   expect((await asked(page)).slice(before), 'the microphone stays off').not.toContain('microphone:on')
 })
 
+test('BASE-03 · «join with the microphone off» chosen while a dropped call waits offline holds when it comes back (review P1, round 3)', async ({
+  page,
+  context,
+}) => {
+  await enter(page, '/room.html?call=on')
+  await expect(microphone(page)).toHaveAttribute('aria-pressed', 'true')
+  await context.setOffline(true)
+  await page.evaluate(() => window.fixture?.drop())
+  await expect(page.locator('.dock-wrap .dock-note')).toHaveText(OFFLINE_REJOIN)
+  await page.evaluate(() => localStorage.setItem('sophia.mic.v1', 'off')) // Settings, during the wait
+  const [before, connected] = [(await asked(page)).length, await connects(page)]
+  await context.setOffline(false)
+  await expect.poll(() => connects(page)).toBe(connected + 1)
+  await expect(microphone(page)).toHaveAttribute('aria-pressed', 'false')
+  expect((await asked(page)).slice(before), 'the microphone stays off').not.toContain('microphone:on')
+})
+
+test('BASE-03 · «join with the microphone off» chosen after a dropped call holds for Try again (review P1, round 3)', async ({
+  page,
+}) => {
+  await enter(page, '/room.html?call=on')
+  await expect(microphone(page)).toHaveAttribute('aria-pressed', 'true')
+  await dropForGood(page)
+  const retry = controls(page).getByRole('button', { name: /^Try again/ })
+  await expect(retry).toBeEnabled()
+  await page.evaluate(() => localStorage.setItem('sophia.mic.v1', 'off')) // Settings, minutes later
+  const before = (await asked(page)).length
+  await retry.click()
+  await expect(microphone(page)).toHaveAttribute('aria-pressed', 'false')
+  expect((await asked(page)).slice(before), 'the microphone stays off').not.toContain('microphone:on')
+})
+
 test('BASE-03 · muted by an admin, a dropped call’s Try again keeps the microphone off too (review P1)', async ({
   page,
 }) => {
