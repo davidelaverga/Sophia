@@ -696,3 +696,68 @@ describe('a task page cursor belongs to its project (FND-C54, finding 4319532308
     assert.equal((await call(admin, 'GET', `${tasks(a)}?cursor=abc`)).status, 422)
   })
 })
+
+const encodeCursor = (flag: string, us: string, id: string) => Buffer.from(`${flag}.${us}.${id}`).toString('base64url')
+const decodeCursor = (cursor: string) => Buffer.from(cursor, 'base64url').toString('utf8').split('.')
+
+describe('a task page cursor is a boundary this list issued (FND-C66, finding 4321265115)', () => {
+  it('refuses a real task id with an altered time or done flag (422); a genuine cursor pages, also after its task is done', async () => {
+    const [admin, editor] = [randomUUID(), randomUUID()]
+    const { projectId: p } = await seedProject(db.ownerUrl, { admin, editors: [editor] })
+    for (let i = 0; i < 55; i += 1) await created(admin, p, { title: `Task ${String(i)}` })
+    const first = await list(admin, p)
+    assert.ok(first.next)
+    const [flag, us, id] = decodeCursor(first.next)
+    assert.ok(flag === '0' && us && id, 'a genuine open boundary')
+    const altered = {
+      timeZero: encodeCursor('0', '0', id),
+      timeMax: encodeCursor('0', '9223372036854775807', id),
+      doneWhileOpen: encodeCursor('1', us, id),
+    }
+    const outcomes: [string, number, unknown, number | null][] = []
+    for (const [what, cursor] of Object.entries(altered)) {
+      const res = await call(admin, 'GET', `${tasks(p)}?cursor=${cursor}`)
+      const page = res.status === 200 ? parseProjectTaskList(res.json).tasks.length : null
+      outcomes.push([what, res.status, res.json?.code, page])
+    }
+    console.log(`C66 altered-cursor witness ${JSON.stringify(outcomes)}`)
+    assert.deepEqual(
+      outcomes.map(([what, status, code]) => [what, status, code]),
+      Object.keys(altered).map((what) => [what, 422, 'invalid_request']),
+      'each altered boundary refused as unknown',
+    )
+    // The genuine cursor pages: the other 5, each once.
+    const second = await list(admin, p, first.next)
+    assert.equal(second.tasks.length, 5)
+    assert.equal(new Set([...first.tasks, ...second.tasks].map((t) => t.taskId)).size, 55)
+    // Its boundary task finished between the pages: the cursor it was issued as (done 0) still pages the open rest.
+    assert.equal((await done(editor, p, id, 1)).status, 200)
+    const stale = await call(admin, 'GET', `${tasks(p)}?cursor=${first.next}`)
+    assert.equal(stale.status, 200, stale.raw)
+    const rest = parseProjectTaskList(stale.json)
+    assert.deepEqual(
+      new Set(rest.tasks.filter((t) => t.state === 'open').map((t) => t.taskId)),
+      new Set(second.tasks.map((t) => t.taskId)),
+      'the same open rest',
+    )
+    // And a done-1 cursor naming it, now that it is done, is a boundary the list could issue: accepted.
+    assert.equal((await call(admin, 'GET', `${tasks(p)}?cursor=${encodeCursor('1', us, id)}`)).status, 200)
+  })
+
+  it('keeps tie order: tasks created at one time page by id, 50 + 5, each once', async () => {
+    const admin = randomUUID()
+    const { projectId: p } = await seedProject(db.ownerUrl, { admin })
+    for (let i = 0; i < 55; i += 1) await created(admin, p, { title: `Tie ${String(i)}` })
+    await owner(`UPDATE sophia.project_tasks SET created_at = '2026-10-20T00:00:00Z' WHERE project_id = $1`, [p])
+    const first = await list(admin, p)
+    assert.ok(first.next)
+    const second = await list(admin, p, first.next)
+    const all = [...first.tasks, ...second.tasks].map((t) => t.taskId)
+    assert.deepEqual([first.tasks.length, second.tasks.length, new Set(all).size], [50, 5, 55])
+    assert.deepEqual(
+      all,
+      all.toSorted((x, y) => y.localeCompare(x)),
+      'id descending at one time',
+    )
+  })
+})

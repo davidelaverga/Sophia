@@ -132,17 +132,21 @@ async function isMine(c: pg.PoolClient, projectId: string): Promise<boolean> {
 }
 
 /**
- * A cursor of this project's list: its task must be one of the project's (finding 4319532308). Another list's cursor,
- * even one this reader may read, is refused as unknown, never used as this list's boundary; its format is unchanged.
- * Tasks are not deleted, so a page's last task stays the project's.
+ * A cursor of this project's list, as this list issued it: its task one of the project's (finding 4319532308), its
+ * time that task's creation (never changed), and its done flag one the list could have issued (finding 4321265115).
+ * A task only ever goes from open to done, so a cursor issued while it was open (done 0) stays good after it is done,
+ * but one saying done (1) while it is still open was never issued. Anything else is refused as unknown, never used as
+ * this list's boundary. The format is unchanged; this is no proof of issuance beyond those fields.
  */
 async function projectCursor(c: pg.PoolClient, projectId: string, cursor: string) {
   const after = decodeCursor(cursor)
-  const { rows } = await c.query(`SELECT 1 FROM sophia.project_tasks WHERE project_id = $1 AND id = $2`, [
-    projectId,
-    after.id,
-  ])
-  if (rows.length === 0) throw new DomainError('invalid_request', 'Unknown cursor')
+  const { rows } = await c.query<{ created_us: string; state: string }>(
+    `SELECT ${US}::text AS created_us, t.state FROM sophia.project_tasks t WHERE t.project_id = $1 AND t.id = $2`,
+    [projectId, after.id],
+  )
+  const task = rows[0]
+  if (!task || task.created_us !== after.us || (after.done && task.state !== 'done'))
+    throw new DomainError('invalid_request', 'Unknown cursor')
   return after
 }
 
