@@ -113,6 +113,8 @@ test('archive · after no reply, landed and then brought back elsewhere, Archive
   await expect(line).toHaveCount(0)
   await archive()
   await expect.poll(() => served(page)).toContain('went:work')
+  // Archived anew, not answered with the lost write's receipt (the fixture replays a key sent again, as 0059 does).
+  expect((await served(page)).filter((s) => s.startsWith('archive:'))).toEqual(['archive:true', 'archive:true'])
   const keys = await page.evaluate(() => [...(window.archiveKeys ?? [])])
   expect(keys).toHaveLength(2)
   expect(keys[1]).not.toBe(keys[0])
