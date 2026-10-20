@@ -1156,8 +1156,8 @@ interface DenialTrace {
   denials: { id: number; path: string; at: number }[]
   hits: { at: number; afterMs: number; what: string }[]
   frames: number
-  /** rAF callbacks after the first 403 reached the app. */
-  postFrames: number
+  /** rAF callbacks after the first refused thread read (…/messages) reached the app. */
+  threadFrames: number
 }
 declare global {
   interface Window {
@@ -1165,13 +1165,22 @@ declare global {
   }
 }
 
+/** What no frame may show once the client saw a 403: a row, the open thread's messages or composer, Start. */
+const DENIAL_PROTECTED = [
+  '[aria-label="All conversations"] li',
+  '[aria-label="Open conversation"] .conv-messages > li',
+  '[aria-label="Open conversation"] textarea',
+  'button[aria-label="New conversation"]',
+]
+
 async function observeClientDenials(page: Page, mode: DenialMode) {
-  await page.evaluate((m) => {
+  const given = { m: mode, protectedSelectors: DENIAL_PROTECTED }
+  await page.evaluate(({ m, protectedSelectors }) => {
     const trace: DenialTrace & { stop: boolean } = {
       denials: [],
       hits: [],
       frames: 0,
-      postFrames: 0,
+      threadFrames: 0,
       stop: false,
     }
     window.denialTrace = trace
@@ -1199,18 +1208,12 @@ async function observeClientDenials(page: Page, mode: DenialMode) {
       trace.denials.push({ id, path, at: performance.now() })
       return new Response(slow, { status: 403, headers: res.headers })
     }
-    const protectedSelectors = [
-      '[aria-label="All conversations"] li',
-      '[aria-label="Open conversation"] .conv-messages > li',
-      '[aria-label="Open conversation"] textarea',
-      'button[aria-label="New conversation"]',
-    ]
     const tick = () => {
       if (trace.stop) return
       trace.frames++
+      if (trace.denials.some((d) => d.path.endsWith('/messages'))) trace.threadFrames++
       const first = trace.denials[0]
       if (first) {
-        trace.postFrames++
         const now = performance.now()
         for (const selector of protectedSelectors) {
           const shown = [...document.querySelectorAll(selector)].some((el) => {
@@ -1223,15 +1226,20 @@ async function observeClientDenials(page: Page, mode: DenialMode) {
       requestAnimationFrame(tick)
     }
     requestAnimationFrame(tick)
-  }, mode)
+  }, given)
 }
 
 const readDenialTrace = (page: Page) =>
   page.evaluate(() => {
     const t = window.denialTrace
-    if (!t) return { denials: [], hits: [], frames: 0, postFrames: 0 }
+    if (!t) return { denials: [], hits: [], frames: 0, threadFrames: 0 }
     t.stop = true
-    return { denials: t.denials, hits: t.hits, frames: t.frames, postFrames: t.postFrames }
+    return {
+      denials: t.denials,
+      hits: t.hits,
+      frames: t.frames,
+      threadFrames: t.threadFrames,
+    }
   })
 
 for (const mode of ['delayed', 'malformed'] as const) {
@@ -1286,7 +1294,7 @@ for (const mode of ['delayed', 'malformed'] as const) {
     await page.evaluate(() => window.fixture?.listMore(true))
     await expect(list(page)).toContainText('This project refused a read of its conversations.')
     await expect(rows(page)).toHaveCount(0)
-    await framesAfterRefusal(page, () => page.evaluate(() => window.denialTrace?.postFrames ?? 0), 10, 500)
+    await framesAfterRefusal(page, () => page.evaluate(() => window.denialTrace?.threadFrames ?? 0), 10, 500)
     const trace = await readDenialTrace(page)
     await info.attach(`denial-trace-thread-${mode}.json`, {
       body: JSON.stringify(trace, null, 1),
@@ -1296,7 +1304,7 @@ for (const mode of ['delayed', 'malformed'] as const) {
       trace.denials.some((d) => /\/conversations\/[^/]+\/messages$/.test(d.path)),
       'the thread read was refused, as the client saw',
     ).toBe(true)
-    expect(trace.postFrames, 'frames since the client saw the 403').toBeGreaterThan(10)
+    expect(trace.threadFrames, 'frames since the client saw the thread read refused').toBeGreaterThan(10)
     expect(trace.hits, 'protected content or controls after the client saw the 403').toEqual([])
     expect((await served(page)).filter((s) => s === 'messages-refused:c1')).toHaveLength(1)
   })
@@ -1316,7 +1324,7 @@ test(`removal · semantic, slow frames (8 a second): the open thread's read refu
   await page.evaluate(() => window.fixture?.listMore(true))
   await expect(list(page)).toContainText('This project refused a read of its conversations.')
   await expect(rows(page)).toHaveCount(0)
-  await framesAfterRefusal(page, () => page.evaluate(() => window.denialTrace?.postFrames ?? 0), 10, 500)
+  await framesAfterRefusal(page, () => page.evaluate(() => window.denialTrace?.threadFrames ?? 0), 10, 500)
   const trace = await readDenialTrace(page)
   await info.attach('denial-trace-thread-slow-frames.json', {
     body: JSON.stringify(trace, null, 1),
@@ -1326,6 +1334,6 @@ test(`removal · semantic, slow frames (8 a second): the open thread's read refu
     trace.denials.some((d) => /\/conversations\/[^/]+\/messages$/.test(d.path)),
     'the thread read was refused, as the client saw',
   ).toBe(true)
-  expect(trace.postFrames, 'frames since the client saw the 403').toBeGreaterThan(10)
+  expect(trace.threadFrames, 'frames since the client saw the thread read refused').toBeGreaterThan(10)
   expect(trace.hits, 'protected content or controls after the client saw the 403').toEqual([])
 })
