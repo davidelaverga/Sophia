@@ -74,8 +74,9 @@ a refusal or no reply leaves the other choice's key.
 
 ## Limits
 
-- The store lasts as long as the page and is keyed by account, so a retry after signing out and back in is the same
-  write. A reload starts afresh, as a held write's does.
+- The store lasts as long as the page and is keyed by account, its token's subject (see «Keys by the account, not the
+  address» below). Signing out and back in reads the archived list afresh, which lets go of an unanswered key, so the
+  retry after it is a new write. A reload starts afresh, as a held write's does.
 - A reply lost after the write landed, then another admin brings the project back: closed by «A read lets go of an
   unanswered key» below (Codex P2 on #471).
 - After Unarchive lands, its row leaves the fold and the focus falls to the page, as before. Take back sends the focus
@@ -148,3 +149,41 @@ A request the client gave up on can still land. A 504 may commit later (`client.
 waiting at 90 s (`WRITE_TIMEOUT_MS`). Take K1, an archive held past 90 s: the read that follows lets go of it. K2 then
 lands, and an admin brings the project back. K1 finally reaches the database and archives it again. The feed's event
 has the lists read again, so the page shows it archived, but nobody asked for it then.
+
+## Keys by the account, not the address (Codex P2 on #473)
+
+> 2026-10-20 · Codex P2 on #473 (`Archive.tsx:30`), the last entry of `evaluacion-2026-10-16/seguimientos-p2.md`.
+> Luis 2026-10-20: «Procede con el próximo lote y arregla tú los de Davide»; earlier «Lo que no se mide, no se puede
+> mejorar». Studio only; no API, no contract.
+
+**What was read.** `Archive.tsx` hands the store `identity.name`, the email, as the account: in `reading` and in every
+choice (`useArchiveWrite`). The store is the page's (`keys`, at module level), so it outlives a change of account in
+the tab. Everything else this browser keeps per account keys by `accountOf`, the token's subject (`account-cache.ts`,
+`held-in-tab.ts`, `browser-account.test.ts`): two accounts can share an address (one deleted, a new one made at it).
+
+**Codex's case, checked.** A's Unarchive gets no reply, B (same address, another subject) comes in, and B's read of
+the archived list lets go of A's key. True, but A never retries under it anyway: A coming back gets a cache of its own
+(`cacheFor`), so its archived list is read afresh before any Archive or Unarchive is offered, and that read lets go of
+the key under the rule above. What the shared account string does show is the other way round:
+
+- A presses Unarchive in Work, and the tab moves to B while the write is on its way. B's Work reads the list (still
+  archived) before A's write is left with no reply, so that read keeps the key. B presses Unarchive on the same project:
+  `keyFor` finds A's key under the same `[email, project, false]` and B sends it, under B's token. The API keeps
+  receipts per actor and key (0059), so B's write is still B's own, but a key is one person's retry and never
+  another's, and B's answer then lets go of A's.
+
+**Change.** `Archive.tsx` computes the account once, `accountOf(identity)`, and hands it to `reading` and to each choice.
+The store is unchanged: its `account` is whatever string keys a person, and `at()` keeps it whole. `archivedKey`, and
+the lists invalidated after a write, stay under `identity.name`: they live in the account's own query cache, which
+`App` already keys by subject, as every `['projects', name]` read does (`usePersonal.ts`, `useProjectFeed.ts`).
+
+**Checks, written first.**
+
+- `app-auth.spec.ts` (the real App, two accounts at one address): Davide's Unarchive held, the tab moves to the other
+  account, Davide's reply then lost; the other account's Unarchive carries a key of its own, not Davide's.
+- `archive-keys.test.ts`: with the accounts as `accountOf` gives them, B's read keeps A's unanswered key, and B's choice
+  gets its own; the same account under a new address keeps its key. These pin the store's side; they pass before the
+  change, since the store never read the address itself.
+
+**Limits.** None new. The same account under a new address (`USER_UPDATED`) keeps its key in the store now, but the
+address is in `archivedKey`, so the list is read again under it, and that read lets go of the key as any read does.
