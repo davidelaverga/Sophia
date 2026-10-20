@@ -11,11 +11,11 @@ Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1` and
 workers).
 Existing authority: Luis 2026-10-20, «Procede con el próximo lote y arregla tú los de Davide»; earlier «Lo que no se
 mide, no se puede mejorar».
-Ending commit: the branch's last commit; code last changed at `826268020`. Against `9a6b03a73`:
-`apps/studio/src/features/voice/{call-rejoin.ts,call-rejoin.test.ts}` (new), `call-end.ts`, `call-end.test.ts`,
+Ending commit: the branch's last commit; code last changed at `11d3c1bd5` (after the review). Against `9a6b03a73`:
+`apps/studio/src/features/voice/{call-rejoin.ts,call-rejoin.test.ts,call-tabs.ts}` (new), `call-end.ts`, `call-end.test.ts`,
 `useProjectRoom.ts`, `livekit-room.ts`, `RoomDock.tsx`, `MiniDock.tsx`,
 `apps/studio/src/features/conversation/discussion-view{,.test}.ts`, `apps/studio/src/features/studio/ProjectShell.tsx`,
-`apps/studio/fixtures/{fixture-api.ts,room.tsx,app.tsx}`, `apps/studio/e2e/{room,room-discussion,room-recap,
+`apps/studio/fixtures/{fixture-api.ts,room.tsx,app.tsx,fake-livekit.ts}`, `apps/studio/e2e/{room,room-discussion,room-recap,
 voice-chat,app-auth}.spec.ts`, `docs/plans/call-rejoin.md`, this record.
 
 ## Outcome
@@ -77,12 +77,46 @@ voice-chat,app-auth}.spec.ts`, `docs/plans/call-rejoin.md`, this record.
 
 - Not observed with a real LiveKit server: the baseline's `room-media` check that cuts the container's network (M5's
   second half) is not built.
-- Limits in the plan: `CLIENT_INITIATED` (pagehide, freeze) reads as `dropped`, so a frozen tab woken within two
-  minutes rejoins; the camera comes back off; out of sight the bar says nothing of the try.
+- Limits in the plan: another device isn't seen before a try (needs the API's presence: a follow-up for Davide's
+  lane, «list the room's participants before a try back in»); a black-holed network reaching `dropped` past two
+  minutes makes no try (fails safe); a heavily throttled hidden tab stops counting as seen; Try again's tip still says
+  the device's microphone choice; the camera comes back off; out of sight the bar says nothing of the try.
 - M5 can now be measured in the fixture (drop → live without a press); `scripts/reliability-report.mjs` has no
   scenario for it yet.
 
 ## Next bounded action
 
-- Luis: approve or change the three lines; say when to push (with the next group PR); merge on green with no open P1.
+- Luis approved the three lines and the window (2026-10-20). Next: the review's second look at `11d3c1bd5`; push with
+  the next group PR when Luis says; merge on green with no open P1.
 - Source IDs consulted: none from the source register. The work read this repository and the baseline.
+
+## After the independent review (2026-10-20: one P1, two P2s, P3s)
+
+Each point was checked against the code, written first, proven red, then fixed; the plan's «After the independent
+review» says how. Runs: `pw-direct.ps1` (Luis allowed it while he plays; one worker, below normal), logs in the
+session's `pw-logs/`.
+
+- **P1, a microphone off came back on.** Written first `f199e9714` (new lever `fixture.mutedByHost()`); red
+  (`review-red-p1`): both checks «expect(locator).toHaveAttribute(expected) failed · Expected: "false" · Received:
+  "true"». Fixed `671770b87`: the connection keeps the microphone as it was while last connected (`micWas`), and a
+  `dropped` end makes it the next join's choice (`stand`), for the try and Try again.
+- **P2, late connection and a page LiveKit left.** Written first `fe560c0c7`; units red on «actual: 'now', expected:
+  null» (CLIENT_INITIATED) and «the try hands its join a gate · actual: undefined»; browser red (`review-red-p2`):
+  both checks never reached «You were disconnected from the room.» (the try had rejoined). Fixed `efe0799d8`:
+  `selfLeft` from `onEnded`, and the gate `still` that `openRoom` asks right before LiveKit (try ≤ 30 s, call inside
+  the window, no Leave since).
+- **P2, another tab of this browser.** Written first `54c2bafdd`; units red («'now' !== null», «1 !== 0», «true !==
+  false»); browser red (`review-red-tabs`): the first page rejoined while the second held the call. Fixed `0b2ad5171`:
+  `call-tabs.ts` (a BroadcastChannel), asked by the plan, the gate and the offline wait. Other devices: not built, see
+  Remaining obligations.
+- **P3s.** Written first `5be15712c`; units red («the page didn’t run in between · 11001 !== 1000», «Error: the join
+  threw»); browser red (`review-red-p3`): «Expected: "You’re offline. Join once you’re back." Received: "You’re
+  offline, so the call ended here. Join again once you’re back."» and «toBeFocused() failed · Received: inactive»; the
+  hello and the held-message checks passed before and after. Fixed `11d3c1bd5`. The fixture's `holdToken(true)`
+  twice no longer drops held answers (in the test commit).
+- **Green at `11d3c1bd5`:** `room.spec.ts` 28/28 (`review-green-room`); room-discussion, room-recap, voice-chat,
+  muted-speech, room-dock, join, host-controls, dock-header, app-auth, call-keys, call-devices, room-people,
+  room-basics, room-return and signed-in-later 220/220 (`review-green-calls`). Units over `features/voice`:
+  315/315 (`call-rejoin.test.ts` 29/29). Whole-repo oxlint, tsc, Prettier: clean.
+- Plan: `02c1476f2` (written while the worktree was briefly detached by an interrupted run, then cherry-picked
+  onto the branch; the detached copy `da0ce5100` is unreferenced).
