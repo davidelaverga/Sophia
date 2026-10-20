@@ -1,8 +1,8 @@
 // Tasks with the board Sophia serves (WBC-02 G5): each goal's plan from the project's work board, read by the board's
 // own reader (board-view.ts) and shown with the goal it serves, and the source-review pilot's entry under a goal. The
-// board is read again whenever the project's feed applies an event, and every half minute; a board the reader refuses
-// is not shown (Tasks shows the goals alone, as before). Its ports are Sophia's (served.ts): nothing here reaches
-// Paperclip, and nothing derives a grant: each action is as the board's view allows it to the viewer.
+// board is read again whenever the project's feed applies an event, and every half minute; a board the reader refuses,
+// or another project's, is a failed read (Tasks says so with Try again). Its ports are Sophia's (served.ts): nothing
+// here reaches Paperclip, and nothing derives a grant: each action is as the board's view allows it to the viewer.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Goal, ProjectMember } from '@sophia/contracts'
@@ -46,13 +46,27 @@ function useMinute(): Date {
 }
 
 /**
+ * The served board as its reader accepts it, and only this project's: anything else throws, so the read fails as a reply
+ * that breaks its contract does (callApi's `contract_violation`), never a success with nothing to show (silent-views.md).
+ */
+const servedBoard =
+  (projectId: string) =>
+  (value: unknown): BoardView => {
+    const read = readBoardView(value)
+    if (!read.ok) throw new Error(read.problems.join('; '))
+    if (read.value.project_id !== projectId) throw new Error('$.project_id: another project’s board')
+    return read.value
+  }
+
+/**
  * The project's board as served and read, or null while none can be shown; whether its first read is under way, and
- * whether it failed with nothing read (a board read once stays through a later failure: the query keeps its data).
+ * whether it failed with nothing read, refused by its reader included (a board read once stays through a later failure:
+ * the query keeps its data).
  */
 function useBoard(projectId: string, identity: Identity, feed: Feed | null, enabled: boolean) {
   const board = useQuery({
     queryKey: boardKey(projectId, identity.name),
-    queryFn: ({ signal }) => readBoard(identity.token, projectId, signal),
+    queryFn: ({ signal }) => readBoard(identity.token, projectId, servedBoard(projectId), signal),
     refetchInterval: 30_000,
     refetchOnWindowFocus: false,
     enabled,
@@ -62,13 +76,13 @@ function useBoard(projectId: string, identity: Identity, feed: Feed | null, enab
   useEffect(() => {
     if (cue !== null && enabled) void refetch()
   }, [cue, refetch, enabled])
-  const view = useMemo(() => {
-    if (board.data === undefined) return null
-    const read = readBoardView(board.data)
-    return read.ok && read.value.project_id === projectId ? read.value : null
-  }, [board.data, projectId])
   const unread = enabled && board.data === undefined
-  return { view, reading: unread && !board.isError, failed: unread && board.isError, retry: () => void refetch() }
+  return {
+    view: board.data ?? null,
+    reading: unread && !board.isError,
+    failed: unread && board.isError,
+    retry: () => void refetch(),
+  }
 }
 
 interface Shared {
