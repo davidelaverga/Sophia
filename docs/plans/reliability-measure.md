@@ -253,7 +253,8 @@ four reviews); they assert it, and time nothing.
   - **online:** `drop()` → back without a press; the time from the lever (pulled in the page as the clock starts) to
     live; tries; how many times the notes began to say «Reconnected.».
   - **offline:** offline, `drop()`, the waiting line, a second; the tokens asked so far (none expected); online → the
-    time from `online` to live; tries; «Reconnected.» said.
+    time from `online` to the first live moment at or past it (a try that connected offline gives no time,
+    never a negative one: review P3); tries; «Reconnected.» said.
   - **failed:** `failToken()` and `drop()` → the dropped words and Try again; then 3 s more, in which a second try on
     its own would have asked its token; tries.
   - **the microphone (privacy invariant):** a round per case, its microphone off before the drop in the call (muted from

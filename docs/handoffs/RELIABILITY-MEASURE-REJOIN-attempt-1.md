@@ -82,3 +82,15 @@ way back»), this record.
 
 - Luis: say when to push (with the next group PR); merge on green with no open P1.
 - Source IDs consulted: none from the source register; this repository and `docs/plans/call-rejoin.md` only.
+
+## The independent review's P3 (no P1/P2)
+
+- **The offline time could go negative** (`rejoin.spec.ts`, the offline round): the live moment was searched from the
+  drop and `online` subtracted, so a try that connected offline, before `online`, would have put a negative time in
+  p50/p95. Now (`7c498c43c`) the live moment is the first at or past `online`; a call already live by then gives no time,
+  and «no try while offline» still counts that round. Spec code only, so no red run: no lever makes a try connect
+  offline (the offline fence holds it).
+- **Green:** the offline case alone through the guard (`pw-logs/m5-rejoin-p3-1.txt`): 1 passed, 3/3 back, online →
+  live 56, 78, 84 ms, one try each, no try offline, «Reconnected.» once each. `tsc`, `oxlint --type-aware .` and
+  Prettier clean. No full-suite rerun, as agreed; the published first numbers (`124c79f7c`) had no try offline, so
+  they are unchanged by this.
