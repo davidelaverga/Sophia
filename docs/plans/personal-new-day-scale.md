@@ -46,3 +46,14 @@ rule, so they move with the answers.
 - `personal`, `personal-day-pill`, `personal-day-menu`, `personal-first-talk` and `control-heights`, desktop and phone,
   through the guard; headless captures of the new-day state before and after, dark and light, desktop and phone.
 - `pnpm exec prettier --check`, `pnpm exec oxlint --type-aware .`, `tsc --noEmit -p apps/studio`.
+
+## Found while building: on a phone the days' menu opened over the pill
+
+- Measured with the captures: on a touch screen the pill is 40 px (the places' touch rule), but the menu's `top` was
+  the desktop's (10 + 26 + 6 = 42), so it opened over the pill's foot: 8 px over it before this change, 6 px after.
+  On a desktop the gap is 6 px before and after.
+- **Changed:** in the same touch block the menu hangs at 56 px (10 + 40 + 6), 6 px under the finger-sized pill.
+- `e2e/personal-day-menu.spec.ts`, `@phone`: at `at=00:04` the pill opens the menu, whose top sits 6 px under the
+  pill's foot once its entrance has settled. Red first: «Expected: 6 · Received: -6». At the end of the file, as
+  above, beside the clock pinning.
+
