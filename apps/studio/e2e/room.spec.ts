@@ -609,10 +609,9 @@ test('BASE-03 · a try no longer wanted once LiveKit has connected is left quiet
   await enter(page, '/room.html?call=on')
   await expect(microphone(page)).toHaveAttribute('aria-pressed', 'true')
   const connected = await connects(page)
-  await page.evaluate(() => {
-    window.fixture?.holdConnect(true)
-    window.fixture?.drop()
-  })
+  await page.evaluate(() => window.fixture?.holdConnect(true))
+  const before = (await asked(page)).length
+  await page.evaluate(() => window.fixture?.drop())
   await expect.poll(() => connects(page)).toBe(connected + 1) // LiveKit's connect began, and waits
   // The page froze meanwhile and wakes ten minutes later: the try is no longer wanted once its connection lands.
   await page.evaluate(() => {
@@ -623,7 +622,7 @@ test('BASE-03 · a try no longer wanted once LiveKit has connected is left quiet
   await expect(page.locator('.dock-wrap .dock-note')).toHaveText('You were disconnected from the room.')
   const retry = controls(page).getByRole('button', { name: /^Try again/ })
   await expect(retry).toBeEnabled()
-  expect(await asked(page)).toContain('leave')
+  expect((await asked(page)).slice(before), 'the try’s connection was left').toContain('leave')
   // That leave was no end of the call's: Try again brings the microphone back as the call had it.
   await retry.click()
   await expect(microphone(page)).toHaveAttribute('aria-pressed', 'true')

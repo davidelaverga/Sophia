@@ -194,6 +194,20 @@ the code; each was written first.
 - **Transient:** the tabs' channel is `sophia.calls.v2` since the claims carry their call; a tab opened before the
   deploy speaks v1 and isn't heard until it reloads.
 
+## After the fourth review (2026-10-20: no P1, no P2; three P3s)
+
+- **Every carried microphone is capped as its join begins (pre-existing on main).** A join from the check that failed
+  kept its microphone for Try again uncapped: with «join with the microphone off» chosen since, Try again turned it on
+  while Join's tip said off. The cut now applies to any microphone carried to a join (a choice made before it, a failed
+  join's, a dropped call's), and `capped` is gone. The check writes the choice with each press, so its own join is as
+  chosen. Check: `device-check.spec.ts`, a check join that fails with the microphone on, «off» chosen, Try again → no
+  `microphone:on`.
+- **The join's open and its microphone have unit checks.** `openRoom` and the cut moved, unchanged, into
+  `call-open.ts` over an injected LiveKit (useProjectRoom keeps the one import the fixtures replace). Each check fails
+  against its mutant: without the quiet guard, the leave's end reaches the room; without the cut, «off» chosen since is
+  ignored.
+- The «left quietly» browser check reads only what was asked after the drop.
+
 ## Limits
 
 - Out of sight, the places' bar keeps the call during the try but says nothing of it (its note is the devices' alert);
