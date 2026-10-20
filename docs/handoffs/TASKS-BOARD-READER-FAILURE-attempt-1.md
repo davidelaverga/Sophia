@@ -67,11 +67,28 @@ record. Files changed against `9a6b03a73`: `e2e/board-robust.spec.ts`, `fixtures
 - **The note's old limit is struck, not deleted**: `silent-views.md` had said, on purpose, that a refused board shows
   the goals alone; the new section says why that changed.
 
+## After the independent review (no P1/P2; three points applied on this branch)
+
+- **The boundary check is tight** (`13ee5aaa0`, test only): `fixture-boundary.test.ts` asked for `readBoardView(value)`
+  anywhere in ServedWork; it now asks for it as the first statement of `servedBoard`, the parser the call is given.
+- **A refusal of the reader is asked once per read** (test `6421a96bb`, fix `5c02580a6`). Retried, a lasting refusal
+  meant four requests at each read (the half-minute look, each move, Try again) and seven seconds of «reading». The
+  board's query now has `retry: retryBoard`: `retryRead` for everything, except an `ApiError` whose cause is
+  `BoardRefused` (thrown only by `servedBoard`). A reply that isn't JSON is still retried. Red first
+  (`pw-logs/board-reader-retry-red.txt`): «… keeps the plans, says nothing, and isn’t asked again» fails on
+  `expect(await answered(page, 'malformed')).toBe(asked)`, «Expected: 1, Received: 2», 1.5 s after the first refused
+  reply (TanStack's first retry at 1 s).
+- **A kept board says nothing of its age** (plan `990a3c094`): written in `silent-views.md`'s Limits as a known
+  trade-off (a refusal for good, a version skew, leaves the last accepted board on screen indefinitely with live
+  controls and no line), with an «as of …» line (from `observed_at`) as the follow-up. No new UI.
+- Static checks and unit (378/378, `account-cache.test.ts` included) green after these. E2E through the guard:
+  `board-robust`, `search-goals`, `task-links`, `goals-overview`, `board-why`, `served-names`, `room-review` 61/61
+  (`pw-logs/board-reader-review-green-c.txt`); `board-robust` repeated five times 25/25
+  (`pw-logs/board-reader-review-repeat.txt`).
+
 ## Remaining obligations
 
-- A refused board is retried three times before the line shows (1, 2 and 4 s), as every parsed read's
-  `contract_violation` is; a reader that refuses refuses on each try, so that is about seven seconds of «reading».
-  Kept for one rule across reads; noted in the plan's limits.
+- A board kept past failed reads says nothing of its age (above); follow-up «as of …».
 - The remaining limits of `silent-views.md` stand (search's «nothing» with the board failed, Goals' overview glances,
   the brief's missing Try again).
 - CI is the run on record.
