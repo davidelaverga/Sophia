@@ -714,8 +714,8 @@ function useRejoin(status: DockStatus, join: ProjectRoom['join'], say: (note: st
  * (call-rejoin.md); a call that moved to another tab, or was ended on purpose, offers the plain way back. Text mode
  * ends with the call, unless the connection was lost (keepsTextMode): the next join says how it starts (the dock by
  * voice, the chat by text). So does the microphone: after a lost connection the next join brings it back as the call
- * had it, never as this device last chose (an admin's mute, or «on» chosen in Settings meanwhile); any other end
- * leaves it to the person's choice (`stand`).
+ * had it, and never on unless this device's choice is on too (an admin's mute, «on» chosen in Settings meanwhile, or a
+ * mute while LiveKit reconnected); any other end leaves it to the person's choice (`stand`).
  */
 function outOfCallFor(room: {
   calls: CallFence<RoomConnection>
@@ -730,7 +730,9 @@ function outOfCallFor(room: {
   return (why: CallEnd | null, selfLeft = false) => {
     room.typedChat.interrupted()
     if (!keepsTextMode(why)) room.typedChat.rememberTextMode(false)
-    room.stand(why === 'dropped' ? { mic: room.calls.current?.micWas() ?? false } : undefined)
+    // Never on unless both had it on: the call as last seen, and this person's choice since (a mute the call missed).
+    const micWas = (room.calls.current?.micWas() ?? false) && micOnJoin()
+    room.stand(why === 'dropped' ? { mic: micWas } : undefined)
     room.calls.current = null
     room.joining.current = null
     room.reset()
