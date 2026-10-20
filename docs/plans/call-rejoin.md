@@ -208,6 +208,35 @@ the code; each was written first.
   ignored.
 - The «left quietly» browser check reads only what was asked after the drop.
 
+## After Codex's P2 on #475 (2026-10-20: a call that froze once was never seen live again)
+
+> Source: `seguimientos-p2.md`, last entry (#475, `call-rejoin.ts:67`); Luis 2026-10-20: «Procede con el próximo
+> lote».
+
+- **Real, as read.** `stillSeen(seen, now)` moves «seen» only when `now - seen ≤ 10 s`, and compares every beat with
+  that same `seen`: after one gap over 10 s (a tab frozen or throttled, a lid closed for a moment) no later beat can
+  move it, so two minutes on, that call's drop never tries, however long it runs in the foreground afterwards. It
+  fails safe, as before the branch, but the try is lost for the rest of the call.
+- **What must still hold** (the first review's P3, kept by the second's): a gap is never bridged. A laptop that wakes
+  from sleep keeps the call as old as it was before the lid closed, so the drop LiveKit reports about a minute later
+  (`dropped` after its ~44–52 s of tries) makes no try once the call is more than two minutes old.
+- **Why «compare with the previous beat» alone isn't enough.** On waking, the next beat comes 5 s after the first;
+  counted as live, it would make the call fresh while LiveKit is still finding out that the link died in the sleep.
+  LiveKit finds that out with its pong timer: the server's `pingTimeout` (15 s, with pings every 5 s, read from the
+  join response of `livekit-server` v1.13.7 `--dev`; the repo sets neither) is long past due after any gap longer
+  than it, so it fires as the page wakes and the room goes to «Reconnecting…», where no beat runs.
+- **The rule.** Each beat is compared with the previous beat, not with «seen». A gap (over two beats, or a clock set
+  back) starts a run and leaves «seen» where it was; once the run has lasted 30 s with every beat on time
+  (`STEADY_MS`, twice that timeout), each beat is «seen» again. A call that goes live (a join, or LiveKit's own
+  reconnect) is seen at once, as before: LiveKit itself said the link works. The state is `Liveness` (when seen, the
+  last beat, when the run began), and `stillSeen` stays pure.
+- **Checks, written first** (`call-rejoin.test.ts`): a page that froze for 30 s and then ran for three minutes tries
+  on its drop (red now: no join); a page that wakes after an hour and whose beats stop 25 s later («Reconnecting…»)
+  never tries on the drop 50 s on (green now; red against the previous-beat-only rule, run as a local mutant). With
+  the fix, the pure rule's check takes the new shape: on time, one beat late, a gap kept, a run under 30 s kept,
+  renewed at 30 s, a clock set back as a gap. No browser check: the fixture has no clock, and a run of beats past the
+  window would take minutes of real time.
+
 ## Limits
 
 - Out of sight, the places' bar keeps the call during the try but says nothing of it (its note is the devices' alert);
@@ -222,7 +251,8 @@ the code; each was written first.
   is no ping-pong). Telling would need the room's own presence before the try: a follow-up for Davide's lane (the API
   listing the room's participants, asked before a try, which makes none while this identity is already in).
 - A hidden tab whose timers run less often than every 10 s (a browser's heaviest background throttling) stops counting
-  as seen live, so its drop isn't tried; whether a page with a live call is throttled that hard wasn't observed here.
+  as seen live while it is throttled, so a drop then isn't tried; 30 s after its beats come on time again it counts
+  once more (Codex's P2 on #475). Whether a page with a live call is throttled that hard wasn't observed here.
 - Try again's tip describes this device's own microphone choice, while the join after a drop turns the microphone on
   only if both the call, as last seen, and that choice (read as the join begins) have it on: the tip can say «on»
   where the microphone comes back off, never the reverse.
