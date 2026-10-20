@@ -13,6 +13,7 @@ import { useOnline } from '../personal/online.ts'
 import { CALL_END, joinHeld, keepsTextMode, keptNote, noteFor, type CallEnd } from './call-end.ts'
 import { CallFence } from './call-fence.ts'
 import { LIVE_BEAT_MS, Rejoin, rejoinLine, type RejoinStep } from './call-rejoin.ts'
+import { anotherTabInCall, sayInCall } from './call-tabs.ts'
 import { switchCamera } from './camera-flip.ts'
 import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts'
 import { rememberBackground, type BackgroundId } from './background-preference.ts'
@@ -651,10 +652,11 @@ function useRoomNote(inCall: () => boolean) {
   }
 }
 
-/** The browser's side of a try back in: its clock, its `online`, and its timers. */
+/** The browser's side of a try back in: its clock, its `online`, its other tabs, and its timers. */
 const BROWSER = {
   now: () => Date.now(),
   online: () => navigator.onLine,
+  elsewhere: anotherTabInCall,
   whenOnline: (back: () => void) => {
     window.addEventListener('online', back, { once: true })
     return () => window.removeEventListener('online', back)
@@ -685,6 +687,13 @@ function useRejoin(status: DockStatus, join: ProjectRoom['join'], say: (note: st
       }),
   )
   useEffect(() => () => void rejoin.stop(), [rejoin])
+  // Each room tells this browser's other tabs when it holds the call, so none of their tries takes it (call-tabs.ts).
+  const [room] = useState(() => crypto.randomUUID())
+  const inCall = status === 'live' || status === 'reconnecting'
+  useEffect(() => {
+    sayInCall(room, inCall)
+    return () => sayInCall(room, false)
+  }, [room, inCall])
   useEffect(() => {
     if (status !== 'live') return undefined
     rejoin.live()

@@ -47,11 +47,12 @@ export const withinWindow = (seen: number | null, now: number): boolean =>
 /**
  * After a call ends: try now, try once the browser is online, or never. Only a lost connection tries: leaving, another
  * tab or browser, being taken out and a closed room are over, and so is a room LiveKit left itself as the page left or
- * froze. Never for a call last seen live too long ago (the page slept, or LiveKit tried that long), and never within
- * the window of the last try: one try for one drop, and none for a network that keeps dropping.
+ * froze. Never while another tab of this browser holds the call (the person moved there). Never for a call last seen
+ * live too long ago (the page slept, or LiveKit tried that long), and never within the window of the last try: one try
+ * for one drop, and none for a network that keeps dropping.
  */
 export function rejoinPlan(drop: Drop): 'now' | 'online' | null {
-  if (drop.why !== 'dropped' || drop.selfLeft || !withinWindow(drop.seen, drop.now)) return null
+  if (drop.why !== 'dropped' || drop.selfLeft || drop.elsewhere || !withinWindow(drop.seen, drop.now)) return null
   if (drop.triedAt !== null && drop.now - drop.triedAt < REJOIN_WINDOW_MS) return null
   return drop.online ? 'now' : 'online'
 }
@@ -81,7 +82,7 @@ export interface RejoinPorts {
   now: () => number
   online: () => boolean
   /** Whether another tab of this browser holds the call (call-tabs.ts). */
-  elsewhere?: () => boolean
+  elsewhere: () => boolean
   /** Calls `back` once the browser is online again; returns how to stop listening. */
   whenOnline: (back: () => void) => () => void
   /** Calls `run` after `ms`; returns how to cancel it. */
@@ -123,8 +124,9 @@ export class Rejoin {
    */
   ended(why: CallEnd | null, selfLeft = false): void {
     this.stop()
-    const { now, online } = this.ports
-    const plan = rejoinPlan({ why, online: online(), now: now(), seen: this.seen, triedAt: this.triedAt, selfLeft })
+    const { now, online, elsewhere } = this.ports
+    const at = { why, online: online(), now: now(), seen: this.seen, triedAt: this.triedAt }
+    const plan = rejoinPlan({ ...at, selfLeft, elsewhere: elsewhere() })
     if (plan === 'now') this.tryOnce()
     if (plan === 'online') this.waitForNetwork()
   }
@@ -146,7 +148,7 @@ export class Rejoin {
 
   /**
    * The try: the room's join, connecting only while the try is young and the call recent (a page frozen with the token
-   * on its way wakes past both), and never once stopped.
+   * on its way wakes past both), never once stopped, and never once another tab of this browser holds the call.
    */
   private tryOnce(): void {
     const round = this.round
@@ -155,7 +157,8 @@ export class Rejoin {
     this.show('trying')
     const still = () => {
       const now = this.ports.now()
-      return round === this.round && now - triedAt <= TRY_FRESH_MS && withinWindow(this.seen, now)
+      const fresh = now - triedAt <= TRY_FRESH_MS && withinWindow(this.seen, now)
+      return round === this.round && fresh && !this.ports.elsewhere()
     }
     void this.ports.join(still).then((inCall) => {
       if (round !== this.round) return
@@ -180,7 +183,7 @@ export class Rejoin {
     const unlisten = this.ports.whenOnline(() => {
       if (round !== this.round) return
       over()
-      if (withinWindow(this.seen, this.ports.now())) this.tryOnce()
+      if (withinWindow(this.seen, this.ports.now()) && !this.ports.elsewhere()) this.tryOnce()
       else this.show(null)
     })
     const left = (this.seen ?? 0) + REJOIN_WINDOW_MS - this.ports.now()
