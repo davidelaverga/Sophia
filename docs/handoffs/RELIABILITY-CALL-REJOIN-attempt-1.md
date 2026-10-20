@@ -11,7 +11,7 @@ Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1` and
 workers).
 Existing authority: Luis 2026-10-20, «Procede con el próximo lote y arregla tú los de Davide»; earlier «Lo que no se
 mide, no se puede mejorar».
-Ending commit: the branch's last commit; code last changed at `9caf36cce` (after the third review). Against `9a6b03a73`:
+Ending commit: the branch's last commit; code last changed at `24b1024a7` (after the fourth review). Against `9a6b03a73`:
 `apps/studio/src/features/voice/{call-rejoin,call-tabs,mic-while-connected}{,.test}.ts` (new), `call-fence{,.test}.ts`, `call-end.ts`, `call-end.test.ts`,
 `useProjectRoom.ts`, `livekit-room.ts`, `RoomDock.tsx`, `MiniDock.tsx`,
 `apps/studio/src/features/conversation/discussion-view{,.test}.ts`, `apps/studio/src/features/studio/ProjectShell.tsx`,
@@ -170,3 +170,18 @@ Neither game was open, so the runs went through the guarded `pw.ps1`. The plan's
   reloads); what the check after connecting can't spare (DUPLICATE_IDENTITY).
 - `origin/main` has moved on since the branch began (the worktree reads 252 commits behind): a rebase or merge is for
   the group PR, not done here.
+
+## After the fourth review (2026-10-20: no P1, no P2; three P3s)
+
+- **Every carried microphone capped as its join begins.** Written first `5f9770d66`; browser red (`review4-red`,
+  `device-check.spec.ts`): «Expected: "false" Received: "true"». Fixed `f3499d539` (`capped` removed; the cut applies to
+  every carried microphone).
+- **Unit checks for the open and the cut.** `24b1024a7`: `call-open.ts` (moved unchanged) with 7 checks; mutant runs
+  (local, not committed): no quiet guard → «a try no longer wanted once connected is left quietly …» fails; no cut →
+  «a carried microphone is never on unless …» and «reads the choice as the join begins …» fail.
+- **The «left quietly» check** reads `asked` from after the drop (in `5f9770d66`).
+- **Green at `24b1024a7`** (guarded `pw.ps1`; no game open): `room.spec.ts` + `device-check.spec.ts` 45/45
+  (`review4-green-room`); the call specs 219/220 (`review4-green-calls`): the one failure was
+  `app-auth.spec.ts:808`, «page.goto: net::ERR_NO_BUFFER_SPACE» on the fixture's favicon (the machine out of socket
+  buffers, nothing of this branch's); `app-auth.spec.ts` alone right after: 53/53 (`review4-green-app-again`). Units
+  453/453 over `features/voice` and `features/conversation`. Whole-repo oxlint, tsc, Prettier: clean.
