@@ -12,7 +12,7 @@ Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1` / `
 `.claude-guards/safe-run.ps1`, two workers).
 Existing authority: Luis 2026-10-20, «Procede con el próximo lote y arregla tú los de Davide»; earlier «Lo que no se
 mide, no se puede mejorar». Local only, nothing pushed.
-Ending commit/tree: the branch's last commit; code last changed at `fc3ef5e16`. Against `9a6b03a73`:
+Ending commit/tree: the branch's last commit; code last changed at `97a096321` (`fc3ef5e16` before the review). Against `9a6b03a73`:
 `scripts/reliability-report.mjs`, `scripts/lib/reliability.mjs`, `tests/unit/reliability-report.test.mjs`,
 `apps/studio/e2e/reliability/writes.spec.ts`, `apps/studio/e2e/reliability/session.spec.ts` (new),
 `docs/plans/reliability-measure.md` (section «M8 and M2 across a reload»), this record.
@@ -79,3 +79,43 @@ Ending commit/tree: the branch's last commit; code last changed at `fc3ef5e16`. 
 
 - Luis: say when to push (with the next group PR); merge on green with no open P1.
 - Source IDs consulted: none from the source register; this repository and the R2 measurement only.
+
+## The independent review's P3s (no P1/P2)
+
+Same branch, same rules; code last changed at `97a096321`.
+
+- **Written first** (`25fbd36fd`): 5 of 25 red on their assertions (against a one-line `summarizeM2Reload` stub, not
+  committed): M2's summary still carried `reload`; `summarizeM2Reload` `actual {}`; M8 `reached: 0` where the measured
+  requests were refused; the script's M8 row; an M2r scenario that wrote nothing «the script exits non-zero». Removing
+  `!s.signedOut` alone turned the M8 check red (`renewed: 3`, expected 2), as asked. Fixed in `cf519b5aa` (25/25).
+- **What changed:**
+  1. `reached` is the measured request: each round keeps the unique refused requests (`refused`); the report requires
+     the conversation's messages read, the message's POST, or the feed's own request; `renewed` also requires at
+     least one refresh.
+  2. A renewed-looking round with «signed out» beside its answer is not renewed (unit case added).
+  3. `refused`, `resent` and `refreshes` are read after `quiet(page)` (`f62918721`).
+  4. M2r's resend time counts only rounds resolved by two tries under one key; its row says «resolved n/N».
+  5. M2r is a metric of its own (titles `M2r · `, `FIXTURE_METRICS`, `scenarioCounts` reads `Mnr`), so a failed reload
+     scenario leaves M2's comparable first line published (unit case on the fake suite).
+  6. The clock and the sample hear the App's sign-out lines (`ended-notice.ts`) beside the project's.
+  7. «one refresh» is counted over the renewed rounds («renewed with one refresh»).
+- **One deviation, measured:** the review asked for the stream GET as the feed's request. The rerun
+  (`pw-logs/p6-measure-p3-try6.txt`, code `f62918721`) showed the stream never met the expired token in any round:
+  the project's snapshot (the feed's own read, `useProjectFeed`) and the archived list did, the snapshot was renewed
+  with one refresh, and the stream went on the new token; the row read «0/3 renewed» for rounds where nothing failed.
+  `app-auth.spec.ts` already accepts the stream or the snapshot. Test first (`44c6c81ad`), then (`97a096321`) the feed counts its
+  stream or its snapshot; the archived list alone does not. Red: `feed reached: 1`, expected 2.
+- **Rerun** at `97a096321` through `measure.ps1` (`pw-logs/p6-measure-final-try1.txt`, out
+  `scratchpad/measure-p6-m8-held-p3-final/`; earlier tries stopped by the guard for memory or TCP, logs
+  `p6-measure-p3*.txt`): 34/34, report exit 0, nothing incomplete.
+
+| Metric | Value |
+| --- | --- |
+| M8 · read | 3/3 renewed · 3/3 sent again · 3/3 renewed with one refresh · p50 30 ms · p95 31 ms |
+| M8 · write | 3/3 renewed · 3/3 sent again under one key · 3/3 renewed with one refresh · p50 62 ms · p95 63 ms |
+| M8 · feed | 3/3 renewed (snapshot met, then the stream on the new token) · 3/3 sent again · 3/3 one refresh · p50 115 ms · p95 131 ms |
+| M2r · kept across a reload | 6/6 offered again · 6/6 resent once under the same key · written twice 0 · resolved 6/6 · p50 7 ms |
+| M2 · first line | 5/5 resolved · written twice 0 · p50 25 ms |
+
+  No round asked a second refresh once the page went quiet. The rest as before: M1 15/15 (overhead p50 21 ms), M6 6 / 10,
+  M7 6/6, M3 drop p50 827 ms, silenced 25.7 s, network back 20 ms, M4 60 ms.

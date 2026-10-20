@@ -66,8 +66,8 @@ that their scenario ran, never today's numbers.
   share within 5 s.
 - **M2 · unknown outcomes resolved.** A keyed write whose reply is lost (`loseNextContributionReply`, `send=lost`,
   `start=lost`) says it isn't confirmed; sent again under its key, does it resolve, and is it written once? Share
-  resolved, any written twice, and the time from the second press to the answer. Its line «kept across a reload»
-  is counted apart (see «M8 and M2 across a reload» below).
+  resolved, any written twice, and the time from the second press to the answer. The same across a reload is M2r
+  (see «M8 and M2 across a reload» below).
 - **M6 · failed reads that show versus fall silent.** A sweep (`reads.spec.ts`): the 7 views and the baseline's 11
   silent reads, each opened with its own reads failing as the fixture's outage fails them (a fetch that rejects),
   **narrowed to those reads**, so the snapshot and the feed keep working and only what the part reads fails (with the
@@ -181,34 +181,53 @@ reload case (`reliability-held-on-reload.md`) is checked by `project-conversatio
   second conversation opened, until its line «One page. Anything longer, nobody reads.» shows; **write**, Sophia not
   asked, the token expired, a message sent with Enter, until it is listed; **feed**, Studio's pill «Up to date», the
   token expired and the stream dropped at once, until the pill leaves «Up to date» and comes back. The clock runs in
-  the page (`performance.now()`), from the press (or the lever) to the answer; «You’ve been signed out» or 15 s stops
-  it with none. Each round records `reached` (a request met the expired token: `refused` isn't empty), `definitive`,
-  `signedOut` (the notice on the page at the end), `resent` (every request refused went again and wasn't refused; a
-  POST's tries under one key), `refreshes` (asked of the synthetic Auth in the round) and the pill's states on the way.
-  The report gives, per kind: **renewed** = reached, answered, and never «signed out»; sent again; one refresh; p50/p95
-  of the time to answer of the renewed ones. A round the lever never reached is not counted as renewed, whatever the
-  screen shows. M8 leaves `NOT_YET`.
-- **M2 kept across a reload** (`writes.spec.ts`, 3 rounds each, a fresh tab's storage per round): a message to the
-  room (`loseNextContributionReply`) and a conversation message (`send=lost`), `server=kept`; «Not confirmed», the page
-  reloaded (Briefs found by its title: the message the service holds again moves it to the top), then: **offered
+  the page (`performance.now()`), from the press (or the lever) to the answer; a sign-out's words or 15 s stop it with
+  none. The words are the project's «You’ve been signed out» and the App's own when the tab signed out
+  (`ended-notice.ts`: «… so this tab signed out.», «Your sign-in on this device ended …»). Once the answer lands, the
+  round waits for the page to ask nothing for a second, then records `refused` (the unique requests the expired token
+  met), `definitive`, `signedOut`, `resent` (every request refused went again and wasn't refused; a POST's tries under
+  one key), `refreshes` (asked of the synthetic Auth in the round) and the pill's states on the way.
+- **The report, per kind:** **reached** = the expired token met the request the kind measures (`GET
+  …/projects/{id}/conversations/{id}/messages`, `POST /api/v1/conversations/{id}/messages`, and for the feed its own
+  requests, the stream `GET …/projects/{id}/events` or its snapshot `GET …/projects/{id}/snapshot`, both
+  `useProjectFeed`'s); **renewed** = reached, at least one refresh asked, answered, and no sign-out (even beside
+  an answer); sent again; **one refresh** counted over the renewed rounds; p50/p95 of the renewed ones' time. A round
+  whose expired token met only another request is not counted as renewed, whatever the screen shows. M8 leaves
+  `NOT_YET`. **Why the feed's snapshot counts** (the review asked for the stream alone): measured on the whole suite,
+  in all three feed rounds the expired token met the snapshot and the archived list, never the stream; the snapshot was
+  renewed with one refresh and the stream went again on the new token, the pill back «Up to date» in ~110–130 ms.
+  Counting only the stream gave 0/3 for rounds where nothing failed. `app-auth.spec.ts`'s feed check already accepts
+  either («by the stream, or by the snapshot's read when that asks first»). The archived list alone is not the feed.
+- **M2r, M2 kept across a reload** (`writes.spec.ts`, 3 rounds each, a fresh tab's storage per round): a message to
+  the room (`loseNextContributionReply`) and a conversation message (`send=lost`), `server=kept`; «Not confirmed», the
+  page reloaded (Briefs found by its title: the message the service holds again moves it to the top), then: **offered
   again** (its line back within 5 s), Try again or Enter only if it was, and from the journal the message's **tries
-  and keys**, and how many times the service recorded it. The report's line: offered again, **resent once under the
-  same key** (two tries, one key), **written twice**, and p50 of the press after the reload to the answer. Counted
-  apart from M2's first line (`reload`), so that line stays comparable with the runs before R3; one completeness
-  count for both, since every scenario's title starts `M2 · `.
-- **Honest when partial, unchanged:** M8 is one of the fixture metrics (`FIXTURE_METRICS`), so a run with fewer M8
-  records than M8 scenarios, or a failed suite, gives «incomplete: n of N» instead of its rows and exits 1.
-- **Checks, written first** (`tests/unit/reliability-report.test.mjs`): M2's reload line apart from the first (a
-  resend under a new key: 3 tries, 2 keys, written twice; one not offered), M8 per kind (a signed-out round, a round
-  the lever never reached, two refreshes), and the script on a fake suite listing one M8 scenario: collected with no
-  M8 record it says «incomplete: 0 of 1» and publishes no M8 number, exits non-zero; with one, its row; M8 is no
-  longer «not measurable». Red before the code: 4 of 24 failed on their assertions.
+  and keys**, and how many times the service recorded it. The report's row: offered again, **resent once under the
+  same key** (two tries, one key), **written twice**, resolved n/N, and p50 of the press after the reload to the
+  answer, over the rounds resolved by a resend under one key only. **A metric of its own** (titles `M2r · `, in
+  `FIXTURE_METRICS`, `scenarioCounts` reads `Mnr`), so a failed reload scenario leaves only M2r incomplete and M2's
+  first line, comparable with the runs before R3, is still published.
+- **Honest when partial, unchanged:** M8 and M2r are fixture metrics, so a run with fewer records than scenarios, or a
+  failed suite, gives «incomplete: n of N» instead of their rows and exits 1.
+- **Checks, written first** (`tests/unit/reliability-report.test.mjs`): M2r (a resend under a new key: 3 tries, 2
+  keys, written twice, resolved but not timed; one not offered), M8 per kind (a signed-out round; an answer beside a
+  sign-out; the expired token meeting only another request; no refresh; the feed's snapshot met with the archived list,
+  and the archived list alone; a GET of the write's path; two refreshes), and the script on a fake suite: M8 listed
+  with no record gives «incomplete: 0 of 1» and no M8 number, exits non-zero, with one its row; an M2r scenario that
+  wrote nothing leaves M2's line published. Red before the code: 4 of 24, then (the review's P3s) 5 of 25, then (the
+  feed's snapshot) 1 of 25 (`feed reached: 1`, expected 2), each on its assertion; removing `!s.signedOut` alone turns
+  the M8 check red (`renewed: 3`, expected 2).
 - **First numbers** (the whole suite through the guard, 34/34 scenarios, code at `fc3ef5e16`): M8 read 3/3 renewed,
   sent again, one refresh, p50 37 ms / p95 43 ms; write 3/3, its key kept, p50 76 / p95 85 ms; feed 3/3 through
   «Reconnecting», p50 120 / p95 708 ms (one round 774 ms, two 109–120 ms). The feed comes back well under M3's drop
   (p50 1,059 ms, the backoff's wait) in two rounds of three; consistent with `useProjectFeed`'s loop restarting on a
   new token (`token` is in its effect's dependencies), not timed apart here. M2 kept across a reload: 6/6 offered
-  again, 6/6 resent once under the same key, written twice 0, press → answer p50 9 ms.
+  again, 6/6 resent once under the same key, written twice 0, press → answer p50 9 ms. (Before the review's P3s.)
+- **After the review's P3s** (the whole suite through the guard, 34/34, code at `97a096321`, every round read after
+  the page went quiet): M8 read 3/3 renewed, sent again, 3/3 of the renewed with one refresh, p50 30 / p95 31 ms;
+  write 3/3, under one key, p50 62 / p95 63 ms; feed 3/3, through «Reconnecting», its snapshot met and renewed in every
+  round, p50 115 / p95 131 ms. No round asked a second refresh once quiet. M2r: 6/6 offered again, 6/6 resent once
+  under the same key, written twice 0, resolved 6/6, p50 7 ms; M2's first line 5/5, unchanged.
 
 ## Limits
 
