@@ -8,6 +8,7 @@ import { spawn } from 'node:child_process'
 import pg from 'pg'
 import { startMockResponses } from '../../../tests/support/mock-responses.mjs'
 import { PERSONAL_ROLE_DIGEST } from '../src/companion-live.ts'
+import { writeFileSync } from 'node:fs'
 
 const KEY_REF = 'SOPHIA_SERVED_PERSONAL_ROUTE_KEY'
 const FAKE_KEY = 'served-test-only-not-a-credential'
@@ -28,6 +29,13 @@ const double = await startMockResponses()
 // SOPHIA_SERVED_PERSONAL_SCRIPT: the double's answers in order, as JSON steps (`{ text }` or `{ status }`); after them, "ok".
 const steps: unknown = JSON.parse(process.env.SOPHIA_SERVED_PERSONAL_SCRIPT ?? '[]')
 for (const step of Array.isArray(steps) ? (steps as unknown[]) : []) double.script(step)
+// SOPHIA_SERVED_PERSONAL_COUNT_FILE (local checks only): how many requests the double has had, a number and nothing
+// else, kept current in that file, so a check sees whether a press made a new generation (FND-B93).
+const countFile = process.env.SOPHIA_SERVED_PERSONAL_COUNT_FILE?.trim()
+if (countFile) {
+  writeFileSync(countFile, '0')
+  setInterval(() => writeFileSync(countFile, String(double.requests.length)), 50).unref()
+}
 const client = new pg.Client({ connectionString: ownerDb.href })
 await client.connect()
 try {

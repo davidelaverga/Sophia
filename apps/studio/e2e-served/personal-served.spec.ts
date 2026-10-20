@@ -30,6 +30,9 @@ process.stdout.write(String(r.rows.length)); await c.end()`
   expect(out, 'one held call settled').toBe('1')
 }
 
+/** The loopback double's requests so far (the launcher's count file): each one a generation the companion asked for. */
+const dispatched = () => Number(readFileSync(process.env.SOPHIA_SERVED_PERSONAL_COUNT_FILE ?? '', 'utf8'))
+
 /** Signed in as one of dev-db's identities, every API call recorded. */
 async function as(page: Page, name: string) {
   await page.addInitScript((who) => sessionStorage.setItem('sophia.dev.identity', who), name)
@@ -79,10 +82,25 @@ test('personal · served: Luis asks, the companion answers, a refresh keeps it; 
   // Here that record is the loopback double's own contract: its 503 step answers an error with no stream and no usage,
   // so nothing was produced and the settlement is 0. Done through the disposable database's owner, never the API.
   reconcileHeld()
+  // Its cost settled from the record (cost only) says nothing of what the provider made: since C62 (0079) the same turn
+  // is not asked again. Ask again stays refused, and the double is asked nothing more (FND-B93; B91's run expected the
+  // older behavior and failed here). The Studio's words stay the generic failure: no «lost answer» wording (A42 unused).
+  const before = dispatched()
+  const retried = luis.waitForResponse((r) => /\/api\/v1\/personal\/turns\/[^/]+\/retry$/.test(r.url()))
   await luis.getByRole('button', { name: 'Ask again' }).click()
-  await expect(luis.locator('p.c3-failed')).toHaveCount(0, { timeout: 15_000 })
-  await expect(talk.getByText('ok', { exact: true })).toHaveCount(2)
+  await retried
+  await expect(luis.getByRole('button', { name: 'Ask again' })).toBeVisible({ timeout: 15_000 })
+  await expect(luis.locator('p.c3-failed')).toHaveCount(1)
+  await expect(talk.getByText('ok', { exact: true })).toHaveCount(1)
+  await luis.waitForTimeout(2000) // the runner's answer, had it asked, would have reached the double by now
+  expect(dispatched(), 'no new generation for that turn').toBe(before)
   expect(calls.filter((c) => /^POST \/api\/v1\/personal\/turns\/[^/]+\/retry$/.test(c))).toHaveLength(2)
+
+  // A new turn is a new question: it is answered, one generation more.
+  await field.fill('SYNTHETIC third question, a new turn')
+  await field.press('Enter')
+  await expect(talk.getByText('ok', { exact: true })).toHaveCount(2, { timeout: 15_000 })
+  expect(dispatched()).toBe(before + 1)
 
   // Delete everything, as the owner confirms it in "Your data": the erasure answers, and after a refresh nothing is left.
   await luis.getByRole('button', { name: 'Account' }).click()
@@ -96,6 +114,7 @@ test('personal · served: Luis asks, the companion answers, a refresh keeps it; 
   await luis.reload()
   await expect(luis.getByText('SYNTHETIC served question for the double')).toHaveCount(0)
   await expect(luis.getByText('SYNTHETIC second question, refused once')).toHaveCount(0)
+  await expect(luis.getByText('SYNTHETIC third question, a new turn')).toHaveCount(0)
   await expect(luis.getByText('ok', { exact: true })).toHaveCount(0)
 
   const davide = await browser.newPage()
@@ -103,4 +122,5 @@ test('personal · served: Luis asks, the companion answers, a refresh keeps it; 
   await davide.goto('/personal')
   await expect(davide.getByRole('textbox', { name: /Write to her|Message|Talk/i }).first()).toBeVisible()
   await expect(davide.getByText('SYNTHETIC served question for the double')).toHaveCount(0)
+  await expect(davide.getByText('SYNTHETIC third question, a new turn')).toHaveCount(0)
 })
