@@ -452,7 +452,14 @@ function useTasksWork(
     enabled: readsServedBoard(props.view, blocked, !!props.plans, searching),
   })
   // A page's own plans are read already; else the board's first read may still bring tasks (search-honest.md).
-  return { plans: props.plans ?? served.plans, entry: served.entry, boardReading: !props.plans && served.boardReading }
+  const own = !!props.plans
+  return {
+    plans: props.plans ?? served.plans,
+    entry: served.entry,
+    boardReading: !own && served.boardReading,
+    boardFailed: !own && served.boardFailed,
+    retryBoard: served.retryBoard,
+  }
 }
 
 /** What the door lets through: whether a snapshot ever loaded, why the project is closed, and what may be acted on. */
@@ -714,6 +721,9 @@ interface BodyProps {
   entry?: ServedWork['entry']
   /** The served board's first read is under way (search-honest.md). */
   boardReading?: boolean
+  /** The served board's reads failed with none read, and how to read it again (silent-views.md). */
+  boardFailed?: boolean
+  retryBoard?: () => void
   /** The project's search (A13): open from the head's Search, or `/`. */
   search: { open: boolean; onClose: () => void }
   /** The room's dock when the header has no room for it (a narrow screen): floating, mounted outside the header. */
@@ -936,6 +946,8 @@ function Goals(props: BodyProps) {
         window.dispatchEvent(new Event(ADDRESS_NAMED))
       }}
       entry={work ? entry : undefined}
+      boardFailed={work && props.boardFailed === true}
+      onRetryBoard={props.retryBoard}
       onOpenStudio={() => onShow('studio')}
       onInvite={onInvite}
     />

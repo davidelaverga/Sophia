@@ -252,6 +252,8 @@ interface Fixture {
   holdSearch: (on: boolean) => void
   /** Reads of the served board wait while on, as a slow API's do; off, the waiting ones are answered (search-honest.md). */
   holdBoard: (on: boolean) => void
+  /** Reads of the served board fail, or read again (silent-views.md). */
+  failBoard: (on: boolean) => void
   /** The conversations' list reads fail, or read again (A18). */
   failConversations: (on: boolean) => void
   /** The list's reads are refused (403), as to a reader no longer in the project, the feed not moving; or answer again. */
@@ -748,6 +750,8 @@ const project = {
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
   failToken: false,
+  // `token=late`: the call's token answers 1.5 s late, so the call goes live after the room has drawn (press-answers).
+  tokenLate: query.get('token') === 'late',
   failEdit: false,
   editHeld: null as (() => void)[] | null,
   failEarlier: false,
@@ -865,6 +869,8 @@ const project = {
   // A13: searches held while the page asks (`holdSearch`).
   searchHeld: null as (() => void)[] | null,
   boardHeld: null as (() => void)[] | null,
+  // `boardRead=fail`: the served board's reads fail from the first (silent-views.md).
+  boardFail: query.get('boardRead') === 'fail',
   // `mission=fail`: the brief's reads fail from the first (notes-robust.md); `window.fixture.failMission` turns it.
   missionFails: query.get('mission') === 'fail',
   missionRefused: false,
@@ -1318,6 +1324,9 @@ window.fixture = {
   holdBoard: (on) => {
     if (!on) for (const answer of project.boardHeld ?? []) answer()
     project.boardHeld = on ? waiting() : null
+  },
+  failBoard: (on) => {
+    project.boardFail = on
   },
   releaseTaskReads: () => {
     const held = project.tasks.heldReads ?? []
