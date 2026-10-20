@@ -468,7 +468,17 @@ test('M8: per kind, the measured request renewed without «signed out», sent ag
   ])
   assert.deepEqual(summary, {
     read: { n: 6, reached: 5, renewed: 2, signedOut: 2, resent: 5, oneRefresh: 2, time: { p50: 400, p95: 490 } },
-    feed: { n: 3, reached: 2, renewed: 2, signedOut: 0, resent: 2, oneRefresh: 2, time: { p50: 115, p95: 119.5 } },
+    // Which of the feed's requests met the expired token, round by round: the snapshot once, the stream once.
+    feed: {
+      n: 3,
+      reached: 2,
+      renewed: 2,
+      signedOut: 0,
+      resent: 2,
+      oneRefresh: 2,
+      time: { p50: 115, p95: 119.5 },
+      met: { snapshot: 1, stream: 1 },
+    },
     write: { n: 2, reached: 1, renewed: 1, signedOut: 0, resent: 2, oneRefresh: 0, time: { p50: 1200, p95: 1200 } },
   })
   assert.deepEqual(summarizeM8([]), {})
@@ -545,7 +555,12 @@ for (let i = 0; i < Number(process.env.FAKE_M7); i++) {
 for (let i = 0; i < Number(process.env.FAKE_M2); i++) write('M2', i, { resolved: true, writes: 1, resendMs: 30 })
 const refused = ['GET /api/v1/projects/p1/conversations/c2/messages']
 const renewed = { kind: 'read', refused, definitive: true, ms: 420, signedOut: false, resent: true, refreshes: 1 }
-for (let i = 0; i < Number(process.env.FAKE_M8); i++) write('M8', i, renewed)
+// With the read, a feed round whose expired token met the snapshot, not the stream.
+const feed = { ...renewed, kind: 'feed', ms: 120, refused: ['GET /api/v1/projects/p1/snapshot', 'GET /api/v1/projects/archived'] }
+for (let i = 0; i < Number(process.env.FAKE_M8); i++) {
+  const record = { metric: 'M8', test: 'M8 ' + i, samples: [renewed, feed] }
+  writeFileSync(join(dir, 'M8-' + i + '.json'), JSON.stringify(record))
+}
 process.exit(Number(process.env.FAKE_EXIT))
 `
 
@@ -618,6 +633,11 @@ test('M8 is measured now: a partial run gives no M8 numbers, a whole one its row
     '| M8 · expired token while signed in · read | 1/1 renewed without «signed out» · 1/1 sent again · 1/1 renewed with one refresh · answer p50 420 ms · p95 420 ms |',
   )
   has(whole.md, '| M8 · expired token while signed in · write | not run |')
+  // The feed's row says which of its requests met the expired token: the stream's own renewal may go unexercised.
+  has(
+    whole.md,
+    '| M8 · expired token while signed in · feed | 1/1 renewed without «signed out» · 1/1 sent again · 1/1 renewed with one refresh · answer p50 120 ms · p95 120 ms · met: snapshot 1 · stream 0 |',
+  )
   has(whole.md, '| M2r · kept across a reload: offered again, resent once under its key | not run |')
   assert.ok(!whole.md.includes('M8 (session through sleep)'), `M8 is measurable:\n${whole.md}`)
 })
