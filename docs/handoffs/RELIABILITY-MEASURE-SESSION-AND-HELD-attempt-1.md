@@ -119,3 +119,14 @@ Same branch, same rules; code last changed at `97a096321`.
 
   No round asked a second refresh once the page went quiet. The rest as before: M1 15/15 (overhead p50 21 ms), M6 6 / 10,
   M7 6/6, M3 drop p50 827 ms, silenced 25.7 s, network back 20 ms, M4 60 ms.
+
+## Second review's P3: which request met the expired token
+
+- **Written first** (`15d15c4ec`): 2 of 25 red. `summarizeM8`'s feed had no `met`, and the generated feed row had no
+  «met: snapshot 1 · stream 0» (the fake suite now writes a feed round whose expired token met the snapshot).
+- **Fixed** (`a811389de`): the feed's summary counts the rounds whose refused requests hold its snapshot and its stream
+  (`met`), and its row ends «· met: snapshot n · stream m». 25/25.
+- **Regenerated, no rerun:** `node scripts/reliability-report.mjs --fixture` over the last run's results (`97a096321`,
+  34/34) into `scratchpad/measure-p6-m8-held-p3-met/`, exit 0. The feed row reads «3/3 renewed … p50 115 ms · p95
+  131 ms · met: snapshot 3 · stream 0». Every other line is identical to the run's own report. So M8 · feed has never
+  exercised `stream.ts`'s renewal. That limit is now in the plan.
