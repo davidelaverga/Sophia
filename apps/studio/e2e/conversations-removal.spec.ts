@@ -1156,6 +1156,8 @@ interface DenialTrace {
   denials: { id: number; path: string; at: number }[]
   hits: { at: number; afterMs: number; what: string }[]
   frames: number
+  /** rAF callbacks after the first refused list read (…/conversations) reached the app. */
+  listFrames: number
   /** rAF callbacks after the first refused thread read (…/messages) reached the app. */
   threadFrames: number
 }
@@ -1180,6 +1182,7 @@ async function observeClientDenials(page: Page, mode: DenialMode) {
       denials: [],
       hits: [],
       frames: 0,
+      listFrames: 0,
       threadFrames: 0,
       stop: false,
     }
@@ -1211,6 +1214,7 @@ async function observeClientDenials(page: Page, mode: DenialMode) {
     const tick = () => {
       if (trace.stop) return
       trace.frames++
+      if (trace.denials.some((d) => d.path.endsWith('/conversations'))) trace.listFrames++
       if (trace.denials.some((d) => d.path.endsWith('/messages'))) trace.threadFrames++
       const first = trace.denials[0]
       if (first) {
@@ -1232,12 +1236,13 @@ async function observeClientDenials(page: Page, mode: DenialMode) {
 const readDenialTrace = (page: Page) =>
   page.evaluate(() => {
     const t = window.denialTrace
-    if (!t) return { denials: [], hits: [], frames: 0, threadFrames: 0 }
+    if (!t) return { denials: [], hits: [], frames: 0, listFrames: 0, threadFrames: 0 }
     t.stop = true
     return {
       denials: t.denials,
       hits: t.hits,
       frames: t.frames,
+      listFrames: t.listFrames,
       threadFrames: t.threadFrames,
     }
   })
@@ -1269,7 +1274,7 @@ for (const mode of ['delayed', 'malformed'] as const) {
       trace.denials.some((d) => d.path.endsWith('/conversations')),
       'the list read was refused, as the client saw',
     ).toBe(true)
-    expect(trace.frames).toBeGreaterThan(10)
+    expect(trace.listFrames, 'frames since the client saw the list read refused').toBeGreaterThan(10)
     expect(trace.hits, 'protected content or controls after the client saw the 403').toEqual([])
     const fenced = await kept(page)
     expect(typeof fenced?.fence?.at).toBe('number')
@@ -1309,6 +1314,35 @@ for (const mode of ['delayed', 'malformed'] as const) {
     expect((await served(page)).filter((s) => s === 'messages-refused:c1')).toHaveLength(1)
   })
 }
+
+// Frames at 8 a second, as a loaded runner draws them (e2e/frames.ts; docs/plans/ci-home-needs-refusal-flake.md).
+test(`removal · semantic, slow frames (8 a second): the list refused (403, delayed body): from the client's first sight of it, enough frames are sampled and none shows a row, the thread, its composer or Start`, async ({
+  page,
+}, info) => {
+  await page.goto(PAGE)
+  await expect(messages(page)).toHaveCount(6)
+  await field(page).fill('SYNTHETIC-DRAFT-SEMANTIC')
+  await page.evaluate(() => window.fixture?.holdMessageReads())
+  await observeClientDenials(page, 'delayed')
+  await slowFramesFromNow(page)
+  await listRefusedOnTryAgain(page)
+  await expect(rows(page)).toHaveCount(0)
+  await page.evaluate(() => window.fixture?.releaseMessageReads())
+  await trip(page)
+  await expect(list(page)).toContainText('This project refused a read of its conversations.')
+  await page.waitForTimeout(500)
+  const trace = await readDenialTrace(page)
+  await info.attach('denial-trace-list-slow-frames.json', {
+    body: JSON.stringify(trace, null, 1),
+    contentType: 'application/json',
+  })
+  expect(
+    trace.denials.some((d) => d.path.endsWith('/conversations')),
+    'the list read was refused, as the client saw',
+  ).toBe(true)
+  expect(trace.listFrames, 'frames since the client saw the list read refused').toBeGreaterThan(10)
+  expect(trace.hits, 'protected content or controls after the client saw the 403').toEqual([])
+})
 
 // Frames at 8 a second, as a loaded runner draws them (e2e/frames.ts; docs/plans/ci-home-needs-refusal-flake.md).
 test(`removal · semantic, slow frames (8 a second): the open thread's read refused (403, delayed body) as the feed moves: from the client's first sight of it, enough frames are sampled and none shows its messages, composer, a row or Start`, async ({
