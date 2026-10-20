@@ -853,6 +853,78 @@ describe('the shipped runtime-host entry: service replies only by an explicit ov
     }
   })
 
+  // FND-B114 (4325334689, 4325334698): the overlay is the recorded bundle's whole bridge row plus its service replies, and
+  // at most the recorded provider row with the selected route pointed at a numeric loopback test endpoint. Each class
+  // has its own test, so one refusal cannot hide another; print-only needs no value and no child starts.
+  const canonical = () => JSON.parse(serviceOverlay('http://127.0.0.1:9/v1'))
+  const edit = (id, change) => JSON.stringify(canonical().map((row) => (row.id === id ? { id, config: change(structuredClone(row.config)) } : row)))
+  const printRefuses = (prefix, cases) => {
+    const dir = mkdtempSync(join(tmpdir(), prefix))
+    try {
+      for (const [label, text, message] of cases) {
+        const file = join(dir, 'overlay.json')
+        writeFileSync(file, text)
+        const r = spawnSync(process.execPath, ['scripts/runtime-host.mjs', '--root', join(dir, 'root'), '--service-overlay', file, '--print-executor-digest'],
+          { cwd: REPO_ROOT, encoding: 'utf8', timeout: 30_000, env: { PATH: process.env.PATH, HOME: process.env.HOME } })
+        assert.equal(r.status, 2, `${label}: ${r.stdout}${r.stderr}`)
+        assert.match(r.stderr, message, label)
+        assert.doesNotMatch(r.stdout, /"event":"(profile|executor_digest)"/, `${label}: refused before the profile`)
+        assert.equal(existsSync(join(dir, 'root')), false, `${label}: the root is not touched`)
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }
+  const invalidBridge = /bridge configuration is invalid/
+  const notRecorded = /differs from the recorded bundle/
+
+  test('a bridge configuration the bundle cannot parse is refused before printing (FND-B114)', () => {
+    printRefuses('b114-bridge-', [
+      ['no protocolVersion', edit('sophia-control-bridge', (c) => { delete c.protocolVersion; return c }), invalidBridge],
+      ['no reply route', edit('sophia-control-bridge', (c) => ({ ...c, replies: { mode: 'service', executorDigestEnv: 'SOPHIA_EXECUTOR_DIGEST' } })), invalidBridge],
+      ['unknown reply route', edit('sophia-control-bridge', (c) => ({ ...c, replies: { ...c.replies, routeId: 'no-such-route-v1' } })), invalidBridge],
+      ['extra replies field', edit('sophia-control-bridge', (c) => ({ ...c, replies: { ...c.replies, extra: true } })), invalidBridge],
+      ['extra config field', edit('sophia-control-bridge', (c) => ({ ...c, extra: true })), invalidBridge],
+      ['another recorded route', edit('sophia-control-bridge', (c) => ({ ...c, replies: { ...c.replies, routeId: 'source-review-luna-high-v1' } })), /routeId must be conversation-service-luna-high-v1/],
+    ])
+  })
+
+  test('a provider or credential the recorded unit does not declare is refused before printing (FND-B114)', () => {
+    const custom = (digest) => JSON.stringify(JSON.parse(edit('llm-pi-ai', (c) => {
+      c.providers['openai-conversation'].apiKeyEnv = 'CUSTOM_KEY'
+      return c
+    })).map((row) => (row.id === 'sophia-control-bridge' ? { id: row.id, config: { ...row.config, replies: { ...row.config.replies, executorDigestEnv: digest } } } : row)))
+    const provider = /llm-pi-ai may only restate the recorded providers/
+    printRefuses('b114-provider-', [
+      ['custom provider key, separate digest', custom('SOPHIA_EXECUTOR_DIGEST'), provider],
+      ['custom provider key named as the digest', custom('CUSTOM_KEY'), provider],
+      ['provider model changed', edit('llm-pi-ai', (c) => { c.providers['openai-conversation'].models[0].maxTokens = 128000; return c }), provider],
+      ['another provider pointed elsewhere', edit('llm-pi-ai', (c) => { c.providers.openai.baseURL = 'http://127.0.0.1:9/v1'; return c }), provider],
+      ['external endpoint', edit('llm-pi-ai', (c) => { c.providers['openai-conversation'].baseURL = 'https://api.example.com/v1'; return c }), provider],
+      ['user info in the endpoint', edit('llm-pi-ai', (c) => { c.providers['openai-conversation'].baseURL = 'http://user@127.0.0.1:9/v1'; return c }), provider],
+      ['bridge token variable', edit('sophia-control-bridge', (c) => ({ ...c, tokenEnv: 'OTHER_TOKEN' })), notRecorded],
+      ['route cap', edit('sophia-control-bridge', (c) => { c.routes['conversation-service-luna-high-v1'].maxTokens = 8192; return c }), notRecorded],
+      ['route prices', edit('sophia-control-bridge', (c) => { c.routes['conversation-service-luna-high-v1'].prices.output = 0.05; return c }), notRecorded],
+      ['route provider alias', edit('sophia-control-bridge', (c) => { c.routes['conversation-service-luna-high-v1'].provider = 'openai'; return c }), notRecorded],
+      ['an unexpected row', JSON.stringify([...canonical(), { id: 'agent-default-model', config: {} }]), /may set only sophia-control-bridge/],
+      ['the bridge twice', JSON.stringify([...canonical(), canonical().find((row) => row.id === 'sophia-control-bridge')]), /names a row twice/],
+    ])
+  })
+
+  test('the recorded bridge with service replies alone, without any provider row, is admitted (FND-B114)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'b114-normal-'))
+    try {
+      const file = join(dir, 'normal.json')
+      writeFileSync(file, JSON.stringify(canonical().filter((row) => row.id === 'sophia-control-bridge')))
+      const r = spawnSync(process.execPath, ['scripts/runtime-host.mjs', '--root', join(dir, 'root'), '--service-overlay', file, '--print-executor-digest'],
+        { cwd: REPO_ROOT, encoding: 'utf8', timeout: 60_000, env: { PATH: process.env.PATH, HOME: process.env.HOME } })
+      assert.equal(r.status, 0, r.stderr)
+      assert.match(r.stdout, /"event":"executor_digest","variable":"SOPHIA_EXECUTOR_DIGEST","digest":"[0-9a-f]{64}"/)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   test('refused before anything starts: an overlay that is not config-only, sets no replies, or an unset/malformed digest; with --rehearse', () => {
     const dir = mkdtempSync(join(tmpdir(), 'b105-host-'))
     const run = (args, env = {}) =>

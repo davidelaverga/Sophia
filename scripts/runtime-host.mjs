@@ -11,12 +11,16 @@
  *   node scripts/runtime-host.mjs --root <dir> --service-overlay <overlay.json> --print-executor-digest
  *   <DIGEST_VAR>=<that digest> SOPHIA_SERVICE_URL=... SOPHIA_RUNTIME_TOKEN=... <credential>=... \
  *     node scripts/runtime-host.mjs --root <dir> --service-overlay <overlay.json>
- * The overlay is a strict JSON patch list of config-only rows (executor-identity.ts) whose sophia-control-bridge row
- * sets `replies: { mode: 'service', routeId, executorDigestEnv }`. The host passes it as dsh's --patch and passes
+ * The overlay is a strict JSON patch list of config-only rows (executor-identity.ts): the recorded bundle's whole
+ * sophia-control-bridge row, unchanged, plus `replies: { mode: 'service', routeId: 'conversation-service-luna-high-v1',
+ * executorDigestEnv }` (lib/service-overlay.mjs; the bundle's parseConfig must accept it). No other row, provider,
+ * credential, route, cap or price is admitted, except the recorded llm-pi-ai row restated exactly with the
+ * openai-conversation endpoint on numeric loopback (the same-host fake provider of the tests). The host passes it as
+ * dsh's --patch and passes
  * exactly the variable that `executorDigestEnv` names (the EXPECTED executor closure, 64 hex) into the runtime's
  * environment; nothing else of the parent's is inherited. A missing, malformed or mismatched digest leaves the mode
- * unavailable in the bridge (no fallback); an overlay that is not config-only, sets no replies, or a digest variable
- * that is unset or not 64 hex is refused here, before anything starts. --print-executor-digest derives the closure the
+ * unavailable in the bridge (no fallback); an overlay that is not config-only or not the recorded composition above,
+ * or a digest variable that is reserved, unset or not 64 hex, is refused here, before anything starts. --print-executor-digest derives the closure the
  * runtime would advertise for this root and overlay, prints it and exits (no service, no credential).
  *
  * Every model route's credential (config/runtime-unit.json: model_route and model_routes, by credential_ref) is
@@ -36,6 +40,7 @@ import { parseArgs } from 'node:util'
 import { RuntimeSupervisor } from '../apps/execution-host/dist/runtime-supervisor.js'
 import { RUNTIME_DIR, DSH_ENTRY, loadRuntimeUnit } from './lib/common.mjs'
 import { assertRecordedArtifacts, executorClosureDigest, homeLayout, reconcileProfile } from './lib/profile.mjs'
+import { assertRecordedComposition, overlayRows, recordedBridge } from './lib/service-overlay.mjs'
 import { assertToolchain } from './lib/toolchain.mjs'
 import { mockRouteOverlay, startMockLlm } from '../tests/support/mock-llm.mjs'
 
@@ -68,8 +73,9 @@ const unit = loadRuntimeUnit()
 const NODE_MODIFIER_ENV = ['NODE_OPTIONS', 'NODE_PATH', 'NODE_PRESERVE_SYMLINKS', 'NODE_PRESERVE_SYMLINKS_MAIN']
 
 /**
- * The operator's service overlay, checked before anything starts: config-only (executor-identity.ts), its control
- * bridge row setting service replies, and, unless only the digest is printed, the named variable holding 64 hex.
+ * The operator's service overlay, checked before anything starts: config-only (executor-identity.ts), the recorded
+ * bridge row with service replies and nothing else the recorded unit does not declare (lib/service-overlay.mjs), and,
+ * unless only the digest is printed, the named variable holding 64 hex.
  */
 async function serviceLaunch(file, env, needDigest, reserved) {
   const { assertConfigOnlyPatch } = await import('../packages/dsh-bundle/dist/executor-identity.js')
@@ -79,10 +85,8 @@ async function serviceLaunch(file, env, needDigest, reserved) {
   } catch {
     throw new Error('the service overlay is not a config-only JSON patch list')
   }
-  const bridge = JSON.parse(bytes.toString('utf8')).find((row) => row?.id === 'sophia-control-bridge')
-  const replies = bridge?.config?.replies
-  if (!replies || replies.mode !== 'service') throw new Error('the service overlay sets no service replies on sophia-control-bridge')
-  const name = replies.executorDigestEnv
+  const overlay = overlayRows(JSON.parse(bytes.toString('utf8')))
+  const name = overlay.bridge.replies.executorDigestEnv
   // The bridge's own grammar (dsh-bundle parseReplies, FND-B111): a name it cannot parse is never pinned or launched.
   if (typeof name !== 'string' || !/^[A-Z][A-Z0-9_]*$/.test(name) || name.startsWith('SOPHIA_REPLY_')) {
     throw new Error('replies.executorDigestEnv must be an upper-case name that starts with a letter, outside SOPHIA_REPLY_*')
@@ -90,6 +94,7 @@ async function serviceLaunch(file, env, needDigest, reserved) {
   if (NODE_MODIFIER_ENV.includes(name)) throw new Error(`replies.executorDigestEnv: ${name} is a Node launch modifier`)
   // The supervisor applies this variable last (FND-B108): a name it already sets, or a configured credential, is refused.
   if (reserved.has(name)) throw new Error(`replies.executorDigestEnv: ${name} is already set for the runtime`)
+  assertRecordedComposition(overlay, await recordedBridge(unit))
   const value = env[name]
   if (needDigest && (value === undefined || !/^[0-9a-f]{64}$/.test(value))) {
     throw new Error(`${name} must hold the expected executor closure (64 hex; see --print-executor-digest)`)
