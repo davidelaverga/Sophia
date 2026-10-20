@@ -20,8 +20,8 @@ export const archivedKey = (identity: Identity) => ['projects', identity.name, '
 const keys = archiveKeys()
 
 /**
- * The read of the person's archived projects (A30), read again as the lists are. Once it answers, it says where each
- * project stands, so a write left with no reply before it started is no longer unknown (Codex on #471).
+ * The read of the person's archived projects (A30), read again as the lists are. Once it answers, it shows where each
+ * project stands, so a write left with no reply before it started lets go of its key (Codex on #471).
  */
 const useArchivedRead = (identity: Identity) =>
   useQuery({

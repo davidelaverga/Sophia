@@ -99,7 +99,8 @@ RETURN prior.receipt`) and changes nothing. `useArchiveWrite` resolves, so the s
 person goes to Work, with the project not archived. The mirror holds for Unarchive, from the line or Work's row.
 
 **Rule.** A read of the archived list that *starts after* a write was left with no reply says where the account's
-projects stand. Once it answers, that write's outcome is no longer unknown, so its key goes, whatever the read shows:
+projects stand. Once it answers, the next press is a new choice made on what it shows, so that write's key goes,
+whatever the read shows. This doesn't mean the old write is over (see Limits):
 
 - in the state the write asked for: the write landed, or an equal one did. A new key asking for that state changes
   nothing (0059: «asking for the state it has changes nothing and emits nothing»);
@@ -121,16 +122,29 @@ feed's re-reads. So the sheet, the line and Work's row all get the rule.
 **What stays.** The retry after no reply, with no read between: Cancel, the sheet opened again, Archive, or Work's
 Unarchive pressed again. It is still the same key, and both checks above stay as they are. Nothing new is drawn.
 
+In the real room, though, a landed write usually brings a read: the API emits `project.archived`, and the feed reads
+the archived list again. So a retry there usually goes under a new key. The project is archived by then, so the menu
+offers no Archive. The sheet left open still does, and its press is answered as a no-op success (0059 changes nothing).
+The same-key retry matters most when no read answers: no network, or a feed that doesn't hear.
+
 **Checks, written first.**
 
 - `archive-keys.test.ts`: a lost archive, then a read started and answered, then Archive → a new key, whichever state
   the read could show (no content is read). The same for Unarchive. A read started before the failure, or while the
-  key was on its way again, leaves it. Another account's read leaves it.
+  key was on its way again, leaves it, also when the read answers after that send is lost too (review). Another
+  account's read leaves it.
 - `archive-project.spec.ts`: in the room, the first archive lands and its reply is lost. An event brings the read that
   shows it archived. Another admin then brings it back (a new lever, `window.fixture.unarchivedElsewhere`, the mirror of
-  `archivedElsewhere`), and the line goes. Archive is pressed again → a new Idempotency-Key, not the lost one's.
+  `archivedElsewhere`), and the line goes. Archive is pressed again → a new Idempotency-Key, not the lost one's, and
+  it is served as a second archive (review: the fixture now replays a key sent again with its first receipt, as 0059
+  does, and records `archive:replayed`).
 
 **Limits.** A press after the reply was lost, with no read answered since (offline, then back, and pressed before any
 read lands), still sends the old key. If the write landed and was undone in that window, the old receipt answers.
 The page reads the lists again after it, so it shows the truth. Closing that would mean a read before every retry,
 which costs the same-key retry its point.
+
+A request the client gave up on can still land. A 504 may commit later (`client.test.ts`), and the client stops
+waiting at 90 s (`WRITE_TIMEOUT_MS`). Take K1, an archive held past 90 s: the read that follows lets go of it. K2 then
+lands, and an admin brings the project back. K1 finally reaches the database and archives it again. The feed's event
+has the lists read again, so the page shows it archived, but nobody asked for it then.

@@ -5,9 +5,11 @@
 // write's does (held-write.ts). A choice that lands also lets go of the other choice's unanswered key: that write is
 // moot now, and its key replayed later would be answered with its old receipt and change nothing (the server keeps
 // receipts with no end), while a new key is always safe, as asking for the state the project has changes nothing.
-// So does a read of the archived list started after the reply was lost (Codex on #471): it says where the project
-// stands, so the outcome is no longer unknown, whatever it shows; landed and then undone elsewhere, the old key would
-// be answered with its old receipt. Shaped like removal-keys.ts.
+// So does a read of the archived list started after the reply was lost (Codex on #471): it shows where the project
+// stands, and the press after it is a new choice made on that. Whatever it shows, a new key is safe, while the old one,
+// landed and then undone elsewhere, would be answered with its old receipt. Not that the old write is over: one the
+// client gave up on at 90 s may still reach the database after that read and land (archive-keys-and-work.md, Limits).
+// Shaped like removal-keys.ts.
 import { ApiError } from '../../api/client.ts'
 
 /** One choice: archiving a project (archived), or bringing it back, as one account. */
