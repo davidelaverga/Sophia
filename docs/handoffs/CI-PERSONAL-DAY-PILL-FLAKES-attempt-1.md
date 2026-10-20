@@ -7,13 +7,15 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-paper-3`, branch `ci/personal-day-pill-flakes` from
 `origin/main` `9a6b03a73` (not pushed)
-Writable scope: this worktree only (`apps/studio/e2e`, `docs/plans`, `docs/handoffs`); no product code, no API.
+Writable scope: this worktree only (`apps/studio/e2e`, `apps/studio/src/features/personal`, `docs/plans`,
+`docs/handoffs`); no API.
 Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1` / `pw-gentle.ps1` guard); CI as the run on
 record.
 Existing authority: Luis 2026-10-20, the quote above; local only, nothing pushed.
-Ending commit/tree: `f38d0ac8e`, the only commit that changes code; the next one adds the plan note and this record.
-Files changed against `9a6b03a73`: `e2e/control-heights.spec.ts`, `e2e/personal-first-talk.spec.ts`,
-`e2e/personal.spec.ts`, `docs/plans/ci-personal-day-pill-flakes.md`, and this record.
+Ending commit/tree: `97e546808`, the last commit that changes code (after the review's P2: `5378043ab`, `97e546808`);
+the next one updates only the note and this record. Files changed against `9a6b03a73`: `e2e/control-heights.spec.ts`,
+`e2e/personal-first-talk.spec.ts`, `e2e/personal.spec.ts`, `src/features/personal/Find.tsx`,
+`docs/plans/ci-personal-day-pill-flakes.md`, and this record.
 
 ## Outcome
 
@@ -29,7 +31,15 @@ Files changed against `9a6b03a73`: `e2e/control-heights.spec.ts`, `e2e/personal-
   rests on the field» and «Ctrl F finds…» (all three failed in CI's 00:03 run on 10-17), and `control-heights` «on
   personal, every single-line press…» fail then. They now load the fixture at noon, as the day pill's, the days' menu
   and `menu-scale` already do. What each asserts is unchanged.
-- **The product is not at fault:** at that hour nothing has been said today, and Personal says so.
+- **The midnight failures are not the product's:** at that hour nothing has been said today, and Personal says so.
+
+- **Review P2: Find left its match out of sight in a talk that scrolls (a product bug, fixed test-first).** At noon
+  the whole talk fits, so «Ctrl F finds…»'s in-view check held whatever Find did. A new check at a 480 px window, where
+  the talk scrolls and the first «keep» is above what shows, failed: the current match stayed out of sight. A probe
+  caught the order: Find's one smooth `scrollIntoView`, then the list's end-keeping `scrollTo` (its ResizeObserver,
+  `PersonalSpace.tsx` `useEndKept`) twice as the finder's count came in, the list ending at its end; the same match
+  stayed current while typing, so nothing brought it back. Find now scrolls the match into sight at once
+  (`behavior: 'instant'`): the list reads the reader away from its end before it resizes again.
 
 ## Evidence
 
@@ -55,6 +65,14 @@ Files changed against `9a6b03a73`: `e2e/control-heights.spec.ts`, `e2e/personal-
   123/123 (`daypill-whole-g5.txt`).
 - Whole-repo `oxlint --type-aware` (exit 0), `tsc --noEmit -p apps/studio`, Prettier on the three spec files: clean.
 
+- Review P2, red at `5378043ab`: the new check on a wide screen failed 3 of 3, «viewport ratio 0» at the first match
+  (`pw-logs/daypill-find-red4.txt`). Its @phone twin (390 × 600, opened from the head's Find) passed 3 of 3 before the
+  fix: the phone did not meet the race, it stays as a guard. Probe log: `pw-logs/daypill-find-probe.txt`.
+- Green at `97e546808`: the two new checks and Find's other four `--repeat-each 20`, 120/120
+  (`daypill-find-green20.txt`); `personal`, `personal-find-ask`, `personal-first-talk`, `personal-day-pill`,
+  `personal-day-menu`, `control-heights` whole, desktop and phone, 128/128 (`daypill-find-neighbours.txt`);
+  `find-view.test.ts` 8/8; oxlint, tsc, Prettier clean.
+
 ## Decisions and changes
 
 - **Per check, not the fixture's default.** Making noon the fixture's default when no `at` is given would end the
@@ -63,6 +81,11 @@ Files changed against `9a6b03a73`: `e2e/control-heights.spec.ts`, `e2e/personal-
   `menu-scale`) is per check.
 - **One commit, not a pair.** The fix changes only addresses in tests; the red is the same tests with the clock set to
   00:04, run and quoted above, not a committed failing test.
+
+- **Find's match comes at once rather than gliding.** Keeping the glide would mean Find telling the end-keeping the
+  reader left, or the end-keeping guessing a glide in flight; at once is also how a browser's own find moves.
+- **No `control-heights` row at 00:04 (review P3):** the new-day state cannot pass the scale today (the pill's 26 px,
+  the mood presses' 44 px), so it stays in the follow-ups below.
 
 ## Remaining obligations
 

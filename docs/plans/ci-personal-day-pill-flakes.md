@@ -45,6 +45,14 @@
   phone (123/123). The phone project runs only `@phone` tests, none of the day pill's.
 - One commit, not a pair: only test addresses change, and the red is those tests with the clock set, run and quoted.
 
+## After review (P2)
+
+- At noon the whole talk fits, so «Ctrl F finds…»'s in-view check proves nothing there. A new check in a talk that
+  scrolls (480 px high; a short phone too) found Find's match left out of sight: its smooth `scrollIntoView` was undone
+  by the list's end-keeping as the finder's count resized the list, and the same match stayed current while typing.
+  Find now brings the match at once (`Find.tsx`), test first: red 3 of 3 on a wide screen, green 20 of 20.
+- A `control-heights` row at 00:04 would fail the scale (the pill's 26 px, the mood presses' 44 px): left in Limits.
+
 ## Limits
 
 - The fixture still reads the wall clock when no `at` is given; a new test that needs «Today» can meet midnight again.
