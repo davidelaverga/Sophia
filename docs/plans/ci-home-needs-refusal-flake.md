@@ -27,9 +27,13 @@
 
 ## What changes
 
-- **A slow-frames case, written first:** «403, delayed body» (the variant #472 failed on) with every frame made to cost
-  60 ms of the page's main thread from the first refusal on (a `requestAnimationFrame` that busies the thread until the
-  trace stops): about 15 frames a second, as CI drew. With the fixed window it fails as CI did.
+- **A slow-frames case, written first:** «403, delayed body» (the variant #472 failed on) with frames as slow as CI's
+  and the page's script left free (`slowFrames`): from just before the refusal, every `requestAnimationFrame` callback
+  the page asks for (the trace's, Home's light) runs at the first frame 50 ms after it was asked, about 15 a second.
+  With the fixed window it fails as CI did. (Found while writing it: a frame that busies the main thread instead does
+  not reproduce it. It holds the test's own reads too, so the window stretches with the frames, 13 or 14 of them at
+  110 ms a frame. CI's count fits frames that come slowly while script runs on time; the note shows about 20 ms after
+  the refusal reaches the app, delayed body or not.)
 - **The wait counts frames, not time** (`sampleAfterRefusal`): after the note, at least the old 400 ms and then
   `expect.poll` until more than ten frames have run since the client saw the refusal. The assertion becomes
   `trace.postFrames > 10`, which is stronger than `trace.frames > 10` (the same bound, without the frames before the
@@ -37,15 +41,15 @@
 
 ## Checks (written first)
 
-- `test: … (failing)`: the slow case with the current wait. Red for the right reason: `Expected: > 10`, a received
-  count under 10, and `hits` empty.
+- `test: … (failing)`: the slow case with the current wait. Red for the right reason: past the refusal check, `Expected: > 10`
+  with a received count under 10, as on CI.
 - The fix: green through the guard, the spec 20 times over (`-Repeat 20`), the slow case included; then its neighbours
-  (`updates-refusal`, `home-since`, `home`).
+  (`home-needs`, `home-phone-needs`, `home-since`, `home`, `updates-refusal`).
 
 ## Limits
 
 - Slow frames sample more thinly per millisecond: a cached row shown for less than a frame can slip between samples,
   here as on CI. The slow case is one variant; the other four still sample at the machine's own rate.
 - `updates-refusal.spec.ts:148` and `conversations-removal.spec.ts:1254`/`:1289` count frames in the same fixed
-  window. They have not failed in these logs (their pages draw no orb), so they are left as they are; the same wait
+  window. They have not failed in these logs (their pages draw no light), so they are left as they are; the same wait
   would fit them.
