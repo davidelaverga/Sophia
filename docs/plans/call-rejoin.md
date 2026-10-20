@@ -56,8 +56,10 @@
   the same way (`useLeave`). The places' bar keeps showing the call while it comes back (the room reports it as on),
   so the shell stays mounted out of sight and the bar's Leave does the same; when the try fails, the call ends there
   and the toast says the lost call, as today.
-- **A join overtaken before it connects asks for nothing more** (`openRoom`): once its token arrives, a join that is
-  no longer the current one stops before LiveKit, so a Leave during the try never flashes this person into the room.
+- **A join overtaken before its token arrives goes no further** (`openRoom`): once the token is back, a join that is
+  no longer the current one stops before LiveKit, so a Leave pressed while the try waits for its token never flashes
+  this person into the room. (A Leave after the token, while LiveKit connects, still connects and leaves at once, as
+  any overtaken join does: `CallFence.adopt`.)
 - **LiveKit's policy is pinned** (`livekit-room.ts`): `reconnectPolicy: new DefaultReconnectPolicy(RECONNECT_DELAYS_MS)`
   with the defaults written out, so an SDK upgrade can't change how long the room waits before `dropped` without a
   diff here. The unit check holds the window above the policy's longest wait.
@@ -107,18 +109,57 @@
   the missing token (expected 2, received 1) and the missing connection; the two `@phone` checks failed because no try
   took the one refused token, so the person's own Try again met it.
 
+
+## After the independent review (2026-10-20: one P1, two P2s, P3s)
+
+Luis approved the three lines and the two-minute window with its sleep rule. Each finding below held when read against
+the code; each was written first.
+
+- **P1, the try could turn on a microphone that was off (real).** The try and Try again joined with no options, so
+  the microphone came from this device's stored choice (`micOnJoin`), not from the call: an admin's mute (server-side,
+  `rememberMic` never called), or «on» chosen in Settings or another tab while muted, brought the call back with the
+  microphone on. Now the connection keeps the microphone as it was while the room was last connected
+  (`micWas`, `livekit-room.ts`: LiveKit unpublishes the tracks before it says the call ended, so the end can't tell),
+  and a `dropped` end makes it the next join's choice (`useJoin`'s `stand`, the slot a failed join's choices already
+  use): the try and a later Try again both come back as the call was. Any other end clears it, so a plain Join goes by
+  the person's choice. Checks: muted by the dock, then `sophia.mic.v1` set to «on», `drop()` → back in with no
+  `microphone:on`; muted by an admin (a new lever, `fixture.mutedByHost()`), then a drop whose try fails and Try again
+  → no `microphone:on`.
+- **P2, the window was checked at the drop, not when the try connects (real).** LiveKit 2.22.3 leaves the room itself
+  on `pagehide`, `beforeunload` and `freeze` (`CLIENT_INITIATED`), which read as `dropped` with a fresh «seen»; the
+  token request could go out as the page froze and connect minutes later. Both closed: `onEnded` carries `selfLeft`
+  (LiveKit left itself) and no try is made for it; and the try hands its join a gate (`still`) that `openRoom` asks
+  right before LiveKit: the try at most 30 s old (`TRY_FRESH_MS`), the call still inside the window, no Leave since,
+  no other tab in the call. Past it the join fails as a failed join, and the lost call is said with Try again.
+  Checks: units for the gate; browser: `drop('dropped', true)` asks no token; a held token let go after the page's
+  clock jumps ten minutes connects nothing and says the lost call.
+- **P2, the try could take the call from where the person moved (real, seam #3).** Same browser: each room says on a
+  BroadcastChannel (`call-tabs.ts`) when it holds the call; a drop makes no try while another tab holds one, a try
+  under way stops at the gate, and an offline wait ends without a try if a tab joined meanwhile. A tab that vanished
+  without saying so is still counted: the try then waits for the person. Checks: a second page in the same browser in
+  the call → the first page's drop asks no token; once that page leaves, the next drop comes back.
+- **P3s applied:** a beat counts only when the last came at most two beats before (`stillSeen`), so a minute of
+  sleep or freezing can't be bridged by the next beat; a join that throws is a failed try; a Leave during the offline
+  wait leaves the room at rest (`rest`), so an offline Join then says «You’re offline. Join once you’re back.»; back in
+  with the focus on the try's Leave, the focus goes to the call's own Leave (`data-dock-key="leave"` on both); the
+  fixture keeps tokens held twice; the «within 10 s» check also asks for the mode's hello, and a new check keeps a
+  message begun for Sophia hers and unsent through a drop that comes back.
+
 ## Limits
 
 - Out of sight, the places' bar keeps the call during the try but says nothing of it (its note is the devices' alert);
   back in, nothing is said there, and a failed try is said by the toast.
-
-- A long outage past the window (a black-holed network where each of LiveKit's tries waits its full 15 s) ends as
-  today: the lost call and Try again.
-- LiveKit leaves the room itself on `pagehide` and `freeze` (`CLIENT_INITIATED`), which reads as `dropped`. A frozen
-  tab woken within two minutes rejoins; a page restored from the back-forward cache within two minutes would too.
-  Neither is told apart from a lost link here.
-- The camera comes back off, as after Try again. Someone who joined from a phone during LiveKit's minute of tries is
-  taken out of the call there when this tab's try lands (`elsewhere`, which never tries back, so there is no
-  ping-pong).
+- A black-holed network, where each of LiveKit's tries waits its full timeout, can reach `dropped` more than two
+  minutes after the call was last seen live: then no try is made, and the lost call is said with Try again, as before
+  this branch. It fails safe.
+- **Another device isn't seen** (review P2 b, not built): someone who joined from a phone while LiveKit was still
+  trying is taken out of the call there when this tab's try lands (`elsewhere` there, which never tries back, so there
+  is no ping-pong). Telling would need the room's own presence before the try: a follow-up for Davide's lane (the API
+  listing the room's participants, asked before a try, which makes none while this identity is already in).
+- A hidden tab whose timers run less often than every 10 s (a browser's heaviest background throttling) stops counting
+  as seen live, so its drop isn't tried; whether a page with a live call is throttled that hard wasn't observed here.
+- Try again's tip still says the device's own microphone choice, while the join after a drop comes back as the call
+  had it.
+- The camera comes back off, as after Try again.
 - The two-minute window can't be shown in the browser checks without a clock under the fixture; the unit checks hold
   it.
