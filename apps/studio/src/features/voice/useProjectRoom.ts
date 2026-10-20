@@ -205,12 +205,13 @@ const micOnArrival = () => micOnJoin()
 /** How a new join starts: in text mode or not, and with the microphone chosen before it. */
 export interface JoinOptions {
   textOnly?: boolean
-  mic?: boolean
   /**
-   * `mic` is a dropped call's (call-rejoin.md): never on unless this device's own choice is on as the join begins, so a
-   * «join with the microphone off» chosen since the drop holds, whenever the join comes.
+   * The microphone carried to this join: a choice made before it, a failed join's for Try again, or a dropped call's
+   * (call-rejoin.md). Never on unless this device's own choice is on as the join begins, so a «join with the microphone
+   * off» chosen since holds whenever the join comes (the check writes that choice with each press, so its join is as
+   * chosen).
    */
-  capped?: boolean
+  mic?: boolean
   /** The camera on once in, as chosen before joining (prejoin-toggles.md). */
   camera?: boolean
 }
@@ -442,8 +443,7 @@ async function joinConnection(ports: JoinPorts, options?: JoinOptions, still?: (
         refresh()
       },
       // The choice made before joining is carried, not only kept: a device that keeps nothing still honours it.
-      micOnArrival:
-        options?.mic === undefined ? micOnArrival : () => options.mic === true && (!options.capped || micOnJoin()),
+      micOnArrival: options?.mic === undefined ? micOnArrival : () => options.mic === true && micOnJoin(),
       arrive,
       leaveTextMode: () => typedChat.setTextMode(false),
     })
@@ -774,10 +774,10 @@ function outOfCallFor(room: {
   return (why: CallEnd | null, selfLeft = false) => {
     room.typedChat.interrupted()
     if (!keepsTextMode(why)) room.typedChat.rememberTextMode(false)
-    // The call's microphone as last seen, capped as the next join begins by this person's choice then (a mute the call
-    // missed, or «off» chosen since): never on unless both have it on.
+    // The call's microphone as last seen; the next join caps it by this person's choice then (a mute the call missed,
+    // or «off» chosen since): never on unless both have it on (JoinOptions.mic).
     const micWas = room.calls.current?.micWas() ?? false
-    room.stand(why === 'dropped' ? { mic: micWas, capped: true } : undefined)
+    room.stand(why === 'dropped' ? { mic: micWas } : undefined)
     room.calls.current = null
     room.joining.current = null
     room.reset()
