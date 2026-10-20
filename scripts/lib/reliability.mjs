@@ -338,56 +338,70 @@ export function summarizeM1(samples) {
 
 /**
  * M2. Samples of a write whose reply was lost, sent again under its key: resolved or not, how many times it was
- * written, and the time from the second press to the answer. The samples taken across a reload (`afterReload`) are
- * counted apart, in `reload`, so the first line stays comparable with runs from before they were measured.
+ * written, and the time from the second press to the answer.
  */
 export function summarizeM2(samples) {
-  const resolved = samples.filter((s) => s.resolved && !s.afterReload)
-  const before = samples.filter((s) => !s.afterReload)
-  return {
-    n: before.length,
-    resolved: resolved.length,
-    share: rate(resolved.length, before.length),
-    duplicates: before.filter((s) => s.writes > 1).length,
-    resend: spread(resolved.map((s) => s.resendMs)),
-    reload: summarizeReload(samples.filter((s) => s.afterReload)),
-  }
-}
-
-/**
- * M2 kept across a reload: the write's reply lost, the page reloaded. Offered again (its «Not confirmed» line back),
- * resent once under the same key (two tries reached the service, one key), written twice, resolved, and the time from
- * the press after the reload to the answer.
- */
-function summarizeReload(samples) {
   const resolved = samples.filter((s) => s.resolved)
   return {
     n: samples.length,
-    offered: samples.filter((s) => s.offered).length,
-    sameKey: samples.filter((s) => s.tries === 2 && s.keys === 1).length,
-    duplicates: samples.filter((s) => s.writes > 1).length,
     resolved: resolved.length,
+    share: rate(resolved.length, samples.length),
+    duplicates: samples.filter((s) => s.writes > 1).length,
     resend: spread(resolved.map((s) => s.resendMs)),
   }
 }
 
+/** Resent once under the same key: two tries reached the service, under one key. */
+const onceUnderItsKey = (s) => s.tries === 2 && s.keys === 1
+
+/**
+ * M2r, M2 kept across a reload: the write's reply lost, the page reloaded. Offered again (its «Not confirmed» line
+ * back), resent once under the same key, written twice, resolved, and the time from the press after the reload to the
+ * answer, of those resolved by a resend under their key only. A metric of its own, so M2's line stays comparable with
+ * the runs before it.
+ */
+export function summarizeM2Reload(samples) {
+  return {
+    n: samples.length,
+    offered: samples.filter((s) => s.offered).length,
+    sameKey: samples.filter(onceUnderItsKey).length,
+    duplicates: samples.filter((s) => s.writes > 1).length,
+    resolved: samples.filter((s) => s.resolved).length,
+    resend: spread(samples.filter((s) => s.resolved && onceUnderItsKey(s)).map((s) => s.resendMs)),
+  }
+}
+
+/**
+ * The request each M8 kind measures, as the app fixture lists those it refused (`METHOD /path`): the conversation's
+ * messages read, the message sent, the feed's stream.
+ */
+const MEASURED = {
+  read: /^GET \/api\/v1\/projects\/[^/]+\/conversations\/[^/]+\/messages$/,
+  write: /^POST \/api\/v1\/conversations\/[^/]+\/messages$/,
+  feed: /^GET \/api\/v1\/projects\/[^/]+\/events$/,
+}
+
+/** The expired token met the request the sample's kind measures. */
+const reachedIt = (s) => (s.refused ?? []).some((request) => MEASURED[s.kind]?.test(request) ?? false)
+
 /**
  * M8. Per kind (a read, a keyed write, the feed): the API refused the token as expired while the person was still
- * signed in. `reached`: the expired token met a request; renewed: reached, answered on screen, and never «signed
- * out»; `resent`: the refused request went again (a write, under its key); one refresh asked of the Auth service; and
- * p50/p95 of the time from the press (or the lever) to the answer, of the renewed ones.
+ * signed in. `reached`: the expired token met the request the kind measures (`refused`, the unique requests refused);
+ * renewed: reached, a refresh asked, answered on screen, and never «signed out»; `resent`: every refused request went
+ * again (a write, under its key); of the renewed, those with one refresh; and p50/p95 of the time from the press (or the
+ * lever) to the answer, of the renewed ones.
  */
 export function summarizeM8(samples) {
   const result = {}
   for (const [kind, group] of groupBy(samples, (s) => s.kind)) {
-    const renewed = group.filter((s) => s.reached && s.definitive && !s.signedOut)
+    const renewed = group.filter((s) => reachedIt(s) && s.refreshes >= 1 && s.definitive && !s.signedOut)
     result[kind] = {
       n: group.length,
-      reached: group.filter((s) => s.reached).length,
+      reached: group.filter(reachedIt).length,
       renewed: renewed.length,
       signedOut: group.filter((s) => s.signedOut).length,
       resent: group.filter((s) => s.resent).length,
-      oneRefresh: group.filter((s) => s.refreshes === 1).length,
+      oneRefresh: renewed.filter((s) => s.refreshes === 1).length,
       time: spread(renewed.map((s) => s.ms)),
     }
   }
@@ -436,8 +450,11 @@ export function summarizeFeed(samples) {
   return result
 }
 
-/** The fixture's metrics, each written by its own scenarios (their titles start `Mn · `, a describe's or their own). */
-const FIXTURE_METRICS = ['M1', 'M2', 'M3', 'M4', 'M6', 'M7', 'M8']
+/**
+ * The fixture's metrics, each written by its own scenarios (their titles start `Mn · `, a describe's or their own);
+ * `M2r`, M2 kept across a reload.
+ */
+const FIXTURE_METRICS = ['M1', 'M2', 'M2r', 'M3', 'M4', 'M6', 'M7', 'M8']
 
 /**
  * How many scenarios a suite has per metric, from `playwright test --list` (one line per test, `… › file:line:col ›
@@ -446,7 +463,7 @@ const FIXTURE_METRICS = ['M1', 'M2', 'M3', 'M4', 'M6', 'M7', 'M8']
 export function scenarioCounts(listing) {
   if (!/^Total: \d+ tests? in /m.test(listing)) return null
   const counts = {}
-  for (const [, metric] of listing.matchAll(/^\s+\[[^\]]+\] › \S+ › (M\d+) · /gm)) {
+  for (const [, metric] of listing.matchAll(/^\s+\[[^\]]+\] › \S+ › (M\d+r?) · /gm)) {
     counts[metric] = (counts[metric] ?? 0) + 1
   }
   return counts

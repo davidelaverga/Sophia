@@ -35,6 +35,7 @@ import {
   rankFailedTests,
   summarizeM1,
   summarizeM2,
+  summarizeM2Reload,
   summarizeM6,
   summarizeM7,
   summarizeM8,
@@ -315,6 +316,7 @@ function measureFixture({ run: runFirst }) {
     ...(incomplete ? { incomplete } : {}),
     m1: metric('M1', summarizeM1),
     m2: metric('M2', summarizeM2),
+    m2r: metric('M2r', summarizeM2Reload),
     m6: metric('M6', summarizeM6),
     m7: metric('M7', summarizeM7, (s) => s.reached !== false),
     m8: metric('M8', summarizeM8),
@@ -387,16 +389,16 @@ function feedRows(fx) {
   )
 }
 
-/** M2's reload row: offered again after the reload, resent once under its key, written twice; or not run. */
+/** M2r's row: offered again after the reload, resent once under its key, written twice, resolved; or not run. */
 function reloadRow(fx) {
-  return row(fx, 'M2 · kept across a reload: offered again, resent once under its key', () => {
-    const r = fx.m2.reload
+  return row(fx, 'M2r · kept across a reload: offered again, resent once under its key', () => {
+    const r = fx.m2r
     if (!r || r.n === 0) return 'not run'
-    return `${r.offered}/${r.n} offered again · ${r.sameKey}/${r.n} resent once under the same key · written twice: ${r.duplicates} · resend → answer p50 ${ms(r.resend.p50)}`
+    return `${r.offered}/${r.n} offered again · ${r.sameKey}/${r.n} resent once under the same key · written twice: ${r.duplicates} · resolved ${r.resolved}/${r.n} · resend → answer p50 ${ms(r.resend.p50)}`
   })
 }
 
-/** M8's rows, per kind: renewed without «signed out», sent again, one refresh, the time to answer; or not run. */
+/** M8's rows, per kind: renewed without «signed out», sent again, one refresh of the renewed, the time; or not run. */
 const SESSION_KINDS = ['read', 'write', 'feed']
 function sessionRows(fx) {
   return SESSION_KINDS.map((kind) =>
@@ -404,14 +406,14 @@ function sessionRows(fx) {
       const c = fx.m8?.[kind]
       if (!c || c.n === 0) return 'not run'
       const met = c.reached < c.n ? ` (the expired token met ${c.reached}/${c.n})` : ''
-      return `${c.renewed}/${c.n} renewed without «signed out» · ${c.resent}/${c.n} sent again · ${c.oneRefresh}/${c.n} one refresh · answer p50 ${ms(c.time.p50)} · p95 ${ms(c.time.p95)}${met}`
+      return `${c.renewed}/${c.n} renewed without «signed out» · ${c.resent}/${c.n} sent again · ${c.oneRefresh}/${c.renewed} renewed with one refresh · answer p50 ${ms(c.time.p50)} · p95 ${ms(c.time.p95)}${met}`
     }),
   )
 }
 
 /** A metric's row; for a metric the run is partial for, how many of its scenarios wrote results instead of a value. */
 function row(fx, label, value) {
-  const partial = fx.incomplete?.metrics[/^M\d+/.exec(label)[0]]
+  const partial = fx.incomplete?.metrics[/^M\d+r?/.exec(label)[0]]
   if (partial) return `| ${label} | incomplete: ${partial.ran} of ${partial.expected ?? '?'} scenarios wrote results |`
   return `| ${label} | ${value()} |`
 }
