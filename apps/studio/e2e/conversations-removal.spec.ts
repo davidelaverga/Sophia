@@ -1264,7 +1264,7 @@ for (const mode of ['delayed', 'malformed'] as const) {
     await page.evaluate(() => window.fixture?.releaseMessageReads())
     await trip(page)
     await expect(list(page)).toContainText('This project refused a read of its conversations.')
-    await page.waitForTimeout(500)
+    await framesAfterRefusal(page, () => page.evaluate(() => window.denialTrace?.listFrames ?? 0), 10, 500)
     const trace = await readDenialTrace(page)
     await info.attach(`denial-trace-list-${mode}.json`, {
       body: JSON.stringify(trace, null, 1),
@@ -1330,7 +1330,7 @@ test(`removal · semantic, slow frames (8 a second): the list refused (403, dela
   await page.evaluate(() => window.fixture?.releaseMessageReads())
   await trip(page)
   await expect(list(page)).toContainText('This project refused a read of its conversations.')
-  await page.waitForTimeout(500)
+  await framesAfterRefusal(page, () => page.evaluate(() => window.denialTrace?.listFrames ?? 0), 10, 500)
   const trace = await readDenialTrace(page)
   await info.attach('denial-trace-list-slow-frames.json', {
     body: JSON.stringify(trace, null, 1),
