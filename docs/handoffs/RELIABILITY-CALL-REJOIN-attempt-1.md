@@ -185,3 +185,60 @@ Neither game was open, so the runs went through the guarded `pw.ps1`. The plan's
   `app-auth.spec.ts:808`, «page.goto: net::ERR_NO_BUFFER_SPACE» on the fixture's favicon (the machine out of socket
   buffers, nothing of this branch's); `app-auth.spec.ts` alone right after: 53/53 (`review4-green-app-again`). Units
   453/453 over `features/voice` and `features/conversation`. Whole-repo oxlint, tsc, Prettier: clean.
+
+## After Codex's P2 on #475 (2026-10-20: a call that froze once was never seen live again)
+
+Source: `seguimientos-p2.md`, last entry. Worktree `D:\Descargas\SophiaV4\Sophia-paper-1`, branch
+`reliability/rejoin-liveness` from `origin/main` `a8a66d260` (#475 merged); not pushed. The plan's «After Codex's P2
+on #475» says how.
+
+- **Real, as read.** `stillSeen` compared every beat with the same old «seen», so after one gap over 10 s no later beat
+  moved it: two minutes on, that call's drop never tried again, however long it ran in the foreground.
+- **Checked first:** LiveKit's pong timeout, which decides how fast a woken page finds a dead link, is the server's
+  `pingTimeout`: 15 s, pings every 5 s, read from the join response of `livekit-server` v1.13.7 `--dev` (a throwaway
+  container on `127.0.0.1:17880`, stopped after; the repo sets neither). livekit-client 2.22.3 resets that timer on
+  each pong, so after a longer gap it is past due and fires as the page wakes.
+- **Written first** `158e4c6e7`; red: «a page that froze once counts as live again once it runs steadily · actual: 0,
+  expected: 1». Its partner, «never for a laptop that woke into a dead link» (an hour asleep, beats for 25 s, then
+  «Reconnecting…» and the drop 50 s on), passes before and after: it guards the earlier reviews' rule.
+- **Fixed** `ad020bca6`: each beat is compared with the beat before (`Liveness`: seen, last beat, when the run began);
+  a gap (over two beats, or a clock set back) leaves «seen» and starts a run; after 30 s of beats on time
+  (`STEADY_MS`, twice the pong timeout) each beat is «seen» again; going live is seen at once, as before. The pure
+  check of `stillSeen` took the new shape in the same commit (its cases kept, plus the run, its renewal at 30 s, a
+  gap inside the run, a clock set back).
+- **Mutants (local, not committed):** «previous beat only» (every beat on time renews) fails the laptop check, «never
+  for a page that slept past the window» and the run check («actual: 1, expected: 0»; «actual: 65000, expected: 0»);
+  `STEADY_MS` 20 s fails the laptop check and the pin.
+- No browser check: the fixture has no clock, and a run of beats past the two-minute window takes minutes of real time.
+- **Green at `ad020bca6`** (guarded `pw.ps1`, after waiting for Blender to close): `room.spec.ts` + `room-dock.spec.ts`
+  50/50 (`liveness-green-room`). Units: `call-rejoin.test.ts` 37/37; `features/voice` 345/345. Whole-repo oxlint,
+  tsc, Prettier on the two touched files: clean.
+
+### After the independent review of the liveness fix (2026-10-20: one P1)
+
+- **P1, a woken laptop could still count as seen live (real).** Read in livekit-client 2.22.3: the pong timeout
+  (`handleOnClose` → `handleDisconnect('signal')` → `attemptReconnect`) is a *resume* while the peer connections
+  aren't `NEW` (`EngineEvent.Resuming` → `ConnectionState.SignalReconnecting`, `RoomEvent.SignalReconnecting`); a
+  failed resume (`SignalReconnectError`) doesn't escalate; only `EngineEvent.Offline` brings `RoomEvent.Reconnecting`,
+  the one event the room module hears. So the dock stayed `live` and the beats ran: «seen» renewed 30 s after waking,
+  and an offline wait after the drop could rejoin once Wi-Fi came back. `STEADY_MS`'s comment and the plan said the
+  room went to «Reconnecting…»; both corrected (plan `8b142e01e`).
+- **Written first** `cb9ab4796` (doesn't type-check until the fix: `beat` takes `connected`); red: «never for a laptop
+  that woke into a dead link while LiveKit only resumes its signal · actual: 1, expected: 0» and the pure rule
+  «actual: { seen: 6000, beat: 6000, since: null } · expected: { seen: 1000, beat: 6000, since: 6000 }». The review's
+  P3, a point at 29 999 ms into the run, is in the same check (it passed before the fix).
+- **Fixed** `86a2f9bbc`: `RoomConnection.connected()` (`room.state === ConnectionState.Connected`; the fixture: open
+  and its link up); `useRejoin` reads it from the call fence at each beat, and a beat while not connected starts the
+  run again (`stillSeen(live, now, connected)`). A resume that succeeds ends `Connected` with the dock still `live`
+  (not a `live()`), so the run lasts its 30 s again. The dock shows nothing new during a resume.
+- **Not covered by a check:** the hook's wiring of `connected()` to the beat (no browser check can stage a signal
+  resume and a run of beats past the window without a clock under the fixture); the rule and `Rejoin` are unit-checked.
+- **Green at `86a2f9bbc`** (guarded `pw.ps1`): `room.spec.ts` + `room-dock.spec.ts` 50/50 (`liveness-p1-green-room`).
+  Units: `call-rejoin.test.ts` 39/39; `features/voice` 347/347. Whole-repo oxlint, `tsc --noEmit -p apps/studio`,
+  Prettier on the five touched code files: clean.
+- **The re-review's P3s (no P1/P2).** `ccd145da6`: `connected` is required in `stillSeen` and `Rejoin.beat`, so the
+  type check refuses a beat that leaves it out (checked: `rejoin.beat()` in `useProjectRoom.ts` gives «TS2554:
+  Expected 1 arguments, but got 0»; reverted); the tests pass `true` explicitly. The plan's Limits now say that
+  `STEADY_MS` assumes a `pingTimeout` under about 25 s (15 s from `livekit-server` v1.13.7 `--dev`; production is
+  LiveKit Cloud, its value set on LiveKit's side and unconfirmed; how to read it). Units `features/voice` 347/347;
+  whole-repo oxlint, tsc, Prettier: clean. No browser run: only the signature changed.
