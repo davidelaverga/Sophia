@@ -57,3 +57,28 @@ export function taskChanged(queryClient: QueryClient, task: ProjectTask) {
   for (const [queryKey] of moved) void queryClient.resetQueries({ queryKey, exact: true })
   queryClient.setQueriesData<ProjectTask>({ queryKey: ['tasks', 'one'] }, (was) => (was && current(was) ? task : was))
 }
+
+/**
+ * The project's rows, one per task, from its pages in the order they were read (4320180800). Each page is its own read
+ * and the open/done parts move between them: a task read open on one page and done on a later one comes twice. The row
+ * kept is the copy of the newest revision (an older one read later never takes a done task back to open), at that
+ * copy's place; at the same revision, the later read. Its origin is always the last read's: a read's origin is this
+ * reader's projection now (one it may no longer follow reads unavailable without a new revision, as `admits` says),
+ * so an older copy never brings back an origin a later read redacted.
+ */
+export function onePerTask(read: readonly ProjectTask[]): ProjectTask[] {
+  const kept = new Map<string, number>()
+  const last = new Map<string, ProjectTask>()
+  read.forEach((task, i) => {
+    last.set(task.taskId, task)
+    const at = kept.get(task.taskId)
+    const held = at === undefined ? undefined : read[at]
+    if (!held || (task.revision ?? -1) >= (held.revision ?? -1)) kept.set(task.taskId, i)
+  })
+  return [...kept.values()]
+    .toSorted((a, b) => a - b)
+    .flatMap((i) => {
+      const task = read[i]
+      return task ? [{ ...task, from: (last.get(task.taskId) ?? task).from }] : []
+    })
+}

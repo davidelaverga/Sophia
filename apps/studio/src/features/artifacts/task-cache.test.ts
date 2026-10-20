@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { InfiniteQueryObserver, QueryClient, type InfiniteData } from '@tanstack/react-query'
 import type { ProjectTask } from '../../api/vision.ts'
-import { taskChanged, taskRecorded, tasksKey } from './task-cache.ts'
+import { onePerTask, taskChanged, taskRecorded, tasksKey } from './task-cache.ts'
 import { taskOrder } from './task-read.ts'
 
 // SYNTHETIC client-cache regressions for c82's two automatic findings (4310419402, 4310419406), on a real TanStack
@@ -205,5 +205,41 @@ describe('task cache (4310419406): a task done on a loaded project page', () => 
     const firstDone = rows.findIndex((t) => t.doneAt !== null)
     assert.ok(firstDone < 0 || rows.slice(firstDone).every((t) => t.doneAt !== null), 'open before done')
     assert.notEqual(rows.find((t) => t.taskId === id(51))?.doneAt ?? null, null, 'the done task shows done')
+  })
+})
+
+// 4320180800 (C60's admissible case): each page is its own read, and a task finished between them is read open on the
+// first and done on the next. The rows show it once, at its newest revision; an older copy read later doesn't undo it;
+// and the origin is the last read's, never an older copy's.
+describe('the project’s rows, one per task across its pages (4320180800)', () => {
+  it('a task read open on page 1 and done on page 2 is one done row, where the done ones are', () => {
+    const page1 = Array.from({ length: 50 }, (_, i) => task(100 - i))
+    const done = { ...task(60), revision: 2, doneBy: A, doneAt: at(99) }
+    const page2 = [task(50), task(49), done]
+    const rows = onePerTask([...page1, ...page2])
+    assert.equal(rows.length, 52)
+    assert.equal(new Set(rows.map((t) => t.taskId)).size, 52)
+    const row = rows.find((t) => t.taskId === id(60))
+    assert.equal(row?.doneAt, at(99))
+    assert.equal(rows.at(-1)?.taskId, id(60), 'among the done ones, after the open')
+  })
+
+  it('an older copy read later doesn’t take a done task back to open', () => {
+    const done = { ...task(7), revision: 2, doneBy: A, doneAt: at(99) }
+    const rows = onePerTask([done, task(7)])
+    assert.deepEqual(
+      rows.map((t) => [t.taskId, t.revision, t.doneAt]),
+      [[id(7), 2, at(99)]],
+    )
+  })
+
+  it('keeps the origin the last read gave: an older copy never brings back one redacted since', () => {
+    const origin = { kind: 'report', label: 'Press plan' } as unknown as ProjectTask['from']
+    const newer = { ...task(8), revision: 3, from: origin }
+    const redacted = { ...task(8), revision: 2, from: null }
+    const rows = onePerTask([newer, redacted])
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0]?.revision, 3)
+    assert.equal(rows[0]?.from, null)
   })
 })

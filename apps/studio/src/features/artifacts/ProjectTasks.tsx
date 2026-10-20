@@ -17,6 +17,7 @@ import { shownTaskReads, taskPages, useTasksRefused } from './task-read.ts'
 import { ProjectNewTask } from './PassageTask.tsx'
 import { TaskRow, TasksPending } from './TaskList.tsx'
 import { useFeedRefetch } from './useFeedRefetch.ts'
+import { onePerTask } from './task-cache.ts'
 
 interface Props {
   projectId: string
@@ -74,7 +75,7 @@ function useProjectTaskPages(projectId: string, identity: Identity, cursor: stri
   useFeedRefetch(TASKS ? cursor : undefined, read)
   const refusedAt = useTasksRefused(projectId, 'project')
   const pages = shownTaskReads(read.data?.pages, read.isError && closedDoor(read.error), refusedAt)
-  return { read, pages, listed: pages?.flatMap((p) => p.tasks) ?? [] }
+  return { read, pages, listed: onePerTask(pages?.flatMap((p) => p.tasks) ?? []) }
 }
 
 /** The rows, or that there are none. */
