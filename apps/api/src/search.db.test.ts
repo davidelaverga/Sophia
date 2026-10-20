@@ -551,6 +551,32 @@ describe('project search (A38)', () => {
     assert.equal(read.entries.at(-1)?.id, target.contributionId)
   })
 
+  it('names as the next message only one this reader may read: never another member’s private or ineligible message (FND-C63, 4320587071)', async () => {
+    const [admin, a, b] = [randomUUID(), randomUUID(), randomUUID()]
+    const { projectId } = await seedProject(db.ownerUrl, { admin, editors: [a, b] })
+    const target = await say(b, projectId, 'The plover lands.')
+    // A's own private source, then a project source made ineligible: both hidden from B's chat, readable to A.
+    const mine = await textSource(projectId, a, 'Private words of A.')
+    await owner(`UPDATE sophia.source_objects SET scope='private' WHERE id=$1`, [mine.sourceId])
+    const hiddenPrivate = await share(a, projectId, mine)
+    const later = await textSource(projectId, a, 'Ineligible words of A.')
+    const hiddenIneligible = await share(a, projectId, later)
+    await owner(`UPDATE sophia.source_objects SET eligible=false WHERE id=$1`, [later.sourceId])
+    const visible = await say(b, projectId, 'Something B and A both read.')
+    const shownTo = async (sub: string) => (await chat(sub, projectId)).entries.map((e) => e.id)
+    assert.equal((await shownTo(b)).includes(hiddenPrivate.contributionId), false, 'precondition: hidden from B')
+    assert.equal((await shownTo(b)).includes(hiddenIneligible.contributionId), false, 'precondition: hidden from B')
+    // B: the next message B may read, never A's hidden ones (their ids are not B's to learn).
+    const forB = (await found(b, projectId, 'plover')).map((h) => [h.id, h.before])
+    const ids = { hiddenPrivate: hiddenPrivate.contributionId, hiddenIneligible: hiddenIneligible.contributionId }
+    assert.deepEqual(forB, [[target.contributionId, visible.contributionId]], `hidden ids: ${JSON.stringify(ids)}`)
+    const read = await chat(b, projectId, visible.contributionId)
+    assert.equal(read.entries.at(-1)?.id, target.contributionId, 'B’s page before it ends at the found message')
+    // A reads A's private message: for A it is the next one.
+    const forA = (await found(a, projectId, 'plover')).map((h) => [h.id, h.before])
+    assert.deepEqual(forA, [[target.contributionId, hiddenPrivate.contributionId]])
+  })
+
   it('splits sections as 0036 and the viewer do, in a pure invoker function the API role may call; no definer, table or index is added', async () => {
     const texts = [
       'Intro\n# A\none\n## B #\ntwo\n# A\nthree\n```\n# fenced\n```\n# A\nfour',
