@@ -1979,6 +1979,10 @@
   .places .c3-day {
     min-height: 36px;
   }
+  /* The days' menu hangs 6 px under the pill at a finger's size (10 + 40 in the bar). */
+  .places .c3-daybar .menu {
+    top: 56px;
+  }
   /* The ways in are rows that touch: each keeps a finger's 44 px of its own, never a target reaching into the next
      (docs/plans/personal-new-day-scale.md). */
   .places .c3-starters button {
