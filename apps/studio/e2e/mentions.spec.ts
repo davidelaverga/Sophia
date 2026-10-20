@@ -26,8 +26,9 @@ declare global {
     setHidden?: (hidden: boolean) => void
     /** The held seen write's release: answers it 503 (the held-write case below). */
     releaseSeen?: () => void
-    /** That 503's body read by the page (the pending-retry cases below). */
+    /** That 503's body read by the page, and the retry's timer set after it (the pending-retry cases below). */
     seenAnswerRead?: boolean
+    seenRetry?: { id: number; cleared: boolean }
     /** GET /me/needs the page sent, a held one's release, and whether the next is held (the padlock cases below). */
     needsGets?: number
     holdNeeds?: boolean
@@ -534,6 +535,31 @@ test('mentions · a seen write that keeps failing is tried a bounded number of t
 })
 
 /**
+ * The retry's own timer, on the page clock: the first 1 s timer set once the 503 is read (seenRetries' first wait, set in
+ * the promise steps after that read), and whether it was cleared. Wrapped after the page clock is installed. A closed
+ * chat would send nothing anyway (its message is no longer readable), so only the timer tells a cancel from a retry that
+ * went and found nothing.
+ */
+async function watchRetryTimer(page: Page) {
+  await page.addInitScript(() => {
+    const set = window.setTimeout.bind(window)
+    const clear = window.clearTimeout.bind(window)
+    Object.assign(window, {
+      setTimeout: (handler: TimerHandler, ms?: number, ...rest: unknown[]) => {
+        const id = set(handler, ms, ...rest)
+        if (window.seenAnswerRead && !window.seenRetry && ms === 1000) window.seenRetry = { id, cleared: false }
+        return id
+      },
+      clearTimeout: (id?: number) => {
+        if (window.seenRetry && id === window.seenRetry.id) window.seenRetry.cleared = true
+        clear(id)
+      },
+    })
+  })
+}
+const retryCleared = (page: Page) => page.evaluate(() => window.seenRetry?.cleared)
+
+/**
  * The first seen write held, then answered 503 on a stopped page clock, so its retry is surely pending (1 s on): a slow
  * runner can't let the retry go before the step meant to come first (#452's 1 vs 2). The retry is set once the page has
  * read that answer, so the clock waits for the read. Closed, the clock then runs 2.5 s; kept open, just past the retry's
@@ -541,6 +567,7 @@ test('mentions · a seen write that keeps failing is tried a bounded number of t
  */
 async function pendingSeenRetry(page: Page, close: boolean) {
   await page.clock.install()
+  await watchRetryTimer(page)
   await page.addInitScript(() => {
     let held = true
     window.seenAttempts = 0
@@ -594,6 +621,7 @@ async function pendingSeenRetry(page: Page, close: boolean) {
   // Read by the page (ci-mentions-seen-flakes.md): from that read to the retry's timer the client runs only promise
   // steps, and this read of the page is a task after them, so the retry is set before the clock moves.
   await expect.poll(() => page.evaluate(() => window.seenAnswerRead === true)).toBe(true)
+  expect(await retryCleared(page)).toBe(false) // set, and pending
   await page.clock.runFor(500) // half its wait: still pending, nothing sent again
   expect(await seenAttempts(page)).toBe(1)
   if (close) {
@@ -605,6 +633,7 @@ async function pendingSeenRetry(page: Page, close: boolean) {
 
 test('mentions · closing the chat cancels a pending retry of a failed seen write', async ({ page }) => {
   await pendingSeenRetry(page, true)
+  expect(await retryCleared(page)).toBe(true)
   expect(await seenAttempts(page)).toBe(1)
 })
 
