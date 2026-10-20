@@ -224,18 +224,42 @@ the code; each was written first.
   counted as live, it would make the call fresh while LiveKit is still finding out that the link died in the sleep.
   LiveKit finds that out with its pong timer: the server's `pingTimeout` (15 s, with pings every 5 s, read from the
   join response of `livekit-server` v1.13.7 `--dev`; the repo sets neither) is long past due after any gap longer
-  than it, so it fires as the page wakes and the room goes to «Reconnecting…», where no beat runs.
+  than it, so it fires as the page wakes and LiveKit starts reconnecting. (That this takes the room to «Reconnecting…»,
+  where no beat runs, was wrong: see the review below.)
 - **The rule.** Each beat is compared with the previous beat, not with «seen». A gap (over two beats, or a clock set
-  back) starts a run and leaves «seen» where it was; once the run has lasted 30 s with every beat on time
-  (`STEADY_MS`, twice that timeout), each beat is «seen» again. A call that goes live (a join, or LiveKit's own
-  reconnect) is seen at once, as before: LiveKit itself said the link works. The state is `Liveness` (when seen, the
-  last beat, when the run began), and `stillSeen` stays pure.
+  back) starts a run and leaves «seen» where it was; once the run has lasted 30 s with every beat on time and LiveKit
+  connected (`STEADY_MS`, twice that timeout), each beat is «seen» again. A call that goes live (a join, or LiveKit's
+  own reconnect) is seen at once, as before: LiveKit itself said the link works. The state is `Liveness` (when seen,
+  the last beat, when the run began), and `stillSeen` stays pure.
 - **Checks, written first** (`call-rejoin.test.ts`): a page that froze for 30 s and then ran for three minutes tries
   on its drop (red now: no join); a page that wakes after an hour and whose beats stop 25 s later («Reconnecting…»)
   never tries on the drop 50 s on (green now; red against the previous-beat-only rule, run as a local mutant). With
   the fix, the pure rule's check takes the new shape: on time, one beat late, a gap kept, a run under 30 s kept,
   renewed at 30 s, a clock set back as a gap. No browser check: the fixture has no clock, and a run of beats past the
   window would take minutes of real time.
+
+### After the independent review of this fix (2026-10-20: one P1)
+
+- **P1, a woken laptop could still count as seen live (real, read in livekit-client 2.22.3).** The pong timeout calls
+  `handleOnClose` → `handleDisconnect('signal')` → `attemptReconnect`. With the peer connections not `NEW` (LiveKit's
+  reading stays `CONNECTED` through an ICE `disconnected`; only `failed` or `closed` move it) that is a *resume*:
+  `EngineEvent.Resuming`, which the room turns into `ConnectionState.SignalReconnecting` and
+  `RoomEvent.SignalReconnecting`, not `Reconnecting`. The room module hears only `RoomEvent.Reconnecting`, so the dock
+  stays `live` and the beats run. A failed resume throws `SignalReconnectError`, which doesn't escalate to a full
+  reconnect, so with no network every one of LiveKit's ten tries can be a resume while the dock reads `live`;
+  `EngineEvent.Offline` (→ `Reconnecting`) comes only if a peer connection reaches `failed` while the signal is cut, a
+  race with ICE's consent checks. So: an hour asleep, waking with no network, beats on time, «seen» renewed at 30 s,
+  `dropped` 45–60 s later, an offline wait still inside the window, Wi-Fi back → a join nobody asked for.
+- **The rule now.** A beat counts only while LiveKit reads the room `Connected` (`RoomConnection.connected()`, read
+  from `room.state` at each beat): any other state (`SignalReconnecting`, `Reconnecting`) is a gap, so the run starts
+  again and «seen» stays. A resume that succeeds ends in `Connected` (`EngineEvent.Resumed` → `RoomEvent.Reconnected`,
+  which keeps the dock `live`, so it is not a `live()`): the run then lasts its 30 s again before the call is seen.
+  The dock itself is unchanged: during a resume the media can still flow, and saying «Reconnecting…» then is for
+  another change.
+- **Checks, written first:** woken after an hour, 60 s of on-time beats while the room isn't connected, then
+  `dropped` → no join (red now: one join); the pure rule: a beat while not connected starts the run again; a point
+  at 29 999 ms into the run is still not seen (the review's P3). The fixture's connection says `connected` while its
+  link is up.
 
 ## Limits
 
