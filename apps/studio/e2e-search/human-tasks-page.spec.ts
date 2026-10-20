@@ -307,3 +307,119 @@ test('served tasks · R-C5-04: an off-page task named, then no task named (the a
   await page.waitForTimeout(400)
   expect((await reads(page)).filter((r) => r === `${TASKS}/` || r.startsWith(`${TASKS}/?`))).toEqual([])
 })
+
+// 4321099448 / 4321099453 (FND-B98): a later page and an owner write each say they are on their way, and a later page
+// that fails says only that more tasks couldn't be read, with a retry; the rows read stay. SYNTHETIC: the page's fetch
+// holds or refuses those requests while a window flag says so; everything else is the fixture's A39.
+interface Gate {
+  holdNext?: boolean
+  failNext?: boolean
+  holdOwner?: boolean
+  release?: () => void
+  owners?: number
+}
+declare global {
+  interface Window {
+    b98?: Gate
+  }
+}
+async function gated(page: Page) {
+  await page.addInitScript((tasks) => {
+    const gate: Gate = { owners: 0 }
+    window.b98 = gate
+    let waiting: (() => void)[] = []
+    gate.release = () => {
+      const now = waiting
+      waiting = []
+      for (const go of now) go()
+    }
+    // oxlint-disable-next-line unicorn/consistent-function-scoping -- runs in the page: addInitScript sends this callback alone
+    const methodOf = (input: RequestInfo | URL, init?: RequestInit) =>
+      (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
+    // oxlint-disable-next-line unicorn/consistent-function-scoping -- runs in the page: addInitScript sends this callback alone
+    const urlOf = (input: RequestInfo | URL) =>
+      new URL(input instanceof Request ? input.url : String(input), location.href)
+    const isNext = (method: string, url: URL) =>
+      method === 'GET' && url.pathname === tasks && url.searchParams.has('cursor')
+    const isOwner = (method: string, url: URL) =>
+      method === 'PUT' && url.pathname.startsWith(`${tasks}/`) && url.pathname.endsWith('/owner')
+    const held = (next: boolean, owner: boolean) => (next && gate.holdNext) || (owner && gate.holdOwner)
+    const wrap =
+      (f: typeof fetch): typeof fetch =>
+      async (input, init) => {
+        const url = urlOf(input)
+        const method = methodOf(input, init)
+        const next = isNext(method, url)
+        const owner = isOwner(method, url)
+        if (owner) gate.owners = (gate.owners ?? 0) + 1
+        if (held(next, owner)) await new Promise<void>((go) => waiting.push(go))
+        if (next && gate.failNext)
+          return Response.json({ code: 'unavailable', message: 'Synthetic: unavailable' }, { status: 503 })
+        return f(input, init)
+      }
+    let current = wrap(window.fetch.bind(window))
+    Object.defineProperty(window, 'fetch', {
+      configurable: true,
+      get: () => current,
+      set: (f: typeof fetch) => (current = wrap(f)),
+    })
+  }, TASKS)
+}
+
+test('served tasks · more tasks say they are coming; failing, only more tasks couldn’t be read, and Try again brings them (4321099448)', async ({
+  page,
+}) => {
+  await gated(page)
+  await page.goto('/room.html?people=2&humantasks=many')
+  await expect(page.locator('.room-stage')).toBeVisible()
+  await page.getByRole('button', { name: 'Brief', exact: true }).click()
+  await expect(rows(page)).toHaveCount(50)
+  await page.evaluate(() => {
+    if (window.b98) window.b98.holdNext = true
+  })
+  await brief(page).getByRole('button', { name: 'More tasks' }).click()
+  await expect(brief(page).getByRole('status').filter({ hasText: 'Loading more tasks' })).toBeVisible()
+  // Still waiting after a few seconds: the Studio's slow-wait note (useSlow), the same words as elsewhere.
+  await expect(brief(page).getByText('Taking longer than usual.')).toBeVisible({ timeout: 8000 })
+  // Its read fails, and so does the one retry the read makes by itself.
+  await page.evaluate(() => {
+    if (!window.b98) return
+    window.b98.failNext = true
+    window.b98.holdNext = false
+    window.b98.release?.()
+  })
+  await expect(brief(page).getByRole('alert')).toHaveText('Couldn’t read more tasks.', { timeout: 15_000 })
+  await expect(rows(page)).toHaveCount(50)
+  await page.evaluate(() => {
+    if (window.b98) window.b98.failNext = false
+  })
+  await brief(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(rows(page)).toHaveCount(64)
+  await expect(brief(page).getByRole('alert')).toHaveCount(0)
+  await expect(brief(page).getByRole('button', { name: /More tasks|Try again/ })).toHaveCount(0)
+})
+
+test('served tasks · a Claim on its way says so in its row, sends once, and the row says the result when it lands (4321099453)', async ({
+  page,
+}) => {
+  await gated(page)
+  await openBrief(page)
+  const room = row(page, 'Book the room')
+  await page.evaluate(() => {
+    if (window.b98) window.b98.holdOwner = true
+  })
+  await room.getByRole('button', { name: 'Claim' }).click()
+  await expect(room.getByRole('status').filter({ hasText: 'Updating who it’s for…' })).toBeVisible()
+  // A second press while it is on its way (Claim is aria-disabled, so pressed as a person can: forced) sends nothing.
+  await room.getByRole('button', { name: 'Claim' }).click({ force: true })
+  await expect(room.getByText('Taking longer than usual.')).toBeVisible({ timeout: 8000 })
+  expect(await page.evaluate(() => window.b98?.owners)).toBe(1)
+  await page.evaluate(() => {
+    if (!window.b98) return
+    window.b98.holdOwner = false
+    window.b98.release?.()
+  })
+  await expect(room).toContainText('For you')
+  await expect(room.getByText('Updating who it’s for…')).toHaveCount(0)
+  expect(await page.evaluate(() => window.b98?.owners)).toBe(1)
+})

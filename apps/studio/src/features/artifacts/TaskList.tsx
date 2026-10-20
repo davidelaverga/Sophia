@@ -229,6 +229,8 @@ function TaskOwner({ task, me, projectId, identity, onStale }: OwnerProps) {
   const members = useMemberNames(projectId, identity, SERVED_TASKS)
   const [sending, setSending] = useState(false)
   const [words, setWords] = useState<string | null>(null)
+  // A Claim, Release or Assign on its way says so in the row, and a long wait adds the Studio's note (4321099453).
+  const slow = useSlow(sending)
   const assign = async (ownerId: string | null) => {
     if (sending) return
     setSending(true)
@@ -275,7 +277,8 @@ function TaskOwner({ task, me, projectId, identity, onStale }: OwnerProps) {
             ))}
         </select>
       )}
-      {words && <span role="status">{words}</span>}
+      <span role="status">{sending ? 'Updating who it’s for…' : (words ?? '')}</span>
+      {slow && <span className="task-said">{SLOW_NOTE}</span>}
     </span>
   )
 }

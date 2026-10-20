@@ -9,6 +9,7 @@ import { getProjectTask, listProjectTasks } from '../../api/tasks.ts'
 import type { ProjectTask } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { TASKS } from '../../app/tasks.ts'
+import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { useMembership } from '../access/useAccess.ts'
 import { TODO } from '../resources/link.ts'
 import { useAddressed } from '../resources/useAddressed.ts'
@@ -47,11 +48,7 @@ export function ProjectTasks({ projectId, identity, cursor }: Props) {
           row={{ me, projectId, identity, artifactId: null, onStale: () => [read.refetch(), named.refetch()] }}
         />
       )}
-      {pages && read.hasNextPage && (
-        <button type="button" className="text-button" onClick={() => void read.fetchNextPage()}>
-          More tasks
-        </button>
-      )}
+      {pages && read.hasNextPage && <MoreTasks read={read} />}
     </section>
   )
 }
@@ -76,6 +73,39 @@ function useProjectTaskPages(projectId: string, identity: Identity, cursor: stri
   const refusedAt = useTasksRefused(projectId, 'project')
   const pages = shownTaskReads(read.data?.pages, read.isError && closedDoor(read.error), refusedAt)
   return { read, pages, listed: onePerTask(pages?.flatMap((p) => p.tasks) ?? []) }
+}
+
+/**
+ * The next page (4321099448): on its way, it says so where More is, and More doesn't ask again; failed (after the read's
+ * own retry), it says only that more tasks couldn't be read, and offers to read them again. The rows read stay. A
+ * refusal (401, 403) hides the whole list, this with it (shownTaskReads).
+ */
+function MoreTasks({
+  read,
+}: {
+  read: { isFetchingNextPage: boolean; isFetchNextPageError: boolean; fetchNextPage: () => unknown }
+}) {
+  const fetching = read.isFetchingNextPage
+  const slow = useSlow(fetching)
+  const failed = read.isFetchNextPageError && !fetching
+  return (
+    <div className="task-more">
+      <p role="status" className="task-said">
+        {fetching ? (slow ? `Loading more tasks… ${SLOW_NOTE}` : 'Loading more tasks…') : ''}
+      </p>
+      {failed && <p role="alert">Couldn’t read more tasks.</p>}
+      <button
+        type="button"
+        className="text-button"
+        aria-disabled={fetching || undefined}
+        onClick={() => {
+          if (!fetching) void read.fetchNextPage()
+        }}
+      >
+        {failed ? 'Try again' : 'More tasks'}
+      </button>
+    </div>
+  )
 }
 
 /** The rows, or that there are none. */
