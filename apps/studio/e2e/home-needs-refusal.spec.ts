@@ -242,6 +242,63 @@ test(`needs @phone · semantic: its own read refused (403, delayed body), on a p
   expect(await seenWrites(page), 'no seen write from a retired control').toBe(0)
 })
 
+/**
+ * CI's loaded runners drew Home at 8 to 15 frames a second while its script ran freely
+ * (docs/plans/ci-home-needs-refusal-flake.md). From here on every animation-frame callback the page asks for (the
+ * trace's, Home's light) runs at the first frame `ms` after it was asked, so every run meets that rate; the main thread
+ * is not held.
+ */
+const slowFrames = (page: Page, ms: number) =>
+  page.evaluate((gap) => {
+    const raf = window.requestAnimationFrame.bind(window)
+    const caf = window.cancelAnimationFrame.bind(window)
+    const pending = new Map<number, { timer?: number; frame?: number }>()
+    let seq = 0
+    window.requestAnimationFrame = (callback) => {
+      const id = ++seq
+      const entry: { timer?: number; frame?: number } = {}
+      entry.timer = window.setTimeout(() => {
+        entry.frame = raf((at) => {
+          pending.delete(id)
+          callback(at)
+        })
+      }, gap)
+      pending.set(id, entry)
+      return id
+    }
+    window.cancelAnimationFrame = (id) => {
+      const entry = pending.get(id)
+      pending.delete(id)
+      window.clearTimeout(entry?.timer)
+      if (entry?.frame !== undefined) caf(entry.frame)
+    }
+  }, ms)
+
+test(`needs · semantic, slow frames (about 15 a second, as CI drew): its own read refused (403, delayed body): from the client's first sight of it, enough frames are sampled and none shows a cached need, title, count or action`, async ({
+  page,
+}, info) => {
+  await page.goto(PAGE)
+  const since = page.locator('body')
+  await expect(page.locator(`${NEEDS} button`).first()).toBeVisible()
+  await observe(page, { status: 403, body: 'delayed' })
+  await slowFrames(page, 50)
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+  await expect(since).toContainText('Couldn’t read what needs you.')
+  await page.waitForTimeout(400)
+  const trace = await readTrace(page)
+  await info.attach('needs-trace-slow-frames.json', {
+    body: JSON.stringify(trace, null, 1),
+    contentType: 'application/json',
+  })
+  expect(
+    trace.denials.some((d) => d.path === '/api/v1/me/needs'),
+    'its own read refused, as the client saw',
+  ).toBe(true)
+  expect(trace.frames).toBeGreaterThan(10)
+  expect(trace.hits, 'a cached need, title, count or action after the client saw the refusal').toEqual([])
+  expect(await seenWrites(page), 'no seen write from a retired control').toBe(0)
+})
+
 test('needs · an ordinary failure (503) with no refusal before it keeps the rows read, beside its note', async ({
   page,
 }) => {
