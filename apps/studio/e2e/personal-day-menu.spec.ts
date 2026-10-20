@@ -47,3 +47,22 @@ test('@phone · menus · another menu’s rows still wrap: only the day menu kee
   await expect(row).toBeVisible()
   expect(await row.evaluate((r) => getComputedStyle(r).whiteSpace)).toBe('normal')
 })
+
+test('@phone · personal · the days’ menu hangs under the pill, never over it (docs/plans/personal-new-day-scale.md)', async ({
+  page,
+}) => {
+  // Just after midnight the list ends on a new day, the pill shows on arrival and nothing under it crowds it.
+  await page.goto('/personal.html?demo=1&at=00:04')
+  const pill = page.locator('.c3-daypill')
+  await expect(pill).toBeVisible()
+  await pill.click()
+  const menu = page.getByRole('menu', { name: 'Earlier days' })
+  await expect(menu).toBeVisible()
+  // On a touch screen the pill takes a finger's 40 px: the menu still hangs 6 px under its foot, as on a desktop. Read
+  // once its entrance has settled.
+  const gap = async () => {
+    const [p, m] = [await pill.boundingBox(), await menu.boundingBox()]
+    return p && m ? Math.round(m.y - (p.y + p.height)) : null
+  }
+  await expect.poll(gap).toBe(6)
+})
