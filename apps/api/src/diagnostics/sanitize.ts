@@ -155,6 +155,10 @@ export const EVENT_TYPES = [
     'renamed',
     'archived',
     'unarchived',
+    // A person's task (A39, 0074): made, given to someone or to nobody, done.
+    'task_created',
+    'task_owner_set',
+    'task_done',
   ]),
   ...suffixed('contribution.', ['recorded', 'corrected', 'withdrawn', 'mentioned']),
   ...suffixed('native_task.', [
@@ -246,6 +250,8 @@ export const SUMMARY_CODES = [
   ...suffixed('native_task.', [...TASK_SUMMARIES, ...TASK_ENDINGS]),
   ...suffixed('runtime.', ['hello', 'ready', 'not_ready', 'unrecovered']),
   ...suffixed('goal.', ['held', 'stopped', 'target']),
+  // A person's task (A39, 0074).
+  ...suffixed('task.', ['created', 'owner_set', 'done']),
 ]
 
 // What the room shows about LiveKit: counts, never a person (review finding CX-0007). Sophia is the one participant

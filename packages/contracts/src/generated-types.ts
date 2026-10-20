@@ -302,6 +302,13 @@ export type ContributionActReceipt = { "contributionId": string; "projectId": st
 export type WithdrawnEntry = { "id": string; "actorId": string; "authorName": string | null; "createdAt": string; "withdrawnAt": string; };
 export type SearchHit = { "kind": "report" | "report_section" | "note" | "decision" | "message"; "id": string; "title": string; "snippet": string; "at": string; "cite": { "recordId": string; "sha256": string; "anchor"?: string; }; "before"?: string | null; };
 export type SearchPage = { "hits": ReadonlyArray<SearchHit>; "next": string | null; };
+export type ProjectTaskOrigin = { "available": boolean; "artifactId"?: string; "versionId"?: string; "versionNumber"?: number | null; "title"?: string; "at"?: ProjectTaskPlace; };
+export type ProjectTaskPlace = { "block": number; "word": number; "count": number; };
+export type ProjectTask = { "taskId": string; "projectId": string; "title": string; "ownerId": string | null; "ownerName": string | null; "state": "open" | "done"; "revision": number; "createdBy": string; "createdByName": string | null; "createdAt": string; "doneBy": string | null; "doneByName": string | null; "doneAt": string | null; "origin": ProjectTaskOrigin | null; };
+export type ProjectTaskList = { "tasks": ReadonlyArray<ProjectTask>; "next": string | null; };
+export type ProjectTaskRequest = { "title": string; "ownerId"?: string | null; "origin"?: { "artifactId": string; "versionId": string; "block": number; "word": number; "count": number; } | null; };
+export type ProjectTaskOwnerRequest = { "ownerId": string | null; "expectedRevision": number; };
+export type ProjectTaskDoneRequest = { "expectedRevision": number; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
@@ -482,4 +489,10 @@ export interface Operations {
   "correctContribution": { method: "POST"; path: "/api/v1/projects/{projectId}/contributions/{contributionId}/correction"; request: ContributionCorrection; response: ContributionActReceipt; };
   "withdrawContribution": { method: "POST"; path: "/api/v1/projects/{projectId}/contributions/{contributionId}/withdrawal"; request: ContributionWithdrawal; response: ContributionActReceipt; };
   "searchProject": { method: "GET"; path: "/api/v1/projects/{projectId}/search"; request: undefined; response: SearchPage; };
+  "listProjectTasks": { method: "GET"; path: "/api/v1/projects/{projectId}/tasks"; request: undefined; response: ProjectTaskList; };
+  "createProjectTask": { method: "POST"; path: "/api/v1/projects/{projectId}/tasks"; request: ProjectTaskRequest; response: ProjectTask; };
+  "getProjectTask": { method: "GET"; path: "/api/v1/projects/{projectId}/tasks/{taskId}"; request: undefined; response: ProjectTask; };
+  "setProjectTaskOwner": { method: "PUT"; path: "/api/v1/projects/{projectId}/tasks/{taskId}/owner"; request: ProjectTaskOwnerRequest; response: ProjectTask; };
+  "finishProjectTask": { method: "POST"; path: "/api/v1/projects/{projectId}/tasks/{taskId}/done"; request: ProjectTaskDoneRequest; response: ProjectTask; };
+  "listReportTasks": { method: "GET"; path: "/api/v1/artifacts/{artifactId}/tasks"; request: undefined; response: ProjectTaskList; };
 }

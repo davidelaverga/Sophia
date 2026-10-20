@@ -42,6 +42,7 @@ const UPDATES = '0066_project_updates.sql'
 const MESSAGE_ACTS = '0068_contribution_revisions.sql'
 const MENTIONS = '0069_contribution_mentions.sql'
 const SEARCH = '0072_project_search.sql'
+const TASKS = '0074_project_human_tasks.sql'
 const RETIREMENTS = '0075_completed_goal_session_retirement.sql'
 const MENTION_VISIBILITY = '0076_mention_source_visibility.sql'
 
@@ -203,6 +204,9 @@ describe('readiness across 0043', () => {
     await through(SEARCH)
     assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0072')
     await migrate(SEARCH)
+    await through(TASKS)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0074')
+    await migrate(TASKS)
     // The snapshot reads goal_retirements (0075) unconditionally, whatever the flags: without it, not ready.
     await through(RETIREMENTS)
     assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0075')

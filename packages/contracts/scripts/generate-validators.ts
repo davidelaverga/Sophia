@@ -72,6 +72,8 @@ const EXPORTS = [
   'ProjectList',
   'NeedList',
   'SearchPage',
+  'ProjectTask',
+  'ProjectTaskList',
   'WorkBoardView',
   'WorkReceipt',
   'WorkResult',

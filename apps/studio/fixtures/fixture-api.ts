@@ -52,6 +52,7 @@ import {
   researchRunning,
   researchTaskAt,
   TASK,
+  versionId as versionIdOf,
   versions,
   waitingAtTheDoor,
   type Description,
@@ -79,6 +80,19 @@ import {
 import type { ProjectRelease, ReportList } from '@sophia/contracts'
 import { searchHits, searchPage, servedHits } from './search-data.ts'
 import { VISION } from '../src/app/vision.ts'
+import { TASKS } from '../src/app/tasks.ts'
+import {
+  createAnswer,
+  doneAnswer,
+  projectPage,
+  noHumanTasks,
+  ownerAnswer,
+  reportTasks,
+  servedOf,
+  type Answer,
+  type HumanTasks,
+  type TaskWorld,
+} from './human-tasks-data.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
 import {
   closed,
@@ -200,6 +214,8 @@ interface Project {
    */
   versionsFail: false | 'unavailable' | 'not_found'
   /** The design task itself is in the project's work, as its own card (`designcard=on`). */
+  /** A report's own task list answers not_found (`failReportTasks`). */
+  reportTasksFail?: boolean
   designCard?: boolean
   /** Reads of the design task fail: refused (403, this person's own), or unavailable (503); false, they succeed. */
   designFail?: false | 'unavailable' | 'forbidden'
@@ -307,6 +323,8 @@ interface Project {
   projectsFail?: boolean
   /** The report's tasks (task-data.ts, A17); absent, their requests are unexpected. */
   tasks?: Tasks
+  /** The project's human tasks as A39 serves them (human-tasks-data.ts), on the served page only (`humantasks=seed`). */
+  humanTasks?: HumanTasks | undefined
   /** The meeting the room is in (meeting-data.ts, A12); absent, its requests are unexpected. */
   meeting?: Meeting
   /** The project's conversations (conversation-data.ts, A18); absent, their requests are unexpected. */
@@ -931,7 +949,7 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
   const base = `/api/v1/projects/${PROJECT}`
   const path = url.pathname
   if (method === 'GET' && path === `${base}/snapshot`) return snapshotAnswer(project, url)
-  const records = recordsAnswer(project, method, url, init)
+  const records = routedAnswer(project, method, url, init)
   if (records !== undefined) return records
   if (method === 'GET' && path === `${base}/membership`) return membershipRead(project)
   if (method === 'GET' && path === `${base}/events`) {
@@ -940,6 +958,10 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
   if (method === 'POST' || method === 'PUT') return written(project, method, path, init)
   return answerReports(project, method, url, init)
 }
+
+/** A39's human tasks on the served page, else the records this page keeps; undefined for anything else. */
+const routedAnswer = (project: Project, method: string, url: URL, init: RequestInit | undefined) =>
+  humanTasksAnswer(project, method, url, init) ?? recordsAnswer(project, method, url, init)
 
 /** A message's correction or withdrawal and their preview (A36, message-acts.ts); undefined for any other request. */
 const actAnswer = (project: Project, method: string, url: URL, init: RequestInit | undefined) =>
@@ -2289,4 +2311,120 @@ export function installFixtureApi(project: Project): void {
     console.error(`[fixture] unexpected request: ${method} ${url.pathname}`)
     return Promise.resolve(new Response(JSON.stringify({ code: 'fixture_unexpected' }), { status: 501 }))
   }
+}
+
+/** The world a human task is answered in (A39): this reader, their role now, the project's members and its report. */
+function taskWorld(project: Project): TaskWorld {
+  const gone = project.removedMembers ?? new Set<string>()
+  const names = new Map([
+    [membership.actorId, VIEWER_NAME],
+    [personId(1), 'Marco'],
+    [personId(2), 'Lucía'],
+  ])
+  return {
+    projectId: PROJECT,
+    me: membership.actorId,
+    role: project.role ?? membership.role,
+    members: new Set([...names.keys()].filter((id) => !gone.has(id))),
+    nameOf: (id) => names.get(id) ?? null,
+    versions: new Map(Array.from({ length: project.reportVersions }, (_, i) => [versionIdOf(i + 1), i + 1] as const)),
+    report: { artifactId: REPORT, title: project.reportTitle },
+  }
+}
+
+const HUMAN_TASK = new RegExp(`^/api/v1/projects/${PROJECT}/tasks/([0-9a-f-]{36})(/owner|/done)?$`)
+const REPORT_TASKS = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/tasks$/
+
+const answerOf = (a: Answer) =>
+  new Response(JSON.stringify(a.body), { status: a.status, headers: { 'content-type': 'application/json' } })
+
+/**
+ * A39's routes on the served page (the tasks flag without the vision flag): each request recorded as sent, path, query
+ * and body (`task-read:` / `task-request:`); a write that lands moves the feed. Undefined for anything else.
+ */
+function humanTasksAnswer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
+  if (!TASKS || VISION) return undefined
+  const path = url.pathname
+  const route = {
+    report: REPORT_TASKS.exec(path)?.[1],
+    one: HUMAN_TASK.exec(path),
+    list: path === `/api/v1/projects/${PROJECT}/tasks`,
+  }
+  if (!route.report && !route.one && !route.list) return undefined
+  // Served without a seed: none yet, still answered as A39.
+  const tasks = (project.humanTasks ??= noHumanTasks())
+  const world = taskWorld(project)
+  if (method === 'GET') return humanRead(project, tasks, world, url, route)
+  return writeAnswered(project, humanWrite(tasks, world, { method, path, init, one: route.one }))
+}
+
+/** A write's answer: lost when dropped (status 0), the feed moved when it landed. */
+function writeAnswered(project: Project, result: Answer | undefined) {
+  if (!result) return undefined
+  if (result.status === 0) return Promise.reject(new TypeError('Failed to fetch'))
+  if (result.status < 300) publish(project)
+  return answerOf(result)
+}
+
+/** A39's reads: a report's tasks, the project's, or one. */
+function humanRead(
+  project: Project,
+  tasks: HumanTasks,
+  world: TaskWorld,
+  url: URL,
+  route: { report: string | undefined; one: RegExpExecArray | null; list: boolean },
+): Response {
+  served.push(`task-read:${url.pathname}${url.search}`)
+  if (route.report && project.reportTasksFail)
+    return answerOf({
+      status: 422,
+      body: { code: 'not_found', message: 'Artifact not found', requestId: PROJECT, retry: 'never' },
+    })
+  if (route.report) return answerOf(reportTasks(tasks, world, route.report))
+  if (route.list) return json(projectPage(tasks, world, url.searchParams.get('cursor')))
+  const t = tasks.list.find((x) => x.taskId === route.one?.[1])
+  if (t) return json(servedOf(tasks, world, t))
+  return answerOf({
+    status: 422,
+    body: { code: 'not_found', message: 'Task not found', requestId: PROJECT, retry: 'never' },
+  })
+}
+
+/**
+ * A write as it reached the fixture: recorded as sent, with its key (`task-request:`, `task-key:`); or, when the page
+ * asked (`dropNextTaskWrite`), dropped before reaching it (`task-dropped:`), its answer lost. True when dropped.
+ */
+function dropped(
+  tasks: HumanTasks,
+  req: { method: string; path: string; init: RequestInit | undefined },
+  text: string,
+) {
+  const keyed = new Headers(req.init?.headers).get('idempotency-key') ?? ''
+  if (tasks.dropNext) {
+    tasks.dropNext = false
+    served.push(`task-dropped:${req.method} ${req.path} ${text} key=${keyed}`)
+    return true
+  }
+  served.push(`task-request:${req.method} ${req.path} ${text}`)
+  if (keyed) served.push(`task-key:${keyed}`)
+  return false
+}
+
+/** A39's writes: create, owner, done; undefined for any other method on these paths. */
+function humanWrite(
+  tasks: HumanTasks,
+  world: TaskWorld,
+  req: { method: string; path: string; init: RequestInit | undefined; one: RegExpExecArray | null },
+): Answer | undefined {
+  const text = typeof req.init?.body === 'string' ? req.init.body : ''
+  if (dropped(tasks, req, text)) return { status: 0, body: null }
+  const body: unknown = text ? JSON.parse(text) : null
+  const key = new Headers(req.init?.headers).get('idempotency-key') ?? ''
+  const [, id = '', tail = ''] = req.one ?? [undefined, '', 'list']
+  const acts: Record<string, (() => Answer) | undefined> = {
+    'POST list': () => createAnswer(tasks, world, key, body),
+    'PUT /owner': () => ownerAnswer(tasks, world, id, body),
+    'POST /done': () => doneAnswer(tasks, world, id, key, body),
+  }
+  return acts[`${req.method} ${tail}`]?.()
 }

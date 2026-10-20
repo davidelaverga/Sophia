@@ -126,6 +126,7 @@ import {
   versionId,
   VERSIONS_HELD,
 } from './report-data.ts'
+import { seededTasks } from './human-tasks-data.ts'
 import { DEMO, DEMO_LABEL, DEMO_VERSION, VIEWER_NAME } from './demo.ts'
 import { ResourcePanel } from '../src/features/resources/ResourcePanel.tsx'
 import {
@@ -252,6 +253,16 @@ interface Fixture {
   holdSearch: (on: boolean) => void
   /** While on, searches fail as an unavailable API's (A38). */
   failSearch: (on: boolean) => void
+  /** Another member changes a human task meanwhile (A39): its owner, its revision moved; the feed moves if asked. */
+  bumpTask: (taskId: string, ownerId: string | null, moveFeed?: boolean) => void
+  /** The next task write never reaches the API, and its answer is lost (A39). */
+  dropNextTaskWrite: () => void
+  /** A task's origin is no longer this reader's to follow (made private, ineligible or erased); the feed moves. */
+  withdrawTaskOrigin: (taskId: string) => void
+  /** A task this reader can no longer read (A39 answers not_found); the feed moves. */
+  hideTask: (taskId: string) => void
+  /** While on, a report's tasks are answered as the A17 proposal, which A39's served parser refuses (its retry too). */
+  tasksAsProposed: (on: boolean) => void
   /** The next search is answered as the A13 proposal (a recap, meetings), which A38's served parser refuses. */
   searchAsProposed: () => void
   /** Reads of the served board wait while on, as a slow API's do; off, the waiting ones are answered (search-honest.md). */
@@ -450,6 +461,8 @@ interface Fixture {
   fenceOf: (key: readonly string[]) => unknown
   /** Sets out the page's own queries under `key` again, through their own owned query functions (nothing set by hand). */
   refetch: (key: readonly string[]) => void
+  /** A report's own task list answers not_found (422) from now on, as after a revoked membership; false, it reads again. */
+  failReportTasks: (on: boolean) => void
   /** The report's sources, held since the page opened (`hold=sources`), come now. */
   releaseSources: () => void
   /** Reads of the report's sources wait again from now on, until released. */
@@ -819,6 +832,7 @@ const project = {
   // `designcard=on`: the design task itself is in the project's work (its own DesignCard); `failDesign` fails its read.
   designCard: query.get('designcard') === 'on',
   designFail: designFailOf(query.get('designfail')),
+  reportTasksFail: false,
   sourcesHeld: query.get('hold') === 'sources',
   textHeld: query.get('hold') === 'text',
   activityHeld: query.get('hold') === 'activity',
@@ -903,6 +917,26 @@ const project = {
     ...noReviews(query.get('reviews') === 'fail'),
     heldReads: query.get('reviews') === 'hold' ? waiting() : null,
   },
+  // A39 on the served page (`humantasks=seed`, human-tasks-data.ts): the project's human tasks.
+  humanTasks:
+    query.get('humantasks') === 'seed' || query.get('humantasks') === 'many'
+      ? seededTasks(
+          {
+            projectId: PROJECT,
+            me: ME,
+            role: 'admin',
+            members: new Set(),
+            nameOf: () => null,
+            versions: new Map(),
+            report: { artifactId: REPORT, title: '' },
+          },
+          personId(2),
+          personId(1),
+          versionId(1),
+          // `proposedtasks=1`: a report's tasks are answered as the A17 proposal from the first read.
+          { proposed: query.get('proposedtasks') === '1', many: query.get('humantasks') === 'many' },
+        )
+      : undefined,
   // A17: the report's tasks (task-data.ts).
   tasks: {
     ...noTasks(nameOf, (id) => Number(id.slice(-1)), query.get('tasks') === 'fail'),
@@ -1349,6 +1383,25 @@ window.fixture = {
   failSearch: (on) => {
     project.failSearch = on
   },
+  bumpTask: (id, ownerId, moveFeed) => {
+    const t = project.humanTasks?.list.find((x) => x.taskId === id)
+    if (t) Object.assign(t, { ownerId, revision: t.revision + 1 })
+    if (moveFeed) publish(project)
+  },
+  dropNextTaskWrite: () => {
+    if (project.humanTasks) project.humanTasks.dropNext = true
+  },
+  withdrawTaskOrigin: (id) => {
+    project.humanTasks?.unavailable.add(id)
+    publish(project)
+  },
+  hideTask: (id) => {
+    if (project.humanTasks) project.humanTasks.list = project.humanTasks.list.filter((x) => x.taskId !== id)
+    publish(project)
+  },
+  tasksAsProposed: (on) => {
+    if (project.humanTasks) project.humanTasks.proposed = on
+  },
   searchAsProposed: () => {
     project.searchAsProposed = true
   },
@@ -1549,6 +1602,9 @@ window.fixture = {
   },
   failDesign: (how = 'forbidden') => {
     project.designFail = how
+  },
+  failReportTasks: (on) => {
+    project.reportTasksFail = on
   },
   fenceOf: (key) => queryClient.getQueryData(key),
   refetch: (key) => void queryClient.refetchQueries({ queryKey: key }).catch(() => undefined),

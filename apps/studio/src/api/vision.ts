@@ -387,25 +387,45 @@ export const listReviews = (token: string, artifactId: string, versionId: string
 export const reviewVersion = (token: string, artifactId: string, versionId: string, key: string, body: ReviewAsk) =>
   callApi(`/api/v1/artifacts/${artifactId}/versions/${versionId}/reviews`, { token, key, body }, parseReview)
 
-/** A17 (proposed): a task made from a passage of a report, for a member or for anyone. */
+/**
+ * A17 (proposed): a task made from a passage of a report, for a member or for anyone. Also the Studio's reading of A39's
+ * served task (api/tasks.ts): there the passage is a link only, with no quote, it may come from none, or be unavailable
+ * to this reader; and the task has its revision, which its writes are compared against.
+ */
 export interface ProjectTask {
   taskId: string
   text: string
-  /** The member it is for (an actor id), or null: anyone. */
+  /** The member it is for (an actor id), or null: anyone (A17) or nobody yet (A39). */
   owner: string | null
   ownerName: string | null
-  /** The passage it came from: its version, its place there (passage-link.ts) and its words, as selected. */
-  from: { versionId: string; versionNumber: number; passage: string; quote: string }
+  /**
+   * The passage it came from: its version, its place there (passage-link.ts) and, in A17's proposal only, its words as
+   * selected. A39: null when it came from no passage, 'unavailable' when this reader may not read its source.
+   */
+  from: TaskFrom | 'unavailable' | null
   by: string
   at: string
   doneBy: string | null
   doneAt: string | null
+  /** A39's revision; absent in A17's proposal. */
+  revision?: number
+}
+
+export interface TaskFrom {
+  /** A39's: the report it is in (A17's rows are a report's own). */
+  artifactId?: string
+  versionId: string
+  versionNumber: number | null
+  passage: string
+  /** A17's proposal only: A39 keeps no words of a source. */
+  quote: string | null
 }
 
 export interface TaskAsk {
   text: string
   owner: string | null
-  from: { artifactId: string; versionId: string; passage: string; quote: string }
+  /** The passage it is made from; null for an ordinary project task (A39's nullable origin, the brief's New task). */
+  from: { artifactId: string; versionId: string; passage: string; quote: string } | null
 }
 
 const TASK = {

@@ -5,9 +5,14 @@ import type { Membership } from '@sophia/contracts'
 import type { ProjectTask } from '../../api/vision.ts'
 import type { RoomParticipant } from '../voice/room-view.ts'
 
-/** Who a task is for: you, the member by the name the API gives, or anyone. */
-export function ownerWords(task: ProjectTask, me: string): string {
-  if (task.owner === null) return 'anyone'
+/** The owner choice for no one: A39's served form says «Nobody yet» (the payload stays null); A17 keeps «Anyone». */
+export function noOwnerOption(served: boolean): string {
+  return served ? 'Nobody yet' : 'Anyone'
+}
+
+/** Who a task is for: you, the member by the name the API gives, or anyone (A17) / nobody yet (A39, `served`). */
+export function ownerWords(task: ProjectTask, me: string, served = false): string {
+  if (task.owner === null) return served ? 'nobody yet' : 'anyone'
   if (task.owner === me) return 'you'
   return task.ownerName ?? 'a member'
 }
@@ -25,9 +30,23 @@ export const ordered = (tasks: readonly ProjectTask[]): ProjectTask[] => [
 
 export const openCount = (tasks: readonly ProjectTask[]): number => tasks.filter(isOpen).length
 
-/** Done is whoever it is for (anyone's, any member's), or an editor's or an admin's; and only while it is open. */
-export const mayFinish = (task: ProjectTask, me: string, role: Membership['role']): boolean =>
-  isOpen(task) && (task.owner === null || task.owner === me || role === 'admin' || role === 'editor')
+/** An editor or an admin: who creates, claims, assigns and releases served tasks, and finishes any (D-TASKS). */
+export const mayAssign = (role: Membership['role']): boolean => role === 'admin' || role === 'editor'
+
+/**
+ * Done, only while it is open. A17's proposal: whoever it is for (anyone's, any member's), or an editor or an admin.
+ * A39 (`served`, D-TASKS): an editor or an admin, any task; a viewer only one explicitly theirs, never one for nobody.
+ */
+export const mayFinish = (task: ProjectTask, me: string, role: Membership['role'], served = false): boolean =>
+  isOpen(task) &&
+  (served ? task.owner === me || mayAssign(role) : task.owner === null || task.owner === me || mayAssign(role))
+
+/** Where a task came from, said: its version, or that this reader can't follow it; null when it came from none. */
+export function fromWords(task: ProjectTask): string | null {
+  if (task.from === null) return null
+  if (task.from === 'unavailable') return 'The passage it came from isn’t available to you'
+  return task.from.versionNumber === null ? 'From a passage' : `v${String(task.from.versionNumber)}`
+}
 
 const MEMBERS: ReadonlySet<RoomParticipant['standing']> = new Set(['admin', 'editor', 'viewer'])
 

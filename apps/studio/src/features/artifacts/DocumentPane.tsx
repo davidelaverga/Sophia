@@ -53,6 +53,7 @@ import { TaskList, useTasks } from './TaskList.tsx'
 import { openCount } from './task-view.ts'
 import type { TaskPerson } from './PassageTask.tsx'
 import { VISION } from '../../app/vision.ts'
+import { TASKABLE } from '../../api/tasks.ts'
 import { SourcesTab } from './SourcesList.tsx'
 import { usePaneWidth } from './usePaneWidth.ts'
 import { useTransientStatus } from './useTransientStatus.ts'
@@ -521,12 +522,12 @@ function useRevise(props: Props, data: PaneData, onCurrent: boolean): ReactNode 
   )
 }
 
-/** The Tasks tab (A17, the vision flag's): how many are open, and its list. */
+/** The Tasks tab (A17, the vision flag's; A39, the tasks flag's): how many are open, and its list. */
 function useTaskTab(props: Props): { open: number | undefined; list: ReactNode } {
-  const read = useTasks(props.identity, props.link.artifactId, props.cursor)
+  const { shown } = useTasks(props.identity, props.projectId, props.link.artifactId, props.cursor)
   return {
-    open: VISION && read.data ? openCount(read.data.tasks) : undefined,
-    list: VISION ? (
+    open: TASKABLE && shown ? openCount(shown.tasks) : undefined,
+    list: TASKABLE ? (
       <TaskList
         projectId={props.projectId}
         identity={props.identity}
@@ -959,8 +960,8 @@ interface TabsProps {
 
 const count = (n: number | undefined) => (n === undefined ? '' : ` ${n}`)
 
-/** The Tasks tab only under the vision flag (A17). */
-const TABS: readonly ViewerTab[] = VISION
+/** The Tasks tab only where tasks are offered (A17 under the vision flag, A39 under the tasks flag). */
+const TABS: readonly ViewerTab[] = TASKABLE
   ? ['document', 'sources', 'history', 'tasks']
   : ['document', 'sources', 'history']
 

@@ -47,7 +47,8 @@ export function taskOf(tasks: Tasks, by: string, ask: TaskAsk): ProjectTask {
     text: ask.text,
     owner: ask.owner,
     ownerName: ask.owner === null ? null : tasks.nameOf(ask.owner),
-    from: {
+    // A17 asks always carry their passage (isAsk); an A39 ask may not.
+    from: ask.from && {
       versionId: ask.from.versionId,
       versionNumber: tasks.numberOf(ask.from.versionId),
       passage: ask.from.passage,

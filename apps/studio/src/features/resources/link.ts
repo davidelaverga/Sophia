@@ -15,6 +15,8 @@ export const CONVERSATION = '#conversation-'
 export const REQUEST = '#request-'
 /** A message in the room's chat, by its id: the chat opens on it (a mention, from Home's «needs you», A37). */
 export const MESSAGE = '#message-'
+/** A person's task in the project, by its id (A39): the brief opens on it; '#task-' is the agent board's. */
+export const TODO = '#todo-'
 
 export const linkHash = (id: string, prefix = RESOURCE) => `${prefix}${encodeURIComponent(id)}`
 

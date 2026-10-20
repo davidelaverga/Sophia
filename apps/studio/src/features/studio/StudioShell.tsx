@@ -3,8 +3,10 @@
 // are shared. The chat and the brief sit in a side panel beside the stage, as meeting apps have them, so the
 // stage keeps Sophia's light and the people at its centre; the panel is this viewer's own, like the lens.
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { useEffect, useState, type ReactNode } from 'react'
-import { MESSAGE } from '../resources/link.ts'
+import { useEffect, useState, type ComponentProps, type ReactNode } from 'react'
+import { MESSAGE, TODO } from '../resources/link.ts'
+import { ProjectTasks } from '../artifacts/ProjectTasks.tsx'
+import { TASKS } from '../../app/tasks.ts'
 import { useAddressed } from '../resources/useAddressed.ts'
 import { Button } from '@sophia/ui'
 import { getMission } from '../../api/mission.ts'
@@ -67,6 +69,13 @@ export function useRoomPanel(snapshot: Snapshot | undefined, room: ProjectRoom, 
     setPanel('chat')
     setOpener('chat')
   }, [studio, message.id, message.seq])
+  // A person's task named in the address (A39, #todo-): the brief opens on it, where the project's tasks are.
+  const todo = useAddressed(TODO)
+  useEffect(() => {
+    if (!studio || !todo.id || !TASKS) return
+    setPanel('brief')
+    setOpener('brief')
+  }, [studio, todo.id, todo.seq])
   const brief = useBriefUpdates(studio && panel === 'brief')
   // A passage asked about from the report (PassageBar), until the chat's message takes it.
   const [asked, setAsked] = useState<Passage | null>(null)
@@ -346,11 +355,26 @@ export function StudioShell(props: Props) {
           />
         }
         people={<PeoplePanel room={room} projectId={projectId} identity={identity} />}
-        brief={<MissionPanel {...common} cursor={snapshot?.cursor} onRevision={panel.brief.onRevision} />}
+        brief={<BriefWithTasks common={common} cursor={snapshot?.cursor} onRevision={panel.brief.onRevision} />}
         call={<PanelCallSwitches room={room} looking={looking} />}
         note={panelNote(panel.panel, room.mediaError, room.error)}
       />
     </div>
+  )
+}
+
+/** The brief, and under it the project's tasks (A39, the tasks flag's; nothing without it). */
+function BriefWithTasks(props: {
+  common: Omit<ComponentProps<typeof MissionPanel>, 'cursor' | 'onRevision'>
+  cursor: string | undefined
+  onRevision: NonNullable<ComponentProps<typeof MissionPanel>['onRevision']>
+}) {
+  const { common, cursor, onRevision } = props
+  return (
+    <>
+      <MissionPanel {...common} cursor={cursor} onRevision={onRevision} />
+      <ProjectTasks projectId={common.projectId} identity={common.identity} cursor={cursor} />
+    </>
   )
 }
 

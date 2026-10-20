@@ -3177,11 +3177,16 @@ test('codex · F-047 · a plan in force only proposed, or a proposal accepted, i
 /** The decisions open over the lanes: not the plan's own choices being taken in. */
 const asked = (page: Page) => board(page).locator('.board-decisions:not(.board-decided) .plan-ask')
 
-test('codex · F-048 · only a decision’s latest revision is asked; its older one, ended or not, never comes back', async ({
+// F-048 in three independent parts (FND-B94), each with its own budget: the one test made ten page loads within one
+// 30 s budget, and in B87's batch it ran out after eight (26.4 s) with no assertion failed. Every case and assertion of
+// it is here, unchanged: both open in either order; the latest ended in each of four states in either order; closed,
+// a revision reopens it, and another decision is asked beside it.
+const F048_LATEST = 'Ship the retry before the report pane’s review is done?'
+const F048_FIRST = 'Ship the retry now, as first asked?'
+
+test('codex · F-048 · both revisions proposed, in either order: only the latest is asked, opened for Davide', async ({
   page,
 }) => {
-  const latest = 'Ship the retry before the report pane’s review is done?'
-  const first = 'Ship the retry now, as first asked?'
   // Both revisions proposed, in either order: the latest alone is asked, opened for Davide; one decision in the pill.
   await page.goto(`${PAGE}?viewer=davide&case=twice-open`)
   for (const reversed of [false, true]) {
@@ -3189,12 +3194,17 @@ test('codex · F-048 · only a decision’s latest revision is asked; its older 
     await expect(pill(page)).toHaveText(/^1 decision for you/, { timeout: 15_000 })
     await expect(pill(page)).toHaveAttribute('aria-expanded', 'true')
     await expect(asked(page)).toHaveCount(1)
-    await expect(asked(page)).toContainText(latest)
-    await expect(board(page).getByText(first)).toHaveCount(0)
+    await expect(asked(page)).toContainText(F048_LATEST)
+    await expect(board(page).getByText(F048_FIRST)).toHaveCount(0)
   }
-  // The latest ended, however, in either order: nothing open or calling; the older one, still proposed, isn't back.
-  for (const state of ['accepted', 'declined', 'expired', 'superseded'] as const) {
-    for (const reversed of [false, true]) {
+})
+
+// The latest ended, however, in either order: nothing open or calling; the older one, still proposed, isn't back.
+for (const state of ['accepted', 'declined', 'expired', 'superseded'] as const) {
+  for (const reversed of [false, true]) {
+    test(`codex · F-048 · the latest ${state}${reversed ? ', in the other order' : ''}: nothing asked, the older one never back`, async ({
+      page,
+    }) => {
       await page.goto(`${PAGE}?viewer=davide&case=twice-open`)
       await expect(asked(page)).toHaveCount(1, { timeout: 15_000 })
       if (reversed) await page.evaluate(() => window.workFixture?.reverseDecisions?.())
@@ -3202,9 +3212,14 @@ test('codex · F-048 · only a decision’s latest revision is asked; its older 
       await expect(pill(page), state).toHaveCount(0)
       await expect(asked(page), state).toHaveCount(0)
       await expect(board(page).locator('.plan-ask[data-mine]'), state).toHaveCount(0)
-      await expect(board(page).getByText(first), state).toHaveCount(0)
-    }
+      await expect(board(page).getByText(F048_FIRST), state).toHaveCount(0)
+    })
   }
+}
+
+test('codex · F-048 · closed by Davide, a new revision opens it again alone; another decision is asked beside it', async ({
+  page,
+}) => {
   // Closed by Davide, a revision arriving opens it again by itself: the new one alone, the older ones history.
   await page.goto(`${PAGE}?viewer=davide&case=twice-open`)
   await expect(asked(page)).toHaveCount(1, { timeout: 15_000 })
@@ -3213,7 +3228,7 @@ test('codex · F-048 · only a decision’s latest revision is asked; its older 
   await page.evaluate(() => window.workFixture?.reviseDecision?.('d1'))
   await expect(pill(page)).toHaveAttribute('aria-expanded', 'true')
   await expect(asked(page)).toHaveCount(1)
-  await expect(asked(page)).toContainText(`${latest} (revised)`)
+  await expect(asked(page)).toContainText(`${F048_LATEST} (revised)`)
   // Another decision is its own: asked beside it.
   await page.evaluate(() => window.workFixture?.decisionArrives?.('davide'))
   await expect(pill(page)).toHaveText(/^2 decisions for you/)

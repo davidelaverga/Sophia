@@ -1,44 +1,56 @@
-// The report pane's Tasks tab (docs/plans/room-passage-task.md), through the proposed A17 (issue #105): the report's
-// tasks, open ones first, each with who it is for, the passage it came from (a link to its place in its version) and
-// Done for whoever may. Read again as the feed moves. One key per Done (useAdmission); with no reply, only that same
-// Done goes again. Only under the vision flag.
-import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+// The report pane's Tasks tab (docs/plans/room-passage-task.md): the report's tasks, open ones first, each with who it
+// is for, the passage it came from (a link to its place in its version) and Done for whoever may. Read again as the
+// feed moves. One key per Done (useAdmission); with no reply, only that same Done goes again. Under the vision flag,
+// through the proposed A17; under the tasks flag, A39 served (api/tasks.ts, docs/handoffs/FND-C5-HUMAN-TASKS-attempt-
+// 1.md): D-TASKS decides who finishes, editors and admins also claim, assign and release, a task's passage is a link
+// only (never its words), and one this reader may not follow says so.
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import type { Membership } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
+import { finishTask, listReportTasks, SERVED_TASKS, setTaskOwner, TASKABLE } from '../../api/tasks.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
-import { finishTask, listTasks, type ProjectTask } from '../../api/vision.ts'
+import type { ProjectTask } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { VISION } from '../../app/vision.ts'
 import { useMembership } from '../access/useAccess.ts'
+import { useMemberNames } from '../conversation/MentionPicker.tsx'
+import { labelOf } from '../conversation/mention-view.ts'
 import { passageLink, readLocator } from './passage-link.ts'
 import { PASSAGE_PARAM } from './report-link.ts'
-import { doneWords, mayFinish, ordered, ownerWords } from './task-view.ts'
-import { byTime } from './review-view.ts'
+import { doneWords, fromWords, mayAssign, mayFinish, ordered, ownerWords } from './task-view.ts'
+import { taskChanged, tasksKey } from './task-cache.ts'
 import { useFeedRefetch } from './useFeedRefetch.ts'
+import { reportTasksRefused, shownTaskReads, taskRead, useTasksRefused } from './task-read.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { canInvite } from '../access/useAccess.ts'
 
-const tasksKey = (artifactId: string, viewer: string) => ['vision', 'tasks', artifactId, viewer] as const
+// The cache helpers live in task-cache.ts (tested there); re-exported for the callers that import them from here.
+export { taskChanged, taskRecorded } from './task-cache.ts'
 
-/**
- * A task created (A17): into the report's tasks by its time, once (the feed may bring it too); seeded when the first
- * read is still on its way or failed, so the task made is there at once.
- */
-export const taskRecorded = (queryClient: QueryClient, artifactId: string, viewer: string, task: ProjectTask) =>
-  queryClient.setQueryData<{ tasks: readonly ProjectTask[] }>(tasksKey(artifactId, viewer), (was) => ({
-    tasks: byTime(was?.tasks ?? [], task, (t) => t.taskId),
-  }))
-
-/** A report's tasks, read again as the feed moves (a task is a record); none read outside the flag. */
-export function useTasks(identity: Identity, artifactId: string, cursor: string | undefined) {
+/** A report's tasks, read again as the feed moves (a task is a record); none read without tasks offered. */
+export function useTasks(identity: Identity, projectId: string, artifactId: string, cursor: string | undefined) {
   const read = useQuery({
     queryKey: tasksKey(artifactId, identity.name),
-    queryFn: ({ signal }) => listTasks(identity.token, artifactId, signal),
-    enabled: VISION,
+    // Stamped when set out; this person's own refusal of the report's tasks kept as it settles (V-C5-TASKS-READ-01).
+    // Its 401/403 or not_found (reportTasksRefused) is this person's own refusal of the report's tasks.
+    queryFn: taskRead(
+      projectId,
+      artifactId,
+      (signal) => listReportTasks(identity.token, artifactId, signal),
+      reportTasksRefused,
+    ),
+    enabled: TASKABLE,
     retry: 1,
   })
-  useFeedRefetch(VISION ? cursor : undefined, read)
-  return read
+  useFeedRefetch(TASKABLE ? cursor : undefined, read)
+  const refusedAt = useTasksRefused(projectId, artifactId)
+  // The list (and its count) as it may show: nothing read before this person's own refusal.
+  const shown = shownTaskReads(
+    read.data ? [read.data] : undefined,
+    read.isError && reportTasksRefused(read.error),
+    refusedAt,
+  )?.[0]
+  return { read, shown }
 }
 
 interface Props {
@@ -50,17 +62,10 @@ interface Props {
 
 export function TaskList({ projectId, identity, artifactId, cursor }: Props) {
   const me = useMembership(projectId, identity.name, identity.token).data
-  const tasks = useTasks(identity, artifactId, cursor)
-  const queryClient = useQueryClient()
-  if (!tasks.data) return <TasksPending failed={tasks.isError} onRetry={() => void tasks.refetch()} />
+  const { read: tasks, shown } = useTasks(identity, projectId, artifactId, cursor)
+  if (!shown) return <TasksPending failed={tasks.isError} onRetry={() => void tasks.refetch()} />
   if (!me) return null
-  /** A task done: into every read of the report's tasks, in its place. */
-  const finished = (done: ProjectTask) =>
-    queryClient.setQueriesData<{ tasks: readonly ProjectTask[] }>(
-      { queryKey: tasksKey(artifactId, identity.name) },
-      (was) => was && { tasks: was.tasks.map((t) => (t.taskId === done.taskId ? done : t)) },
-    )
-  const all = ordered(tasks.data.tasks)
+  const all = ordered(shown.tasks)
   if (all.length === 0) {
     // Only who may make one is told how; a viewer is told there are none.
     return (
@@ -74,9 +79,10 @@ export function TaskList({ projectId, identity, artifactId, cursor }: Props) {
           key={task.taskId}
           task={task}
           me={me}
+          projectId={projectId}
+          identity={identity}
           artifactId={artifactId}
-          send={(key) => finishTask(identity.token, projectId, task.taskId, key)}
-          onDone={finished}
+          onStale={() => void tasks.refetch()}
         />
       ))}
     </ul>
@@ -84,7 +90,7 @@ export function TaskList({ projectId, identity, artifactId, cursor }: Props) {
 }
 
 /** Before the first read: being read (with the slow note after a while), or failed, with Try again. */
-function TasksPending({ failed, onRetry }: { failed: boolean; onRetry: () => void }) {
+export function TasksPending({ failed, onRetry }: { failed: boolean; onRetry: () => void }) {
   const slow = useSlow(!failed)
   if (failed) {
     return (
@@ -116,62 +122,163 @@ const doneLabel = (sending: boolean, lost: boolean) => {
   return lost ? 'Try again' : 'Done'
 }
 
+/** A task as a press saw it: which, and at which revision. */
+type Shown = Pick<ProjectTask, 'taskId' | 'revision'>
+
 interface RowProps {
   task: ProjectTask
   me: Membership
-  artifactId: string
-  send: (key: string) => Promise<ProjectTask>
-  onDone: (task: ProjectTask) => void
+  projectId: string
+  identity: Identity
+  /** The report the row is shown under; a served task names its own. */
+  artifactId: string | null
+  /** The task changed elsewhere since it was shown (409): read it again. */
+  onStale: () => void
 }
 
-/** The link to the passage a task came from, at its place in its version; none when the place isn't one. */
-function hrefOf(task: ProjectTask, artifactId: string): string | null {
-  const at = readLocator(`?${PASSAGE_PARAM}=${encodeURIComponent(task.from.passage)}`)
-  return at ? passageLink(window.location, { artifactId, versionId: task.from.versionId }, at) : null
+/** The link to the passage a task came from, at its place in its version; none when it has none it may follow. */
+function hrefOf(task: ProjectTask, artifactId: string | null): string | null {
+  const from = task.from
+  if (from === null || from === 'unavailable') return null
+  const report = from.artifactId ?? artifactId
+  const at = readLocator(`?${PASSAGE_PARAM}=${encodeURIComponent(from.passage)}`)
+  return at && report ? passageLink(window.location, { artifactId: report, versionId: from.versionId }, at) : null
 }
 
-/** What a Done says: nothing while it waits; with no reply, so; a refusal, the API's words. */
-function rowWords(state: ReturnType<typeof useAdmission<void, ProjectTask>>['state']): string | null {
+const STALE = 'This task changed meanwhile. It’s shown as it is now.'
+
+/** What a write says: nothing while it waits; with no reply, so; a stale task, that it moved; a refusal, its words. */
+function rowWords(state: ReturnType<typeof useAdmission<Shown, ProjectTask>>['state']): string | null {
   if (state.status === 'unknown') return 'Not confirmed. Try again.'
-  if (state.status === 'rejected') return state.error instanceof ApiError ? state.error.message : 'Not sent.'
-  return null
+  if (state.status !== 'rejected') return null
+  if (state.error instanceof ApiError && state.error.code === 'stale_revision') return STALE
+  return state.error instanceof ApiError ? state.error.message : 'Not sent.'
 }
 
-function TaskRow({ task, me, artifactId, send, onDone }: RowProps) {
-  const write = useAdmission<void, ProjectTask>((key) => send(key))
+/** The passage, as a link: A17's quote, A39's version; or that it isn't available to this reader. */
+function From({ task, href }: { task: ProjectTask; href: string | null }) {
+  const from = task.from
+  const words = from !== null && from !== 'unavailable' && from.quote !== null ? `“${from.quote}”` : fromWords(task)
+  if (words === null) return null
+  return href ? (
+    // A tab of its own: following it here would reload the room, and leave the call.
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {words}
+    </a>
+  ) : (
+    <span>{words}</span>
+  )
+}
+
+/** A17's rows say the version before the quote; A39's link names it. */
+const versionWords = (task: ProjectTask) =>
+  !SERVED_TASKS && task.from !== null && task.from !== 'unavailable' ? ` · v${String(task.from.versionNumber)}` : ''
+
+export function TaskRow({ task, me, projectId, identity, artifactId, onStale }: RowProps) {
+  const queryClient = useQueryClient()
+  // The task and the revision it was shown at go with the press, so a retry after no answer sends exactly what the
+  // first did, with its key, whatever the row shows by then (R-C5-02).
+  const write = useAdmission<Shown, ProjectTask>((key, shown) => finishTask(identity.token, projectId, shown, key))
   const sending = write.state.status === 'sending'
   const slow = useSlow(sending)
   const lost = write.state.status === 'unknown'
-  const href = hrefOf(task, artifactId)
-  const quote = `“${task.from.quote}”`
+  const said = rowWords(write.state)
   const done = async () => {
     if (sending) return
-    const result = await write.send(undefined)
-    if (result) onDone(result)
+    const shown =
+      task.revision === undefined ? { taskId: task.taskId } : { taskId: task.taskId, revision: task.revision }
+    const result = await write.send(shown)
+    if (result) taskChanged(queryClient, result)
+    // Served, a refusal may be a task changed meanwhile: it is read again (A17's proposal keeps its row as it was).
+    else if (SERVED_TASKS) onStale()
   }
   return (
-    <li className="task-row" data-done={task.doneBy !== null || undefined}>
+    <li className="task-row" id={`todo-${task.taskId}`} tabIndex={-1} data-done={task.doneBy !== null || undefined}>
       <span className="task-text">{task.text}</span>
       <span className="task-meta">
-        {`For ${ownerWords(task, me.actorId)} · v${String(task.from.versionNumber)} · `}
-        {href ? (
-          // A tab of its own: following it here would reload the room, and leave the call.
-          <a href={href} target="_blank" rel="noopener noreferrer">
-            {quote}
-          </a>
-        ) : (
-          quote
-        )}
+        {`For ${ownerWords(task, me.actorId, SERVED_TASKS)}${versionWords(task)} · `}
+        <From task={task} href={hrefOf(task, artifactId)} />
       </span>
       <span className="task-said" role="status">
-        {task.doneBy === null ? rowWords(write.state) : doneWords(task, me.actorId)}
+        {task.doneBy === null ? said : doneWords(task, me.actorId)}
       </span>
       {slow && <span className="task-said">{SLOW_NOTE}</span>}
-      {mayFinish(task, me.actorId, me.role) && (
+      {mayFinish(task, me.actorId, me.role, SERVED_TASKS) && (
         <button type="button" className="pill" aria-disabled={sending || undefined} onClick={() => void done()}>
           {doneLabel(sending, lost)}
         </button>
       )}
+      {SERVED_TASKS && task.doneBy === null && mayAssign(me.role) && (
+        <TaskOwner task={task} me={me} projectId={projectId} identity={identity} onStale={onStale} />
+      )}
     </li>
+  )
+}
+
+interface OwnerProps {
+  task: ProjectTask
+  me: Membership
+  projectId: string
+  identity: Identity
+  onStale: () => void
+}
+
+/** Whom an open served task is for (editors and admins, D-TASKS): Claim, Release, or a member; against its revision. */
+function TaskOwner({ task, me, projectId, identity, onStale }: OwnerProps) {
+  const queryClient = useQueryClient()
+  const members = useMemberNames(projectId, identity, SERVED_TASKS)
+  const [sending, setSending] = useState(false)
+  const [words, setWords] = useState<string | null>(null)
+  // A Claim, Release or Assign on its way says so in the row, and a long wait adds the Studio's note (4321099453).
+  const slow = useSlow(sending)
+  const assign = async (ownerId: string | null) => {
+    if (sending) return
+    setSending(true)
+    setWords(null)
+    try {
+      taskChanged(queryClient, await setTaskOwner(identity.token, projectId, task, ownerId))
+    } catch (err) {
+      const stale = err instanceof ApiError && err.code === 'stale_revision'
+      setWords(stale ? STALE : err instanceof ApiError ? err.message : 'Not sent.')
+      if (stale) onStale()
+    } finally {
+      setSending(false)
+    }
+  }
+  const busy = sending || undefined
+  return (
+    <span className="task-owner">
+      {task.owner !== me.actorId && (
+        <button type="button" className="text-button" aria-disabled={busy} onClick={() => void assign(me.actorId)}>
+          Claim
+        </button>
+      )}
+      {task.owner !== null && (
+        <button type="button" className="text-button" aria-disabled={busy} onClick={() => void assign(null)}>
+          Release
+        </button>
+      )}
+      {members.known && (
+        <select
+          aria-label="Assign to"
+          value=""
+          disabled={sending}
+          onChange={(e) => {
+            if (e.target.value) void assign(e.target.value)
+          }}
+        >
+          <option value="">Assign to…</option>
+          {members.members
+            .filter((m) => m.actorId !== task.owner)
+            .map((m) => (
+              <option key={m.actorId} value={m.actorId}>
+                {m.actorId === me.actorId ? 'Me' : labelOf(m)}
+              </option>
+            ))}
+        </select>
+      )}
+      <span role="status">{sending ? 'Updating who it’s for…' : (words ?? '')}</span>
+      {slow && <span className="task-said">{SLOW_NOTE}</span>}
+    </span>
   )
 }

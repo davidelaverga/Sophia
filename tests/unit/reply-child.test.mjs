@@ -4922,7 +4922,7 @@ test('partial live-home removal or uncertain directory sync never prunes and can
     if (mode === 'sync') f.fixture.beforeSync = async () => { throw new Error('synthetic sync uncertainty') }
     const pending = f.registry.executeRetire(f.retire)
     assert.equal(await filesystemSettled(pending), 'unresolved', mode); await settledLivePass(f)
-    assert.equal(unlinked, 1); assert.equal(f.registry.entries.size, 1); assert.equal(f.fixture.handles.size, 0)
+    assert.equal(unlinked, 1, mode); assert.equal(f.registry.entries.size, 1); assert.equal(f.fixture.handles.size, 0)
     assert.equal(f.posts.some(row => row.reason === 'home_deleted'), false)
     if (mode !== 'stop') assert.equal(f.registry.executeRetire(f.retire), pending)
     assert.equal(unlinked, 1)

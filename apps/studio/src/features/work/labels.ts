@@ -129,6 +129,10 @@ export const SUMMARY: Record<string, string> = {
   'project.renamed': 'Project renamed',
   'project.archived': 'Project archived',
   'project.unarchived': 'Project brought back',
+  // A person's task (A39): made, given to someone (or to nobody), done.
+  'task.created': 'Task created',
+  'task.owner_set': 'Task assigned',
+  'task.done': 'Task done',
   // What someone sent from the composer, by its intent (the composer says "Shared with the project" too).
   'contribution.discuss': 'Shared with the project',
   'contribution.ask_sophia': 'Question for Sophia',

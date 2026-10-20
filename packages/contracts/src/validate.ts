@@ -73,6 +73,8 @@ import {
   validateSnapshot,
   validateNeedList,
   validateSearchPage,
+  validateProjectTask,
+  validateProjectTaskList,
 } from './generated/validators.js'
 import type { CursorAdvance, Error as ErrorBody, Event } from './generated-types.ts'
 
@@ -154,6 +156,8 @@ export const parsePersonalReceipt = parser('PersonalReceipt', validatePersonalRe
 export const parseProjectList = parser('ProjectList', validateProjectList)
 export const parseNeedList = parser('NeedList', validateNeedList)
 export const parseSearchPage = parser('SearchPage', validateSearchPage)
+export const parseProjectTask = parser('ProjectTask', validateProjectTask)
+export const parseProjectTaskList = parser('ProjectTaskList', validateProjectTaskList)
 export const parseWorkBoardView = parser('WorkBoardView', validateWorkBoardView)
 export const parseWorkReceipt = parser('WorkReceipt', validateWorkReceipt)
 export const parseWorkResult = parser('WorkResult', validateWorkResult)

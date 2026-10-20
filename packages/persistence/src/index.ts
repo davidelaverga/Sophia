@@ -122,6 +122,16 @@ export {
 } from './artifacts.ts'
 export { LONGEST_WORD, SEARCH_PAGE, searchProject, type SearchQuery } from './search.ts'
 export {
+  createProjectTask,
+  finishProjectTask,
+  readProjectTask,
+  readProjectTasks,
+  readReportTasks,
+  REPORT_TASKS,
+  setProjectTaskOwner,
+  TASK_PAGE,
+} from './human-tasks.ts'
+export {
   enqueueRenderJob,
   claimObjectWrite,
   rendererCaptureSlot,
