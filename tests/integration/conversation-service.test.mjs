@@ -16,7 +16,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -297,6 +297,46 @@ describe('conversation service crossing (real dsh service executor, API, worker,
         await w.until(() => /readiness=ready/.test(other.stderr()), 'the second bridge readiness')
         return other
       },
+      /**
+       * FND-B105: the SHIPPED entry, scripts/runtime-host.mjs, as an operator runs it: --service-overlay with this
+       * world's overlay (unless `overlay` is false, the default-off launch), the expected digest in the variable it
+       * names, the route credential by name; only SOPHIA_SERVICE_URL/TOKEN, PATH and HOME besides.
+       */
+      async startShipped({ expected = runtimeDigest, overlay: withOverlay = true } = {}) {
+        const file = join(layout.root, 'service-overlay.json')
+        writeFileSync(file, overlay)
+        const args = ['scripts/runtime-host.mjs', '--root', layout.root, ...(withOverlay ? ['--service-overlay', file] : [])]
+        const child = spawn(process.execPath, args, {
+          cwd: REPO_ROOT,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: { PATH: process.env.PATH, HOME: process.env.HOME, SOPHIA_SERVICE_URL: base, SOPHIA_RUNTIME_TOKEN: rt.token,
+            OPENAI_API_KEY: DUMMY_KEY, ...(expected ? { SOPHIA_EXECUTOR_DIGEST: expected } : {}) },
+        })
+        let out = ''
+        child.stderr.on('data', (chunk) => { out += chunk })
+        child.stdout.on('data', (chunk) => { out += chunk })
+        const exited = new Promise((resolve) => child.on('exit', resolve))
+        runtime = { stderr: () => out, stop: async () => { if (child.exitCode === null) child.kill('SIGTERM'); return exited } }
+        // runtime-host prints its own lines (the dsh child's output stays in the supervisor's diagnostics): its ready line,
+        // then the bridge's hello as the server stored it.
+        try {
+          await w.until(() => /runtime \S+ ready against/.test(w.stderr()), 'runtime-host ready')
+          await w.until(async () => (await owner('SELECT 1 FROM sophia.runtime_instances WHERE project_id=$1', [projectId])).length > 0, 'the bridge hello')
+        } catch (error) {
+          throw new Error(`${error.message}; runtime-host said: ${out.slice(-1500)}`)
+        }
+      },
+      /** The shipped entry's --print-executor-digest for this world's root and overlay. */
+      printedDigest() {
+        const file = join(layout.root, 'service-overlay.json')
+        writeFileSync(file, overlay)
+        const r = spawnSync(process.execPath, ['scripts/runtime-host.mjs', '--root', layout.root, '--service-overlay', file, '--print-executor-digest'], {
+          cwd: REPO_ROOT, encoding: 'utf8', env: { PATH: process.env.PATH, HOME: process.env.HOME } })
+        assert.equal(r.status, 0, r.stderr)
+        const line = r.stdout.split('\n').map((l) => { try { return JSON.parse(l) } catch { return null } }).find((e) => e?.event === 'executor_digest')
+        assert.equal(line?.variable, 'SOPHIA_EXECUTOR_DIGEST')
+        return line?.digest
+      },
       stderr: () => runtime?.stderr() ?? '',
       async until(predicate, what, timeoutMs = 45_000) {
         const deadline = Date.now() + timeoutMs
@@ -439,6 +479,51 @@ describe('conversation service crossing (real dsh service executor, API, worker,
 
   // A40: the runtime advertises the executor it runs, so a grant it cannot execute is refused at the Ask, before any
   // attempt, binding or create (it used to be bound, dispatched and refused by the executor: reply_executor_mismatch).
+  // FND-B105: the same allowed answer through the SHIPPED entry (scripts/runtime-host.mjs), not the test launcher.
+  test('shipped runtime-host: --print-executor-digest is the closure; --service-overlay with it serves one allowed answer', async (t) => {
+    const w = await world(t)
+    const printed = w.printedDigest()
+    assert.equal(printed, w.closure, 'the operator-printed digest is the executor closure the runtime will advertise')
+    w.llm.script({ text: `The summary. ${ANSWER_CANARY}`, usage: { input_tokens: 900, output_tokens: 40 } })
+    await w.startShipped({ expected: printed })
+    assert.match(w.stderr(), /"event":"service_replies"/)
+    assert.doesNotMatch(w.stderr(), new RegExp(printed), 'the digest value is never logged by the host')
+    // The bridge verified the closure and advertised the conversation role with exactly this executor tuple.
+    await w.until(async () => {
+      const [stored] = await owner('SELECT roles FROM sophia.runtime_instances WHERE project_id=$1', [w.projectId])
+      return stored?.roles?.some((role) => role.id === 'sophia-conversation-v1') ?? false
+    }, 'the conversation role advertised')
+    const [stored] = await owner('SELECT roles FROM sophia.runtime_instances WHERE project_id=$1', [w.projectId])
+    assert.deepEqual(stored.roles.find((role) => role.id === 'sophia-conversation-v1')?.executor, w.tuple)
+    const r = await w.ask()
+    await w.until(async () => (await w.reply(r)).state === 'answered', 'the published answer')
+    const answers = await w.answers(r)
+    assert.equal(answers.length, 1)
+    assert.equal(answers[0].body, `The summary. ${ANSWER_CANARY}`)
+    assert.equal(w.llm.requests.length, 1, 'one request on the pinned route')
+    assert.equal(w.llm.requests[0].headers.authorization, `Bearer ${DUMMY_KEY}`)
+    assert.deepEqual((await w.reservations(r)).map((v) => [v.state, v.used_calls]), [['settled', '1']])
+    await w.until(async () => (await w.binding(r)) === 'retired', 'the retired binding')
+  })
+
+  test('shipped runtime-host without --service-overlay: ready, no conversation role, no reply mode (default OFF)', async (t) => {
+    const w = await world(t)
+    await w.startShipped({ overlay: false })
+    assert.doesNotMatch(w.stderr(), /"event":"service_replies"/)
+    const [stored] = await owner('SELECT roles FROM sophia.runtime_instances WHERE project_id=$1', [w.projectId])
+    assert.equal(stored.roles.find((role) => role.id === 'sophia-conversation-v1'), undefined)
+    assert.equal(w.llm.requests.length, 0)
+  })
+
+  test('shipped runtime-host with a digest that is not the closure: unavailable, no role, nothing sent (no fallback)', async (t) => {
+    const w = await world(t)
+    await w.startShipped({ expected: 'c'.repeat(64) })
+    assert.match(w.stderr(), /"event":"service_replies"/, 'the host passed the overlay and the named digest')
+    const [stored] = await owner('SELECT roles FROM sophia.runtime_instances WHERE project_id=$1', [w.projectId])
+    assert.equal(stored.roles.find((role) => role.id === 'sophia-conversation-v1'), undefined)
+    assert.equal(w.llm.requests.length, 0)
+  })
+
   test('wrong scope: a grant pinned to another executor artifact is refused at the Ask; nothing reaches a runtime or the provider', async (t) => {
     const w = await world(t, { pin: OTHER_DIGEST })
     await w.start()
@@ -705,6 +790,37 @@ describe('conversation service crossing (real dsh service executor, API, worker,
     assert.equal((await w.grant()).spent_calls, '0')
     for (const stage of await w.stages(r)) {
       assert.notEqual(stage.executor?.executorArtifactDigest, otherClosure, 'no receipt under the other closure')
+    }
+  })
+})
+
+// FND-B105: the shipped runtime-host entry's opt-in (default OFF), without the test launcher. Local and keyless: the
+// provider is the mock, the key a dummy; never live evidence.
+describe('the shipped runtime-host entry: service replies only by an explicit overlay and pinned digest (FND-B105)', () => {
+  test('refused before anything starts: an overlay that is not config-only, sets no replies, or an unset/malformed digest; with --rehearse', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'b105-host-'))
+    const run = (args, env = {}) =>
+      spawnSync(process.execPath, ['scripts/runtime-host.mjs', '--root', join(dir, 'root'), ...args], {
+        cwd: REPO_ROOT, encoding: 'utf8', env: { PATH: process.env.PATH, HOME: process.env.HOME, SOPHIA_SERVICE_URL: 'http://127.0.0.1:9', SOPHIA_RUNTIME_TOKEN: 'x', OPENAI_API_KEY: DUMMY_KEY, ...env } })
+    const write = (name, text) => { const f = join(dir, name); writeFileSync(f, text); return f }
+    const good = serviceOverlay('http://127.0.0.1:9')
+    const noReplies = JSON.stringify(JSON.parse(good).map((row) => row.id === 'sophia-control-bridge' ? { id: row.id, config: { ...row.config, replies: undefined } } : row))
+    const cases = [
+      ['not config-only', [ '--service-overlay', write('yaml.yml', 'plugins: {}\n') ], { SOPHIA_EXECUTOR_DIGEST: 'a'.repeat(64) }, /not a config-only JSON patch list/],
+      ['no replies', [ '--service-overlay', write('none.json', noReplies) ], { SOPHIA_EXECUTOR_DIGEST: 'a'.repeat(64) }, /sets no service replies/],
+      ['digest unset', [ '--service-overlay', write('good.json', good) ], {}, /SOPHIA_EXECUTOR_DIGEST must hold the expected executor closure/],
+      ['digest malformed', [ '--service-overlay', write('good2.json', good) ], { SOPHIA_EXECUTOR_DIGEST: 'not-hex' }, /must hold the expected executor closure/],
+      ['with --rehearse', [ '--rehearse', '--service-overlay', write('good3.json', good) ], { SOPHIA_EXECUTOR_DIGEST: 'a'.repeat(64) }, /never combined with --rehearse/],
+    ]
+    try {
+      for (const [label, args, env, message] of cases) {
+        const r = run(args, env)
+        assert.equal(r.status, 2, `${label}: ${r.stderr}`)
+        assert.match(r.stderr, message, label)
+        assert.doesNotMatch(r.stdout, /"event":"profile"/, `${label}: refused before the profile`)
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
     }
   })
 })
