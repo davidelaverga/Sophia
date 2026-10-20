@@ -58,10 +58,11 @@ export function rejoinPlan(drop: Drop): 'now' | 'online' | null {
 }
 
 /**
- * A beat while the call is live: seen now, unless the last time it was seen is past the window. The page wasn't running
- * meanwhile, so the call stays as old as it was until it goes live again.
+ * A beat while the call is live: seen now, unless the last beat seen is more than two beats ago. The page wasn't running
+ * in between (asleep, frozen), so the call stays as old as it was until it goes live again.
  */
-export const stillSeen = (seen: number | null, now: number): number | null => (withinWindow(seen, now) ? now : seen)
+export const stillSeen = (seen: number | null, now: number): number | null =>
+  seen !== null && now - seen <= 2 * LIVE_BEAT_MS ? now : seen
 
 const LINES: Record<RejoinStep, string> = { waiting: OFFLINE_REJOIN, trying: REJOINING, back: REJOINED }
 
@@ -160,16 +161,20 @@ export class Rejoin {
       const fresh = now - triedAt <= TRY_FRESH_MS && withinWindow(this.seen, now)
       return round === this.round && fresh && !this.ports.elsewhere()
     }
-    void this.ports.join(still).then((inCall) => {
-      if (round !== this.round) return
-      if (!inCall) {
-        this.show(null)
-        this.ports.say(CALL_END.dropped.note)
-        return
-      }
-      this.show('back')
-      this.cancel = this.ports.after(REJOINED_FOR_MS, () => this.show(null))
-    })
+    // A join that throws is a try that failed, said as one.
+    void this.ports
+      .join(still)
+      .catch(() => false)
+      .then((inCall) => {
+        if (round !== this.round) return
+        if (!inCall) {
+          this.show(null)
+          this.ports.say(CALL_END.dropped.note)
+          return
+        }
+        this.show('back')
+        this.cancel = this.ports.after(REJOINED_FOR_MS, () => this.show(null))
+      })
   }
 
   /** Offline: one try once the browser is online, while the call is still recent; past that, the wait ends. */

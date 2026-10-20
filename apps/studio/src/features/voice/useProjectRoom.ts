@@ -637,6 +637,11 @@ function useRoomNote(inCall: () => boolean) {
       if (next === CALL_END.dropped.note) lost.current = true
       setNote(keptNote(next, { online: navigator.onLine, lost: lost.current }))
     },
+    /** A leave: the room rests, no call lost, whatever ended before (a Leave during a try back in, call-rejoin.md). */
+    rest: () => {
+      lost.current = false
+      setNote(null)
+    },
     joinOnline:
       (join: ProjectRoom['join']) =>
       async (options?: JoinOptions, still?: () => boolean): Promise<boolean> => {
@@ -748,7 +753,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   const [calls] = useState(() => new CallFence<RoomConnection>())
   const [status, setStatus] = useState<DockStatus>('idle')
   const joining = useRef<Promise<boolean> | null>(null)
-  const { error, setError, joinOnline } = useRoomNote(() => calls.current !== null || joining.current !== null)
+  const { error, setError, rest, joinOnline } = useRoomNote(() => calls.current !== null || joining.current !== null)
   const [people, setPeople] = useState<People>(NOBODY)
 
   useEffect(() => () => void calls.end(), [calls])
@@ -766,7 +771,8 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   // The join (`joined`) and its try back in (`rejoin`) are made below; a call ends only after that.
   const ended = (why: CallEnd | null, selfLeft: boolean) => rejoin.ended(why, selfLeft)
   const stand = (options: JoinOptions | undefined) => joined.stand(options)
-  const outOfCall = outOfCallFor({ calls, joining, typedChat, stand, reset, setStatus, setError, ended })
+  const say = (note: string | null) => (note === null ? rest() : setError(note))
+  const outOfCall = outOfCallFor({ calls, joining, typedChat, stand, reset, setStatus, setError: say, ended })
 
   const joined = useJoin({ calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall }, joining, () =>
     devices.setCamera(true),

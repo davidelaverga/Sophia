@@ -3,7 +3,7 @@
 // and leave. Nothing here changes project work. Its height (a note, a second row on a phone) is the room's
 // --dock-h, so the words and the video above always clear it.
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import type { ExchangeReceipt, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip, type IconName } from '@sophia/ui'
@@ -174,7 +174,29 @@ function SoundBlocked({ shown, room }: { shown: boolean; room: ProjectRoom }) {
  * the room rests. The focus goes to Join beside it once the room has.
  */
 export function RejoinLeave({ room }: { room: ProjectRoom }) {
-  if (!room.rejoining) return null
+  return room.rejoining ? <StopRejoin room={room} /> : null
+}
+
+/**
+ * The focus on this Leave when the try gets back in goes on to the call's own Leave (`data-dock-key`), drawn in its
+ * place, instead of to the page. Read before the button leaves the page, so the focus is still known.
+ */
+function useFocusOnToLeave(button: RefObject<HTMLButtonElement | null>) {
+  useLayoutEffect(() => {
+    const el = button.current
+    return () => {
+      if (!el || document.activeElement !== el) return
+      const dock = el.closest('.dock-wrap, .mini-dock')
+      requestAnimationFrame(() =>
+        dock?.querySelector<HTMLElement>('[data-dock-key="leave"]')?.focus({ preventScroll: true }),
+      )
+    }
+  }, [button])
+}
+
+function StopRejoin({ room }: { room: ProjectRoom }) {
+  const button = useRef<HTMLButtonElement>(null)
+  useFocusOnToLeave(button)
   const stop = (e: React.MouseEvent<HTMLButtonElement>) => {
     const group = e.currentTarget.parentElement
     void room.leave().then(() => {
@@ -184,7 +206,14 @@ export function RejoinLeave({ room }: { room: ProjectRoom }) {
     })
   }
   return (
-    <button type="button" className="round leave has-tip" aria-label="Leave the room" onClick={stop}>
+    <button
+      ref={button}
+      type="button"
+      className="round leave has-tip"
+      aria-label="Leave the room"
+      data-dock-key="leave"
+      onClick={stop}
+    >
       <Icon name="leave" />
       <Tip label="Leave the room" />
     </button>
@@ -398,6 +427,7 @@ function LiveControls(props: Props & { sophiaAllow: boolean }) {
         type="button"
         className="round leave has-tip"
         aria-label="Leave the room"
+        data-dock-key="leave"
         onClick={() => void room.leave({ pressed: true })}
       >
         <Icon name="leave" />
