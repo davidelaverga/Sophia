@@ -36,3 +36,15 @@ Runtime unit: own PostgreSQL 17.11 on 127.0.0.1:55499 (fresh, stopped after); sy
 - Fixed: PASS (20-). Whole `search.db.test.ts` 12/12 (30-), including the withdrawn-boundary case.
 - oxlint 0, prettier ok, `tsc` for persistence and API 0.
 - Not run: the full DB aggregate, `pnpm check`, browser. The Studio's jump was not exercised in a browser.
+
+## Addendum (R2's sealed triage)
+
+- R2 independently supports the same subquery and the same canonical projection, with withdrawn tombstones kept.
+- It names one assertion the first case did not make: no boundary (null) when only messages hidden from the reader
+  follow the hit. Added as «names no next message when only messages hidden from this reader follow the hit».
+  - On 327 (70-, the same final test bytes): FAIL, B's `before` was A's hidden message id.
+  - Fixed: PASS. Whole `search.db.test.ts` 13/13 (71-). oxlint 0, `tsc` API 0.
+- Product code is unchanged by this addendum: test only.
+- Not added: an explicit equal-microsecond UUID tie-order control. Tie order is unchanged by the fix (same
+  `(created_at, id)` comparison and `ORDER BY`), but not separately asserted.
+
