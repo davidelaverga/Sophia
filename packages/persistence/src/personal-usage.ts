@@ -90,13 +90,13 @@ export async function reservePersonalAnswer(
   payer: string,
   routeId: string,
   micros: number,
-): Promise<PersonalReservation | 'kept'> {
+): Promise<PersonalReservation | 'kept' | 'lost'> {
   const { rows } = await c.query<{ outcome: string }>(
     'SELECT sophia.reserve_personal_answer($1, $2, $3, $4, $5, $6) AS outcome',
     [call.callId, payer, routeId, micros, call.turnId, call.claim],
   )
   const { outcome } = onlyRow(rows, 'reserve_personal_answer')
-  if (outcome !== 'kept' && !isReservation(outcome))
+  if (outcome !== 'kept' && outcome !== 'lost' && !isReservation(outcome))
     throw new Error('reserve_personal_answer answered an unknown outcome')
   return outcome
 }

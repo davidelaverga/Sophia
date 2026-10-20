@@ -302,7 +302,13 @@ export function personalReply(text: string): CompanionReply | null {
 }
 
 type Refusal =
-  Exclude<PersonalReservation, 'reserved'> | 'unstorable' | 'no_answer' | 'route_mismatch' | 'not_installed'
+  | Exclude<PersonalReservation, 'reserved'>
+  | 'unstorable'
+  | 'no_answer'
+  | 'route_mismatch'
+  | 'not_installed'
+  /** The turn's answer was made by a call whose settlement never committed, and is gone: never asked again (0079). */
+  | 'lost'
 
 /** A call that gave no answer, its reason a content-free code (the runner logs only a failure's name and code). */
 export class CompanionRefused extends Error {

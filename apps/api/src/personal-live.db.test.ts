@@ -1289,6 +1289,77 @@ describe('the live companion’s settlement, its COMMIT failed or its acknowledg
     )
   })
 
+  it('an answer lost with every settlement rolled back is not asked for again after its cost is reconciled; a new turn still is (4320198389, 0079)', async () => {
+    const HAL = randomUUID()
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('b85-lost-payer', $1, 1000000)`,
+      [HAL],
+    )
+    const witness: string[] = []
+    // Every try of the first call's settlement is rolled back (B84 tries it four times); later calls settle.
+    const at = await liveApi('b85-lost-payer', HAL, true, commitFaultPool('fail_before_commit', witness, 4))
+    const sentBefore = recorded().length
+    double.script({ text: 'First paid answer.', usage: { input_tokens: 10, output_tokens: 5 } })
+    await write(at, '/api/v1/personal/turns', HAL, { text: 'Lose my answer.' })
+    const failed = await settled(at, HAL)
+    const asked = failed.turns.find((t) => t.author === 'person')
+    assert.ok(asked)
+    assert.equal(asked.reply, 'failed')
+    assert.equal(witness.filter((w) => w === 'COMMIT refused before it was sent; ROLLBACK sent').length, 4)
+    assert.equal(recorded().length - sentBefore, 1, 'one provider request')
+    assert.deepEqual(
+      (await usage('b85-lost-payer')).map((r) => r.state),
+      ['reserved'],
+    )
+    // The call's registration goes; an operator settles its cost from the provider's record (cost only, no answer).
+    let left: unknown[] = ['?']
+    for (let i = 0; i < 60 && left.length > 0; i++) {
+      left = await owner(
+        `SELECT 1 FROM sophia.personal_companion_calls c JOIN sophia.personal_companion_usage u USING (call_id) WHERE u.payer='b85-lost-payer'`,
+      )
+      if (left.length > 0) await pause(100)
+    }
+    assert.deepEqual(left, [], 'no registration left')
+    const [held] = await owner<{ call_id: string }>(
+      `SELECT call_id FROM sophia.personal_companion_usage WHERE payer='b85-lost-payer'`,
+    )
+    assert.ok(held)
+    assert.deepEqual(
+      await owner(`SELECT sophia.reconcile_personal_companion($1, 15, '{"inputTokens":10,"outputTokens":5}') AS r`, [
+        held.call_id,
+      ]),
+      [{ r: true }],
+    )
+    // Asked again: the answer is gone, and the turn is not paid for twice. Nothing is scripted: a request would be
+    // answered by the double's default and counted below.
+    await write(at, `/api/v1/personal/turns/${asked.id}/retry`, HAL, {})
+    const again = await settled(at, HAL)
+    assert.equal(again.turns.find((t) => t.id === asked.id)?.reply, 'failed', 'its answer stays unavailable')
+    assert.deepEqual(
+      again.turns.filter((t) => t.author === 'sophia').map((t) => t.text),
+      [],
+      'no answer made up',
+    )
+    assert.equal(recorded().length - sentBefore, 1, 'the provider is not asked again for that turn')
+    assert.deepEqual(
+      (await usage('b85-lost-payer')).map((r) => r.state),
+      ['settled'],
+      'its cost settled once, no refund',
+    )
+    // A new turn is a new question: it is answered.
+    double.script({ text: 'A new answer.', usage: { input_tokens: 10, output_tokens: 5 } })
+    await write(at, '/api/v1/personal/turns', HAL, { text: 'Something new.' })
+    let shown: string[] = []
+    for (let i = 0; i < 100 && shown.length === 0; i++) {
+      await pause(50)
+      shown = parsePersonalTurnPage((await call(at, '/api/v1/personal/turns?after=0', HAL)).json)
+        .turns.filter((t) => t.author === 'sophia')
+        .map((t) => t.text)
+    }
+    assert.deepEqual(shown, ['A new answer.'])
+    assert.equal(recorded().length - sentBefore, 2)
+  })
+
   it('a settlement that committed but whose acknowledgement was lost is kept once; a later retry writes it, asking nothing', async () => {
     const FAY = randomUUID()
     await owner(
