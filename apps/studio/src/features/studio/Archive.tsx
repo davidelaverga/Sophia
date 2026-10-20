@@ -7,6 +7,7 @@ import type { Membership, ProjectSummary } from '@sophia/contracts'
 import { Button } from '@sophia/ui'
 import { archiveProject } from '../../api/client.ts'
 import { listArchivedProjects } from '../../api/personal.ts'
+import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import { READ_FAILED, readState } from '../personal/places-view.ts'
@@ -21,13 +22,14 @@ const keys = archiveKeys()
 
 /**
  * The read of the person's archived projects (A30), read again as the lists are. Once it answers, it shows where each
- * project stands, so a write left with no reply before it started lets go of its key (Codex on #471).
+ * project stands, so a write left with no reply before it started lets go of its key (Codex on #471). The keys are the
+ * account's (accountOf: its token's subject), never its address's, which another account can share (Codex on #473).
  */
 const useArchivedRead = (identity: Identity) =>
   useQuery({
     queryKey: archivedKey(identity),
     queryFn: async ({ signal }) => {
-      const answered = keys.reading(identity.name)
+      const answered = keys.reading(accountOf(identity))
       const list = await listArchivedProjects(identity.token, signal)
       answered()
       return list
@@ -58,7 +60,7 @@ const failure = (err: unknown, fallback: string) => (err instanceof Error ? err.
 export function useArchiveWrite(identity: Identity) {
   const client = useQueryClient()
   return async (projectId: string, archived: boolean) => {
-    const choice = { account: identity.name, projectId, archived }
+    const choice = { account: accountOf(identity), projectId, archived }
     try {
       await archiveProject(identity.token, projectId, keys.keyFor(choice), archived)
     } catch (err: unknown) {

@@ -791,6 +791,68 @@ test('browser-account · pending Send survives USER_UPDATED: sent message appear
   expect(await unexpectedOf(page)).toEqual([])
 })
 
+/** The account a request's bearer token names (its `sub`), unverified: the synthetic sessions sign nothing. */
+function subjectOfRequest(authorization: string | undefined): string {
+  const payload = /^Bearer [^.]+\.([^.]+)\./u.exec(authorization ?? '')?.[1]
+  const claims: unknown = payload ? JSON.parse(Buffer.from(payload, 'base64url').toString()) : null
+  const sub: unknown = typeof claims === 'object' && claims !== null ? Reflect.get(claims, 'sub') : null
+  return typeof sub === 'string' ? sub : 'nobody'
+}
+
+test('browser-account · another account at the same address sends its own Unarchive key, never the last one’s unanswered one (Codex on #473)', async ({
+  context,
+}) => {
+  await serve(context)
+  const archivedProject = { projectId: WORK_PROJECT, title: 'Old pilot', role: 'admin', members: 2 }
+  const listed = { ...archivedProject, room: null, nextSession: null, releases: [] }
+  await context.route(`${APP}/api/v1/projects`, (route) => route.fulfill({ json: { projects: [], personalEpoch: 1 } }))
+  await context.route(`${APP}/api/v1/projects/archived`, (route) =>
+    route.fulfill({ json: { projects: [listed], personalEpoch: 1 } }),
+  )
+  // Each Unarchive, with the account its token names and its key. Davide's first waits until let go, then its reply
+  // is lost; any other is answered.
+  const sent: { by: string; key: string | undefined }[] = []
+  const held = Promise.withResolvers<void>()
+  await context.route(`${APP}/api/v1/projects/${WORK_PROJECT}/archive`, async (route) => {
+    const headers = route.request().headers()
+    const by = subjectOfRequest(headers.authorization)
+    sent.push({ by, key: headers['idempotency-key'] })
+    if (by === DAVIDE.id && sent.length === 1) {
+      await held.promise
+      return route.abort('failed')
+    }
+    return route.fulfill({ json: { projectId: WORK_PROJECT, archived: false, cursor: '2' } })
+  })
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  const work = page.locator('section[data-place-view="work"]')
+  const unarchive = async () => {
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    })
+    await page.keyboard.press('w')
+    await work.getByRole('button', { name: 'Archived (1)' }).click()
+    await work.getByRole('button', { name: 'Unarchive' }).click()
+  }
+  // Davide's Unarchive is on its way when another account at his address comes in.
+  await unarchive()
+  await expect.poll(() => sent.length).toBe(1)
+  await anotherTab(context, session(SAME_ADDRESS))
+  await expect.poll(() => signedInAs(page)).toBe(SAME_ADDRESS.email)
+  // Its list is read while Davide's write still has no answer, which then never comes.
+  await expect(work.getByRole('button', { name: 'Archived (1)' })).toBeVisible()
+  const lost = page.waitForEvent('requestfailed', (r) => r.url().endsWith('/archive'))
+  held.resolve()
+  await lost
+  // Its own Unarchive is its own write: never Davide's key, sent under its token.
+  await unarchive()
+  await expect.poll(() => sent.length).toBe(2)
+  expect(sent.map((s) => s.by)).toEqual([DAVIDE.id, SAME_ADDRESS.id])
+  expect(sent[1]?.key).toBeTruthy()
+  expect(sent[1]?.key).not.toBe(sent[0]?.key)
+})
+
 test('browser-account · blocked storage does not break navigation or account transitions', async ({ context }) => {
   await serve(context)
   const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
