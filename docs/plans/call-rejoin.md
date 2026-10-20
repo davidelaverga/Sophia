@@ -277,6 +277,13 @@ the code; each was written first.
 - A hidden tab whose timers run less often than every 10 s (a browser's heaviest background throttling) stops counting
   as seen live while it is throttled, so a drop then isn't tried; 30 s after its beats come on time again it counts
   once more (Codex's P2 on #475). Whether a page with a live call is throttled that hard wasn't observed here.
+- `STEADY_MS` (30 s) assumes the LiveKit server's `pingTimeout` stays under about 25 s, so that a woken page's pong
+  timer has fired, and its beats stopped counting, a beat or more before the run ends. 15 s is what `livekit-server`
+  v1.13.7 `--dev` sends; production's value is unconfirmed. Production uses LiveKit Cloud (`CONTRIBUTING.md`'s
+  connection policy, `docs/coordination/S1-05A/S1-05A-CC-0004.md`), so the value is set on LiveKit's side, not in
+  this repo, and a self-hosted server would set it in its own configuration, which isn't here either. To read it: the
+  join response carries it, and livekit-client logs it at debug level as «ping config» (`timeout`, `interval`) on
+  each connection. A longer timeout would need `STEADY_MS` raised with it.
 - Try again's tip describes this device's own microphone choice, while the join after a drop turns the microphone on
   only if both the call, as last seen, and that choice (read as the join begins) have it on: the tip can say «on»
   where the microphone comes back off, never the reverse.

@@ -236,3 +236,9 @@ on #475» says how.
 - **Green at `86a2f9bbc`** (guarded `pw.ps1`): `room.spec.ts` + `room-dock.spec.ts` 50/50 (`liveness-p1-green-room`).
   Units: `call-rejoin.test.ts` 39/39; `features/voice` 347/347. Whole-repo oxlint, `tsc --noEmit -p apps/studio`,
   Prettier on the five touched code files: clean.
+- **The re-review's P3s (no P1/P2).** `ccd145da6`: `connected` is required in `stillSeen` and `Rejoin.beat`, so the
+  type check refuses a beat that leaves it out (checked: `rejoin.beat()` in `useProjectRoom.ts` gives «TS2554:
+  Expected 1 arguments, but got 0»; reverted); the tests pass `true` explicitly. The plan's Limits now say that
+  `STEADY_MS` assumes a `pingTimeout` under about 25 s (15 s from `livekit-server` v1.13.7 `--dev`; production is
+  LiveKit Cloud, its value set on LiveKit's side and unconfirmed; how to read it). Units `features/voice` 347/347;
+  whole-repo oxlint, tsc, Prettier: clean. No browser run: only the signature changed.
