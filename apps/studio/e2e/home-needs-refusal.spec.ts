@@ -106,6 +106,17 @@ const readTrace = (page: Page) =>
 
 const seenWrites = (page: Page) => page.evaluate(() => window.needsTrace?.seenWrites ?? -1)
 
+/**
+ * After the refusal's note: at least 400 ms, then more than ten frames since the client saw the refusal, however slowly
+ * the runner draws (CI's drew 7 to 10 in a fixed 400 ms: docs/plans/ci-home-needs-refusal-flake.md). Then the trace.
+ */
+async function sampleAfterRefusal(page: Page) {
+  await expect(page.locator('body')).toContainText('Couldn’t read what needs you.')
+  await page.waitForTimeout(400)
+  await expect.poll(() => page.evaluate(() => window.needsTrace?.postFrames ?? 0)).toBeGreaterThan(10)
+  return readTrace(page)
+}
+
 for (const status of [401, 403] as const) {
   for (const body of ['delayed', 'malformed'] as const) {
     test(`needs · semantic: its own read refused (${status}, ${body} body): from the client's first sight of it, no frame shows a cached need, title, count or action; a 503 after does not bring them back, a read since does, and reading never marks seen`, async ({
@@ -117,9 +128,7 @@ for (const status of [401, 403] as const) {
       await observe(page, { status, body })
       // The window is read again (the page comes back into view): refused.
       await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
-      await expect(since).toContainText('Couldn’t read what needs you.')
-      await page.waitForTimeout(400)
-      const trace = await readTrace(page)
+      const trace = await sampleAfterRefusal(page)
       await info.attach(`needs-trace-${status}-${body}.json`, {
         body: JSON.stringify(trace, null, 1),
         contentType: 'application/json',
@@ -128,7 +137,7 @@ for (const status of [401, 403] as const) {
         trace.denials.some((d) => d.path === '/api/v1/me/needs'),
         'its own read refused, as the client saw',
       ).toBe(true)
-      expect(trace.frames).toBeGreaterThan(10)
+      expect(trace.postFrames, 'frames since the client saw the refusal').toBeGreaterThan(10)
       expect(trace.hits, 'a cached need, title, count or action after the client saw the refusal').toEqual([])
       // A later ordinary failure does not bring the old window back.
       await setControl(page, '503')
@@ -217,9 +226,7 @@ test(`needs @phone · semantic: its own read refused (403, delayed body), on a p
   await observe(page, { status, body })
   // The window is read again (the page comes back into view): refused.
   await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
-  await expect(since).toContainText('Couldn’t read what needs you.')
-  await page.waitForTimeout(400)
-  const trace = await readTrace(page)
+  const trace = await sampleAfterRefusal(page)
   await info.attach(`needs-trace-${status}-${body}.json`, {
     body: JSON.stringify(trace, null, 1),
     contentType: 'application/json',
@@ -228,7 +235,7 @@ test(`needs @phone · semantic: its own read refused (403, delayed body), on a p
     trace.denials.some((d) => d.path === '/api/v1/me/needs'),
     'its own read refused, as the client saw',
   ).toBe(true)
-  expect(trace.frames).toBeGreaterThan(10)
+  expect(trace.postFrames, 'frames since the client saw the refusal').toBeGreaterThan(10)
   expect(trace.hits, 'a cached need, title, count or action after the client saw the refusal').toEqual([])
   // A later ordinary failure does not bring the old window back.
   await setControl(page, '503')
@@ -278,14 +285,11 @@ test(`needs · semantic, slow frames (about 15 a second, as CI drew): its own re
   page,
 }, info) => {
   await page.goto(PAGE)
-  const since = page.locator('body')
   await expect(page.locator(`${NEEDS} button`).first()).toBeVisible()
   await observe(page, { status: 403, body: 'delayed' })
   await slowFrames(page, 50)
   await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
-  await expect(since).toContainText('Couldn’t read what needs you.')
-  await page.waitForTimeout(400)
-  const trace = await readTrace(page)
+  const trace = await sampleAfterRefusal(page)
   await info.attach('needs-trace-slow-frames.json', {
     body: JSON.stringify(trace, null, 1),
     contentType: 'application/json',
@@ -294,7 +298,7 @@ test(`needs · semantic, slow frames (about 15 a second, as CI drew): its own re
     trace.denials.some((d) => d.path === '/api/v1/me/needs'),
     'its own read refused, as the client saw',
   ).toBe(true)
-  expect(trace.frames).toBeGreaterThan(10)
+  expect(trace.postFrames, 'frames since the client saw the refusal').toBeGreaterThan(10)
   expect(trace.hits, 'a cached need, title, count or action after the client saw the refusal').toEqual([])
   expect(await seenWrites(page), 'no seen write from a retired control').toBe(0)
 })
