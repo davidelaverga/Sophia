@@ -11,7 +11,7 @@ Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1` and
 workers).
 Existing authority: Luis 2026-10-20, «Procede con el próximo lote y arregla tú los de Davide»; earlier «Lo que no se
 mide, no se puede mejorar».
-Ending commit: the branch's last commit; code last changed at `0281cf271` (after the second review). Against `9a6b03a73`:
+Ending commit: the branch's last commit; code last changed at `9caf36cce` (after the third review). Against `9a6b03a73`:
 `apps/studio/src/features/voice/{call-rejoin,call-tabs,mic-while-connected}{,.test}.ts` (new), `call-fence{,.test}.ts`, `call-end.ts`, `call-end.test.ts`,
 `useProjectRoom.ts`, `livekit-room.ts`, `RoomDock.tsx`, `MiniDock.tsx`,
 `apps/studio/src/features/conversation/discussion-view{,.test}.ts`, `apps/studio/src/features/studio/ProjectShell.tsx`,
@@ -148,3 +148,25 @@ close). The plan's «After the second review» says how each point was closed.
   fix (`review2-green-calls`). Units: 443/443 over `features/voice` and `features/conversation` (`call-rejoin` 32,
   `call-tabs` 7, `call-fence` 6, `mic-while-connected` 5). Whole-repo oxlint, tsc, Prettier: clean.
 - Plan: `5aeb4e272`. Not built, recorded: a crashed tab's stale claim (the try waits for the person).
+
+## After the third review (2026-10-20: one P1, P3s)
+
+Neither game was open, so the runs went through the guarded `pw.ps1`. The plan's «After the third review» says how.
+
+- **P1, the microphone's cap was read once, at the drop.** Written first `ee10c79e0`; browser red (`review3-red-p1`):
+  both checks «Expected: "false" Received: "true"» (off chosen during the offline wait; off chosen before Try again).
+  Fixed `3e3a61153`: the drop keeps the call's microphone marked `capped`, and each join reads this device's choice
+  as it begins.
+- **P3s.** Written first `3d7333280` (the fixture now reports a leave's disconnect as LiveKit does, holds LiveKit's
+  connect, and resets its link at each connection and drop; `keptIfStill`'s third argument doesn't type-check until
+  the fix); units red: the quiet-before-leave order, «'now' !== null» for a call seen live in the future, the stuck
+  `joining` claim; browser red (`review3-red-p3`): «Expected: "You were disconnected from the room." Received:
+  "Couldn’t connect to the room. Check your connection and try again."» (the quiet leave's end taken for the call's).
+  Fixed `9caf36cce`.
+- **Green at `6c190af17` (code `9caf36cce`):** `room.spec.ts` 34/34 (`review3-green-room`); the call specs 220/220
+  (`review3-green-calls`). Units 446/446 over `features/voice` and `features/conversation`. Whole-repo oxlint, tsc,
+  Prettier: clean.
+- Plan: `6c190af17`. Documented only: the channel's v1→v2 change (a tab opened before the deploy isn't heard until it
+  reloads); what the check after connecting can't spare (DUPLICATE_IDENTITY).
+- `origin/main` has moved on since the branch began (the worktree reads 252 commits behind): a rebase or merge is for
+  the group PR, not done here.
