@@ -24,7 +24,9 @@ import {
   readPersonalEpoch,
   readWelcomeContext,
   recordPersonalGreeting,
+  readPersonalSettledAnswer,
   recordPersonalReply,
+  recordPersonalSettledReply,
   releasePersonalGreeting,
   renewPersonalGreeting,
   renewPersonalReply,
@@ -42,11 +44,25 @@ export interface CompanionReply {
  * Each call is given a signal that aborts once its time is up, or once the space is erased: it must stop then (and
  * settle), so nothing is asked again, and no erasure is acknowledged, while it still runs.
  */
+/** The registered call an answer runs in (begin_companion_call): whose space, and the call's own id. */
+export interface CompanionCall {
+  readonly actorId: string
+  readonly callId: string
+  /** The turn the call answers, under the claim it was made for: its settled answer is kept for it (0078). */
+  readonly turnId?: string
+  readonly claim?: string
+}
+
 export interface Companion {
   readonly mode: 'rehearsal' | 'live'
-  answer(context: CompanionContext, signal: AbortSignal): Promise<CompanionReply>
+  /** The one person it answers live (#435 4304103151); none for a companion that serves anyone (the rehearsal). */
+  readonly owner?: string
+  /** `call` names the registered call this answer runs in; a live companion reserves and settles its cost under it. */
+  answer(context: CompanionContext, signal: AbortSignal, call?: CompanionCall): Promise<CompanionReply>
   /** Sophia's welcome back after a quiet spell, from the conversation so far; `name` is who she greets. */
   greet(context: Omit<CompanionContext, 'asked'>, name: string | null, signal: AbortSignal): Promise<string>
+  /** Whether what it needs outside this process is in place (/ready); none means nothing is needed. */
+  ready?(): Promise<boolean>
 }
 
 /**
@@ -139,6 +155,10 @@ interface Call {
 export class CompanionRunner {
   private readonly inFlight = new Set<string>()
   private readonly calls = new Map<string, Set<Call>>()
+  /** Every accepted answer's whole run (claim, call, cost, kept answer, reply, the next turn), until it ends. */
+  private readonly running = new Set<Promise<void>>()
+  /** Shutting down: no answer is started any more, nor the next turn chained (finding 4321054353). */
+  private closing = false
   private readonly pool: pg.Pool
   private readonly companion: Companion
   private readonly onError: (err: unknown) => void
@@ -178,7 +198,7 @@ export class CompanionRunner {
   private async withCall<T>(
     actorId: string,
     holds: (c: pg.PoolClient) => Promise<boolean>,
-    body: (stop: AbortSignal) => Promise<T>,
+    body: (stop: AbortSignal, callId: string) => Promise<T>,
   ): Promise<T> {
     const id = randomUUID()
     const epoch = await withActor(this.pool, actorId, 'write', (c) => beginCompanionCall(c, id))
@@ -195,7 +215,7 @@ export class CompanionRunner {
       )
     }, this.watchMs)
     try {
-      return await body(call.stop.signal)
+      return await body(call.stop.signal, call.id)
     } finally {
       clearInterval(watch)
       mine.delete(call)
@@ -209,11 +229,42 @@ export class CompanionRunner {
     return this.companion.mode
   }
 
-  /** Start answering `turnId` for `actorId`; resolves when the reply or the failure is written. */
+  /** Whether it answers this person's turns live: the payer's one enrolled owner, or anyone for the rehearsal. */
+  serves(actorId: string): boolean {
+    return this.companion.owner === undefined || this.companion.owner === actorId.toLowerCase()
+  }
+
+  /**
+   * Start answering `turnId` for `actorId`; resolves when the reply or the failure is written. Once shutting down,
+   * nothing is started: the turn stays pending, as it is, for the next process.
+   */
   answer(actorId: string, turnId: string): Promise<void> {
-    if (this.inFlight.has(turnId)) return Promise.resolve()
+    if (this.closing || this.inFlight.has(turnId)) return Promise.resolve()
     this.inFlight.add(turnId)
-    return this.run(actorId, turnId).finally(() => this.inFlight.delete(turnId))
+    const run = this.run(actorId, turnId).finally(() => this.inFlight.delete(turnId))
+    this.running.add(run)
+    // Both outcomes handled on the run itself (R2-C64 P2): no derived promise is left to reject unhandled. An
+    // unexpected failure of the whole run is reported (its words kept out, as every companion failure), never retried.
+    run.then(
+      () => this.running.delete(run),
+      (err: unknown) => {
+        this.running.delete(run)
+        this.onError(err)
+      },
+    )
+    return run
+  }
+
+  /**
+   * Shut down (finding 4321054353): start no answer and chain no next turn, then wait for every accepted run to end,
+   * while the pool and the model are still open. Its end is observed, not its success: a run may end with its cost held
+   * unknown, its answer kept but its reply unwritten, or failed (reported by onError). The wait has no deadline of its
+   * own: ANSWER_LIMIT_MS only signals the call to stop (cooperative), and a write retries a few times, so a call or
+   * query that never settles keeps shutdown waiting with its resources open, until the platform ends the process.
+   */
+  async close(): Promise<void> {
+    this.closing = true
+    while (this.running.size > 0) await Promise.allSettled(this.running)
   }
 
   /**
@@ -293,7 +344,8 @@ export class CompanionRunner {
       this.onError(err)
       return null
     })
-    if (next) await this.answer(actorId, next)
+    // The next turn's run is its own: its failure is reported by its own handler (answer), once.
+    if (next) await this.answer(actorId, next).catch(() => undefined)
   }
 
   private async answerOne(actorId: string, turnId: string): Promise<void> {
@@ -306,15 +358,50 @@ export class CompanionRunner {
       },
     )
     if (!claim) return
-    let reply: CompanionReply | null
+    // An answer already paid for and kept with its cost (0078), its reply not written yet (by this process or another,
+    // before a restart): written now, the companion not asked again. If even the read fails, nothing is asked.
+    // Only a live companion keeps answers with their cost (0078); a rehearsal asks no one and needs no 0078.
+    const live = this.companion.mode === 'live'
+    let kept: { text: string; suggestion: string | null } | null = null
     try {
-      reply = await this.withCall(
+      if (live) kept = await withActor(this.pool, actorId, 'read', (c) => readPersonalSettledAnswer(c, turnId))
+    } catch (err: unknown) {
+      this.onError(err)
+      return
+    }
+    const reply = kept ?? (await this.ask(actorId, turnId, claim))
+    if (!reply) return
+    const { text, suggestion } = reply
+    // The companion answered: its words are written, tried again while the database is away for a moment, from the
+    // answer kept with its cost when there is one (else as given, a rehearsal's). The turn is never marked failed for
+    // that, nor the companion asked again; should every try fail, the claim lapses, and asked again the kept answer is
+    // written then.
+    await again(() =>
+      withActor(this.pool, actorId, 'write', async (c) => {
+        if (!live || !(await recordPersonalSettledReply(c, turnId, claim)))
+          await recordPersonalReply(c, turnId, claim, text, suggestion)
+      }),
+    ).catch((err: unknown) => {
+      this.onError(err)
+    })
+  }
+
+  /** The companion asked for the turn under its claim; null when nothing is to be written (failed, or not due). */
+  private async ask(actorId: string, turnId: string, claim: string): Promise<CompanionReply | null> {
+    try {
+      return await this.withCall(
         actorId,
         (c) => renewPersonalReply(c, turnId, claim),
-        async (stop) => {
+        async (stop, callId) => {
           // Its lease is renewed as the context goes to the companion: no other attempt takes the turn meanwhile.
           const context = await withActor(this.pool, actorId, 'write', (c) => readCompanionContext(c, turnId, claim))
-          return context ? withinLimit((signal) => this.companion.answer(context, signal), this.limitMs, stop) : null
+          return context
+            ? withinLimit(
+                (signal) => this.companion.answer(context, signal, { actorId, callId, turnId, claim }),
+                this.limitMs,
+                stop,
+              )
+            : null
         },
       )
     } catch (err: unknown) {
@@ -322,18 +409,8 @@ export class CompanionRunner {
       // The companion couldn't answer: the turn says it failed; if even that write fails, it stays pending and the
       // person's client says so in time.
       await withActor(this.pool, actorId, 'write', (c) => failPersonalReply(c, turnId, claim)).catch(() => undefined)
-      return
+      return null
     }
-    if (!reply) return
-    const { text, suggestion } = reply
-    // The companion answered: its words are written, tried again while the database is away for a moment. The turn is
-    // never marked failed for that, nor the companion asked again; should every try fail, the claim lapses and the
-    // turn reads as lost.
-    await again(() =>
-      withActor(this.pool, actorId, 'write', (c) => recordPersonalReply(c, turnId, claim, text, suggestion)),
-    ).catch((err: unknown) => {
-      this.onError(err)
-    })
   }
 }
 
