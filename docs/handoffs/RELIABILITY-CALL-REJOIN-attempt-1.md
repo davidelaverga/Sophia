@@ -213,3 +213,26 @@ on #475» says how.
 - **Green at `ad020bca6`** (guarded `pw.ps1`, after waiting for Blender to close): `room.spec.ts` + `room-dock.spec.ts`
   50/50 (`liveness-green-room`). Units: `call-rejoin.test.ts` 37/37; `features/voice` 345/345. Whole-repo oxlint,
   tsc, Prettier on the two touched files: clean.
+
+### After the independent review of the liveness fix (2026-10-20: one P1)
+
+- **P1, a woken laptop could still count as seen live (real).** Read in livekit-client 2.22.3: the pong timeout
+  (`handleOnClose` → `handleDisconnect('signal')` → `attemptReconnect`) is a *resume* while the peer connections
+  aren't `NEW` (`EngineEvent.Resuming` → `ConnectionState.SignalReconnecting`, `RoomEvent.SignalReconnecting`); a
+  failed resume (`SignalReconnectError`) doesn't escalate; only `EngineEvent.Offline` brings `RoomEvent.Reconnecting`,
+  the one event the room module hears. So the dock stayed `live` and the beats ran: «seen» renewed 30 s after waking,
+  and an offline wait after the drop could rejoin once Wi-Fi came back. `STEADY_MS`'s comment and the plan said the
+  room went to «Reconnecting…»; both corrected (plan `8b142e01e`).
+- **Written first** `cb9ab4796` (doesn't type-check until the fix: `beat` takes `connected`); red: «never for a laptop
+  that woke into a dead link while LiveKit only resumes its signal · actual: 1, expected: 0» and the pure rule
+  «actual: { seen: 6000, beat: 6000, since: null } · expected: { seen: 1000, beat: 6000, since: 6000 }». The review's
+  P3, a point at 29 999 ms into the run, is in the same check (it passed before the fix).
+- **Fixed** `86a2f9bbc`: `RoomConnection.connected()` (`room.state === ConnectionState.Connected`; the fixture: open
+  and its link up); `useRejoin` reads it from the call fence at each beat, and a beat while not connected starts the
+  run again (`stillSeen(live, now, connected)`). A resume that succeeds ends `Connected` with the dock still `live`
+  (not a `live()`), so the run lasts its 30 s again. The dock shows nothing new during a resume.
+- **Not covered by a check:** the hook's wiring of `connected()` to the beat (no browser check can stage a signal
+  resume and a run of beats past the window without a clock under the fixture); the rule and `Rejoin` are unit-checked.
+- **Green at `86a2f9bbc`** (guarded `pw.ps1`): `room.spec.ts` + `room-dock.spec.ts` 50/50 (`liveness-p1-green-room`).
+  Units: `call-rejoin.test.ts` 39/39; `features/voice` 347/347. Whole-repo oxlint, `tsc --noEmit -p apps/studio`,
+  Prettier on the five touched code files: clean.
