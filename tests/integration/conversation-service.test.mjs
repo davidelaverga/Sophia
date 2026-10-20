@@ -495,6 +495,26 @@ describe('conversation service crossing (real dsh service executor, API, worker,
     }, 'the conversation role advertised')
     const [stored] = await owner('SELECT roles FROM sophia.runtime_instances WHERE project_id=$1', [w.projectId])
     assert.deepEqual(stored.roles.find((role) => role.id === 'sophia-conversation-v1')?.executor, w.tuple)
+    // FND-B115 (4326076019): the operator's file is rewritten after admission (its bridge without replies) and the dsh
+    // child is killed; the supervisor's restart composes the admitted bytes, so the role is advertised again.
+    const operatorFile = join(w.layout.root, 'service-overlay.json')
+    writeFileSync(operatorFile, JSON.stringify(JSON.parse(readFileSync(operatorFile, 'utf8')).map((row) => {
+      if (row.id !== 'sophia-control-bridge') return row
+      const config = { ...row.config }
+      delete config.replies
+      return { id: row.id, config }
+    })))
+    const [{ lease_epoch: before }] = await owner('SELECT lease_epoch FROM sophia.runtime_instances WHERE project_id=$1', [w.projectId])
+    const dsh = spawnSync('ps', ['-ax', '-o', 'pid=,command='], { encoding: 'utf8' }).stdout.split('\n')
+      .filter((line) => line.includes(DSH_ENTRY) && line.includes(w.layout.root))
+    assert.equal(dsh.length, 1, dsh.join('\n'))
+    process.kill(Number(dsh[0].trim().split(/\s+/)[0]), 'SIGKILL')
+    await w.until(async () => {
+      const [row] = await owner('SELECT lease_epoch, ready_state FROM sophia.runtime_instances WHERE project_id=$1', [w.projectId])
+      return Number(row.lease_epoch) > Number(before) && row.ready_state === 'ready'
+    }, 'the restarted bridge hello', 60_000)
+    const [again] = await owner('SELECT roles FROM sophia.runtime_instances WHERE project_id=$1', [w.projectId])
+    assert.deepEqual(again.roles.find((role) => role.id === 'sophia-conversation-v1')?.executor, w.tuple, 'the restart runs the admitted overlay')
     const r = await w.ask()
     await w.until(async () => (await w.reply(r)).state === 'answered', 'the published answer')
     const answers = await w.answers(r)
@@ -920,6 +940,51 @@ describe('the shipped runtime-host entry: service replies only by an explicit ov
         { cwd: REPO_ROOT, encoding: 'utf8', timeout: 60_000, env: { PATH: process.env.PATH, HOME: process.env.HOME } })
       assert.equal(r.status, 0, r.stderr)
       assert.match(r.stdout, /"event":"executor_digest","variable":"SOPHIA_EXECUTOR_DIGEST","digest":"[0-9a-f]{64}"/)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('a root leased by a live runtime is refused before its profile is reconciled, print and launch (FND-B115)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'b115-lease-'))
+    const root = join(dir, 'root')
+    try {
+      const file = join(dir, 'overlay.json')
+      writeFileSync(file, serviceOverlay('http://127.0.0.1:9'))
+      const host = (args, env = {}) => spawnSync(process.execPath, ['scripts/runtime-host.mjs', '--root', root, ...args],
+        { cwd: REPO_ROOT, encoding: 'utf8', timeout: 60_000, env: { PATH: process.env.PATH, HOME: process.env.HOME, ...env } })
+      assert.equal(host(['--service-overlay', file, '--print-executor-digest']).status, 0, 'an inactive root is printed (installed)')
+      // A live runtime holds the root (this test process, alive, not the host) while its profile has drifted.
+      appendFileSync(join(root, 'dsh-home', 'profiles', unit.dsh.profile, 'cordis.patch.yml'), '\n# drifted under a live runtime\n')
+      writeFileSync(join(root, 'supervisor.lease'), `${process.pid}\n`)
+      const home = treeDigest(join(root, 'dsh-home')).digest
+      for (const [label, args, env] of [
+        ['print', ['--service-overlay', file, '--print-executor-digest'], {}],
+        ['launch', [], { SOPHIA_SERVICE_URL: 'http://127.0.0.1:9', SOPHIA_RUNTIME_TOKEN: 'x', OPENAI_API_KEY: DUMMY_KEY }],
+      ]) {
+        const r = host(args, env)
+        assert.equal(r.status, 2, `${label}: ${r.stdout}${r.stderr}`)
+        assert.match(r.stderr, /is leased by live runtime pid \d+/, label)
+        assert.doesNotMatch(r.stdout, /"event":"(profile|executor_digest)"/, `${label}: refused before the profile`)
+        assert.equal(treeDigest(join(root, 'dsh-home')).digest, home, `${label}: the live root's profile and history are untouched`)
+        assert.equal(readFileSync(join(root, 'supervisor.lease'), 'utf8'), `${process.pid}\n`, `${label}: the live lease stands`)
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('a loopback test endpoint must be a valid port, 1 to 65535 (FND-B115)', () => {
+    const port = (p) => edit('llm-pi-ai', (c) => { c.providers['openai-conversation'].baseURL = `http://127.0.0.1:${p}/v1`; return c })
+    const provider = /llm-pi-ai may only restate the recorded providers/
+    printRefuses('b115-port-', [['port 65536', port(65536), provider], ['port 99999', port(99999), provider]])
+    const dir = mkdtempSync(join(tmpdir(), 'b115-port-ok-'))
+    try {
+      const file = join(dir, 'overlay.json')
+      writeFileSync(file, port(65535))
+      const r = spawnSync(process.execPath, ['scripts/runtime-host.mjs', '--root', join(dir, 'root'), '--service-overlay', file, '--print-executor-digest'],
+        { cwd: REPO_ROOT, encoding: 'utf8', timeout: 60_000, env: { PATH: process.env.PATH, HOME: process.env.HOME } })
+      assert.equal(r.status, 0, r.stderr)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

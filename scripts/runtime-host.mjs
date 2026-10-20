@@ -15,13 +15,16 @@
  * sophia-control-bridge row, unchanged, plus `replies: { mode: 'service', routeId: 'conversation-service-luna-high-v1',
  * executorDigestEnv }` (lib/service-overlay.mjs; the bundle's parseConfig must accept it). No other row, provider,
  * credential, route, cap or price is admitted, except the recorded llm-pi-ai row restated exactly with the
- * openai-conversation endpoint on numeric loopback (the same-host fake provider of the tests). The host passes it as
- * dsh's --patch and passes
+ * openai-conversation endpoint on numeric loopback, port 1-65535 (the same-host fake provider of the tests). The host
+ * stages the admitted bytes in <root>/service-overlay.admitted.json (owner-only, removed at exit) and passes that copy,
+ * never the operator's file, as dsh's --patch for the launch and every restart; it passes
  * exactly the variable that `executorDigestEnv` names (the EXPECTED executor closure, 64 hex) into the runtime's
  * environment; nothing else of the parent's is inherited. A missing, malformed or mismatched digest leaves the mode
  * unavailable in the bridge (no fallback); an overlay that is not config-only or not the recorded composition above,
  * or a digest variable that is reserved, unset or not 64 hex, is refused here, before anything starts. --print-executor-digest derives the closure the
- * runtime would advertise for this root and overlay, prints it and exits (no service, no credential).
+ * runtime would advertise for this root and overlay, prints it and exits (no service, no credential). Print and launch
+ * both take the root's supervisor lease first: a root a live runtime holds is refused before its profile is reconciled,
+ * and the launch hands the lease to its supervisor in place.
  *
  * Every model route's credential (config/runtime-unit.json: model_route and model_routes, by credential_ref) is
  * passed to dsh by name only and never printed. The default route's is required; a research route whose credential
@@ -34,13 +37,14 @@
  * upgrades. The `profile` log line says which bundle the runtime loads.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { RuntimeSupervisor } from '../apps/execution-host/dist/runtime-supervisor.js'
 import { RUNTIME_DIR, DSH_ENTRY, loadRuntimeUnit } from './lib/common.mjs'
 import { assertRecordedArtifacts, executorClosureDigest, homeLayout, reconcileProfile } from './lib/profile.mjs'
-import { assertRecordedComposition, overlayRows, recordedBridge } from './lib/service-overlay.mjs'
+import { holdRootLease } from './lib/root-lease.mjs'
+import { assertRecordedComposition, overlayRows, recordedBridge, stageAdmittedOverlay } from './lib/service-overlay.mjs'
 import { assertToolchain } from './lib/toolchain.mjs'
 import { mockRouteOverlay, startMockLlm } from '../tests/support/mock-llm.mjs'
 
@@ -131,6 +135,19 @@ if (absent.length > 0) console.log(JSON.stringify({ at: new Date().toISOString()
 assertRecordedArtifacts(unit, RUNTIME_DIR)
 const root = resolve(values.root)
 const layout = homeLayout(root)
+// The root's lease before anything under it changes (FND-B115): a live runtime's root is refused, never reconciled.
+let lease
+try {
+  lease = holdRootLease(root)
+} catch (error) {
+  console.error(`runtime-host: ${error.message}`)
+  process.exit(2)
+}
+const admitted = service && !printDigest ? stageAdmittedOverlay(root, service.bytes) : null
+process.on('exit', () => {
+  if (admitted) rmSync(admitted, { force: true })
+  lease.release()
+})
 const profile = reconcileProfile({ unit, runtimeDir: RUNTIME_DIR, layout })
 console.log(
   JSON.stringify({
@@ -156,9 +173,9 @@ if (mock) {
   extraArgs.push('--patch', overlay)
 }
 if (service) {
-  extraArgs.push('--patch', service.file)
-  // Names only: the overlay's file and the digest variable, never a value.
-  console.log(JSON.stringify({ at: new Date().toISOString(), event: 'service_replies', overlay: service.file, variable: service.name }))
+  extraArgs.push('--patch', admitted)
+  // Names only: the operator's file, the staged admitted copy dsh reads, and the digest variable, never a value.
+  console.log(JSON.stringify({ at: new Date().toISOString(), event: 'service_replies', overlay: service.file, admitted, variable: service.name }))
 }
 const supervisor = new RuntimeSupervisor({
   unit: { id: unit.id, profile: unit.dsh.profile, runtimeDir: RUNTIME_DIR, launcherEntry: DSH_ENTRY },

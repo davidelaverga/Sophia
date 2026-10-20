@@ -9,7 +9,7 @@
  */
 
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { closeSync, openSync, readFileSync, rmSync, writeSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { isDeepStrictEqual } from 'node:util'
@@ -22,7 +22,7 @@ const PROVIDERS = 'llm-pi-ai'
 /** The recorded conversation route (config/runtime-unit.json) and its provider alias in the bundle patch. */
 export const SERVICE_ROUTE = 'conversation-service-luna-high-v1'
 const SERVICE_PROVIDER = 'openai-conversation'
-const LOOPBACK = /^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}(\/v1)?$/
+const LOOPBACK = /^http:\/\/127\.0\.0\.1:([1-9][0-9]{0,4})(\/v1)?$/
 const BUNDLE_DIR = join(REPO_ROOT, 'packages', 'dsh-bundle')
 
 /**
@@ -86,7 +86,28 @@ export function assertRecordedComposition(overlay, recorded) {
   const declared = recorded.providers.providers[SERVICE_PROVIDER]
   const baseURL = overlay.providers?.providers?.[SERVICE_PROVIDER]?.baseURL
   const expected = { ...recorded.providers, providers: { ...recorded.providers.providers, [SERVICE_PROVIDER]: { ...declared, baseURL } } }
-  if (typeof baseURL !== 'string' || !LOOPBACK.test(baseURL) || !isDeepStrictEqual(overlay.providers, expected)) {
+  const port = typeof baseURL === 'string' ? LOOPBACK.exec(baseURL)?.[1] : undefined
+  if (port === undefined || Number(port) > 65535 || !isDeepStrictEqual(overlay.providers, expected)) {
     throw new Error(`${PROVIDERS} may only restate the recorded providers with ${SERVICE_PROVIDER} pointed at a numeric loopback test endpoint`)
   }
+}
+
+/**
+ * The admitted bytes, staged for dsh under the leased root (FND-B115, 4326076019): the launch, and every supervisor
+ * restart, composes exactly what was admitted and digested, never the operator's file, which may change afterwards.
+ * @param {string} root - the project root, leased by this process.
+ * @param {Buffer} bytes - the admitted overlay.
+ * @returns {string} the staged file, owner-only.
+ */
+export function stageAdmittedOverlay(root, bytes) {
+  const path = join(root, 'service-overlay.admitted.json')
+  rmSync(path, { force: true })
+  const fd = openSync(path, 'wx', 0o600)
+  try {
+    writeSync(fd, bytes)
+  } finally {
+    closeSync(fd)
+  }
+  if (!readFileSync(path).equals(bytes)) throw new Error('the staged service overlay is not the admitted one')
+  return path
 }
