@@ -92,6 +92,11 @@ SELECT p.k, p.id, p.record_id, p.part, p.at, p.at_us::text AS at_us, p.anchor, p
          'StartSel="",StopSel="",MaxWords=35,MinWords=15,ShortWord=0,MaxFragments=1') AS snippet,
        CASE WHEN p.k = 5 THEN (SELECT n.id FROM sophia.contributions n
          WHERE n.project_id = $1 AND (n.created_at, n.id) > (p.at, p.id)
+           -- Only a message this reader's chat shows (4320587071): withdrawn (its tombstone), or current with words
+           -- this reader may read, as the discussion page reads them; never another member's private or ineligible one.
+           AND (n.state = 'withdrawn' OR (n.state = 'current' AND EXISTS (SELECT 1 FROM sophia.source_objects s
+             JOIN sophia.source_texts t ON t.project_id = s.project_id AND t.source_id = s.id
+            WHERE s.project_id = n.project_id AND s.id = n.source_id AND ${READABLE})))
          ORDER BY n.created_at, n.id LIMIT 1) END AS before
   FROM page p ORDER BY p.at_us DESC, p.k, p.record_id DESC, p.part`
 
