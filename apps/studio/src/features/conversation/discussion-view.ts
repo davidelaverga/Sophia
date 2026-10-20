@@ -3,7 +3,7 @@
 // because the call dropped or someone else took the floor. And what its line says of the room's message offline,
 // beside the room's own note. Pure, so the rules and their words are unit-tested.
 import { OFFLINE_WAITS, offlineWords } from '../personal/online.ts'
-import { OFFLINE_END, OFFLINE_JOIN } from '../voice/call-end.ts'
+import { lostOffline, OFFLINE_JOIN } from '../voice/call-end.ts'
 
 export type Target = 'room' | 'sophia'
 
@@ -43,7 +43,8 @@ export const HELD_WORDS = 'Sophia can’t take this message now. Send it to the 
 /**
  * What the bar's line says of the room's message while offline (costuras seam #8): what waits (offlineWords) in place
  * of what it said (`words`). The room's note in the chat's foot above it may say offline already. Under the lost
- * call's line, the bar adds no line of its own, and of a held message says only that it isn't confirmed (#467). Under
+ * call's line (#467's, or the one whose try back in waits for the network, call-rejoin.md), the bar adds no line of its
+ * own, and of a held message says only that it isn't confirmed (#467). Under
  * the Join from rest's line, a held message and words written keep their own lines (Luis 2026-10-19 chose the held
  * message's words), and only an empty bar's «Your words wait here», which would say offline again with nothing of
  * its own, steps aside.
@@ -53,7 +54,7 @@ export function offlineBarWords(
   words: string | null,
   roomNote: string | null,
 ): string | null {
-  if (roomNote === OFFLINE_END) return field.held === null ? null : words
+  if (lostOffline(roomNote)) return field.held === null ? null : words
   const waits = offlineWords(field)
   if (roomNote === OFFLINE_JOIN && waits === OFFLINE_WAITS) return null
   return waits ?? words

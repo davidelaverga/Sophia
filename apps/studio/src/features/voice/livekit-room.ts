@@ -7,6 +7,7 @@
 // reaches this browser (S1-05A §6.5).
 import {
   ConnectionState,
+  DefaultReconnectPolicy,
   DisconnectReason,
   LocalVideoTrack,
   Room,
@@ -29,6 +30,7 @@ import {
   type ChatReply,
 } from '@sophia/contracts/room-chat'
 import type { CallEnd } from './call-end.ts'
+import { RECONNECT_DELAYS_MS } from './call-rejoin.ts'
 import type { BackgroundProcessorWrapper } from '@livekit/track-processors'
 import { audioElements } from './audio-elements.ts'
 import { chosenBackground, type BackgroundId } from './background-preference.ts'
@@ -304,6 +306,9 @@ function roomOptions(): RoomOptions {
     ...(chosen.audioinput && { audioCaptureDefaults: { deviceId: chosen.audioinput } }),
     ...(chosen.audiooutput && { audioOutput: { deviceId: chosen.audiooutput } }),
     publishDefaults: { simulcast: true },
+    // LiveKit's own tries to keep a cut call, written out (call-rejoin.ts): once spent, the call ends as `dropped` and
+    // the room tries once more itself, with a fresh token.
+    reconnectPolicy: new DefaultReconnectPolicy([...RECONNECT_DELAYS_MS]),
   }
 }
 

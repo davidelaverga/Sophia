@@ -126,6 +126,7 @@ export function RoomDock(props: Props) {
               <JoinButton room={room} />
               <CheckOpener room={room} />
               <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
+              <RejoinLeave room={room} />
             </>
           )}
         </nav>
@@ -165,6 +166,28 @@ function SoundBlocked({ shown, room }: { shown: boolean; room: ProjectRoom }) {
         </>
       )}
     </p>
+  )
+}
+
+/**
+ * While a dropped call's one try back in waits or runs (call-rejoin.md), Leave stays beside Join: it stops the try, and
+ * the room rests. The focus goes to Join beside it once the room has.
+ */
+export function RejoinLeave({ room }: { room: ProjectRoom }) {
+  if (!room.rejoining) return null
+  const stop = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const group = e.currentTarget.parentElement
+    void room.leave().then(() => {
+      requestAnimationFrame(() =>
+        group?.querySelector<HTMLElement>('[data-call-anchor]')?.focus({ preventScroll: true }),
+      )
+    })
+  }
+  return (
+    <button type="button" className="round leave has-tip" aria-label="Leave the room" onClick={stop}>
+      <Icon name="leave" />
+      <Tip label="Leave the room" />
+    </button>
   )
 }
 

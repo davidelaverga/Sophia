@@ -93,6 +93,11 @@ export function keptNote(next: string | null, at: { online: boolean; lost: boole
   return SAID_ENDS.has(next) ? next : OFFLINE_JOIN
 }
 
-/** How the dock says its note: the connection's three politely, as Personal's line; a failure, at once. */
-export const noteRole = (note: string): 'status' | 'alert' =>
-  note === OFFLINE_END || note === BACK_ONLINE || note === OFFLINE_JOIN ? 'status' : 'alert'
+/** The connection's lines, said politely: the three offline ones and a dropped call coming back on its own. */
+const POLITE = new Set([OFFLINE_END, BACK_ONLINE, OFFLINE_JOIN, REJOINING, OFFLINE_REJOIN, REJOINED])
+
+/** How the dock says its note: the connection's lines politely, as Personal's line; a failure, at once. */
+export const noteRole = (note: string): 'status' | 'alert' => (POLITE.has(note) ? 'status' : 'alert')
+
+/** A lost call's line while offline: #467's, or the one whose try waits for the network (call-rejoin.md). */
+export const lostOffline = (note: string | null): boolean => note === OFFLINE_END || note === OFFLINE_REJOIN
