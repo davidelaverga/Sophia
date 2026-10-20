@@ -145,6 +145,35 @@ the code; each was written first.
   fixture keeps tokens held twice; the «within 10 s» check also asks for the mode's hello, and a new check keeps a
   message begun for Sophia hers and unsent through a drop that comes back.
 
+
+## After the second review (2026-10-20: one P1, one P2, P3s)
+
+- **P1, a microphone muted during «Reconnecting…» came back on (real).** The room module kept the microphone only
+  while LiveKit's room read connected, but livekit-client 2.22.3 mutes a published track at once and says so
+  (`TrackMuted`) while it reconnects, so a mute then was missed and a drop brought the call back with the microphone
+  on. Two closes: the join after a drop turns the microphone on only if both the call, as last seen, and this person's
+  own choice since have it on (`micWas() && micOnJoin()`, which can never turn on what either has off); and the room's
+  rule, now `mic-while-connected.ts`, hears a mute or unmute in any state but disconnected and reads the microphone
+  again on `Reconnected` (a teardown that unpublishes outside a connected room still changes nothing). Checks: unit
+  over a fake room (a mute in Reconnecting then Disconnected reads off; a teardown's unpublish doesn't; Reconnected
+  reads again); the fixture keeps the microphone as strictly as the old rule did (`linkLost` freezes it), and the
+  browser check mutes during «Reconnecting…», drops, and finds no `microphone:on`.
+- **P2, a try left with Leave wrote the old microphone back (real).** The overtaken join's late answer set the next
+  join's choices after Leave had cleared them, so a later «Join the room» came in with the microphone on though
+  Settings said off. Only the join still current writes them now. Check: tokens held, drop, Leave, the token let go,
+  Settings off, Join → no `microphone:on`.
+- **P3s applied:** the tabs' claims carry the call they are about, its LiveKit room and the person (the token's
+  subject, `scopeOf`), so another project's call or a guest's tab never blocks a try; a room says it is joining as
+  well as in the call, and a try says so before it asks for its token; a join is asked once more right after it
+  connects, before it becomes the call and its microphone starts, and is left at once if no longer wanted
+  (`keptIfStill`); a try whose clock went back is stale; a try that fails with the focus on its Leave hands the focus
+  to Try again; `call-tabs.ts` is a factory over its channel, with unit checks (claims and their scope, ask and answer,
+  a tab going away, malformed messages, no BroadcastChannel). A held fixture token is answered as it would be when let
+  go.
+- **Not built, recorded:** a crashed tab's claim stays until that browser's tabs reload: the try then waits for the
+  person (it errs towards never taking the call). Timestamped claims refreshed on the beat, or a short ask at the
+  drop, would clear it; left for when it is seen.
+
 ## Limits
 
 - Out of sight, the places' bar keeps the call during the try but says nothing of it (its note is the devices' alert);
@@ -152,14 +181,16 @@ the code; each was written first.
 - A black-holed network, where each of LiveKit's tries waits its full timeout, can reach `dropped` more than two
   minutes after the call was last seen live: then no try is made, and the lost call is said with Try again, as before
   this branch. It fails safe.
+- A crashed tab's claim (call-tabs.ts) stays until this browser's tabs reload, so a try waits for the person: it errs
+  towards never taking the call (the second review's optional point, not built).
 - **Another device isn't seen** (review P2 b, not built): someone who joined from a phone while LiveKit was still
   trying is taken out of the call there when this tab's try lands (`elsewhere` there, which never tries back, so there
   is no ping-pong). Telling would need the room's own presence before the try: a follow-up for Davide's lane (the API
   listing the room's participants, asked before a try, which makes none while this identity is already in).
 - A hidden tab whose timers run less often than every 10 s (a browser's heaviest background throttling) stops counting
   as seen live, so its drop isn't tried; whether a page with a live call is throttled that hard wasn't observed here.
-- Try again's tip still says the device's own microphone choice, while the join after a drop comes back as the call
-  had it.
+- Try again's tip still describes this device's own microphone choice, while the join after a drop turns the
+  microphone on only if both the call, as last seen, and that choice have it on.
 - The camera comes back off, as after Try again.
 - The two-minute window can't be shown in the browser checks without a clock under the fixture; the unit checks hold
   it.
