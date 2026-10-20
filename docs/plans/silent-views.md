@@ -77,9 +77,51 @@ waits (1, 2 and 4 s). Not retrying a refusal still holds; not retrying anything 
 - The project's search reads the same board (`boardReading`). With the board failed, it is no longer «reading», so a
   search may answer «nothing» for tasks it couldn't read. Outside this change; a candidate for the same line in the
   search sheet.
-- A board the reader refuses (`readBoardView` not ok, or another project's) still shows the goals alone, as its file
-  says on purpose: that is a refusal of the board's shape, not a failed read.
+- ~~A board the reader refuses (`readBoardView` not ok, or another project's) still shows the goals alone, as its file
+  says on purpose: that is a refusal of the board's shape, not a failed read.~~ Changed below (a refused board is a
+  failed read).
 - Goals reads the same board for its overview's glances; with it failed the overview shows the goals without them.
   The sweep already counts Goals visible (its dates line); the board there is outside this change.
 - The brief's «The mission couldn’t be read just now.» has no Try again; it reads again as the project moves. True
   words, so left as they are; a candidate for the area's Try again in its own change.
+
+## A board the reader refuses is a failed read too
+
+> 2026-10-19 · Codex P2 on #472 (`ServedWork.tsx:71`, the last entry of `evaluacion-2026-10-16/seguimientos-p2.md`);
+> Luis 2026-10-20: «Procede con el próximo lote y arregla tú los de Davide», and «Lo que no se mide, no se puede
+> mejorar». Studio only; no API change.
+
+**What the code does (checked).** `readBoard` (`api/work.ts`) passes the reply through untouched (`(value) => value`),
+so a 200 is always a success to the query; `useBoard` runs the board's reader (`readBoardView`) and the project check
+afterwards, in a `useMemo`. A reply the reader refuses, or another project's board, gives `view: null` with
+`board.data` defined and `board.isError` false: `failed` (`enabled && data === undefined && isError`) stays false,
+`plans` is undefined, and Tasks shows each goal alone with no line and no Try again, exactly what the change above set
+out to stop. Worse, a refused reply after a board was read replaces the query's data, so the boards on screen vanish,
+unsaid, while a transport failure would have kept them.
+
+**The sibling reads don't have it.** The members (`getProjectMembers`, `parseProjectMembers`) and the source-review
+pilot (`reviewAvailability`, `parseSourceReviewAvailability`) parse inside the call: `callApi`'s `readBody` turns a
+reply its parser refuses into `ApiError` `contract_violation`, with the call's own `retry`, so their queries fail as for
+a lost reply. Neither reply names its project, so there is no other project's answer to take for this one. What they
+do once failed stays as judged above (decorative); neither says «none» falsely. No change.
+
+**What changes.** The board joins them: `readBoard` takes the reader as its parser, and `useBoard` gives it one that
+refuses another project's board as the reader refuses a bad shape (`servedBoard`). A refused reply is then the call's
+`contract_violation`: asked again as any read (`retryRead`, three more times), said with the same «The tasks can’t be
+read right now.» and Try again once none was read, and, after a board was read, the board stays, as TanStack keeps a
+query's data through a failed fetch. The query's data is the accepted board, so `useBoard`'s `useMemo` goes.
+
+**Checks (written first).** `e2e/board-robust.spec.ts`, with a lever beside `failBoard`: `boardRead=malformed` /
+`boardRead=foreign`, `window.fixture.answerBoard(kind | null)`, each such reply recorded (`board-answered:<kind>`):
+
+- the demo's Tasks with `/plans` answering a board the reader refuses says the line as an alert and draws no board;
+  Try again, answered rightly, brings the boards back;
+- the same with another project's board, whole and well formed (no goals), refused by the project check alone;
+- a board read, then answered with a refused board four times after the project moves, stays, with no alert.
+
+Neighbours as above (`search-goals`, `task-links`, `targets-robust`, `goal-owner-date`, `views-goals`,
+`goals-overview`, `decision-alert`, `board-why`, `work`); unit `features/work/planning`.
+
+**Limits.** A refused board is now retried three times before the line shows (1, 2 and 4 s), as every parsed read's
+`contract_violation` is; a reader that refuses today refuses on each try, so that is seven seconds of «reading»
+before the truth. Kept for one rule across reads rather than a board-only exception.
