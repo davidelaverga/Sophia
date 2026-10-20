@@ -63,4 +63,50 @@ describe('archive keys (A30; Codex on #368)', () => {
     keys.settled(archive)
     assert.notEqual(keys.keyFor(bringBack), back, 'the mirror: brought back again under a new key')
   })
+
+  it('a read of the archived list started after no reply lets go of that key, whatever it shows (Codex on #471)', () => {
+    const keys = archiveKeys(counter())
+    const lost = keys.keyFor(archive)
+    keys.settled(archive, new TypeError('Failed to fetch'))
+    // Landed, then brought back by another admin, with or without a read between: the old key would get its receipt.
+    keys.reading('ana')()
+    assert.notEqual(keys.keyFor(archive), lost, 'archived again, not answered with the lost archive’s receipt')
+    const back = keys.keyFor(bringBack)
+    keys.settled(bringBack, new ApiError(0, 'outcome_unknown', 'No reply from Sophia', 'same_admission_key'))
+    keys.reading('ana')()
+    assert.notEqual(keys.keyFor(bringBack), back, 'the mirror: brought back again under a new key')
+  })
+
+  it('a read started before no reply, or while the key was on its way again, leaves it', () => {
+    const keys = archiveKeys(counter())
+    const lost = keys.keyFor(archive)
+    const before = keys.reading('ana')
+    keys.settled(archive, new TypeError('Failed to fetch'))
+    before()
+    assert.equal(keys.keyFor(archive), lost, 'started before the reply was lost: it says nothing of the write')
+    // keyFor sent it again: on its way, only its own answer settles it.
+    const during = keys.reading('ana')
+    during()
+    keys.settled(archive, new TypeError('Failed to fetch'))
+    assert.equal(keys.keyFor(archive), lost, 'read while on its way again')
+  })
+
+  it('another account’s read leaves the key', () => {
+    const keys = archiveKeys(counter())
+    const lost = keys.keyFor(archive)
+    keys.settled(archive, new TypeError('Failed to fetch'))
+    keys.reading('beto')()
+    assert.equal(keys.keyFor(archive), lost)
+  })
+
+  it('a read started while the key is on its way again, answered after that send is lost too, leaves it', () => {
+    const keys = archiveKeys(counter())
+    const lost = keys.keyFor(archive)
+    keys.settled(archive, new TypeError('Failed to fetch'))
+    keys.keyFor(archive) // sent again, under the same key
+    const answered = keys.reading('ana')
+    keys.settled(archive, new TypeError('Failed to fetch'))
+    answered()
+    assert.equal(keys.keyFor(archive), lost, 'the read started before this send was lost: it says nothing of it')
+  })
 })

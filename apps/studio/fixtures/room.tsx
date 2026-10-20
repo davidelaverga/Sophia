@@ -155,6 +155,8 @@ interface Fixture {
   shutDoor: () => void
   /** Another admin archives the project elsewhere: recorded, and the event saying so goes out (archive-project.md). */
   archivedElsewhere: () => void
+  /** Another admin brings it back elsewhere: recorded, and the event saying so goes out (archive-keys-and-work.md). */
+  unarchivedElsewhere: () => void
   /** Sophia writes a difficulty on the demo's goal of that title, from a call, and the project's stream moves (goal-notes.md). */
   noteOnGoal: (title: string, text: string) => void
   /** The room's recent discussion goes (it moved past what the snapshot holds): a reply to it is refused (A20). */
@@ -1002,6 +1004,10 @@ window.fixture = {
   },
   archivedElsewhere: () => {
     project.archived = true
+    publish(project)
+  },
+  unarchivedElsewhere: () => {
+    project.archived = false
     publish(project)
   },
   noteOnGoal: (title, text) => {

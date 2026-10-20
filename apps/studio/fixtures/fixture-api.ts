@@ -121,6 +121,8 @@ interface Project {
   archivedFails?: boolean
   /** The archived list's reads wait (`hold=archived`) until `window.fixture.releaseArchived` lets them through. */
   archivedHeld?: boolean
+  /** The archive writes by their Idempotency-Key: the same key again replays its receipt and changes nothing (0059). */
+  archives?: Map<string, { archived: boolean; cursor: string }>
   exchange: boolean
   /** The door shut under the shell (`window.fixture.shutDoor`): every snapshot read from now on is refused (403). */
   doorShut?: boolean
@@ -595,13 +597,24 @@ function doorPosted(
   return entry ? doorAnswered(project, entry, init) : undefined
 }
 
-/** An admin archives the project, or brings it back (A30): recorded, and the lists read it so. */
+/**
+ * An admin archives the project, or brings it back (A30): recorded, and the lists read it so. A key sent again is
+ * answered with its first receipt and changes nothing, as migration 0059 does.
+ */
 function archived(project: Project, init: RequestInit | undefined): Response {
+  const key = new Headers(init?.headers).get('idempotency-key') ?? ''
+  const prior = project.archives?.get(key)
+  if (prior) {
+    served.push('archive:replayed')
+    return json({ projectId: PROJECT, ...prior })
+  }
   const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
   const wanted = typeof body === 'object' && body !== null && Reflect.get(body, 'archived') === true
   project.archived = wanted
   served.push(`archive:${String(wanted)}`)
-  return json({ projectId: PROJECT, archived: wanted, cursor: String(project.revision) })
+  const receipt = { archived: wanted, cursor: String(project.revision) }
+  project.archives = (project.archives ?? new Map<string, { archived: boolean; cursor: string }>()).set(key, receipt)
+  return json({ projectId: PROJECT, ...receipt })
 }
 
 /** A request to revise the page's sections (requestDesignEdit): recorded; refused once as a design under way. */
