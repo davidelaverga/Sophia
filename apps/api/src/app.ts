@@ -304,6 +304,16 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   humanTaskRoutes(app, { pool: deps.pool })
   coordinationRoutes(app, { pool: deps.pool })
   eventRoutes(app, { pool: deps.pool, hub, heartbeatMs: deps.eventPollMs ?? 10_000 })
+  registerPersonal(app, deps)
+  if (deps.conversations) projectConversationRoutes(app, { pool: deps.pool })
+  return app
+}
+
+/**
+ * The owner's Personal space: its companion's runner, if one is configured, and its routes. Kept apart from buildApp so
+ * the composed app stays within its length (FND-B104: Task's routes and this one's close hook, each its own branch's).
+ */
+function registerPersonal(app: FastifyInstance, deps: AppDeps): void {
   const companion = deps.companion
     ? new CompanionRunner(deps.pool, deps.companion, (err) =>
         app.log.error({ companion: companionFailure(err) }, 'companion answer failed'),
@@ -312,8 +322,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // Shutdown waits for the answers already accepted (their runs outlive the 202), before the pool or model close.
   if (companion) app.addHook('onClose', () => companion.close())
   personalRoutes(app, { pool: deps.pool, companion })
-  if (deps.conversations) projectConversationRoutes(app, { pool: deps.pool })
-  return app
 }
 
 /** Routes anyone may call. Everything else, matched or not, needs a verified actor. */
