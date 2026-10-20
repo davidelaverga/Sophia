@@ -1171,7 +1171,8 @@ type CommitFault = 'fail_before_commit' | 'lose_commit_ack'
  * replaced by an error (it committed; the acknowledgement is lost). Every other statement goes as it is. `witness`
  * records what happened, so a case is never satisfied by a timeout or an unrelated failure.
  */
-function commitFaultPool(mode: CommitFault, witness: string[]): pg.Pool {
+function commitFaultPool(mode: CommitFault, witness: string[], faults = Number.POSITIVE_INFINITY): pg.Pool {
+  let left = faults
   const own = createPool(db.apiUrl, { max: 4 })
   gatedPools.push(own)
   const wrap = (client: pg.PoolClient): pg.PoolClient => {
@@ -1190,8 +1191,12 @@ function commitFaultPool(mode: CommitFault, witness: string[]): pg.Pool {
         }
         if (!armed || !/^\s*COMMIT\b/i.test(sql)) return query(...args)
         armed = false
+        if (left <= 0) return query(...args)
+        left -= 1
         if (mode === 'fail_before_commit') {
-          witness.push('COMMIT refused before it was sent')
+          // B84 erratum to C55: the transaction is really rolled back (C55 threw with it still open on the client).
+          await query('ROLLBACK')
+          witness.push('COMMIT refused before it was sent; ROLLBACK sent')
           throw new Error('C55 fixture: the settlement transaction failed before COMMIT')
         }
         await query(...args)
@@ -1229,8 +1234,13 @@ describe('the live companion’s settlement, its COMMIT failed or its acknowledg
     double.script({ text: 'Answer before a failed commit.', usage: { input_tokens: 10, output_tokens: 5 } })
     await write(at, '/api/v1/personal/turns', EVE, { text: 'Settle me.' })
     for (let i = 0; i < 100 && witness.length < 2; i++) await pause(50)
-    assert.deepEqual(witness, ['settle statement answered in its transaction', 'COMMIT refused before it was sent'])
-    await pause(1500) // anything the runner would do next has had its time
+    assert.deepEqual(witness.slice(0, 2), [
+      'settle statement answered in its transaction',
+      'COMMIT refused before it was sent; ROLLBACK sent',
+    ])
+    await pause(2500) // anything the runner would do next has had its time, its settlement's retries included
+    // B84: the same answer's settlement is tried again (never the provider); here every attempt is refused.
+    assert.ok(witness.filter((w) => w.startsWith('COMMIT refused')).length > 1, 'the settlement was tried again')
     assert.equal(recorded().length - sentBefore, 1, 'one provider request, none again')
     const rows = await usage('c55-fail-payer')
     assert.equal(rows.length, 1, 'one reservation')
@@ -1244,6 +1254,39 @@ describe('the live companion’s settlement, its COMMIT failed or its acknowledg
     const page = parsePersonalTurnPage((await call(at, '/api/v1/personal/turns?after=0', EVE)).json)
     assert.equal(page.turns.filter((t) => t.author === 'sophia').length, 0, 'no answer shown')
     witness.push(`usage state after: ${rows[0]?.state ?? 'none'}`)
+  })
+
+  it('a settlement whose transaction fails once before COMMIT is tried again with the same answer: one request, settled once, the answer shown (4320198389)', async () => {
+    const GUS = randomUUID()
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('b84-once-payer', $1, 1000000)`,
+      [GUS],
+    )
+    const witness: string[] = []
+    const at = await liveApi('b84-once-payer', GUS, true, commitFaultPool('fail_before_commit', witness, 1))
+    const sentBefore = recorded().length
+    double.script({ text: 'Answer kept on the second try.', usage: { input_tokens: 10, output_tokens: 5 } })
+    await write(at, '/api/v1/personal/turns', GUS, { text: 'Settle me again.' })
+    let shown: string[] = []
+    for (let i = 0; i < 100 && shown.length === 0; i++) {
+      await pause(50)
+      const page = parsePersonalTurnPage((await call(at, '/api/v1/personal/turns?after=0', GUS)).json)
+      shown = page.turns.filter((t) => t.author === 'sophia').map((t) => t.text)
+    }
+    assert.equal(witness[1], 'COMMIT refused before it was sent; ROLLBACK sent', 'the first settlement really failed')
+    assert.deepEqual(shown, ['Answer kept on the second try.'], 'the answer the provider gave, shown once')
+    assert.equal(recorded().length - sentBefore, 1, 'one provider request: the settlement was retried, not the call')
+    const rows = await usage('b84-once-payer')
+    assert.deepEqual(
+      rows.map((r) => r.state),
+      ['settled'],
+      'one cost, settled once',
+    )
+    assert.deepEqual(
+      await owner(`SELECT 1 FROM sophia.personal_settled_answers WHERE owner_id=$1`, [GUS]),
+      [],
+      'the kept answer let go once written',
+    )
   })
 
   it('a settlement that committed but whose acknowledgement was lost is kept once; a later retry writes it, asking nothing', async () => {

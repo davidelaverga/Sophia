@@ -24,6 +24,7 @@ import {
   withActor,
   type CompanionContext,
   type PersonalReservation,
+  type PersonalSettledOutcome,
   type PersonalUsageCounts,
 } from '@sophia/persistence'
 import type pg from 'pg'
@@ -314,6 +315,25 @@ export class CompanionRefused extends Error {
 }
 
 const stopped = (signal: AbortSignal): boolean => signal.aborted
+
+/**
+ * How many times a completed call's settlement is tried, and the pause before each try again (×2 each time): a
+ * database away for a moment does not lose an answer already paid for (4320198389). Only the settlement is tried again,
+ * with the same answer and usage; the provider is never asked again for it.
+ */
+const SETTLE_TRIES = 4
+const SETTLE_PAUSE_MS = 200
+
+/** A pause that ends early, settled, when the call is told to stop. */
+const pauseUnless = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolve) => {
+    const done = () => {
+      clearTimeout(timer)
+      resolve()
+    }
+    const timer = setTimeout(done, ms)
+    signal.addEventListener('abort', done, { once: true })
+  })
 const completed = (result: Collected): boolean =>
   result.finish === 'stop' || result.finish === 'max-tokens' || result.finish === 'tool-calls'
 type Prepared = Awaited<ReturnType<PersonalLlm['prepareCall']>>
@@ -431,17 +451,42 @@ class LiveCall {
 
   /**
    * A completed call settles from its usage, and its answer, when there is one to keep, is kept with it for the turn in
-   * the same transaction (0078): a reply that can't be written then is written later from it, never asked again.
+   * the same transaction (0078): a reply that can't be written then is written later from it, never asked again. A
+   * settlement that fails is tried again with the same answer and usage (SETTLE_TRIES), until the call is told to stop.
+   * A try after a failed one may find the call settled already: its earlier COMMIT went through, its acknowledgement
+   * lost. That counts only when the answer is found kept for the turn; otherwise the outcome is not known, and the call
+   * fails as before, its cost left to its record (4320198389).
    */
-  async settle(used: Used, reply: CompanionReply | null): Promise<void> {
+  async settle(used: Used, reply: CompanionReply | null, signal: AbortSignal): Promise<void> {
+    for (let tried = 1; ; tried += 1) {
+      try {
+        const outcome = await this.settleOnce(used, reply)
+        if (tried > 1 && reply && outcome === 'not_settled' && !(await this.keptAs(reply)))
+          throw new Error('The settlement’s outcome is not known')
+        return
+      } catch (err: unknown) {
+        if (tried >= SETTLE_TRIES || stopped(signal)) throw err
+        await pauseUnless(SETTLE_PAUSE_MS * 2 ** (tried - 1), signal)
+        if (stopped(signal)) throw err
+      }
+    }
+  }
+
+  private settleOnce(used: Used, reply: CompanionReply | null): Promise<PersonalSettledOutcome | boolean> {
     if (reply)
-      await this.owned((c, callId) =>
+      return this.owned((c, callId) =>
         settlePersonalCompanionAnswer(c, callId, used, {
           text: reply.text,
           suggestion: reply.suggestion,
         }),
       )
-    else await this.owned((c, id) => settlePersonalCompanion(c, id, used.micros, used.counts))
+    return this.owned((c, id) => settlePersonalCompanion(c, id, used.micros, used.counts))
+  }
+
+  /** Whether this answer is the one kept for the call's turn. */
+  private async keptAs(reply: CompanionReply): Promise<boolean> {
+    const kept = await this.kept()
+    return kept?.text === reply.text && kept.suggestion === reply.suggestion
   }
 }
 
@@ -461,7 +506,7 @@ export function liveCompanion(settings: LiveCompanionSettings, llm: PersonalLlm,
     const { result, used } = await live.ask(prepared, prompt, signal)
     const answered = !stopped(signal) && !result.toolCall && result.finish === 'stop'
     const reply = answered ? personalReply(result.text) : null
-    if (used) await live.settle(used, reply)
+    if (used) await live.settle(used, reply, signal)
     // Told to stop (time up, or an erasure): its cost is settled or held above, and nothing of it is shown.
     if (stopped(signal)) throw new Error('The companion was told to stop')
     if (result.toolCall || result.finish !== 'stop') throw new CompanionRefused('no_answer')
