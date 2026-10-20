@@ -26,6 +26,7 @@ import {
   summarizeM2,
   summarizeM6,
   summarizeM7,
+  summarizeM8,
   timeoutMinutes,
 } from '../../scripts/lib/reliability.mjs'
 
@@ -413,7 +414,55 @@ test('M2: unknown outcomes resolved by sending again under the same key, and any
     { kind: 'conversation-message', resolved: true, writes: 1, resendMs: 50 },
     { kind: 'conversation-start', resolved: false, writes: 2, resendMs: null },
   ])
-  assert.deepEqual(summary, { n: 3, resolved: 2, share: 2 / 3, duplicates: 1, resend: { p50: 40, p95: 49 } })
+  assert.deepEqual(summary, {
+    n: 3,
+    resolved: 2,
+    share: 2 / 3,
+    duplicates: 1,
+    resend: { p50: 40, p95: 49 },
+    reload: { n: 0, offered: 0, sameKey: 0, duplicates: 0, resolved: 0, resend: { p50: null, p95: null } },
+  })
+})
+
+test('M2 kept across a reload: offered again, resent once under the same key, written twice; apart from the rest', () => {
+  // The reload's samples are counted on their own, so M2's first line stays comparable with runs before them.
+  const reloaded = { afterReload: true, offered: true, tries: 2, keys: 1, writes: 1, resolved: true }
+  const summary = summarizeM2([
+    { kind: 'room-message', resolved: true, writes: 1, resendMs: 30 },
+    { kind: 'room-message', ...reloaded, resendMs: 60 },
+    // Sent again under a new key: three tries, two keys, recorded twice.
+    { kind: 'conversation-message', ...reloaded, tries: 3, keys: 2, writes: 2, resendMs: 80 },
+    // Not offered after the reload: nothing pressed, nothing resent.
+    { kind: 'room-message', ...reloaded, offered: false, tries: 1, resolved: false, resendMs: null },
+  ])
+  assert.deepEqual(summary, {
+    n: 1,
+    resolved: 1,
+    share: 1,
+    duplicates: 0,
+    resend: { p50: 30, p95: 30 },
+    reload: { n: 3, offered: 2, sameKey: 1, duplicates: 1, resolved: 2, resend: { p50: 70, p95: 79 } },
+  })
+})
+
+test('M8: per kind, an expired token renewed without «signed out», the request sent again, and the time to answer', () => {
+  const renewed = { reached: true, definitive: true, signedOut: false, resent: true, refreshes: 1 }
+  const summary = summarizeM8([
+    { kind: 'read', ...renewed, ms: 300 },
+    { kind: 'read', ...renewed, ms: 500 },
+    // Signed out: no answer, not renewed, whatever was asked.
+    { kind: 'read', ...renewed, definitive: false, ms: null, signedOut: true, resent: false },
+    // The lever never met a request: a screen that looks right is not a renewal.
+    { kind: 'feed', ...renewed, reached: false, resent: false, refreshes: 0, ms: 900 },
+    // Renewed, but refreshed twice: counted as renewed, not as one refresh.
+    { kind: 'write', ...renewed, refreshes: 2, ms: 1200 },
+  ])
+  assert.deepEqual(summary, {
+    read: { n: 3, reached: 3, renewed: 2, signedOut: 1, resent: 2, oneRefresh: 3, time: { p50: 400, p95: 490 } },
+    feed: { n: 1, reached: 0, renewed: 0, signedOut: 0, resent: 0, oneRefresh: 0, time: { p50: null, p95: null } },
+    write: { n: 1, reached: 1, renewed: 1, signedOut: 0, resent: 1, oneRefresh: 0, time: { p50: 1200, p95: 1200 } },
+  })
+  assert.deepEqual(summarizeM8([]), {})
 })
 
 test('M6: per view, failed reads that show versus fall silent; a view with no failed read is not counted', () => {
@@ -456,8 +505,8 @@ test('M3/M4: per feed case, the scenarios that ran (their lever there), came bac
   })
 })
 
-// The script itself, on a fake suite: it lists 2 M7 scenarios and 1 M2; `FAKE_M7` M7 records and `FAKE_M2` M2 records
-// are written, and it exits `FAKE_EXIT`.
+// The script itself, on a fake suite: it lists 2 M7 scenarios, 1 M2 and `FAKE_M8_LISTED` M8; `FAKE_M7` M7 records,
+// `FAKE_M2` M2 records and `FAKE_M8` M8 records are written, and it exits `FAKE_EXIT`.
 const SCRIPT = fileURLToPath(new URL('../../scripts/reliability-report.mjs', import.meta.url))
 const FAKE_SUITE = `
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -467,7 +516,9 @@ if (process.argv.includes('--list')) {
   console.log('  [desktop] › transient.spec.ts:10:3 › M7 · reads answered 502 once @reliability')
   console.log('  [desktop] › transient.spec.ts:10:3 › M7 · reads answered 503 twice @reliability')
   console.log('  [desktop] › writes.spec.ts:80:1 › M2 · a message whose reply is lost @reliability')
-  console.log('Total: 3 tests in 2 files')
+  const m8 = Number(process.env.FAKE_M8_LISTED)
+  for (let i = 0; i < m8; i++) console.log('  [desktop] › session.spec.ts:40:1 › M8 · a read after the token expired @reliability')
+  console.log('Total: ' + (3 + m8) + ' tests in 3 files')
   process.exit(0)
 }
 const dir = process.env.RELIABILITY_RESULTS
@@ -480,10 +531,12 @@ for (let i = 0; i < Number(process.env.FAKE_M7); i++) {
   write('M7', i, { read: 'conversations', failures: 1, errors: 1, recovered: true, ms: 100 })
 }
 for (let i = 0; i < Number(process.env.FAKE_M2); i++) write('M2', i, { resolved: true, writes: 1, resendMs: 30 })
+const renewed = { kind: 'read', reached: true, definitive: true, ms: 420, signedOut: false, resent: true, refreshes: 1 }
+for (let i = 0; i < Number(process.env.FAKE_M8); i++) write('M8', i, renewed)
 process.exit(Number(process.env.FAKE_EXIT))
 `
 
-function fixtureReport({ m7, m2, exit, runSuite }) {
+function fixtureReport({ m7, m2, exit, runSuite, m8 = 0, m8Listed = 0 }) {
   const dir = mkdtempSync(join(tmpdir(), 'reliability-'))
   const fake = join(dir, 'fake-suite.mjs')
   writeFileSync(fake, FAKE_SUITE)
@@ -493,6 +546,8 @@ function fixtureReport({ m7, m2, exit, runSuite }) {
     RELIABILITY_RESULTS: join(dir, 'results'),
     FAKE_M7: String(m7),
     FAKE_M2: String(m2),
+    FAKE_M8: String(m8),
+    FAKE_M8_LISTED: String(m8Listed),
     FAKE_EXIT: String(exit),
   }
   // Without --run the suite ran before (through the guard, on Luis's machine): the script only collects.
@@ -530,4 +585,25 @@ test('a suite that fails after some scenarios wrote results gives no numbers, sa
   assert.equal(whole.fixture.incomplete, undefined)
   assert.equal(whole.fixture.m7.share, 1)
   assert.equal(whole.fixture.m2.share, 1)
+})
+
+test('M8 is measured now: a partial run gives no M8 numbers, a whole one its rows, and it is no longer «not measurable»', () => {
+  const has = (md, line) => assert.ok(md.includes(line), `«${line}» in:\n${md}`)
+  const short = fixtureReport({ m7: 2, m2: 1, m8: 0, m8Listed: 1, exit: 0, runSuite: false })
+  assert.notEqual(short.status, 0, 'the script exits non-zero')
+  assert.deepEqual(short.fixture.incomplete, { exit: null, metrics: { M8: { ran: 0, expected: 1 } } })
+  assert.equal(short.fixture.m8.read, undefined, 'no summary from a partial run')
+  has(short.md, '| M8 · expired token while signed in · read | incomplete: 0 of 1 scenarios wrote results |')
+  assert.ok(!short.md.includes('renewed'), `no M8 numbers:\n${short.md}`)
+
+  const whole = fixtureReport({ m7: 2, m2: 1, m8: 1, m8Listed: 1, exit: 0, runSuite: false })
+  assert.equal(whole.status, 0)
+  assert.equal(whole.fixture.m8.read.renewed, 1)
+  has(
+    whole.md,
+    '| M8 · expired token while signed in · read | 1/1 renewed without «signed out» · 1/1 sent again · 1/1 one refresh · answer p50 420 ms · p95 420 ms |',
+  )
+  has(whole.md, '| M8 · expired token while signed in · write | not run |')
+  has(whole.md, '| M2 · kept across a reload: offered again, resent once under its key | not run |')
+  assert.ok(!whole.md.includes('M8 (session through sleep)'), `M8 is measurable:\n${whole.md}`)
 })
