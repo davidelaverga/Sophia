@@ -166,9 +166,12 @@ function fromSophia(packet: ChatPacket): void {
   emit(RoomEvent.DataReceived, encodeChatPacket(packet), SOPHIA, undefined, CHAT_REPLY_TOPIC)
 }
 
-/** The call ends without this person leaving: lost by default, as LiveKit reports a connection gone. */
-export function dropCall(why: CallEnd = 'dropped'): void {
-  ended?.(why)
+/**
+ * The call ends without this person leaving: lost by default, as LiveKit reports a connection gone. `selfLeft`: LiveKit
+ * left the room itself (CLIENT_INITIATED), as it does when the page is hidden for good or frozen.
+ */
+export function dropCall(why: CallEnd = 'dropped', selfLeft = false): void {
+  ended?.(why, selfLeft)
 }
 
 /** The bridge tells this reader a result is ready, as its chat notice arrives (SMC-M03 S6). */
@@ -327,10 +330,10 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     if (open) cb.onChange()
   })
   fromTheServer(me, cb, () => open)
-  ended = (why) => {
+  ended = (why, selfLeft) => {
     if (!open) return
     open = false
-    cb.onEnded(why)
+    cb.onEnded(why, selfLeft)
   }
   const device = deviceSwitch(me, () => cb.onChange())
   return Promise.resolve({

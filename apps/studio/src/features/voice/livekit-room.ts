@@ -132,7 +132,7 @@ export interface RoomCallbacks {
   onChange: () => void
   onStatus: (status: RoomStatus) => void
   /** The call is over, and why (call-end.ts). Leaving on purpose ends it too; the caller knows it asked. */
-  onEnded: (why: CallEnd) => void
+  onEnded: (why: CallEnd, selfLeft?: boolean) => void
 }
 
 const toView = (p: Participant, local: boolean): RoomParticipant => ({

@@ -206,7 +206,7 @@ interface Fixture {
   /** Someone starts waiting at the door, and the event saying so goes out (knock-alert.md). */
   knock: () => void
   /** The call's connection is lost. */
-  drop: (why?: CallEnd) => void
+  drop: (why?: CallEnd, selfLeft?: boolean) => void
   /** The fixture report's next version is published (the viewer learns of it when it reads the list again). */
   publishReport: () => void
   /** Sophia publishes the report's next version while it is open: the project's feed says so at once. */

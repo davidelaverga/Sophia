@@ -422,6 +422,39 @@ test('BASE-03 · muted by an admin, a dropped call’s Try again keeps the micro
   expect((await asked(page)).slice(before), 'the microphone stays off').not.toContain('microphone:on')
 })
 
+test('BASE-03 · a call LiveKit left itself, as the page left or froze, never rejoins on its own (review P2)', async ({
+  page,
+}) => {
+  await enter(page, '/room.html?call=on')
+  const asking = (await tokens(page)).length
+  await page.evaluate(() => window.fixture?.drop('dropped', true))
+  await expect(page.locator('.dock-wrap .dock-note')).toHaveText('You were disconnected from the room.')
+  await page.waitForTimeout(600) // a try would have asked for its token by now
+  expect(await tokens(page)).toHaveLength(asking)
+  await expect(controls(page).getByRole('button', { name: /^Try again/ })).toBeEnabled()
+})
+
+test('BASE-03 · a try whose token comes back too late goes no further and says the lost call (review P2)', async ({
+  page,
+}) => {
+  await enter(page, '/room.html?call=on')
+  const connected = await connects(page)
+  await page.evaluate(() => {
+    window.fixture?.holdToken(true)
+    window.fixture?.drop()
+  })
+  await expect(page.locator('.dock-wrap .dock-note')).toHaveText('Connection lost. Rejoining the call…')
+  // The page froze with the token on its way and wakes ten minutes later, as a tab left in the back-forward cache.
+  await page.evaluate(() => {
+    const real = Date.now.bind(Date)
+    Date.now = () => real() + 10 * 60_000
+    window.fixture?.holdToken(false)
+  })
+  await expect(page.locator('.dock-wrap .dock-note')).toHaveText('You were disconnected from the room.')
+  await expect(controls(page).getByRole('button', { name: /^Try again/ })).toBeEnabled()
+  expect(await connects(page), 'nothing connected').toBe(connected)
+})
+
 test('BASE-03 · another tab, being taken out and a closed room never rejoin on their own', async ({ page }) => {
   await enter(page, '/room.html?call=on')
   const join = controls(page).getByRole('button', { name: /^Join the room/ })

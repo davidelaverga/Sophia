@@ -7,6 +7,7 @@ import {
   Rejoin,
   REJOIN_WINDOW_MS,
   REJOINED_FOR_MS,
+  TRY_FRESH_MS,
   rejoinLine,
   rejoinPlan,
   stillSeen,
@@ -76,8 +77,14 @@ function harness(online = true) {
   const said: string[] = []
   const shown: (RejoinStep | null)[] = []
   const joins: ((inCall: boolean) => void)[] = []
+  /** Each try's gate, asked right before it connects. */
+  const stills: ((() => boolean) | undefined)[] = []
   const rejoin = new Rejoin({
-    join: () => new Promise<boolean>((answer) => joins.push(answer)),
+    join: (still?: () => boolean) =>
+      new Promise<boolean>((answer) => {
+        joins.push(answer)
+        stills.push(still)
+      }),
     say: (note) => said.push(note),
     show: (step) => shown.push(step),
     now: () => t.now,
@@ -101,6 +108,7 @@ function harness(online = true) {
     said,
     shown,
     joins,
+    stills,
     /** The clock moves on, and every timer due runs. */
     pass: (ms: number) => {
       t.now += ms
@@ -276,6 +284,50 @@ describe('one try back into a dropped call', () => {
     h.joins[0]?.(false)
     await settle()
     assert.deepEqual(h.said, [CALL_END.dropped.note])
+  })
+})
+
+describe('a try that would connect late, or for a page leaving (review P2)', () => {
+  it('a call LiveKit left itself (CLIENT_INITIATED: the page leaving or freezing) never tries', () => {
+    assert.equal(rejoinPlan({ ...dropped, selfLeft: true }), null)
+    assert.equal(rejoinPlan({ ...dropped, online: false, selfLeft: true }), null)
+    const h = harness()
+    h.rejoin.live()
+    h.rejoin.ended('dropped', true)
+    assert.equal(h.joins.length, 0)
+    assert.deepEqual(h.shown, [])
+  })
+
+  it('connects only while the try is young and the call recent: a token that came back late goes no further', () => {
+    const h = harness()
+    h.rejoin.live()
+    h.rejoin.ended('dropped')
+    const still = h.stills[0]
+    assert.ok(still, 'the try hands its join a gate')
+    assert.equal(still(), true)
+    h.jump(TRY_FRESH_MS)
+    assert.equal(still(), true, 'the edge still connects')
+    h.jump(1)
+    assert.equal(still(), false, 'a page frozen with the token on its way, woken later')
+  })
+
+  it('a try stopped by Leave never connects, even if its token comes', () => {
+    const h = harness()
+    h.rejoin.live()
+    h.rejoin.ended('dropped')
+    h.rejoin.stop()
+    assert.equal(h.stills[0]?.(), false)
+  })
+
+  it('a try made after an offline wait connects only while the call is still recent', () => {
+    const h = harness(false)
+    h.rejoin.live()
+    h.pass(100_000)
+    h.rejoin.ended('dropped')
+    h.reconnect()
+    assert.equal(h.stills[0]?.(), true)
+    h.jump(REJOIN_WINDOW_MS - 100_000 + 1)
+    assert.equal(h.stills[0]?.(), false, 'past the window, even inside the try’s own 30 s')
   })
 })
 

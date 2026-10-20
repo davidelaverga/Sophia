@@ -16,6 +16,9 @@ export const REJOIN_WINDOW_MS = 120_000
 /** How often a live call is seen live: a page that isn't running (a closed lid, a frozen tab) sees nothing meanwhile. */
 export const LIVE_BEAT_MS = 5000
 
+/** How long after a try began it may still connect: a token that comes back later (a page frozen meanwhile) doesn't. */
+export const TRY_FRESH_MS = 0
+
 /** How long «Reconnected.» stays said. */
 export const REJOINED_FOR_MS = 4000
 
@@ -31,6 +34,8 @@ export interface Drop {
   seen: number | null
   /** When the last try began (ms), or never. */
   triedAt: number | null
+  /** LiveKit left the room itself (CLIENT_INITIATED): the page leaving or freezing, not a lost link. */
+  selfLeft?: boolean
 }
 
 /** Whether a call last seen live at `seen` is still recent enough to come back on its own. */
@@ -106,7 +111,7 @@ export class Rejoin {
   }
 
   /** The call ended, `why` as call-end.ts says it: one try now, one once the browser is online, or none. */
-  ended(why: CallEnd | null): void {
+  ended(why: CallEnd | null, _selfLeft = false): void {
     this.stop()
     const { now, online } = this.ports
     const plan = rejoinPlan({ why, online: online(), now: now(), seen: this.seen, triedAt: this.triedAt })
