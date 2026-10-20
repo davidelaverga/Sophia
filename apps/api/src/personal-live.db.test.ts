@@ -2060,9 +2060,9 @@ describe('0080 over costs settled before it, and the versions around it (FND-B10
       `UPDATE sophia.personal_companion_usage SET reason=NULL WHERE payer='b101-backfill-payer' AND state='settled'`,
     )
     await owner(`UPDATE sophia.personal_turns SET reply='pending', answering_claim=NULL WHERE id=$1`, [turns[2]?.id])
-    const before = await rows()
+    const was = await rows()
     assert.deepEqual(
-      before.map((r) => [r.state, r.reason]),
+      was.map((r) => [r.state, r.reason]),
       [
         ['settled', null],
         ['settled', null],
@@ -2071,9 +2071,9 @@ describe('0080 over costs settled before it, and the versions around it (FND-B10
       ],
     )
     await owner(migration('0080_personal_unusable_completion_fence.sql'))
-    const after = await rows()
+    const now = await rows()
     assert.deepEqual(
-      after.map((r) => [r.turn_id, r.state, r.reason]),
+      now.map((r) => [r.turn_id, r.state, r.reason]),
       [
         [turns[0]?.id, 'settled', 'settled_without_answer'],
         [turns[1]?.id, 'settled', null],
@@ -2083,8 +2083,8 @@ describe('0080 over costs settled before it, and the versions around it (FND-B10
       'failed and pending classified; answered and held untouched',
     )
     assert.deepEqual(
-      after.map((r) => [r.used_micros, r.usage, r.settled_at, r.reserved_at]),
-      before.map((r) => [r.used_micros, r.usage, r.settled_at, r.reserved_at]),
+      now.map((r) => [r.used_micros, r.usage, r.settled_at, r.reserved_at]),
+      was.map((r) => [r.used_micros, r.usage, r.settled_at, r.reserved_at]),
       'amounts, counts and times unchanged',
     )
   })
