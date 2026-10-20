@@ -37,6 +37,14 @@
   `inTime`'s `finally`, `markNeedSeen`'s rejection, `retry()`), and a `page.evaluate` is a task of its own: once it sees
   the note, the retry is set, on the stopped clock, a second ahead. The assertions are unchanged.
 
+## After the independent review (one P3)
+
+- **The close case couldn't tell the cancel from the readability guard (real).** With `retries.cancel()` removed, the
+  escaped timer calls `again(id)`, but the closed chat's message is detached: `shownNeed` measures zero, `readable` is
+  false, nothing is sent. Mutant run: 6 of 6 green. The case now watches the retry's own timer on the page clock (the
+  first 1 s timer set once the 503 is read, wrapped after the clock is installed): set and pending before the close,
+  cleared by it. With the cancel removed it fails 3 of 3, «Expected: true, Received: false».
+
 ## Checks (written first)
 
 - `test: … (failing)`: the slow answer alone. Red for the right reason: the open case, «Expected: 2, Received: 1».

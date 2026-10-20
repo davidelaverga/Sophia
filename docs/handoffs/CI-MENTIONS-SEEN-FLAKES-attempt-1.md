@@ -12,8 +12,8 @@ Writable scope: this worktree only (`apps/studio/e2e`, `docs/plans`, `docs/hando
 Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1` guard, two workers); CI as the run on
 record.
 Existing authority: Luis 2026-10-20, the quotes above; local only, nothing pushed.
-Ending commit/tree: `033e60c52`, the last commit that changes code; `c2f2693f0` corrects the note, and the next one adds
-only this record. Files changed against `9a6b03a73`: `e2e/mentions.spec.ts`, `docs/plans/ci-mentions-seen-flakes.md`,
+Ending commit/tree: `ba91c5b72`, the last commit that changes code (after the independent review's P3); the next one
+adds the review to the note and this record. Files changed against `9a6b03a73`: `e2e/mentions.spec.ts`, `docs/plans/ci-mentions-seen-flakes.md`,
 and this record.
 
 ## Outcome
@@ -58,6 +58,17 @@ and this record.
   - `mentions.spec.ts` whole and `home-needs-refusal.spec.ts`: 45/45 (`pw-logs/paper2-mseen-whole.txt`).
 - Whole-repo `oxlint --type-aware` (exit 0), `tsc --noEmit -p apps/studio` and Prettier on `e2e/mentions.spec.ts`:
   clean.
+
+## After the independent review
+
+- No P1/P2. One P3: the close case couldn't tell the cancel from the readability guard. Confirmed by mutant (cancel
+  removed in `useMentionAttention.ts`'s cleanup, locally, then restored): the committed case stayed green 6/6
+  (`pw-logs/paper2-mseen-mutant-oldtest.txt`). `ba91c5b72` watches the retry's own timer (`watchRetryTimer`: the first
+  1 s timer set once the 503 is read, and whether it was cleared): the mutant now fails 3/3, «Expected: true, Received:
+  false» (`pw-logs/paper2-mseen-mutant-newtest.txt`). On the real product: both cases `--repeat-each=20` 40/40
+  (`paper2-mseen-timer-green20.txt`), `mentions` whole and `home-needs-refusal` 45/45 (`paper2-mseen-timer-whole.txt`).
+- These runs went through `pw-direct.ps1` (one worker, below-normal priority), as Luis allowed on 10-20 while he played
+  WoW; the guard refused to start while it was open. Aion 2 was not open.
 
 ## Decisions and changes
 
