@@ -42,9 +42,9 @@ export interface Drop {
   elsewhere?: boolean
 }
 
-/** Whether a call last seen live at `seen` is still recent enough to come back on its own. */
+/** Whether a call last seen live at `seen` is still recent enough to come back on its own; a clock set back isn't. */
 export const withinWindow = (seen: number | null, now: number): boolean =>
-  seen !== null && now - seen <= REJOIN_WINDOW_MS
+  seen !== null && now >= seen && now - seen <= REJOIN_WINDOW_MS
 
 /**
  * After a call ends: try now, try once the browser is online, or never. Only a lost connection tries: leaving, another
@@ -202,6 +202,8 @@ export class Rejoin {
         if (round !== this.round) return
         if (!inCall) {
           this.show(null)
+          // A join that returned with no status move (held offline, none possible) leaves its claim behind: cleared.
+          if (this.standing === 'joining') this.claim(null)
           this.ports.say(CALL_END.dropped.note)
           return
         }

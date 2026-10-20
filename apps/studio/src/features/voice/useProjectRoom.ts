@@ -151,8 +151,15 @@ async function openRoom(issue: IssueToken, ports: Pick<JoinPorts, 'scoped'>, cb:
   const { connectRoom } = await import('./livekit-room.ts')
   if (!gate.current()) throw new Error('This join was overtaken before it connected')
   if (gate.still && !gate.still()) throw new Error('This try back in came too late to connect')
-  // Asked again once connected, before it becomes the call and its microphone starts.
-  return keptIfStill(await connectRoom(issued.serverUrl, issued.token, cb), gate.still)
+  // Asked again once connected, before it becomes the call and its microphone starts; left quietly if no longer wanted.
+  let quiet = false
+  const ended: RoomCallbacks['onEnded'] = (why, selfLeft) => {
+    if (!quiet) cb.onEnded(why, selfLeft)
+  }
+  const opened = await connectRoom(issued.serverUrl, issued.token, { ...cb, onEnded: ended })
+  return keptIfStill(opened, gate.still, () => {
+    quiet = true
+  })
 }
 
 /** What a join asks before LiveKit: whether it is still the current one, and still wanted (a try back in). */

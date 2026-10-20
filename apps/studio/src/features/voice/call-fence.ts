@@ -9,10 +9,18 @@ export interface Leavable {
 
 /**
  * A connection a join opened, kept only while the join is still wanted (`still`, a try back in: call-rejoin.md): one no
- * longer wanted once connected (another tab joined meanwhile, the try too old) is left at once, and the join fails.
+ * longer wanted once connected (another tab joined meanwhile, the try too old) is made `quiet` first, so the end its
+ * leave reports is never taken for the call's, then left at once, and the join fails. Another tab of the same person
+ * already in that call has been taken out by LiveKit as this one connected (a person is in a call once): this check
+ * can't spare it; the checks before the token and before LiveKit do.
  */
-export function keptIfStill<C extends Leavable>(opened: C, still: (() => boolean) | undefined): C {
+export function keptIfStill<C extends Leavable>(
+  opened: C,
+  still: (() => boolean) | undefined,
+  quiet: () => void = () => undefined,
+): C {
   if (!still || still()) return opened
+  quiet()
   void opened.leave().catch(() => undefined)
   throw new Error('This join is no longer wanted')
 }
