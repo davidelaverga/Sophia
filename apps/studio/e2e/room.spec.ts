@@ -425,6 +425,26 @@ test('BASE-03 · a microphone muted while the call reconnects comes back off whe
   expect((await asked(page)).slice(before), 'the microphone stays off').not.toContain('microphone:on')
 })
 
+test('BASE-03 · a try left with Leave leaves the next Join to the person’s own choice (review P2, round 2)', async ({
+  page,
+}) => {
+  await enter(page, '/room.html?call=on')
+  await expect(microphone(page)).toHaveAttribute('aria-pressed', 'true')
+  await page.evaluate(() => {
+    window.fixture?.holdToken(true)
+    window.fixture?.drop()
+  })
+  await controls(page).getByRole('button', { name: 'Leave the room' }).click()
+  await page.evaluate(() => window.fixture?.holdToken(false)) // the abandoned try's token comes back
+  const join = controls(page).getByRole('button', { name: /^Join the room/ })
+  await expect(join).toBeEnabled()
+  await page.evaluate(() => localStorage.setItem('sophia.mic.v1', 'off')) // Settings: join with the microphone off
+  const before = (await asked(page)).length
+  await join.click()
+  await expect(microphone(page)).toHaveAttribute('aria-pressed', 'false')
+  expect((await asked(page)).slice(before), 'the microphone stays off').not.toContain('microphone:on')
+})
+
 test('BASE-03 · muted by an admin, a dropped call’s Try again keeps the microphone off too (review P1)', async ({
   page,
 }) => {
