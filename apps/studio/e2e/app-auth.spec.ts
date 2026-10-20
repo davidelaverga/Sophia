@@ -108,6 +108,8 @@ declare global {
       expireToken: () => void
       refuseTokens: () => void
       dropStream: () => void
+      /** The call's connection is lost, as LiveKit reports it (fixtures/app.tsx). */
+      drop: () => void
       /** Each request refused for its token (`expireToken`, `refuseTokens`), as `METHOD /path`. */
       refused: readonly string[]
       /** Each request with an Idempotency-Key, refused or not, as `METHOD /path key`. */
@@ -1600,6 +1602,40 @@ test('places · Rejoin pressed once back in that call by its own Join joins noth
   await page.waitForTimeout(1500)
   expect(await roomTokens(page)).toBe(joins)
   await expect(dock.getByRole('button', { name: 'Leave the room' })).toHaveCount(0)
+})
+
+test('places · a call dropped out of sight comes back on its own: the places’ bar keeps it, and no toast says it ended (call-rejoin.md)', async ({
+  context,
+}) => {
+  const page = await inCallAtHome(context)
+  const joins = await roomTokens(page)
+  await page.evaluate(() => window.appFixture?.drop())
+  await expect.poll(() => roomTokens(page), { message: 'one try, with a fresh token' }).toBe(joins + 1)
+  const callPill = page.locator('.places .room-pill')
+  await expect(callPill.getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  await page.waitForTimeout(600)
+  await expect(callPill).toBeVisible()
+  await expect(shownToast(page)).toHaveCount(0)
+  expect(await roomTokens(page)).toBe(joins + 1)
+})
+
+test('places · while a call dropped out of sight tries to come back, the bar’s Leave stops it and says you left (call-rejoin.md)', async ({
+  context,
+}) => {
+  const page = await inCallAtHome(context)
+  const joins = await roomTokens(page)
+  const tokenPath = `/api/v1/projects/${WORK_PROJECT}/room-token`
+  await page.evaluate(([by, path]) => window.appFixture?.hold(by, path, 'POST'), [DAVIDE.id, tokenPath] as const)
+  await page.evaluate(() => window.appFixture?.drop())
+  await expect.poll(() => roomTokens(page)).toBe(joins + 1)
+  const callPill = page.locator('.places .room-pill')
+  await callPill.getByRole('button', { name: 'Leave the room' }).click()
+  const toast = shownToast(page)
+  await expect(toast).toContainText('You left Fixture project.')
+  await page.evaluate(() => window.appFixture?.release())
+  await page.waitForTimeout(600) // the token let go would have joined by now
+  await expect(callPill).toHaveCount(0)
+  expect(await roomTokens(page)).toBe(joins + 1)
 })
 
 // A chat message's anchor through a sign-in (Codex P2 on #435): kept on leaving, given back on a refused return.
