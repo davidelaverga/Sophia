@@ -5,6 +5,7 @@
 // names a variable this test process sets to a fake value, and nothing leaves 127.0.0.1.
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import type { AddressInfo } from 'node:net'
 import { after, before, describe, it } from 'node:test'
 import type { FastifyInstance } from 'fastify'
@@ -858,7 +859,9 @@ describe('the live personal companion (local provider double)', () => {
     assert.equal((await settled(at, BEA)).turns.find((t) => t.author === 'person')?.reply, 'failed')
     assert.equal(recorded().length, sentBefore + 1, 'a held payer asks the provider nothing')
 
-    // An operator settles the uncertain call from the provider's record; then the retry answers, under a new call.
+    // An operator settles the uncertain call from the provider's record. FND-C62 (R2-B85-P1-UNCERTAIN), the policy
+    // changed here: an unknown usage is not proof that nothing was made, and a cost-only reconciliation is no consent to
+    // pay again, so a retry of THIS turn is refused (fenced), asking nothing; a new turn is still answered.
     const [held] = await owner<{ call_id: string }>(
       `SELECT call_id FROM sophia.personal_companion_usage WHERE payer='held-payer' AND state='uncertain'`,
     )
@@ -866,16 +869,19 @@ describe('the live personal companion (local provider double)', () => {
     await owner(`SELECT sophia.reconcile_personal_companion($1, 0, '{"inputTokens":0,"outputTokens":0}')`, [
       held.call_id,
     ])
-    double.script({ text: 'Here now.' })
     await write(at, `/api/v1/personal/turns/${asked.id}/retry`, BEA, {})
+    const fenced = await settled(at, BEA)
+    assert.equal(fenced.turns.find((t) => t.id === asked.id)?.reply, 'failed', 'the reconciled turn stays fenced')
+    assert.equal(recorded().length, sentBefore + 1, 'no second paid generation for that turn')
+    double.script({ text: 'Here now.' })
+    await write(at, '/api/v1/personal/turns', BEA, { text: 'A new question' })
     const answered = await settled(at, BEA)
     assert.equal(answered.turns.find((t) => t.author === 'sophia')?.text, 'Here now.')
-    const rows = await usage('held-payer')
     assert.deepEqual(
-      rows.map((r) => r.state),
+      (await usage('held-payer')).map((r) => r.state),
       ['settled', 'settled'],
     )
-    assert.equal(recorded().length, sentBefore + 2)
+    assert.equal(recorded().length, sentBefore + 2, 'the new turn asked once')
   })
 
   // Erasure FIRST (#435 4304290365, composed): the owner's turn is kept, its call registered and context read; its
@@ -1542,6 +1548,80 @@ describe('a stale runner released after another wrote the reply (FND-C55, contro
         .map((t) => t.text),
       ['Answered by runner 2.'],
       'one reply',
+    )
+  })
+})
+
+// FND-C62 (R2-B85 P1s): the three fence gaps, through the same live path. FIXTURES are labelled in each case.
+const migration = (name: string) => readFileSync(new URL(`../../../db/migrations/${name}`, import.meta.url), 'utf8')
+
+/** 0078's own reserve_personal_answer, as a database through 0078 has it (FIXTURE: 0079 absent for this case only). */
+function reserve0078(): string {
+  const sql = migration('0078_personal_settled_reply_recovery.sql')
+  const start = sql.indexOf('CREATE FUNCTION sophia.reserve_personal_answer(')
+  const end = sql.indexOf('END $$;', start) + 'END $$;'.length
+  return sql.slice(start, end).replace('CREATE FUNCTION', 'CREATE OR REPLACE FUNCTION')
+}
+
+describe('the completed-call fence’s gaps (FND-C62)', () => {
+  it('F1: on a database through 0078 without 0079 the live API is not ready and asks nothing', async () => {
+    const HAL = randomUUID()
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('c62-f1-payer', $1, 1000000)`,
+      [HAL],
+    )
+    await owner(reserve0078())
+    try {
+      const at = await liveApi('c62-f1-payer', HAL)
+      assert.equal((await fetch(`${at}/ready`)).status, 503, 'not ready without 0079')
+      const sentBefore = recorded().length
+      await write(at, '/api/v1/personal/turns', HAL, { text: 'Without 0079.' })
+      const page = await settled(at, HAL)
+      assert.equal(recorded().length, sentBefore, 'no provider request')
+      assert.equal(page.turns.filter((t) => t.author === 'sophia').length, 0)
+      assert.deepEqual(await usage('c62-f1-payer'), [], 'nothing reserved')
+    } finally {
+      await owner(migration('0079_personal_completed_call_fence.sql'))
+    }
+  })
+
+  it('F3: a bound call settled before 0079 with no reason and no answer is fenced after the upgrade; a new turn is not', async () => {
+    const IVY = randomUUID()
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('c62-f3-payer', $1, 1000000)`,
+      [IVY],
+    )
+    const at = await liveApi('c62-f3-payer', IVY)
+    const sentBefore = recorded().length
+    double.script({ status: 500 })
+    await write(at, '/api/v1/personal/turns', IVY, { text: 'Lost before 0079.' })
+    const asked = (await settled(at, IVY)).turns.find((t) => t.author === 'person')
+    assert.ok(asked && asked.reply === 'failed')
+    // FIXTURE, labelled: the state a reconciliation under 0073/0078 (before 0079) left for a bound call: settled, cost
+    // recorded, no reason; no answer kept. Then the upgrade: 0079 applied (its backfill classifies such rows).
+    await owner(
+      `UPDATE sophia.personal_companion_usage SET state='settled', reason=NULL, used_micros=0,
+         usage='{"inputTokens":0,"outputTokens":0}', settled_at=now() WHERE payer='c62-f3-payer'`,
+    )
+    await owner(migration('0079_personal_completed_call_fence.sql'))
+    const [row] = await owner<{ reason: string | null }>(
+      `SELECT reason FROM sophia.personal_companion_usage WHERE payer='c62-f3-payer'`,
+    )
+    await write(at, `/api/v1/personal/turns/${asked.id}/retry`, IVY, {})
+    const fenced = await settled(at, IVY)
+    assert.equal(
+      recorded().length,
+      sentBefore + 1,
+      `no second generation for the old turn (reason ${String(row?.reason)})`,
+    )
+    assert.equal(fenced.turns.find((t) => t.id === asked.id)?.reply, 'failed')
+    assert.equal((await usage('c62-f3-payer')).length, 1, 'cost history kept, nothing new reserved')
+    double.script({ text: 'A new answer.' })
+    await write(at, '/api/v1/personal/turns', IVY, { text: 'Something new' })
+    const page = await settled(at, IVY)
+    assert.deepEqual(
+      page.turns.filter((t) => t.author === 'sophia').map((t) => t.text),
+      ['A new answer.'],
     )
   })
 })

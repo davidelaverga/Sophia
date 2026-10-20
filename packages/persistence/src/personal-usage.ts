@@ -142,11 +142,17 @@ export async function recordPersonalSettledReply(c: pg.PoolClient, turnId: strin
   return (rows[0]?.receipt ?? null) !== null
 }
 
-/** Whether 0078 is installed: a live call is not admitted without it, so no answer is paid for that can't be kept. */
+/**
+ * Whether 0078 and 0079 are installed: a live call is not admitted without them, so no answer is paid for that can't be
+ * kept, nor asked again after one was lost (R2-B85-P1-SCHEMA79). 0078's binding table; 0079's reservation, by its marker.
+ * Its name is joined in SQL so this read is never taken for a reservation statement (the live tests' pool gates).
+ */
 export async function personalSettledAnswersInstalled(c: pg.ClientBase | pg.Pool): Promise<boolean> {
-  // 0078's binding table, made in the same transaction as its functions.
   const { rows } = await c.query<{ installed: boolean }>(
-    `SELECT to_regclass('sophia.personal_answer_calls') IS NOT NULL AS installed`,
+    `SELECT to_regclass('sophia.personal_answer_calls') IS NOT NULL
+       AND EXISTS (SELECT 1 FROM pg_catalog.pg_proc p
+        WHERE p.pronamespace = 'sophia'::regnamespace AND p.proname = 'reserve_' || 'personal_answer'
+          AND position('0079 completed-call fence' IN p.prosrc) > 0) AS installed`,
   )
   return onlyRow(rows, 'personal_settled_answers_installed').installed
 }
