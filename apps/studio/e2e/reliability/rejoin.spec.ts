@@ -90,21 +90,27 @@ const drop = (page: Page, failing = false) =>
     return at
   }, failing)
 
-/** When the call was live again after `from`, having left it; null if not. */
-const liveAgain = (page: Page, from: number) =>
-  page.evaluate((since) => {
-    const after = (window.reliabilityCall?.moments ?? []).filter((m) => m.at >= since)
-    const out = after.findIndex((m) => !m.live)
-    return (out < 0 ? undefined : after.slice(out + 1).find((m) => m.live))?.at ?? null
-  }, from)
+/**
+ * When the call was live again after `from`, having left it, the first time at or past `after` (the network's return,
+ * offline: a call already live by then, from a try made offline, is not back from it); null if not.
+ */
+const liveAgain = (page: Page, from: number, after: number) =>
+  page.evaluate(
+    ({ since, past }) => {
+      const moments = (window.reliabilityCall?.moments ?? []).filter((m) => m.at >= since)
+      const out = moments.findIndex((m) => !m.live)
+      return (out < 0 ? undefined : moments.slice(out + 1).find((m) => m.live && m.at >= past))?.at ?? null
+    },
+    { since: from, past: after },
+  )
 
-/** Waits up to `LIMIT` for the call to be live again after `from`; when it was, or null. */
-async function cameBack(page: Page, from: number) {
+/** Waits up to `LIMIT` for the call to be live again after `from` (at or past `after`); when it was, or null. */
+async function cameBack(page: Page, from: number, after = from) {
   await expect
-    .poll(() => liveAgain(page, from), { timeout: LIMIT })
+    .poll(() => liveAgain(page, from, after), { timeout: LIMIT })
     .not.toBeNull()
     .catch(() => undefined)
-  return liveAgain(page, from)
+  return liveAgain(page, from, after)
 }
 
 /** When the dock's notes first said `words` after `from`, and how many times they began to say them since. */
@@ -159,8 +165,11 @@ test('M5 · a call dropped offline comes back once the network does @reliability
     await page.waitForTimeout(1000) // a try made offline would have asked for its token by now
     const offlineTries = (await tokens(page)) - asking
     await context.setOffline(false)
-    const live = await cameBack(page, from)
-    const online = await page.evaluate(() => window.reliabilityCall?.online ?? null)
+    const heard = () => page.evaluate(() => window.reliabilityCall?.online ?? null)
+    await until(expect.poll(heard).not.toBeNull())
+    const online = await heard()
+    // Timed from the network's return, so a try that connected offline gives no time (and shows as a try offline).
+    const live = online === null ? null : await cameBack(page, from, online)
     await settledBack(page, live)
     const back = live !== null && online !== null
     samples.push({
