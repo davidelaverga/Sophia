@@ -48,7 +48,7 @@ import { clock, dayOf, sameDay, when } from '../../app/time-words.ts'
 import { LinkedText } from '../../app/LinkedText.tsx'
 import { RichText } from '../../app/RichText.tsx'
 import { CopyLink } from '../resources/CopyLink.tsx'
-import { CONVERSATION, linkHash } from '../resources/link.ts'
+import { addressOf, CONVERSATION } from '../resources/link.ts'
 
 interface Props {
   projectId: string
@@ -274,7 +274,7 @@ function Head(props: {
       </div>
       <div className="conv-head-acts">
         <Output output={c.output} />
-        <CopyLink href={() => conversationLink(c.id)} />
+        <CopyLink href={() => addressOf(c.id, CONVERSATION)} />
         <ContextToggle context={context} />
       </div>
     </header>
@@ -305,12 +305,6 @@ function Thread({ follow, children }: { follow: ReturnType<typeof useFollow>; ch
       )}
     </>
   )
-}
-
-/** This conversation's own address (#375): the page's, with the conversation named in its fragment. */
-const conversationLink = (id: string) => {
-  const { origin, pathname, search } = window.location
-  return `${origin}${pathname}${search}${linkHash(id, CONVERSATION)}`
 }
 
 /** «Context»: opens the project's context where it is a panel (under 1180 px); over that it is a pane, and this hides. */

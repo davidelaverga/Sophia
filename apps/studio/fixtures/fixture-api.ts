@@ -100,6 +100,8 @@ const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 
 export const unexpected: string[] = []
 /** What was answered, as `snapshot:2`, `mission:2`: a check can tell an update reached the page. */
 export const served: string[] = []
+/** The «since» reads (A34) this page answered, one a read: what a project's open costs (project-arrival-since.md). */
+export const sinceAsked: string[] = []
 
 /** The project as the API holds it now: the revision moves with each event. */
 interface Project {
@@ -116,6 +118,10 @@ interface Project {
   left?: boolean
   /** The project is archived (A30, `archived=1`): out of the list, in the archived one. */
   archived?: boolean
+  /** The archived list can't be read (`archivedFails=1`): every read of it is refused (503). */
+  archivedFails?: boolean
+  /** The archived list's reads wait (`hold=archived`) until `window.fixture.releaseArchived` lets them through. */
+  archivedHeld?: boolean
   exchange: boolean
   /** The door shut under the shell (`window.fixture.shutDoor`): every snapshot read from now on is refused (403). */
   doorShut?: boolean
@@ -164,6 +170,8 @@ interface Project {
   failReplies?: boolean
   /** The next room token is refused as an unavailable API's, so the join fails (`window.fixture.failToken`). */
   failToken?: boolean
+  /** Each room token answers 1.5 s late (`token=late`), as a loaded runner brings the call after the room has drawn. */
+  tokenLate?: boolean
   /** How many versions of the fixture report are published (report-data.ts). */
   reportVersions: number
   /** The fixture report's title (report-data.ts): LONG_TITLE with `title=long`. */
@@ -271,6 +279,8 @@ interface Project {
   searchAsProposed?: boolean
   /** While set, reads of the served board wait for `holdBoard(false)` (search-honest.md). */
   boardHeld?: (() => void)[] | null
+  /** The served board's reads fail, each recorded (`board-refused`): `boardRead=fail`, `window.fixture.failBoard`. */
+  boardFail?: boolean
   /** The versions' reviews (review-data.ts, A16); absent, their requests are unexpected. */
   reviews?: Reviews
   /** What members carried in from Personal (the project list's releases, chapter 1); absent, none. */
@@ -552,12 +562,45 @@ function departed(project: Project): Response {
   return json({ projectId: PROJECT, cursor: String(project.revision) })
 }
 
-/** A room token, unless the next one is to fail (`failToken`); each one asked for is recorded (`room-token`). */
-function tokenAnswer(project: Project): Response {
+/**
+ * A room token, unless the next one is to fail (`failToken`), 1.5 s late with `tokenLate`; each one asked for is
+ * recorded (`room-token`).
+ */
+function tokenAnswer(project: Project): Response | Promise<Response> {
   served.push('room-token')
-  if (!project.failToken) return json(roomToken)
-  project.failToken = false
-  return unavailable()
+  if (project.failToken) {
+    project.failToken = false
+    return unavailable()
+  }
+  if (project.tokenLate) return new Promise((late) => setTimeout(() => late(json(roomToken)), 1500))
+  return json(roomToken)
+}
+
+/** A decision at the door (`POST /api/v1/lobby/{entryId}/decision`), by the entry it answers. */
+const DOOR_DECISION = /^\/api\/v1\/lobby\/([0-9a-f-]{36})\/decision$/
+
+/**
+ * The door answered (Let in, Decline, Block), as the API answers it: recorded (`lobby:admit`…), and no one waits any
+ * more, so the snapshot the lobby reads again after it says so (the fixture's door holds one knock at a time).
+ */
+function doorAnswered(project: Project, entryId: string, init: RequestInit | undefined): Response {
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  const decision: unknown = typeof body === 'object' && body !== null ? Reflect.get(body, 'decision') : null
+  served.push(`lobby:${String(decision)}`)
+  project.waiting = false
+  const status = decision === 'admit' ? 'admitted' : decision === 'block' ? 'blocked' : 'denied'
+  return json({ ...waitingAtTheDoor, id: entryId, status, decidedAt: new Date().toISOString() })
+}
+
+/** What the page posts about coming in: a room token, or an answer at the door; undefined for anything else. */
+function doorPosted(
+  project: Project,
+  path: string,
+  init: RequestInit | undefined,
+): Response | Promise<Response> | undefined {
+  if (path === `/api/v1/projects/${PROJECT}/room-token`) return tokenAnswer(project)
+  const entry = DOOR_DECISION.exec(path)?.[1]
+  return entry ? doorAnswered(project, entry, init) : undefined
 }
 
 /** An admin archives the project, or brings it back (A30): recorded, and the lists read it so. */
@@ -1043,11 +1086,27 @@ const MENTION_NEED = (at: string) => ({
 })
 
 /** The person's archived projects (A30): this one, when it is. */
-function archivedListAnswer(project: Project): Response {
-  served.push('projects:archived')
+function archivedList(project: Project): Response {
   const listed = { projectId: PROJECT, title: 'Fixture project', role: project.role ?? membership.role, members: 3 }
   const projects = project.archived && !project.left ? [{ ...listed, room: null, nextSession: null, releases: [] }] : []
   return json({ projects, personalEpoch: 1 })
+}
+
+/** Reads of the archived list the page holds, each waiting to be let through (`window.fixture.releaseArchived`). */
+const heldArchived: (() => void)[] = []
+
+/** The archived list's read: refused while `archivedFails`, recorded so; held while `archivedHeld`. */
+function archivedListAnswer(project: Project): Response | Promise<Response> {
+  served.push(project.archivedFails ? 'projects:archived:refused' : 'projects:archived')
+  if (project.archivedFails) return unavailable()
+  if (!project.archivedHeld) return archivedList(project)
+  return new Promise((resolve) => heldArchived.push(() => resolve(archivedList(project))))
+}
+
+/** Lets the held reads of the archived list through, and every later one. */
+export function releaseArchived(project: Project): void {
+  project.archivedHeld = false
+  for (const release of heldArchived.splice(0)) release()
 }
 
 /** The person's own reads (the projects they are in, what needs them); undefined for any other request. */
@@ -1088,10 +1147,12 @@ function recordsAnswer(project: Project, method: string, url: URL, init: Request
   if (path.startsWith(`${base}/mission`)) return missionAnswer(project, method, path, init)
   if (method === 'GET' && path.startsWith(`${base}/meetings`)) return meetingAnswer(project, path)
   // Home reads it too (home-since-you-looked.md): a project with no meeting has nothing new since its last mark.
-  if (method === 'GET' && path === `${base}/since`)
+  if (method === 'GET' && path === `${base}/since`) {
+    sinceAsked.push(path)
     return json(
       project.meeting ? updatesWindowOf(project.meeting, project.revision) : nothingSince(String(project.revision)),
     )
+  }
   if (project.invitations) return invitationsAnswer(project.invitations, method, path, init, base) ?? undefined
   if (method === 'GET' && path === `${base}/invitations`) return json({ invitations: [] })
   return undefined
@@ -1634,6 +1695,10 @@ function designRead(project: Project): Response | null {
  */
 function workRead(project: Project, path: string) {
   if (path === `/api/v1/projects/${PROJECT}/plans`) {
+    if (project.boardFail) {
+      served.push('board-refused')
+      return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
+    }
     const board: WorkBoardView = {
       schema_version: 'sophia.work.board.v1',
       project_id: PROJECT,
@@ -1852,7 +1917,10 @@ const isContribution = (value: unknown): value is { text: string; intent: Contri
   'intent' in value &&
   typeof value.intent === 'string'
 
-/** What the page posts: a room token, a goal's command, the floor passed on, a message to the room, or Sophia asked in. */
+/**
+ * What the page posts: a room token, an answer at the door, a goal's command, the floor passed on, a message to the
+ * room, or Sophia asked in.
+ */
 function posted(project: Project, path: string, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/contributions`) return contributed(project, init)
@@ -1862,7 +1930,8 @@ function posted(project: Project, path: string, init: RequestInit | undefined) {
   const doneOf = TASK_DONE.exec(path)?.[1]
   if (doneOf) return taskDone(project, doneOf, init)
   if (path === `/api/v1/rooms/${ROOM}/meetings/${MEETING}/close`) return meetingClosed(project, init)
-  if (path === `${base}/room-token`) return tokenAnswer(project)
+  const door = doorPosted(project, path, init)
+  if (door) return door
   const own = projectWritten(project, path, init)
   if (own) return own
   if (path === `${base}/commands`) return admitted(project, init)
@@ -2150,12 +2219,67 @@ const outside = () =>
     { status: 403, headers: { 'content-type': 'application/json' } },
   )
 
+/** Where `server=kept` journals the keyed writes that reached the service, in the tab: each try, with its key. */
+export const JOURNAL = 'fixture.server.journal'
+
+/** A keyed write as it reached the service. */
+interface Journaled {
+  method: string
+  path: string
+  key: string
+  body: string | null
+}
+
+const isJournaled = (w: unknown): w is Journaled =>
+  typeof w === 'object' &&
+  w !== null &&
+  typeof Reflect.get(w, 'method') === 'string' &&
+  typeof Reflect.get(w, 'path') === 'string' &&
+  typeof Reflect.get(w, 'key') === 'string'
+
+function journaled(): Journaled[] {
+  try {
+    const kept: unknown = JSON.parse(sessionStorage.getItem(JOURNAL) ?? '[]')
+    return Array.isArray(kept) ? kept.filter(isJournaled) : []
+  } catch {
+    return []
+  }
+}
+
+/** A keyed write that reached the service goes into the journal, whatever it is answered. */
+function journal(method: string, url: URL, init: RequestInit | undefined): void {
+  const key = new Headers(init?.headers).get('idempotency-key')
+  if (method !== 'POST' || !key || !url.pathname.startsWith('/api/')) return
+  const body = typeof init?.body === 'string' ? init.body : null
+  sessionStorage.setItem(JOURNAL, JSON.stringify([...journaled(), { method, path: url.pathname, key, body }]))
+}
+
+/** The journal applied again as the page loads, its answers unheard: the service holds what it held before. */
+function replayJournal(project: Project): void {
+  for (const w of journaled()) {
+    const init = {
+      method: w.method,
+      headers: { 'idempotency-key': w.key },
+      ...(w.body === null ? {} : { body: w.body }),
+    }
+    const reply = answer(project, w.method, new URL(w.path, window.location.href), init)
+    void Promise.resolve(reply).catch(() => undefined)
+  }
+}
+
+/**
+ * `server=kept`: the synthetic service outlives a reload of the tab, as a real one does (reliability-held-on-reload.md).
+ * Each keyed write that reaches it is journaled in the tab and applied again, unanswered, as the page loads.
+ */
 export function installFixtureApi(project: Project): void {
+  const kept = new URLSearchParams(window.location.search).get('server') === 'kept'
+  if (kept) replayJournal(project)
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
     const url = new URL(hrefOf(input), window.location.href)
     if (project.outage && url.pathname.startsWith('/api/')) return Promise.reject(new TypeError('Failed to fetch'))
     if (project.outsider && url.pathname.startsWith(`/api/v1/projects/${PROJECT}/`)) return Promise.resolve(outside())
+    if (kept) journal(method, url, init)
     // The person's own profile (A32): one per token, whatever the page shows (profile-data.ts).
     const profile = profileAnswer(method, url.pathname, init)
     if (profile) return Promise.resolve(profile)

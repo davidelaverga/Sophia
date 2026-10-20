@@ -114,6 +114,27 @@ test('host · an admin turns a member’s camera off, and stops a member’s scr
   await expect.poll(() => served(page)).toContain(`stop-screen:${MARCO}`)
 })
 
+test('host · a camera turned off and a screen stopped leave the stage, as LiveKit unpublishes them (#369)', async ({
+  page,
+}) => {
+  const tile = (actor: string) => page.locator(`.tile[data-actor="${actor}"]`)
+  await enter(page, '&video=camera')
+  await expect(tile(LUCIA).locator('video')).toHaveCount(1)
+  await actions(page, 'Lucía').click()
+  await menu(page, 'Lucía').getByRole('menuitem', { name: 'Turn off camera' }).click()
+  await expect.poll(() => served(page)).toContain(`stop-camera:${LUCIA}`)
+  await expect(tile(LUCIA).locator('video')).toHaveCount(0)
+  await expect(tile(LUCIA).locator('.tile-initial')).toHaveText('L')
+  await expect(tile(MARCO).locator('video')).toHaveCount(1)
+  await page.goto('/room.html?call=on&people=2&video=screen')
+  await expect(page.locator('.screen-main video')).toHaveCount(1)
+  await page.locator('.panel-toggles [data-panel="people"]').click()
+  await actions(page, 'Marco').click()
+  await menu(page, 'Marco').getByRole('menuitem', { name: 'Stop screen sharing' }).click()
+  await expect.poll(() => served(page)).toContain(`stop-screen:${MARCO}`)
+  await expect(page.locator('.screen-main video')).toHaveCount(0)
+})
+
 test('host · «Mute everyone» asks first, then every other microphone is off', async ({ page }) => {
   await enter(page)
   await page.getByRole('button', { name: 'Mute everyone' }).click()

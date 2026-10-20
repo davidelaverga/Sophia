@@ -181,6 +181,30 @@ export function specOf(line) {
   return /(\S+\.spec\.ts):(\d+)/.exec(line)?.slice(1).join(':') ?? line
 }
 
+const RECENT_MS = 48 * 3_600_000
+
+/**
+ * The room's failed tests (`failures`: one { test, at } per failed test of a job, `test` the summary's line), each by
+ * its full title: one `test(` line can stand for many pages. Per test: how many times it failed, how many of them in
+ * the 48 hours before `now`, and its last failure. Recent failures first, then the most, then the latest, so a test
+ * fixed days ago doesn't lead the list.
+ */
+export function rankFailedTests(failures, now) {
+  const since = Date.parse(now) - RECENT_MS
+  return [...groupBy(failures, (f) => f.test)]
+    .map(([test, group]) => ({
+      test,
+      spec: specOf(test),
+      failures: group.length,
+      recent: group.filter((f) => Date.parse(f.at) >= since).length,
+      lastFailed: group
+        .map((f) => f.at)
+        .sort()
+        .at(-1),
+    }))
+    .sort((a, b) => b.recent - a.recent || b.failures - a.failures || b.lastFailed.localeCompare(a.lastFailed))
+}
+
 /**
  * M11. The room's successful jobs per UTC day and part (`whole` or the shard), with the margin of p90 to the limit;
  * timeouts that day and part counted beside them.
@@ -257,18 +281,31 @@ function redSpans(runs, commits, now) {
   return spans
 }
 
+/** The red time inside the window from `since`: a span begun before it counts from `since`; one over by then, not. */
+function withinWindow(spans, since) {
+  if (!since) return spans
+  const start = Date.parse(since)
+  return spans
+    .filter((span) => Date.parse(span.to) > start)
+    .map((span) => (Date.parse(span.from) < start ? { ...span, from: since } : span))
+}
+
 /**
  * M12. `runs`: one entry per attempt of main's `ci` runs ({ sha, attempt, conclusion, createdAt, completedAt }).
  * The share of commits whose latest attempt is green, and the hours main stayed red: from a red commit's end until a
- * newer commit (or a rerun of it) ends green; a window that ends red counts until `now`.
+ * newer commit (or a rerun of it) ends green; a window that ends red counts until `now`, and says since when. With
+ * `since`, `runs` may hold runs created before it: they set main's state as the window opens (and a run begun before
+ * it may end inside), but only the window's commits and red time are counted.
  */
-export function mainHealth(runs, now) {
-  const commits = commitStates(runs)
+export function mainHealth(runs, now, since = null) {
+  const all = commitStates(runs)
+  const commits = since ? all.filter((c) => Date.parse(c.createdAt) >= Date.parse(since)) : all
   const count = (state) => commits.filter((c) => c.state === state).length
   const [green, red] = [count('green'), count('red')]
-  const spans = redSpans(runs, commits, now)
+  const walked = redSpans(runs, all, now)
+  const spans = withinWindow(walked, since)
   const hours = (span) => (Date.parse(span.to) - Date.parse(span.from)) / 3_600_000
-  const last = spans.at(-1)
+  const last = walked.at(-1)
   return {
     commits: commits.length,
     green,
@@ -354,4 +391,37 @@ export function summarizeFeed(samples) {
     }
   }
   return result
+}
+
+/** The fixture's metrics, each written by its own scenarios (their titles start `Mn · `, a describe's or their own). */
+const FIXTURE_METRICS = ['M1', 'M2', 'M3', 'M4', 'M6', 'M7']
+
+/**
+ * How many scenarios a suite has per metric, from `playwright test --list` (one line per test, `… › file:line:col ›
+ * Mn · …`); null if the listing doesn't end with its «Total: N tests».
+ */
+export function scenarioCounts(listing) {
+  if (!/^Total: \d+ tests? in /m.test(listing)) return null
+  const counts = {}
+  for (const [, metric] of listing.matchAll(/^\s+\[[^\]]+\] › \S+ › (M\d+) · /gm)) {
+    counts[metric] = (counts[metric] ?? 0) + 1
+  }
+  return counts
+}
+
+/**
+ * Which fixture metrics can be published. `exit`: the suite's (null when it ran elsewhere, through the guard);
+ * `written`: records per metric; `expected`: scenarios per metric (null: unknown). A failed suite leaves every metric
+ * partial (a scenario can fail after writing its record); otherwise a metric with fewer records than scenarios is.
+ * Null when all are whole; else the exit and, per partial metric, how many scenarios wrote results of how many.
+ */
+export function fixtureCompleteness({ exit, written, expected }) {
+  const failed = exit !== null && exit !== 0
+  const metrics = {}
+  for (const metric of FIXTURE_METRICS) {
+    const ran = written[metric] ?? 0
+    const of = expected?.[metric] ?? null
+    if (failed || (of !== null && ran < of)) metrics[metric] = { ran, expected: of }
+  }
+  return Object.keys(metrics).length === 0 ? null : { exit, metrics }
 }

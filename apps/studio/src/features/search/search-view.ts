@@ -77,6 +77,9 @@ function goalHit(goal: Goal, q: string, health: HealthWords): LocalHit | null {
   }
 }
 
+/** A query's length as A38 counts it (queryOf), in code points: an astral letter is one, not two UTF-16 units (4320173114). */
+export const codePoints = (q: string): number => Array.from(q).length
+
 /** At most three goals, then three tasks, found by their words; nothing under two letters. */
 export function localHits(
   goals: readonly Goal[],
@@ -84,8 +87,11 @@ export function localHits(
   query: string,
   health: HealthWords,
 ): LocalHit[] {
-  const q = query.trim().toLowerCase()
-  if (q.length < MIN_LOCAL) return []
+  // The minimum counts the query as typed, as the search read and A38 do: lowercasing may lengthen it (İ is i and a
+  // combining dot), and one letter typed still finds nothing (R2 on B83).
+  const typed = query.trim()
+  if (codePoints(typed) < MIN_LOCAL) return []
+  const q = typed.toLowerCase()
   const found = goals.flatMap((g) => goalHit(g, q, health) ?? []).slice(0, 3)
   const tasks = goals
     .flatMap((g) => (plans?.[g.id]?.tasksFound ?? []).map((t) => ({ t, goal: g })))

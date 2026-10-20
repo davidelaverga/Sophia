@@ -297,10 +297,14 @@ export function ownFeed(identity: string): VideoFeed {
   return made
 }
 
-/** The cameras on (`video=camera`), or one person's shared screen (`video=screen`, `screenBy`). */
+/**
+ * The cameras and screens on (`video`, `screenBy`: `person`), of those still in the call: one an admin stopped, or
+ * someone's they removed, is gone, as LiveKit unpublishes it (#369).
+ */
 export function feeds(): VideoFeed[] {
-  if (video === 'camera') return here().map(({ i }) => feed(i + 1, 'camera'))
-  if (video === 'screen' && count > 0) return [feed(screenBy, 'screen')]
-  if (video === 'screens' && count > 1) return [feed(1, 'screen'), feed(2, 'screen')]
-  return []
+  return here().flatMap(({ name, i }) => {
+    const p = person(name, i)
+    if (removed.has(p.identity)) return []
+    return [...(p.cameraOn ? [feed(i + 1, 'camera')] : []), ...(p.screenOn ? [feed(i + 1, 'screen')] : [])]
+  })
 }

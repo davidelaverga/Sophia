@@ -9,7 +9,7 @@ import { dayLabel, topicOf } from './conversation-view.ts'
 import { clock, dayInSentence, inTime } from '../../app/time-words.ts'
 import { foldForSearch } from '../../app/search-fold.ts'
 import type { Since } from '../../api/vision.ts'
-import { newsOf, type News } from '../updates/since-said.ts'
+import { newsOf, newsWords, type News } from '../updates/since-said.ts'
 
 const MINUTE = 60_000
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
@@ -40,6 +40,7 @@ export const READ_FAILED = {
   personal: 'Couldn’t load your personal space.',
   projects: 'Couldn’t load your projects.',
   needs: 'Couldn’t read what needs you.',
+  archived: 'Couldn’t load your archived projects.',
 } as const
 
 /** The first visit's one sentence about the line between the doors. */
@@ -490,22 +491,6 @@ export function sophiaSays(
       },
     ]
   return sessionSoon(projects, now) ?? roomLive(projects) ?? sinceLooked(projects, now, news) ?? []
-}
-
-/** Each kind Home names, one in words and many in digits: «a decision», «2 decisions». */
-const NEWS_WORDS: readonly [Exclude<keyof News, 'more'>, string, string][] = [
-  ['decided', 'a decision', 'decisions'],
-  ['made', 'a new report', 'new reports'],
-  ['kept', 'a note kept', 'notes kept'],
-]
-
-/** «2 decisions, a new report and more»: every kind with any, then whether more lies after a window. */
-function newsWords(news: News): string {
-  const parts = NEWS_WORDS.filter(([kind]) => news[kind] > 0).map(([kind, one, many]) =>
-    news[kind] === 1 ? one : `${String(news[kind])} ${many}`,
-  )
-  const all = news.more ? [...parts, 'more'] : parts
-  return all.length === 1 ? all.join('') : `${all.slice(0, -1).join(', ')} and ${all.at(-1) ?? ''}`
 }
 
 const linesOf = (n: News) => n.decided + n.made + n.kept

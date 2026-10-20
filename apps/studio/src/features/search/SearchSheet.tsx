@@ -41,12 +41,13 @@ import {
   TASK_LEAD,
   type LocalHit,
   doorClosed,
+  codePoints,
 } from './search-view.ts'
 
 /** The head's Search: where the focus goes back to from the search and from what it opened. */
 const searchAnchor = () => document.querySelector<HTMLElement>('[data-search-anchor]')
 
-/** Fewer characters than this search nothing: one letter matches everything. */
+/** Fewer characters than this search nothing: one letter matches everything. Counted in code points, as A38 does. */
 const MIN_QUERY = 2
 
 /** The magnifier in the project's head. */
@@ -76,7 +77,7 @@ function useSearch(projectId: string, token: string, q: string) {
     queryFn: searchPages(projectId, (cursor, signal) => searchProject(token, projectId, q, cursor, signal)),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.next,
-    enabled: q.length >= MIN_QUERY,
+    enabled: codePoints(q) >= MIN_QUERY,
     placeholderData: keepPreviousData,
     retry: false,
   })
@@ -267,7 +268,7 @@ function SearchSheet({ projectId, identity, onClose, onHit, onAsk, local }: Shee
   useEffect(() => {
     requestAnimationFrame(() => field.current?.focus())
   }, [])
-  const asked = q.length >= MIN_QUERY
+  const asked = codePoints(q) >= MIN_QUERY
   const foundHere = useFound(local, q)
   const found = closed ? NONE_FOUND : foundHere
   const settledText = text.trim() === q
