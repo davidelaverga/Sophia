@@ -3,7 +3,7 @@
 // and leave. Nothing here changes project work. Its height (a note, a second row on a phone) is the room's
 // --dock-h, so the words and the video above always clear it.
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import type { ExchangeReceipt, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip, type IconName } from '@sophia/ui'
@@ -126,6 +126,7 @@ export function RoomDock(props: Props) {
               <JoinButton room={room} />
               <CheckOpener room={room} />
               <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
+              <RejoinLeave room={room} />
             </>
           )}
         </nav>
@@ -165,6 +166,61 @@ function SoundBlocked({ shown, room }: { shown: boolean; room: ProjectRoom }) {
         </>
       )}
     </p>
+  )
+}
+
+/**
+ * While a dropped call's one try back in waits or runs (call-rejoin.md), Leave stays beside Join: it stops the try, and
+ * the room rests. The focus goes to Join beside it once the room has.
+ */
+export function RejoinLeave({ room }: { room: ProjectRoom }) {
+  return room.rejoining ? <StopRejoin room={room} /> : null
+}
+
+/**
+ * The focus on this Leave when the try ends goes on to the call's own Leave (`data-dock-key`), drawn in its place, or
+ * to Try again when the try failed, instead of to the page. Read before the button leaves the page, so the focus is
+ * still known.
+ */
+function useFocusOnToLeave(button: RefObject<HTMLButtonElement | null>) {
+  useLayoutEffect(() => {
+    const el = button.current
+    return () => {
+      if (!el || document.activeElement !== el) return
+      const dock = el.closest('.dock-wrap, .mini-dock')
+      // Back in, the call's Leave; a try that failed, Try again.
+      requestAnimationFrame(() => {
+        const next = dock?.querySelector<HTMLElement>('[data-dock-key="leave"]:not(:disabled)')
+        const anchor = dock?.querySelector<HTMLElement>('[data-call-anchor]:not(:disabled)')
+        ;(next ?? anchor)?.focus({ preventScroll: true })
+      })
+    }
+  }, [button])
+}
+
+function StopRejoin({ room }: { room: ProjectRoom }) {
+  const button = useRef<HTMLButtonElement>(null)
+  useFocusOnToLeave(button)
+  const stop = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const group = e.currentTarget.parentElement
+    void room.leave().then(() => {
+      requestAnimationFrame(() =>
+        group?.querySelector<HTMLElement>('[data-call-anchor]')?.focus({ preventScroll: true }),
+      )
+    })
+  }
+  return (
+    <button
+      ref={button}
+      type="button"
+      className="round leave has-tip"
+      aria-label="Leave the room"
+      data-dock-key="leave"
+      onClick={stop}
+    >
+      <Icon name="leave" />
+      <Tip label="Leave the room" />
+    </button>
   )
 }
 
@@ -375,6 +431,7 @@ function LiveControls(props: Props & { sophiaAllow: boolean }) {
         type="button"
         className="round leave has-tip"
         aria-label="Leave the room"
+        data-dock-key="leave"
         onClick={() => void room.leave({ pressed: true })}
       >
         <Icon name="leave" />

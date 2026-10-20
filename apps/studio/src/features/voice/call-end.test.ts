@@ -10,6 +10,9 @@ import {
   noteRole,
   OFFLINE_END,
   OFFLINE_JOIN,
+  OFFLINE_REJOIN,
+  REJOINED,
+  REJOINING,
 } from './call-end.ts'
 
 describe('why a call ended', () => {
@@ -145,5 +148,16 @@ describe('a Join pressed offline from rest (Luis 2026-10-19, offline-join-from-r
 
   it('says it politely, as the lost call’s two', () => {
     assert.equal(noteRole(fromRest), 'status')
+  })
+})
+
+describe('a dropped call coming back on its own (call-rejoin.md)', () => {
+  it('says each of its three lines politely, from the line there before it speaks', () => {
+    for (const line of [REJOINING, OFFLINE_REJOIN, REJOINED]) assert.equal(noteRole(line), 'status', line)
+  })
+
+  it('never an alert, and never the lost call’s own words', () => {
+    for (const line of [REJOINING, OFFLINE_REJOIN, REJOINED]) assert.notEqual(line, CALL_END.dropped.note)
+    assert.equal(noteRole(CALL_END.dropped.note), 'alert', 'a try that failed says the lost call as before')
   })
 })

@@ -42,6 +42,18 @@ export const leaving: { held: boolean; fails: boolean; waiting: (() => void)[] }
 export const enabling: { held: boolean; waiting: (() => void)[] } = { held: false, waiting: [] }
 
 /**
+ * Connecting waits while held (`window.fixture.holdConnect`), as LiveKit's connect takes its seconds: the connection is
+ * made (`connect` recorded) and handed over once let go.
+ */
+export const connecting: { held: boolean; waiting: (() => void)[] } = { held: false, waiting: [] }
+
+/** A connection, handed over now or once connecting is let go. */
+function handedOver(connection: RoomConnection): Promise<RoomConnection> {
+  if (!connecting.held) return Promise.resolve(connection)
+  return new Promise((hand) => connecting.waiting.push(() => hand(connection)))
+}
+
+/**
  * Turning the microphone off waits while held (`window.fixture.holdMute`), as LiveKit's mute does while a republish
  * settles; a change asked after it waits its turn, as LiveKit's mute lock makes it.
  */
@@ -141,6 +153,7 @@ let callbacks: RoomCallbacks | null = null
 /** A connection made: recorded, with the devices it opens with (roomOptions in livekit-room.ts reads the same). */
 function connected(cb: RoomCallbacks): void {
   asked.push('connect')
+  linkDown = false // a new connection starts with its link up
   joined.devices = chosenDevices()
   joined.background = chosenBackground()
   callbacks = cb
@@ -148,8 +161,16 @@ function connected(cb: RoomCallbacks): void {
 
 /** The call's link is lost for a while, or back, as LiveKit's Reconnecting and Reconnected events say it. */
 export function linkLost(lost: boolean): void {
+  linkDown = lost
   callbacks?.onStatus(lost ? 'reconnecting' : 'live')
 }
+
+/**
+ * Whether the link is down (`linkLost`). The microphone the connection keeps for a dropped call (`micWas`) is then left
+ * as it was, the strictest a room module could be: a change made while LiveKit reconnects may not be in it, so the
+ * checks hold the room controller to what this person chose since (call-rejoin.md, the review's P1).
+ */
+let linkDown = false
 
 let ended: RoomCallbacks['onEnded'] | null = null
 /** The room events this call's Sophia listener waits on, by name. */
@@ -166,9 +187,13 @@ function fromSophia(packet: ChatPacket): void {
   emit(RoomEvent.DataReceived, encodeChatPacket(packet), SOPHIA, undefined, CHAT_REPLY_TOPIC)
 }
 
-/** The call ends without this person leaving: lost by default, as LiveKit reports a connection gone. */
-export function dropCall(why: CallEnd = 'dropped'): void {
-  ended?.(why)
+/**
+ * The call ends without this person leaving: lost by default, as LiveKit reports a connection gone. `selfLeft`: LiveKit
+ * left the room itself (CLIENT_INITIATED), as it does when the page is hidden for good or frozen.
+ */
+export function dropCall(why: CallEnd = 'dropped', selfLeft = false): void {
+  linkDown = false // the link is gone with the call: the next connection's is its own
+  ended?.(why, selfLeft)
 }
 
 /** The bridge tells this reader a result is ready, as its chat notice arrives (SMC-M03 S6). */
@@ -201,6 +226,15 @@ function sendReaction(emoji: string): Promise<void> {
 let mutedSpeech: () => void = () => undefined
 export function speakWhileMuted(): void {
   mutedSpeech()
+}
+
+let hostMute: () => void = () => undefined
+/**
+ * An admin mutes this viewer from the room's server (host-controls.md): the microphone goes off as LiveKit reports it,
+ * and this device's own choice (mic-preference.ts) is left as it was.
+ */
+export function muteByHost(): void {
+  hostMute()
 }
 
 export function sophiaLeaves(): void {
@@ -292,6 +326,30 @@ function deviceSwitch(me: RoomParticipant, changed: () => void) {
   }
 }
 
+/** What reaches this viewer while the connection is open: speech heard on a muted microphone, an admin's mute. */
+function fromTheServer(me: RoomParticipant, cb: RoomCallbacks, open: () => boolean, changed: () => void): void {
+  mutedSpeech = () => {
+    if (open() && !me.micOn) cb.onSpeakingMuted?.()
+  }
+  hostMute = () => {
+    if (!open()) return
+    me.micOn = false
+    changed()
+  }
+}
+
+/** The microphone as last seen with the link up (see `linkDown`), told on each change, an admin's mute included. */
+function keptMic(me: RoomParticipant, cb: RoomCallbacks) {
+  let on = me.micOn
+  return {
+    changed: () => {
+      if (!linkDown) on = me.micOn
+      cb.onChange()
+    },
+    micWas: () => on,
+  }
+}
+
 export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallbacks): Promise<RoomConnection> {
   connected(cb)
   said = null // a new connection has said nothing yet, as following-signal.ts starts each one
@@ -305,22 +363,22 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
   onPeopleChange(() => {
     if (open) cb.onChange()
   })
-  mutedSpeech = () => {
-    if (open && !me.micOn) cb.onSpeakingMuted?.()
-  }
-  ended = (why) => {
+  const mic = keptMic(me, cb)
+  fromTheServer(me, cb, () => open, mic.changed)
+  ended = (why, selfLeft) => {
     if (!open) return
     open = false
-    cb.onEnded(why)
+    cb.onEnded(why, selfLeft)
   }
-  const device = deviceSwitch(me, () => cb.onChange())
-  return Promise.resolve({
+  const device = deviceSwitch(me, mic.changed)
+  return handedOver({
     sendChat,
     setTextMode: (on) => {
       asked.push(`text:${on ? 'on' : 'off'}`)
       textOnly = on
     },
     textMode: () => textOnly,
+    micWas: mic.micWas,
     participants: () => [{ ...me, speaking: viewerSpeaks() }, ...others()],
     sophia: sophiaSignal,
     audioBlocked: soundBlocked,
@@ -344,6 +402,9 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     },
     leave: () => {
       asked.push('leave')
+      // LiveKit says the room disconnected when this page leaves it too (CLIENT_INITIATED): the room controller decides
+      // whether that end is still its call's.
+      if (open) cb.onEnded('dropped', true)
       open = false
       // A slow disconnect (`window.fixture.holdLeave`): it ends when released.
       if (leaving.fails) return Promise.reject(new Error('Disconnect failed'))

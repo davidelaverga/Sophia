@@ -40,6 +40,13 @@ export const BACK_ONLINE = 'You’re back online. Try again rejoins the call.'
 /** A join pressed while the browser is offline with no call lost before it, which asks for nothing (Luis 2026-10-19). */
 export const OFFLINE_JOIN = 'You’re offline. Join once you’re back.'
 
+/** A dropped call trying once to get back in on its own (call-rejoin.md). */
+export const REJOINING = 'Connection lost. Rejoining the call…'
+/** A call dropped offline whose one try waits for the network. */
+export const OFFLINE_REJOIN = 'You’re offline, so the call ended here. Back online, you rejoin it automatically.'
+/** That try got back in: said once. */
+export const REJOINED = 'Reconnected.'
+
 /** Offline, what the room says of a join: the lost call's line after one, the Join from rest's with none. */
 const offlineNote = (lost: boolean) => (lost ? OFFLINE_END : OFFLINE_JOIN)
 
@@ -86,6 +93,11 @@ export function keptNote(next: string | null, at: { online: boolean; lost: boole
   return SAID_ENDS.has(next) ? next : OFFLINE_JOIN
 }
 
-/** How the dock says its note: the connection's three politely, as Personal's line; a failure, at once. */
-export const noteRole = (note: string): 'status' | 'alert' =>
-  note === OFFLINE_END || note === BACK_ONLINE || note === OFFLINE_JOIN ? 'status' : 'alert'
+/** The connection's lines, said politely: the three offline ones and a dropped call coming back on its own. */
+const POLITE = new Set([OFFLINE_END, BACK_ONLINE, OFFLINE_JOIN, REJOINING, OFFLINE_REJOIN, REJOINED])
+
+/** How the dock says its note: the connection's lines politely, as Personal's line; a failure, at once. */
+export const noteRole = (note: string): 'status' | 'alert' => (POLITE.has(note) ? 'status' : 'alert')
+
+/** A lost call's line while offline: #467's, or the one whose try waits for the network (call-rejoin.md). */
+export const lostOffline = (note: string | null): boolean => note === OFFLINE_END || note === OFFLINE_REJOIN
