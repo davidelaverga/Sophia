@@ -390,7 +390,8 @@ const reachedIt = (s) => (s.refused ?? []).some((request) => MEASURED[s.kind]?.t
  * signed in. `reached`: the expired token met the request the kind measures (`refused`, the unique requests refused);
  * renewed: reached, a refresh asked, answered on screen, and never «signed out»; `resent`: every refused request went
  * again (a write, under its key); of the renewed, those with one refresh; and p50/p95 of the time from the press (or the
- * lever) to the answer, of the renewed ones.
+ * lever) to the answer, of the renewed ones. The feed also says which of its requests met the expired token, round by
+ * round (`met`): one renewed only through its snapshot never exercised the stream's own renewal.
  */
 export function summarizeM8(samples) {
   const result = {}
@@ -404,10 +405,15 @@ export function summarizeM8(samples) {
       resent: group.filter((s) => s.resent).length,
       oneRefresh: renewed.filter((s) => s.refreshes === 1).length,
       time: spread(renewed.map((s) => s.ms)),
+      ...(kind === 'feed' ? { met: { snapshot: metBy(group, 'snapshot'), stream: metBy(group, 'events') } } : {}),
     }
   }
   return result
 }
+
+/** How many rounds' expired token met the feed's `snapshot` or its stream (`events`). */
+const metBy = (group, last) =>
+  group.filter((s) => (s.refused ?? []).some((r) => new RegExp(`^GET /api/v1/projects/[^/]+/${last}$`).test(r))).length
 
 /** M6. Per view: its read failed (`failedReads` > 0) and it showed so, or fell silent; no failed read, not reached. */
 export function summarizeM6(samples) {

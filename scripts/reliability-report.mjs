@@ -398,15 +398,19 @@ function reloadRow(fx) {
   })
 }
 
-/** M8's rows, per kind: renewed without «signed out», sent again, one refresh of the renewed, the time; or not run. */
+/**
+ * M8's rows, per kind: renewed without «signed out», sent again, one refresh of the renewed, the time; for the feed,
+ * which of its requests met the expired token; or not run.
+ */
 const SESSION_KINDS = ['read', 'write', 'feed']
 function sessionRows(fx) {
   return SESSION_KINDS.map((kind) =>
     row(fx, `M8 · expired token while signed in · ${kind}`, () => {
       const c = fx.m8?.[kind]
       if (!c || c.n === 0) return 'not run'
+      const which = c.met ? ` · met: snapshot ${c.met.snapshot} · stream ${c.met.stream}` : ''
       const met = c.reached < c.n ? ` (the expired token met ${c.reached}/${c.n})` : ''
-      return `${c.renewed}/${c.n} renewed without «signed out» · ${c.resent}/${c.n} sent again · ${c.oneRefresh}/${c.renewed} renewed with one refresh · answer p50 ${ms(c.time.p50)} · p95 ${ms(c.time.p95)}${met}`
+      return `${c.renewed}/${c.n} renewed without «signed out» · ${c.resent}/${c.n} sent again · ${c.oneRefresh}/${c.renewed} renewed with one refresh · answer p50 ${ms(c.time.p50)} · p95 ${ms(c.time.p95)}${which}${met}`
     }),
   )
 }
