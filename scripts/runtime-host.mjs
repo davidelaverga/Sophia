@@ -16,7 +16,8 @@
  * executorDigestEnv }` (lib/service-overlay.mjs; the bundle's parseConfig must accept it). No other row, provider,
  * credential, route, cap or price is admitted, except the recorded llm-pi-ai row restated exactly with the
  * openai-conversation endpoint on numeric loopback, port 1-65535 (the same-host fake provider of the tests). The host
- * stages the admitted bytes in <root>/service-overlay.admitted.json (owner-only, removed at exit) and passes that copy,
+ * stages the admitted bytes in its own <root>/service-overlay.admitted.<pid>.<id>.json (owner-only, removed only by
+ * this invocation at exit, after its runtime is gone) and passes that copy,
  * never the operator's file, as dsh's --patch for the launch and every restart; it passes
  * exactly the variable that `executorDigestEnv` names (the EXPECTED executor closure, 64 hex) into the runtime's
  * environment; nothing else of the parent's is inherited. A missing, malformed or mismatched digest leaves the mode
@@ -24,7 +25,8 @@
  * or a digest variable that is reserved, unset or not 64 hex, is refused here, before anything starts. --print-executor-digest derives the closure the
  * runtime would advertise for this root and overlay, prints it and exits (no service, no credential). Print and launch
  * both take the root's supervisor lease first: a root a live runtime holds is refused before its profile is reconciled,
- * and the launch hands the lease to its supervisor in place.
+ * and the launch's supervisor adopts that same lease (ProjectLease) without removing it, so the root stays leased
+ * from preparation through the runtime's life.
  *
  * Every model route's credential (config/runtime-unit.json: model_route and model_routes, by credential_ref) is
  * passed to dsh by name only and never printed. The default route's is required; a research route whose credential
@@ -185,6 +187,7 @@ const supervisor = new RuntimeSupervisor({
   extraArgs,
   extraEnv: mock ? { MOCK_LLM_KEY: 'mock' } : service ? { [service.name]: service.value } : {},
   onEvent: (event) => console.log(JSON.stringify({ at: new Date().toISOString(), live: !mock, ...event })),
+  lease,
 })
 await supervisor.start()
 console.log(`runtime ${unit.id} ready against ${new URL(url).origin}${mock ? ' (REHEARSAL: mock model, not live evidence)' : ''}`)

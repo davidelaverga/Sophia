@@ -524,6 +524,16 @@ describe('conversation service crossing (real dsh service executor, API, worker,
     assert.equal(w.llm.requests[0].headers.authorization, `Bearer ${DUMMY_KEY}`)
     assert.deepEqual((await w.reservations(r)).map((v) => [v.state, v.used_calls]), [['settled', '1']])
     await w.until(async () => (await w.binding(r)) === 'retired', 'the retired binding')
+    // FND-B116 (B115-R2): the staged overlay is this invocation's own; its exit removes it and never another holder's
+    // (the shared pathname of the previous scheme, or another invocation's file).
+    const staged = readdirSync(w.layout.root).filter((name) => name.startsWith('service-overlay.admitted'))
+    assert.equal(staged.length, 1, staged.join(', '))
+    const others = ['service-overlay.admitted.json', 'service-overlay.admitted.1.next-holder.json']
+    for (const name of others) writeFileSync(join(w.layout.root, name), 'the next holder')
+    await w.stop()
+    assert.equal(existsSync(join(w.layout.root, staged[0])) && readFileSync(join(w.layout.root, staged[0]), 'utf8') !== 'the next holder', false, 'its own staged overlay is gone')
+    for (const name of others) assert.equal(readFileSync(join(w.layout.root, name), 'utf8'), 'the next holder', `${name} survives this exit`)
+    assert.equal(existsSync(join(w.layout.root, 'supervisor.lease')), false, 'the lease is released')
   })
 
   test('shipped runtime-host without --service-overlay: ready, no conversation role, no reply mode (default OFF)', async (t) => {

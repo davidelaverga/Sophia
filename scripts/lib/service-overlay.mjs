@@ -8,8 +8,8 @@
  * parsed by the bundle's own parseConfig, so nothing the bridge would refuse at start is printed or launched.
  */
 
-import { createHash } from 'node:crypto'
-import { closeSync, openSync, readFileSync, rmSync, writeSync } from 'node:fs'
+import { createHash, randomUUID } from 'node:crypto'
+import { closeSync, openSync, readFileSync, writeSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { isDeepStrictEqual } from 'node:util'
@@ -95,13 +95,15 @@ export function assertRecordedComposition(overlay, recorded) {
 /**
  * The admitted bytes, staged for dsh under the leased root (FND-B115, 4326076019): the launch, and every supervisor
  * restart, composes exactly what was admitted and digested, never the operator's file, which may change afterwards.
+ * The file is this invocation's own (FND-B116): its name carries this process and a fresh id, it is created
+ * exclusively, and only this invocation removes it, after its runtime is gone, so an old host's exit never removes or
+ * replaces the overlay of the host that holds the root after it.
  * @param {string} root - the project root, leased by this process.
  * @param {Buffer} bytes - the admitted overlay.
  * @returns {string} the staged file, owner-only.
  */
 export function stageAdmittedOverlay(root, bytes) {
-  const path = join(root, 'service-overlay.admitted.json')
-  rmSync(path, { force: true })
+  const path = join(root, `service-overlay.admitted.${process.pid}.${randomUUID()}.json`)
   const fd = openSync(path, 'wx', 0o600)
   try {
     writeSync(fd, bytes)

@@ -6,11 +6,12 @@
  */
 
 import assert from 'node:assert/strict'
-import { cpSync, existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { cpSync, existsSync, mkdtempSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
-import { LeaseHeldError, RuntimeSupervisor } from '../../apps/execution-host/dist/runtime-supervisor.js'
+import { LeaseHeldError, ProjectLease, RuntimeSupervisor } from '../../apps/execution-host/dist/runtime-supervisor.js'
 import { DSH_ENTRY, RUNTIME_DIR, loadRuntimeUnit } from '../../scripts/lib/common.mjs'
 import { assertRecordedArtifacts, homeLayout, installProfile } from '../../scripts/lib/profile.mjs'
 import { command, startFixtureService } from '../support/fixture-service.mjs'
@@ -99,6 +100,30 @@ test('supervisor: a second supervisor on the same project home is refused, in or
   assert.equal(second.pid, undefined, 'the refused supervisor launched nothing')
   assert.equal(s.supervisor.state, 'ready', 'the holder is unaffected')
   assert.ok(existsSync(join(s.root, 'supervisor.lease')), 'the refusal did not remove the holder lease')
+})
+
+test('supervisor: a lease taken before preparation is adopted as it is, never removed or recreated (FND-B116)', async (t) => {
+  const s = await setup(t)
+  const path = join(s.root, 'supervisor.lease')
+  const lease = ProjectLease.acquire(s.root)
+  const before = statSync(path).ino
+  // Another process cannot take the prepared home while the caller holds it.
+  const dist = new URL('../../apps/execution-host/dist/runtime-supervisor.js', import.meta.url).href
+  const other = spawnSync(process.execPath, ['--input-type=module', '-e',
+    `import { ProjectLease } from ${JSON.stringify(dist)}; try { ProjectLease.acquire(${JSON.stringify(s.root)}); process.exit(0) } catch (e) { console.log(e.constructor.name, e.pid); process.exit(3) }`], { encoding: 'utf8' })
+  assert.equal(other.status, 3, other.stdout + other.stderr)
+  assert.equal(other.stdout.trim(), `LeaseHeldError ${process.pid}`)
+  let atStarting = null
+  const adopted = s.make({ lease, onEvent: (event) => { if (event.type === 'state' && event.state === 'starting' && atStarting === null) atStarting = statSync(path).ino } })
+  t.after(() => adopted.stop().catch(() => {}))
+  await adopted.start()
+  assert.equal(atStarting, before, 'the same lease file at the supervisor start: never unlinked')
+  assert.equal(statSync(path).ino, before)
+  await assert.rejects(s.make({ lease }).start(), LeaseHeldError, 'one lease is adopted by one supervisor')
+  await assert.rejects(s.make().start(), LeaseHeldError, 'a second supervisor in this process is refused')
+  await adopted.stop()
+  assert.equal(existsSync(path), false, 'the adopting supervisor released it')
+  assert.equal(lease.active, false)
 })
 
 test('acceptance: after a crash the supervisor restarts the runtime and the bridge recovers the outstanding work', async (t) => {
