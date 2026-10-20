@@ -116,6 +116,24 @@ describe('goals and tasks in the search (docs/plans/search-goals.md)', () => {
     const many = Array.from({ length: 5 }, (_, i) => goal(`m${String(i)}`, `Report ${String(i)}`))
     assert.equal(localHits(many, undefined, 'report', health).length, 3)
   })
+
+  it('counts letters in code points, as the API does: one Deseret letter finds nothing, two find (4320173114)', () => {
+    const deseret = [goal('d1', '\u{10428}\u{10429} plan')]
+    assert.deepEqual(localHits(deseret, undefined, '\u{10428}', health), [])
+    assert.deepEqual(
+      localHits(deseret, undefined, '\u{10428}\u{10429}', health).map((h) => h.id),
+      ['d1'],
+    )
+  })
+
+  it('counts the query as typed, not as lowercased: one İ (two code points once lowercased) finds nothing, two letters find', () => {
+    const turkish = [goal('i1', 'İzmir plan')]
+    assert.deepEqual(localHits(turkish, undefined, 'İ', health), [])
+    assert.deepEqual(
+      localHits(turkish, undefined, 'İz', health).map((h) => h.id),
+      ['i1'],
+    )
+  })
 })
 
 describe('the words marked, and a long text cut around them', () => {

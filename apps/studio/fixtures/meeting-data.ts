@@ -242,6 +242,19 @@ export function markSeen(m: Meeting, sequence: string): void {
   for (const key of keysOf(everything(m))) m.seen.records.add(key)
 }
 
+/**
+ * `seen=earlier` (project-arrival-since.md): the viewer marked seen once the Oct 2 meeting was over, at the sequence
+ * before the page's first, so what came after it (the Oct 4 meeting, the project's own work) is new to them.
+ */
+export function seenEarlier(m: Meeting): void {
+  const oldest = PAST.at(-1)
+  if (!oldest) return
+  m.seen.sequence = '0'
+  for (const d of oldest.decided) m.seen.records.add(d.decisionId)
+  for (const n of oldest.noted) m.seen.records.add(n.entryId)
+  for (const o of oldest.open) m.seen.records.add(o.proposalId)
+}
+
 /** The meeting's work, running at close, finished now: a later outcome linked to it, the recap untouched. */
 export function finishedAfter(m: Meeting, made: Omit<AfterUpdate, 'at' | 'kind'>): void {
   if (!m.closedAt || !m.atClose?.work.some((w) => w.state === 'running')) return

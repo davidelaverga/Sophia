@@ -11,9 +11,26 @@ export interface Read {
   retry: () => void
 }
 
+/** The reads that failed, each said with Try again; nothing while none has. */
+export function FailedReads({ reads }: { reads: readonly Read[] }) {
+  const failed = reads.filter((r) => r.state === 'failed')
+  if (failed.length === 0) return null
+  return (
+    <div className="place-notices">
+      {failed.map((r) => (
+        <p key={r.failed} className="place-notice" role="alert">
+          {r.failed}
+          <button className="text-button" type="button" onClick={r.retry}>
+            Try again
+          </button>
+        </p>
+      ))}
+    </div>
+  )
+}
+
 export function ReadNotes({ reads }: { reads: readonly Read[] }) {
   const slow = useSlow(reads.some((r) => r.state === 'loading'))
-  const failed = reads.filter((r) => r.state === 'failed')
   return (
     <>
       {slow && (
@@ -21,18 +38,7 @@ export function ReadNotes({ reads }: { reads: readonly Read[] }) {
           {SLOW_NOTE}
         </p>
       )}
-      {failed.length > 0 && (
-        <div className="place-notices">
-          {failed.map((r) => (
-            <p key={r.failed} className="place-notice" role="alert">
-              {r.failed}
-              <button className="text-button" type="button" onClick={r.retry}>
-                Try again
-              </button>
-            </p>
-          ))}
-        </div>
-      )}
+      <FailedReads reads={reads} />
     </>
   )
 }

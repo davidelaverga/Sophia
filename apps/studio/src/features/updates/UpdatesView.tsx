@@ -8,6 +8,7 @@ import type { Membership, Snapshot } from '@sophia/contracts'
 import { Button, Icon, Menu, MenuItem, Segmented, usePopover, type SegmentedItem } from '@sophia/ui'
 import { ApiError } from '../../api/client.ts'
 import { getSince, listMeetings, markSeen, type MeetingSummary, type Since } from '../../api/vision.ts'
+import { retryRead } from '../../app/account-cache.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { canInvite } from '../access/useAccess.ts'
@@ -111,6 +112,12 @@ function useSinceRefused(projectId: string): number {
 const sinceRefusedNow = (client: QueryClient, projectId: string) =>
   client.setQueryData<number>(sinceRefusedKey(projectId), (at = 0) => Math.max(at, sinceOrder()))
 
+/**
+ * How «since» is asked again: as every read (retryRead), a proxy's 502/503 page included, but never after the door's
+ * refusal (401, 403), which asking again doesn't change and which is said at once (silent-views.md).
+ */
+const retrySince = (failures: number, error: unknown) => !closedDoor(error) && retryRead(failures, error)
+
 /** «Since you last looked»: the digest, and Mark as seen. */
 function SinceYouLooked({ projectId, identity, cursor, me }: SinceProps) {
   const client = useQueryClient()
@@ -126,7 +133,7 @@ function SinceYouLooked({ projectId, identity, cursor, me }: SinceProps) {
       return { window, readFrom }
     },
     placeholderData: keepPreviousData,
-    retry: false,
+    retry: retrySince,
   })
   const refusedAt = useSinceRefused(projectId)
   const shown = shownSince(since.data, since.isError && closedDoor(since.error), refusedAt)

@@ -6,6 +6,7 @@ import { draftsOnlyOf, forgetDrafts } from '../features/personal/draft.ts'
 import { cacheFor, cacheOf } from './account-cache.ts'
 import { accountOf } from './auth-callback.ts'
 import { forgetKept } from '../features/conversations/talk-store.ts'
+import { forgetHeld, heldOnlyOf } from './held-in-tab.ts'
 import { forgetProposals, proposalsKeptFor, proposalsOnlyOf } from '../features/work/planning/review-proposal.ts'
 import { setSignedIn } from './signed-in.ts'
 import { useAuth, type AuthState } from './auth.ts'
@@ -77,11 +78,21 @@ function useProposalsOnlyOfWhoIsIn(state: AuthState) {
 }
 
 /**
- * What a person had under way on this device: a project's conversations (talk-store.ts), unanswered proposals, and the
- * palette's «Recent» (palette-recent.ts).
+ * The tab keeps only the held writes (sent with no reply, held-in-tab.ts) of the account signed in, as it keeps its
+ * proposals: anyone else's go once the app knows who is in, all once it knows nobody is, none while it finds out.
+ */
+function useHeldOnlyOfWhoIsIn(state: AuthState) {
+  const who = proposalsKeptFor(state)
+  useEffect(() => heldOnlyOf(who), [who])
+}
+
+/**
+ * What a person had under way on this device: a project's conversations (talk-store.ts) and the writes the tab holds
+ * with no reply (held-in-tab.ts), unanswered proposals, and the palette's «Recent» (palette-recent.ts).
  */
 function forgetUnderWay() {
   forgetKept()
+  forgetHeld()
   forgetProposals()
   forgetRecent()
 }
@@ -164,7 +175,7 @@ const forgetAllDrafts = () => {
  * Signing out leaves nothing personal on this device: the cache, every message being written to Sophia, what was under
  * way in a project's conversations (talk-store.ts) and any review proposal still unanswered. `end` is this device's
  * sign-out or every device's (sign-out-scope.md); what stays here goes either way. One callback each, never a
- * parameter: the join page hands Sign out straight to a button, whose click would read as «everywhere».
+ * parameter: a Sign out handed straight to a button would read its click as «everywhere».
  */
 const leaving =
   (queryClient: ReturnType<typeof useAccountCache>, signedInAs: string | null) =>
@@ -188,7 +199,7 @@ const leaving =
 function JoinPage(props: {
   queryClient: ReturnType<typeof useAccountCache>
   join: Omit<ComponentProps<typeof JoinFlow>, 'onSignOut'>
-  onSignOut: () => void
+  onSignOut: () => Promise<boolean>
 }) {
   return (
     <QueryClientProvider client={props.queryClient}>
@@ -208,6 +219,7 @@ function AppBody() {
   const queryClient = useAccountCache(signedInAs)
   useRecentOnlyOf(signedInAs)
   useProposalsOnlyOfWhoIsIn(state)
+  useHeldOnlyOfWhoIsIn(state)
   // Who is in, for writes that outlive their part (signed-in.ts): set as it changes, cleared at once on leaving.
   useEffect(() => setSignedIn(signedInAs), [signedInAs])
   const wordsWent = useDraftsOnlyOfWhoIsIn(state)
@@ -231,7 +243,7 @@ function AppBody() {
   // ("Continue as …?") still comes first there, so the session it carries is accepted or declined, never lost.
   if (joinPage) {
     const join = { auth: state, onChooseDev: switchIdentity, onOpenProject: routing.open }
-    return <JoinPage queryClient={queryClient} join={join} onSignOut={() => void leaveSession()} />
+    return <JoinPage queryClient={queryClient} join={join} onSignOut={leaveSession} />
   }
   if (state.status === 'loading') return <Centered title="Sophia" busy />
   if (state.status === 'link_offer') {

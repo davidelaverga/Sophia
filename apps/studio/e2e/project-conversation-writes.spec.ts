@@ -213,6 +213,68 @@ test('writes · offline, a message held with no reply is not confirmed, never un
   expect(await written(page, 'conversation-message')).toHaveLength(1)
 })
 
+/** The keys each message reached the synthetic service with (`server=kept`'s journal), try by try. */
+const messageKeys = (page: Page) =>
+  page.evaluate(() => {
+    const journal: unknown = JSON.parse(sessionStorage.getItem('fixture.server.journal') ?? '[]')
+    return (Array.isArray(journal) ? journal : []).flatMap((w: unknown) =>
+      typeof w === 'object' && w !== null && String(Reflect.get(w, 'path')).endsWith('/messages')
+        ? [String(Reflect.get(w, 'key'))]
+        : [],
+    )
+  })
+/** What the tab keeps of the Studio's held writes (held-in-tab.ts), by its keys. */
+const heldInTab = (page: Page) =>
+  page.evaluate(() => Object.keys(sessionStorage).filter((k) => k.startsWith('sophia.held.v1:')))
+
+/** The page reloaded, and Marco and Lucía's conversation opened again. */
+async function reopenBriefs(page: Page) {
+  await page.reload()
+  await rows(page).filter({ hasText: 'Short or long briefs?' }).click()
+  await expect(open(page).getByRole('heading', { level: 3 })).toHaveText('Short or long briefs?')
+}
+
+test('writes · a message with no reply is offered again after a reload, and Send sends it under its key: one message (baseline gap #8)', async ({
+  page,
+}) => {
+  await openBriefs(page, '&send=lost&server=kept')
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await field(page).fill('Did this one land?')
+  await send(page).click()
+  await expect(open(page)).toContainText('Not confirmed: “Did this one land?”')
+  await reopenBriefs(page)
+  // The service holds it (it landed; its reply was lost), and the page says it may not be confirmed.
+  await expect(open(page)).toContainText('Not confirmed: “Did this one land?”')
+  await expect(field(page)).toHaveValue('')
+  await send(page).click()
+  await expect(open(page)).not.toContainText('Not confirmed')
+  await expect(messages(page).filter({ hasText: 'Did this one land?' })).toHaveCount(1)
+  expect(await written(page, 'conversation-message')).toEqual(['conversation-message:Did this one land?:no'])
+  const keys = await messageKeys(page)
+  expect(keys).toHaveLength(2)
+  expect(new Set(keys).size).toBe(1)
+  // Answered, it is let go: reloaded again, nothing is offered.
+  expect(await heldInTab(page)).toEqual([])
+  await reopenBriefs(page)
+  await expect(messages(page).filter({ hasText: 'Did this one land?' })).toHaveCount(1)
+  await expect(open(page)).not.toContainText('Not confirmed')
+})
+
+test('writes · a message on its way is kept in the tab until its reply lands; reloaded then, nothing is offered', async ({
+  page,
+}) => {
+  await openBriefs(page, '&send=slow&server=kept')
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await field(page).fill('Slow but sure.')
+  await send(page).click()
+  await expect.poll(() => heldInTab(page)).toHaveLength(1)
+  await expect(messages(page).last()).toContainText('Slow but sure.')
+  await expect.poll(() => heldInTab(page)).toEqual([])
+  await reopenBriefs(page)
+  await expect(messages(page).filter({ hasText: 'Slow but sure.' })).toHaveCount(1)
+  await expect(open(page)).not.toContainText('Not confirmed')
+})
+
 test('writes · words written while a message is on its way stay when it lands', async ({ page }) => {
   await openBriefs(page, '&send=slow')
   await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()

@@ -2533,8 +2533,14 @@
 }
 .places .c3-archived-list li {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 0 12px;
   min-height: 32px;
+}
+/* A failed Unarchive takes its own line under the row: the title and its press stay in sight. */
+.places .c3-archived-list .form-error {
+  flex-basis: 100%;
+  margin: 0 0 4px;
 }

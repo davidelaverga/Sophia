@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { beforeEach, describe, it } from 'node:test'
 import type { Since } from '../../api/vision.ts'
 import {
+  arrivalOf,
   freshIn,
   linesOf,
   markPending,
@@ -212,5 +213,69 @@ describe('what changed since you last looked, said once (home-since-you-looked.m
       '0000000a-0000-4000-8000-0000000000ab',
     )
     assert.equal(readerOf('fixture-token'), null)
+  })
+})
+
+// The arrival line in a project (docs/plans/project-arrival-since.md): Home's news and memory, said under the bar.
+describe('what changed since you last looked, said as the person arrives in a project (project-arrival-since.md)', () => {
+  const PROJECT = uuid(11)
+  const at = (over: Partial<Parameters<typeof arrivalOf>[2]> = {}) => ({
+    said: {},
+    reader: READER,
+    pending: [],
+    ...over,
+  })
+
+  it('says others’ decisions and report in words, and keeps the window’s lines whole', () => {
+    const w = window({ decided: [decided(1, { decidedBy: MARCO }), decided(2)], made: [made(3)], open: [] })
+    assert.deepEqual(arrivalOf(PROJECT, w, at()), {
+      words: 'Since you last looked: 2 decisions and a new report.',
+      lines: { [PROJECT]: linesOf(w) },
+    })
+  })
+
+  it('says nothing for an empty window, one never marked seen, or one naming nothing decided, made or kept', () => {
+    assert.equal(arrivalOf(PROJECT, window(), at()), null)
+    assert.equal(arrivalOf(PROJECT, { ...twoDecided, fromSequence: null }, at()), null)
+    const proposals = window({ open: [{ proposalId: uuid(4), statement: 'Map first' }] })
+    assert.equal(arrivalOf(PROJECT, proposals, at()), null)
+  })
+
+  it('what the reader did is no news to them; a decision they proposed and another took is', () => {
+    const theirs = window({
+      decided: [decided(1, { decidedBy: READER })],
+      made: [made(3, READER)],
+      noted: [noted(5, READER)],
+    })
+    assert.equal(arrivalOf(PROJECT, theirs, at()), null)
+    const proposed = window({ decided: [decided(1, { proposedBy: READER, decidedBy: MARCO })], noted: [noted(5)] })
+    assert.equal(arrivalOf(PROJECT, proposed, at())?.words, 'Since you last looked: a decision and a note kept.')
+  })
+
+  it('what was said on Home or shown in Updates for this project is not said again; another project’s is no matter', () => {
+    const w = window({ decided: [decided(1), decided(2)], noted: [noted(5), noted(6)] })
+    assert.equal(arrivalOf(PROJECT, w, at({ said: { [PROJECT]: linesOf(w) } })), null)
+    const some = at({ said: { [PROJECT]: [`d:${uuid(1)}`, `n:${uuid(5)}`] } })
+    assert.equal(arrivalOf(PROJECT, w, some)?.words, 'Since you last looked: a decision and a note kept.')
+    // Kept once said: the whole window, the lines said before among them.
+    assert.deepEqual(arrivalOf(PROJECT, w, some)?.lines, { [PROJECT]: linesOf(w) })
+    const elsewhere = at({ said: { [uuid(12)]: linesOf(w) } })
+    assert.equal(arrivalOf(PROJECT, w, elsewhere)?.words, 'Since you last looked: 2 decisions and 2 notes kept.')
+  })
+
+  it('says nothing while the project’s call read is pending (Codex P2 on #468)', () => {
+    assert.equal(arrivalOf(PROJECT, twoDecided, at({ pending: [PROJECT] })), null)
+    assert.equal(
+      arrivalOf(PROJECT, twoDecided, at({ pending: [uuid(12)] }))?.words,
+      'Since you last looked: 2 decisions.',
+    )
+  })
+
+  it('names every kind it has, then whether more lies after the window', () => {
+    const w = window({ decided: [decided(1)], made: [made(3), made(4)], noted: [noted(5)], more: true })
+    assert.equal(
+      arrivalOf(PROJECT, w, at())?.words,
+      'Since you last looked: a decision, 2 new reports, a note kept and more.',
+    )
   })
 })

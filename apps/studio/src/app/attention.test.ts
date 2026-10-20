@@ -51,6 +51,8 @@ describe('the attention flag (A15, A34)', () => {
     assert.match(since, /\{ here, inCall, covered, theirs, enabled = SINCE_SHOWN \}: SinceOptions/)
     // And a call's project once the call ends, wherever the person is (SignedIn), under the same flags.
     assert.match(since, /useCallSeen\(identity: Account, call: string \| null, enabled = SINCE_SHOWN\)/)
+    // And a project's own window as the person arrives in it, under the same flags (project-arrival-since.md).
+    assert.match(since, /\{ drawn, inCall, atUpdates, welcomed, enabled = SINCE_SHOWN \}: ArrivalOptions/)
   })
 
   it('opens the Updates view, in the nav, the commands and the address, and nothing else of the project', () => {
