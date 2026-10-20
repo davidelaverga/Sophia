@@ -86,7 +86,8 @@ that their scenario ran, never today's numbers.
   `stallStream`, `gap`), in `feed.spec.ts`: from the lever to the header's «Up to date» through «Reconnecting» (M3:
   the stream ended ×3, silenced ×1) or «Catching up» (M4: a skipped sequence ×3), and from the network back to «Up to
   date» after the feed's third refused ask. On a page without the levers each scenario is recorded as not run, and
-  M3/M4 stay listed as not measurable. M5 and M9 wait for their levers.
+  M3/M4 stay listed as not measurable. M9 waits for its lever.
+- **M5 · a dropped call's way back** (`rejoin.spec.ts`; see «M5, a dropped call's way back» below).
 - **M8 · session through sleep**: an expired token while signed in, per kind (`session.spec.ts`; see «M8 and M2 across
   a reload» below).
 
@@ -229,8 +230,68 @@ reload case (`reliability-held-on-reload.md`) is checked by `project-conversatio
   round, p50 115 / p95 131 ms. No round asked a second refresh once quiet. M2r: 6/6 offered again, 6/6 resent once
   under the same key, written twice 0, resolved 6/6, p50 7 ms; M2's first line 5/5, unchanged.
 
+## M5, a dropped call's way back
+
+> 2026-10-20 · source: the report's own «M5 (call re-join): not in this suite yet», after #475 (`call-rejoin.md`: a
+> dropped call tries once to rejoin) · Luis 2026-10-20: «Procede con el próximo lote», and earlier «Lo que no se mide,
+> no se puede mejorar». Tooling and the measuring suite only: nothing the person sees changes.
+
+**Checked against the code first.** `NOT_YET` said «not in this suite yet (linkLost/drop levers exist)»; since #475
+the room's fixture page (`room.html?call=on`, `fixtures/room.tsx`, `fake-livekit.ts`) has every lever the cases need:
+`drop()` (LiveKit gives up, `dropped`), `failToken()` (the next room token refused once), `holdToken(on)`,
+`holdConnect(on)`, `linkLost(lost)` and `mutedByHost()`; `served` lists each `room-token` asked, `asked` each
+`connect` and `microphone:on`. `room.spec.ts`'s BASE-03 checks hold the behaviour (one try within 10 s, offline waits
+for `online`, a failed try says «You were disconnected from the room.» with Try again, the microphone cases of the
+four reviews); they assert it, and time nothing.
+
+- **The scenarios** (`rejoin.spec.ts`, 5, 3 rounds each, every round in a new browser context: a call tries once per
+  drop in two minutes, so a round in the same page would meet the last round's try). An init script records each
+  change of the dock in the page with `performance.now()`: in the call (the dock's Microphone shown) and the words of
+  its notes (`.dock-note`), and the moment `online` fires. **Live** is the first moment the Microphone shows again after
+  it went. **Tries** are the room tokens asked after the drop, read once the round settled («Reconnected.» gone, its
+  4 s, and one more second).
+  - **online:** `drop()` → back without a press; the time from the lever (pulled in the page as the clock starts) to
+    live; tries; how many times the notes began to say «Reconnected.».
+  - **offline:** offline, `drop()`, the waiting line, a second; the tokens asked so far (none expected); online → the
+    time from `online` to live; tries; «Reconnected.» said.
+  - **failed:** `failToken()` and `drop()` → the dropped words and Try again; then 3 s more, in which a second try on
+    its own would have asked its token; tries.
+  - **the microphone (privacy invariant):** a round per case, its microphone off before the drop in the call (muted from
+    the dock; muted during «Reconnecting…», `linkLost(true)`; muted by an admin) or by this device's choice
+    (`sophia.mic.v1` «off» since, with it on in the call; «off» chosen during an offline wait; «off» chosen after a
+    failed try, then Try again). A **violation** is any `microphone:on` the connection was asked after the drop, or the
+    Microphone shown on once back, waited a second for. A **control** (on in the call, the choice on) must come back on:
+    it shows the check sees one.
+- **The report, per case:** online and offline, back n/N, p50/p95 of the time, one try n/N, «Reconnected.» said once
+  n/N (offline also «no try while offline»); failed, said with Try again n/N, one try n/N, a second try on its own;
+  the microphone, violations of the rounds whose call or choice had it off (back in or not), the control's rounds
+  back on, and a table per case. **A metric of its own** (`M5 · ` titles, in `FIXTURE_METRICS`): a run that misses an
+  M5 scenario gives «incomplete: n of N» on its four rows, no M5 table, and exits 1; M5 leaves `NOT_YET`.
+- **Checks, written first** (`tests/unit/reliability-report.test.mjs`): `summarizeM5` (a round back after two tries,
+  «Reconnected.» said twice, one not back; a token asked offline; a failed try tried twice, one said nothing; a
+  microphone turned on by a round not back counted; the control), and the script on a fake suite (an M5 scenario
+  listed with no record gives «incomplete: 0 of 1» on each row and exits non-zero; with one, its rows, and «M5 (call
+  re-join)» gone from «Not measurable yet»). Red before the code: the file did not load (`summarizeM5` not exported);
+  the script's check, run apart without that import, «the script exits non-zero» (M5 not yet a fixture metric).
+- **The check can see a violation** (a control mutant, not committed): with the drop's microphone not carried to the
+  try (`room.stand(undefined)` in `useProjectRoom.ts`), the try's rounds counted 3 violations of 12: «muted by an
+  admin» 3/3 (the admin's mute never writes this device's choice, so the try joined by the stored «on»); muted from
+  the dock stays off even so, since the dock's mute writes the choice. The control came back on 3/3, as without the
+  mutant. Reverted; the run's log is `pw-logs/m5-rejoin-mutant-5.txt`.
+- **First numbers** (the whole suite through the guard, 39/39 scenarios in 5.2 min, report exit 0, nothing
+  incomplete, code at `124c79f7c`): **online** 3/3 back without a press, drop → live p50 67 ms / p95 173 ms (38, 67,
+  185 ms), one try 3/3, «Reconnected.» said once 3/3; **offline** 3/3 back, no token asked while offline 3/3, online →
+  live p50 134 / p95 198 ms (105, 134, 205 ms), one try 3/3, said once 3/3; **failed try** 3/3 said «You were
+  disconnected from the room.» with Try again, one try 3/3, a second try on its own 0; **the microphone** 0
+  violations in 18 rounds (6 cases × 3, all back in), control 3/3 back on. Earlier tries of the whole suite were
+  stopped by the guard for memory (Blender, and WSL's 6.7 GB), never by a scenario.
+
 ## Limits
 
+- **M5 is the fixture's LiveKit:** a drop is `fixture.drop()`, so the time is what the Studio adds (the try's token,
+  its join, the dock), never LiveKit's own ~44 s of tries before it says `dropped`, nor a real server's answer.
+  «No second try» is watched for 3 s; the rule's two minutes are held by the unit checks (`call-rejoin.test.ts`).
+  The microphone is read from what the connection was asked and the dock shows, not from a track.
 - M8's three kinds are one view each (Conversations, Studio); a renewal elsewhere follows the same `apiFetch`, but is
   not timed.
 - **M8 · feed has never exercised the stream's own renewal** (`stream.ts`): in every measured round the expired token
