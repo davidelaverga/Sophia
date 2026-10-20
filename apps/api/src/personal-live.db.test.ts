@@ -1584,6 +1584,7 @@ describe('the completed-call fence’s gaps (FND-C62)', () => {
       assert.deepEqual(await usage('c62-f1-payer'), [], 'nothing reserved')
     } finally {
       await owner(migration('0079_personal_completed_call_fence.sql'))
+      await owner(migration('0080_personal_unusable_completion_fence.sql')) // the latest reservation again
     }
   })
 
@@ -1863,5 +1864,68 @@ describe('the actual server process: SIGTERM, then SIGINT, while an accepted ans
     } finally {
       if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
     }
+  })
+})
+
+// FND-C67 (finding 4321368164): a call that completed with known usage but no storable reply (here a U+0000 body).
+describe('a completed call with known usage and no usable reply (FND-C67)', () => {
+  it('fences its turn: a same-turn retry asks and pays nothing more; a new turn is answered once', async () => {
+    const MAY = randomUUID()
+    await owner(
+      `INSERT INTO sophia.personal_companion_payers(payer, owner_id, allowance_micros) VALUES ('c67-payer', $1, 1000000)`,
+      [MAY],
+    )
+    const at = await liveApi('c67-payer', MAY)
+    const sentBefore = recorded().length
+    double.script({ text: 'Bad\u0000body', usage: { input_tokens: 10, output_tokens: 5 } })
+    await write(at, '/api/v1/personal/turns', MAY, { text: 'Answer me.' })
+    const asked = (await settled(at, MAY)).turns.find((t) => t.author === 'person')
+    assert.ok(asked)
+    const kept = async () =>
+      (
+        await owner<{ n: number }>(`SELECT count(*)::int n FROM sophia.personal_settled_answers WHERE owner_id=$1`, [
+          MAY,
+        ])
+      )[0]?.n
+    const first = {
+      reply: asked.reply,
+      usage: (await usage('c67-payer')).map((r) => [r.state, r.reason, r.used_micros]),
+      kept: await kept(),
+      requests: recorded().length - sentBefore,
+    }
+    // The same turn asked again, a fresh key; the double would answer it validly.
+    double.script({ text: 'A valid second answer.', usage: { input_tokens: 10, output_tokens: 5 } })
+    await write(at, `/api/v1/personal/turns/${asked.id}/retry`, MAY, {})
+    const again = await settled(at, MAY)
+    for (let i = 0; i < 40 && recorded().length - sentBefore < 2; i++) await pause(50)
+    const retried = {
+      reply: again.turns.find((t) => t.id === asked.id)?.reply,
+      sophia: again.turns.filter((t) => t.author === 'sophia').length,
+      usage: (await usage('c67-payer')).map((r) => [r.state, r.reason, r.used_micros]),
+      requests: recorded().length - sentBefore,
+    }
+    console.log(`C67 witness ${JSON.stringify({ first, retried })}`)
+    assert.deepEqual(
+      [first.reply, first.kept, first.requests],
+      ['failed', 0, 1],
+      'the unusable completion: failed, none kept',
+    )
+    assert.equal(first.usage.length, 1, 'its known cost settled once')
+    assert.equal(retried.requests, 1, 'no second generation for the same turn')
+    assert.equal(retried.usage.length, 1, 'no second reservation or cost')
+    assert.equal(retried.sophia, 0, 'no reply made up')
+    // A genuinely new turn is answered, once, under its own admission.
+    await write(at, '/api/v1/personal/turns', MAY, { text: 'Something new.' })
+    const fresh = await settled(at, MAY)
+    assert.equal(fresh.turns.filter((t) => t.author === 'sophia').length, 1)
+    assert.equal(recorded().length - sentBefore, 2, 'the new turn asked once')
+    // The usable answer's cost carries no without-answer class: kept, then written (R2 v2 ledger control).
+    assert.deepEqual(
+      (await usage('c67-payer')).map((r) => [r.state, r.reason]),
+      [
+        ['settled', 'settled_without_answer'],
+        ['settled', null],
+      ],
+    )
   })
 })
