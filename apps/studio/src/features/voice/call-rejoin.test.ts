@@ -238,6 +238,43 @@ describe('one try back into a dropped call', () => {
     assert.equal(h.joins.length, 0)
   })
 
+  it('a page that froze once counts as live again once it runs steadily (Codex P2 on #475)', () => {
+    const h = harness()
+    h.rejoin.live()
+    for (let beat = 0; beat < 3; beat += 1) {
+      h.pass(LIVE_BEAT_MS)
+      h.rejoin.beat()
+    }
+    h.jump(30_000) // frozen or throttled in the background: no beat for 30 s
+    h.rejoin.beat()
+    for (let beat = 0; beat < 36; beat += 1) {
+      h.pass(LIVE_BEAT_MS)
+      h.rejoin.beat()
+    }
+    h.rejoin.ended('dropped')
+    assert.equal(h.joins.length, 1, 'three minutes in the foreground since: the call is live')
+  })
+
+  it('never for a laptop that woke into a dead link: LiveKit finds it before the beats count again', () => {
+    const h = harness()
+    h.rejoin.live()
+    for (let beat = 0; beat < 12; beat += 1) {
+      h.pass(LIVE_BEAT_MS)
+      h.rejoin.beat()
+    }
+    h.jump(60 * MIN) // the lid closed for an hour
+    h.rejoin.beat() // the beat due while asleep runs as the page wakes
+    // LiveKit's pong timer (15 s) is long past due and fires as the page wakes too: the room goes to «Reconnecting…»,
+    // where no beat runs, well within 25 s.
+    for (let beat = 0; beat < 5; beat += 1) {
+      h.pass(LIVE_BEAT_MS)
+      h.rejoin.beat()
+    }
+    h.pass(50_000) // LiveKit's own tries, then `dropped`
+    h.rejoin.ended('dropped')
+    assert.equal(h.joins.length, 0)
+  })
+
   it('offline, waits for the network, once, then tries once', async () => {
     const h = harness(false)
     h.rejoin.live()
