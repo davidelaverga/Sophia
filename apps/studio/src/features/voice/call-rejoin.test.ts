@@ -43,11 +43,12 @@ describe('when a call that ended tries to come back on its own (call-rejoin.md)'
     assert.equal(rejoinPlan({ ...dropped, triedAt: dropped.now - REJOIN_WINDOW_MS }), 'now', 'a later drop tries again')
   })
 
-  it('is seen live on each beat while the page runs, and stays as old as it was after a gap past the window', () => {
+  it('is seen live on each beat while the page runs, and stays as old as it was after any longer gap (review P3)', () => {
     assert.equal(LIVE_BEAT_MS, 5000)
     assert.equal(stillSeen(1000, 1000 + LIVE_BEAT_MS), 1000 + LIVE_BEAT_MS)
-    assert.equal(stillSeen(1000, 1000 + 60_000), 61_000, 'a background tab’s minute of throttled timers still counts')
-    assert.equal(stillSeen(1000, 1000 + REJOIN_WINDOW_MS + 1), 1000, 'a lid closed longer than the window')
+    assert.equal(stillSeen(1000, 1000 + 2 * LIVE_BEAT_MS), 1000 + 2 * LIVE_BEAT_MS, 'one beat late still counts')
+    assert.equal(stillSeen(1000, 1000 + 2 * LIVE_BEAT_MS + 1), 1000, 'the page didn’t run in between')
+    assert.equal(stillSeen(1000, 1000 + 60_000), 1000, 'a minute without a beat is a page asleep, not a live call')
     assert.equal(stillSeen(null, 5000), null)
   })
 
@@ -78,6 +79,8 @@ function harness(online = true) {
     online,
     /** Another tab of this browser holds the call. */
     elsewhere: false,
+    /** The next join rejects instead of answering. */
+    throws: false,
     back: [] as (() => void)[],
     timers: [] as { at: number; run: () => void }[],
   }
@@ -88,9 +91,10 @@ function harness(online = true) {
   const stills: ((() => boolean) | undefined)[] = []
   const rejoin = new Rejoin({
     join: (still?: () => boolean) =>
-      new Promise<boolean>((answer) => {
+      new Promise<boolean>((answer, refuse) => {
         joins.push(answer)
         stills.push(still)
+        if (t.throws) refuse(new Error('the join threw'))
       }),
     say: (note) => said.push(note),
     show: (step) => shown.push(step),
@@ -137,6 +141,10 @@ function harness(online = true) {
     },
     goOffline: () => {
       t.online = false
+    },
+    /** The joins from now on reject. */
+    joinsThrow: () => {
+      t.throws = true
     },
     /** Another tab of this browser joins the call, or leaves it. */
     otherTab: (inCall: boolean) => {
@@ -370,6 +378,18 @@ describe('a try never takes the call from another tab of this browser (review P2
     assert.equal(h.stills[0]?.(), true)
     h.otherTab(true)
     assert.equal(h.stills[0]?.(), false)
+  })
+})
+
+describe('a try whose join throws (review P3)', () => {
+  it('is a failed try: the lost call is said, and nothing more is tried', async () => {
+    const h = harness()
+    h.joinsThrow()
+    h.rejoin.live()
+    h.rejoin.ended('dropped')
+    await settle()
+    assert.deepEqual(h.shown, ['trying', null])
+    assert.deepEqual(h.said, [CALL_END.dropped.note])
   })
 })
 

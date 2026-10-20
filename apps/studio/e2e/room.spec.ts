@@ -318,17 +318,21 @@ test('BASE-03 · a dropped call rejoins on its own within 10 s, once, and says s
   await expect(polite).toHaveText('')
   await polite.evaluate((el) => el.setAttribute('data-before', ''))
   const [connected, asking] = [await connects(page), (await tokens(page)).length]
+  const hellos = async () => (await asked(page)).filter((a) => a === 'text:off').length
+  const said = await hellos()
   const dropped = Date.now()
   await page.evaluate(() => window.fixture?.drop())
   await expect.poll(() => connects(page), { timeout: 10_000, message: 'a new connection' }).toBe(connected + 1)
   await expect(microphone(page)).toBeVisible()
   expect(Date.now() - dropped, 'back in within 10 s, nothing pressed').toBeLessThan(10_000)
-  const said = page.locator('.dock-wrap > p[data-before]')
-  await expect(said).toHaveText('Reconnected.')
+  // Back in, the new call says its mode to Sophia, as every join does (CX-0022): the bridge sends the cards again.
+  await expect.poll(hellos).toBe(said + 1)
+  const line = page.locator('.dock-wrap > p[data-before]')
+  await expect(line).toHaveText('Reconnected.')
   await expect(page.locator('.dock-wrap [role="alert"]')).toHaveCount(0)
   await expect(page.getByRole('dialog', { name: 'This meeting' })).toHaveCount(0) // a drop is no Leave: no recap
   expect(await tokens(page), 'a fresh token').toHaveLength(asking + 1)
-  await expect(said).toHaveText('', { timeout: 10_000 }) // said once, then gone
+  await expect(line).toHaveText('', { timeout: 10_000 }) // said once, then gone
   expect(await tokens(page), 'one try').toHaveLength(asking + 1)
 })
 
@@ -479,6 +483,38 @@ test('BASE-03 · a dropped call never comes back on its own while another tab of
   await page.evaluate(() => window.fixture?.drop())
   await expect.poll(() => tokens(page).then((t) => t.length)).toBe(back + 1)
   await expect(microphone(page)).toBeVisible()
+})
+
+test('BASE-03 · Leave while a call waits offline to come back leaves the room at rest: a Join then says the rest’s line (review P3)', async ({
+  page,
+  context,
+}) => {
+  await enter(page, '/room.html?call=on')
+  await context.setOffline(true)
+  await page.evaluate(() => window.fixture?.drop())
+  await expect(page.locator('.dock-wrap .dock-note')).toHaveText(OFFLINE_REJOIN)
+  await controls(page).getByRole('button', { name: 'Leave the room' }).click()
+  const join = controls(page).getByRole('button', { name: /^Join the room/ })
+  await expect(join).toBeEnabled()
+  await join.click()
+  await expect(page.locator('.dock-wrap .dock-note')).toHaveText('You’re offline. Join once you’re back.')
+})
+
+test('BASE-03 · back in on its own with the focus on Leave, the focus stays on the dock’s Leave (review P3)', async ({
+  page,
+}) => {
+  await enter(page, '/room.html?call=on')
+  await page.evaluate(() => {
+    window.fixture?.holdToken(true)
+    window.fixture?.holdToken(true) // held twice, the token still answers once let go
+    window.fixture?.drop()
+  })
+  const stop = controls(page).getByRole('button', { name: 'Leave the room' })
+  await stop.focus()
+  await expect(stop).toBeFocused()
+  await page.evaluate(() => window.fixture?.holdToken(false))
+  await expect(microphone(page)).toBeVisible()
+  await expect(controls(page).getByRole('button', { name: 'Leave the room' })).toBeFocused()
 })
 
 test('BASE-03 · another tab, being taken out and a closed room never rejoin on their own', async ({ page }) => {

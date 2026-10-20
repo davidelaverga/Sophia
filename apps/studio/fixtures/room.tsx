@@ -1063,7 +1063,8 @@ window.fixture = {
   },
   holdToken: (on) => {
     const held = project.tokenHeld ?? []
-    project.tokenHeld = on ? [] : null
+    // Held twice, the tokens already waiting keep waiting: none is dropped unanswered.
+    project.tokenHeld = on ? held : null
     if (!on) for (const answer of held) answer()
   },
   failEdit: () => {

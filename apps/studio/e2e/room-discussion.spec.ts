@@ -308,6 +308,22 @@ test('discussion · a message begun for Sophia is held when she can’t take it,
   expect(await toRoom(page)).toEqual(['contribution:discuss'])
 })
 
+test('discussion · a message begun for Sophia, through a drop that comes back on its own, stays hers and unsent (call-rejoin.md)', async ({
+  page,
+}) => {
+  await enter(page, 'exchange=open')
+  await bar(page).fill('Still meant for Sophia.')
+  const connects = async () => (await view(page)).asked.filter((a) => a === 'connect').length
+  const before = await connects()
+  await page.evaluate(() => window.fixture?.drop())
+  await expect.poll(connects).toBe(before + 1)
+  await expect(leave(page)).toBeVisible()
+  await expect(bar(page)).toHaveValue('Still meant for Sophia.')
+  await expect(target(page)).toHaveText(/^To Sophia/)
+  expect(await toRoom(page), 'nothing moved to the room').toEqual([])
+  expect(await toSophia(page), 'nothing sent on its own').toEqual([])
+})
+
 test('discussion · two Enters in a row post the message once', async ({ page }) => {
   await enter(page, 'people=2&floor=1')
   await bar(page).fill('Just once.')
