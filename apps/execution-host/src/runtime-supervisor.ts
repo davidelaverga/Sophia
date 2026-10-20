@@ -22,7 +22,7 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import type { ChildProcess } from 'node:child_process'
-import { closeSync, constants, existsSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeSync } from 'node:fs'
+import { closeSync, constants, existsSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeSync } from 'node:fs'
 import type { Stats } from 'node:fs'
 import { delimiter, dirname, join, resolve, sep } from 'node:path'
 
@@ -115,18 +115,13 @@ export class ProjectLease {
     const path = join(projectRoot, 'supervisor.lease')
     mkdirSync(projectRoot, { recursive: true, mode: 0o700 })
     if (heldInProcess.has(path)) throw new LeaseHeldError(`project home ${projectRoot} is leased by another supervisor in this process`)
-    if (existsSync(path)) {
-      const pid = Number(readFileSync(path, 'utf8').trim())
-      if (Number.isSafeInteger(pid) && pid > 0 && pid !== process.pid && isAlive(pid)) {
-        throw new LeaseHeldError(`project home ${projectRoot} is leased by live supervisor pid ${pid}`, pid)
-      }
-      rmSync(path, { force: true })
-    }
-    const fd = openSync(path, 'wx', 0o600)
+    if (leaseState(path).state !== 'absent') takeOverStale(projectRoot, path)
     try {
-      writeSync(fd, `${process.pid}\n`)
-    } finally {
-      closeSync(fd)
+      createLease(path)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+      const now = leaseState(path)
+      throw new LeaseHeldError(`project home ${projectRoot} was leased by another process meanwhile`, now.state === 'live' ? now.pid : undefined)
     }
     heldInProcess.add(path)
     return new ProjectLease(projectRoot, path)
@@ -353,6 +348,68 @@ export class RuntimeSupervisor {
     this.releaseLease()
     this.setState('stopped')
     return result
+  }
+}
+
+/**
+ * Create the lease holding this process's pid, or throw EEXIST (FND-B117): the pid is written to a private file first,
+ * which is then linked to the lease path. link() never replaces an existing path, so the lease appears with its pid
+ * already in it; there is no moment at which a contender can read an empty lease as stale.
+ */
+function createLease(path: string): void {
+  const draft = `${path}.${process.pid}.${randomUUID()}.new`
+  const fd = openSync(draft, 'wx', 0o600)
+  try {
+    writeSync(fd, `${process.pid}\n`)
+  } finally {
+    closeSync(fd)
+  }
+  try {
+    linkSync(draft, path)
+  } finally {
+    rmSync(draft, { force: true })
+  }
+}
+
+/** The lease file at `path`: absent, held by another live process, or stale (its process gone, or this process's). */
+function leaseState(path: string): { state: 'absent' } | { state: 'live'; pid: number } | { state: 'stale' } {
+  let text: string
+  try {
+    text = readFileSync(path, 'utf8')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { state: 'absent' }
+    throw error
+  }
+  const pid = Number(text.trim())
+  return Number.isSafeInteger(pid) && pid > 0 && pid !== process.pid && isAlive(pid) ? { state: 'live', pid } : { state: 'stale' }
+}
+
+/**
+ * Remove a stale lease so it can be taken (FND-B117). Two contenders may both read the same stale lease, so the
+ * decision is made again, and the removal done, only while holding `<lease>.takeover`, a directory one process at a
+ * time can create. The lease is removed only if that second read still finds it present and stale: a file at the path
+ * is replaced only by being removed first, and nothing but a takeover marker holder removes another process's lease
+ * (release() removes only this process's), so the file read is the file removed. A contender that read the same
+ * stale lease finds, once it holds the marker, either the new live holder (refused) or no lease (both then race on
+ * the exclusive create, one wins). A marker left by a process that died inside this step blocks stale takeovers of
+ * that home until an operator removes it; a home with no lease file is unaffected.
+ */
+function takeOverStale(projectRoot: string, path: string): void {
+  const first = leaseState(path)
+  if (first.state === 'live') throw new LeaseHeldError(`project home ${projectRoot} is leased by live supervisor pid ${first.pid}`, first.pid)
+  const marker = `${path}.takeover`
+  try {
+    mkdirSync(marker, { mode: 0o700 })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+    throw new LeaseHeldError(`project home ${projectRoot}'s stale lease is being taken over by another process (${marker})`)
+  }
+  try {
+    const again = leaseState(path)
+    if (again.state === 'live') throw new LeaseHeldError(`project home ${projectRoot} is leased by live supervisor pid ${again.pid}`, again.pid)
+    if (again.state === 'stale') rmSync(path)
+  } finally {
+    rmSync(marker, { recursive: true, force: true })
   }
 }
 

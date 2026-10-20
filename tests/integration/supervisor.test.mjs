@@ -6,8 +6,8 @@
  */
 
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
-import { cpSync, existsSync, mkdtempSync, rmSync, statSync } from 'node:fs'
+import { spawn, spawnSync } from 'node:child_process'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
@@ -124,6 +124,129 @@ test('supervisor: a lease taken before preparation is adopted as it is, never re
   await adopted.stop()
   assert.equal(existsSync(path), false, 'the adopting supervisor released it')
   assert.equal(lease.active, false)
+})
+
+// FND-B117 (4326835670): one contender in its own process, through the public ProjectLease.acquire. With `gate` set
+// and `at` = 'read', its first read of the lease file returns and then waits for `<gate>.go` (the read-then-replace
+// interval of a stale takeover); with `at` = 'create', the call that creates the lease path (an exclusive open, or a
+// link onto it) returns and then waits (the interval between creating the lease and recording its pid). It prints its
+// outcome and keeps what it took until `done` exists.
+const CONTENDER = `
+  import fs, { existsSync, writeFileSync } from 'node:fs'
+  import { syncBuiltinESMExports } from 'node:module'
+  const [dist, root, gate, done, at] = process.argv.slice(1)
+  const pause = () => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10)
+  const hold = () => {
+    writeFileSync(gate + '.held', '')
+    while (!existsSync(gate + '.go')) pause()
+  }
+  if (gate && at === 'create') {
+    const open = fs.openSync
+    const link = fs.linkSync
+    fs.openSync = (...args) => {
+      const fd = open(...args)
+      if (String(args[0]).endsWith('supervisor.lease')) hold()
+      return fd
+    }
+    fs.linkSync = (...args) => {
+      link(...args)
+      if (String(args[1]).endsWith('supervisor.lease')) hold()
+    }
+    syncBuiltinESMExports()
+  } else if (gate) {
+    const read = fs.readFileSync
+    let held = false
+    fs.readFileSync = (...args) => {
+      const out = read(...args)
+      if (!held && String(args[0]).endsWith('supervisor.lease')) {
+        held = true
+        hold()
+      }
+      return out
+    }
+    syncBuiltinESMExports()
+  }
+  const { ProjectLease } = await import(dist)
+  let lease = null
+  try {
+    lease = ProjectLease.acquire(root)
+    console.log(JSON.stringify({ owned: true, pid: process.pid }))
+  } catch (error) {
+    console.log(JSON.stringify({ owned: false, pid: process.pid, error: error.constructor.name, holder: error.pid ?? null }))
+  }
+  while (!existsSync(done)) pause()
+  lease?.release()
+`
+
+test('supervisor: two contenders for one stale lease: a new holder that appears after the other\'s stale read keeps it (FND-B117)', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'sophia-b117-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const root = join(dir, 'root')
+  const path = join(root, 'supervisor.lease')
+  const dist = new URL('../../apps/execution-host/dist/runtime-supervisor.js', import.meta.url).href
+  const done = join(dir, 'done')
+  const dead = spawnSync(process.execPath, ['-e', '']).pid
+  const stale = () => { cpSync(join(dir, 'stale'), path) }
+  mkdirSync(root, { recursive: true })
+  writeFileSync(join(dir, 'stale'), `${dead}\n`)
+  stale()
+  const run = (gate, at = 'read', until = done) => {
+    const child = spawn(process.execPath, ['--input-type=module', '-e', CONTENDER, dist, root, gate, until, at], { stdio: ['ignore', 'pipe', 'pipe'] })
+    let out = ''
+    child.stdout.on('data', (chunk) => { out += chunk })
+    child.stderr.on('data', (chunk) => { out += chunk })
+    const exited = new Promise((resolve) => child.on('exit', resolve))
+    t.after(() => { if (child.exitCode === null) child.kill('SIGKILL') })
+    return { child, out: () => out, exited, line: () => out.split('\n').map((l) => { try { return JSON.parse(l) } catch { return null } }).find(Boolean) }
+  }
+  const until = async (predicate, what) => {
+    const deadline = Date.now() + 15_000
+    while (!predicate()) {
+      if (Date.now() > deadline) throw new Error(`timed out: ${what}`)
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    }
+  }
+  // B reads the dead holder's lease and is held there; A then takes the stale lease over and owns it, alive.
+  const gate = join(dir, 'gate')
+  const b = run(gate)
+  await until(() => existsSync(`${gate}.held`), 'B read the stale lease')
+  const a = run('')
+  await until(() => a.line(), `A's outcome: ${a.out()}`)
+  assert.deepEqual(a.line(), { owned: true, pid: a.child.pid }, a.out())
+  const taken = statSync(path).ino
+  assert.equal(readFileSync(path, 'utf8'), `${a.child.pid}\n`)
+  // B continues from its stale read: it must neither remove A's lease nor take the root.
+  writeFileSync(`${gate}.go`, '')
+  await until(() => b.line(), `B's outcome: ${b.out()}`)
+  assert.deepEqual(b.line(), { owned: false, pid: b.child.pid, error: 'LeaseHeldError', holder: a.child.pid }, b.out())
+  assert.equal(readFileSync(path, 'utf8'), `${a.child.pid}\n`, "A's lease survives")
+  assert.equal(statSync(path).ino, taken, 'the same file, never replaced')
+  writeFileSync(done, '')
+  await Promise.all([a.exited, b.exited])
+  assert.equal(existsSync(path), false, 'A released its own lease')
+  // C creates the lease (taking the stale one over) and is held before anything else; D, ordinary and unpaused, must
+  // find C's live pid already in it, not an empty lease to take over.
+  stale()
+  const gate2 = join(dir, 'gate2')
+  const done2 = join(dir, 'done2')
+  const c = run(gate2, 'create', done2)
+  await until(() => existsSync(`${gate2}.held`), 'C created the lease')
+  const d = run('', 'read', done2)
+  await until(() => d.line(), `D's outcome: ${d.out()}`)
+  assert.deepEqual(d.line(), { owned: false, pid: d.child.pid, error: 'LeaseHeldError', holder: c.child.pid }, d.out())
+  writeFileSync(`${gate2}.go`, '')
+  await until(() => c.line(), `C's outcome: ${c.out()}`)
+  assert.deepEqual(c.line(), { owned: true, pid: c.child.pid }, c.out())
+  assert.equal(readFileSync(path, 'utf8'), `${c.child.pid}\n`, "C's lease")
+  writeFileSync(done2, '')
+  await Promise.all([c.exited, d.exited])
+  assert.equal(existsSync(path), false, 'C released its own lease')
+  // Supported stale recovery afterwards: a dead holder's lease is taken over, held, and released.
+  stale()
+  const lease = ProjectLease.acquire(root)
+  assert.equal(readFileSync(path, 'utf8'), `${process.pid}\n`)
+  lease.release()
+  assert.equal(existsSync(path), false)
 })
 
 test('acceptance: after a crash the supervisor restarts the runtime and the bridge recovers the outstanding work', async (t) => {
