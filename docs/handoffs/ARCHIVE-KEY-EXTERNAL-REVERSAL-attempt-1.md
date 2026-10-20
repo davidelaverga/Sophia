@@ -11,10 +11,10 @@ Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`
 Runtime unit: Luis's Windows host (Playwright through the session's guard `pw.ps1`, two workers); CI as the run on
 record.
 Existing authority: Luis 2026-10-20, as quoted; local only, nothing pushed.
-Ending commit: `c6eb79ab2`, the last commit that changes code or checks; the next one adds only this record. Files
-changed against `9a6b03a73`: `src/features/studio/archive-keys.ts`, `src/features/studio/archive-keys.test.ts`,
-`src/features/studio/Archive.tsx`, `e2e/archive-project.spec.ts`, `fixtures/room.tsx`,
-`docs/plans/archive-keys-and-work.md`, and this record.
+Ending commit: `ffb282aa1`, after the review's three P3s (the fix itself is `c6eb79ab2`); the next one updates only this
+record. Files changed against `9a6b03a73`: `src/features/studio/archive-keys.ts`,
+`src/features/studio/archive-keys.test.ts`, `src/features/studio/Archive.tsx`, `e2e/archive-project.spec.ts`,
+`fixtures/room.tsx`, `fixtures/fixture-api.ts`, `docs/plans/archive-keys-and-work.md`, and this record.
 
 ## Outcome
 
@@ -49,6 +49,26 @@ changed against `9a6b03a73`: `src/features/studio/archive-keys.ts`, `src/feature
     known Windows ones (`attention.test.ts`, `browser-imports.test.ts`).
 - `tsc --noEmit -p apps/studio`, Prettier on every touched non-docs file, and whole-repo `oxlint --type-aware` are
   clean.
+
+## Independent review (no P1/P2; three P3s, applied)
+
+- **The claim was too strong.** The plan and `archive-keys.ts` said a read settles the lost write's outcome. It
+  doesn't: a 504 may commit later (`client.test.ts`), and the client gives up at 90 s. Now the comments (also in
+  `Archive.tsx`) and the note say only that the key goes and the next press is a new choice. Limits names the narrow
+  case: K1 held past 90 s and let go after a read, K2 lands, an admin brings it back, then K1 lands late and archives
+  again. The note also says that in the real room the API's `project.archived` event usually brings a read after a
+  landed write, so a retry there usually goes under a new key and is answered as a no-op success (`ffb282aa1`).
+- **The counter was untested.** `806e1a533` adds a read started during a resend, answered after that resend is lost
+  too. It keeps the key. Mutated locally (line 60 kept the old moment, `{ account, moment }` without the increment),
+  it fails: «the read started before this send was lost: it says nothing of it», `actual: 'k2'`, `expected: 'k1'`.
+  The existing «started before the reply was lost» test fails the same way. Restored: 9/9.
+- **The browser check tested the means.** `86d659631`: the room fixture replays a key sent again with its first
+  receipt and changes nothing, as 0059 does, and records `archive:replayed`. The check asserts the second press is
+  served as a second archive. Red on a throwaway branch (`2f719a267` plus that commit's spec and fixture, deleted
+  after): `toEqual` received `["archive:true", "archive:replayed"]`, log `archive-result-red.txt`. `4031277e3` types
+  the fixture's map for the type-aware lint.
+- At `ffb282aa1`: `archive-project` with `app-auth` through `pw.ps1`, 67/67 (`archive-review-p3-green.txt`);
+  `archive-keys.test.ts` 9/9; tsc, Prettier and whole-repo oxlint clean.
 
 ## Decisions and changes
 
