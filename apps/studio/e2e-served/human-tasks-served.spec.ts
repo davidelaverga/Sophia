@@ -243,3 +243,63 @@ test('served tasks · both creation forms offer «Nobody yet», send no owner, a
     await expect(page.locator('.md p', { hasText: 'We walked the north bank at dawn.' })).toBeVisible()
   })
 })
+
+// 4320180800 (C60's admissible case, on the served page): each page of the project's tasks is its own read, and a task
+// finished between them comes open on page 1 and done on page 2. The Brief's list shows it once. SYNTHETIC: the page's
+// fetch answers the project's task list with those two pages (strict A39 shape); everything else is the real API.
+test('served tasks · a task read open on page 1 and done on page 2 is one row (4320180800)', async ({ page }) => {
+  const by = davide()
+  await page.addInitScript(
+    ({ project, author }) => {
+      const row = (taskId: string, title: string, done: boolean, revision: number) => ({
+        taskId,
+        projectId: project,
+        title,
+        ownerId: null,
+        ownerName: null,
+        state: done ? 'done' : 'open',
+        revision,
+        createdBy: author,
+        createdByName: null,
+        createdAt: '2026-10-20T00:00:00.000Z',
+        doneBy: done ? author : null,
+        doneByName: null,
+        doneAt: done ? '2026-10-20T00:01:00.000Z' : null,
+        origin: null,
+      })
+      const moving = '00000000-0000-4000-8000-00000000f0a1'
+      const first = {
+        tasks: [
+          row(moving, 'Dedup moving task', false, 1),
+          row('00000000-0000-4000-8000-00000000f0a2', 'Dedup other', false, 1),
+        ],
+        next: 'MQ',
+      }
+      const second = { tasks: [row(moving, 'Dedup moving task', true, 2)], next: null }
+      const wrap =
+        (f: typeof fetch): typeof fetch =>
+        (input, init) => {
+          const url = new URL(input instanceof Request ? input.url : String(input), location.href)
+          const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
+          if (method !== 'GET' || url.pathname !== `/api/v1/projects/${project}/tasks`) return f(input, init)
+          return Promise.resolve(Response.json(url.searchParams.get('cursor') ? second : first))
+        }
+      let current = wrap(window.fetch.bind(window))
+      Object.defineProperty(window, 'fetch', {
+        configurable: true,
+        get: () => current,
+        set: (f: typeof fetch) => (current = wrap(f)),
+      })
+    },
+    { project: PROJECT, author: by },
+  )
+  await page.addInitScript(() => sessionStorage.setItem('sophia.dev.identity', 'Davide'))
+  await page.goto(`/p/${PROJECT}`)
+  await page.getByRole('button', { name: 'Brief', exact: true }).click({ timeout: 15_000 })
+  const rows = page.getByRole('list', { name: 'Project tasks' }).getByRole('listitem')
+  await expect(rows.filter({ hasText: 'Dedup other' })).toHaveCount(1, { timeout: 15_000 })
+  await page.getByRole('button', { name: 'More tasks' }).click()
+  await expect(page.getByRole('button', { name: 'More tasks' })).toHaveCount(0)
+  await expect(rows.filter({ hasText: 'Dedup moving task' })).toHaveCount(1)
+  await expect(rows).toHaveCount(2)
+})
