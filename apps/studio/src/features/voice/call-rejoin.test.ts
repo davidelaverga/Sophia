@@ -74,6 +74,13 @@ describe('when a call that ended tries to come back on its own (call-rejoin.md)'
     assert.deepEqual(gapAgain, { seen: 0, beat: 70_001, since: 70_001 }, 'a gap inside the run starts it again')
   })
 
+  it('a run is still short 1 ms before 30 s, and a beat while LiveKit isn’t connected starts it again (review)', () => {
+    const run = { seen: 0, beat: 60_000 + 25_000, since: 60_000 }
+    assert.equal(stillSeen(run, 60_000 + STEADY_MS - 1).seen, 0, '29 999 ms into the run')
+    assert.deepEqual(stillSeen(liveAt(1000), 1000 + LIVE_BEAT_MS, false), { seen: 1000, beat: 6000, since: 6000 })
+    assert.deepEqual(stillSeen(run, 60_000 + STEADY_MS, false), { seen: 0, beat: 90_000, since: 90_000 })
+  })
+
   it('says each step in one plain line, and nothing when none waits or runs', () => {
     assert.equal(rejoinLine('trying'), 'Connection lost. Rejoining the call…')
     assert.equal(
@@ -277,7 +284,7 @@ describe('one try back into a dropped call', () => {
     assert.equal(h.joins.length, 1, 'three minutes in the foreground since: the call is live')
   })
 
-  it('never for a laptop that woke into a dead link: LiveKit finds it before the beats count again', () => {
+  it('never for a laptop that woke into a dead link and went to «Reconnecting…» before the beats counted again', () => {
     const h = harness()
     h.rejoin.live()
     for (let beat = 0; beat < 12; beat += 1) {
@@ -286,13 +293,30 @@ describe('one try back into a dropped call', () => {
     }
     h.jump(60 * MIN) // the lid closed for an hour
     h.rejoin.beat() // the beat due while asleep runs as the page wakes
-    // LiveKit's pong timer (15 s) is long past due and fires as the page wakes too: the room goes to «Reconnecting…»,
-    // where no beat runs, well within 25 s.
+    // A peer connection that failed while the signal is cut takes the room to «Reconnecting…», where no beat runs.
     for (let beat = 0; beat < 5; beat += 1) {
       h.pass(LIVE_BEAT_MS)
       h.rejoin.beat()
     }
     h.pass(50_000) // LiveKit's own tries, then `dropped`
+    h.rejoin.ended('dropped')
+    assert.equal(h.joins.length, 0)
+  })
+
+  it('never for a laptop that woke into a dead link while LiveKit only resumes its signal (review P1)', () => {
+    const h = harness()
+    h.rejoin.live()
+    for (let beat = 0; beat < 12; beat += 1) {
+      h.pass(LIVE_BEAT_MS)
+      h.rejoin.beat()
+    }
+    h.jump(60 * MIN) // the lid closed for an hour, and the page wakes with no network
+    // LiveKit's pong timeout starts a resume (SignalReconnecting): the dock still reads live and the beats keep coming,
+    // on time, for all of its tries, while the room isn't connected.
+    for (let beat = 0; beat < 13; beat += 1) {
+      h.rejoin.beat(false)
+      h.pass(LIVE_BEAT_MS)
+    }
     h.rejoin.ended('dropped')
     assert.equal(h.joins.length, 0)
   })
