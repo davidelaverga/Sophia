@@ -18,6 +18,13 @@ export const REJOIN_WINDOW_MS = 120_000
 /** How often a live call is seen live: a page that isn't running (a closed lid, a frozen tab) sees nothing meanwhile. */
 export const LIVE_BEAT_MS = 5000
 
+/**
+ * How long the beats must come on time after a gap before the call is seen live again: twice LiveKit's pong timeout
+ * (the server's `pingTimeout`, 15 s), which is past due after a longer gap and fires as the page wakes, so a link that
+ * died meanwhile has taken the room to «Reconnecting…», where no beat runs, before this run is over.
+ */
+export const STEADY_MS = 30_000
+
 /** How long after a try began it may still connect: a token that comes back later (a page frozen meanwhile) doesn't. */
 export const TRY_FRESH_MS = 30_000
 
@@ -59,12 +66,29 @@ export function rejoinPlan(drop: Drop): 'now' | 'online' | null {
   return drop.online ? 'now' : 'online'
 }
 
+/** A call as its beats see it: when last seen live, when the last beat came, and since when they come on time. */
+export interface Liveness {
+  seen: number | null
+  beat: number | null
+  /** When the run of beats on time after the last gap began; null when none has come since the call went live. */
+  since: number | null
+}
+
+/** The call went live: a join, or LiveKit's own reconnect, which says the link works. */
+export const liveAt = (now: number): Liveness => ({ seen: now, beat: now, since: null })
+
 /**
- * A beat while the call is live: seen now, unless the last beat seen is more than two beats ago. The page wasn't running
- * in between (asleep, frozen), so the call stays as old as it was until it goes live again.
+ * A beat while the call is live, compared with the beat before. More than two beats after it (or a clock set back), the
+ * page wasn't running in between (asleep, frozen, throttled): the call stays as old as it was, and a run begins. It is
+ * seen now while no gap came since it went live, or once the run has lasted `STEADY_MS`.
  */
-export const stillSeen = (seen: number | null, now: number): number | null =>
-  seen !== null && now - seen <= 2 * LIVE_BEAT_MS ? now : seen
+export function stillSeen(live: Liveness, now: number): Liveness {
+  const { seen, beat, since } = live
+  if (seen === null || beat === null) return live
+  if (now < beat || now - beat > 2 * LIVE_BEAT_MS) return { seen, beat: now, since: now }
+  if (since === null || now - since >= STEADY_MS) return liveAt(now)
+  return { seen, beat: now, since }
+}
 
 const LINES: Record<RejoinStep, string> = { waiting: OFFLINE_REJOIN, trying: REJOINING, back: REJOINED }
 
@@ -104,7 +128,7 @@ const nothing = () => undefined
 export class Rejoin {
   private readonly ports: RejoinPorts
   private step: RejoinStep | null = null
-  private seen: number | null = null
+  private liveness: Liveness = { seen: null, beat: null, since: null }
   private triedAt: number | null = null
   private round = 0
   private cancel: () => void = nothing
@@ -141,12 +165,17 @@ export class Rejoin {
 
   /** The call went live: a join, or LiveKit's own reconnect. */
   live(): void {
-    this.seen = this.ports.now()
+    this.liveness = liveAt(this.ports.now())
   }
 
   /** A beat while the call is live (stillSeen). */
   beat(): void {
-    this.seen = stillSeen(this.seen, this.ports.now())
+    this.liveness = stillSeen(this.liveness, this.ports.now())
+  }
+
+  /** When the call was last seen live. */
+  private get seen(): number | null {
+    return this.liveness.seen
   }
 
   /**

@@ -7,14 +7,19 @@ import {
   Rejoin,
   REJOIN_WINDOW_MS,
   REJOINED_FOR_MS,
+  STEADY_MS,
   TRY_FRESH_MS,
+  liveAt,
   rejoinLine,
   rejoinPlan,
   stillSeen,
+  type Liveness,
   type RejoinStep,
 } from './call-rejoin.ts'
 
 const MIN = 60_000
+/** When a beat at `now` leaves the call seen live. */
+const seenAt = (live: Liveness, now: number) => stillSeen(live, now).seen
 const dropped = { why: 'dropped' as const, online: true, now: 10 * MIN, seen: 10 * MIN - 50_000, triedAt: null }
 
 describe('when a call that ended tries to come back on its own (call-rejoin.md)', () => {
@@ -45,11 +50,28 @@ describe('when a call that ended tries to come back on its own (call-rejoin.md)'
 
   it('is seen live on each beat while the page runs, and stays as old as it was after any longer gap (review P3)', () => {
     assert.equal(LIVE_BEAT_MS, 5000)
-    assert.equal(stillSeen(1000, 1000 + LIVE_BEAT_MS), 1000 + LIVE_BEAT_MS)
-    assert.equal(stillSeen(1000, 1000 + 2 * LIVE_BEAT_MS), 1000 + 2 * LIVE_BEAT_MS, 'one beat late still counts')
-    assert.equal(stillSeen(1000, 1000 + 2 * LIVE_BEAT_MS + 1), 1000, 'the page didn’t run in between')
-    assert.equal(stillSeen(1000, 1000 + 60_000), 1000, 'a minute without a beat is a page asleep, not a live call')
-    assert.equal(stillSeen(null, 5000), null)
+    assert.equal(seenAt(liveAt(1000), 1000 + LIVE_BEAT_MS), 1000 + LIVE_BEAT_MS)
+    assert.equal(seenAt(liveAt(1000), 1000 + 2 * LIVE_BEAT_MS), 1000 + 2 * LIVE_BEAT_MS, 'one beat late still counts')
+    assert.equal(seenAt(liveAt(1000), 1000 + 2 * LIVE_BEAT_MS + 1), 1000, 'the page didn’t run in between')
+    assert.equal(seenAt(liveAt(1000), 1000 + 60_000), 1000, 'a minute without a beat is a page asleep, not a live call')
+    assert.equal(seenAt(liveAt(1000), 0), 1000, 'a clock set back is a gap too')
+    const never: Liveness = { seen: null, beat: null, since: null }
+    assert.deepEqual(stillSeen(never, 5000), never)
+  })
+
+  it('after a gap, is seen live again only once every beat has come on time for 30 s (Codex P2 on #475)', () => {
+    assert.equal(STEADY_MS, 30_000)
+    assert.ok(STEADY_MS >= 2 * 15_000, 'past LiveKit’s pong timeout (15 s), which fires as a page wakes')
+    let live = stillSeen(liveAt(0), 60_000) // the page woke after a minute
+    assert.deepEqual(live, { seen: 0, beat: 60_000, since: 60_000 })
+    for (let at = 60_000 + LIVE_BEAT_MS; at < 60_000 + STEADY_MS; at += LIVE_BEAT_MS) {
+      live = stillSeen(live, at)
+      assert.equal(live.seen, 0, `${String(at - 60_000)} ms into the run`)
+    }
+    live = stillSeen(live, 60_000 + STEADY_MS)
+    assert.deepEqual(live, liveAt(60_000 + STEADY_MS), 'the run lasted: seen now, as a call that just went live')
+    const gapAgain = stillSeen(stillSeen(liveAt(0), 60_000), 60_000 + 2 * LIVE_BEAT_MS + 1)
+    assert.deepEqual(gapAgain, { seen: 0, beat: 70_001, since: 70_001 }, 'a gap inside the run starts it again')
   })
 
   it('says each step in one plain line, and nothing when none waits or runs', () => {
