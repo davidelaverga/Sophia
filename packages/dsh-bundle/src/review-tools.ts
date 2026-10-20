@@ -146,6 +146,8 @@ async function untilAnswered<T>(send: (signal: AbortSignal) => Promise<T>, patie
   let wait = patience.pauseMs
   for (let tried = 1; ; tried += 1) {
     if (stop.aborted) return tried === 1 ? 'stopped' : 'unknown'
+    // A pause admitted in time can resume late (a busy event loop): no request starts past the deadline (A04).
+    if (tried > 1 && Date.now() >= deadline) return 'unknown'
     try {
       return { value: await send(AbortSignal.any([stop, AbortSignal.timeout(Math.max(1, deadline - Date.now()))])) }
     } catch (error) {
