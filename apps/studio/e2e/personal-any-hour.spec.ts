@@ -32,3 +32,15 @@ test('fixture · given an hour that is not one (at=, at=7, at=25:00), the talk s
     await expect(page.locator('.c3-space.you')).toHaveAttribute('data-hour', 'day')
   }
 })
+
+test('fixture · a message sent in the morning comes after the talk: its time is the fixture’s, not the browser’s', async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date(2026, 9, 20, 9, 2))
+  await page.goto('/personal.html')
+  await expect(page.locator('.msg.me').last().locator('.at')).toHaveText('11:54')
+  await page.locator('#c-input').fill('Morning. Where were we?')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.msg.me').last()).toContainText('Morning. Where were we?')
+  await expect(page.locator('.msg.me').last().locator('.at')).toHaveText('12:00')
+})
