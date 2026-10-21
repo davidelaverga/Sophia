@@ -23,3 +23,12 @@ for (const [when, clock] of RUNS) {
     await expect(page.locator('.c3-space.you')).toHaveAttribute('data-hour', 'day')
   })
 }
+
+test('fixture · given an hour that is not one (at=, at=7, at=25:00), the talk stands at noon too', async ({ page }) => {
+  await page.clock.setFixedTime(new Date(2026, 9, 20, 0, 3))
+  for (const at of ['', '7', '25:00']) {
+    await page.goto(`/personal.html?at=${at}`)
+    await expect(page.locator('.msgs > .c3-day')).toHaveText(['Yesterday · Where you began', 'Today'])
+    await expect(page.locator('.c3-space.you')).toHaveAttribute('data-hour', 'day')
+  }
+})
