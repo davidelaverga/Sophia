@@ -66,9 +66,10 @@ const account = { present: true }
 let takes = 0
 /** Each release taken back, and the key it was taken back under: asked again, the API answers by that key. */
 const takeKeys = new Map<string, string | undefined>()
-// `at=HH:MM`: the fixture's clock stands at that time today (her light follows the hour).
+// `at=HH:MM`: the fixture's clock stands at that time today (her light follows the hour); at noon when not given, so a
+// check sees the same days and light whenever it runs (just after midnight, today's turns fell on yesterday).
 const NOW = ((at) => {
-  const [, h, m] = /^(\d{1,2}):(\d{2})$/.exec(at ?? '')?.map(Number) ?? []
+  const [, h, m] = /^(\d{1,2}):(\d{2})$/.exec(at ?? '12:00')?.map(Number) ?? []
   const now = new Date()
   if (h !== undefined && m !== undefined && h < 24 && m < 60) now.setHours(h, m, 0, 0)
   return now
