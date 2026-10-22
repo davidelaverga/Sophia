@@ -1,6 +1,8 @@
 // Why a call ended without this person leaving, and what the room says about it. Pure, so the words are
 // unit-tested; livekit-room.ts reads the reason from LiveKit and useProjectRoom shows the note.
 
+import { STALE_PART } from './part-gone.ts'
+
 /**
  * - dropped: the connection was lost (a network failure, the server going away).
  * - elsewhere: the same person joined from another tab or device, and a person is in the call once.
@@ -93,8 +95,11 @@ export function keptNote(next: string | null, at: { online: boolean; lost: boole
   return SAID_ENDS.has(next) ? next : OFFLINE_JOIN
 }
 
-/** The connection's lines, said politely: the three offline ones and a dropped call coming back on its own. */
-const POLITE = new Set([OFFLINE_END, BACK_ONLINE, OFFLINE_JOIN, REJOINING, OFFLINE_REJOIN, REJOINED])
+/**
+ * The connection's lines, said politely: the three offline ones, a dropped call coming back on its own, and a part of
+ * the call gone after a deploy, which the notice at the top has already said (stale-part-call.md).
+ */
+const POLITE = new Set([OFFLINE_END, BACK_ONLINE, OFFLINE_JOIN, REJOINING, OFFLINE_REJOIN, REJOINED, STALE_PART])
 
 /** How the dock says its note: the connection's lines politely, as Personal's line; a failure, at once. */
 export const noteRole = (note: string): 'status' | 'alert' => (POLITE.has(note) ? 'status' : 'alert')

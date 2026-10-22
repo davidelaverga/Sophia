@@ -19,6 +19,8 @@ import { usePushToTalk } from './usePushToTalk.ts'
 import { useMirror } from './mirror-preference.ts'
 import { callClock, callClockWords } from './call-clock.ts'
 import { noteRole } from './call-end.ts'
+import { STALE_PART } from './part-gone.ts'
+import { StalePart } from './StalePart.tsx'
 import { useNow } from '../../app/use-now.ts'
 import { PassMenu } from './PassMenu.tsx'
 import { ReactMenu } from './ReactMenu.tsx'
@@ -74,6 +76,8 @@ function useDockHeight(ref: RefObject<HTMLDivElement | null>) {
  */
 export function DockNote({ note, className }: { note: string | null; className: string }) {
   const polite = note !== null && noteRole(note) === 'status'
+  // A part gone after a deploy: the line with its Reload (stale-part-call.md).
+  const stale = note === STALE_PART
   return (
     <>
       {note && !polite && (
@@ -81,8 +85,8 @@ export function DockNote({ note, className }: { note: string | null; className: 
           {note}
         </p>
       )}
-      <p className={polite ? className : 'sr-only'} role="status">
-        {polite ? note : null}
+      <p className={stale ? `${className} dock-stale` : polite ? className : 'sr-only'} role="status">
+        {stale ? <StalePart /> : polite ? note : null}
       </p>
     </>
   )

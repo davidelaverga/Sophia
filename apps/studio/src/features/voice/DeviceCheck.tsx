@@ -10,6 +10,7 @@ import { Sheet } from '../../app/Sheet.tsx'
 import { canChooseOutput, chosenDevices, KIND_WORD, type DeviceKind } from './device-preference.ts'
 import { micOnJoin, rememberMic } from './mic-preference.ts'
 import { DeviceChoice, useDevices, type List } from './DeviceMenu.tsx'
+import { StalePart } from './StalePart.tsx'
 import { useDevicePreview, type Preview } from './useDevicePreview.ts'
 
 const KINDS: readonly DeviceKind[] = ['audioinput', 'audiooutput', 'videoinput']
@@ -147,6 +148,12 @@ export function DeviceCheck({ list, onChoose, onJoin, onClose }: Props) {
             </div>
           ))}
         </div>
+        {/* Their part gone after a deploy (stale-part-call.md): said once here, with Reload. */}
+        {found.state === 'stale' && (
+          <p className="device-check-stale" role="status">
+            <StalePart />
+          </p>
+        )}
         <div className="device-check-foot">
           <Button kind="primary" onClick={() => onJoin(media)}>
             Join the room

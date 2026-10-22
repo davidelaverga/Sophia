@@ -3290,6 +3290,20 @@ button.contribution-quote:hover {
   overflow: hidden;
   clip: rect(0 0 0 0);
 }
+/* A part of the call gone after a deploy (stale-part-call.md): the line, then Reload at its size, as the sound's note. */
+.dock-stale {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  column-gap: 12px;
+  max-width: 64ch;
+}
+.dock-stale .text-button,
+.device-check-stale .text-button {
+  font-size: inherit;
+  white-space: nowrap;
+}
 /* The same note from other views, above the mini dock. */
 /* What the dock says, in one stack above it (below it in the header): each line takes its own height, so a note that
    wraps never meets her looking (Codex on #254). */
@@ -3522,6 +3536,14 @@ button.contribution-quote:hover {
 .device-check-foot {
   display: flex;
   justify-content: flex-end;
+}
+.device-check-stale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 12px;
+  color: var(--text-2);
+  font-size: var(--type-small);
 }
 /* Sophia's controls in the dock (S1-05A): conversation only; work carries on whatever is pressed. */
 .sophia-controls {
