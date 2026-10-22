@@ -872,10 +872,10 @@
   animation: ps-ambient 7s ease-in-out infinite;
 }
 /* On paper her light darkens the page rather than lighting it: at full strength it took the first day's words at the
-   top of a talk under 4.5:1 by day (ci-light-by-hour-contrast.md). There it breathes at 0.4 of the room's, every hour;
-   the dark room's is untouched. */
+   top of a talk under 4.5:1 by day (ci-light-by-hour-contrast.md). There it breathes at 0.7 of the room's, every hour
+   (at 0.4 it all but vanished); the dark room's is untouched. */
 :root[data-theme='light'] .places .c3-ambient {
-  --ambient-peak: 0.4;
+  --ambient-peak: 0.7;
 }
 .places .c3-space.speaking .c3-ambient,
 .places .c3-space.listening .c3-ambient {
