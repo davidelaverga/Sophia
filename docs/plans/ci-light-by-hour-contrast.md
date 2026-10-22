@@ -3,8 +3,8 @@
 > 2026-10-22 · From `ci-personal-fixture-clock.md` (#477), its Limits and its review: given no hour, the personal and
 > Home fixtures stand at noon, so the contrast, ink and light checks read only the day's light; only `personal.spec`'s
 > «moments» ask by hour, and the night field's longer «Still up? Write to Sophia…» is no longer checked for contrast or
-> fit on a phone. Luis 2026-10-24: «Procede con tu recomendación, el lote con 1, 2 y 3»; earlier «Lo que no se mide, no
-> se puede mejorar». Then, on the findings below, Luis 2026-10-24: «Atenuar su luz en papel» and, for the night line at
+> fit on a phone. Luis 2026-10-22: «Procede con tu recomendación, el lote con 1, 2 y 3»; earlier «Lo que no se mide, no
+> se puede mejorar». Then, on the findings below, Luis 2026-10-22: «Atenuar su luz en papel» and, for the night line at
 > 320 px, «Dejarlo así»; on the 40 % captures, «Luz al 70 %». One change the person sees: her light on paper is softer.
 
 ## Measured
@@ -66,6 +66,10 @@
 - Green: the new check `--repeat-each 2`, 34/34 (`nlc-green2`); with `personal-any-hour`, `ink.spec` and
   `light-mode.spec`, 69 passed, 1 skipped (`nlc-green1`); `personal.spec`, `phone-fits`, `home-any-hour`, 114/114
   (`nlc-neighbours`). Whole-repo `oxlint --type-aware`, `tsc --noEmit`, Prettier on the spec.
+- After the review: the pixel check at 0.7, 10/10, and at a temporary peak of 1, red 10/10, «"day (4.46)"» desktop and
+  «"day (4.48)"» phone (`nlc-r2-a`, `nlc-r2-peak1-red`); the arrival check red 5/5 then green 5/5 (`nlc-r2-a`,
+  `nlc-r2-arrive-green`); this spec, `ink`, `light-mode`, `personal`, `phone-fits`, `app-auth`, 229 passed, 1 skipped
+  (`nlc-r2-green`); whole-repo `oxlint`, `tsc`, Prettier.
 - The paper light, test first: the pixel check (`4ded49c4e`), red «"day (4.47)"» desktop and «"day (4.50)"» phone
   (`pw-logs/nlc-paper-red.txt`); at 0.7 (`00e7d0e5e`): the pixel check `--repeat-each 5`, 10/10 (`nlc-paper70-x5`);
   this spec, `ink`, `light-mode`, `personal`, `phone-fits`, 174 passed, 1 skipped (`nlc-after70-green`), through the
@@ -74,38 +78,50 @@
   (`nlc-after-green`); `glow`, `room-literals`, `launch`, `css-motion` unit files, 19/19; `oxlint`, `tsc`, Prettier on
   the sheet and the spec.
 
-## Luis's decisions (2026-10-24)
+## Luis's decisions (2026-10-22)
 
 - **«Atenuar su luz en papel», then «Luz al 70 %».** On paper her light breathes at 0.7 of the room's, every hour
   (`personal.css`: `--ambient-peak` on `.c3-ambient` under `:root[data-theme='light']`, read by its opacity and its
   breath's keyframes; unset, it is 1, so the dark room's light is as it was). `--text-sec` is untouched. 0.4 came first
   (`b1cf2c144`), the step that held every band at 4.6 or more; on its captures the light all but vanished, and Luis chose
-  70 % (`00e7d0e5e`), the day divider at about 4.54:1: above the 4.5 floor, without the 4.6 margin.
+  70 % (`00e7d0e5e`), the day divider at about 4.54:1 (4.53 on a desktop, read again at the true peak, below): above
+  the 4.5 floor, without the 4.6 margin.
 - **Guarded by a pixel check** (`personal-light-by-hour.spec.ts`, «on paper, at a talk's start…», desktop and phone):
   the probe made light. For each of the four hours on paper, the talk at its start (`?all=1`, the list at its top, not
-  `scrolled`), the first day's words made transparent, her breath held at its peak (`animation-play-state: paused`
-  halfway, so the paper's own peak is what is held), the grain off; a screenshot, and under each line of the words
+  `scrolled`), the first day's words made transparent (no transition to fade them back), her breath paused through its
+  animation halfway through its own keyframes and checked to stand at `--ambient-peak` (1 unset), the grain off; paper
+  checked applied; a screenshot, and under each line of the words
   (`Range.getClientRects`, so a wrapped divider's hairlines are not inside) the darkest pixel against the words' ink, by
-  `contrastOf`. Floor 4.5:1. About 3 s a row.
-- **Before and after** (the check's own reading, the darkest pixel; values printed by a temporary edit of its floor,
-  never committed):
+  `contrastOf`, with at least one pixel read. Floor 4.5:1. About 3 s a row.
+- **After the independent review (no P1):** the first version held the breath by restyling its duration and delay,
+  which keeps the animation's start time, so the phase held depended on how long the light had been on the page:
+  over five loads at each of eight waits it held 0.49 to 0.70 of a 0.7 peak (`scratchpad/light-by-hour/hold-0.7.txt`),
+  and at the trough a light back at full strength could pass. Now held by the animation itself: 0.7 at every wait
+  (`1fbcbc2c7`). The numbers below are read again that way; the first table read up to 0.02 high.
+- **Before and after** (the check's own reading, the darkest pixel, the breath at its true peak; values printed by a
+  temporary edit of its floor, never committed; 0.4 as first read, with the old hold):
 
   | Paper, talk at its start | Night | Morning | Evening | Day |
   | --- | --- | --- | --- | --- |
-  | desktop, light at 1 (before) | 4.54 | 4.54 | 4.53 | **4.47** |
+  | desktop, light at 1 (before) | 4.54 | 4.53 | 4.52 | **4.46** |
   | desktop, at 0.4 (declined) | 4.64 | 4.63 | 4.62 | 4.61 |
-  | desktop, at 0.7 (kept) | 4.59 | 4.58 | 4.57 | 4.54 |
-  | phone, light at 1 (before) | 4.57 | 4.56 | 4.53 | **4.50** (under 4.5 unrounded) |
+  | desktop, at 0.7 (kept) | 4.59 | 4.57 | 4.56 | 4.53 |
+  | phone, light at 1 (before) | 4.57 | 4.54 | 4.53 | **4.48** |
   | phone, at 0.4 (declined) | 4.65 | 4.63 | 4.63 | 4.61 |
-  | phone, at 0.7 (kept) | 4.61 | 4.59 | 4.58 | 4.55 |
-  | dark desktop, every step | 6.69 | 5.89 | 6.29 | 6.58 |
-  | dark phone, every step | 6.70 | 5.99 | 6.34 | 6.61 |
+  | phone, at 0.7 (kept) | 4.61 | 4.57 | 4.57 | 4.54 |
+  | dark desktop, every step | 6.68 | 5.78 | 6.22 | 6.56 |
+  | dark phone, every step | 6.69 | 5.89 | 6.27 | 6.58 |
 
-  With no light at all the divider reads 4.70: at 0.7 her light takes 0.09 to 0.16 from it, where it took 0.13 to 0.23.
+  With no light at all the divider reads 4.70: at 0.7 her light takes 0.09 to 0.17 from it, where it took 0.13 to 0.24.
 - Captures, paper, desktop, the talk at its start, the breath held at its peak (session scratchpad `light-by-hour/`):
   `before-paper-<hour>-desktop.png` (light at 1), `after40-paper-<hour>-desktop.png` (0.4, declined) and
   `after-paper-<hour>-desktop.png` (0.7, kept), for day, evening, morning and night. At 0.7 her light is a visible
   violet wash under the head, a little quieter than before.
+- **Her light arriving from Home** (review P3): it rose to full strength, then dropped to its breath as the motion was
+  dropped: on paper from 1.00 to 0.52 in one frame. It now rises from nothing into the breath as it is (an implicit end
+  keyframe in `usePlaceMotion.ts`): 0 to 0.52, then the breath. Guarded in `app-auth.spec.ts` (paper, Enter from Home,
+  her light's opacity at every frame, no drop over 0.15); red first 5 of 5, «Received: 0.482345» (`1f7e6d653`), then
+  `0e1931bc9`.
 - **«Dejarlo así».** At 320 px the night line wraps to two and the field grows one line, at night only: kept as it is.
 
 ## Limits
