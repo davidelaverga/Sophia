@@ -4,7 +4,8 @@
 > Home fixtures stand at noon, so the contrast, ink and light checks read only the day's light; only `personal.spec`'s
 > «moments» ask by hour, and the night field's longer «Still up? Write to Sophia…» is no longer checked for contrast or
 > fit on a phone. Luis 2026-10-24: «Procede con tu recomendación, el lote con 1, 2 y 3»; earlier «Lo que no se mide, no
-> se puede mejorar». Tests only; nothing the person sees changes.
+> se puede mejorar». Then, on the findings below, Luis 2026-10-24: «Atenuar su luz en papel» and, for the night line at
+> 320 px, «Dejarlo así». One change the person sees: her light on paper is softer.
 
 ## Measured
 
@@ -65,14 +66,46 @@
 - Green: the new check `--repeat-each 2`, 34/34 (`nlc-green2`); with `personal-any-hour`, `ink.spec` and
   `light-mode.spec`, 69 passed, 1 skipped (`nlc-green1`); `personal.spec`, `phone-fits`, `home-any-hour`, 114/114
   (`nlc-neighbours`). Whole-repo `oxlint --type-aware`, `tsc --noEmit`, Prettier on the spec.
+- The paper light, one test-first pair: the pixel check (`4ded49c4e`), red «"day (4.47)"» desktop and «"day (4.50)"»
+  phone (`pw-logs/nlc-paper-red.txt`); then the softer light (`b1cf2c144`): the pixel check `--repeat-each 5`, 10/10
+  (`nlc-paper-x5`); this spec, `ink`, `light-mode`, `personal`, `phone-fits`, 174 passed, 1 skipped
+  (`nlc-after-green`); `glow`, `room-literals`, `launch`, `css-motion` unit files, 19/19; `oxlint`, `tsc`, Prettier on
+  the sheet and the spec.
 
-## Limits and findings for Luis
+## Luis's decisions (2026-10-24)
 
-- **The check cannot see her light.** It holds the inks and the night's words to 4.5:1 over the space's ground at each
-  hour; what the gradient takes is measured only by the probe above. A pixel check in the repo would need screenshots
-  per text (and the grain held off): heavier than the rest of `contrast.ts`, so left as a choice.
-- **By day on paper, the first divider at the top of a talk reads at 4.50:1 at its median, 4.47 at its lowest pixel,
-  at the breath's peak** (evening 4.53, morning 4.56, night 4.57). It is the day's light, the one every check now sees
-  but none composites. Not fixed here: it is a choice between her light on paper (`.c3-ambient`, Personal's) and the
-  divider's ink (`--text-sec`, the kit's), not a measured slip inside the kit.
-- **At 320 px the night line wraps to two** (above). Its copy, or an ellipsis, is a word for Luis.
+- **«Atenuar su luz en papel».** On paper her light breathes at 0.4 of the room's, every hour (`personal.css`:
+  `--ambient-peak` on `.c3-ambient` under `:root[data-theme='light']`, read by its opacity and its breath's keyframes;
+  unset, it is 1, so the dark room's light is as it was). `--text-sec` is untouched. 0.4 is the step that holds the
+  darkest pixel at 4.6 or more in every band; by the measured slope 0.45 would leave the day at about 4.59.
+- **Guarded by a pixel check** (`personal-light-by-hour.spec.ts`, «on paper, at a talk's start…», desktop and phone):
+  the probe made light. For each of the four hours on paper, the talk at its start (`?all=1`, the list at its top, not
+  `scrolled`), the first day's words made transparent, her breath held at its peak (`animation-play-state: paused`
+  halfway, so the paper's own peak is what is held), the grain off; a screenshot, and under each line of the words
+  (`Range.getClientRects`, so a wrapped divider's hairlines are not inside) the darkest pixel against the words' ink, by
+  `contrastOf`. Floor 4.5:1. About 3 s a row.
+- **Before and after** (the check's own reading, the darkest pixel; values printed by a temporary edit of its floor,
+  never committed):
+
+  | Paper, talk at its start | Night | Morning | Evening | Day |
+  | --- | --- | --- | --- | --- |
+  | desktop, before | 4.54 | 4.54 | 4.53 | **4.47** |
+  | desktop, after | 4.64 | 4.63 | 4.62 | 4.61 |
+  | phone, before | 4.57 | 4.56 | 4.53 | **4.50** (under 4.5 unrounded) |
+  | phone, after | 4.65 | 4.63 | 4.63 | 4.61 |
+  | dark desktop, before = after | 6.69 | 5.89 | 6.29 | 6.58 |
+  | dark phone, before = after | 6.70 | 5.99 | 6.34 | 6.61 |
+
+  With no light at all the divider reads 4.70: her light now takes 0.06 to 0.09 from it, where it took 0.13 to 0.23.
+- Captures, paper, desktop, the talk at its start, the breath held at its peak (session scratchpad `light-by-hour/`):
+  `before-paper-day-desktop.png` and `after-paper-day-desktop.png`, and the same for evening, morning and night. After,
+  her light is still there as a soft violet wash under the head, much quieter than before.
+- **«Dejarlo así».** At 320 px the night line wraps to two and the field grows one line, at night only: kept as it is.
+
+## Limits
+
+- **The scan rows cannot see her light.** `lowContrast` holds the inks and the night's words to 4.5:1 over the space's
+  ground at each hour; the gradient is measured by the pixel check alone, and only for the first day's words at a
+  talk's start on paper, the place it was lowest. Elsewhere it rests on the probe above.
+- The pixel check reads the breath held at its peak, not a frame of the running breath; it measures a screenshot, so it
+  needs the fixture's fonts loaded and nothing arriving (it waits for both).
