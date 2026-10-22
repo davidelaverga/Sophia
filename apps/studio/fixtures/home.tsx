@@ -113,7 +113,11 @@ window.homeFixture = {
     return at ? at.id || at.tagName.toLowerCase() : null
   },
 }
-const NOW = new Date()
+// The fixture's clock stands at noon of the real day, so a check sees the same day, greeting and light whenever it runs
+// (before two in the morning, your talk of the day before was named by its weekday); it runs on from there.
+const NOW = new Date(new Date().setHours(12, 0, 0, 0))
+const LOADED = Date.now()
+const clockNow = () => NOW.getTime() + Date.now() - LOADED
 const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000).toISOString()
 const id = (n: number) => `00000000-0000-4000-8000-00000000000${String(n)}`
 
@@ -265,14 +269,19 @@ if (viaApi) {
         const body = JSON.stringify({ error })
         return Promise.resolve(new Response(body, { status: failing, headers: { 'content-type': 'application/json' } }))
       }
-      const now = Date.now()
+      const now = clockNow()
       const answer = needsAnswer(
         now,
         // A37: a message mentioning the viewer, when the page asks for it (`mentions=1`) and the read opts in.
         MENTIONED && new URL(url, window.location.href).searchParams.get('mentions') === '1',
       )
       const all = [...(urgent ? [urgentNeed(now)] : []), ...answer.needs]
-      const body = JSON.stringify({ ...answer, needs: all.filter((n) => !seen.has(n.id)) })
+      // Dated from Home's clock; read on the browser's, as the service's own clock would be (no skew to correct).
+      const body = JSON.stringify({
+        ...answer,
+        readAt: new Date().toISOString(),
+        needs: all.filter((n) => !seen.has(n.id)),
+      })
       return Promise.resolve(new Response(body, { headers: { 'content-type': 'application/json' } }))
     }
     return real(input, init)

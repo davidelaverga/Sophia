@@ -66,15 +66,21 @@ const account = { present: true }
 let takes = 0
 /** Each release taken back, and the key it was taken back under: asked again, the API answers by that key. */
 const takeKeys = new Map<string, string | undefined>()
-// `at=HH:MM`: the fixture's clock stands at that time today (her light follows the hour).
+// `at=HH:MM`: the fixture's clock stands at that time today (her light follows the hour); at noon when not given or
+// not an hour, so a check sees the same days and light whenever it runs (just after midnight, today's turns fell on
+// yesterday).
 const NOW = ((at) => {
   const [, h, m] = /^(\d{1,2}):(\d{2})$/.exec(at ?? '')?.map(Number) ?? []
+  const hour = h !== undefined && m !== undefined && h < 24 && m < 60
   const now = new Date()
-  if (h !== undefined && m !== undefined && h < 24 && m < 60) now.setHours(h, m, 0, 0)
+  now.setHours(hour ? h : 12, hour ? m : 0, 0, 0)
   return now
 })(query.get('at'))
 const ago = (minutes: number) => new Date(NOW.getTime() - minutes * 60_000).toISOString()
 const ahead = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000).toISOString()
+// The fixture's clock as it runs on from NOW: what is said or kept here comes after its talk, not at the browser's time.
+const LOADED = Date.now()
+const clockNow = () => new Date(NOW.getTime() + Date.now() - LOADED)
 const DAY = 24 * 60
 // `longReply=1`: her answer runs to several lines.
 const LONG_REPLY =
@@ -289,7 +295,7 @@ function writtenBy(setSpace: (next: (s: Space) => Space) => void) {
     talk: (lines: readonly TalkLine[]) => {
       // Her lines in a talk answer what was said before them: never read as a greeting. Made once, outside the update.
       const said = lines.map((l, i) =>
-        turn(l.who === 'you' ? 'person' : 'sophia', l.text, new Date().toISOString(), {
+        turn(l.who === 'you' ? 'person' : 'sophia', l.text, clockNow().toISOString(), {
           replyTo: l.who === 'sophia' && i > 0 ? `talk-${String(i - 1)}` : null,
         }),
       )
@@ -305,7 +311,7 @@ function writtenBy(setSpace: (next: (s: Space) => Space) => void) {
             text,
             keptBy: 'sophia',
             fromTurnId: null,
-            createdAt: new Date().toISOString(),
+            createdAt: clockNow().toISOString(),
           },
         ],
       })),
@@ -350,7 +356,7 @@ function useSimulated() {
     send: async (text) => {
       sent.push(text)
       setBusy(true)
-      setSending({ text, at: new Date(), epoch: 1 })
+      setSending({ text, at: clockNow(), epoch: 1 })
       await onItsWay()
       // `sendFails=1`: the message doesn't go (a lost connection); its words come back to the field.
       if (query.has('sendFails')) {
@@ -358,12 +364,12 @@ function useSimulated() {
         setBusy(false)
         throw new Error('not sent (fixture)')
       }
-      add(turn('person', text, new Date().toISOString(), { reply: 'pending' }))
+      add(turn('person', text, clockNow().toISOString(), { reply: 'pending' }))
       setSending(null)
       setBusy(false)
       const reply = () => {
         // Her turn made once, outside the update (which React may run twice); its words filled in there.
-        const hers = turn('sophia', '', new Date().toISOString())
+        const hers = turn('sophia', '', clockNow().toISOString())
         setSpace((s) => answered(s, text, hers))
       }
       window.clearTimeout(answer.current)
@@ -378,7 +384,7 @@ function useSimulated() {
       const id = `note-${String(Date.now())}`
       setSpace((s) => ({
         ...s,
-        notes: [...s.notes, { id, text, keptBy: 'person', fromTurnId: turnId, createdAt: new Date().toISOString() }],
+        notes: [...s.notes, { id, text, keptBy: 'person', fromTurnId: turnId, createdAt: clockNow().toISOString() }],
       }))
       // `keepSlow=1`: the note takes 1.5 s on its way, as a slow API's write does.
       const kept = { ...receipt('keep_note'), noteId: id }

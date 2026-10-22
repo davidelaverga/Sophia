@@ -7,7 +7,7 @@
  *   node scripts/reliability-report.mjs --fixture [--run] [--out <dir>]
  *
  * `--ci` reads GitHub Actions through `gh` (M10 flakes, M11 the room job's minutes, M12 main green). `--fixture`
- * collects what the `@reliability` Playwright suite wrote (M1–M4, M6–M9); `--run` runs the suite first. Each mode
+ * collects what the `@reliability` Playwright suite wrote (M1–M9); `--run` runs the suite first. Each mode
  * writes its section of `<out>/reliability.json` (default `reliability-report/`), keeping the other's, and the short
  * table `<out>/reliability.md`, which it also prints.
  */
@@ -36,6 +36,7 @@ import {
   summarizeM1,
   summarizeM2,
   summarizeM2Reload,
+  summarizeM5,
   summarizeM6,
   summarizeM7,
   summarizeM8,
@@ -62,7 +63,6 @@ export const SUITE =
 const NOT_YET = [
   { metric: 'M3', what: 'feed recovery', why: 'needs the stream levers reliability/feed-reconnect adds', feed: true },
   { metric: 'M4', what: 'gaps and resyncs', why: 'needs the gap lever reliability/feed-reconnect adds', feed: true },
-  { metric: 'M5', what: 'call re-join', why: 'not in this suite yet (linkLost/drop levers exist)' },
 ]
 
 // ——— gh ———
@@ -317,6 +317,7 @@ function measureFixture({ run: runFirst }) {
     m1: metric('M1', summarizeM1),
     m2: metric('M2', summarizeM2),
     m2r: metric('M2r', summarizeM2Reload),
+    m5: metric('M5', summarizeM5),
     m6: metric('M6', summarizeM6),
     m7: metric('M7', summarizeM7, (s) => s.reached !== false),
     m8: metric('M8', summarizeM8),
@@ -430,6 +431,47 @@ function versionRows(fx) {
   )
 }
 
+/**
+ * M5's rows: a dropped call back online without a press, back once online, its one try failed, and the microphone
+ * turned on when the call or the preference had it off (violations, beside the control that shows one can be seen).
+ */
+function rejoinRows(fx) {
+  const m = fx.m5
+  const run = (n, value) => () => (!m || n === 0 ? 'not run' : value())
+  const once = (c) => `one try ${c.oneTry}/${c.n} · «Reconnected.» said once ${c.saidOnce}/${c.n}`
+  return [
+    row(
+      fx,
+      'M5 · dropped online → live without a press',
+      run(m?.online?.n, () => `${m.online.back}/${m.online.n} back · p50 ${ms(m.online.time.p50)} · p95 ${ms(m.online.time.p95)} · ${once(m.online)}`),
+    ),
+    row(
+      fx,
+      'M5 · dropped offline → live once online',
+      run(m?.offline?.n, () => {
+        const c = m.offline
+        return `${c.back}/${c.n} back · online → live p50 ${ms(c.time.p50)} · p95 ${ms(c.time.p95)} · no try while offline ${c.n - c.triedOffline}/${c.n} · ${once(c)}`
+      }),
+    ),
+    row(
+      fx,
+      'M5 · its one try fails → the dropped words, Try again',
+      run(m?.failed?.n, () => {
+        const c = m.failed
+        return `${c.said}/${c.n} said with Try again · one try ${c.oneTry}/${c.n} · a second try on its own: ${c.secondTry}`
+      }),
+    ),
+    row(
+      fx,
+      'M5 · microphone back on when off (the call or the preference)',
+      run(m?.privacy?.n, () => {
+        const { n, back, violations, controls } = m.privacy
+        return `violations: ${violations} of ${n} rounds (${back} back) · control, on and on: ${controls.on}/${controls.n} back on`
+      }),
+    ),
+  ]
+}
+
 /** A metric's row; for a metric the run is partial for, how many of its scenarios wrote results instead of a value. */
 function row(fx, label, value) {
   const partial = fx.incomplete?.metrics[/^M\d+r?/.exec(label)[0]]
@@ -458,6 +500,18 @@ function m6Table(fx) {
       (s) =>
         `| ${s.view} | ${s.failedReads} | ${s.failedReads === 0 ? 'not reached' : s.visible ? 'visible' : 'silent'} |`,
     ),
+  ]
+}
+
+/** M5's microphone cases, one line each; none for a partial run or none run. */
+function m5Table(fx) {
+  const cases = Object.entries(fx.m5?.privacy?.cases ?? {})
+  if (fx.incomplete?.metrics.M5 || cases.length === 0) return []
+  return [
+    '',
+    '| M5 microphone case | Rounds | Back | Came back on |',
+    '| --- | --- | --- | --- |',
+    ...cases.map(([how, c]) => `| ${how} | ${c.n} | ${c.back} | ${c.violations} |`),
   ]
 }
 
@@ -514,8 +568,10 @@ function fixtureMarkdown(fx) {
       () => `${pct(m7.share)} (${m7.recovered}/${m7.n}; time p50 ${ms(m7.time.p50)} · p95 ${ms(m7.time.p95)})`,
     ),
     ...feedRows(fx),
+    ...rejoinRows(fx),
     ...sessionRows(fx),
     ...versionRows(fx),
+    ...m5Table(fx),
     ...m6Table(fx),
     ...m7Table(fx),
   ]

@@ -25,6 +25,7 @@ import {
   summarizeM1,
   summarizeM2,
   summarizeM2Reload,
+  summarizeM5,
   summarizeM6,
   summarizeM7,
   summarizeM8,
@@ -502,6 +503,51 @@ test('M9: per trigger, the notice after the version changed, any reload by itsel
   assert.deepEqual(summarizeM9([]), {})
 })
 
+test('M5: a dropped call back without a press, once online, or said lost; the microphone never back on when off', () => {
+  const back = { back: true, tries: 1, reconnected: 1 }
+  const summary = summarizeM5([
+    { case: 'online', ...back, ms: 300 },
+    { case: 'online', ...back, ms: 500 },
+    // Back, but after two tries, and «Reconnected.» said twice: back and timed, neither one try nor said once.
+    { case: 'online', ...back, ms: 700, tries: 2, reconnected: 2 },
+    // Not back in time: not timed.
+    { case: 'online', ...back, back: false, ms: null, reconnected: 0 },
+    // Offline: timed from the network back; one round asked for a token while still offline.
+    { case: 'offline', ...back, offlineTries: 0, ms: 200 },
+    { case: 'offline', ...back, offlineTries: 1, tries: 2, ms: 400 },
+    // The one try failed: the dropped words with Try again; one round tried a second time on its own, one said nothing.
+    { case: 'failed', dropped: true, tryAgain: true, tries: 1, ms: 90 },
+    { case: 'failed', dropped: true, tryAgain: true, tries: 2, ms: 95 },
+    { case: 'failed', dropped: false, tryAgain: true, tries: 1, ms: null },
+    // The microphone off in the call, or by the preference: never back on. A round not back still counts a microphone
+    // turned on; the control (on in the call and by the preference) shows the check can see one come back on.
+    { case: 'mic', how: 'muted in the call', off: true, back: true, micOn: false },
+    { case: 'mic', how: 'muted in the call', off: true, back: true, micOn: true },
+    { case: 'mic', how: 'preference off since', off: true, back: false, micOn: true },
+    { case: 'mic', how: 'preference off since', off: true, back: true, micOn: false },
+    { case: 'mic', how: 'on, and the preference on', off: false, back: true, micOn: true },
+    { case: 'mic', how: 'on, and the preference on', off: false, back: false, micOn: false },
+  ])
+  assert.deepEqual(summary, {
+    online: { n: 4, back: 3, time: { p50: 500, p95: 680 }, oneTry: 3, saidOnce: 2 },
+    offline: { n: 2, back: 2, time: { p50: 300, p95: 390 }, oneTry: 1, saidOnce: 2, triedOffline: 1 },
+    failed: { n: 3, said: 2, oneTry: 2, secondTry: 1 },
+    privacy: {
+      n: 4,
+      back: 3,
+      violations: 2,
+      controls: { n: 2, back: 1, on: 1 },
+      cases: {
+        'muted in the call': { n: 2, back: 2, violations: 1 },
+        'preference off since': { n: 2, back: 1, violations: 1 },
+      },
+    },
+  })
+  const none = summarizeM5([])
+  assert.deepEqual(none.online, { n: 0, back: 0, time: { p50: null, p95: null }, oneTry: 0, saidOnce: 0 })
+  assert.deepEqual(none.privacy, { n: 0, back: 0, violations: 0, controls: { n: 0, back: 0, on: 0 }, cases: {} })
+})
+
 
 test('M6: per view, failed reads that show versus fall silent; a view with no failed read is not counted', () => {
   const summary = summarizeM6([
@@ -544,8 +590,8 @@ test('M3/M4: per feed case, the scenarios that ran (their lever there), came bac
 })
 
 // The script itself, on a fake suite: it lists 2 M7 scenarios, 1 M2, `FAKE_M2R_LISTED` M2r, `FAKE_M8_LISTED` M8 and
-// `FAKE_M9_LISTED` M9; `FAKE_M7` M7 records, `FAKE_M2` M2 records, `FAKE_M8` M8 records and `FAKE_M9` M9 records
-// are written, and it exits `FAKE_EXIT`.
+// `FAKE_M5_LISTED` M5 and `FAKE_M9_LISTED` M9; `FAKE_M7` M7 records, `FAKE_M2` M2 records, `FAKE_M8` M8 records, `FAKE_M5`
+// M5 records and `FAKE_M9` M9 records are written, and it exits `FAKE_EXIT`.
 const SCRIPT = fileURLToPath(new URL('../../scripts/reliability-report.mjs', import.meta.url))
 const FAKE_SUITE = `
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -559,9 +605,11 @@ if (process.argv.includes('--list')) {
   for (let i = 0; i < m2r; i++) console.log('  [desktop] › writes.spec.ts:90:1 › M2r · a message kept across a reload @reliability')
   const m8 = Number(process.env.FAKE_M8_LISTED)
   for (let i = 0; i < m8; i++) console.log('  [desktop] › session.spec.ts:40:1 › M8 · a read after the token expired @reliability')
+  const m5 = Number(process.env.FAKE_M5_LISTED)
+  for (let i = 0; i < m5; i++) console.log('  [desktop] › rejoin.spec.ts:50:1 › M5 · a call dropped online @reliability')
   const m9 = Number(process.env.FAKE_M9_LISTED)
   for (let i = 0; i < m9; i++) console.log('  [desktop] › version.spec.ts:30:1 › M9 · a deploy heard on focus @reliability')
-  console.log('Total: ' + (3 + m2r + m8 + m9) + ' tests in 3 files')
+  console.log('Total: ' + (3 + m2r + m8 + m5 + m9) + ' tests in 3 files')
   process.exit(0)
 }
 const dir = process.env.RELIABILITY_RESULTS
@@ -588,10 +636,21 @@ for (let i = 0; i < Number(process.env.FAKE_M9); i++) {
   const interval = { trigger: 'interval', noticed: true, ms: 600000, reloaded: false }
   writeFileSync(join(dir, 'M9-' + i + '.json'), JSON.stringify({ metric: 'M9', test: 'M9 ' + i, samples: [focus, interval] }))
 }
+// A dropped call: back online and offline, its one try failed, and the microphone off in the call kept off.
+const m5 = [
+  { case: 'online', back: true, ms: 310, tries: 1, reconnected: 1 },
+  { case: 'offline', back: true, ms: 140, tries: 1, offlineTries: 0, reconnected: 1 },
+  { case: 'failed', dropped: true, tryAgain: true, tries: 1, ms: 60 },
+  { case: 'mic', how: 'muted in the call', off: true, back: true, micOn: false },
+  { case: 'mic', how: 'on, and the preference on', off: false, back: true, micOn: true },
+]
+for (let i = 0; i < Number(process.env.FAKE_M5); i++) {
+  writeFileSync(join(dir, 'M5-' + i + '.json'), JSON.stringify({ metric: 'M5', test: 'M5 ' + i, samples: m5 }))
+}
 process.exit(Number(process.env.FAKE_EXIT))
 `
 
-function fixtureReport({ m7, m2, exit, runSuite, m8 = 0, m8Listed = 0, m2rListed = 0, m9 = 0, m9Listed = 0 }) {
+function fixtureReport({ m7, m2, exit, runSuite, m8 = 0, m8Listed = 0, m2rListed = 0, m5 = 0, m5Listed = 0, m9 = 0, m9Listed = 0 }) {
   const dir = mkdtempSync(join(tmpdir(), 'reliability-'))
   const fake = join(dir, 'fake-suite.mjs')
   writeFileSync(fake, FAKE_SUITE)
@@ -604,6 +663,8 @@ function fixtureReport({ m7, m2, exit, runSuite, m8 = 0, m8Listed = 0, m2rListed
     FAKE_M8: String(m8),
     FAKE_M8_LISTED: String(m8Listed),
     FAKE_M2R_LISTED: String(m2rListed),
+    FAKE_M5: String(m5),
+    FAKE_M5_LISTED: String(m5Listed),
     FAKE_M9: String(m9),
     FAKE_M9_LISTED: String(m9Listed),
     FAKE_EXIT: String(exit),
@@ -703,5 +764,37 @@ ${md}`)
     '| M9 · version changed → notice · interval (page clock) | 1/1 noticed · reloaded by itself: 0 · 1/1 within 15 min · p50 10.0 min · p95 10.0 min |',
   )
   assert.ok(!whole.md.includes('M9 (tabs on an old version)'), `M9 is measurable:
+${whole.md}`)
+})
+
+test('M5 is measured now: a partial run gives no M5 numbers, a whole one its rows, and it is no longer «not measurable»', () => {
+  const has = (md, line) => assert.ok(md.includes(line), `«${line}» in:
+${md}`)
+  const rows = [
+    'M5 · dropped online → live without a press',
+    'M5 · dropped offline → live once online',
+    'M5 · its one try fails → the dropped words, Try again',
+    'M5 · microphone back on when off (the call or the preference)',
+  ]
+  const short = fixtureReport({ m7: 2, m2: 1, m5: 0, m5Listed: 1, exit: 0, runSuite: false })
+  assert.notEqual(short.status, 0, 'the script exits non-zero')
+  assert.deepEqual(short.fixture.incomplete, { exit: null, metrics: { M5: { ran: 0, expected: 1 } } })
+  assert.equal(short.fixture.m5.online, undefined, 'no summary from a partial run')
+  for (const label of rows) has(short.md, `| ${label} | incomplete: 0 of 1 scenarios wrote results |`)
+  assert.ok(!short.md.includes('M5 microphone case'), `no M5 table:
+${short.md}`)
+
+  const whole = fixtureReport({ m7: 2, m2: 1, m5: 1, m5Listed: 1, exit: 0, runSuite: false })
+  assert.equal(whole.status, 0)
+  assert.equal(whole.fixture.m5.privacy.violations, 0)
+  has(whole.md, `| ${rows[0]} | 1/1 back · p50 310 ms · p95 310 ms · one try 1/1 · «Reconnected.» said once 1/1 |`)
+  has(
+    whole.md,
+    `| ${rows[1]} | 1/1 back · online → live p50 140 ms · p95 140 ms · no try while offline 1/1 · one try 1/1 · «Reconnected.» said once 1/1 |`,
+  )
+  has(whole.md, `| ${rows[2]} | 1/1 said with Try again · one try 1/1 · a second try on its own: 0 |`)
+  has(whole.md, `| ${rows[3]} | violations: 0 of 1 rounds (1 back) · control, on and on: 1/1 back on |`)
+  has(whole.md, '| muted in the call | 1 | 1 | 0 |')
+  assert.ok(!whole.md.includes('M5 (call re-join)'), `M5 is measurable:
 ${whole.md}`)
 })

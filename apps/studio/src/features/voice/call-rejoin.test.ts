@@ -7,14 +7,19 @@ import {
   Rejoin,
   REJOIN_WINDOW_MS,
   REJOINED_FOR_MS,
+  STEADY_MS,
   TRY_FRESH_MS,
+  liveAt,
   rejoinLine,
   rejoinPlan,
   stillSeen,
+  type Liveness,
   type RejoinStep,
 } from './call-rejoin.ts'
 
 const MIN = 60_000
+/** When a beat at `now` leaves the call seen live. */
+const seenAt = (live: Liveness, now: number) => stillSeen(live, now, true).seen
 const dropped = { why: 'dropped' as const, online: true, now: 10 * MIN, seen: 10 * MIN - 50_000, triedAt: null }
 
 describe('when a call that ended tries to come back on its own (call-rejoin.md)', () => {
@@ -45,11 +50,35 @@ describe('when a call that ended tries to come back on its own (call-rejoin.md)'
 
   it('is seen live on each beat while the page runs, and stays as old as it was after any longer gap (review P3)', () => {
     assert.equal(LIVE_BEAT_MS, 5000)
-    assert.equal(stillSeen(1000, 1000 + LIVE_BEAT_MS), 1000 + LIVE_BEAT_MS)
-    assert.equal(stillSeen(1000, 1000 + 2 * LIVE_BEAT_MS), 1000 + 2 * LIVE_BEAT_MS, 'one beat late still counts')
-    assert.equal(stillSeen(1000, 1000 + 2 * LIVE_BEAT_MS + 1), 1000, 'the page didn’t run in between')
-    assert.equal(stillSeen(1000, 1000 + 60_000), 1000, 'a minute without a beat is a page asleep, not a live call')
-    assert.equal(stillSeen(null, 5000), null)
+    assert.equal(seenAt(liveAt(1000), 1000 + LIVE_BEAT_MS), 1000 + LIVE_BEAT_MS)
+    assert.equal(seenAt(liveAt(1000), 1000 + 2 * LIVE_BEAT_MS), 1000 + 2 * LIVE_BEAT_MS, 'one beat late still counts')
+    assert.equal(seenAt(liveAt(1000), 1000 + 2 * LIVE_BEAT_MS + 1), 1000, 'the page didn’t run in between')
+    assert.equal(seenAt(liveAt(1000), 1000 + 60_000), 1000, 'a minute without a beat is a page asleep, not a live call')
+    assert.equal(seenAt(liveAt(1000), 0), 1000, 'a clock set back is a gap too')
+    const never: Liveness = { seen: null, beat: null, since: null }
+    assert.deepEqual(stillSeen(never, 5000, true), never)
+  })
+
+  it('after a gap, is seen live again only once every beat has come on time for 30 s (Codex P2 on #475)', () => {
+    assert.equal(STEADY_MS, 30_000)
+    assert.ok(STEADY_MS >= 2 * 15_000, 'past LiveKit’s pong timeout (15 s), which fires as a page wakes')
+    let live = stillSeen(liveAt(0), 60_000, true) // the page woke after a minute
+    assert.deepEqual(live, { seen: 0, beat: 60_000, since: 60_000 })
+    for (let at = 60_000 + LIVE_BEAT_MS; at < 60_000 + STEADY_MS; at += LIVE_BEAT_MS) {
+      live = stillSeen(live, at, true)
+      assert.equal(live.seen, 0, `${String(at - 60_000)} ms into the run`)
+    }
+    live = stillSeen(live, 60_000 + STEADY_MS, true)
+    assert.deepEqual(live, liveAt(60_000 + STEADY_MS), 'the run lasted: seen now, as a call that just went live')
+    const gapAgain = stillSeen(stillSeen(liveAt(0), 60_000, true), 60_000 + 2 * LIVE_BEAT_MS + 1, true)
+    assert.deepEqual(gapAgain, { seen: 0, beat: 70_001, since: 70_001 }, 'a gap inside the run starts it again')
+  })
+
+  it('a run is still short 1 ms before 30 s, and a beat while LiveKit isn’t connected starts it again (review)', () => {
+    const run = { seen: 0, beat: 60_000 + 25_000, since: 60_000 }
+    assert.equal(stillSeen(run, 60_000 + STEADY_MS - 1, true).seen, 0, '29 999 ms into the run')
+    assert.deepEqual(stillSeen(liveAt(1000), 1000 + LIVE_BEAT_MS, false), { seen: 1000, beat: 6000, since: 6000 })
+    assert.deepEqual(stillSeen(run, 60_000 + STEADY_MS, false), { seen: 0, beat: 90_000, since: 90_000 })
   })
 
   it('says each step in one plain line, and nothing when none waits or runs', () => {
@@ -211,7 +240,7 @@ describe('one try back into a dropped call', () => {
     await settle()
     for (let beat = 0; beat < 40; beat += 1) {
       h.pass(LIVE_BEAT_MS)
-      h.rejoin.beat()
+      h.rejoin.beat(true)
     }
     h.rejoin.ended('dropped')
     assert.equal(h.joins.length, 2)
@@ -231,9 +260,63 @@ describe('one try back into a dropped call', () => {
     const h = harness()
     h.rejoin.live()
     h.pass(60 * MIN)
-    h.rejoin.beat()
+    h.rejoin.beat(true)
     h.pass(LIVE_BEAT_MS)
-    h.rejoin.beat()
+    h.rejoin.beat(true)
+    h.rejoin.ended('dropped')
+    assert.equal(h.joins.length, 0)
+  })
+
+  it('a page that froze once counts as live again once it runs steadily (Codex P2 on #475)', () => {
+    const h = harness()
+    h.rejoin.live()
+    for (let beat = 0; beat < 3; beat += 1) {
+      h.pass(LIVE_BEAT_MS)
+      h.rejoin.beat(true)
+    }
+    h.jump(30_000) // frozen or throttled in the background: no beat for 30 s
+    h.rejoin.beat(true)
+    for (let beat = 0; beat < 36; beat += 1) {
+      h.pass(LIVE_BEAT_MS)
+      h.rejoin.beat(true)
+    }
+    h.rejoin.ended('dropped')
+    assert.equal(h.joins.length, 1, 'three minutes in the foreground since: the call is live')
+  })
+
+  it('never for a laptop that woke into a dead link and went to «Reconnecting…» before the beats counted again', () => {
+    const h = harness()
+    h.rejoin.live()
+    for (let beat = 0; beat < 12; beat += 1) {
+      h.pass(LIVE_BEAT_MS)
+      h.rejoin.beat(true)
+    }
+    h.jump(60 * MIN) // the lid closed for an hour
+    h.rejoin.beat(true) // the beat due while asleep runs as the page wakes
+    // A peer connection that failed while the signal is cut takes the room to «Reconnecting…», where no beat runs.
+    for (let beat = 0; beat < 5; beat += 1) {
+      h.pass(LIVE_BEAT_MS)
+      h.rejoin.beat(true)
+    }
+    h.pass(50_000) // LiveKit's own tries, then `dropped`
+    h.rejoin.ended('dropped')
+    assert.equal(h.joins.length, 0)
+  })
+
+  it('never for a laptop that woke into a dead link while LiveKit only resumes its signal (review P1)', () => {
+    const h = harness()
+    h.rejoin.live()
+    for (let beat = 0; beat < 12; beat += 1) {
+      h.pass(LIVE_BEAT_MS)
+      h.rejoin.beat(true)
+    }
+    h.jump(60 * MIN) // the lid closed for an hour, and the page wakes with no network
+    // LiveKit's pong timeout starts a resume (SignalReconnecting): the dock still reads live and the beats keep coming,
+    // on time, for all of its tries, while the room isn't connected.
+    for (let beat = 0; beat < 13; beat += 1) {
+      h.rejoin.beat(false)
+      h.pass(LIVE_BEAT_MS)
+    }
     h.rejoin.ended('dropped')
     assert.equal(h.joins.length, 0)
   })
