@@ -119,3 +119,25 @@ Luis's decision» says how.
   join 94/94 (`stale-retry-green`). Units: `apps/studio/src/**` and `tests/unit/reliability-report.test.mjs`
   2183/2185 (the two known Windows path failures); the report's own 29/29. Whole-repo oxlint, tsc, Prettier: clean.
 - The measuring suite was not rerun after the merge (only the report's units, as asked).
+
+## After the independent review (2026-10-22: no P1; a P2 Luis decided; P3s)
+
+Each point was read against the code, written first, proven red, then fixed; the plans' «After the independent
+review» sections say how.
+
+- **P2, the news in the middle of a call** (Luis: «Esperar a que termine»). Written first `441841d6b`; units red
+  («signal.holdWhile is not a function» ×3); browser red (`pw-logs/hold-red`): «toHaveCount · Expected: 0 · Received: 1»: the notice showed during the call. Fixed `d5f952402`: the probe's
+  word is held while a call is live, reconnecting or coming back on its own, and said once as the last call ends;
+  Vite's word and the older-version line are unchanged.
+- **P3s.** Written first `6589f1a59`; units red: a plain TypeError after the probe told of a deploy read as a gone part
+  («actual: true, expected: false»; «actual: 'This tab is on an older version…', expected: 'Couldn’t connect…'»),
+  «signal.payload is not a function», «does not provide an export named 'PROBE_ASK_MS'», M9's new labels missing;
+  browser red (`pw-logs/review-p3-red`): no Reload focused after the pressed Join («toBeFocused · Received: inactive»); the check still offered Join («Expected: 0 · Received: 1»); the palette still offered Join («Expected: 0 · Received: 1»). Fixed `3ba9187b1`: the gone part is Vite's payload (or the browsers'
+  words for a module they couldn't fetch, once heard); the probe's ask times out at 10 s; Ctrl+J and the palette don't
+  join while the part is gone; the check offers Reload in Join's place; Reload takes the focus the pressed Join left;
+  the check's opener alone in the dock is a 36 px square clear of its edge; the build's id orders files by code point;
+  M9's rows read «trigger → notice» with a note on the 5 s steps.
+- **Docs** `8556eba43`: the rollback limit narrowed to builds that serve `version.json`; Luis's words dated 2026-10-22
+  (the docs and two code comments had 2026-10-24; no commit message carries it).
+- **Green at 8556eba43 and 427e51d9f:** new-version, device-check, call-devices, room-dock, room, join, app-auth 149/150 at `8556eba43` (`review-green`; the one failure was the check test counting the rows «Microphone: Needs a reload» as Reload buttons, 4 not 1: its locator now asks for the exact name, `427e51d9f`), then new-version 15/15 at `427e51d9f` (`review-green-2`). Units: `apps/studio/src/**` and the report's 2191/2193 (the two known Windows path
+  failures); whole-repo oxlint, tsc, Prettier: clean.
