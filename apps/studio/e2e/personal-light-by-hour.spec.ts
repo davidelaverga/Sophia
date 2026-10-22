@@ -137,13 +137,23 @@ async function firstDayOverHerLight(page: Page): Promise<number> {
   })
   const lines = await page.evaluate(firstDayLines)
   expect(lines.length).toBeGreaterThan(0)
-  // The words gone, the breath held at its peak (halfway through), the grain off.
+  // The words gone (nothing fading back), the grain off.
   const held = await page.addStyleTag({
-    content: `.c3-space, .c3-space * { color: transparent !important; text-shadow: none !important }
-      .c3-ambient { animation-duration: 2s !important; animation-delay: -1s !important;
-        animation-play-state: paused !important }
+    content: `.c3-space, .c3-space * { color: transparent !important; text-shadow: none !important;
+        transition: none !important }
       body::after { display: none !important }`,
   })
+  // Her breath held at its peak by its own keyframes: halfway through, where it reaches `--ambient-peak` (1 unset).
+  const breath = await page.locator('.c3-space.you .c3-ambient').evaluate((light) => {
+    for (const a of light.getAnimations()) {
+      a.pause()
+      const { duration } = a.effect?.getComputedTiming() ?? {}
+      a.currentTime = typeof duration === 'number' ? duration / 2 : 0
+    }
+    const s = getComputedStyle(light)
+    return { held: parseFloat(s.opacity), peak: parseFloat(s.getPropertyValue('--ambient-peak')) || 1 }
+  })
+  expect(breath.held).toBeCloseTo(breath.peak, 3)
   const png = (await page.screenshot()).toString('base64')
   await held.evaluate((tag: HTMLStyleElement) => tag.remove())
   const scale = await page.evaluate(() => devicePixelRatio)
@@ -151,6 +161,7 @@ async function firstDayOverHerLight(page: Page): Promise<number> {
   const ratios = lines.flatMap(({ ink, opacity }, i) =>
     (grounds[i] ?? []).map((ground) => contrastOf({ words: '', ink, opacity, grounds: [ground], size: 0 })),
   )
+  expect(ratios.length).toBeGreaterThan(0)
   return Math.min(...ratios)
 }
 
@@ -161,6 +172,7 @@ for (const phone of [false, true]) {
     const below: string[] = []
     for (const [light, hour] of HOURS) {
       await page.goto(`/personal.html?all=1&at=${hour}&theme=light`)
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
       await expect(page.locator('.c3-space.you')).toHaveAttribute('data-hour', light)
       await expect(page.locator('.msgs > .c3-day').first()).toBeVisible()
       const lowest = await firstDayOverHerLight(page)
