@@ -693,6 +693,39 @@ test('browser-account · a legacy email-keyed flag is not read: Enter goes to Pe
   expect(await page.evaluate((k) => localStorage.getItem(k), legacyFlagKey)).toBe('work')
 })
 
+test('personal · on paper, her light rises from Home into its own breath: nothing jumps as the motion ends', async ({
+  context,
+}) => {
+  // Her light arrives from Home's door (usePlaceMotion), then the motion is dropped and her breath (personal.css) shows
+  // as it is: on paper that breath is softer (--ambient-peak, ci-light-by-hour-contrast.md), so a rise to full strength
+  // would snap down as the motion ends.
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.addInitScript(() => localStorage.setItem('sophia.theme', 'light'))
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  // Her light's opacity at every frame it shows, from the first, for about two seconds: past the motion's end.
+  const frames = page.evaluate(
+    () =>
+      new Promise<number[]>((done) => {
+        const seen: number[] = []
+        const tick = () => {
+          const light = document.querySelector('.c3-space.you .c3-ambient')
+          if (light?.getClientRects().length) seen.push(parseFloat(getComputedStyle(light).opacity))
+          if (seen.length < 120) requestAnimationFrame(tick)
+          else done(seen)
+        }
+        requestAnimationFrame(tick)
+      }),
+  )
+  await enterFromHome(page)
+  await expect(page.locator('.places[data-place="personal"]')).toBeVisible()
+  const seen = await frames
+  const drop = Math.max(0, ...seen.slice(1).map((o, i) => (seen[i] ?? o) - o))
+  expect(drop, seen.map((o) => o.toFixed(2)).join(' ')).toBeLessThan(0.15)
+})
+
 test('browser-account · viewer-state lens restores under same subject after email change, resets for another subject', async ({
   context,
 }) => {
