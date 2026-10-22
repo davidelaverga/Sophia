@@ -226,9 +226,10 @@ test('version · a tab left in view hears of a deploy within ten minutes, asking
 }) => {
   await page.clock.install()
   await page.goto(`${APP}/app.html`)
-  // The page's clock stops a moment after its probe began; from here only the check moves it, in jumps (each due timer
-  // fires once), so ten minutes take none and no frame loop runs through them.
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100))
+  // The page's clock stops a second after its probe began (a moment less can already be past on a slow runner); from
+  // here only the check moves it, in jumps (each due timer fires once), so ten minutes take none and no frame loop runs
+  // through them.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000))
   await marked(page)
   const asked = await deployNow(page)
   await page.clock.fastForward(10 * 60_000 - 10_000)
