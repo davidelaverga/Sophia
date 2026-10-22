@@ -28,6 +28,7 @@ import {
   summarizeM6,
   summarizeM7,
   summarizeM8,
+  summarizeM9,
   timeoutMinutes,
 } from '../../scripts/lib/reliability.mjs'
 
@@ -484,6 +485,23 @@ test('M8: per kind, the measured request renewed without «signed out», sent ag
   assert.deepEqual(summarizeM8([]), {})
 })
 
+test('M9: per trigger, the notice after the version changed, any reload by itself, and the time of the clean ones', () => {
+  const summary = summarizeM9([
+    { trigger: 'focus', noticed: true, ms: 120, reloaded: false },
+    { trigger: 'focus', noticed: true, ms: 80, reloaded: false },
+    // Noticed, but the page reloaded by itself: counted, never timed.
+    { trigger: 'focus', noticed: true, ms: 40, reloaded: true },
+    { trigger: 'interval', noticed: true, ms: 600_000, reloaded: false },
+    // No notice within its limit.
+    { trigger: 'interval', noticed: false, ms: null, reloaded: false },
+  ])
+  assert.deepEqual(summary, {
+    focus: { n: 3, noticed: 3, reloaded: 1, withinFifteenMinutes: 2, time: { p50: 100, p95: 118 } },
+    interval: { n: 2, noticed: 1, reloaded: 0, withinFifteenMinutes: 1, time: { p50: 600_000, p95: 600_000 } },
+  })
+  assert.deepEqual(summarizeM9([]), {})
+})
+
 
 test('M6: per view, failed reads that show versus fall silent; a view with no failed read is not counted', () => {
   const summary = summarizeM6([
@@ -525,8 +543,9 @@ test('M3/M4: per feed case, the scenarios that ran (their lever there), came bac
   })
 })
 
-// The script itself, on a fake suite: it lists 2 M7 scenarios, 1 M2, `FAKE_M2R_LISTED` M2r and `FAKE_M8_LISTED` M8;
-// `FAKE_M7` M7 records, `FAKE_M2` M2 records and `FAKE_M8` M8 records are written, and it exits `FAKE_EXIT`.
+// The script itself, on a fake suite: it lists 2 M7 scenarios, 1 M2, `FAKE_M2R_LISTED` M2r, `FAKE_M8_LISTED` M8 and
+// `FAKE_M9_LISTED` M9; `FAKE_M7` M7 records, `FAKE_M2` M2 records, `FAKE_M8` M8 records and `FAKE_M9` M9 records
+// are written, and it exits `FAKE_EXIT`.
 const SCRIPT = fileURLToPath(new URL('../../scripts/reliability-report.mjs', import.meta.url))
 const FAKE_SUITE = `
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -540,7 +559,9 @@ if (process.argv.includes('--list')) {
   for (let i = 0; i < m2r; i++) console.log('  [desktop] › writes.spec.ts:90:1 › M2r · a message kept across a reload @reliability')
   const m8 = Number(process.env.FAKE_M8_LISTED)
   for (let i = 0; i < m8; i++) console.log('  [desktop] › session.spec.ts:40:1 › M8 · a read after the token expired @reliability')
-  console.log('Total: ' + (3 + m2r + m8) + ' tests in 3 files')
+  const m9 = Number(process.env.FAKE_M9_LISTED)
+  for (let i = 0; i < m9; i++) console.log('  [desktop] › version.spec.ts:30:1 › M9 · a deploy heard on focus @reliability')
+  console.log('Total: ' + (3 + m2r + m8 + m9) + ' tests in 3 files')
   process.exit(0)
 }
 const dir = process.env.RELIABILITY_RESULTS
@@ -561,10 +582,16 @@ for (let i = 0; i < Number(process.env.FAKE_M8); i++) {
   const record = { metric: 'M8', test: 'M8 ' + i, samples: [renewed, feed] }
   writeFileSync(join(dir, 'M8-' + i + '.json'), JSON.stringify(record))
 }
+// M9: heard on focus and on the interval (the page's clock), and never reloaded by itself.
+for (let i = 0; i < Number(process.env.FAKE_M9); i++) {
+  const focus = { trigger: 'focus', noticed: true, ms: 140, reloaded: false }
+  const interval = { trigger: 'interval', noticed: true, ms: 600000, reloaded: false }
+  writeFileSync(join(dir, 'M9-' + i + '.json'), JSON.stringify({ metric: 'M9', test: 'M9 ' + i, samples: [focus, interval] }))
+}
 process.exit(Number(process.env.FAKE_EXIT))
 `
 
-function fixtureReport({ m7, m2, exit, runSuite, m8 = 0, m8Listed = 0, m2rListed = 0 }) {
+function fixtureReport({ m7, m2, exit, runSuite, m8 = 0, m8Listed = 0, m2rListed = 0, m9 = 0, m9Listed = 0 }) {
   const dir = mkdtempSync(join(tmpdir(), 'reliability-'))
   const fake = join(dir, 'fake-suite.mjs')
   writeFileSync(fake, FAKE_SUITE)
@@ -577,6 +604,8 @@ function fixtureReport({ m7, m2, exit, runSuite, m8 = 0, m8Listed = 0, m2rListed
     FAKE_M8: String(m8),
     FAKE_M8_LISTED: String(m8Listed),
     FAKE_M2R_LISTED: String(m2rListed),
+    FAKE_M9: String(m9),
+    FAKE_M9_LISTED: String(m9Listed),
     FAKE_EXIT: String(exit),
   }
   // Without --run the suite ran before (through the guard, on Luis's machine): the script only collects.
@@ -653,4 +682,26 @@ test('a reload scenario that wrote nothing leaves M2r incomplete, and M2’s com
     '| M2r · kept across a reload: offered again, resent once under its key | incomplete: 0 of 1 scenarios wrote results |',
   )
   has(short.md, '| M2 · unknown outcome resolved by resend, same key | 100.0 % (1/1;')
+})
+
+test('M9 is measured now: a partial run gives no M9 numbers, a whole one a row per trigger, and it is no longer «not measurable»', () => {
+  const has = (md, line) => assert.ok(md.includes(line), `«${line}» in:
+${md}`)
+  const short = fixtureReport({ m7: 2, m2: 1, m9: 0, m9Listed: 1, exit: 0, runSuite: false })
+  assert.notEqual(short.status, 0, 'the script exits non-zero')
+  assert.deepEqual(short.fixture.incomplete, { exit: null, metrics: { M9: { ran: 0, expected: 1 } } })
+  assert.equal(short.fixture.m9.focus, undefined, 'no summary from a partial run')
+  has(short.md, '| M9 · version changed → notice · focus | incomplete: 0 of 1 scenarios wrote results |')
+
+  const whole = fixtureReport({ m7: 2, m2: 1, m9: 1, m9Listed: 1, exit: 0, runSuite: false })
+  assert.equal(whole.status, 0)
+  assert.equal(whole.fixture.m9.focus.noticed, 1)
+  has(whole.md, '| M9 · version changed → notice · focus | 1/1 noticed · reloaded by itself: 0 · 1/1 within 15 min · p50 140 ms · p95 140 ms |')
+  has(whole.md, '| M9 · version changed → notice · back into view | not run |')
+  has(
+    whole.md,
+    '| M9 · version changed → notice · interval (page clock) | 1/1 noticed · reloaded by itself: 0 · 1/1 within 15 min · p50 10.0 min · p95 10.0 min |',
+  )
+  assert.ok(!whole.md.includes('M9 (tabs on an old version)'), `M9 is measurable:
+${whole.md}`)
 })
