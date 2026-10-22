@@ -674,9 +674,15 @@ const BROWSER = {
 
 /**
  * A dropped call's one try back in (call-rejoin.md), made with the latest render's join and note: Try again, pressed
- * for the person. The call is seen live every few seconds while it is; when the room goes, whatever waits or runs stops.
+ * for the person. The call is seen live every few seconds while it is and LiveKit reads it connected (`connection`);
+ * when the room goes, whatever waits or runs stops.
  */
-function useRejoin(status: DockStatus, join: ProjectRoom['join'], say: (note: string) => void) {
+function useRejoin(
+  status: DockStatus,
+  connection: { current: RoomConnection | null },
+  join: ProjectRoom['join'],
+  say: (note: string) => void,
+) {
   const [step, setStep] = useState<RejoinStep | null>(null)
   // This room among this browser's tabs (call-tabs.ts): what it claims is its own.
   const [room] = useState(() => crypto.randomUUID())
@@ -706,9 +712,9 @@ function useRejoin(status: DockStatus, join: ProjectRoom['join'], say: (note: st
   useEffect(() => {
     rejoin.status(status)
     if (status !== 'live') return undefined
-    const beat = setInterval(() => rejoin.beat(), LIVE_BEAT_MS)
+    const beat = setInterval(() => rejoin.beat(connection.current?.connected() ?? false), LIVE_BEAT_MS)
     return () => clearInterval(beat)
-  }, [status, rejoin])
+  }, [status, rejoin, connection])
   return { line: rejoinLine(step), rejoining: step === 'waiting' || step === 'trying', rejoin }
 }
 
@@ -785,7 +791,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   const ports = { calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall, scoped }
   const joined = useJoin(ports, joining, () => devices.setCamera(true))
   const join = joinOnline(joined.join)
-  const { line, rejoining, rejoin } = useRejoin(status, join, setError)
+  const { line, rejoining, rejoin } = useRejoin(status, calls, join, setError)
 
   const { leave, leftByPress } = useLeave(calls, outOfCall, () => rejoin.stop())
 

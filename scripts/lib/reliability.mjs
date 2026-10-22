@@ -415,6 +415,56 @@ export function summarizeM8(samples) {
 const metBy = (group, last) =>
   group.filter((s) => (s.refused ?? []).some((r) => new RegExp(`^GET /api/v1/projects/[^/]+/${last}$`).test(r))).length
 
+/** A way back after a drop: back in the call, timed, with one try, and «Reconnected.» said once. */
+function wayBack(group) {
+  const back = group.filter((s) => s.back && s.ms !== null)
+  return {
+    n: group.length,
+    back: back.length,
+    time: spread(back.map((s) => s.ms)),
+    oneTry: group.filter((s) => s.tries === 1).length,
+    saidOnce: group.filter((s) => s.reconnected === 1).length,
+  }
+}
+
+/** The microphone's rounds: how many, how many came back into the call, and how many turned the microphone on. */
+const micRounds = (group) => ({
+  n: group.length,
+  back: group.filter((s) => s.back).length,
+  violations: group.filter((s) => s.micOn).length,
+})
+
+/**
+ * M5. A call dropped (call-rejoin.md): `online`, back in without a press, the time from the drop to live; `offline`,
+ * back once the network returns, the time from `online` to live, and whether a token was asked while still offline;
+ * `failed`, its one try refused: the dropped words with Try again, and no second try on its own (`tries`, the room
+ * tokens asked after the drop). The privacy invariant, `mic`: of the rounds whose call or preference had the
+ * microphone off (`off`), those that turned it on (`micOn`), back in or not, per case; the controls (on in the call and
+ * by the preference) show the check sees a microphone come back on.
+ */
+export function summarizeM5(samples) {
+  const of = (name) => samples.filter((s) => s.case === name)
+  const offline = of('offline')
+  const failed = of('failed')
+  const kept = of('mic').filter((s) => s.off)
+  const controls = of('mic').filter((s) => !s.off)
+  return {
+    online: wayBack(of('online')),
+    offline: { ...wayBack(offline), triedOffline: offline.filter((s) => s.offlineTries > 0).length },
+    failed: {
+      n: failed.length,
+      said: failed.filter((s) => s.dropped && s.tryAgain).length,
+      oneTry: failed.filter((s) => s.tries === 1).length,
+      secondTry: failed.filter((s) => s.tries > 1).length,
+    },
+    privacy: {
+      ...micRounds(kept),
+      controls: { n: controls.length, back: controls.filter((s) => s.back).length, on: controls.filter((s) => s.back && s.micOn).length },
+      cases: Object.fromEntries([...groupBy(kept, (s) => s.how)].map(([how, group]) => [how, micRounds(group)])),
+    },
+  }
+}
+
 /** M6. Per view: its read failed (`failedReads` > 0) and it showed so, or fell silent; no failed read, not reached. */
 export function summarizeM6(samples) {
   const reached = samples.filter((s) => s.failedReads > 0)
@@ -461,7 +511,7 @@ export function summarizeFeed(samples) {
  * The fixture's metrics, each written by its own scenarios (their titles start `Mn · `, a describe's or their own);
  * `M2r`, M2 kept across a reload.
  */
-const FIXTURE_METRICS = ['M1', 'M2', 'M2r', 'M3', 'M4', 'M6', 'M7', 'M8']
+const FIXTURE_METRICS = ['M1', 'M2', 'M2r', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8']
 
 /**
  * How many scenarios a suite has per metric, from `playwright test --list` (one line per test, `… › file:line:col ›

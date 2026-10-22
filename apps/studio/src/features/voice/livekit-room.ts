@@ -115,6 +115,11 @@ export interface RoomConnection {
    * (call-rejoin.md). LiveKit unpublishes the tracks before it says the call ended, so the end itself can't tell.
    */
   micWas: () => boolean
+  /**
+   * Whether LiveKit reads the room connected now: not while it resumes its signal (SignalReconnecting, which the dock
+   * doesn't show) or reconnects. A live call's beat counts only then (call-rejoin.md).
+   */
+  connected: () => boolean
 }
 
 export interface RoomCallbacks {
@@ -514,5 +519,6 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     ...incomingVideo(room, cb.onChange),
     leave: () => room.disconnect(),
     micWas: mic,
+    connected: () => room.state === ConnectionState.Connected,
   }
 }

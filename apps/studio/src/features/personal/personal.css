@@ -1123,7 +1123,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 26px;
+  height: 28px;
   padding: 0 10px;
   border-radius: var(--r-2);
   border: 1px solid var(--line-2);
@@ -1154,14 +1154,14 @@
   -webkit-mask-image: linear-gradient(transparent 0 30px, #000 68px);
   mask-image: linear-gradient(transparent 0 30px, #000 68px);
 }
-/* The days' menu hangs 6 px under the pill (10 + 26 in the bar), centred, as wide as the chip's popover. */
+/* The days' menu hangs 6 px under the pill (10 + 28 in the bar), centred, as wide as the chip's popover. */
 /* A day's date on one line, however long its topics: they give way, cut with an ellipsis. Only here: another menu's
    rows (a member's long name) still wrap rather than widen past the screen (docs/plans/personal-day-menu.md). */
 .places .c3-daybar .menu [role='menuitem'] {
   white-space: nowrap;
 }
 .places .c3-daybar .menu {
-  top: 42px;
+  top: 44px;
   min-width: 230px;
 }
 /* The note form keeps to the scale: its field at the body's size. */
@@ -1269,8 +1269,8 @@
   grid-auto-columns: auto;
   align-items: center;
   gap: 12px;
-  min-height: 44px;
-  padding: 10px 0;
+  min-height: 36px;
+  padding: 7px 0;
   border: 0;
   border-bottom: 1px solid var(--line);
   border-radius: 0;
@@ -1978,6 +1978,16 @@
   }
   .places .c3-day {
     min-height: 36px;
+  }
+  /* The days' menu hangs 6 px under the pill at a finger's size (10 + 40 in the bar). */
+  .places .c3-daybar .menu {
+    top: 56px;
+  }
+  /* The ways in are rows that touch: each keeps a finger's 44 px of its own, never a target reaching into the next
+     (docs/plans/personal-new-day-scale.md). */
+  .places .c3-starters button {
+    min-height: 44px;
+    padding-block: 10px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

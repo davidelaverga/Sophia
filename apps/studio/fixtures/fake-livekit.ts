@@ -379,6 +379,7 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     },
     textMode: () => textOnly,
     micWas: mic.micWas,
+    connected: () => open && !linkDown,
     participants: () => [{ ...me, speaking: viewerSpeaks() }, ...others()],
     sophia: sophiaSignal,
     audioBlocked: soundBlocked,
