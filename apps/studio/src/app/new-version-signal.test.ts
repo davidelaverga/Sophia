@@ -54,4 +54,52 @@ describe('a new version heard', () => {
     assert.equal(signal.heard(), true)
     assert.equal(words, 1)
   })
+
+  // «Esperar a que termine» (Luis 2026-10-22, version-probe.md): the probe's news waits while a call is on, and is said
+  // once when the last call ends. Vite's word is a press that failed: it is said at once, call or not.
+  it('keeps the probe’s word while a call holds it, and says it once when the call ends', () => {
+    const page = new EventTarget()
+    const signal = newVersionSignal(page)
+    let words = 0
+    signal.onHeard(() => {
+      words += 1
+    })
+    const call = signal.holdWhile()
+    signal.tell()
+    signal.tell()
+    assert.equal(signal.heard(), false, 'not during the call')
+    assert.equal(words, 0)
+    call()
+    assert.equal(signal.heard(), true)
+    assert.equal(words, 1, 'once, as the call ends')
+    call()
+    assert.equal(words, 1, 'a call ended twice says nothing more')
+  })
+
+  it('waits for every call that holds it, and says nothing at a call’s end when no word came', () => {
+    const signal = newVersionSignal(new EventTarget())
+    let words = 0
+    signal.onHeard(() => {
+      words += 1
+    })
+    const first = signal.holdWhile()
+    first()
+    assert.equal(words, 0, 'no word, nothing said')
+    const one = signal.holdWhile()
+    const two = signal.holdWhile()
+    signal.tell()
+    one()
+    assert.equal(words, 0, 'another call still on')
+    two()
+    assert.equal(words, 1)
+  })
+
+  it('says Vite’s word at once, even during a call', () => {
+    const page = new EventTarget()
+    const signal = newVersionSignal(page)
+    const call = signal.holdWhile()
+    page.dispatchEvent(new Event('vite:preloadError'))
+    assert.equal(signal.heard(), true)
+    call()
+  })
 })
