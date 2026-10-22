@@ -19,6 +19,8 @@ import { usePushToTalk } from './usePushToTalk.ts'
 import { useMirror } from './mirror-preference.ts'
 import { callClock, callClockWords } from './call-clock.ts'
 import { noteRole } from './call-end.ts'
+import { STALE_PART } from './part-gone.ts'
+import { StalePart } from './StalePart.tsx'
 import { useNow } from '../../app/use-now.ts'
 import { PassMenu } from './PassMenu.tsx'
 import { ReactMenu } from './ReactMenu.tsx'
@@ -74,6 +76,8 @@ function useDockHeight(ref: RefObject<HTMLDivElement | null>) {
  */
 export function DockNote({ note, className }: { note: string | null; className: string }) {
   const polite = note !== null && noteRole(note) === 'status'
+  // A part gone after a deploy: the line with its Reload (stale-part-call.md).
+  const stale = note === STALE_PART
   return (
     <>
       {note && !polite && (
@@ -81,12 +85,18 @@ export function DockNote({ note, className }: { note: string | null; className: 
           {note}
         </p>
       )}
-      <p className={polite ? className : 'sr-only'} role="status">
-        {polite ? note : null}
+      <p className={stale ? `${className} dock-stale` : polite ? className : 'sr-only'} role="status">
+        {stale ? <StalePart takeFocus /> : polite ? note : null}
       </p>
     </>
   )
 }
+
+/**
+ * Its part gone after a deploy (stale-part-call.md): only Reload is offered, beside the note. Try again could never
+ * succeed in this tab, which keeps the failed part until a reload (Luis 2026-10-22).
+ */
+export const partGone = (room: ProjectRoom): boolean => room.error === STALE_PART
 
 export function RoomDock(props: Props) {
   const { room } = props
@@ -123,7 +133,7 @@ export function RoomDock(props: Props) {
             <LiveControls {...props} sophiaAllow={sound.sophiaAllow} />
           ) : (
             <>
-              <JoinButton room={room} />
+              {!partGone(room) && <JoinButton room={room} />}
               <CheckOpener room={room} />
               <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
               <RejoinLeave room={room} />

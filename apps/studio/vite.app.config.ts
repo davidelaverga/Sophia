@@ -1,5 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import { mergeConfig, type Plugin } from 'vite'
+import { withVersion } from './build-version.ts'
+import { VERSION_FILE } from './src/app/version-probe.ts'
 import fixtures, { studioPageAs } from './vite.fixtures.config.ts'
 
 // The Studio app itself on a fixture page (fixtures/app.tsx, e2e/app-auth.spec.ts), signed in with Supabase Auth as a
@@ -27,8 +29,25 @@ const appAddresses: Plugin = {
   },
 }
 
+/**
+ * The app's version, as a build names it (build-version.ts, version-probe.md): in its page, and served as version.json.
+ * A check serves another with a route, as a deploy does (e2e/new-version.spec.ts, e2e/reliability/version.spec.ts).
+ */
+const FIXTURE_VERSION = 'fixture-build'
+const appVersion: Plugin = {
+  name: 'sophia-fixture-app-version',
+  transformIndexHtml: (html) => withVersion(html, FIXTURE_VERSION),
+  configureServer: (server) => {
+    server.middlewares.use((req, res, next) => {
+      if (new URL(req.url ?? '/', 'http://fixture').pathname !== `/${VERSION_FILE}`) return next()
+      res.setHeader('content-type', 'application/json')
+      res.end(JSON.stringify({ version: FIXTURE_VERSION }))
+    })
+  },
+}
+
 export default mergeConfig(fixtures, {
-  plugins: [appAddresses, studioPageAs('/app.html', '/app.tsx', true)],
+  plugins: [appAddresses, appVersion, studioPageAs('/app.html', '/app.tsx', true)],
   // The signed-in Studio's chunk is prepared as the server starts, as a build's is ready on its host: a check that signs
   // in never waits on its first compile (docs/plans/signed-in-later.md).
   // Named by its own path: the fixtures' root is not the Studio's.

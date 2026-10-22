@@ -11,7 +11,7 @@ import { useCommands } from '../../app/useCommands.ts'
 import { callCommands } from './call-commands.ts'
 import { CallSwitches, sendingOf } from './CallSwitches.tsx'
 import { useMicOnJoin } from './mic-preference.ts'
-import { DockNote, joinTip, RejoinLeave, TextMode } from './RoomDock.tsx'
+import { DockNote, joinTip, partGone, RejoinLeave, TextMode } from './RoomDock.tsx'
 import { LookingIndicator } from './SophiaControls.tsx'
 import type { ProjectRoom } from './useProjectRoom.ts'
 
@@ -112,20 +112,23 @@ export function MiniDock({ room, looking, onOpen }: Props) {
         </>
       ) : (
         <>
-          <button
-            type="button"
-            className="pill has-tip"
-            // Where text mode's pill hands the focus once pressed (TextMode).
-            data-call-anchor
-            // The same control before and after a join, whatever its words say (useDockFocus).
-            data-dock-key="room"
-            disabled={room.status === 'joining' || !room.ready}
-            onClick={() => void room.join()}
-          >
-            <span className="pill-dot" aria-hidden />
-            {room.status === 'joining' ? 'Joining…' : room.status === 'failed' ? 'Try again' : 'Join the room'}
-            <Tip label={joinTip(room.textMode)} />
-          </button>
+          {/* Its part gone after a deploy: only the note's Reload (partGone). */}
+          {!partGone(room) && (
+            <button
+              type="button"
+              className="pill has-tip"
+              // Where text mode's pill hands the focus once pressed (TextMode).
+              data-call-anchor
+              // The same control before and after a join, whatever its words say (useDockFocus).
+              data-dock-key="room"
+              disabled={room.status === 'joining' || !room.ready}
+              onClick={() => void room.join()}
+            >
+              <span className="pill-dot" aria-hidden />
+              {room.status === 'joining' ? 'Joining…' : room.status === 'failed' ? 'Try again' : 'Join the room'}
+              <Tip label={joinTip(room.textMode)} />
+            </button>
+          )}
           <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
           <RejoinLeave room={room} />
         </>

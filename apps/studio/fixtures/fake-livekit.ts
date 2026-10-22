@@ -84,7 +84,10 @@ const arrival = (apply: () => void) =>
     }),
   )
 
-/** `refuse=camera`: the browser refuses the camera, as a blocked permission does; `refuse=switch`, a device switch. */
+/**
+ * `refuse=camera`: the browser refuses the camera, as a blocked permission does; `refuse=switch`, a device switch;
+ * `refuse=connect`, LiveKit's connect, as a network that can't reach the room does (stale-part-call.md).
+ */
 const refused = new URLSearchParams(window.location.search).get('refuse')
 /** `backgrounds=unsupported`: the device can't draw a camera background (call-backgrounds.md). */
 const noBackgrounds = new URLSearchParams(window.location.search).get('backgrounds') === 'unsupported'
@@ -94,6 +97,22 @@ export const backgroundsSupported = (): boolean => !noBackgrounds
 
 /** `devices=blocked`: the browser refuses access, so no device can be listed (call-devices.md). */
 const devicesBlocked = new URLSearchParams(window.location.search).get('devices') === 'blocked'
+
+/**
+ * `part=gone`: LiveKit's part of the Studio is gone from the host, as after a deploy (stale-part-call.md). As the build's
+ * preload helper does, Vite says so on the page (`vite:preloadError`, the error as its payload) and the import
+ * rejects with that TypeError.
+ */
+const partGone = new URLSearchParams(window.location.search).get('part') === 'gone'
+function gone(): Promise<never> {
+  const err = new TypeError('Failed to fetch dynamically imported module')
+  window.dispatchEvent(Object.assign(new Event('vite:preloadError'), { payload: err }))
+  return Promise.reject(err)
+}
+
+/** A connect that fails: its part gone (`part=gone`), or refused as an unreachable room is (`refuse=connect`). */
+const notConnected = (): Promise<never> =>
+  partGone ? gone() : Promise.reject(new Error('could not establish signal connection'))
 
 /** Two of each kind, the browser's default first where it has one, as Chrome lists them. */
 const DEVICES: Record<DeviceKind, MediaDevice[]> = {
@@ -113,6 +132,7 @@ const DEVICES: Record<DeviceKind, MediaDevice[]> = {
 
 /** The devices of a kind, as LiveKit lists them; refused, as a blocked permission rejects. */
 export function listDevices(kind: DeviceKind): Promise<MediaDevice[]> {
+  if (partGone) return gone()
   return devicesBlocked ? Promise.reject(blocked()) : Promise.resolve(DEVICES[kind])
 }
 
@@ -351,6 +371,7 @@ function keptMic(me: RoomParticipant, cb: RoomCallbacks) {
 }
 
 export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallbacks): Promise<RoomConnection> {
+  if (partGone || refused === 'connect') return notConnected()
   connected(cb)
   said = null // a new connection has said nothing yet, as following-signal.ts starts each one
   const me = viewer()

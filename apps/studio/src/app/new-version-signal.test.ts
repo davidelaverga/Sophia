@@ -42,4 +42,75 @@ describe('a new version heard', () => {
     page.dispatchEvent(new Event('vite:preloadError'))
     assert.equal(words, 2)
   })
+
+  // A tab left open that asks the host for its version (version-probe.md) says the same word.
+  it('hears the version probe’s word as it hears Vite’s', () => {
+    const signal = newVersionSignal(new EventTarget())
+    let words = 0
+    signal.onHeard(() => {
+      words += 1
+    })
+    signal.tell()
+    assert.equal(signal.heard(), true)
+    assert.equal(words, 1)
+  })
+
+  // «Esperar a que termine» (Luis 2026-10-22, version-probe.md): the probe's news waits while a call is on, and is said
+  // once when the last call ends. Vite's word is a press that failed: it is said at once, call or not.
+  it('keeps the probe’s word while a call holds it, and says it once when the call ends', () => {
+    const page = new EventTarget()
+    const signal = newVersionSignal(page)
+    let words = 0
+    signal.onHeard(() => {
+      words += 1
+    })
+    const call = signal.holdWhile()
+    signal.tell()
+    signal.tell()
+    assert.equal(signal.heard(), false, 'not during the call')
+    assert.equal(words, 0)
+    call()
+    assert.equal(signal.heard(), true)
+    assert.equal(words, 1, 'once, as the call ends')
+    call()
+    assert.equal(words, 1, 'a call ended twice says nothing more')
+  })
+
+  it('waits for every call that holds it, and says nothing at a call’s end when no word came', () => {
+    const signal = newVersionSignal(new EventTarget())
+    let words = 0
+    signal.onHeard(() => {
+      words += 1
+    })
+    const first = signal.holdWhile()
+    first()
+    assert.equal(words, 0, 'no word, nothing said')
+    const one = signal.holdWhile()
+    const two = signal.holdWhile()
+    signal.tell()
+    one()
+    assert.equal(words, 0, 'another call still on')
+    two()
+    assert.equal(words, 1)
+  })
+
+  // Review P3 (2026-10-22): the error Vite said was gone is kept, so the room can tell its own failure from another.
+  it('keeps the last error Vite said was gone; the probe’s word has none', () => {
+    const page = new EventTarget()
+    const signal = newVersionSignal(page)
+    signal.tell()
+    assert.equal(signal.payload(), null)
+    const err = new TypeError('Failed to fetch dynamically imported module')
+    page.dispatchEvent(Object.assign(new Event('vite:preloadError'), { payload: err }))
+    assert.equal(signal.payload(), err)
+  })
+
+  it('says Vite’s word at once, even during a call', () => {
+    const page = new EventTarget()
+    const signal = newVersionSignal(page)
+    const call = signal.holdWhile()
+    page.dispatchEvent(new Event('vite:preloadError'))
+    assert.equal(signal.heard(), true)
+    call()
+  })
 })

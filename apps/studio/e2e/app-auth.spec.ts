@@ -1559,6 +1559,29 @@ test('feedback · opened from Home during a call, the call’s switches stay in 
   ).toBeVisible()
 })
 
+test('version · a deploy heard during a call waits until the call ends, then is said once (Luis 2026-10-22)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/p/${WORK_PROJECT}/studio?work=lost`)
+  const dock = page.getByRole('navigation', { name: 'Room controls' })
+  await dock.getByRole('button', { name: /^Join the room/ }).click()
+  await expect(dock.getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  // A deploy, heard as the tab comes back into focus, in the call: nothing said.
+  await page.route(`${APP}/version.json`, (route) => route.fulfill({ json: { version: 'fixture-deployed' } }))
+  const answered = page.waitForResponse(`${APP}/version.json`)
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await answered
+  const notice = page.getByRole('status').filter({ hasText: 'Sophia was updated' })
+  await page.waitForTimeout(500) // past the probe's reading of the answer, which would show the notice at once
+  await expect(notice).toHaveCount(0)
+  // Out of the call: said, once.
+  await dock.getByRole('button', { name: 'Leave the room' }).click()
+  await expect(notice).toHaveText(/Sophia was updated. Reload to keep going./)
+  await expect(notice).toHaveCount(1)
+})
+
 test('places · in the bar’s call, Leave is rose at rest and its plane answers the pointer (room-dock-people.md)', async ({
   context,
 }) => {
