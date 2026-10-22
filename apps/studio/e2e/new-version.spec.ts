@@ -77,3 +77,65 @@ test('version · Reload reloads the page', async ({ page }) => {
   await notice(page).getByRole('button', { name: 'Reload' }).click()
   await expect.poll(() => page.evaluate(() => Reflect.get(window, 'beforeReload') === true)).toBe(false)
 })
+
+// After a deploy, a Join whose part is gone (docs/plans/stale-part-call.md, costuras.md seam #4): the room's LiveKit is
+// loaded only at the first Join or check, and the host no longer has it. `part=gone`: the fake LiveKit says so as the
+// build's preload helper does (fake-livekit.ts). The press says the tab is on an older version, politely, with Reload,
+// never the connection's or the permission's words; nothing reloads by itself.
+
+const STALE = 'This tab is on an older version of Sophia, so the call couldn’t load.'
+const dock = (page: Page) => page.getByRole('navigation', { name: 'Room controls' })
+const staleLine = (page: Page) => page.locator('.dock-note[role="status"]').filter({ hasText: STALE })
+
+test('version · after a deploy, Join says this tab is on an older version, with Reload, never the connection words (seam #4)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?part=gone')
+  await page.evaluate(() => Reflect.set(window, 'beforeReload', true))
+  await dock(page)
+    .getByRole('button', { name: /^Join the room/ })
+    .click()
+  await expect(staleLine(page)).toBeVisible()
+  await expect(staleLine(page).getByRole('button', { name: 'Reload' })).toBeVisible()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(page.locator('body')).not.toContainText('Check your connection')
+  // Try again fails the same way: said again, once on screen, and still nothing reloaded.
+  await dock(page)
+    .getByRole('button', { name: /^Try again/ })
+    .click()
+  await expect(staleLine(page)).toHaveCount(1)
+  await expect(page.locator('body')).not.toContainText('Check your connection')
+  expect(await page.evaluate(() => Reflect.get(window, 'beforeReload') === true)).toBe(true)
+  await staleLine(page).getByRole('button', { name: 'Reload' }).click()
+  await expect.poll(() => page.evaluate(() => Reflect.get(window, 'beforeReload') === true)).toBe(false)
+})
+
+test('version · after a deploy, the check names no permission: the tab is on an older version, with Reload (seam #4)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?part=gone')
+  await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()
+  const check = page.getByRole('dialog', { name: 'Check your audio and video' })
+  await expect(check.getByRole('status').filter({ hasText: STALE })).toBeVisible()
+  await expect(
+    check.getByRole('status').filter({ hasText: STALE }).getByRole('button', { name: 'Reload' }),
+  ).toBeVisible()
+  await expect(check.getByRole('button', { name: /^Microphone: / })).toHaveAccessibleName('Microphone: Needs a reload')
+  await expect(check).not.toContainText('Not allowed')
+  await expect(check).not.toContainText('site settings')
+  // Join from the check meets the same gone part, and says so in the dock.
+  await check.getByRole('button', { name: 'Join the room' }).click()
+  await expect(staleLine(page)).toBeVisible()
+  await expect(page.locator('body')).not.toContainText('Check your connection')
+})
+
+test('version · once: the same room with its part there joins with no word of an older version (seam #4)', async ({
+  page,
+}) => {
+  await page.goto('/room.html')
+  await dock(page)
+    .getByRole('button', { name: /^Join the room/ })
+    .click()
+  await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  await expect(page.locator('body')).not.toContainText('older version')
+})

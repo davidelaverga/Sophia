@@ -95,6 +95,17 @@ export const backgroundsSupported = (): boolean => !noBackgrounds
 /** `devices=blocked`: the browser refuses access, so no device can be listed (call-devices.md). */
 const devicesBlocked = new URLSearchParams(window.location.search).get('devices') === 'blocked'
 
+/**
+ * `part=gone`: LiveKit's part of the Studio is gone from the host, as after a deploy (stale-part-call.md). As the build's
+ * preload helper does, Vite says so on the page (`vite:preloadError`, as fixtures/new-version.tsx's word) and the
+ * import rejects with the browser's own TypeError.
+ */
+const partGone = new URLSearchParams(window.location.search).get('part') === 'gone'
+function gone(): Promise<never> {
+  window.dispatchEvent(new Event('vite:preloadError'))
+  return Promise.reject(new TypeError('Failed to fetch dynamically imported module'))
+}
+
 /** Two of each kind, the browser's default first where it has one, as Chrome lists them. */
 const DEVICES: Record<DeviceKind, MediaDevice[]> = {
   audioinput: [
@@ -113,6 +124,7 @@ const DEVICES: Record<DeviceKind, MediaDevice[]> = {
 
 /** The devices of a kind, as LiveKit lists them; refused, as a blocked permission rejects. */
 export function listDevices(kind: DeviceKind): Promise<MediaDevice[]> {
+  if (partGone) return gone()
   return devicesBlocked ? Promise.reject(blocked()) : Promise.resolve(DEVICES[kind])
 }
 
@@ -351,6 +363,7 @@ function keptMic(me: RoomParticipant, cb: RoomCallbacks) {
 }
 
 export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallbacks): Promise<RoomConnection> {
+  if (partGone) return gone()
   connected(cb)
   said = null // a new connection has said nothing yet, as following-signal.ts starts each one
   const me = viewer()
