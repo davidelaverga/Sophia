@@ -92,12 +92,30 @@ version-probe.test}.ts` (new), `new-version-signal{,.test}.ts`, `new-version-ear
   if a guarded run is wanted on record.
 - Not observed: Firefox and Safari; a signed-in production Studio press (the observation drove build 1's real helper
   with `RoomStage`'s deps list from the page).
-- Join's Try again stays beside the line, though it fails the same way until a reload.
 - The interval's times are to the 5 s step and one step late (the route counts the request after the step).
 
 ## Next bounded action
 
-- Luis approves the copy lines above; the independent review; push with the next group PR when Luis says; merge on
+- The independent review; push with the next group PR when Luis says; merge on
   green with no open P1.
 - Source IDs consulted: none from the source register. The work read this repository, the seams report and the
   baseline.
+
+## After Luis's decision (2026-10-24)
+
+Luis approved the three copy lines and the probe's cadence (every 10 min in view; on focus or view at most once a
+minute; never a reload by itself), and asked that Try again be hidden where the part is gone. The plan's «After
+Luis's decision» says how.
+
+- **Written first** `0512ba3c9` (new lever `refuse=connect`); red (`pw-logs/stale-retry-red`): «toHaveCount ·
+  Expected: 0 · Received: 1» on Try again beside the line; the control (a join that couldn't connect keeps Try again)
+  passed before and after. Fixed `3861d3850`: the dock's and the mini dock's Join are hidden while the note is the line;
+  only Reload is offered. The check beside Join stays.
+- **Merged `origin/main`** at `a66d10381` (#477) in `adc42d3fe`: conflicts in the reliability report, its lib, its
+  units and `reliability-measure.md`, resolved by keeping M5 (and M2r) beside M9 (`FIXTURE_METRICS` M1–M9, M5's rows
+  and table and M9's rows, both fake-suite levers); «not measurable» now lists only M3/M4's fallback. `a93454619`: the
+  fake LiveKit's connect was 61 lines with main's changes; its two refused connects share a helper.
+- **Green at `a93454619`** (guarded `pw.ps1`, no game open): new-version, device-check, call-devices, room-dock, room,
+  join 94/94 (`stale-retry-green`). Units: `apps/studio/src/**` and `tests/unit/reliability-report.test.mjs`
+  2183/2185 (the two known Windows path failures); the report's own 29/29. Whole-repo oxlint, tsc, Prettier: clean.
+- The measuring suite was not rerun after the merge (only the report's units, as asked).

@@ -64,8 +64,8 @@ rows say as «Not allowed» and the in-call menu as «Allow the microphone in yo
 - **Browser** (`new-version.spec.ts`, a new lever `room.html?part=gone`: the fake LiveKit's `connectRoom` and
   `listDevices` dispatch `vite:preloadError` on `window`, as `fixtures/new-version.tsx`'s `GoneAsCommitted` does, and
   reject with `TypeError('Failed to fetch dynamically imported module')`):
-  - Join → the dock's polite line says the line with Reload, no alert, never «Check your connection»; Try again says it
-    again, once on screen; Reload reloads the page.
+  - Join → the dock's polite line says the line with Reload, no alert, never «Check your connection»; Reload reloads
+    the page. (Since Luis's decision below: no Try again beside it.)
   - The check → no row says «Not allowed», nothing says «site settings», the line with Reload; Join from it → the line.
   - Once: the same room without the lever joins with no such line.
 
@@ -87,3 +87,18 @@ rows say as «Not allowed» and the in-call menu as «Allow the microphone in yo
 - **The room's module now loads the page's ear** (`new-version-early.ts`) to ask `heard()`. It listened on `window` at
   once, so a unit check that imports the room (`new-call.test.ts`) stopped with «window is not defined». Outside a
   browser the ear has a target of its own and asks the host for nothing (`dd1fa46b1`).
+
+## After Luis's decision (2026-10-24)
+
+Luis approved the three lines as written and asked for one change: where the part is gone, only Reload is offered,
+since Try again can never succeed in that tab (observed above: the browser keeps the failed module until a reload).
+
+- **Written first** (`0512ba3c9`): the gone-part Join shows Reload and no Try again (nor Join); a join that couldn't
+  connect with its part there (a new lever, `refuse=connect`: the fake LiveKit's connect rejects as an unreachable room)
+  still says «Couldn’t connect to the room. Check your connection and try again.» with Try again. Red
+  (`pw-logs/stale-retry-red`): «toHaveCount · Expected: 0 · Received: 1» on Try again; the control passed.
+- **Fixed** (`3861d3850`): the dock's and the header's mini dock's Join are hidden while the note is the line
+  (`partGone`, `RoomDock.tsx`). The check beside Join stays: its picture still works, its rows say «Needs a reload».
+- **Merged `origin/main`** (`#477`, `adc42d3fe`): the reliability report now carries M5 and M2r beside M9; the
+  fixture's connect went one line over the limit with main's changes, and its two refused connects now share a helper
+  (`a93454619`).
