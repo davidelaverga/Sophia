@@ -99,12 +99,8 @@ test('version · after a deploy, Join says this tab is on an older version, with
   await expect(staleLine(page).getByRole('button', { name: 'Reload' })).toBeVisible()
   await expect(page.getByRole('alert')).toHaveCount(0)
   await expect(page.locator('body')).not.toContainText('Check your connection')
-  // Try again fails the same way: said again, once on screen, and still nothing reloaded.
-  await dock(page)
-    .getByRole('button', { name: /^Try again/ })
-    .click()
-  await expect(staleLine(page)).toHaveCount(1)
-  await expect(page.locator('body')).not.toContainText('Check your connection')
+  // Only Reload is offered: Try again could never succeed in this tab (Luis 2026-10-24). Nothing reloaded yet.
+  await expect(dock(page).getByRole('button', { name: /^(Try again|Join the room)/ })).toHaveCount(0)
   expect(await page.evaluate(() => Reflect.get(window, 'beforeReload') === true)).toBe(true)
   await staleLine(page).getByRole('button', { name: 'Reload' }).click()
   await expect.poll(() => page.evaluate(() => Reflect.get(window, 'beforeReload') === true)).toBe(false)
@@ -127,6 +123,18 @@ test('version · after a deploy, the check names no permission: the tab is on an
   await check.getByRole('button', { name: 'Join the room' }).click()
   await expect(staleLine(page)).toBeVisible()
   await expect(page.locator('body')).not.toContainText('Check your connection')
+})
+
+test('version · a join that couldn’t connect, its part there, still says to check the connection, with Try again (seam #4)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?refuse=connect')
+  await dock(page)
+    .getByRole('button', { name: /^Join the room/ })
+    .click()
+  await expect(page.getByRole('alert')).toHaveText('Couldn’t connect to the room. Check your connection and try again.')
+  await expect(dock(page).getByRole('button', { name: /^Try again/ })).toBeVisible()
+  await expect(page.locator('body')).not.toContainText('older version')
 })
 
 test('version · once: the same room with its part there joins with no word of an older version (seam #4)', async ({

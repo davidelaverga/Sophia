@@ -84,7 +84,10 @@ const arrival = (apply: () => void) =>
     }),
   )
 
-/** `refuse=camera`: the browser refuses the camera, as a blocked permission does; `refuse=switch`, a device switch. */
+/**
+ * `refuse=camera`: the browser refuses the camera, as a blocked permission does; `refuse=switch`, a device switch;
+ * `refuse=connect`, LiveKit's connect, as a network that can't reach the room does (stale-part-call.md).
+ */
 const refused = new URLSearchParams(window.location.search).get('refuse')
 /** `backgrounds=unsupported`: the device can't draw a camera background (call-backgrounds.md). */
 const noBackgrounds = new URLSearchParams(window.location.search).get('backgrounds') === 'unsupported'
@@ -364,6 +367,7 @@ function keptMic(me: RoomParticipant, cb: RoomCallbacks) {
 
 export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallbacks): Promise<RoomConnection> {
   if (partGone) return gone()
+  if (refused === 'connect') return Promise.reject(new Error('could not establish signal connection'))
   connected(cb)
   said = null // a new connection has said nothing yet, as following-signal.ts starts each one
   const me = viewer()
