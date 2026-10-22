@@ -758,6 +758,14 @@ const peopleOf = (c: RoomConnection | null): People =>
  * is current: an 'ended' from a call this person already left is expected, not a drop; a join that Leave, the page
  * going away or a newer join overtook is left as soon as it connects.
  */
+/**
+ * While a call is on, coming back on its own included, the probe's news of a new version waits for its end (Luis
+ * 2026-10-22, version-probe.md): «Sophia was updated» comes as the person leaves, never in the middle of the call.
+ */
+function useNewsWaits(inCall: boolean): void {
+  useEffect(() => (inCall ? newVersion.holdWhile() : undefined), [inCall])
+}
+
 export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   const [calls] = useState(() => new CallFence<RoomConnection>())
   const [status, setStatus] = useState<DockStatus>('idle')
@@ -788,6 +796,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   const joined = useJoin(ports, joining, () => devices.setCamera(true))
   const join = joinOnline(joined.join)
   const { line, rejoining, rejoin } = useRejoin(status, calls, join, setError)
+  useNewsWaits(status === 'live' || status === 'reconnecting' || rejoining)
 
   const { leave, leftByPress } = useLeave(calls, outOfCall, () => rejoin.stop())
 
