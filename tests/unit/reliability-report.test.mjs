@@ -752,17 +752,24 @@ ${md}`)
   assert.notEqual(short.status, 0, 'the script exits non-zero')
   assert.deepEqual(short.fixture.incomplete, { exit: null, metrics: { M9: { ran: 0, expected: 1 } } })
   assert.equal(short.fixture.m9.focus, undefined, 'no summary from a partial run')
-  has(short.md, '| M9 · version changed → notice · focus | incomplete: 0 of 1 scenarios wrote results |')
+  has(short.md, '| M9 · back into focus → notice | incomplete: 0 of 1 scenarios wrote results |')
+  assert.ok(!short.md.includes('5 s steps'), `no interval note for a partial run:
+${short.md}`)
 
   const whole = fixtureReport({ m7: 2, m2: 1, m9: 1, m9Listed: 1, exit: 0, runSuite: false })
   assert.equal(whole.status, 0)
   assert.equal(whole.fixture.m9.focus.noticed, 1)
-  has(whole.md, '| M9 · version changed → notice · focus | 1/1 noticed · reloaded by itself: 0 · 1/1 within 15 min · p50 140 ms · p95 140 ms |')
-  has(whole.md, '| M9 · version changed → notice · back into view | not run |')
   has(
     whole.md,
-    '| M9 · version changed → notice · interval (page clock) | 1/1 noticed · reloaded by itself: 0 · 1/1 within 15 min · p50 10.0 min · p95 10.0 min |',
+    '| M9 · back into focus → notice | 1/1 noticed · reloaded by itself: 0 · 1/1 within 15 min · p50 140 ms · p95 140 ms |',
   )
+  has(whole.md, '| M9 · back into view → notice | not run |')
+  has(
+    whole.md,
+    '| M9 · left in view → notice (page clock)¹ | 1/1 noticed · reloaded by itself: 0 · 1/1 within 15 min · p50 10.0 min · p95 10.0 min |',
+  )
+  // The interval's times are read in the page clock's 5 s steps (review P3, 2026-10-22).
+  has(whole.md, '¹ M9 left in view: the page’s clock is read in 5 s steps, so each time is to the step and may be one step late.')
   assert.ok(!whole.md.includes('M9 (tabs on an old version)'), `M9 is measurable:
 ${whole.md}`)
 })

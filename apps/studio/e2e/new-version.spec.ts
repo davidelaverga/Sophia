@@ -96,10 +96,11 @@ test('version · after a deploy, Join says this tab is on an older version, with
     .getByRole('button', { name: /^Join the room/ })
     .click()
   await expect(staleLine(page)).toBeVisible()
-  await expect(staleLine(page).getByRole('button', { name: 'Reload' })).toBeVisible()
+  // The Join pressed is gone with its line: the focus goes on to Reload, not to the page (review P3, 2026-10-22).
+  await expect(staleLine(page).getByRole('button', { name: 'Reload' })).toBeFocused()
   await expect(page.getByRole('alert')).toHaveCount(0)
   await expect(page.locator('body')).not.toContainText('Check your connection')
-  // Only Reload is offered: Try again could never succeed in this tab (Luis 2026-10-24). Nothing reloaded yet.
+  // Only Reload is offered: Try again could never succeed in this tab (Luis 2026-10-22). Nothing reloaded yet.
   await expect(dock(page).getByRole('button', { name: /^(Try again|Join the room)/ })).toHaveCount(0)
   expect(await page.evaluate(() => Reflect.get(window, 'beforeReload') === true)).toBe(true)
   await staleLine(page).getByRole('button', { name: 'Reload' }).click()
@@ -113,16 +114,47 @@ test('version · after a deploy, the check names no permission: the tab is on an
   await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()
   const check = page.getByRole('dialog', { name: 'Check your audio and video' })
   await expect(check.getByRole('status').filter({ hasText: STALE })).toBeVisible()
-  await expect(
-    check.getByRole('status').filter({ hasText: STALE }).getByRole('button', { name: 'Reload' }),
-  ).toBeVisible()
   await expect(check.getByRole('button', { name: /^Microphone: / })).toHaveAccessibleName('Microphone: Needs a reload')
   await expect(check).not.toContainText('Not allowed')
   await expect(check).not.toContainText('site settings')
-  // Join from the check meets the same gone part, and says so in the dock.
-  await check.getByRole('button', { name: 'Join the room' }).click()
+  // Its Join could never succeed: Reload stands in its place, one of it (review P3, 2026-10-22).
+  await expect(check.getByRole('button', { name: 'Join the room' })).toHaveCount(0)
+  await expect(check.getByRole('button', { name: 'Reload' })).toHaveCount(1)
+  await page.evaluate(() => Reflect.set(window, 'beforeReload', true))
+  await check.getByRole('button', { name: 'Reload' }).click()
+  await expect.poll(() => page.evaluate(() => Reflect.get(window, 'beforeReload') === true)).toBe(false)
+})
+
+test('version · where the part is gone, nothing else joins: not the key, not the palette; the check stands alone, square (seam #4)', async ({
+  page,
+}) => {
+  const tokens = () => page.evaluate(() => (window.fixture?.served ?? []).filter((s) => s === 'room-token').length)
+  const offered = async () => {
+    await page.keyboard.press('Control+k')
+    const palette = page.getByRole('dialog', { name: 'Commands' })
+    await page.getByRole('combobox', { name: 'Command' }).fill('Join the room')
+    const count = await palette.getByRole('option', { name: /Join the room/ }).count()
+    await page.keyboard.press('Escape')
+    await expect(palette).toHaveCount(0)
+    return count
+  }
+  await page.goto('/room.html?part=gone')
+  expect(await offered()).toBe(1)
+  await dock(page)
+    .getByRole('button', { name: /^Join the room/ })
+    .click()
   await expect(staleLine(page)).toBeVisible()
-  await expect(page.locator('body')).not.toContainText('Check your connection')
+  expect(await offered()).toBe(0)
+  const asked = await tokens()
+  await page.locator('body').press('Control+j')
+  await page.waitForTimeout(500) // a join would have asked for its token by now
+  expect(await tokens()).toBe(asked)
+  // The check's opener, alone in the dock: a square of the dock's size, clear of its edge.
+  const opener = dock(page).getByRole('button', { name: 'Check audio and video', exact: true })
+  const [box, edge] = await Promise.all([opener.boundingBox(), dock(page).boundingBox()])
+  expect(box?.width).toBe(box?.height)
+  expect(box?.height).toBe(36)
+  expect((box?.x ?? 0) - (edge?.x ?? 0)).toBeGreaterThanOrEqual(5)
 })
 
 test('version · a join that couldn’t connect, its part there, still says to check the connection, with Try again (seam #4)', async ({

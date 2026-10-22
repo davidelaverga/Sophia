@@ -94,6 +94,17 @@ describe('a new version heard', () => {
     assert.equal(words, 1)
   })
 
+  // Review P3 (2026-10-22): the error Vite said was gone is kept, so the room can tell its own failure from another.
+  it('keeps the last error Vite said was gone; the probe’s word has none', () => {
+    const page = new EventTarget()
+    const signal = newVersionSignal(page)
+    signal.tell()
+    assert.equal(signal.payload(), null)
+    const err = new TypeError('Failed to fetch dynamically imported module')
+    page.dispatchEvent(Object.assign(new Event('vite:preloadError'), { payload: err }))
+    assert.equal(signal.payload(), err)
+  })
+
   it('says Vite’s word at once, even during a call', () => {
     const page = new EventTarget()
     const signal = newVersionSignal(page)

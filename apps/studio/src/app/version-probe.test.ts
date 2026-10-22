@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { PROBE_EVERY_MS, PROBE_GAP_MS, servedVersion, versionProbe, type ProbePage } from './version-probe.ts'
+import {
+  browserPage,
+  PROBE_ASK_MS,
+  PROBE_EVERY_MS,
+  PROBE_GAP_MS,
+  servedVersion,
+  versionProbe,
+  type ProbePage,
+} from './version-probe.ts'
 
 // A tab left open asks the host for its version (docs/plans/version-probe.md; the baseline's M9): back into view or
 // focus, at most once a minute, and every ten minutes while in view; a different id is said once, and the asking stops.
@@ -145,6 +153,26 @@ describe('a tab left open asks for the version', () => {
       assert.equal(told, 0)
       assert.equal(fake.listening(), 2, 'still asking')
     }
+  })
+
+  // Review P3 (2026-10-22): one ask at a time, so a request that hangs would stop the asking for good.
+  it('the browser’s ask gives up after ten seconds', async () => {
+    const asked: (AbortSignal | null | undefined)[] = []
+    const win = {
+      fetch: (_url: string, init?: RequestInit) => {
+        asked.push(init?.signal)
+        return Promise.resolve(new Response('{"version":"b1"}'))
+      },
+    }
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a window of the one method the ask uses
+    assert.equal(
+      await browserPage(win as unknown as Window)
+        .served()
+        .then(servedVersion),
+      'b1',
+    )
+    assert.ok(asked[0] instanceof AbortSignal, 'the ask carries a signal that ends it')
+    assert.equal(PROBE_ASK_MS, 10_000)
   })
 
   it('stopped, it asks no more', async () => {
