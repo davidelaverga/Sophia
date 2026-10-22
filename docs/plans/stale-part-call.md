@@ -1,7 +1,7 @@
 # After a deploy, a Join whose part is gone says the tab is on an older version
 
 > 2026-10-22 · the fourth seam (`evaluacion-2026-10-18/experiencia/costuras.md` §4, «Tras un deploy, un Join fallido
-> dice «Check your connection» bajo un aviso de que Sophia se actualizó», and «Qué falta» item 4); Luis 2026-10-24:
+> dice «Check your connection» bajo un aviso de que Sophia se actualizó», and «Qué falta» item 4); Luis 2026-10-22:
 > «Procede con tu recomendación, el lote con 1, 2 y 3», and earlier «Lo que no se mide, no se puede mejorar». Studio
 > only, no API. Read beside [new-version](new-version.md) and its [follow-ups](new-version-follow-ups.md).
 
@@ -88,7 +88,7 @@ rows say as «Not allowed» and the in-call menu as «Allow the microphone in yo
   once, so a unit check that imports the room (`new-call.test.ts`) stopped with «window is not defined». Outside a
   browser the ear has a target of its own and asks the host for nothing (`dd1fa46b1`).
 
-## After Luis's decision (2026-10-24)
+## After Luis's decision (2026-10-22)
 
 Luis approved the three lines as written and asked for one change: where the part is gone, only Reload is offered,
 since Try again can never succeed in that tab (observed above: the browser keeps the failed module until a reload).
@@ -102,3 +102,17 @@ since Try again can never succeed in that tab (observed above: the browser keeps
 - **Merged `origin/main`** (`#477`, `adc42d3fe`): the reliability report now carries M5 and M2r beside M9; the
   fixture's connect went one line over the limit with main's changes, and its two refused connects now share a helper
   (`a93454619`).
+
+## After the independent review (2026-10-22: no P1; P3s)
+
+Written first `6589f1a59`, fixed `3ba9187b1`.
+
+- **No Join left against «only Reload»:** Ctrl+J and the palette's «Join the room» are not offered while the note is
+  the line (`RoomStage.tsx`'s `joins`); the check says the line and offers Reload in its Join's place (one Reload, the
+  foot's primary); when the line replaces the Join that was pressed, Reload takes the focus it left; the check's opener,
+  alone in the dock, is a 36 px square clear of the dock's edge (a 20 px tab tucked at -2 px before).
+- **A gone part is the error Vite said was gone** (its `payload`, which the fixture's `gone()` now sets too), or a
+  module the browser couldn't fetch in Chromium's, Firefox's or Safari's words once a new version was heard; any other
+  TypeError keeps its words, though the version probe has told of a deploy.
+- **The news of a new version waits for the call's end** (Luis, «Esperar a que termine»; version-probe.md); this line
+  doesn't: a gone part means Join can't work.

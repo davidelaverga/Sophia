@@ -1,7 +1,7 @@
 # A tab left open asks for the version, and hears of a deploy within ten minutes
 
 > 2026-10-22 · the reliability baseline's M9 (`evaluacion-2026-10-19/fiabilidad/linea-base.md` §4 row M9, «aviso ≤ 15
-> min tras el despliegue», and «Fuera del top 10»: «pestaña vieja sin sondeo de versión»); Luis 2026-10-24: «Procede
+> min tras el despliegue», and «Fuera del top 10»: «pestaña vieja sin sondeo de versión»); Luis 2026-10-22: «Procede
 > con tu recomendación, el lote con 1, 2 y 3», and earlier «Lo que no se mide, no se puede mejorar». Studio only, no
 > API, nothing deployed. Read beside [new-version](new-version.md) and [stale-part-call](stale-part-call.md).
 
@@ -55,7 +55,9 @@
 ## Limits
 
 - A redeploy of the same tree keeps its id (no notice, and none is needed: every file is where it was). A rollback to
-  an older deployment is a different id: the tab hears of it as a new version, which it is.
+  an older deployment built with this change (one that serves `version.json`) is a different id: the tab hears of it as
+  a new version, which it is. A rollback to a build from before it serves no `version.json` (the host answers the page
+  instead): the tab reads no id there and says nothing, as before this change.
 - A public file changed alone (`public/entry.js`) doesn't change the id: it isn't a part a tab asks for later.
 - A tab hidden for hours asks nothing until it is back; then at once.
 
@@ -76,3 +78,22 @@
   back into view; at ten minutes no request and no notice (nothing asked before, as wanted); the same version served:
   the page never asked («page.waitForResponse: Test timeout»). The units failed on the outline («version-probe.ts:
   not written yet») and on «signal.tell is not a function».
+
+## After the independent review (2026-10-22: no P1; a P2 Luis decided; P3s)
+
+- **P2, the news in the middle of a call.** Luis: «Esperar a que termine». The probe's word is held while a call is on
+  (`live`, `reconnecting`, or a dropped call coming back on its own: it hasn't been left) and said once as the last
+  call ends (`newVersion.holdWhile()`, from the room's `useNewsWaits`). Vite's word, a press that failed, is still said
+  at once, and the older-version line in the dock is unchanged: Join can't work then. Written first `441841d6b` (units:
+  «signal.holdWhile is not a function»; browser, `app-auth.spec.ts`: a deploy heard on focus during a call shows
+  nothing, Leave shows it once); fixed `d5f952402`.
+- **P3s** (written first `6589f1a59`, fixed `3ba9187b1`):
+  - only the error Vite said was gone (its event's `payload`, kept by the signal) or a module the browser couldn't
+    fetch, in its own words, once a new version was heard, is a gone part: the probe tells of every deploy, so a plain
+    TypeError in a join after it keeps the ordinary words (unit red: «actual: true, expected: false»);
+  - the probe's ask carries `AbortSignal.timeout(10_000)` (`PROBE_ASK_MS`): one ask at a time, so a hung one would
+    have stopped the asking for good;
+  - the build's id orders its files by code point, not by a locale's collation;
+  - M9's rows read «back into focus → notice», «back into view → notice», «left in view → notice (page clock)¹», with a
+    note on the interval's 5 s steps;
+  - the rollback limit above is narrowed to builds that serve `version.json`.

@@ -10,7 +10,7 @@ Writable scope: this worktree only (Studio code, its fixtures and checks, the re
 `docs/handoffs`); no API; nothing deployed, no remote touched.
 Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1`, and `pw-direct.ps1` while WoW was open
 and Aion 2 was not; production builds and a throwaway 127.0.0.1 server driven by `.claude-guards/safe-browser.cjs`).
-Existing authority: Luis 2026-10-24, «Procede con tu recomendación, el lote con 1, 2 y 3»; earlier «Lo que no se mide,
+Existing authority: Luis 2026-10-22, «Procede con tu recomendación, el lote con 1, 2 y 3»; earlier «Lo que no se mide,
 no se puede mejorar».
 Ending commit: the branch's last commit; code last changed at `dd1fa46b1`. Against `167bb9088`:
 `apps/studio/src/features/voice/{part-gone,part-gone.test}.ts`, `StalePart.tsx` (new), `call-end.ts`,
@@ -101,7 +101,7 @@ version-probe.test}.ts` (new), `new-version-signal{,.test}.ts`, `new-version-ear
 - Source IDs consulted: none from the source register. The work read this repository, the seams report and the
   baseline.
 
-## After Luis's decision (2026-10-24)
+## After Luis's decision (2026-10-22)
 
 Luis approved the three copy lines and the probe's cadence (every 10 min in view; on focus or view at most once a
 minute; never a reload by itself), and asked that Try again be hidden where the part is gone. The plan's «After
