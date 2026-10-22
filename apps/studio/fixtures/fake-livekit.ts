@@ -109,6 +109,10 @@ function gone(): Promise<never> {
   return Promise.reject(new TypeError('Failed to fetch dynamically imported module'))
 }
 
+/** A connect that fails: its part gone (`part=gone`), or refused as an unreachable room is (`refuse=connect`). */
+const notConnected = (): Promise<never> =>
+  partGone ? gone() : Promise.reject(new Error('could not establish signal connection'))
+
 /** Two of each kind, the browser's default first where it has one, as Chrome lists them. */
 const DEVICES: Record<DeviceKind, MediaDevice[]> = {
   audioinput: [
@@ -366,8 +370,7 @@ function keptMic(me: RoomParticipant, cb: RoomCallbacks) {
 }
 
 export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallbacks): Promise<RoomConnection> {
-  if (partGone) return gone()
-  if (refused === 'connect') return Promise.reject(new Error('could not establish signal connection'))
+  if (partGone || refused === 'connect') return notConnected()
   connected(cb)
   said = null // a new connection has said nothing yet, as following-signal.ts starts each one
   const me = viewer()
