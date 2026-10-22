@@ -13,6 +13,8 @@ export const VERSION_META = 'sophia-version'
 export const PROBE_EVERY_MS = 10 * 60_000
 /** Back into view or focus, it asks at most this often: switching windows never makes it ask more. */
 export const PROBE_GAP_MS = 60_000
+/** An ask gives up after this long: one ask at a time, so one that hung would stop the asking for good. */
+export const PROBE_ASK_MS = 10_000
 
 /** What the host serves in `version.json`, `{ "version": "<id>" }`; anything else names none. */
 export function servedVersion(body: unknown): string | null {
@@ -76,7 +78,7 @@ export function browserPage(win: Window): ProbePage {
     hidden: () => doc.visibilityState === 'hidden',
     now: () => win.performance.now(),
     served: async () => {
-      const res = await win.fetch(`/${VERSION_FILE}`, { cache: 'no-store' })
+      const res = await win.fetch(`/${VERSION_FILE}`, { cache: 'no-store', signal: AbortSignal.timeout(PROBE_ASK_MS) })
       return res.ok ? ((await res.json()) as unknown) : null
     },
     onBack: (ask) => {

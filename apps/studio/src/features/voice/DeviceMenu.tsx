@@ -33,7 +33,7 @@ async function readDevices(kinds: readonly DeviceKind[], list: List): Promise<Fo
     const lists = await Promise.all(kinds.map((k) => list(k)))
     return { state: 'found', devices: Object.fromEntries(kinds.map((k, i) => [k, lists[i] ?? []])) }
   } catch (err: unknown) {
-    return { state: refusalOf(err, newVersion.heard()) }
+    return { state: refusalOf(err, newVersion) }
   }
 }
 

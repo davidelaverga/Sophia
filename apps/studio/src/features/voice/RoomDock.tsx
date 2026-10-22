@@ -86,7 +86,7 @@ export function DockNote({ note, className }: { note: string | null; className: 
         </p>
       )}
       <p className={stale ? `${className} dock-stale` : polite ? className : 'sr-only'} role="status">
-        {stale ? <StalePart /> : polite ? note : null}
+        {stale ? <StalePart takeFocus /> : polite ? note : null}
       </p>
     </>
   )
@@ -94,7 +94,7 @@ export function DockNote({ note, className }: { note: string | null; className: 
 
 /**
  * Its part gone after a deploy (stale-part-call.md): only Reload is offered, beside the note. Try again could never
- * succeed in this tab, which keeps the failed part until a reload (Luis 2026-10-24).
+ * succeed in this tab, which keeps the failed part until a reload (Luis 2026-10-22).
  */
 export const partGone = (room: ProjectRoom): boolean => room.error === STALE_PART
 

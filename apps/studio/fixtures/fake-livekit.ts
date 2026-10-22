@@ -100,13 +100,14 @@ const devicesBlocked = new URLSearchParams(window.location.search).get('devices'
 
 /**
  * `part=gone`: LiveKit's part of the Studio is gone from the host, as after a deploy (stale-part-call.md). As the build's
- * preload helper does, Vite says so on the page (`vite:preloadError`, as fixtures/new-version.tsx's word) and the
- * import rejects with the browser's own TypeError.
+ * preload helper does, Vite says so on the page (`vite:preloadError`, the error as its payload) and the import
+ * rejects with that TypeError.
  */
 const partGone = new URLSearchParams(window.location.search).get('part') === 'gone'
 function gone(): Promise<never> {
-  window.dispatchEvent(new Event('vite:preloadError'))
-  return Promise.reject(new TypeError('Failed to fetch dynamically imported module'))
+  const err = new TypeError('Failed to fetch dynamically imported module')
+  window.dispatchEvent(Object.assign(new Event('vite:preloadError'), { payload: err }))
+  return Promise.reject(err)
 }
 
 /** A connect that fails: its part gone (`part=gone`), or refused as an unreachable room is (`refuse=connect`). */

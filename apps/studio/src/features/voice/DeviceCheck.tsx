@@ -10,7 +10,7 @@ import { Sheet } from '../../app/Sheet.tsx'
 import { canChooseOutput, chosenDevices, KIND_WORD, type DeviceKind } from './device-preference.ts'
 import { micOnJoin, rememberMic } from './mic-preference.ts'
 import { DeviceChoice, useDevices, type List } from './DeviceMenu.tsx'
-import { StalePart } from './StalePart.tsx'
+import { STALE_PART } from './part-gone.ts'
 import { useDevicePreview, type Preview } from './useDevicePreview.ts'
 
 const KINDS: readonly DeviceKind[] = ['audioinput', 'audiooutput', 'videoinput']
@@ -148,16 +148,23 @@ export function DeviceCheck({ list, onChoose, onJoin, onClose }: Props) {
             </div>
           ))}
         </div>
-        {/* Their part gone after a deploy (stale-part-call.md): said once here, with Reload. */}
+        {/* Their part gone after a deploy (stale-part-call.md): said once here, and Reload in Join's place, since a
+            join could never succeed in this tab (review P3, 2026-10-22). */}
         {found.state === 'stale' && (
           <p className="device-check-stale" role="status">
-            <StalePart />
+            {STALE_PART}
           </p>
         )}
         <div className="device-check-foot">
-          <Button kind="primary" onClick={() => onJoin(media)}>
-            Join the room
-          </Button>
+          {found.state === 'stale' ? (
+            <Button kind="primary" onClick={() => window.location.reload()}>
+              Reload
+            </Button>
+          ) : (
+            <Button kind="primary" onClick={() => onJoin(media)}>
+              Join the room
+            </Button>
+          )}
         </div>
       </div>
     </Sheet>

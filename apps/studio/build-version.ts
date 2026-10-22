@@ -19,7 +19,10 @@ export function buildVersion(): Plugin {
     generateBundle: {
       order: 'post',
       handler(_options, bundle) {
-        const files = Object.values(bundle).toSorted((a, b) => a.fileName.localeCompare(b.fileName))
+        // By code point, as every machine orders them: the id never depends on a locale's collation.
+        const files = Object.values(bundle).toSorted((a, b) =>
+          a.fileName < b.fileName ? -1 : a.fileName > b.fileName ? 1 : 0,
+        )
         const pages = files.filter((f) => f.type === 'asset' && f.fileName.endsWith('.html'))
         const hash = createHash('sha256')
         for (const file of files) hash.update(`${file.fileName}\n`)

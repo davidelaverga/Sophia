@@ -3299,8 +3299,7 @@ button.contribution-quote:hover {
   column-gap: 12px;
   max-width: 64ch;
 }
-.dock-stale .text-button,
-.device-check-stale .text-button {
+.dock-stale .text-button {
   font-size: inherit;
   white-space: nowrap;
 }
@@ -3384,6 +3383,17 @@ button.contribution-quote:hover {
   width: 14px;
   height: 14px;
   transform: rotate(180deg);
+}
+/* The check's opener alone in the dock, its Join gone with a part gone after a deploy (stale-part-call.md): a square of
+   the dock's size, clear of its edge, not a 20 px tab tucked against nothing (review P3, 2026-10-22). A touch screen
+   and a phone keep their own squares (below). */
+@media (pointer: fine) and (min-width: 601px) {
+  .dock > .device-check-open:first-child {
+    margin-left: 0;
+  }
+  .dock > .device-check-open:first-child .device-open {
+    width: 36px;
+  }
 }
 .menu.device-list {
   min-width: 240px;
@@ -3538,10 +3548,6 @@ button.contribution-quote:hover {
   justify-content: flex-end;
 }
 .device-check-stale {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  column-gap: 12px;
   color: var(--text-2);
   font-size: var(--type-small);
 }

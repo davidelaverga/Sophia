@@ -164,7 +164,6 @@ describe('a tab left open asks for the version', () => {
         return Promise.resolve(new Response('{"version":"b1"}'))
       },
     }
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a window of the one method the ask uses
     assert.equal(
       await browserPage(win as unknown as Window)
         .served()

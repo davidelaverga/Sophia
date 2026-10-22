@@ -419,11 +419,18 @@ function sessionRows(fx) {
   )
 }
 
-/** M9's rows, per trigger: noticed, any reload by itself, within the baseline's 15 minutes, the time; or not run. */
-const VERSION_TRIGGERS = { focus: 'focus', visible: 'back into view', interval: 'interval (page clock)' }
+/**
+ * M9's rows, per trigger, from the trigger (back into focus or view) or the change (left in view) to the notice:
+ * noticed, any reload by itself, within the baseline's 15 minutes, the time; or not run.
+ */
+const VERSION_TRIGGERS = {
+  focus: 'back into focus → notice',
+  visible: 'back into view → notice',
+  interval: 'left in view → notice (page clock)¹',
+}
 function versionRows(fx) {
   return Object.entries(VERSION_TRIGGERS).map(([trigger, label]) =>
-    row(fx, `M9 · version changed → notice · ${label}`, () => {
+    row(fx, `M9 · ${label}`, () => {
       const c = fx.m9?.[trigger]
       if (!c || c.n === 0) return 'not run'
       return `${c.noticed}/${c.n} noticed · reloaded by itself: ${c.reloaded} · ${c.withinFifteenMinutes}/${c.n} within 15 min · p50 ${span(c.time.p50)} · p95 ${span(c.time.p95)}`
@@ -470,6 +477,12 @@ function rejoinRows(fx) {
       }),
     ),
   ]
+}
+
+/** The note under M9's interval row: how precise its times are; none when it gave no numbers. */
+function versionNote(fx) {
+  if (fx.incomplete?.metrics.M9 || !(fx.m9?.interval?.n > 0)) return []
+  return ['', '¹ M9 left in view: the page’s clock is read in 5 s steps, so each time is to the step and may be one step late.']
 }
 
 /** A metric's row; for a metric the run is partial for, how many of its scenarios wrote results instead of a value. */
@@ -571,6 +584,7 @@ function fixtureMarkdown(fx) {
     ...rejoinRows(fx),
     ...sessionRows(fx),
     ...versionRows(fx),
+    ...versionNote(fx),
     ...m5Table(fx),
     ...m6Table(fx),
     ...m7Table(fx),

@@ -16,9 +16,15 @@ export function newVersionSignal(target: EventTarget) {
     for (const listener of listeners) listener()
   }
   const held = { calls: 0, waiting: false }
-  target.addEventListener('vite:preloadError', say)
+  let payload: unknown = null
+  target.addEventListener('vite:preloadError', (event) => {
+    payload = Reflect.get(event, 'payload') ?? null
+    say()
+  })
   return {
     heard: () => heard,
+    /** The last error Vite said was gone (its event's payload), or null: the room tells its own failure by it. */
+    payload: () => payload,
     /** The probe's word: said now, or once no call holds it. */
     tell: () => {
       if (held.calls > 0) held.waiting = true

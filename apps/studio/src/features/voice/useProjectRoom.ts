@@ -408,7 +408,7 @@ async function joinConnection(ports: JoinPorts, options?: JoinOptions, still?: (
     if (!current()) return false
     setStatus('failed')
     // A part gone after a deploy says so (stale-part-call.md): Vite's word came just before this rethrow.
-    setError(joinMessage(err, newVersion.heard()))
+    setError(joinMessage(err, newVersion))
     return false
   }
 }
