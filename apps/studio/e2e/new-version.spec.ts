@@ -139,3 +139,73 @@ test('version · once: the same room with its part there joins with no word of a
   await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
   await expect(page.locator('body')).not.toContainText('older version')
 })
+
+// A tab left open asks for the version (docs/plans/version-probe.md; the baseline's M9): the app's page names
+// `fixture-build` and its server serves it as version.json (vite.app.config.ts); a route serves another, as a deploy
+// does. Back into focus or view, or ten minutes in view, the same notice says Sophia was updated; nothing reloads.
+
+/** A deploy: the host serves another version from now on; `asked` counts the page's requests for it. */
+async function deployNow(page: Page) {
+  const asked = { count: 0 }
+  await page.route(`${APP}/version.json`, (route) => {
+    asked.count += 1
+    return route.fulfill({ json: { version: 'fixture-deployed' } })
+  })
+  return asked
+}
+const marked = (page: Page) => page.evaluate(() => Reflect.set(window, 'beforeReload', true))
+const stillMarked = (page: Page) => page.evaluate(() => Reflect.get(window, 'beforeReload') === true)
+
+test('version · a deploy while the tab stayed open is said as it comes back into focus; nothing reloads (M9)', async ({
+  page,
+}) => {
+  await page.goto(`${APP}/app.html`)
+  await marked(page)
+  await deployNow(page)
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await expect(notice(page)).toHaveText(/Sophia was updated\. Reload to keep going\./)
+  expect(await stillMarked(page)).toBe(true)
+})
+
+test('version · a deploy is said as the tab comes back into view (M9)', async ({ page }) => {
+  await page.goto(`${APP}/app.html`)
+  await deployNow(page)
+  await page.evaluate(() => {
+    let state: DocumentVisibilityState = 'hidden'
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state })
+    document.dispatchEvent(new Event('visibilitychange'))
+    state = 'visible'
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await expect(notice(page)).toBeVisible()
+})
+
+test('version · a tab left in view hears of a deploy within ten minutes, asking nothing before (M9)', async ({
+  page,
+}) => {
+  await page.clock.install()
+  await page.goto(`${APP}/app.html`)
+  // The page's clock stops a moment after its probe began; from here only the check moves it, in jumps (each due timer
+  // fires once), so ten minutes take none and no frame loop runs through them.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100))
+  await marked(page)
+  const asked = await deployNow(page)
+  await page.clock.fastForward(10 * 60_000 - 10_000)
+  expect(asked.count).toBe(0)
+  await expect(notice(page)).toHaveCount(0)
+  await page.clock.fastForward(10_000)
+  await expect(notice(page)).toBeVisible()
+  expect(asked.count).toBe(1)
+  // Heard once: the asking stops, and ten more minutes neither ask nor reload.
+  await page.clock.fastForward(10 * 60_000)
+  expect(asked.count).toBe(1)
+  expect(await stillMarked(page)).toBe(true)
+})
+
+test('version · the same version served says nothing (M9)', async ({ page }) => {
+  await page.goto(`${APP}/app.html`)
+  const answered = page.waitForResponse(`${APP}/version.json`)
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  expect(await (await answered).json()).toEqual({ version: 'fixture-build' })
+  await expect(notice(page)).toHaveCount(0)
+})

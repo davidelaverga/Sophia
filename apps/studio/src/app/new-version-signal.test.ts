@@ -42,4 +42,16 @@ describe('a new version heard', () => {
     page.dispatchEvent(new Event('vite:preloadError'))
     assert.equal(words, 2)
   })
+
+  // A tab left open that asks the host for its version (version-probe.md) says the same word.
+  it('hears the version probe’s word as it hears Vite’s', () => {
+    const signal = newVersionSignal(new EventTarget())
+    let words = 0
+    signal.onHeard(() => {
+      words += 1
+    })
+    signal.tell()
+    assert.equal(signal.heard(), true)
+    assert.equal(words, 1)
+  })
 })
