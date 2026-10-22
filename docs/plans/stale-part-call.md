@@ -77,3 +77,13 @@ rows say as «Not allowed» and the in-call menu as «Allow the microphone in yo
   script failed»); the check reads the class, not the words. Not observed in them.
 - A project opened after such a deploy may first fail to load `RoomStage` itself; the notice covers that, and it isn't
   this seam.
+
+## Found while building
+
+- **Red for the right reasons** (`pw-logs/stale-part-red`): Join showed the alert «Couldn’t connect to the room. Check
+  your connection and try again.» and no polite line; the check's rows read «Microphone: Not allowed», «Speaker: Not
+  allowed», «Camera: Not allowed». The units failed on the outline («part-gone.ts: not written yet») and on
+  `noteRole` («actual: 'alert', expected: 'status'»).
+- **The room's module now loads the page's ear** (`new-version-early.ts`) to ask `heard()`. It listened on `window` at
+  once, so a unit check that imports the room (`new-call.test.ts`) stopped with «window is not defined». Outside a
+  browser the ear has a target of its own and asks the host for nothing (`dd1fa46b1`).

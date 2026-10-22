@@ -58,3 +58,21 @@
   an older deployment is a different id: the tab hears of it as a new version, which it is.
 - A public file changed alone (`public/entry.js`) doesn't change the id: it isn't a part a tab asks for later.
 - A tab hidden for hours asks nothing until it is back; then at once.
+
+## Found while building
+
+- **Observed on production builds** (scratchpad, nothing deployed): two builds of one tree write the same
+  `version.json` (`5f9672781ccbb820`) and the same chunk names; one line changed on Home gives another id
+  (`cfe28f942199015c`). A tab on the first build, the throwaway local host switched to the second, then back into
+  focus: «Sophia was updated. Reload to keep going.» 50 ms later, the page not reloaded, two requests for
+  `version.json` in all (one before the switch, one after).
+- **Where the probe lands:** `new-version-early.ts` is now imported by the room and the device menu too, so the
+  bundler moved it from the entry into the shared chunk the entry imports statically (`useAddressed-*`); it still runs
+  before App draws.
+- **The page's clock in the checks jumps** (`clock.fastForward`, each due timer once) and stops right after the page
+  loads (`clock.pauseAt`): running ten minutes frame by frame (`runFor`) took the whole test's 30 s. The interval's
+  measured times are to the 5 s step, and one step late: the route counts the request after the step that sent it.
+- **Red for the right reasons** (`pw-logs/version-probe-red`, `version-probe-red-2`): no notice on focus or on coming
+  back into view; at ten minutes no request and no notice (nothing asked before, as wanted); the same version served:
+  the page never asked («page.waitForResponse: Test timeout»). The units failed on the outline («version-probe.ts:
+  not written yet») and on «signal.tell is not a function».

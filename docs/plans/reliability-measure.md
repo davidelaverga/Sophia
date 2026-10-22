@@ -86,7 +86,10 @@ that their scenario ran, never today's numbers.
   `stallStream`, `gap`), in `feed.spec.ts`: from the lever to the header's «Up to date» through «Reconnecting» (M3:
   the stream ended ×3, silenced ×1) or «Catching up» (M4: a skipped sequence ×3), and from the network back to «Up to
   date» after the feed's third refused ask. On a page without the levers each scenario is recorded as not run, and
-  M3/M4 stay listed as not measurable. M5 and M9 wait for their levers.
+  M3/M4 stay listed as not measurable. M5 waits for its scenario.
+- **M9 · tabs on an old version** (`version.spec.ts`, version-probe.md): the app's page serves another version from
+  the lever on; per trigger (back into focus ×3, back into view ×3, left in view ×3 at three phases of the probe's
+  interval, on the page's clock), noticed or not, any reload by itself, how many within 15 minutes, and p50/p95.
 - **M8 · session through sleep**: an expired token while signed in, per kind (`session.spec.ts`; see «M8 and M2 across
   a reload» below).
 
