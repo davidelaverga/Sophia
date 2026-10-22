@@ -92,6 +92,12 @@ export function DockNote({ note, className }: { note: string | null; className: 
   )
 }
 
+/**
+ * Its part gone after a deploy (stale-part-call.md): only Reload is offered, beside the note. Try again could never
+ * succeed in this tab, which keeps the failed part until a reload (Luis 2026-10-24).
+ */
+export const partGone = (room: ProjectRoom): boolean => room.error === STALE_PART
+
 export function RoomDock(props: Props) {
   const { room } = props
   const live = room.status === 'live' || room.status === 'reconnecting'
@@ -127,7 +133,7 @@ export function RoomDock(props: Props) {
             <LiveControls {...props} sophiaAllow={sound.sophiaAllow} />
           ) : (
             <>
-              <JoinButton room={room} />
+              {!partGone(room) && <JoinButton room={room} />}
               <CheckOpener room={room} />
               <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
               <RejoinLeave room={room} />
