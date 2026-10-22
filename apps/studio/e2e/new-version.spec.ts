@@ -117,11 +117,12 @@ test('version · after a deploy, the check names no permission: the tab is on an
   await expect(check.getByRole('button', { name: /^Microphone: / })).toHaveAccessibleName('Microphone: Needs a reload')
   await expect(check).not.toContainText('Not allowed')
   await expect(check).not.toContainText('site settings')
-  // Its Join could never succeed: Reload stands in its place, one of it (review P3, 2026-10-22).
+  // Its Join could never succeed: Reload stands in its place, one of it (review P3, 2026-10-22); exact, as the rows'
+  // names say «Needs a reload».
   await expect(check.getByRole('button', { name: 'Join the room' })).toHaveCount(0)
-  await expect(check.getByRole('button', { name: 'Reload' })).toHaveCount(1)
+  await expect(check.getByRole('button', { name: 'Reload', exact: true })).toHaveCount(1)
   await page.evaluate(() => Reflect.set(window, 'beforeReload', true))
-  await check.getByRole('button', { name: 'Reload' }).click()
+  await check.getByRole('button', { name: 'Reload', exact: true }).click()
   await expect.poll(() => page.evaluate(() => Reflect.get(window, 'beforeReload') === true)).toBe(false)
 })
 
