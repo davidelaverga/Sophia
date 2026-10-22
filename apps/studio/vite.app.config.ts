@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import { mergeConfig, type Plugin } from 'vite'
-import { VERSION_FILE, VERSION_META } from './src/app/version-probe.ts'
+import { withVersion } from './build-version.ts'
+import { VERSION_FILE } from './src/app/version-probe.ts'
 import fixtures, { studioPageAs } from './vite.fixtures.config.ts'
 
 // The Studio app itself on a fixture page (fixtures/app.tsx, e2e/app-auth.spec.ts), signed in with Supabase Auth as a
@@ -35,12 +36,7 @@ const appAddresses: Plugin = {
 const FIXTURE_VERSION = 'fixture-build'
 const appVersion: Plugin = {
   name: 'sophia-fixture-app-version',
-  transformIndexHtml: (html) =>
-    html.replace(
-      '</head>',
-      `  <meta name="${VERSION_META}" content="${FIXTURE_VERSION}" />
-  </head>`,
-    ),
+  transformIndexHtml: (html) => withVersion(html, FIXTURE_VERSION),
   configureServer: (server) => {
     server.middlewares.use((req, res, next) => {
       if (new URL(req.url ?? '/', 'http://fixture').pathname !== `/${VERSION_FILE}`) return next()
