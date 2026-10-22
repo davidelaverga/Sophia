@@ -7,7 +7,7 @@
  *   node scripts/reliability-report.mjs --fixture [--run] [--out <dir>]
  *
  * `--ci` reads GitHub Actions through `gh` (M10 flakes, M11 the room job's minutes, M12 main green). `--fixture`
- * collects what the `@reliability` Playwright suite wrote (M1–M4, M6–M8); `--run` runs the suite first. Each mode
+ * collects what the `@reliability` Playwright suite wrote (M1–M4, M6–M9); `--run` runs the suite first. Each mode
  * writes its section of `<out>/reliability.json` (default `reliability-report/`), keeping the other's, and the short
  * table `<out>/reliability.md`, which it also prints.
  */
@@ -39,6 +39,7 @@ import {
   summarizeM6,
   summarizeM7,
   summarizeM8,
+  summarizeM9,
   summarizeFeed,
   timeoutMinutes,
 } from './lib/reliability.mjs'
@@ -62,7 +63,6 @@ const NOT_YET = [
   { metric: 'M3', what: 'feed recovery', why: 'needs the stream levers reliability/feed-reconnect adds', feed: true },
   { metric: 'M4', what: 'gaps and resyncs', why: 'needs the gap lever reliability/feed-reconnect adds', feed: true },
   { metric: 'M5', what: 'call re-join', why: 'not in this suite yet (linkLost/drop levers exist)' },
-  { metric: 'M9', what: 'tabs on an old version', why: 'needs a version probe' },
 ]
 
 // ——— gh ———
@@ -320,6 +320,7 @@ function measureFixture({ run: runFirst }) {
     m6: metric('M6', summarizeM6),
     m7: metric('M7', summarizeM7, (s) => s.reached !== false),
     m8: metric('M8', summarizeM8),
+    m9: metric('M9', summarizeM9),
     feed: { cases: summarizeFeed(feed), samples: feed },
   }
 }
@@ -329,6 +330,8 @@ function measureFixture({ run: runFirst }) {
 const pct = (x) => (x === null || x === undefined ? '—' : `${(x * 100).toFixed(1)} %`)
 const num = (x, digits = 1) => (x === null || x === undefined ? '—' : x.toFixed(digits))
 const ms = (x) => (x === null || x === undefined ? '—' : `${Math.round(x)} ms`)
+/** A time that may be minutes (M9's interval, on the page's clock): ms under a minute, else minutes. */
+const span = (x) => (x !== null && x !== undefined && x >= 60_000 ? `${(x / 60_000).toFixed(1)} min` : ms(x))
 
 function ciMarkdown(ci) {
   const room = ci.m10.flakes[ROOM] ?? { decided: 0, flaky: 0, rate: null }
@@ -411,6 +414,18 @@ function sessionRows(fx) {
       const which = c.met ? ` · met: snapshot ${c.met.snapshot} · stream ${c.met.stream}` : ''
       const met = c.reached < c.n ? ` (the expired token met ${c.reached}/${c.n})` : ''
       return `${c.renewed}/${c.n} renewed without «signed out» · ${c.resent}/${c.n} sent again · ${c.oneRefresh}/${c.renewed} renewed with one refresh · answer p50 ${ms(c.time.p50)} · p95 ${ms(c.time.p95)}${which}${met}`
+    }),
+  )
+}
+
+/** M9's rows, per trigger: noticed, any reload by itself, within the baseline's 15 minutes, the time; or not run. */
+const VERSION_TRIGGERS = { focus: 'focus', visible: 'back into view', interval: 'interval (page clock)' }
+function versionRows(fx) {
+  return Object.entries(VERSION_TRIGGERS).map(([trigger, label]) =>
+    row(fx, `M9 · version changed → notice · ${label}`, () => {
+      const c = fx.m9?.[trigger]
+      if (!c || c.n === 0) return 'not run'
+      return `${c.noticed}/${c.n} noticed · reloaded by itself: ${c.reloaded} · ${c.withinFifteenMinutes}/${c.n} within 15 min · p50 ${span(c.time.p50)} · p95 ${span(c.time.p95)}`
     }),
   )
 }
@@ -500,6 +515,7 @@ function fixtureMarkdown(fx) {
     ),
     ...feedRows(fx),
     ...sessionRows(fx),
+    ...versionRows(fx),
     ...m6Table(fx),
     ...m7Table(fx),
   ]
