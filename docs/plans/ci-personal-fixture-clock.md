@@ -36,9 +36,11 @@
   `new Date()`. No «12 min ago» on the page reads the real clock against the fixture's records. So a fixture clock at
   noon of the real day gives every real-clock read the same day it gives now: the concern #473 left it on («how long
   ago» would move by hours) does not hold on this page.
-- **The other fixtures are not exposed.** `chat-times` dates its two days by the calendar (`room.tsx`,
-  `overTwoDays`: yesterday 17:40, today 08:10) and the room says a future time's day as today's (`dayLabel`, `past`);
-  `home-needs`' «Yesterday» is the need's written `detail`, not a date. Both passed at every swept minute.
+- **The room's fixture is not exposed.** `chat-times` dates its two days by the calendar (`room.tsx`,
+  `overTwoDays`: yesterday 17:40, today 08:10) and the room says a future time's day as today's (`dayLabel`, `past`).
+  Both passed at every swept minute. **Home's was, and the first version of this note missed it** (see «After the
+  independent review»): `home-needs`' «Yesterday» is a written `detail`, but Home's own talk of the day before and its
+  greeting were dated from the browser's clock.
 
 ## What changes
 
@@ -66,3 +68,20 @@
   clock moves on. Seconds a day, as before.
 - Her night, morning and evening light are measured only by the checks that ask for them by hour (`personal.spec`'s
   «moments»); the contrast and ink checks measure the day's. Before, they measured whichever light CI's hour gave.
+
+## After the independent review
+
+The review found no P1 or P2; its three P3s are applied, each a test-first pair.
+
+- **Home's fixture stands at noon of the real day too** (`fixtures/home.tsx`). It dated your talk of the day before
+  (`NOW − 26 h`) and the greeting from the browser's clock: before two in the morning «Continue · Yesterday · …» named a
+  weekday, and the greeting followed the runner's hour. Its clock now starts at noon and runs on from there; what its API
+  answers about what needs you is dated from that clock and read on the browser's, so «due in 20 min» holds at any hour.
+  Guarded by `e2e/home-any-hour.spec.ts` (five to midnight, half past midnight, as a year begins): red first, «Received
+  "ContinueSunday · The launch pressure…"» and «Good evening» for «Good afternoon» (`pw-logs/clk-home-red.txt`).
+- **What is said during a run is stamped by the fixture's clock** (`fixtures/personal.tsx`): a message sent, the one on
+  its way, her answer, a live talk's lines and a note kept used the browser's time while the talk was dated from noon,
+  so before noon a new message showed an earlier time than the turns above it. They now take the fixture's clock as it
+  runs on from its hour.
+- **An hour that is not one stands at noon** (`at=`, `at=7`, `at=25:00` left the browser's clock): the hour is checked
+  first. Guarded in `personal-any-hour.spec.ts`, red first (`pw-logs/clk-p3-red.txt`).

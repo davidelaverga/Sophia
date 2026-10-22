@@ -28,8 +28,9 @@ Ending commit: the branch's last commit; code last changed at `d1bbbf367`. Again
 - **Why the default is safe, which #473 doubted:** on this page the product's own reads of the real clock say a day
   (`Memory` and `NotesPanel` labels) or reach nothing visible (`welcomeDue` asks the fixture's `resume`, a receipt).
   Noon of the real day gives them the same day; no «how long ago» on the page moves.
-- **`chat-times` and `home-needs` are not exposed:** the room's two days are calendar days (`room.tsx` `overTwoDays`),
-  a future time reads as today (`dayLabel`, `past`); Home's «Yesterday» is a written `detail`.
+- **`chat-times` is not exposed:** the room's two days are calendar days (`room.tsx` `overTwoDays`), a future time
+  reads as today (`dayLabel`, `past`). **Home was** (this line first said otherwise): see «After the independent
+  review».
 
 ## Evidence
 
@@ -73,6 +74,18 @@ Ending commit: the branch's last commit; code last changed at `d1bbbf367`. Again
   night-light contrast row would be new coverage, outside this change.
 - A page that lives across midnight still meets it (the fixture's day stays, the real clock moves on): seconds a day.
 - CI is the run on record.
+
+## After the independent review
+
+- No P1 or P2. Its three P3s, each a test-first pair: `b41339e26`/`0fbf7489a` (an hour that is not one stands at noon),
+  `087a0b7fe`/`26b399689` (what is said during a run is stamped by the fixture's clock), `7e411b312`/`12bde851e` (Home's
+  fixture stands at noon of the real day, guarded by `e2e/home-any-hour.spec.ts`).
+- Red: `pw-logs/clk-p3-red.txt` (the any-hour checks for Home at five to midnight, half past midnight and as a year
+  begins, and the hour that is not one) and `pw-logs/clk-home-red.txt` («Received "ContinueSunday · The launch
+  pressure…"», «Good evening» for «Good afternoon»).
+- The session that wrote them ended before its own green run finished (`clk-p3-off-h1` stops at 118/183); the
+  coordinator ran the green on the batch branch `group/follow-ups-9` instead (any-hour, personal, Home and their
+  neighbours) and recorded it in the batch PR.
 
 ## Next bounded action
 
