@@ -415,6 +415,30 @@ export function summarizeM8(samples) {
 const metBy = (group, last) =>
   group.filter((s) => (s.refused ?? []).some((r) => new RegExp(`^GET /api/v1/projects/[^/]+/${last}$`).test(r))).length
 
+/** The baseline's target for M9: the notice within 15 minutes of a deploy. */
+const FIFTEEN_MINUTES_MS = 15 * 60_000
+
+/**
+ * M9. Per trigger (back into focus, back into view, the interval), the host's version changed while the tab stayed
+ * open: noticed («Sophia was updated»), the page reloaded by itself (never wanted: it would cut a call), the clean ones
+ * within 15 minutes, and p50/p95 of the time from the change to the notice of the clean ones only. The interval's time
+ * is the page's clock (Playwright's), so its ten minutes are measured without waiting them.
+ */
+export function summarizeM9(samples) {
+  const result = {}
+  for (const [trigger, group] of groupBy(samples, (s) => s.trigger)) {
+    const clean = group.filter((s) => s.noticed && !s.reloaded && s.ms !== null)
+    result[trigger] = {
+      n: group.length,
+      noticed: group.filter((s) => s.noticed).length,
+      reloaded: group.filter((s) => s.reloaded).length,
+      withinFifteenMinutes: clean.filter((s) => s.ms <= FIFTEEN_MINUTES_MS).length,
+      time: spread(clean.map((s) => s.ms)),
+    }
+  }
+  return result
+}
+
 /** A way back after a drop: back in the call, timed, with one try, and «Reconnected.» said once. */
 function wayBack(group) {
   const back = group.filter((s) => s.back && s.ms !== null)
@@ -511,7 +535,7 @@ export function summarizeFeed(samples) {
  * The fixture's metrics, each written by its own scenarios (their titles start `Mn · `, a describe's or their own);
  * `M2r`, M2 kept across a reload.
  */
-const FIXTURE_METRICS = ['M1', 'M2', 'M2r', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8']
+const FIXTURE_METRICS = ['M1', 'M2', 'M2r', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9']
 
 /**
  * How many scenarios a suite has per metric, from `playwright test --list` (one line per test, `… › file:line:col ›

@@ -59,7 +59,9 @@ function glow(root: HTMLElement): Array<Animation | null> {
     720,
   )
   void flight?.finished.finally(() => fly.remove())
-  return [flight, play(root.querySelector('.c3-ambient'), [{ opacity: 0 }, { opacity: 1 }], 600, 260)]
+  // Her light rises from nothing into its own breath (personal.css): no end of its own, so nothing jumps when the motion
+  // is dropped, at whatever strength the breath has (softer on paper).
+  return [flight, play(root.querySelector('.c3-ambient'), [{ opacity: 0, offset: 0 }], 600, 260)]
 }
 
 function enter(root: HTMLElement, to: Place): Array<Animation | null> {

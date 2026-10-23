@@ -693,6 +693,39 @@ test('browser-account · a legacy email-keyed flag is not read: Enter goes to Pe
   expect(await page.evaluate((k) => localStorage.getItem(k), legacyFlagKey)).toBe('work')
 })
 
+test('personal · on paper, her light rises from Home into its own breath: nothing jumps as the motion ends', async ({
+  context,
+}) => {
+  // Her light arrives from Home's door (usePlaceMotion), then the motion is dropped and her breath (personal.css) shows
+  // as it is: on paper that breath is softer (--ambient-peak, ci-light-by-hour-contrast.md), so a rise to full strength
+  // would snap down as the motion ends.
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.addInitScript(() => localStorage.setItem('sophia.theme', 'light'))
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  // Her light's opacity at every frame it shows, from the first, for about two seconds: past the motion's end.
+  const frames = page.evaluate(
+    () =>
+      new Promise<number[]>((done) => {
+        const seen: number[] = []
+        const tick = () => {
+          const light = document.querySelector('.c3-space.you .c3-ambient')
+          if (light?.getClientRects().length) seen.push(parseFloat(getComputedStyle(light).opacity))
+          if (seen.length < 120) requestAnimationFrame(tick)
+          else done(seen)
+        }
+        requestAnimationFrame(tick)
+      }),
+  )
+  await enterFromHome(page)
+  await expect(page.locator('.places[data-place="personal"]')).toBeVisible()
+  const seen = await frames
+  const drop = Math.max(0, ...seen.slice(1).map((o, i) => (seen[i] ?? o) - o))
+  expect(drop, seen.map((o) => o.toFixed(2)).join(' ')).toBeLessThan(0.15)
+})
+
 test('browser-account · viewer-state lens restores under same subject after email change, resets for another subject', async ({
   context,
 }) => {
@@ -1557,6 +1590,29 @@ test('feedback · opened from Home during a call, the call’s switches stay in 
   await expect(
     sheet.getByRole('group', { name: 'Your call' }).getByRole('button', { name: 'Leave the room' }),
   ).toBeVisible()
+})
+
+test('version · a deploy heard during a call waits until the call ends, then is said once (Luis 2026-10-22)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/p/${WORK_PROJECT}/studio?work=lost`)
+  const dock = page.getByRole('navigation', { name: 'Room controls' })
+  await dock.getByRole('button', { name: /^Join the room/ }).click()
+  await expect(dock.getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  // A deploy, heard as the tab comes back into focus, in the call: nothing said.
+  await page.route(`${APP}/version.json`, (route) => route.fulfill({ json: { version: 'fixture-deployed' } }))
+  const answered = page.waitForResponse(`${APP}/version.json`)
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await answered
+  const notice = page.getByRole('status').filter({ hasText: 'Sophia was updated' })
+  await page.waitForTimeout(500) // past the probe's reading of the answer, which would show the notice at once
+  await expect(notice).toHaveCount(0)
+  // Out of the call: said, once.
+  await dock.getByRole('button', { name: 'Leave the room' }).click()
+  await expect(notice).toHaveText(/Sophia was updated. Reload to keep going./)
+  await expect(notice).toHaveCount(1)
 })
 
 test('places · in the bar’s call, Leave is rose at rest and its plane answers the pointer (room-dock-people.md)', async ({

@@ -21,7 +21,7 @@ import { reachesSophia } from '../conversation/chat-view.ts'
 import { useVoiceMeters } from './useVoiceMeters.ts'
 import { SophiaLight, type SophiaLightHandle } from '../light/SophiaLight.tsx'
 import { Presences } from './Presences.tsx'
-import { canShareScreen, RoomDock } from './RoomDock.tsx'
+import { canShareScreen, partGone, RoomDock } from './RoomDock.tsx'
 import { ROOM_KEYS } from './room-keys.ts'
 import {
   type FloorView,
@@ -229,7 +229,8 @@ function roomCommands(room: ProjectRoom, me: Participant | undefined, speaks: bo
 function useRoomKeys(room: ProjectRoom) {
   const me = room.participants.find((p) => p.local)
   const speaks = room.status === 'live' || room.status === 'reconnecting'
-  const joins = room.ready && (room.status === 'idle' || room.status === 'failed')
+  // Its part gone after a deploy, only the note's Reload is offered: no key or palette joins (stale-part-call.md).
+  const joins = room.ready && (room.status === 'idle' || room.status === 'failed') && !partGone(room)
   useCommands(roomCommands(room, me, speaks, joins))
 }
 

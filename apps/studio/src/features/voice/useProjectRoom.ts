@@ -8,11 +8,13 @@ import { arriveWithMicrophone, enterCall, switchMicrophone, useTypedChat } from 
 // page leaves the room; nothing here touches goals or work.
 import { useEffect, useRef, useState } from 'react'
 import type { RoomToken, Snapshot } from '@sophia/contracts'
-import { ApiError, issueRoomToken } from '../../api/client.ts'
+import { issueRoomToken } from '../../api/client.ts'
+import { newVersion } from '../../app/new-version-early.ts'
 import { useOnline } from '../personal/online.ts'
 import { CALL_END, joinHeld, keepsTextMode, keptNote, noteFor, type CallEnd } from './call-end.ts'
 import { CallFence } from './call-fence.ts'
 import { micToStart, openRoom } from './call-open.ts'
+import { joinMessage } from './part-gone.ts'
 import { LIVE_BEAT_MS, Rejoin, rejoinLine, type RejoinStep } from './call-rejoin.ts'
 import { browserTabs } from './call-tabs.ts'
 import { switchCamera } from './camera-flip.ts'
@@ -121,13 +123,6 @@ export interface ProjectRoom {
    */
   soundNoticeAway: boolean
   putSoundNoticeAway: () => void
-}
-
-/** A failed join in words: the API's own refusal, or what to check when the room could not be reached. */
-function joinMessage(err: unknown): string {
-  if (err instanceof ApiError && err.status > 0 && err.status < 500) return err.message
-  if (err instanceof ApiError) return 'The room isn’t available right now. Try again in a moment.'
-  return 'Couldn’t connect to the room. Check your connection and try again.'
 }
 
 interface People {
@@ -412,7 +407,8 @@ async function joinConnection(ports: JoinPorts, options?: JoinOptions, still?: (
   } catch (err: unknown) {
     if (!current()) return false
     setStatus('failed')
-    setError(joinMessage(err))
+    // A part gone after a deploy says so (stale-part-call.md): Vite's word came just before this rethrow.
+    setError(joinMessage(err, newVersion))
     return false
   }
 }
@@ -762,6 +758,14 @@ const peopleOf = (c: RoomConnection | null): People =>
  * is current: an 'ended' from a call this person already left is expected, not a drop; a join that Leave, the page
  * going away or a newer join overtook is left as soon as it connects.
  */
+/**
+ * While a call is on, coming back on its own included, the probe's news of a new version waits for its end (Luis
+ * 2026-10-22, version-probe.md): «Sophia was updated» comes as the person leaves, never in the middle of the call.
+ */
+function useNewsWaits(inCall: boolean): void {
+  useEffect(() => (inCall ? newVersion.holdWhile() : undefined), [inCall])
+}
+
 export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   const [calls] = useState(() => new CallFence<RoomConnection>())
   const [status, setStatus] = useState<DockStatus>('idle')
@@ -792,6 +796,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   const joined = useJoin(ports, joining, () => devices.setCamera(true))
   const join = joinOnline(joined.join)
   const { line, rejoining, rejoin } = useRejoin(status, calls, join, setError)
+  useNewsWaits(status === 'live' || status === 'reconnecting' || rejoining)
 
   const { leave, leftByPress } = useLeave(calls, outOfCall, () => rejoin.stop())
 

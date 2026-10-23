@@ -78,6 +78,12 @@ function before(key: string): unknown[] {
   }
 }
 
+/**
+ * What leaves the page for the host itself, as the checks answer it: the synthetic Auth service, and the version a tab
+ * asks for (version-probe.md), which is the host's, not the API's.
+ */
+const leavesThePage = (pathname: string) => pathname.startsWith('/synthetic-auth/') || pathname === '/version.json'
+
 /** A request's bearer token, as the API reads it. */
 const tokenOf = (headers: Headers) => /^Bearer (.+)$/.exec(headers.get('authorization') ?? '')?.[1] ?? null
 
@@ -237,7 +243,7 @@ if (sessionStorage.getItem(WORK_KEY) === 'lost') {
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const request = described(input, init)
     const { pathname, method, by } = request
-    if (pathname.startsWith('/synthetic-auth/')) return network(input, init)
+    if (leavesThePage(pathname)) return network(input, init)
     asked.push(`${method} ${pathname} by ${by}`)
     const refusal = tokenAnswer(request)
     if (refusal) return Promise.resolve(refusal)

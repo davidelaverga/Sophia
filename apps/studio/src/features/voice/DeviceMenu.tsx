@@ -5,6 +5,7 @@
 // it, with nothing to press.
 import { Fragment, useEffect, useState } from 'react'
 import { Icon, Menu, MenuHead, MenuItem, MenuSep, Tip, usePopover } from '@sophia/ui'
+import { newVersion } from '../../app/new-version-early.ts'
 import { BACKGROUNDS, chosenBackground, type BackgroundId } from './background-preference.ts'
 import {
   canChooseOutput,
@@ -14,21 +15,25 @@ import {
   type DeviceKind,
   type MediaDevice,
 } from './device-preference.ts'
+import { refusalOf } from './part-gone.ts'
 
-/** What the menu found: still reading, refused, or each kind's devices. */
+/** What the menu found: still reading, refused, its part gone after a deploy (stale-part-call.md), or each kind's devices. */
 export type Found =
-  { state: 'reading' } | { state: 'refused' } | { state: 'found'; devices: Partial<Record<DeviceKind, MediaDevice[]>> }
+  | { state: 'reading' }
+  | { state: 'refused' }
+  | { state: 'stale' }
+  | { state: 'found'; devices: Partial<Record<DeviceKind, MediaDevice[]>> }
 
 /** How a kind's devices are listed: the room's own (useProjectRoom). */
 export type List = (kind: DeviceKind) => Promise<MediaDevice[]>
 
-/** The devices of these kinds; refused where the browser keeps access back. */
+/** The devices of these kinds; refused where the browser keeps access back, stale where their part is gone. */
 async function readDevices(kinds: readonly DeviceKind[], list: List): Promise<Found> {
   try {
     const lists = await Promise.all(kinds.map((k) => list(k)))
     return { state: 'found', devices: Object.fromEntries(kinds.map((k, i) => [k, lists[i] ?? []])) }
-  } catch {
-    return { state: 'refused' }
+  } catch (err: unknown) {
+    return { state: refusalOf(err, newVersion) }
   }
 }
 
@@ -68,6 +73,7 @@ interface KindProps {
 
 function KindItems({ kind, found, chosen, onChoose }: KindProps) {
   if (found.state === 'reading') return <Said>Finding devices…</Said>
+  if (found.state === 'stale') return <Said>Reload this tab to choose one</Said>
   if (found.state === 'refused')
     return <Said>{`Allow the ${KIND_WORD[kind].toLowerCase()} in your browser’s site settings to choose one`}</Said>
   const devices = found.devices[kind] ?? []
@@ -226,7 +232,12 @@ export function DeviceMenu({ kinds, label, list, onChoose, background, mirror, i
 }
 
 /** What a kind's row says before a device can be named. */
-const UNNAMED: Record<Found['state'], string> = { reading: 'Finding…', refused: 'Not allowed', found: 'None found' }
+const UNNAMED: Record<Found['state'], string> = {
+  reading: 'Finding…',
+  refused: 'Not allowed',
+  stale: 'Needs a reload',
+  found: 'None found',
+}
 
 /**
  * One kind's device, named, in the check before joining (device-check.md): a press opens the kit's menu to choose
