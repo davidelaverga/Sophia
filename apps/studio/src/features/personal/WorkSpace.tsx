@@ -257,8 +257,8 @@ function Empty({ onStart }: { onStart: () => void }) {
 
 /**
  * What Work says with no active project (work-none-active.md): the first run's sentence only while nothing is archived
- * either; with archived ones (or a read of them that failed, which can't say none) «No active projects.», New project
- * then in the header; nothing while either list is still coming, so no «none» is claimed before it is known.
+ * either; with archived ones (or a read of them that failed, which can't say none) «No active projects.»; nothing while
+ * either list is still coming, so no «none» is claimed before it is known.
  */
 function emptyLine(projects: Props['projects'], archived: Props['archived']): 'first' | 'none-active' | null {
   if (!projects || projects.length > 0) return null
@@ -386,6 +386,9 @@ export function WorkSpace(props: Props) {
   const finder = useFinder(projects, now)
   const list = finder.list
   const empty = newProject.open ? null : emptyLine(projects, props.archived)
+  // In the header whenever the first run's Start a project isn't said, the archived list still coming too: making a
+  // project is never out of reach while it loads, retries or waits offline.
+  const offerNew = !newProject.open && !!projects && empty !== 'first'
   return (
     <section className="c3-space job" data-place-view="work" data-content hidden={props.hidden} aria-labelledby="c-w-h">
       <Edge lock={personalLock} onCross={actions.cross} />
@@ -394,7 +397,7 @@ export function WorkSpace(props: Props) {
           Your projects
         </h2>
         <div className="c3-head-acts">
-          {!newProject.open && ((!!projects && projects.length > 0) || empty === 'none-active') && (
+          {offerNew && (
             <button className="ghost" type="button" onClick={() => newProject.set(true)}>
               New project
             </button>
