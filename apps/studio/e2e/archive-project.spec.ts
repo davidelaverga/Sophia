@@ -14,6 +14,8 @@ const OLD_PILOT = '00000000-0000-4000-8000-00000000c003'
 declare global {
   interface Window {
     archiveKeys?: string[]
+    /** Whether Work said «No projects yet» at any moment since it was asked (work-none-active.md). */
+    saidNoneYet?: boolean
   }
 }
 
@@ -289,6 +291,27 @@ test('archive · Work with none active whose archived list can’t be read says 
   await expect(page.locator('.c3-projects > *').first()).toHaveText('No active projects.')
   await expect(page.getByText('No projects yet')).toHaveCount(0)
   await expect(page.locator('.c3-head').getByRole('button', { name: 'New project' })).toBeVisible()
+})
+
+test('archive · bringing back the only archived project with none active never says «No projects yet» on the way', async ({
+  page,
+}) => {
+  // The active list answers late: read with the archived one at once, the archived would land first and leave both
+  // lists empty for a moment.
+  await page.goto('/work-space.html?active=0&archived=1&activeSlow=1')
+  await expect(page.getByText('No active projects.')).toBeVisible()
+  await page.evaluate(() => {
+    window.saidNoneYet = false
+    new MutationObserver(() => {
+      if (document.body.textContent.includes('No projects yet')) window.saidNoneYet = true
+    }).observe(document.body, { subtree: true, childList: true, characterData: true })
+  })
+  await page.getByRole('button', { name: 'Archived (1)' }).click()
+  await page.getByRole('listitem').filter({ hasText: 'Old pilot' }).getByRole('button', { name: 'Unarchive' }).click()
+  // Back among the active ones, and the fold gone with it.
+  await expect(page.locator('.c3-proj h3')).toHaveText(['Old pilot'])
+  await expect(page.getByRole('button', { name: /^Archived/ })).toHaveCount(0)
+  expect(await page.evaluate(() => window.saidNoneYet)).toBe(false)
 })
 
 test('@phone · archive · on a phone too, only archived: «No active projects», New project in reach, also while it loads; none at all: the first run', async ({

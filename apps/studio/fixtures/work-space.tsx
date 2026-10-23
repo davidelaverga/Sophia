@@ -7,10 +7,12 @@
 // `workSpaceFixture.release()`; `fails`: the first is refused with a 503 whose body says nothing, as a proxy's.
 // `archivedFails=1`: the archived list's read is refused the same way until `workSpaceFixture.recover()`. `active=0`:
 // no active project (work-none-active.md). `hold=archived`: the archived list's reads wait for
-// `workSpaceFixture.releaseArchived()`. New project opens and closes as Places has it.
+// `workSpaceFixture.releaseArchived()`. The active list is read in the page's cache under Places's key, and a project
+// brought back joins it; `activeSlow=1`: each of its reads answers 400 ms late. New project opens and closes as Places
+// has it.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { StrictMode, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { ProjectSummary } from '@sophia/contracts'
@@ -69,7 +71,8 @@ const project = (n: number, title: string, role: ProjectSummary['role'] = 'admin
   nextSession: null,
   releases: [],
 })
-const active = query.get('active') === '0' ? [] : [project(1, 'Launch plan'), project(2, 'Research notes')]
+/** The active list as the API holds it: a project brought back joins it. */
+let active = query.get('active') === '0' ? [] : [project(1, 'Launch plan'), project(2, 'Research notes')]
 /** The archived list as the API holds it: a project brought back leaves it. */
 let archived = query.has('archived')
   ? [project(3, 'Old pilot', query.get('role') === 'editor' ? 'editor' : 'admin')]
@@ -82,12 +85,20 @@ const unavailable = () => new Response('Service Unavailable', { status: 503 })
 const UNARCHIVE = query.get('unarchive')
 const ARCHIVE = /^\/api\/v1\/projects\/([^/]+)\/archive$/
 
-/** An Unarchive (A30): recorded with its key, and the project leaves the archived list. */
+/** A read of the active list, as the API would answer it (400 ms late with `activeSlow=1`). */
+function readActive(): Promise<ProjectSummary[]> {
+  const now = active
+  if (!query.has('activeSlow')) return Promise.resolve(now)
+  return new Promise((go) => setTimeout(() => go(now), 400))
+}
+
+/** An Unarchive (A30): recorded with its key, and the project leaves the archived list for the active one. */
 function unarchived(projectId: string, init: RequestInit | undefined): Promise<Response> {
   recorded.unarchived.push(projectId)
   recorded.keys.push(new Headers(init?.headers).get('idempotency-key') ?? '')
   const first = recorded.keys.length === 1
   if (UNARCHIVE === 'fails' && first) return Promise.resolve(unavailable())
+  active = [...active, ...archived.filter((p) => p.projectId === projectId)]
   archived = archived.filter((p) => p.projectId !== projectId)
   if (UNARCHIVE === 'lost' && first) return Promise.reject(new TypeError('Failed to fetch'))
   const answer = json({ projectId, archived: false, cursor: '1' })
@@ -111,13 +122,18 @@ window.fetch = (input, init) => {
 
 function Page() {
   const fold = useArchivedWork(IDENTITY)
+  // Under the key Places reads it by, so an Unarchive reads it again as it does there.
+  const projects = useQuery({
+    queryKey: ['projects', IDENTITY.name],
+    queryFn: readActive,
+  }).data
   const [newProjectOpen, setNewProjectOpen] = useState(false)
   return (
     <div className="places" data-place="work">
       <WorkSpace
         hidden={false}
         token="fixture"
-        projects={active}
+        projects={projects}
         archived={fold}
         read={{ state: 'ready', failed: '', retry: () => undefined }}
         fresh={new Set()}
