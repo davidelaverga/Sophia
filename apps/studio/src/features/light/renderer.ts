@@ -1,6 +1,6 @@
 // WebGL for the light, outside React. It renders below display resolution (the light is soft) and a
 // slow device steps the resolution down further, so motion stays fluid. Without WebGL it returns null
-// and the Studio keeps a CSS glow.
+// and the Studio keeps a CSS glow; so does a GPU that can't compile the light, its context given back.
 import { FRAGMENT_SHADER, VERTEX_SHADER } from './shader.ts'
 
 export interface LightFrame {
@@ -69,6 +69,8 @@ export interface LightRenderer {
   /** Render at a lower resolution; false once it cannot go lower. */
   degrade: () => boolean
   dispose: () => void
+  /** Gives the context back now: for a canvas that is never drawn again (the page turned paper). */
+  release: () => void
 }
 
 function compile(gl: WebGLRenderingContext, type: number, source: string): WebGLShader {
@@ -111,6 +113,9 @@ export function createLightRenderer(canvas: HTMLCanvasElement, reduced: boolean)
     at = setUp(gl, reduced)
   } catch (err: unknown) {
     console.warn('Sophia light: WebGL unavailable, keeping the CSS glow.', err)
+    // Returning null, nobody holds a renderer to release it: each turn to dark would leave one more context alive
+    // until its canvas is collected (Codex P2 on #454).
+    gl.getExtension('WEBGL_lose_context')?.loseContext()
     return null
   }
   let quality = 0.55
@@ -145,5 +150,7 @@ export function createLightRenderer(canvas: HTMLCanvasElement, reduced: boolean)
     // The context stays with its canvas: React may mount the same canvas again (StrictMode, fast refresh),
     // and a lost context could not draw there. The browser frees it with the canvas.
     dispose: () => gl.bindBuffer(gl.ARRAY_BUFFER, null),
+    // The room's canvas leaves as the page turns paper and is never mounted again: no need to wait for the browser.
+    release: () => gl.getExtension('WEBGL_lose_context')?.loseContext(),
   }
 }

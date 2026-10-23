@@ -11,7 +11,15 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
-import { ApiTimeout, HostTainted, runOnce, supervise } from '../supervisor.mjs'
+import {
+  ApiTimeout,
+  BOOT_EVIDENCE,
+  bootConsole,
+  HostTainted,
+  runOnce,
+  supervise,
+  type BootEvidence,
+} from '../supervisor.mjs'
 
 const sha = (b: Buffer | string): string => createHash('sha256').update(b).digest('hex')
 // The UML host is Linux: the stand-in guest writes its output with GNU tar, as the guest's busybox writes ustar (macOS's
@@ -45,6 +53,15 @@ if (mode === 'split') {
   process.stdout.write(adverse.slice(40) + '\\n')
   say(policy)
 } else if (mode !== 'norecords') { say(adverse); say(policy) }
+// A guest that never gets in: the kernel's first marked line, then its console, and the launcher ends (R1-UML-BOOT-EVIDENCE).
+if (mode === 'bootfail' || mode === 'bootsignal') {
+  say('UML_RAM_BACKING memfd bytes=1 fixed_size=1 cloexec=1')
+  for (let i = 0; i < 30; i += 1) say('boot console line ' + i)
+  say('x'.repeat(400))
+  say('CANARY boot console tail \u0007')
+  if (mode === 'bootsignal') process.kill(process.pid, 'SIGKILL')
+  else process.exit(7)
+}
 if (mode === 'hang') {
   const child = spawn('sleep', ['600'], { stdio: 'ignore' })
   fs.writeFileSync(pids, process.pid + ' ' + child.pid)
@@ -268,7 +285,12 @@ describe(
       rmSync(scratch, { recursive: true, force: true })
     })
 
-    const run = async (job: Job, mode: string, extra: { marginMs?: number } = {}, apiMs?: number) => {
+    const run = async (
+      job: Job,
+      mode: string,
+      extra: { marginMs?: number; diagnostics?: (evidence: BootEvidence) => void } = {},
+      apiMs?: number,
+    ) => {
       next = job
       seen = { uploads: [], settles: [], beats: 0 }
       const pids = join(scratch, `${mode}.pids`)
@@ -598,6 +620,104 @@ describe(
       })
     }
 
+    // R1-UML-BOOT-EVIDENCE: #389's UML run ended both jobs with no receipt and no guest line; how its launcher ended and
+    // what its console printed were lost. The outer launcher's end is now logged as its own; a synthetic check alone
+    // (UmlConfig.diagnostics) is told the last console lines of a guest never entered, within BOOT_EVIDENCE.
+    const LEADER_7 =
+      /the outer launcher \(namespace-launch\.py\) ended: exit code 7, its own status, not the guest kernel's; guest entered: no/u
+    it('a guest never entered: its launcher’s end logged as the launcher’s, its console not logged, nothing delivered', async () => {
+      const { outcome, log } = await run({ format: 'pdf' }, 'bootfail')
+      assert.equal(outcome.claimed && outcome.outcome, 'abandoned', log.join('\n'))
+      assert.ok(
+        log.some((l) => LEADER_7.test(l)),
+        log.join('\n'),
+      )
+      assert.ok(
+        log.some((l) => l.includes('UML_RAM_BACKING')),
+        'marked lines are logged as before',
+      )
+      assert.ok(!log.some((l) => /CANARY|boot console line/u.test(l)), 'no console line reaches the log')
+      assert.deepEqual(seen.uploads, [])
+      assert.deepEqual(seen.settles, [])
+    })
+
+    it('a synthetic check’s diagnostic gets the bounded console of a guest never entered; the job ends the same', async () => {
+      const evidence: BootEvidence[] = []
+      const { outcome, log } = await run({ format: 'pdf' }, 'bootfail', { diagnostics: (e) => evidence.push(e) })
+      assert.equal(outcome.claimed && outcome.outcome, 'abandoned')
+      assert.deepEqual(seen.uploads, [])
+      assert.deepEqual(seen.settles, [])
+      assert.ok(!log.some((l) => /CANARY/u.test(l)), 'the console still never reaches the log')
+      assert.equal(evidence.length, 1)
+      const [e] = evidence
+      assert.ok(e?.console)
+      const { console: con, ...rest } = e
+      assert.deepEqual(rest, {
+        event: 'UML_BOOT_EVIDENCE',
+        qualification: false,
+        jobId: 'job-1',
+        launcherLeader: { exitCode: 7, signal: null },
+        cancelled: false,
+        timedOut: false,
+        lingering: false,
+        failed: null,
+        guestEntered: false,
+      })
+      assert.equal(con.lines.length, BOOT_EVIDENCE.lines)
+      assert.equal(con.seen, 33, 'the RAM line, 30 console lines, the long one and the canary')
+      assert.equal(con.dropped, 33 - BOOT_EVIDENCE.lines)
+      assert.equal(con.truncated, true)
+      assert.equal(con.lines.at(-1), 'CANARY boot console tail ?', 'printable, the last line kept')
+      assert.ok(con.lines.includes(`${'x'.repeat(BOOT_EVIDENCE.lineChars)} [cut]`), 'a long line cut, and said so')
+      assert.ok(con.lines.reduce((n, l) => n + l.length, 0) <= BOOT_EVIDENCE.bytes)
+    })
+
+    it('a launcher killed by a signal is reported as that signal, never as an exit code', async () => {
+      const evidence: BootEvidence[] = []
+      const { outcome, log } = await run({ format: 'pdf' }, 'bootsignal', { diagnostics: (e) => evidence.push(e) })
+      assert.equal(outcome.claimed && outcome.outcome, 'abandoned')
+      assert.ok(
+        log.some((l) => /the outer launcher \(namespace-launch\.py\) ended: signal SIGKILL/u.test(l)),
+        log.join('\n'),
+      )
+      assert.deepEqual(evidence[0]?.launcherLeader, { exitCode: null, signal: 'SIGKILL' })
+      assert.deepEqual(seen.uploads, [])
+    })
+
+    it('a guest that got in keeps no console; a Stop and a failing diagnostic change nothing of the run', async () => {
+      const evidence: BootEvidence[] = []
+      const entered = await run({ format: 'pdf' }, 'ok', { diagnostics: (e) => evidence.push(e) })
+      assert.deepEqual(entered.outcome, { claimed: true, jobId: 'job-1', outcome: 'settled' })
+      assert.equal(evidence[0]?.guestEntered, true)
+      assert.equal(evidence[0]?.console, null)
+      assert.deepEqual(evidence[0]?.launcherLeader, { exitCode: 0, signal: null })
+      assert.ok(
+        entered.log.some((l) => /exit code 0, its own status, not the guest kernel's; guest entered: yes/u.test(l)),
+      )
+      const throwing = await run({ format: 'pdf' }, 'ok', {
+        diagnostics: () => {
+          throw new Error('a diagnostic that fails')
+        },
+      })
+      assert.deepEqual(throwing.outcome, { claimed: true, jobId: 'job-1', outcome: 'settled' })
+      assert.equal(seen.uploads.length, 1)
+      const started = join(scratch, 'hang.pids')
+      rmSync(started, { force: true })
+      let beats = 0
+      beat = () => (existsSync(started) && ++beats >= 2 ? 'stop' : 'continue')
+      try {
+        evidence.length = 0
+        const stopped = await run({ format: 'pdf' }, 'hang', { diagnostics: (e) => evidence.push(e) })
+        assert.equal(stopped.outcome.claimed && stopped.outcome.outcome, 'cancelled')
+        assert.equal(evidence[0]?.cancelled, true)
+        assert.deepEqual(seen.uploads, [])
+        assert.deepEqual(seen.settles, [])
+        await gone(stopped.pids)
+      } finally {
+        beat = keepGoing
+      }
+    })
+
     it('takes no job on a host without its launchers: as root, root-owned immutable artifacts; else, root', async () => {
       next = { format: 'pdf' }
       const root = mkdtempSync(join(scratch, 'artifacts-'))
@@ -610,3 +730,23 @@ describe(
     })
   },
 )
+
+describe('the bounded boot console a synthetic check is given (R1-UML-BOOT-EVIDENCE)', () => {
+  it('keeps the last lines, printable and cut, within its line and byte bounds, and says what it dropped', () => {
+    const c = bootConsole({ lines: 3, lineChars: 10, bytes: 25 })
+    for (const line of ['one', 'two\u0000\u001b[2J', 'three', 'a line far longer than ten', 'last']) c.take(line)
+    assert.deepEqual(c.read(), {
+      lines: ['three', 'a line far [cut]', 'last'],
+      seen: 5,
+      dropped: 2,
+      truncated: true,
+    })
+    const bytes = bootConsole({ lines: 10, lineChars: 100, bytes: 12 })
+    for (const line of ['abcdef', 'ghijkl', 'mnop']) bytes.take(line)
+    assert.deepEqual(bytes.read(), { lines: ['ghijkl', 'mnop'], seen: 3, dropped: 1, truncated: true })
+    const quiet = bootConsole()
+    quiet.take('one line')
+    assert.deepEqual(quiet.read(), { lines: ['one line'], seen: 1, dropped: 0, truncated: false })
+    assert.deepEqual(BOOT_EVIDENCE, { lines: 16, lineChars: 256, bytes: 4096 })
+  })
+})

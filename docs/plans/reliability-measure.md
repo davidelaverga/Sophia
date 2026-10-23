@@ -1,0 +1,318 @@
+# Reliability, measured: one script, a before and an after
+
+> 2026-10-19 · source: the reliability baseline (`evaluacion-2026-10-19/fiabilidad/linea-base.md`, §4 «Métricas a
+> adoptar» and its proposed script) · Luis 2026-10-19: «quisiera trabajar en la fiabilidad y resiliencia. Ahí
+> tendríamos que también medir. Lo que no se mide, no se puede mejorar» and «Procede con el script de medición y el
+> lote R1». Tooling and a measuring suite only: nothing the person sees changes.
+
+## What it is for
+
+Every R1 change (5xx retried, silent reads, feed reconnect, write timeouts) needs a number before and after. The
+baseline measured CI by hand with `gh` and proposed the fixture metrics without running them. This branch makes both
+a command anyone can repeat, on the same definitions, so the after is comparable with the before.
+
+## The command
+
+`node scripts/reliability-report.mjs <mode> [--out <dir>]`, from the repository root, Node only, no new dependency
+(`yaml` is already the root's). Each mode writes its section of `<dir>/reliability.json` (default
+`reliability-report/`, ignored by git) and keeps the other mode's; `<dir>/reliability.md` is the short table, printed
+too.
+
+- `--ci [--since <ISO>] [--repo <owner/name>]`: reads GitHub Actions through `gh run list` and `gh run view --json
+  jobs` (every attempt, `--attempt n`) on `davidelaverga/Sophia`, from `--since` (default: 7 days back) to now. Each
+  completed run's jobs are kept in `.reliability-cache/` (ignored), so a second run asks only for new runs. Failed
+  room jobs also read their Playwright run summary (the `github` reporter's notice, through `gh api …/annotations`).
+- `--fixture [--run]`: collects what the `@reliability` Playwright suite wrote. Without `--run` it prints the exact
+  command to run the suite first; with `--run` it runs it (`playwright test -c playwright.reliability.config.ts
+  --workers=2`). On Luis's machine the suite runs through the machine guard instead (the handoff has the `pw.ps1`
+  line); the script then only collects.
+
+## The metrics (baseline §4)
+
+**From CI** (`--ci`):
+
+- **M10 · flake rate per job.** A *flake* is a commit (head SHA) whose same job both failed and passed: a rerun of a
+  failed job that passes, or the push run and the PR run of one commit that disagree. Rate = flaky (SHA, job) pairs /
+  decided pairs (at least one success or failure). Timeouts are not flakes (they are the suite's length, M11).
+  Per job family: the room's shards (`… (1/2)`, `… (2/2)` since #468, `…, part n of 3` on some branches) are one
+  family, each shard judged on its own. Also per job: success, failure, timeout and superseded counts, the failure
+  share of the decided ones (as the baseline's table), and for failed room jobs the number of failed tests from the
+  Playwright summary: a job that failed on one test of ~2,000 is the flake signature; the tests that failed most are
+  listed, each by its full title (see «Honest when partial»).
+- **M11 · room job duration.** Median, p90 and maximum of the successful room jobs per day and per part (`whole` or
+  the shard), with the margin of p90 to the job's `timeout-minutes`, read from `.github/workflows/ci.yml` (the job
+  whose name, without its `${{ … }}`, starts with «The room in Chromium»; GitHub's 360 if it has none). Timeouts per
+  day are counted beside it.
+- **M12 · main green.** Of the `ci` runs on `main` (push), the share of commits whose latest attempt is green, and the
+  hours main stayed red: main is red from the moment a red commit's run ends until a newer commit's run (or a rerun
+  of that commit) ends green. A newer commit that is already green is not turned red by an older one ending later. A
+  window that ends red counts until now, and says since when. Only the `ci` workflow: `paperclip-image` runs on some
+  paths only.
+
+**How a job's end is read.** GitHub marks a job that reached its `timeout-minutes` as *cancelled*, like a run
+superseded by a newer push. The script calls a cancelled job that ran for at least its limit a **timeout**, and only a
+shorter one **superseded**. Without this the baseline found 9 timeouts hidden among 90 «cancelled» runs. A rerun of
+failed jobs lists the carried-over ones again under new ids with the same times: each job is counted once (same
+name, start and end).
+
+**From the fixture** (`--fixture`, the suite `apps/studio/e2e/reliability/*.spec.ts`, every test tagged
+`@reliability`): measured in the page with `performance.now()`, written by each spec as JSON samples into
+`apps/studio/reliability-results/` (and attached to the test). The specs **measure and report**: they assert only
+that their scenario ran, never today's numbers.
+
+- **M1 · a keyed write's answer.** Time from the press to a definitive answer on screen while the reply is held and
+  let through `D` ms later (`D` = 0, 250, 1,000, 2,500): the room's chat (`holdMessages`/`releaseMessages`) and a
+  project conversation's message (`send=slow`, 1.5 s). p50/p95 of the total, p50/p95 of the overhead past `D`, the
+  share within 5 s.
+- **M2 · unknown outcomes resolved.** A keyed write whose reply is lost (`loseNextContributionReply`, `send=lost`,
+  `start=lost`) says it isn't confirmed; sent again under its key, does it resolve, and is it written once? Share
+  resolved, any written twice, and the time from the second press to the answer. The same across a reload is M2r
+  (see «M8 and M2 across a reload» below).
+- **M6 · failed reads that show versus fall silent.** A sweep (`reads.spec.ts`): the 7 views and the baseline's 11
+  silent reads, each opened with its own reads failing as the fixture's outage fails them (a fetch that rejects),
+  **narrowed to those reads**, so the snapshot and the feed keep working and only what the part reads fails (with the
+  whole outage the feed's «Reconnecting» would stand for every view). Once the page's retries are over (5 s with no
+  new failure), the part either shows the failure, an alert or a «couldn’t / can’t be read / didn’t load / Try again»
+  line **that the same part didn't show with nothing failing** (each scenario first loads a control), or falls
+  silent. A part whose read never went out is «not reached», not counted. ContinuityChoice is not reached: no fixture
+  sets a note policy that asks for consent.
+- **M7 · transient errors cured alone.** A read answered 502 or 503 with an HTML body (a proxy's page, not the API's
+  contract) once (502) or twice (503), then 200: does the view come back without a press, and how long after the
+  first error? Three reads (the conversations list, Knowledge's reports, Updates' «since you last looked»), **on the
+  Studio app itself** (`app.html`, `work=lost`): the fixture pages build a plain `new QueryClient()`, which retries
+  every failure three times whatever its `retry` says, so only the app has the real `retryRead` (`account-cache.ts`)
+  that gap 2 is about. A control load first proves each view shows what the check looks for.
+- **M3/M4 (feed recovery, gaps)** use the stream levers `reliability/feed-reconnect` adds (`dropStream`,
+  `stallStream`, `gap`), in `feed.spec.ts`: from the lever to the header's «Up to date» through «Reconnecting» (M3:
+  the stream ended ×3, silenced ×1) or «Catching up» (M4: a skipped sequence ×3), and from the network back to «Up to
+  date» after the feed's third refused ask. On a page without the levers each scenario is recorded as not run, and
+  M3/M4 stay listed as not measurable.
+- **M9 · tabs on an old version** (`version.spec.ts`, version-probe.md): the app's page serves another version from
+  the lever on; per trigger (back into focus ×3, back into view ×3, left in view ×3 at three phases of the probe's
+  interval, on the page's clock), noticed or not, any reload by itself, how many within 15 minutes, and p50/p95.
+- **M5 · a dropped call's way back** (`rejoin.spec.ts`; see «M5, a dropped call's way back» below).
+- **M8 · session through sleep**: an expired token while signed in, per kind (`session.spec.ts`; see «M8 and M2 across
+  a reload» below).
+
+## Kept out of the room job
+
+The suite lives in `e2e/reliability/`, which `playwright.config.ts` ignores (`testIgnore`), so neither CI's room job
+(`playwright test --shard`) nor the normal local run picks it up. Only `playwright.reliability.config.ts`, which the
+script uses, runs it: the same two fixture servers, one desktop project, `grep: /@reliability/`.
+
+## How to run it again, and read it
+
+- **CI:** `node scripts/reliability-report.mjs --ci --since <ISO> --out <dir>`. Compare a window after a change with
+  one before it of similar length. A week is about 2,500 run attempts: the first report takes a few minutes (four
+  requests at a time, waiting out GitHub's rate limit), later ones read the cache.
+- **Fixture:** from `apps/studio`, `pnpm exec playwright test -c playwright.reliability.config.ts --workers=2` (on
+  Luis's machine through the guard, `pw.ps1 … -Specs "-c playwright.reliability.config.ts"`), then `node
+  scripts/reliability-report.mjs --fixture --out <dir>`. Same suite, same scenarios: run it on the code after R1 and
+  put the two tables side by side.
+- **Reading it:** M1's total is mostly the hold the scenario puts on the reply; its *overhead* is what the Studio
+  adds. M6 counts parts, not severity: a silent members list in a picker and a silent board weigh the same. M7's
+  «back» can come from another read of the same path already on its way (a second part of the page reading it), not
+  only from a retry: the table lists the errors each read saw.
+
+## Checks (written first)
+
+- **Unit** (`tests/unit/reliability-report.test.mjs`, in `pnpm test`): percentiles (interpolated between closest
+  ranks), rates of nothing, shard names in both namings, a cancelled job at its limit read as a timeout, carried-over
+  jobs counted once, flakes, the job table, the Playwright summary, the room minutes and margin per day and part, the
+  limit read from the workflow, main's red hours (a rerun, a late older commit; already red as the window opens, a run
+  begun before it), the room's failed tests by full title and recency, the four fixture summaries, and the script
+  itself on a fake suite (failed partway, collected short, whole).
+- **The suite** runs once on this branch (the code before R1) and its numbers are the baseline; it is not part of any
+  normal run. Kept out: before `testIgnore`, `playwright test --list` held its 5 first tests (2,288 in all); after,
+  2,283 and none of them, and the reliability config lists only its own.
+- **Found while building, tested first:** on branches that split the room in three, a job with the room's name only
+  gathers the parts (`echo "The room's three parts"`) and fails in seconds when one fails. Counted, it made 10 of 11
+  room failures in a 6-hour window, two false flakes and a 0.1-minute median. A room job counts only if it runs the
+  Playwright suite (`isRoomGate`).
+
+## Honest when partial (Codex on #470)
+
+> 2026-10-19 · two P2s on #470, both verified against the code before any change. Luis: «Lo que no se mide, no se
+> puede mejorar»; a number taken from half a run, or from half a window, is worse than none.
+
+- **A failed suite published a whole report.** With `--fixture --run`, a suite that exited non-zero (a timeout, a
+  browser crash, a failed scenario) was only logged («collecting what it wrote»): the report was built from the
+  records some tests had written and the script exited 0, so a before/after could compare a full run with a third of
+  one. The same hole stands without `--run` (the guard path on Luis's machine): the script never knew how many
+  scenarios the suite has. Now the report counts each metric's scenarios from the suite's own listing (`playwright
+  test … --list`: every title path starts `Mn · `, a describe's or the test's; «Total: N tests» proves the listing
+  whole) against the records each metric wrote (each scenario writes one, at its end). **Per metric**, as the finding
+  allows: when the suite exited non-zero, every metric is **incomplete** (a scenario can fail after writing its record,
+  so the records can't say which); otherwise a metric with fewer records than scenarios is. An incomplete metric keeps
+  its samples and «n of N scenarios wrote results», and gives no summary (no percentage, no p50); the whole ones are
+  published as before. The file is still written; the script exits 1 whenever any metric is incomplete. A deliberate
+  run of one spec (only `feed.spec.ts`) so publishes M3/M4 and marks the rest «0 of N». A listing that fails leaves N
+  unknown; the suite's exit still decides. The suite command and the results folder can be pointed elsewhere
+  (`RELIABILITY_SUITE`, `RELIABILITY_RESULTS`) for the script's own test, which runs a fake suite.
+- **M12 had no state at the window's start.** `--ci` lists runs *created* from `--since`, so main's state at that
+  moment was unknown: if main was already red, the red time until the first green in the window counted 0, and a run
+  created before `since` that ended inside the window was missed. Now `--ci` also reads main's 20 newest `ci` push
+  runs created before `since` (`gh run list --branch main --event push --created "<since"`), latest attempts only.
+  `mainHealth(runs, now, since)` walks every end in time, so the state at `since` is the one the earlier runs left,
+  then keeps only the red time inside the window (a span that began before it counts from `since`; `redSince` keeps
+  its true start) and counts in the green share only the commits created in the window. M10 and M11 still read the
+  window only.
+- **The room tests that failed most were ranked by `file:line`** (the coordinator, from a week's report). One `test(`
+  line can stand for many pages: `press-answers.spec.ts:128` «×32» was 13 pages under one line, 31 of the 32 «on the
+  work space» on 10-12/13 and already fixed; `resources.spec.ts:461` (×18, all 10-12) and
+  `home-phone-needs.spec.ts:79` (×16, all 10-16) were fixed days before too, and led the list. Now each failed test is
+  counted by its full title (the summary's line: project, file and line, title path), with its last failure (the
+  failed job's start) and how many of its failures fall in the 48 hours before the report's end. The list (top 10)
+  is ordered by those recent failures, then by all of them, then by the latest, so a test fixed days ago sinks.
+
+## M8 and M2 across a reload
+
+> 2026-10-20 · source: the R2 measurement (`evaluacion-2026-10-19/fiabilidad/medicion-r2.md`, «Pendiente de medir»:
+> «M8 y "retenido tras recarga" todavía no están en la suite como números … Un siguiente paso barato es que el
+> reporte los cuente») · Luis 2026-10-20: «Procede con el próximo lote», and earlier «Lo que no se mide, no se puede
+> mejorar». Tooling and the measuring suite only: nothing the person sees changes.
+
+**Checked against the code first.** The report listed «M8 (session through sleep): needs an expired-token lever (R1
+gap 3)» (`NOT_YET`), though R2 (#472) gave the App the renewal and the checks their levers: `appFixture.expireToken()`
+and `dropStream()` (`fixtures/app.tsx`), and `refused`/`keys`/`asked` to read what was refused, keyed and sent.
+One difference from the source's wording: the synthetic Auth that renews the session is not a fixture lever; each
+check answers it with its own route (`renewing` in `app-auth.spec.ts`), so the M8 spec answers it the same way. The
+reload case (`reliability-held-on-reload.md`) is checked by `project-conversation-writes` and `room-discussion` with
+`server=kept`, and `writes.spec.ts` never reloaded: M2 counted none of it.
+
+- **M8, per kind** (`session.spec.ts`, on `app.html` with `work=lost`, Davide signed in, 3 rounds each, a new tab per
+  round so no renewal is remembered from the last): **read**, the conversations view quiet, the token expired, the
+  second conversation opened, until its line «One page. Anything longer, nobody reads.» shows; **write**, Sophia not
+  asked, the token expired, a message sent with Enter, until it is listed; **feed**, Studio's pill «Up to date», the
+  token expired and the stream dropped at once, until the pill leaves «Up to date» and comes back. The clock runs in
+  the page (`performance.now()`), from the press (or the lever) to the answer; a sign-out's words or 15 s stop it with
+  none. The words are the project's «You’ve been signed out» and the App's own when the tab signed out
+  (`ended-notice.ts`: «… so this tab signed out.», «Your sign-in on this device ended …»). Once the answer lands, the
+  round waits for the page to ask nothing for a second, then records `refused` (the unique requests the expired token
+  met), `definitive`, `signedOut`, `resent` (every request refused went again and wasn't refused; a POST's tries under
+  one key), `refreshes` (asked of the synthetic Auth in the round) and the pill's states on the way.
+- **The report, per kind:** **reached** = the expired token met the request the kind measures (`GET
+  …/projects/{id}/conversations/{id}/messages`, `POST /api/v1/conversations/{id}/messages`, and for the feed its own
+  requests, the stream `GET …/projects/{id}/events` or its snapshot `GET …/projects/{id}/snapshot`, both
+  `useProjectFeed`'s); **renewed** = reached, at least one refresh asked, answered, and no sign-out (even beside
+  an answer); sent again; **one refresh** counted over the renewed rounds; p50/p95 of the renewed ones' time. A round
+  whose expired token met only another request is not counted as renewed, whatever the screen shows. M8 leaves
+  `NOT_YET`. **Why the feed's snapshot counts** (the review asked for the stream alone): measured on the whole suite,
+  in all three feed rounds the expired token met the snapshot and the archived list, never the stream; the snapshot was
+  renewed with one refresh and the stream went again on the new token, the pill back «Up to date» in ~110–130 ms.
+  Counting only the stream gave 0/3 for rounds where nothing failed. `app-auth.spec.ts`'s feed check already accepts
+  either («by the stream, or by the snapshot's read when that asks first»). The archived list alone is not the feed.
+- **M2r, M2 kept across a reload** (`writes.spec.ts`, 3 rounds each, a fresh tab's storage per round): a message to
+  the room (`loseNextContributionReply`) and a conversation message (`send=lost`), `server=kept`; «Not confirmed», the
+  page reloaded (Briefs found by its title: the message the service holds again moves it to the top), then: **offered
+  again** (its line back within 5 s), Try again or Enter only if it was, and from the journal the message's **tries
+  and keys**, and how many times the service recorded it. The report's row: offered again, **resent once under the
+  same key** (two tries, one key), **written twice**, resolved n/N, and p50 of the press after the reload to the
+  answer, over the rounds resolved by a resend under one key only. **A metric of its own** (titles `M2r · `, in
+  `FIXTURE_METRICS`, `scenarioCounts` reads `Mnr`), so a failed reload scenario leaves only M2r incomplete and M2's
+  first line, comparable with the runs before R3, is still published.
+- **Honest when partial, unchanged:** M8 and M2r are fixture metrics, so a run with fewer records than scenarios, or a
+  failed suite, gives «incomplete: n of N» instead of their rows and exits 1.
+- **Checks, written first** (`tests/unit/reliability-report.test.mjs`): M2r (a resend under a new key: 3 tries, 2
+  keys, written twice, resolved but not timed; one not offered), M8 per kind (a signed-out round; an answer beside a
+  sign-out; the expired token meeting only another request; no refresh; the feed's snapshot met with the archived list,
+  and the archived list alone; a GET of the write's path; two refreshes), and the script on a fake suite: M8 listed
+  with no record gives «incomplete: 0 of 1» and no M8 number, exits non-zero, with one its row; an M2r scenario that
+  wrote nothing leaves M2's line published. Red before the code: 4 of 24, then (the review's P3s) 5 of 25, then (the
+  feed's snapshot) 1 of 25 (`feed reached: 1`, expected 2), each on its assertion; removing `!s.signedOut` alone turns
+  the M8 check red (`renewed: 3`, expected 2).
+- **First numbers** (the whole suite through the guard, 34/34 scenarios, code at `fc3ef5e16`): M8 read 3/3 renewed,
+  sent again, one refresh, p50 37 ms / p95 43 ms; write 3/3, its key kept, p50 76 / p95 85 ms; feed 3/3 through
+  «Reconnecting», p50 120 / p95 708 ms (one round 774 ms, two 109–120 ms). The feed comes back well under M3's drop
+  (p50 1,059 ms, the backoff's wait) in two rounds of three; consistent with `useProjectFeed`'s loop restarting on a
+  new token (`token` is in its effect's dependencies), not timed apart here. M2 kept across a reload: 6/6 offered
+  again, 6/6 resent once under the same key, written twice 0, press → answer p50 9 ms. (Before the review's P3s.)
+- **After the review's P3s** (the whole suite through the guard, 34/34, code at `97a096321`, every round read after
+  the page went quiet): M8 read 3/3 renewed, sent again, 3/3 of the renewed with one refresh, p50 30 / p95 31 ms;
+  write 3/3, under one key, p50 62 / p95 63 ms; feed 3/3, through «Reconnecting», its snapshot met and renewed in every
+  round, p50 115 / p95 131 ms. No round asked a second refresh once quiet. M2r: 6/6 offered again, 6/6 resent once
+  under the same key, written twice 0, resolved 6/6, p50 7 ms; M2's first line 5/5, unchanged.
+
+## M5, a dropped call's way back
+
+> 2026-10-20 · source: the report's own «M5 (call re-join): not in this suite yet», after #475 (`call-rejoin.md`: a
+> dropped call tries once to rejoin) · Luis 2026-10-20: «Procede con el próximo lote», and earlier «Lo que no se mide,
+> no se puede mejorar». Tooling and the measuring suite only: nothing the person sees changes.
+
+**Checked against the code first.** `NOT_YET` said «not in this suite yet (linkLost/drop levers exist)»; since #475
+the room's fixture page (`room.html?call=on`, `fixtures/room.tsx`, `fake-livekit.ts`) has every lever the cases need:
+`drop()` (LiveKit gives up, `dropped`), `failToken()` (the next room token refused once), `holdToken(on)`,
+`holdConnect(on)`, `linkLost(lost)` and `mutedByHost()`; `served` lists each `room-token` asked, `asked` each
+`connect` and `microphone:on`. `room.spec.ts`'s BASE-03 checks hold the behaviour (one try within 10 s, offline waits
+for `online`, a failed try says «You were disconnected from the room.» with Try again, the microphone cases of the
+four reviews); they assert it, and time nothing.
+
+- **The scenarios** (`rejoin.spec.ts`, 5, 3 rounds each, every round in a new browser context: a call tries once per
+  drop in two minutes, so a round in the same page would meet the last round's try). An init script records each
+  change of the dock in the page with `performance.now()`: in the call (the dock's Microphone shown) and the words of
+  its notes (`.dock-note`), and the moment `online` fires. **Live** is the first moment the Microphone shows again after
+  it went. **Tries** are the room tokens asked after the drop, read once the round settled («Reconnected.» gone, its
+  4 s, and one more second).
+  - **online:** `drop()` → back without a press; the time from the lever (pulled in the page as the clock starts) to
+    live; tries; how many times the notes began to say «Reconnected.».
+  - **offline:** offline, `drop()`, the waiting line, a second; the tokens asked so far (none expected); online → the
+    time from `online` to the first live moment at or past it (a try that connected offline gives no time,
+    never a negative one: review P3); tries; «Reconnected.» said.
+  - **failed:** `failToken()` and `drop()` → the dropped words and Try again; then 3 s more, in which a second try on
+    its own would have asked its token; tries.
+  - **the microphone (privacy invariant):** a round per case, its microphone off before the drop in the call (muted from
+    the dock; muted during «Reconnecting…», `linkLost(true)`; muted by an admin) or by this device's choice
+    (`sophia.mic.v1` «off» since, with it on in the call; «off» chosen during an offline wait; «off» chosen after a
+    failed try, then Try again). A **violation** is any `microphone:on` the connection was asked after the drop, or the
+    Microphone shown on once back, waited a second for. A **control** (on in the call, the choice on) must come back on:
+    it shows the check sees one.
+- **The report, per case:** online and offline, back n/N, p50/p95 of the time, one try n/N, «Reconnected.» said once
+  n/N (offline also «no try while offline»); failed, said with Try again n/N, one try n/N, a second try on its own;
+  the microphone, violations of the rounds whose call or choice had it off (back in or not), the control's rounds
+  back on, and a table per case. **A metric of its own** (`M5 · ` titles, in `FIXTURE_METRICS`): a run that misses an
+  M5 scenario gives «incomplete: n of N» on its four rows, no M5 table, and exits 1; M5 leaves `NOT_YET`.
+- **Checks, written first** (`tests/unit/reliability-report.test.mjs`): `summarizeM5` (a round back after two tries,
+  «Reconnected.» said twice, one not back; a token asked offline; a failed try tried twice, one said nothing; a
+  microphone turned on by a round not back counted; the control), and the script on a fake suite (an M5 scenario
+  listed with no record gives «incomplete: 0 of 1» on each row and exits non-zero; with one, its rows, and «M5 (call
+  re-join)» gone from «Not measurable yet»). Red before the code: the file did not load (`summarizeM5` not exported);
+  the script's check, run apart without that import, «the script exits non-zero» (M5 not yet a fixture metric).
+- **The check can see a violation** (a control mutant, not committed): with the drop's microphone not carried to the
+  try (`room.stand(undefined)` in `useProjectRoom.ts`), the try's rounds counted 3 violations of 12: «muted by an
+  admin» 3/3 (the admin's mute never writes this device's choice, so the try joined by the stored «on»); muted from
+  the dock stays off even so, since the dock's mute writes the choice. The control came back on 3/3, as without the
+  mutant. Reverted; the run's log is `pw-logs/m5-rejoin-mutant-5.txt`.
+- **First numbers** (the whole suite through the guard, 39/39 scenarios in 5.2 min, report exit 0, nothing
+  incomplete, code at `124c79f7c`): **online** 3/3 back without a press, drop → live p50 67 ms / p95 173 ms (38, 67,
+  185 ms), one try 3/3, «Reconnected.» said once 3/3; **offline** 3/3 back, no token asked while offline 3/3, online →
+  live p50 134 / p95 198 ms (105, 134, 205 ms), one try 3/3, said once 3/3; **failed try** 3/3 said «You were
+  disconnected from the room.» with Try again, one try 3/3, a second try on its own 0; **the microphone** 0
+  violations in 18 rounds (6 cases × 3, all back in), control 3/3 back on. Earlier tries of the whole suite were
+  stopped by the guard for memory (Blender, and WSL's 6.7 GB), never by a scenario.
+
+## Limits
+
+- **M5 is the fixture's LiveKit:** a drop is `fixture.drop()`, so the time is what the Studio adds (the try's token,
+  its join, the dock), never LiveKit's own ~44 s of tries before it says `dropped`, nor a real server's answer.
+  «No second try» is watched for 3 s; the rule's two minutes are held by the unit checks (`call-rejoin.test.ts`).
+  The microphone is read from what the connection was asked and the dock shows, not from a track.
+- M8's three kinds are one view each (Conversations, Studio); a renewal elsewhere follows the same `apiFetch`, but is
+  not timed.
+- **M8 · feed has never exercised the stream's own renewal** (`stream.ts`): in every measured round the expired token
+  met the snapshot first, and the stream went on the renewed token. The feed's row says so, «met: snapshot n · stream
+  m», counted from each round's refused requests (review P3; the last run regenerated reads «met: snapshot 3 · stream
+  0»). A round where the stream meets it would need the snapshot answered first, a lever this suite doesn't have.
+- M12's runs before the window are read by their latest attempt only: an earlier attempt of one of them that ended
+  red before `since`, rerun green after, is not seen as red at the start.
+- `scripts/**/*.mjs` and `tests/` are outside the repository's lint and Prettier gates (S1-01's runtime-unit areas);
+  these files are formatted with the repository's Prettier settings anyway.
+- M10 sees only what reruns and double runs show: a flake on a commit nobody reran is a plain failure. The
+  single-test count is the other half of the signal.
+- The fixture numbers are the page's, with no network: they measure what the Studio does with an answer, not the
+  API's latency.
+- **Against the baseline (§1.1):** «a read is retried 3 times by `retryRead`» holds in the app only. The fixture pages
+  (`room.html`, `home.html`, `work.html`) build `new QueryClient()` with no defaults, so TanStack's own rule retries
+  every failure three times, `retry: 'never'` or not. No fixture-page check can see gap 2; M7 runs on the app for that
+  reason, and a check of R1's retry fix belongs there too.
+- GitHub's API limit (5,000 requests an hour) is shared with every tool on the machine; a first weekly report spends
+  about half of it.

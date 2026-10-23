@@ -2,11 +2,15 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { Goal, NativeTask } from '@sophia/contracts'
 import {
+  arrivedResults,
+  askedJoin,
   floorView,
   mediaMessage,
+  mutedMic,
   orderParticipants,
   presenceRole,
   presenceSlots,
+  RECONNECTING,
   roomLine,
   runningWork,
   soleWorkingTask,
@@ -117,6 +121,13 @@ describe('floor view', () => {
 describe('what sets someone apart', () => {
   const guest = { ...person('g', 'Luis'), standing: 'guest' as const }
 
+  it('says a microphone is muted when it is off, whoever’s: a viewer speaks too (A06; Codex P2 on #411)', () => {
+    assert.equal(mutedMic({ ...davide, micOn: false }), true)
+    assert.equal(mutedMic({ ...guest, micOn: false }), true)
+    assert.equal(mutedMic(davide), false)
+    assert.equal(mutedMic({ ...davide, micOn: false, standing: 'viewer' }), true)
+  })
+
   it('says one thing about a person, or nothing', () => {
     assert.equal(presenceRole(davide, true), 'has the floor')
     assert.equal(presenceRole({ ...davide, speaking: true }, false), 'speaking')
@@ -182,6 +193,11 @@ describe('room stage', () => {
     assert.equal(roomLine('live', floorView('b', [luis]), 0).text, 'Someone has the floor but isn’t here')
     assert.equal(roomLine('live', free, 2).note, 'Working on 2 tasks in the background')
     assert.equal(roomLine('idle', free, 1).note, 'Working on 1 task in the background')
+  })
+
+  it('one word for a call coming back, on the line and over the video (Codex P1 on #403)', () => {
+    assert.equal(RECONNECTING, 'Reconnecting…')
+    assert.equal(roomLine('reconnecting', floorView(null, [luis, davide]), 0).text, RECONNECTING)
   })
 
   it('says what she is doing in place of the count, and never over her own note', () => {
@@ -279,5 +295,52 @@ describe('the one task that is all the work', () => {
     )
     assert.equal(soleWorkingTask({ goals: [], work: [task('g1', 'running'), task('g2', 'running')] }), null)
     assert.equal(soleWorkingTask(undefined), null)
+  })
+})
+
+describe('a result arriving (docs/plans/orb-result.md)', () => {
+  it('is a task at work before, with its result ready now', () => {
+    assert.deepEqual(arrivedResults([task('g1', 'running')], [task('g1', 'result_ready')]), ['task-g1'])
+    assert.deepEqual(
+      arrivedResults(
+        [task('g1', 'queued'), task('g2', 'running')],
+        [task('g1', 'result_ready'), task('g2', 'running')],
+      ),
+      ['task-g1'],
+    )
+  })
+  it('is never the first look, nor a result that was ready already, nor work that failed or stopped', () => {
+    assert.deepEqual(arrivedResults(null, [task('g1', 'result_ready')]), [])
+    assert.deepEqual(arrivedResults([task('g1', 'result_ready')], [task('g1', 'result_ready')]), [])
+    assert.deepEqual(arrivedResults([], [task('g1', 'result_ready')]), [])
+    assert.deepEqual(arrivedResults([task('g1', 'running')], [task('g1', 'failed')]), [])
+    assert.deepEqual(arrivedResults([task('g1', 'running')], [task('g1', 'stopped')]), [])
+  })
+})
+
+describe('a join asked from elsewhere (Work’s Join the room, a toast’s Rejoin)', () => {
+  it('waits while the project loads', () => {
+    for (const status of ['idle', 'joining', 'live', 'reconnecting', 'failed'] as const) {
+      assert.equal(askedJoin(status, false, true), 'wait')
+    }
+  })
+
+  it('joins a room out of the call, after a failed join too, as Try again would', () => {
+    for (const online of [true, false]) {
+      assert.equal(askedJoin('idle', true, online), 'join')
+      assert.equal(askedJoin('failed', true, online), 'join')
+    }
+  })
+
+  it('is answered by a call the person is in or on the way into, so nothing joins later on its own', () => {
+    for (const online of [true, false]) {
+      for (const status of ['joining', 'live', 'reconnecting'] as const) {
+        assert.equal(askedJoin(status, true, online), 'answered')
+      }
+    }
+  })
+
+  it('offline, joins at once though the project hasn’t loaded: that join says offline, and none waits for the network', () => {
+    assert.equal(askedJoin('idle', false, false), 'join')
   })
 })

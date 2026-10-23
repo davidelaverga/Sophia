@@ -3,7 +3,7 @@
 // and leave. Nothing here changes project work. Its height (a note, a second row on a phone) is the room's
 // --dock-h, so the words and the video above always clear it.
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import type { ExchangeReceipt, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip, type IconName } from '@sophia/ui'
@@ -14,7 +14,14 @@ import { snapshotKey } from '../studio/useProjectFeed.ts'
 import type { DeviceKind } from './device-preference.ts'
 import { DeviceCheck } from './DeviceCheck.tsx'
 import { DeviceMenu } from './DeviceMenu.tsx'
-import { micOnJoin } from './mic-preference.ts'
+import { micOnJoin, useMicOnJoin } from './mic-preference.ts'
+import { usePushToTalk } from './usePushToTalk.ts'
+import { useMirror } from './mirror-preference.ts'
+import { callClock, callClockWords } from './call-clock.ts'
+import { noteRole } from './call-end.ts'
+import { STALE_PART } from './part-gone.ts'
+import { StalePart } from './StalePart.tsx'
+import { useNow } from '../../app/use-now.ts'
 import { PassMenu } from './PassMenu.tsx'
 import { ReactMenu } from './ReactMenu.tsx'
 import { Reactions } from './Reactions.tsx'
@@ -22,6 +29,7 @@ import { roomKey } from './room-keys.ts'
 import { shortName, type FloorView, type RoomParticipant } from './room-view.ts'
 import { LookingIndicator, SophiaControls } from './SophiaControls.tsx'
 import type { SophiaView } from './sophia-view.ts'
+import { SOUND_BLOCKED, soundView } from './sound-view.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
 import { DockWord } from './DockWord.tsx'
 
@@ -61,11 +69,44 @@ function useDockHeight(ref: RefObject<HTMLDivElement | null>) {
   }, [ref])
 }
 
+/**
+ * The room's note (noteRole): a failure said at once, an alert added with its words; the connection's three said
+ * politely, from a line there before it speaks (a live region added with its words is often not read), out of sight
+ * while it says nothing.
+ */
+export function DockNote({ note, className }: { note: string | null; className: string }) {
+  const polite = note !== null && noteRole(note) === 'status'
+  // A part gone after a deploy: the line with its Reload (stale-part-call.md).
+  const stale = note === STALE_PART
+  return (
+    <>
+      {note && !polite && (
+        <p className={className} role="alert">
+          {note}
+        </p>
+      )}
+      <p className={stale ? `${className} dock-stale` : polite ? className : 'sr-only'} role="status">
+        {stale ? <StalePart takeFocus /> : polite ? note : null}
+      </p>
+    </>
+  )
+}
+
+/**
+ * Its part gone after a deploy (stale-part-call.md): only Reload is offered, beside the note. Try again could never
+ * succeed in this tab, which keeps the failed part until a reload (Luis 2026-10-22).
+ */
+export const partGone = (room: ProjectRoom): boolean => room.error === STALE_PART
+
 export function RoomDock(props: Props) {
   const { room } = props
   const live = room.status === 'live' || room.status === 'reconnecting'
   const wrap = useRef<HTMLDivElement>(null)
   useDockHeight(wrap)
+  const micOn = !!room.participants.find((p) => p.local)?.micOn
+  const talking = usePushToTalk(micOn, room, live)
+  const note = room.mediaError ?? room.error
+  const sound = soundView(room, props.sophia)
   return (
     <>
       {/* Beside the dock, not in it: the dock's measured height (--dock-h) is the dock's alone. */}
@@ -73,30 +114,123 @@ export function RoomDock(props: Props) {
       <div ref={wrap} className="dock-wrap">
         <LookingIndicator text={props.sophia.looking} />
         {/* What stopped a device, or why this person is out of the call: a failed join, or a call that ended. */}
-        {(room.mediaError ?? room.error) && (
-          <p className="dock-note" role="alert">
-            {room.mediaError ?? room.error}
+        <DockNote note={note} className="dock-note" />
+        <SoundBlocked shown={sound.notice} room={room} />
+        {/* Speech on a muted microphone (muted-speech.md): said while it is still off. */}
+        {live && room.mutedHint && !micOn && (
+          <p className="dock-note" role="status">
+            You’re muted. Hold Space to talk, or turn the microphone on.
           </p>
         )}
-        {/* Speech on a muted microphone (muted-speech.md): said while it is still off. */}
-        {live && room.mutedHint && !room.participants.find((p) => p.local)?.micOn && (
+        {/* Space held while muted (push-to-talk.md): said while it lasts. */}
+        {talking && (
           <p className="dock-note" role="status">
-            You’re muted. Turn the microphone on to be heard.
+            Talking. Let go of Space to mute again.
           </p>
         )}
         <nav className="dock" aria-label="Room controls">
           {live ? (
-            <LiveControls {...props} />
+            <LiveControls {...props} sophiaAllow={sound.sophiaAllow} />
           ) : (
             <>
-              <JoinButton room={room} />
+              {!partGone(room) && <JoinButton room={room} />}
               <CheckOpener room={room} />
               <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
+              <RejoinLeave room={room} />
             </>
           )}
         </nav>
       </div>
     </>
+  )
+}
+
+/** A press on a line that goes with it: the focus goes first to the call's anchor in the dock (the microphone). */
+const handingFocus = (act: () => void) => (e: React.MouseEvent<HTMLButtonElement>) => {
+  e.currentTarget
+    .closest('.dock-wrap')
+    ?.querySelector<HTMLElement>('[data-call-anchor]')
+    ?.focus({ preventScroll: true })
+  act()
+}
+
+/**
+ * The browser blocked the call's sound (sound-blocked-others.md): said as a polite status, mounted with the dock so its
+ * words are announced when they come, and out of the layout while it says nothing (theme.css). It never takes the
+ * focus; a press hands it to the microphone beside it.
+ */
+function SoundBlocked({ shown, room }: { shown: boolean; room: ProjectRoom }) {
+  return (
+    <p className={shown ? 'dock-note dock-sound' : 'dock-sound'} role="status">
+      {shown && (
+        <>
+          <span>{SOUND_BLOCKED}</span>
+          <span className="dock-sound-acts">
+            <button type="button" className="text-button" onClick={handingFocus(() => void room.startAudio())}>
+              Allow audio
+            </button>
+            <button type="button" className="text-button" onClick={handingFocus(room.putSoundNoticeAway)}>
+              Not now
+            </button>
+          </span>
+        </>
+      )}
+    </p>
+  )
+}
+
+/**
+ * While a dropped call's one try back in waits or runs (call-rejoin.md), Leave stays beside Join: it stops the try, and
+ * the room rests. The focus goes to Join beside it once the room has.
+ */
+export function RejoinLeave({ room }: { room: ProjectRoom }) {
+  return room.rejoining ? <StopRejoin room={room} /> : null
+}
+
+/**
+ * The focus on this Leave when the try ends goes on to the call's own Leave (`data-dock-key`), drawn in its place, or
+ * to Try again when the try failed, instead of to the page. Read before the button leaves the page, so the focus is
+ * still known.
+ */
+function useFocusOnToLeave(button: RefObject<HTMLButtonElement | null>) {
+  useLayoutEffect(() => {
+    const el = button.current
+    return () => {
+      if (!el || document.activeElement !== el) return
+      const dock = el.closest('.dock-wrap, .mini-dock')
+      // Back in, the call's Leave; a try that failed, Try again.
+      requestAnimationFrame(() => {
+        const next = dock?.querySelector<HTMLElement>('[data-dock-key="leave"]:not(:disabled)')
+        const anchor = dock?.querySelector<HTMLElement>('[data-call-anchor]:not(:disabled)')
+        ;(next ?? anchor)?.focus({ preventScroll: true })
+      })
+    }
+  }, [button])
+}
+
+function StopRejoin({ room }: { room: ProjectRoom }) {
+  const button = useRef<HTMLButtonElement>(null)
+  useFocusOnToLeave(button)
+  const stop = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const group = e.currentTarget.parentElement
+    void room.leave().then(() => {
+      requestAnimationFrame(() =>
+        group?.querySelector<HTMLElement>('[data-call-anchor]')?.focus({ preventScroll: true }),
+      )
+    })
+  }
+  return (
+    <button
+      ref={button}
+      type="button"
+      className="round leave has-tip"
+      aria-label="Leave the room"
+      data-dock-key="leave"
+      onClick={stop}
+    >
+      <Icon name="leave" />
+      <Tip label="Leave the room" />
+    </button>
   )
 }
 
@@ -115,7 +249,7 @@ export const joinTip = (textMode: boolean) =>
 function CheckOpener({ room }: { room: ProjectRoom }) {
   const [open, setOpen] = useState(false)
   return (
-    <span className="device-menu">
+    <span className="device-menu device-check-open">
       <button
         type="button"
         className="device-open has-tip"
@@ -144,6 +278,8 @@ function CheckOpener({ room }: { room: ProjectRoom }) {
 }
 
 function JoinButton({ room }: { room: ProjectRoom }) {
+  // Its tip says the microphone's default (joinTip): drawn again as Settings changes it (Codex P2 on #398).
+  useMicOnJoin()
   const label = room.status === 'joining' ? 'joining' : room.status === 'failed' ? 'retry' : 'join'
   return (
     <button
@@ -213,6 +349,7 @@ export function TextMode({ on, onVoice }: { on: boolean; onVoice: () => void }) 
 }
 
 function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | undefined }) {
+  const mirror = useMirror()
   return (
     <>
       <Toggle
@@ -243,6 +380,8 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
         list={room.listDevices}
         onChoose={(kind, id) => void room.switchDevice(kind, id)}
         background={{ supported: room.backgroundsSupported, onChoose: (id) => void room.setBackground(id) }}
+        mirror={mirror}
+        incoming={{ on: room.incomingVideo, toggle: () => room.setIncomingVideo(!room.incomingVideo) }}
       />
       {canShareScreen && (
         <Toggle
@@ -257,12 +396,27 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
   )
 }
 
-function LiveControls({ room, floor, projectId, identity, snapshot, sophia, onPassed }: Props) {
+/** How long this person's call has run, before Leave (room-basics.md): its time, and in words for a screen reader. */
+function CallClock({ since }: { since: number | null }) {
+  const now = useNow(1000)
+  if (since === null) return null
+  const ran = now - since
+  return (
+    <span className="dock-time" role="timer" aria-label={callClockWords(ran)}>
+      {callClock(ran)}
+    </span>
+  )
+}
+
+/** `sophiaAllow`: her own Allow audio, where the dock's line about the call's sound doesn't offer it (sound-view.ts). */
+function LiveControls(props: Props & { sophiaAllow: boolean }) {
+  const { room, floor, projectId, identity, snapshot, sophia, onPassed, sophiaAllow } = props
   const me = room.participants.find((p) => p.local)
   return (
     <>
       <MediaToggles room={room} me={me} />
-      <ReactMenu onReact={room.react} />
+      {/* A guest's token carries media only (livekit.ts): a reaction would reach nobody (guest-reactions.md). */}
+      {me?.standing !== 'guest' && <ReactMenu onReact={room.react} />}
       <span className="dock-sep" aria-hidden />
       {snapshot && me && (
         <FloorControl floor={floor} me={me.identity} context={{ projectId, identity, snapshot }} onPassed={onPassed} />
@@ -276,15 +430,18 @@ function LiveControls({ room, floor, projectId, identity, snapshot, sophia, onPa
             projectId={projectId}
             identity={identity}
             me={me}
+            allowAudio={sophiaAllow}
             onAllowAudio={() => void room.startAudio()}
           />
         </>
       )}
       <span className="dock-sep" aria-hidden />
+      <CallClock since={room.liveSince} />
       <button
         type="button"
         className="round leave has-tip"
         aria-label="Leave the room"
+        data-dock-key="leave"
         onClick={() => void room.leave({ pressed: true })}
       >
         <Icon name="leave" />

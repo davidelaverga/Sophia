@@ -18,14 +18,14 @@
     ],
     "artifact_kind": "pnpm deploy --prod of runtime/dsh (@sophia/dsh-runtime) from pnpm-lock.yaml",
     "artifact_primary_platform": "linux-x64",
-    "artifact_digest": "sophia-tree-v2:sha256:4552d08f78b47b7d0f16e79a92c487cffdfc5bb0a05eaef867c89ba837479a12",
+    "artifact_digest": "sophia-tree-v2:sha256:bff106c3b9841b5c93afc3508c8a29b379fcb1b8b5ce4235eec89b0b3960872a",
     "artifacts_by_platform": {
       "linux-x64": {
-        "digest": "sophia-tree-v2:sha256:4552d08f78b47b7d0f16e79a92c487cffdfc5bb0a05eaef867c89ba837479a12",
+        "digest": "sophia-tree-v2:sha256:bff106c3b9841b5c93afc3508c8a29b379fcb1b8b5ce4235eec89b0b3960872a",
         "entries": 27747
       },
       "darwin-arm64": {
-        "digest": "sophia-tree-v2:sha256:e24cb887c7a710069c2f2ac1dfa681611c25f129e39b990b09ce378aa133374c",
+        "digest": "sophia-tree-v2:sha256:4f6f256bbe4ae68be366372af5e0de8d4b99e3a21f13d9115a1b0e5fecd58a4a",
         "entries": 28427
       }
     },
@@ -69,7 +69,7 @@
     "live_verified": false,
     "compat_note": "SMC-M02 R1: pins the request shape of sophia-runtime-s1-03-dev. pi-ai 0.87.1 ships gpt-6-luna with supportsStrictMode true, which adds `strict: false` to every tool; the gate requires this compat value (checkModelRoute) and tests/integration/request-shape.test.mjs holds the whole shape"
   },
-  "workspace_lock_sha256": "b868da081c95de25e2ff5713d86dcd58b85f5718a65d407389eb8ca674f03d11",
+  "workspace_lock_sha256": "6614784dc6e57c71e1a2e9a658b91f022da7a005dd107d086807f0070cf14a56",
   "google_sdk": {
     "package": "@google/genai",
     "version": "2.24.0",
@@ -97,9 +97,9 @@
     "source_commit": null,
     "source_commit_note": "a commit cannot contain its own id; the release tag records it, and `pnpm artifacts` proves a checkout reproduces the recorded archive bytes",
     "archive": "sophia-dsh-bundle-0.1.0.tgz",
-    "archive_sha256": "172fc6de1da2dcb38da9be8c68005409484a65d0e381bafb0e4f234dd8a8d4b2",
-    "archive_integrity": "sha512-drXF3QnDj98OXDVCN3yCIfSD2vWKP+hZagcwxmBzqqoDrbmnrCuXuj4ew1PvAwMZvSpHbPe4GkWxkKS+Vg8o0w==",
-    "artifact_digest": "sha256:172fc6de1da2dcb38da9be8c68005409484a65d0e381bafb0e4f234dd8a8d4b2",
+    "archive_sha256": "2897b8b0af05ab4aa2ee95533d13481ed4e83dccc0d43381ca28a9d3dbb03682",
+    "archive_integrity": "sha512-IxPMseEqBXlhR3elDl0JbAK3+P0zw8lq4YrwJ8MIV9BoSwCJFYL711YeHNh2gtt7MFfOp8d9hCpOT1A+Rlq7Ow==",
+    "artifact_digest": "sha256:2897b8b0af05ab4aa2ee95533d13481ed4e83dccc0d43381ca28a9d3dbb03682",
     "bridge_protocol_version": 1,
     "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)"
   },
@@ -225,6 +225,33 @@
       "model_entry_source": "declared in the Sophia bundle patch with the values of the pi-ai 0.87.1 catalog entry openai/gpt-6-luna that this pin ships (window 272,000, the compat of model_route), its output capped at 16,000. Prices for Sophia's own spend accounting, from that catalog entry: $0.10 input, $0.01 cached input, $0.125 cache write, $0.50 output per million tokens below 272,000 input tokens",
       "live_verified": false,
       "live_checklist": "Codex, under the pilot's recorded allowance: one review completes within eight model calls; every call reserved and settled; the bridge refuses a ninth; usage reported per run; the effective provider, model and effort on the attempt's identity"
+    },
+    "conversation-service-luna-high-v1": {
+      "status": "conversation_service_route",
+      "decided": "FND-B2-CON-SERVICE (2026-10-16, P packet; D-REPLY approved for source via an allowed normal dsh route, no provider call): a CON-01 conversation reply in service mode runs on the currently approved development route, OpenAI GPT-6 Luna at high reasoning, through a provider alias of its own capped at 4,096 output tokens, as one in-process public prepareCall/stream call per reply with no Agent, session, home or tools. Not a new vendor, model or effort; the payer is the route's credential below until the owner names another. Unavailable until an operator pins a grant (0067) and enables the mode with the executor's artifact digest",
+      "execution": "service",
+      "adapter": "@deepseek-ai/dsh-llm-pi-ai",
+      "provider": "openai-conversation",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "high",
+      "maxTokens": 4096,
+      "prices": {
+        "input": 0.1,
+        "cacheRead": 0.01,
+        "cacheWrite": 0.125,
+        "output": 0.5
+      },
+      "contextWindow": 272000,
+      "baseURL": "https://api.openai.com/v1",
+      "cacheRetention": null,
+      "compat": {
+        "supportsStrictMode": false,
+        "supportsLongCacheRetention": false
+      },
+      "credential_ref": "OPENAI_API_KEY",
+      "model_entry_source": "declared in the Sophia bundle patch with the values of the pi-ai 0.87.1 catalog entry openai/gpt-6-luna that this pin ships (window 272,000, the compat of model_route), its output capped at 4,096 and its input text only. Prices for Sophia's own spend accounting, from that catalog entry: $0.10 input, $0.01 cached input, $0.125 cache write, $0.50 output per million tokens below 272,000 input tokens",
+      "live_verified": false,
+      "live_checklist": "Owner-approved only, under a pinned grant: one reply per call, reserved before and settled from usage; no hidden retry (one HTTP request per call); no session, title or compaction call; the effective provider, model and effort as recorded"
     }
   },
   "role_routes": {

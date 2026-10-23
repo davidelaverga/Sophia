@@ -18,14 +18,17 @@ import { useCommands } from '../../app/useCommands.ts'
 import { useProjectGo } from '../studio/project-go.tsx'
 import { countdown, nextSession, sessionLabel } from '../access/access-view.ts'
 import { reachesSophia } from '../conversation/chat-view.ts'
+import { useVoiceMeters } from './useVoiceMeters.ts'
 import { SophiaLight, type SophiaLightHandle } from '../light/SophiaLight.tsx'
 import { Presences } from './Presences.tsx'
-import { canShareScreen, RoomDock } from './RoomDock.tsx'
+import { canShareScreen, partGone, RoomDock } from './RoomDock.tsx'
 import { ROOM_KEYS } from './room-keys.ts'
 import {
   type FloorView,
+  arrivedResults,
   floorView,
   orderParticipants,
+  RECONNECTING,
   type RoomLine,
   roomLine,
   runningWork,
@@ -34,13 +37,14 @@ import {
   type StageMode,
   soleWorkingTask,
 } from './room-view.ts'
-import { sophiaView, type SophiaView } from './sophia-view.ts'
+import { lightSound, sophiaView, type SophiaView } from './sophia-view.ts'
 import { anchorOf, measureStage, sameGeometry, type StageGeometry } from './stage-geometry.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
 
 type Participant = ProjectRoom['participants'][number]
 import { useWorkWords } from './useWorkWords.ts'
 import { VideoStage } from './VideoStage.tsx'
+import { useCameraFlip } from './camera-flip.ts'
 import { useNow } from '../../app/use-now.ts'
 
 interface Props {
@@ -225,7 +229,8 @@ function roomCommands(room: ProjectRoom, me: Participant | undefined, speaks: bo
 function useRoomKeys(room: ProjectRoom) {
   const me = room.participants.find((p) => p.local)
   const speaks = room.status === 'live' || room.status === 'reconnecting'
-  const joins = room.ready && (room.status === 'idle' || room.status === 'failed')
+  // Its part gone after a deploy, only the note's Reload is offered: no key or palette joins (stale-part-call.md).
+  const joins = room.ready && (room.status === 'idle' || room.status === 'failed') && !partGone(room)
   useCommands(roomCommands(room, me, speaks, joins))
 }
 
@@ -240,6 +245,7 @@ function observedSophia(
   const names = new Map(room.participants.map((p) => [p.identity, p.local ? 'you' : shortName(p.name)]))
   return sophiaView(snapshot?.room.sophia, room.sophia, {
     inCall: room.status === 'live' || room.status === 'reconnecting',
+    reconnecting: room.status === 'reconnecting',
     audioBlocked: room.audioBlocked,
     holderName: floor.holder ? shortName(floor.holder.name) : null,
     holderIsMe: floor.mine,
@@ -270,12 +276,32 @@ function conversationLine(
     : roomLine(room.status, floor, work.running, sophia, work.doing)
 }
 
-/** With video on the stage: the gallery, a shared screen or a report presented, and the card over it. */
-function OnVideo({ showing, ...stage }: ComponentProps<typeof VideoStage> & { showing: ReactNode }) {
+/**
+ * With video on the stage: the gallery, a shared screen or a report presented, and over it the card shown and, while
+ * the call reconnects, the word (reconnecting-on-video.md): Sophia's line says it only without video.
+ */
+function OnVideo({
+  showing,
+  room,
+  ...stage
+}: Omit<ComponentProps<typeof VideoStage>, 'feeds' | 'flip'> & { showing: ReactNode; room: ProjectRoom }) {
+  const reconnecting = room.status === 'reconnecting'
+  // On a phone, your own tile switches cameras (camera-flip.md): the dock's device menus aren't there.
+  const flip = useCameraFlip(room, !!room.participants.find((p) => p.local)?.cameraOn)
   return (
     <>
-      <VideoStage {...stage} />
-      {showing && <div className="stage-over-video">{showing}</div>}
+      <VideoStage {...stage} feeds={room.feeds} flip={flip} />
+      {(showing || reconnecting) && (
+        <div className="stage-over-video">
+          {reconnecting && (
+            <p className="stage-reconnecting" role="status">
+              <span className="connection-dot" aria-hidden />
+              {RECONNECTING}
+            </p>
+          )}
+          {showing}
+        </div>
+      )}
     </>
   )
 }
@@ -292,7 +318,53 @@ function useStageModel({ room, snapshot, projectId, identity, presented }: Props
   const running = runningWork(snapshot)
   const sophia = observedSophia(room, snapshot, floor, running > 0)
   const doing = useWorkWords(snapshot, projectId, identity, mode === 'light')
-  return { people, holder, floor, mode, running, sophia, doing }
+  // Who is where, in one word for the stage's geometry: it moves when people or feeds do.
+  const layout = [...people.map((p) => p.identity), ...room.feeds.map((f) => f.key)].join(' ')
+  const live = room.status === 'live' || room.status === 'reconnecting'
+  return { people, holder, floor, mode, running, sophia, doing, layout, live }
+}
+
+/** A task's result arriving blooms her light once (orb-result.md); the first snapshot only sets what was there. */
+function useResultArrival(work: Snapshot['work'] | undefined, light: RefObject<SophiaLightHandle | null>) {
+  const before = useRef<Snapshot['work'] | null>(null)
+  useEffect(() => {
+    if (!work) return
+    if (arrivedResults(before.current, work).length > 0) light.current?.arrive()
+    before.current = work
+  }, [work, light])
+}
+
+interface StageLightProps {
+  light: RefObject<SophiaLightHandle | null>
+  room: ProjectRoom
+  sophia: SophiaView
+  geometry: StageGeometry
+  working: boolean
+  holder: FloorView['holder']
+}
+
+/**
+ * Her light on the stage: what she does, where and toward whom, her voice while she is heard and the holder's while she
+ * listens (in text mode neither: she is read, not heard; orb-hears.md), and where she is (orb-presence.md).
+ */
+function StageLight({ light, room, sophia, geometry, working, holder }: StageLightProps) {
+  const heard = holder?.present ? holder.identity : null
+  const { voiceLevel, sophiaLevel, textMode } = room
+  // Stable while the holder is: the engine's update doesn't run again on every render.
+  const hearing = useCallback(() => (heard ? voiceLevel(heard) : 0), [heard, voiceLevel])
+  return (
+    <SophiaLight
+      ref={light}
+      mode={sophia.light}
+      target={geometry.target}
+      attention={geometry.attention}
+      working={working}
+      voice={textMode ? null : sophiaLevel}
+      hearing={textMode ? null : hearing}
+      presence={sophia.presence === 'here' ? null : sophia.presence}
+      sound={lightSound(sophia)}
+    />
+  )
 }
 
 export function RoomStage(props: Props) {
@@ -302,11 +374,11 @@ export function RoomStage(props: Props) {
   // The time, again every half minute: enough for "starts in 12 min".
   const now = useNow(30_000)
   const light = useRef<SophiaLightHandle>(null)
-  const { people, holder, floor, mode, running, sophia, doing } = useStageModel(props)
-  const live = room.status === 'live' || room.status === 'reconnecting'
-  const layout = [...people.map((p) => p.identity), ...room.feeds.map((f) => f.key)].join(' ')
+  const { people, holder, floor, mode, running, sophia, doing, layout, live } = useStageModel(props)
   const geometry = useStageGeometry(stage, floor.holder?.present ? floor.holder.identity : null, mode, layout)
   const passed = useFloorHandoff(stage, light, holder)
+  useResultArrival(snapshot?.work, light)
+  useVoiceMeters(stage, people, room.voiceLevel)
   useRoomKeys(room)
   return (
     <section
@@ -317,13 +389,7 @@ export function RoomStage(props: Props) {
       data-live={live || undefined}
       aria-label="Project room"
     >
-      <SophiaLight
-        ref={light}
-        mode={sophia.light}
-        target={geometry.target}
-        attention={geometry.attention}
-        working={running > 0}
-      />
+      <StageLight {...{ light, room, sophia, geometry }} working={running > 0} holder={floor.holder} />
       {mode === 'light' ? (
         <>
           {/* Lenses shape what sits under the light; with video on the stage there is nothing for them to change. */}
@@ -340,7 +406,7 @@ export function RoomStage(props: Props) {
           </div>
         </>
       ) : (
-        <OnVideo mode={mode} people={people} feeds={room.feeds} floor={floor} shown={presented} showing={showing} />
+        <OnVideo mode={mode} people={people} room={room} floor={floor} shown={presented} showing={showing} />
       )}
       {captions}
       <RoomDock

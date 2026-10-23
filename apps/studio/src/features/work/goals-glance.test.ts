@@ -12,6 +12,7 @@ import {
   rowLine,
   stateLine,
   wayLine,
+  withDue,
   type GoalGlance,
 } from './goals-glance.ts'
 import type { Ask } from './planning/plan.ts'
@@ -105,6 +106,7 @@ describe('the brief', () => {
     const goals = [goal('a', 'running'), goal('b', 'running'), goal('c', 'ready'), goal('d', 'completed')]
     assert.equal(healthLine(goals, { a: { glance: stuck } }), '1 needs attention · 1 on track · 1 not started')
     assert.equal(healthLine([goal('d', 'completed')], {}), '')
+    assert.equal(healthLine(goals, { a: { glance: stuck }, b: { overdue: true } }), '2 need attention · 1 not started')
   })
 })
 
@@ -181,5 +183,44 @@ describe('«Open in Tasks» only where Tasks shows a plan (Codex P2 on #300)', (
     assert.equal(canOpenInTasks({ glance: glance({ lanes: [] }) }), false)
     assert.equal(canOpenInTasks({}), false)
     assert.equal(canOpenInTasks(undefined), false)
+  })
+})
+
+describe('a goal past its date (docs/plans/goal-overdue-health.md)', () => {
+  const late = { glance: glance(), overdue: true }
+
+  it('needs attention while moving or ready; paused and done stay so', () => {
+    assert.equal(healthOf(goal('a', 'running'), late), 'attention')
+    assert.equal(healthOf(goal('a', 'ready'), { overdue: true }), 'attention')
+    assert.equal(healthOf(goal('a', 'held'), { overdue: true }), 'paused')
+    assert.equal(healthOf(goal('a', 'completed'), { overdue: true }), 'done')
+  })
+
+  it('says where it is when nothing else explains the attention: its row says the date', () => {
+    assert.equal(rowLine(goal('a', 'running'), { overdue: true }), 'No plan on the board yet')
+    assert.equal(rowLine(goal('a', 'running'), { ...late, asks: [ask] }), '1 waiting on you')
+  })
+
+  it('is counted in the brief when it is the viewer’s', () => {
+    assert.equal(briefOf(0, 1), 'One of your goals is overdue.')
+    assert.equal(briefOf(0, 2), 'Two of your goals are overdue.')
+    assert.equal(briefOf(1, 1), 'One thing waits on you, and one of your goals is overdue.')
+    assert.equal(briefOf(2, 3), 'Two things wait on you, and three of your goals are overdue.')
+    assert.equal(briefOf(0, 0), 'Nothing waits on you.')
+  })
+
+  it('is marked from the targets: past its day and not completed', () => {
+    const goals = [goal('a', 'running'), goal('b', 'running'), goal('c', 'completed'), goal('d', 'running')]
+    const targets = new Map([
+      ['a', { goalId: 'a', ownerId: null, targetDate: '2026-10-01', revision: 1 }],
+      ['b', { goalId: 'b', ownerId: null, targetDate: '2026-10-16', revision: 1 }],
+      ['c', { goalId: 'c', ownerId: null, targetDate: '2026-10-01', revision: 1 }],
+    ])
+    const plans = withDue(goals, { a: { glance: glance() } }, targets, '2026-10-16')
+    assert.deepEqual(
+      goals.map((g) => plans[g.id]?.overdue ?? false),
+      [true, false, false, false],
+    )
+    assert.deepEqual(plans['a']?.glance, glance())
   })
 })

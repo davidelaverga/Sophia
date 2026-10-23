@@ -7,6 +7,7 @@
 // reaches this browser (S1-05A §6.5).
 import {
   ConnectionState,
+  DefaultReconnectPolicy,
   DisconnectReason,
   LocalVideoTrack,
   Room,
@@ -29,21 +30,28 @@ import {
   type ChatReply,
 } from '@sophia/contracts/room-chat'
 import type { CallEnd } from './call-end.ts'
+import { RECONNECT_DELAYS_MS } from './call-rejoin.ts'
 import type { BackgroundProcessorWrapper } from '@livekit/track-processors'
+import { audioElements } from './audio-elements.ts'
 import { chosenBackground, type BackgroundId } from './background-preference.ts'
 import { backgroundPicture } from './background-pictures.ts'
 import { cameraBackground } from './camera-background.ts'
 import { deviceChange } from './device-change.ts'
+import { incomingCameras } from './incoming-cameras.ts'
+import { micWhileConnected } from './mic-while-connected.ts'
 import { hearWhileMuted, mutedWatch } from './muted-speech.ts'
 import { chosenDevices, deviceName, type DeviceKind, type MediaDevice } from './device-preference.ts'
 import { followingSignal } from './following-signal.ts'
 import { VISION } from '../../app/vision.ts'
 import { standingOf, type RoomParticipant } from './room-view.ts'
 import { MEDIAPIPE_BASE, SEGMENTER_FILE } from './mediapipe-path.ts'
+import { peopleVolume, type Level } from './people-volume.ts'
 import { listenToReactions, type Heard } from './reaction-channel.ts'
 import { encodeReaction, REACTION_TOPIC, type ReactionEmoji } from './reactions.ts'
 import { isSophia, listenToSophia } from './sophia-channel.ts'
+import { sophiaVoice } from './sophia-voice.ts'
 import type { SophiaSignal } from './sophia-view.ts'
+import { connectWithLevels } from './voice-levels.ts'
 
 // LiveKit logs every connection step at info level. A deployed Studio keeps warnings and errors in the
 // console; local development keeps the full trace.
@@ -80,6 +88,10 @@ export interface RoomConnection {
   sophia: () => SophiaSignal | null
   /** The browser blocked audio until the person interacts (autoplay). */
   audioBlocked: () => boolean
+  /** How loud this person is now, 0…1, read in this browser only (voice-levels.ts); 0 when it can't be read. */
+  voiceLevel: (identity: string) => number
+  /** How loud Sophia is now, 0…1, the same way. */
+  sophiaLevel: () => number
   startAudio: () => Promise<void>
   feeds: () => VideoFeed[]
   setMicrophone: (on: boolean) => Promise<void>
@@ -93,7 +105,21 @@ export interface RoomConnection {
   setFollowing: (versionId: string | null) => Promise<void>
   /** A reaction to everyone in the call, on its own topic (call-reactions.md). */
   sendReaction: (emoji: ReactionEmoji) => Promise<void>
+  /** How loud a person is in this browser alone, their voice and their screen's sound (people-volume.md). */
+  setVolume: (identity: string, level: Level) => void
+  /** Others' cameras come to this browser, or not (incoming-video.md); a screen shared always comes. */
+  setIncomingVideo: (on: boolean) => void
   leave: () => Promise<void>
+  /**
+   * Whether this person's microphone was on while the call was last connected: what a dropped call comes back with
+   * (call-rejoin.md). LiveKit unpublishes the tracks before it says the call ended, so the end itself can't tell.
+   */
+  micWas: () => boolean
+  /**
+   * Whether LiveKit reads the room connected now: not while it resumes its signal (SignalReconnecting, which the dock
+   * doesn't show) or reconnects. A live call's beat counts only then (call-rejoin.md).
+   */
+  connected: () => boolean
 }
 
 export interface RoomCallbacks {
@@ -112,7 +138,8 @@ export interface RoomCallbacks {
   onChange: () => void
   onStatus: (status: RoomStatus) => void
   /** The call is over, and why (call-end.ts). Leaving on purpose ends it too; the caller knows it asked. */
-  onEnded: (why: CallEnd) => void
+  /** `selfLeft`: LiveKit left the room itself (CLIENT_INITIATED), as on `pagehide` or `freeze`, not a lost link. */
+  onEnded: (why: CallEnd, selfLeft?: boolean) => void
 }
 
 const toView = (p: Participant, local: boolean): RoomParticipant => ({
@@ -169,29 +196,58 @@ function videoFeeds(): Feeds {
     ].filter((f): f is VideoFeed => f !== null)
 }
 
-/** Remote voices (and a shared screen's sound) play through hidden audio elements, removed with the track. */
+/** Others' cameras, taken or let go (incoming-cameras.ts), over this room's publications. */
+function incomingVideo(room: Room, onChange: () => void): Pick<RoomConnection, 'setIncomingVideo'> {
+  const cameras = incomingCameras(
+    () => [...room.remoteParticipants.values()].flatMap((person) => [...person.trackPublications.values()]),
+    onChange,
+  )
+  room.on(RoomEvent.TrackPublished, cameras.published)
+  return { setIncomingVideo: cameras.set }
+}
+
 /**
- * The room's voices, as audio elements this room owns: a room that ends removes its own, never another's (a join that
- * was superseded and left must not silence the call that replaced it).
+ * The room's voices (and a shared screen's sound), in hidden audio elements this room owns (audio-elements.ts). While
+ * the call reads Sophia, her voice has no element at all (text-mode-quiet.md): LiveKit's startAudio would unmute one.
  */
-function remoteAudio(room: Room, textOnly: () => boolean): Set<HTMLMediaElement> {
-  const mine = new Set<HTMLMediaElement>()
+function remoteAudio(room: Room) {
+  const elements = audioElements<RemoteTrack, HTMLMediaElement>((el, whose) => {
+    el.dataset.sophiaRoomAudio = whose
+    document.body.append(el)
+  })
+  // Off lets a member's sound go at once: detached, startAudio can't unmute it before their track stops coming.
+  const volume = peopleVolume<HTMLMediaElement>(elements.drop)
+  const stop = (track: RemoteTrack) => {
+    for (const el of elements.stop(track)) volume.remove(el)
+  }
+  const sophia = sophiaVoice<RemoteTrack>({ attach: (track) => elements.play(track, 'sophia'), detach: stop })
   room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant) => {
     if (track.kind !== Track.Kind.Audio) return
-    const el = track.attach()
-    el.dataset.sophiaRoomAudio = isSophia(participant) ? 'sophia' : 'member'
-    el.muted = isSophia(participant) && textOnly()
-    document.body.append(el)
-    mine.add(el)
+    if (isSophia(participant)) sophia.add(track)
+    // A member's sound plays at the level given them here (people-volume.md); Sophia's keeps the call's.
+    else volume.add(elements.play(track, 'member'), participant.identity)
   })
   room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
     if (track.kind !== Track.Kind.Audio) return
-    for (const el of track.detach()) {
-      el.remove()
-      mine.delete(el)
-    }
+    sophia.remove(track)
+    stop(track)
   })
-  return mine
+  // A sound someone Off publishes (their screen's, or their voice after a rejoin) isn't taken (people-volume.md).
+  room.on(RoomEvent.TrackPublished, (publication, participant) => {
+    if (!isSophia(participant)) volume.published(publication, participant.identity)
+  })
+  return { clear: elements.clear, setRead: sophia.setRead, volume }
+}
+
+/**
+ * A screen share the host stopped (A31, host-more.md) stops here too: the server can only mute it, so this person's
+ * share ends, and the browser's capture with it, rather than sending a black screen.
+ */
+function stopsWhenHostStops(room: Room): void {
+  room.on(RoomEvent.TrackMuted, (publication, participant) => {
+    if (participant !== room.localParticipant || publication.source !== Track.Source.ScreenShare) return
+    void room.localParticipant.setScreenShareEnabled(false).catch(() => undefined)
+  })
 }
 
 const CHANGES = [
@@ -262,6 +318,9 @@ function roomOptions(): RoomOptions {
     ...(chosen.audioinput && { audioCaptureDefaults: { deviceId: chosen.audioinput } }),
     ...(chosen.audiooutput && { audioOutput: { deviceId: chosen.audiooutput } }),
     publishDefaults: { simulcast: true },
+    // LiveKit's own tries to keep a cut call, written out (call-rejoin.ts): once spent, the call ends as `dropped` and
+    // the room tries once more itself, with a fresh token.
+    reconnectPolicy: new DefaultReconnectPolicy([...RECONNECT_DELAYS_MS]),
   }
 }
 
@@ -404,20 +463,23 @@ function deviceControls(
 export async function connectRoom(serverUrl: string, token: string, cb: RoomCallbacks): Promise<RoomConnection> {
   const room = new Room(roomOptions())
   for (const event of CHANGES) room.on(event, cb.onChange)
+  const mic = micWhileConnected(room, CHANGES)
   room.on(RoomEvent.Reconnecting, () => cb.onStatus('reconnecting'))
   room.on(RoomEvent.Reconnected, () => cb.onStatus('live'))
   let textOnly = false
-  const audio = remoteAudio(room, () => textOnly)
+  const audio = remoteAudio(room)
+  stopsWhenHostStops(room)
   room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
-    for (const el of audio) el.remove()
     audio.clear()
-    cb.onEnded((reason !== undefined && ENDS[reason]) || 'dropped')
+    // LiveKit leaving by itself (the page hidden for good, or frozen) reads as a lost connection, said so, but never
+    // tried back on its own (call-rejoin.md).
+    cb.onEnded((reason !== undefined && ENDS[reason]) || 'dropped', reason === DisconnectReason.CLIENT_INITIATED)
   })
   listenToSophia(room, cb)
   listenToReactions(room, (heard) => cb.onReaction?.(heard))
   const signalMode = modeSignal(room, () => textOnly)
   const following = followingSignal(room, cb.onChange, { resync: VISION })
-  await room.connect(serverUrl, token)
+  const sound = await connectWithLevels(room, serverUrl, token)
   const feedsOf = videoFeeds()
   const after = async (change: Promise<unknown>) => {
     await change
@@ -434,14 +496,15 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
       }),
     setTextMode: (on) => {
       textOnly = on
-      for (const el of audio) if (el.dataset.sophiaRoomAudio === 'sophia') el.muted = on
+      audio.setRead(on)
       signalMode()
     },
     textMode: () => textOnly,
     participants: () => [toView(room.localParticipant, true), ...people().map(other)],
     sophia: () => sophiaSignal([...room.remoteParticipants.values()].find(isSophia)),
     audioBlocked: () => !room.canPlaybackAudio,
-    startAudio: () => after(room.startAudio()),
+    ...sound.levels,
+    startAudio: () => after(sound.startAudio()),
     feeds: () => [...feedsOf(room.localParticipant, true), ...people().flatMap((p) => feedsOf(p, false))],
     ...deviceControls(
       room,
@@ -451,6 +514,11 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     setFollowing: (versionId) => Promise.resolve(following.set(versionId)),
     sendReaction: (emoji) =>
       room.localParticipant.publishData(encodeReaction(emoji), { reliable: true, topic: REACTION_TOPIC }),
+    setVolume: (identity, level) =>
+      audio.volume.set(identity, level, room.remoteParticipants.get(identity)?.trackPublications.values() ?? []),
+    ...incomingVideo(room, cb.onChange),
     leave: () => room.disconnect(),
+    micWas: mic,
+    connected: () => room.state === ConnectionState.Connected,
   }
 }

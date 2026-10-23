@@ -30,7 +30,7 @@ import {
   idOf,
   said,
 } from './data.ts'
-import { hostActed, personId } from './fake-people.ts'
+import { hostActed, others, personId } from './fake-people.ts'
 import { missionWritten } from './mission-writes.ts'
 import { DEMO, DEMO_ORIGINS, PROJECT_NAME, VIEWER_NAME } from './demo.ts'
 import { exchangeWritten, type ExchangeAction } from './exchange-writes.ts'
@@ -52,6 +52,7 @@ import {
   researchRunning,
   researchTaskAt,
   TASK,
+  versionId as versionIdOf,
   versions,
   waitingAtTheDoor,
   type Description,
@@ -62,13 +63,50 @@ import { invitationsAnswer, type Invitations } from './invitations-data.ts'
 import { focusRequest, focusSet, roomFocus, type Showing } from './focus-data.ts'
 import { reviewed, type Reviews } from './review-data.ts'
 import { created, finished, type Tasks } from './task-data.ts'
-import type { ConversationMessage, ConversationSummary, ProjectTask, VersionReview } from '../src/api/vision.ts'
-import { MESSAGE_PAGE, type conversationMission } from './conversation-data.ts'
-import { conversationWritten, type TalkWrites } from './conversation-writes.ts'
+import type { ProjectTask, VersionReview } from '../src/api/vision.ts'
+import {
+  MESSAGE_PAGE,
+  type conversationMission,
+  type FixtureConversation,
+  type FixtureMessage,
+} from './conversation-data.ts'
+import { wireList, wireMessage } from './conversation-wire.ts'
+import {
+  conversationErased,
+  conversationWithdrawn,
+  conversationWritten,
+  type TalkWrites,
+} from './conversation-writes.ts'
 import type { ProjectRelease, ReportList } from '@sophia/contracts'
-import { searchHits, searchPage } from './search-data.ts'
+import { searchHits, searchPage, servedHits } from './search-data.ts'
+import { VISION } from '../src/app/vision.ts'
+import { TASKS } from '../src/app/tasks.ts'
+import {
+  createAnswer,
+  doneAnswer,
+  projectPage,
+  noHumanTasks,
+  ownerAnswer,
+  reportTasks,
+  servedOf,
+  type Answer,
+  type HumanTasks,
+  type TaskWorld,
+} from './human-tasks-data.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
-import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
+import {
+  closed,
+  MEETING,
+  markSeen,
+  meetingList,
+  nothingSince,
+  recapOf,
+  soFarOf,
+  updatesWindowOf,
+  type Meeting,
+} from './meeting-data.ts'
+import { profileAnswer } from './profile-data.ts'
+import { discussionPageOf, messageActAnswer, snapshotDiscussion, type MessageActs } from './message-acts.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
 
@@ -76,6 +114,8 @@ const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 
 export const unexpected: string[] = []
 /** What was answered, as `snapshot:2`, `mission:2`: a check can tell an update reached the page. */
 export const served: string[] = []
+/** The «since» reads (A34) this page answered, one a read: what a project's open costs (project-arrival-since.md). */
+export const sinceAsked: string[] = []
 
 /** The project as the API holds it now: the revision moves with each event. */
 interface Project {
@@ -90,10 +130,33 @@ interface Project {
   soleAdmin?: boolean
   /** The viewer left the project (A22): it leaves their list. */
   left?: boolean
+  /** The project is archived (A30, `archived=1`): out of the list, in the archived one. */
+  archived?: boolean
+  /** The archived list can't be read (`archivedFails=1`): every read of it is refused (503). */
+  archivedFails?: boolean
+  /** The archived list's reads wait (`hold=archived`) until `window.fixture.releaseArchived` lets them through. */
+  archivedHeld?: boolean
+  /** The archive writes by their Idempotency-Key: the same key again replays its receipt and changes nothing (0059). */
+  archives?: Map<string, { archived: boolean; cursor: string }>
   exchange: boolean
   /** The door shut under the shell (`window.fixture.shutDoor`): every snapshot read from now on is refused (403). */
   doorShut?: boolean
   messages: (string | Said)[]
+  /** Its members' message corrections and withdrawals (A36, message-acts.ts); absent, the page has none. */
+  messageActs?: MessageActs
+  /** The members read fails (`members=fail`, A37; `membersRead=fail` and `window.fixture.failMembers`, silent-reads.md). */
+  membersFail?: boolean
+  /** The viewer's mentions marked seen (A37), by need id. */
+  mentionsSeen?: Set<string>
+  /** While set, the snapshot's and the pages' discussion read these messages (`holdSnapshot`): a lagging read. */
+  heldMessages?: (string | Said)[] | undefined
+  /** The cursor those held reads answer with: a snapshot is consistent with its own cursor, as the API's is. */
+  heldAt?: number | undefined
+  /** While set, every earlier page's read fails as an unavailable API's (`failEarlierReads`). */
+  failEarlierReads?: boolean
+  /** Earlier pages read before these messages wait for `releaseEarlierReads` (a slow read; A38's concurrent reads). */
+  earlierHeldBefore?: ReadonlySet<string> | undefined
+  earlierHeld?: (() => void)[]
   /** The viewer's messages to the room, by their Idempotency-Key: the same key again replays the receipt. */
   contributions?: Map<string, { text: string; receipt: ContributionReceipt }>
   /** The next message lands, but its reply is lost on the way (`window.fixture.loseNextContributionReply`). */
@@ -104,10 +167,17 @@ interface Project {
   goalTargets?: Map<string, { ownerId: string | null; targetDate: string | null; revision: number }>
   /** The next target saved finds someone else's first (`window.fixture.staleTarget`). */
   staleTarget?: boolean
+  /** Members an admin removed (A29), by actor id. */
+  removedMembers?: Set<string>
   /** Members' roles as an admin changed them (A27), by actor id. */
   memberRoles?: Map<string, Membership['role']>
   /** The next host control is refused as an unreachable room server's (`window.fixture.failHost`). */
   failHost?: boolean
+  /**
+   * The next «Mute everyone» mutes everyone, then is refused, as the API's when its record fails after the room server
+   * acted (`window.fixture.failAfterMuteAll`).
+   */
+  failAfterMuteAll?: boolean
   /** While set, host controls land but their replies wait for `holdHost(false)` (`window.fixture.holdHost`). */
   hostHeld?: (() => void)[] | null
   /** The next read of the earlier discussion fails as the API's `unavailable` (`window.fixture.failEarlier`). */
@@ -116,6 +186,10 @@ interface Project {
   failReplies?: boolean
   /** The next room token is refused as an unavailable API's, so the join fails (`window.fixture.failToken`). */
   failToken?: boolean
+  /** While a list, room tokens wait in it until let go (`window.fixture.holdToken`); null or absent, they answer. */
+  tokenHeld?: (() => void)[] | null
+  /** Each room token answers 1.5 s late (`token=late`), as a loaded runner brings the call after the room has drawn. */
+  tokenLate?: boolean
   /** How many versions of the fixture report are published (report-data.ts). */
   reportVersions: number
   /** The fixture report's title (report-data.ts): LONG_TITLE with `title=long`. */
@@ -126,7 +200,7 @@ interface Project {
   waiting: boolean
   /** `lobby=again` (knocked twice) or `lobby=two` (two waiting); anything else, one first knock. */
   lobbyAsked?: string | null
-  /** This viewer's role in the project (`role=viewer`); the fixture's own, admin, otherwise. */
+  /** This viewer's role in the project (`role=viewer`, `role=editor`); the fixture's own, admin, otherwise. */
   role?: Membership['role']
   /** A project just made (`fresh=1`, first-step.md): its ledger holds nothing yet. */
   fresh?: boolean
@@ -134,15 +208,27 @@ interface Project {
   invitations?: Invitations
   /** The report's description on Knowledge (report-data.ts). */
   description: Description
+  /** The next edit of it lands, but its reply is lost (`summary=lost`, description-reply-lost.md). */
+  summaryLost?: boolean
+  /** Knowledge's reads of the cards wait until the page lets them through (`holdReports`), as a slow API's do. */
+  reportsHeld?: boolean
   /**
    * How reads of the report's versions fail from now on: `unavailable`, as an API that lost its database answers;
    * `not_found`, as it refuses a report this person may not read; false, they succeed.
    */
   versionsFail: false | 'unavailable' | 'not_found'
+  /** The design task itself is in the project's work, as its own card (`designcard=on`). */
+  /** A report's own task list answers not_found (`failReportTasks`). */
+  reportTasksFail?: boolean
+  designCard?: boolean
+  /** Reads of the design task fail: refused (403, this person's own), or unavailable (503); false, they succeed. */
+  designFail?: false | 'unavailable' | 'forbidden'
   /** Reads of a version's sources wait until the page lets them through (`hold=sources`), as a slow API's do. */
   sourcesHeld: boolean
   /** So do reads of a version's text (`hold=text`). */
   textHeld: boolean
+  /** Reads of the project's activity never answer (`hold=activity`), as a hosted API starting cold. */
+  activityHeld?: boolean
   /** The research task's result revision (report-data.ts): 1 unless the check revises it. */
   taskRevision?: 1 | 2
   /** Reads of the research task wait until the page lets them through (`hold=task`), as a slow API's do. */
@@ -153,6 +239,8 @@ interface Project {
   researching?: { reads: number } | null
   /** Reads of the research task fail (`window.fixture.failTask`), as an API that lost its database answers. */
   taskFails?: boolean
+  /** Reads of the research task are refused to this person (403), as after a revoked membership (`refuseTask`). */
+  taskRefused?: boolean
   /** A version's text arrives as bytes its record does not name (`tamper=text`). */
   textTampered: boolean
   /** Version 1 carries a designed HTML page (SDD-01, `designed=on`), and the research task lists it. */
@@ -163,6 +251,8 @@ interface Project {
   pageTampered?: boolean
   /** The research task is in the project's work (`place=work`): its card lists the report's outputs. */
   work: boolean
+  /** The snapshot carries the research task and the report's current version (`reports=1`, goal-reports.md). */
+  goalReports?: boolean
   /** The project's goals (the work fixture's one, LFE-07). */
   goals?: Snapshot['goals']
   /** What Sophia offers for a source review (WBC-02); absent, the pilot is not enabled. */
@@ -203,8 +293,19 @@ interface Project {
   showing?: Showing
   /** While set, searches wait for `holdSearch(false)` (A13). */
   searchHeld?: (() => void)[] | null
+  /** While set, searches fail as an unavailable API's (`failSearch`, A38). */
+  failSearch?: boolean
+  /** The next search is answered as the A13 proposal (recaps, meetings) even on the served page (A38's parser refuses). */
+  searchAsProposed?: boolean
   /** While set, reads of the served board wait for `holdBoard(false)` (search-honest.md). */
   boardHeld?: (() => void)[] | null
+  /** The served board's reads fail, each recorded (`board-refused`): `boardRead=fail`, `window.fixture.failBoard`. */
+  boardFail?: boolean
+  /**
+   * The served board's reads answer 200 with a board its reader refuses (`malformed`) or another project's, whole
+   * (`foreign`), each recorded (`board-answered:<kind>`): `boardRead=malformed|foreign`, `window.fixture.answerBoard`.
+   */
+  boardAnswer?: 'malformed' | 'foreign' | null
   /** The versions' reviews (review-data.ts, A16); absent, their requests are unexpected. */
   reviews?: Reviews
   /** What members carried in from Personal (the project list's releases, chapter 1); absent, none. */
@@ -219,10 +320,20 @@ interface Project {
   projectsHeld?: (() => void)[] | null
   /** While set, the membership's reads wait for these (`membership=hold`, `window.fixture.releaseMembership`). */
   membershipHeld?: (() => void)[] | null
+  /** While set, the snapshot's reads wait for these (`snapshot=hold`, `window.fixture.releaseSnapshot`): not loaded. */
+  snapshotHeld?: (() => void)[] | null
+  /** Sophia is out of reach (`outage=1`, `window.fixture.outage`): every API request fails as a lost connection. */
+  outage?: boolean
+  /** The membership's reads fail as the API's `unavailable`, the rest answer (`membership=fail`, `failMembership`). */
+  membershipFails?: boolean
+  /** This viewer is no member of the project (`member=0`): its reads are refused, as the API refuses them. */
+  outsider?: boolean
   /** The project list's reads fail (`projects=fail`). */
   projectsFail?: boolean
   /** The report's tasks (task-data.ts, A17); absent, their requests are unexpected. */
   tasks?: Tasks
+  /** The project's human tasks as A39 serves them (human-tasks-data.ts), on the served page only (`humantasks=seed`). */
+  humanTasks?: HumanTasks | undefined
   /** The meeting the room is in (meeting-data.ts, A12); absent, its requests are unexpected. */
   meeting?: Meeting
   /** The project's conversations (conversation-data.ts, A18); absent, their requests are unexpected. */
@@ -231,20 +342,41 @@ interface Project {
   missionPlus?: ReturnType<typeof conversationMission>
   /** The brief's reads fail (`window.fixture.failMission`). */
   missionFails?: boolean
+  /** The brief's reads refused (403), as to a reader no longer in the project (`refuseMission`). */
+  missionRefused?: boolean
   /** While set, the brief's reads wait for these (`mission=hold`, `window.fixture.holdMission`). */
   missionHeld?: (() => void)[] | null
+  /** The goals' targets read fails (`targetsRead=fail`, `window.fixture.failTargets`). */
+  targetsFail?: boolean
+  /** While set, the goals' targets reads wait for these (`targetsRead=hold`, `window.fixture.holdTargets`). */
+  targetsHeld?: (() => void)[] | null
 }
 
-/** The conversations as the A18 reads give them (and its writes keep them), and the reads that fail. */
+/** The conversations as the fixtures keep them (A33 serves them, conversation-wire.ts), and the reads that fail. */
 export interface Conversations extends TalkWrites {
-  list: ConversationSummary[]
-  messages: Record<string, ConversationMessage[]>
+  list: FixtureConversation[]
+  messages: Record<string, FixtureMessage[]>
   /** The list's reads fail (`conversations=fail`, `window.fixture.failConversations`). */
   failList: boolean
+  /** The list's reads are refused (403), as to a reader no longer in the project (`refuseConversations`). */
+  refusedList?: boolean
   /** The list says each one's last message (A18 proposed; `last=1`, and the demo). */
   lastShown?: boolean
+  /** The list says older conversations exist that it doesn't hold (`more=1`, A33's `more`). */
+  more?: boolean
+  /** One pushed past what the list holds by newer activity, never erased: left out, the list saying `more` (`capPast`). */
+  cappedOut?: string | null
+  /** While set, the list's reads wait for these, each to answer as the list was when asked (`holdListReads`). */
+  heldList?: (() => void)[] | null
+  /**
+   * While set, message reads that would answer wait for these, each to answer as the conversation was when asked
+   * (`holdMessageReads`); a refusal, a not found or a failure answers at once.
+   */
+  heldMessages?: (() => void)[] | null
   /** Reads of the pages before the newest fail (`older=fail`, `window.fixture.failOlderMessages`). */
   failOlder?: boolean
+  /** Sophia doesn't answer here (`ask=off`): the list says `ask: unavailable`, as the API does while replies are off. */
+  askOff?: boolean
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -253,9 +385,22 @@ function hrefOf(input: RequestInfo | URL): string {
   return input
 }
 
-const streams = new Set<ReadableStreamDefaultController<string>>()
+/** An open stream: what reaches it, how the server ends it, and how it goes silent with its socket still open. */
+interface OpenStream {
+  send: (chunk: string) => void
+  end: () => void
+  stall: () => void
+}
 
-const frameOf = (sequence: number) => `id: ${sequence}\ndata: ${JSON.stringify(projectEvent(sequence))}\n\n`
+const streams = new Set<OpenStream>()
+
+/** What an event names, when it is not the project itself: a message corrected or withdrawn elsewhere (held-pages). */
+export const eventEntities = new Map<
+  number,
+  { type: string; entityType: string; entityId: string; entityRevision?: number }
+>()
+const frameOf = (sequence: number) =>
+  `id: ${sequence}\ndata: ${JSON.stringify({ ...projectEvent(sequence), ...eventEntities.get(sequence) })}\n\n`
 
 /**
  * The project's event stream, open until the page drops it; pings keep it from looking stalled. Dropped by its
@@ -263,19 +408,33 @@ const frameOf = (sequence: number) => `id: ${sequence}\ndata: ${JSON.stringify(p
  */
 function eventStream(project: Project, after: number, signal: AbortSignal | null | undefined): Response {
   let ping: ReturnType<typeof setInterval> | undefined
-  let mine: ReadableStreamDefaultController<string> | undefined
+  let mine: OpenStream | undefined
   const close = () => {
     clearInterval(ping)
     if (mine) streams.delete(mine)
   }
   const body = new ReadableStream<string>({
     start: (controller) => {
-      mine = controller
-      streams.add(controller)
-      controller.enqueue(': ping\n\n')
+      let silent = false
+      const open: OpenStream = {
+        send: (chunk) => {
+          if (!silent) controller.enqueue(chunk)
+        },
+        end: () => {
+          close()
+          controller.close()
+        },
+        stall: () => {
+          silent = true
+          clearInterval(ping)
+        },
+      }
+      mine = open
+      streams.add(open)
+      open.send(': ping\n\n')
       // The events after the page's cursor come first, as the API sends its history.
-      for (let sequence = after + 1; sequence <= project.revision; sequence += 1) controller.enqueue(frameOf(sequence))
-      ping = setInterval(() => controller.enqueue(': ping\n\n'), 5000)
+      for (let sequence = after + 1; sequence <= project.revision; sequence += 1) open.send(frameOf(sequence))
+      ping = setInterval(() => open.send(': ping\n\n'), 5000)
       signal?.addEventListener('abort', () => {
         close()
         controller.error(new DOMException('The stream was dropped', 'AbortError'))
@@ -290,16 +449,38 @@ function eventStream(project: Project, after: number, signal: AbortSignal | null
  * The project's snapshot now, with someone at the door when the page asked for it (`lobby=waiting`), and the research
  * task in its work on the Work page (`place=work`).
  */
-function snapshotOf(project: Project) {
-  const now = snapshot(project.revision, project.exchange, project.messages, project.goals, project.room)
+/** A held snapshot answers with the cursor it was held at: consistent with what it shows, as the API's is. */
+const heldCursor = (project: Project) => (project.heldAt === undefined ? {} : { cursor: String(project.heldAt) })
+
+function snapshotOf(project: Project, revisions = false) {
+  const now = {
+    ...snapshot(project.revision, project.exchange, project.messages, project.goals, project.room),
+    ...snapshotDiscussion({ ...project, messages: project.heldMessages ?? project.messages }, revisions),
+    ...heldCursor(project),
+  }
   const running = project.researching ? researchRunning(project.researching.reads).task : null
   const work = running
     ? { ...now, work: [running] }
     : project.work
       ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing).task] }
       : now
-  const titled = project.title ? { ...work, title: project.title } : work
+  const designed = project.designCard
+    ? { ...work, work: [...work.work, designingTask(project.designed ? 'published' : 'designing').task] }
+    : work
+  const reported = project.goalReports ? withGoalReports(project, designed) : designed
+  const titled = project.title ? { ...reported, title: project.title } : reported
   return withFocus(project, project.waiting ? { ...titled, lobby: lobbyOf(project.lobbyAsked) } : titled)
+}
+
+/** The research task in the snapshot's work and the report's current version in its artifacts (goal-reports.md). */
+function withGoalReports(project: Project, now: Snapshot): Snapshot {
+  const task = researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing).task
+  const current = versions(project.reportVersions, project.reportTitle, project.pilot)[0]
+  return {
+    ...now,
+    work: now.work.some((t) => t.id === task.id) ? now.work : [...now.work, task],
+    artifacts: current ? [current] : now.artifacts,
+  }
 }
 
 /** What the room shows, as the snapshot carries it, with the report's current version among its artifacts. */
@@ -314,10 +495,48 @@ function withFocus(project: Project, now: Snapshot): Snapshot {
   }
 }
 
-/** The project moves one revision, and the event saying so goes to every open stream. */
+/** While set, the events published wait here, as a frozen page's stream holds them (`window.fixture.holdFeed`). */
+let feedHeld: string[] | null = null
+
+/** While set, the next event published skips a sequence (`window.fixture.gap`). */
+let skipNext = false
+
+/** The project moves one revision, and the event saying so goes to every open stream, unless the feed is held. */
 export function publish(project: Project): void {
-  project.revision += 1
-  for (const controller of streams) controller.enqueue(frameOf(project.revision))
+  project.revision += skipNext ? 2 : 1
+  skipNext = false
+  const frame = frameOf(project.revision)
+  if (feedHeld) feedHeld.push(frame)
+  else for (const stream of streams) stream.send(frame)
+}
+
+/**
+ * While on, the events published wait instead of reaching the page, as a phone's frozen page or a sleeping laptop
+ * leaves them; off, they come, in order (messages-while-away.md). A read of the snapshot meanwhile has them all.
+ */
+export function holdFeed(on: boolean): void {
+  const held = feedHeld ?? []
+  feedHeld = on ? held : null
+  if (on) return
+  for (const frame of held) for (const stream of streams) stream.send(frame)
+}
+
+// The feed's failures, from the server's side (feed-reconnect.md). Each acts on the streams open now; the page's next
+// stream is a healthy one.
+
+/** The server ends every open stream, as an API restart or a proxy's idle cut does: the page reconnects. */
+export function dropStream(): void {
+  for (const stream of streams) stream.end()
+}
+
+/** The open streams stay open and send nothing more, no ping either, as a zombie proxy connection: the page stalls. */
+export function stallStream(): void {
+  for (const stream of streams) stream.stall()
+}
+
+/** The next event published skips a sequence, as a lost frame would: the page reads the snapshot again. */
+export function gap(): void {
+  skipNext = true
 }
 
 const isCommand = (value: unknown): value is GoalCommand =>
@@ -370,11 +589,68 @@ function departed(project: Project): Response {
   return json({ projectId: PROJECT, cursor: String(project.revision) })
 }
 
-/** A room token, unless the next one is to fail (`failToken`). */
-function tokenAnswer(project: Project): Response {
-  if (!project.failToken) return json(roomToken)
-  project.failToken = false
-  return unavailable()
+/**
+ * A room token, unless the next one is to fail (`failToken`), 1.5 s late with `tokenLate`, kept until let go while
+ * held (`tokenHeld`); each one asked for is recorded (`room-token`).
+ */
+function tokenAnswer(project: Project, release = false): Response | Promise<Response> {
+  if (!release) served.push('room-token')
+  if (project.failToken) {
+    project.failToken = false
+    return unavailable()
+  }
+  if (project.tokenLate) return new Promise((late) => setTimeout(() => late(json(roomToken)), 1500))
+  const held = project.tokenHeld
+  // Held, it is answered when let go, as it would be then: refused if the next token is to fail by that time.
+  if (held) return new Promise((reply) => held.push(() => reply(tokenAnswer(project, true))))
+  return json(roomToken)
+}
+
+/** A decision at the door (`POST /api/v1/lobby/{entryId}/decision`), by the entry it answers. */
+const DOOR_DECISION = /^\/api\/v1\/lobby\/([0-9a-f-]{36})\/decision$/
+
+/**
+ * The door answered (Let in, Decline, Block), as the API answers it: recorded (`lobby:admit`…), and no one waits any
+ * more, so the snapshot the lobby reads again after it says so (the fixture's door holds one knock at a time).
+ */
+function doorAnswered(project: Project, entryId: string, init: RequestInit | undefined): Response {
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  const decision: unknown = typeof body === 'object' && body !== null ? Reflect.get(body, 'decision') : null
+  served.push(`lobby:${String(decision)}`)
+  project.waiting = false
+  const status = decision === 'admit' ? 'admitted' : decision === 'block' ? 'blocked' : 'denied'
+  return json({ ...waitingAtTheDoor, id: entryId, status, decidedAt: new Date().toISOString() })
+}
+
+/** What the page posts about coming in: a room token, or an answer at the door; undefined for anything else. */
+function doorPosted(
+  project: Project,
+  path: string,
+  init: RequestInit | undefined,
+): Response | Promise<Response> | undefined {
+  if (path === `/api/v1/projects/${PROJECT}/room-token`) return tokenAnswer(project)
+  const entry = DOOR_DECISION.exec(path)?.[1]
+  return entry ? doorAnswered(project, entry, init) : undefined
+}
+
+/**
+ * An admin archives the project, or brings it back (A30): recorded, and the lists read it so. A key sent again is
+ * answered with its first receipt and changes nothing, as migration 0059 does.
+ */
+function archived(project: Project, init: RequestInit | undefined): Response {
+  const key = new Headers(init?.headers).get('idempotency-key') ?? ''
+  const prior = project.archives?.get(key)
+  if (prior) {
+    served.push('archive:replayed')
+    return json({ projectId: PROJECT, ...prior })
+  }
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  const wanted = typeof body === 'object' && body !== null && Reflect.get(body, 'archived') === true
+  project.archived = wanted
+  served.push(`archive:${String(wanted)}`)
+  const receipt = { archived: wanted, cursor: String(project.revision) }
+  project.archives = (project.archives ?? new Map<string, { archived: boolean; cursor: string }>()).set(key, receipt)
+  return json({ projectId: PROJECT, ...receipt })
 }
 
 /** A request to revise the page's sections (requestDesignEdit): recorded; refused once as a design under way. */
@@ -425,14 +701,41 @@ function projectWritten(
   if (path === `${base}/title`) return renamed(project, init)
   if (path === `${base}/html-edits`) return designEdited(project, init)
   if (path === `${base}/leave`) return departed(project)
+  if (path === `${base}/archive`) return archived(project, init)
+  const removal = MEMBER_REMOVAL.exec(path)?.[1]
+  if (removal) return memberRemoved(project, removal)
   const host = HOST_ACT.exec(path)
-  return host?.[1] && (host[2] === 'mute' || host[2] === 'remove') ? hostAct(project, host[2], host[1]) : null
+  if (path === `${base}/room/mute-all`) return mutedAll(project)
+  return host?.[1] && isHostAct(host[2]) ? hostAct(project, host[2], host[1]) : null
 }
 
-const HOST_ACT = new RegExp(`^/api/v1/projects/${PROJECT}/room/people/([0-9a-f-]+)/(mute|remove)$`)
+const HOST_ACT = new RegExp(
+  `^/api/v1/projects/${PROJECT}/room/people/([0-9a-f-]+)/(mute|remove|stop-camera|stop-screen)$`,
+)
 
-/** An admin mutes or removes someone (A24): recorded, and LiveKit's server applies it to the fake room. */
-function hostAct(project: Project, what: 'mute' | 'remove', identity: string): Response | Promise<Response> {
+type HostAct = 'mute' | 'remove' | 'stop-camera' | 'stop-screen'
+const isHostAct = (what: string | undefined): what is HostAct =>
+  what === 'mute' || what === 'remove' || what === 'stop-camera' || what === 'stop-screen'
+
+/**
+ * An admin mutes everyone else (A31), in the API's order (rooms.ts): every other microphone in the fake room goes off,
+ * then the act is recorded and answered. Held, only the answer waits. With `failAfterMuteAll`, the answer is refused.
+ */
+function mutedAll(project: Project): Response | Promise<Response> {
+  if (project.failHost) {
+    project.failHost = false
+    return unavailable()
+  }
+  served.push('mute-all')
+  for (const p of others()) hostActed('mute', p.identity)
+  const reply = project.failAfterMuteAll ? unavailable() : new Response(null, { status: 204 })
+  project.failAfterMuteAll = false
+  const held = project.hostHeld
+  return held ? new Promise((resolve) => held.push(() => resolve(reply))) : reply
+}
+
+/** An admin acts on someone (A24, A31): recorded, and LiveKit's server applies it to the fake room. */
+function hostAct(project: Project, what: HostAct, identity: string): Response | Promise<Response> {
   if (project.failHost) {
     project.failHost = false
     return unavailable()
@@ -446,12 +749,65 @@ function hostAct(project: Project, what: 'mute' | 'remove', identity: string): R
   return held ? new Promise((resolve) => held.push(() => resolve(done()))) : done()
 }
 
+/** The project's activity (A28): sixty acts, the oldest its creation; 50 a page, newest first. */
+function activityRead(url: URL): Response {
+  const people = [
+    { id: membership.actorId, name: VIEWER_NAME },
+    { id: personId(1), name: 'Marco' },
+    { id: personId(2), name: 'Lucía' },
+  ]
+  const kinds = [
+    { type: 'project.renamed', summaryCode: 'project.renamed', onMember: false },
+    { type: 'goal.target_set', summaryCode: 'goal.target', onMember: false },
+    { type: 'project.member_role_changed', summaryCode: 'project.member_role', onMember: true },
+    { type: 'room.host_removed', summaryCode: 'room.host_removed', onMember: true },
+  ]
+  const all = Array.from({ length: 60 }, (_, i) => {
+    const sequence = i + 1
+    const kind =
+      sequence === 1
+        ? { type: 'project.created', summaryCode: 'project.created', onMember: false }
+        : kinds[(sequence + 3) % 4]
+    const actor = people[(sequence + 1) % 3] ?? people[0]
+    const target = kind?.onMember ? (people[(sequence + 2) % 3] ?? null) : null
+    return {
+      sequence: String(sequence),
+      occurredAt: new Date(Date.UTC(2026, 9, 15, 9, sequence)).toISOString(),
+      type: kind?.type ?? 'project.renamed',
+      summaryCode: kind?.summaryCode ?? 'project.renamed',
+      actor,
+      target,
+    }
+  }).toReversed()
+  const before = Number(url.searchParams.get('before') ?? '61')
+  const page = all.filter((e) => Number(e.sequence) < before).slice(0, 50)
+  const more = all.some((e) => Number(e.sequence) < Number(page.at(-1)?.sequence ?? '0'))
+  return json({ entries: page, before: more ? (page.at(-1)?.sequence ?? null) : null })
+}
+
 /** The project's own reads: its discussion (A20 proposed, A23), its goals' targets and its members (A25). */
-function projectRead(project: Project, url: URL): Response | null {
+function projectRead(project: Project, url: URL): Response | Promise<Response> | null {
   const base = `/api/v1/projects/${PROJECT}`
+  if (url.pathname === `${base}/activity`)
+    return project.activityHeld ? new Promise<Response>(() => undefined) : activityRead(url)
   if (url.pathname.startsWith(`${base}/discussion`)) return discussionRead(project, url)
-  if (url.pathname === `${base}/goal-targets`) return goalTargetsRead(project)
-  return url.pathname === `${base}/members` ? membersRead(project) : null
+  if (url.pathname === `${base}/goal-targets`) return targetsAnswer(project)
+  if (url.pathname !== `${base}/members`) return null
+  return membersRead(project)
+}
+
+/** The goals' targets as read: held while asked (`holdTargets`), refused while they fail (`failTargets`). */
+function targetsAnswer(project: Project): Response | Promise<Response> {
+  const held = project.targetsHeld
+  if (held) return new Promise<Response>((resolve) => held.push(() => resolve(targetsNow(project))))
+  return targetsNow(project)
+}
+
+/** The goals' targets once let through: refused while they fail, each refusal recorded (`targets-refused`), else read. */
+function targetsNow(project: Project): Response {
+  if (!project.targetsFail) return goalTargetsRead(project)
+  served.push('targets-refused')
+  return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
 }
 
 /** The goals' owners and dates (A25). */
@@ -462,22 +818,36 @@ function goalTargetsRead(project: Project): Response {
 
 /** The project's members (A25): the viewer and the two others the room fixture names, with roles as changed (A27). */
 function membersRead(project: Project): Response {
+  // `members=fail` (A37): the read fails, so nobody is offered or named until it is read.
+  if (project.membersFail) return unavailable()
   const roleOf = (actorId: string, start: Membership['role']) => project.memberRoles?.get(actorId) ?? start
+  const gone = project.removedMembers ?? new Set<string>()
   return json({
-    members: [
-      {
-        actorId: membership.actorId,
-        role: roleOf(membership.actorId, project.role ?? membership.role),
-        name: VIEWER_NAME,
-      },
-      { actorId: personId(1), role: roleOf(personId(1), 'editor'), name: 'Marco' },
-      { actorId: personId(2), role: roleOf(personId(2), 'viewer'), name: 'Lucía' },
-    ],
+    members: (
+      [
+        {
+          actorId: membership.actorId,
+          role: roleOf(membership.actorId, project.role ?? membership.role),
+          name: VIEWER_NAME,
+        },
+        { actorId: personId(1), role: roleOf(personId(1), 'editor'), name: 'Marco' },
+        { actorId: personId(2), role: roleOf(personId(2), 'viewer'), name: 'Lucía' },
+      ] as const
+    ).filter((m) => !gone.has(m.actorId)),
   })
 }
 
 const GOAL_TARGET = new RegExp(`^/api/v1/projects/${PROJECT}/goals/([0-9a-f-]+)/target$`)
 const MEMBER_ROLE = new RegExp(`^/api/v1/projects/${PROJECT}/members/([0-9a-f-]+)/role$`)
+const MEMBER_REMOVAL = new RegExp(`^/api/v1/projects/${PROJECT}/members/([0-9a-f-]+)/removal$`)
+
+/** A member removed (A29): an admin's; recorded, and the member leaves the list. */
+function memberRemoved(project: Project, actorId: string): Response {
+  if ((project.role ?? membership.role) !== 'admin') return refused('Only an admin removes members')
+  ;(project.removedMembers ??= new Set()).add(actorId)
+  served.push(`remove-member:${actorId}`)
+  return json({ actorId, cursor: String(project.revision) })
+}
 
 /** The project's own PUTs: a goal's owner and date (A25), a member's role (A27); null for any other path. */
 function projectPut(project: Project, path: string, init: RequestInit | undefined): Response | null {
@@ -548,14 +918,24 @@ const discussionRead = (project: Project, url: URL) =>
   url.pathname.endsWith('/replies') ? repliesRead(project) : discussionPage(project, url)
 
 /** A page of the room's discussion (A23): the 50 before `before`, oldest first; `before` again while older ones remain. */
-function discussionPage(project: Project, url: URL): Response {
+function discussionPage(project: Project, url: URL): Response | Promise<Response> {
   const anchor = url.searchParams.get('before')
   served.push(`discussion:${anchor ?? 'newest'}`)
-  if (project.failEarlier) {
+  if (project.failEarlier || project.failEarlierReads) {
     project.failEarlier = false
     return unavailable()
   }
-  const all = project.messages.map(said)
+  // A held read is answered when released, from the discussion as it is then.
+  if (anchor && project.earlierHeldBefore?.has(anchor)) {
+    const held = (project.earlierHeld ??= [])
+    return new Promise<Response>((resolve) => held.push(() => resolve(earlierPage(project, url, anchor))))
+  }
+  return earlierPage(project, url, anchor)
+}
+
+/** The 50 before `anchor` (or the newest), as A23 answers them. */
+function earlierPage(project: Project, url: URL, anchor: string | null): Response {
+  const all = (project.heldMessages ?? project.messages).map(said)
   const end = anchor ? all.findIndex((e) => e.id === anchor) : all.length
   if (end < 0) {
     const problem = {
@@ -566,23 +946,33 @@ function discussionPage(project: Project, url: URL): Response {
     }
     return new Response(JSON.stringify(problem), { status: 422, headers: { 'content-type': 'application/json' } })
   }
-  const start = Math.max(0, end - 50)
-  const entries = all.slice(start, end)
-  return json({ entries, before: start > 0 ? (entries[0]?.id ?? null) : null })
+  return json(
+    discussionPageOf(
+      { ...project, messages: project.heldMessages ?? project.messages },
+      end,
+      url.searchParams.get('revisions') === '1',
+    ),
+  )
 }
 
-/** The snapshot as the API serves it; refused once the door is shut under the shell (`window.fixture.shutDoor`). */
-function snapshotAnswer(project: Project) {
+/**
+ * The snapshot as the API serves it; refused once the door is shut under the shell (`window.fixture.shutDoor`). Held
+ * (`snapshot=hold`), it answers once let through, as it is then.
+ */
+function snapshotAnswer(project: Project, url: URL): Response | Promise<Response> {
+  const held = project.snapshotHeld
+  if (held) return new Promise<Response>((resolve) => held.push(() => resolve(snapshotAnswer(project, url))))
   served.push(`snapshot:${project.revision}`)
-  return project.doorShut ? refused('You no longer have access to this project') : json(snapshotOf(project))
+  const revisions = url.searchParams.get('revisions') === '1'
+  return project.doorShut ? refused('You no longer have access to this project') : json(snapshotOf(project, revisions))
 }
 
 function answer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
   const signal = init?.signal
   const base = `/api/v1/projects/${PROJECT}`
   const path = url.pathname
-  if (method === 'GET' && path === `${base}/snapshot`) return snapshotAnswer(project)
-  const records = recordsAnswer(project, method, url, init)
+  if (method === 'GET' && path === `${base}/snapshot`) return snapshotAnswer(project, url)
+  const records = routedAnswer(project, method, url, init)
   if (records !== undefined) return records
   if (method === 'GET' && path === `${base}/membership`) return membershipRead(project)
   if (method === 'GET' && path === `${base}/events`) {
@@ -592,8 +982,62 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
   return answerReports(project, method, url, init)
 }
 
+/** A39's human tasks on the served page, else the records this page keeps; undefined for anything else. */
+const routedAnswer = (project: Project, method: string, url: URL, init: RequestInit | undefined) =>
+  humanTasksAnswer(project, method, url, init) ?? recordsAnswer(project, method, url, init)
+
+/** A message's correction or withdrawal and their preview (A36, message-acts.ts); undefined for any other request. */
+const actAnswer = (project: Project, method: string, url: URL, init: RequestInit | undefined) =>
+  messageActAnswer(project, method, url, init, {
+    served,
+    publish: () => {
+      publish(project)
+      return String(project.revision)
+    },
+  }) ?? needSeen(project, method, url)
+
+/** markNeedSeen (A15, A37's mention): recorded as `seen:<id>`, that exact occurrence no longer listed; 204 as the API. */
+function needSeen(project: Project, method: string, url: URL): Response | undefined {
+  const marked = /^\/api\/v1\/me\/needs\/([^/]+)\/seen$/.exec(url.pathname)
+  if (method !== 'POST' || !marked) return undefined
+  const id = decodeURIComponent(marked[1] ?? '')
+  served.push(`seen:${id}`)
+  ;(project.mentionsSeen ??= new Set()).add(id)
+  return new Response(null, { status: 204 })
+}
+
+/**
+ * The viewer's waiting mentions in the room (A37), as the API lists them: each message of the room that names them, by
+ * its revision and occurrence, until that occurrence is seen; never a withdrawn one.
+ */
+function roomMentionNeeds(project: Project) {
+  return project.messages.flatMap((m, n) => {
+    if (typeof m === 'string' || m.withdrawnAt || !m.mentions?.includes(membership.actorId)) return []
+    const revision = m.revision ?? 1
+    const id = idOf(m, n)
+    const need = `mention:${PROJECT}:${String(revision)}.${String(m.occurrence ?? 1)}:${id}`
+    if (project.mentionsSeen?.has(need)) return []
+    return [
+      {
+        id: need,
+        kind: 'mention',
+        // Its first words, as the API's first_words cuts them (0065: 140 characters).
+        title: m.text.length > 140 ? `${m.text.slice(0, 139)}…` : m.text,
+        projectId: PROJECT,
+        projectTitle: PROJECT_NAME,
+        expiresAt: null,
+        detail: 'A member mentioned you',
+        at: m.at ?? new Date().toISOString(),
+        ref: needRef('contribution', id, `${String(revision)}.${String(m.occurrence ?? 1)}`),
+      },
+    ]
+  })
+}
+
 /** The vision's proposed reads, and A18's writes; undefined for any other request. */
 function visionAnswer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
+  const act = actAnswer(project, method, url, init)
+  if (act !== undefined) return act
   if (method === 'GET') return visionRead(project, url)
   return method === 'POST' ? talkWritten(project, url.pathname, init) : undefined
 }
@@ -601,11 +1045,18 @@ function visionAnswer(project: Project, method: string, url: URL, init: RequestI
 /** A18's writes, where the page keeps conversations; undefined for any other request. */
 function talkWritten(project: Project, path: string, init: RequestInit | undefined) {
   if (!project.conversations) return undefined
-  return conversationWritten(project.conversations, path, init, {
+  const ctx = {
     viewer: project.role === 'viewer',
-    record: (what) => served.push(what),
+    admin: membershipOf(project).role === 'admin',
+    record: (what: string) => served.push(what),
     moved: () => publish(project),
-  })
+    cursor: () => String(project.revision),
+  }
+  const talk = project.conversations
+  const taken = conversationWithdrawn(talk, path, init, ctx)
+  if (taken !== undefined) return taken
+  const erasure = conversationErased(talk, path, init, ctx)
+  return erasure === undefined ? conversationWritten(talk, path, init, ctx) : erasure
 }
 
 /** A need's ref, with the record that holds it when the address needs it: a version's report, a decision's work item. */
@@ -616,8 +1067,11 @@ const needRef = (kind: string, id: string, within: string | null = null, resourc
   resourceId,
 })
 
-/** What needs the viewer (A15, docs/plans/needs-api.md): one of each kind, given out of order; the Studio sorts them. */
-export function needsAnswer(now = Date.now()) {
+/**
+ * What needs the viewer (A15, docs/plans/needs-api.md): one of each kind, given out of order; the Studio sorts them.
+ * With `mentions` (A37's mentions=1), a message in the fixture project that mentions them too.
+ */
+export function needsAnswer(now = Date.now(), mentions = false) {
   const at = (minutes: number) => new Date(now + minutes * 60_000).toISOString()
   const here = { projectId: PROJECT, projectTitle: PROJECT_NAME }
   const need = (id: string, kind: string, title: string, over: Record<string, unknown>) => ({
@@ -657,15 +1111,58 @@ export function needsAnswer(now = Date.now()) {
         at: at(-1440),
         ref: needRef('personal_turn', 't9'),
       }),
+      ...(mentions ? [MENTION_NEED(at(-5))] : []),
     ],
   }
+}
+
+/** The message that mentions the viewer (A37): Marco's, on its revision 2, its current words. */
+export const MENTIONED_IN = '00000000-0000-4000-8000-00000000003a'
+const MENTION_NEED = (at: string) => ({
+  id: `mention:${PROJECT}:2.1:${MENTIONED_IN}`,
+  kind: 'mention',
+  title: 'Can you check the door plan before Friday?',
+  projectId: PROJECT,
+  projectTitle: PROJECT_NAME,
+  expiresAt: null,
+  detail: 'Marco mentioned you',
+  at,
+  ref: needRef('contribution', MENTIONED_IN, '2.1'),
+})
+
+/** The person's archived projects (A30): this one, when it is. */
+function archivedList(project: Project): Response {
+  const listed = { projectId: PROJECT, title: 'Fixture project', role: project.role ?? membership.role, members: 3 }
+  const projects = project.archived && !project.left ? [{ ...listed, room: null, nextSession: null, releases: [] }] : []
+  return json({ projects, personalEpoch: 1 })
+}
+
+/** Reads of the archived list the page holds, each waiting to be let through (`window.fixture.releaseArchived`). */
+const heldArchived: (() => void)[] = []
+
+/** The archived list's read: refused while `archivedFails`, recorded so; held while `archivedHeld`. */
+function archivedListAnswer(project: Project): Response | Promise<Response> {
+  served.push(project.archivedFails ? 'projects:archived:refused' : 'projects:archived')
+  if (project.archivedFails) return unavailable()
+  if (!project.archivedHeld) return archivedList(project)
+  return new Promise((resolve) => heldArchived.push(() => resolve(archivedList(project))))
+}
+
+/** Lets the held reads of the archived list through, and every later one. */
+export function releaseArchived(project: Project): void {
+  project.archivedHeld = false
+  for (const release of heldArchived.splice(0)) release()
 }
 
 /** The person's own reads (the projects they are in, what needs them); undefined for any other request. */
 function ownRead(project: Project, url: URL) {
   if (url.pathname === '/api/v1/projects') return projectListAnswer(project)
-  if (url.pathname === '/api/v1/me/needs') return json(needsAnswer())
-  return undefined
+  if (url.pathname === '/api/v1/projects/archived') return archivedListAnswer(project)
+  if (url.pathname !== '/api/v1/me/needs') return undefined
+  // With mentions=1 (A37), the room's own mentions of the viewer, as its messages name them now.
+  const needs = needsAnswer(Date.now())
+  if (url.searchParams.get('mentions') !== '1') return json(needs)
+  return json({ ...needs, needs: [...needs.needs, ...roomMentionNeeds(project)] })
 }
 
 /** The proposed reads of the vision (A13's search, A14's focus); undefined for any other request. */
@@ -673,7 +1170,7 @@ function visionRead(project: Project, url: URL) {
   if (url.pathname === `/api/v1/projects/${PROJECT}/search`) return searchAnswer(project, url)
   const read = projectRead(project, url)
   if (read) return read
-  const talk = project.conversations && conversationRead(project.conversations, url)
+  const talk = project.conversations && conversationRead(project.conversations, url, membershipOf(project).role)
   if (talk !== undefined) return talk
   const own = ownRead(project, url)
   if (own !== undefined) return own
@@ -694,8 +1191,13 @@ function recordsAnswer(project: Project, method: string, url: URL, init: Request
   if (vision !== undefined) return vision
   if (path.startsWith(`${base}/mission`)) return missionAnswer(project, method, path, init)
   if (method === 'GET' && path.startsWith(`${base}/meetings`)) return meetingAnswer(project, path)
-  if (method === 'GET' && path === `${base}/since` && project.meeting)
-    return json(digestOf(project.meeting, project.revision))
+  // Home reads it too (home-since-you-looked.md): a project with no meeting has nothing new since its last mark.
+  if (method === 'GET' && path === `${base}/since`) {
+    sinceAsked.push(path)
+    return json(
+      project.meeting ? updatesWindowOf(project.meeting, project.revision) : nothingSince(String(project.revision)),
+    )
+  }
   if (project.invitations) return invitationsAnswer(project.invitations, method, path, init, base) ?? undefined
   if (method === 'GET' && path === `${base}/invitations`) return json({ invitations: [] })
   return undefined
@@ -708,10 +1210,18 @@ function searchAnswer(project: Project, url: URL): Response | Promise<Response> 
   const meeting = project.meeting
   if (!meeting) return null
   served.push(`search:${q}:${cursor ?? '0'}`)
+  // The request as it was sent, endpoint and query, so a check sees what the Studio asked for.
+  served.push(`search-request:${url.pathname}${url.search}`)
+  if (project.failSearch) return unavailable()
   const held = project.searchHeld
   const kept = project.notes?.kept ?? []
   const report = { versions: project.reportVersions, title: project.reportTitle, pilot: project.pilot }
-  const page = () => json(searchPage(searchHits({ meeting, kept, report }, q), cursor))
+  const messages = project.messages.map(said)
+  const found = searchHits({ meeting, kept, report, messages }, q)
+  // Without the vision flag, the page is served as A38 is (strict); `searchAsProposed` answers once as A13 instead.
+  const strict = !VISION && !project.searchAsProposed
+  project.searchAsProposed = false
+  const page = () => (strict ? json(searchPage(servedHits(found), cursor)) : json(searchPage(found, cursor)))
   return held ? new Promise<Response>((resolve) => held.push(() => resolve(page()))) : page()
 }
 
@@ -720,6 +1230,10 @@ const membershipOf = (project: Project) => ({ ...membership, role: project.role 
 
 /** The reader's membership; while held, a read that waits until it is let through. */
 function membershipRead(project: Project): Response | Promise<Response> {
+  if (project.membershipFails) {
+    served.push('membership:failed')
+    return unavailable()
+  }
   const held = project.membershipHeld
   if (held) return new Promise<Response>((resolve) => held.push(() => resolve(json(membershipOf(project)))))
   return json(membershipOf(project))
@@ -754,6 +1268,30 @@ function meetingAnswer(project: Project, path: string): Promise<Response> | Resp
   return new Promise((resolve) => held.push(() => resolve(json(recap))))
 }
 
+/** A conversation this person can't see (erased): not found, as A33 refuses it (422, packages/domain/src/errors.ts). */
+const conversationGone = () =>
+  new Response(
+    JSON.stringify({
+      code: 'not_found',
+      message: 'Conversation not found',
+      requestId: '00000000-0000-4000-8000-0000000000ce',
+      retry: 'never',
+    }),
+    { status: 422, headers: { 'content-type': 'application/json' } },
+  )
+
+/** A reader not a current member of the project: refused, before anything of a conversation is read (A33, CC-0072). */
+const projectRefused = () =>
+  new Response(
+    JSON.stringify({
+      code: 'forbidden',
+      message: 'Not permitted',
+      requestId: '00000000-0000-4000-8000-0000000000fb',
+      retry: 'never',
+    }),
+    { status: 403, headers: { 'content-type': 'application/json' } },
+  )
+
 /** The API's answer while it can't read the records (packages/domain/src/errors.ts). */
 const unavailable = () =>
   new Response(
@@ -769,40 +1307,62 @@ const unavailable = () =>
 /** Any report's reviews or tasks (A16, A17): the report (and the version) captured. */
 const REVIEWS_OF = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/versions\/([0-9a-f-]{36})\/reviews$/
 const TASKS_OF = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/tasks$/
-const MESSAGES_OF = /^\/api\/v1\/conversations\/([0-9a-f-]{36})\/messages$/
+/** A page of a conversation's messages, read within its project (A33 getProjectConversationMessages). */
+const MESSAGES_OF = /^\/api\/v1\/projects\/([0-9a-f-]{36})\/conversations\/([0-9a-f-]{36})\/messages$/
 
-/** A18's reads: the list, or a page of a conversation's messages; undefined for any other request. */
-function conversationRead(talk: Conversations, url: URL) {
-  if (url.pathname === `/api/v1/projects/${PROJECT}/conversations`) return conversationsRead(talk)
-  const messagesOf = MESSAGES_OF.exec(url.pathname)?.[1]
-  return messagesOf ? messagesRead(talk, messagesOf, url) : undefined
+/** A33's reads: the list, or a page of a conversation's messages; undefined for any other request. */
+function conversationRead(talk: Conversations, url: URL, role: Membership['role']) {
+  if (url.pathname === `/api/v1/projects/${PROJECT}/conversations`) return conversationsRead(talk, role)
+  const scoped = MESSAGES_OF.exec(url.pathname)
+  if (!scoped?.[2]) return undefined
+  // Another project's: this reader is a member of this fixture's only, and is refused there before anything is read.
+  return scoped[1] === PROJECT ? messagesRead(talk, scoped[2], url) : projectRefused()
 }
 
-/** The project's conversations (A18), as listed. */
-function conversationsRead(talk: Conversations) {
+/** The project's conversations (A33), as listed, each one's newest message where the page asks for last messages. */
+function conversationsRead(talk: Conversations, role: Membership['role']) {
   if (talk.failList) return unavailable()
-  served.push('conversations:read')
-  if (!talk.lastShown) return json({ conversations: talk.list })
-  // A18 (proposed): each one's newest message, a line of it, as its messages say it now.
-  const lastOf = (id: string) => {
-    const m = talk.messages[id]?.at(-1)
-    return m
-      ? {
-          author: m.author,
-          actorId: m.actorId,
-          name: m.name,
-          // Its opening as written, line breaks kept: the Studio says it in one line (C6, sophia-text.ts plainOf).
-          text: m.text.slice(0, 140),
-          at: m.at,
-        }
-      : null
+  // As to a reader no longer in the project: refused (403), nothing of the list read.
+  if (talk.refusedList) {
+    served.push('conversations-refused')
+    return projectRefused()
   }
-  return json({ conversations: talk.list.map((c) => ({ ...c, lastMessage: lastOf(c.id) })) })
+  served.push('conversations:read')
+  const opts = {
+    lastShown: talk.lastShown === true,
+    viewer: role === 'viewer',
+    admin: role === 'admin',
+    more: talk.more === true || Boolean(talk.cappedOut),
+    askOff: talk.askOff === true,
+  }
+  const listed = talk.cappedOut ? talk.list.filter((c) => c.id !== talk.cappedOut) : talk.list
+  const asRead = json(wireList(listed, talk.messages, opts))
+  // Held: it answers later as it was read now, a read under way across what happens meanwhile (Codex at 7969d40).
+  const held = talk.heldList
+  return held ? new Promise<Response>((resolve) => held.push(() => resolve(asRead))) : asRead
+}
+
+/** A conversation's read that fails, is refused or finds it erased, before any of its messages is read; else null. */
+function unreadable(talk: Conversations, conversationId: string): Response | null {
+  if (talk.failMessagesOf === conversationId) return unavailable()
+  // As to a reader no longer in the project: refused (403), the conversation itself never read.
+  if (talk.refusedOf === conversationId) {
+    served.push(`messages-refused:${conversationId.slice(-2)}`)
+    return projectRefused()
+  }
+  // Erased here: as 0063's row policy hides it, the API refuses its read as not found. A page reads it again only as
+  // the feed moves (the open thread and the list read at once), before the list shows it gone.
+  if (talk.erasedIds?.has(conversationId)) {
+    served.push(`messages-gone:${conversationId.slice(-2)}`)
+    return conversationGone()
+  }
+  return null
 }
 
 /** A page of a conversation's messages (A18): the newest MESSAGE_PAGE, or those before `before`, oldest first. */
 function messagesRead(talk: Conversations, conversationId: string, url: URL) {
-  if (talk.failMessagesOf === conversationId) return unavailable()
+  const unread = unreadable(talk, conversationId)
+  if (unread) return unread
   const all = talk.messages[conversationId]
   if (!all) return null
   const before = url.searchParams.get('before')
@@ -812,7 +1372,14 @@ function messagesRead(talk: Conversations, conversationId: string, url: URL) {
   const end = Math.min(all.length, Number(before ?? all.length))
   const start = Math.max(0, end - MESSAGE_PAGE)
   served.push(`messages:${conversationId.slice(-2)}:${String(start)}`)
-  return json({ messages: all.slice(start, end), before: start > 0 ? String(start) : null })
+  const asRead = json({
+    conversationId,
+    messages: all.slice(start, end).map((m, i) => wireMessage(m, start + i)),
+    before: start > 0 ? String(start) : null,
+  })
+  // Held: it answers later as it was read now, a read under way across what happens meanwhile (CX-0074).
+  const held = talk.heldMessages
+  return held ? new Promise<Response>((resolve) => held.push(() => resolve(asRead))) : asRead
 }
 
 /** Who waits at the door: one first knock, one knocking again (`lobby=again`), or two (`lobby=two`). */
@@ -844,7 +1411,7 @@ function projectListAnswer(project: Project): Response | Promise<Response> {
     releases: project.carriedIn ?? [],
   }
   const other = { ...listed, projectId: '00000000-0000-4000-8000-0000000000a9', title: 'Another project', releases: [] }
-  const mine = project.left ? [] : [listed]
+  const mine = project.left || project.archived ? [] : [listed]
   return json({ projects: project.carriedElsewhere ? [other] : mine, personalEpoch: 1 })
 }
 
@@ -1078,6 +1645,21 @@ function reportsAnswer(project: Project, url: URL) {
   return json({ ...list, projects })
 }
 
+/** Reads of the report cards the page holds, each waiting to be let through (`window.fixture.releaseReports`). */
+const heldReports: (() => void)[] = []
+
+/** Knowledge's cards; while the page holds them, a read that answers once let through, with the cards as they are. */
+function reportsRead(project: Project, url: URL): Response | Promise<Response> {
+  if (!project.reportsHeld) return reportsAnswer(project, url)
+  return new Promise((resolve) => heldReports.push(() => resolve(reportsAnswer(project, url))))
+}
+
+/** Lets the held reads of the cards through, and every later one. */
+export function releaseReports(project: Project): void {
+  project.reportsHeld = false
+  for (const release of heldReports.splice(0)) release()
+}
+
 /**
  * The report viewer's and Knowledge's requests (SMC-M03): the fixture report's versions, their sources and text, its
  * task, its card, and an edit of its description.
@@ -1086,7 +1668,7 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
   const path = url.pathname
   if (method === 'PATCH') return edited(project, path, init)
   if (method !== 'GET') return null
-  if (path === '/api/v1/knowledge/reports') return reportsAnswer(project, url)
+  if (path === '/api/v1/knowledge/reports') return reportsRead(project, url)
   const listed = versionsOf(project, path)
   if (listed) return listed
   const source = /^\/api\/v1\/sources\/([0-9a-f-]{36})\/content$/.exec(path)?.[1]
@@ -1141,7 +1723,13 @@ export function releaseCovers(project: Project): void {
 
 /** The design task of the research's page, read while it is designed (`design=designing`, B-19), then published. */
 function designRead(project: Project): Response | null {
-  if (!project.designing && !project.designed) return null
+  if (project.designFail) {
+    const [status, retry] = project.designFail === 'forbidden' ? [403, 'never'] : [503, 'safe_read']
+    served.push(`design:${project.designFail}`)
+    const body = { code: project.designFail, message: 'No', requestId: '00000000-0000-4000-8000-0000000000bb', retry }
+    return new Response(JSON.stringify(body), { status })
+  }
+  if (!project.designing && !project.designed && !project.designCard) return null
   return json(designingTask(project.designed ? 'published' : 'designing'))
 }
 
@@ -1151,18 +1739,7 @@ function designRead(project: Project): Response | null {
  * Review sources.
  */
 function workRead(project: Project, path: string) {
-  if (path === `/api/v1/projects/${PROJECT}/plans`) {
-    const board: WorkBoardView = {
-      schema_version: 'sophia.work.board.v1',
-      project_id: PROJECT,
-      snapshot_cursor: String(project.revision),
-      observed_at: new Date().toISOString(),
-      coverage: 'complete',
-      goals: project.servedGoals?.() ?? [],
-    }
-    const held = project.boardHeld
-    return held ? new Promise<Response>((resolve) => held.push(() => resolve(json(board)))) : json(board)
-  }
+  if (path === `/api/v1/projects/${PROJECT}/plans`) return boardRead(project)
   if (path === `/api/v1/projects/${PROJECT}/plans/source-review`) {
     if (project.review) served.push(`review:offered:${String(project.review.sources.length)}`)
     return json(project.review ?? REVIEW_NOT_ENABLED)
@@ -1170,6 +1747,32 @@ function workRead(project: Project, path: string) {
   const key = PROPOSAL_READ.exec(path)?.[1]
   if (key !== undefined && project.proposals) return proposalRead(project.proposals, decodeURIComponent(key))
   return null
+}
+
+/** The served board, or its failure as the page asks: a 503, or a 200 the Studio can't take as this project's board. */
+function boardRead(project: Project): Response | Promise<Response> {
+  if (project.boardFail) {
+    served.push('board-refused')
+    return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
+  }
+  const board: WorkBoardView = {
+    schema_version: 'sophia.work.board.v1',
+    project_id: PROJECT,
+    snapshot_cursor: String(project.revision),
+    observed_at: new Date().toISOString(),
+    coverage: 'complete',
+    goals: project.servedGoals?.() ?? [],
+  }
+  if (project.boardAnswer) {
+    served.push(`board-answered:${project.boardAnswer}`)
+    const wrong =
+      project.boardAnswer === 'malformed'
+        ? { ...board, coverage: 'most of it' }
+        : { ...board, project_id: ELSEWHERE.projectId, goals: [] }
+    return json(wrong)
+  }
+  const held = project.boardHeld
+  return held ? new Promise<Response>((resolve) => held.push(() => resolve(json(board)))) : json(board)
 }
 
 const PROPOSAL_READ = new RegExp(`^/api/v1/projects/${PROJECT}/plans/source-review/proposals/([^/]+)$`)
@@ -1222,7 +1825,9 @@ function edited(project: Project, path: string, init: RequestInit | undefined) {
   if (path !== `/api/v1/artifacts/${REPORT}/summary`) return null
   const { next, reply } = editDescription(project.description, init?.body, membership.actorId)
   project.description = next
-  return reply
+  if (!project.summaryLost) return reply
+  project.summaryLost = false
+  return Promise.reject(new TypeError('Failed to fetch')) // it landed; the page never hears so
 }
 
 /** The brief, and a note written in it, its withdrawal's preview and its withdrawal (brief-data.ts). */
@@ -1242,6 +1847,11 @@ function missionAnswer(project: Project, method: string, path: string, init: Req
 /** The brief as read: refused while notes are unread or reads fail (`failMission`), else with the conversations' part. */
 function missionRead(project: Project): Response {
   if (project.notes?.unread || project.missionFails) return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
+  // As to a reader no longer in the project: refused (403), nothing of the brief read (`refuseMission`).
+  if (project.missionRefused) {
+    served.push('mission-refused')
+    return projectRefused()
+  }
   served.push(`mission:${project.revision}`)
   const read = withContext(mission(project.revision, project.notes?.kept, !project.notes?.refused), project.missionPlus)
   // Just made, nothing is recorded until its first note: the ledger reads empty (first-step.md).
@@ -1301,13 +1911,7 @@ function contributed(project: Project, init: RequestInit | undefined): Response 
   const replyTo = replyOf(project, body)
   if (replyTo instanceof Response) return replyTo
   const id = entryIdOf(project.messages.length)
-  project.messages.push({
-    id,
-    text: body.text,
-    me: true,
-    at: new Date().toISOString(),
-    ...(replyTo ? { replyTo } : {}),
-  })
+  project.messages.push(messageWritten(id, body.text, replyTo, mentionsOf(init?.body)))
   publish(project)
   served.push(`contribution:${body.intent}`)
   const receipt: ContributionReceipt = {
@@ -1336,6 +1940,31 @@ function contributionAnswer(project: Project, receipt: ContributionReceipt): Res
 const recorded = (receipt: ContributionReceipt) =>
   new Response(JSON.stringify(receipt), { status: 202, headers: { 'content-type': 'application/json' } })
 
+/** A message the viewer wrote, with what it answers (A20) and whom it names (A37), each recorded as served. */
+function messageWritten(
+  id: string,
+  text: string,
+  replyTo: Said['replyTo'] | null | undefined,
+  mentions: string[],
+): Said {
+  if (mentions.length > 0) served.push(`mentions:${mentions.join(',')}`)
+  return {
+    id,
+    text,
+    me: true,
+    at: new Date().toISOString(),
+    ...(replyTo ? { replyTo } : {}),
+    ...(mentions.length > 0 ? { mentions } : {}),
+  }
+}
+
+/** The members a message names (A37), as sent: none when `mentions` is left out. */
+function mentionsOf(body: BodyInit | null | undefined): string[] {
+  const value: unknown = typeof body === 'string' ? JSON.parse(body) : null
+  if (typeof value !== 'object' || value === null || !('mentions' in value) || !Array.isArray(value.mentions)) return []
+  return value.mentions.filter((m): m is string => typeof m === 'string')
+}
+
 const isContribution = (value: unknown): value is { text: string; intent: ContributionReceipt['intent'] } =>
   typeof value === 'object' &&
   value !== null &&
@@ -1344,7 +1973,10 @@ const isContribution = (value: unknown): value is { text: string; intent: Contri
   'intent' in value &&
   typeof value.intent === 'string'
 
-/** What the page posts: a room token, a goal's command, the floor passed on, a message to the room, or Sophia asked in. */
+/**
+ * What the page posts: a room token, an answer at the door, a goal's command, the floor passed on, a message to the
+ * room, or Sophia asked in.
+ */
 function posted(project: Project, path: string, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/contributions`) return contributed(project, init)
@@ -1354,7 +1986,8 @@ function posted(project: Project, path: string, init: RequestInit | undefined) {
   const doneOf = TASK_DONE.exec(path)?.[1]
   if (doneOf) return taskDone(project, doneOf, init)
   if (path === `/api/v1/rooms/${ROOM}/meetings/${MEETING}/close`) return meetingClosed(project, init)
-  if (path === `${base}/room-token`) return tokenAnswer(project)
+  const door = doorPosted(project, path, init)
+  if (door) return door
   const own = projectWritten(project, path, init)
   if (own) return own
   if (path === `${base}/commands`) return admitted(project, init)
@@ -1478,6 +2111,15 @@ function taskRead(project: Project): Response | Promise<Response> {
         : researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing),
     )
   served.push(`task:${String(project.taskRevision ?? 1)}`)
+  if (project.taskRefused) {
+    const body = {
+      code: 'forbidden',
+      message: 'Not permitted',
+      requestId: '00000000-0000-4000-8000-0000000000bd',
+      retry: 'never',
+    }
+    return new Response(JSON.stringify(body), { status: 403 })
+  }
   if (project.taskFails) {
     const body = {
       code: 'unavailable',
@@ -1621,14 +2263,202 @@ export function releaseText(project: Project): void {
   for (const release of heldTexts.splice(0)) release()
 }
 
+/** A project's read refused to someone who isn't its member, as the API answers it. */
+const outside = () =>
+  new Response(
+    JSON.stringify({
+      code: 'forbidden',
+      message: 'Not a member of this project',
+      requestId: '00000000-0000-4000-8000-0000000000bd',
+      retry: 'never',
+    }),
+    { status: 403, headers: { 'content-type': 'application/json' } },
+  )
+
+/** Where `server=kept` journals the keyed writes that reached the service, in the tab: each try, with its key. */
+export const JOURNAL = 'fixture.server.journal'
+
+/** A keyed write as it reached the service. */
+interface Journaled {
+  method: string
+  path: string
+  key: string
+  body: string | null
+}
+
+const isJournaled = (w: unknown): w is Journaled =>
+  typeof w === 'object' &&
+  w !== null &&
+  typeof Reflect.get(w, 'method') === 'string' &&
+  typeof Reflect.get(w, 'path') === 'string' &&
+  typeof Reflect.get(w, 'key') === 'string'
+
+function journaled(): Journaled[] {
+  try {
+    const kept: unknown = JSON.parse(sessionStorage.getItem(JOURNAL) ?? '[]')
+    return Array.isArray(kept) ? kept.filter(isJournaled) : []
+  } catch {
+    return []
+  }
+}
+
+/** A keyed write that reached the service goes into the journal, whatever it is answered. */
+function journal(method: string, url: URL, init: RequestInit | undefined): void {
+  const key = new Headers(init?.headers).get('idempotency-key')
+  if (method !== 'POST' || !key || !url.pathname.startsWith('/api/')) return
+  const body = typeof init?.body === 'string' ? init.body : null
+  sessionStorage.setItem(JOURNAL, JSON.stringify([...journaled(), { method, path: url.pathname, key, body }]))
+}
+
+/** The journal applied again as the page loads, its answers unheard: the service holds what it held before. */
+function replayJournal(project: Project): void {
+  for (const w of journaled()) {
+    const init = {
+      method: w.method,
+      headers: { 'idempotency-key': w.key },
+      ...(w.body === null ? {} : { body: w.body }),
+    }
+    const reply = answer(project, w.method, new URL(w.path, window.location.href), init)
+    void Promise.resolve(reply).catch(() => undefined)
+  }
+}
+
+/**
+ * `server=kept`: the synthetic service outlives a reload of the tab, as a real one does (reliability-held-on-reload.md).
+ * Each keyed write that reaches it is journaled in the tab and applied again, unanswered, as the page loads.
+ */
 export function installFixtureApi(project: Project): void {
+  const kept = new URLSearchParams(window.location.search).get('server') === 'kept'
+  if (kept) replayJournal(project)
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
     const url = new URL(hrefOf(input), window.location.href)
+    if (project.outage && url.pathname.startsWith('/api/')) return Promise.reject(new TypeError('Failed to fetch'))
+    if (project.outsider && url.pathname.startsWith(`/api/v1/projects/${PROJECT}/`)) return Promise.resolve(outside())
+    if (kept) journal(method, url, init)
+    // The person's own profile (A32): one per token, whatever the page shows (profile-data.ts).
+    const profile = profileAnswer(method, url.pathname, init)
+    if (profile) return Promise.resolve(profile)
     const response = answer(project, method, url, init)
     if (response) return Promise.resolve(response)
     unexpected.push(`${method} ${url.pathname}`)
     console.error(`[fixture] unexpected request: ${method} ${url.pathname}`)
     return Promise.resolve(new Response(JSON.stringify({ code: 'fixture_unexpected' }), { status: 501 }))
   }
+}
+
+/** The world a human task is answered in (A39): this reader, their role now, the project's members and its report. */
+function taskWorld(project: Project): TaskWorld {
+  const gone = project.removedMembers ?? new Set<string>()
+  const names = new Map([
+    [membership.actorId, VIEWER_NAME],
+    [personId(1), 'Marco'],
+    [personId(2), 'Lucía'],
+  ])
+  return {
+    projectId: PROJECT,
+    me: membership.actorId,
+    role: project.role ?? membership.role,
+    members: new Set([...names.keys()].filter((id) => !gone.has(id))),
+    nameOf: (id) => names.get(id) ?? null,
+    versions: new Map(Array.from({ length: project.reportVersions }, (_, i) => [versionIdOf(i + 1), i + 1] as const)),
+    report: { artifactId: REPORT, title: project.reportTitle },
+  }
+}
+
+const HUMAN_TASK = new RegExp(`^/api/v1/projects/${PROJECT}/tasks/([0-9a-f-]{36})(/owner|/done)?$`)
+const REPORT_TASKS = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/tasks$/
+
+const answerOf = (a: Answer) =>
+  new Response(JSON.stringify(a.body), { status: a.status, headers: { 'content-type': 'application/json' } })
+
+/**
+ * A39's routes on the served page (the tasks flag without the vision flag): each request recorded as sent, path, query
+ * and body (`task-read:` / `task-request:`); a write that lands moves the feed. Undefined for anything else.
+ */
+function humanTasksAnswer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
+  if (!TASKS || VISION) return undefined
+  const path = url.pathname
+  const route = {
+    report: REPORT_TASKS.exec(path)?.[1],
+    one: HUMAN_TASK.exec(path),
+    list: path === `/api/v1/projects/${PROJECT}/tasks`,
+  }
+  if (!route.report && !route.one && !route.list) return undefined
+  // Served without a seed: none yet, still answered as A39.
+  const tasks = (project.humanTasks ??= noHumanTasks())
+  const world = taskWorld(project)
+  if (method === 'GET') return humanRead(project, tasks, world, url, route)
+  return writeAnswered(project, humanWrite(tasks, world, { method, path, init, one: route.one }))
+}
+
+/** A write's answer: lost when dropped (status 0), the feed moved when it landed. */
+function writeAnswered(project: Project, result: Answer | undefined) {
+  if (!result) return undefined
+  if (result.status === 0) return Promise.reject(new TypeError('Failed to fetch'))
+  if (result.status < 300) publish(project)
+  return answerOf(result)
+}
+
+/** A39's reads: a report's tasks, the project's, or one. */
+function humanRead(
+  project: Project,
+  tasks: HumanTasks,
+  world: TaskWorld,
+  url: URL,
+  route: { report: string | undefined; one: RegExpExecArray | null; list: boolean },
+): Response {
+  served.push(`task-read:${url.pathname}${url.search}`)
+  if (route.report && project.reportTasksFail)
+    return answerOf({
+      status: 422,
+      body: { code: 'not_found', message: 'Artifact not found', requestId: PROJECT, retry: 'never' },
+    })
+  if (route.report) return answerOf(reportTasks(tasks, world, route.report))
+  if (route.list) return json(projectPage(tasks, world, url.searchParams.get('cursor')))
+  const t = tasks.list.find((x) => x.taskId === route.one?.[1])
+  if (t) return json(servedOf(tasks, world, t))
+  return answerOf({
+    status: 422,
+    body: { code: 'not_found', message: 'Task not found', requestId: PROJECT, retry: 'never' },
+  })
+}
+
+/**
+ * A write as it reached the fixture: recorded as sent, with its key (`task-request:`, `task-key:`); or, when the page
+ * asked (`dropNextTaskWrite`), dropped before reaching it (`task-dropped:`), its answer lost. True when dropped.
+ */
+function dropped(
+  tasks: HumanTasks,
+  req: { method: string; path: string; init: RequestInit | undefined },
+  text: string,
+) {
+  const keyed = new Headers(req.init?.headers).get('idempotency-key') ?? ''
+  if (tasks.dropNext) {
+    tasks.dropNext = false
+    served.push(`task-dropped:${req.method} ${req.path} ${text} key=${keyed}`)
+    return true
+  }
+  served.push(`task-request:${req.method} ${req.path} ${text}`)
+  if (keyed) served.push(`task-key:${keyed}`)
+  return false
+}
+
+/** A39's writes: create, owner, done; undefined for any other method on these paths. */
+function humanWrite(
+  tasks: HumanTasks,
+  world: TaskWorld,
+  req: { method: string; path: string; init: RequestInit | undefined; one: RegExpExecArray | null },
+): Answer | undefined {
+  const text = typeof req.init?.body === 'string' ? req.init.body : ''
+  if (dropped(tasks, req, text)) return { status: 0, body: null }
+  const body: unknown = text ? JSON.parse(text) : null
+  const key = new Headers(req.init?.headers).get('idempotency-key') ?? ''
+  const [, id = '', tail = ''] = req.one ?? [undefined, '', 'list']
+  const acts: Record<string, (() => Answer) | undefined> = {
+    'POST list': () => createAnswer(tasks, world, key, body),
+    'PUT /owner': () => ownerAnswer(tasks, world, id, body),
+    'POST /done': () => doneAnswer(tasks, world, id, key, body),
+  }
+  return acts[`${req.method} ${tail}`]?.()
 }

@@ -82,7 +82,7 @@
   border-radius: var(--r-3);
   border: 1px solid var(--line-2);
   background: var(--plane-2);
-  box-shadow: 0 18px 50px rgb(var(--shadow-rgb) / calc(0.55 * var(--shadow-k)));
+  box-shadow: var(--elev-menu);
   animation: arrive var(--base) var(--ease) both;
 }
 .places .chip-pop {
@@ -120,7 +120,8 @@
   flex: none;
   border-radius: 50%;
   background: var(--warm);
-  animation: ps-dot-pulse 1.4s ease-in-out infinite;
+  /* Still: motion in the Studio is for events, not states (CONTRIBUTING.md). Its pulse named keyframes lost since
+     484e390ad, so it ran nothing (informe-25 M14); the dot and its words say the call is on. */
 }
 /* Back to the room: the pill's whole height is its target. */
 .places .room-pill .t {
@@ -141,6 +142,10 @@
 .places .room-pill .round:not([aria-pressed='true']) {
   border-color: transparent;
   background: transparent;
+}
+/* Leave keeps its rose ink here at rest (theme.css), so the pointer's answer is its plane (room-dock-people.md). */
+.places .room-pill .round.leave:hover {
+  background: rgb(var(--rose-rgb) / 0.12);
 }
 /* Under the bar's call: what Sophia is looking at and what stopped a device, as the dock says them. */
 .places .room-pill-notes {
@@ -206,8 +211,8 @@
 .places .hw-name {
   color: var(--text-3);
 }
-/* A first visit: the line follows its label directly, with the label's own gap. */
-.places .hw-you .hw-label-row + .hw-say {
+/* A first visit: the line (or what stands in its place) follows its label directly, with the label's own gap. */
+.places .hw-you .hw-label-row + :is(.hw-say, .hw-off, .hw-held) {
   margin-top: 0;
 }
 /* A section's head with a press on its right: your notes beside «You and Sophia». */
@@ -240,6 +245,20 @@
 .places .hw-says strong {
   color: var(--text);
   font-weight: 500;
+}
+/* Open Updates, in her sentence's own words and line (home-since-you-looked.md). */
+.places .hw-says .text-button {
+  padding: 0;
+  font-size: inherit;
+  line-height: inherit;
+}
+/* Nothing to say holds one line of her sentence (22 px above, 24 px of words): when one comes (a session nears,
+   someone enters a room) or goes, nothing under the greeting moves under a pointer (home-no-false-claim.md). It is
+   her sentence's status, mounted all along, which news fills (home-since-you-looked.md). */
+.places .hw-says-held {
+  min-height: 1lh;
+  margin-top: 22px;
+  font-size: 16px;
 }
 .places .hw .wait-note,
 .places .hw .place-notices {
@@ -406,8 +425,10 @@
   }
 }
 /* A row that joins or takes you back says so at rest, in its own width, on every screen: its press is the one the
-   moment asks for (docs/plans/home-first-glance.md). */
-.places .hw-row:is([data-act='join'], [data-act='back']) {
+   moment asks for (docs/plans/home-first-glance.md). Its columns carry no weight of their own (:where): on a phone the
+   two-line row below keeps its three columns for it too, where it used to lose to this one and set its title 4 px in
+   and its arrow 14 px short (informe-25 E5). */
+.places .hw-row:where([data-act='join'], [data-act='back']) {
   grid-template-columns: 28px minmax(0, 1fr) auto auto;
 }
 .places .hw-row:is([data-act='join'], [data-act='back']) .hw-go {
@@ -449,7 +470,7 @@
   margin-left: 3px;
   border-radius: 50%;
   background: var(--core);
-  box-shadow: 0 0 10px 2px rgb(var(--halo-rgb) / 0.55);
+  box-shadow: var(--glow-her);
 }
 .places .hw-her.locked {
   width: auto;
@@ -484,6 +505,23 @@
   color: var(--text-3);
   text-align: left;
   transition: border-color var(--base) var(--ease);
+  animation: hw-in 520ms var(--ease) calc(var(--d, 220ms) + 160ms) both;
+}
+/* Where Sophia can't answer, the line's place says so and offers a note; while that is unknown, the place is held.
+   Neither is a field, so no hairline; the line's box and words, so nothing below moves (home-no-companion.md). Where
+   the reason and its note take two rows (a narrow phone, a scrollbar, a wider fallback font), the words' 20 px, a 2 px
+   gap and «Write a note»'s 24 px are the line's 46 still; a 4 px gap made 48 (Codex P2 on #460). */
+.places .hw-off,
+.places .hw-held {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  min-height: 46px;
+  margin: 14px 0 0;
+  color: var(--text-3);
+  font: 15px / var(--lh-body) var(--sans);
+  letter-spacing: -0.005em;
   animation: hw-in 520ms var(--ease) calc(var(--d, 220ms) + 160ms) both;
 }
 /* Speaking: the line listens, its hairline lit and moving; the microphone is the one way out. */
@@ -537,12 +575,17 @@
   color: var(--text);
   font: 15px / var(--lh-body) var(--sans);
   letter-spacing: -0.005em;
+  /* A suggestion longer than the line ends in an ellipsis, never through a letter (informe-25 E6). */
+  text-overflow: ellipsis;
 }
 .places .hw-say input::placeholder {
   color: var(--text-3);
 }
+/* The line's key keeps the 16 px leading (in rem, it grows with a larger browser text) and no padding above or below:
+   18 px with its edge, as before, on the 4 px grid (type-scale.spec.ts). */
 .places .hw-say kbd {
   font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  padding-block: 0;
   color: var(--text-3);
 }
 /* A key only where there are keys: a touch screen has none to press. */
@@ -661,7 +704,7 @@
   flex: none;
   border-radius: 50%;
   background: var(--core);
-  box-shadow: 0 0 8px 2px rgb(var(--halo-rgb) / 0.5);
+  box-shadow: var(--glow-sdot);
 }
 .places .pdot {
   width: 20px;
@@ -670,7 +713,7 @@
   place-items: center;
   border-radius: 50%;
   border: 1px solid rgb(var(--warm-rgb) / 0.4);
-  background: var(--plane);
+  background: var(--surface-well);
   color: var(--warm);
   font-size: 9.5px; /* an initial: a glyph sized to its circle, not text on the scale */
   font-weight: 600;
@@ -694,7 +737,7 @@
   padding: 10px 14px;
   border-radius: var(--r-3);
   border: 1px solid var(--line-2);
-  background: var(--plane);
+  background: var(--surface-well);
   color: var(--text-2);
   font-size: 13px;
 }
@@ -825,7 +868,14 @@
     rgb(var(--halo-rgb) / 0.045) 50%,
     transparent 78%
   );
+  opacity: var(--ambient-peak, 1);
   animation: ps-ambient 7s ease-in-out infinite;
+}
+/* On paper her light darkens the page rather than lighting it: at full strength it took the first day's words at the
+   top of a talk under 4.5:1 by day (ci-light-by-hour-contrast.md). There it breathes at 0.7 of the room's, every hour
+   (at 0.4 it all but vanished); the dark room's is untouched. */
+:root[data-theme='light'] .places .c3-ambient {
+  --ambient-peak: 0.7;
 }
 .places .c3-space.speaking .c3-ambient,
 .places .c3-space.listening .c3-ambient {
@@ -834,10 +884,10 @@
 @keyframes ps-ambient {
   0%,
   100% {
-    opacity: 0.7;
+    opacity: calc(0.7 * var(--ambient-peak, 1));
   }
   50% {
-    opacity: 1;
+    opacity: var(--ambient-peak, 1);
   }
 }
 .places .c3-glowfly {
@@ -847,8 +897,8 @@
   pointer-events: none;
   background: radial-gradient(
     circle,
-    rgba(250, 248, 255, 0.95) 0 9%,
-    rgba(214, 204, 255, 0.55) 16%,
+    var(--flight-core) 0 9%,
+    var(--flight-rim) 16%,
     rgb(var(--halo-rgb) / 0.22) 38%,
     rgb(var(--halo-rgb) / 0) 70%
   );
@@ -949,7 +999,7 @@
   width: 5.5px;
   height: 8.6px;
   fill: var(--core);
-  filter: drop-shadow(0 0 5px rgb(var(--halo-rgb) / 0.7));
+  filter: var(--glow-who);
 }
 /* Her turns' first line is taller (17 px at 1.55): her half sits a pixel lower to stay centred on it. */
 .places .msg.sophia:not(.typing) .c3-who {
@@ -1080,7 +1130,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 26px;
+  height: 28px;
   padding: 0 10px;
   border-radius: var(--r-2);
   border: 1px solid var(--line-2);
@@ -1091,7 +1141,7 @@
   font: 500 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  box-shadow: 0 8px 24px rgb(var(--shadow-rgb) / calc(0.4 * var(--shadow-k)));
+  box-shadow: var(--elev-daypill);
   animation: ps-arrive 200ms var(--ease);
 }
 /* The next day's divider right under it names the day: the pill steps aside (docs/plans/personal-day-pill.md). */
@@ -1111,14 +1161,14 @@
   -webkit-mask-image: linear-gradient(transparent 0 30px, #000 68px);
   mask-image: linear-gradient(transparent 0 30px, #000 68px);
 }
-/* The days' menu hangs 6 px under the pill (10 + 26 in the bar), centred, as wide as the chip's popover. */
+/* The days' menu hangs 6 px under the pill (10 + 28 in the bar), centred, as wide as the chip's popover. */
 /* A day's date on one line, however long its topics: they give way, cut with an ellipsis. Only here: another menu's
    rows (a member's long name) still wrap rather than widen past the screen (docs/plans/personal-day-menu.md). */
 .places .c3-daybar .menu [role='menuitem'] {
   white-space: nowrap;
 }
 .places .c3-daybar .menu {
-  top: 42px;
+  top: 44px;
   min-width: 230px;
 }
 /* The note form keeps to the scale: its field at the body's size. */
@@ -1226,8 +1276,8 @@
   grid-auto-columns: auto;
   align-items: center;
   gap: 12px;
-  min-height: 44px;
-  padding: 10px 0;
+  min-height: 36px;
+  padding: 7px 0;
   border: 0;
   border-bottom: 1px solid var(--line);
   border-radius: 0;
@@ -1385,8 +1435,8 @@
   padding: 12px 14px 16px;
   border-left: 1px solid var(--line-2);
   border-radius: var(--r-3) 0 0 var(--r-3);
-  background: var(--plane);
-  box-shadow: -24px 0 60px rgb(var(--shadow-rgb) / calc(0.45 * var(--shadow-k)));
+  background: var(--surface-well);
+  box-shadow: var(--elev-notes);
   animation: ps-from-edge 260ms var(--ease);
 }
 .places .c3-notes:focus {
@@ -1445,6 +1495,12 @@
 .places .c2-t p {
   font-size: 13px;
 }
+/* Carry, and Forget beside it (personal-forget-note.md): one cell, after the words. */
+.places .c2-t .c2-acts {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 .places .c3-notes .c2-t.crossing {
   transform: translateX(120px);
   opacity: 0;
@@ -1463,7 +1519,7 @@
   height: 5px;
   border-radius: 50%;
   background: var(--core);
-  box-shadow: 0 0 6px 1px rgb(var(--halo-rgb) / 0.6);
+  box-shadow: var(--glow-by);
 }
 .places .c2-to {
   grid-column: 1 / -1;
@@ -1619,7 +1675,7 @@
   padding: 16px 18px;
   border-radius: var(--r-4);
   border: 1px solid var(--line-2);
-  background: var(--plane);
+  background: var(--surface-well);
 }
 .places .c3-proj h3 {
   font-size: 15px;
@@ -1930,6 +1986,16 @@
   .places .c3-day {
     min-height: 36px;
   }
+  /* The days' menu hangs 6 px under the pill at a finger's size (10 + 40 in the bar). */
+  .places .c3-daybar .menu {
+    top: 56px;
+  }
+  /* The ways in are rows that touch: each keeps a finger's 44 px of its own, never a target reaching into the next
+     (docs/plans/personal-new-day-scale.md). */
+  .places .c3-starters button {
+    min-height: 44px;
+    padding-block: 10px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .places *,
@@ -1947,6 +2013,8 @@
   .places .hw-index > li,
   .places .hw-index > li::before,
   .places .hw-say,
+  .places .hw-off,
+  .places .hw-held,
   .places .hw-label,
   .places .hw-mic,
   .places .c3-ambient,
@@ -2203,7 +2271,7 @@
   height: 10px;
   border-radius: 50%;
   pointer-events: none;
-  background: radial-gradient(circle, rgba(250, 248, 255, 0.95) 0 25%, rgb(var(--halo-rgb) / 0.5) 60%, transparent 75%);
+  background: radial-gradient(circle, var(--flight-core) 0 25%, rgb(var(--halo-rgb) / 0.5) 60%, transparent 75%);
   transform: translate(-50%, -50%);
 }
 .places .c3-notes-toggle {
@@ -2213,7 +2281,7 @@
 }
 .places .c3-notes-toggle.ticked {
   color: var(--text);
-  text-shadow: 0 0 12px rgb(var(--halo-text-rgb) / 0.8);
+  text-shadow: var(--glow-ticked);
 }
 
 /* ---------- Moments (docs/plans/personal-moments.md §2) ---------- */
@@ -2313,6 +2381,23 @@
 .places .c3-find-notes {
   width: 100%;
   margin: 6px 0 4px;
+}
+/* Your notes, by date (docs/plans/notes-order-export.md): each one's day under its words, Newest or Oldest above them,
+   and the file beside Close. */
+.places .c2-t .c2-day {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-3);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.places .c3-order {
+  justify-self: start;
+  margin: 6px 0 2px;
+}
+.places .c3-notes .sheet-head .c3-download {
+  margin-left: auto;
+  margin-right: 6px;
 }
 .places .c3-write-status {
   flex: none;
@@ -2445,4 +2530,34 @@
   flex-basis: 100%;
   margin: 0;
   color: var(--text-2);
+}
+
+/* Archived projects, folded after Work's list (docs/plans/archive-project.md). */
+.places .c3-archived {
+  margin-top: 8px;
+  padding: 0 4px;
+}
+.places .c3-archived-fold {
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.places .c3-archived-list {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.places .c3-archived-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 12px;
+  min-height: 32px;
+}
+/* A failed Unarchive takes its own line under the row: the title and its press stay in sight. */
+.places .c3-archived-list .form-error {
+  flex-basis: 100%;
+  margin: 0 0 4px;
 }

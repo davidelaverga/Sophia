@@ -14,7 +14,9 @@ const added = (page: Page) => pane(page).locator('.task-added')
 const tasksTab = (page: Page) => pane(page).getByRole('tab', { name: /^Tasks/ })
 const rows = (page: Page) => pane(page).getByRole('list', { name: 'Tasks' }).getByRole('listitem')
 const served = (page: Page) => page.evaluate(() => [...(window.fixture?.served ?? [])])
-const writes = async (page: Page) => (await served(page)).filter((s) => s.startsWith('task:'))
+// The fixture's ledger shares one prefix: a task write is `task:create` or `task:done`, while a read of the report's
+// native task (the report origin, #383) is `task:<revision>`. Only the writes are counted here.
+const writes = async (page: Page) => (await served(page)).filter((s) => /^task:(create|done)$/.test(s))
 const reads = async (page: Page) => (await served(page)).filter((s) => s === 'tasks:read').length
 
 async function open(page: Page, query = '') {
@@ -241,7 +243,9 @@ test('task · a Create closed while on its way still says so, in the foot', asyn
   await expect(added(page)).toContainText('Task added for you.')
 })
 
-test('task · while the tasks are read, the tab says so; a task made meanwhile is there', async ({ page }) => {
+test('task · while the tasks are read, the tab says so; a task made meanwhile shows once they are read', async ({
+  page,
+}) => {
   await open(page, '&tasks=hold')
   await tasksTab(page).click()
   await expect(pane(page).getByText('Reading tasks…')).toBeVisible()
@@ -250,8 +254,13 @@ test('task · while the tasks are read, the tab says so; a task made meanwhile i
   await what(page).fill('Check it')
   await form(page).getByRole('button', { name: 'Create' }).click()
   await added(page).getByRole('button', { name: 'See tasks' }).click()
+  // The report's list is read-authoritative (B20): the Create's answer never seeds it while its read is held.
+  await expect(pane(page).getByText('Reading tasks…')).toBeVisible()
+  await expect(rows(page)).toHaveCount(0)
+  await page.evaluate(() => window.fixture?.releaseTaskReads())
   await expect(rows(page)).toHaveCount(1)
   await expect(rows(page).first()).toContainText('Check it')
+  expect(await writes(page)).toEqual(['task:create'])
 })
 
 test('task · a viewer with no tasks is told so, not sent to a press they don’t have', async ({ page }) => {

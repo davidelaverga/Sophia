@@ -81,6 +81,36 @@ describe('viewsShown (docs/plans/served-views.md)', () => {
     assert.equal(shownView('resources', false), 'studio')
     assert.equal(shownView('updates', true), 'updates')
   })
+
+  it('shows saved conversations where they are served, and nothing else unserved with them (CON-01, A33)', () => {
+    assert.deepEqual(viewsShown(false, true), ['studio', 'conversations', 'goals', 'work', 'knowledge'])
+    assert.equal(shownView('conversations', false, true), 'conversations')
+    assert.equal(shownView('conversations', false), 'studio')
+    assert.equal(shownView('updates', false, true), 'studio')
+  })
+
+  it('adds only Updates under the attention flag without the vision flag (A34)', () => {
+    assert.deepEqual(viewsShown(false, false, false), ['studio', 'goals', 'work', 'knowledge'])
+    assert.deepEqual(viewsShown(false, false, true), ['studio', 'goals', 'work', 'knowledge', 'updates'])
+    assert.deepEqual(viewsShown(true, false, true), VIEWS)
+    assert.deepEqual(viewsShown(true, false, false), VIEWS)
+    assert.equal(shownView('updates', false, false, true), 'updates')
+    assert.equal(shownView('conversations', false, false, true), 'studio')
+    assert.equal(shownView('resources', false, false, true), 'studio')
+    assert.equal(shownView('updates', false, false, false), 'studio')
+  })
+
+  it('shows saved conversations and Updates together where both are served, and still no resources', () => {
+    assert.deepEqual(viewsShown(false, true, true), [
+      'studio',
+      'conversations',
+      'goals',
+      'work',
+      'knowledge',
+      'updates',
+    ])
+    assert.equal(shownView('resources', false, true, true), 'studio')
+  })
 })
 
 describe('whose address it is (Codex on #242)', () => {

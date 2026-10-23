@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Snapshot } from '@sophia/contracts'
 import { EmptyState, Skeleton } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
+import { goalReports } from './goal-reports.ts'
 import { TaskCard } from '../conversation/TaskCard.tsx'
 import { workHeading } from '../conversation/conversation-view.ts'
 import { GoalTabs } from './GoalTabs.tsx'
@@ -13,6 +14,7 @@ import { answers, SearchQuery, TaskSearch } from './TaskSearch.tsx'
 import { GoalsOverview } from './GoalsOverview.tsx'
 import type { GoalGlance } from './goals-glance.ts'
 import type { Ask } from './planning/plan.ts'
+import type { OpenDecision } from './planning/decision-alert.ts'
 
 /** A goal's plan from the lead: its view, and the few marks that stand for it in the goals' rail. */
 export interface GoalPlan {
@@ -28,6 +30,11 @@ export interface GoalPlan {
   decisions?: readonly string[]
   /** Whether something in it waits on the viewer: another goal's board then links to it, without switching to it. */
   attention?: boolean
+  /**
+   * The decisions in it waiting on the viewer, a proposed plan's included: counted in the tab and heard while it is
+   * hidden (decision-alert.md).
+   */
+  toDecide?: readonly OpenDecision[]
   /** Goals: its tasks' lanes, who is on it and what is in its way (`glanceOf`, goals-overview.md). */
   glance?: GoalGlance
   /** Goals: its plan's next checkpoint, in words. */
@@ -46,12 +53,17 @@ interface Props {
   controls: boolean
   /** Editors and admins act on goals and invite; viewers read. */
   canAct: boolean
+  /** A project admin: only they retire a completed goal's remaining sessions (A41). */
+  admin?: boolean | undefined
   onOpenStudio: () => void
   onInvite: () => void
   /** Tasks: each goal's plan, by the goal's id, shown inside that goal's row (LFE-07.1). */
   plans?: Readonly<Record<string, GoalPlan>> | undefined
   /** Tasks: what Sophia offers to start under a goal (the source-review pilot, WBC-02), under its plan. */
   entry?: ((goal: Goal) => React.ReactNode) | undefined
+  /** Tasks: the plans' board couldn't be read, none read before: said, with Try again (silent-views.md). */
+  boardFailed?: boolean
+  onRetryBoard?: (() => void) | undefined
   /** Goals: the goals as an overview (GoalsOverview), each plan read at a glance, its board left to Tasks, where
    * `onOpenGoal` takes the goal. */
   summary?: boolean
@@ -187,6 +199,30 @@ function Head(props: {
   )
 }
 
+/**
+ * The board unread, with goals it would plan: said, never shown as goals with no plan, with the way to read it again.
+ * The area's words and idiom (GoalsOverview's dates, GoalTargets' owner and date).
+ */
+function BoardFailed({
+  failed,
+  snapshot,
+  onRetry,
+}: {
+  failed: boolean | undefined
+  snapshot: Snapshot | undefined
+  onRetry: (() => void) | undefined
+}) {
+  if (!failed || !snapshot?.goals.length) return null
+  return (
+    <p className="view-note" role="alert">
+      The tasks can’t be read right now.{' '}
+      <button type="button" className="text-button" onClick={onRetry}>
+        Try again
+      </button>
+    </p>
+  )
+}
+
 /** Tasks' search, when it leaves no goal and no task. */
 function NoAnswer({ found, query }: { found: boolean; query: string }) {
   if (found || !query) return null
@@ -202,6 +238,7 @@ interface ListedProps extends Pick<
 > {
   summary: boolean | undefined
   controls: boolean
+  admin: boolean
   /** Every plan as served; `plans`, those Tasks draws. */
   given: Props['plans']
   plans: Props['plans']
@@ -212,13 +249,16 @@ interface ListedProps extends Pick<
 /** Goals: the overview. Tasks: each goal with its plan under it, as the search leaves them. */
 const NO_NAMES: ReadonlyMap<string, string> = new Map()
 
-function Listed({ snapshot, projectId, identity, entry, onOpenGoal, summary, controls, ...shown }: ListedProps) {
+function Listed({ snapshot, projectId, identity, entry, onOpenGoal, summary, controls, admin, ...shown }: ListedProps) {
   const { given, plans, listed, query, me, names } = shown
   // With no goal yet, the view's empty state says so alone: no brief, no list, no search (goals-overview.md).
   if (summary) {
     if (!snapshot?.goals.length) return null
     const notes = { projectId, identity, me: me ?? '', names: names ?? NO_NAMES, cursor: snapshot.cursor }
-    return <GoalsOverview goals={snapshot.goals} plans={given} notes={notes} onOpenGoal={onOpenGoal} />
+    const reports = (goalId: string) => goalReports(goalId, snapshot.work, snapshot.artifacts)
+    return (
+      <GoalsOverview goals={snapshot.goals} plans={given} notes={notes} onOpenGoal={onOpenGoal} reports={reports} />
+    )
   }
   return (
     <SearchQuery.Provider value={query}>
@@ -230,6 +270,7 @@ function Listed({ snapshot, projectId, identity, entry, onOpenGoal, summary, con
             projectId={projectId}
             identity={identity}
             controls={controls}
+            admin={admin}
             compact={plans?.[g.id] !== undefined}
             next={plans?.[g.id]?.next}
           >
@@ -248,10 +289,13 @@ export function GoalList({
   identity,
   controls,
   canAct,
+  admin,
   onOpenStudio,
   onInvite,
   plans: given,
   entry,
+  boardFailed,
+  onRetryBoard,
   summary,
   onOpenGoal,
   me,
@@ -265,6 +309,7 @@ export function GoalList({
   return (
     <section className="goals" aria-labelledby="goals-title">
       <Head tasks={controls} anyPlan={anyPlan} snapshot={snapshot} query={query} onQuery={setQuery} />
+      <BoardFailed failed={boardFailed} snapshot={snapshot} onRetry={onRetryBoard} />
       <NoAnswer found={!anyPlan || tabbed.length + listed.length > 0} query={query} />
       {!snapshot && <Skeleton label="Reading the goals…" />}
       {snapshot?.goals.length === 0 && <NoGoals canAct={canAct} onOpenStudio={onOpenStudio} onInvite={onInvite} />}
@@ -274,6 +319,7 @@ export function GoalList({
         {...{ snapshot, projectId, identity, entry, onOpenGoal, given, plans, listed, query, me, names }}
         summary={summary}
         controls={controls && canAct}
+        admin={controls && canAct && admin === true}
       />
       {snapshot && <NativeTasks snapshot={snapshot} projectId={projectId} identity={identity} canAct={canAct} />}
     </section>

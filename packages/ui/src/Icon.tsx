@@ -45,6 +45,7 @@ export type IconName =
   | 'decide'
   | 'people'
   | 'more'
+  | 'flip'
 
 const slash = <path d="M4 4l16 16" />
 const mic = (
@@ -84,13 +85,21 @@ const PATHS: Record<IconName, ReactNode> = {
       {slash}
     </>
   ),
+  /* Switch camera: a camera's body with a turn inside it, two arrows going round (camera-flip.md). */
+  flip: (
+    <>
+      <path d="M3 9.5A2.5 2.5 0 0 1 5.5 7h2L9 5h6l1.5 2h2A2.5 2.5 0 0 1 21 9.5v7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 16.5z" />
+      <path d="M8.8 12.6a3.2 3.2 0 0 1 5.6-1.9M14.6 9v1.9h-1.9M15.2 13.4a3.2 3.2 0 0 1-5.6 1.9M9.4 17v-1.9h1.9" />
+    </>
+  ),
   screen: (
     <>
       <rect x="3" y="4.5" width="18" height="12" rx="2" />
       <path d="M8.5 20h7M12 16.5V20" />
     </>
   ),
-  leave: <path d="M14.5 4.5h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3M10 16.5l4.5-4.5L10 7.5M14.5 12H4" />,
+  // The way out: the door behind, the arrow leaving it (room-dock-people.md).
+  leave: <path d="M9.5 4.5h-3a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h3M15.5 7.5 20 12l-4.5 4.5M20 12H9.5" />,
   link: (
     <path d="M10.5 13.5a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1 1M13.5 10.5a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1-1" />
   ),

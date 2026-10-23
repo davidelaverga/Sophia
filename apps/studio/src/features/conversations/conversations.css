@@ -58,6 +58,21 @@
   font-size: var(--type-small);
   overflow-wrap: anywhere;
 }
+/* A message withdrawn keeps its place and says so; a request that ended unanswered says why, under the message (A33). */
+.conv-withdrawn {
+  color: var(--text-2);
+  font-style: italic;
+}
+/* Where the focus lands once a message is withdrawn here (WithdrawHere.tsx): its press and confirmation went with it. */
+.conv-withdrawn:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+}
+.conv-msg-body .conv-ask-ended {
+  margin: 4px 0 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
 .conv-note .text-button,
 .conv-earlier .text-button {
   min-height: 24px;
@@ -92,7 +107,7 @@
   min-width: 0;
   min-height: 0;
   padding: 18px 8px 0;
-  background: var(--plane);
+  background: var(--surface-well);
 }
 .conv-list-head {
   display: flex;
@@ -118,7 +133,7 @@
 }
 /* Pressed: a ring that reads at 3:1, not only a tone a hover shares. */
 .conv-show button[aria-pressed='true'] {
-  background: var(--raise-2);
+  background: var(--control-selected-quiet);
   box-shadow: inset 0 0 0 1px var(--text-3);
   color: var(--text);
 }
@@ -208,12 +223,22 @@
 .conv-row:hover {
   background: var(--raise);
 }
+/* The open one: a step up from a hover in the room, a white row over its list on paper. */
 .conv-row[aria-pressed='true'] {
-  background: var(--raise-2);
+  background: var(--control-selected-quiet);
 }
 /* The open one answers too: its edge lights, as a card's does. */
 .conv-row[aria-pressed='true']:hover {
   box-shadow: inset 0 0 0 1px var(--line-2);
+}
+/* On paper it rests on the chosen piece's level, its edge over it on hover: paper's rules alone. */
+:where(:root[data-theme='light']) .conv-row[aria-pressed='true'] {
+  box-shadow: var(--control-selected-shadow);
+}
+:where(:root[data-theme='light']) .conv-row[aria-pressed='true']:hover {
+  box-shadow:
+    inset 0 0 0 1px var(--line-2),
+    var(--control-selected-shadow);
 }
 .conv-title {
   min-width: 0;
@@ -272,6 +297,16 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+}
+/* «New messages ↓» (docs/plans/conversation-moves.md): over the thread's foot, above the field, in the flow. */
+.pill.conv-new-pill {
+  position: relative;
+  z-index: 2;
+  align-self: center;
+  margin: -44px 0 12px;
+  /* Opaque: it lies over the thread's last words. */
+  background: var(--plane-2);
+  box-shadow: var(--lift);
 }
 /* Sophia's light, faint, from above the thread. */
 .conv-open::before {
@@ -401,7 +436,7 @@
   padding: 4px 3px;
   border-radius: var(--r-1);
   background: #fbf8f3;
-  box-shadow: 0 4px 12px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
+  box-shadow: var(--elev-thumb);
 }
 .conv-output-page i {
   display: block;
@@ -657,7 +692,7 @@
   /* The room's dock floats over this pane's foot: its last line stays clear of it. */
   padding: 22px 22px calc(var(--floor) + 72px);
   overflow: auto;
-  background: var(--plane);
+  background: var(--surface-well);
 }
 .conv-context-head {
   display: flex;
@@ -671,6 +706,17 @@
 .conv-this-summary {
   margin: 0;
   font-size: var(--type-body);
+}
+/* An admin's Erase this conversation: quiet, at the foot of «This conversation», its confirmation under it. */
+.conv-this .conv-erase {
+  justify-self: start;
+  min-height: 24px;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.conv-erase-form {
+  display: grid;
+  gap: 8px;
 }
 .conv-mission {
   display: grid;
@@ -820,6 +866,28 @@
   font-size: var(--type-small);
   white-space: nowrap;
 }
+/* Withdraw (one's own) and Remove (an admin's): a second press at the corner, beside «Propose as decision». Its
+   confirmation, when open, is in the flow under the message. */
+.conv-withdraw {
+  position: absolute;
+  top: -12px;
+  right: 22px;
+  z-index: 1;
+}
+/* In the acts row (Copy, Quote, Propose, Withdraw) the withdraw press flows with the rest. */
+.conv-acts .conv-withdraw {
+  position: static;
+}
+.conv-withdraw-form {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 480px);
+  margin-top: 8px;
+}
+/* With the confirmation open, the message's time steps aside, as with «Propose as decision». */
+.conv-msg:has(.conv-withdraw-form) .conv-msg-at {
+  display: none;
+}
 @media (hover: hover) {
   .conv-msg:not(:hover, :focus-within) :is(.conv-propose-press, .conv-act) {
     opacity: 0;
@@ -829,6 +897,8 @@
    a keyboard and a screen reader, taking no tap meant for the message. */
 @media (hover: none) {
   .conv-msg:not([data-pressed], :focus-within) .conv-acts,
+  .conv-msg:not([data-pressed], :focus-within) .conv-propose,
+  .conv-msg:not([data-pressed], :focus-within) .conv-withdraw,
   .conv-msg:not([data-pressed], :focus-within) :is(.conv-propose-press, .conv-act) {
     pointer-events: none;
   }
@@ -995,7 +1065,7 @@
   padding: 8px 10px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-3);
-  background: var(--plane);
+  background: var(--surface-well);
   color: var(--text);
   font: var(--type-body) / var(--lh-body) var(--sans);
   resize: vertical;
@@ -1041,6 +1111,11 @@
   max-width: 760px;
   margin-inline: auto;
 }
+/* The polite line, out of sight while it says nothing, keeps the size that hides it, not the column's (Note). */
+.conv-compose > .sr-only {
+  width: 1px;
+  margin: 0;
+}
 .conv-field-box {
   display: flex;
   align-items: flex-end;
@@ -1050,14 +1125,14 @@
   background: var(--plane-2);
   box-shadow:
     0 0 0 1px var(--line-2),
-    0 18px 50px rgb(var(--shadow-rgb) / calc(0.55 * var(--shadow-k)));
+    var(--elev-composer);
   transition: box-shadow var(--fast) var(--ease);
 }
 .conv-field-box:focus-within {
   box-shadow:
     0 0 0 1px rgb(var(--halo-rgb) / 0.45),
-    0 18px 50px rgb(var(--shadow-rgb) / calc(0.55 * var(--shadow-k))),
-    0 0 30px rgb(var(--halo-rgb) / 0.08);
+    var(--elev-composer),
+    var(--glow-composer);
 }
 .conv-compose textarea {
   flex: 1;
@@ -1210,7 +1285,7 @@
 }
 .conv-ask:has(input:checked) .umbral {
   opacity: 1;
-  filter: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.8));
+  filter: var(--glow-asked);
 }
 .conv-ask:has(input:checked) .conv-ask-box {
   border-color: var(--halo);
@@ -1287,7 +1362,7 @@
     transition:
       transform var(--base) var(--ease),
       visibility 0s var(--base);
-    box-shadow: -30px 0 80px rgb(var(--shadow-rgb) / calc(0.6 * var(--shadow-k)));
+    box-shadow: var(--elev-context);
   }
   .conversations[data-context] .conv-context {
     visibility: visible;

@@ -1,0 +1,99 @@
+# Her orb: follow-ups to #462
+
+> 2026-10-18 · Luis: «Que más podemos ir haciendo en lo qe esperamos. Ya que tenemos un cuello de botella». The four
+> #462 entries at the end of `evaluacion-2026-10-16/seguimientos-p2.md` (two from Codex, one from the independent
+> review of the slow-frames fix, one from Codex on Safari), under Luis's rule that P2s are fixed in follow-up PRs, not
+> in the PR under review. Studio only; stacked on `group/paper-light` (#462).
+
+## The gaps
+
+1. **Below 20 frames a second her springs run slower than the clock** (`engine.ts:357`). Each frame's spring step is
+   clamped to 0.05 s, so at 8 frames a second they run at 40 %. A result's bloom then peaks at 0.97 of her size and
+   never shows. Her light takes 11 s to read 0.99 (13.5 s to read 0.9 at work) instead of 4.43 s (5.35 s). The checks
+   that wait 8 s for it pass on CI only because the paper pages drew at least 18 frames a second there.
+2. **A result arriving while the floor travels loses its bloom** (`engine.ts:383`, Codex). The floor's flight takes
+   1.6 s, and while it lasts it holds the swell spring. The bloom's 0.9 s window starts on arrival, so by the landing
+   it has run out unseen.
+3. **Reconnecting while she speaks into a blocked sound, her orb keeps moving** (`theme.css:535`, Codex). Over a link
+   coming back `sophiaView` makes her `joining` but keeps `needsAudio`. So the light carries both `data-presence=
+   "joining"` and `data-sound="blocked"`. The blocked rule is as specific as joining's and comes later, so its
+   `animation-play-state: running` wins: the orb that should wait gathered and still drifts, breathes and calls.
+4. **In Safari the levels can stay at 0 after sound was allowed** (`voice-levels.ts:77`, Codex). The analysers'
+   context is made on the first read. If someone speaks before any further press, that read comes outside a user
+   activation. Safari keeps such a context suspended, and the room's sound is already allowed, so no
+   `AudioPlaybackStatusChanged` comes to wake it. Her light and the meters read 0 until the next click or key.
+
+## What changes
+
+1. **`engine.ts`:** the springs step at most `STALL_S` (0.25 s) a frame. That is the bound `pace()` already uses to
+   tell load from a stall, and `stepSpring` is exact for any step. A tab coming back still doesn't leap. The comments
+   that said «about 4 s to within 1 %» now give the measured times (reading 0.99 takes 4.43 s, 0.9 at work 5.35 s).
+   `motion.ts`'s «4.7 / omega to within 1 %» was the 5 % figure; from rest, 1 % takes 6.6 / omega.
+2. **`engine.ts`:** a bloom that arrives while the floor is in flight, or that hadn't yet shown when the floor left
+   (its first quarter second, `BLOOM_UNSEEN_S`: a quarter of its swell, under 2 % of her size), waits for the landing
+   and then plays whole. So the result still blooms once, after the floor has landed, as its own moment. A bloom
+   further along has been seen: it ends under the flight and doesn't come back after it. The choice is made from when
+   the floor left, not from the frame that notices, so it holds at any frame rate. Adding the bloom to the flight's
+   swell would make one larger swell out of two different events, or hide it behind the flight's peak.
+3. **`sophia-view.ts`:** `lightSound(view)`: the call on her rim needs her to be here, speaking into a blocked sound.
+   While the link comes back she is `joining` and the light carries no `data-sound`, so joining's rule holds her
+   gathered and still. **Allow audio stays.** The block belongs to this browser (`room.canPlaybackAudio`), not to her
+   stale signal, and a press during the reconnect still lets her sound play when the link is back. `RoomStage` reads
+   `lightSound`; `theme.css` doesn't change.
+4. **`voice-levels.ts`:** `wake()` makes the call's context if it isn't made yet, and resumes it. `connectRoom` calls
+   it beside LiveKit's own context: as the room connects (LiveKit makes its context in `connect`), and within Allow
+   audio's press (before `room.startAudio()`). Sound allowed (`AudioPlaybackStatusChanged`) wakes it too, made or not.
+   Whatever lets the room's sound play now lets the levels run. Nothing is made after the call has ended.
+   - Made before `connect`, the context needs an end of its own when the room never connects. LiveKit says
+     Disconnected for most failed connections, but not for one refused before it starts (a browser it can't run in, an
+     attempt cancelled while it waits). `end()` (what Disconnected already did) is called when `connect` throws. The
+     connect and both wakes live in `connectWithLevels`, in `voice-levels.ts` beside the levels it wakes, where a
+     unit test can load it (`livekit-room.ts` can't be: it reads `import.meta.env`). That also keeps `connectRoom`
+     within its size limit.
+
+## Checks (written first)
+
+- **Unit:**
+  - `engine.test.ts`, with a clock the test moves: at 8 frames a second her light on paper reads 0.99 within 4.6 s,
+    and a result's bloom takes her past 1.03 (0.81 and 0.97 before the change). A result arriving 0.5 s into a
+    floor's flight takes her past 1.03 after the landing, and so does a floor leaving 0.2 s into a bloom (both stayed
+    at 1 before the change). A floor leaving 0.6 s into a bloom, at rest so her size is the bloom's alone (1.08 by
+    then), leaves her at 1 after the landing (1.08 again before the review's fix).
+  - `sophia-view.test.ts`: reconnecting while she speaks into a blocked sound: joining, Allow audio kept, no sound
+    mark on her light; with the link live, the mark.
+  - `voice-levels.test.ts`, with a tap maker that plays Safari's rule (a context made or resumed outside a press
+    stays suspended and reads 0): a context made within the press reads a voice heard after it. One made before
+    Allow audio is resumed within its press. Nothing is made after the call. A room that never connects lets its
+    context go, once.
+  - `voice-levels.test.ts`, `connectWithLevels` against a room that connects and starts its sound as LiveKit 2.22.3
+    does (it says the sound is allowed only after an await, `Room.startAudio` and `acquireAudioContext`): connected
+    within a press, its context runs; Allow audio's press wakes it; a connect refused before it starts lets its
+    context go with the refusal, once. Each of the two wakes and the `end()` was removed in turn: each removal fails
+    a check, and the file unchanged passes.
+- **Browser:**
+  - `orb-result.spec.ts`: the bloom check at 8 frames a second (`slowFramesFromNow`, once she is lit, and a second
+    after her 0.9 reads, so her light is within a thousandth of full): peak ≥ 1.03, 0.97 before the change. A result
+    arriving early in a floor pass (`floor=me`, Pass to… Lucía) takes her past 1.03 after the landing, read from 1.7 s
+    after the pass on the page's clock (1 before the change). A floor passed 0.6 s after the result arrives, timed by
+    the page, leaves her below 1.03 from 1.7 s after the pass (1.08 before the review's fix: the bloom played again).
+  - `paper-orb.spec.ts`: at 8 frames a second (`slowFrames`) her light on paper reads 0.99 within 8 s (0.94 before).
+  - `orb-presence.spec.ts`: `sophia=blocked`, then `linkLost(true)`: joining, no sound mark, only her forming running
+    (no drift, breath or call), Allow audio still offered. The link back brings the call back.
+  - Neighbours, so nothing leaned on the clamp: `orb-hears`, `voice-amplitude`, `voice-meters`, `voice-chat`, every
+    `light-*`, `room-people`, `room-work`, `room-return` and `reconnecting-on-video`.
+
+## Not here
+
+- Safari itself can't be run here, and the fixtures replace `livekit-room.ts`: `connectWithLevels` runs in the unit
+  tests against a room that plays LiveKit's order, not in a browser.
+
+## After the independent review
+
+Two P2s on this branch, each verified against the code and fixed test-first:
+
+- **A floor leaving after a bloom had shown played it again** (`engine.ts:323`). The hold applied to any bloom still in
+  its 0.9 s, so one already seen came back whole after the landing: one result, two blooms. Now only a bloom that
+  hadn't yet shown waits (item 2 above).
+- **`connectWithLevels` was read, not run** (`livekit-room.ts:452`). Removing its two wakes left every check green, and
+  the Safari check that said the sound was allowed within the press played an order LiveKit 2.22.3 never uses. It
+  moved to `voice-levels.ts` and is run by the checks above; the unrealistic check is gone.

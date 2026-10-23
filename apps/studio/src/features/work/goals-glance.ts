@@ -1,6 +1,7 @@
 // Goals as a briefing (docs/plans/goals-overview.md): each goal's health as people read it, the brief that leads the
 // view, the line under a goal, the order by health, and what a search keeps once there are many goals.
-import type { Goal } from '@sophia/contracts'
+import type { Goal, GoalTarget } from '@sophia/contracts'
+import { dueOf } from './goal-due.ts'
 import type { Noted } from './goal-notes.ts'
 import { progressOf, type Ask, type GoalGlance, type Ways } from './planning/plan.ts'
 
@@ -14,6 +15,8 @@ export interface Glanced extends Noted {
   asks?: readonly Ask[] | undefined
   checkpoint?: string | undefined
   words?: string | undefined
+  /** Past its target date and not completed (goal-overdue-health.md). */
+  overdue?: boolean | undefined
 }
 
 type Plans = Readonly<Record<string, Glanced>> | undefined
@@ -57,15 +60,19 @@ export function wayLine(glance: GoalGlance | undefined): string | null {
   return parts.length > 0 ? parts.join(' · ') : null
 }
 
+/** Waiting on the viewer, a difficulty written on it, or past its date: a moving or ready goal needs attention. */
+const pressing = (plan: Glanced | undefined): boolean =>
+  (plan?.asks?.length ?? 0) > 0 || plan?.note?.kind === 'blocker' || plan?.overdue === true
+
 /**
  * A goal's health from what is served: waiting on the viewer, or moving with something in its way, it needs
- * attention, as when its latest note is a difficulty; moving freely, it is on track; ready, not started; holding,
- * held, stopping or stopped, paused.
+ * attention, as when its latest note is a difficulty or its date has passed; moving freely, it is on track; ready, not
+ * started; holding, held, stopping or stopped, paused.
  */
 export function healthOf(goal: Goal, plan: Glanced | undefined): Health {
   const rest = AT_REST[goal.status]
   if (rest) return rest
-  if ((plan?.asks?.length ?? 0) > 0 || plan?.note?.kind === 'blocker') return 'attention'
+  if (pressing(plan)) return 'attention'
   if (goal.status === 'ready') return 'new'
   return wayLine(plan?.glance) ? 'attention' : 'track'
 }
@@ -105,7 +112,9 @@ function attentionLine(plan: Glanced | undefined): string {
  * stands in its way; else its latest note, or where it is.
  */
 export function rowLine(goal: Goal, plan: Glanced | undefined): string {
-  if (healthOf(goal, plan) === 'attention') return attentionLine(plan)
+  // Past its date with nothing else in the way: the line says where it is; the target's line says the date.
+  const why = healthOf(goal, plan) === 'attention' ? attentionLine(plan) : ''
+  if (why) return why
   const note = plan?.note
   if (note) return note.said
   if (goal.status === 'running' && plan?.checkpoint) return `Next · ${plan.checkpoint}`
@@ -114,21 +123,48 @@ export function rowLine(goal: Goal, plan: Glanced | undefined): string {
 
 const WORDS = ['Nothing', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine']
 
-/** The view's first sentence: what waits on the viewer. */
-export function briefOf(asks: number): string {
-  const n = WORDS[asks] ?? String(asks)
-  if (asks === 0) return 'Nothing waits on you.'
-  return asks === 1 ? `${n} thing waits on you.` : `${n} things wait on you.`
+const inWords = (n: number) => WORDS[n] ?? String(n)
+
+/** «one of your goals is overdue», «two of your goals are overdue». */
+const lateWords = (late: number) => `${inWords(late).toLowerCase()} of your goals ${late === 1 ? 'is' : 'are'} overdue`
+
+/** The view's first sentence: what waits on the viewer, then their own goals past their date (goal-overdue-health.md). */
+export function briefOf(asks: number, late = 0): string {
+  const n = inWords(asks)
+  const waits = asks === 1 ? `${n} thing waits on you` : `${n} things wait on you`
+  if (late === 0) return asks === 0 ? 'Nothing waits on you.' : `${waits}.`
+  const words = lateWords(late)
+  return asks === 0 ? `${words.charAt(0).toUpperCase()}${words.slice(1)}.` : `${waits}, and ${words}.`
+}
+
+/** Each goal past its target date marked on its plan, a completed one never (goal-overdue-health.md). */
+export function withDue<P extends Glanced>(
+  goals: readonly Goal[],
+  plans: Readonly<Record<string, P>> | undefined,
+  targets: ReadonlyMap<string, GoalTarget>,
+  today: string,
+): Record<string, (P & Glanced) | Glanced> {
+  const out: Record<string, (P & Glanced) | Glanced> = { ...plans }
+  for (const goal of goals) {
+    if (dueOf(targets.get(goal.id)?.targetDate, today, goal.status === 'completed') === 'overdue')
+      out[goal.id] = { ...plans?.[goal.id], overdue: true }
+  }
+  return out
 }
 
 /** The goals counted by health, in a quiet line; the done ones left out. */
 export function healthLine(goals: readonly Goal[], plans: Plans): string {
   const healths = goals.map((g) => healthOf(g, plans?.[g.id]))
-  return ORDER.filter((h) => h !== 'done')
-    .map((h) => [h, healths.filter((x) => x === h).length] as const)
-    .filter(([, n]) => n > 0)
-    .map(([h, n]) => `${String(n)} ${HEALTH_LABEL[h].toLowerCase()}`)
-    .join(' · ')
+  return (
+    ORDER.filter((h) => h !== 'done')
+      .map((h) => [h, healths.filter((x) => x === h).length] as const)
+      .filter(([, n]) => n > 0)
+      // «2 need attention», never «2 needs attention».
+      .map(
+        ([h, n]) => `${String(n)} ${(h === 'attention' && n > 1 ? 'Need attention' : HEALTH_LABEL[h]).toLowerCase()}`,
+      )
+      .join(' · ')
+  )
 }
 
 /** The goals by health, in the order a person reads them; within one health, as they came. */

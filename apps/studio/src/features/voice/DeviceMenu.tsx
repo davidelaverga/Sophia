@@ -5,6 +5,7 @@
 // it, with nothing to press.
 import { Fragment, useEffect, useState } from 'react'
 import { Icon, Menu, MenuHead, MenuItem, MenuSep, Tip, usePopover } from '@sophia/ui'
+import { newVersion } from '../../app/new-version-early.ts'
 import { BACKGROUNDS, chosenBackground, type BackgroundId } from './background-preference.ts'
 import {
   canChooseOutput,
@@ -14,21 +15,25 @@ import {
   type DeviceKind,
   type MediaDevice,
 } from './device-preference.ts'
+import { refusalOf } from './part-gone.ts'
 
-/** What the menu found: still reading, refused, or each kind's devices. */
+/** What the menu found: still reading, refused, its part gone after a deploy (stale-part-call.md), or each kind's devices. */
 export type Found =
-  { state: 'reading' } | { state: 'refused' } | { state: 'found'; devices: Partial<Record<DeviceKind, MediaDevice[]>> }
+  | { state: 'reading' }
+  | { state: 'refused' }
+  | { state: 'stale' }
+  | { state: 'found'; devices: Partial<Record<DeviceKind, MediaDevice[]>> }
 
 /** How a kind's devices are listed: the room's own (useProjectRoom). */
 export type List = (kind: DeviceKind) => Promise<MediaDevice[]>
 
-/** The devices of these kinds; refused where the browser keeps access back. */
+/** The devices of these kinds; refused where the browser keeps access back, stale where their part is gone. */
 async function readDevices(kinds: readonly DeviceKind[], list: List): Promise<Found> {
   try {
     const lists = await Promise.all(kinds.map((k) => list(k)))
     return { state: 'found', devices: Object.fromEntries(kinds.map((k, i) => [k, lists[i] ?? []])) }
-  } catch {
-    return { state: 'refused' }
+  } catch (err: unknown) {
+    return { state: refusalOf(err, newVersion) }
   }
 }
 
@@ -68,6 +73,7 @@ interface KindProps {
 
 function KindItems({ kind, found, chosen, onChoose }: KindProps) {
   if (found.state === 'reading') return <Said>Finding devices…</Said>
+  if (found.state === 'stale') return <Said>Reload this tab to choose one</Said>
   if (found.state === 'refused')
     return <Said>{`Allow the ${KIND_WORD[kind].toLowerCase()} in your browser’s site settings to choose one`}</Said>
   const devices = found.devices[kind] ?? []
@@ -124,6 +130,36 @@ function BackgroundItems({ can, onChoose }: { can: boolean | null; onChoose: (id
   )
 }
 
+interface Switch {
+  on: boolean
+  toggle: () => void
+}
+
+/** Last, the menu's switches: your camera mirrored here (room-basics.md), others' cameras coming (incoming-video.md). */
+function Switches(props: {
+  mirror?: Switch | undefined
+  incoming?: Switch | undefined
+  closeThen: (act: () => void) => void
+}) {
+  const { mirror, incoming, closeThen } = props
+  if (!mirror && !incoming) return null
+  return (
+    <>
+      <MenuSep />
+      {mirror && (
+        <MenuItem checked={mirror.on} toggle onClick={() => closeThen(mirror.toggle)}>
+          Mirror my video
+        </MenuItem>
+      )}
+      {incoming && (
+        <MenuItem checked={incoming.on} toggle onClick={() => closeThen(incoming.toggle)}>
+          Show others’ cameras
+        </MenuItem>
+      )}
+    </>
+  )
+}
+
 interface Props {
   /** The kinds it lists, in order; a speaker only where the browser can choose one. */
   kinds: readonly DeviceKind[]
@@ -133,9 +169,13 @@ interface Props {
   onChoose: (kind: DeviceKind, id: string) => void
   /** Under the cameras, the camera's background. */
   background?: BackgroundChoice
+  /** Last, whether your own camera shows mirrored here (room-basics.md). */
+  mirror?: Switch | undefined
+  /** And whether others' cameras come here, for this call (incoming-video.md). */
+  incoming?: Switch | undefined
 }
 
-export function DeviceMenu({ kinds, label, list, onChoose, background }: Props) {
+export function DeviceMenu({ kinds, label, list, onChoose, background, mirror, incoming }: Props) {
   const [open, setOpen] = useState(false)
   const menu = usePopover(open, () => setOpen(false))
   const shown = kinds.filter((k) => k !== 'audiooutput' || canChooseOutput())
@@ -184,6 +224,7 @@ export function DeviceMenu({ kinds, label, list, onChoose, background }: Props) 
               <BackgroundItems can={can} onChoose={(id) => closeThen(() => background.onChoose(id))} />
             </>
           )}
+          <Switches mirror={mirror} incoming={incoming} closeThen={closeThen} />
         </Menu>
       )}
     </div>
@@ -191,7 +232,12 @@ export function DeviceMenu({ kinds, label, list, onChoose, background }: Props) 
 }
 
 /** What a kind's row says before a device can be named. */
-const UNNAMED: Record<Found['state'], string> = { reading: 'Finding…', refused: 'Not allowed', found: 'None found' }
+const UNNAMED: Record<Found['state'], string> = {
+  reading: 'Finding…',
+  refused: 'Not allowed',
+  stale: 'Needs a reload',
+  found: 'None found',
+}
 
 /**
  * One kind's device, named, in the check before joining (device-check.md): a press opens the kit's menu to choose

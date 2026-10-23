@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 // The call's devices (docs/plans/call-devices.md): beside the microphone and the camera, a narrow opener lists
 // the microphones, speakers and cameras, the one in use marked; a choice switches the call at once and is kept for
@@ -7,6 +7,18 @@ import { expect, test, type Page } from '@playwright/test'
 const dock = (page: Page) => page.getByRole('navigation', { name: 'Room controls' })
 const asked = (page: Page) => page.evaluate(() => [...(window.fixture?.asked ?? [])])
 const menu = (page: Page, name: string) => page.getByRole('menu', { name })
+/** A box's middle, down the page: two controls on one line share it. */
+const middle = (b: { y: number; height: number } | null) => Math.round((b?.y ?? 0) + (b?.height ?? 0) / 2)
+/** Once the dock has risen (its arrival moves it 8 px), so boxes are read at rest. */
+const atRest = (page: Page) =>
+  page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished),
+    ),
+  )
 
 test.beforeEach(async ({ page }) => {
   await page.route(
@@ -107,9 +119,91 @@ test('devices · a switch the browser refuses says so in the dock', async ({ pag
   )
 })
 
-test('@phone · devices · on a phone the dock keeps its one row: no device openers', async ({ page }) => {
+test('@phone · devices · in the call the dock keeps its one row of squares: no device openers', async ({ page }) => {
   await page.goto('/room.html?call=on')
   await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
   await expect(dock(page).getByRole('button', { name: 'Audio settings', exact: true })).toBeHidden()
   await expect(dock(page).getByRole('button', { name: 'Video settings', exact: true })).toBeHidden()
+})
+
+// Before joining the dock has only Join and its check: on a phone the check stands there too (phone-devices.md), and its
+// sheet chooses the camera, a phone's front or back, that the call opens with.
+test('@phone · devices · before joining, the check beside Join is a finger-sized 42 px square on its row (Codex P2 on #412)', async ({
+  page,
+}) => {
+  await page.goto('/room.html')
+  const check = dock(page).getByRole('button', { name: 'Check audio and video', exact: true })
+  await expect(check).toBeVisible()
+  await atRest(page)
+  const c = await check.boundingBox()
+  const j = await dock(page)
+    .getByRole('button', { name: /^Join the room/ })
+    .boundingBox()
+  expect(Math.round(c?.width ?? 0), 'its width').toBe(42)
+  expect(Math.round(c?.height ?? 0), 'its height').toBe(42)
+  expect(Math.round(c?.y ?? 0), 'on Join’s row').toBe(Math.round(j?.y ?? -1))
+})
+
+// Turned sideways a phone is wider than its portrait layout, and still a touch screen: the dock is a computer's, and the
+// check beside Join a finger's size as Join is (Codex P2 on #434).
+test('@phone · devices · turned sideways, the check beside Join is still a finger’s size, on Join’s line', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 844, height: 390 })
+  await page.goto('/room.html')
+  const check = dock(page).getByRole('button', { name: 'Check audio and video', exact: true })
+  await expect(check).toBeVisible()
+  await atRest(page)
+  const c = await check.boundingBox()
+  const j = await dock(page)
+    .getByRole('button', { name: /^Join the room/ })
+    .boundingBox()
+  expect(Math.round(c?.width ?? 0), 'its width').toBeGreaterThanOrEqual(40)
+  expect(Math.round(c?.height ?? 0), 'its height').toBeGreaterThanOrEqual(40)
+  expect(middle(c), 'on Join’s line').toBe(middle(j))
+})
+
+/**
+ * The rows of a menu a finger can't press: each brought into view as a finger would scroll to it, a press at its middle
+ * still reaches something else, or nothing (cut off above the stage, where no scroll goes).
+ */
+const unreached = (m: Locator) =>
+  m.locator('[role^="menuitem"]').evaluateAll((rows) =>
+    rows
+      .filter((el) => {
+        el.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+        const r = el.getBoundingClientRect()
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+        return hit === null || (hit !== el && !el.contains(hit))
+      })
+      .map((el) => el.textContent),
+  )
+
+// Turned sideways in a call, the dock is a computer's and Video settings opens over it, its rows a finger's 44 px: taller
+// than the room the stage leaves above the dock, and every row still within reach. It is where a phone on its side
+// chooses the camera (a review's P1 on camera-flip-resync.md).
+test('@phone · devices · turned sideways in a call, every row of Video settings is within a finger’s reach', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 844, height: 390 })
+  await page.goto('/room.html?call=on')
+  await dock(page).getByRole('button', { name: 'Video settings', exact: true }).click()
+  const video = menu(page, 'Video settings')
+  await expect(video.getByRole('menuitemradio', { name: 'Desk camera' })).toHaveCount(1)
+  await expect(video.getByRole('menuitemradio', { name: 'Dawn' })).toHaveCount(1)
+  await expect.poll(() => unreached(video), 'rows a press at their middle doesn’t reach').toEqual([])
+})
+
+test('@phone · devices · before joining, the check stands beside Join and chooses the camera the call opens with', async ({
+  page,
+}) => {
+  await page.goto('/room.html')
+  await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()
+  const check = page.getByRole('dialog', { name: 'Check your audio and video' })
+  await expect(check).toBeVisible()
+  await check.getByRole('button', { name: 'Camera: FaceTime HD Camera' }).click()
+  await menu(page, 'Camera').getByRole('menuitemradio', { name: 'Desk camera' }).click()
+  await check.getByRole('button', { name: 'Join the room' }).click()
+  await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  expect(await page.evaluate(() => window.fixture?.devicesOnJoin)).toEqual({ videoinput: 'cam-desk' })
 })

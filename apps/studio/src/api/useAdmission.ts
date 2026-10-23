@@ -31,9 +31,21 @@ export const pressFor = (status: AdmissionState<unknown, unknown>['status']): 'r
 
 const noReply = () => new ApiError(0, 'outcome_unknown', 'No reply from Sophia', 'same_admission_key')
 
-export function useAdmission<A, R>(send: (key: string, args: A) => Promise<R>): Admission<A, R> {
-  const [state, setState] = useState<AdmissionState<A, R>>({ status: 'idle' })
-  const key = useRef<string | null>(null)
+/** An intent sent with no reply before this page (a reload, held-in-tab.ts): its key and its arguments. */
+export interface Resumed<A> {
+  key: string
+  args: A
+}
+
+/** `resumed`: the intent this page starts with as unknown, so the press sends it again under its key. */
+export function useAdmission<A, R>(
+  send: (key: string, args: A) => Promise<R>,
+  resumed: Resumed<A> | null = null,
+): Admission<A, R> {
+  const [state, setState] = useState<AdmissionState<A, R>>(() =>
+    resumed ? { status: 'unknown', args: resumed.args } : { status: 'idle' },
+  )
+  const key = useRef<string | null>(resumed?.key ?? null)
 
   const run = async (args: A, intentKey: string): Promise<R | undefined> => {
     key.current = intentKey

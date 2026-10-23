@@ -4,6 +4,13 @@ import { expect, test, type Page } from '@playwright/test'
 
 const ROLLOUT = 'Roll the new onboarding out to every region'
 const row = (page: Page, title: string) => page.locator('li.goal', { hasText: title })
+/** The browser refuses every copy, as one that wasn't given the clipboard does. */
+const refuseCopies = (page: Page) =>
+  page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: () => Promise.reject(new DOMException('Denied', 'NotAllowedError')) },
+    })
+  })
 
 test('goals · the demo as Luis: nothing waits on him, the rollout needs attention, done folded', async ({ page }) => {
   await page.goto('/room.html?demo=1&place=goals')
@@ -87,4 +94,131 @@ test('@phone · goals · the list fits the width, and a row opens its sheet', as
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   await page.getByRole('button', { name: 'Reports export to PDF reliably', exact: true }).click()
   await expect(page.getByRole('dialog', { name: 'Reports export to PDF reliably' })).toBeVisible()
+})
+
+// A goal's link (docs/plans/work-copy-links.md): «Copy link» in its sheet copies the address that opens that goal, though
+// a goal opened from the list doesn't write its anchor to the address bar.
+test('goals · «Copy link» in the sheet copies the address that opens that goal', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.goto('/room.html?demo=1&place=goals')
+  await page.getByRole('button', { name: ROLLOUT, exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: ROLLOUT })
+  await sheet.getByRole('button', { name: 'Copy link' }).click()
+  await expect(sheet.getByRole('button', { name: 'Link copied' })).toBeVisible()
+  const link = await page.evaluate(() => navigator.clipboard.readText())
+  expect(new URL(link).hash).toMatch(/^#goal-/)
+  const other = await context.newPage()
+  await other.goto(link)
+  await expect(other.getByRole('dialog', { name: ROLLOUT })).toBeVisible()
+})
+
+test('goals · a refused «Copy link» shows the goal’s own address in the sheet; Escape closes only it (Codex P2 on #382)', async ({
+  page,
+}) => {
+  await refuseCopies(page)
+  await page.setViewportSize({ width: 360, height: 760 })
+  await page.goto('/room.html?demo=1&place=goals')
+  await page.getByRole('button', { name: ROLLOUT, exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: ROLLOUT })
+  await sheet.getByRole('button', { name: 'Copy link' }).click()
+  const field = sheet.getByRole('textbox', { name: 'Link', exact: true })
+  await expect(field).toBeFocused()
+  expect(new URL(await field.inputValue()).hash).toMatch(/^#goal-/)
+  await expect(sheet.getByRole('button', { name: /address bar/ })).toHaveCount(0)
+  // Whole inside the sheet, on a phone too: nothing of it cut off at the sheet's side.
+  const [box, frame] = await Promise.all([field.boundingBox(), sheet.boundingBox()])
+  expect(box && frame ? box.x >= frame.x && box.x + box.width <= frame.x + frame.width : false).toBe(true)
+  await page.keyboard.press('Escape')
+  await expect(field).toHaveCount(0)
+  await expect(sheet).toBeVisible()
+})
+
+test('goals · with less motion asked for, a refused «Copy link» hands its link over without moving (Codex P2 on #441)', async ({
+  page,
+}) => {
+  await refuseCopies(page)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/room.html?demo=1&place=goals')
+  await page.getByRole('button', { name: ROLLOUT, exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: ROLLOUT })
+  await sheet.getByRole('button', { name: 'Copy link' }).click()
+  await expect(sheet.getByRole('group', { name: 'Copy this link' })).toHaveCSS('animation-name', 'none')
+})
+
+// A goal lists the reports its work made (docs/plans/goal-reports.md): the demo's research task, the rollout's, made its
+// report; the title opens it in the viewer. Without them in the snapshot, no «Reports».
+for (const how of ['Escape', 'Close'] as const) {
+  test(`goals · a report opened from the sheet gives the focus back to the goal’s row when it closes (${how}; Codex P2 on #414)`, async ({
+    page,
+  }) => {
+    await page.goto('/room.html?demo=1&place=goals&reports=1')
+    const press = page.getByRole('button', { name: ROLLOUT, exact: true })
+    await press.focus()
+    await page.keyboard.press('Enter')
+    const sheet = page.getByRole('dialog', { name: ROLLOUT })
+    await sheet.getByRole('region', { name: 'Reports' }).getByRole('button').focus()
+    await page.keyboard.press('Enter')
+    await expect(sheet).toHaveCount(0)
+    await expect(page.locator('#report-pane-title')).toBeFocused()
+    if (how === 'Escape') await page.keyboard.press('Escape')
+    else await page.locator('.report-pane').getByRole('button', { name: 'Close', exact: true }).click()
+    await expect(page.locator('.report-pane')).toHaveCount(0)
+    await expect(press).toBeFocused()
+  })
+}
+
+test('goals · a report already open, asked for again from a goal’s sheet, gives the focus back to that goal’s row (Codex P2 on #448)', async ({
+  page,
+}) => {
+  // On screen first by its link: as the pane came, nothing had the focus, the page did.
+  await page.goto('/room.html?demo=1&place=goals&reports=1&report=00000000-0000-4000-8000-0000000000b1')
+  const pane = page.locator('.report-pane')
+  await expect(pane).toBeVisible()
+  // The goal's row in the list: the pane's «Made for» names the same goal.
+  const press = page.getByRole('main').getByRole('button', { name: ROLLOUT, exact: true })
+  await press.focus()
+  await page.keyboard.press('Enter')
+  const sheet = page.getByRole('dialog', { name: ROLLOUT })
+  await sheet.getByRole('region', { name: 'Reports' }).getByRole('button').focus()
+  await page.keyboard.press('Enter')
+  await expect(sheet).toHaveCount(0)
+  // The same report: its pane stays, and the sheet gave the focus back to its row as it closed.
+  await expect(press).toBeFocused()
+  await pane.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(pane).toHaveCount(0)
+  await expect(press).toBeFocused()
+})
+
+test('goals · a report opens on the version its row names; a newer one is offered (Codex P2 on #414)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1&place=goals&reports=1&versions=1')
+  await page.getByRole('button', { name: ROLLOUT, exact: true }).click()
+  const reports = page.getByRole('dialog', { name: ROLLOUT }).getByRole('region', { name: 'Reports' })
+  await expect(reports.locator('.goal-report-version')).toHaveText('v1')
+  // A newer version published with no event yet: the snapshot, and the row, still say v1.
+  await page.evaluate(() => window.fixture?.publishReport())
+  await reports.getByRole('button').click()
+  await expect(page).toHaveURL(/[?&]version=00000000-0000-4000-8000-0000000000d1/)
+  await expect(page.locator('.report-pane').getByText(/^v2 is here/)).toBeVisible()
+})
+
+test('goals · a goal lists the reports its work made, and a title opens it in the viewer', async ({ page }) => {
+  await page.goto('/room.html?demo=1&place=goals&reports=1')
+  await page.getByRole('button', { name: ROLLOUT, exact: true }).click()
+  const reports = page.getByRole('dialog', { name: ROLLOUT }).getByRole('region', { name: 'Reports' })
+  await expect(reports.getByRole('button')).toHaveCount(1)
+  await reports.getByRole('button').click()
+  await expect(page).toHaveURL(/[?&]report=00000000-0000-4000-8000-0000000000b1/)
+  // The sheet hands over to the report, one at a time: nothing is left over it (Codex P1 on #414).
+  await expect(page.getByRole('dialog', { name: ROLLOUT })).toHaveCount(0)
+  const pane = page.locator('.report-pane')
+  await expect(pane).toBeVisible()
+  const box = await pane.boundingBox()
+  if (!box) throw new Error('the report has no box')
+  const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+  expect(await pane.evaluate((el, p) => el.contains(document.elementFromPoint(p.x, p.y)), middle)).toBe(true)
+  await page.goto('/room.html?demo=1&place=goals')
+  await page.getByRole('button', { name: ROLLOUT, exact: true }).click()
+  await expect(page.getByRole('dialog', { name: ROLLOUT }).getByRole('region', { name: 'Reports' })).toHaveCount(0)
 })

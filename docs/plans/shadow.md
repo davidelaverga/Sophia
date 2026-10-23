@@ -35,3 +35,8 @@
 ## Left
 
 - A tile's lift on hover (`board.css`) keeps its gradient; only its shadow follows the tokens.
+
+## Later
+
+- 2026-10-17, `light-shadows.md`: `--shadow-k` is gone. Every piece reads an `--elev-*` role, the room's value as it
+  was and paper's one of three levels of two layers.

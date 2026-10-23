@@ -7,6 +7,7 @@
 // sessions and proposals here are synthetic, for accounts at sophia.test; nothing reaches an Auth service or an API
 // (`work=lost` answers the app's reads in the page, fixtures/app.tsx).
 import { expect, test, type BrowserContext, type Page } from '@playwright/test'
+import { withProbe } from './reliability/measure.ts'
 
 const APP = 'http://127.0.0.1:5198'
 /** supabase-js's own key for a session with the synthetic Auth service at 127.0.0.1: `sb-<host's first label>-…`. */
@@ -33,15 +34,18 @@ const WORK_GOAL = '00000000-0000-4000-8000-0000000000b1'
 
 const part = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
 
-/** A synthetic session, unsigned: only the synthetic Auth service ever sees it, and it signs nothing. */
-function session(person: Person) {
-  const exp = Math.floor(Date.now() / 1000) + 24 * 3600
+/**
+ * A synthetic session, unsigned: only the synthetic Auth service ever sees it, and it signs nothing. `life`: seconds its
+ * access token has left, a day unless told; below zero it has expired, and supabase-js asks for a refresh as it loads.
+ */
+function session(person: Person, life = 24 * 3600) {
+  const exp = Math.floor(Date.now() / 1000) + life
   const claims = { sub: person.id, email: person.email, role: 'authenticated', aud: 'authenticated', exp }
   return {
     access_token: `${part({ alg: 'none', typ: 'JWT' })}.${part({ ...claims, is_anonymous: false })}.synthetic`,
     refresh_token: `synthetic-refresh-${person.id}`,
     token_type: 'bearer',
-    expires_in: 24 * 3600,
+    expires_in: Math.max(0, life),
     expires_at: exp,
     user: {
       id: person.id,
@@ -98,8 +102,18 @@ declare global {
       proposals: readonly { key: string; body: unknown }[]
       asked: readonly string[]
       unexpected: readonly string[]
+      attention: readonly string[]
       hold: (by: string, path: string, method?: string) => void
       release: () => void
+      expireToken: () => void
+      refuseTokens: () => void
+      dropStream: () => void
+      /** The call's connection is lost, as LiveKit reports it (fixtures/app.tsx). */
+      drop: () => void
+      /** Each request refused for its token (`expireToken`, `refuseTokens`), as `METHOD /path`. */
+      refused: readonly string[]
+      /** Each request with an Idempotency-Key, refused or not, as `METHOD /path key`. */
+      keys: readonly string[]
     }
     /** "Review sources" buttons the page added since the check began counting them. */
     reviewSourcesAdded?: number
@@ -110,11 +124,20 @@ declare global {
 const elsewhere = new WeakMap<BrowserContext, string[]>()
 test.afterEach(({ context }) => expect(elsewhere.get(context) ?? []).toEqual([]))
 
+/** The code the synthetic Auth refuses a refresh with, when a check sets one (`serve`). */
+const refusedWith = new WeakMap<BrowserContext, string>()
+
+/** Whose session the synthetic Auth renews on a refresh, when a check says (`serve`): a new access token each time. */
+const renewing = new WeakMap<BrowserContext, Person>()
+
 /**
  * The synthetic Auth service, and an API that answers nothing (the checks need none of its reads). `logout` waits for
- * `release` when given one; every call to the Auth service is counted.
+ * `release` when given one, and answers `logoutStatus` (a 503: the service unavailable); a refresh is refused as Auth
+ * refuses one (API 2024-01-01: a 400 whose body names the cause), a refresh token it no longer knows (every device
+ * signed out elsewhere) unless the check set another code (`refusedWith`), or renewed when the check says whose
+ * (`renewing`); every call to the Auth service is counted.
  */
-async function serve(context: BrowserContext, logout?: Promise<void>) {
+async function serve(context: BrowserContext, logout?: Promise<void>, logoutStatus = 204) {
   const calls: string[] = []
   const left: string[] = []
   elsewhere.set(context, left)
@@ -127,7 +150,20 @@ async function serve(context: BrowserContext, logout?: Promise<void>) {
     calls.push(`${route.request().method()} ${pathname}`)
     if (pathname.endsWith('/auth/v1/logout')) {
       await logout
+      if (logoutStatus !== 204)
+        return route.fulfill({ status: logoutStatus, json: { code: logoutStatus, msg: 'Synthetic Auth: unavailable' } })
       return route.fulfill({ status: 204 })
+    }
+    const renewed = renewing.get(context)
+    if (pathname.endsWith('/auth/v1/token') && renewed) {
+      const fresh = session(renewed)
+      const token = fresh.access_token.replace(/synthetic$/u, `renewed-${String(calls.length)}`)
+      return route.fulfill({ json: { ...fresh, access_token: token } })
+    }
+    if (pathname.endsWith('/auth/v1/token')) {
+      const code = refusedWith.get(context) ?? 'refresh_token_not_found'
+      const refused = { code, message: `Invalid Refresh Token (synthetic Auth: ${code})` }
+      return route.fulfill({ status: 400, headers: { 'x-supabase-api-version': '2024-01-01' }, json: refused })
     }
     return route.fulfill({ status: 404, json: { code: 404, msg: 'Synthetic Auth: nothing here' } })
   })
@@ -151,8 +187,8 @@ async function serve(context: BrowserContext, logout?: Promise<void>) {
   return calls
 }
 
-/** A tab whose Supabase session is `person`'s, and whose session storage holds `held`, before the app first loads. */
-async function signedInTab(context: BrowserContext, person: Person, held: Record<string, string> = HELD) {
+/** A tab whose kept Supabase session is `kept`, and whose session storage holds `held`, before the app first loads. */
+async function keptTab(context: BrowserContext, kept: ReturnType<typeof session>, held: Record<string, string>) {
   const page = await context.newPage()
   await page.goto(`${APP}/favicon.svg`)
   await page.evaluate(
@@ -160,12 +196,60 @@ async function signedInTab(context: BrowserContext, person: Person, held: Record
       localStorage.setItem(key, JSON.stringify(signedIn))
       for (const [k, v] of Object.entries(items)) sessionStorage.setItem(k, v)
     },
-    [SESSION_KEY, session(person), held] as const,
+    [SESSION_KEY, kept, held] as const,
   )
   return page
 }
 
+/** A tab whose Supabase session is `person`'s, and whose session storage holds `held`, before the app first loads. */
+const signedInTab = (context: BrowserContext, person: Person, held: Record<string, string> = HELD) =>
+  keptTab(context, session(person), held)
+
 const account = (page: Page) => page.getByRole('button', { name: 'Account' }).first()
+
+/**
+ * FND-C56: the app's FIRST load, to its signed-in Account, as an explicit bounded precondition of the checks that follow
+ * (their own assertions unchanged). INITIAL_READY_MS is a chosen qualification bound, not a product SLO: no source
+ * documents a bootstrap budget; B78 failed here at the default 5 s expect budget and B79's passing cold loads read
+ * 4.2–5.1 s, so twice that default, well inside the 30 s test budget. Not ready in it is a FAILURE carrying its
+ * witnesses: goto time, the screens the page showed (appWatch), console errors and warnings, page errors and failed
+ * requests (paths only, truncated: no bodies or tokens). The measured time is kept on the test (annotation).
+ */
+const INITIAL_READY_MS = 10_000
+
+async function initiallyReady(page: Page, url: string) {
+  const seen = { console: [] as string[], pageErrors: [] as string[], failed: [] as string[] }
+  page.on('console', (m) => {
+    if (m.type() === 'error' || m.type() === 'warning') seen.console.push(`${m.type()}: ${m.text().slice(0, 160)}`)
+  })
+  page.on('pageerror', (e) => seen.pageErrors.push(e.message.slice(0, 160)))
+  page.on('requestfailed', (r) =>
+    seen.failed.push(`${r.method()} ${new URL(r.url()).pathname} ${r.failure()?.errorText ?? ''}`),
+  )
+  const start = Date.now()
+  await page.goto(url)
+  const gotoMs = Date.now() - start
+  try {
+    await expect(account(page)).toBeVisible({ timeout: INITIAL_READY_MS })
+  } catch (error) {
+    const screens = await page.evaluate(() => window.appWatch?.screens ?? []).catch(() => ['unreadable'])
+    throw new Error(
+      `initial App/Auth not ready within ${String(INITIAL_READY_MS)} ms: ${JSON.stringify({ gotoMs, screens, ...seen })}`,
+      { cause: error },
+    )
+  }
+  test.info().annotations.push({
+    type: 'c56-initial-ready',
+    description: JSON.stringify({
+      path: new URL(url).pathname,
+      gotoMs,
+      readyMs: Date.now() - start,
+      console: seen.console.length,
+      pageErrors: seen.pageErrors.length,
+      failed: seen.failed.length,
+    }),
+  })
+}
 
 /**
  * Another tab of this browser, as Supabase's client there tells this one: another account in, or nobody; `event`
@@ -218,7 +302,7 @@ const unexpectedOf = (page: Page) => page.evaluate(() => window.appFixture?.unex
 /** Davide on Tasks (`work=lost`), with a proposal sent and its reply lost: K1, kept, its form still open. */
 async function lostOnTasks(context: BrowserContext) {
   const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
-  await page.goto(`${APP}/p/${WORK_PROJECT}/work?work=lost`)
+  await initiallyReady(page, `${APP}/p/${WORK_PROJECT}/work?work=lost`)
   await page.getByRole('button', { name: 'Review sources' }).first().click()
   const form = page.getByRole('form', { name: 'Review sources' })
   await form.getByRole('checkbox', { name: 'Press plan v2' }).check()
@@ -237,7 +321,7 @@ test('codex · 6e9e2a9b · a page load keeps the viewer’s proposals: finding o
 }) => {
   await serve(context)
   const page = await signedInTab(context, DAVIDE)
-  await page.goto(`${APP}/app.html`)
+  await initiallyReady(page, `${APP}/app.html`)
   await expect(page.getByRole('note')).toContainText('Simulated')
   await expect(account(page)).toBeVisible()
   // The load went through the boundary the regression was at: the app found out who is in, then signed in.
@@ -253,7 +337,7 @@ test('codex · 6e9e2a9b · a page load keeps the viewer’s proposals: finding o
 test('codex · 6e9e2a9b · another account coming in, in another tab, keeps only theirs', async ({ context }) => {
   await serve(context)
   const page = await signedInTab(context, DAVIDE)
-  await page.goto(`${APP}/app.html`)
+  await initiallyReady(page, `${APP}/app.html`)
   await expect(account(page)).toBeVisible()
   await expect.poll(() => tabHolds(page)).toEqual(only(...DAVIDES, OTHER_PART))
   // Luis's was forgotten as Davide came in; kept again here, it is what Luis's coming in must keep.
@@ -268,7 +352,7 @@ test('codex · 06bf6229 · another account at the viewer’s old address is anot
 }) => {
   await serve(context)
   const page = await signedInTab(context, DAVIDE)
-  await page.goto(`${APP}/app.html`)
+  await initiallyReady(page, `${APP}/app.html`)
   await expect(account(page)).toBeVisible()
   await expect.poll(() => tabHolds(page)).toEqual(only(...DAVIDES, OTHER_PART))
   await anotherTab(context, session(SAME_ADDRESS))
@@ -396,13 +480,90 @@ test('codex · a06db118 · the next account’s first render reads nothing the l
   expect(await unexpectedOf(page)).toEqual([])
 })
 
+test('sign out · one that fails says so, the person still in; Try again signs out (Codex P2 on #410)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  // The browser's storage refuses to let the session go while the root says so: the sign-out fails, the session stays.
+  await page.evaluate((key) => {
+    const removeItem = Storage.prototype.removeItem.bind(localStorage)
+    Storage.prototype.removeItem = (name: string) => {
+      if (name === key && document.documentElement.dataset['refuse'] === 'yes') throw new Error('Storage refused')
+      removeItem(name)
+    }
+    document.documentElement.dataset['refuse'] = 'yes'
+  }, SESSION_KEY)
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
+  const toast = page.locator('.toast')
+  await expect(toast).toContainText('Couldn’t sign out: this device is still signed in.')
+  await expect(account(page)).toBeVisible()
+  await page.evaluate(() => {
+    delete document.documentElement.dataset['refuse']
+  })
+  await toast.getByRole('button', { name: 'Try again' }).click()
+  await expect(page.locator('input[type="email"]')).toBeVisible()
+})
+
+/** A member invitation for Luis's address, opened by Davide: the join page offers to sign out and continue as Luis. */
+const FOR_LUIS = {
+  projectTitle: 'Fixture project',
+  inviterName: 'Ana',
+  kind: 'member',
+  role: 'editor',
+  email: LUIS.email,
+  expiresAt: '2099-01-01T00:00:00Z',
+  session: null,
+  state: 'open',
+}
+
+test('join · a sign-out that fails says so, the person still in; Try again signs out (invite-sign-out-failure.md)', async ({
+  context,
+}) => {
+  await serve(context)
+  // The invitation's preview, answered in the page (serve's API answers nothing else).
+  await context.route(`${APP}/api/v1/join/preview`, (route) => route.fulfill({ json: FOR_LUIS }))
+  const page = await signedInTab(context, DAVIDE)
+  // The link's token, kept on this device as the join page keeps it (JoinFlow's PENDING).
+  await page.evaluate(() =>
+    localStorage.setItem('sophia.join', JSON.stringify({ token: 'synthetic-join-token-0001', at: Date.now() })),
+  )
+  await page.goto(`${APP}/join`)
+  const signOut = page.getByRole('button', { name: `Sign out and continue as ${LUIS.email}` })
+  await expect(signOut).toBeVisible()
+  // The browser's storage refuses to let the session go while the root says so, as in #410's check above.
+  await page.evaluate((key) => {
+    const removeItem = Storage.prototype.removeItem.bind(localStorage)
+    Storage.prototype.removeItem = (name: string) => {
+      if (name === key && document.documentElement.dataset['refuse'] === 'yes') throw new Error('Storage refused')
+      removeItem(name)
+    }
+    document.documentElement.dataset['refuse'] = 'yes'
+  }, SESSION_KEY)
+  await signOut.click()
+  await expect(page.getByRole('alert')).toHaveText(
+    'Couldn’t sign out: this device is still signed in. Check your connection and try again.',
+  )
+  // Still in, on the same page: the line naming who is in stays.
+  await expect(page.getByText(`you’re signed in as ${DAVIDE.email}`)).toBeVisible()
+  await page.evaluate(() => {
+    delete document.documentElement.dataset['refuse']
+  })
+  await page.getByRole('button', { name: 'Try again' }).click()
+  await expect(page.getByText(`Sign in with ${LUIS.email}`, { exact: false })).toBeVisible()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+})
+
 test('codex · 6e9e2a9b · signing out forgets every proposal at once, before the Auth service answers', async ({
   context,
 }) => {
   const held = Promise.withResolvers<void>()
   const calls = await serve(context, held.promise)
   const page = await signedInTab(context, DAVIDE)
-  await page.goto(`${APP}/app.html`)
+  await initiallyReady(page, `${APP}/app.html`)
   await expect(account(page)).toBeVisible()
   await expect.poll(() => tabHolds(page)).toEqual(only(...DAVIDES, OTHER_PART))
   await account(page).click()
@@ -416,10 +577,26 @@ test('codex · 6e9e2a9b · signing out forgets every proposal at once, before th
   expect(await tabHolds(page)).toEqual(only(OTHER_PART))
 })
 
+test('sign out everywhere · a logout that fails signs out here, and the sign-in says the others may still be in (Codex P1 on #410)', async ({
+  context,
+}) => {
+  const calls = await serve(context, undefined, 503)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Settings…' }).click()
+  const settings = page.getByRole('dialog', { name: 'Settings' })
+  await settings.getByRole('button', { name: 'Sign out of all devices' }).click()
+  await settings.getByRole('button', { name: 'Sign out everywhere' }).click()
+  await expect.poll(() => calls.filter((c) => c.endsWith('/auth/v1/logout')).length).toBe(1)
+  await expect(page.locator('input[type="email"]')).toBeVisible()
+  await expect(page.getByText('Your other devices may still be signed in', { exact: false })).toBeVisible()
+})
+
 test('codex · 6e9e2a9b · a sign-out in another tab forgets every proposal here', async ({ context }) => {
   await serve(context)
   const page = await signedInTab(context, DAVIDE)
-  await page.goto(`${APP}/app.html`)
+  await initiallyReady(page, `${APP}/app.html`)
   await expect(account(page)).toBeVisible()
   await expect.poll(() => tabHolds(page)).toEqual(only(...DAVIDES, OTHER_PART))
   await anotherTab(context, null)
@@ -514,6 +691,39 @@ test('browser-account · a legacy email-keyed flag is not read: Enter goes to Pe
   await expect(page.locator('.places[data-place="personal"]')).toBeVisible()
   // The legacy entry is still on the device, undisturbed but never read.
   expect(await page.evaluate((k) => localStorage.getItem(k), legacyFlagKey)).toBe('work')
+})
+
+test('personal · on paper, her light rises from Home into its own breath: nothing jumps as the motion ends', async ({
+  context,
+}) => {
+  // Her light arrives from Home's door (usePlaceMotion), then the motion is dropped and her breath (personal.css) shows
+  // as it is: on paper that breath is softer (--ambient-peak, ci-light-by-hour-contrast.md), so a rise to full strength
+  // would snap down as the motion ends.
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.addInitScript(() => localStorage.setItem('sophia.theme', 'light'))
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  // Her light's opacity at every frame it shows, from the first, for about two seconds: past the motion's end.
+  const frames = page.evaluate(
+    () =>
+      new Promise<number[]>((done) => {
+        const seen: number[] = []
+        const tick = () => {
+          const light = document.querySelector('.c3-space.you .c3-ambient')
+          if (light?.getClientRects().length) seen.push(parseFloat(getComputedStyle(light).opacity))
+          if (seen.length < 120) requestAnimationFrame(tick)
+          else done(seen)
+        }
+        requestAnimationFrame(tick)
+      }),
+  )
+  await enterFromHome(page)
+  await expect(page.locator('.places[data-place="personal"]')).toBeVisible()
+  const seen = await frames
+  const drop = Math.max(0, ...seen.slice(1).map((o, i) => (seen[i] ?? o) - o))
+  expect(drop, seen.map((o) => o.toFixed(2)).join(' ')).toBeLessThan(0.15)
 })
 
 test('browser-account · viewer-state lens restores under same subject after email change, resets for another subject', async ({
@@ -616,6 +826,68 @@ test('browser-account · pending Send survives USER_UPDATED: sent message appear
   expect(await unexpectedOf(page)).toEqual([])
 })
 
+/** The account a request's bearer token names (its `sub`), unverified: the synthetic sessions sign nothing. */
+function subjectOfRequest(authorization: string | undefined): string {
+  const payload = /^Bearer [^.]+\.([^.]+)\./u.exec(authorization ?? '')?.[1]
+  const claims: unknown = payload ? JSON.parse(Buffer.from(payload, 'base64url').toString()) : null
+  const sub: unknown = typeof claims === 'object' && claims !== null ? Reflect.get(claims, 'sub') : null
+  return typeof sub === 'string' ? sub : 'nobody'
+}
+
+test('browser-account · another account at the same address sends its own Unarchive key, never the last one’s unanswered one (Codex on #473)', async ({
+  context,
+}) => {
+  await serve(context)
+  const archivedProject = { projectId: WORK_PROJECT, title: 'Old pilot', role: 'admin', members: 2 }
+  const listed = { ...archivedProject, room: null, nextSession: null, releases: [] }
+  await context.route(`${APP}/api/v1/projects`, (route) => route.fulfill({ json: { projects: [], personalEpoch: 1 } }))
+  await context.route(`${APP}/api/v1/projects/archived`, (route) =>
+    route.fulfill({ json: { projects: [listed], personalEpoch: 1 } }),
+  )
+  // Each Unarchive, with the account its token names and its key. Davide's first waits until let go, then its reply
+  // is lost; any other is answered.
+  const sent: { by: string; key: string | undefined }[] = []
+  const held = Promise.withResolvers<void>()
+  await context.route(`${APP}/api/v1/projects/${WORK_PROJECT}/archive`, async (route) => {
+    const headers = route.request().headers()
+    const by = subjectOfRequest(headers.authorization)
+    sent.push({ by, key: headers['idempotency-key'] })
+    if (by === DAVIDE.id && sent.length === 1) {
+      await held.promise
+      return route.abort('failed')
+    }
+    return route.fulfill({ json: { projectId: WORK_PROJECT, archived: false, cursor: '2' } })
+  })
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  const work = page.locator('section[data-place-view="work"]')
+  const unarchive = async () => {
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    })
+    await page.keyboard.press('w')
+    await work.getByRole('button', { name: 'Archived (1)' }).click()
+    await work.getByRole('button', { name: 'Unarchive' }).click()
+  }
+  // Davide's Unarchive is on its way when another account at his address comes in.
+  await unarchive()
+  await expect.poll(() => sent.length).toBe(1)
+  await anotherTab(context, session(SAME_ADDRESS))
+  await expect.poll(() => signedInAs(page)).toBe(SAME_ADDRESS.email)
+  // Its list is read while Davide's write still has no answer, which then never comes.
+  await expect(work.getByRole('button', { name: 'Archived (1)' })).toBeVisible()
+  const lost = page.waitForEvent('requestfailed', (r) => r.url().endsWith('/archive'))
+  held.resolve()
+  await lost
+  // Its own Unarchive is its own write: never Davide's key, sent under its token.
+  await unarchive()
+  await expect.poll(() => sent.length).toBe(2)
+  expect(sent.map((s) => s.by)).toEqual([DAVIDE.id, SAME_ADDRESS.id])
+  expect(sent[1]?.key).toBeTruthy()
+  expect(sent[1]?.key).not.toBe(sent[0]?.key)
+})
+
 test('browser-account · blocked storage does not break navigation or account transitions', async ({ context }) => {
   await serve(context)
   const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
@@ -650,7 +922,7 @@ test('browser-account · at Home the palette and the index know the places’ ke
   const page = await signedInTab(context, DAVIDE)
   await page.goto(`${APP}/`)
   await expect(account(page)).toBeVisible()
-  await page.keyboard.press('Control+k')
+  await page.keyboard.press('ControlOrMeta+k')
   const palette = page.getByRole('dialog', { name: 'Commands' })
   await expect(palette).toBeVisible()
   const words = (await palette.getByRole('option').allInnerTexts()).join('\n')
@@ -658,7 +930,7 @@ test('browser-account · at Home the palette and the index know the places’ ke
     expect(words).toContain(w)
   }
   await page.keyboard.press('Escape')
-  await page.keyboard.press('Control+/')
+  await page.keyboard.press('ControlOrMeta+/')
   const index = page.getByRole('dialog', { name: 'Keyboard shortcuts' })
   await expect(index).toBeVisible()
   await expect(index.locator('.keys-list li')).toContainText([/Home\s*H$/, /Personal\s*P$/, /Your projects\s*W$/])
@@ -679,7 +951,7 @@ test('browser-account · at Home the palette’s veil covers the page, not the b
   const page = await signedInTab(context, DAVIDE)
   await page.goto(`${APP}/`)
   await expect(account(page)).toBeVisible()
-  await page.keyboard.press('Control+k')
+  await page.keyboard.press('ControlOrMeta+k')
   await expect(page.getByRole('dialog', { name: 'Commands' })).toBeVisible()
   const veil = await page.locator('.palette-veil').boundingBox()
   const size = page.viewportSize()
@@ -698,11 +970,8 @@ const listed = (projectId: string, title: string) => ({
   releases: [],
 })
 
-/**
- * Seven projects, past the five where Work offers finding one (find-projects.md): the one check here that has a project
- * list, answered in place of serve()'s unavailable API (a later route wins).
- */
-async function sevenProjects(context: BrowserContext) {
+/** Seven projects, past the five where Work offers finding one (find-projects.md). */
+function seven() {
   const titles = [
     'Copper launch',
     'Fixture project',
@@ -712,9 +981,14 @@ async function sevenProjects(context: BrowserContext) {
     'Delta pitch',
     'Ember notes',
   ]
-  const projects = titles.map((title, i) =>
+  return titles.map((title, i) =>
     listed(title === 'Fixture project' ? WORK_PROJECT : `00000000-0000-4000-8000-0000000000c${String(i)}`, title),
   )
+}
+
+/** The seven as the project list, answered in place of serve()'s unavailable API (a later route wins). */
+async function sevenProjects(context: BrowserContext) {
+  const projects = seven()
   await context.route(`${APP}/api/v1/projects`, (route) => route.fulfill({ json: { projects, personalEpoch: 1 } }))
 }
 
@@ -773,7 +1047,7 @@ test('browser-account · ⌘K opens a project by its name (find-projects.md)', a
   const page = await signedInTab(context, DAVIDE)
   await page.goto(`${APP}/app.html`)
   await expect(account(page)).toBeVisible()
-  await page.keyboard.press('Control+k')
+  await page.keyboard.press('ControlOrMeta+k')
   const palette = page.getByRole('dialog', { name: 'Commands' })
   // Blank, the palette names no project.
   expect((await palette.getByRole('option').allInnerTexts()).join('\n')).not.toContain('Open Fixture project')
@@ -781,6 +1055,323 @@ test('browser-account · ⌘K opens a project by its name (find-projects.md)', a
   await expect(palette.getByRole('option').first()).toContainText('Open Fixture project')
   await page.keyboard.press('Enter')
   await expect(page).toHaveURL(new RegExp(WORK_PROJECT))
+})
+
+// The reliability baseline's gap #2 (reliability-retry-5xx-and-write-timeouts.md): what Render's proxy answers while a
+// deploy or a cold start runs, a 502 page with no contract body, is asked again by a read. The project list goes through
+// the network here (this page fakes no fetch), so the proxy's page is the browser's own reply.
+test('reliability · the project list answered twice by a proxy’s 502 page loads by itself, nothing pressed', async ({
+  context,
+}) => {
+  await serve(context)
+  const projects = seven()
+  let asked = 0
+  await context.route(`${APP}/api/v1/projects`, (route) => {
+    asked += 1
+    if (asked <= 2)
+      return route.fulfill({
+        status: 502,
+        contentType: 'text/html',
+        body: '<html><head><title>502 Bad Gateway</title></head><body><h1>Bad Gateway</h1></body></html>',
+      })
+    return route.fulfill({ json: { projects, personalEpoch: 1 } })
+  })
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await page.keyboard.press('w')
+  const work = page.locator('section[data-place-view="work"]')
+  // TanStack's own waits, 1 s then 2 s, and the list; well before the list's 20 s interval would read it again.
+  await expect(work.locator('.c3-proj h3')).toHaveCount(7, { timeout: 8000 })
+  await expect(work.getByRole('alert')).toHaveCount(0)
+  expect(asked).toBe(3)
+})
+
+// Review P2 on the same branch: a gateway timeout may come after the API committed. A new project answered by a 504 page
+// is an unknown outcome: the press sends it again under the same Idempotency-Key, so the server records one project.
+test('reliability · a new project answered by a proxy’s 504 page is sent again with the same key: one project', async ({
+  context,
+}) => {
+  await serve(context)
+  const projects = seven()
+  const keys: string[] = []
+  const recorded = new Set<string>()
+  await context.route(`${APP}/api/v1/projects`, (route) => {
+    const request = route.request()
+    if (request.method() !== 'POST') return route.fulfill({ json: { projects, personalEpoch: 1 } })
+    const key = request.headers()['idempotency-key'] ?? ''
+    keys.push(key)
+    const first = !recorded.has(key)
+    recorded.add(key) // the API commits under the key; a key seen before gets the same project back
+    if (keys.length === 1)
+      return route.fulfill({
+        status: 504,
+        contentType: 'text/html',
+        body: '<html><head><title>504 Gateway Timeout</title></head><body><h1>Gateway Timeout</h1></body></html>',
+      })
+    return route.fulfill({ status: first ? 201 : 200, json: { projectId: WORK_PROJECT, cursor: '1' } })
+  })
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await page.keyboard.press('w')
+  const work = page.locator('section[data-place-view="work"]')
+  await expect(work.locator('.c3-proj h3')).toHaveCount(7)
+  await work.getByRole('button', { name: 'New project' }).click()
+  const form = work.locator('form.c3-newproj')
+  await form.getByLabel('Project title').fill('Harbour pilot')
+  const start = form.locator('button[type="submit"]')
+  await start.click()
+  await expect.poll(() => keys.length).toBe(1)
+  // The outcome is unknown: the person presses again, and the same intent goes, under its key.
+  await expect(start).toBeEnabled()
+  await start.click()
+  await expect.poll(() => keys.length).toBe(2)
+  expect(keys[1]).toBe(keys[0])
+  expect(recorded.size).toBe(1)
+  await expect(page).toHaveURL(new RegExp(WORK_PROJECT))
+})
+
+// The reliability baseline's gap #3 (auth-session-renewal.md): a laptop that wakes past its token's hour asks the API
+// before supabase-js has refreshed, and the API answers 401. `expireToken` is that moment: every token the API has seen
+// is refused from now on, and the synthetic Auth renews Davide's session when asked. The person is still signed in, so
+// the read, the feed and the write go on, after one refresh, and «You’ve been signed out» is never said.
+
+/** The conversation open as the view opens (reading, the first row): its newest page has 6 messages. */
+const READING = '00000000-0000-4000-8000-0000000000c1'
+/** The second row's (Short or long briefs?), read only once opened: 2 messages. */
+const BRIEFS = '00000000-0000-4000-8000-0000000000c2'
+
+/** Davide on `view` of the project (`work=lost`), his session renewed when the app asks; the Auth service's calls. */
+async function renewableIn(context: BrowserContext, view: string) {
+  renewing.set(context, DAVIDE)
+  const calls = await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.goto(`${APP}/p/${WORK_PROJECT}/${view}?work=lost`)
+  return { page, calls }
+}
+
+/** How many refreshes the app asked the synthetic Auth for. */
+const refreshes = (calls: readonly string[]) => calls.filter((c) => c === 'POST /synthetic-auth/auth/v1/token').length
+const refusedOf = (page: Page) => page.evaluate(() => [...(window.appFixture?.refused ?? [])])
+const keysOf = (page: Page) => page.evaluate(() => [...(window.appFixture?.keys ?? [])])
+const signedOutNotice = (page: Page) => page.getByRole('heading', { name: 'You’ve been signed out' })
+const pill = (page: Page) => page.locator('.topbar .connection')
+
+const rows = (page: Page) => page.locator('section[aria-label="All conversations"] .conv-row')
+
+/** The conversations' list read, and the first one open with its 6 messages: every read the view opens with is in. */
+async function readingOpen(page: Page) {
+  await expect(rows(page)).toHaveCount(3)
+  await expect(page.locator('.conv-open')).toBeVisible()
+  await expect(page.locator('.conv-msg')).toHaveCount(6)
+}
+
+/**
+ * The page has asked the API nothing for a second: a project event's refresh (the snapshot, the archived list) is in,
+ * so the request the check makes next is the one that meets an expired token, not a refresh that renewed it before.
+ */
+async function quiet(page: Page) {
+  let last = -1
+  await expect
+    .poll(
+      async () => {
+        const now = (await askedOf(page)).length
+        const still = now === last
+        last = now
+        return still
+      },
+      { intervals: [1000] },
+    )
+    .toBe(true)
+}
+
+test('session · a conversation opened after the token expired shows its messages: one refresh, asked again (gap #3)', async ({
+  context,
+}) => {
+  const { page, calls } = await renewableIn(context, 'conversations')
+  await readingOpen(page)
+  await quiet(page)
+  await page.evaluate(() => window.appFixture?.expireToken())
+  await rows(page).nth(1).click()
+  await expect(page.locator('.conv-msg').filter({ hasText: 'One page. Anything longer, nobody reads.' })).toBeVisible()
+  await expect(page.locator('.conv-msg')).toHaveCount(2)
+  expect(await refusedOf(page)).toContain(`GET /api/v1/projects/${WORK_PROJECT}/conversations/${BRIEFS}/messages`)
+  expect(refreshes(calls)).toBe(1)
+  await expect(signedOutNotice(page)).toHaveCount(0)
+  expect(await unexpectedOf(page)).toEqual([])
+})
+
+/**
+ * Another tab of this browser signs in as `person` and keeps the session where every tab reads it, and its word hasn't
+ * reached this tab yet (no BroadcastChannel message): supabase-js here reads that session on its next look.
+ */
+async function storedByAnotherTab(context: BrowserContext, person: Person) {
+  const other = await context.newPage()
+  await other.goto(`${APP}/favicon.svg`)
+  await other.evaluate(([key, kept]) => localStorage.setItem(key, JSON.stringify(kept)), [
+    SESSION_KEY,
+    session(person),
+  ] as const)
+  await other.close()
+}
+
+// Independent review, P1: the session a renewal reads is the storage every tab shares. Another tab signed in as Luis,
+// not yet heard here, must never lend his token to Davide's refused read: no request goes out as Luis, and the read
+// fails as it did before renewals.
+test('session · another account signed in by another tab, not yet heard here: Davide’s refused read is never sent as them (review P1)', async ({
+  context,
+}) => {
+  const { page, calls } = await renewableIn(context, 'conversations')
+  await readingOpen(page)
+  await quiet(page)
+  await storedByAnotherTab(context, LUIS)
+  await page.evaluate(() => window.appFixture?.expireToken())
+  await rows(page).nth(1).click()
+  const briefs = `GET /api/v1/projects/${WORK_PROJECT}/conversations/${BRIEFS}/messages`
+  await expect.poll(() => refusedOf(page)).toContain(briefs)
+  const cannotRead = page.getByText('This conversation can’t be read now.')
+  await expect(cannotRead.or(page.locator('.conv-msg').filter({ hasText: 'One page.' }))).toBeVisible()
+  expect((await askedOf(page)).filter((a) => a.endsWith(` by ${LUIS.id}`))).toEqual([])
+  await expect(cannotRead).toBeVisible()
+  expect(refreshes(calls)).toBe(0)
+})
+
+test('session · the feed dropped after the token expired comes back up to date, never «signed out» (gap #3)', async ({
+  context,
+}) => {
+  const { page, calls } = await renewableIn(context, 'studio')
+  await expect(pill(page)).toHaveAttribute('data-state', 'live')
+  const stream = `GET /api/v1/projects/${WORK_PROJECT}/events by ${DAVIDE.id}`
+  const streamAsks = async () => (await askedOf(page)).filter((a) => a === stream).length
+  const before = await streamAsks()
+  await page.evaluate(() => {
+    window.appFixture?.expireToken()
+    window.appFixture?.dropStream()
+  })
+  // The feed asked for its stream again, and the expired token was met: by the stream, or by the snapshot's read when
+  // that asks first (a busy machine). What the project settles on is «Up to date» or the closed door.
+  await expect.poll(streamAsks).toBeGreaterThan(before)
+  await expect.poll(async () => (await refusedOf(page)).length).toBeGreaterThan(0)
+  await expect(signedOutNotice(page).or(page.locator('.topbar .connection[data-state="live"]'))).toBeVisible()
+  await expect(signedOutNotice(page)).toHaveCount(0)
+  await expect(pill(page)).toHaveAttribute('data-state', 'live')
+  expect(refreshes(calls)).toBe(1)
+  expect(await unexpectedOf(page)).toEqual([])
+})
+
+test('session · a message sent after the token expired goes again with its key and appears: one refresh (gap #3)', async ({
+  context,
+}) => {
+  const { page, calls } = await renewableIn(context, 'conversations')
+  await readingOpen(page)
+  // No Sophia's answer, which would publish to the feed.
+  await page.getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await quiet(page)
+  await page.evaluate(() => window.appFixture?.expireToken())
+  await page.getByLabel('Continue this question with the team').fill('Check the March figures')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.conv-msg').filter({ hasText: 'Check the March figures' })).toBeVisible()
+  const sendPath = `/api/v1/conversations/${READING}/messages`
+  expect(await refusedOf(page)).toContain(`POST ${sendPath}`)
+  const sent = (await keysOf(page)).filter((k) => k.startsWith(`POST ${sendPath} `))
+  expect(sent).toHaveLength(2)
+  expect(sent[1]).toBe(sent[0])
+  expect(refreshes(calls)).toBe(1)
+  expect(await unexpectedOf(page)).toEqual([])
+})
+
+test('session · an API that refuses every token: one refresh, then the door closes as today, and nothing loops (gap #3)', async ({
+  context,
+}) => {
+  const { page, calls } = await renewableIn(context, 'studio')
+  await expect(pill(page)).toHaveAttribute('data-state', 'live')
+  await page.evaluate(() => {
+    window.appFixture?.refuseTokens()
+    window.appFixture?.dropStream()
+  })
+  await expect(signedOutNotice(page)).toBeVisible()
+  await expect.poll(() => refreshes(calls)).toBe(1)
+  // Nothing asks again: the feed's restart on the renewed token ends at the same door. Time is the only witness; the
+  // stream's asks are counted, not every read (a list's own interval may ask meanwhile).
+  const streamAsks = async () => (await refusedOf(page)).filter((r) => r.endsWith('/events')).length
+  const settled = await streamAsks()
+  await page.waitForTimeout(3000)
+  expect(await streamAsks()).toBe(settled)
+  expect(refreshes(calls)).toBe(1)
+})
+
+// The reliability measure's M7 (docs/plans/silent-views.md): Updates' «Since you last looked» answered twice by
+// a proxy's 503 page comes back by itself, as the other reads do. `work=lost` answers the app's reads in the page, so
+// the measuring suite's probe (e2e/reliability/measure.ts) answers the first two «since» reads before it.
+test('reliability · «Since you last looked» answered twice by a proxy’s 503 page comes back by itself, nothing pressed', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await withProbe(page, [{ pattern: '/since$', answer: 'html503', times: 2 }])
+  await page.goto(`${APP}/p/${WORK_PROJECT}/updates?work=lost`)
+  const since = page.locator('section[aria-labelledby="since-title"]')
+  await expect.poll(() => page.evaluate(() => window.reliability?.hits.length ?? 0)).toBe(2)
+  // TanStack's own waits, 1 s then 2 s, and the window; no Try again pressed.
+  await expect(since.locator('.sheet-lead:not([role])')).toBeVisible({ timeout: 8000 })
+  await expect(since.getByRole('alert')).toHaveCount(0)
+  await expect(since).not.toContainText('This may be out of date.')
+})
+
+// --- A message sent with no reply, kept in the tab across a reload (docs/plans/reliability-held-on-reload.md). ---
+
+const HELD_PREFIX = 'sophia.held.v1:'
+/** The first conversation `work=lost` serves (reading): its newest page has six messages. */
+const READING_TALK = '00000000-0000-4000-8000-0000000000c1'
+const heldKeyOf = (person: Person, kind: 'talk' | 'room', project: string) =>
+  `${HELD_PREFIX}${JSON.stringify([person.id, kind, project])}`
+/** Davide's message to the reading conversation, sent with no reply, as the tab keeps it: its key and its words. */
+const DAVIDE_TALK = heldKeyOf(DAVIDE, 'talk', WORK_PROJECT)
+const DAVIDE_HELD = JSON.stringify({
+  [READING_TALK]: {
+    key: '6f1c7d3e-0b5a-4c2e-9d8f-00000000d0c1',
+    ask: { text: 'Check the March figures', askSophia: false },
+  },
+})
+/** Luis's message to the room, held in this tab before Davide came in. */
+const LUIS_ROOM = heldKeyOf(LUIS, 'room', WORK_PROJECT)
+const LUIS_HELD = JSON.stringify({ key: '6f1c7d3e-0b5a-4c2e-9d8f-00000000e0c1', text: 'Luis was here', replyTo: null })
+
+/** What the tab keeps of held writes, and the other part's entry. */
+const heldInTab = (page: Page) =>
+  page.evaluate(
+    ([prefix, other]) =>
+      Object.fromEntries(
+        Object.entries(sessionStorage).filter(([k]) => k.startsWith(prefix ?? '') || k === other),
+      ) as Record<string, string>,
+    [HELD_PREFIX, OTHER_PART],
+  )
+
+test('reliability · a message held with no reply is offered again as the page loads, and Sign out forgets it (baseline gap #8)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, {
+    [DAVIDE_TALK]: DAVIDE_HELD,
+    [LUIS_ROOM]: LUIS_HELD,
+    [OTHER_PART]: '{}',
+  })
+  await page.goto(`${APP}/p/${WORK_PROJECT}/conversations?work=lost`)
+  const list = page.locator('section[aria-label="All conversations"]')
+  await list.locator('.conv-row').first().click()
+  const open = page.locator('.conv-open')
+  // Finding out who is in forgot nothing of Davide's: his message is offered again, its words; Luis's went.
+  await expect(open).toContainText('Not confirmed: “Check the March figures”')
+  await expect.poll(() => heldInTab(page)).toEqual({ [DAVIDE_TALK]: DAVIDE_HELD, [OTHER_PART]: '{}' })
+  await page.reload()
+  await list.locator('.conv-row').first().click()
+  await expect(open).toContainText('Not confirmed: “Check the March figures”')
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
+  await expect(page.locator('input[type="email"]')).toBeVisible()
+  expect(await heldInTab(page)).toEqual({ [OTHER_PART]: '{}' })
+  expect(await unexpectedOf(page)).toEqual([])
 })
 
 test('legal · a sign-out in another tab forgets the views’ unsent words here too (Codex P1 on #366)', async ({
@@ -802,6 +1393,128 @@ test('legal · a sign-out in another tab forgets the views’ unsent words here 
     .toEqual({ lens: 'build', drafts: {} })
 })
 
+// --- Signed out by a cause this tab did not start: the sign-in says so, once (docs/plans/signed-out-elsewhere.md). ---
+
+const ENDED_ELSEWHERE = 'You were signed out in another tab or on another device, so this tab signed out too.'
+const ENDED_REFUSED = 'Your sign-in on this device ended, so this tab signed out.'
+const ENDED_AWAY = 'Your sign-in on this device ended while you were away.'
+const WORDS_CLEARED = 'Unsent words here were cleared.'
+/** A first visit's line under the title, which the sign-in says when nothing else happened. */
+const LEDE = 'Where your team and Sophia think together.'
+const emailField = (page: Page) => page.locator('#email')
+
+test('seam · signed out in another tab: the sign-in says so politely, once, and the email field keeps the focus', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await anotherTab(context, null)
+  await expect(emailField(page)).toBeVisible()
+  // A status in the lede's place, not the form's alert; no unsent words were kept here, so it says none went.
+  await expect(page.getByRole('status')).toHaveText(ENDED_ELSEWHERE)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(page.getByText(LEDE)).toHaveCount(0)
+  await expect(emailField(page)).toBeFocused()
+  // Said once: after a reload nothing signed this tab out, and the sign-in is a first visit's again.
+  await page.reload()
+  await expect(emailField(page)).toBeVisible()
+  await expect(page.getByText(LEDE)).toBeVisible()
+  await expect(page.getByText(ENDED_ELSEWHERE)).toHaveCount(0)
+  await expect(page.getByRole('status')).toHaveCount(0)
+})
+
+test('seam · a sign-in that ended while the page was closed: said once as it loads, with the unsent words that went', async ({
+  context,
+}) => {
+  const calls = await serve(context)
+  // Davide's session, kept on this device, expired an hour ago, and the Auth service refuses its refresh.
+  const page = await keptTab(context, session(DAVIDE, -3600), { [OTHER_PART]: '{}' })
+  const key = viewerKeyOf(DAVIDE.id, WORK_PROJECT)
+  await page.evaluate(
+    (k) => localStorage.setItem(k, JSON.stringify({ lens: 'build', drafts: { build: 'secret plan' } })),
+    key,
+  )
+  await page.goto(`${APP}/app.html`)
+  await expect(emailField(page)).toBeVisible()
+  await expect(page.getByRole('status')).toHaveText(`${ENDED_AWAY} ${WORDS_CLEARED}`)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(emailField(page)).toBeFocused()
+  expect(calls).toContain('POST /synthetic-auth/auth/v1/token')
+  // The words it says went are gone: the view keeps its lens, never its unsent words.
+  expect(await page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? '{}') as unknown, key)).toEqual({
+    lens: 'build',
+    drafts: {},
+  })
+  await page.reload()
+  await expect(emailField(page)).toBeVisible()
+  await expect(page.getByText(LEDE)).toBeVisible()
+  await expect(page.getByText(ENDED_AWAY)).toHaveCount(0)
+  await expect(page.getByRole('status')).toHaveCount(0)
+})
+
+/**
+ * In an open tab, the access token runs out: the session kept here as supabase-js finds it then, expired, and the tab
+ * shown again, which has the client refresh at once (`visibilitychange`) instead of at its next 30 s tick.
+ */
+const tokenRunsOut = (page: Page, person: Person) =>
+  page.evaluate(
+    ([key, kept]) => {
+      localStorage.setItem(key, JSON.stringify(kept))
+      window.dispatchEvent(new Event('visibilitychange'))
+    },
+    [SESSION_KEY, session(person, -60)] as const,
+  )
+
+test('seam · an open tab’s refresh refused for another cause: its sign-in ended, and no one elsewhere is blamed', async ({
+  context,
+}) => {
+  const calls = await serve(context)
+  // A refresh token used twice: an earlier refresh's answer was lost on the way, and the client tried the old token.
+  refusedWith.set(context, 'refresh_token_already_used')
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await tokenRunsOut(page, DAVIDE)
+  await expect(emailField(page)).toBeVisible()
+  await expect(page.getByRole('status')).toHaveText(ENDED_REFUSED)
+  await expect(page.getByText(ENDED_ELSEWHERE)).toHaveCount(0)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(emailField(page)).toBeFocused()
+  expect(calls).toContain('POST /synthetic-auth/auth/v1/token')
+})
+
+test('seam · every device signed out elsewhere: an open tab’s refused refresh says it was signed out elsewhere', async ({
+  context,
+}) => {
+  // The Auth service no longer knows the refresh token: «Sign out of all devices» ran on another device.
+  const calls = await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await tokenRunsOut(page, DAVIDE)
+  await expect(emailField(page)).toBeVisible()
+  await expect(page.getByRole('status')).toHaveText(ENDED_ELSEWHERE)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(emailField(page)).toBeFocused()
+  expect(calls).toContain('POST /synthetic-auth/auth/v1/token')
+})
+
+test('seam · this tab’s own Sign out says nothing of it: the sign-in is a first visit’s (control)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
+  await expect(emailField(page)).toBeVisible()
+  await expect(page.getByText(LEDE)).toBeVisible()
+  await expect(page.getByRole('status')).toHaveCount(0)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+})
+
 test('legal · /terms and /privacy keep their address and their page, signed out or in (Codex P1 on #366)', async ({
   context,
 }) => {
@@ -818,6 +1531,44 @@ test('legal · /terms and /privacy keep their address and their page, signed out
   await signedIn.waitForTimeout(1500)
   expect(new URL(signedIn.url()).pathname).toBe('/privacy')
   await expect(signedIn.getByRole('heading', { level: 1 })).toHaveText('Privacy notice')
+})
+
+/** What the join page says back from a sign-in link opened in a browser that never asked for it. */
+const OTHER_BROWSER_LINE =
+  'This sign-in link opened in a different browser from the one you started in. Type the email’s code there, or open your invitation link again here.'
+
+test('join · a sign-in link opened in another browser says where to finish, once (join-other-browser.md)', async ({
+  context,
+}) => {
+  const calls = await serve(context)
+  const page = await context.newPage()
+  // The sign-in email's link, in a browser that holds no invitation token and never asked for the link.
+  await page.goto(`${APP}/join?code=synthetic-code`)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('You started in another browser')
+  await expect(page.getByText(OTHER_BROWSER_LINE)).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Go to Sophia' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'This door is closed' })).toHaveCount(0)
+  await expect(page.getByText('This link is incomplete', { exact: false })).toHaveCount(0)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  // Nothing was exchanged or asked: this browser holds no sign-in of its own to finish.
+  expect(calls).toEqual([])
+  // The code has left the address, so a reload is an ordinary visit: said once per link opened.
+  expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe('/join')
+  await page.reload()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('This door is closed')
+  await expect(page.getByText(OTHER_BROWSER_LINE)).toHaveCount(0)
+})
+
+test('join · with no invitation token and no sign-in’s return, the page keeps its closed door (join-other-browser.md)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await context.newPage()
+  await page.goto(`${APP}/join`)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('This door is closed')
+  await expect(page.getByText('This link is incomplete. Ask for the whole link, or a new one.')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Go to Sophia' })).toBeVisible()
+  await expect(page.getByText(OTHER_BROWSER_LINE)).toHaveCount(0)
 })
 
 test('feedback · opened from Home during a call, the call’s switches stay in reach (Codex P1 on #367)', async ({
@@ -839,4 +1590,334 @@ test('feedback · opened from Home during a call, the call’s switches stay in 
   await expect(
     sheet.getByRole('group', { name: 'Your call' }).getByRole('button', { name: 'Leave the room' }),
   ).toBeVisible()
+})
+
+test('version · a deploy heard during a call waits until the call ends, then is said once (Luis 2026-10-22)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/p/${WORK_PROJECT}/studio?work=lost`)
+  const dock = page.getByRole('navigation', { name: 'Room controls' })
+  await dock.getByRole('button', { name: /^Join the room/ }).click()
+  await expect(dock.getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  // A deploy, heard as the tab comes back into focus, in the call: nothing said.
+  await page.route(`${APP}/version.json`, (route) => route.fulfill({ json: { version: 'fixture-deployed' } }))
+  const answered = page.waitForResponse(`${APP}/version.json`)
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await answered
+  const notice = page.getByRole('status').filter({ hasText: 'Sophia was updated' })
+  await page.waitForTimeout(500) // past the probe's reading of the answer, which would show the notice at once
+  await expect(notice).toHaveCount(0)
+  // Out of the call: said, once.
+  await dock.getByRole('button', { name: 'Leave the room' }).click()
+  await expect(notice).toHaveText(/Sophia was updated. Reload to keep going./)
+  await expect(notice).toHaveCount(1)
+})
+
+test('places · in the bar’s call, Leave is rose at rest and its plane answers the pointer (room-dock-people.md)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/p/${WORK_PROJECT}/studio?work=lost`)
+  await page
+    .getByRole('navigation', { name: 'Room controls' })
+    .getByRole('button', { name: /^Join the room/ })
+    .click()
+  await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
+  await page.keyboard.press('h')
+  const out = page.locator('.places .room-pill').getByRole('button', { name: 'Leave the room' })
+  await expect(out).toBeVisible()
+  await page.mouse.move(0, 0)
+  const rest = await out.evaluate((b) => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--rose)'
+    document.body.append(probe)
+    const rose = getComputedStyle(probe).color
+    probe.remove()
+    return { color: getComputedStyle(b).color, plane: getComputedStyle(b).backgroundColor, rose }
+  })
+  // The bar keeps its squares bare at rest: the rose ink alone says the way out.
+  expect(rest.color).toBe(rest.rose)
+  expect(rest.plane).toBe('rgba(0, 0, 0, 0)')
+  await out.hover()
+  await expect(out).not.toHaveCSS('background-color', rest.plane)
+})
+
+/** `projects=two`'s second project (fixtures/app.tsx): listed after the fixture project, and read as it is. */
+const SECOND_PROJECT = '00000000-0000-4000-8000-00000000009a'
+
+/** In the fixture project's call, then Home: the call follows in the places' bar. */
+async function inCallAtHome(context: BrowserContext) {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/p/${WORK_PROJECT}/studio?work=lost&projects=two`)
+  await page
+    .getByRole('navigation', { name: 'Room controls' })
+    .getByRole('button', { name: /^Join the room/ })
+    .click()
+  await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
+  await page.keyboard.press('h')
+  await expect(page.locator('.places .room-pill')).toBeVisible()
+  return page
+}
+
+/** From the places, ⌘K «Open <title>»; its project is on screen once any call before it has gone. */
+async function openFromPlaces(page: Page, title: string, projectId: string) {
+  await page.keyboard.press('ControlOrMeta+k')
+  const palette = page.getByRole('dialog', { name: 'Commands' })
+  await expect(palette).toBeVisible()
+  await page.keyboard.type(title.toLowerCase())
+  await expect(palette.getByRole('option').first()).toContainText(`Open ${title}`)
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(new RegExp(`/p/${projectId}`))
+  await expect(page.locator('h1.project-name:visible')).toContainText(title)
+}
+
+const openResearchNotes = (page: Page) => openFromPlaces(page, 'Research notes', SECOND_PROJECT)
+
+const shownToast = (page: Page) => page.locator('.toast[data-shown]')
+
+test('places · opening another project in a call says it ended the call, with Rejoin back into it (call-ends-on-open.md)', async ({
+  context,
+}) => {
+  const page = await inCallAtHome(context)
+  await openResearchNotes(page)
+  const toast = shownToast(page)
+  await expect(toast).toHaveAttribute('role', 'status')
+  await expect(toast).toContainText('Your call in “Fixture project” ended when you opened “Research notes”.')
+  const rejoin = toast.getByRole('button', { name: 'Rejoin' })
+  await expect(rejoin).toBeVisible()
+  // Polite: the line never takes the focus.
+  await expect(rejoin).not.toBeFocused()
+  await rejoin.click()
+  await expect(page).toHaveURL(new RegExp(`/p/${WORK_PROJECT}`))
+  await expect(
+    page.getByRole('navigation', { name: 'Room controls' }).getByRole('button', { name: 'Leave the room' }),
+  ).toBeVisible()
+  // Each hang-up is its own: left the same way again, it is said again.
+  await page.keyboard.press('h')
+  await expect(page.locator('.places .room-pill')).toBeVisible()
+  await openResearchNotes(page)
+  await expect(toast).toContainText('ended when you opened “Research notes”.')
+  await toast.getByRole('button', { name: 'Rejoin' }).click()
+  await expect(
+    page.getByRole('navigation', { name: 'Room controls' }).getByRole('button', { name: 'Leave the room' }),
+  ).toBeVisible()
+  // Each end forgets its cause: a Leave pressed after is said as a Leave, with nothing to press (from Home, where the
+  // room is out of sight and the toast says it).
+  await page.keyboard.press('h')
+  await page.locator('.places .room-pill').getByRole('button', { name: 'Leave the room' }).click()
+  await expect(toast).toContainText('You left Fixture project.')
+  await expect(toast.getByRole('button')).toHaveCount(0)
+})
+
+test('places · Leave pressed in the bar keeps «You left …», with nothing to press (call-ends-on-open.md)', async ({
+  context,
+}) => {
+  const page = await inCallAtHome(context)
+  await page.locator('.places .room-pill').getByRole('button', { name: 'Leave the room' }).click()
+  const toast = shownToast(page)
+  await expect(toast).toContainText('You left Fixture project.')
+  await expect(toast.getByRole('button')).toHaveCount(0)
+  // With no call left, opening another project ends nothing, so nothing is said of it.
+  await openResearchNotes(page)
+  await expect(page.locator('.toast')).not.toContainText('ended when you opened')
+})
+
+test('places · ⌘K pressed as Leave in the bar ends the call keeps its typing in the palette (call-ends-on-open.md)', async ({
+  context,
+}) => {
+  const page = await inCallAtHome(context)
+  await page.locator('.places .room-pill').getByRole('button', { name: 'Leave the room' }).click()
+  // The palette opens while the call is still ending: the pill's going must not take the focus from its field.
+  await page.keyboard.press('ControlOrMeta+k')
+  const palette = page.getByRole('dialog', { name: 'Commands' })
+  await expect(palette).toBeVisible()
+  await expect(page.locator('.places .room-pill')).toHaveCount(0)
+  await page.keyboard.type('research notes')
+  await expect(palette.getByRole('option').first()).toContainText('Open Research notes')
+})
+
+/** The room tokens the fixture project's room asked for: one for each join. */
+const roomTokens = async (page: Page) =>
+  (await askedOf(page)).filter((a) => a === `POST /api/v1/projects/${WORK_PROJECT}/room-token by ${DAVIDE.id}`).length
+
+test('places · Rejoin pressed once back in that call by its own Join joins nothing later: Leave stays out (call-ends-on-open.md)', async ({
+  context,
+}) => {
+  const page = await inCallAtHome(context)
+  await openResearchNotes(page)
+  const rejoin = shownToast(page).getByRole('button', { name: 'Rejoin' })
+  await expect(rejoin).toBeVisible()
+  // Back in the fixture project's call by the dock's own Join, while the line still offers Rejoin (it shows for 8 s).
+  await page.keyboard.press('h')
+  await openFromPlaces(page, 'Fixture project', WORK_PROJECT)
+  const dock = page.getByRole('navigation', { name: 'Room controls' })
+  await dock.getByRole('button', { name: /^Join the room/ }).click()
+  await expect(dock.getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  await rejoin.click()
+  const joins = await roomTokens(page)
+  await dock.getByRole('button', { name: 'Leave the room' }).click()
+  // The call it found answered Rejoin: out of the call, the room asks for no token of its own and stays out.
+  await page.waitForTimeout(1500)
+  expect(await roomTokens(page)).toBe(joins)
+  await expect(dock.getByRole('button', { name: 'Leave the room' })).toHaveCount(0)
+})
+
+test('places · a call dropped out of sight comes back on its own: the places’ bar keeps it, and no toast says it ended (call-rejoin.md)', async ({
+  context,
+}) => {
+  const page = await inCallAtHome(context)
+  const joins = await roomTokens(page)
+  await page.evaluate(() => window.appFixture?.drop())
+  await expect.poll(() => roomTokens(page), { message: 'one try, with a fresh token' }).toBe(joins + 1)
+  const callPill = page.locator('.places .room-pill')
+  await expect(callPill.getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  await page.waitForTimeout(600)
+  await expect(callPill).toBeVisible()
+  await expect(shownToast(page)).toHaveCount(0)
+  expect(await roomTokens(page)).toBe(joins + 1)
+})
+
+test('places · while a call dropped out of sight tries to come back, the bar’s Leave stops it and says you left (call-rejoin.md)', async ({
+  context,
+}) => {
+  const page = await inCallAtHome(context)
+  const joins = await roomTokens(page)
+  const tokenPath = `/api/v1/projects/${WORK_PROJECT}/room-token`
+  await page.evaluate(([by, path]) => window.appFixture?.hold(by, path, 'POST'), [DAVIDE.id, tokenPath] as const)
+  await page.evaluate(() => window.appFixture?.drop())
+  await expect.poll(() => roomTokens(page)).toBe(joins + 1)
+  const callPill = page.locator('.places .room-pill')
+  await callPill.getByRole('button', { name: 'Leave the room' }).click()
+  const toast = shownToast(page)
+  await expect(toast).toContainText('You left Fixture project.')
+  await page.evaluate(() => window.appFixture?.release())
+  await page.waitForTimeout(600) // the token let go would have joined by now
+  await expect(callPill).toHaveCount(0)
+  expect(await roomTokens(page)).toBe(joins + 1)
+})
+
+// A chat message's anchor through a sign-in (Codex P2 on #435): kept on leaving, given back on a refused return.
+test('sign-in · a refused return to a project gives back the chat message its link named, kept for the next try', async ({
+  context,
+}) => {
+  await serve(context)
+  const path = '/p/00000000-0000-4000-8000-0000000000aa/studio'
+  const message = '#message-00000000-0000-4000-8000-0000000000ab' // linkHash(that id, MESSAGE)
+  const page = await context.newPage()
+  await page.goto(`${APP}/favicon.svg`)
+  await page.evaluate(
+    ([at, hash]) => localStorage.setItem('sophia.return-anchor', JSON.stringify({ path: at, hash, at: Date.now() })),
+    [path, message] as const,
+  )
+  await page.goto(`${APP}${path}?error=access_denied`)
+  await expect(page.locator('#email')).toBeVisible()
+  await expect
+    .poll(() => {
+      const url = new URL(page.url())
+      return `${url.pathname}${url.search}${url.hash}`
+    })
+    .toBe(`${path}${message}`)
+  expect(await page.evaluate(() => localStorage.getItem('sophia.return-anchor'))).toContain(message)
+})
+
+/**
+ * The shown toast once its rise has ended: its frame, the lines its words take, the page's gutter, the width its own
+ * words and press would take on one line, and how far the page scrolls sideways.
+ */
+async function toastFrame(page: Page) {
+  const toast = shownToast(page)
+  await expect.poll(() => toast.evaluate((t) => t.getAnimations().length)).toBe(0)
+  return toast.evaluate((t) => {
+    const box = t.getBoundingClientRect()
+    const words = t.querySelector('span')
+    const probe = document.createElement('div')
+    probe.style.width = 'var(--gutter)'
+    const alone = t.cloneNode(true)
+    if (!(alone instanceof HTMLElement)) throw new Error('A toast clones as an element')
+    alone.style.cssText = 'position: absolute; left: 0; width: max-content; max-width: none; visibility: hidden'
+    document.body.append(probe, alone)
+    const gutter = probe.getBoundingClientRect().width
+    const oneLine = alone.getBoundingClientRect().width
+    probe.remove()
+    alone.remove()
+    return {
+      left: box.left,
+      right: box.right,
+      width: box.width,
+      height: box.height,
+      foot: box.bottom,
+      centre: box.left + box.width / 2,
+      lines: words
+        ? Math.round(words.getBoundingClientRect().height / parseFloat(getComputedStyle(words).lineHeight))
+        : 0,
+      gutter,
+      oneLine,
+      sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    }
+  })
+}
+
+// At 320 px the gutters leave the words 209.1 px beside Rejoin, and the sentence's second half needs 211.4 px: three
+// lines there, by the words' own length (toast-phone-width.md).
+for (const { width, height, lines } of [
+  { width: 390, height: 844, lines: 2 },
+  { width: 360, height: 740, lines: 2 },
+  { width: 320, height: 640, lines: 3 },
+]) {
+  test.describe(`at ${String(width)}×${String(height)}`, () => {
+    test.use({ viewport: { width, height } })
+
+    test(`toast · on a phone the call-ended line takes the width the gutters leave, centred, ${String(lines)} lines at most (toast-phone-width.md)`, async ({
+      context,
+    }) => {
+      const page = await inCallAtHome(context)
+      await openResearchNotes(page)
+      await expect(shownToast(page).getByRole('button', { name: 'Rejoin' })).toBeVisible()
+      const at = await toastFrame(page)
+      expect(at.lines).toBeLessThanOrEqual(lines)
+      // Its line is longer than the screen is wide: the toast is as wide as its max-width, inside the gutters.
+      expect(at.width).toBeCloseTo(width - 2 * at.gutter, 0)
+      expect(at.left).toBeGreaterThanOrEqual(at.gutter - 0.5)
+      expect(at.right).toBeLessThanOrEqual(width - at.gutter + 0.5)
+      expect(Math.abs(at.centre - width / 2)).toBeLessThanOrEqual(1)
+      expect(at.sideways).toBe(0)
+    })
+  })
+}
+
+test.describe('at 1280×800', () => {
+  test.use({ viewport: { width: 1280, height: 800 } })
+
+  test('toast · on a computer the toast keeps its frame: its words on one line, centred, its foot above the floor (toast-phone-width.md)', async ({
+    context,
+  }) => {
+    // Measured on main e395d63ea at 1280×800: #466's line 495.6 × 44 px, «You left Fixture project.» 165.7 × 40 px,
+    // each centred on 640, their foot at 718 (the floor's 18 px and 64 above the bottom).
+    const page = await inCallAtHome(context)
+    await openResearchNotes(page)
+    const toast = shownToast(page)
+    await expect(toast.getByRole('button', { name: 'Rejoin' })).toBeVisible()
+    const ended = await toastFrame(page)
+    expect(ended.width).toBeCloseTo(ended.oneLine, 0)
+    expect(ended.height).toBe(44)
+    expect(Math.abs(ended.centre - 640)).toBeLessThanOrEqual(1)
+    expect(ended.foot).toBeCloseTo(718, 0)
+    await toast.getByRole('button', { name: 'Rejoin' }).click()
+    await expect(
+      page.getByRole('navigation', { name: 'Room controls' }).getByRole('button', { name: 'Leave the room' }),
+    ).toBeVisible()
+    await page.keyboard.press('h')
+    await page.locator('.places .room-pill').getByRole('button', { name: 'Leave the room' }).click()
+    await expect(toast).toContainText('You left Fixture project.')
+    const left = await toastFrame(page)
+    expect(left.width).toBeCloseTo(left.oneLine, 0)
+    expect(left.height).toBe(40)
+    expect(Math.abs(left.centre - 640)).toBeLessThanOrEqual(1)
+    expect(left.foot).toBeCloseTo(718, 0)
+    expect(left.sideways).toBe(0)
+  })
 })

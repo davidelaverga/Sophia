@@ -360,8 +360,11 @@ test('LFE-02.1 · a description edit never overwrites a teammate’s newer one, 
   await page.evaluate(() => window.fixture?.describeElsewhere('A teammate’s description'))
   await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
   await card.getByRole('button', { name: 'Save' }).click()
-  await expect(card.getByRole('alert')).toContainText('Someone changed this description since you opened it.')
+  await expect(card.getByRole('alert')).toContainText('Someone changed this description to “A teammate’s description”')
+  await expect(field).toHaveValue('My own description') // the typed words stay
+  await card.getByRole('button', { name: 'Cancel' }).click()
   await expect(card.getByText('A teammate’s description')).toBeVisible() // theirs is shown, not overwritten
+  await expect(card.getByRole('alert')).toHaveCount(0) // the conflict's line goes with the form
   await expect(edit).toBeFocused()
 })
 
@@ -474,8 +477,15 @@ test('M03-RF-0021 · a report the API refuses is said as refused, never as a rea
   await page.evaluate(() => window.fixture?.failVersions('not_found')) // the person may no longer read it (a 422)
   await follow(page, V2)
   await expect(untitled(page).getByText('This report isn’t available to you.')).toBeVisible({ timeout: 20_000 })
-  expect((await fixture(page)).served.filter((s) => s === 'versions:refused')).toHaveLength(4)
+  // Said at the first refusal; the read's default retries (four attempts in all) go on settling after it.
+  await expect
+    .poll(async () => (await fixture(page)).served.filter((s) => s === 'versions:refused').length, { timeout: 20_000 })
+    .toBe(4)
+  await expect(untitled(page).getByText('This report isn’t available to you.')).toBeVisible()
   await expect(untitled(page).getByRole('button', { name: 'Try again' })).toHaveCount(0)
+  // Settled, nothing read before the refusal shows: not the cached first version's text, nor its titled pane.
+  await expect(page.getByText(FIRST)).toHaveCount(0)
+  await expect(pane(page)).toHaveCount(0)
 })
 
 test('LFE-02.1 · Esc held down steps down once, and pinning names the version in place, not as a new entry', async ({

@@ -5,7 +5,7 @@ import net from 'node:net'
 import { channel } from 'node:diagnostics_channel'
 import { probeHost } from '../host-probe.mjs'
 import { launchConfined } from '../confine.mjs'
-import { captureHtml } from '../capture-html.mjs'
+import { captureHtml, SWEEP } from '../capture-html.mjs'
 import { orderScript } from '../capture-page.mjs'
 import { meetingsOf, STYLES, withinTime } from '../placement.mjs'
 // Only trusted fixture code subscribes. Collect bounded numeric timing records
@@ -150,7 +150,7 @@ try {
       qualification: false,
       syntheticApiPositive: true,
       releaseLaunchBudgetMs: 30000,
-      widthSweepBudgetMs: 60000,
+      widthSweepBudgetMs: SWEEP.maxMs,
       checks: suite,
       passed: suite.every((check) => check.ok),
     }),
@@ -159,10 +159,40 @@ try {
   await new Promise((resolve) => server.close(() => resolve(undefined)))
   fs.rmSync('/run/uml-private', { recursive: true, force: true })
 }
+// The QA host stops this guest after 240 s of wall time (host-qa.py's fixture
+// watchdog) and of CPU (landlock-launch.py's limit, which production inherits
+// too; a production job's wall is the supervisor's 270 s, the 180 s PNG claim
+// plus its 90 s margin), counted from before the guest boots. The diagnostics
+// that follow the original suite keep back this much for the boot before this
+// script, a capture's targets after its sweep, and shutdown (#387 review): with
+// the sweep's 150 s, a second full-length sweep would not fit.
+const WATCHDOG_MS = 240_000
+const RESERVE_MS = 60_000
+const leftMs = () => WATCHDOG_MS - RESERVE_MS - performance.now()
+// The timing probe's own bounds, each phase it can spend: the confined browser's
+// launch, the page load, the measurement window and the close's kill timer. It
+// starts only when all of them fit before the reserve (#387 review: 90 s did not).
+const PROBE_LAUNCH_MS = 30_000
+const PROBE_LOAD_MS = 30_000
+const PROBE_MEASURE_MS = 60_000
+const PROBE_CLOSE_MS = 5_000
+const PROBE_BUDGET_MS = PROBE_LAUNCH_MS + PROBE_LOAD_MS + PROBE_MEASURE_MS + PROBE_CLOSE_MS
 // Preserve the original suite's failure. Its summary omits a check's detailed
 // reason, so a failed capture gets one bounded diagnostic receipt with the same
-// source fixture, targets, original kernel and normal deadlines.
-if (suite.some((check) => check.check === 'capture_checks' && !check.ok)) {
+// source fixture, targets and original kernel, its sweep given only the time the
+// watchdog leaves (never more than SWEEP.maxMs): the original suite's verdict
+// stands either way, and a shorter sweep that runs out says so in its own detail.
+const detailSweepMs = Math.min(SWEEP.maxMs, Math.floor(leftMs()))
+if (suite.some((check) => check.check === 'capture_checks' && !check.ok) && detailSweepMs < 1000) {
+  console.log(
+    JSON.stringify({
+      event: 'UML_CAPTURE_FAILURE_DETAIL',
+      qualification: false,
+      diagnosticOnly: true,
+      skipped: 'no time left under the host watchdog for another capture',
+    }),
+  )
+} else if (suite.some((check) => check.check === 'capture_checks' && !check.ok)) {
   const source = fs.mkdtempSync('/tmp/uml-width-source-')
   const output = fs.mkdtempSync('/tmp/uml-width-output-')
   const fixture = `<!doctype html><html lang="it"><head><meta charset="utf-8">
@@ -185,7 +215,7 @@ if (suite.some((check) => check.check === 'capture_checks' && !check.ok)) {
         language: 'it',
         targets: ['w390-light', 'w1280-light'],
       },
-      { env: process.env },
+      { env: process.env, sweepMs: detailSweepMs },
     )
     flushWidthTimings('failure-detail')
     console.log(
@@ -194,6 +224,7 @@ if (suite.some((check) => check.check === 'capture_checks' && !check.ok)) {
         qualification: false,
         diagnosticOnly: true,
         fixtureSha256: sha256,
+        sweepBudgetMs: detailSweepMs,
         status: receipt.status,
         error: receipt.error,
         checks: receipt.checks,
@@ -201,7 +232,17 @@ if (suite.some((check) => check.check === 'capture_checks' && !check.ok)) {
         captureCount: receipt.captures.length,
       }),
     )
-    await timeWidthProbe(source)
+    // Only with its whole budget left: launch, load, measurement and close.
+    if (leftMs() >= PROBE_BUDGET_MS) await timeWidthProbe(source)
+    else
+      console.log(
+        JSON.stringify({
+          event: 'UML_WIDTH_TIMING',
+          diagnosticOnly: true,
+          skipped: 'no time left under the host watchdog',
+          budgetMs: PROBE_BUDGET_MS,
+        }),
+      )
   } finally {
     fs.rmSync(source, { recursive: true, force: true })
     fs.rmSync(output, { recursive: true, force: true })
@@ -216,11 +257,11 @@ async function timeWidthProbe(source) {
   // identical order expression. Every sampled width still gets the same full
   // snapshot and order/width validation. This never changes the suite verdict.
   const probeWork = fs.mkdtempSync('/tmp/uml-width-timing-')
-  const timedBrowser = await launchConfined({ workDir: probeWork, timeoutMs: 30000 })
+  const timedBrowser = await launchConfined({ workDir: probeWork, timeoutMs: PROBE_LAUNCH_MS })
   try {
     if (!timedBrowser.selfTest().active) throw new Error('timing browser sandbox inactive')
     const page = await timedBrowser.context.newPage()
-    await page.goto(`file://${source}/index.html`, { waitUntil: 'load', timeout: 30000 })
+    await page.goto(`file://${source}/index.html`, { waitUntil: 'load', timeout: PROBE_LOAD_MS })
     const cdp = await timedBrowser.context.newCDPSession(page)
     await cdp.send('Runtime.enable')
     const expression = orderScript('ltr')
@@ -231,7 +272,7 @@ async function timeWidthProbe(source) {
     if (!compiled.result.objectId || compiled.exceptionDetails) throw new Error('order compilation failed')
     const objectId = compiled.result.objectId
     const widths = Array.from({ length: 32 }, (_, k) => 320 + k)
-    const until = Date.now() + 60000
+    const until = Date.now() + PROBE_MEASURE_MS
     await profileWidthComponents(cdp, objectId, until)
     /** @type {string[] | null} */
     let baseline = null
@@ -259,7 +300,7 @@ async function timeWidthProbe(source) {
       )
     }
   } finally {
-    const timer = setTimeout(() => timedBrowser.kill(), 5000)
+    const timer = setTimeout(() => timedBrowser.kill(), PROBE_CLOSE_MS)
     try {
       await timedBrowser.close()
     } catch {

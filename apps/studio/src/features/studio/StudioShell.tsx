@@ -3,11 +3,16 @@
 // are shared. The chat and the brief sit in a side panel beside the stage, as meeting apps have them, so the
 // stage keeps Sophia's light and the people at its centre; the panel is this viewer's own, like the lens.
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ComponentProps, type ReactNode } from 'react'
+import { MESSAGE, TODO } from '../resources/link.ts'
+import { ProjectTasks } from '../artifacts/ProjectTasks.tsx'
+import { TASKS } from '../../app/tasks.ts'
+import { useAddressed } from '../resources/useAddressed.ts'
 import { Button } from '@sophia/ui'
 import { getMission } from '../../api/mission.ts'
 import type { Snapshot } from '@sophia/contracts'
 import { accountOf } from '../../app/auth-callback.ts'
+import { VISION } from '../../app/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useCommands } from '../../app/useCommands.ts'
 import { useMembership } from '../access/useAccess.ts'
@@ -32,7 +37,7 @@ import { useKnownNames } from './useKnownNames.ts'
 import { PeoplePanel } from './PeoplePanel.tsx'
 import { PanelToggles, SidePanel, useBriefUpdates, useUnread } from './SidePanel.tsx'
 import { useViewerState } from './useViewerState.ts'
-import type { Lens } from './viewer-state.ts'
+import { lensesShown, type Lens } from './viewer-state.ts'
 
 /** What each lens will hold, stated plainly instead of showing fake content (the goal is noted for us). */
 const COMING: Record<Exclude<Lens, 'converse'>, { title: string; body: string }> = {
@@ -57,6 +62,20 @@ export function useRoomPanel(snapshot: Snapshot | undefined, room: ProjectRoom, 
   const [panel, setPanel] = useState<Panel | null>(null)
   const [opener, setOpener] = useState<Panel | null>(null)
   const unread = useUnread(chatSignature(snapshot, room.chat, room.notices), studio && panel === 'chat')
+  // A message named in the address (a mention from Home, A37): the chat opens on it.
+  const message = useAddressed(MESSAGE)
+  useEffect(() => {
+    if (!studio || !message.id) return
+    setPanel('chat')
+    setOpener('chat')
+  }, [studio, message.id, message.seq])
+  // A person's task named in the address (A39, #todo-): the brief opens on it, where the project's tasks are.
+  const todo = useAddressed(TODO)
+  useEffect(() => {
+    if (!studio || !todo.id || !TASKS) return
+    setPanel('brief')
+    setOpener('brief')
+  }, [studio, todo.id, todo.seq])
   const brief = useBriefUpdates(studio && panel === 'brief')
   // A passage asked about from the report (PassageBar), until the chat's message takes it.
   const [asked, setAsked] = useState<Passage | null>(null)
@@ -64,6 +83,8 @@ export function useRoomPanel(snapshot: Snapshot | undefined, room: ProjectRoom, 
     panel,
     opener,
     unread,
+    /** The chat is on screen: its tab open while the room is (a mention is seen only then, A37). */
+    chatInView: studio && panel === 'chat',
     brief,
     asked,
     /** A passage asked about: Chat opens, and its message takes the passage (useAskedInto). */
@@ -252,6 +273,10 @@ const PANEL_ALSO = {
 
 const PANEL_KEY = { chat: 'c', people: 'p', brief: 'b' } as const
 
+/** The lenses this Studio offers; one is no choice, so then no bar, no palette row and no key (prod-honesty.md). */
+const LENSES_SHOWN = lensesShown(VISION)
+const CHOOSES = LENSES_SHOWN.length > 1
+
 /** The room's own keys, as commands: a lens by its number, Chat and the brief by their letters, said by their state. */
 function useShellKeys(setLens: (lens: Lens) => void, panel: RoomPanel) {
   const toggle = (which: 'chat' | 'people' | 'brief', words: string) => ({
@@ -262,10 +287,15 @@ function useShellKeys(setLens: (lens: Lens) => void, panel: RoomPanel) {
     also: PANEL_ALSO[which],
     run: () => panel.toggle(which),
   })
+  const lenses = CHOOSES ? LENSES_SHOWN : []
   useCommands([
-    { id: 'lens-converse', words: 'Converse lens', group: 'view', key: '1', run: () => setLens('converse') },
-    { id: 'lens-explore', words: 'Explore lens', group: 'view', key: '2', run: () => setLens('explore') },
-    { id: 'lens-build', words: 'Build lens', group: 'view', key: '3', run: () => setLens('build') },
+    ...lenses.map((l, i) => ({
+      id: `lens-${l}`,
+      words: `${LENS_LABEL[l]} lens`,
+      group: 'view' as const,
+      key: String(i + 1),
+      run: () => setLens(l),
+    })),
     toggle('chat', 'chat'),
     toggle('people', 'people in the call'),
     toggle('brief', 'brief'),
@@ -289,14 +319,14 @@ export function StudioShell(props: Props) {
   const stageExtras = { snapshot, room, made, panel, common, who, spoken: latestSpoken(held), catchUp, background }
   const { present, under, showing } = useUnderTheLine(stageExtras, chatOpen)
   return (
-    <div className="studio">
+    <div className="studio" data-content>
       <RoomStage
         room={room}
         snapshot={snapshot}
         projectId={projectId}
         identity={identity}
-        lensBar={<LensSwitcher lens={state.lens} onChange={setLens} />}
-        lensBody={<LensBody lens={state.lens} made={under} />}
+        lensBar={CHOOSES ? <LensSwitcher lens={state.lens} onChange={setLens} /> : null}
+        lensBody={<LensBody lens={state.lens} made={under} tabs={CHOOSES} />}
         captions={captions}
         presented={present.presented}
         showing={showing}
@@ -319,12 +349,13 @@ export function StudioShell(props: Props) {
             {...common}
             snapshot={snapshot}
             room={room}
+            inView={panel.chatInView}
             {...chatDraft}
             onShowRoom={() => panel.show(null)}
           />
         }
         people={<PeoplePanel room={room} projectId={projectId} identity={identity} />}
-        brief={<MissionPanel {...common} cursor={snapshot?.cursor} onRevision={panel.brief.onRevision} />}
+        brief={<BriefWithTasks common={common} cursor={snapshot?.cursor} onRevision={panel.brief.onRevision} />}
         call={<PanelCallSwitches room={room} looking={looking} />}
         note={panelNote(panel.panel, room.mediaError, room.error)}
       />
@@ -332,10 +363,28 @@ export function StudioShell(props: Props) {
   )
 }
 
-/** The lens's own body under Sophia's line: what she made, in Converse; what is coming, in the others. */
-function LensBody({ lens, made }: { lens: Lens; made: ReactNode }) {
+/** The brief, and under it the project's tasks (A39, the tasks flag's; nothing without it). */
+function BriefWithTasks(props: {
+  common: Omit<ComponentProps<typeof MissionPanel>, 'cursor' | 'onRevision'>
+  cursor: string | undefined
+  onRevision: NonNullable<ComponentProps<typeof MissionPanel>['onRevision']>
+}) {
+  const { common, cursor, onRevision } = props
   return (
-    <div id="lens-stage" className="lens-body" role="tabpanel" aria-labelledby={`lens-${lens}`}>
+    <>
+      <MissionPanel {...common} cursor={cursor} onRevision={onRevision} />
+      <ProjectTasks projectId={common.projectId} identity={common.identity} cursor={cursor} />
+    </>
+  )
+}
+
+/**
+ * The lens's own body under Sophia's line: what she made, in Converse; what is coming, in the others. `tabs`: a lens
+ * bar labels it; with one lens offered nothing does, so it is no tab's panel.
+ */
+function LensBody({ lens, made, tabs }: { lens: Lens; made: ReactNode; tabs: boolean }) {
+  return (
+    <div id="lens-stage" className="lens-body" {...(tabs && { role: 'tabpanel', 'aria-labelledby': `lens-${lens}` })}>
       {lens === 'converse' ? made : <ComingLens lens={lens} />}
     </div>
   )

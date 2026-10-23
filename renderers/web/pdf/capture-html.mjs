@@ -97,7 +97,9 @@ export const RECEIPT_BYTES = 1_000_000
  * conditions hold or fail alike, so the rules its captures show at 390 and 1280px are not the only ones a reader can
  * meet: the sweep measures, without capturing, both ends of every band the breakpoints make, from a narrow phone to a
  * wide screen. A breakpoint past these widths, more breakpoints, a condition it cannot read, or a band end it has no
- * time left to measure fails the sweep, never a band left out.
+ * time left to measure fails the sweep, never a band left out. Its 150 s (D-WIDTH, R1-F01) let the native host read every
+ * width of a report's bands: R1's reports, at more than 26.7 ms a width there, ran out of 60 s before any band end, and
+ * the owner chose the time over fewer widths. The capture's own 180 s claim (0039) still bounds the whole job.
  */
 export const SWEEP = Object.freeze({
   minWidth: 320,
@@ -105,7 +107,7 @@ export const SWEEP = Object.freeze({
   height: 800,
   heights: Object.freeze([320, 640, 1080, 2160]),
   maxBreakpoints: 8,
-  maxMs: 60_000,
+  maxMs: 150_000,
 })
 /** A stretch of the page outside every section shorter than this is not captured on its own. */
 const MARGIN_MIN_PX = 24

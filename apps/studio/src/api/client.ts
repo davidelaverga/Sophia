@@ -1,12 +1,14 @@
 // Typed calls to the Sophia API (packages/contracts). The browser talks only to this API.
 // No hidden retries: an ambiguous admission surfaces as outcome_unknown and the caller decides to
-// retry with the SAME Idempotency-Key.
+// retry with the SAME Idempotency-Key. The one exception is a token the API refused (401): it is
+// renewed once and the request sent again (renew.ts), since the API did nothing with it.
 import type {
   Error as ApiErrorBody,
   ExchangeReceipt,
   FloorRequest,
   GoalCommand,
   ProjectCreated,
+  ProjectArchived,
   ProjectRenamed,
   ProjectLeft,
   DiscussionPage,
@@ -15,6 +17,8 @@ import type {
   GoalTargetSet,
   ProjectMembers,
   MemberRoleSet,
+  ActivityPage,
+  MemberRemoved,
   Receipt,
   RoomToken,
   RoomTokenRequest,
@@ -25,17 +29,23 @@ import {
   parseExchangeReceipt,
   parseProjectCreated,
   parseProjectRenamed,
+  parseProjectArchived,
   parseProjectLeft,
   parseDiscussionPage,
   parseGoalTargetList,
   parseGoalTargetSet,
   parseProjectMembers,
   parseMemberRoleSet,
+  parseActivityPage,
+  parseMemberRemoved,
   parseReceipt,
   parseRoomToken,
   parseSnapshot,
 } from '@sophia/contracts/validate'
+import { MENTIONS } from '../app/mentions.ts'
+import { MESSAGE_ACTS } from '../app/message-acts.ts'
 import { apiUrl } from './base.ts'
+import { apiFetch } from './renew.ts'
 import { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS } from './timeouts.ts'
 
 export class ApiError extends Error {
@@ -59,12 +69,36 @@ export class ApiError extends Error {
 const unreadRefusal = (status: number) =>
   `That didn’t go through.${status >= 500 || status === 429 ? ' Try again.' : ''}`
 
-/** The reply's error body when it matches the contract; otherwise the HTTP status speaks, in words. */
-export async function toError(res: Response, retry: ApiErrorBody['retry'] = 'never'): Promise<ApiError> {
+/**
+ * A proxy's answer with no body of the API's (Render's 502/503/504 page: a deploy, a cold start, an instance lost or too
+ * slow mid-request). The API's own 5xx always carries its contract body, so one without it never came from the API.
+ */
+const PROXY_PAUSE = new Set([502, 503, 504])
+
+/** What a call is: a read, an admission (a write with its Idempotency-Key) or a write without one. */
+type Call = 'read' | 'admission' | 'write'
+
+/**
+ * What a failure with no answer of the API's allows, by call: a read is asked again; an admission may have been
+ * recorded, so it goes again only with its key, on the person's press; a write without a key is never repeated as if it
+ * had not happened.
+ */
+const UNANSWERED: Record<Call, ApiErrorBody['retry']> = {
+  read: 'safe_read',
+  admission: 'same_admission_key',
+  write: 'never',
+}
+
+/**
+ * The reply's error body when it matches the contract; otherwise the HTTP status speaks, in words. Without a body, a
+ * proxy's 502/503/504 is a failure with no answer of the API's (UNANSWERED); anything else is final
+ * (docs/plans/reliability-retry-5xx-and-write-timeouts.md).
+ */
+export async function toError(res: Response, call: Call): Promise<ApiError> {
   const body = asErrorBody(await res.json().catch(() => null))
-  return body
-    ? new ApiError(res.status, body.code, body.message, body.retry)
-    : new ApiError(res.status, `http_${res.status}`, unreadRefusal(res.status), retry)
+  if (body) return new ApiError(res.status, body.code, body.message, body.retry)
+  const retry = PROXY_PAUSE.has(res.status) ? UNANSWERED[call] : 'never'
+  return new ApiError(res.status, `http_${res.status}`, unreadRefusal(res.status), retry)
 }
 
 /**
@@ -105,10 +139,20 @@ async function inTime<T>(ms: number, run: (signal: AbortSignal) => Promise<T>, o
   }
 }
 
+/**
+ * With the message acts flag (or the mentions flag, whose recipients come with revisions: A37), the discussion is read
+ * with its revisions and tombstones (A36's revisions=1).
+ */
+const REVISIONS = MESSAGE_ACTS || MENTIONS ? 'revisions=1' : ''
+
 export function getSnapshot(token: string, projectId: string, signal?: AbortSignal): Promise<Snapshot> {
   const read = async (limit: AbortSignal) => {
-    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/snapshot`), { headers: auth(token), signal: limit })
-    if (!res.ok) throw await toError(res)
+    const query = REVISIONS ? `?${REVISIONS}` : ''
+    const res = await apiFetch(apiUrl(`/api/v1/projects/${projectId}/snapshot${query}`), {
+      headers: auth(token),
+      signal: limit,
+    })
+    if (!res.ok) throw await toError(res, 'read')
     return readBody(res, parseSnapshot, 'safe_read')
   }
   return inTime(READ_TIMEOUT_MS, read, signal)
@@ -116,13 +160,14 @@ export function getSnapshot(token: string, projectId: string, signal?: AbortSign
 
 /** readDiscussion (A23): a page of the room's discussion, oldest first: the newest, or the 50 before `before`. */
 export function getDiscussionPage(token: string, projectId: string, before: string | null): Promise<DiscussionPage> {
-  const query = before ? `?before=${encodeURIComponent(before)}` : ''
+  const params = [...(before ? [`before=${encodeURIComponent(before)}`] : []), ...(REVISIONS ? [REVISIONS] : [])]
+  const query = params.length > 0 ? `?${params.join('&')}` : ''
   const read = async (limit: AbortSignal) => {
-    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/discussion${query}`), {
+    const res = await apiFetch(apiUrl(`/api/v1/projects/${projectId}/discussion${query}`), {
       headers: auth(token),
       signal: limit,
     })
-    if (!res.ok) throw await toError(res)
+    if (!res.ok) throw await toError(res, 'read')
     return readBody(res, parseDiscussionPage, 'safe_read')
   }
   return inTime(READ_TIMEOUT_MS, read)
@@ -131,8 +176,8 @@ export function getDiscussionPage(token: string, projectId: string, before: stri
 /** A JSON read under the person's token, validated as `parse` (A25's goal targets and members). */
 function readJson<T>(token: string, path: `/api/${string}`, parse: (value: unknown) => T): Promise<T> {
   const read = async (limit: AbortSignal) => {
-    const res = await fetch(apiUrl(path), { headers: auth(token), signal: limit })
-    if (!res.ok) throw await toError(res)
+    const res = await apiFetch(apiUrl(path), { headers: auth(token), signal: limit })
+    if (!res.ok) throw await toError(res, 'read')
     return readBody(res, parse, 'safe_read')
   }
   return inTime(READ_TIMEOUT_MS, read)
@@ -154,17 +199,35 @@ export async function setGoalTarget(
   body: GoalTargetRequest,
 ): Promise<GoalTargetSet> {
   const send = async (limit: AbortSignal) => {
-    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/goals/${goalId}/target`), {
+    const res = await apiFetch(apiUrl(`/api/v1/projects/${projectId}/goals/${goalId}/target`), {
       method: 'PUT',
       headers: { ...auth(token), 'content-type': 'application/json' },
       body: JSON.stringify(body),
       signal: limit,
     })
-    if (!res.ok) throw await toError(res)
+    if (!res.ok) throw await toError(res, 'write')
     return readBody(res, parseGoalTargetSet, 'never')
   }
-  return inTime(READ_TIMEOUT_MS, send)
+  return inTime(WRITE_TIMEOUT_MS, send)
 }
+
+/** readProjectActivity (A28): who did what in the project, for its admins; newest first, before a sequence. */
+export function getProjectActivity(token: string, projectId: string, before: string | null): Promise<ActivityPage> {
+  const query = before ? `?before=${encodeURIComponent(before)}` : ''
+  const read = async (limit: AbortSignal) => {
+    const res = await apiFetch(apiUrl(`/api/v1/projects/${projectId}/activity${query}`), {
+      headers: auth(token),
+      signal: limit,
+    })
+    if (!res.ok) throw await toError(res, 'read')
+    return readBody(res, parseActivityPage, 'safe_read')
+  }
+  return inTime(READ_TIMEOUT_MS, read)
+}
+
+/** removeMember (A29): admins only, never oneself; idempotent per key, so a retry after an unknown outcome is the same. */
+export const removeMember = (token: string, projectId: string, actorId: string, key: string): Promise<MemberRemoved> =>
+  postIdempotent(token, `/api/v1/projects/${projectId}/members/${actorId}/removal`, key, {}, parseMemberRemoved)
 
 /** changeMemberRole (A27): admins only; a project keeps an admin; a role already held changes nothing. */
 export async function changeMemberRole(
@@ -174,16 +237,16 @@ export async function changeMemberRole(
   role: 'admin' | 'editor' | 'viewer',
 ): Promise<MemberRoleSet> {
   const send = async (limit: AbortSignal) => {
-    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/members/${actorId}/role`), {
+    const res = await apiFetch(apiUrl(`/api/v1/projects/${projectId}/members/${actorId}/role`), {
       method: 'PUT',
       headers: { ...auth(token), 'content-type': 'application/json' },
       body: JSON.stringify({ role }),
       signal: limit,
     })
-    if (!res.ok) throw await toError(res)
+    if (!res.ok) throw await toError(res, 'write')
     return readBody(res, parseMemberRoleSet, 'never')
   }
-  return inTime(READ_TIMEOUT_MS, send)
+  return inTime(WRITE_TIMEOUT_MS, send)
 }
 
 /** An admin's act on a member in the call (A24): mute their microphone, or take them out. No key: twice is once. */
@@ -191,15 +254,28 @@ export async function actInCall(
   token: string,
   projectId: string,
   identity: string,
-  what: 'mute' | 'remove',
+  what: 'mute' | 'remove' | 'stop-camera' | 'stop-screen',
 ): Promise<void> {
   const send = async (limit: AbortSignal) => {
-    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/room/people/${identity}/${what}`), {
+    const res = await apiFetch(apiUrl(`/api/v1/projects/${projectId}/room/people/${identity}/${what}`), {
       method: 'POST',
       headers: auth(token),
       signal: limit,
     })
-    if (!res.ok) throw await toError(res)
+    if (!res.ok) throw await toError(res, 'write')
+  }
+  return inTime(WRITE_TIMEOUT_MS, send)
+}
+
+/** An admin mutes everyone else in the call (A31): members and guests. No key: twice is once. */
+export async function muteEveryoneInCall(token: string, projectId: string): Promise<void> {
+  const send = async (limit: AbortSignal) => {
+    const res = await apiFetch(apiUrl(`/api/v1/projects/${projectId}/room/mute-all`), {
+      method: 'POST',
+      headers: auth(token),
+      signal: limit,
+    })
+    if (!res.ok) throw await toError(res, 'write')
   }
   return inTime(WRITE_TIMEOUT_MS, send)
 }
@@ -219,7 +295,7 @@ function postIdempotent<T>(
   return inTime(WRITE_TIMEOUT_MS, async (signal) => {
     let res: Response
     try {
-      res = await fetch(apiUrl(path), {
+      res = await apiFetch(apiUrl(path), {
         method: 'POST',
         headers: { ...auth(token), 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
         body: JSON.stringify(body),
@@ -228,7 +304,7 @@ function postIdempotent<T>(
     } catch {
       throw new ApiError(0, 'outcome_unknown', 'No reply from Sophia', 'same_admission_key')
     }
-    if (!res.ok) throw await toError(res)
+    if (!res.ok) throw await toError(res, 'admission')
     return readBody(res, parse, 'same_admission_key')
   })
 }
@@ -244,21 +320,42 @@ interface CallInit {
   headers?: Readonly<Record<string, string>>
   /** The caller's own signal: once it aborts, the call stops (as one past its time does). */
   signal?: AbortSignal
+  /**
+   * A protected read (a project's conversations, a conversation's messages): its 403 is the refusal, known from the
+   * status alone, so it is raised at once as `forbidden`, never after (or according to) an error body that may be slow,
+   * endless or malformed (R-REFUSAL-CLIENT-01). The view fences on that refusal.
+   */
+  protectedRead?: true
+  /**
+   * A read behind the project's door (Updates' «since», closedDoor): its 401 or 403 is the refusal, known from the status
+   * alone, so it is raised at once with that status, never after an error body that may be slow, endless or malformed
+   * (R-391-UPDATES-01). The view fences on it.
+   */
+  doorRead?: true
 }
 
 /**
  * One call with an optional bearer, body and key; the reply validated as `parse`, never cast. A GET waits as a
  * read does; anything else, as a write.
  */
+/** A protected read's refusal, known from its status alone (`protectedRead`, `doorRead`); undefined for any other. */
+function refusedByStatus(status: number, init: CallInit, retry: ApiErrorBody['retry']): ApiError | undefined {
+  if (status === 403 && init.protectedRead) return new ApiError(403, 'forbidden', unreadRefusal(403), retry)
+  if ((status === 401 || status === 403) && init.doorRead)
+    return new ApiError(status, `http_${status}`, unreadRefusal(status), retry)
+  return undefined
+}
+
 export function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value: unknown) => T): Promise<T> {
   const method = init.method ?? 'POST'
   // What a failure allows: an admission is retried with its key, a read is asked again, and a write without a key
   // (a lobby decision, cancelling a session) that got no answer may have happened, so it is never repeated as if not.
-  const retry = init.key ? 'same_admission_key' : method === 'GET' ? 'safe_read' : 'never'
-  const call = async (signal: AbortSignal) => {
+  const call: Call = init.key ? 'admission' : method === 'GET' ? 'read' : 'write'
+  const retry = UNANSWERED[call]
+  const send = async (signal: AbortSignal) => {
     let res: Response
     try {
-      res = await fetch(apiUrl(path), {
+      res = await apiFetch(apiUrl(path), {
         method,
         headers: {
           ...(init.token ? auth(init.token) : {}),
@@ -272,10 +369,15 @@ export function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value
     } catch {
       throw new ApiError(0, 'outcome_unknown', 'No reply from Sophia', retry)
     }
-    if (!res.ok) throw await toError(res)
+    const refused = refusedByStatus(res.status, init, retry)
+    if (refused) {
+      void res.body?.cancel().catch(() => undefined)
+      throw refused
+    }
+    if (!res.ok) throw await toError(res, call)
     return readBody(res, parse, retry)
   }
-  return inTime(method === 'GET' ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS, call, init.signal)
+  return inTime(method === 'GET' ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS, send, init.signal)
 }
 
 export const admitGoalCommand = (token: string, projectId: string, key: string, cmd: GoalCommand): Promise<Receipt> =>
@@ -288,6 +390,15 @@ export const createProject = (token: string, key: string, title: string): Promis
 /** renameProject (A21): an admin only, idempotent per person and key; reuse the key when retrying an unknown outcome. */
 export const renameProject = (token: string, projectId: string, key: string, title: string): Promise<ProjectRenamed> =>
   postIdempotent(token, `/api/v1/projects/${projectId}/title`, key, { title }, parseProjectRenamed)
+
+/** archiveProject (A30): an admin archives a project or brings it back, idempotent per person and key. */
+export const archiveProject = (
+  token: string,
+  projectId: string,
+  key: string,
+  archived: boolean,
+): Promise<ProjectArchived> =>
+  postIdempotent(token, `/api/v1/projects/${projectId}/archive`, key, { archived }, parseProjectArchived)
 
 /** leaveProject (A22): any member but the only admin, idempotent per person and key. */
 export const leaveProject = (token: string, projectId: string, key: string): Promise<ProjectLeft> =>

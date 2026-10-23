@@ -1,7 +1,7 @@
 // Who else is in the room on its fixture page, and what Sophia's participant says (docs/plans/room-fixture-people.md):
 // synthetic people, her attributes as the bridge sets them, and canvas streams for cameras and a shared screen. The
-// query string picks them (`people`, `speaking`, `sophia`, `video`); `window.fixture` changes them while the page is
-// open. No one here is real, and nothing reaches a server.
+// query string picks them (`people`, `speaking`, `sophia`, `video`, `sound`); `window.fixture` changes them while the
+// page is open. No one here is real, and nothing reaches a server.
 import type { VideoFeed } from '../src/features/voice/livekit-room.ts'
 import type { RoomParticipant } from '../src/features/voice/room-view.ts'
 import type { SophiaSignal } from '../src/features/voice/sophia-view.ts'
@@ -102,13 +102,26 @@ export function personLeaves(name: string): void {
   changed()
 }
 
-/** Who an admin muted, and who they took out of the call (host-controls.md), by identity. */
-const muted = new Set<string>()
+/**
+ * Who an admin muted, took out of the call, or whose camera or screen they stopped (host-controls.md, host-more.md).
+ * `muted=n`: the `n`th other person came in with their microphone off.
+ */
+const mutedAtFirst = oneOfUs(query.get('muted'), false)
+const muted = new Set<string>(mutedAtFirst === null ? [] : [personId(mutedAtFirst)])
 const removed = new Set<string>()
+const cameraOff = new Set<string>()
+const screenOff = new Set<string>()
+const ACTED = { mute: muted, remove: removed, 'stop-camera': cameraOff, 'stop-screen': screenOff }
 
-/** An admin's act lands, as LiveKit's server applies it: the microphone goes off, or the person leaves. */
-export function hostActed(what: 'mute' | 'remove', identity: string): void {
-  ;(what === 'mute' ? muted : removed).add(identity)
+/** An admin's act lands, as LiveKit's server applies it: a microphone, camera or screen goes off, or the person leaves. */
+export function hostActed(what: keyof typeof ACTED, identity: string): void {
+  ACTED[what].add(identity)
+  changed()
+}
+
+/** The `n`th other person turns their own microphone back on, as only they can after an admin's mute. */
+export function unmutes(n: number): void {
+  muted.delete(personId(n))
   changed()
 }
 
@@ -125,9 +138,10 @@ function person(name: string, i: number): RoomParticipant {
     name,
     speaking: now.speaking.includes(i + 1),
     micOn: !muted.has(personId(i + 1)),
-    cameraOn: video === 'camera',
+    cameraOn: video === 'camera' && !cameraOff.has(personId(i + 1)),
     // `video=screens`: the first two share at once (two-screens.md).
-    screenOn: (video === 'screen' && i === screenBy - 1) || (video === 'screens' && i < 2),
+    screenOn:
+      ((video === 'screen' && i === screenBy - 1) || (video === 'screens' && i < 2)) && !screenOff.has(personId(i + 1)),
     local: false,
     // `guest=1`: the last of the others came in as a guest.
     standing: query.has('guest') && i === count - 1 ? 'guest' : 'editor',
@@ -145,11 +159,23 @@ export function sophiaSignal(): SophiaSignal | null {
   if (!now.sophia) return null
   return paused ? { ...SIGNALS[now.sophia], input: 'paused' } : SIGNALS[now.sophia]
 }
-export const soundBlocked = () => now.sophia === 'blocked'
+/**
+ * `sound=blocked`: the browser blocked the call's sound from the start (autoplay), whoever speaks; `blockSound` blocks
+ * it in a call already live, as LiveKit's AudioPlaybackStatusChanged says it (sound-blocked-others.md).
+ */
+let callSoundBlocked = query.get('sound') === 'blocked'
+export const soundBlocked = () => callSoundBlocked || now.sophia === 'blocked'
 
-/** The person allowed sound (Allow audio): as LiveKit's playback starts, her voice reaches this browser. */
+export function blockSound(): void {
+  callSoundBlocked = true
+  changed()
+}
+
+/** The person allowed sound (Allow audio): as LiveKit's playback starts, every voice reaches this browser, hers too. */
 export function allowSound(): void {
-  if (now.sophia === 'blocked') setSophia('speaking')
+  callSoundBlocked = false
+  if (now.sophia === 'blocked') now.sophia = 'speaking'
+  changed()
 }
 
 /**
@@ -249,10 +275,36 @@ function feed(n: number, source: 'camera' | 'screen'): VideoFeed {
   return made
 }
 
-/** The cameras on (`video=camera`), or one person's shared screen (`video=screen`, `screenBy`). */
+/** The viewer's own camera, once they turn it on: local, as LiveKit's own track is (room-basics.md). */
+export function ownFeed(identity: string): VideoFeed {
+  const key = `${identity}:camera`
+  const known = kept.get(key)
+  if (known) return known
+  const media = stream('You', false)
+  const made: VideoFeed = {
+    key,
+    identity,
+    source: 'camera',
+    local: true,
+    attach: (el) => {
+      el.srcObject = media
+    },
+    detach: (el) => {
+      el.srcObject = null
+    },
+  }
+  kept.set(key, made)
+  return made
+}
+
+/**
+ * The cameras and screens on (`video`, `screenBy`: `person`), of those still in the call: one an admin stopped, or
+ * someone's they removed, is gone, as LiveKit unpublishes it (#369).
+ */
 export function feeds(): VideoFeed[] {
-  if (video === 'camera') return here().map(({ i }) => feed(i + 1, 'camera'))
-  if (video === 'screen' && count > 0) return [feed(screenBy, 'screen')]
-  if (video === 'screens' && count > 1) return [feed(1, 'screen'), feed(2, 'screen')]
-  return []
+  return here().flatMap(({ name, i }) => {
+    const p = person(name, i)
+    if (removed.has(p.identity)) return []
+    return [...(p.cameraOn ? [feed(i + 1, 'camera')] : []), ...(p.screenOn ? [feed(i + 1, 'screen')] : [])]
+  })
 }

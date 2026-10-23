@@ -35,8 +35,8 @@ test('polish · from the keyboard, the thread is a region Tab reaches, and there
   await page.goto(PAGE)
   const at = open(page).locator('.conv-msg:not(.sophia) .conv-msg-at').first()
   await expect(at).toHaveCSS('opacity', '0')
-  // From the head's last control (what it made), the next stop is the thread itself.
-  await open(page).locator('.conv-output').focus()
+  // From the head's last control (Copy link, after what it made: conversation-moves.md), the next stop is the thread.
+  await open(page).getByRole('button', { name: 'Copy link' }).focus()
   await page.keyboard.press('Tab')
   const thread = open(page).getByRole('region', { name: 'Messages' })
   await expect(thread).toBeFocused()

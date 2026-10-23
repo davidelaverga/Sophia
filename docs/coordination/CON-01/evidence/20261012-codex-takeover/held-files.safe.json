@@ -1,0 +1,37 @@
+[
+  {
+    "path": "apps/studio/src/features/conversations/ConversationRows.tsx",
+    "sha256": "a0bec3400f06c5785ffecca90895c54be5bc38368714678a7304aa6fbe00e594",
+    "unchanged_from": "0112445e71d38c3f70dae92659390b60257e6093"
+  },
+  {
+    "path": "apps/studio/src/features/conversations/OpenConversation.tsx",
+    "sha256": "a32b0527f2ffcec14bc9e4fba6ecb0ae138e9f64287e0e2655e2c2ae644b5b4d",
+    "unchanged_from": "0112445e71d38c3f70dae92659390b60257e6093"
+  },
+  {
+    "path": "apps/studio/src/features/conversations/conversations.css",
+    "sha256": "00b347e9fe87551df9cd5131e6f5ecedee1d76ba220d7049fafcae87cbc3667a",
+    "unchanged_from": "0112445e71d38c3f70dae92659390b60257e6093"
+  },
+  {
+    "path": "apps/studio/src/features/studio/ProjectShell.tsx",
+    "sha256": "370cb0ff92b9735fb1f00a738a15bc0e113040050cbf5cee49876ea312063785",
+    "unchanged_from": "0112445e71d38c3f70dae92659390b60257e6093"
+  },
+  {
+    "path": "apps/studio/src/features/conversations/ConversationComposer.tsx",
+    "sha256": "9c63c365eec69387162f10995634977d75f42888608637edf576a0fd84d5b32b",
+    "unchanged_from": "0112445e71d38c3f70dae92659390b60257e6093"
+  },
+  {
+    "path": "apps/studio/src/features/conversations/ConversationsView.tsx",
+    "sha256": "e64b92ebfdf55228cc336aa8d3112993d80bc23e38a0cd619319143c98633c6f",
+    "unchanged_from": "0112445e71d38c3f70dae92659390b60257e6093"
+  },
+  {
+    "path": "apps/studio/src/features/conversations/NewConversation.tsx",
+    "sha256": "87ac7d5b54d927ff1ee951f9e41065fb8ff5dba93bd2bbcd2812d40a5421b091",
+    "unchanged_from": "0112445e71d38c3f70dae92659390b60257e6093"
+  }
+]

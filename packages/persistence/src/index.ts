@@ -9,14 +9,19 @@ export {
   withActor,
   withoutActor,
   withService,
+  type ActorNames,
   type PoolOptions,
   type TxMode,
 } from './tx.ts'
+export type { ServiceControl } from './service-control.ts'
+export { readMyProfile, setMyProfile } from './profiles.ts'
+export { markMentionSeen, markReplySeen, readNeeds } from './needs.ts'
+export { markProjectSeen, readProjectUpdates } from './updates.ts'
 export { classifyDbError } from './errors.ts'
 export { migrate, readMigrations, MigrationDrift, type MigrationReport } from './migrate.ts'
 export { readSnapshot } from './snapshot.ts'
 export { admitGoalCommand, canCommand, sentCommand, type SentCommand } from './commands.ts'
-export { createProject, renameProject, leaveProject } from './projects.ts'
+export { createProject, renameProject, leaveProject, setProjectArchived } from './projects.ts'
 export { authorizeRoomJoin, hostedRoom, transferInputFloor, type MemberRole } from './room.ts'
 export {
   acceptRoomInvitation,
@@ -44,6 +49,8 @@ export {
   type NewInvitation,
 } from './access.ts'
 export { claimOutbox, expireDispatchLeases, recordDispatchResult, type OutboxRow } from './outbox.ts'
+// The conversation assembler (S3, 0064/0070): the worker records a reply's context when its create waits for one.
+export { assembleReply, checkedLimits, type AssemblyLimits, type AssemblyResult } from './conversation-assembly.ts'
 export { readEventFrames, type EventFrame, type EventPage } from './events.ts'
 export {
   ChannelListener,
@@ -82,10 +89,12 @@ export {
   runtimeResearchRender,
   runtimeResearchRenderResult,
 } from './research-render.ts'
+export { correctContribution, previewContributionAct, withdrawContribution } from './contribution-acts.ts'
 export {
   admitNativeTask,
   readDiscussion,
   readDiscussionPage,
+  readRevisedDiscussion,
   readNativeTask,
   readNativeTasks,
   readResearchVersion,
@@ -93,6 +102,7 @@ export {
   readTaskStandings,
   submitContribution,
   type ContributionOrigin,
+  type RevisedDiscussion,
   type ReportVersion,
   type ReportVersionText,
   type ResearchVersions,
@@ -106,9 +116,21 @@ export {
   readReportSource,
   REPORT_PAGE,
   searchQuery,
+  searchWords,
   type ReportQuery,
   type ReportSource,
 } from './artifacts.ts'
+export { LONGEST_WORD, SEARCH_PAGE, searchProject, type SearchQuery } from './search.ts'
+export {
+  createProjectTask,
+  finishProjectTask,
+  readProjectTask,
+  readProjectTasks,
+  readReportTasks,
+  REPORT_TASKS,
+  setProjectTaskOwner,
+  TASK_PAGE,
+} from './human-tasks.ts'
 export {
   enqueueRenderJob,
   claimObjectWrite,
@@ -214,6 +236,21 @@ export {
   takeBackPersonalRelease,
   type CompanionContext,
 } from './personal.ts'
+export {
+  holdPersonalCompanion,
+  personalCompanionAdmitted,
+  personalSettledAnswersInstalled,
+  readPersonalSettledAnswer,
+  reservePersonalAnswer,
+  recordPersonalSettledReply,
+  releasePersonalCompanion,
+  reservePersonalCompanion,
+  settlePersonalCompanion,
+  settlePersonalCompanionAnswer,
+  type PersonalReservation,
+  type PersonalSettledOutcome,
+  type PersonalUsageCounts,
+} from './personal-usage.ts'
 export { listProjects, PROJECT_LIST_BOUNDS, type ProjectListing } from './project-list.ts'
 export {
   admitWorkCommand,
@@ -263,9 +300,46 @@ export {
   type DesignRoles,
 } from './design.ts'
 export {
+  CONVERSATION_LIST_LIMIT,
+  CONVERSATION_NOTICE,
+  CONVERSATION_PAGE_LIMIT,
+  conversationCursor,
+  cursorSeq,
+  eraseConversation,
+  readConversationList,
+  readConversationMessage,
+  readConversationPage,
+  readProjectConversationPage,
+  readConversationReply,
+  readConversationSummary,
+  readFeedPosition,
+  sendConversationMessage,
+  startConversation,
+  withdrawConversationMessage,
+  type ConversationReceipt,
+  type ConversationSendWrite,
+  type ConversationStartWrite,
+} from './conversations.ts'
+
+export {
+  runtimeConversationClaim,
+  runtimeConversationGo,
+  runtimeConversationReserve,
+  runtimeConversationSettle,
+  runtimeConversationAcknowledged,
+} from './conversation-runtime.ts'
+export {
   changeMemberRole,
   readGoalTargets,
   readInvitablePeople,
   readProjectMembers,
   setGoalTarget,
 } from './goal-targets.ts'
+export {
+  pendingMemberRemoval,
+  readProjectActivity,
+  recordHostAct,
+  recordRoomAct,
+  removedJustNow,
+  removeMember,
+} from './activity.ts'

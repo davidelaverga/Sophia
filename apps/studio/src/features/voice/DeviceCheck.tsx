@@ -1,14 +1,16 @@
 // The check before joining (docs/plans/device-check.md), as Meet's waiting screen: the camera's picture, a meter that
 // moves with the voice, a row per device to choose another, and Join. Opened beside the dock's Join; its camera and
 // microphone are let go when it closes or joins, so the call opens its own. With access refused it says how to give
-// it, and Join still enters. On the picture, the microphone and the camera are chosen for the join (prejoin-toggles.md):
-// the preview follows them by disabling a track, never asking again, and Join enters with them.
+// it, and Join still enters; with the camera missing or busy it says so and checks the microphone alone
+// (device-check-no-camera.md). On the picture, the microphone and the camera are chosen for the join
+// (prejoin-toggles.md): the preview follows them by disabling a track, never asking again, and Join enters with them.
 import { useEffect, useRef, useState } from 'react'
 import { Button, Icon, Tip, type IconName } from '@sophia/ui'
 import { Sheet } from '../../app/Sheet.tsx'
 import { canChooseOutput, chosenDevices, KIND_WORD, type DeviceKind } from './device-preference.ts'
 import { micOnJoin, rememberMic } from './mic-preference.ts'
 import { DeviceChoice, useDevices, type List } from './DeviceMenu.tsx'
+import { STALE_PART } from './part-gone.ts'
 import { useDevicePreview, type Preview } from './useDevicePreview.ts'
 
 const KINDS: readonly DeviceKind[] = ['audioinput', 'audiooutput', 'videoinput']
@@ -52,6 +54,31 @@ function Switch(props: { on: boolean; label: string; icons: readonly [IconName, 
   )
 }
 
+/** The microphone's switch, and the camera's where there is a picture for it to turn on. */
+function Switches({ chosen, onChosen, camera }: { chosen: Chosen; onChosen: (next: Chosen) => void; camera: boolean }) {
+  return (
+    <div className="device-preview-switches">
+      <Switch
+        on={chosen.mic}
+        label="Microphone"
+        icons={['mic', 'micOff']}
+        onToggle={() => {
+          rememberMic(!chosen.mic)
+          onChosen({ ...chosen, mic: !chosen.mic })
+        }}
+      />
+      {camera && (
+        <Switch
+          on={chosen.camera}
+          label="Camera"
+          icons={['camera', 'cameraOff']}
+          onToggle={() => onChosen({ ...chosen, camera: !chosen.camera })}
+        />
+      )}
+    </div>
+  )
+}
+
 function Picture({
   preview,
   chosen,
@@ -66,34 +93,17 @@ function Picture({
   useEffect(() => {
     if (video.current) video.current.srcObject = stream
   }, [stream])
-  const refused = preview.state === 'refused'
+  // Why there is no picture, in its place: one line, so «Your camera is off» doesn't show under it.
+  const line = preview.state === 'asking' ? undefined : preview.line
   return (
     <div className="device-preview" data-camera={chosen.camera ? 'on' : 'off'}>
-      {refused ? (
-        <p>Allow the camera and microphone in your browser’s site settings to check them here.</p>
+      {line ? (
+        <p role="status">{line}</p>
       ) : (
         <video ref={video} className="device-preview-video" autoPlay muted playsInline aria-label="Your camera" />
       )}
-      {!refused && !chosen.camera && <p className="device-preview-off">Your camera is off</p>}
-      {!refused && (
-        <div className="device-preview-switches">
-          <Switch
-            on={chosen.mic}
-            label="Microphone"
-            icons={['mic', 'micOff']}
-            onToggle={() => {
-              rememberMic(!chosen.mic)
-              onChosen({ ...chosen, mic: !chosen.mic })
-            }}
-          />
-          <Switch
-            on={chosen.camera}
-            label="Camera"
-            icons={['camera', 'cameraOff']}
-            onToggle={() => onChosen({ ...chosen, camera: !chosen.camera })}
-          />
-        </div>
-      )}
+      {!line && !chosen.camera && <p className="device-preview-off">Your camera is off</p>}
+      {preview.state !== 'unavailable' && <Switches chosen={chosen} onChosen={onChosen} camera={!line} />}
     </div>
   )
 }
@@ -138,10 +148,23 @@ export function DeviceCheck({ list, onChoose, onJoin, onClose }: Props) {
             </div>
           ))}
         </div>
+        {/* Their part gone after a deploy (stale-part-call.md): said once here, and Reload in Join's place, since a
+            join could never succeed in this tab (review P3, 2026-10-22). */}
+        {found.state === 'stale' && (
+          <p className="device-check-stale" role="status">
+            {STALE_PART}
+          </p>
+        )}
         <div className="device-check-foot">
-          <Button kind="primary" onClick={() => onJoin(media)}>
-            Join the room
-          </Button>
+          {found.state === 'stale' ? (
+            <Button kind="primary" onClick={() => window.location.reload()}>
+              Reload
+            </Button>
+          ) : (
+            <Button kind="primary" onClick={() => onJoin(media)}>
+              Join the room
+            </Button>
+          )}
         </div>
       </div>
     </Sheet>

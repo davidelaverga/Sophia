@@ -6,6 +6,22 @@ import { BackgroundUnavailable } from './camera-background.ts'
 
 export type DockStatus = 'idle' | 'joining' | 'live' | 'reconnecting' | 'failed'
 
+/** What a join asked from elsewhere does now: join the room, wait for it, or nothing, answered by the call it found. */
+export type AskedJoin = 'wait' | 'join' | 'answered'
+
+/**
+ * A join asked from elsewhere (Work's «Join the room», a toast's Rejoin), with the room as it is and the browser online
+ * or not (navigator.onLine): it waits while the project loads, then joins a room out of the call (after a failed join
+ * too, as Try again would). Offline it waits for nothing, since the project can't load: it joins at once, and that join
+ * asks for nothing and says offline (joinHeld), so none is left to join on its own once the network is back
+ * (offline-join-from-rest.md). A room the person is in, or on the way into, answers it: kept, it would join again by
+ * itself after their next Leave (ProjectShell's useJoinOnOpen; call-ends-on-open.md).
+ */
+export function askedJoin(status: DockStatus, ready: boolean, online: boolean): AskedJoin {
+  if (!ready && online) return 'wait'
+  return status === 'idle' || status === 'failed' ? 'join' : 'answered'
+}
+
 export type Device = 'microphone' | 'camera' | 'screen'
 
 /** A device that LiveKit wouldn't turn off: what is still on, never that it couldn't start. */
@@ -69,6 +85,12 @@ export function standingOf(metadata: string | undefined): Standing {
     return 'unknown'
   }
 }
+
+/**
+ * A muted microphone, as the list and the tiles show it (muted-on-tiles.md): off, whoever's. Every person's token
+ * publishes a microphone, a viewer's too since A06, so no one is a listener with none to mute (Codex P2 on #411).
+ */
+export const mutedMic = (person: RoomParticipant): boolean => !person.micOn
 
 /**
  * Members hold the input floor; guests never do. Changed by amendment A06 (S1-05A, for Luis's review): viewers
@@ -201,6 +223,16 @@ export const WORKING_PHASES: ReadonlySet<NativeTask['phase']> = new Set([
 ])
 
 /**
+ * The tasks whose result arrived since `before` (orb-result.md): at work then, with their result ready now. The first look
+ * (no `before`) arrives nothing: what was finished when the room opened is not news.
+ */
+export function arrivedResults(before: Snapshot['work'] | null, now: Snapshot['work']): string[] {
+  if (!before) return []
+  const working = new Set(before.filter((t) => WORKING_PHASES.has(t.phase)).map((t) => t.id))
+  return now.filter((t) => t.phase === 'result_ready' && working.has(t.id)).map((t) => t.id)
+}
+
+/**
  * Work in progress, counted once per goal: what the light's work line and Sophia's note count. A native task
  * (a brief) has its own goal, so its goal and its task are one piece of work, not two. A goal with a task is
  * working only while its task is: a finished brief leaves its goal `checking`, its result waiting for review,
@@ -238,9 +270,12 @@ export function roomLine(
   return aboutWork(lineOf(status, floor, work, sophia), work)
 }
 
+/** A call coming back, said on the room's line and over the video (RoomStage's OnVideo; Codex P1 on #403). */
+export const RECONNECTING = 'Reconnecting…'
+
 function lineOf(status: DockStatus, floor: FloorView, work: string | null, sophia: SophiaLineView | null): RoomLine {
   if (status === 'joining') return { text: 'Joining the room…', note: null }
-  if (status === 'reconnecting') return { text: 'Reconnecting…', note: work }
+  if (status === 'reconnecting') return { text: RECONNECTING, note: work }
   if (sophia?.inConversation) return { text: sophia.label, note: sophia.note ?? work ?? floorLine(floor) }
   if (status === 'live') return { text: floorLine(floor), note: work }
   return { text: 'The room is ready', note: work ?? VOICE_NOTE }

@@ -152,6 +152,90 @@ for (const width of [320, 390, 820]) {
   })
 }
 
+/** Your own tile, and hiding it from your view (room-basics.md): «Your tile is hidden» stands in its place. */
+const mine = (page: Page) => room(page).locator('li.tile', { has: page.locator('[data-mark="you"]') })
+async function hideMine(page: Page) {
+  await mine(page).hover()
+  await mine(page).getByRole('button', { name: 'Hide my tile' }).click()
+  await expect(room(page).locator('.tile-hidden-self')).toBeVisible()
+}
+
+test('tiles · a gallery of eleven others, your tile hidden: still nine tiles, its place one of them (Codex P2 on #380)', async ({
+  page,
+}) => {
+  await enter(page, 'people=11&video=camera')
+  await hideMine(page)
+  await expect(tiles(page)).toHaveCount(9)
+  await expect(room(page)).toHaveAttribute('data-count', '9')
+  await expect(more(page)).toHaveText('+5')
+})
+
+test('tiles · on a phone beside a shown screen, your tile hidden: five tiles on one row (Codex P2 on #380)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await enter(page, 'people=9&video=screen')
+  await hideMine(page)
+  await expect(tiles(page)).toHaveCount(5)
+  await expect(more(page)).toHaveText('+7')
+  // At rest (a tile arriving rises a few px): one row.
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished),
+    ),
+  )
+  const tops = await tiles(page).evaluateAll((all) => all.map((el) => el.getBoundingClientRect().top))
+  expect(Math.max(...tops) - Math.min(...tops)).toBeLessThanOrEqual(1)
+  // «Your tile is hidden» fits a fifth of a phone: nothing of it cut, Show whole, its words still said.
+  const place = room(page).locator('.tile-hidden-self')
+  expect(await place.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1)
+  await expect(place.getByRole('button', { name: 'Show' })).toBeInViewport({ ratio: 1 })
+  await expect(place).toContainText('Your tile is hidden')
+})
+
+test('tiles · at 320 px, the narrowest phone, «Your tile is hidden» fits its 51 px tile: the eye and Show inside its padding (Codex P2 on #450)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 640 })
+  await enter(page, 'people=9&video=screen')
+  await hideMine(page)
+  await expect(tiles(page)).toHaveCount(5)
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished),
+    ),
+  )
+  const place = room(page).locator('.tile-hidden-self')
+  // The tile's box less its edge and its padding: where the eye and Show belong. The tile clips what passes it.
+  const fit = await place.evaluate((el) => {
+    const style = getComputedStyle(el)
+    const box = el.getBoundingClientRect()
+    const top = box.top + el.clientTop + parseFloat(style.paddingTop)
+    const bottom = box.top + el.clientTop + el.clientHeight - parseFloat(style.paddingBottom)
+    const parts = [el.querySelector('svg'), el.querySelector('button')].map((part) => part?.getBoundingClientRect())
+    return {
+      tile: box.height,
+      overflow: el.scrollHeight - el.clientHeight,
+      inside: parts.every((part) => part !== undefined && part.top >= top - 0.5 && part.bottom <= bottom + 0.5),
+    }
+  })
+  expect(fit.tile).toBeLessThan(52)
+  expect(fit.overflow).toBeLessThanOrEqual(1)
+  expect(fit.inside).toBe(true)
+  await expect(place.locator('svg')).toBeInViewport({ ratio: 1 })
+  await expect(place.getByRole('button', { name: 'Show' })).toBeInViewport({ ratio: 1 })
+  await expect(place).toContainText('Your tile is hidden')
+  // And Show, whole, still brings your tile back.
+  await place.getByRole('button', { name: 'Show' }).click()
+  await expect(place).toHaveCount(0)
+})
+
 /** What a screen reader is given for a tile's label (its accessibility tree, not its text nodes). */
 const said = (page: Page, name: string) => room(page).locator('.tile-name').filter({ hasText: name }).ariaSnapshot()
 
@@ -184,6 +268,35 @@ test('tiles · on a phone, a guest’s tile says «guest» whole, and still some
   expect(guest.guest).toBeGreaterThan(20)
   expect(guest.who).toBeGreaterThanOrEqual(10)
   expect(await said(page, 'Noor')).toBe('- text: Noor · guest')
+})
+
+test('tiles · on a phone, muting takes nothing from a guest’s chip: the mute is the tile’s corner mark (Codex P2 on #411)', async ({
+  page,
+}) => {
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 })
+    await enter(page, 'people=3&video=screen&guest=1')
+    const before = await label(page, 'Noor')
+    await enter(page, 'people=3&video=screen&guest=1&muted=3')
+    const tile = tiles(page).filter({ hasText: 'Noor' })
+    await expect(tile.locator('.tile-muted-corner')).toBeVisible()
+    // The chip as it was: the name as long, «guest» whole; and still said muted to a screen reader.
+    expect({ width, ...(await label(page, 'Noor')) }).toEqual({ width, ...before })
+    expect(await said(page, 'Noor')).toContain('muted')
+    // The corner's mark inside the tile, clear of the initial's circle and of the chip.
+    const clear = await tile.evaluate((el) => {
+      const t = el.getBoundingClientRect()
+      const m = el.querySelector('.tile-muted-corner')?.getBoundingClientRect()
+      const i = el.querySelector('.tile-initial')?.getBoundingClientRect()
+      const c = el.querySelector('.tile-name')?.getBoundingClientRect()
+      if (!m || !i || !c) return false
+      const r = i.width / 2
+      const [cx, cy] = [i.left + r, i.top + r]
+      const near = Math.hypot(Math.max(m.left - cx, 0, cx - m.right), Math.max(m.top - cy, 0, cy - m.bottom))
+      return m.left >= t.left && m.top >= t.top && near >= r - 0.5 && m.bottom <= c.top
+    })
+    expect({ width, clear }).toEqual({ width, clear: true })
+  }
 })
 
 test('tiles · on a phone, the floor’s holder has the warm edge; « · floor» is said, not shown', async ({ page }) => {
@@ -221,4 +334,27 @@ test('tiles · on a phone, a strip of a few keeps each tile a fifth of the width
   const widths = await tiles(page).evaluateAll((all) => all.map((el) => el.getBoundingClientRect().width))
   expect(widths.length).toBeGreaterThan(1)
   for (const w of widths) expect(w).toBeLessThan(80)
+})
+
+// A muted microphone shows on the tile (docs/plans/muted-on-tiles.md), as it does beside a name without video: yours
+// once you mute it, another's once the host mutes them.
+test('tiles · a muted microphone shows on the tile: yours, and another’s the host muted', async ({ page }) => {
+  await enter(page, 'people=2&video=camera')
+  const muted = (name: string) => tiles(page).filter({ hasText: name }).locator('.tile-muted')
+  const mic = page
+    .getByRole('navigation', { name: 'Room controls' })
+    .getByRole('button', { name: 'Microphone', exact: true })
+  await expect(muted('Fixture')).toHaveCount(0)
+  await mic.click()
+  await expect(muted('Fixture')).toBeVisible()
+  await expect(muted('Fixture')).toContainText('muted')
+  await mic.click()
+  await expect(muted('Fixture')).toHaveCount(0)
+  await page.locator('.panel-toggles [data-panel="people"]').click()
+  await page
+    .getByRole('list', { name: 'People in the call' })
+    .getByRole('button', { name: 'Actions for Marco' })
+    .click()
+  await page.getByRole('menu', { name: 'Actions for Marco' }).getByRole('menuitem', { name: 'Mute microphone' }).click()
+  await expect(muted('Marco')).toBeVisible()
 })

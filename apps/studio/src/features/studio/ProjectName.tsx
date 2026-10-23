@@ -11,6 +11,8 @@ import { ApiError, leaveProject, renameProject } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import { membershipKey } from '../access/useAccess.ts'
+import { ActivitySheet } from './ActivitySheet.tsx'
+import { ArchiveSheet, useArchiveStatus } from './Archive.tsx'
 import { snapshotKey } from './useProjectFeed.ts'
 
 interface Props {
@@ -133,12 +135,17 @@ function LeaveSheet({ title, projectId, identity, onClose, onLeft }: SheetProps 
   )
 }
 
+type Chosen = 'rename' | 'leave' | 'activity' | 'archive'
+
 export function ProjectName(props: Props) {
   const [open, setOpen] = useState(false)
-  const [sheet, setSheet] = useState<'rename' | 'leave' | null>(null)
+  const [sheet, setSheet] = useState<Chosen | null>(null)
   const menu = usePopover(open, () => setOpen(false))
+  // Archived already, archiving changes nothing, yet would end the call: the line under the header brings it back. So
+  // it is offered only once the project is known not archived, never while that read loads or fails (Codex on #469).
+  const archivable = useArchiveStatus(props.identity, props.projectId) === 'not-archived'
   if (!props.role) return props.title
-  const choose = (next: 'rename' | 'leave') => () => {
+  const choose = (next: Chosen) => () => {
     setOpen(false)
     setSheet(next)
   }
@@ -164,11 +171,20 @@ export function ProjectName(props: Props) {
       {open && (
         <Menu popover={menu} label="Project" side="bottom" align="start">
           {props.role === 'admin' && <MenuItem onClick={choose('rename')}>Rename…</MenuItem>}
+          {props.role === 'admin' && <MenuItem onClick={choose('activity')}>Activity</MenuItem>}
+          {props.role === 'admin' && archivable && <MenuItem onClick={choose('archive')}>Archive project…</MenuItem>}
           <MenuItem onClick={choose('leave')}>Leave project…</MenuItem>
         </Menu>
       )}
       {sheet === 'rename' && createPortal(<RenameSheet {...shared} />, document.body)}
+      {sheet === 'activity' &&
+        createPortal(
+          <ActivitySheet projectId={props.projectId} identity={props.identity} onClose={() => setSheet(null)} />,
+          document.body,
+        )}
       {sheet === 'leave' && createPortal(<LeaveSheet {...shared} onLeft={props.onLeft} />, document.body)}
+      {/* Archived, as left: the call in its room ends and the person goes to Work (archive-project.md). */}
+      {sheet === 'archive' && createPortal(<ArchiveSheet {...shared} onArchived={props.onLeft} />, document.body)}
     </span>
   )
 }

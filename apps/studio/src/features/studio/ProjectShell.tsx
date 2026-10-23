@@ -4,7 +4,7 @@
 // project for home or the personal space: the shell stays mounted out of sight (`background`), takes no keys,
 // and reports the call upward (`onCall`) so the places' bar shows it with Leave one tap away.
 import { taskPeople } from '../artifacts/task-view.ts'
-import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState, type ComponentProps } from 'react'
+import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -12,18 +12,24 @@ import { projectTitle, useDocumentTitle } from '../../app/document-title.ts'
 import { routePath, type View, viewsShown } from '../../app/route.ts'
 import { CommandsHost } from '../../app/CommandsHost.tsx'
 import { useCommands, useOffered } from '../../app/useCommands.ts'
-import { VISION } from '../../app/vision.ts'
+import { ATTENTION } from '../../app/attention.ts'
+import { CONVERSATIONS, VISION } from '../../app/vision.ts'
+import { SEARCHABLE } from '../../api/search.ts'
+import { hintBefore } from '../conversation/message-before.ts'
 import { ProjectGoProvider, useArrival } from './project-go.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
-import { canInvite, useMembership, type SheetContext } from '../access/useAccess.ts'
+import { ArchivedLine } from './Archive.tsx'
+import { canInvite, useProjectMembership, type SheetContext } from '../access/useAccess.ts'
 import { DocumentViewerProvider } from '../artifacts/DocumentViewer.tsx'
+import { InPlaceLinks } from './InPlaceLinks.tsx'
 import { KnowledgeReports } from '../artifacts/KnowledgeReports.tsx'
 import { CarriedIn } from '../artifacts/CarriedIn.tsx'
 import { sendingOf } from '../voice/CallSwitches.tsx'
 import { MiniDock, RoomSwitches } from '../voice/MiniDock.tsx'
 import { CallInReach } from '../../app/call-in-reach.tsx'
-import { shortName } from '../voice/room-view.ts'
+import { askedJoin, shortName } from '../voice/room-view.ts'
+import { useOnline } from '../personal/online.ts'
 import { lookingText } from '../voice/sophia-view.ts'
 import { useHeldCaptions } from '../voice/StageCaptions.tsx'
 import { useStageMade } from '../voice/StageMade.tsx'
@@ -31,16 +37,20 @@ import { showRenderOf } from '../voice/StagePresent.tsx'
 import { ProjectSearch, SearchButton } from '../search/SearchSheet.tsx'
 import { VIEW_LABEL } from './ViewNav.tsx'
 import { useCatchUp } from '../voice/CatchUp.tsx'
+import { CameWhileAway, useUnseenWhileHidden, type Reads } from '../conversation/unread-title.ts'
+import { openAcross } from '../work/planning/decision-alert.ts'
+import { useDecisionAlert } from '../work/planning/useDecisionAlert.ts'
 import { MeetingRecapOnLeave } from '../voice/MeetingRecap.tsx'
 import { useProjectRoom, type LeaveHow, type ProjectRoom } from '../voice/useProjectRoom.ts'
 import { useMedia, WIDE } from '../../app/useMedia.ts'
 import { GoalList, type GoalPlan } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
-import { GOAL, showInAddress } from '../resources/link.ts'
+import { GOAL, MESSAGE, showInAddress } from '../resources/link.ts'
 import { WelcomeBand } from '../access/WelcomeBand.tsx'
 import { ADDRESS_NAMED } from '../resources/useAddressed.ts'
 import { useKnownNames } from './useKnownNames.ts'
+import { ArrivalSince } from '../updates/ArrivalSince.tsx'
 import { UpdatesView } from '../updates/UpdatesView.tsx'
 import { Connections } from '../connections/Connections.tsx'
 import { ConversationsView } from '../conversations/ConversationsView.tsx'
@@ -53,6 +63,7 @@ import { useServedWork, type ServedWork } from '../work/planning/ServedWork.tsx'
 import type { Feed } from '../../projectors/projection.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { ProjectName } from './ProjectName.tsx'
+import { ViewFailed } from './ViewFailed.tsx'
 
 // The Invite sheet (and its QR encoder) loads the first time someone opens it.
 const InviteSheet = lazy(() => import('../access/InviteSheet.tsx').then((m) => ({ default: m.InviteSheet })))
@@ -82,12 +93,17 @@ function useLeaveBehindClosedDoor(blocked: Blocked | null, room: ProjectRoom) {
 }
 
 /**
- * The tab names the project and counts what waits: who is at its door, and the requests waiting on this person in
- * their tools (`resourcesWaiting`), so a tab in the background still calls.
+ * The tab names the project and counts what waits: who is at its door, the messages written in the room while the tab
+ * was hidden (unread-title.md), and what waits on this person (`mine`): the requests in their tools and the decisions on
+ * the board (decision-alert.md), so a tab in the background still calls. Shown again, the messages it counted are what
+ * came while the person was away, for the room's chat to mark, with what the snapshot read again then brings
+ * (messages-while-away.md).
  */
-function useTabTitle(snapshot: Snapshot | undefined, resourcesWaiting = 0) {
-  const waiting = (snapshot?.lobby.filter((e) => e.status === 'waiting').length ?? 0) + resourcesWaiting
+function useTabTitle(snapshot: Snapshot | undefined, me: string | null, mine = 0, reads?: Reads) {
+  const { count, whileAway } = useUnseenWhileHidden(snapshot?.discussion, me, reads)
+  const waiting = (snapshot?.lobby.filter((e) => e.status === 'waiting').length ?? 0) + mine + count
   useDocumentTitle(snapshot ? projectTitle(snapshot.title, waiting) : null)
+  return whileAway
 }
 
 /**
@@ -103,19 +119,49 @@ function OpeningNote({ loaded, blocked }: { loaded: boolean; blocked: Blocked | 
   )
 }
 
-/** Under the bar: a slow opening said, or, once open, the newcomer's welcome (newcomer-welcome.md). */
-interface UnderProps extends Omit<ComponentProps<typeof WelcomeBand>, 'onGoals'> {
+/**
+ * Under the bar: a slow opening said, or, once open, the newcomer's welcome (newcomer-welcome.md); and, its status there
+ * from the first frame, what changed since the person last looked (project-arrival-since.md).
+ */
+interface UnderProps {
+  /** The shell's own: its project, viewer and view, and whether it opened to join its call (Join the room, Rejoin). */
+  shell: Pick<Props, 'projectId' | 'identity' | 'view' | 'onShow' | 'joinOnOpen'>
   loaded: boolean
   blocked: Blocked | null
-  onShow: (view: View) => void
+  /** Its call: a project kept out of sight (`background`) is always in one, so that says nothing here either. */
+  room: ProjectRoom
+  snapshot: Snapshot | undefined
 }
 
-function UnderTheBar({ loaded, blocked, onShow, ...welcome }: UnderProps) {
-  if (!loaded || blocked) return <OpeningNote loaded={loaded} blocked={blocked} />
-  return <WelcomeBand {...welcome} onGoals={() => onShow('goals')} />
+function UnderTheBar({ shell, loaded, blocked, room, snapshot }: UnderProps) {
+  const { projectId, identity, view, onShow } = shell
+  const open = loaded && !blocked
+  return (
+    <>
+      <ArrivalSince
+        projectId={projectId}
+        identity={identity}
+        drawn={open && !atTheDoor(snapshot)}
+        inCall={callOn(room, shell.joinOnOpen ?? false)}
+        atUpdates={view === 'updates'}
+        onUpdates={() => onShow('updates')}
+      />
+      {open ? (
+        <WelcomeBand projectId={projectId} identity={identity} snapshot={snapshot} onGoals={() => onShow('goals')} />
+      ) : (
+        <OpeningNote loaded={loaded} blocked={blocked} />
+      )}
+    </>
+  )
 }
 
 const isInCall = (room: ProjectRoom) => room.status === 'live' || room.status === 'reconnecting'
+
+/** Someone waits at the door: the lobby floats in the corner under the bar, where the arrival's card would go. */
+const atTheDoor = (snapshot: Snapshot | undefined) => !!snapshot?.lobby.some((e) => e.status === 'waiting')
+
+/** In its call, or on the way in: joining, or asked to join as the project opens, before the room can. */
+const callOn = (room: ProjectRoom, asked: boolean) => asked || room.status === 'joining' || isInCall(room)
 
 interface ShareProps {
   invites: boolean
@@ -214,7 +260,9 @@ function useReportCall(
     leaveTextMode: () => latest.current.setTextMode(false),
   }))
   const { microphone, camera, screen } = sendingOf(room.participants.find((p) => p.local))
-  const inCall = isInCall(room)
+  // A dropped call coming back on its own is still this person's call (call-rejoin.md): its project stays mounted out
+  // of sight, and the places' bar keeps it with Leave, which stops the try; a try that fails ends it there.
+  const inCall = isInCall(room) || room.rejoining
   const { textMode, mediaError: note } = room
   useEffect(() => {
     const sending = { microphone, camera, screen }
@@ -225,27 +273,64 @@ function useReportCall(
   useEffect(() => () => report.current?.(null), [])
 }
 
-/** "Join the room" from Work: once the project has loaded and the room can be joined, join it, once. */
+/**
+ * "Join the room" from Work, or a toast's Rejoin: once the project has loaded and the room can be joined, join it,
+ * once. Offline, at once: that join says offline and asks for nothing, and none waits to join on its own once the
+ * network is back (askedJoin). A tick after the shell's effects, not during them: a project already read can join on
+ * its first effects, and a remount at once (React's strict mode, in development) would end that join as the room
+ * unmounts (useRoomConnection), leaving «Joining…» (call-ends-on-open.md). A call already there answers it
+ * (askedJoin): the person joined it themselves before pressing Rejoin.
+ */
 function useJoinOnOpen(room: ProjectRoom, joinOnOpen: boolean, onHandled: (() => void) | undefined) {
   const done = useRef(false)
+  const online = useOnline()
   useEffect(() => {
-    if (!joinOnOpen || done.current || !room.ready || room.status !== 'idle') return
-    done.current = true
-    void room.join()
-    onHandled?.()
-  }, [joinOnOpen, room, onHandled])
+    if (!joinOnOpen || done.current) return undefined
+    const asked = askedJoin(room.status, room.ready, online)
+    if (asked === 'answered') {
+      done.current = true
+      onHandled?.()
+    }
+    if (asked !== 'join') return undefined
+    const settled = setTimeout(() => {
+      done.current = true
+      void room.join()
+      onHandled?.()
+    }, 0)
+    return () => clearTimeout(settled)
+  }, [joinOnOpen, room, onHandled, online])
+}
+
+/**
+ * The decisions on the board waiting on the viewer (decision-alert.md): how many, for the tab's number, and a new one
+ * heard while the tab is hidden. None while the board hasn't been read, or the shell is in the background.
+ */
+function useDecisionsWaiting(shown: Snapshot | undefined, plans: ServedWork['plans'], projectId: string): number {
+  const open = shown && openAcross(plans)
+  useDecisionAlert(open, projectId, shown?.title ?? '')
+  return open?.length ?? 0
 }
 
 /**
  * What the shell does for the rest of the app: its tab title while on screen, its call reported, a join on arrival,
- * and no call kept behind a closed door.
+ * and no call kept behind a closed door. What came while the tab was hidden goes to the room's chat.
  */
-function useBeyondTheView(props: Props, snapshot: Snapshot | undefined, room: ProjectRoom, blocked: Blocked | null) {
+function useBeyondTheView(
+  props: Props,
+  snapshot: Snapshot | undefined,
+  room: ProjectRoom,
+  blocked: Blocked | null,
+  viewer: { me: string | null; plans: ServedWork['plans']; reads: Reads },
+) {
   useLeaveBehindClosedDoor(blocked, room)
-  useTabTitle(props.background ? undefined : snapshot, props.resourcesWaiting)
+  const shown = props.background ? undefined : snapshot
+  const decisions = useDecisionsWaiting(shown, viewer.plans, props.projectId)
+  const reads = props.background ? undefined : viewer.reads
+  const whileAway = useTabTitle(shown, viewer.me, (props.resourcesWaiting ?? 0) + decisions, reads)
   const looking = lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))
   useReportCall(props.projectId, snapshot?.title, room, looking, props.onCall)
   useJoinOnOpen(room, props.joinOnOpen ?? false, props.onJoinHandled)
+  return whileAway
 }
 
 /** Other words people type for each view (docs/plans/palette-also.md): «what changed» is Updates, «sophia» Conversations. */
@@ -261,7 +346,7 @@ const VIEW_ALSO: Readonly<Record<View, readonly string[]>> = {
 
 /** The views a person can go to from here, each a command without a key (docs/plans/commands.md). */
 const viewCommands = (view: View, onShow: (view: View) => void) =>
-  viewsShown(VISION)
+  viewsShown(VISION, CONVERSATIONS, ATTENTION)
     .filter((v) => v !== view)
     .map((v) => ({
       id: `view-${v}`,
@@ -273,8 +358,8 @@ const viewCommands = (view: View, onShow: (view: View) => void) =>
 
 /**
  * H goes home and W to the projects, from a project as from every place; I invites, where the viewer may; `/`
- * searches the project (A13, behind the vision flag); and every other view by its words. All as commands: the keys
- * bound, and the palette and the index told.
+ * searches the project (A13 behind the vision flag, A38 behind the search flag); and every other view by its words.
+ * All as commands: the keys bound, and the palette and the index told.
  */
 function useProjectKeys(
   go: { onLeave: () => void; onWork: () => void; invite: () => void; search: () => void; show: (view: View) => void },
@@ -304,7 +389,7 @@ function useProjectKeys(
         // Tasks view with no plans has none, and `/` stays the project's (Codex on #238).
         key: slashTaken ? undefined : '/',
         also: ['find'],
-        run: VISION && at.shown ? go.search : undefined,
+        run: SEARCHABLE && at.shown ? go.search : undefined,
       },
     ],
     !at.inviting,
@@ -315,7 +400,7 @@ function useProjectKeys(
 function useProject(projectId: string, identity: Props['identity']) {
   const { snapshot, feed, connection } = useProjectFeed(projectId, identity.name, identity.token)
   const room = useProjectRoom(projectId, identity.token, snapshot.data)
-  const membership = useMembership(projectId, identity.name, identity.token).data
+  const membership = useProjectMembership(projectId, identity.name, identity.token, snapshot.dataUpdatedAt).data
   return { snapshot, feed, connection, room, membership }
 }
 
@@ -371,7 +456,14 @@ function useTasksWork(
     enabled: readsServedBoard(props.view, blocked, !!props.plans, searching),
   })
   // A page's own plans are read already; else the board's first read may still bring tasks (search-honest.md).
-  return { plans: props.plans ?? served.plans, entry: served.entry, boardReading: !props.plans && served.boardReading }
+  const own = !!props.plans
+  return {
+    plans: props.plans ?? served.plans,
+    entry: served.entry,
+    boardReading: !own && served.boardReading,
+    boardFailed: !own && served.boardFailed,
+    retryBoard: served.retryBoard,
+  }
 }
 
 /** What the door lets through: whether a snapshot ever loaded, why the project is closed, and what may be acted on. */
@@ -468,7 +560,8 @@ export function ProjectShell(props: Props) {
   const { loaded, blocked, shown } = doorOf(snapshot)
   const dockAt = useDockPlace(room, snapshot.data, () => onShow('studio'), dockShown(view, blocked))
   const work = useTasksWork(props, feed, membership, blocked, searching)
-  useBeyondTheView(props, snapshot.data, room, blocked)
+  const viewer = { me: membership?.actorId ?? null, plans: work.plans, reads: snapshot }
+  const whileAway = useBeyondTheView(props, snapshot.data, room, blocked, viewer)
   const at = { view, inviting, mayInvite: !!shown && canInvite(membership), shown: !!shown, blocked: !!blocked }
   useProjectKeys({ onLeave, onWork, invite, search, show: onShow }, at)
   return (
@@ -484,8 +577,8 @@ export function ProjectShell(props: Props) {
           onLeave={onLeave}
           onWork={onWork}
         />
-        <UnderTheBar {...{ loaded, blocked, projectId, identity, onShow, snapshot: snapshot.data }} />
-        <CommandsHost onSearch={VISION && shown ? search : undefined} />
+        <UnderTheBar shell={props} {...{ loaded, blocked, room, snapshot: snapshot.data }} />
+        <CommandsHost onSearch={SEARCHABLE && shown ? search : undefined} />
         {inviting && shown && (
           <LazyInvite from={{ projectId, identity, membership, shown, room }} onClose={() => setInviting(false)} />
         )}
@@ -496,23 +589,25 @@ export function ProjectShell(props: Props) {
             actions={{ leave: onWork, retry: () => void snapshot.refetch(), signin: onSignOut }}
           />
         ) : (
-          <ProjectBody
-            view={view}
-            projectId={projectId}
-            identity={identity}
-            room={room}
-            membership={membership}
-            snapshot={snapshot.data}
-            pulse={<WorkPulse feed={feed} connection={connection} />}
-            onShow={onShow}
-            onInvite={invite}
-            background={!!props.background}
-            routed={props.routed !== false}
-            resources={props.resources}
-            floating={dockAt.floating}
-            {...work}
-            search={{ open: searching, onClose: () => setSearching(false) }}
-          />
+          <CameWhileAway.Provider value={whileAway}>
+            <ProjectBody
+              view={view}
+              projectId={projectId}
+              identity={identity}
+              room={room}
+              membership={membership}
+              snapshot={snapshot.data}
+              pulse={<WorkPulse feed={feed} connection={connection} />}
+              onShow={onShow}
+              onInvite={invite}
+              background={!!props.background}
+              routed={props.routed !== false}
+              resources={props.resources}
+              floating={dockAt.floating}
+              {...work}
+              search={{ open: searching, onClose: () => setSearching(false) }}
+            />
+          </CameWhileAway.Provider>
         )}
       </div>
     </CallKeptInReach>
@@ -534,11 +629,11 @@ interface HeaderProps {
   onWork: () => void
 }
 
-/** The head's actions: Search (A13, the vision flag's), then Invite or the link to copy. */
+/** The head's actions: Search (A13, the vision flag's; A38, the search flag's), then Invite or the link to copy. */
 function HeadActions(props: { may: boolean; projectId: string; go: { invite: () => void; search: () => void } }) {
   return (
     <>
-      {VISION && <SearchButton onClick={props.go.search} />}
+      {SEARCHABLE && <SearchButton onClick={props.go.search} />}
       <Share invites={props.may} projectId={props.projectId} onInvite={props.go.invite} />
     </>
   )
@@ -630,10 +725,34 @@ interface BodyProps {
   entry?: ServedWork['entry']
   /** The served board's first read is under way (search-honest.md). */
   boardReading?: boolean
+  /** The served board's reads failed with none read, and how to read it again (silent-views.md). */
+  boardFailed?: boolean
+  retryBoard?: () => void
   /** The project's search (A13): open from the head's Search, or `/`. */
   search: { open: boolean; onClose: () => void }
   /** The room's dock when the header has no room for it (a narrow screen): floating, mounted outside the header. */
   floating: React.ReactNode
+}
+
+/** The door, and an archived project's line over it (archive-project.md): on every view, as the lobby is. */
+function ProjectDoor({
+  projectId,
+  identity,
+  membership,
+  snapshot,
+}: Pick<BodyProps, 'projectId' | 'identity' | 'membership' | 'snapshot'>) {
+  return (
+    <>
+      <ArchivedLine projectId={projectId} identity={identity} membership={membership} />
+      <LobbyPanel
+        projectId={projectId}
+        identity={identity}
+        lobby={snapshot?.lobby}
+        canDecide={canInvite(membership)}
+        projectTitle={snapshot?.title}
+      />
+    </>
+  )
 }
 
 /**
@@ -662,15 +781,7 @@ function ProjectBody(props: BodyProps) {
       </WithViewer>
     </ProjectGoProvider>
   )
-  const lobby = (
-    <LobbyPanel
-      projectId={projectId}
-      identity={identity}
-      lobby={snapshot?.lobby}
-      canDecide={canInvite(membership)}
-      projectTitle={snapshot?.title}
-    />
-  )
+  const lobby = <ProjectDoor projectId={projectId} identity={identity} membership={membership} snapshot={snapshot} />
   if (view === 'studio') {
     return withViewer(
       <>
@@ -697,9 +808,12 @@ function ProjectBody(props: BodyProps) {
   return withViewer(
     <>
       {lobby}
-      <main className={pageClass(work, props.plans, view === 'conversations' && VISION)}>
-        {resources ?? <PageBody {...props} />}
-        {work && pulse}
+      <main className={pageClass(work, props.plans, view === 'conversations' && CONVERSATIONS)} data-content>
+        {/* A view that fails to draw says so in its place, its pulse too; the shell and the call stay (view-boundary.md). */}
+        <ViewFailed view={view}>
+          {resources ?? <PageBody {...props} />}
+          {work && pulse}
+        </ViewFailed>
       </main>
       {props.floating}
     </>,
@@ -708,7 +822,7 @@ function ProjectBody(props: BodyProps) {
 
 /**
  * The project's sheets that belong to no view (A12, A13, behind the vision flag): what the meeting left, on leaving it
- * from any view; the meeting so far; the search. After the page, so they open on top of any sheet the page has open,
+ * from any view; the meeting so far; the search (also behind the search flag, A38). After the page, so they open on top of any sheet the page has open,
  * and in the same place in every view, so switching views keeps them.
  */
 function ProjectSheets(props: BodyProps & { panel: RoomPanel; catchUp: React.ReactNode }) {
@@ -719,11 +833,11 @@ function ProjectSheets(props: BodyProps & { panel: RoomPanel; catchUp: React.Rea
     // Already open, it opens nothing: the focus is given to its tab as the view mounts (Codex on #239).
     else focusWhenThere('#side-tab-brief')
   })
-  if (!VISION) return null
+  if (!SEARCHABLE) return null
   return (
     <>
-      <MeetingRecapOnLeave {...{ projectId, identity, room, snapshot, membership }} />
-      {props.catchUp}
+      {VISION && <MeetingRecapOnLeave {...{ projectId, identity, room, snapshot, membership }} />}
+      {VISION && props.catchUp}
       <ProjectSearch
         {...{ projectId, identity, snapshot, membership, room }}
         {...props.search}
@@ -740,6 +854,14 @@ function ProjectSheets(props: BodyProps & { panel: RoomPanel; catchUp: React.Rea
           // Opened as its toggle opens it, so closing it gives the focus back there.
           if (panel.panel !== 'brief') panel.toggle('brief')
         }}
+        onMessage={(hit) => {
+          // A message (A38): the room's chat opens on it, as on a mention's address; the message after it lets the
+          // chat read the one page that ends at it (message-before.ts).
+          hintBefore(hit.id, hit.before ?? null)
+          onShow('studio')
+          showInAddress(hit.id, MESSAGE)
+          window.dispatchEvent(new Event(ADDRESS_NAMED))
+        }}
       />
     </>
   )
@@ -755,9 +877,10 @@ interface ViewerProps extends BodyProps {
 /**
  * The report viewer around a view: opening a report closes the side panel, and opening the panel closes the report. In
  * the room the pane covers the panel's toggles, so its head offers the chat. Where it covers the dock or the mini dock
- * (a phone, the full page), its head carries the call's switches and note, as the side panel's does (LFE-02.1).
+ * (a phone, the full page), its head carries the call's switches and note, as the side panel's does (LFE-02.1). Inside
+ * it, a link to this project in a message is followed here, a report's in the viewer (studio-links-in-place.md).
  */
-function WithViewer({ projectId, identity, view, room, panel, looking, snapshot, children }: ViewerProps) {
+function WithViewer({ projectId, identity, view, room, panel, looking, snapshot, onShow, children }: ViewerProps) {
   const studio = view === 'studio'
   return (
     <DocumentViewerProvider
@@ -772,10 +895,14 @@ function WithViewer({ projectId, identity, view, room, panel, looking, snapshot,
       cursor={snapshot?.cursor}
       show={studio ? showRenderOf(snapshot, room, { projectId, identity }) : undefined}
       chatUnread={panel.unread}
-      call={<PanelCallSwitches room={room} looking={looking} keys={studio} />}
+      // The keys work wherever the pane covers a dock: the Studio's in the room, the mini dock's in every other view,
+      // whose commands stay registered under the pane; the tips say them (Codex P2 on #326).
+      call={<PanelCallSwitches room={room} looking={looking} />}
       note={room.mediaError ?? room.error}
     >
-      {children}
+      <InPlaceLinks projectId={projectId} view={view} onShow={onShow}>
+        {children}
+      </InPlaceLinks>
     </DocumentViewerProvider>
   )
 }
@@ -796,12 +923,13 @@ function PageBody(props: BodyProps) {
   const { view, projectId, identity, membership, snapshot, onShow } = props
   if (view === 'knowledge') return <Knowledge {...{ projectId, identity, membership, snapshot }} />
   if (view === 'goals' || view === 'work') return <Goals {...props} />
-  if (view === 'conversations' && VISION) {
+  if (view === 'conversations' && CONVERSATIONS) {
     return <ConversationsView {...{ projectId, identity, membership }} cursor={snapshot?.cursor} />
   }
-  if (view === 'updates' && VISION) {
+  // Updates is served (A34), so the attention flag shows it too; its meetings and recaps (A12) stay the vision flag's.
+  if (view === 'updates' && (VISION || ATTENTION)) {
     const inCall = props.room.status === 'live' || props.room.status === 'reconnecting'
-    return <UpdatesView {...{ projectId, identity, snapshot, membership, inCall }} />
+    return <UpdatesView {...{ projectId, identity, snapshot, membership, inCall }} meetings={VISION} />
   }
   return view === 'studio' ? null : <PendingView view={view} onShow={onShow} />
 }
@@ -818,6 +946,7 @@ function Goals(props: BodyProps) {
       identity={identity}
       controls={work}
       canAct={canInvite(membership)}
+      admin={membership?.role === 'admin'}
       plans={plans}
       summary={!work}
       me={membership?.actorId}
@@ -829,6 +958,8 @@ function Goals(props: BodyProps) {
         window.dispatchEvent(new Event(ADDRESS_NAMED))
       }}
       entry={work ? entry : undefined}
+      boardFailed={work && props.boardFailed === true}
+      onRetryBoard={props.retryBoard}
       onOpenStudio={() => onShow('studio')}
       onInvite={onInvite}
     />
@@ -932,7 +1063,7 @@ interface NoticeProps {
 function AccessNotice({ blocked, identityName, actions }: NoticeProps) {
   const notice = NOTICE[blocked]
   return (
-    <main className="page notice">
+    <main className="page notice" data-content>
       <h2>{notice.title}</h2>
       <p>{notice.body(identityName)}</p>
       <button type="button" className="pill" onClick={actions[notice.action]}>

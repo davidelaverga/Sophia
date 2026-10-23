@@ -146,7 +146,11 @@ test('CX-0022 · every join says its mode to Sophia, the hello after which the b
   await enterByVoice(page)
   const hellos = async () => (await asked(page)).filter((a) => a === 'text:off').length
   const before = await hellos()
-  await page.evaluate(() => window.fixture?.drop())
+  // The connection is lost, and its one try back in fails (call-rejoin.md): the call stays lost.
+  await page.evaluate(() => {
+    window.fixture?.failToken()
+    window.fixture?.drop()
+  })
   await page.getByRole('button', { name: /^Try again/ }).click()
   await expect(leave(page)).toBeAttached()
   await expect.poll(hellos).toBe(before + 1)
@@ -262,7 +266,11 @@ test('CX-0023 · a call that drops cuts off what was still being said; joining a
 }) => {
   await enterByVoice(page)
   await say(page, caption('e1', 1, 'final', 'Said in full', SOPHIA), caption('e2', 1, 'partial', 'Half a', SOPHIA))
-  await page.evaluate(() => window.fixture?.drop())
+  // The connection is lost, and its one try back in fails (call-rejoin.md): the call stays lost.
+  await page.evaluate(() => {
+    window.fixture?.failToken()
+    window.fixture?.drop()
+  })
   await page.getByRole('button', { name: /^Try again/ }).click()
   await expect(leave(page)).toBeAttached()
   await chatToggle(page).click()

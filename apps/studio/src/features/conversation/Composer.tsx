@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Snapshot, SophiaPresence } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
+import { barCount, barFits } from './bar-length.ts'
 import { startChat } from './chat-start.ts'
 import {
   chatEntry,
@@ -18,12 +19,14 @@ import {
   type ChatMoment,
 } from './chat-view.ts'
 import { ContinuityChoice } from './ContinuityChoice.tsx'
-import { HELD_WORDS, TARGET_WORDS, type Target } from './discussion-view.ts'
+import { HELD_WORDS, offlineBarWords, TARGET_WORDS, type Target } from './discussion-view.ts'
+import { MentionPicker, useMentions } from './MentionPicker.tsx'
 import { ReplyingTo, useReplyBar, type Replying } from './ReplyingTo.tsx'
-import { useBarTarget, useRoomMessage } from './useRoomMessage.ts'
+import { useBarTarget, useRoomMessage, type ReplyUnderWay } from './useRoomMessage.ts'
 import { getSnapshot } from '../../api/client.ts'
 import { startExchange } from '../../api/exchange.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { useOnline } from '../personal/online.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 
@@ -39,9 +42,20 @@ interface Props {
   /** The room's message being answered (A20, the vision flag's), and how to stop answering it. */
   replying?: Replying | null
   onStopReplying?: () => void
+  /** A message goes from the bar: what came while the tab was hidden is behind the person (WhileAway.tsx). */
+  onSend?: (() => void) | undefined
 }
 
 const NOTHING = () => undefined
+
+/** Send, said first to whoever waits on it. */
+const telling = (send: () => Promise<void>, onSend: (() => void) | undefined) =>
+  onSend
+    ? () => {
+        onSend()
+        return send()
+      }
+    : send
 
 /** The room's message being answered, if any (A20): the bar moves to the room, and the reply goes with the message. */
 function useReply(
@@ -184,36 +198,60 @@ function TargetSwitch({ target, other, onSwitch }: Pick<BarProps, 'target' | 'ot
   )
 }
 
-function MessageBar({ field, draft, onDraft, canSend, send, target, other, onSwitch }: BarProps) {
+/** How full the bar is once it nears the most one message holds, and past it by how much (as Personal's Count). */
+function BarCount({ count }: { count: { length: number; most: number } }) {
+  const over = count.length - count.most
   return (
-    <div className="message-bar" data-target={target}>
-      <TargetSwitch target={target} other={other} onSwitch={onSwitch} />
-      <label htmlFor="converse-draft" className="sr-only">
-        {TARGET_WORDS[target].placeholder.replace('…', '')}
-      </label>
-      <textarea
-        ref={field}
-        id="converse-draft"
-        data-chat-entry
-        // Stray typing lands here (shortcuts.ts): a message begun without clicking the bar is still a message.
-        data-typing-sink
-        rows={1}
-        maxLength={2000}
-        value={draft}
-        placeholder={TARGET_WORDS[target].placeholder}
-        onChange={(e) => onDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-            e.preventDefault()
-            if (canSend) void send()
-          }
-        }}
-      />
-      <button type="button" className="send has-tip" aria-label="Send" disabled={!canSend} onClick={() => void send()}>
-        <Icon name="send" />
-        <Tip label="Send" keys="Enter" side="top" align="end" />
-      </button>
-    </div>
+    <p id="bar-count" className={`bar-count${over >= 0 ? ' full' : ''}`}>
+      {count.length.toLocaleString('en-US')} / {count.most.toLocaleString('en-US')}
+      {over > 0 ? ` · ${over.toLocaleString('en-US')} over` : over === 0 && ' · the most one message holds'}
+    </p>
+  )
+}
+
+function MessageBar({ field, draft, onDraft, canSend, send, target, other, onSwitch }: BarProps) {
+  const count = barCount(target, draft)
+  return (
+    <>
+      {/* Its own line over the bar: beside Send it would squeeze the field in the chat's narrow panel. */}
+      {count && <BarCount count={count} />}
+      <div className="message-bar" data-target={target}>
+        <TargetSwitch target={target} other={other} onSwitch={onSwitch} />
+        <label htmlFor="converse-draft" className="sr-only">
+          {TARGET_WORDS[target].placeholder.replace('…', '')}
+        </label>
+        <textarea
+          ref={field}
+          id="converse-draft"
+          data-chat-entry
+          // Stray typing lands here (shortcuts.ts): a message begun without clicking the bar is still a message.
+          data-typing-sink
+          rows={1}
+          // No maxLength: it counts UTF-16 units, not characters, and cuts a paste without a word. Past the most, the
+          // count over the bar says how far over (room-message-length.md).
+          aria-describedby={count ? 'bar-count' : undefined}
+          value={draft}
+          placeholder={TARGET_WORDS[target].placeholder}
+          onChange={(e) => onDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault()
+              if (canSend) void send()
+            }
+          }}
+        />
+        <button
+          type="button"
+          className="send has-tip"
+          aria-label="Send"
+          disabled={!canSend}
+          onClick={() => void send()}
+        >
+          <Icon name="send" />
+          <Tip label="Send" keys="Enter" side="top" align="end" />
+        </button>
+      </div>
+    </>
   )
 }
 
@@ -275,7 +313,7 @@ function useTypeNext(entry: ChatEntry, field: RefObject<HTMLTextAreaElement | nu
 
 /**
  * What Send does and whether it can: to Sophia once she can take it; to the room once a message is written. A held
- * message (begun for Sophia, who can't take it now) sends nowhere until the person moves it.
+ * message (begun for Sophia, who can't take it now) sends nowhere until the person moves it; offline, nothing goes.
  */
 function sendingTo(
   bar: { target: Target; held: boolean },
@@ -284,10 +322,12 @@ function sendingTo(
     toRoom: { state: string; send: () => Promise<void> }
     starting: boolean
     draft: string
+    online: boolean
   },
 ) {
-  const written = !!at.draft.trim()
-  if (bar.held) return { can: false, send: () => Promise.resolve() }
+  // Past the most a message holds, nothing goes: the count over the bar says how far over (bar-length.ts).
+  const written = !!at.draft.trim() && barFits(bar.target, at.draft)
+  if (bar.held || !at.online) return { can: false, send: () => Promise.resolve() }
   if (bar.target === 'sophia') {
     return { can: at.chat.ready && !at.chat.busy && !at.starting && written, send: at.chat.send }
   }
@@ -302,6 +342,22 @@ interface FootLineProps {
   /** A message held for Sophia: why it waits, and moving it to the room. */
   held: boolean
   onMove: () => void
+}
+
+/**
+ * What the bar's line says of the room's message. Offline (navigator.onLine false; a true proves nothing), what waits
+ * in place of what it said, with no Try again that could only wait, beside what the room's note above already says
+ * (offlineBarWords, costuras seam #8).
+ */
+function useFootWords(
+  toRoom: { words: string | null; state: string; held: string | null },
+  draft: string,
+  roomNote: { text: string } | null,
+) {
+  const online = useOnline()
+  if (online) return { online, words: toRoom.words, unknown: toRoom.state === 'unknown' }
+  const field = { going: toRoom.state === 'sending', held: toRoom.held, written: draft.trim() !== '' }
+  return { online, words: offlineBarWords(field, toRoom.words, roomNote?.text ?? null), unknown: false }
 }
 
 /** One line above the bar for what the room's message or a held one needs. */
@@ -329,6 +385,29 @@ function FootLine({ words, unknown, onRetry, held, onMove }: FootLineProps) {
   )
 }
 
+/** The room's message (useRoomMessage), with the members it names when it goes to the room (A37). */
+function useToRoom(props: Props, reply: ReplyUnderWay, roomBound: boolean) {
+  const { projectId, identity, draft, onDraft } = props
+  const mentions = useMentions(projectId, identity, roomBound)
+  return {
+    mentions,
+    toRoom: useRoomMessage(projectId, identity, draft, onDraft, { reply, mentions: mentions.underWay }),
+  }
+}
+
+/** Just above the bar: what is being answered (A20), and whom the message will name (A37). */
+function AboveBar(props: {
+  reply: { replying: Replying | null; stopHere: () => void }
+  mentions: ReturnType<typeof useMentions>
+}) {
+  return (
+    <>
+      <ReplyingTo replying={props.reply.replying} onStop={props.reply.stopHere} />
+      {props.mentions.offered && <MentionPicker {...props.mentions} />}
+    </>
+  )
+}
+
 /**
  * Typed turns use the same admitted exchange and lifecycle handlers as voice, with no microphone required. The same
  * bar writes to the room's discussion, always (useRoomMessage).
@@ -344,7 +423,7 @@ export function Composer(props: Props) {
   const bar = entry === 'bar'
   const target = useBarTarget(bar && chat.mine, draft, field)
   const reply = useReply(props, target, field)
-  const toRoom = useRoomMessage(projectId, identity, draft, onDraft, reply.underWay)
+  const { mentions, toRoom } = useToRoom(props, reply.underWay, bar ? target.target === 'room' : true)
   const begin = async () => {
     asked.current = true
     if (!(await start())) asked.current = false
@@ -358,13 +437,13 @@ export function Composer(props: Props) {
     void room.setTextMode(false)
     field.current?.focus({ preventScroll: true }) // the pressed link goes; the focus stays at the bar
   }
-  const sophia = target.target === 'sophia'
-  const sending = sendingTo(target, { chat, toRoom, starting, draft })
+  const foot = useFootWords(toRoom, draft, error)
+  const sending = sendingTo(target, { chat, toRoom, starting, draft, online: foot.online })
   return (
     <div className="composer">
       <ContinuityChoice projectId={projectId} identity={identity} cursor={snapshot?.cursor} withBar={bar} />
       <ChatLine
-        presence={bar && sophia ? chat.presence : undefined}
+        presence={bar && target.target === 'sophia' ? chat.presence : undefined}
         moment={moment}
         voice={room.textMode && !starting && inRoom}
         busy={chat.busy}
@@ -373,8 +452,8 @@ export function Composer(props: Props) {
       />
       <FootError error={error} />
       <FootLine
-        words={toRoom.words}
-        unknown={toRoom.state === 'unknown'}
+        words={foot.words}
+        unknown={foot.unknown}
         onRetry={() => void toRoom.send()}
         held={target.held}
         onMove={target.moveToRoom}
@@ -382,13 +461,13 @@ export function Composer(props: Props) {
       {!bar && (
         <ChatStart starting={starting} ready={room.ready && room.status !== 'joining'} onStart={() => void begin()} />
       )}
-      <ReplyingTo replying={reply.replying} onStop={reply.stopHere} />
+      <AboveBar reply={reply} mentions={mentions} />
       <MessageBar
         field={field}
         draft={draft}
         onDraft={onDraft}
         canSend={sending.can}
-        send={sending.send}
+        send={telling(sending.send, props.onSend)}
         target={target.target}
         other={target.other}
         onSwitch={target.choose}

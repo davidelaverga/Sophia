@@ -2,11 +2,13 @@
 // role, you marked. An admin changes a role from its select, admin included, so the admin role can be handed over;
 // a project keeps an admin, and a refusal is said on the row while the select shows the role that stands.
 import { useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ProjectMember } from '@sophia/contracts'
-import { changeMemberRole } from '../../api/client.ts'
+import { ConfirmButton } from '@sophia/ui'
+import { changeMemberRole, removeMember } from '../../api/client.ts'
 import { useMembers } from '../work/GoalTargets.tsx'
 import { membershipKey, type SheetContext } from './useAccess.ts'
+import { removalKeys } from './removal-keys.ts'
 
 type Role = ProjectMember['role']
 
@@ -56,7 +58,28 @@ function useRoleChange({ projectId, identity }: SheetContext) {
         }),
     )
   }
-  return { state, change }
+  // One key per member removal: a retry after an unknown outcome is the same removal (A29); confirmed, it is retired.
+  const keys = useRef(removalKeys())
+  const remove = (member: ProjectMember) => () => {
+    const key = keys.current.keyFor(member.actorId)
+    setState({ busy: member.actorId, failed: null })
+    removeMember(identity.token, projectId, member.actorId, key).then(
+      async () => {
+        // Done: a later removal of the same person (invited back) is a new one (Codex P2 on #356).
+        keys.current.confirmed(member.actorId)
+        setState({ busy: null, failed: null })
+        // The row goes with the read below: the focus goes to the list's heading first (Codex P1 on #356).
+        document.getElementById('in-project-title')?.focus()
+        await client.invalidateQueries({ queryKey: ['members', projectId, identity.name] })
+      },
+      (err: unknown) =>
+        setState({
+          busy: null,
+          failed: { actorId: member.actorId, text: err instanceof Error ? err.message : 'Couldn’t remove them.' },
+        }),
+    )
+  }
+  return { state, change, remove }
 }
 
 export function InProject({ context }: { context: SheetContext }) {
@@ -64,11 +87,11 @@ export function InProject({ context }: { context: SheetContext }) {
   const members = useMembers({ projectId, identity, cursor: undefined })
   const admin = context.membership?.role === 'admin'
   const me = context.membership?.actorId
-  const { state, change } = useRoleChange(context)
+  const { state, change, remove } = useRoleChange(context)
   if (members.length === 0) return null
   return (
     <section className="in-project">
-      <h3 className="field-label" id="in-project-title">
+      <h3 className="field-label" id="in-project-title" tabIndex={-1}>
         In this project
       </h3>
       <ul className="in-project-people" aria-labelledby="in-project-title">
@@ -87,6 +110,15 @@ export function InProject({ context }: { context: SheetContext }) {
                 />
               ) : (
                 <span className="in-project-role-words">{ROLE_WORD[m.role]}</span>
+              )}
+              {admin && !mine && (
+                <ConfirmButton
+                  label="Remove"
+                  warning="They leave the project and its call. A new invitation brings them back."
+                  confirm="Remove from project"
+                  disabled={state.busy === m.actorId}
+                  onConfirm={remove(m)}
+                />
               )}
               {state.failed?.actorId === m.actorId && (
                 <p className="form-error" role="alert">

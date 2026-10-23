@@ -1,7 +1,7 @@
 // Starting a conversation as writing (docs/plans/conversations-start.md, C8): the question is what matters; the first
 // message is optional and, left empty, is the question; the project's proposals waiting are offered to start from.
 import type { MissionDecision } from '@sophia/contracts'
-import type { ConversationAsk } from '../../api/vision.ts'
+import type { ConversationAsk } from '../../api/conversations.ts'
 
 /** What A18's start sends: the words trimmed, an empty first message being the question itself. */
 export function askOf(fields: ConversationAsk): ConversationAsk {
@@ -48,9 +48,9 @@ const fold = (title: string) => title.normalize('NFD').replace(/\p{M}/gu, '').to
  * A folded title's words, split at anything not a letter or a digit; a number's thousands separators dropped first, so
  * «1,000» and «1000» are one number (Codex on #274).
  */
-const wordsOf = (title: string) =>
+const wordsOf = (folded: string) =>
   spelledNumbers(
-    fold(title)
+    folded
       // A comma between thousands only: a point is a decimal («1.234» seconds is not 1234: Codex on #274).
       .replace(/(\p{N}),(?=\p{N}{3}(?!\p{N}))/gu, '$1')
       // A decimal is one number: «1.2» is not «1 and 2» (Codex on #274).
@@ -62,6 +62,8 @@ const wordsOf = (title: string) =>
       .replace(/\bwon['\u2019]t\b/gu, 'will not')
       // A contracted negation is a «not» of its own, so its scope is read as one (Codex on #274).
       .replace(/n['\u2019]t\b/gu, ' not')
+      // «let's» is «let us», never a possessive (Codex P2 on #274).
+      .replace(/\blet['\u2019]s\b/gu, 'let us')
       // Other clitics read as their words, a possessive's «s» dropped: «we're» is «we are», «admin's» «admin» (Codex on #274).
       .replace(/['\u2019](re|ve|ll|d|m)\b/gu, (_, c: string) => ` ${CLITICS[c] ?? ''}`)
       .replace(/['\u2019]s\b/gu, '')
@@ -131,10 +133,11 @@ const UNITS = new Map(
 const TENS = new Map(
   'twenty thirty forty fifty sixty seventy eighty ninety'.split(' ').map((w, i) => [w, (i + 2) * 10] as const),
 )
+/** In BigInt: a scale said again multiplies, and a long run stays exact past 2⁵³ (Codex P2 on #274). */
 const SCALES = new Map([
-  ['hundred', 100],
-  ['thousand', 1000],
-  ['million', 1000000],
+  ['hundred', 100n],
+  ['thousand', 1000n],
+  ['million', 1000000n],
 ])
 
 /** Ordinals said by a word of their own; the rest are the cardinal with «th» («fourteenth», «twentieth»). */
@@ -158,9 +161,9 @@ function cardinalOf(w: string): string | undefined {
 }
 
 /** An ordinal's figure, as a figure is written: «1st», «2nd», «3rd», «4th», «11th», «12th». */
-function ordinal(n: number): string {
-  const teen = n % 100 >= 11 && n % 100 <= 13
-  const suffix = teen ? 'th' : (({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th')
+function ordinal(n: bigint): string {
+  const teen = n % 100n >= 11n && n % 100n <= 13n
+  const suffix = teen ? 'th' : (({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[Number(n % 10n)] ?? 'th')
   return `${String(n)}${suffix}`
 }
 
@@ -174,20 +177,23 @@ function continues(prev: string | undefined, w: string): boolean {
   return TENS.has(prev) && (UNITS.get(w) ?? 10) < 10
 }
 
+/** At least one: a scale said alone counts once («hundred» is 100). */
+const once = (n: bigint) => (n > 0n ? n : 1n)
+
 /** A run of spelled number words read as one value: «one thousand five hundred twenty one» is 1521. */
-function valueOfRun(run: readonly string[]): number {
-  let total = 0
-  let group = 0
-  let last = Number.POSITIVE_INFINITY
+function valueOfRun(run: readonly string[]): bigint {
+  let total = 0n
+  let group = 0n
+  let last: bigint | null = null
   for (const w of run) {
     const scale = SCALES.get(w)
-    if (scale === undefined) group += UNITS.get(w) ?? TENS.get(w) ?? 0
-    else if (scale === 100) group = Math.max(group, 1) * 100
+    if (scale === undefined) group += BigInt(UNITS.get(w) ?? TENS.get(w) ?? 0)
+    else if (scale === 100n) group = once(group) * 100n
     else {
       // A larger scale after a smaller one takes in all said so far: «one thousand million» is 10⁹ (Codex on #274).
       // A scale said again multiplies too: «one thousand thousand» is a million (Codex on #274).
-      total = scale >= last ? (total + group) * scale : total + Math.max(group, 1) * scale
-      group = 0
+      total = last !== null && scale >= last ? (total + group) * scale : total + once(group) * scale
+      group = 0n
       last = scale
     }
   }
@@ -216,7 +222,7 @@ function remainderFollows(prev: string | undefined, after: readonly string[]): b
   // thousand» is 120000 (Codex on #274).
   // Only a hundred's coefficient goes on into a larger scale («one hundred and twenty thousand»); after a thousand or
   // more, a larger scale is another quantity («one thousand and one million»: Codex on #274).
-  const larger = scale === 100 && next.some((w) => (SCALES.get(w) ?? 0) > scale)
+  const larger = scale === 100n && next.some((w) => (SCALES.get(w) ?? 0n) > scale)
   return next.length > 0 && (valueOfRun(next) < scale || larger)
 }
 
@@ -255,16 +261,23 @@ function spelledNumbers(words: readonly string[]): string[] {
     }
   }
   flush()
-  return out.filter((w) => w !== BOUNDARY)
+  return signed(out).filter((w) => w !== BOUNDARY)
 }
 
+/** «minus» before a number signs it, as «-5» is signed: «minus five» and «minus 5» are `minus5` (Codex P2 on #274). */
+const signed = (words: readonly string[]): string[] =>
+  words.flatMap((w, i) => {
+    if (w === 'minus' && /^\p{N}/u.test(words[i + 1] ?? '')) return []
+    return words[i - 1] === 'minus' && /^\p{N}/u.test(w) ? [`minus${w}`] : [w]
+  })
+
 /**
- * A title's own words: folded, accents off, three letters or more, common words left out, an action as its plain form,
- * a final «s» dropped.
+ * A title's own words, from its folded words (readTitle): three letters or more, common words left out, an action as its
+ * plain form, a final «s» dropped.
  */
-function ownWords(title: string): Set<string> {
+function ownWords(words: readonly string[]): Set<string> {
   return new Set(
-    wordsOf(title)
+    words
       // A figure counts whatever its length: «one» read as «1» is still a word of the question (Codex on #274).
       .filter((w) => /\p{N}/u.test(w) || (w.length >= 3 && !COMMON.has(w)))
       .map(plainWord),
@@ -373,28 +386,51 @@ const FILLER = new Set(
 const turns = (words: readonly string[]) =>
   words.some((w) => NEGATIONS.has(w)) || Object.values(turnsOf).some((of) => of(words).length > 0)
 
-/** Whether a title negates: a negating word, or a «n't». */
-const negates = (words: readonly string[], title: string) =>
-  words.some((s) => NEGATIONS.has(s)) || /n['\u2019]t\b/u.test(fold(title))
+/** Whether a title negates: a negating word, or a «n't» in its folded words. */
+const negates = (words: readonly string[], folded: string) =>
+  words.some((s) => NEGATIONS.has(s)) || /n['\u2019]t\b/u.test(folded)
+
+/** A title read once for comparing: its words, whether it negates, its prefixes, whether it turns, its ordered words. */
+interface ReadTitle {
+  words: readonly string[]
+  negates: boolean
+  prefixes: string
+  turns: boolean
+  order: string
+}
+
+/**
+ * Reads a title once (Codex P2s on #274 and #376): folded once, the question once per draft and each title once, not
+ * once per conversation compared or per thing read from it.
+ */
+function readTitle(title: string): ReadTitle {
+  const folded = fold(title)
+  const words = wordsOf(folded)
+  return {
+    words,
+    negates: negates(words, folded),
+    prefixes: prefixesOf(words),
+    turns: turns(words),
+    order: ownOrder(words),
+  }
+}
 
 /**
  * Whether two titles' turns agree: the same negation; and of each kind, the same words in the same order, or none said
  * on one side (a number on one side only does not part them). Where they don't, nothing is named: saying nothing beats
  * pointing to the inverse question.
  */
-function turnsAgree(a: string, b: string): boolean {
-  const x = wordsOf(a)
-  const y = wordsOf(b)
-  if (negates(x, a) !== negates(y, b) || prefixesOf(x) !== prefixesOf(y)) return false
+function turnsAgree(a: ReadTitle, b: ReadTitle): boolean {
+  if (a.negates !== b.negates || a.prefixes !== b.prefixes) return false
   const alike = Object.values(turnsOf).every((of) => {
-    const [p, q] = [of(x), of(y)]
+    const [p, q] = [of(a.words), of(b.words)]
     return p.length === 0 || q.length === 0 || p.join(' ') === q.join(' ')
   })
   // Turning words on both sides: only the same own words, in the same order, are the same question. Binding each turn
   // to a word near it was read eleven ways by the review, each an inverse it let through (a number moved between
   // subjects, a negation's scope, a passive's thing: Codex on #274); word for word, none passes. A paraphrase with
   // turning words (a passive, another order) is read as another question: the form errs to silence, Start always there.
-  return alike && (!(turns(x) && turns(y)) || ownOrder(x) === ownOrder(y))
+  return alike && (!(a.turns && b.turns) || a.order === b.order)
 }
 
 /** The least that says «about the same thing»: two shared words, and this share of the question's. */
@@ -409,12 +445,14 @@ export function sameQuestion<C extends { id: string; title: string; lastAt: stri
   question: string,
   conversations: readonly C[],
 ): C | null {
-  const asked = ownWords(question)
+  const read = readTitle(question)
+  const asked = ownWords(read.words)
   if (asked.size < SHARED_LEAST) return null
   const scored = conversations
-    .filter((c) => turnsAgree(question, c.title))
-    .map((c) => {
-      const own = ownWords(c.title)
+    .map((c) => ({ c, title: readTitle(c.title) }))
+    .filter(({ title }) => turnsAgree(read, title))
+    .map(({ c, title }) => {
+      const own = ownWords(title.words)
       return { c, shared: [...asked].filter((w) => own.has(w)).length }
     })
     .filter((s) => s.shared >= SHARED_LEAST && s.shared / asked.size >= SHARE_LEAST)

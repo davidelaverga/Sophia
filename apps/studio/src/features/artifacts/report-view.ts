@@ -6,6 +6,7 @@ import type {
   ArtifactVersion,
   NativeTask,
   NativeTaskDetail,
+  ReportCard,
   ReportSections,
   ReportSource,
   ReportSummaryEdit,
@@ -380,6 +381,14 @@ export function focusReturn<T>(
   return fallback !== null && visible(fallback) ? fallback : null
 }
 
+/**
+ * Whom the focus goes back to: the latest opener while it is still in the page, else what had the focus as the pane
+ * came (a deep link; or a sheet that closed for the report and took its button, having handed the focus back to its
+ * own opener first: Codex P2 on #414).
+ */
+export const returnFrom = <T extends { isConnected: boolean }>(latest: T | null, atMount: T | null): T | null =>
+  latest?.isConnected ? latest : atMount
+
 /** An Esc the viewer may hear: already handled or not, held down, and whether a field or an open dialog keeps it. */
 export interface EscapeAt {
   defaultPrevented: boolean
@@ -620,9 +629,105 @@ export interface SummaryDraft {
 /**
  * A description edit as the API takes it: against the revision the editor saw when they began, never the one a later
  * read of the cards brought (the window's focus reads them again), which would overwrite a teammate's newer description
- * without a word.
+ * without a word. Only once the person is told of it (settleUnheard) does the edit move to the newer revision.
  */
 export const summaryEdit = (draft: SummaryDraft): ReportSummaryEdit => ({
   summary: draft.text.trim(),
   expectedRevision: draft.base,
 })
+
+/**
+ * What a refused or unanswered save says, by the API's code (null when the failure carried none). A stale one says
+ * nothing until the cards read again settle whose words are there (settleUnheard): never «Someone changed…» first.
+ */
+export function summaryProblem(code: string | null): string | null {
+  if (code === 'stale_revision') return null
+  if (code === 'forbidden') return 'Only editors and admins can change it.'
+  if (code === 'outcome_unknown') {
+    return 'No reply from Sophia: it may have been saved. It will show here when the list reads again.'
+  }
+  return 'The description wasn’t saved. Try again.'
+}
+
+/** Saves whose reply never said they were kept: none came, or the API refused one as stale (it may be the person's). */
+export interface UnheardSave {
+  /** Every text sent while unheard, as summaryEdit sent them: any of them may be the one that landed. */
+  sent: readonly string[]
+  /** The revision they were sent against. */
+  base: number
+}
+
+/**
+ * A save gone unheard, added to those still unheard: a second Save, or Edit, never forgets the first. The draft moves
+ * only once they settle, so each went against the same revision (the lowest is kept all the same).
+ */
+export const unheardWith = (prev: UnheardSave | null, edit: ReportSummaryEdit): UnheardSave =>
+  prev
+    ? { sent: [...prev.sent, edit.summary], base: Math.min(prev.base, edit.expectedRevision) }
+    : { sent: [edit.summary], base: edit.expectedRevision }
+
+/**
+ * Where Edit starts: the card's description and its revision, or, while a save is unheard, the last words sent (they
+ * may be the description already, unread here yet). Never the older words a slow read still shows.
+ */
+export const draftFrom = (
+  card: Pick<ReportCard, 'summary' | 'summaryRevision'>,
+  unheard: UnheardSave | null,
+): SummaryDraft => ({ text: unheard?.sent.at(-1) ?? card.summary ?? '', base: card.summaryRevision })
+
+/**
+ * The line under a description: a problem, said as an alert, or a save that went through, said politely. One that
+ * speaks of what the description reads carries it (`reads`), and is said only while the card reads it (liveNote).
+ */
+export interface SummaryNote {
+  words: string
+  polite: boolean
+  reads?: string | null
+}
+
+export const SUMMARY_KEPT: SummaryNote = {
+  words: 'Saved. The reply was lost on the way, but the description reads as you wrote it.',
+  polite: true,
+}
+
+/** Someone else's words are the description now: named, so Save never replaces them unseen (as conflictWords does). */
+export const summaryTheirs = (now: string | null): SummaryNote => ({
+  words: now
+    ? `Someone changed this description to “${now}” since you opened it. Save to use yours instead.`
+    : 'Someone changed this description since you opened it. Save to use yours instead.',
+  polite: false,
+  reads: now,
+})
+
+/** The line while it is true: one about what the description reads goes once the card reads otherwise. */
+export const liveNote = (note: SummaryNote | null, summary: string | null): SummaryNote | null =>
+  note && (note.reads === undefined || note.reads === summary) ? note : null
+
+/** What a newer read of the card settles about an unheard save. */
+export interface Settled {
+  note: SummaryNote | null
+  /** The form closes: it holds just the words the description reads now, the person's own. */
+  close: boolean
+  /** Else the typed words stay, saved next against the revision now read. */
+  base: number
+}
+
+/**
+ * What the card, read again, says of unheard saves (costuras seam #9): nothing while it holds the revision they were
+ * sent against. Newer and reading any of the words sent, a save went through: the person's own, never blamed on a
+ * teammate. Newer with other words, someone else's are there, named, and the typed words stay, offered over the
+ * revision now read. `typed` is the form's text, or null once it closed: theirs then shows on the card, attributed, and
+ * nothing more is said.
+ */
+export function settleUnheard(
+  save: UnheardSave,
+  card: Pick<ReportCard, 'summary' | 'summaryRevision'>,
+  typed: string | null,
+): Settled | null {
+  if (card.summaryRevision <= save.base) return null
+  const { summary: now, summaryRevision: base } = card
+  if (now !== null && save.sent.includes(now)) {
+    return { note: { ...SUMMARY_KEPT, reads: now }, close: typed?.trim() === now, base }
+  }
+  return { note: typed === null ? null : summaryTheirs(now), close: false, base }
+}

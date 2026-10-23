@@ -147,7 +147,11 @@ export function useShortcuts(bindings: Readonly<Record<string, (() => void) | un
     const onKey = (e: KeyboardEvent) => {
       // Stray typing: the character lands in the field, because the focus moves there before it is typed. A button
       // in the field's place takes no character, and is not focused (a space would press it).
-      const sink = typesText(e) ? strayField(e.target instanceof HTMLElement ? e.target : null, e.key) : null
+      // A key already taken (push to talk takes Space) types nothing, so it moves no focus.
+      const sink =
+        typesText(e) && !e.defaultPrevented
+          ? strayField(e.target instanceof HTMLElement ? e.target : null, e.key)
+          : null
       if (sink && FIELDS.has(sink.tagName)) sink.focus()
       const key = shortcutKey(keyLike(e))
       const run = key ? current.current[key] : undefined

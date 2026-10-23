@@ -443,3 +443,53 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('INVOICE STATUS', [asked('a', 'invoice status', at)])?.id, 'a')
   })
 })
+
+describe('the same question: the last words of #274 (docs/plans/same-question-words.md)', () => {
+  const at = '2026-10-10T00:00:00Z'
+
+  it('a long spelled number stays exact, meeting its figure (Codex P2 on #274)', () => {
+    const big = [asked('a', 'Cap the ledger at 9000000000000000009 entries', at)]
+    assert.equal(sameQuestion('Cap the ledger at nine million million million and nine entries', big)?.id, 'a')
+  })
+
+  it('a spelled negative is signed as a figure is (Codex P2 on #274)', () => {
+    const budget = [asked('a', 'Set budget change to -5 percent', at)]
+    assert.equal(sameQuestion('Set budget change to minus five percent', budget)?.id, 'a')
+    assert.equal(sameQuestion('Set budget change to minus 5 percent', budget)?.id, 'a')
+    assert.equal(sameQuestion('Set budget change to five percent', budget), null)
+  })
+
+  it('«let’s» keeps its «us» (Codex P2 on #274)', () => {
+    const sms = [asked('a', 'Let us not enable SMS reminders', at)]
+    assert.equal(sameQuestion('Let’s not enable SMS reminders', sms)?.id, 'a')
+    assert.equal(sameQuestion("Let's not enable SMS reminders", sms)?.id, 'a')
+  })
+
+  it('the question is read once, however many conversations are compared (Codex P2 on #274)', (t) => {
+    const question = 'Who owns setup when an admin changes?'
+    const folds = (n: number) => {
+      const normalize = t.mock.method(String.prototype, 'normalize')
+      const many = Array.from({ length: n }, (_, i) => asked(`c${String(i)}`, `Setup owner number ${String(i)}`, at))
+      sameQuestion(question, many)
+      const count = normalize.mock.calls.filter((c) => String(c.this) === question).length
+      normalize.mock.restore()
+      return count
+    }
+    assert.equal(folds(20), folds(1))
+  })
+
+  it('folds the draft once, and each title once (Codex P2 on #376)', (t) => {
+    const folds = (question: string, n: number) => {
+      const normalize = t.mock.method(String.prototype, 'normalize')
+      const many = Array.from({ length: n }, (_, i) => asked(`c${String(i)}`, `Setup owner number ${String(i)}`, at))
+      sameQuestion(question, many)
+      const of = (s: string) => normalize.mock.calls.filter((c) => String(c.this) === s).length
+      const counts = { question: of(question), title: of('Setup owner number 0') }
+      normalize.mock.restore()
+      return counts
+    }
+    assert.deepEqual(folds('Who owns setup when an admin changes?', 1), { question: 1, title: 1 })
+    assert.deepEqual(folds('Who owns setup when an admin changes?', 20), { question: 1, title: 1 })
+    assert.equal(folds('Who does not own setup when an admin changes?', 20).question, 1)
+  })
+})

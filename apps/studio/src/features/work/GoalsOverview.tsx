@@ -3,17 +3,17 @@
 // sheet. Done goals fold to one line; past six goals, a search. One accent, amber, only where something waits. Each
 // goal's latest note is read from the project's ledger (goal-notes.md).
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import type { Goal, GoalTarget } from '@sophia/contracts'
+import type { ArtifactVersion, Goal, GoalTarget } from '@sophia/contracts'
 import { Button, EmptyState, Search } from '@sophia/ui'
 import { useCommands } from '../../app/useCommands.ts'
 import { DECISION, GOAL, showInAddress, TASK } from '../resources/link.ts'
 import { useAddressed } from '../resources/useAddressed.ts'
 import type { GoalPlan } from './GoalList.tsx'
 import { useLedger, type NotesFor } from './GoalNotes.tsx'
-import { notesRead, withNotes } from './goal-notes.ts'
+import { notesRead, readingWords, withNotes } from './goal-notes.ts'
 import { Asks, Faces, Meter, type Asked } from './GoalParts.tsx'
 import { GoalSheet } from './GoalSheet.tsx'
-import { targetLine, useGoalTargets, useMembers } from './GoalTargets.tsx'
+import { targetLine, useMembers, useTargetsRead } from './GoalTargets.tsx'
 import { todayOf } from './goal-due.ts'
 import { useNow } from '../../app/use-now.ts'
 import {
@@ -26,6 +26,7 @@ import {
   MANY,
   ordered,
   rowLine,
+  withDue,
   type Glanced,
 } from './goals-glance.ts'
 import type { Ask } from './planning/plan.ts'
@@ -39,6 +40,8 @@ interface Props {
   notes: NotesFor
   /** Tasks, with the goal, or a task or decision of it, named in the address; undefined where Tasks can't take it. */
   onOpenGoal: ((id: string, address?: string) => void) | undefined
+  /** A goal's reports, from the snapshot (goal-reports.md). */
+  reports?: (goalId: string) => readonly ArtifactVersion[]
 }
 
 /**
@@ -202,40 +205,53 @@ function MineSwitch({ mine }: { mine: ReturnType<typeof useMine> }) {
   )
 }
 
-/** The notes unread: a difficulty may be missing from the health, said with the way to read them again. */
-function NotesFailed({ ledger }: { ledger: ReturnType<typeof useLedger> }) {
-  if (notesRead(ledger) !== 'failed') return null
+/** A read the health waits on, unread: what may be missing from it (notes-robust.md, targets-robust.md). */
+const FAILED = {
+  notes: { words: 'The notes can’t be read right now, so a difficulty may be missing.', at: 'goals-notes-failed' },
+  dates: { words: 'The dates can’t be read right now, so an overdue goal may be missing.', at: 'goals-dates-failed' },
+}
+
+/** The notes or the dates unread: said, with the way to read them again. */
+function ReadFailed({ what, state, onRetry }: { what: keyof typeof FAILED; state: string; onRetry: () => void }) {
+  if (state !== 'failed') return null
   return (
-    <p className="goals-notes-failed" role="alert">
-      The notes can’t be read right now, so a difficulty may be missing.{' '}
-      <button type="button" className="text-button" onClick={() => void ledger.refetch()}>
+    <p className={FAILED[what].at} role="alert">
+      {FAILED[what].words}{' '}
+      <button type="button" className="text-button" onClick={onRetry}>
         Try again
       </button>
     </p>
   )
 }
 
-export function GoalsOverview({ goals, plans: served, notes, onOpenGoal }: Props) {
+/** The viewer's own goals past their date, for the brief (goal-overdue-health.md). */
+const lateMine = (goals: readonly Goal[], plans: Plans, targets: ReadonlyMap<string, GoalTarget>, me: string) =>
+  goals.filter((g) => plans?.[g.id]?.overdue && targets.get(g.id)?.ownerId === me).length
+
+export function GoalsOverview({ goals, plans: served, notes, onOpenGoal, reports }: Props) {
   const ledger = useLedger(notes)
-  const plans: Plans = withNotes(goals, served, ledger.data?.entries ?? [], notes.me, notes.names)
+  const dates = useTargetsRead(notes)
+  const [targets, members] = [dates.targets, useMembers(notes)]
+  const today = todayOf(new Date(useNow(60 * 60_000)))
+  const noted = withNotes(goals, served, ledger.data?.entries ?? [], notes.me, notes.names)
+  const plans: Plans = withDue(goals, noted, targets, today)
   const { many, query, setQuery, shown, listed, folded, unfold } = useListed(goals, plans)
   const [open, setOpen] = useOpenGoal(goals)
   const asks = asksIn(goals, plans)
   const openAsk = askOpener(onOpenGoal)
   const opened = goals.find((g) => g.id === open)
   const health = healthLine(goals, plans)
-  const [targets, members] = [useGoalTargets(notes), useMembers(notes)]
-  const today = todayOf(new Date(useNow(60 * 60_000)))
   const mine = useMine(goals, targets, notes.me)
   return (
     <div className="goals-briefing">
       <p className="goals-brief">
-        <span className="goals-brief-you">{briefOf(asks.length)}</span>
+        <span className="goals-brief-you">{briefOf(asks.length, lateMine(goals, plans, targets, notes.me))}</span>
         {health && ` ${health}`}
-        {/* Until the notes are read a difficulty may be missing from the health: said (notes-robust.md). */}
-        {notesRead(ledger) === 'reading' && ' · Reading the notes…'}
+        {/* Until the notes and the dates are read, a difficulty or a date may be missing from the health: said. */}
+        {readingWords(notesRead(ledger), dates.state)}
       </p>
-      <NotesFailed ledger={ledger} />
+      <ReadFailed what="notes" state={notesRead(ledger)} onRetry={() => void ledger.refetch()} />
+      <ReadFailed what="dates" state={dates.state} onRetry={dates.refetch} />
       <Asks asks={asks} onOpen={openAsk} />
       <div className="goals-list-head">
         <h3 className="field-label">Goals</h3>
@@ -262,6 +278,7 @@ export function GoalsOverview({ goals, plans: served, notes, onOpenGoal }: Props
           onClose={() => setOpen(null)}
           onOpenAsk={openAsk}
           notes={notes}
+          reports={reports?.(opened.id) ?? []}
           onOpenTasks={canOpenInTasks(plans[opened.id]) && onOpenGoal ? () => onOpenGoal(opened.id) : undefined}
         />
       )}

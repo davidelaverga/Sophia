@@ -97,15 +97,45 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
-      - run: pnpm install --frozen-lockfile
+      - id: install
+        run: pnpm install --frozen-lockfile
       # The pack's migrations and SQL test as imported, then this repository's migrations and the same test.
-      - run: pnpm test:sql --source pack
-      - run: pnpm test:sql
+      - id: sql-pack
+        run: pnpm test:sql --source pack
+      - id: sql
+        run: pnpm test:sql
       # Two-connection races, lease fencing, idempotent retries, SSE and revocation over real HTTP.
-      - run: pnpm test:db
-      # S1-05A crossing: the real pinned dsh runtime against the real API, PostgreSQL and worker dispatch.
-      - run: pnpm build && pnpm artifacts
-      - run: node --test --test-concurrency=1 --test-timeout=180000 tests/integration/runtime-service.test.mjs
+      - id: db
+        run: pnpm test:db
+      # S1-05A crossing: the real pinned dsh runtime against the real API, PostgreSQL and worker dispatch; and CON-01's
+      # service-mode replies on the same path, the context recorded by the worker with the dispatcher never paused,
+      # against a local provider double (no credential or provider call). One file at a time.
+      - id: artifacts
+        run: pnpm build && pnpm artifacts
+      - id: crossing
+        run: >-
+          node --test --test-concurrency=1 --test-timeout=180000 tests/integration/runtime-service.test.mjs
+          tests/integration/conversation-service.test.mjs
+      # Q13's exclusive admission and install groups, which the shared service above cannot qualify (they skip there):
+      # a PostgreSQL 16 cluster of their own, made in this service's image with no network, as its postgres user, the
+      # repository and this Node read-only. Its census, version and stages are printed; a skip or a missing stage fails.
+      # Then D-Q13's trusted-creator group on a second such cluster, whose postgres is a plain installer, as on Supabase.
+      - id: q13
+        run: scripts/q13-owned-pg16.sh '${{ job.services.postgres.id }}'
+        timeout-minutes: 6
+      # When a phase above fails, its name goes into the check's annotations: the log's tail is the PostgreSQL service's
+      # own output at cleanup, which does not say which phase failed (B53, run 39283483704). It reads only the phases'
+      # outcomes, prints no environment, and runs only after a failure, which already fails the job; the log is unchanged.
+      - name: Name the failed phase
+        if: failure()
+        env:
+          PHASES: >-
+            install=${{ steps.install.outcome }} sql-pack=${{ steps.sql-pack.outcome }} sql=${{ steps.sql.outcome }}
+            db=${{ steps.db.outcome }} artifacts=${{ steps.artifacts.outcome }} crossing=${{ steps.crossing.outcome }}
+            q13=${{ steps.q13.outcome }}
+        run: |
+          failed=$(printf '%s\n' $PHASES | sed -n 's/=failure$//p' | tr '\n' ' ')
+          echo "::error title=Failed phase::${failed:-a setup step before install} (outcomes: $PHASES)"
 
   room-media:
     name: Media bridge against a real LiveKit server
@@ -137,12 +167,23 @@ jobs:
       # Real GoTrue tokens verified through JWKS; tampered, legacy HS256 and publishable-key tokens rejected.
       - run: pnpm test:supabase
 
-  studio-browser:
-    name: The room in Chromium, on its fixture page
+  studio-browser-part:
+    name: The room in Chromium, part ${{ matrix.part }} of 3
     runs-on: ubuntu-24.04
     # The suite alone ran 29.1 minutes on 2026-10-07 (857 checks): 30 cut it off after its last check passed. On
     # 2026-10-12 the UI kit's stack (about 1,320 checks) was cut off at 45 minutes after 1,287: 60 leaves it room.
-    timeout-minutes: 60
+    # On 2026-10-16 the 1,714-check suite was cut off at 60 minutes before its end: 90. On 2026-10-19 about 2,250 checks
+    # took 1.1 hours and some heads were cut off at 90 while still passing; the 2,180-check suite was cut off at 90
+    # minutes after 2,002 (#468, run 39250730413), and CIROOMLIMIT's handoff said to shard instead of raising the limit
+    # again. So the suite runs as three parts side by side, each on the same runner and under the same 90-minute bound,
+    # with the same tests, default workers, per-test bounds, assertions and retries; no part cancels another.
+    # Playwright's --shard splits every listed case of both projects (fullyParallel) into three disjoint parts whose
+    # union is the whole list; a new case lands in some part with no list to keep.
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0 (reads packageManager)
@@ -152,4 +193,19 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @sophia/studio exec playwright install --with-deps chromium
       # LFE-00's preservation checks: the real Studio components over labelled fixture data, no API, call or provider.
-      - run: pnpm --filter @sophia/studio test:browser
+      - run: pnpm --filter @sophia/studio test:browser --shard=${{ matrix.part }}/3
+
+  # The room's one check, under its existing name: it passes only when every part ran and passed. A part that failed,
+  # was cancelled or timed out, or never ran (skipped) fails it; it runs even then (always()), so it is never absent.
+  studio-browser:
+    name: The room in Chromium, on its fixture page
+    needs: studio-browser-part
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - env:
+          PARTS: ${{ needs.studio-browser-part.result }}
+        run: |
+          echo "The room's three parts: $PARTS"
+          test "$PARTS" = success

@@ -9,10 +9,20 @@ export const TASK = '#task-'
 export const DECISION = '#decision-'
 /** A goal in Tasks: the address chooses it, so its plan is the one on the board (docs/plans/goals-progress.md). */
 export const GOAL = '#goal-'
+/** A conversation in Conversations: the address opens it, and opening one puts it there (conversation-address.md). */
+export const CONVERSATION = '#conversation-'
 /** A native request on a resource, by its id: its resource's sheet opens and the request takes the focus (needs-api.md). */
 export const REQUEST = '#request-'
+/** A message in the room's chat, by its id: the chat opens on it (a mention, from Home's «needs you», A37). */
+export const MESSAGE = '#message-'
+/** A person's task in the project, by its id (A39): the brief opens on it; '#task-' is the agent board's. */
+export const TODO = '#todo-'
 
 export const linkHash = (id: string, prefix = RESOURCE) => `${prefix}${encodeURIComponent(id)}`
+
+/** The address that opens one thing on this page: its path and query, then the thing's anchor (work-copy-links.md). */
+export const addressOf = (id: string, prefix: string) =>
+  `${window.location.origin}${window.location.pathname}${window.location.search}${linkHash(id, prefix)}`
 
 /**
  * A request named with its resource, when known: two resources may hold the same request id (A13 bounds it only by

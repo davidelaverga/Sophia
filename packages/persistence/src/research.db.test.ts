@@ -5,7 +5,14 @@ import { createHash, randomUUID } from 'node:crypto'
 import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import type { RenderJob, RenderReceipt, RuntimeCommand, RuntimeReceipt, RuntimeRole } from '@sophia/contracts'
+import type {
+  ContributionActPreview,
+  RenderJob,
+  RenderReceipt,
+  RuntimeCommand,
+  RuntimeReceipt,
+  RuntimeRole,
+} from '@sophia/contracts'
 import { parseArtifactVersionList } from '@sophia/contracts/validate'
 import { DomainError } from '@sophia/domain'
 import { compareSections, parseMarkdown, sectionsOf } from '@sophia/report/markdown'
@@ -22,10 +29,12 @@ import {
   admitGoalCommand,
   admitResearchTask,
   claimRuntimeOutbox,
+  correctContribution,
   createPool,
   dispatchRuntimeOutbox,
   editReportSummary,
   enqueueRenderJob,
+  previewContributionAct,
   listReportSources,
   readArtifactVersions,
   readNativeTask,
@@ -56,6 +65,7 @@ import {
   runtimeTokenHash,
   submitContribution,
   withActor,
+  withdrawContribution,
   withService,
   type ResearchAdmissionRequest,
   type RuntimeCaller,
@@ -161,7 +171,7 @@ async function world(opts: { roles?: RuntimeRole[]; granted?: boolean } = {}) {
       intent: 'discuss',
     }),
   )
-  return { projectId, rt, who, inputSourceId: input.sourceId }
+  return { projectId, rt, who, inputSourceId: input.sourceId, inputContributionId: input.contributionId }
 }
 
 type World = Awaited<ReturnType<typeof world>>
@@ -4667,5 +4677,211 @@ describe('an amendment edits its report (0037, CX-0026)', () => {
       [cap.sourceId, v1.sourceId!].toSorted(),
       'the version its base cited stays a source; the base, uncited, is none',
     )
+  })
+})
+
+// --- 0068: a member's own message, corrected or withdrawn, erases what research read of it (A36, FND-C3a) ---------
+
+/** The author's preview of an act on their message, and the act it signs, as the Studio carries it. */
+async function messageAct(
+  w: World,
+  actor: string,
+  contributionId: string,
+  act: { correct: string } | 'withdraw',
+  shown?: ContributionActPreview,
+) {
+  const action = act === 'withdraw' ? 'withdraw' : 'correct'
+  const preview =
+    shown ??
+    (await withActor(pool, actor, 'read', (c) => previewContributionAct(c, w.projectId, contributionId, action)))
+  const proof = {
+    expectedRevision: preview.revision,
+    reach: preview.reach.map(({ taskId, kind, restarts }) => ({ taskId, kind, restarts })),
+    previewToken: preview.previewToken,
+  }
+  const receipt = await withActor(pool, actor, 'write', (c) =>
+    act === 'withdraw'
+      ? withdrawContribution(c, w.projectId, contributionId, randomUUID(), proof)
+      : correctContribution(c, w.projectId, contributionId, randomUUID(), { ...proof, text: act.correct }),
+  )
+  return { preview, receipt }
+}
+
+const spendOf = (w: World, id: string) =>
+  one<{ cap_usd: string; reserved_usd: string; spent_usd: string; uncertain_usd: string; root_job_id: string }>(
+    `SELECT cap_usd, reserved_usd, spent_usd, uncertain_usd, root_job_id FROM sophia.research_allowances
+      WHERE project_id=$1 AND id=$2`,
+    [w.projectId, id],
+  )
+
+describe('a message’s author corrects or withdraws what research read (0068, A36)', () => {
+  it('previews the running research a correction revokes, refuses a preview that no longer shows it, and rebuilds it on the same allowance', async () => {
+    const w = await world()
+    // Shown before any research read the message: nothing reached.
+    const early = await withActor(pool, E, 'read', (c) =>
+      previewContributionAct(c, w.projectId, w.inputContributionId, 'correct'),
+    )
+    assert.deepEqual([early.erases, early.reach], [true, []])
+    const { receipt, at } = await started(w, { inputSourceIds: [w.inputSourceId] })
+    await service((c) =>
+      runtimeResearchDraft(c, w.who, { ...at, callId: 'd1', expectedSha256: null, text: '# Quotes the input' }),
+    )
+    const [running] = await tasks(w)
+    assert.ok(running)
+    const spentBefore = await spendOf(w, running.allowance)
+    // The research now reads it: the earlier preview is stale, and nothing changes.
+    assert.equal(
+      await codeOf(messageAct(w, E, w.inputContributionId, { correct: 'Our hosts render PDFs on a server.' }, early)),
+      'stale_revision',
+    )
+    assert.deepEqual(
+      (await tasks(w)).map((t) => t.state),
+      ['running'],
+    )
+
+    const { preview, receipt: fixed } = await messageAct(w, E, w.inputContributionId, {
+      correct: 'Our hosts render PDFs on a server.',
+    })
+    assert.deepEqual(preview.reach, [{ taskId: receipt.taskId, kind: 'research', restarts: true }])
+    assert.deepEqual([fixed.revision, fixed.changed], [2, true])
+    const [old, rebuilt] = await tasks(w)
+    assert.ok(old && rebuilt)
+    assert.deepEqual([old.job, old.state, old.attempt], [receipt.taskId, 'failed', 'revoked'])
+    assert.deepEqual(
+      [rebuilt.state, rebuilt.rebuiltFrom, rebuilt.allowance, rebuilt.root],
+      ['pending', old.job, old.allowance, old.root],
+    )
+    assert.deepEqual([rebuilt.manifest.inputs, rebuilt.manifest.withdrawnInputs], [[], 1])
+    // The same allowance, its spend and reservations as they were: no new payer, no reset.
+    assert.deepEqual(await spendOf(w, rebuilt.allowance), spentBefore)
+    // The rebuilt task cannot read the old words.
+    const erased = await one<{ state: string; text: string | null }>(
+      `SELECT s.state, t.body AS text FROM sophia.source_objects s LEFT JOIN sophia.source_texts t
+        ON t.project_id=s.project_id AND t.source_id=s.id WHERE s.project_id=$1 AND s.id=$2`,
+      [w.projectId, w.inputSourceId],
+    )
+    assert.deepEqual([erased.state, erased.text], ['deleted', null])
+    // Identical words afterwards wake nothing: no task, no revocation.
+    const same = await messageAct(w, E, w.inputContributionId, { correct: 'Our hosts render PDFs on a server.' })
+    assert.equal(same.receipt.changed, false)
+    assert.equal((await tasks(w)).length, 2)
+  })
+
+  it('leaves held research waiting for Resume and stopped research stopped; a viewer’s own message works the same', async () => {
+    // Held: the rebuilt task waits; nothing is queued until Resume.
+    const held = await world()
+    const h = await started(held, { inputSourceIds: [held.inputSourceId] })
+    await control(held, 'hold', h.receipt.goalId)
+    await deliverAll(held, new Set([h.create.commandId]), () => 'checked')
+    assert.equal((await goalOf(held, h.receipt.goalId)).status, 'held')
+    const withdrawnHeld = await messageAct(held, E, held.inputContributionId, 'withdraw')
+    assert.deepEqual(withdrawnHeld.preview.reach, [{ taskId: h.receipt.taskId, kind: 'research', restarts: true }])
+    const [oldHeld, rebuiltHeld] = await tasks(held)
+    assert.deepEqual(
+      [oldHeld?.attempt, rebuiltHeld?.state, rebuiltHeld?.allowance],
+      ['revoked', 'pending', oldHeld?.allowance],
+    )
+    assert.equal((await goalOf(held, h.receipt.goalId)).status, 'held', 'the Hold stands')
+    assert.equal(
+      (await outbox(held)).some((r) => r.destination === 'native.create' && r.state === 'pending'),
+      false,
+      'nothing is queued while held',
+    )
+
+    // Stopped: nothing starts again.
+    const stopped = await world()
+    const s = await started(stopped, { inputSourceIds: [stopped.inputSourceId] })
+    await control(stopped, 'stop', s.receipt.goalId)
+    const goal = (await goalOf(stopped, s.receipt.goalId)).status
+    assert.ok(['stopping', 'stopped'].includes(goal), goal)
+    const out = await messageAct(stopped, E, stopped.inputContributionId, 'withdraw')
+    assert.ok(out.preview.reach.every((r) => !r.restarts))
+    assert.equal((await tasks(stopped)).length, 1, 'no rebuild on a stopped goal')
+    assert.equal((await goalOf(stopped, s.receipt.goalId)).status, goal)
+
+    // A viewer's own message, read by research an editor asked for: the viewer withdraws it, and gains no control.
+    const w = await world()
+    const said = await withActor(pool, V, 'write', (c) =>
+      submitContribution(c, w.projectId, randomUUID(), {
+        source: null,
+        text: 'A viewer’s thought on sandboxes.',
+        threadId: null,
+        artifactVersionId: null,
+        intent: 'discuss',
+      }),
+    )
+    const v = await started(w, { inputSourceIds: [said.sourceId] })
+    const byViewer = await messageAct(w, V, said.contributionId, 'withdraw')
+    assert.deepEqual(byViewer.preview.reach, [{ taskId: v.receipt.taskId, kind: 'research', restarts: true }])
+    const [revoked, again] = await tasks(w)
+    assert.deepEqual([revoked?.attempt, again?.state, again?.allowance], ['revoked', 'pending', revoked?.allowance])
+    assert.equal(
+      await codeOf(
+        withActor(pool, V, 'write', (c) =>
+          admitGoalCommand(c, w.projectId, randomUUID(), {
+            kind: 'hold',
+            goalId: v.receipt.goalId,
+            expectedGoalRevision: 1,
+            expectedAuthorityEpoch: 1,
+            bodySourceId: null,
+          }),
+        ),
+      ),
+      'forbidden',
+      'the viewer still cannot control work',
+    )
+  })
+
+  it('refuses a proof whose shown consequence changed since: a Stop after the preview, the same task, no longer restarting', async () => {
+    const w = await world()
+    const { receipt } = await started(w, { inputSourceIds: [w.inputSourceId] })
+    const shown = await withActor(pool, E, 'read', (c) =>
+      previewContributionAct(c, w.projectId, w.inputContributionId, 'withdraw'),
+    )
+    assert.deepEqual(shown.reach, [{ taskId: receipt.taskId, kind: 'research', restarts: true }])
+    // The goal is stopped while the member decides: the same task now stops for good.
+    await control(w, 'stop', receipt.goalId)
+    const goal = (await goalOf(w, receipt.goalId)).status
+    assert.ok(['stopping', 'stopped'].includes(goal), goal)
+    const tasksBefore = await tasks(w)
+    assert.equal(
+      await codeOf(messageAct(w, E, w.inputContributionId, 'withdraw', shown)),
+      'stale_revision',
+      'the proof showed a restart that no longer happens',
+    )
+    // Nothing happened: the words stand, the task is as it was, the Stop stands.
+    const source = await one<{ state: string }>(
+      `SELECT state FROM sophia.source_objects WHERE project_id=$1 AND id=$2`,
+      [w.projectId, w.inputSourceId],
+    )
+    assert.equal(source.state, 'ready')
+    assert.deepEqual(await tasks(w), tasksBefore)
+    assert.equal((await goalOf(w, receipt.goalId)).status, goal)
+    // Read again: the preview now says it stops, and that is what the member confirms.
+    const again = await messageAct(w, E, w.inputContributionId, 'withdraw')
+    assert.deepEqual(again.preview.reach, [{ taskId: receipt.taskId, kind: 'research', restarts: false }])
+    assert.equal((await tasks(w)).length, 1, 'no rebuild on a stopped goal')
+  })
+
+  it('keeps a published report that quoted the words, byte for byte', async () => {
+    const w = await world()
+    const { t1 } = await publishedWithInput(w)
+    const kept = await one<{ id: string; state: string; source_id: string; sha256: string; text: string }>(
+      `SELECT v.id, v.state, v.source_id, s.sha256, t.body AS text FROM sophia.artifact_versions v
+        JOIN sophia.source_objects s ON s.project_id=v.project_id AND s.id=v.source_id
+        JOIN sophia.source_texts t ON t.project_id=s.project_id AND t.source_id=s.id
+       WHERE v.project_id=$1 AND v.job_id=$2`,
+      [w.projectId, t1.receipt.taskId],
+    )
+    await messageAct(w, E, w.inputContributionId, 'withdraw')
+    const now = await one<{ id: string; state: string; source_id: string; sha256: string; text: string }>(
+      `SELECT v.id, v.state, v.source_id, s.sha256, t.body AS text FROM sophia.artifact_versions v
+        JOIN sophia.source_objects s ON s.project_id=v.project_id AND s.id=v.source_id
+        JOIN sophia.source_texts t ON t.project_id=s.project_id AND t.source_id=s.id
+       WHERE v.project_id=$1 AND v.job_id=$2`,
+      [w.projectId, t1.receipt.taskId],
+    )
+    assert.deepEqual(now, kept)
+    assert.ok(kept.text.includes('our pilot hosts render PDFs in a sandbox'))
   })
 })

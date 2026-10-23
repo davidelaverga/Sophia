@@ -2,13 +2,14 @@
 // cursor, as the notes are, so a change made elsewhere is read as the project moves. Its row says them («Marco · due
 // 30 Oct 2026»); its sheet lets an editor or an admin set them, compare-and-set: a save someone else beat is said, and
 // the sheet shows what stands now. A viewer reads them.
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import type { GoalTarget, ProjectMember } from '@sophia/contracts'
+import type { GoalTarget, GoalTargetList, ProjectMember } from '@sophia/contracts'
 import { Button } from '@sophia/ui'
 import { ApiError, getGoalTargets, getProjectMembers, setGoalTarget } from '../../api/client.ts'
 import { useMembership } from '../access/useAccess.ts'
 import type { NotesFor } from './GoalNotes.tsx'
+import { notesRead } from './goal-notes.ts'
 import { dayOf } from './goal-day.ts'
 import { dueOf, dueWords, type Due } from './goal-due.ts'
 
@@ -18,25 +19,50 @@ type At = Pick<NotesFor, 'projectId' | 'identity' | 'cursor'>
 
 const targetsKey = (at: At) => ['goal-targets', at.projectId, at.identity.name]
 
-/** The goals' targets, by goal id, read again as the project moves. */
-export function useGoalTargets(at: At): ReadonlyMap<string, GoalTarget> {
+/** The newest targets read for this project and viewer, at whichever cursor: what the next cursor's read starts from. */
+function lastRead(client: QueryClient, at: At) {
+  const [newest] = client
+    .getQueryCache()
+    .findAll({ queryKey: targetsKey(at) })
+    .filter((query) => query.state.data !== undefined)
+    .toSorted((a, b) => b.state.dataUpdatedAt - a.state.dataUpdatedAt)
+  return newest && { data: client.getQueryData<GoalTargetList>(newest.queryKey), at: newest.state.dataUpdatedAt }
+}
+
+/**
+ * The goals' targets, by goal id, read again as the project moves, with how the read stands: a goal's health waits on
+ * its date (targets-robust.md; Codex P2 on #372), so an empty list while reading, or after a failure, is not «no dates».
+ * Each cursor's read starts from the last one read, as stale, so it is read at once, and a read that fails after the
+ * project moved keeps what was read (`stale`), never «failed» over an owner and a date on screen (silent-reads.md).
+ */
+export function useTargetsRead(at: At) {
+  const client = useQueryClient()
   const read = useQuery({
     queryKey: [...targetsKey(at), at.cursor],
     queryFn: () => getGoalTargets(at.identity.token, at.projectId),
-    placeholderData: keepPreviousData,
+    initialData: () => lastRead(client, at)?.data,
+    initialDataUpdatedAt: () => lastRead(client, at)?.at,
   })
-  return new Map((read.data?.targets ?? []).map((t) => [t.goalId, t]))
+  const targets: ReadonlyMap<string, GoalTarget> = new Map((read.data?.targets ?? []).map((t) => [t.goalId, t]))
+  return { targets, state: notesRead(read), refetch: () => void read.refetch() }
 }
 
-/** The project's members, for naming an owner and choosing one. */
-export function useMembers(at: At): readonly ProjectMember[] {
+/**
+ * The project's members, for naming an owner and choosing one, with how the read stands: an empty list after a
+ * failure is not «no one» (silent-reads.md).
+ */
+export function useMembersRead(at: At) {
   const read = useQuery({
     queryKey: ['members', at.projectId, at.identity.name],
     queryFn: () => getProjectMembers(at.identity.token, at.projectId),
     staleTime: 60_000,
   })
-  return read.data?.members ?? []
+  const members: readonly ProjectMember[] = read.data?.members ?? []
+  return { members, state: notesRead(read), refetch: () => void read.refetch() }
 }
+
+/** The project's members alone: what a row and the invite sheet name. */
+export const useMembers = (at: At): readonly ProjectMember[] => useMembersRead(at).members
 
 const ownerName = (members: readonly ProjectMember[], id: string) =>
   members.find((m) => m.actorId === id)?.name ?? 'A member'
@@ -129,10 +155,24 @@ function TargetForm(props: {
   )
 }
 
-/** The sheet's owner and date: a form for an editor or an admin, the words for a viewer. */
+/** The targets or the members unread, with nothing kept: said in place of the owner and date, never as «none». */
+function TargetUnread({ onRetry }: { onRetry: () => void }) {
+  return (
+    <p role="alert">
+      The owner and date can’t be read right now.{' '}
+      <button type="button" className="text-button" onClick={onRetry}>
+        Try again
+      </button>
+    </p>
+  )
+}
+
+/** The sheet's owner and date: a form for an editor or an admin, the words for a viewer; a failed read, said. */
 export function GoalTargetSection({ goalId, at }: { goalId: string; at: At }) {
-  const target = useGoalTargets(at).get(goalId)
-  const members = useMembers(at)
+  const dates = useTargetsRead(at)
+  const target = dates.targets.get(goalId)
+  const { members, ...people } = useMembersRead(at)
+  const unread = [dates, people].filter((read) => read.state === 'failed')
   const role = useMembership(at.projectId, at.identity.name, at.identity.token).data?.role
   const client = useQueryClient()
   const [state, setState] = useState<{ note: Note; saving: boolean }>({ note: null, saving: false })
@@ -154,7 +194,9 @@ export function GoalTargetSection({ goalId, at }: { goalId: string; at: At }) {
   const may = role === 'admin' || role === 'editor'
   return (
     <section className="goal-sheet-section goal-target" aria-label="Owner and date">
-      {may ? (
+      {unread.length > 0 ? (
+        <TargetUnread onRetry={() => unread.forEach((read) => read.refetch())} />
+      ) : may ? (
         // Keyed by the target's revision: what stands now fills the form again once it is read.
         <TargetForm key={target?.revision ?? 0} target={target} members={members} onSave={save} saving={state.saving} />
       ) : (

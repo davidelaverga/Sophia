@@ -16,6 +16,9 @@ import {
   ProjectEventListener,
   readEventFrames,
   readSnapshot,
+  recordHostAct,
+  recordRoomAct,
+  removedJustNow,
   withActor,
 } from './index.ts'
 
@@ -299,6 +302,63 @@ describe('events', () => {
   })
 })
 
+describe('host acts (migration 0057)', () => {
+  it('an admin’s act on a member in the call is recorded as an event; an editor can’t record one', async () => {
+    const fresh = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    const cursor = await withActor(pool, A, 'write', (c) => recordHostAct(c, fresh.projectId, V, 'mute'))
+    assert.equal(cursor, '1')
+    const rows = await owner((c) =>
+      c.query(`SELECT type, actor_id, entity_id FROM sophia.project_events WHERE project_id = $1`, [fresh.projectId]),
+    )
+    assert.deepEqual(rows.rows, [{ type: 'room.host_muted', actor_id: A, entity_id: V }])
+    await assert.rejects(
+      withActor(pool, B, 'write', (c) => recordHostAct(c, fresh.projectId, V, 'remove')),
+      (err: unknown) => err instanceof DomainError && err.code === 'forbidden',
+    )
+  })
+})
+
+describe('a removal just recorded (Codex P2 on #351)', () => {
+  it('is known to the admin who did it, for a few minutes, and to no one else', async () => {
+    const fresh = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    assert.equal(await withActor(pool, A, 'read', (c) => removedJustNow(c, fresh.projectId, V)), false)
+    await withActor(pool, A, 'write', (c) => recordHostAct(c, fresh.projectId, V, 'remove'))
+    assert.equal(await withActor(pool, A, 'read', (c) => removedJustNow(c, fresh.projectId, V)), true)
+    assert.equal(await withActor(pool, A, 'read', (c) => removedJustNow(c, fresh.projectId, B)), false)
+    assert.equal(await withActor(pool, B, 'read', (c) => removedJustNow(c, fresh.projectId, V)), false)
+  })
+})
+
+describe('room acts (migration 0060)', () => {
+  it('a camera, a screen and everyone muted are recorded with their target, or none; an editor can’t record one', async () => {
+    const fresh = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    await withActor(pool, A, 'write', (c) => recordRoomAct(c, fresh.projectId, V, 'camera'))
+    await withActor(pool, A, 'write', (c) => recordRoomAct(c, fresh.projectId, B, 'screen'))
+    await withActor(pool, A, 'write', (c) => recordRoomAct(c, fresh.projectId, null, 'mute_all'))
+    const rows = await owner((c) =>
+      c.query(
+        `SELECT type, entity_type, entity_id FROM sophia.project_events WHERE project_id = $1 ORDER BY sequence`,
+        [fresh.projectId],
+      ),
+    )
+    assert.deepEqual(rows.rows, [
+      { type: 'room.host_camera_off', entity_type: 'project_member', entity_id: V },
+      { type: 'room.host_screen_off', entity_type: 'project_member', entity_id: B },
+      { type: 'room.host_muted_all', entity_type: 'project', entity_id: fresh.projectId },
+    ])
+    await assert.rejects(
+      withActor(pool, B, 'write', (c) => recordRoomAct(c, fresh.projectId, V, 'camera')),
+      (err: unknown) => err instanceof DomainError && err.code === 'forbidden',
+    )
+    await assert.rejects(
+      withActor(pool, A, 'write', (c) =>
+        c.query(`SELECT sophia.record_room_act($1, $2, 'dance')`, [fresh.projectId, V]),
+      ),
+      (err: unknown) => err instanceof DomainError && err.code === 'invalid_request',
+    )
+  })
+})
+
 describe('project creation (migration 0006)', () => {
   const countByKey = (key: string) =>
     owner((c) =>
@@ -315,7 +375,8 @@ describe('project creation (migration 0006)', () => {
     const first = await withActor(pool, A, 'write', (c) => createProject(c, key, { title }))
     const again = await withActor(pool, A, 'write', (c) => createProject(c, key, { title }))
     assert.deepEqual(again, first)
-    assert.equal(first.cursor, '0')
+    // Its creation is its first event (project-activity.md).
+    assert.equal(first.cursor, '1')
     assert.equal(await projectsTitled(title), 1)
     const snap = await withActor(pool, A, 'read', (c) => readSnapshot(c, first.projectId))
     assert.equal(snap?.title, title)

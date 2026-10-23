@@ -13,6 +13,11 @@ export function menuClass(side: MenuSide = 'bottom', align: MenuAlign = 'end', c
 }
 
 /** An item that can be checked (one order of several) is a radio item; one that acts is a plain item. */
-export function itemRole(checked: boolean | undefined): 'menuitem' | 'menuitemradio' {
-  return checked === undefined ? 'menuitem' : 'menuitemradio'
+export function itemRole(
+  checked: boolean | undefined,
+  toggle = false,
+): 'menuitem' | 'menuitemradio' | 'menuitemcheckbox' {
+  if (checked === undefined) return 'menuitem'
+  // One thing on or off (room-basics.md), else one of a set.
+  return toggle ? 'menuitemcheckbox' : 'menuitemradio'
 }

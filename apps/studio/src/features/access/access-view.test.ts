@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { LINK_FAILED, OTHER_BROWSER_NOTICE } from '../../app/auth-callback.ts'
 import { ago } from '../../app/time-words.ts'
 import {
   admissionLabel,
@@ -24,6 +25,7 @@ import {
   scheduleLines,
   sessionFromForm,
   sessionLabel,
+  withoutToken,
 } from './access-view.ts'
 
 const at = (iso: string) => Date.parse(iso)
@@ -222,5 +224,35 @@ describe('where Invite opens, and what each role may do (docs/plans/invite-membe
   it('says each role in one line', () => {
     assert.equal(ROLE_NOTE.editor, 'Editors work on the goals and tasks, and invite and let in guests.')
     assert.equal(ROLE_NOTE.viewer, 'Viewers read the project and change nothing.')
+  })
+})
+
+describe('the join page with no invitation token on this device (docs/plans/join-other-browser.md)', () => {
+  const closed = {
+    title: 'This door is closed',
+    text: 'This link is incomplete. Ask for the whole link, or a new one.',
+  }
+
+  it('back from a sign-in link this browser never asked for, says where to finish, not that the link is incomplete', () => {
+    const page = withoutToken({ status: 'signed_out', notice: OTHER_BROWSER_NOTICE })
+    assert.deepEqual(page, {
+      title: 'You started in another browser',
+      text: 'This sign-in link opened in a different browser from the one you started in. Type the email’s code there, or open your invitation link again here.',
+    })
+    assert.doesNotMatch(page.text, /incomplete/)
+  })
+
+  it('keeps the closed door, word for word, for every other visit', () => {
+    assert.deepEqual(withoutToken({ status: 'signed_out' }), closed)
+    assert.deepEqual(withoutToken({ status: 'signed_out', notice: LINK_FAILED }), closed)
+    // Still finding out who is in: as main, until Auth answers (the plan's limits).
+    assert.deepEqual(withoutToken({ status: 'loading' }), closed)
+  })
+
+  it('signed in, most likely back from the sign-in email in another tab: as before', () => {
+    assert.deepEqual(withoutToken({ status: 'signed_in' }), {
+      title: 'You’re signed in',
+      text: 'To accept the invitation, open the invitation email again and use its link.',
+    })
   })
 })

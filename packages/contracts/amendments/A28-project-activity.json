@@ -1,0 +1,194 @@
+{
+  "id": "A28",
+  "goal": "E2E",
+  "title": "A project's activity, for its admins",
+  "why": [
+    "Luis (2026-10-15): keep evidence of who did what, and show it. The project's events already keep their actor (0001), but nothing exposed it; creating a project and an admin's acts in the call left no event at all (closed in 0057).",
+    "GET /api/v1/projects/{projectId}/activity, for admins: people's acts, newest first, 50 a page before a sequence, each with its actor and, for an act on a member, that member, named as the room keeps them. Codes and names only, never content; chat messages and Sophia's work are left out."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/ActivityEntry",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sequence": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,18}$"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "type": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "summaryCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "actor": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 320
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["id", "name"]
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 320
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["id", "name"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["sequence", "occurredAt", "type", "summaryCode", "actor", "target"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ActivityPage",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "entries": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/ActivityEntry"
+            }
+          },
+          "before": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The page's oldest sequence while older acts remain; null at the first."
+          }
+        },
+        "required": ["entries", "before"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1activity",
+      "value": {
+        "get": {
+          "operationId": "readProjectActivity",
+          "summary": "Who did what in the project, for its admins: people's acts, newest first.",
+          "tags": ["projects"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "before",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "A page",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ActivityPage"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not an admin of the project",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

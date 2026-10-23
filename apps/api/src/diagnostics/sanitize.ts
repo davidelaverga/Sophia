@@ -141,12 +141,26 @@ export const RECEIPT_STAGES = [
 export const OUTBOX_DESTINATIONS = ['native.create', 'native.resume', 'native.stop', 'control.settle']
 
 export const EVENT_TYPES = [
-  ...suffixed('command.', ['admitted', 'incorporated', 'outcome_unknown', 'denied']),
+  ...suffixed('command.', ['admitted', 'incorporated', 'outcome_unknown', 'denied', 'retirement_changed']),
   ...suffixed('room.', ['session_scheduled', 'session_canceled', 'lobby_changed', 'input_floor_changed']),
   ...suffixed('room.', ['invitation_created', 'invitation_reissued', 'invitation_revoked']),
-  ...suffixed('room.', ['exchange_opened', 'exchange_changed', 'sophia_presence']),
-  ...suffixed('project.', ['member_joined', 'member_left', 'member_role_changed', 'renamed']),
-  'contribution.recorded',
+  ...suffixed('room.', ['exchange_opened', 'exchange_changed', 'sophia_presence', 'host_muted', 'host_removed']),
+  ...suffixed('room.', ['host_camera_off', 'host_screen_off', 'host_muted_all']),
+  ...suffixed('project.', [
+    'created',
+    'member_joined',
+    'member_left',
+    'member_removed',
+    'member_role_changed',
+    'renamed',
+    'archived',
+    'unarchived',
+    // A person's task (A39, 0074): made, given to someone or to nobody, done.
+    'task_created',
+    'task_owner_set',
+    'task_done',
+  ]),
+  ...suffixed('contribution.', ['recorded', 'corrected', 'withdrawn', 'mentioned']),
   ...suffixed('native_task.', [
     'admitted',
     'waiting',
@@ -161,7 +175,19 @@ export const EVENT_TYPES = [
   ...suffixed('goal.', ['held', 'stopped', 'target_set']),
 ]
 
-const COMMAND_KINDS = ['steer', 'request_review', 'hold', 'stop', 'resume', 'native_task', 'create', 'input', 'inspect']
+const COMMAND_KINDS = [
+  'steer',
+  'request_review',
+  'hold',
+  'stop',
+  'resume',
+  'native_task',
+  'create',
+  'input',
+  'inspect',
+  // A completed goal's sessions retired by a project admin (0075, A41).
+  'retire_sessions',
+]
 const EXCHANGE_CHANGES = [
   'opened',
   'end',
@@ -208,12 +234,24 @@ export const SUMMARY_CODES = [
   ...suffixed('room.lobby_removal_', ['pending', 'removed', 'absent', 'cancelled']),
   ...suffixed('room.sophia_', VOICE_STATES),
   ...suffixed('room.', ['session', 'session_canceled', 'invitation', 'invitation_revoked']),
-  ...suffixed('room.', ['input_floor', 'input_floor_released']),
-  ...suffixed('project.', ['member', 'member_left', 'member_role', 'renamed']),
-  ...suffixed('contribution.', ['discuss', 'ask_sophia', 'propose_work']),
+  ...suffixed('room.', ['input_floor', 'input_floor_released', 'host_muted', 'host_removed']),
+  ...suffixed('room.', ['host_camera_off', 'host_screen_off', 'host_muted_all']),
+  ...suffixed('project.', [
+    'created',
+    'member',
+    'member_left',
+    'member_removed',
+    'member_role',
+    'renamed',
+    'archived',
+    'unarchived',
+  ]),
+  ...suffixed('contribution.', ['discuss', 'ask_sophia', 'propose_work', 'corrected', 'withdrawn', 'mentioned']),
   ...suffixed('native_task.', [...TASK_SUMMARIES, ...TASK_ENDINGS]),
   ...suffixed('runtime.', ['hello', 'ready', 'not_ready', 'unrecovered']),
   ...suffixed('goal.', ['held', 'stopped', 'target']),
+  // A person's task (A39, 0074).
+  ...suffixed('task.', ['created', 'owner_set', 'done']),
 ]
 
 // What the room shows about LiveKit: counts, never a person (review finding CX-0007). Sophia is the one participant

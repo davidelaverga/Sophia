@@ -15,6 +15,7 @@ const GLYPH: Readonly<Record<NeedKind, IconName>> = {
   review: 'brief',
   guest: 'invite',
   reply: 'sophia',
+  mention: 'chat',
 }
 
 interface Props {
@@ -33,6 +34,7 @@ function NeedRow({ need, index, now, onOpen }: { need: Need; index: number; now:
         type="button"
         data-tone={note.tone}
         data-kind={need.kind}
+        data-need={need.id}
         onClick={onOpen}
         onPointerMove={followPointer}
       >
@@ -55,7 +57,8 @@ export function NeedsYou({ needs, now, onOpen }: Props) {
   const rows = needsOrder(needs)
   return (
     <section className="hw-section hw-needs" aria-labelledby="hw-needs-h">
-      <h3 id="hw-needs-h" className="hw-label">
+      {/* Out of the Tab order, but focusable: it takes the focus when the need that had it left (useNeedsFocus). */}
+      <h3 id="hw-needs-h" className="hw-label" tabIndex={-1}>
         Needs you
       </h3>
       {rows.length === 0 ? (

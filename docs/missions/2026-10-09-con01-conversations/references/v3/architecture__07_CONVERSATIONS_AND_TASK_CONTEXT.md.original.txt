@@ -1,0 +1,31 @@
+# Conversations, task questions and meeting continuity
+
+## Identity model
+
+Use the existing project ID. Add independently addressable conversation records only through a reviewed contract amendment. Each saved text entry has authenticated writer, conversation, content/source reference, ordering and applicable retention. A summary reports its coverage boundary and last successful update. Name lists reflect actual authors; presence/meeting attendance is independently observed.
+
+A conversation can include several meetings and several work attempts. The browser tab is neither the work's owner nor its callback address. Resolve routing once on admission and carry it across queues and native sessions. Runtime workers may change without changing the conversation's identity.
+
+## Bind Luis's existing contracts
+
+A18 in issue #105 and `apps/studio/src/api/vision.ts` are the current UI proposal, not universal installed APIs. Preserve ConversationSummary, contributors, open-question/decision actions and exact output identity where source supports them; extend only through the actual contract owner. Do not allocate the old proposal's migration/amendment numbers without checking current reservations.
+
+CON-01 completes saved conversations and current contributor summaries. CON-02 completes records-only meeting recaps, actual presentation cursors, search and returning. CTX-01 adds bounded 'Ask Sophia' reads for a work item before broad autonomous replanning.
+
+## Task explanations
+
+Read the selected work revision, dependencies, pending human action, exact candidate and operational evidence. Identify which question/request currently blocks progress; older unresolved questions are not necessarily blockers. Explain known eligibility changes, not guaranteed success. 'What happens if I say yes?' is read-only until the person chooses a distinct action.
+
+Answers cite eligible retained records and separate source facts from Sophia's inference. A card's suggestion is not work admission. A server-confirmed approval must name the exact current request and be issued by the right human; no impersonation through a shared integration principal.
+
+## Reconcile directions
+
+When independent conversations disagree, assemble alternatives with source references, shared criteria and unresolved dependencies. Offer a proposed synthesis or decision. A generated recap or majority of messages cannot silently change the mission. When a new decision is accepted, identify affected active attempts and use explicit supported guidance, Hold or re-admission—not hidden prompt replacement.
+
+## Meeting boundaries
+
+Explicit authorized Close plus the existing proposed empty-room sweep is retained. Verified presence is required; unknown is not empty. The interval organizes retained records but origin links determine meeting relevance. Late results of meeting-initiated work appear as after-close updates. A non-follower retains their own selected artifact version. Closing a meeting never terminates admitted asynchronous work by implication.
+
+## Retention and withdrawal
+
+No complete transcript is claimed for records-only recaps. Saved text is governed separately from live voice/captions. Search reads current source eligibility before counts, snippets and pagination. Derived summaries must not survive as a second copy of forgotten text. Old text that was never retained cannot be reconstructed from screenshots or invented from a model.

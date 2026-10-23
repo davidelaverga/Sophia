@@ -12,6 +12,8 @@ interface Props {
   identity: Identity
   /** The Tasks view carries the controls, for editors and admins; the Goals view reads outcomes only. */
   controls?: boolean
+  /** A project admin, offered Retire remaining sessions on a completed goal (A41). */
+  admin?: boolean
   /**
    * With its plan under it (Tasks, LFE-07.1): its status beside its title, and its criteria folded into one line, so
    * the plan is what reads first. The Goals view shows them open.
@@ -56,7 +58,7 @@ function SecondLine({ goal, next }: { goal: Goal; next?: React.ReactNode }) {
 }
 
 export function GoalCard(props: Props) {
-  const { goal, projectId, identity, controls = true, compact = false, children, next } = props
+  const { goal, projectId, identity, controls = true, admin = false, compact = false, children, next } = props
   const status = GOAL_STATUS[goal.status]
   const tag = <Tag tone={status.tone}>{status.label}</Tag>
   return (
@@ -74,7 +76,17 @@ export function GoalCard(props: Props) {
           {goal.criteria.length > 0 && <Criteria goal={goal} />}
         </>
       )}
-      {controls && <WorkControls goal={goal} projectId={projectId} identity={identity.name} token={identity.token} />}
+      {controls && (
+        <WorkControls
+          goal={goal}
+          projectId={projectId}
+          identity={identity.name}
+          token={identity.token}
+          admin={admin}
+          // Over its plan they stand at its top right (board.css); a phone, which shows no tips, puts them under it.
+          edge={compact ? 'end' : 'start'}
+        />
+      )}
       {children}
     </li>
   )

@@ -40,6 +40,56 @@ test('feedback · Send feedback sends the words to the crash service, and says s
   )
 })
 
+// One sheet at a time (CONTRIBUTING.md): Settings hands over to feedback, and feedback closed gives Settings back, at the
+// press that opened it. Opened from the menu, it closes to the page (Codex P2 on #398).
+test('feedback · opened from Settings, Close comes back to Settings, at its Send feedback', async ({ page }) => {
+  await page.goto('/room.html?sentry=1')
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Settings…' }).click()
+  const settings = page.getByRole('dialog', { name: 'Settings' })
+  await settings.getByRole('button', { name: 'Send feedback' }).click()
+  await expect(settings).toHaveCount(0)
+  await sheet(page).getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(sheet(page)).toHaveCount(0)
+  await expect(settings.getByRole('button', { name: 'Send feedback' })).toBeFocused()
+})
+
+test('feedback · opened from the menu, Close goes back to the page, at the avatar', async ({ page }) => {
+  await page.goto('/room.html?sentry=1')
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Send feedback' }).click()
+  await sheet(page).getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(sheet(page)).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0)
+  await expect(account(page)).toBeFocused()
+})
+
+// What opens a report from the recap puts every sheet away (room-recap.spec.ts): feedback that Settings handed over to
+// goes too, and Settings doesn't come back over the report (review P2 on the follow-ups to #398).
+test('feedback · opened from Settings, Open on the recap puts it away for good, so the report is in view', async ({
+  page,
+}) => {
+  await page.goto('/room.html?sentry=1&call=on&people=2&floor=1&sophia=listening')
+  await page.evaluate(() => window.fixture?.notice())
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Settings…' }).click()
+  await page.getByRole('dialog', { name: 'Settings' }).getByRole('button', { name: 'Send feedback' }).click()
+  await sheet(page).getByRole('group', { name: 'Your call' }).getByRole('button', { name: 'Leave the room' }).click()
+  // The recap takes the keys, though it is drawn under the account's sheet, which goes over the page (as on main): its
+  // Open is pressed from the keyboard.
+  const recap = page.getByRole('dialog', { name: 'This meeting' })
+  await recap.getByRole('region', { name: 'Made' }).getByRole('button', { name: 'Open' }).press('Enter')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  const report = page.getByRole('complementary', { name: 'Fixture report' })
+  await expect(report).toBeVisible()
+  // Nothing covers it: a press at its centre lands in it.
+  const onTop = await report.evaluate((el) => {
+    const box = el.getBoundingClientRect()
+    return el.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2))
+  })
+  expect(onTop).toBe(true)
+})
+
 test('crash · an error the page throws is reported, without the address’s query or fragment', async ({ page }) => {
   const sent = await ingest(page)
   await page.goto('/room.html?sentry=1#private-token')
@@ -102,4 +152,43 @@ test('feedback · the words hold still while they go (Codex P2 on #367)', async 
   await sheet(page).getByLabel('What would you like us to know?').fill('Slow words.')
   await sheet(page).getByRole('button', { name: 'Send' }).click()
   await expect(sheet(page).getByLabel('What would you like us to know?')).toHaveAttribute('readonly', '')
+})
+
+// Sent only once Sentry's ingest takes it (Codex P2 on #367): a request that never arrives, or is refused, is not sent.
+for (const [how, answer] of [
+  ['never gets', 'abort'],
+  ['refuses', 'refuse'],
+] as const) {
+  test(`feedback · a send the ingest ${how} says it couldn’t, never «Sent» (Codex P2 on #367)`, async ({ page }) => {
+    await page.route(
+      (url) => url.hostname.endsWith('ingest.sentry.io'),
+      (route) => (answer === 'abort' ? route.abort() : route.fulfill({ status: 500, body: '{}' })),
+    )
+    await page.goto('/room.html?sentry=1')
+    await account(page).click()
+    await page.getByRole('menuitem', { name: 'Send feedback' }).click()
+    await sheet(page).getByLabel('What would you like us to know?').fill('Words that never arrive.')
+    await sheet(page).getByRole('button', { name: 'Send' }).click()
+    await expect(sheet(page).getByRole('alert')).toHaveText('Couldn’t send it. Try again.', { timeout: 15_000 })
+    await expect(sheet(page).getByRole('status')).not.toHaveText('Sent. Thank you.')
+  })
+}
+
+test('feedback · a Sentry that failed to start starts again for the next send (Codex P2 on #367)', async ({ page }) => {
+  const sent = await ingest(page)
+  await page.goto('/room.html?sentry=1&sentryFlaky=1')
+  await expect(page.locator('html')).toHaveAttribute('data-sentry-flaky', 'thrown')
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Send feedback' }).click()
+  await sheet(page).getByLabel('What would you like us to know?').fill('After a start that failed.')
+  await sheet(page).getByRole('button', { name: 'Send' }).click()
+  await expect(sheet(page).getByRole('status')).toHaveText('Sent. Thank you.')
+  expect(sent.some((e) => e.includes('"type":"feedback"') && e.includes('After a start that failed.'))).toBe(true)
+  // Started again, it reports on its own too.
+  await page.evaluate(() =>
+    setTimeout(() => {
+      throw new Error('After the restart')
+    }),
+  )
+  await expect.poll(() => sent.some((e) => e.includes('After the restart'))).toBe(true)
 })

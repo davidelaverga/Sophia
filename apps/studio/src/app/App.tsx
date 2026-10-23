@@ -1,13 +1,17 @@
+// First: the ear for a new version, before the eager imports below can ask for a part that is gone (new-version.md).
+import { newVersion } from './new-version-early.ts'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState, type ComponentProps } from 'react'
 import { draftsOnlyOf, forgetDrafts } from '../features/personal/draft.ts'
 import { cacheFor, cacheOf } from './account-cache.ts'
 import { accountOf } from './auth-callback.ts'
 import { forgetKept } from '../features/conversations/talk-store.ts'
+import { forgetHeld, heldOnlyOf } from './held-in-tab.ts'
 import { forgetProposals, proposalsKeptFor, proposalsOnlyOf } from '../features/work/planning/review-proposal.ts'
 import { setSignedIn } from './signed-in.ts'
 import { useAuth, type AuthState } from './auth.ts'
 import type { Identity } from './dev-identity.ts'
+import { endedNotice } from './ended-notice.ts'
 import { forgetRecent, recentFor } from './palette-recent.ts'
 import { forgetPendingUnlock } from './provider-leave.ts'
 import { opensJoinPage } from './route.ts'
@@ -19,6 +23,7 @@ import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
 import { useOpening } from './useOpening.ts'
 import { useProjectRoute } from './useProjectRoute.ts'
 import { LoadFailed } from './LoadFailed.tsx'
+import { NewVersion } from './NewVersion.tsx'
 import { loadSignedIn, warmSignedIn } from './signed-in-load.ts'
 
 // Invitation links are a separate door: their page loads only when someone opens one.
@@ -35,15 +40,21 @@ function draftsKeptFor(state: AuthState): string | null | undefined {
 /**
  * The device keeps only the draft of the account signed in: once the app knows who that is, anyone else's goes, and
  * all go once it knows nobody is (signed out here or in another tab, a session that ended, also while the page was
- * closed, a provider's return refused). While it is still finding out, nothing goes.
+ * closed, a provider's return refused). While it is still finding out, nothing goes. Once nobody is in and the
+ * clearing has run, returns whether unsent words went (signed-out-elsewhere.md); undefined until then.
  */
-function useDraftsOnlyOfWhoIsIn(state: AuthState) {
+function useDraftsOnlyOfWhoIsIn(state: AuthState): boolean | undefined {
   const who = draftsKeptFor(state)
+  const [went, setWent] = useState<{ who: string | null | undefined; words: boolean }>({ who: undefined, words: false })
   useEffect(() => {
-    if (who !== undefined) draftsOnlyOf(who)
+    if (who === undefined) return
+    const drafts = draftsOnlyOf(who)
     // Signed out, here or in another tab: the views' unsent words go too (Codex P1 on #366).
-    if (who === null) forgetViewerDrafts()
+    const views = who === null && forgetViewerDrafts()
+    // Run again for the same person (React's strict check), it finds nothing left: what went the first time still went.
+    setWent((was) => ({ who, words: (was.who === who && was.words) || drafts || views }))
   }, [who])
+  return who === null && went.who === null ? went.words : undefined
 }
 
 /**
@@ -67,11 +78,21 @@ function useProposalsOnlyOfWhoIsIn(state: AuthState) {
 }
 
 /**
- * What a person had under way on this device: a project's conversations (talk-store.ts), unanswered proposals, and the
- * palette's «Recent» (palette-recent.ts).
+ * The tab keeps only the held writes (sent with no reply, held-in-tab.ts) of the account signed in, as it keeps its
+ * proposals: anyone else's go once the app knows who is in, all once it knows nobody is, none while it finds out.
+ */
+function useHeldOnlyOfWhoIsIn(state: AuthState) {
+  const who = proposalsKeptFor(state)
+  useEffect(() => heldOnlyOf(who), [who])
+}
+
+/**
+ * What a person had under way on this device: a project's conversations (talk-store.ts) and the writes the tab holds
+ * with no reply (held-in-tab.ts), unanswered proposals, and the palette's «Recent» (palette-recent.ts).
  */
 function forgetUnderWay() {
   forgetKept()
+  forgetHeld()
   forgetProposals()
   forgetRecent()
 }
@@ -150,16 +171,58 @@ const forgetAllDrafts = () => {
   forgetViewerDrafts()
 }
 
-export function App() {
-  const { state, chooseDev, signOut, acceptLink, declineLink } = useAuth()
+/**
+ * Signing out leaves nothing personal on this device: the cache, every message being written to Sophia, what was under
+ * way in a project's conversations (talk-store.ts) and any review proposal still unanswered. `end` is this device's
+ * sign-out or every device's (sign-out-scope.md); what stays here goes either way. One callback each, never a
+ * parameter: a Sign out handed straight to a button would read its click as «everywhere».
+ */
+const leaving =
+  (queryClient: ReturnType<typeof useAccountCache>, signedInAs: string | null) =>
+  (end: () => Promise<void>) =>
+  async (): Promise<boolean> => {
+    setSignedIn(null)
+    queryClient.clear()
+    forgetUnderWay()
+    forgetPendingUnlock()
+    // A sign-out that fails leaves the person in: their writes are theirs again, and SignedIn says so (false).
+    try {
+      await signOutForgetting(end, forgetAllDrafts)
+      return true
+    } catch {
+      setSignedIn(signedInAs)
+      return false
+    }
+  }
+
+/** An invitation's page, which handles its own sign-in (JoinFlow), with the app's reads and its failure guard. */
+function JoinPage(props: {
+  queryClient: ReturnType<typeof useAccountCache>
+  join: Omit<ComponentProps<typeof JoinFlow>, 'onSignOut'>
+  onSignOut: () => Promise<boolean>
+}) {
+  return (
+    <QueryClientProvider client={props.queryClient}>
+      <LoadFailed>
+        <Suspense fallback={<Centered title="Opening the room…" busy />}>
+          <JoinFlow {...props.join} onSignOut={props.onSignOut} />
+        </Suspense>
+      </LoadFailed>
+    </QueryClientProvider>
+  )
+}
+
+function AppBody() {
+  const { state, chooseDev, signOut, signOutEverywhere, acceptLink, declineLink } = useAuth()
   const routing = useProjectRoute()
   const signedInAs = state.status === 'signed_in' ? accountOf(state.identity) : null
   const queryClient = useAccountCache(signedInAs)
   useRecentOnlyOf(signedInAs)
   useProposalsOnlyOfWhoIsIn(state)
+  useHeldOnlyOfWhoIsIn(state)
   // Who is in, for writes that outlive their part (signed-in.ts): set as it changes, cleared at once on leaving.
   useEffect(() => setSignedIn(signedInAs), [signedInAs])
-  useDraftsOnlyOfWhoIsIn(state)
+  const wordsWent = useDraftsOnlyOfWhoIsIn(state)
   const { joinPage, legal } = useOwnPage(state)
 
   // Cached server state belongs to one identity; drop it whenever the identity changes.
@@ -171,36 +234,26 @@ export function App() {
     // The same identity again is no change App's effect would see: it is in, as it was.
     setSignedIn(identity ? accountOf(identity) : null)
   }
-  // Signing out leaves nothing personal on this device: the cache, every message being written to Sophia, what was
-  // under way in a project's conversations (talk-store.ts) and any review proposal still unanswered.
-  const leaveSession = () => {
-    setSignedIn(null)
-    queryClient.clear()
-    forgetUnderWay()
-    forgetPendingUnlock()
-    // A sign-out that fails leaves the person in: their writes are theirs again.
-    void signOutForgetting(signOut, forgetAllDrafts).catch(() => setSignedIn(signedInAs))
-  }
+  const leave = leaving(queryClient, signedInAs)
+  const leaveSession = leave(signOut)
+  const leaveEverywhere = leave(signOutEverywhere)
 
   if (legal) return <LegalPage doc={legal} />
   // An invitation link works before, during and after sign-in: it handles its own. A sign-in link's question
   // ("Continue as …?") still comes first there, so the session it carries is accepted or declined, never lost.
   if (joinPage) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <LoadFailed>
-          <Suspense fallback={<Centered title="Opening the room…" busy />}>
-            <JoinFlow auth={state} onChooseDev={switchIdentity} onSignOut={leaveSession} onOpenProject={routing.open} />
-          </Suspense>
-        </LoadFailed>
-      </QueryClientProvider>
-    )
+    const join = { auth: state, onChooseDev: switchIdentity, onOpenProject: routing.open }
+    return <JoinPage queryClient={queryClient} join={join} onSignOut={leaveSession} />
   }
   if (state.status === 'loading') return <Centered title="Sophia" busy />
   if (state.status === 'link_offer') {
     return <LinkOffer account={state.account} slow={state.slow} onAccept={acceptLink} onDecline={declineLink} />
   }
-  if (state.status === 'signed_out') return <SignIn onChooseDev={switchIdentity} notice={state.notice} />
+  if (state.status === 'signed_out') {
+    // Signed out by a cause this tab did not start: said once, with the unsent words that went (ended-notice.ts).
+    const ended = state.ended && endedNotice(state.ended, wordsWent)
+    return <SignIn onChooseDev={switchIdentity} notice={state.notice} ended={ended} />
+  }
   // A guest's session left over from a room's door is no account: the Studio asks them to sign in.
   if (state.identity.role === 'guest') return <SignIn onChooseDev={switchIdentity} />
 
@@ -215,9 +268,20 @@ export function App() {
             routing={routing}
             onChooseDev={switchIdentity}
             onSignOut={leaveSession}
+            onSignOutEverywhere={leaveEverywhere}
           />
         </Suspense>
       </LoadFailed>
     </QueryClientProvider>
+  )
+}
+
+/** The Studio, and over whatever it shows, a new version said (new-version.md). */
+export function App() {
+  return (
+    <>
+      <AppBody />
+      <NewVersion signal={newVersion} />
+    </>
   )
 }

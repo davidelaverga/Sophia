@@ -1,6 +1,9 @@
 // Who the chat's message bar writes to (docs/plans/room-discussion.md): the room, always; Sophia too, while the person
 // can talk to her now. A message being written keeps the target it was begun for: it never goes somewhere else
-// because the call dropped or someone else took the floor. Pure, so the rule and its words are unit-tested.
+// because the call dropped or someone else took the floor. And what its line says of the room's message offline,
+// beside the room's own note. Pure, so the rules and their words are unit-tested.
+import { OFFLINE_WAITS, offlineWords } from '../personal/online.ts'
+import { lostOffline, OFFLINE_JOIN } from '../voice/call-end.ts'
 
 export type Target = 'room' | 'sophia'
 
@@ -36,3 +39,23 @@ export const TARGET_WORDS: Record<Target, { label: string; placeholder: string }
 
 /** What a held message says: why it waits, and the way on. */
 export const HELD_WORDS = 'Sophia can’t take this message now. Send it to the room instead?'
+
+/**
+ * What the bar's line says of the room's message while offline (costuras seam #8): what waits (offlineWords) in place
+ * of what it said (`words`). The room's note in the chat's foot above it may say offline already. Under the lost
+ * call's line (#467's, or the one whose try back in waits for the network, call-rejoin.md), the bar adds no line of its
+ * own, and of a held message says only that it isn't confirmed (#467). Under
+ * the Join from rest's line, a held message and words written keep their own lines (Luis 2026-10-19 chose the held
+ * message's words), and only an empty bar's «Your words wait here», which would say offline again with nothing of
+ * its own, steps aside.
+ */
+export function offlineBarWords(
+  field: { going: boolean; held: string | null; written: boolean },
+  words: string | null,
+  roomNote: string | null,
+): string | null {
+  if (lostOffline(roomNote)) return field.held === null ? null : words
+  const waits = offlineWords(field)
+  if (roomNote === OFFLINE_JOIN && waits === OFFLINE_WAITS) return null
+  return waits ?? words
+}

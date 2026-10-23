@@ -1,6 +1,8 @@
 // Requests to APIs proposed in issue #105 and not built yet: each shape is the proposal's, checked at runtime as the
 // contract's parsers check theirs, so a different answer is an error, never a cast. Called only under the vision flag
 // (app/vision.ts); the fixture pages answer them.
+import type { ProjectUpdates } from '@sophia/contracts'
+import { parseProjectUpdates } from '@sophia/contracts/validate'
 import { ApiError, callApi } from './client.ts'
 
 /** A14: what showing (or stopping) answers once the room's focus is committed. */
@@ -96,6 +98,13 @@ export interface Digest extends Pick<MeetingRecap, 'decided' | 'made' | 'noted' 
   toSequence: string
 }
 
+/**
+ * What changed since this viewer last looked, as Updates shows it: A34's window, where a person or a moment may be null
+ * (nobody readable to name, none kept) and `more` says events lie after it. The fixture pages answer the same window
+ * (fixtures/meeting-data.ts, updatesWindowOf).
+ */
+export type Since = ProjectUpdates
+
 export interface MeetingReceipt {
   meetingId: string
   revision: number
@@ -165,6 +174,11 @@ const parseDigest = checked<Digest>(
   { fromSequence: isStrOrNull, toSequence: isStr, decided, made, noted, open, work, names },
   'digest',
 )
+/**
+ * «Since» as it is answered: A34's own parser, the contract and nothing else, whatever the build; a build flag never
+ * chooses another reader (R-C2-WIRE-01). The fixture pages' older digest is made an A34 window where they answer it.
+ */
+export const parseSince: (value: unknown) => Since = parseProjectUpdates
 const nothing = (value: unknown): undefined => {
   if (value === null) return undefined
   throw new ApiError(200, 'contract_violation', 'Sophia’s reply couldn’t be read.', 'never')
@@ -232,9 +246,13 @@ export const listSourceOrigins = (token: string, artifactId: string, versionId: 
 export const closeMeeting = (token: string, roomId: string, meetingId: string, key: string): Promise<MeetingReceipt> =>
   callApi(`/api/v1/rooms/${roomId}/meetings/${meetingId}/close`, { token, method: 'POST', key }, parseMeetingReceipt)
 
-/** A13: what changed since this viewer last looked (their own attention, kept by the API). */
-export const getSince = (token: string, projectId: string, signal?: AbortSignal): Promise<Digest> =>
-  callApi(`/api/v1/projects/${projectId}/since`, { token, method: 'GET', ...(signal ? { signal } : {}) }, parseDigest)
+/** A34 (A13's «since»): what changed since this viewer last looked (their own attention, kept by the API). */
+export const getSince = (token: string, projectId: string, signal?: AbortSignal): Promise<Since> =>
+  callApi(
+    `/api/v1/projects/${projectId}/since`,
+    { token, method: 'GET', doorRead: true, ...(signal ? { signal } : {}) },
+    parseSince,
+  )
 
 /** A13: this viewer has seen up to `sequence`; the API never lowers it, so a second write is harmless. */
 export const markSeen = (token: string, projectId: string, sequence: string): Promise<undefined> =>
@@ -248,9 +266,12 @@ export const getSoFar = (token: string, projectId: string, meetingId: string, si
     parseDigest,
   )
 
-/** A13: one hit of a project search; its snippet is from the record itself, and `cite` names the record. */
+/**
+ * A13: one hit of a project search; its snippet is from the record itself, and `cite` names the record. A38 serves
+ * all but recaps and adds messages (api/search.ts): a message's `before` is the message just after it in the chat.
+ */
 export interface SearchHit {
-  kind: 'decision' | 'note' | 'report' | 'report_section' | 'recap'
+  kind: 'decision' | 'note' | 'report' | 'report_section' | 'recap' | 'message'
   /** The record; a report's (and a report section's) is the artifact, its version in `cite.recordId`. */
   id: string
   title: string
@@ -258,6 +279,7 @@ export interface SearchHit {
   meetingId: string | null
   at: string
   cite: { recordId: string; sha256?: string; anchor?: string }
+  before?: string | null
 }
 
 export interface SearchPage {
@@ -266,7 +288,7 @@ export interface SearchPage {
   next: string | null
 }
 
-const HIT_KINDS = new Set(['decision', 'note', 'report', 'report_section', 'recap'])
+const HIT_KINDS = new Set(['decision', 'note', 'report', 'report_section', 'recap', 'message'])
 const isCite = (v: unknown) =>
   fields(v, { recordId: isStr }) && ['sha256', 'anchor'].every((k) => !(k in v) || isStr(v[k]))
 const parseSearchPage = checked<SearchPage>(
@@ -279,6 +301,7 @@ const parseSearchPage = checked<SearchPage>(
       meetingId: isStrOrNull,
       at: isStr,
       cite: isCite,
+      before: (v) => v === undefined || isStrOrNull(v),
     }),
     next: isStrOrNull,
   },
@@ -364,25 +387,45 @@ export const listReviews = (token: string, artifactId: string, versionId: string
 export const reviewVersion = (token: string, artifactId: string, versionId: string, key: string, body: ReviewAsk) =>
   callApi(`/api/v1/artifacts/${artifactId}/versions/${versionId}/reviews`, { token, key, body }, parseReview)
 
-/** A17 (proposed): a task made from a passage of a report, for a member or for anyone. */
+/**
+ * A17 (proposed): a task made from a passage of a report, for a member or for anyone. Also the Studio's reading of A39's
+ * served task (api/tasks.ts): there the passage is a link only, with no quote, it may come from none, or be unavailable
+ * to this reader; and the task has its revision, which its writes are compared against.
+ */
 export interface ProjectTask {
   taskId: string
   text: string
-  /** The member it is for (an actor id), or null: anyone. */
+  /** The member it is for (an actor id), or null: anyone (A17) or nobody yet (A39). */
   owner: string | null
   ownerName: string | null
-  /** The passage it came from: its version, its place there (passage-link.ts) and its words, as selected. */
-  from: { versionId: string; versionNumber: number; passage: string; quote: string }
+  /**
+   * The passage it came from: its version, its place there (passage-link.ts) and, in A17's proposal only, its words as
+   * selected. A39: null when it came from no passage, 'unavailable' when this reader may not read its source.
+   */
+  from: TaskFrom | 'unavailable' | null
   by: string
   at: string
   doneBy: string | null
   doneAt: string | null
+  /** A39's revision; absent in A17's proposal. */
+  revision?: number
+}
+
+export interface TaskFrom {
+  /** A39's: the report it is in (A17's rows are a report's own). */
+  artifactId?: string
+  versionId: string
+  versionNumber: number | null
+  passage: string
+  /** A17's proposal only: A39 keeps no words of a source. */
+  quote: string | null
 }
 
 export interface TaskAsk {
   text: string
   owner: string | null
-  from: { artifactId: string; versionId: string; passage: string; quote: string }
+  /** The passage it is made from; null for an ordinary project task (A39's nullable origin, the brief's New task). */
+  from: { artifactId: string; versionId: string; passage: string; quote: string } | null
 }
 
 const TASK = {
@@ -446,151 +489,7 @@ export const getAfter = (token: string, projectId: string, meetingId: string, si
     parseAfter,
   )
 
-/** A18 (proposed): one of the project's text conversations, as listed; its own history, the project's context. */
-export interface ConversationSummary {
-  id: string
-  title: string
-  /** Sophia's, from this conversation's records only; null when there is none yet. */
-  summary: string | null
-  lastAt: string
-  /** Who wrote there: never everyone who can read it. */
-  contributors: readonly { actorId: string; name: string }[]
-  /** Sophia answered there. */
-  sophia: boolean
-  openQuestions: number
-  /** The report it made, if any. */
-  output: { artifactId: string; versionId: string; versionNumber: number; title: string } | null
-  /**
-   * A18 (proposed, for Davide): its newest message, its opening (up to 140 characters, as written, line breaks kept:
-   * the row says it in one line, sophia-text.ts plainOf); absent where the API doesn't say it yet, null when there is
-   * none. Behind the vision flag, the fixture pages answer it.
-   */
-  lastMessage?: {
-    author: 'member' | 'sophia'
-    actorId: string | null
-    /** The author's name, as a message carries it: a member no longer listed is still named. */
-    name: string | null
-    text: string
-    at: string
-  } | null
-}
-
-/** A18: a message in a conversation, a member's or Sophia's. */
-export interface ConversationMessage {
-  id: string
-  author: 'member' | 'sophia'
-  actorId: string | null
-  name: string | null
-  text: string
-  at: string
-}
-
-/** A18: a page of a conversation's messages, oldest first; `before` reads the page before it. */
-export interface MessagePage {
-  messages: readonly ConversationMessage[]
-  before: string | null
-}
-
-const isOutput = (v: unknown) =>
-  v === null || fields(v, { artifactId: isStr, versionId: isStr, versionNumber: isNum, title: isStr })
-const SUMMARY = {
-  id: isStr,
-  title: isStr,
-  summary: isStrOrNull,
-  lastAt: isStr,
-  contributors: listOf({ actorId: isStr, name: isStr }),
-  sophia: (v: unknown) => typeof v === 'boolean',
-  openQuestions: isNum,
-  output: isOutput,
-  lastMessage: (v: unknown) =>
-    v === undefined ||
-    v === null ||
-    fields(v, {
-      author: (a: unknown) => a === 'member' || a === 'sophia',
-      actorId: isStrOrNull,
-      name: isStrOrNull,
-      text: isStr,
-      at: isStr,
-    }),
-}
-const MESSAGE = {
-  id: isStr,
-  author: (v: unknown) => v === 'member' || v === 'sophia',
-  actorId: isStrOrNull,
-  name: isStrOrNull,
-  text: isStr,
-  at: isStr,
-}
-const parseConversations = checked<{ conversations: readonly ConversationSummary[] }>(
-  { conversations: (v) => Array.isArray(v) && v.every((c) => fields(c, SUMMARY)) },
-  'conversation list',
-)
-const parseMessages = checked<MessagePage>(
-  { messages: (v) => Array.isArray(v) && v.every((m) => fields(m, MESSAGE)), before: isStrOrNull },
-  'message page',
-)
-
-/** A18: the project's conversations, newest activity first. */
-export const listConversations = (token: string, projectId: string, signal?: AbortSignal) =>
-  callApi(
-    `/api/v1/projects/${projectId}/conversations`,
-    { token, method: 'GET', ...(signal ? { signal } : {}) },
-    parseConversations,
-  )
-
-/** A18: a page of a conversation's messages: the newest, or those before `before`. */
-export const getConversationMessages = (
-  token: string,
-  conversationId: string,
-  before: string | null,
-  signal?: AbortSignal,
-) =>
-  callApi(
-    `/api/v1/conversations/${conversationId}/messages${before ? `?before=${encodeURIComponent(before)}` : ''}`,
-    { token, method: 'GET', ...(signal ? { signal } : {}) },
-    parseMessages,
-  )
-
-/** A18 (proposed): a conversation started with its first message; Sophia asked there too, or not. */
-export interface ConversationAsk {
-  title: string
-  text: string
-  askSophia: boolean
-}
-
-/** A18: a message in a conversation; Sophia asked to answer it, or not. */
-export interface MessageAsk {
-  text: string
-  askSophia: boolean
-}
-
-export interface ConversationStarted {
-  conversation: ConversationSummary
-  message: ConversationMessage
-}
-
-export interface MessageSent {
-  message: ConversationMessage
-  /** Whether Sophia was asked: her answer is a later message, as the feed moves. */
-  sophia: 'asked' | 'not_asked'
-}
-
-const parseStarted = checked<ConversationStarted>(
-  { conversation: (v) => fields(v, SUMMARY), message: (v) => fields(v, MESSAGE) },
-  'started conversation',
-)
-const parseSent = checked<MessageSent>(
-  { message: (v) => fields(v, MESSAGE), sophia: (v) => v === 'asked' || v === 'not_asked' },
-  'sent message',
-)
-
-/** A18: start a conversation (members, not viewers), once per key. */
-export const startConversation = (token: string, projectId: string, key: string, body: ConversationAsk) =>
-  callApi(`/api/v1/projects/${projectId}/conversations`, { token, key, body }, parseStarted)
-
-/** A18: a message in a conversation (members, not viewers), once per key. */
-export const sendConversationMessage = (token: string, conversationId: string, key: string, body: MessageAsk) =>
-  callApi(`/api/v1/conversations/${conversationId}/messages`, { token, key, body }, parseSent)
+// A18's four conversation calls are real now: api/conversations.ts (amendment A33, CON-01).
 
 /** A20 (proposed): which entry of the room's discussion a reply answers, with that entry's first words as recorded. */
 export interface DiscussionReply {

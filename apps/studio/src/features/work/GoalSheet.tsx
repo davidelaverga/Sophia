@@ -1,9 +1,12 @@
 // A goal's sheet (docs/plans/goals-overview.md): its health, its outcome, what in it waits on the viewer (with the
 // presses), what else stands in its way, how far it has gone and what comes next, what done means, and the way to its
 // plan in Tasks; and its notes (goal-notes.md).
-import type { Goal } from '@sophia/contracts'
+import type { ArtifactVersion, Goal } from '@sophia/contracts'
 import { Button } from '@sophia/ui'
 import { Sheet } from '../../app/Sheet.tsx'
+import { CopyLink } from '../resources/CopyLink.tsx'
+import { addressOf, GOAL } from '../resources/link.ts'
+import { useDocumentViewer } from '../artifacts/viewer-context.ts'
 import { GoalNotes, type NotesFor } from './GoalNotes.tsx'
 import { GoalTargetSection } from './GoalTargets.tsx'
 import { Asks } from './GoalParts.tsx'
@@ -15,6 +18,8 @@ interface Props {
   goal: Goal
   plan: Glanced | undefined
   notes: NotesFor
+  /** The reports its work made, newest first (goal-reports.md). */
+  reports?: readonly ArtifactVersion[]
   onClose: () => void
   onOpenAsk: ((ask: Ask) => void) | undefined
   /** Tasks, with this goal chosen; undefined while it has no plan there. */
@@ -43,12 +48,47 @@ function Progress({ plan }: { plan: Glanced | undefined }) {
   )
 }
 
-export function GoalSheet({ goal, plan, notes, onClose, onOpenAsk, onOpenTasks }: Props) {
+/**
+ * The reports this goal's work made (goal-reports.md): a title opens it in the viewer on the version its row names (the
+ * pane offers a newer one), the sheet closed first, one at a time (Codex P1 and P2s on #414); none, or no viewer, no
+ * section. Closing the report gives the focus back to the goal's row.
+ */
+function GoalReports({ reports, onLeave }: { reports: readonly ArtifactVersion[]; onLeave: () => void }) {
+  const viewer = useDocumentViewer()
+  if (!viewer || reports.length === 0) return null
+  const open = (r: ArtifactVersion) => {
+    onLeave()
+    viewer.open({ artifactId: r.artifactId, versionId: r.id })
+  }
+  return (
+    <section className="goal-sheet-section goal-reports" aria-label="Reports">
+      <h3 className="field-label">Reports</h3>
+      <ul>
+        {reports.map((r) => (
+          <li key={r.artifactId}>
+            <button type="button" className="text-button" onClick={() => open(r)}>
+              {r.title ?? 'Untitled report'}
+            </button>
+            {r.versionNumber !== undefined && <span className="goal-report-version">v{r.versionNumber}</span>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+export function GoalSheet({ goal, plan, notes, reports = [], onClose, onOpenAsk, onOpenTasks }: Props) {
   const health = healthOf(goal, plan)
   const way = wayLine(plan?.glance)
   const asks = (plan?.asks ?? []).map((ask) => ({ ask, goal }))
   return (
-    <Sheet id={`goal-sheet-${goal.id}`} title={goal.title} onClose={onClose}>
+    <Sheet
+      id={`goal-sheet-${goal.id}`}
+      title={goal.title}
+      onClose={onClose}
+      // Keyed by the goal: a copy half done, or just said, stays with its sheet (as Resources').
+      actions={<CopyLink key={goal.id} href={() => addressOf(goal.id, GOAL)} />}
+    >
       <div className="goal-sheet" data-health={health}>
         <p className="goal-sheet-health">
           <span className="goal-health">{HEALTH_LABEL[health]}</span>
@@ -63,6 +103,7 @@ export function GoalSheet({ goal, plan, notes, onClose, onOpenAsk, onOpenTasks }
           </p>
         )}
         <Progress plan={plan} />
+        <GoalReports reports={reports} onLeave={onClose} />
         <GoalNotes goalId={goal.id} {...notes} />
         {goal.criteria.length > 0 && (
           <section className="goal-sheet-section" aria-label="Done when">

@@ -2,7 +2,19 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ProjectTask } from '../../api/vision.ts'
 import type { RoomParticipant } from '../voice/room-view.ts'
-import { doneWords, mayFinish, openCount, ordered, ownerWords, QUOTE_MAX, taskPeople, taskQuote } from './task-view.ts'
+import {
+  doneWords,
+  fromWords,
+  mayAssign,
+  mayFinish,
+  noOwnerOption,
+  openCount,
+  ordered,
+  ownerWords,
+  QUOTE_MAX,
+  taskPeople,
+  taskQuote,
+} from './task-view.ts'
 
 const task = (over: Partial<ProjectTask> = {}): ProjectTask => ({
   taskId: 't1',
@@ -109,5 +121,41 @@ describe('a task’s quote, by characters', () => {
     assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(plain))
     assert.ok(quote.endsWith('😀…'))
     assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(quote))
+  })
+})
+
+describe('A39 served tasks (D-TASKS)', () => {
+  const roles = ['admin', 'editor', 'viewer'] as const
+  it('lets editors and admins finish any open task; a viewer only one explicitly theirs, never one for nobody', () => {
+    const cells = roles.map((role) => [
+      role,
+      mayFinish(task({ owner: null }), 'me', role, true),
+      mayFinish(task({ owner: 'me' }), 'me', role, true),
+      mayFinish(task({ owner: 'ana' }), 'me', role, true),
+      mayFinish(task({ owner: 'me', doneBy: 'me' }), 'me', role, true),
+    ])
+    assert.deepEqual(cells, [
+      ['admin', true, true, true, false],
+      ['editor', true, true, true, false],
+      ['viewer', false, true, false, false],
+    ])
+    // A17's proposal keeps its own rule: anyone's task, any member.
+    assert.equal(mayFinish(task({ owner: null }), 'me', 'viewer'), true)
+    assert.deepEqual(roles.map(mayAssign), [true, true, false])
+  })
+
+  it('says nobody yet for an unassigned served task, and what the passage is, or that it is not available', () => {
+    assert.equal(ownerWords(task(), 'me', true), 'nobody yet')
+    assert.equal(fromWords(task({ from: null })), null)
+    assert.equal(fromWords(task({ from: 'unavailable' })), 'The passage it came from isn’t available to you')
+    assert.equal(fromWords(task({ from: { versionId: 'v', versionNumber: 2, passage: '1.2.3', quote: null } })), 'v2')
+  })
+})
+
+describe('the owner choice for no one (FND-C50)', () => {
+  it('says «Nobody yet» in the served form and keeps A17’s «Anyone»; a viewer still never finishes it', () => {
+    assert.equal(noOwnerOption(true), 'Nobody yet')
+    assert.equal(noOwnerOption(false), 'Anyone')
+    assert.equal(ownerWords(task(), 'me', true), 'nobody yet', 'the list and confirmation agree')
   })
 })

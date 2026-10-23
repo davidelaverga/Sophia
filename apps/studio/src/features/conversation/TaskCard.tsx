@@ -2,11 +2,11 @@
 // that produced it. The brief is a candidate for review; Hold and Stop live on its goal (WorkControls). A research
 // task (A11) is its own card (features/artifacts/WorkCard): progress, spend and the report's outputs; so is an HTML
 // page design (SDD-01, features/artifacts/DesignCard).
-import { useQuery } from '@tanstack/react-query'
+import { TaskRefused } from '../artifacts/TaskRefused.tsx'
+import { useOwnedTaskDetail } from '../artifacts/task-detail.ts'
 import { useEffect, useRef, useState } from 'react'
 import type { NativeTask, NativeTaskDetail } from '@sophia/contracts'
 import { ReadNote, Tag } from '@sophia/ui'
-import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { DesignCard } from '../artifacts/DesignCard.tsx'
 import { useNamedCard, WorkCard } from '../artifacts/WorkCard.tsx'
@@ -60,13 +60,17 @@ function BriefDetail({
   identity: Identity
   revision: string | null
 }) {
-  const detail = useQuery({
+  const { query: detail, refused } = useOwnedTaskDetail({
     // The result source id is part of the key: a new result is a new read.
     queryKey: ['native-task', projectId, taskId, revision, identity.name],
-    queryFn: () => getNativeTask(identity.token, projectId, taskId),
+    projectId,
+    taskId,
+    identity,
   })
+  // The task refused to this person (task-detail-read.ts): no brief, and a way to read it again.
+  if (refused) return <TaskRefused projectId={projectId} taskId={taskId} identity={identity} />
   if (detail.isPending) return <ReadNote>Loading the brief…</ReadNote>
-  if (detail.isError || !detail.data.result) return <p className="muted">The brief couldn’t be loaded.</p>
+  if (detail.isError || !detail.data?.result) return <p className="muted">The brief couldn’t be loaded.</p>
   return <BriefView result={detail.data.result} />
 }
 

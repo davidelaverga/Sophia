@@ -288,24 +288,46 @@ export const printedTables = (page: Page, marks: Marks = SEED_MARKS) =>
     }
   }, marks)
 
-const FONTS = fileURLToPath(new URL('../node_modules/pdfjs-dist/standard_fonts/', import.meta.url))
+// A path pdfjs reads with fs, its trailing slash kept: on Windows fileURLToPath ends it in a backslash, which pdfjs refuses
+// («must include trailing slash»), and fs reads forward slashes there too (report-page-windows.md).
+const FONTS = fileURLToPath(new URL('../node_modules/pdfjs-dist/standard_fonts/', import.meta.url)).replaceAll(
+  '\\',
+  '/',
+)
 
-/** A PDF's text, its pages, and the size in points of the first text item that starts with `opening`. */
+/** A text item's size in points, from its transform; null when it has none. */
+function sizeOf(transform: readonly unknown[]): number | null {
+  const [a, b] = transform
+  return typeof a === 'number' && typeof b === 'number' ? Math.round(Math.hypot(a, b) * 10) / 10 : null
+}
+
+/**
+ * The size of the item `opening` starts at, read across the items after it: a run may be cut at an accented letter,
+ * which comes as an item of its own and decomposed («El equipo empez» + «ó» + « » + «por los…», Cambria on
+ * Windows; report-page-windows.md). The words are compared composed (NFC).
+ */
+function openingSize(items: readonly { str: string; transform: readonly unknown[] }[], words: string): number | null {
+  const opening = words.normalize('NFC')
+  for (const [k, item] of items.entries()) {
+    const start = item.str.normalize('NFC')
+    if (start === '' || !opening.startsWith(start.slice(0, opening.length))) continue
+    let joined = ''
+    for (let j = k; j < items.length && joined.length < opening.length; j += 1)
+      joined = (joined + (items[j]?.str ?? '')).normalize('NFC')
+    if (joined.startsWith(opening)) return sizeOf(item.transform)
+  }
+  return null
+}
+
+/** A PDF's text, its pages, and the size in points of the text item that `opening` starts at. */
 export async function pdfText(pdf: Buffer, opening: string | null) {
   const doc = await getDocument({ data: new Uint8Array(pdf), standardFontDataUrl: FONTS }).promise
   let text = ''
   let size: number | null = null
   for (let i = 1; i <= doc.numPages; i += 1) {
-    const { items } = await (await doc.getPage(i)).getTextContent()
-    for (const item of items) {
-      if (!('str' in item)) continue
-      text += item.str + (item.hasEOL ? ' ' : '')
-      const transform: readonly unknown[] = item.transform
-      const [a, b] = transform
-      if (opening && size === null && item.str.startsWith(opening) && typeof a === 'number' && typeof b === 'number') {
-        size = Math.round(Math.hypot(a, b) * 10) / 10
-      }
-    }
+    const items = (await (await doc.getPage(i)).getTextContent()).items.filter((item) => 'str' in item)
+    for (const item of items) text += item.str + (item.hasEOL ? ' ' : '')
+    if (opening && size === null) size = openingSize(items, opening)
   }
   return { text, pages: doc.numPages, size }
 }

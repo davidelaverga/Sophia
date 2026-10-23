@@ -5,7 +5,10 @@
 // while its guest runs, after which no process of the launchers' uid and no UML kernel may remain. The stand-in API
 // checks only the protocol; receipts are judged here as the probe judges them. It holds no credential: the runner
 // token is a synthetic file only root can read, which the launchers must show refused before each guest starts. Prints
-// one JSON line per step and exits 0 only when every step passed.
+// one JSON line per step and exits 0 only when every step passed. For evidence only (qualification stays false): the
+// size and SHA-256 of the guest artifacts actually installed in this image, and, through the supervisor's diagnostic
+// that only this synthetic check sets, how each run's outer launcher ended and, when its guest was never entered, the
+// last lines its console printed (BOOT_EVIDENCE bounds them).
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import http from 'node:http'
@@ -14,6 +17,37 @@ import { runOnce } from '../supervisor.mjs'
 // Match the protected production startup: credentials stay private while the guest must read its own input disk.
 process.umask(0o077)
 process.stdout.write(`${JSON.stringify({ event: 'UML_E2E_CONTEXT', umask: process.umask().toString(8) })}\n`)
+
+/** The guest artifacts this image actually installed (Dockerfile), whose identity a run's evidence names. */
+const ARTIFACTS = ['linux.uml', 'initrd.gz', 'guest.raw', 'abi-probe', 'namespace-launch.py', 'landlock-launch.py']
+
+/**
+ * A file's size and SHA-256, read as a stream (guest.raw is large); null fields when it cannot be read.
+ * @param {string} file
+ * @returns {Promise<{ bytes: number | null, sha256: string | null }>}
+ */
+async function identity(file) {
+  try {
+    const hash = createHash('sha256')
+    let bytes = 0
+    for await (const chunk of fs.createReadStream(file)) {
+      if (!Buffer.isBuffer(chunk)) continue
+      hash.update(chunk)
+      bytes += chunk.length
+    }
+    return { bytes, sha256: hash.digest('hex') }
+  } catch {
+    return { bytes: null, sha256: null }
+  }
+}
+{
+  /** @type {Record<string, { bytes: number | null, sha256: string | null }>} */
+  const artifacts = {}
+  for (const name of ARTIFACTS) artifacts[name] = await identity(`/opt/uml/${name}`)
+  process.stdout.write(
+    `${JSON.stringify({ event: 'UML_E2E_ARTIFACTS', qualification: false, root: '/opt/uml', artifacts })}\n`,
+  )
+}
 
 /**
  * @typedef {{ name: string, outcome: string, target?: string | null, detail?: unknown }} Check
@@ -185,7 +219,13 @@ const cfg = {
   workDir: '/work',
   heartbeatMs: 1000,
   isolation: /** @type {const} */ ('uml'),
-  uml: { root: '/opt/uml' },
+  uml: {
+    root: '/opt/uml',
+    // Only this synthetic check sets the diagnostic: the supervisor bounds what it is given (BOOT_EVIDENCE).
+    diagnostics: (/** @type {import('../supervisor.mjs').BootEvidence} */ evidence) => {
+      process.stdout.write(`${JSON.stringify({ ...evidence, event: 'UML_E2E_BOOT_EVIDENCE' })}\n`)
+    },
+  },
   log: (/** @type {string} */ line) => {
     process.stdout.write(`${JSON.stringify({ event: 'supervisor_log', line: line.slice(0, 400) })}\n`)
   },

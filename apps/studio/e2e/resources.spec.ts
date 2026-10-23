@@ -584,6 +584,8 @@ test('a copy the browser refuses is said, with what to do instead', async ({ pag
   await open(page, 'Davide · Claude Code')
   await page.getByRole('button', { name: 'Copy link' }).click()
   await expect(page.getByRole('button', { name: 'Couldn’t copy: the link is in the address bar' })).toBeVisible()
+  // The sheet's anchor is in the address bar: nothing more to hand over (Codex P2 on #382).
+  await expect(page.getByRole('textbox', { name: 'Link', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: 'Copy session id' }).click()
   await expect(page.getByRole('button', { name: 'Couldn’t copy: claude-worker' })).toBeVisible()
 })
@@ -1239,7 +1241,7 @@ test('each resource shows its tool’s own mark, and its sheet the maker', async
     await expect((await open(page, name)).getByText(vendor, { exact: true })).toBeVisible()
     await page.keyboard.press('Escape')
   }
-  // A coloured mark is an image; a one-colour mark (Grok) takes the text's colour, so it reads on the dark theme.
+  // A coloured mark is an image; a one-colour mark (Grok) takes the text's colour, so it reads on either theme.
   await expect(tile(page, 'Davide · Codex').locator('.tool-logo img')).toHaveAttribute('src', /\.svg|^data:image\/svg/)
   await expect(tile(page, 'Davide · Grok').locator('.tool-logo-mark')).toBeVisible()
 })
@@ -1431,6 +1433,38 @@ test('live · a session at work says what its tool last reported, and a ring aro
   // The sheet says it too, under the session.
   const s = await open(page, 'Davide · Codex')
   await expect(s.locator('.resource-session-live')).toContainText('Reading ExportStatus.tsx')
+})
+
+// The ring's emptying is eased (informe-25 M14): its share is a registered number, so a change sweeps over the kit's
+// base duration instead of jumping, and rests long before the next second's tick. With less motion asked, it jumps.
+const ringMoves = (page: Page) =>
+  tile(page, 'Davide · Codex')
+    .locator('.resource-face')
+    .evaluate((e) => {
+      e.style.setProperty('--fresh', '0')
+      const moving = e
+        .getAnimations({ subtree: true })
+        .flatMap((a) =>
+          a instanceof CSSTransition && a.transitionProperty === '--fresh'
+            ? [Number(a.effect?.getTiming().duration)]
+            : [],
+        )
+      return { moving, now: Number(getComputedStyle(e, '::before').getPropertyValue('--fresh')) }
+    })
+
+test('live · the ring’s emptying is eased: a change sweeps, never a jump (informe-25 M14)', async ({ page }) => {
+  await page.goto(PAGE)
+  await expect(tile(page, 'Davide · Codex').locator('.resource-face')).toHaveAttribute('data-live', 'true')
+  const read = await ringMoves(page)
+  expect(read.moving).toEqual([220])
+  expect(read.now).toBeGreaterThan(0.5)
+})
+
+test('live · with less motion asked, the ring’s share changes at once', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto(PAGE)
+  await expect(tile(page, 'Davide · Codex').locator('.resource-face')).toHaveAttribute('data-live', 'true')
+  expect((await ringMoves(page)).moving).toEqual([])
 })
 
 test('one with Tasks · a session’s task opens on the board, as whoever looks, and its doer opens back here', async ({

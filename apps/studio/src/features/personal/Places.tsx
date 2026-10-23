@@ -36,6 +36,7 @@ import {
   dateLine,
   firstName,
   greeting,
+  homeShown,
   PLACE_TITLE,
   placeAt,
   READ_FAILED,
@@ -43,7 +44,9 @@ import {
   sophiaSays,
   workCount,
   youDoor,
+  type Said,
 } from './places-view.ts'
+import { useSaidOnce, useSinceNews } from './useSinceNews.ts'
 import type { Read } from './ReadNotes.tsx'
 import { useEscape } from './useEscape.ts'
 import {
@@ -59,6 +62,7 @@ import { usePlaceMotion } from './usePlaceMotion.ts'
 import type { Handed } from './handed.ts'
 import { Welcome } from './Welcome.tsx'
 import { WorkSpace } from './WorkSpace.tsx'
+import { useArchivedWork } from '../studio/Archive.tsx'
 import { personalFailure } from './write-words.ts'
 import { useNow } from '../../app/use-now.ts'
 import './personal.css'
@@ -85,6 +89,7 @@ export interface PlacesProps {
   onOpenView: (projectId: string, view: ProjectView, at: NeedAt) => void
   onChooseDev: (identity: Identity | null) => void
   onSignOut: () => void
+  onSignOutEverywhere: () => void
 }
 
 const ANNOUNCE: Record<Place, string> = {
@@ -394,6 +399,25 @@ const projectsRead = (v: View): Read => ({
   retry: () => void v.projects.refetch(),
 })
 
+/**
+ * Sophia's sentence on Home, with what changed since you last looked in the projects it shows, as the visit began
+ * (useSinceNews), kept as said once she says it.
+ */
+function useHomeSays(v: View, answers: boolean | undefined): Said[] {
+  const { props, now } = v
+  const projects = v.projects.data?.projects
+  const call = props.call ?? null
+  const visit = useSinceNews(props.identity, projects && homeShown(projects, now), {
+    here: placeAt(v.shown) === 'home',
+    inCall: call !== null,
+    covered: sophiaSays(projects, now, call, answers === true).length > 0,
+    theirs: projects?.map((p) => p.projectId),
+  })
+  const says = sophiaSays(projects, now, call, answers === true, visit.news)
+  useSaidOnce(props.identity, visit, says)
+  return says
+}
+
 function Home({ v }: { v: View }) {
   const { props, now, nav } = v
   const data = v.personal
@@ -414,13 +438,16 @@ function Home({ v }: { v: View }) {
   )
   const projects = v.projects.data?.projects
   const fresh = !!data && data.turns.length === 0 && data.notes.length === 0
+  // Whether Sophia answers here, as the API says; unknown until the space is read (home-no-companion.md).
+  const answers = data ? data.companion !== 'unavailable' : undefined
+  const says = useHomeSays(v, answers)
   return (
-    <div className="c-home" data-place-view="home" hidden={!v.shown.includes('home')}>
+    <div className="c-home" data-place-view="home" data-content hidden={!v.shown.includes('home')}>
       <Welcome
         hello={greeting(now.getHours(), null, fresh)}
         name={firstName(props.identity)}
         date={dateLine(now)}
-        says={sophiaSays(projects, now, props.call ?? null)}
+        says={says}
         you={youDoor({ locked: lockedBy(props.lock), turns: data?.turns, notes: data?.notes.length ?? 0, now })}
         reads={needsRead ? [personalRead(v), projectsRead(v), needsRead] : [personalRead(v), projectsRead(v)]}
         needs={needs}
@@ -431,6 +458,7 @@ function Home({ v }: { v: View }) {
         inCallProject={props.call?.projectId ?? null}
         count={workCount(projects)}
         locked={props.lock.locked}
+        answers={answers}
         hidden={!v.shown.includes('home')}
         here={placeAt(v.shown) === 'home'}
         actions={{
@@ -447,6 +475,7 @@ function Home({ v }: { v: View }) {
             v.hand(text)
             nav.enter('personal')
           },
+          updates: (projectId) => props.onOpenView(projectId, 'updates', {}),
         }}
       />
     </div>
@@ -485,12 +514,14 @@ function Personal({ v }: { v: View }) {
 function Work({ v }: { v: View }) {
   const { props, layers, nav } = v
   const presses = usePresses()
+  const archived = useArchivedWork(props.identity)
   return (
     <WorkSpace
       hidden={!v.shown.includes('work')}
       token={props.identity.token}
       projects={v.projects.data?.projects}
       invited={<InvitedBand identity={props.identity} onOpen={(id) => props.onOpenProject(id, false)} />}
+      archived={archived}
       read={projectsRead(v)}
       fresh={v.carried.fresh}
       inCallProject={props.call?.projectId ?? null}
@@ -531,6 +562,7 @@ function Bar({ v }: { v: View }) {
         data: () => layers.setData(true),
         chooseDev: props.onChooseDev,
         signOut: props.onSignOut,
+        signOutEverywhere: props.onSignOutEverywhere,
       }}
     />
   )

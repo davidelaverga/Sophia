@@ -96,3 +96,246 @@ test('host · while a control is on its way, its row waits; the menu hands focus
   await expect(actions(page, 'Marco')).not.toHaveAttribute('aria-disabled', 'true')
   expect((await served(page)).filter((s) => s === `mute:${MARCO}`)).toHaveLength(1)
 })
+
+test('host · an admin turns a member’s camera off, and stops a member’s screen', async ({ page }) => {
+  await enter(page, '&video=camera')
+  await actions(page, 'Marco').click()
+  await expect(menu(page, 'Marco').getByRole('menuitem')).toHaveText([
+    'Mute microphone',
+    'Turn off camera',
+    'Remove from call',
+  ])
+  await menu(page, 'Marco').getByRole('menuitem', { name: 'Turn off camera' }).click()
+  await expect.poll(() => served(page)).toContain(`stop-camera:${MARCO}`)
+  await page.goto('/room.html?call=on&people=2&video=screen')
+  await page.locator('.panel-toggles [data-panel="people"]').click()
+  await actions(page, 'Marco').click()
+  await menu(page, 'Marco').getByRole('menuitem', { name: 'Stop screen sharing' }).click()
+  await expect.poll(() => served(page)).toContain(`stop-screen:${MARCO}`)
+})
+
+test('host · a camera turned off and a screen stopped leave the stage, as LiveKit unpublishes them (#369)', async ({
+  page,
+}) => {
+  const tile = (actor: string) => page.locator(`.tile[data-actor="${actor}"]`)
+  await enter(page, '&video=camera')
+  await expect(tile(LUCIA).locator('video')).toHaveCount(1)
+  await actions(page, 'Lucía').click()
+  await menu(page, 'Lucía').getByRole('menuitem', { name: 'Turn off camera' }).click()
+  await expect.poll(() => served(page)).toContain(`stop-camera:${LUCIA}`)
+  await expect(tile(LUCIA).locator('video')).toHaveCount(0)
+  await expect(tile(LUCIA).locator('.tile-initial')).toHaveText('L')
+  await expect(tile(MARCO).locator('video')).toHaveCount(1)
+  await page.goto('/room.html?call=on&people=2&video=screen')
+  await expect(page.locator('.screen-main video')).toHaveCount(1)
+  await page.locator('.panel-toggles [data-panel="people"]').click()
+  await actions(page, 'Marco').click()
+  await menu(page, 'Marco').getByRole('menuitem', { name: 'Stop screen sharing' }).click()
+  await expect.poll(() => served(page)).toContain(`stop-screen:${MARCO}`)
+  await expect(page.locator('.screen-main video')).toHaveCount(0)
+})
+
+test('host · «Mute everyone» asks first, then every other microphone is off', async ({ page }) => {
+  await enter(page)
+  await page.getByRole('button', { name: 'Mute everyone' }).click()
+  await expect(page.getByText('Everyone else’s microphone goes off')).toBeVisible()
+  await page.getByRole('button', { name: 'Mute them' }).click()
+  await expect.poll(() => served(page)).toContain('mute-all')
+  await expect(
+    list(page).locator('li', { hasText: 'Marco' }).getByRole('img', { name: 'Microphone off' }),
+  ).toBeVisible()
+  await expect(
+    list(page).locator('li', { hasText: 'Lucía' }).getByRole('img', { name: 'Microphone off' }),
+  ).toBeVisible()
+})
+
+test('host · «Mute everyone» past six seconds says it is slow, as every Studio write does (Codex P2 on #369)', async ({
+  page,
+}) => {
+  await page.clock.install()
+  await enter(page)
+  await page.evaluate(() => window.fixture?.holdHost(true))
+  await page.getByRole('button', { name: 'Mute everyone' }).click()
+  await page.getByRole('button', { name: 'Mute them' }).click()
+  // As the API's, the room server mutes before the answer comes: the waiting press stays with every microphone off.
+  await expect(list(page).getByRole('img', { name: 'Microphone off' })).toHaveCount(2)
+  await expect(page.getByRole('button', { name: 'Muting everyone…' })).toBeVisible()
+  const head = page.locator('.people-head')
+  // fastForward fires the note's one 6 s timer without running every frame of the room in between (project-activity).
+  await page.clock.fastForward(6500)
+  await expect(head.getByRole('status')).toHaveText(
+    'Taking longer than usual. After a quiet spell, the first answer can take up to a minute.',
+  )
+  await page.evaluate(() => window.fixture?.holdHost(false))
+  // Answered, with no one left to mute: the head goes, and its note with it.
+  await expect(head).toHaveCount(0)
+})
+
+test('host · «Mute everyone» refused after every microphone went off says what is true (Codex P2 on #369)', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.failAfterMuteAll())
+  await page.getByRole('button', { name: 'Mute everyone' }).click()
+  await page.getByRole('button', { name: 'Mute them' }).click()
+  await expect.poll(() => served(page)).toContain('mute-all')
+  await expect(list(page).getByRole('img', { name: 'Microphone off' })).toHaveCount(2)
+  // The list shows every microphone off: no «Couldn’t mute», and no «Try again» with nothing to press.
+  await expect(page.locator('.people-head').getByRole('alert')).toHaveText(
+    'Every microphone is off, but the mute wasn’t confirmed.',
+  )
+  await expect(page.getByRole('button', { name: /^Mut(e|ing) everyone/ })).toHaveCount(0)
+})
+
+test('host · a refused «Mute everyone» is old news once a microphone is on again: the press comes back alone', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.failAfterMuteAll())
+  await page.getByRole('button', { name: 'Mute everyone' }).click()
+  await page.getByRole('button', { name: 'Mute them' }).click()
+  const head = page.locator('.people-head')
+  await expect(head.getByRole('alert')).toBeVisible()
+  // Marco turns his microphone back on, minutes later: the refusal is not said beside a fresh press.
+  await page.evaluate(() => window.fixture?.unmutes(1))
+  await expect(list(page).locator('li', { hasText: 'Marco' }).getByRole('img', { name: 'Microphone on' })).toBeVisible()
+  await expect(head.getByRole('button', { name: 'Mute everyone' })).toBeVisible()
+  await expect(head.getByRole('alert')).toHaveCount(0)
+})
+
+test('host · a refused «Mute everyone» stays said as a microphone goes off after it', async ({ page }) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.failHost())
+  await page.getByRole('button', { name: 'Mute everyone' }).click()
+  await page.getByRole('button', { name: 'Mute them' }).click()
+  const head = page.locator('.people-head')
+  await expect(head.getByRole('alert')).toHaveText('Couldn’t mute everyone. Try again.')
+  // The room server's own mutes can reach the call after a refusal: one going off is no reason to drop it.
+  await actions(page, 'Marco').click()
+  await menu(page, 'Marco').getByRole('menuitem', { name: 'Mute microphone' }).click()
+  await expect(
+    list(page).locator('li', { hasText: 'Marco' }).getByRole('img', { name: 'Microphone off' }),
+  ).toBeVisible()
+  await expect(head.getByRole('alert')).toHaveText('Couldn’t mute everyone. Try again.')
+})
+
+test('host · an editor has no «Mute everyone»', async ({ page }) => {
+  await enter(page, '&role=editor')
+  await expect(list(page)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Mute everyone' })).toHaveCount(0)
+})
+
+test('host · a control past six seconds says it is slow, as every Studio write does (Codex P2 on #351)', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.holdHost(true))
+  await actions(page, 'Marco').click()
+  await menu(page, 'Marco').getByRole('menuitem', { name: 'Mute microphone' }).click()
+  const row = list(page).locator('li', { hasText: 'Marco' })
+  await expect(row.getByRole('status')).toContainText('Taking longer than usual', { timeout: 9000 })
+  await page.evaluate(() => window.fixture?.holdHost(false))
+})
+
+test('host · removed by keyboard, the focus goes to the list, never the page (Codex P2 on #351)', async ({ page }) => {
+  await enter(page)
+  await actions(page, 'Lucía').focus()
+  await page.keyboard.press('Enter')
+  await menu(page, 'Lucía').getByRole('menuitem', { name: 'Remove from call' }).press('Enter')
+  await expect(list(page).locator('.person-name')).toHaveText(['Fixture · you', 'Marco'])
+  await expect(list(page)).toBeFocused()
+})
+
+test('host · the corner keeps room for its three toggles beside the dock (Codex P2 on #351)', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/room.html?call=on&people=2')
+  await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
+  const fits = await page.evaluate(() => {
+    const corner = document.querySelector<HTMLElement>('.panel-toggles')
+    const stage = document.querySelector<HTMLElement>('.room-stage')
+    if (!corner || !stage) return null
+    const room = Number.parseFloat(getComputedStyle(stage).getPropertyValue('--corner-room'))
+    return { room, corner: corner.getBoundingClientRect().width }
+  })
+  expect(fits).not.toBeNull()
+  expect(fits?.room ?? 0).toBeGreaterThanOrEqual((fits?.corner ?? 0) + 12)
+})
+
+/** Once what is arriving has arrived (the panel slides in): boxes are read where they rest. */
+const arrived = (page: Page) =>
+  page.evaluate(async () => {
+    const arriving = document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity)
+    await Promise.all(arriving.map((a) => a.finished.catch(() => null)))
+  })
+
+/** Where People's parts stand against the panel's: the tabs' line, Close's end, «Mute everyone», and each row, with its
+ * menu's opener where it has one. A part that is absent measures NaN, so every check on it fails. */
+const peopleRead = (page: Page) =>
+  page.evaluate(() => {
+    // oxlint-disable-next-line unicorn/consistent-function-scoping -- page.evaluate sends only this function to the page
+    const edges = (el: Element | null | undefined) => {
+      const r = el?.getBoundingClientRect()
+      return { left: r?.left ?? NaN, right: r?.right ?? NaN, width: r?.width ?? NaN, height: r?.height ?? NaN }
+    }
+    const panel = document.querySelector('.side-panel')
+    return {
+      line: edges(panel?.querySelector('#side-tab-chat')).left,
+      close: edges(panel?.querySelector('.side-panel-head > [aria-label="Close"]')).right,
+      mute: edges(panel?.querySelector('.people-head button')),
+      rows: [...(panel?.querySelectorAll('.people > li') ?? [])].map((li) => ({
+        row: edges(li),
+        name: edges(li.querySelector('.person-name')),
+      })),
+      openers: [...(panel?.querySelectorAll('.people > li') ?? [])].flatMap((li) => {
+        const opener = li.querySelector('.person-actions > button')
+        return opener ? [{ row: edges(li), opener: edges(opener) }] : []
+      }),
+      edge: innerWidth,
+    }
+  })
+
+test('host · People sits on the panel’s gutter; each menu ends where Close does (room-dock-people.md)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await enter(page)
+  await arrived(page)
+  const { line, close, mute, rows, openers, edge } = await peopleRead(page)
+  expect(rows).toHaveLength(3)
+  for (const { row, name } of rows) {
+    expect(name.left).toBeCloseTo(line, 0)
+    // The row's own plane frames its name: 8 px before it.
+    expect(name.left - row.left).toBeCloseTo(8, 0)
+  }
+  // «Mute everyone» is a press on the same line, not a heading.
+  expect(mute.left).toBeCloseTo(line, 0)
+  expect(mute.height).toBe(28)
+  expect(openers).toHaveLength(2)
+  for (const { row, opener } of openers) {
+    expect(opener).toMatchObject({ width: 32, height: 32 })
+    expect(opener.right).toBeCloseTo(close, 0)
+    expect(opener.right).toBeLessThanOrEqual(edge - 12)
+    expect(opener.right).toBeLessThanOrEqual(row.right + 0.5)
+  }
+  // Under the pointer, a row's plane shows.
+  const marco = list(page).locator('li', { hasText: 'Marco' })
+  await marco.hover()
+  await expect(marco).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+})
+
+test('host · @phone People on a phone: rows on the gutter, every menu a finger’s size inside its row', async ({
+  page,
+}) => {
+  await enter(page)
+  await arrived(page)
+  const { rows, openers, edge } = await peopleRead(page)
+  expect(rows).toHaveLength(3)
+  for (const { name } of rows) expect(name.left).toBeCloseTo(16, 0)
+  expect(openers).toHaveLength(2)
+  for (const { row, opener } of openers) {
+    expect(opener.width).toBeGreaterThanOrEqual(40)
+    expect(opener.height).toBeGreaterThanOrEqual(40)
+    expect(opener.right).toBeLessThanOrEqual(row.right + 0.5)
+    expect(opener.right).toBeLessThanOrEqual(edge - 8)
+  }
+})

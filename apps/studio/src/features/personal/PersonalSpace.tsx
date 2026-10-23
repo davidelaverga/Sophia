@@ -679,6 +679,7 @@ export function PersonalSpace(props: Props) {
     <section
       className={`c3-space you${waiting ? ' speaking' : ''}${listening ? ' listening' : ''}`}
       data-place-view="personal"
+      data-content
       data-hour={lightOf(props.now)}
       hidden={props.hidden}
       aria-labelledby="c-p-h"

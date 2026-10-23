@@ -60,7 +60,7 @@ export function LegalPage({ doc }: { doc: LegalDoc }) {
           <span className="mark-word">Sophia</span>
         </a>
       </header>
-      <main className="legal-doc">
+      <main className="legal-doc" data-content>
         <h1>{TITLES[doc]}</h1>
         <p className="legal-updated">Last updated {UPDATED}</p>
         {SECTIONS[doc].map((s) => (

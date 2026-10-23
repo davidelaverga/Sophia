@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { PersonalExport, PersonalTurn, ProjectSummary } from '@sophia/contracts'
+import type { Since } from '../../api/vision.ts'
+import { unsaid } from '../updates/since-said.ts'
 import { confirmsErasure, exportText, factsOf } from './data-view.ts'
 import { NOTICE } from './notice-view.ts'
 import {
   FIND_FROM,
   findNotes,
   findProjects,
+  nextShown,
   orderProjects,
   codeButton,
   EDGE_TIP,
@@ -16,6 +19,7 @@ import {
   greeting,
   lightOf,
   HOME_ACTION,
+  homeLine,
   homeRows,
   otherWaysNote,
   otherWaysShown,
@@ -212,10 +216,14 @@ describe('home, as a place that knows where you’ll go', () => {
     assert.equal(homeNextAsk([started, live], NOW), null)
   })
 
-  it('Sophia says the one thing that matters: your call, else a session soon, else a live room, else all is well', () => {
+  it('Sophia says the one thing that matters: your call, else a session soon, else a live room, else nothing', () => {
     assert.equal(plain(sophiaSays(undefined, NOW, null)), '')
     assert.equal(plain(sophiaSays([], NOW, null)), 'Start a project when you’re ready, or just talk to me.')
-    assert.equal(plain(sophiaSays([project()], NOW, null)), 'Your projects are as you left them.')
+    // Where she can't answer, she doesn't offer to talk (prod-honesty's home-no-companion.md).
+    assert.equal(plain(sophiaSays([], NOW, null, false)), 'Start a project when you’re ready.')
+    // Home reads nothing of what changed while you were away, so she never says nothing did (home-no-false-claim.md).
+    assert.deepEqual(sophiaSays([project()], NOW, null), [])
+    assert.deepEqual(sophiaSays([project(), project({ projectId: id(6), nextSession: session(90) })], NOW, null), [])
     assert.equal(plain(sophiaSays(four, NOW, null)), 'Pitch run in Weekly standup starts in 10 min.')
     const live = project({
       projectId: id(5),
@@ -250,9 +258,10 @@ describe('home, as a place that knows where you’ll go', () => {
 })
 
 describe('your data', () => {
-  it('counts days with Sophia by the days the person wrote, and copies everything as text', () => {
+  it('counts days with Sophia by the days the person wrote, and copies everything as text', (t) => {
     const everything: PersonalExport = {
-      exportedAt: NOW.toISOString(),
+      // The export's own time, after every turn, not the device's (Codex P2 on #405).
+      exportedAt: inMin(3),
       next: null,
       turns: [
         turn('I have a pitch', 60 * 24),
@@ -280,12 +289,20 @@ describe('your data', () => {
     }
     // Days are the server's count over the whole conversation (a long one lists only its newest turns).
     assert.deepEqual(factsOf({ ...everything, days: 31 }), { days: 31, notes: 1, carried: 1 })
-    const text = exportText(everything, 'Ana', NOW)
-    assert.match(text, /^Ana · personal space with Sophia\n\nNotes:\n- Take a day off/)
+    // The device's clock is years off: the copy never reads it.
+    t.mock.timers.enable({ apis: ['Date'], now: new Date(2030, 0, 1) })
+    const text = exportText(everything, 'Ana')
+    t.mock.timers.reset()
+    // A copy is read another day (export-dates.md): its days are dates, its messages say when, and it says when it was
+    // made, by the export's own time.
+    assert.match(
+      text,
+      /^Ana · personal space with Sophia\nAs of Wednesday, September 30, 2026, 21:03\n\nNotes:\n- Take/,
+    )
     assert.match(text, /Carried to projects:\n- Ask Luis \(Launch plan\)/)
     assert.match(
       text,
-      /\nYesterday\nYou: I have a pitch\n\nToday\nYou: Still here\nSophia: Glad you are\n {2}Suggested note, not kept: Pitch on Friday$/,
+      /\nTuesday, September 29, 2026\n21:00 You: I have a pitch\n\nWednesday, September 30, 2026\n20:55 You: Still here\n20:56 Sophia: Glad you are\n {2}Suggested note, not kept: Pitch on Friday$/,
     )
     assert.equal(confirmsErasure(' Delete '), true)
     assert.equal(confirmsErasure('del'), false)
@@ -452,5 +469,182 @@ describe('finding a note (personal-notes-write-find.md)', () => {
 
   it('keeps them all for nothing typed', () => {
     assert.equal(findNotes(notes, '  ').length, 3)
+  })
+
+  it('folds case as Unicode does, and finds a standalone mark as written (Codex P2s on #406)', () => {
+    const more = [note('d', 'ΟΔΟΣ'), note('e', 'Ship 2^8'), note('f', 'Ship 28')]
+    assert.deepEqual(
+      findNotes(more, 'οδος').map((n) => n.id),
+      ['d'],
+    )
+    assert.deepEqual(
+      findNotes(more, '^').map((n) => n.id),
+      ['e'],
+    )
+  })
+})
+
+describe('Home’s line to Sophia (docs/plans/home-no-companion.md)', () => {
+  it('is the line where she answers, says she can’t where she doesn’t, and holds its place until that is known', () => {
+    assert.equal(homeLine(false, true), 'line')
+    assert.equal(homeLine(false, false), 'cannot')
+    assert.equal(homeLine(false, undefined), 'held')
+  })
+  it('is nothing while the space is locked: your row unlocks it', () => {
+    assert.equal(homeLine(true, true), null)
+    assert.equal(homeLine(true, false), null)
+  })
+})
+
+describe('the note that takes the focus once one is forgotten (Codex P2 on #431)', () => {
+  const ordered = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
+
+  it('is the next one shown once it is gone, when Find went with it and every note is shown again', () => {
+    // Find held only n3; then n1 to n6 but n3 are shown.
+    assert.equal(nextShown(ordered, 'n3', ['n1', 'n2', 'n4', 'n5', 'n6']), 'n4')
+    // Find held n1, n3, n4, n5 and n6; the next shown is n2, not the next match.
+    assert.equal(nextShown(ordered, 'n1', ['n2', 'n3', 'n4', 'n5', 'n6']), 'n2')
+  })
+
+  it('skips the notes Find still leaves out', () => {
+    assert.equal(nextShown(ordered, 'n2', ['n1', 'n5', 'n6']), 'n5')
+  })
+
+  it('is the nearest one before it when none after it is shown', () => {
+    assert.equal(nextShown(ordered, 'n5', ['n1', 'n3']), 'n3')
+  })
+
+  it('is none when no note is shown', () => {
+    assert.equal(nextShown(ordered, 'n1', []), null)
+  })
+})
+
+const uuid = (n: number) => `00000000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`
+/** A34's window after a seen mark, holding what `over` gives. */
+const sinceWindow = (over: Partial<Since> = {}): Since => ({
+  fromSequence: '3',
+  toSequence: '9',
+  more: false,
+  decided: [],
+  made: [],
+  noted: [],
+  open: [],
+  work: [],
+  names: {},
+  ...over,
+})
+
+describe('what changed since you last looked, in Sophia’s sentence on Home (home-since-you-looked.md)', () => {
+  const decided = (n: number) => ({
+    decisionId: uuid(n),
+    statement: `Decision ${String(n)}`,
+    proposedBy: null,
+    decidedBy: null,
+    at: null,
+    undoable: false,
+  })
+  const made = (n: number) => ({
+    artifactId: uuid(n),
+    artifactVersionId: uuid(n + 50),
+    title: `Report ${String(n)}`,
+    versionNumber: 1,
+    askedBy: null,
+  })
+  const noted = (n: number) => ({
+    entryId: uuid(n),
+    kind: 'observation',
+    text: `Note ${String(n)}`,
+    authoredBy: 'member' as const,
+    actorId: uuid(99),
+    at: '2026-09-30T18:00:00.000Z',
+  })
+  const quiet = [
+    project({ projectId: id(1), title: 'Launch plan' }),
+    project({ projectId: id(2), title: 'Research notes' }),
+    project({ projectId: id(3), title: 'Design review' }),
+  ]
+  const news = (...windows: [number, Since][]) => new Map(windows.map(([n, w]) => [id(n), w]))
+  const twoAndOne = sinceWindow({ decided: [decided(1), decided(2)], made: [made(3)] })
+
+  it('a window of two decided and one made says so: the project strong, Open Updates going to its Updates', () => {
+    const said = sophiaSays(quiet, NOW, null, true, news([1, twoAndOne]))
+    assert.equal(plain(said), 'Since you last looked: 2 decisions and a new report in Launch plan. Open Updates')
+    assert.deepEqual(
+      said.filter((s) => s.strong).map((s) => s.text),
+      ['Launch plan'],
+    )
+    assert.deepEqual(
+      said.filter((s) => s.updates !== undefined).map((s) => [s.text, s.updates]),
+      [['Open Updates', id(1)]],
+    )
+  })
+
+  it('an empty window says nothing; nor one never marked seen, which is everything so far, nor proposals and work', () => {
+    assert.deepEqual(sophiaSays(quiet, NOW, null, true, news([1, sinceWindow()])), [])
+    assert.deepEqual(sophiaSays(quiet, NOW, null, true, news([1, { ...twoAndOne, fromSequence: null }])), [])
+    const leftToUpdates = sinceWindow({
+      open: [{ proposalId: uuid(7), statement: 'Move the review to Monday?' }],
+      work: [{ taskId: uuid(8), kind: 'research', state: 'running' }],
+    })
+    assert.deepEqual(sophiaSays(quiet, NOW, null, true, news([1, leftToUpdates])), [])
+    // A window for a project Home doesn't hold has nobody to name.
+    assert.deepEqual(sophiaSays(quiet, NOW, null, true, news([9, twoAndOne])), [])
+  })
+
+  it('a window whose only lines are the reader’s says nothing: what they did is no news to them (review round 1)', () => {
+    // `noted` keeps its notes in uuid(99)'s name: they are the reader here, and decided and asked for the rest.
+    const reader = uuid(99)
+    const theirOwn = sinceWindow({
+      decided: [{ ...decided(1), proposedBy: uuid(98), decidedBy: reader }],
+      made: [{ ...made(2), askedBy: reader }],
+      noted: [noted(3)],
+    })
+    assert.deepEqual(sophiaSays(quiet, NOW, null, true, unsaid(news([1, theirOwn]), {}, reader)), [])
+  })
+
+  it('the call, a session about to start and a live room come first: it never speaks over them', () => {
+    const windows = news([1, twoAndOne])
+    assert.equal(
+      plain(sophiaSays(quiet, NOW, { title: 'Launch plan' }, true, windows)),
+      'You’re in Launch plan’s room.',
+    )
+    const soon = [...quiet, project({ projectId: id(4), title: 'Weekly standup', nextSession: session(10) })]
+    assert.equal(plain(sophiaSays(soon, NOW, null, true, windows)), 'Pitch run in Weekly standup starts in 10 min.')
+    const live = [
+      ...quiet,
+      project({ projectId: id(5), title: 'Pitch deck', room: { people: ['Davide'], sophia: true } }),
+    ]
+    assert.equal(plain(sophiaSays(live, NOW, null, true, windows)), 'Davide and Sophia are in Pitch deck.')
+    // Nothing while the projects load.
+    assert.deepEqual(sophiaSays(undefined, NOW, null, true, windows), [])
+  })
+
+  it('across projects: the counts are all of theirs, the one with the most is named, then how many more', () => {
+    const oneNote = sinceWindow({ noted: [noted(4)] })
+    assert.equal(
+      plain(sophiaSays(quiet, NOW, null, true, news([2, oneNote], [3, twoAndOne]))),
+      'Since you last looked: 2 decisions, a new report and a note kept in Design review and 1 more project. Open Updates',
+    )
+    assert.equal(
+      plain(sophiaSays(quiet, NOW, null, true, news([1, oneNote], [2, oneNote], [3, oneNote]))),
+      'Since you last looked: 3 notes kept in Launch plan and 2 more projects. Open Updates',
+    )
+    // A tie goes to Work's order: the first row.
+    assert.equal(
+      sophiaSays(quiet, NOW, null, true, news([3, oneNote], [2, oneNote])).find((s) => s.updates)?.updates,
+      id(2),
+    )
+  })
+
+  it('says one of each in words, and that more lies after a window that holds only its first part', () => {
+    const one = sinceWindow({ decided: [decided(1)], made: [made(2)], noted: [noted(3)] })
+    assert.equal(
+      plain(sophiaSays(quiet, NOW, null, true, news([1, one]))),
+      'Since you last looked: a decision, a new report and a note kept in Launch plan. Open Updates',
+    )
+    assert.equal(
+      plain(sophiaSays(quiet, NOW, null, true, news([1, { ...twoAndOne, more: true }]))),
+      'Since you last looked: 2 decisions, a new report and more in Launch plan. Open Updates',
+    )
   })
 })

@@ -348,6 +348,8 @@ function version(n: number, title: string, pilot: boolean): ArtifactVersion {
     createdAt: AT,
     renditions: [],
     limitations: [],
+    // What made it (report-origin.md): the research task, as the API serves it.
+    trigger: { kind: 'research', taskId: TASK },
     ...(pilot ? PILOT_NOTES : NOTES)[n - 1],
   }
 }
@@ -465,7 +467,8 @@ export const researchTask: NativeTaskDetail = {
   task: {
     id: TASK,
     kind: 'research',
-    goalId: '00000000-0000-4000-8000-0000000000b3',
+    // In the demo, the rollout's goal (demo-goals.ts): the report says what it was made for (report-origin.md).
+    goalId: DEMO ? '00000000-0000-4000-8000-000000009001' : '00000000-0000-4000-8000-0000000000b3',
     attemptId: '00000000-0000-4000-8000-0000000000b4',
     commandId: '00000000-0000-4000-8000-0000000000b5',
     actorId: '00000000-0000-4000-8000-0000000000a1',

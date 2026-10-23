@@ -582,7 +582,8 @@ const expectRests = async (page: Page) => {
 }
 
 test('presence · a short conversation rests on the field, not at the top of an empty room', async ({ page }) => {
-  await page.goto(PAGE)
+  // At midday: before 00:06 none of the fixture's turns is today's, and the new day's presses make the list scroll.
+  await page.goto(`${PAGE}?at=12:00`)
   await expectRests(page)
 })
 
@@ -906,7 +907,8 @@ const findCount = (page: Page) => page.locator('.c3-find-count')
 test('ease · Ctrl F finds in the conversation: each match marked, “1 of N”, Enter on, Shift Enter back, Esc gives the focus back', async ({
   page,
 }) => {
-  await page.goto(PAGE)
+  // At midday: before 00:06 the new day's presses lengthen the list, and the first match is below what shows.
+  await page.goto(`${PAGE}?at=12:00`)
   await field(page).focus()
   // Typed at once, as a person does: every letter lands in the finder, none in the message.
   await page.keyboard.press('ControlOrMeta+f')
@@ -930,6 +932,40 @@ test('ease · Ctrl F finds in the conversation: each match marked, “1 of N”,
   await expect(finder(page)).toHaveCount(0)
   await expect(marks).toHaveCount(0)
   await expect(field(page)).toBeFocused()
+})
+
+// At noon the whole talk fits, so every match is already in view: short enough here that it scrolls, read at its end.
+const findOffScreen = async (page: Page, open: () => Promise<void>) => {
+  await page.goto(`${PAGE}?at=12:00`)
+  await settled(page)
+  const list = page.locator('.msgs')
+  expect(await list.evaluate((l) => l.scrollHeight > l.clientHeight)).toBe(true)
+  // The first «keep» is yesterday's, above what shows.
+  await expect(page.locator('.msgs .msg').filter({ hasText: 'I keep putting off the deck' })).not.toBeInViewport()
+  await open()
+  await page.keyboard.type('keep')
+  await expect(findCount(page)).toHaveText(/^1 of \d+$/)
+  const current = page.locator('.msgs mark.current')
+  await expect(page.locator('.msg:has(mark.current) .body')).toContainText('I keep putting off the deck')
+  await expect(current).toBeInViewport()
+  // Stepped back round to the last, today's: it comes into sight too.
+  await page.keyboard.press('Shift+Enter')
+  await expect(page.locator('.msg:has(mark.current) .body')).toContainText('Keep it here for now')
+  await expect(current).toBeInViewport()
+}
+
+test('ease · in a talk that scrolls, the match Find is on comes into sight, above or below', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 480 })
+  await findOffScreen(page, async () => {
+    await field(page).focus()
+    await page.keyboard.press('ControlOrMeta+f')
+  })
+})
+
+test('@phone · ease · in a talk that scrolls, the match Find is on comes into sight', async ({ page }) => {
+  // A short phone, so the talk scrolls on it too.
+  await page.setViewportSize({ width: 390, height: 600 })
+  await findOffScreen(page, () => page.getByRole('button', { name: 'Find', exact: true }).click())
 })
 
 test('ease · Find from the head; a word not said says so', async ({ page }) => {
@@ -1334,16 +1370,19 @@ test('codex · a send that fails comes back beside words another tab kept meanwh
   page,
   context,
 }) => {
-  // Tab A sends slowly, and fails; it hears no other tab (their storage events haven't reached it yet).
-  await page.goto(`${PAGE}?slow=1&sendFails=1`)
+  // Tab A sends, held on its way until B has kept its words, then fails; it hears no other tab (their storage events
+  // haven't reached it yet). The hold orders the two tabs: a timed delay let A fail before B's words were checked.
+  await page.goto(`${PAGE}?holdSend=1&sendFails=1`)
   await page.evaluate(() => window.addEventListener('storage', (e) => e.stopImmediatePropagation(), true))
   await field(page).fill('From A.')
   await page.keyboard.press('Enter')
+  await page.waitForFunction(() => window.personalFixture?.releaseSend !== undefined)
   // Tab B, meanwhile: words from Home that can't go while A sends, kept in the field and on the device.
   const other = await context.newPage()
   await other.goto(`${PAGE}?handed=${encodeURIComponent('From B.')}`)
   await expect(field(other)).toHaveValue('From B.')
   // A's send fails: its words come back, and B's stay.
+  await page.evaluate(() => window.personalFixture?.releaseSend?.())
   await expect(field(page)).toHaveValue('From A.\nFrom B.', { timeout: 5000 })
   const kept = await page.evaluate(() => localStorage.getItem('sophia.personal.draft.v2.fixture') ?? '')
   expect(kept).toContain('From A.')
@@ -1550,4 +1589,19 @@ test('personal · a day divider’s day is data at the label size, as dates and 
   const day = page.locator('.places .c3-day').first()
   await expect(day).toBeVisible()
   expect(await day.evaluate((el) => getComputedStyle(el).fontSize)).toBe('10.5px')
+})
+
+// Find matches whatever the accents, as the notes' search does (docs/plans/find-accents.md), and marks the words as
+// they were written.
+test('ease · Find matches whatever the accents, and marks the words as written', async ({ page }) => {
+  await page.goto(PAGE)
+  await field(page).fill('Un café con Lucía, mañana temprano.')
+  await field(page).press('Enter')
+  await expect(page.locator('.msg.me .body').last()).toHaveText('Un café con Lucía, mañana temprano.')
+  await page.getByRole('button', { name: 'Find', exact: true }).click()
+  await finder(page).fill('cafe')
+  await expect(findCount(page)).toHaveText('1 of 1')
+  await expect(page.locator('.msgs mark.current')).toHaveText('café')
+  await finder(page).fill('MANANA')
+  await expect(page.locator('.msgs mark.current')).toHaveText('mañana')
 })

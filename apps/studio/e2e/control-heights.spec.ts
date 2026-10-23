@@ -11,7 +11,8 @@ const PAGES = [
   ['sign-in', '/signin.html', DRAWN.signin],
   ['the door', '/join.html?demo=1', DRAWN.join],
   ['home', '/home.html?demo=1', DRAWN.home],
-  ['personal', '/personal.html?demo=1', DRAWN.personal],
+  // At midday, a conversation in progress: before 00:06 nothing is said today and Personal shows the new day's presses.
+  ['personal', '/personal.html?demo=1&at=12:00', DRAWN.personal],
   ['the room', '/room.html?demo=1', DRAWN.room],
   ['the room in a call', '/room.html?demo=1&call=on&people=2&floor=1&sophia=listening', DRAWN.room.slice(0, 1)],
   ['Conversations', '/room.html?demo=1&conversations=1&place=conversations', DRAWN.conversations],
@@ -120,3 +121,21 @@ for (const [name, url, parts] of PAGES) {
     expect(off).toEqual([])
   })
 }
+
+// Personal on a new day (docs/plans/personal-new-day-scale.md): just after midnight nothing is said today, so her
+// answers are offered under her line; on a short screen the list scrolls, and the day pill shows at its end.
+test('heights · on Personal on a new day, the day pill and her answers stand on the scale too', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 500 })
+  await page.goto('/personal.html?demo=1&at=00:04')
+  await drawn(page, DRAWN.personal)
+  await expect(page.getByRole('group', { name: 'How you arrive today' }).getByRole('button')).toHaveCount(3)
+  await expect(page.locator('.c3-daypill')).toBeVisible()
+  const presses = await page.evaluate(readPresses)
+  // Both are measured, or the page would pass for nothing: the pill, and each of the three answers.
+  expect(presses.filter((p) => p.className.includes('c3-daypill'))).toHaveLength(1)
+  expect(presses.filter((p) => /^(Light today|Steady|Heavy today)/.test(p.name))).toHaveLength(3)
+  const off = presses
+    .filter((p) => !SCALE.includes(p.height))
+    .map((p) => `${String(p.height)}px .${p.className} «${p.name}»`)
+  expect(off).toEqual([])
+})

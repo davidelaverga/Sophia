@@ -23,6 +23,7 @@ import {
   fencePersonalWrite,
   forgetPersonalNote,
   keepPersonalNote,
+  nameActor,
   readPersonalEpoch,
   readPersonalExport,
   readPersonalSpace,
@@ -37,6 +38,7 @@ import {
   withActor,
 } from '@sophia/persistence'
 import { stoppedEverywhere, type CompanionRunner } from '../companion.ts'
+import { namesOf } from './profile.ts'
 import { idempotencyHeader, UUID_PATTERN } from './schemas.ts'
 
 interface Deps {
@@ -153,7 +155,8 @@ function readRoutes(app: FastifyInstance, { pool, companion }: Deps): void {
     async (req) => {
       const timeZone = req.query.timeZone ?? 'UTC'
       const space = await withActor(pool, req.actorId, 'read', (c) => readPersonalSpace(c, timeZone))
-      return { companion: companion?.mode ?? 'unavailable', ...space }
+      // Live only to whom it answers live (#435 4304290370): anyone else's own space reads as without a companion.
+      return { companion: companion?.serves(req.actorId) ? companion.mode : 'unavailable', ...space }
     },
   )
 
@@ -234,7 +237,9 @@ function conversationRoutes(app: FastifyInstance, { pool, companion }: Deps): vo
     { schema: writeSchema(null, 'PersonalMessage') },
     async (req, reply) => {
       const key = req.headers['idempotency-key']
-      if (!companion)
+      // Nobody but the payer's enrolled owner is answered live (#435 4304103151): for anyone else, as where no companion
+      // runs, a new message is refused before anything is kept, and a retry gets the receipt its key keeps.
+      if (!companion?.serves(req.actorId))
         return reply.status(202).send(await replayed(pool, req, (c) => replayPersonalTurn(c, key, req.body.text)))
       const receipt = await fenced(pool, req.actorId, req.headers, (c) => sendPersonalTurn(c, key, req.body.text))
       if (receipt.turnId) void companion.answer(req.actorId, receipt.turnId)
@@ -249,7 +254,8 @@ function conversationRoutes(app: FastifyInstance, { pool, companion }: Deps): vo
     async (req, reply) => {
       const { headers } = req
       const name = req.body.name?.trim() || null
-      if (!companion) {
+      // A welcome is the companion's: whom it doesn't answer live gets only the receipt their key keeps (#435 4304290370).
+      if (!companion?.serves(req.actorId)) {
         return reply
           .status(202)
           .send(await replayed(pool, req, (c) => replayPersonalGreeting(c, headers['idempotency-key'], name)))
@@ -265,7 +271,7 @@ function conversationRoutes(app: FastifyInstance, { pool, companion }: Deps): vo
     async (req, reply) => {
       const key = req.headers['idempotency-key']
       const { turnId } = req.params
-      if (!companion)
+      if (!companion?.serves(req.actorId))
         return reply.status(202).send(await replayed(pool, req, (c) => replayPersonalRetry(c, key, turnId)))
       const receipt = await fenced(pool, req.actorId, req.headers, (c) => retryPersonalTurn(c, key, turnId))
       void companion.answer(req.actorId, turnId)
@@ -310,14 +316,21 @@ function noteRoutes(app: FastifyInstance, { pool }: Deps): void {
 }
 
 function crossingRoutes(app: FastifyInstance, { pool, companion }: Deps): void {
-  // A carried note is attributed to the name the person shows (their token's), never to an id or to request input.
+  // A carried note is attributed to the person's display name (0062), never to their address, an id or request input;
+  // the project's readers show their current one.
   app.post<{ Params: { noteId: string }; Headers: Fenced; Body: PersonalCarryRequest }>(
     '/api/v1/personal/notes/:noteId/carry',
     { schema: writeSchema(idParams('noteId'), 'PersonalCarryRequest') },
     async (req, reply) => {
       const { noteId } = req.params
-      const receipt = await fenced(pool, req.actorId, req.headers, (c) =>
-        carryPersonalNote(c, req.headers['idempotency-key'], noteId, req.body.projectId, req.actorName),
+      const receipt = await fenced(pool, req.actorId, req.headers, async (c) =>
+        carryPersonalNote(
+          c,
+          req.headers['idempotency-key'],
+          noteId,
+          req.body.projectId,
+          await nameActor(c, namesOf(req)),
+        ),
       )
       return reply.status(202).send(receipt)
     },

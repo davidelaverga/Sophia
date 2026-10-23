@@ -31,11 +31,13 @@ import { NeedsYou } from './NeedsYou.tsx'
 /** Now on the service's clock: the needs' expiries compare on it (A15's `readAt`), not on the browser's. */
 const onService = (now: Date, skew = 0): Date => (skew === 0 ? now : new Date(now.getTime() + skew))
 import {
+  homeLine,
   homeNextAsk,
   homeRows,
   notesLabel,
   rowNote,
   type HomeAction,
+  type HomeLine,
   type HomeRow,
   type Said,
   type YouDoor,
@@ -63,6 +65,12 @@ interface Props {
   count: string
   /** The personal space is locked: your row unlocks it, and there is no line. */
   locked: boolean
+  /**
+   * Sophia answers in the personal space (the API's `companion`): the line to her where she does; where she doesn't,
+   * that she can't yet and a note instead; undefined until the space is read, the line's place held
+   * (docs/plans/home-no-companion.md).
+   */
+  answers: boolean | undefined
   /** Home is out of sight (another place is): the microphone stops and her light stops following. */
   hidden: boolean
   /** Home is the place arrived at (not only on screen while a move runs): a visit ends when it is not. */
@@ -85,6 +93,8 @@ interface Props {
     room: (projectId: string, action: HomeAction) => void
     /** Hands the words to Sophia's conversation, which opens and sends them as its own. */
     say: (text: string) => void
+    /** Opens a project at Updates: what changed there since you last looked. */
+    updates: (projectId: string) => void
   }
 }
 
@@ -127,7 +137,23 @@ function usePointerIn(box: RefObject<HTMLDivElement | null>, hidden: boolean) {
   return at
 }
 
-function Greeting({ hello, name, date, says }: Pick<Props, 'hello' | 'name' | 'date' | 'says'>) {
+/** A piece of her sentence: the project's name strong, Open Updates a press to that project's Updates. */
+function Piece({ said, onUpdates }: { said: Said; onUpdates: (projectId: string) => void }) {
+  const { updates } = said
+  if (updates)
+    return (
+      <button className="text-button" type="button" onClick={() => onUpdates(updates)}>
+        {said.text}
+      </button>
+    )
+  return said.strong ? <strong>{said.text}</strong> : <span>{said.text}</span>
+}
+
+function Greeting({ hello, name, date, says, actions }: Pick<Props, 'hello' | 'name' | 'date' | 'says' | 'actions'>) {
+  const words = says.map((s, i) => <Piece key={i} said={s} onUpdates={actions.updates} />)
+  // What changed since you last looked is news: the others are where things stand, and a countdown said every minute
+  // would be noise (docs/plans/home-since-you-looked.md).
+  const news = says.some((s) => s.updates !== undefined)
   return (
     <header className="hw-head">
       <p className="hw-date">{date}</p>
@@ -141,11 +167,13 @@ function Greeting({ hello, name, date, says }: Pick<Props, 'hello' | 'name' | 'd
           <span>{hello}.</span>
         )}
       </h2>
-      {says.length > 0 && (
-        <p className="hw-says">
-          {says.map((s, i) => (s.strong ? <strong key={i}>{s.text}</strong> : <span key={i}>{s.text}</span>))}
-        </p>
-      )}
+      {says.length > 0 && !news && <p className="hw-says">{words}</p>}
+      {/* Mounted all along, so news is announced as it comes, never taking the focus. With nothing to say it holds her
+          sentence's place, so nothing below moves when one comes or goes with Home open (home-no-false-claim.md);
+          beside another sentence it is empty, 0 px high. */}
+      <p className={news ? 'hw-says' : says.length > 0 ? undefined : 'hw-says-held'} role="status">
+        {news && words}
+      </p>
     </header>
   )
 }
@@ -384,8 +412,25 @@ function SayLine({ actions, onTalk, line, hidden, here, next }: LineProps) {
   )
 }
 
+/** The line's place in You (homeLine): the line, that she can't answer yet with a note instead, or the place held. */
+function LineSlot({ shows, ...say }: LineProps & { shows: HomeLine | null }) {
+  if (shows === 'line') return <SayLine {...say} />
+  if (shows === 'cannot')
+    return (
+      <p className="hw-off">
+        <span>Sophia can’t answer here yet</span>
+        <span aria-hidden>·</span>
+        <button className="text-button" type="button" onClick={say.actions.notes}>
+          Write a note
+        </button>
+      </p>
+    )
+  return shows === 'held' ? <div className="hw-held" aria-hidden /> : null
+}
+
 /** You and Sophia, private: where you left off (or the padlock), your notes, and the line to her: alone on a first visit. */
-function You({ you, locked, actions, onTalk, line, hidden, here, next }: Pick<Props, 'you' | 'locked'> & LineProps) {
+function You(props: Pick<Props, 'you' | 'locked' | 'answers'> & LineProps) {
+  const { you, locked, answers, actions, onTalk, line, hidden, here, next } = props
   return (
     <section className="hw-section hw-you" aria-labelledby="hw-you-h">
       {/* Your notes in the head, as Personal's head carries them (docs/plans/home-first-glance.md). */}
@@ -415,7 +460,7 @@ function You({ you, locked, actions, onTalk, line, hidden, here, next }: Pick<Pr
           </li>
         </ol>
       )}
-      {!locked && <SayLine {...{ actions, onTalk, line, hidden, here, next }} />}
+      <LineSlot shows={homeLine(locked, answers)} {...{ actions, onTalk, line, hidden, here, next }} />
     </section>
   )
 }
@@ -505,19 +550,58 @@ function Light({
 /** Home's one column (personal.css, ≤ 860 px): there what needs you comes right after the greeting. */
 const ONE_COLUMN = '(max-width: 860px)'
 
+/** «What needs you», wherever it is mounted. */
+const NEEDS = '[aria-label="What needs you"]'
+
+/** Kept while the list's own heading has the focus: no need's id is empty, so it never names a need. */
+const HEADING = ''
+
+/**
+ * The focus kept on a need when the list moves across 860 px (home-needs-focus.md; Codex P2 on #289): which need had
+ * it is remembered by its id, forgotten once the focus goes elsewhere, and that need takes it again after the move if
+ * the focus fell to the page. By the need, not its place: the list is read again every 20 s, and a need may come ahead
+ * or leave (Codex P2 on #377). One that left is not stood in for by another need: the list's heading takes the focus
+ * instead of the page, and keeps it across the next move as a need would (Codex P2 on #442).
+ */
+function useNeedsFocus(home: RefObject<HTMLDivElement | null>, oneColumn: boolean) {
+  const kept = useRef<string | null>(null)
+  useEffect(() => {
+    const el = home.current
+    const onFocus = (e: FocusEvent) => {
+      const target = e.target instanceof Element ? e.target : null
+      const need = target?.closest<HTMLElement>('[data-need]')?.dataset.need ?? HEADING
+      kept.current = target?.closest(NEEDS) ? need : null
+    }
+    el?.addEventListener('focusin', onFocus)
+    return () => el?.removeEventListener('focusin', onFocus)
+  }, [home])
+  useLayoutEffect(() => {
+    const need = kept.current
+    const fell = document.activeElement === null || document.activeElement === document.body
+    if (need === null || !fell) return
+    const list = home.current?.querySelector(NEEDS)
+    const rows = [...(list?.querySelectorAll<HTMLElement>('[data-need]') ?? [])]
+    // By the dataset, so an id such as permission:wait-w1 needs no escaping in a selector.
+    const row = rows.find((r) => r.dataset.need === need)
+    ;(row ?? list?.querySelector<HTMLElement>('#hw-needs-h'))?.focus()
+  }, [home, oneColumn])
+}
+
 export function Welcome(props: Props) {
   const [talk, setTalk] = useState<Talk>({ writing: false })
   const line = useRef<HTMLElement | null>(null)
   // Mounted where it is read: on one column right after the greeting, in the document as on the screen, so a keyboard
   // and a screen reader meet it where the eye does (docs/plans/home-phone-needs.md); beside the words otherwise.
   const oneColumn = useMedia(ONE_COLUMN)
+  const home = useRef<HTMLDivElement>(null)
+  useNeedsFocus(home, oneColumn)
   const needs = props.needs && (
     <NeedsYou needs={props.needs.items} now={onService(props.now, props.needs.skew)} onOpen={props.needs.open} />
   )
   return (
-    <div className="hw">
+    <div className="hw" ref={home}>
       <div className="hw-col">
-        <Greeting hello={props.hello} name={props.name} date={props.date} says={props.says} />
+        <Greeting hello={props.hello} name={props.name} date={props.date} says={props.says} actions={props.actions} />
         {props.invited}
         {needs && oneColumn && (
           <aside className="hw-needs-here" aria-label="What needs you">
@@ -528,6 +612,7 @@ export function Welcome(props: Props) {
         <You
           you={props.you}
           locked={props.locked}
+          answers={props.answers}
           actions={props.actions}
           onTalk={setTalk}
           line={line}

@@ -1,18 +1,22 @@
 // Tasks with the board Sophia serves (WBC-02 G5): each goal's plan from the project's work board, read by the board's
 // own reader (board-view.ts) and shown with the goal it serves, and the source-review pilot's entry under a goal. The
-// board is read again whenever the project's feed applies an event, and every half minute; a board the reader refuses
-// is not shown (Tasks shows the goals alone, as before). Its ports are Sophia's (served.ts): nothing here reaches
-// Paperclip, and nothing derives a grant: each action is as the board's view allows it to the viewer.
+// board is read again whenever the project's feed applies an event, and every half minute; a board the reader refuses,
+// or another project's, is a failed read (Tasks says so with Try again). Its ports are Sophia's (served.ts): nothing
+// here reaches Paperclip, and nothing derives a grant: each action is as the board's view allows it to the viewer.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { Goal } from '@sophia/contracts'
+import type { Goal, ProjectMember } from '@sophia/contracts'
+import { ApiError, getProjectMembers } from '../../../api/client.ts'
 import { answerDecision, commandWork, operationReceipt, readBoard, workResult } from '../../../api/work.ts'
+import { retryRead } from '../../../app/account-cache.ts'
 import { tokenSubject } from '../../../app/auth-callback.ts'
 import type { Identity } from '../../../app/dev-identity.ts'
 import type { Feed } from '../../../projectors/projection.ts'
 import type { Resource } from '../../resources/resource.ts'
 import type { GoalPlan } from '../GoalList.tsx'
+import { boardPeople, viewerOf } from './board-people.ts'
 import { readBoardView, type BoardView } from './board-view.ts'
+import { openDecisions } from './decision-alert.ts'
 import { Decision, type Decide } from './Decision.tsx'
 import { PlanBoard } from './PlanBoard.tsx'
 import { PlanNext } from './PlanNext.tsx'
@@ -42,11 +46,39 @@ function useMinute(): Date {
   return now
 }
 
-/** The project's board as served and read, or null while none can be shown; and whether its first read is under way. */
+/** The board's reader refused a reply that was read (servedBoard), as against one that couldn't be read at all. */
+class BoardRefused extends Error {}
+
+/**
+ * The served board as its reader accepts it, and only this project's: anything else throws, so the read fails as a reply
+ * that breaks its contract does (callApi's `contract_violation`), never a success with nothing to show (silent-views.md).
+ */
+const servedBoard =
+  (projectId: string) =>
+  (value: unknown): BoardView => {
+    const read = readBoardView(value)
+    if (!read.ok) throw new BoardRefused(read.problems.join('; '))
+    if (read.value.project_id !== projectId) throw new BoardRefused('$.project_id: another project’s board')
+    return read.value
+  }
+
+/**
+ * How the board is asked again: as any read, except after its reader's refusal, which asking at once won't change (the
+ * next look, a move of the project or Try again asks once more). A reply that isn't JSON may heal: still retried.
+ */
+const retryBoard = (failures: number, error: unknown): boolean =>
+  !(error instanceof ApiError && error.cause instanceof BoardRefused) && retryRead(failures, error)
+
+/**
+ * The project's board as served and read, or null while none can be shown; whether its first read is under way, and
+ * whether it failed with nothing read, refused by its reader included (a board read once stays through a later failure:
+ * the query keeps its data).
+ */
 function useBoard(projectId: string, identity: Identity, feed: Feed | null, enabled: boolean) {
   const board = useQuery({
     queryKey: boardKey(projectId, identity.name),
-    queryFn: ({ signal }) => readBoard(identity.token, projectId, signal),
+    queryFn: ({ signal }) => readBoard(identity.token, projectId, servedBoard(projectId), signal),
+    retry: retryBoard,
     refetchInterval: 30_000,
     refetchOnWindowFocus: false,
     enabled,
@@ -56,12 +88,13 @@ function useBoard(projectId: string, identity: Identity, feed: Feed | null, enab
   useEffect(() => {
     if (cue !== null && enabled) void refetch()
   }, [cue, refetch, enabled])
-  const view = useMemo(() => {
-    if (board.data === undefined) return null
-    const read = readBoardView(board.data)
-    return read.ok && read.value.project_id === projectId ? read.value : null
-  }, [board.data, projectId])
-  return { view, reading: enabled && board.data === undefined && !board.isError }
+  const unread = enabled && board.data === undefined
+  return {
+    view: board.data ?? null,
+    reading: unread && !board.isError,
+    failed: unread && board.isError,
+    retry: () => void refetch(),
+  }
 }
 
 interface Shared {
@@ -110,6 +143,7 @@ function slotOf(goal: GoalView, { board, people, viewerId, now, ports }: Shared)
     ...glancedOf(goal, rows, shown?.operable ?? false, viewerId, now),
     decisions: goal.decisions.map((d) => d.decision_id),
     attention: (shown?.operable ?? false) && forYou(rows, goal.decisions, viewerId, now),
+    toDecide: openDecisions(goal.decisions, viewerId, now),
   }
 }
 
@@ -120,6 +154,10 @@ export interface ServedWork {
   entry: ((goal: Goal) => React.ReactNode) | undefined
   /** The board's first read is under way: its tasks may still come (search-honest.md). */
   boardReading: boolean
+  /** The board's reads failed with none read: its plans can't be shown, which is not «no plan» (silent-views.md). */
+  boardFailed: boolean
+  /** Reads the board again (Try again). */
+  retryBoard: () => void
 }
 
 export interface ServedFor {
@@ -132,12 +170,21 @@ export interface ServedFor {
   enabled: boolean
 }
 
-/** The viewer as the board names them; nobody else's name is known here, so others read as "someone". */
-function peopleOf(identity: Identity, viewerId: string | null): Record<string, Person> {
-  if (!viewerId) return {}
-  return {
-    [viewerId]: { id: viewerId, name: identity.displayName ?? identity.name, avatarUrl: identity.avatarUrl ?? null },
-  }
+const NO_MEMBERS: readonly ProjectMember[] = []
+
+/**
+ * The project's members, to name the board's people (board-people.ts): the board's own `enabled`, so a page that brings
+ * its plans or a closed door reads nothing. The key is Goals' (GoalTargets.tsx `useMembers`), which InProject.tsx
+ * invalidates after a removal or a role change: one read names both views.
+ */
+function useMembersNamed(projectId: string, identity: Identity, enabled: boolean): readonly ProjectMember[] {
+  const read = useQuery({
+    queryKey: ['members', projectId, identity.name],
+    queryFn: () => getProjectMembers(identity.token, projectId),
+    staleTime: 60_000,
+    enabled,
+  })
+  return read.data?.members ?? NO_MEMBERS
 }
 
 /**
@@ -184,12 +231,14 @@ function Recorded({
 
 /** Tasks' plans and pilot entry from the board Sophia serves for this project, as this viewer sees it. */
 export function useServedWork({ projectId, identity, feed, canAct, enabled }: ServedFor): ServedWork {
-  const { view: board, reading: boardReading } = useBoard(projectId, identity, feed, enabled)
+  const read = useBoard(projectId, identity, feed, enabled)
+  const board = read.view
   const now = useMinute()
   const queryClient = useQueryClient()
   const viewerId = tokenSubject(identity.token) ?? null
   const ports = useMemo(() => portsOf(identity.token, projectId), [identity.token, projectId])
-  const people = useMemo(() => peopleOf(identity, viewerId), [identity, viewerId])
+  const members = useMembersNamed(projectId, identity, enabled)
+  const people = useMemo(() => boardPeople(viewerOf(identity, viewerId), members), [identity, viewerId, members])
   const plans = useMemo(() => {
     if (!board) return undefined
     const shared: Shared = { board, people, viewerId, now, ports }
@@ -226,5 +275,5 @@ export function useServedWork({ projectId, identity, feed, canAct, enabled }: Se
           )
         }
       : undefined
-  return { plans, entry, boardReading }
+  return { plans, entry, boardReading: read.reading, boardFailed: read.failed, retryBoard: read.retry }
 }

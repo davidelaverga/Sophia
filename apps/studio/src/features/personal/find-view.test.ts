@@ -37,6 +37,43 @@ describe('finding in the conversation (personal-moments.md §3)', () => {
     ])
   })
 
+  it('folds case as Unicode does: a final sigma, a long s, a sharp s (Codex P2 on #406)', () => {
+    assert.deepEqual(pieces('ΟΣ', 'ος'), [{ text: 'ΟΣ', n: 0 }])
+    assert.deepEqual(pieces('Die ſtraße', 'STRASSE'), [
+      { text: 'Die ', n: null },
+      { text: 'ſtraße', n: 0 },
+    ])
+  })
+
+  it('finds capital sharp S by ss or ß, and ß by it (Codex P2 on #433)', () => {
+    assert.deepEqual(pieces('ẞ', 'ss'), [{ text: 'ẞ', n: 0 }])
+    assert.deepEqual(pieces('STRAẞE', 'straße'), [{ text: 'STRAẞE', n: 0 }])
+    assert.deepEqual(pieces('Die Straße', 'ẞ'), [
+      { text: 'Die Stra', n: null },
+      { text: 'ß', n: 0 },
+      { text: 'e', n: null },
+    ])
+  })
+
+  it('finds a standalone mark as written, and never matches across one (Codex P2 on #406)', () => {
+    assert.deepEqual(pieces('2^8 and `x`', '^'), [
+      { text: '2', n: null },
+      { text: '^', n: 0 },
+      { text: '8 and `x`', n: null },
+    ])
+    assert.deepEqual(pieces('a^b', 'ab'), [{ text: 'a^b', n: null }])
+    // An accent on its letter still folds away.
+    assert.deepEqual(pieces('Café', 'cafe'), [{ text: 'Café', n: 0 }])
+  })
+
+  it('marks a character once even when its decomposition repeats what is sought (Codex P2 on #406)', () => {
+    // U+113C5 decomposes to U+113C2 twice: one character, one match.
+    assert.equal(
+      pieces('\u{113C5}', '\u{113C2}').filter((p) => p.n !== null).length,
+      '\u{113C5}'.normalize('NFD') === '\u{113C2}\u{113C2}' ? 1 : 0,
+    )
+  })
+
   it('finds every match in the turns, in reading order, and nothing in the days', () => {
     const rows: Row[] = [
       { kind: 'day', key: 'day-1', label: 'Keep', note: null },
@@ -49,5 +86,32 @@ describe('finding in the conversation (personal-moments.md §3)', () => {
       { key: 'b', n: 1 },
     ])
     assert.deepEqual(foundIn(rows, ''), [])
+  })
+})
+
+describe('finding whatever the accents (find-accents.md)', () => {
+  it('matches as the notes’ search does: no case, no accents, the words cut as written', () => {
+    assert.deepEqual(pieces('Un café y una mañana', 'cafe'), [
+      { text: 'Un ', n: null },
+      { text: 'café', n: 0 },
+      { text: ' y una mañana', n: null },
+    ])
+    assert.deepEqual(pieces('Un cafe', 'café'), [
+      { text: 'Un ', n: null },
+      { text: 'cafe', n: 0 },
+    ])
+    assert.deepEqual(pieces('MAÑANA temprano', 'manana'), [
+      { text: 'MAÑANA', n: 0 },
+      { text: ' temprano', n: null },
+    ])
+  })
+
+  it('keeps an accent typed as its own mark with its letter', () => {
+    assert.deepEqual(pieces('Un café aquí', 'cafe'), [
+      { text: 'Un ', n: null },
+      { text: 'café', n: 0 },
+      { text: ' aquí', n: null },
+    ])
+    assert.deepEqual(foundIn([said('a', 'Café o te')], 'CAFÉ'), [{ key: 'a', n: 0 }])
   })
 })

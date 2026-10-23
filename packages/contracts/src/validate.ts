@@ -5,6 +5,8 @@
 // no Ajv compiler and no eval at runtime. A body that breaks the contract throws; it is never cast.
 import type { ErrorObject, ValidateFunction } from 'ajv'
 import {
+  validateContributionActPreview,
+  validateContributionActReceipt,
   validateContributionReceipt,
   validateCursorAdvance,
   validateError,
@@ -40,6 +42,7 @@ import {
   validatePersonalTurnPage,
   validateProjectCreated,
   validateProjectRenamed,
+  validateProjectArchived,
   validateProjectLeft,
   validateDiscussionPage,
   validateGoalTargetList,
@@ -47,18 +50,31 @@ import {
   validateProjectMembers,
   validateInvitablePeople,
   validateMemberRoleSet,
+  validateActivityPage,
+  validateMemberRemoved,
+  validateProfile,
+  validateProjectUpdates,
   validateProjectList,
   validateWorkBoardView,
   validateWorkReceipt,
   validateWorkResult,
   validateSourceReviewProposal,
   validateSourceReviewAvailability,
+  validateConversationList,
+  validateConversationMessagePage,
+  validateConversationStarted,
+  validateConversationMessageSent,
+  validateConversationWithdrawal,
+  validateConversationErasure,
   validateDesignEditReceipt,
   validateReceipt,
   validateRoomSession,
   validateRoomToken,
   validateSnapshot,
   validateNeedList,
+  validateSearchPage,
+  validateProjectTask,
+  validateProjectTaskList,
 } from './generated/validators.js'
 import type { CursorAdvance, Error as ErrorBody, Event } from './generated-types.ts'
 
@@ -89,6 +105,7 @@ export const parseSnapshot = parser('Snapshot', validateSnapshot)
 export const parseReceipt = parser('Receipt', validateReceipt)
 export const parseProjectCreated = parser('ProjectCreated', validateProjectCreated)
 export const parseProjectRenamed = parser('ProjectRenamed', validateProjectRenamed)
+export const parseProjectArchived = parser('ProjectArchived', validateProjectArchived)
 export const parseProjectLeft = parser('ProjectLeft', validateProjectLeft)
 export const parseDiscussionPage = parser('DiscussionPage', validateDiscussionPage)
 export const parseGoalTargetList = parser('GoalTargetList', validateGoalTargetList)
@@ -96,6 +113,10 @@ export const parseGoalTargetSet = parser('GoalTargetSet', validateGoalTargetSet)
 export const parseProjectMembers = parser('ProjectMembers', validateProjectMembers)
 export const parseInvitablePeople = parser('InvitablePeople', validateInvitablePeople)
 export const parseMemberRoleSet = parser('MemberRoleSet', validateMemberRoleSet)
+export const parseActivityPage = parser('ActivityPage', validateActivityPage)
+export const parseMemberRemoved = parser('MemberRemoved', validateMemberRemoved)
+export const parseProfile = parser('Profile', validateProfile)
+export const parseProjectUpdates = parser('ProjectUpdates', validateProjectUpdates)
 export const parseEvent = parser('Event', validateEvent)
 export const parseCursorAdvance = parser('CursorAdvance', validateCursorAdvance)
 export const parseRoomToken = parser('RoomToken', validateRoomToken)
@@ -109,6 +130,8 @@ export const parseLobbyEntry = parser('LobbyEntry', validateLobbyEntry)
 export const parseRoomSession = parser('RoomSession', validateRoomSession)
 export const parseMembership = parser('Membership', validateMembership)
 export const parseContributionReceipt = parser('ContributionReceipt', validateContributionReceipt)
+export const parseContributionActPreview = parser('ContributionActPreview', validateContributionActPreview)
+export const parseContributionActReceipt = parser('ContributionActReceipt', validateContributionActReceipt)
 export const parseNativeTaskReceipt = parser('NativeTaskReceipt', validateNativeTaskReceipt)
 export const parseNativeTaskDetail = parser('NativeTaskDetail', validateNativeTaskDetail)
 export const parseExchangeState = parser('ExchangeState', validateExchangeState)
@@ -132,11 +155,20 @@ export const parsePersonalExport = parser('PersonalExport', validatePersonalExpo
 export const parsePersonalReceipt = parser('PersonalReceipt', validatePersonalReceipt)
 export const parseProjectList = parser('ProjectList', validateProjectList)
 export const parseNeedList = parser('NeedList', validateNeedList)
+export const parseSearchPage = parser('SearchPage', validateSearchPage)
+export const parseProjectTask = parser('ProjectTask', validateProjectTask)
+export const parseProjectTaskList = parser('ProjectTaskList', validateProjectTaskList)
 export const parseWorkBoardView = parser('WorkBoardView', validateWorkBoardView)
 export const parseWorkReceipt = parser('WorkReceipt', validateWorkReceipt)
 export const parseWorkResult = parser('WorkResult', validateWorkResult)
 export const parseSourceReviewProposal = parser('SourceReviewProposal', validateSourceReviewProposal)
 export const parseSourceReviewAvailability = parser('SourceReviewAvailability', validateSourceReviewAvailability)
+export const parseConversationList = parser('ConversationList', validateConversationList)
+export const parseConversationMessagePage = parser('ConversationMessagePage', validateConversationMessagePage)
+export const parseConversationStarted = parser('ConversationStarted', validateConversationStarted)
+export const parseConversationMessageSent = parser('ConversationMessageSent', validateConversationMessageSent)
+export const parseConversationWithdrawal = parser('ConversationWithdrawal', validateConversationWithdrawal)
+export const parseConversationErasure = parser('ConversationErasure', validateConversationErasure)
 export const parseDesignEditReceipt = parser('DesignEditReceipt', validateDesignEditReceipt)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */

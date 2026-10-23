@@ -10,6 +10,7 @@ import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { useMounted } from '../../app/useMounted.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { AdmissionNote } from '../access/AdmissionNote.tsx'
+import type { ArchivedWork } from '../studio/Archive.tsx'
 import { shortName } from '../voice/room-view.ts'
 import {
   CARD_ACTION,
@@ -22,7 +23,7 @@ import {
   type LockedBy,
   type ProjectOrder,
 } from './places-view.ts'
-import { ReadNotes, type Read } from './ReadNotes.tsx'
+import { FailedReads, ReadNotes, type Read } from './ReadNotes.tsx'
 import { useCapped } from './useCapped.ts'
 import { useNow } from '../../app/use-now.ts'
 
@@ -52,6 +53,8 @@ interface Props {
   }
   /** The invitations waiting for the person (InvitedBand, A16): at the head of the list; nothing when none waits. */
   invited?: ReactNode
+  /** The person's archived projects (A30), folded after the list, and how an admin brings one back (useArchivedWork). */
+  archived?: ArchivedWork
 }
 
 function Edge({ lock, onCross }: { lock: LockedBy | null; onCross: () => void }) {
@@ -294,13 +297,82 @@ function NoneFound({ typed, onClear }: { typed: string; onClear: () => void }) {
   )
 }
 
+/**
+ * One archived project: it opens, and an admin brings it back. Its Unarchive waits while it goes («Bringing back…»),
+ * and a failure is said under the row until the next press, as a removal's is in «In this project».
+ */
+function ArchivedRow({
+  project,
+  archived,
+  onOpen,
+}: {
+  project: ProjectSummary
+  archived: ArchivedWork
+  onOpen: (projectId: string) => void
+}) {
+  const { sending, failed } = archived.unarchiving(project.projectId)
+  return (
+    <li>
+      <button type="button" className="text-button" onClick={() => onOpen(project.projectId)}>
+        {project.title}
+      </button>
+      {project.role === 'admin' && (
+        <button
+          type="button"
+          className="ghost"
+          aria-disabled={sending || undefined}
+          onClick={() => archived.onUnarchive(project.projectId)}
+        >
+          {sending ? 'Bringing back…' : 'Unarchive'}
+        </button>
+      )}
+      {failed && (
+        <p className="form-error" role="alert">
+          {failed}
+        </p>
+      )}
+    </li>
+  )
+}
+
+/**
+ * «Archived (n)» after the list (archive-project.md): folded, as a finished project should be; each opens, and an admin
+ * brings one back. Nothing while none is archived; a read that failed says so in its place, with Try again.
+ */
+function ArchivedFold({ archived, onOpen }: { archived: Props['archived']; onOpen: (projectId: string) => void }) {
+  const [open, setOpen] = useState(false)
+  if (!archived) return null
+  if (archived.read.state === 'failed') return <FailedReads reads={[archived.read]} />
+  const projects = archived.projects ?? []
+  if (projects.length === 0) return null
+  return (
+    <section className="c3-archived" aria-label="Archived projects">
+      <button
+        type="button"
+        className="text-button c3-archived-fold"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        {`Archived (${String(projects.length)})`}
+      </button>
+      {open && (
+        <ul className="c3-archived-list">
+          {projects.map((p) => (
+            <ArchivedRow key={p.projectId} project={p} archived={archived} onOpen={onOpen} />
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
 export function WorkSpace(props: Props) {
   const { token, projects, newProject, personalLock, actions } = props
   const now = useNow(20_000)
   const finder = useFinder(projects, now)
   const list = finder.list
   return (
-    <section className="c3-space job" data-place-view="work" hidden={props.hidden} aria-labelledby="c-w-h">
+    <section className="c3-space job" data-place-view="work" data-content hidden={props.hidden} aria-labelledby="c-w-h">
       <Edge lock={personalLock} onCross={actions.cross} />
       <header className="c3-head">
         <h2 id="c-w-h" tabIndex={-1}>
@@ -341,6 +413,7 @@ export function WorkSpace(props: Props) {
         {list.map((p) => (
           <Card key={p.projectId} project={p} props={props} now={now} />
         ))}
+        <ArchivedFold archived={props.archived} onOpen={actions.open} />
       </div>
     </section>
   )

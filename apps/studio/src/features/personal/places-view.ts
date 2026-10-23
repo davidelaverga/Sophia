@@ -7,6 +7,9 @@ import { shortName } from '../voice/room-view.ts'
 import type { Way } from './arrive.ts'
 import { dayLabel, topicOf } from './conversation-view.ts'
 import { clock, dayInSentence, inTime } from '../../app/time-words.ts'
+import { foldForSearch } from '../../app/search-fold.ts'
+import type { Since } from '../../api/vision.ts'
+import { newsOf, newsWords, type News } from '../updates/since-said.ts'
 
 const MINUTE = 60_000
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
@@ -37,6 +40,7 @@ export const READ_FAILED = {
   personal: 'Couldn’t load your personal space.',
   projects: 'Couldn’t load your projects.',
   needs: 'Couldn’t read what needs you.',
+  archived: 'Couldn’t load your archived projects.',
 } as const
 
 /** The first visit's one sentence about the line between the doors. */
@@ -302,17 +306,24 @@ export function workOrder(projects: readonly ProjectSummary[], now: Date): Proje
 /** From how many projects Work offers finding one and ordering them (find-projects.md). */
 export const FIND_FROM = 6
 
-/** A title as a search compares it: no case, no accents. */
-const plain = (text: string) =>
-  text
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
+/** A title as a search compares it: no case, no accents, as every search folds (search-fold.ts). */
+const plain = foldForSearch
 
 /** The notes whose words hold what is typed, whatever its case or accents, in their order (personal-notes-write-find.md). */
 export function findNotes<T extends { text: string }>(notes: readonly T[], typed: string): T[] {
   const wanted = plain(typed.trim())
   return wanted ? notes.filter((n) => plain(n.text).includes(wanted)) : [...notes]
+}
+
+/**
+ * The note that takes the focus once one is forgotten: the nearest after it in the order chosen (`ordered`, ids) among
+ * those shown once it is gone, else the nearest before it; null when none is shown. Shown after, not before: forgetting
+ * one of six takes Find away, and every note is shown again (Codex P2 on #431).
+ */
+export function nextShown(ordered: readonly string[], gone: string, shown: readonly string[]): string | null {
+  const at = ordered.indexOf(gone)
+  const isShown = (id: string) => shown.includes(id)
+  return ordered.slice(at + 1).find(isShown) ?? ordered.slice(0, at).findLast(isShown) ?? null
 }
 
 /** The projects whose title holds what is typed, whatever its case or accents; all of them for nothing typed. */
@@ -381,6 +392,12 @@ export function projectCard(project: ProjectSummary, now: Date, inCallHere: bool
 /** How many projects Home offers, one press each: the ones Work shows first, which the opening warmed. */
 export const HOME_ROWS = 3
 
+/** The projects Home shows, by id: Work's first ones, in Work's order. */
+export const homeShown = (projects: readonly ProjectSummary[], now: Date): string[] =>
+  workOrder(projects, now)
+    .slice(0, HOME_ROWS)
+    .map((p) => p.projectId)
+
 /**
  * A row's one press on Home: open the project, join its room, or, for the call you are in, go back to it. Leaving
  * stays with the bar's room pill: a press on your own project never hangs up.
@@ -432,21 +449,80 @@ export function homeRows(
 export interface Said {
   text: string
   strong?: boolean
+  /** A press that opens this project at Updates (what changed since you last looked). */
+  updates?: string
 }
+
+/** What Home shows for the line to Sophia (docs/plans/home-no-companion.md). */
+export type HomeLine = 'line' | 'cannot' | 'held'
+
+/**
+ * Nothing while the space is locked (your row unlocks it); the line where she answers; where the API says she can't,
+ * that, and a note instead; while that is unknown, the line's place held, so nothing below moves when it is.
+ */
+export function homeLine(locked: boolean, answers: boolean | undefined): HomeLine | null {
+  if (locked) return null
+  if (answers === undefined) return 'held'
+  return answers ? 'line' : 'cannot'
+}
+
+const NO_NEWS: ReadonlyMap<string, Since> = new Map()
 
 /**
  * The one thing that matters now, in Sophia's words, under the greeting: the call you are in, else a session about to
- * start, else people in a room, else that all is as you left it. Nothing while the projects load.
+ * start, else people in a room, else what changed since you last looked in the projects Home shows (`news`, their A34
+ * windows not said yet: home-since-you-looked.md), else nothing: she never says that nothing changed
+ * (home-no-false-claim.md). Nothing while the projects load either.
  */
 export function sophiaSays(
   projects: readonly ProjectSummary[] | undefined,
   now: Date,
   call: { title: string } | null,
+  answers = true,
+  news: ReadonlyMap<string, Since> = NO_NEWS,
 ): Said[] {
   if (!projects) return []
   if (call) return [{ text: 'You’re in ' }, { text: call.title, strong: true }, { text: '’s room.' }]
-  if (projects.length === 0) return [{ text: 'Start a project when you’re ready, or just talk to me.' }]
-  return sessionSoon(projects, now) ?? roomLive(projects) ?? [{ text: 'Your projects are as you left them.' }]
+  // Where she can't answer, she doesn't offer to talk (home-no-companion.md).
+  if (projects.length === 0)
+    return [
+      {
+        text: answers ? 'Start a project when you’re ready, or just talk to me.' : 'Start a project when you’re ready.',
+      },
+    ]
+  return sessionSoon(projects, now) ?? roomLive(projects) ?? sinceLooked(projects, now, news) ?? []
+}
+
+const linesOf = (n: News) => n.decided + n.made + n.kept
+
+/**
+ * «Since you last looked: 2 decisions and a new report in Launch plan. Open Updates»: the counts of every project with
+ * news, the one with the most named (Work's order breaks a tie), then how many more; Open Updates opens its Updates.
+ */
+function sinceLooked(projects: readonly ProjectSummary[], now: Date, news: ReadonlyMap<string, Since>): Said[] | null {
+  const told = workOrder(projects, now).flatMap((project) => {
+    const window = news.get(project.projectId)
+    const said = window ? newsOf(window) : null
+    return said ? [{ project, said }] : []
+  })
+  const most = told.toSorted((a, b) => linesOf(b.said) - linesOf(a.said))[0]
+  if (!most) return null
+  const sum = told.reduce<News>(
+    (all, { said }) => ({
+      decided: all.decided + said.decided,
+      made: all.made + said.made,
+      kept: all.kept + said.kept,
+      more: all.more || said.more,
+    }),
+    { decided: 0, made: 0, kept: 0, more: false },
+  )
+  const others = told.length - 1
+  return [
+    { text: `Since you last looked: ${newsWords(sum)} in ` },
+    { text: most.project.title, strong: true },
+    { text: others > 0 ? ` and ${String(others)} more project${others === 1 ? '' : 's'}. ` : '. ' },
+    { text: 'Open Updates', updates: most.project.projectId },
+  ]
 }
 
 /** "Standup in Product launch starts in 10 min.": the session about to start first, if one is. */

@@ -2,12 +2,14 @@
 // (CX-0023), newest at the bottom, then the composer. A day line opens each day, and each message says its time
 // (chat-times.md). It lives in the room's side panel (StudioShell), as meeting apps have it, so the stage keeps Sophia's
 // light and the people at its centre. Discussion never starts work.
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
-import type { DiscussionEntry, Snapshot } from '@sophia/contracts'
+import type { DiscussionEntry, ProjectMember, Snapshot, WithdrawnEntry } from '@sophia/contracts'
 import { EmptyState } from '@sophia/ui'
 import { listReplies, type DiscussionReply } from '../../api/vision.ts'
 import { VISION } from '../../app/vision.ts'
+import { MESSAGE_ACTS } from '../../app/message-acts.ts'
+import { snapshotKey } from '../studio/useProjectFeed.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { captionText, type CaptionTurn } from './captions.ts'
@@ -15,13 +17,20 @@ import { chatTimeline, type ChatEntryItem, type ChatTurn } from './chat-view.ts'
 import { Composer } from './Composer.tsx'
 import { authorLabel, withAuthors } from './conversation-view.ts'
 import { EarlierLine, useEarlierDiscussion } from './EarlierDiscussion.tsx'
+import { EditedMark, MessageActions, useHandedFocus, WithdrawnWords, type Acted } from './MessageActions.tsx'
+import { MentionedLine, useMemberNames } from './MentionPicker.tsx'
+import { ADDRESS_WORDS, JUMP_FAILED, needFor, type AddressState, type Waiting } from './mention-view.ts'
+import { useMentionsSeen, useMessageAddressed, useMyMentions } from './useMentionAttention.ts'
+import type { Earlier } from './EarlierDiscussion.tsx'
+import { actsOf, discussionItems, lastSaidAt } from './message-acts.ts'
 import { NoticeCard } from './NoticeCard.tsx'
 import { quoteOf } from './replies.ts'
 import type { Replying } from './ReplyingTo.tsx'
-import { LinkedText } from '../../app/LinkedText.tsx'
+import { RichText } from '../../app/RichText.tsx'
 import { clock } from '../../app/time-words.ts'
 import { useNow } from '../../app/use-now.ts'
 import { dayBreaks, todayAfter } from './chat-days.ts'
+import { AwayDivider, useWhileAway, type AwayMark } from './WhileAway.tsx'
 
 interface Props {
   projectId: string
@@ -36,6 +45,8 @@ interface Props {
   onDraft: (text: string) => void
   /** Closes the panel, so the room's dock shows (Composer). */
   onShowRoom: () => void
+  /** The chat is on screen (its tab open in the room): only then is a mention seen (A37). */
+  inView?: boolean
 }
 
 /** Opening the panel (or resizing it) keeps the newest line in view while the reader follows along. */
@@ -63,47 +74,69 @@ function useFollowing(room: ProjectRoom, discussion: Snapshot['discussion'] | un
     const el = history.current
     if (el) following.current = el.scrollHeight - el.scrollTop - el.clientHeight < 64
   }
-  return { history, onScroll }
+  return { history, following, onScroll }
+}
+
+/** The call's lines with Sophia: turns, notices and captions, in order. */
+function Timeline(props: {
+  timeline: ReturnType<typeof chatTimeline>
+  projectId: string
+  identity: Props['identity']
+  me: string
+  names: ReadonlyMap<string, string>
+}) {
+  const { timeline, projectId, identity, me, names } = props
+  return (
+    <ol className="chat-messages" aria-label="Conversation with Sophia">
+      {timeline.map((entry) => (
+        <li key={entryKey(entry)}>
+          {entry.type === 'turn' && <Turn turn={entry.turn} />}
+          {entry.type === 'notice' && <NoticeCard notice={entry.notice} projectId={projectId} identity={identity} />}
+          {entry.type === 'caption' && <Caption caption={entry.caption} me={me} names={names} />}
+        </li>
+      ))}
+    </ol>
+  )
 }
 
 export function Conversation(props: Props) {
   const { projectId, identity, snapshot, me, names, room, draft, onDraft, onShowRoom } = props
   const discussion = snapshot?.discussion ?? []
-  const { history, onScroll } = useFollowing(room, snapshot?.discussion)
+  const { history, following, onScroll } = useFollowing(room, snapshot?.discussion)
   const timeline = chatTimeline(room.chat, room.notices, room.captions)
-  const empty = discussion.length === 0 && timeline.length === 0
+  const withdrawnNow = snapshot?.discussionWithdrawn
+  const empty = nothingSaid(discussion, withdrawnNow, timeline)
   const [replying, setReplying] = useState<Replying | null>(null)
   const replies = useReplies(projectId, identity, snapshot?.cursor)
-  const earlier = useEarlierDiscussion(projectId, identity, discussion, history)
+  const earlier = useEarlierDiscussion(projectId, identity, discussion, history, {
+    withdrawn: withdrawnNow,
+    cursor: snapshot?.cursor,
+  })
+  const acts = useMessageActs(projectId, identity, earlier.revise)
+  const members = useMentionShown(props, history, earlier)
+  useReplyGone(replying, earlier.withdrawn, setReplying)
+  const away = useWhileAway({ history, following }, earlier.entries)
   return (
     <div className="conversation">
+      {away.line}
       <div className="conversation-history" ref={history} onScroll={onScroll}>
         {empty && (
           <EmptyState className="chat-empty">Messages stay in this conversation. Notes live in the brief.</EmptyState>
         )}
-        <EarlierLine earlier={earlier} />
+        <TopLines earlier={earlier} address={members.address} />
         <Discussion
-          entries={earlier.entries}
+          {...shownOf(earlier)}
+          acts={acts}
+          named={members}
           me={me}
           names={names}
           replies={replies.of}
           onReply={VISION ? setReplying : undefined}
+          away={away.divider}
         />
         {VISION && discussion.length > 0 && <RepliesState failed={replies.failed} onRetry={replies.retry} />}
-        <TodayLine lastAt={earlier.entries.at(-1)?.createdAt} shown={timeline.length > 0} />
-        {timeline.length > 0 && (
-          <ol className="chat-messages" aria-label="Conversation with Sophia">
-            {timeline.map((entry) => (
-              <li key={entryKey(entry)}>
-                {entry.type === 'turn' && <Turn turn={entry.turn} />}
-                {entry.type === 'notice' && (
-                  <NoticeCard notice={entry.notice} projectId={projectId} identity={identity} />
-                )}
-                {entry.type === 'caption' && <Caption caption={entry.caption} me={me} names={names} />}
-              </li>
-            ))}
-          </ol>
-        )}
+        <TodayLine lastAt={lastSaidAt(earlier.entries, earlier.withdrawn)} shown={timeline.length > 0} />
+        {timeline.length > 0 && <Timeline {...{ timeline, projectId, identity, me, names }} />}
       </div>
       <Composer
         projectId={projectId}
@@ -115,9 +148,111 @@ export function Conversation(props: Props) {
         onShowRoom={onShowRoom}
         replying={replying}
         onStopReplying={() => setReplying(null)}
+        onSend={away.sent}
       />
     </div>
   )
+}
+
+/**
+ * An entry's attributes: its id for the address (#message-, A37); a mention of the reader carries its need's id, so
+ * the chat can say when it was shown; with replies (A20), its own anchor and focus.
+ */
+const entryAttrs = (entry: DiscussionEntry, waiting: ReadonlyMap<string, Waiting>, replies: boolean) => {
+  // Only on the revision shown: a need for another revision of this message is not attached (fail closed).
+  const need = needFor(waiting.get(entry.id), entry.revision)
+  return {
+    'data-message': entry.id,
+    ...(need ? { 'data-mention-need': need } : {}),
+    ...(replies ? { id: `entry-${entry.id}`, tabIndex: -1 } : {}),
+  }
+}
+
+/**
+ * The project's members, to say whom a message mentions; the mentions the reader was shown are seen, and a message
+ * named in the address is brought into view (A37).
+ */
+function useMentionShown(props: Props, history: RefObject<HTMLDivElement | null>, earlier: Earlier) {
+  const { projectId, identity, me } = props
+  const inView = props.inView ?? false
+  // Whom each names too: a mention-only correction keeps the revision, and the newly named entry is observed (Codex on #409).
+  const shown =
+    earlier.entries.map((e) => `${e.id}@${String(e.revision ?? 0)}:${(e.mentions ?? []).join('+')}`).join(',') +
+    projectId +
+    me
+  // The occurrences the service lists as waiting for the reader, never an id made up here (V on #409).
+  const waiting = useMyMentions(identity, projectId, props.snapshot?.cursor)
+  useMentionsSeen(identity, history, inView, waiting, shown)
+  const address = useMessageAddressed(history, inView, earlier, props.snapshot !== undefined, shown)
+  return { ...useMemberNames(projectId, identity), projectId, waiting, address }
+}
+
+/**
+ * The chat's top: what it says of a message the address named when it can't show it (A37), or when the page a search
+ * found it in couldn't be read, with Try again (A38); then the earlier ones.
+ */
+function TopLines(props: { earlier: Earlier; address: { at: AddressState; retry: (() => void) | null } }) {
+  const { earlier, address } = props
+  const words = ADDRESS_WORDS[address.at]
+  const retry = address.retry
+  return (
+    <>
+      {words && (
+        <p className="chat-status" role="status">
+          {words}
+        </p>
+      )}
+      {retry && (
+        <p className="chat-status" role="alert">
+          {JUMP_FAILED}{' '}
+          <button type="button" className="text-button" onClick={retry}>
+            Try again
+          </button>
+        </p>
+      )}
+      <EarlierLine earlier={earlier} />
+    </>
+  )
+}
+
+/** What the discussion shows from what was read: its messages, withdrawn places, and a found page's gap (A38). */
+const shownOf = ({ entries, withdrawn, gaps }: Earlier) => ({ entries, withdrawn, gaps })
+
+/** Nothing to show yet: no message, no withdrawn one's place (A36), no turn with Sophia. */
+const nothingSaid = (
+  discussion: readonly unknown[],
+  withdrawn: readonly unknown[] = [],
+  timeline: readonly unknown[],
+) => discussion.length + withdrawn.length + timeline.length === 0
+
+/** A reply to a message withdrawn since keeps none of its words (A36): it is dropped. */
+function useReplyGone(replying: Replying | null, withdrawn: readonly WithdrawnEntry[], drop: (r: null) => void) {
+  const gone = replying !== null && withdrawn.some((w) => w.id === replying.id)
+  useEffect(() => {
+    if (gone) drop(null)
+  }, [gone, drop])
+}
+
+/**
+ * The reader's own message acts (A36, the message acts flag's): what an act changed shows at once, and a refusal that
+ * says the chat moved reads it again. Absent without the flag, so no message offers them.
+ */
+function useMessageActs(
+  projectId: string,
+  identity: Identity,
+  revise: (acted: Acted) => void,
+): MessageActsOf | undefined {
+  const queryClient = useQueryClient()
+  if (!MESSAGE_ACTS) return undefined
+  return {
+    projectId,
+    identity,
+    onActed: (acted) => {
+      revise(acted)
+      if (acted.type === 'reread')
+        void queryClient.invalidateQueries({ queryKey: snapshotKey(projectId, identity.name), exact: true })
+    },
+  }
 }
 
 /**
@@ -225,12 +360,12 @@ function Turn({ turn }: { turn: ChatTurn }) {
       <div className="chat-message user">
         <strong>You</strong> <At at={new Date(turn.sentAt)} className="chat-at" />
         <p>
-          <LinkedText text={turn.text} />
+          <RichText text={turn.text} />
         </p>
       </div>
       <div className="chat-message sophia">
         <strong>Sophia</strong>
-        <p>{turn.reply ? <LinkedText text={turn.reply} /> : waiting}</p>
+        <p>{turn.reply ? <RichText text={turn.reply} /> : waiting}</p>
         {turn.reason && (
           <p className="chat-status" role="status">
             {turn.reason}
@@ -241,40 +376,76 @@ function Turn({ turn }: { turn: ChatTurn }) {
   )
 }
 
+interface MessageActsOf {
+  projectId: string
+  identity: Identity
+  onActed: (acted: Acted) => void
+}
+
 interface DiscussionProps {
   entries: readonly DiscussionEntry[]
+  /** Where withdrawn messages stood (A36): their places, never their words. */
+  withdrawn: readonly WithdrawnEntry[]
+  /** The reader's own message acts (the message acts flag's); absent, no message offers them. */
+  acts: MessageActsOf | undefined
+  /** The project's members by id, to say whom a message mentions (A37), once read; the mentions waiting for the reader. */
+  named: { known: boolean; byId: ReadonlyMap<string, ProjectMember>; waiting: ReadonlyMap<string, Waiting> }
   me: string
   names: ReadonlyMap<string, string>
   /** What each reply answers, by the reply's entry id (A20). */
   replies: ReadonlyMap<string, DiscussionReply['replyTo']>
   /** Reply to an entry (the vision flag's): absent, no entry offers it. */
   onReply: ((replying: Replying) => void) | undefined
+  /** Where messages between were never read (A38): a gap's line goes after each of those messages. */
+  gaps: Earlier['gaps']
+  /** What came while the tab was hidden: the divider above the first drawn of it (WhileAway.tsx). */
+  away: AwayMark | null
 }
 
-function Discussion({ entries, me, names: known, replies, onReply }: DiscussionProps) {
+function Discussion(props: DiscussionProps) {
+  const { entries, withdrawn, acts, named, me, names: known, replies, onReply, gaps, away } = props
   const now = useNow()
-  if (entries.length === 0) return null
+  if (entries.length === 0 && withdrawn.length === 0) return null
+  const items = discussionItems(entries, withdrawn)
   const days = dayBreaks(
-    entries.map((e) => e.createdAt),
+    items.map((e) => e.createdAt),
     now,
   )
   const here = new Set(entries.map((e) => e.id))
   // Each message's own author name for an author the call doesn't know (A17): outside a call, no «A member».
-  const names = withAuthors(known, entries)
+  const names = withAuthors(known, [...entries, ...withdrawn])
   return (
     <ol className="discussion" aria-label="Recent discussion">
-      {entries.map((entry, i) => {
+      {items.map((item, i) => {
+        // The gap's line, after the message it follows (A38).
+        const gapLine = gaps.after.includes(item.id) ? <GapLine key="gap" gaps={gaps} after={item.id} /> : null
+        if (item.type === 'withdrawn')
+          return [<Withdrawn key={item.id} withdrawn={item.withdrawn} day={days[i]} me={me} names={names} />, gapLine]
+        const { entry } = item
         const author = authorLabel(entry.actorId, me, names)
         const answers = replies.get(entry.id)
-        return (
-          <li key={entry.id} className="contribution" {...(onReply ? { id: `entry-${entry.id}`, tabIndex: -1 } : {})}>
+        // Main's formatting (#384, RichText) inside C3's acts and mention line.
+        const words = (
+          <span className="contribution-text">
+            <RichText text={entry.text} />
+          </span>
+        )
+        return [
+          <li key={entry.id} className="contribution" {...entryAttrs(entry, named.waiting, !!onReply)}>
             {days[i] && <span className="chat-day">{days[i]}</span>}
+            {away?.id === entry.id && <AwayDivider words={away.words} />}
             {answers && <Quote answers={answers} here={here.has(answers.id)} me={me} names={names} />}
             <span className="contribution-author">{author}</span>
             <At at={new Date(entry.createdAt)} className="contribution-at" />
-            <span className="contribution-text">
-              <LinkedText text={entry.text} />
-            </span>
+            {acts && <EditedMark entry={entry} />}
+            {acts ? (
+              <MessageActions {...acts} entry={entry} acts={actsOf(entry, me)}>
+                {words}
+              </MessageActions>
+            ) : (
+              words
+            )}
+            <MentionedLine ids={entry.mentions} me={me} byId={named.byId} known={named.known} />
             {onReply && (
               <button
                 type="button"
@@ -285,10 +456,54 @@ function Discussion({ entries, me, names: known, replies, onReply }: DiscussionP
                 Reply
               </button>
             )}
-          </li>
-        )
+          </li>,
+          gapLine,
+        ]
       })}
     </ol>
+  )
+}
+
+/**
+ * Where messages between were never read (A38): they aren't shown until the reader asks; each press reads one page under
+ * the gap (A23), until no message between is unread.
+ */
+function GapLine({ gaps, after }: { gaps: Earlier['gaps']; after: string }) {
+  const reading = gaps.reading(after)
+  const loading = reading === 'loading'
+  return (
+    <li className="discussion-earlier discussion-gap">
+      <p>{reading === 'failed' ? 'Couldn’t load the newer messages.' : 'Newer messages aren’t shown here.'}</p>
+      <button
+        type="button"
+        className="text-button"
+        aria-disabled={loading || undefined}
+        onClick={() => !loading && gaps.fill(after)}
+      >
+        {loading ? 'Loading…' : reading === 'failed' ? 'Try again' : 'Show them'}
+      </button>
+    </li>
+  )
+}
+
+/** Where a withdrawn message stood (A36): who and when, never its words. */
+function Withdrawn(props: {
+  withdrawn: WithdrawnEntry
+  day: string | null | undefined
+  me: string
+  names: ReadonlyMap<string, string>
+}) {
+  const { withdrawn: w, day, me, names } = props
+  const place = useRef<HTMLLIElement>(null)
+  useHandedFocus(props.withdrawn.id, 'place', place)
+  return (
+    // It takes the focus its own withdrawal held (MessageActions' handFocus).
+    <li ref={place} id={`withdrawn-${w.id}`} className="contribution withdrawn" tabIndex={-1}>
+      {day && <span className="chat-day">{day}</span>}
+      <span className="contribution-author">{authorLabel(w.actorId, me, names)}</span>
+      <At at={new Date(w.createdAt)} className="contribution-at" />
+      <WithdrawnWords mine={w.actorId === me} />
+    </li>
   )
 }
 

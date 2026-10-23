@@ -19,6 +19,15 @@ export type ViewerAction =
 
 export const INITIAL_VIEWER_STATE: ViewerState = { lens: 'converse', drafts: {} }
 
+/**
+ * The lenses a project's Studio offers: Converse alone outside the vision flag, where Explore and Build would only say
+ * they are coming; every lens under it (docs/plans/prod-honesty.md, as route.ts `viewsShown`).
+ */
+export const lensesShown = (vision: boolean): readonly Lens[] => (vision ? LENSES : ['converse'])
+
+/** The lens shown for a stored or linked one: itself when offered, else Converse. The stored choice is kept. */
+export const shownLens = (lens: Lens, vision: boolean): Lens => (lensesShown(vision).includes(lens) ? lens : 'converse')
+
 const isLens = (value: unknown): value is Lens => LENSES.some((l) => l === value)
 
 export function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
@@ -32,20 +41,24 @@ export function viewerReducer(state: ViewerState, action: ViewerAction): ViewerS
 
 /**
  * Signing out forgets every view's unsent words on this device, whoever's, and keeps each view's lens: words written
- * and not sent are personal, which lens was open is not (terms-privacy.md; Codex P1 on #366).
+ * and not sent are personal, which lens was open is not (terms-privacy.md; Codex P1 on #366). True when a view held
+ * unsent words, so the sign-in says they were cleared only when some were.
  */
-export function forgetViewerDrafts(store: Storage = localStorage): void {
+export function forgetViewerDrafts(store: Storage = localStorage): boolean {
+  let went = false
   try {
     const keys = Array.from({ length: store.length }, (_, i) => store.key(i)).filter(
       (k): k is string => k?.startsWith('sophia.viewer.v1.') === true,
     )
     for (const key of keys) {
-      const { lens } = readViewerState(store.getItem(key))
+      const { lens, drafts } = readViewerState(store.getItem(key))
       store.setItem(key, JSON.stringify({ lens, drafts: {} }))
+      if (Object.values(drafts).some((text) => text.trim() !== '')) went = true
     }
   } catch {
     // Storage refused: there is nothing kept to forget.
   }
+  return went
 }
 
 /** Storage key: per viewer and project, so two people on one browser never share a view. */

@@ -5,7 +5,7 @@ import { readLobby, readUpcomingSessions } from './access.ts'
 import { safeInt } from './bigint.ts'
 import { readCurrentArtifacts } from './artifacts.ts'
 import { readSophia } from './exchange.ts'
-import { readDiscussion, readNativeTasks } from './native-tasks.ts'
+import { readDiscussion, readNativeTasks, readRevisedDiscussion } from './native-tasks.ts'
 import { onlyRow } from './rows.ts'
 
 interface ProjectRow {
@@ -56,9 +56,14 @@ interface RoomRow {
 
 /**
  * Consistent snapshot + cursor. Call inside withActor(..., "read"): RLS limits every table
- * to the actor's projects, so a non-member gets `null` (the API answers 403).
+ * to the actor's projects, so a non-member gets `null` (the API answers 403). With `revisions` (A36), the discussion's
+ * entries carry their revisions and its withdrawn messages come as tombstones; without, the shape before A36.
  */
-export async function readSnapshot(c: pg.PoolClient, projectId: string): Promise<Snapshot | null> {
+export async function readSnapshot(
+  c: pg.PoolClient,
+  projectId: string,
+  { revisions = false }: { revisions?: boolean } = {},
+): Promise<Snapshot | null> {
   const project = await readProject(c, projectId)
   if (!project) return null
   await refuseUnprojectedRecords(c, projectId)
@@ -68,7 +73,7 @@ export async function readSnapshot(c: pg.PoolClient, projectId: string): Promise
   const room = await readRoom(c, projectId)
   const lobby = await readLobby(c, projectId)
   const sessions = await readUpcomingSessions(c, projectId)
-  const discussion = await readDiscussion(c, projectId)
+  const discussion = revisions ? await readRevisedDiscussion(c, projectId) : await readDiscussion(c, projectId)
   const work = await readNativeTasks(c, projectId)
   const artifacts = await readCurrentArtifacts(c, projectId)
   const sophia = await readSophia(c, room.id)
@@ -93,7 +98,9 @@ export async function readSnapshot(c: pg.PoolClient, projectId: string): Promise
     },
     lobby,
     sessions,
-    discussion,
+    ...(Array.isArray(discussion)
+      ? { discussion }
+      : { discussion: discussion.entries, discussionWithdrawn: discussion.withdrawn }),
     work,
   }
 }
@@ -116,17 +123,28 @@ async function readGoals(c: pg.PoolClient, projectId: string): Promise<Goal[]> {
       ORDER BY created_at, id`,
     [projectId],
   )
-  return rows.map((g) => ({
-    id: g.id,
-    projectId,
-    title: g.title,
-    revision: safeInt(g.revision, 'goal.revision'),
-    authorityEpoch: safeInt(g.authority_epoch, 'goal.authorityEpoch'),
-    status: g.status,
-    outcome: g.outcome,
-    criteria: g.criteria,
-    stateRevision: safeInt(g.state_revision, 'goal.stateRevision'),
-  }))
+  // A completed goal's latest session retirement, with each admitted target's own result (0075, A41): the function
+  // answers only for a current project admin, deciding on this read; anyone else gets none.
+  const { rows: retired } = await c.query<{ r: Record<string, Goal['retirement']> }>(
+    'SELECT sophia.goal_retirements($1) AS r',
+    [projectId],
+  )
+  const retirements = retired[0]?.r ?? {}
+  return rows.map((g) => {
+    const retirement = retirements[g.id]
+    return {
+      id: g.id,
+      projectId,
+      title: g.title,
+      revision: safeInt(g.revision, 'goal.revision'),
+      authorityEpoch: safeInt(g.authority_epoch, 'goal.authorityEpoch'),
+      status: g.status,
+      outcome: g.outcome,
+      criteria: g.criteria,
+      stateRevision: safeInt(g.state_revision, 'goal.stateRevision'),
+      ...(retirement ? { retirement } : {}),
+    }
+  })
 }
 
 /**

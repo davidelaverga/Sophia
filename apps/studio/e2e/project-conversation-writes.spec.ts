@@ -126,6 +126,155 @@ test('writes · a message with no reply is still that message after another conv
   expect(await written(page, 'conversation-message')).toHaveLength(1)
 })
 
+test('writes · offline, the line says so before any press and nothing is written; back online, one message (costuras seam #8)', async ({
+  page,
+  context,
+}) => {
+  await openBriefs(page, '&send=lost')
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await field(page).fill('Sent from the train.')
+  await context.setOffline(true)
+  const line = open(page).locator('.conv-compose .conv-note:not(.conv-notice)')
+  const offline = 'You’re offline, so this wasn’t sent. It waits here; send it once you’re back.'
+  await expect(line).toHaveText(offline)
+  await expect(line).toHaveAttribute('role', 'status')
+  await expect(send(page)).toHaveAttribute('aria-disabled', 'true')
+  await field(page).press('Enter')
+  await send(page).click({ force: true })
+  await page.waitForTimeout(600) // a send let through would have gone by now
+  expect(await written(page, 'conversation-message')).toEqual([])
+  await expect(open(page)).not.toContainText('Not confirmed')
+  await expect(field(page)).toHaveValue('Sent from the train.')
+  // Back online, the line goes and the press goes. The fixture loses this first reply, as a real one may be lost: the
+  // line says so, never offline again, and Send sends that message again under its key.
+  await context.setOffline(false)
+  await expect(open(page)).not.toContainText(offline)
+  await field(page).press('Enter')
+  await expect(line).toHaveText(/^Not confirmed: “Sent from the train\.”/)
+  await send(page).click()
+  await expect(open(page)).not.toContainText('Not confirmed')
+  await expect(open(page)).not.toContainText(offline)
+  await expect(messages(page).filter({ hasText: 'Sent from the train.' })).toHaveCount(1)
+  expect(await written(page, 'conversation-message')).toEqual(['conversation-message:Sent from the train.:no'])
+})
+
+test('writes · offline, an empty field says words wait, never that a message wasn’t sent (review of seam #8)', async ({
+  page,
+  context,
+}) => {
+  await openBriefs(page)
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await field(page).fill('Ship it Friday.')
+  await send(page).click()
+  await expect(messages(page).last()).toContainText('Ship it Friday.')
+  await expect(field(page)).toHaveValue('')
+  // A live region added with its words is often not read: the polite line is there, empty, before the network goes.
+  const polite = open(page).locator('.conv-compose p[role="status"]')
+  await expect(polite).toHaveCount(1)
+  await expect(polite).toHaveText('')
+  await context.setOffline(true)
+  await expect(polite).toHaveText('You’re offline. Your words wait here.')
+  await expect(open(page)).not.toContainText('wasn’t sent')
+  await field(page).fill('And the sources.')
+  await expect(polite).toHaveText('You’re offline, so this wasn’t sent. It waits here; send it once you’re back.')
+  await context.setOffline(false)
+  await expect(polite).toHaveText('')
+  expect(await written(page, 'conversation-message')).toEqual(['conversation-message:Ship it Friday.:no'])
+})
+
+test('writes · offline, a message held with no reply is not confirmed, never unsent; back online, Send sends it once', async ({
+  page,
+  context,
+}) => {
+  await openBriefs(page, '&send=lost')
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await field(page).fill('Did this one land?')
+  await send(page).click()
+  const line = open(page).locator('.conv-compose .conv-note:not(.conv-notice)')
+  await expect(line).toHaveText(/^Not confirmed: “Did this one land\?”/)
+  // It landed; its reply was lost, as a dropped connection loses one.
+  expect(await written(page, 'conversation-message')).toHaveLength(1)
+  await context.setOffline(true)
+  await expect(line).toHaveText(
+    'You’re offline, so “Did this one land?” isn’t confirmed. Send it again once you’re back; it won’t be written twice.',
+  )
+  await expect(line).toHaveAttribute('role', 'status')
+  await expect(open(page)).not.toContainText('wasn’t sent')
+  await expect(send(page)).toHaveAttribute('aria-disabled', 'true')
+  await field(page).press('Enter')
+  await send(page).click({ force: true })
+  await page.waitForTimeout(600) // a send let through would have gone by now
+  expect(await written(page, 'conversation-message')).toHaveLength(1)
+  await context.setOffline(false)
+  await expect(line).toHaveText(/^Not confirmed: “Did this one land\?”/)
+  await send(page).click()
+  await expect(open(page)).not.toContainText('Not confirmed')
+  await expect(messages(page).filter({ hasText: 'Did this one land?' })).toHaveCount(1)
+  expect(await written(page, 'conversation-message')).toHaveLength(1)
+})
+
+/** The keys each message reached the synthetic service with (`server=kept`'s journal), try by try. */
+const messageKeys = (page: Page) =>
+  page.evaluate(() => {
+    const journal: unknown = JSON.parse(sessionStorage.getItem('fixture.server.journal') ?? '[]')
+    return (Array.isArray(journal) ? journal : []).flatMap((w: unknown) =>
+      typeof w === 'object' && w !== null && String(Reflect.get(w, 'path')).endsWith('/messages')
+        ? [String(Reflect.get(w, 'key'))]
+        : [],
+    )
+  })
+/** What the tab keeps of the Studio's held writes (held-in-tab.ts), by its keys. */
+const heldInTab = (page: Page) =>
+  page.evaluate(() => Object.keys(sessionStorage).filter((k) => k.startsWith('sophia.held.v1:')))
+
+/** The page reloaded, and Marco and Lucía's conversation opened again. */
+async function reopenBriefs(page: Page) {
+  await page.reload()
+  await rows(page).filter({ hasText: 'Short or long briefs?' }).click()
+  await expect(open(page).getByRole('heading', { level: 3 })).toHaveText('Short or long briefs?')
+}
+
+test('writes · a message with no reply is offered again after a reload, and Send sends it under its key: one message (baseline gap #8)', async ({
+  page,
+}) => {
+  await openBriefs(page, '&send=lost&server=kept')
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await field(page).fill('Did this one land?')
+  await send(page).click()
+  await expect(open(page)).toContainText('Not confirmed: “Did this one land?”')
+  await reopenBriefs(page)
+  // The service holds it (it landed; its reply was lost), and the page says it may not be confirmed.
+  await expect(open(page)).toContainText('Not confirmed: “Did this one land?”')
+  await expect(field(page)).toHaveValue('')
+  await send(page).click()
+  await expect(open(page)).not.toContainText('Not confirmed')
+  await expect(messages(page).filter({ hasText: 'Did this one land?' })).toHaveCount(1)
+  expect(await written(page, 'conversation-message')).toEqual(['conversation-message:Did this one land?:no'])
+  const keys = await messageKeys(page)
+  expect(keys).toHaveLength(2)
+  expect(new Set(keys).size).toBe(1)
+  // Answered, it is let go: reloaded again, nothing is offered.
+  expect(await heldInTab(page)).toEqual([])
+  await reopenBriefs(page)
+  await expect(messages(page).filter({ hasText: 'Did this one land?' })).toHaveCount(1)
+  await expect(open(page)).not.toContainText('Not confirmed')
+})
+
+test('writes · a message on its way is kept in the tab until its reply lands; reloaded then, nothing is offered', async ({
+  page,
+}) => {
+  await openBriefs(page, '&send=slow&server=kept')
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await field(page).fill('Slow but sure.')
+  await send(page).click()
+  await expect.poll(() => heldInTab(page)).toHaveLength(1)
+  await expect(messages(page).last()).toContainText('Slow but sure.')
+  await expect.poll(() => heldInTab(page)).toEqual([])
+  await reopenBriefs(page)
+  await expect(messages(page).filter({ hasText: 'Slow but sure.' })).toHaveCount(1)
+  await expect(open(page)).not.toContainText('Not confirmed')
+})
+
 test('writes · words written while a message is on its way stay when it lands', async ({ page }) => {
   await openBriefs(page, '&send=slow')
   await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
@@ -223,6 +372,136 @@ test('writes · a row pressed with the form open opens that conversation, and th
   // Pressed again, New conversation puts the form away.
   await start.click()
   await expect(form(page)).toHaveCount(0)
+})
+
+/** The first conversation's message of yours (the third of its newest page), its press, and its confirmation. */
+async function withdrawOwn(page: Page, query = '') {
+  await page.goto(`${PAGE}${query}`)
+  await expect(messages(page)).toHaveCount(6)
+  const message = messages(page).nth(2)
+  await expect(message).toContainText('Please do. Short first.')
+  await message.hover()
+  const press = message.getByRole('button', { name: 'Withdraw message' })
+  await press.click()
+  const confirm = page.getByRole('group', { name: 'Withdraw this message' })
+  await expect(confirm.getByRole('button', { name: 'Keep it' })).toBeFocused()
+  return { message, press, confirm }
+}
+
+test('writes · Keep it (or Esc) keeps your message and gives the focus back to its press', async ({ page }) => {
+  const { message, press, confirm } = await withdrawOwn(page)
+  await page.keyboard.press('Escape')
+  await expect(confirm).toHaveCount(0)
+  await expect(press).toBeFocused()
+  await press.click()
+  await confirm.getByRole('button', { name: 'Keep it' }).click()
+  await expect(press).toBeFocused()
+  await expect(message).toContainText('Please do. Short first.')
+  expect(await written(page, 'conversation-withdraw')).toEqual([])
+})
+
+test('writes · withdrawn, your message says so, and the focus lands there, not on the page (CX-0008)', async ({
+  page,
+}) => {
+  const { message, confirm } = await withdrawOwn(page)
+  await confirm.getByRole('button', { name: 'Withdraw' }).click()
+  const said = message.getByText('This message was withdrawn.')
+  await expect(said).toBeFocused()
+  await expect(message).not.toContainText('Please do. Short first.')
+  await expect(page.locator('body')).not.toBeFocused()
+  expect(await written(page, 'conversation-withdraw')).toEqual(['conversation-withdraw:06'])
+})
+
+test('writes · a withdrawal that lands after you moved on leaves the focus where you put it', async ({ page }) => {
+  const { message, confirm } = await withdrawOwn(page, '&withdraw=slow')
+  await confirm.getByRole('button', { name: 'Withdraw' }).click()
+  await expect(confirm.getByRole('button', { name: 'Withdrawing…' })).toBeVisible()
+  await field(page).focus()
+  await expect(message).toContainText('This message was withdrawn.')
+  await expect(field(page)).toBeFocused()
+})
+
+test('writes · when the feed shows it withdrawn before its reply comes, the focus lands there at once (CX-0011)', async ({
+  page,
+}) => {
+  const { message, confirm } = await withdrawOwn(page, '&withdraw=feedFirst')
+  await confirm.getByRole('button', { name: 'Withdraw' }).click()
+  // The feed shows it 0.5 s on; its reply comes 2.5 s on.
+  await expect(message.getByText('This message was withdrawn.')).toBeFocused({ timeout: 1500 })
+  expect(await written(page, 'reply')).toEqual([])
+  await expect.poll(() => written(page, 'reply'), { timeout: 5000 }).toEqual(['reply:withdrawal'])
+  await expect(message.getByText('This message was withdrawn.')).toBeFocused()
+})
+
+test('writes · moved on before the feed shows it withdrawn, the focus stays where you put it', async ({ page }) => {
+  const { message, confirm } = await withdrawOwn(page, '&withdraw=feedFirst')
+  await confirm.getByRole('button', { name: 'Withdraw' }).click()
+  await field(page).focus()
+  await expect(message).toContainText('This message was withdrawn.')
+  await expect.poll(() => written(page, 'reply'), { timeout: 5000 }).toEqual(['reply:withdrawal'])
+  await expect(field(page)).toBeFocused()
+})
+
+/**
+ * Opened while Sophia is out of reach (the project's reads and the membership's fail), then back: Try again reads the
+ * project again, and the membership with it (CX-0010).
+ */
+async function backFromOutage(page: Page, query = '') {
+  await page.goto(`${PAGE}&outage=1${query}`)
+  // Both reads have failed by the time the door says so (each asks three times more first).
+  await expect(page.getByText('Sophia is unreachable')).toBeVisible({ timeout: 20_000 })
+  await expect(field(page)).toHaveCount(0)
+  await page.evaluate(() => window.fixture?.outage(false))
+  await page.getByRole('button', { name: 'Try again' }).click()
+}
+
+test('writes · opened out of reach, Try again brings back the field and New conversation for a member (CX-0010)', async ({
+  page,
+}) => {
+  await backFromOutage(page)
+  await expect(messages(page)).toHaveCount(6)
+  await expect(field(page)).toBeVisible()
+  await expect(list(page).getByRole('button', { name: 'New conversation' })).toBeVisible()
+  await expect(messages(page).nth(2).getByRole('button', { name: 'Withdraw message' })).toHaveCount(1)
+})
+
+test('writes · a membership that keeps failing is asked a bounded number of times, and comes back with a later read', async ({
+  page,
+}) => {
+  test.setTimeout(60_000)
+  await page.goto(`${PAGE}&membership=fail`)
+  await expect(messages(page)).toHaveCount(6)
+  const asked = async () => (await served(page)).filter((s) => s === 'membership:failed').length
+  // Its first read and its retries, then once more for the project's read: never again on its own failures.
+  await expect.poll(asked, { timeout: 25_000 }).toBeGreaterThanOrEqual(5)
+  await page.waitForTimeout(12_000)
+  const settled = await asked()
+  expect(settled).toBeLessThanOrEqual(8)
+  await page.waitForTimeout(6_000)
+  expect(await asked()).toBe(settled)
+  await expect(field(page)).toHaveCount(0)
+  // Answered again, it comes back with the project's next read (the feed moving).
+  await page.evaluate(() => {
+    window.fixture?.failMembership(false)
+    window.fixture?.carryIn()
+  })
+  await expect(field(page)).toBeVisible({ timeout: 15_000 })
+  await expect(list(page).getByRole('button', { name: 'New conversation' })).toBeVisible()
+})
+
+test('writes · a viewer back from out of reach still only reads', async ({ page }) => {
+  await backFromOutage(page, '&role=viewer')
+  await expect(messages(page)).toHaveCount(6)
+  await expect(open(page)).toContainText('Viewers read conversations; members write in them.')
+  await expect(field(page)).toHaveCount(0)
+  await expect(list(page).getByRole('button', { name: 'New conversation' })).toHaveCount(0)
+})
+
+test('writes · someone who is no member, back from out of reach, is told so and offered nothing', async ({ page }) => {
+  await backFromOutage(page, '&member=0')
+  await expect(page.getByText('No access to this project')).toBeVisible()
+  await expect(list(page)).toHaveCount(0)
+  await expect(field(page)).toHaveCount(0)
 })
 
 test('writes · a viewer has no field and no New conversation, and is told why', async ({ page }) => {

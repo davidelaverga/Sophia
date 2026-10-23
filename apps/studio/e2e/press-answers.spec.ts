@@ -5,13 +5,25 @@ import { DRAWN, drawn } from './drawn.ts'
 // person can see changes under the pointer (its own ink, plane, edge, shadow, line or a child's), and the kit's four
 // kinds sink half a pixel while pressed. Measured on a desktop, with a real pointer.
 
+/**
+ * The room drawn, and its call live: Leave in the dock. The call joins a tick after the page's first effects (#466,
+ * call-ends-on-open.md), and joined, the dock swaps its controls: a sweep listed before would point at presses gone or
+ * moved, and read others by their place in the list (CI on #470).
+ */
+const IN_CALL = [
+  ...DRAWN.room.slice(0, 1),
+  (page: Page) => page.locator('.dock').getByRole('button', { name: 'Leave the room' }),
+]
+
 const PAGES = [
   ['sign-in', '/signin.html', DRAWN.signin],
   ['the door', '/join.html?demo=1', DRAWN.join],
   ['home', '/home.html?demo=1', DRAWN.home],
   ['personal', '/personal.html?demo=1', DRAWN.personal],
   ['the room', '/room.html?demo=1', DRAWN.room],
-  ['the room in a call', '/room.html?demo=1&call=on&people=2&floor=1&sophia=listening', DRAWN.room.slice(0, 1)],
+  // Its token late (`token=late`), as a loaded runner brings the call after the room has drawn (CI on #470); drawn once
+  // the call is live (C57 saw the pre-join controls listed first under load).
+  ['the room in a call', '/room.html?demo=1&call=on&people=2&floor=1&sophia=listening&token=late', IN_CALL],
   ['Conversations', '/room.html?demo=1&conversations=1&place=conversations', DRAWN.conversations],
   ['Goals', '/room.html?demo=1&place=goals', DRAWN.goals],
   ['Tasks', '/room.html?demo=1&place=work', DRAWN.tasks],
@@ -149,7 +161,8 @@ async function unanswering(page: Page, scope = 'body', tips = true) {
       Promise.all(
         document
           .getAnimations()
-          .filter((a) => a instanceof CSSTransition)
+          // A live ring's eased share, retaken each second, is no press easing back.
+          .filter((a) => a instanceof CSSTransition && !a.transitionProperty.startsWith('--'))
           .map((a) => a.finished.catch(() => undefined)),
       ),
     )

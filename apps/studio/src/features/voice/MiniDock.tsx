@@ -10,7 +10,8 @@ import { Tip } from '@sophia/ui'
 import { useCommands } from '../../app/useCommands.ts'
 import { callCommands } from './call-commands.ts'
 import { CallSwitches, sendingOf } from './CallSwitches.tsx'
-import { joinTip, TextMode } from './RoomDock.tsx'
+import { useMicOnJoin } from './mic-preference.ts'
+import { DockNote, joinTip, partGone, RejoinLeave, TextMode } from './RoomDock.tsx'
 import { LookingIndicator } from './SophiaControls.tsx'
 import type { ProjectRoom } from './useProjectRoom.ts'
 
@@ -91,15 +92,13 @@ export function MiniDock({ room, looking, onOpen }: Props) {
   const live = room.status === 'live' || room.status === 'reconnecting'
   const note = room.mediaError ?? room.error
   const notes = useNotesHeight()
+  // Join's tip says the microphone's default (joinTip): drawn again as Settings changes it (Codex P2 on #398).
+  useMicOnJoin()
   return (
     <div className="mini-dock" role="group" aria-label="Project room" data-live={live || undefined}>
       {/* What the dock says, stacked by its own height: a note (a join or device error) first, her looking under it. */}
       <div className="dock-notes" ref={notes}>
-        {note && (
-          <p className="dock-note mini-note" role="alert">
-            {note}
-          </p>
-        )}
+        <DockNote note={note} className="dock-note mini-note" />
         <LookingIndicator text={looking} />
       </div>
       {live ? (
@@ -113,21 +112,25 @@ export function MiniDock({ room, looking, onOpen }: Props) {
         </>
       ) : (
         <>
-          <button
-            type="button"
-            className="pill has-tip"
-            // Where text mode's pill hands the focus once pressed (TextMode).
-            data-call-anchor
-            // The same control before and after a join, whatever its words say (useDockFocus).
-            data-dock-key="room"
-            disabled={room.status === 'joining' || !room.ready}
-            onClick={() => void room.join()}
-          >
-            <span className="pill-dot" aria-hidden />
-            {room.status === 'joining' ? 'Joining…' : room.status === 'failed' ? 'Try again' : 'Join the room'}
-            <Tip label={joinTip(room.textMode)} />
-          </button>
+          {/* Its part gone after a deploy: only the note's Reload (partGone). */}
+          {!partGone(room) && (
+            <button
+              type="button"
+              className="pill has-tip"
+              // Where text mode's pill hands the focus once pressed (TextMode).
+              data-call-anchor
+              // The same control before and after a join, whatever its words say (useDockFocus).
+              data-dock-key="room"
+              disabled={room.status === 'joining' || !room.ready}
+              onClick={() => void room.join()}
+            >
+              <span className="pill-dot" aria-hidden />
+              {room.status === 'joining' ? 'Joining…' : room.status === 'failed' ? 'Try again' : 'Join the room'}
+              <Tip label={joinTip(room.textMode)} />
+            </button>
+          )}
           <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
+          <RejoinLeave room={room} />
         </>
       )}
     </div>

@@ -2,7 +2,7 @@
 // who holds the floor carries a warm ring; a new holder's ring ignites once when the floor lands. A line says
 // only what sets someone apart (the floor, speaking, a guest, a listener); a muted microphone is its icon.
 import { Icon } from '@sophia/ui'
-import { presenceRole, presenceSlots, shortName, type FloorView, type RoomParticipant } from './room-view.ts'
+import { mutedMic, presenceRole, presenceSlots, shortName, type FloorView, type RoomParticipant } from './room-view.ts'
 
 interface Props {
   people: RoomParticipant[]
@@ -12,9 +12,6 @@ interface Props {
 }
 
 const initial = (name: string) => shortName(name).charAt(0)
-
-/** A listener has no microphone to mute; anyone else muted shows it beside their name. */
-const muted = (person: RoomParticipant) => !person.micOn && person.standing !== 'viewer'
 
 export function Presences({ people, floor, revision }: Props) {
   const slots = presenceSlots(people.length)
@@ -42,7 +39,7 @@ export function Presences({ people, floor, revision }: Props) {
               <span className="name">
                 {shortName(person.name)}
                 {person.local && <span className="you"> · you</span>}
-                {muted(person) && (
+                {mutedMic(person) && (
                   <span className="muted-mic">
                     <Icon name="micOff" size={12} />
                     <span className="sr-only">muted</span>

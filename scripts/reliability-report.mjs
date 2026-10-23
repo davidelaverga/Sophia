@@ -1,0 +1,640 @@
+#!/usr/bin/env node
+/**
+ * Reliability, measured (docs/plans/reliability-measure.md; the baseline's §4): the same numbers before and after
+ * each reliability change.
+ *
+ *   node scripts/reliability-report.mjs --ci [--since <ISO>] [--repo <owner/name>] [--out <dir>]
+ *   node scripts/reliability-report.mjs --fixture [--run] [--out <dir>]
+ *
+ * `--ci` reads GitHub Actions through `gh` (M10 flakes, M11 the room job's minutes, M12 main green). `--fixture`
+ * collects what the `@reliability` Playwright suite wrote (M1–M9); `--run` runs the suite first. Each mode
+ * writes its section of `<out>/reliability.json` (default `reliability-report/`), keeping the other's, and the short
+ * table `<out>/reliability.md`, which it also prints.
+ */
+
+import { execFile, spawnSync } from 'node:child_process'
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { parseArgs, promisify } from 'node:util'
+import {
+  ROOM,
+  distinctJobs,
+  familyOf,
+  fixtureCompleteness,
+  isRoomGate,
+  flakeRates,
+  jobMinutes,
+  jobTable,
+  mainHealth,
+  outcomeOf,
+  parseRunSummary,
+  roomDurations,
+  scenarioCounts,
+  shardOf,
+  rankFailedTests,
+  summarizeM1,
+  summarizeM2,
+  summarizeM2Reload,
+  summarizeM5,
+  summarizeM6,
+  summarizeM7,
+  summarizeM8,
+  summarizeM9,
+  summarizeFeed,
+  timeoutMinutes,
+} from './lib/reliability.mjs'
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const STUDIO = join(ROOT, 'apps', 'studio')
+// Both can be pointed elsewhere for the script's own test, which runs a fake suite.
+const RESULTS = process.env.RELIABILITY_RESULTS ?? join(STUDIO, 'reliability-results')
+const CACHE = join(ROOT, '.reliability-cache')
+const WORKFLOW = join(ROOT, '.github', 'workflows', 'ci.yml')
+const DAY = 86_400_000
+const RUN_FIELDS = 'databaseId,headSha,headBranch,event,status,conclusion,attempt,createdAt,updatedAt'
+const run = promisify(execFile)
+
+/** The suite's command, as the script runs it with `--run` (on Luis's machine, through the guard instead). */
+export const SUITE =
+  process.env.RELIABILITY_SUITE ?? 'pnpm exec playwright test -c playwright.reliability.config.ts --workers=2'
+
+/** What the fixture can't measure yet, and why. */
+const NOT_YET = [
+  { metric: 'M3', what: 'feed recovery', why: 'needs the stream levers reliability/feed-reconnect adds', feed: true },
+  { metric: 'M4', what: 'gaps and resyncs', why: 'needs the gap lever reliability/feed-reconnect adds', feed: true },
+]
+
+// ——— gh ———
+
+/**
+ * Runs `gh` with JSON output. GitHub's API answers a 5xx now and then: asked again up to 3 times, 2, 4 and 8 s on. A
+ * rate limit (too many requests at once) waits a minute each time, as GitHub asks.
+ */
+async function gh(args, tries = 3) {
+  try {
+    const { stdout } = await run('gh', args, { maxBuffer: 256 * 1024 * 1024, windowsHide: true })
+    return JSON.parse(stdout)
+  } catch (error) {
+    const said = String(error?.stderr ?? error)
+    const limited = /rate limit/i.test(said)
+    if (!(limited || /HTTP 5\d\d|timeout|ECONNRESET|EOF/i.test(said)) || tries === 0) throw error
+    await new Promise((resolve) => setTimeout(resolve, limited ? 60_000 : 2000 * 2 ** (3 - tries)))
+    return gh(args, tries - 1)
+  }
+}
+
+/** A completed answer kept on disk under `name`, so a second report asks only for what is new. */
+async function cached(name, fetch) {
+  const file = join(CACHE, `${name}.json`)
+  if (existsSync(file)) return JSON.parse(readFileSync(file, 'utf8'))
+  const value = await fetch()
+  mkdirSync(CACHE, { recursive: true })
+  writeFileSync(file, JSON.stringify(value))
+  return value
+}
+
+/** Maps `items` through `task`, at most `width` at a time. */
+async function pool(items, width, task) {
+  const results = new Array(items.length)
+  let next = 0
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++
+      results[i] = await task(items[i])
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(width, items.length) }, worker))
+  return results
+}
+
+// ——— CI ———
+
+/** The workflow's limits per job, read by name (and GitHub's default where a job is not found). */
+function limitsFrom(workflowText) {
+  const limits = new Map()
+  return (name) => {
+    const key = familyOf(name) === ROOM ? ROOM : shardOf(name).base
+    if (!limits.has(key)) limits.set(key, timeoutMinutes(workflowText, key) ?? 360)
+    return limits.get(key)
+  }
+}
+
+/**
+ * The `ci` runs created from `since` to `until`, a day at a time: GitHub answers a filtered list with at most 1,000
+ * runs, and a busy week has more.
+ */
+async function listRuns(repo, since, until) {
+  const days = []
+  for (let from = Date.parse(since); from < Date.parse(until); from += DAY) {
+    const to = new Date(Math.min(from + DAY, Date.parse(until))).toISOString()
+    days.push(`${new Date(from).toISOString().slice(0, 19)}Z..${to.slice(0, 19)}Z`)
+  }
+  const lists = await pool(days, 4, (range) =>
+    gh(['run', 'list', '-R', repo, '--workflow', 'ci', '--created', range, '--limit', '1000', '--json', RUN_FIELDS]),
+  )
+  const seen = new Set()
+  return lists.flat().filter((r) => !seen.has(r.databaseId) && seen.add(r.databaseId))
+}
+
+/**
+ * Main's 20 newest `ci` push runs created before `since` (M12): they set the state main was in as the window opens,
+ * and hold the runs begun before it that end inside.
+ */
+function mainRunsBefore(repo, since) {
+  const before = `<${new Date(Date.parse(since)).toISOString().slice(0, 19)}Z`
+  const filters = ['--workflow', 'ci', '--branch', 'main', '--event', 'push', '--created', before]
+  return gh(['run', 'list', '-R', repo, ...filters, '--limit', '20', '--json', RUN_FIELDS])
+}
+
+/** The `ci` runs of the window, every attempt's jobs for the completed ones. */
+async function readRuns(repo, since, until) {
+  const runs = await listRuns(repo, since, until)
+  const attempts = runs
+    .filter((r) => r.status === 'completed')
+    .flatMap((r) => Array.from({ length: r.attempt }, (_, i) => ({ run: r, attempt: i + 1 })))
+  process.stderr.write(`${runs.length} runs, ${attempts.length} completed attempts to read\n`)
+  const jobs = await pool(attempts, 4, ({ run: r, attempt }) =>
+    cached(`run-${r.databaseId}-${attempt}`, async () => {
+      const view = ['run', 'view', String(r.databaseId), '-R', repo, '--attempt', String(attempt), '--json', 'jobs']
+      return (await gh(view)).jobs
+    }),
+  )
+  return { runs, attempts: attempts.map((a, i) => ({ ...a, jobs: jobs[i] })) }
+}
+
+/** One entry per job, each counted once across a run's attempts, with how it ended; the room's gate jobs left out. */
+function jobEntries(attempts, limitOf) {
+  const byRun = new Map()
+  for (const { run: r, attempt, jobs } of attempts) {
+    const kept = byRun.get(r.databaseId) ?? []
+    kept.push(...jobs.map((job) => ({ ...job, run: r, attempt })))
+    byRun.set(r.databaseId, kept)
+  }
+  return [...byRun.values()].flatMap((jobs) =>
+    distinctJobs(jobs)
+      .filter((job) => !isRoomGate(job))
+      .map((job) => ({
+        id: job.databaseId,
+        sha: job.run.headSha,
+        branch: job.run.headBranch,
+        attempt: job.attempt,
+        name: job.name,
+        startedAt: job.startedAt,
+        minutes: jobMinutes(job),
+        outcome: outcomeOf(job, limitOf(job.name)),
+      })),
+  )
+}
+
+/**
+ * The Playwright summary of each failed room job (the `github` reporter's notice), and the tests that failed most,
+ * each by its full title, with its last failure and its failures in the 48 hours before `until`.
+ */
+async function roomFailures(repo, entries, until) {
+  const failed = entries.filter((e) => familyOf(e.name) === ROOM && e.outcome === 'failure')
+  const summaries = await pool(failed, 4, (e) =>
+    cached(`annotations-${e.id}`, () => gh(['api', `repos/${repo}/check-runs/${e.id}/annotations?per_page=100`])),
+  )
+  const read = failed.map((e, i) => {
+    const notice = summaries[i].find((a) => /Playwright Run Summary/.test(a.title ?? ''))
+    return { ...e, summary: notice ? parseRunSummary(notice.message) : null }
+  })
+  const withSummary = read.filter((e) => e.summary)
+  const failures = withSummary.flatMap((e) => e.summary.failedTests.map((test) => ({ test, at: e.startedAt })))
+  return {
+    failedJobs: failed.length,
+    withSummary: withSummary.length,
+    oneTest: withSummary.filter((e) => e.summary.failed === 1).length,
+    twoOrFewer: withSummary.filter((e) => e.summary.failed <= 2).length,
+    noSummary: read.filter((e) => !e.summary).map((e) => ({ id: e.id, branch: e.branch, minutes: e.minutes })),
+    topTests: rankFailedTests(failures, until).slice(0, 10),
+  }
+}
+
+/** Main's attempts as M12 reads them: the listed latest attempt, and earlier ones from their jobs. */
+function mainAttempts(runs, attempts) {
+  const main = (r) => r.headBranch === 'main' && r.event === 'push'
+  const latest = runs.filter(main).map((r) => ({
+    sha: r.headSha,
+    attempt: r.attempt,
+    createdAt: r.createdAt,
+    conclusion: r.status === 'completed' ? r.conclusion : null,
+    completedAt: r.status === 'completed' ? r.updatedAt : null,
+  }))
+  const earlier = attempts
+    .filter((a) => main(a.run) && a.attempt < a.run.attempt && a.jobs.length > 0)
+    .map(({ run: r, attempt, jobs }) => ({
+      sha: r.headSha,
+      attempt,
+      createdAt: r.createdAt,
+      conclusion: jobs.some((j) => j.conclusion === 'failure')
+        ? 'failure'
+        : jobs.some((j) => j.conclusion === 'cancelled')
+          ? 'cancelled'
+          : 'success',
+      completedAt: jobs
+        .map((j) => j.completedAt)
+        .sort()
+        .at(-1),
+    }))
+  return [...latest, ...earlier]
+}
+
+async function measureCi({ repo, since }) {
+  const until = new Date().toISOString()
+  const workflowText = readFileSync(WORKFLOW, 'utf8')
+  const limitOf = limitsFrom(workflowText)
+  const { runs, attempts } = await readRuns(repo, since, until)
+  const entries = jobEntries(attempts, limitOf)
+  const listed = new Set(runs.map((r) => r.databaseId))
+  const before = (await mainRunsBefore(repo, since)).filter((r) => !listed.has(r.databaseId))
+  return {
+    repo,
+    window: { since, until, runs: runs.length, completedAttempts: attempts.length, jobs: entries.length },
+    roomLimit: limitOf(ROOM),
+    m10: {
+      flakes: flakeRates(entries),
+      jobs: jobTable(entries),
+      roomFailures: await roomFailures(repo, entries, until),
+    },
+    m11: roomDurations(entries, limitOf(ROOM)),
+    m12: mainHealth(mainAttempts([...before, ...runs], attempts), until, since),
+  }
+}
+
+// ——— fixture ———
+
+/** What the suite wrote: its run (`run.json`, from its global setup) and each spec's samples. */
+function readResults() {
+  if (!existsSync(RESULTS)) return null
+  const files = readdirSync(RESULTS).filter((f) => f.endsWith('.json'))
+  const runFile = files.includes('run.json') ? JSON.parse(readFileSync(join(RESULTS, 'run.json'), 'utf8')) : null
+  const records = files.filter((f) => f !== 'run.json').map((f) => JSON.parse(readFileSync(join(RESULTS, f), 'utf8')))
+  return { run: runFile, records }
+}
+
+/** How many scenarios the suite has per metric, from its listing; null if it can't be listed. */
+function expectedScenarios() {
+  const listed = spawnSync(`${SUITE} --list`, { cwd: STUDIO, encoding: 'utf8', shell: true, windowsHide: true })
+  return listed.status === 0 ? scenarioCounts(listed.stdout) : null
+}
+
+/** Runs the suite; its exit code, or the signal that ended it. */
+function runSuite() {
+  const ran = spawnSync(SUITE, { cwd: STUDIO, stdio: 'inherit', shell: true })
+  if (ran.status !== 0) process.stderr.write(`The suite exited ${ran.status ?? ran.signal}.\n`)
+  return ran.status ?? ran.signal
+}
+
+/**
+ * The fixture section. A metric whose scenarios didn't all write results (or every metric, when the suite failed)
+ * gives no summary, only how many of its scenarios wrote results of how many: half a run beside a whole one misleads.
+ */
+function measureFixture({ run: runFirst }) {
+  const exit = runFirst ? runSuite() : null
+  const results = readResults()
+  if (!results || results.records.length === 0) {
+    process.stderr.write(`No results in ${RESULTS}. Run the suite first, from apps/studio:\n  ${SUITE}\n`)
+    process.stderr.write('or run this script with --fixture --run.\n')
+    process.exit(1)
+  }
+  const written = {}
+  for (const r of results.records) written[r.metric] = (written[r.metric] ?? 0) + 1
+  const incomplete = fixtureCompleteness({ exit, written, expected: expectedScenarios() })
+  const samples = (metric) => results.records.filter((r) => r.metric === metric).flatMap((r) => r.samples)
+  const metric = (name, summarize, kept = () => true) => {
+    const partial = incomplete?.metrics[name]
+    if (partial) return { incomplete: partial, samples: samples(name) }
+    return { ...summarize(samples(name).filter(kept)), samples: samples(name) }
+  }
+  const feed = ['M3', 'M4'].filter((name) => !incomplete?.metrics[name]).flatMap(samples)
+  return {
+    command: `cd apps/studio && ${SUITE}`,
+    run: results.run,
+    tests: results.records.map((r) => ({ metric: r.metric, test: r.test, samples: r.samples.length })),
+    ...(incomplete ? { incomplete } : {}),
+    m1: metric('M1', summarizeM1),
+    m2: metric('M2', summarizeM2),
+    m2r: metric('M2r', summarizeM2Reload),
+    m5: metric('M5', summarizeM5),
+    m6: metric('M6', summarizeM6),
+    m7: metric('M7', summarizeM7, (s) => s.reached !== false),
+    m8: metric('M8', summarizeM8),
+    m9: metric('M9', summarizeM9),
+    feed: { cases: summarizeFeed(feed), samples: feed },
+  }
+}
+
+// ——— output ———
+
+const pct = (x) => (x === null || x === undefined ? '—' : `${(x * 100).toFixed(1)} %`)
+const num = (x, digits = 1) => (x === null || x === undefined ? '—' : x.toFixed(digits))
+const ms = (x) => (x === null || x === undefined ? '—' : `${Math.round(x)} ms`)
+/** A time that may be minutes (M9's interval, on the page's clock): ms under a minute, else minutes. */
+const span = (x) => (x !== null && x !== undefined && x >= 60_000 ? `${(x / 60_000).toFixed(1)} min` : ms(x))
+
+function ciMarkdown(ci) {
+  const room = ci.m10.flakes[ROOM] ?? { decided: 0, flaky: 0, rate: null }
+  const rf = ci.m10.roomFailures
+  const lines = [
+    `## CI · ${ci.repo} · ${ci.window.since} → ${ci.window.until}`,
+    '',
+    `${ci.window.runs} runs of \`ci\`, ${ci.window.completedAttempts} completed attempts, ${ci.window.jobs} jobs.`,
+    '',
+    '| Metric | Value |',
+    '| --- | --- |',
+    `| M10 · room flake rate | ${pct(room.rate)} (${room.flaky} flaky of ${room.decided} decided commit·part pairs) |`,
+    `| M10 · room failures of 1 test | ${rf.oneTest} of ${rf.withSummary} failed jobs with a summary (≤ 2 tests: ${rf.twoOrFewer}; no summary: ${rf.noSummary.length}) |`,
+    `| M11 · room limit | ${ci.roomLimit} min (\`.github/workflows/ci.yml\`) |`,
+    `| M12 · main commits green | ${pct(ci.m12.greenShare)} (${ci.m12.green} of ${ci.m12.green + ci.m12.red}; ${ci.m12.pending} pending) |`,
+    `| M12 · hours main stayed red | ${num(ci.m12.redHours)} h in ${ci.m12.spans.length} spans${ci.m12.redSince ? `; red since ${ci.m12.redSince}` : ''} |`,
+    '',
+    '| Job | Ended | Success | Failure | Timeout | Superseded | Failure / decided | Flaky / decided | Success p50 / p90 (min) |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+    ...Object.entries(ci.m10.jobs).map(([job, t]) => {
+      const f = ci.m10.flakes[job]
+      const flake = f ? `${f.flaky} / ${f.decided}` : '—'
+      return `| ${job} | ${t.total} | ${t.success} | ${t.failure} | ${t.timeout} | ${t.superseded} | ${pct(t.failureShare)} | ${flake} | ${num(t.successMinutes.p50)} / ${num(t.successMinutes.p90)} |`
+    }),
+    '',
+    '| Day | Part | n | p50 | p90 | max | Margin of p90 | Timeouts |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- |',
+    ...ci.m11.map(
+      (r) =>
+        `| ${r.day} | ${r.part} | ${r.n} | ${num(r.p50)} | ${num(r.p90)} | ${num(r.max)} | ${num(r.margin)} min (${pct(r.marginShare)}) | ${r.timeouts} |`,
+    ),
+  ]
+  if (rf.topTests.length > 0) {
+    lines.push(
+      '',
+      '| Room test that failed (recent first) | Failures | In the last 48 h | Last failed |',
+      '| --- | --- | --- | --- |',
+      ...rf.topTests.map((t) => `| \`${t.test}\` | ${t.failures} | ${t.recent} | ${t.lastFailed} |`),
+    )
+  }
+  return lines
+}
+
+/** M3/M4's rows: per case, back to «Up to date» in how long, or not run (its lever isn't on this page). */
+const FEED_CASES = {
+  drop: 'M3 · stream ended by the server → Up to date',
+  stall: 'M3 · stream gone silent → Up to date',
+  online: 'M3 · network back → Up to date',
+  gap: 'M4 · sequence skipped → Up to date',
+}
+function feedRows(fx) {
+  return Object.entries(FEED_CASES).map(([name, label]) =>
+    row(fx, label, () => {
+      const c = fx.feed?.cases?.[name]
+      if (!c || c.ran === 0) return 'not run (no lever on this page)'
+      return `${c.back}/${c.ran} back · p50 ${ms(c.p50)} · p95 ${ms(c.p95)}`
+    }),
+  )
+}
+
+/** M2r's row: offered again after the reload, resent once under its key, written twice, resolved; or not run. */
+function reloadRow(fx) {
+  return row(fx, 'M2r · kept across a reload: offered again, resent once under its key', () => {
+    const r = fx.m2r
+    if (!r || r.n === 0) return 'not run'
+    return `${r.offered}/${r.n} offered again · ${r.sameKey}/${r.n} resent once under the same key · written twice: ${r.duplicates} · resolved ${r.resolved}/${r.n} · resend → answer p50 ${ms(r.resend.p50)}`
+  })
+}
+
+/**
+ * M8's rows, per kind: renewed without «signed out», sent again, one refresh of the renewed, the time; for the feed,
+ * which of its requests met the expired token; or not run.
+ */
+const SESSION_KINDS = ['read', 'write', 'feed']
+function sessionRows(fx) {
+  return SESSION_KINDS.map((kind) =>
+    row(fx, `M8 · expired token while signed in · ${kind}`, () => {
+      const c = fx.m8?.[kind]
+      if (!c || c.n === 0) return 'not run'
+      const which = c.met ? ` · met: snapshot ${c.met.snapshot} · stream ${c.met.stream}` : ''
+      const met = c.reached < c.n ? ` (the expired token met ${c.reached}/${c.n})` : ''
+      return `${c.renewed}/${c.n} renewed without «signed out» · ${c.resent}/${c.n} sent again · ${c.oneRefresh}/${c.renewed} renewed with one refresh · answer p50 ${ms(c.time.p50)} · p95 ${ms(c.time.p95)}${which}${met}`
+    }),
+  )
+}
+
+/**
+ * M9's rows, per trigger, from the trigger (back into focus or view) or the change (left in view) to the notice:
+ * noticed, any reload by itself, within the baseline's 15 minutes, the time; or not run.
+ */
+const VERSION_TRIGGERS = {
+  focus: 'back into focus → notice',
+  visible: 'back into view → notice',
+  interval: 'left in view → notice (page clock)¹',
+}
+function versionRows(fx) {
+  return Object.entries(VERSION_TRIGGERS).map(([trigger, label]) =>
+    row(fx, `M9 · ${label}`, () => {
+      const c = fx.m9?.[trigger]
+      if (!c || c.n === 0) return 'not run'
+      return `${c.noticed}/${c.n} noticed · reloaded by itself: ${c.reloaded} · ${c.withinFifteenMinutes}/${c.n} within 15 min · p50 ${span(c.time.p50)} · p95 ${span(c.time.p95)}`
+    }),
+  )
+}
+
+/**
+ * M5's rows: a dropped call back online without a press, back once online, its one try failed, and the microphone
+ * turned on when the call or the preference had it off (violations, beside the control that shows one can be seen).
+ */
+function rejoinRows(fx) {
+  const m = fx.m5
+  const run = (n, value) => () => (!m || n === 0 ? 'not run' : value())
+  const once = (c) => `one try ${c.oneTry}/${c.n} · «Reconnected.» said once ${c.saidOnce}/${c.n}`
+  return [
+    row(
+      fx,
+      'M5 · dropped online → live without a press',
+      run(m?.online?.n, () => `${m.online.back}/${m.online.n} back · p50 ${ms(m.online.time.p50)} · p95 ${ms(m.online.time.p95)} · ${once(m.online)}`),
+    ),
+    row(
+      fx,
+      'M5 · dropped offline → live once online',
+      run(m?.offline?.n, () => {
+        const c = m.offline
+        return `${c.back}/${c.n} back · online → live p50 ${ms(c.time.p50)} · p95 ${ms(c.time.p95)} · no try while offline ${c.n - c.triedOffline}/${c.n} · ${once(c)}`
+      }),
+    ),
+    row(
+      fx,
+      'M5 · its one try fails → the dropped words, Try again',
+      run(m?.failed?.n, () => {
+        const c = m.failed
+        return `${c.said}/${c.n} said with Try again · one try ${c.oneTry}/${c.n} · a second try on its own: ${c.secondTry}`
+      }),
+    ),
+    row(
+      fx,
+      'M5 · microphone back on when off (the call or the preference)',
+      run(m?.privacy?.n, () => {
+        const { n, back, violations, controls } = m.privacy
+        return `violations: ${violations} of ${n} rounds (${back} back) · control, on and on: ${controls.on}/${controls.n} back on`
+      }),
+    ),
+  ]
+}
+
+/** The note under M9's interval row: how precise its times are; none when it gave no numbers. */
+function versionNote(fx) {
+  if (fx.incomplete?.metrics.M9 || !(fx.m9?.interval?.n > 0)) return []
+  return ['', '¹ M9 left in view: the page’s clock is read in 5 s steps, so each time is to the step and may be one step late.']
+}
+
+/** A metric's row; for a metric the run is partial for, how many of its scenarios wrote results instead of a value. */
+function row(fx, label, value) {
+  const partial = fx.incomplete?.metrics[/^M\d+r?/.exec(label)[0]]
+  if (partial) return `| ${label} | incomplete: ${partial.ran} of ${partial.expected ?? '?'} scenarios wrote results |`
+  return `| ${label} | ${value()} |`
+}
+
+/** Why some metrics give no numbers. */
+function incompleteNote(incomplete) {
+  if (!incomplete) return []
+  const why =
+    incomplete.exit === null
+      ? 'some metrics have fewer results than the suite has scenarios'
+      : `the suite exited ${incomplete.exit}, so no metric can be read as whole`
+  return [`**Incomplete:** ${why}. Those give no numbers: run the whole suite again.`, '']
+}
+
+/** M6's views, one line each; none for a partial run. */
+function m6Table(fx) {
+  if (fx.incomplete?.metrics.M6) return []
+  return [
+    '',
+    '| M6 view | Failed reads | Shown |',
+    '| --- | --- | --- |',
+    ...fx.m6.samples.map(
+      (s) =>
+        `| ${s.view} | ${s.failedReads} | ${s.failedReads === 0 ? 'not reached' : s.visible ? 'visible' : 'silent'} |`,
+    ),
+  ]
+}
+
+/** M5's microphone cases, one line each; none for a partial run or none run. */
+function m5Table(fx) {
+  const cases = Object.entries(fx.m5?.privacy?.cases ?? {})
+  if (fx.incomplete?.metrics.M5 || cases.length === 0) return []
+  return [
+    '',
+    '| M5 microphone case | Rounds | Back | Came back on |',
+    '| --- | --- | --- | --- |',
+    ...cases.map(([how, c]) => `| ${how} | ${c.n} | ${c.back} | ${c.violations} |`),
+  ]
+}
+
+/** M7's reads, one line each; none for a partial run. */
+function m7Table(fx) {
+  if (fx.incomplete?.metrics.M7) return []
+  return [
+    '',
+    '| M7 read | Answered 502/503 | Errors seen | Back without a press | After |',
+    '| --- | --- | --- | --- | --- |',
+    ...fx.m7.samples.map(
+      (s) => `| ${s.read} | ${s.failures} | ${s.errors} | ${s.recovered ? 'yes' : 'no'} | ${ms(s.ms)} |`,
+    ),
+  ]
+}
+
+/** What can't be measured yet: M3/M4 only while no feed scenario ran. */
+const notYet = (report) => {
+  const ran = Object.values(report.fixture?.feed?.cases ?? {}).some((c) => c.ran > 0)
+  return NOT_YET.filter((n) => !(n.feed && ran))
+}
+
+function fixtureMarkdown(fx) {
+  const { m1, m2, m6, m7 } = fx
+  return [
+    `## Fixture · ${fx.run?.commit ?? 'unknown commit'} · ${fx.run?.startedAt ?? ''}`,
+    '',
+    ...incompleteNote(fx.incomplete),
+    '| Metric | Value |',
+    '| --- | --- |',
+    row(
+      fx,
+      'M1 · keyed write, press → answer',
+      () =>
+        `p50 ${ms(m1.total.p50)} · p95 ${ms(m1.total.p95)} (${m1.definitive}/${m1.n} definitive; ${pct(m1.withinFiveSeconds)} within 5 s)`,
+    ),
+    row(fx, 'M1 · overhead past the held reply', () => `p50 ${ms(m1.overhead.p50)} · p95 ${ms(m1.overhead.p95)}`),
+    row(
+      fx,
+      'M2 · unknown outcome resolved by resend, same key',
+      () =>
+        `${pct(m2.share)} (${m2.resolved}/${m2.n}; written twice: ${m2.duplicates}; resend → answer p50 ${ms(m2.resend.p50)})`,
+    ),
+    reloadRow(fx),
+    row(
+      fx,
+      'M6 · failed reads shown / silent',
+      () =>
+        `${m6.visible} visible · ${m6.silent} silent of ${m6.reached} reached (${m6.notReached.length} not reached)`,
+    ),
+    row(
+      fx,
+      'M7 · 502/503 in HTML cured without a press',
+      () => `${pct(m7.share)} (${m7.recovered}/${m7.n}; time p50 ${ms(m7.time.p50)} · p95 ${ms(m7.time.p95)})`,
+    ),
+    ...feedRows(fx),
+    ...rejoinRows(fx),
+    ...sessionRows(fx),
+    ...versionRows(fx),
+    ...versionNote(fx),
+    ...m5Table(fx),
+    ...m6Table(fx),
+    ...m7Table(fx),
+  ]
+}
+
+function markdown(report) {
+  const lines = ['# Reliability report', '', `Generated ${report.generatedAt}.`, '']
+  if (report.ci) lines.push(...ciMarkdown(report.ci), '')
+  if (report.fixture) lines.push(...fixtureMarkdown(report.fixture), '')
+  lines.push('## Not measurable yet', '', ...notYet(report).map((n) => `- ${n.metric} (${n.what}): ${n.why}.`), '')
+  return lines.join('\n')
+}
+
+function write(outDir, section, value) {
+  mkdirSync(outDir, { recursive: true })
+  const file = join(outDir, 'reliability.json')
+  const kept = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {}
+  const merged = { ...kept, generatedAt: new Date().toISOString(), [section]: value }
+  const report = { ...merged, notMeasurable: notYet(merged) }
+  writeFileSync(file, `${JSON.stringify(report, null, 2)}\n`)
+  const text = markdown(report)
+  writeFileSync(join(outDir, 'reliability.md'), text)
+  process.stdout.write(`${text}\nWrote ${file} and reliability.md beside it.\n`)
+}
+
+async function main() {
+  const { values } = parseArgs({
+    options: {
+      ci: { type: 'boolean' },
+      fixture: { type: 'boolean' },
+      run: { type: 'boolean' },
+      since: { type: 'string' },
+      repo: { type: 'string', default: 'davidelaverga/Sophia' },
+      out: { type: 'string', default: join(ROOT, 'reliability-report') },
+    },
+  })
+  if (!values.ci && !values.fixture) {
+    process.stderr.write('Usage: reliability-report.mjs --ci [--since <ISO>] | --fixture [--run]  [--out <dir>]\n')
+    process.exit(2)
+  }
+  if (values.ci) {
+    const since = values.since ?? new Date(Date.now() - 7 * DAY).toISOString()
+    write(values.out, 'ci', await measureCi({ repo: values.repo, since }))
+  }
+  if (values.fixture) {
+    const fixture = measureFixture({ run: values.run })
+    write(values.out, 'fixture', fixture)
+    if (fixture.incomplete) process.exitCode = 1
+  }
+}
+
+await main()

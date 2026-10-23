@@ -19,10 +19,12 @@
  * @module @sophia/execution-host/runtime-supervisor
  */
 
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import type { ChildProcess } from 'node:child_process'
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeSync } from 'node:fs'
-import { delimiter, dirname, join } from 'node:path'
+import { closeSync, constants, existsSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeSync } from 'node:fs'
+import type { Stats } from 'node:fs'
+import { delimiter, dirname, join, resolve, sep } from 'node:path'
 
 /** What the supervisor needs to know about the runtime unit it launches. */
 export interface SupervisedUnit {
@@ -34,7 +36,18 @@ export interface SupervisedUnit {
   readonly launcherEntry: string
 }
 
+export interface ReplySupervisorOptions {
+  readonly launcher: string
+  readonly python: string
+  readonly template: string
+  readonly profileName: string
+  readonly templateDigest: string
+  readonly maxChildren?: number
+  readonly deadlineMs?: number
+}
+
 export interface SupervisorOptions {
+  readonly replies?: ReplySupervisorOptions
   readonly unit: SupervisedUnit
   /** Per-project root; the profile must already be installed at `<root>/dsh-home/profiles/<profile>`. */
   readonly projectRoot: string
@@ -51,6 +64,11 @@ export interface SupervisorOptions {
   readonly maxRestarts?: number
   readonly restartWindowMs?: number
   readonly onEvent?: (event: SupervisorEvent) => void
+  /**
+   * The project home's lease, taken by the caller BEFORE it prepared the home (ProjectLease.acquire). The supervisor
+   * adopts it as it is, so the home is never unleased between preparation and launch; it releases it as its own.
+   */
+  readonly lease?: ProjectLease
 }
 
 export type SupervisorState = 'idle' | 'starting' | 'ready' | 'restarting' | 'stopping' | 'stopped' | 'failed'
@@ -59,13 +77,75 @@ export type SupervisorEvent =
   | { type: 'state'; state: SupervisorState; reason?: string }
   | { type: 'exit'; code: number | null; signal: NodeJS.Signals | null; generation: number }
 
-/** Thrown when another live supervisor holds the project home. */
-export class LeaseHeldError extends Error {}
+/** Thrown when another live supervisor holds the project home; `pid` names a live holder in another process. */
+export class LeaseHeldError extends Error {
+  constructor(
+    message: string,
+    readonly pid?: number,
+  ) {
+    super(message)
+  }
+}
 
 const READY_LINE = '[sophia-control-bridge] readiness=ready'
 
 /** Leases held by supervisors in THIS process (a pid check cannot tell them apart). */
 const heldInProcess = new Set<string>()
+
+/**
+ * A project home's single-writer lease: `<root>/supervisor.lease`, created exclusively and holding this process's pid.
+ * A supervisor takes one on start; a caller that must prepare the home first (reconcile its profile, stage its
+ * overlays) takes it before preparing and passes it to the supervisor (SupervisorOptions.lease), which adopts it
+ * without removing or recreating the file.
+ */
+export class ProjectLease {
+  private held = true
+  private adopted = false
+
+  private constructor(
+    readonly projectRoot: string,
+    readonly path: string,
+  ) {}
+
+  /**
+   * Take the lease or throw LeaseHeldError: another holder in this process, or a live process's lease. A lease whose
+   * process is gone (or this process's, held by nobody here) is stale and replaced.
+   */
+  static acquire(projectRoot: string): ProjectLease {
+    const path = join(projectRoot, 'supervisor.lease')
+    mkdirSync(projectRoot, { recursive: true, mode: 0o700 })
+    if (heldInProcess.has(path)) throw new LeaseHeldError(`project home ${projectRoot} is leased by another supervisor in this process`)
+    if (leaseState(path).state !== 'absent') takeOverStale(projectRoot, path)
+    try {
+      createLease(path)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+      const now = leaseState(path)
+      throw new LeaseHeldError(`project home ${projectRoot} was leased by another process meanwhile`, now.state === 'live' ? now.pid : undefined)
+    }
+    heldInProcess.add(path)
+    return new ProjectLease(projectRoot, path)
+  }
+
+  /** Hand the lease to one supervisor; a second adoption is refused. */
+  adopt(): void {
+    if (this.adopted) throw new LeaseHeldError(`project home ${this.projectRoot} is leased by another supervisor in this process`)
+    this.adopted = true
+  }
+
+  /** Whether this lease is still held (not yet released). */
+  get active(): boolean {
+    return this.held
+  }
+
+  /** Release once: the file is removed only while it is still this process's. */
+  release(): void {
+    if (!this.held) return
+    this.held = false
+    heldInProcess.delete(this.path)
+    if (existsSync(this.path) && readFileSync(this.path, 'utf8').trim() === String(process.pid)) rmSync(this.path, { force: true })
+  }
+}
 const STARTUP_FAILED = /dsh: startup failed/
 
 export class RuntimeSupervisor {
@@ -74,12 +154,12 @@ export class RuntimeSupervisor {
   private restarts: number[] = []
   private stopping = false
   private output = ''
-  private leasePath: string
-  private leased = false
+  private lease: ProjectLease | null = null
+  private readonly replyGeneration: ReplyGeneration
   state: SupervisorState = 'idle'
 
   constructor(private readonly options: SupervisorOptions) {
-    this.leasePath = join(options.projectRoot, 'supervisor.lease')
+    this.replyGeneration = new ReplyGeneration(options)
   }
 
   /** The dsh child's pid for the current generation, if running. */
@@ -97,34 +177,21 @@ export class RuntimeSupervisor {
     this.options.onEvent?.({ type: 'state', state, reason })
   }
 
-  /** Take the single-writer lease on the project home or throw LeaseHeldError. */
+  /** Adopt the caller's lease for this home (SupervisorOptions.lease), or take one; throw LeaseHeldError if held. */
   private acquireLease(): void {
-    mkdirSync(this.options.projectRoot, { recursive: true, mode: 0o700 })
-    if (heldInProcess.has(this.leasePath)) {
-      throw new LeaseHeldError(`project home ${this.options.projectRoot} is leased by another supervisor in this process`)
+    const given = this.options.lease
+    if (given?.active) {
+      if (given.path !== join(this.options.projectRoot, 'supervisor.lease')) throw new Error('the given lease is not this project home\'s')
+      given.adopt()
+      this.lease = given
+      return
     }
-    if (existsSync(this.leasePath)) {
-      const pid = Number(readFileSync(this.leasePath, 'utf8').trim())
-      if (Number.isSafeInteger(pid) && pid > 0 && pid !== process.pid && isAlive(pid)) {
-        throw new LeaseHeldError(`project home ${this.options.projectRoot} is leased by live supervisor pid ${pid}`)
-      }
-      rmSync(this.leasePath, { force: true })
-    }
-    const fd = openSync(this.leasePath, 'wx', 0o600)
-    try {
-      writeSync(fd, `${process.pid}\n`)
-    } finally {
-      closeSync(fd)
-    }
-    heldInProcess.add(this.leasePath)
-    this.leased = true
+    this.lease = ProjectLease.acquire(this.options.projectRoot)
   }
 
   private releaseLease(): void {
-    if (!this.leased) return
-    this.leased = false
-    heldInProcess.delete(this.leasePath)
-    if (existsSync(this.leasePath) && readFileSync(this.leasePath, 'utf8').trim() === String(process.pid)) rmSync(this.leasePath, { force: true })
+    this.lease?.release()
+    this.lease = null
   }
 
   /** The complete child environment; nothing else is inherited. */
@@ -138,7 +205,7 @@ export class RuntimeSupervisor {
       const value = process.env[name]
       if (value) passed[name] = value
     }
-    return {
+    const environment: Record<string, string> = {
       ...passed,
       HOME: home,
       TMPDIR: tmp,
@@ -152,6 +219,17 @@ export class RuntimeSupervisor {
       SOPHIA_BRIDGE_TOKEN: this.options.bridge.token,
       ...this.options.extraEnv,
     }
+    for (const name of Object.keys(environment)) if (name.startsWith('SOPHIA_REPLY_')) delete environment[name]
+    return { ...environment, ...this.replyGeneration.environment(this.options, this.replyActive()) }
+  }
+
+  private replyActive(): boolean {
+    return this.lease !== null && (this.state === 'starting' || this.state === 'restarting' ||
+      (this.state === 'ready' && this.child !== null && this.child.exitCode === null && this.child.signalCode === null))
+  }
+
+  private sweepReplies(seal: boolean): void {
+    if (this.lease !== null) this.replyGeneration.sweep(seal, this.options)
   }
 
   /**
@@ -165,6 +243,7 @@ export class RuntimeSupervisor {
     this.stopping = false
     this.restarts = []
     try {
+      this.sweepReplies(true)
       await this.launch('starting')
     } catch (error) {
       this.setState('failed', (error as Error).message)
@@ -238,6 +317,7 @@ export class RuntimeSupervisor {
     await new Promise((resolve) => setTimeout(resolve, backoff))
     if (this.stopping) return
     try {
+      this.sweepReplies(true)
       await this.launch('restarting')
     } catch (error) {
       // A restart that never became ready counts against the same budget.
@@ -264,9 +344,72 @@ export class RuntimeSupervisor {
       })
     }
     this.child = null
+    this.sweepReplies(false)
     this.releaseLease()
     this.setState('stopped')
     return result
+  }
+}
+
+/**
+ * Create the lease holding this process's pid, or throw EEXIST (FND-B117): the pid is written to a private file first,
+ * which is then linked to the lease path. link() never replaces an existing path, so the lease appears with its pid
+ * already in it; there is no moment at which a contender can read an empty lease as stale.
+ */
+function createLease(path: string): void {
+  const draft = `${path}.${process.pid}.${randomUUID()}.new`
+  const fd = openSync(draft, 'wx', 0o600)
+  try {
+    writeSync(fd, `${process.pid}\n`)
+  } finally {
+    closeSync(fd)
+  }
+  try {
+    linkSync(draft, path)
+  } finally {
+    rmSync(draft, { force: true })
+  }
+}
+
+/** The lease file at `path`: absent, held by another live process, or stale (its process gone, or this process's). */
+function leaseState(path: string): { state: 'absent' } | { state: 'live'; pid: number } | { state: 'stale' } {
+  let text: string
+  try {
+    text = readFileSync(path, 'utf8')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { state: 'absent' }
+    throw error
+  }
+  const pid = Number(text.trim())
+  return Number.isSafeInteger(pid) && pid > 0 && pid !== process.pid && isAlive(pid) ? { state: 'live', pid } : { state: 'stale' }
+}
+
+/**
+ * Remove a stale lease so it can be taken (FND-B117). Two contenders may both read the same stale lease, so the
+ * decision is made again, and the removal done, only while holding `<lease>.takeover`, a directory one process at a
+ * time can create. The lease is removed only if that second read still finds it present and stale: a file at the path
+ * is replaced only by being removed first, and nothing but a takeover marker holder removes another process's lease
+ * (release() removes only this process's), so the file read is the file removed. A contender that read the same
+ * stale lease finds, once it holds the marker, either the new live holder (refused) or no lease (both then race on
+ * the exclusive create, one wins). A marker left by a process that died inside this step blocks stale takeovers of
+ * that home until an operator removes it; a home with no lease file is unaffected.
+ */
+function takeOverStale(projectRoot: string, path: string): void {
+  const first = leaseState(path)
+  if (first.state === 'live') throw new LeaseHeldError(`project home ${projectRoot} is leased by live supervisor pid ${first.pid}`, first.pid)
+  const marker = `${path}.takeover`
+  try {
+    mkdirSync(marker, { mode: 0o700 })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+    throw new LeaseHeldError(`project home ${projectRoot}'s stale lease is being taken over by another process (${marker})`)
+  }
+  try {
+    const again = leaseState(path)
+    if (again.state === 'live') throw new LeaseHeldError(`project home ${projectRoot} is leased by live supervisor pid ${again.pid}`, again.pid)
+    if (again.state === 'stale') rmSync(path)
+  } finally {
+    rmSync(marker, { recursive: true, force: true })
   }
 }
 
@@ -285,4 +428,195 @@ function pnpmDir(): string | undefined {
     if (dir && existsSync(join(dir, 'pnpm'))) return dir
   }
   return undefined
+}
+
+
+interface ReplyConfiguration extends ReplySupervisorOptions {
+  readonly unitId: string
+  readonly unitProfile: string
+  readonly projectRoot: string
+  readonly runtimeDir: string
+  readonly entry: string
+  readonly node: string
+}
+function replyPath(value: unknown): value is string {
+  return typeof value === 'string' && value !== '/' && !value.includes('\0') && resolve(value) === value
+}
+function replyConfiguration(options: SupervisorOptions): Readonly<ReplyConfiguration> | null {
+  if (options.replies === undefined) return null
+  const value = { ...options.replies }, unit = { ...options.unit }
+  if (![value.launcher, value.python, value.template, unit.runtimeDir, options.projectRoot].every(replyPath) ||
+      typeof value.profileName !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(value.profileName) ||
+      typeof value.templateDigest !== 'string' || !/^sophia-reply-tree-v1:sha256:[0-9a-f]{64}$/.test(value.templateDigest) ||
+      (value.maxChildren !== undefined && value.maxChildren !== 2) ||
+      (value.deadlineMs !== undefined && value.deadlineMs !== 120_000)) throw new Error('reply_configuration_invalid')
+  const entry = resolve(unit.runtimeDir, unit.launcherEntry)
+  if (!entry.startsWith(unit.runtimeDir + sep)) throw new Error('reply_configuration_invalid')
+  return Object.freeze({ ...value, unitId: unit.id, unitProfile: unit.profile, projectRoot: options.projectRoot, runtimeDir: unit.runtimeDir, entry, node: process.execPath })
+}
+function replyDirectory(path: string, privateMode = true): Stats {
+  const info = lstatSync(path)
+  if (!info.isDirectory() || info.isSymbolicLink() ||
+      (privateMode && (info.uid !== process.geteuid?.() || (info.mode & 0o777) !== 0o700))) throw new Error('reply_namespace_invalid')
+  return info
+}
+function replyAncestors(path: string): void {
+  for (let current = path; current !== '/'; current = dirname(current)) replyDirectory(current, current === path)
+}
+function sameReplyDirectory(path: string, expected: Stats): void {
+  const current = replyDirectory(path)
+  if (current.dev !== expected.dev || current.ino !== expected.ino) throw new Error('reply_namespace_changed')
+}
+function syncReplyDirectory(path: string): void {
+  const fd = openSync(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW)
+  try { fsyncSync(fd) } finally { closeSync(fd) }
+}
+function replyAbsent(path: string): boolean {
+  try { lstatSync(path); return false }
+  catch (error: unknown) { if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT') return true; throw error }
+}
+function replyInventory(path: string, limit: number): ReadonlyMap<string, Stats> {
+  const names = readdirSync(path).sort()
+  if (names.length > limit || names.some(name => !/^(gen|sealed)-[A-Za-z0-9_-]{1,100}$/.test(name))) throw new Error('reply_inventory_invalid')
+  const roots = new Map(names.map(name => [name, replyDirectory(join(path, name))]))
+  for (const name of names) if (name.startsWith('gen-') && roots.has('sealed-' + name.slice(4))) throw new Error('reply_seal_collision')
+  return roots
+}
+function replyAdmissionFile(root: string): Stats {
+  const info = lstatSync(join(root, '.admit'))
+  if (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1 || info.size !== 0 ||
+      info.uid !== process.geteuid?.() || (info.mode & 0o777) !== 0o600) throw new Error('reply_admission_invalid')
+  return info
+}
+function replyFreshRoot(parent: string): string {
+  const suffix = randomUUID(), root = join(parent, 'gen-' + suffix)
+  if (!replyAbsent(join(parent, 'sealed-' + suffix))) throw new Error('reply_generation_reused')
+  mkdirSync(root, { mode: 0o700 }) // Exclusive; never reuse or truncate a former generation.
+  const identity = replyDirectory(root)
+  const fd = openSync(join(root, '.admit'), constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600)
+  try {
+    const info = fstatSync(fd)
+    if (!info.isFile() || info.nlink !== 1 || info.size !== 0 || (info.mode & 0o777) !== 0o600 || info.uid !== process.geteuid?.()) throw new Error('reply_admission_invalid')
+    fsyncSync(fd)
+  } finally { closeSync(fd) }
+  sameReplyDirectory(root, identity); syncReplyDirectory(root); syncReplyDirectory(parent)
+  return root
+}
+
+/** Optional CON namespace owner. No prompt, provider, transport, home deletion or settlement receipt. */
+class ReplyGeneration {
+  private readonly config: Readonly<ReplyConfiguration> | null = null
+  private invalid = false
+  private root: string | null = null
+  private rootIdentity: Stats | null = null
+  private admissionIdentity: Stats | null = null
+  private projectIdentity: Stats | null = null
+  private parentIdentity: Stats | null = null
+  private ready = false
+
+  constructor(options: SupervisorOptions) {
+    try { this.config = replyConfiguration(options) }
+    catch { this.invalid = true }
+  }
+  environment(options: SupervisorOptions, active: boolean): Record<string, string> {
+    const c = this.config
+    if (!this.ready || !this.root || !c) return {}
+    try {
+      if (!active) throw new Error('reply_not_owned')
+      this.validateBinding(options)
+      this.validateNamespace()
+    } catch { this.ready = false; return {} }
+    return { SOPHIA_REPLY_ROOT: this.root, SOPHIA_REPLY_DIR: join(c.projectRoot, 'replies'),
+      SOPHIA_REPLY_LAUNCHER: c.launcher, SOPHIA_REPLY_PYTHON: c.python, SOPHIA_REPLY_NODE: c.node,
+      SOPHIA_REPLY_ENTRY: c.entry, SOPHIA_REPLY_RUNTIME_DIR: c.runtimeDir, SOPHIA_REPLY_TEMPLATE: c.template,
+      SOPHIA_REPLY_PROFILE: c.profileName, SOPHIA_REPLY_TEMPLATE_DIGEST: c.templateDigest }
+  }
+  sweep(seal: boolean, options: SupervisorOptions): void {
+    this.ready = false
+    if (!this.config && !this.invalid) return
+    try { this.validateBinding(options); this.qualify(seal) } catch {
+      // Optional CON failure never changes the goal state or exposes helper output.
+      try { process.stderr.write('[sophia-reply-supervisor] containment_unavailable\n') } catch { /* CON stays disabled even if diagnostics cannot be written. */ }
+    }
+  }
+  private validateBinding(options: SupervisorOptions): void {
+    const c = this.config
+    if (!c || options.projectRoot !== c.projectRoot || options.unit.runtimeDir !== c.runtimeDir ||
+        options.unit.id !== c.unitId || options.unit.profile !== c.unitProfile ||
+        resolve(options.unit.runtimeDir, options.unit.launcherEntry) !== c.entry) throw new Error('reply_binding_changed')
+  }
+  private qualify(seal: boolean): void {
+    const c = this.config
+    if (!c) throw new Error('reply_configuration_invalid')
+    replyAncestors(c.projectRoot)
+    const project = replyDirectory(c.projectRoot), parent = join(c.projectRoot, 'replies')
+    if (seal && replyAbsent(parent)) mkdirSync(parent, { mode: 0o700 })
+    const identity = replyDirectory(parent)
+    const roots = replyInventory(parent, seal ? 255 : 256)
+    this.helper(['probe'], 10_000)
+    const digest = this.helper(['digest', c.template], 30_000)
+    if (digest !== c.templateDigest + '\n') throw new Error('reply_template_mismatch')
+    replyAncestors(c.projectRoot)
+    sameReplyDirectory(c.projectRoot, project); sameReplyDirectory(parent, identity)
+    this.verifyInventory(parent, roots)
+    if (seal) {
+      this.root = this.seal(parent, identity, roots)
+      this.rootIdentity = replyDirectory(this.root)
+      this.admissionIdentity = replyAdmissionFile(this.root)
+    }
+    this.validateRoot()
+    const finalRoots = replyInventory(parent, 256)
+    this.helper(['sweep', '--replies', parent], 15_000)
+    replyAncestors(c.projectRoot)
+    sameReplyDirectory(c.projectRoot, project); sameReplyDirectory(parent, identity)
+    this.verifyInventory(parent, finalRoots)
+    this.validateRoot()
+    this.projectIdentity = project
+    this.parentIdentity = identity
+    this.ready = seal
+  }
+  private validateNamespace(): void {
+    const c = this.config
+    if (!c || !this.projectIdentity || !this.parentIdentity) throw new Error('reply_namespace_missing')
+    replyAncestors(c.projectRoot)
+    sameReplyDirectory(c.projectRoot, this.projectIdentity)
+    sameReplyDirectory(join(c.projectRoot, 'replies'), this.parentIdentity)
+    this.validateRoot()
+  }
+  private validateRoot(): void {
+    if (!this.root || !this.rootIdentity || !this.admissionIdentity) throw new Error('reply_generation_missing')
+    sameReplyDirectory(this.root, this.rootIdentity)
+    const current = replyAdmissionFile(this.root)
+    if (current.dev !== this.admissionIdentity.dev || current.ino !== this.admissionIdentity.ino) throw new Error('reply_admission_changed')
+  }
+  private verifyInventory(parent: string, roots: ReadonlyMap<string, Stats>): void {
+    const current = replyInventory(parent, 256)
+    if (current.size !== roots.size) throw new Error('reply_namespace_changed')
+    for (const [name, expected] of roots) sameReplyDirectory(join(parent, name), expected)
+  }
+  private seal(parent: string, identity: Stats, roots: ReadonlyMap<string, Stats>): string {
+    for (const [name, expected] of roots) {
+      sameReplyDirectory(parent, identity)
+      sameReplyDirectory(join(parent, name), expected)
+      if (!name.startsWith('gen-')) continue
+      const target = join(parent, 'sealed-' + name.slice(4))
+      if (!replyAbsent(target)) throw new Error('reply_seal_collision')
+      renameSync(join(parent, name), target)
+      sameReplyDirectory(target, expected)
+      if (!replyAbsent(join(parent, name))) throw new Error('reply_seal_unconfirmed')
+      syncReplyDirectory(parent)
+    }
+    sameReplyDirectory(parent, identity)
+    return replyFreshRoot(parent)
+  }
+  private helper(args: readonly string[], timeout: number): string {
+    const c = this.config
+    if (!c) throw new Error('reply_configuration_invalid')
+    const result = spawnSync(c.python, ['-I', '-B', c.launcher, ...args], { cwd: '/',
+      env: { PATH: '/usr/bin:/bin', LANG: 'C.UTF-8', SOPHIA_REPLY_RUNTIME_DIR: c.runtimeDir,
+        ...(this.root ? { SOPHIA_REPLY_ROOT: this.root } : {}) }, timeout, killSignal: 'SIGKILL',
+      maxBuffer: 65_536, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+    if (result.error || result.signal !== null || result.status !== 0) throw new Error('reply_helper_unconfirmed')
+    return result.stdout
+  }
 }

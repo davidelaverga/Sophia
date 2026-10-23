@@ -13,11 +13,13 @@ import type {
   NativeTaskReceipt,
   NativeTaskRequest,
   ResearchProgress,
+  WithdrawnEntry,
 } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { readDesignProgress, readResearchHtml } from './design-progress.ts'
+import { safeInt } from './bigint.ts'
 import { onlyRow } from './rows.ts'
-import { nameActor } from './tx.ts'
+import { nameActor, type ActorNames } from './tx.ts'
 
 const iso = (value: Date | string) => new Date(value).toISOString()
 
@@ -31,12 +33,12 @@ export async function submitContribution(
   idempotencyKey: string,
   body: Contribution,
   /**
-   * Where it came from (the composer by default), and the author's name from their token, kept with the message so the
-   * room names them outside a call (0048).
+   * Where it came from (the composer by default), and the author's names from their token (nameActor), so the message
+   * keeps their display name (0048). Without them, the transaction's own name stands (a voice write's, 0050).
    */
-  { origin = 'composer', authorName = null }: { origin?: ContributionOrigin; authorName?: string | null } = {},
+  { origin = 'composer', names = null }: { origin?: ContributionOrigin; names?: ActorNames | null } = {},
 ): Promise<ContributionReceipt> {
-  await nameActor(c, authorName)
+  if (names) await nameActor(c, names)
   const { rows } = await c.query<{ receipt: ContributionReceipt }>(
     `SELECT sophia.submit_contribution($1, $2, $3, $4) AS receipt`,
     [projectId, idempotencyKey, JSON.stringify(body), origin],
@@ -64,19 +66,35 @@ interface DiscussionRow {
   author_name: string | null
   intent: DiscussionEntry['intent']
   origin: DiscussionEntry['origin']
-  body: string
-  source_id: string
-  sha256: string
+  /** Null only for a withdrawn message (A36), which a reader that opted in sees as a tombstone. */
+  body: string | null
+  source_id: string | null
+  sha256: string | null
   created_at: Date
+  revision: string
+  state: 'current' | 'withdrawn'
+  corrected_at: Date | null
+  withdrawn_at: Date | null
+  kind: NonNullable<DiscussionEntry['kind']>
+  /** Who it mentions (A37), read only with revisions; never whether they looked. */
+  mentions: string[] | null
 }
 
-/** A page of the discussion: the newest `limit`, or the `limit` just older than an entry (A23), oldest first. */
+/**
+ * A page of the discussion: the newest `limit`, or the `limit` just older than an entry (A23), oldest first. Each
+ * message as it is now (0068): its current words, a withdrawn one never with its words. Without $4 (the shape before
+ * A36) a withdrawn message is left out; with it, it counts in the page as a tombstone.
+ */
 const DISCUSSION_PAGE = `SELECT * FROM (
-     SELECT ct.id, ct.actor_id, ct.author_name, ct.intent, ct.origin, t.body, s.id AS source_id, s.sha256, ct.created_at
+     SELECT ct.id, ct.actor_id, sophia.actor_label(ct.project_id, ct.actor_id, ct.author_name) AS author_name, ct.intent, ct.origin, t.body, s.id AS source_id, s.sha256, ct.created_at,
+            ct.revision, ct.state, ct.corrected_at, ct.withdrawn_at,
+            CASE WHEN jsonb_typeof(ct.semantic_request->'source') = 'null' THEN 'text' ELSE 'reference' END AS kind,
+            CASE WHEN $4::boolean AND ct.state = 'current' THEN sophia.contribution_recipients(ct.project_id, ct.id) END AS mentions
        FROM sophia.contributions ct
-       JOIN sophia.source_objects s ON s.project_id = ct.project_id AND s.id = ct.source_id
-       JOIN sophia.source_texts t ON t.project_id = s.project_id AND t.source_id = s.id
+       LEFT JOIN sophia.source_objects s ON s.project_id = ct.project_id AND s.id = ct.source_id AND ct.state = 'current'
+       LEFT JOIN sophia.source_texts t ON t.project_id = s.project_id AND t.source_id = s.id
       WHERE ct.project_id = $1
+        AND (t.body IS NOT NULL OR ($4::boolean AND ct.state = 'withdrawn'))
         AND ($2::uuid IS NULL OR (ct.created_at, ct.id) <
              (SELECT a.created_at, a.id FROM sophia.contributions a WHERE a.project_id = $1 AND a.id = $2))
       ORDER BY ct.created_at DESC, ct.id DESC LIMIT $3) page
@@ -85,20 +103,34 @@ const DISCUSSION_PAGE = `SELECT * FROM (
 /** How many entries the snapshot and each page hold. */
 const DISCUSSION_PAGE_SIZE = 50
 
+/** The discussion as a reader that handles corrections and withdrawals reads it (A36's revisions=1). */
+export interface RevisedDiscussion {
+  entries: DiscussionEntry[]
+  withdrawn: WithdrawnEntry[]
+}
+
 /** The latest discussion, oldest first (at most 50). Call inside withActor(..., "read"). */
 export async function readDiscussion(c: pg.PoolClient, projectId: string): Promise<DiscussionEntry[]> {
-  const { rows } = await c.query<DiscussionRow>(DISCUSSION_PAGE, [projectId, null, DISCUSSION_PAGE_SIZE])
-  return rows.map(discussionEntry)
+  const { rows } = await c.query<DiscussionRow>(DISCUSSION_PAGE, [projectId, null, DISCUSSION_PAGE_SIZE, false])
+  return rows.map((r) => discussionEntry(r, false))
+}
+
+/** The latest discussion with revisions and tombstones (A36), oldest first: 50 at most, together. */
+export async function readRevisedDiscussion(c: pg.PoolClient, projectId: string): Promise<RevisedDiscussion> {
+  const { rows } = await c.query<DiscussionRow>(DISCUSSION_PAGE, [projectId, null, DISCUSSION_PAGE_SIZE, true])
+  return revised(rows)
 }
 
 /**
  * A page of the discussion (A23), oldest first: the newest 50, or the 50 before `before`; its `before` while older
- * entries remain. Null when the project isn't the caller's to read (RLS). Call inside withActor(..., "read").
+ * entries remain. With `revisions` (A36), entries carry their revision and withdrawn messages come as tombstones,
+ * counted in the 50. Null when the project isn't the caller's to read (RLS). Call inside withActor(..., "read").
  */
 export async function readDiscussionPage(
   c: pg.PoolClient,
   projectId: string,
   before: string | null,
+  { revisions = false }: { revisions?: boolean } = {},
 ): Promise<DiscussionPage | null> {
   const { rows: project } = await c.query(`SELECT 1 FROM sophia.projects WHERE id = $1`, [projectId])
   if (project.length === 0) return null
@@ -110,13 +142,31 @@ export async function readDiscussionPage(
     if (anchor.length === 0) throw new DomainError('not_found', 'That message is not in the discussion')
   }
   // One more than a page says whether older entries remain.
-  const { rows } = await c.query<DiscussionRow>(DISCUSSION_PAGE, [projectId, before, DISCUSSION_PAGE_SIZE + 1])
+  const { rows } = await c.query<DiscussionRow>(DISCUSSION_PAGE, [
+    projectId,
+    before,
+    DISCUSSION_PAGE_SIZE + 1,
+    revisions,
+  ])
   const more = rows.length > DISCUSSION_PAGE_SIZE
-  const entries = (more ? rows.slice(1) : rows).map(discussionEntry)
-  return { entries, before: more ? (entries[0]?.id ?? null) : null }
+  const page = more ? rows.slice(1) : rows
+  const oldest = more ? (page[0]?.id ?? null) : null
+  if (!revisions) return { entries: page.map((r) => discussionEntry(r, false)), before: oldest }
+  return { ...revised(page), before: oldest }
 }
 
-function discussionEntry(r: DiscussionRow): DiscussionEntry {
+function revised(rows: readonly DiscussionRow[]): RevisedDiscussion {
+  return {
+    entries: rows.filter((r) => r.state === 'current').map((r) => discussionEntry(r, true)),
+    withdrawn: rows.filter((r) => r.state === 'withdrawn').map(withdrawnEntry),
+  }
+}
+
+/** An entry; with `revisions`, its revision, when it was last corrected and what it is made of (A36). */
+function discussionEntry(r: DiscussionRow, revisions: boolean): DiscussionEntry {
+  if (r.body === null || r.source_id === null || r.sha256 === null) {
+    throw new DomainError('unavailable', 'A discussion entry without its words')
+  }
   return {
     id: r.id,
     actorId: r.actor_id,
@@ -127,6 +177,25 @@ function discussionEntry(r: DiscussionRow): DiscussionEntry {
     sourceId: r.source_id,
     sha256: r.sha256,
     createdAt: iso(r.created_at),
+    ...(revisions
+      ? {
+          revision: safeInt(r.revision, 'revision'),
+          correctedAt: r.corrected_at === null ? null : iso(r.corrected_at),
+          kind: r.kind,
+          mentions: r.mentions ?? [],
+        }
+      : {}),
+  }
+}
+
+/** Where a withdrawn message stood: who and when, never its words. */
+function withdrawnEntry(r: DiscussionRow): WithdrawnEntry {
+  return {
+    id: r.id,
+    actorId: r.actor_id,
+    authorName: r.author_name,
+    createdAt: iso(r.created_at),
+    withdrawnAt: iso(r.withdrawn_at ?? r.created_at),
   }
 }
 

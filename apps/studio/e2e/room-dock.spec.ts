@@ -1,7 +1,9 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
+import { DRAWN, drawn } from './drawn.ts'
 
 // The room's dock on a phone (docs/plans/phone-dock.md): icons in 42 px squares, one row, the box hugging them; on a
-// computer, the words as before. Every name and stream is synthetic, and the page says it is a fixture.
+// computer, the words as before. Leave is the way out, rose and last (docs/plans/room-dock-people.md). Every name and
+// stream is synthetic, and the page says it is a fixture.
 
 const leave = (page: Page) => page.getByRole('button', { name: 'Leave the room' })
 const dock = (page: Page) => page.getByRole('navigation', { name: 'Room controls' })
@@ -198,4 +200,76 @@ test('dock · on a computer, the words as before', async ({ page }) => {
   expect(words).toContain('Speak with Sophia')
   // The phone's icons stay out of sight.
   await expect(dock(page).locator('.dock-icon:visible')).toHaveCount(0)
+})
+
+/** A press's ink, plane and edge as drawn, and the room's rose as the page computes it. */
+const inkOf = (button: Locator) =>
+  button.evaluate((b) => {
+    const s = getComputedStyle(b)
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--rose)'
+    document.body.append(probe)
+    const rose = getComputedStyle(probe).color
+    probe.remove()
+    return { color: s.color, plane: s.backgroundColor, edge: s.borderTopColor, rose }
+  })
+/** `rgb(r, g, b)` at an opacity, as the browser writes it. */
+const at = (rgb: string, alpha: number) => rgb.replace('rgb(', 'rgba(').replace(')', `, ${alpha})`)
+/** The name of the last press drawn in a group. */
+const lastPress = (group: Locator) =>
+  group.getByRole('button').evaluateAll((all) =>
+    all
+      .filter((b) => b.getBoundingClientRect().width > 0)
+      .at(-1)
+      ?.getAttribute('aria-label'),
+  )
+
+test('dock · Leave is the way out: the door behind its arrow, on a computer and a phone (room-dock-people.md)', async ({
+  page,
+}) => {
+  for (const width of [1280, 390]) {
+    await enter(page, 'people=2', width)
+    const stroked = await leave(page)
+      .locator('svg path')
+      .first()
+      .evaluate((p: SVGPathElement) => [
+        p.isPointInStroke(new DOMPoint(4.5, 9)),
+        p.isPointInStroke(new DOMPoint(19.5, 9)),
+      ])
+    // The door's upright on the left, nothing on the right: the arrow leaves the door, it does not walk into one.
+    expect(stroked, `${width}px`).toEqual([true, false])
+  }
+})
+
+for (const [query, width] of [
+  ['people=2', 1280],
+  ['people=2', 390],
+  ['people=2&theme=light', 1280],
+] as const) {
+  test(`dock · Leave is rose at rest, not only under a pointer, and last (${query}, ${width}px)`, async ({ page }) => {
+    await enter(page, query, width)
+    await page.mouse.move(0, 0)
+    const camera = dock(page).getByRole('button', { name: 'Camera', exact: true })
+    const [rest, other] = await Promise.all([inkOf(leave(page)), inkOf(camera)])
+    expect(rest.color).toBe(rest.rose)
+    expect(rest.plane).toBe(at(rest.rose, 0.08))
+    expect(rest.edge).toBe(at(rest.rose, 0.4))
+    expect(other.color).not.toBe(rest.color)
+    expect(await lastPress(dock(page))).toBe('Leave the room')
+    // Under the pointer it still answers: one step deeper.
+    await leave(page).hover()
+    await expect(leave(page)).toHaveCSS('background-color', at(rest.rose, 0.16))
+  })
+}
+
+test('dock · in the header on Tasks, Leave is rose and last', async ({ page }) => {
+  await page.goto('/room.html?demo=1&call=on&people=2&floor=1&sophia=listening&place=work')
+  await drawn(page, DRAWN.tasks)
+  await page.mouse.move(0, 0)
+  const group = page.getByRole('group', { name: 'Project room' })
+  const out = group.getByRole('button', { name: 'Leave the room' })
+  await expect(out).toBeVisible()
+  const ink = await inkOf(out)
+  expect(ink.color).toBe(ink.rose)
+  expect(await lastPress(group)).toBe('Leave the room')
 })

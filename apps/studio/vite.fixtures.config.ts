@@ -6,9 +6,16 @@ import { defineConfig, type Plugin } from 'vite'
 // The vision flag (src/app/vision.ts): the fixture pages answer the APIs proposed in issue #105, so they show them.
 // Vite hands VITE_ variables of its own process to import.meta.env.
 process.env.VITE_SOPHIA_VISION = '1'
+// The message acts flag (src/app/message-acts.ts): the fixture pages answer A36, so the chat reads revisions=1; only
+// `acts=1` gives the viewer's messages their kind, so only then are Edit and Withdraw offered.
+process.env.VITE_SOPHIA_MESSAGE_ACTS = '1'
+// The mentions flag (src/app/mentions.ts): the fixture pages answer A37, so the chat offers mentions to an editor or an
+// admin, and Home lists them (with its needs flag).
+process.env.VITE_SOPHIA_MENTIONS = '1'
 
 const fakeLiveKit = fileURLToPath(new URL('./fixtures/fake-livekit.ts', import.meta.url))
 const fixtureCrashDsn = fileURLToPath(new URL('./fixtures/crash-dsn.ts', import.meta.url))
+const fixtureCrashSentry = fileURLToPath(new URL('./fixtures/crash-sentry.ts', import.meta.url))
 const studioPage = fileURLToPath(new URL('./index.html', import.meta.url))
 /** index.html's early script (signed-in-load.ts), and the path these servers serve it at: their root is fixtures/. */
 const EARLY = '/src/app/signed-in-load.ts'
@@ -35,6 +42,14 @@ const crashDsn: Plugin = {
   enforce: 'pre',
   resolveId: (source, importer) =>
     source === './crash-dsn.ts' && importer?.endsWith('/src/app/crash-report.ts') ? fixtureCrashDsn : null,
+}
+
+/** The crash reports' Sentry on the fixture pages: `?sentryFlaky=1` fails its first set-up (fixtures/crash-sentry.ts). */
+const crashSentry: Plugin = {
+  name: 'sophia-fixture-crash-sentry',
+  enforce: 'pre',
+  resolveId: (source, importer) =>
+    source === './crash-sentry.ts' && importer?.endsWith('/src/app/crash-report.ts') ? fixtureCrashSentry : null,
 }
 
 /**
@@ -69,7 +84,7 @@ const openingPage = studioPageAs('/opening.html', '/opening.tsx')
 // directory serves them.
 export default defineConfig({
   root: fileURLToPath(new URL('./fixtures', import.meta.url)),
-  plugins: [noLiveKit, crashDsn, openingPage, react()],
+  plugins: [noLiveKit, crashDsn, crashSentry, openingPage, react()],
   // The Studio's own public files (the opening's stylesheet and script, the brand).
   publicDir: fileURLToPath(new URL('./public', import.meta.url)),
   server: {
