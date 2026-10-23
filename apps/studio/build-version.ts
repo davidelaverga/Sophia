@@ -1,6 +1,6 @@
-// The build's own version (docs/plans/version-probe.md): an id from every file the build wrote, its path and its
-// bytes (MediaPipe's model and wasm are emitted by name, so a name alone may hide a change), page included, so two
-// builds of one tree share it and any change gives a new one. Written into the page's head, where the Studio reads its
+// The build's own version (docs/plans/version-probe.md): an id from every file the bundle emits (public/ is copied,
+// outside it), its path and its bytes (MediaPipe's model and wasm are emitted by name, so a name alone may hide a
+// change), page included, so two builds of one tree share it and any change gives a new one. Written into the page's head, where the Studio reads its
 // own version, and beside it as version.json, which a tab left open asks the host for (src/app/version-probe.ts). In
 // no script, so no chunk's name ever changes for it: a redeploy of the same tree breaks no tab.
 import { createHash } from 'node:crypto'

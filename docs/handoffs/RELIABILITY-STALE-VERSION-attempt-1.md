@@ -142,10 +142,10 @@ review» sections say how.
 - **Green at 8556eba43 and 427e51d9f:** new-version, device-check, call-devices, room-dock, room, join, app-auth 149/150 at `8556eba43` (`review-green`; the one failure was the check test counting the rows «Microphone: Needs a reload» as Reload buttons, 4 not 1: its locator now asks for the exact name, `427e51d9f`), then new-version 15/15 at `427e51d9f` (`review-green-2`). Units: `apps/studio/src/**` and the report's 2191/2193 (the two known Windows path
   failures); whole-repo oxlint, tsc, Prettier: clean.
 
-## After Codex's P2 on #478 (2026-10-23: files whose names carry no hash)
+## After Codex's P2 on #478 (2026-10-22: files whose names carry no hash)
 
 Source: `evaluacion-2026-10-16/seguimientos-p2.md`, last entry (#478 `apps/studio/build-version.ts:28`); Luis
-2026-10-23: «Procede con la P2 y pon tus sugerencias a las preguntas». Branch `reliability/version-asset-hash` from
+2026-10-22: «Procede con la P2 y pon tus sugerencias a las preguntas». Branch `reliability/version-asset-hash` from
 `origin/main` `86eef1c21`, worktree `Sophia-paper-1`; not pushed. The plan's «After Codex's P2 on #478» says how.
 
 - **Confirmed before the fix** on real `vite build`s into the scratchpad (nothing deployed): the old plugin, with one

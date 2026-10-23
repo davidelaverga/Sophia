@@ -98,10 +98,10 @@
     note on the interval's 5 s steps;
   - the rollback limit above is narrowed to builds that serve `version.json`.
 
-## After Codex's P2 on #478 (2026-10-23: files whose names carry no hash)
+## After Codex's P2 on #478 (2026-10-22: files whose names carry no hash)
 
 > Source: `evaluacion-2026-10-16/seguimientos-p2.md`, last entry (#478 `apps/studio/build-version.ts:28`, Codex P2);
-> Luis 2026-10-23: «Procede con la P2 y pon tus sugerencias a las preguntas».
+> Luis 2026-10-22: «Procede con la P2 y pon tus sugerencias a las preguntas».
 
 - **Confirmed on real builds.** The id came from the files' names plus the page's text. MediaPipe's segmenter model and
   wasm are emitted by name (`mediapipe-assets.ts`, under `assets/mediapipe-0.10.14/`: the loader asks for them so), so

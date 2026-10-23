@@ -14,7 +14,7 @@ const PAGE = '<!doctype html><html><head><title>Sophia</title></head><body></bod
 type Written = Readonly<Record<string, string | Uint8Array>>
 
 /** The id the plugin writes into version.json for these files, and the page it names it in. */
-function versionOf(files: Written): { id: string; page: string } {
+function idOfBuild(files: Written): { id: string; page: string } {
   const bundle = Object.fromEntries(
     Object.entries(files).map(([fileName, source]) => [
       fileName,
@@ -53,18 +53,18 @@ const build = (model: Uint8Array, order: 'as-built' | 'reversed' = 'as-built'): 
 
 describe('the build version', () => {
   it('changes when only a file whose name carries no hash changes its bytes', () => {
-    const before = versionOf(build(new Uint8Array([1, 2, 3, 4])))
-    const after = versionOf(build(new Uint8Array([1, 2, 3, 5])))
+    const before = idOfBuild(build(new Uint8Array([1, 2, 3, 4])))
+    const after = idOfBuild(build(new Uint8Array([1, 2, 3, 5])))
     assert.notEqual(after.id, before.id)
   })
 
   it('is the same for two builds of the same files', () => {
-    assert.equal(versionOf(build(new Uint8Array([1, 2, 3]))).id, versionOf(build(new Uint8Array([1, 2, 3]))).id)
+    assert.equal(idOfBuild(build(new Uint8Array([1, 2, 3]))).id, idOfBuild(build(new Uint8Array([1, 2, 3]))).id)
   })
 
   it('is the same whatever order the files come in', () => {
     const model = new Uint8Array([9, 8, 7])
-    assert.equal(versionOf(build(model, 'reversed')).id, versionOf(build(model)).id)
+    assert.equal(idOfBuild(build(model, 'reversed')).id, idOfBuild(build(model)).id)
   })
 
   it('is the same whichever separator a path uses', () => {
@@ -72,7 +72,7 @@ describe('the build version', () => {
     const windows = Object.fromEntries(
       Object.entries(build(model)).map(([name, source]) => [name.replaceAll('/', '\\'), source]),
     )
-    assert.equal(versionOf(windows).id, versionOf(build(model)).id)
+    assert.equal(idOfBuild(windows).id, idOfBuild(build(model)).id)
   })
 
   it('tells a file moved from one name to another, its bytes unchanged', () => {
@@ -80,11 +80,11 @@ describe('the build version', () => {
     const moved = Object.fromEntries(
       Object.entries(build(model)).map(([name, source]) => [name === MODEL ? `${MODEL}.old` : name, source]),
     )
-    assert.notEqual(versionOf(moved).id, versionOf(build(model)).id)
+    assert.notEqual(idOfBuild(moved).id, idOfBuild(build(model)).id)
   })
 
   it('names its id in the page it hashed', () => {
-    const { id, page } = versionOf(build(new Uint8Array([1])))
+    const { id, page } = idOfBuild(build(new Uint8Array([1])))
     assert.match(id, /^[0-9a-f]{16}$/)
     assert.ok(page.includes(`<meta name="sophia-version" content="${id}" />`))
   })
