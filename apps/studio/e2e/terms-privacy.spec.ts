@@ -44,9 +44,9 @@ for (const asked of ['terms', 'privacy'] as const) {
   test(`legal · ${asked}: Contact gives an email address to write to`, async ({ page }) => {
     await page.goto(`/legal.html?doc=${asked}`)
     const contact = doc(page).locator('section', { has: page.getByRole('heading', { name: 'Contact' }) })
-    await expect(contact.getByRole('link', { name: 'hello@sophia-ei.com' })).toHaveAttribute(
+    await expect(contact.getByRole('link', { name: 'info@sophia-ei.com' })).toHaveAttribute(
       'href',
-      'mailto:hello@sophia-ei.com',
+      'mailto:info@sophia-ei.com',
     )
   })
 }
