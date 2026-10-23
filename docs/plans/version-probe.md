@@ -23,8 +23,8 @@
 ## What changes
 
 - **The build names its version** (`build-version.ts`, a Vite plugin, build only): an id from every file the build
-  wrote (their names, which carry their contents' hashes, and the page's own text), so two builds of one tree share it
-  and any change gives a new one. Written into the page's head (`<meta name="sophia-version">`) and beside it as
+  wrote, its path and its bytes (page included; see «After Codex's P2» for why not the names alone), so two builds of
+  one tree share it and any change gives a new one. Written into the page's head (`<meta name="sophia-version">`) and beside it as
   `version.json` (`{ "version": "<id>" }`). No script changes, so no chunk is renamed by it.
 - **The tab asks** (`version-probe.ts`, pure over its page): its own id from the page it loaded, the host's from
   `/version.json` (never from a cache). It asks when the tab comes back into view or into focus, at most once a minute,
@@ -97,3 +97,28 @@
   - M9's rows read «back into focus → notice», «back into view → notice», «left in view → notice (page clock)¹», with a
     note on the interval's 5 s steps;
   - the rollback limit above is narrowed to builds that serve `version.json`.
+
+## After Codex's P2 on #478 (2026-10-22: files whose names carry no hash)
+
+> Source: `evaluacion-2026-10-16/seguimientos-p2.md`, last entry (#478 `apps/studio/build-version.ts:28`, Codex P2);
+> Luis 2026-10-22: «Procede con la P2 y pon tus sugerencias a las preguntas».
+
+- **Confirmed on real builds.** The id came from the files' names plus the page's text. MediaPipe's segmenter model and
+  wasm are emitted by name (`mediapipe-assets.ts`, under `assets/mediapipe-0.10.14/`: the loader asks for them so), so
+  they keep their names when their bytes change. With the old plugin, a build whose `selfie_segmenter.tflite` had one
+  byte flipped wrote the same `version.json` as the build before (`df9ba41fcee676a6` both): a tab left open would
+  never have heard of that deploy.
+- **The change: every file's bytes, not only the unhashed ones.** `versionOf` hashes each file's path, length and bytes
+  (chunks by their code, assets by their source), so the rule needs no list of which names carry a hash, and a file
+  added later by name is covered without anyone remembering. Paths are compared with `/` (a `\` is read as one) and
+  sorted by code point; no timestamps, no locale, nothing of the machine. The length ahead of each file's bytes keeps
+  two different sets of files from running into the same stream. The page is hashed before its version is written into
+  it, as before.
+- **Cost, measured:** the whole build's output is 38 files, 25.0 MB (the two MediaPipe wasm are 18.7 MB of it);
+  `versionOf` over it took a median of 19.6 ms (max 29.6 ms, nine runs) on Luis's host, against a build of about 5 s.
+- **Unchanged:** no script carries the id, so no chunk is renamed; two builds of one tree still write the same
+  `version.json`. Files in `public/` are still outside it (they are copied, not emitted, and none is a part a tab asks
+  for later; «Limits» above).
+- **Checks** (`src/app/build-version.test.ts`, written first, driving the plugin's own `generateBundle` over fake
+  builds): only the model's bytes changed → a new id; the same files → the same id; reversed order → the same id;
+  `\` paths → the same id; a file renamed with its bytes unchanged → a new id; the page names the id it hashed.
