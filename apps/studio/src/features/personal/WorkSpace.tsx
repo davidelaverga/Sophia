@@ -1,7 +1,8 @@
 // Work (direction C): the projects this person belongs to, each with its one action (join the room when someone is in
 // it or a session is about to start, else open it), and the notes carried to it: yours marked as coming from your
 // personal space and yours to take back, a teammate's marked as theirs. Until the list has loaded it shows neither
-// projects nor "No projects yet"; a list that failed says so, with Try again.
+// projects nor "No projects yet"; a list that failed says so, with Try again. With only archived ones it says «No active
+// projects.», never the first run's sentence.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ProjectCreated, ProjectRelease, ProjectSummary } from '@sophia/contracts'
 import { EmptyState, Icon, Search, Segmented, Tip } from '@sophia/ui'
@@ -254,6 +255,19 @@ function Empty({ onStart }: { onStart: () => void }) {
   )
 }
 
+/**
+ * What Work says with no active project (work-none-active.md): the first run's sentence only while nothing is archived
+ * either; with archived ones (or a read of them that failed, which can't say none) «No active projects.», New project
+ * then in the header; nothing while either list is still coming, so no «none» is claimed before it is known.
+ */
+function emptyLine(projects: Props['projects'], archived: Props['archived']): 'first' | 'none-active' | null {
+  if (!projects || projects.length > 0) return null
+  if (!archived) return 'first'
+  if (archived.read.state === 'failed') return 'none-active'
+  if (!archived.projects) return null
+  return archived.projects.length > 0 ? 'none-active' : 'first'
+}
+
 const ORDERS: readonly { id: ProjectOrder; label: string }[] = [
   { id: 'next', label: 'Next' },
   { id: 'az', label: 'A–Z' },
@@ -371,6 +385,7 @@ export function WorkSpace(props: Props) {
   const now = useNow(20_000)
   const finder = useFinder(projects, now)
   const list = finder.list
+  const empty = newProject.open ? null : emptyLine(projects, props.archived)
   return (
     <section className="c3-space job" data-place-view="work" data-content hidden={props.hidden} aria-labelledby="c-w-h">
       <Edge lock={personalLock} onCross={actions.cross} />
@@ -379,7 +394,7 @@ export function WorkSpace(props: Props) {
           Your projects
         </h2>
         <div className="c3-head-acts">
-          {!newProject.open && !!projects && projects.length > 0 && (
+          {!newProject.open && ((!!projects && projects.length > 0) || empty === 'none-active') && (
             <button className="ghost" type="button" onClick={() => newProject.set(true)}>
               New project
             </button>
@@ -409,7 +424,8 @@ export function WorkSpace(props: Props) {
             }}
           />
         )}
-        {projects && projects.length === 0 && !newProject.open && <Empty onStart={() => newProject.set(true)} />}
+        {empty === 'first' && <Empty onStart={() => newProject.set(true)} />}
+        {empty === 'none-active' && <EmptyState className="c3-empty">No active projects.</EmptyState>}
         {list.map((p) => (
           <Card key={p.projectId} project={p} props={props} now={now} />
         ))}
