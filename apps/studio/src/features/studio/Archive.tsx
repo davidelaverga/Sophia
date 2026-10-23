@@ -55,7 +55,7 @@ const failure = (err: unknown, fallback: string) => (err instanceof Error ? err.
 
 /**
  * One write per choice: a retry of the same choice keeps its key, wherever it is pressed from, until it is answered;
- * the lists are read again once it lands.
+ * the lists are read again once it lands, the one it joins first.
  */
 export function useArchiveWrite(identity: Identity) {
   const client = useQueryClient()
@@ -68,7 +68,12 @@ export function useArchiveWrite(identity: Identity) {
       throw err
     }
     keys.settled(choice)
-    await client.invalidateQueries({ queryKey: ['projects', identity.name] })
+    // The list the project joins is read again before the one it leaves, so no moment holds it in neither: Work with
+    // none active would say the first run's «No projects yet» in between (work-none-active.md).
+    const active = ['projects', identity.name]
+    const [joins, leaves] = archived ? [archivedKey(identity), active] : [active, archivedKey(identity)]
+    await client.invalidateQueries({ queryKey: joins, exact: true })
+    await client.invalidateQueries({ queryKey: leaves, exact: true })
   }
 }
 

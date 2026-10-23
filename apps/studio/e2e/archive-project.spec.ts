@@ -15,6 +15,8 @@ declare global {
   interface Window {
     archiveKeys?: string[]
     releaseArchive?: () => void
+    /** Whether Work said «No projects yet» at any moment since it was asked (work-none-active.md). */
+    saidNoneYet?: boolean
   }
 }
 
@@ -277,6 +279,124 @@ test('archive · Work keeps archived projects folded under «Archived»: each op
   await row.getByRole('button', { name: 'Unarchive' }).click()
   await expect.poll(() => page.evaluate(() => window.workSpaceFixture?.unarchived)).toEqual([OLD_PILOT])
   expect(await page.evaluate(() => window.workSpaceFixture?.opened)).toEqual([OLD_PILOT])
+})
+
+/**
+ * Work with no active project and one archived (work-none-active.md): no first-run «No projects yet» above the fold,
+ * a line of its own, and New project in the header, so making one stays one press away.
+ */
+async function noneActive(page: Page) {
+  await page.goto('/work-space.html?active=0&archived=1')
+  const fold = page.getByRole('button', { name: 'Archived (1)' })
+  await expect(fold).toBeVisible()
+  await expect(page.locator('.c3-projects > *').first()).toHaveText('No active projects.')
+  await expect(page.getByText('No projects yet')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Start a project' })).toHaveCount(0)
+  await fold.click()
+  await expect(page.getByRole('listitem').filter({ hasText: 'Old pilot' })).toBeVisible()
+  const make = page.locator('.c3-head').getByRole('button', { name: 'New project' })
+  await expect(make).toBeInViewport()
+  await make.click()
+  await expect(page.getByLabel('Project title')).toBeVisible()
+}
+
+/** None active and none archived: the first run, as it was: its sentence and Start a project, no header press, no fold. */
+async function firstRun(page: Page) {
+  await page.goto('/work-space.html?active=0')
+  const empty = page.locator('.c3-empty')
+  await expect(empty.locator('p')).toHaveText(
+    'No projects yet. A project is where your team and Sophia build something together.',
+  )
+  await expect(page.getByText('No active projects')).toHaveCount(0)
+  await expect(page.locator('.c3-head').getByRole('button', { name: 'New project' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^Archived/ })).toHaveCount(0)
+  await empty.getByRole('button', { name: 'Start a project' }).click()
+  await expect(page.getByLabel('Project title')).toBeVisible()
+}
+
+/**
+ * None active, the archived list still coming: no line claims anything yet, and the header's New project is there at
+ * once, so making a project is never out of reach while it loads (or retries, or waits offline).
+ */
+async function archivedComing(page: Page, archived: boolean) {
+  await page.goto(`/work-space.html?active=0&hold=archived${archived ? '&archived=1' : ''}`)
+  const make = page.locator('.c3-head').getByRole('button', { name: 'New project' })
+  await expect(make).toBeVisible()
+  await expect(page.getByText('No active projects')).toHaveCount(0)
+  await expect(page.getByText('No projects yet')).toHaveCount(0)
+  await page.evaluate(() => window.workSpaceFixture?.releaseArchived())
+  if (archived) {
+    await expect(page.getByText('No active projects.')).toBeVisible()
+    await expect(make).toBeVisible()
+  } else {
+    // Known to be the first run: its sentence brings Start a project, and the header's press goes.
+    await expect(page.locator('.c3-empty').getByRole('button', { name: 'Start a project' })).toBeVisible()
+    await expect(make).toHaveCount(0)
+  }
+}
+
+/** Nothing reaches past a phone's edge. */
+const sideways = (page: Page) =>
+  page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+
+test('archive · Work with only archived projects says «No active projects», New project in its header', async ({
+  page,
+}) => {
+  await noneActive(page)
+})
+
+test('archive · Work with no project at all keeps its first-run sentence and Start a project', async ({ page }) => {
+  await firstRun(page)
+})
+
+test('archive · Work with none active offers New project while its archived list is still coming', async ({ page }) => {
+  await archivedComing(page, true)
+  await archivedComing(page, false)
+})
+
+test('archive · Work with none active whose archived list can’t be read says «No active projects», New project in its header', async ({
+  page,
+}) => {
+  await page.goto('/work-space.html?active=0&archived=1&archivedFails=1')
+  // A bodiless 503 is a proxy's: the read is asked three more times before it is said (#470).
+  await expect(page.getByRole('alert').filter({ hasText: 'Couldn’t load your archived projects.' })).toBeVisible({
+    timeout: 15_000,
+  })
+  // It can't say none: not the first run's sentence, and New project in reach.
+  await expect(page.locator('.c3-projects > *').first()).toHaveText('No active projects.')
+  await expect(page.getByText('No projects yet')).toHaveCount(0)
+  await expect(page.locator('.c3-head').getByRole('button', { name: 'New project' })).toBeVisible()
+})
+
+test('archive · bringing back the only archived project with none active never says «No projects yet» on the way', async ({
+  page,
+}) => {
+  // The active list answers late: read with the archived one at once, the archived would land first and leave both
+  // lists empty for a moment.
+  await page.goto('/work-space.html?active=0&archived=1&activeSlow=1')
+  await expect(page.getByText('No active projects.')).toBeVisible()
+  await page.evaluate(() => {
+    window.saidNoneYet = false
+    new MutationObserver(() => {
+      if (document.body.textContent.includes('No projects yet')) window.saidNoneYet = true
+    }).observe(document.body, { subtree: true, childList: true, characterData: true })
+  })
+  await page.getByRole('button', { name: 'Archived (1)' }).click()
+  await page.getByRole('listitem').filter({ hasText: 'Old pilot' }).getByRole('button', { name: 'Unarchive' }).click()
+  // Back among the active ones, and the fold gone with it.
+  await expect(page.locator('.c3-proj h3')).toHaveText(['Old pilot'])
+  await expect(page.getByRole('button', { name: /^Archived/ })).toHaveCount(0)
+  expect(await page.evaluate(() => window.saidNoneYet)).toBe(false)
+})
+
+test('@phone · archive · on a phone too, only archived: «No active projects», New project in reach, also while it loads; none at all: the first run', async ({
+  page,
+}) => {
+  await noneActive(page)
+  expect(await sideways(page)).toBeLessThanOrEqual(0)
+  await firstRun(page)
+  expect(await sideways(page)).toBeLessThanOrEqual(0)
+  await archivedComing(page, true)
 })
 
 test('archive · in Work, Unarchive after no reply sends the same write again, under the same key (Codex on #368)', async ({
