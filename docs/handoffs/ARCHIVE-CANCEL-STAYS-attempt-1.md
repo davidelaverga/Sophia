@@ -10,7 +10,7 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-paper-2`, branch `archiv
 Writable scope: this worktree only (Studio code, its checks, `docs/plans`, `docs/handoffs`); no API, no contract;
 nothing deployed, no remote touched.
 Runtime unit: Luis's Windows host (Playwright through the session's guarded `pw.ps1`).
-Existing authority: Luis 2026-10-23, «Procede con la P2 y pon tus sugerencias a las preguntas»; earlier «Lo que no se
+Existing authority: Luis 2026-10-22, «Procede con la P2 y pon tus sugerencias a las preguntas»; earlier «Lo que no se
 mide, no se puede mejorar».
 Ending commit: the branch's last commit; code last changed at `00615f34f`. Against `86eef1c21`:
 `apps/studio/src/features/studio/{Archive,ProjectName}.tsx`, `apps/studio/e2e/archive-project.spec.ts`,
@@ -60,3 +60,21 @@ Ending commit: the branch's last commit; code last changed at `00615f34f`. Again
 
 - The independent review; push with the next group PR when Luis says; merge on green with no open P1.
 - Source IDs consulted: none from the source register. The work read this repository and the triage.
+
+## After the independent review (2026-10-22: no P1/P2)
+
+The plan's «After the independent review» under «Cancel during “Archiving…” stays» says how.
+
+- **Close (×) in the check** `cd6ebad40`: the head's Close joins Cancel and Escape; it passes before and after (every
+  way out unmounts the sheet).
+- **The sheet opened again,** written first `8f12fce61`. Red (`pw-logs/archive-reopen-red`, through `pw-direct.ps1`:
+  Wow.exe open, Aion 2 not, so `pw.ps1` refused): «expect(locator).toHaveCount(expected) failed · Locator:
+  getByRole('dialog', { name: 'Archive project' }) · Expected: 0 · Received: 1», after the line had shown; the three
+  close checks passed. Fixed `150781945`: an open sheet closes once the project reads archived and it has no write of
+  its own on its way.
+- **Dates:** Luis's words were dated 2026-10-23 in the plan and in this record; local time it was 2026-10-22. Fixed here.
+- **Green at `150781945`** (`pw-direct.ps1`, one worker): archive-project, app-auth, project-leave, room 113/113
+  (`archive-review-green`); the four new checks ×5 20/20 (`archive-review-repeat`). Whole-repo `oxlint --type-aware`,
+  `tsc --noEmit -p apps/studio`, Prettier on the touched files: clean.
+- The «Remaining» item about a sheet opened again still holds only for a sheet whose own Archive was pressed before the
+  first write landed: it waits for its reply and goes to Work, as chosen.

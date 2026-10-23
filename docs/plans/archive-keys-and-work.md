@@ -192,8 +192,8 @@ address is in `archivedKey`, so the list is read again under it, and that read l
 
 ## Cancel during «Archiving…» stays (#368, Luis's question, answer b)
 
-> 2026-10-23 · #368's «Stop a closed archive sheet from redirecting later», put to Luis as a question in
-> `evaluacion-2026-10-16/seguimientos-triage-2026-10-19.md`. Luis 2026-10-23: «Procede con la P2 y pon tus sugerencias a
+> 2026-10-22 · #368's «Stop a closed archive sheet from redirecting later», put to Luis as a question in
+> `evaluacion-2026-10-16/seguimientos-triage-2026-10-19.md`. Luis 2026-10-22: «Procede con la P2 y pon tus sugerencias a
 > las preguntas»: the recommended answer, (b), is what is built. Studio only; no API, no contract.
 
 **What was read (it holds, at `86eef1c21`).** `ArchiveSheet`'s `archive` (`Archive.tsx`) awaits the write, then calls
@@ -226,3 +226,15 @@ let through → still in the call (the dock's «Leave the room»), the line «Th
 
 **Limits.** Leave project's sheet has the same shape (Cancel live during «Leaving…», `onLeft` after the reply), but
 left, the person has no project to stay in; not changed here.
+
+### After the independent review (2026-10-22: no P1/P2)
+
+- **The head's Close (×)** joins Cancel and Escape in the check. It passed before any change, as every way out unmounts
+  the sheet.
+- **A sheet opened again and left alone (`Archive.tsx`, `ArchiveSheet`).** Sheet A closed during «Archiving…», sheet B
+  opened (the read still says not archived), A's write lands: B stayed and offered Archive, though the project was
+  archived; its press would change nothing, yet end the call and go to Work. Now an open sheet closes once
+  `useArchiveStatus` says archived and it has no write of its own on its way (`sending`), and the line takes its place.
+  This also closes a sheet left open while another admin archives the project. A sheet whose own write is on its way
+  keeps waiting for its reply and then goes to Work, as chosen. Check, written first: `archive-project.spec.ts`, «a sheet
+  opened again while the closed one’s archive is on its way closes once it lands».
