@@ -129,7 +129,8 @@ interface SheetProps {
   /**
    * Archived with the sheet still open: the call in its room ends, and the person goes to Work, as leaving does. The
    * sheet closed while «Archiving…» (Cancel, Escape, Close) is the person staying: nothing moves when the reply comes,
-   * and an archive that landed shows as the line, as when archived elsewhere (archive-keys-and-work.md).
+   * and an archive that landed shows as the line, as when archived elsewhere (archive-keys-and-work.md). An open sheet
+   * with nothing on its way closes once the project is archived.
    */
   onArchived: () => Promise<void>
 }
@@ -139,6 +140,7 @@ export function ArchiveSheet({ title, projectId, identity, onClose, onArchived }
   const [state, setState] = useState<{ sending: boolean; failed: string | null }>({ sending: false, failed: null })
   const cancel = useRef<HTMLButtonElement>(null)
   const open = useRef(true)
+  const status = useArchiveStatus(identity, projectId)
   useEffect(() => cancel.current?.focus(), [])
   useEffect(() => {
     open.current = true
@@ -146,6 +148,11 @@ export function ArchiveSheet({ title, projectId, identity, onClose, onArchived }
       open.current = false
     }
   }, [])
+  // Archived meanwhile (a sheet closed during «Archiving…» whose write landed, or another admin), with no write of its
+  // own on its way: its Archive would change nothing, yet end the call, so the sheet goes and the line says so.
+  useEffect(() => {
+    if (status === 'archived' && !state.sending) onClose()
+  }, [status, state.sending, onClose])
   const archive = async () => {
     setState({ sending: true, failed: null })
     try {
