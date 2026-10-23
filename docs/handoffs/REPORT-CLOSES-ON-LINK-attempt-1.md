@@ -9,7 +9,7 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-paper-4`, branch `studio
 `origin/main` `86eef1c21` (everything through #478 merged); not pushed
 Writable scope: this worktree only (Studio code and its checks, `docs/plans`, `docs/handoffs`); no API.
 Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1`, one run at a time).
-Existing authority: Luis 2026-10-23, «Procede con la P2 y pon tus sugerencias a las preguntas»; earlier «Lo que no se
+Existing authority: Luis 2026-10-22, «Procede con la P2 y pon tus sugerencias a las preguntas»; earlier «Lo que no se
 mide, no se puede mejorar».
 Ending commit: the branch's last commit; code last changed at `ca028ca30`. Against `86eef1c21`:
 `apps/studio/src/features/studio/InPlaceLinks.tsx`, `apps/studio/src/features/artifacts/{DocumentViewer.tsx,

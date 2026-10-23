@@ -34,7 +34,7 @@
 ## A report beside the work closes when the link names none (2026-10-22)
 
 > The follow-up list (`evaluacion-2026-10-16/seguimientos-p2.md`, Studio: #419 `studio/InPlaceLinks.tsx`, «Clear a
-> report omitted by the followed URL»), one of Luis's open questions; Luis 2026-10-23: «Procede con la P2 y pon tus
+> report omitted by the followed URL»), one of Luis's open questions; Luis 2026-10-22: «Procede con la P2 y pon tus
 > sugerencias a las preguntas», the coordinator's answer built: the link says where to go.
 
 - **What it did.** With a report open beside the work (a wide page, side-sized), a link of this project that names no
