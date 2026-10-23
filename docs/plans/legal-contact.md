@@ -8,11 +8,27 @@
 
 - **`legal-text.ts`:**
   - `CONTACT_EMAIL`. The Contact paragraph names it first, then Send feedback.
-  - `UPDATED` moves to 16 October 2026, as the file's rule asks for any change of terms.
+  - `UPDATED` moves with it, as the file's rule asks for any change of terms (16 October 2026 then; 23 October 2026
+    after the refresh below).
 - **`Legal.tsx`:** the address inside a paragraph is a `mailto:` link. Everything else stays text.
 
 ## Checks
 
 - `terms-privacy.spec.ts`:
-  - both documents read «Last updated 16 October 2026»;
+  - both documents read the new date;
   - each Contact section links the address with `mailto:`.
+
+## Refresh (2026-10-22, for 23 October 2026)
+
+> Luis asked which contact channel works without a session. The coordinator's answer, built here: the address Sophia's
+> emails already come from, `hello@sophia-ei.com`, as this branch already did. Luis confirms the mailbox receives
+> mail before the PR moves.
+
+- **Main merged in** (about 1,900 commits): no conflicts. Main's current Legal page and text stay as they are (the
+  skip link, Tavily and Jina, passkeys); the change re-applies on top: `CONTACT_EMAIL` named first in both Contact
+  sections as a `mailto:` link, then Send feedback where it's offered.
+- **`UPDATED` is 23 October 2026,** the day this is meant to land; if it lands later, the date moves again with it.
+- **Nothing else sends a signed-out person to a channel that needs a session.** Send feedback is offered only signed in
+  and only with a DSN (account menu, Settings › Help); «reply to any email» is gone; the sign-in, the code step and the
+  page that couldn't open name no channel; the privacy notice's «write to us (see Contact)» now leads to the address.
+  The address appears once in product code (`legal-text.ts`); no personal address appears anywhere.
