@@ -3,14 +3,14 @@
 Goal and attempt: SOURCE-MAP-REPORTS (Luis's open question: the notes lean on reports, informe-claro's D1–D24 and plan
 rows, informe-30, informe-25, informe-ui-premium and others, that are neither in the repository nor in
 `docs/SOURCE_MAP.md`; answered with the coordinator's recommendation, «register, don't commit the reports»; Luis
-2026-10-23: «Procede con la P2 y pon tus sugerencias a las preguntas»), attempt 1
+2026-10-22: «Procede con la P2 y pon tus sugerencias a las preguntas»), attempt 1
 Human owner / executor resource: Luis (merge) / Claude Code session in worktree `Sophia-paper-5`
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-paper-5`, branch `docs/source-map-reports` from `origin/main`
 `86eef1c21`; not pushed
 Writable scope: this worktree only (`docs/SOURCE_MAP.md`, `docs/README.md`, `docs/plans`, `docs/handoffs`); no code.
 Runtime unit: Luis's Windows host (Git Bash, Node 24.21); no browser, no Playwright.
-Existing authority: Luis 2026-10-23, the quote above; local only, nothing pushed.
+Existing authority: Luis 2026-10-22, the quote above; local only, nothing pushed.
 Ending commit: the branch's last commit. Against `86eef1c21`: `docs/SOURCE_MAP.md` (§4, new), `docs/README.md` (the
 map's line), `docs/plans/source-map-reports.md` (new), this record.
 

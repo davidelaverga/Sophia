@@ -3,7 +3,7 @@
 > 2026-10-22 · Luis's open question on the reports the notes lean on (informe-claro's D1–D24 and plan rows,
 > informe-30, informe-25, informe-ui-premium, the seams, the baseline and its measurements, the P2 lists): none is in
 > the repository nor in `docs/SOURCE_MAP.md`. Answered with the coordinator's recommendation, «register, don't commit
-> the reports»; Luis 2026-10-23: «Procede con la P2 y pon tus sugerencias a las preguntas». Docs only, no code.
+> the reports»; Luis 2026-10-22: «Procede con la P2 y pon tus sugerencias a las preguntas». Docs only, no code.
 
 ## Measured
 
