@@ -1,7 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
 
 // A link to the project a message is read in opens here (docs/plans/studio-links-in-place.md): its view, what its
-// fragment names and its report, in this page, and the call stays. Another site or another project keeps its new tab.
+// fragment names and its report, in this page, and the call stays. A report open beside the work closes when the link
+// names none, and Back opens it again. Another site or another project keeps its new tab.
 // Every message and address here is synthetic.
 
 const PROJECT = '00000000-0000-4000-8000-0000000000aa'
@@ -58,4 +59,30 @@ test('in place · a link to another site or another project keeps its new tab', 
     await expect(link).toHaveAttribute('target', '_blank')
     await expect(link).toHaveAttribute('rel', 'noopener noreferrer')
   }
+})
+
+/** Conversations with the report open beside them, and a link in the open conversation's thread to this address. */
+async function linkBesideReport(page: Page, address: string) {
+  await page.goto(`/room.html?place=conversations&conversations=1&report=${REPORT}`)
+  await expect(page.getByRole('complementary', { name: 'Fixture report' })).toBeVisible()
+  const open = page.getByRole('region', { name: 'Open conversation' })
+  const field = open.getByRole('textbox', { name: 'Continue this question with the team' })
+  await field.fill(`Look: ${address}`)
+  await field.press('Enter')
+  return open.getByRole('link', { name: address }).last()
+}
+
+test('in place · beside a report, a link that names none closes it and leaves the address; Back opens it again', async ({
+  page,
+}) => {
+  const report = page.getByRole('complementary', { name: 'Fixture report' })
+  await (await linkBesideReport(page, `${HERE}/p/${PROJECT}/conversations#conversation-${BRIEFS}`)).click()
+  await expect(page.getByRole('region', { name: 'Open conversation' }).getByRole('heading', { level: 3 })).toHaveText(
+    'Short or long briefs?',
+  )
+  await expect(report).toBeHidden()
+  expect(new URL(page.url()).searchParams.has('report')).toBe(false)
+  await page.goBack()
+  await expect(report).toBeVisible()
+  expect(new URL(page.url()).searchParams.get('report')).toBe(REPORT)
 })
