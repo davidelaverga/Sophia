@@ -325,3 +325,52 @@ Learned at SMC-M02 (dsh 0.2.0-rc.2; each is covered by a test or recorded eviden
     Both write format 4 with the same 17 event types in the recorded
     episodes, and each resumes the other's copied home, bridge journal and
     held fence included.
+
+## 4. Evaluation reports the notes cite (external, Luis's)
+
+Many plans and handoffs (300 of them, 2026-10-22) and comments in 57 code files take their item from one of Luis's
+evaluation reports: a §, a row, a D-number. Every row below is **external**: Luis owns it, it lives outside this tree
+in his evaluation folder (`D:/Descargas/Evaluación crítica de Sophia AI/`, on his machine; paths here are relative to
+it), and it is **not reproduced in this repository**. A citation is to the file as it stands there. The date is the one
+the report states (else its folder's); the two P2 lists are living documents, kept up to date after theirs. «Cited by»
+counts the notes in `docs/plans` and `docs/handoffs` that name it. Every name the notes cite resolves to one file
+here; `informe-e2e-real.md` is two files, and only the 2026-10-14 one is cited
+([plan](plans/source-map-reports.md)). A new report a note relies on gets its row here.
+
+| Source id | Report | Dated | What it is | Cited by |
+|---|---|---|---|---|
+| EVAL-30 | `evaluacion-2026-10-10/informe-30.md` | 2026-10-10 | Second pass of the «$30 a month» bar: ten criteria, and the numbered moves (§2, §2.5 the light page) the kit notes take | 27 (15 plans, 12 handoffs) |
+| EVAL-UI-PREMIUM | `evaluacion-2026-10-11/informe-ui-premium.md` | 2026-10-11 | UI against a «minimalist premium AAA» bar: verdict, measured breaks, onboarding, proposed order; §8 is the light-mode verdict | 18 (10, 8) |
+| EVAL-PASADA-3 | `evaluacion-2026-10-11/informe-pasada-3.md` | 2026-10-11 | Third pass after the kit: measured power-user friction, missing features, small quality-of-life items | 11 (7, 4) |
+| EVAL-INTELIGENCIA | `evaluacion-2026-10-12/informe-inteligencia.md` | 2026-10-12 | Where the app could anticipate the person: what already does, what fails (measured), proposals by impact | 14 (7, 7) |
+| EVAL-KIT-P2 | `p2-abiertos-pila-kit.md` (the folder's root) | 2026-10-12 | Codex P2s left open on the kit stack (#232–#268) after it merged, in groups | 1 (0, 1) |
+| EVAL-FOLLOW-UPS-P2 | `evaluacion-2026-10-13/follow-ups-p2.md` | 2026-10-13, living | The P2 follow-up list after the freeze of P2 rounds | 13 (8, 5) |
+| EVAL-PERSONAL-REAL | `evaluacion-2026-10-13/informe-personal-real.md` | 2026-10-13 | The personal space used over several days: what works, what is missing or fails | 9 (4, 5) |
+| EVAL-20-VISTAS | `evaluacion-2026-10-13/informe-vistas-20.md` | 2026-10-13 | «Worth $20?» series: the project's views | 8 (4, 4) |
+| EVAL-20-ESPACIOS | `evaluacion-2026-10-13/informe-espacios-20.md` | 2026-10-13 | «Worth $20?»: the two spaces (personal and work) | 5 (3, 2) |
+| EVAL-20-SALA | `evaluacion-2026-10-13/informe-sala-20.md` | 2026-10-13 | «Worth $20?»: the room | 4 (2, 2) |
+| EVAL-20-EQUIPO | `evaluacion-2026-10-13/informe-equipo-20.md` | 2026-10-13 | «Worth $20?»: the team's path (invite, join, first minutes) | 4 (2, 2) |
+| EVAL-20-SIGNIN | `evaluacion-2026-10-13/informe-signin-20.md` | 2026-10-13 | «Worth $20?»: sign in | 2 (1, 1) |
+| EVAL-20-CUENTA | `evaluacion-2026-10-13/informe-cuenta-20.md` | 2026-10-13 | «Worth $20?»: the account (how others see you, the menu, your data) | 2 (1, 1) |
+| EVAL-20-PRIMER-PROYECTO | `evaluacion-2026-10-13/informe-primer-proyecto-20.md` | 2026-10-14 | «Worth $20?»: the first project, from an empty Home to the first thing done inside | 2 (1, 1) |
+| EVAL-20-COMANDOS | `evaluacion-2026-10-13/informe-comandos-20.md` | 2026-10-14 | «Worth $20?»: commands and keyboard | 4 (2, 2) |
+| EVAL-20-RESOURCES | `evaluacion-2026-10-13/informe-resources-20.md` | 2026-10-14 | «Worth $20?»: Resources | 2 (1, 1) |
+| EVAL-20-SEARCH | `evaluacion-2026-10-13/informe-search-20.md` | 2026-10-14 | «Worth $20?»: searching a project | 2 (1, 1) |
+| EVAL-20-UPDATES | `evaluacion-2026-10-13/informe-updates-20.md` | 2026-10-14 | «Worth $20?»: Updates, what changed since you looked | 2 (1, 1) |
+| EVAL-E2E-REAL | `evaluacion-2026-10-14/e2e-real/informe-e2e-real.md` | 2026-10-14 | End to end on the real local stack with several people; its Q and S findings | 10 (5, 5) |
+| EVAL-BRECHAS-FUNCIONALES | `evaluacion-2026-10-15/informe-brechas-funcionales.md` | 2026-10-15 | Functional gaps against the product each section recalls, by section | 11 (11, 0) |
+| EVAL-BRECHAS-A-FONDO | `evaluacion-2026-10-15/informe-brechas-a-fondo.md` | 2026-10-15 | Expected features that are missing, a second and deeper pass over five areas | 17 (17, 0) |
+| EVAL-LOGS-EVIDENCIA | `evaluacion-2026-10-15/informe-logs-evidencia.md` | 2026-10-15 | Whether the system keeps evidence of who did what (code read) | 2 (1, 1) |
+| EVAL-BRECHAS-3 | `evaluacion-2026-10-16/informe-brechas-3.md` | 2026-10-16 | Expected features that are missing, third pass | 16 (16, 0) |
+| EVAL-REM-PWA | `evaluacion-2026-10-16/propuesta-rem-pwa.md` | 2026-10-16 | Type in rem and the PWA: measured, with a proposal | 2 (1, 1) |
+| EVAL-SEGUIMIENTOS-P2 | `evaluacion-2026-10-16/seguimientos-p2.md` | 2026-10-17, living | Codex's P2 follow-ups, open and done | 17 (7, 10) |
+| EVAL-TRIAGE | `evaluacion-2026-10-16/seguimientos-triage-2026-10-19.md` | 2026-10-19 | Those P2 follow-ups triaged against main, by batch | 6 (3, 3) |
+| EVAL-25 | `evaluacion-2026-10-17/informe-25.md` | 2026-10-17 | «Worth $25 a month?»: verdict, scores by dimension, expected and missing features, AAA polish by surface (its lettered items) | 31 (18, 13) |
+| EVAL-CLARO | `evaluacion-2026-10-17/informe-claro.md` | 2026-10-17 | Light mode against dark: measured by surface, the findings D1–D24 (§3), principles, and the plan's numbered rows (§6) | 18 (9, 9) |
+| EVAL-PROYECCION | `evaluacion-2026-10-17/propuesta-davide-proyeccion.md` | 2026-10-17 | Draft proposal on the projection's «in this slice» reasons, for Davide's lane; unpublished | 1 (0, 1) |
+| EVAL-COSTURAS | `evaluacion-2026-10-18/experiencia/costuras.md` | 2026-10-18 | The seams: ten things the Studio already knows and doesn't say, numbered, and what is missing | 28 (14, 14) |
+| EVAL-LINEA-BASE | `evaluacion-2026-10-19/fiabilidad/linea-base.md` | 2026-10-19 | Reliability baseline: failure modes, CI measured, the metrics to adopt (§4, M1–M9), the top ten gaps | 22 (11, 11) |
+| EVAL-MEDICION-ANTES | `evaluacion-2026-10-19/fiabilidad/medicion-antes.md` | 2026-10-19 | The baseline's metrics measured before R1 by `scripts/reliability-report.mjs` | 1 (0, 1) |
+| EVAL-MEDICION-DESPUES | `evaluacion-2026-10-19/fiabilidad/medicion-despues.md` | 2026-10-19 | The same after R1 | 3 (1, 2) |
+| EVAL-MEDICION-R2 | `evaluacion-2026-10-19/fiabilidad/medicion-r2.md` | 2026-10-19 | The same after R2 | 2 (1, 1) |
+| EVAL-EVIDENCE | Captures and measurements beside the reports: `evaluacion-2026-10-11/{light-mode,ui-premium}/`; `evaluacion-2026-10-12/` (PNGs, `inteligencia/`, `views-type-measures.json`, `conv-*`); `evaluacion-2026-10-13/{espacios,espacios-after,sala-after,vistas,personal-mock,goals-mock}/`; `evaluacion-2026-10-14/e2e-real/`; `evaluacion-2026-10-15/{call-devices,device-check}/`; `evaluacion-2026-10-16/capturas/`; `evaluacion-2026-10-17/` (PNGs, `capturas/`, `claro-ramas-1-9/`, `real-427/`) | as their folders | Screenshots, measurement JSON and mocks a note names as its evidence; registered by folder, not by file | the notes that name a file there |

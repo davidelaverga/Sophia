@@ -141,3 +141,30 @@ review» sections say how.
   (the docs and two code comments had 2026-10-24; no commit message carries it).
 - **Green at 8556eba43 and 427e51d9f:** new-version, device-check, call-devices, room-dock, room, join, app-auth 149/150 at `8556eba43` (`review-green`; the one failure was the check test counting the rows «Microphone: Needs a reload» as Reload buttons, 4 not 1: its locator now asks for the exact name, `427e51d9f`), then new-version 15/15 at `427e51d9f` (`review-green-2`). Units: `apps/studio/src/**` and the report's 2191/2193 (the two known Windows path
   failures); whole-repo oxlint, tsc, Prettier: clean.
+
+## After Codex's P2 on #478 (2026-10-22: files whose names carry no hash)
+
+Source: `evaluacion-2026-10-16/seguimientos-p2.md`, last entry (#478 `apps/studio/build-version.ts:28`); Luis
+2026-10-22: «Procede con la P2 y pon tus sugerencias a las preguntas». Branch `reliability/version-asset-hash` from
+`origin/main` `86eef1c21`, worktree `Sophia-paper-1`; not pushed. The plan's «After Codex's P2 on #478» says how.
+
+- **Confirmed before the fix** on real `vite build`s into the scratchpad (nothing deployed): the old plugin, with one
+  byte of `apps/studio/mediapipe/selfie_segmenter.tflite` flipped, wrote `df9ba41fcee676a6`, the same id as the build
+  of the untouched tree.
+- **Written first** `7d4fb5b46` (`src/app/build-version.test.ts`, driving the plugin's `generateBundle` over fake
+  builds); red: «Expected "actual" to be strictly unequal to: actual: 'c2bda8c73428c9a4', expected:
+  'c2bda8c73428c9a4'» (only the model's bytes changed) and «actual: '428fb35a17cde3d0', expected: 'c2bda8c73428c9a4'»
+  (the same files with `\` paths); same files, reversed order, a renamed file and the page's meta passed already.
+- **Fixed** `cf8360d72`: `versionOf` hashes every emitted file's path, length and bytes; paths normalised to `/`,
+  sorted by code point. 6/6 units.
+- **Observed after the fix** (scratchpad builds, nothing deployed): two builds of the same tree, `7648c854cc811e87`
+  both, outputs identical file for file; the model's last byte flipped (then restored, `cmp` clean, `git status`
+  clean): `54544b3d4a480b2f`, and only the model, `index.html` (its meta) and `version.json` differ: no chunk renamed.
+  Against the build from before the fix, only `index.html` and `version.json` differ.
+- **Cost:** `versionOf` over the whole output (38 files, 25.0 MB) median 19.6 ms, max 29.6 ms (nine runs), against a
+  build of about 5 s.
+- **Green at `cf8360d72`:** new-version 15/15 through the guarded `pw.ps1` (`pw-logs/version-asset-hash-green`).
+  Units: `apps/studio/src/**` 2168/2170 (the two known Windows path failures). Whole-repo oxlint, tsc, Prettier: clean.
+
+Remaining: files in `public/` stay outside the id, as the plan's «Limits» say. The next action is the group PR when
+Luis says; merge on green with no open P1.

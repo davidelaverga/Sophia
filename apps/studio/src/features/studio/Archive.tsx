@@ -55,7 +55,7 @@ const failure = (err: unknown, fallback: string) => (err instanceof Error ? err.
 
 /**
  * One write per choice: a retry of the same choice keeps its key, wherever it is pressed from, until it is answered;
- * the lists are read again once it lands.
+ * the lists are read again once it lands, the one it joins first.
  */
 export function useArchiveWrite(identity: Identity) {
   const client = useQueryClient()
@@ -68,7 +68,12 @@ export function useArchiveWrite(identity: Identity) {
       throw err
     }
     keys.settled(choice)
-    await client.invalidateQueries({ queryKey: ['projects', identity.name] })
+    // The list the project joins is read again before the one it leaves, so no moment holds it in neither: Work with
+    // none active would say the first run's «No projects yet» in between (work-none-active.md).
+    const active = ['projects', identity.name]
+    const [joins, leaves] = archived ? [archivedKey(identity), active] : [active, archivedKey(identity)]
+    await client.invalidateQueries({ queryKey: joins, exact: true })
+    await client.invalidateQueries({ queryKey: leaves, exact: true })
   }
 }
 
@@ -126,7 +131,12 @@ interface SheetProps {
   projectId: string
   identity: Identity
   onClose: () => void
-  /** Archived: the call in its room ends, and the person goes to Work, as leaving does. */
+  /**
+   * Archived with the sheet still open: the call in its room ends, and the person goes to Work, as leaving does. The
+   * sheet closed while «Archiving…» (Cancel, Escape, Close) is the person staying: nothing moves when the reply comes,
+   * and an archive that landed shows as the line, as when archived elsewhere (archive-keys-and-work.md). An open sheet
+   * with nothing on its way closes once the project is archived.
+   */
   onArchived: () => Promise<void>
 }
 
@@ -134,7 +144,20 @@ export function ArchiveSheet({ title, projectId, identity, onClose, onArchived }
   const write = useArchiveWrite(identity)
   const [state, setState] = useState<{ sending: boolean; failed: string | null }>({ sending: false, failed: null })
   const cancel = useRef<HTMLButtonElement>(null)
+  const open = useRef(true)
+  const status = useArchiveStatus(identity, projectId)
   useEffect(() => cancel.current?.focus(), [])
+  useEffect(() => {
+    open.current = true
+    return () => {
+      open.current = false
+    }
+  }, [])
+  // Archived meanwhile (a sheet closed during «Archiving…» whose write landed, or another admin), with no write of its
+  // own on its way: its Archive would change nothing, yet end the call, so the sheet goes and the line says so.
+  useEffect(() => {
+    if (status === 'archived' && !state.sending) onClose()
+  }, [status, state.sending, onClose])
   const archive = async () => {
     setState({ sending: true, failed: null })
     try {
@@ -143,6 +166,7 @@ export function ArchiveSheet({ title, projectId, identity, onClose, onArchived }
       setState({ sending: false, failed: failure(err, 'Couldn’t archive the project. Try again.') })
       return
     }
+    if (!open.current) return
     onClose()
     await onArchived()
   }
