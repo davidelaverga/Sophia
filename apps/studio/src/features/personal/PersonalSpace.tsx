@@ -32,6 +32,7 @@ import { NOTICE } from './notice-view.ts'
 import { lightOf, notesLabel, readyFor } from './places-view.ts'
 import type { Handed } from './handed.ts'
 import { PersonalComposer, type SendOutcome } from './PersonalComposer.tsx'
+import { AiLine } from './AiDisclosure.tsx'
 import { usePresses } from './presses.ts'
 import { ReadNotes, type Read } from './ReadNotes.tsx'
 import { Talk } from './Talk.tsx'
@@ -548,7 +549,10 @@ const sender =
     }
   }
 
-/** The field: an erasure forgets the draft too, so the composer starts afresh. */
+/**
+ * The field: an erasure forgets the draft too, so the composer starts afresh. Under it, Sophia says she is an AI, with
+ * help one press away (personal-ai-disclosure.md).
+ */
 function Composer(p: {
   props: Props
   starter: RefObject<((words: string) => Promise<boolean>) | null>
@@ -569,6 +573,7 @@ function Composer(p: {
       state={!space ? 'loading' : space.companion === 'unavailable' ? 'unavailable' : 'ready'}
       onListening={p.onListening}
       onSend={sender(writes, p.onFailed)}
+      foot={<AiLine />}
     />
   )
 }
