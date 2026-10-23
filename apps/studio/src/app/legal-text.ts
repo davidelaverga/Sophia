@@ -14,7 +14,7 @@ export const UPDATED = '23 October 2026'
 export const TITLES: Record<LegalDoc, string> = { terms: 'Terms of use', privacy: 'Privacy notice' }
 
 /** Where to write, whatever the app can do (legal-contact.md): a page shows it as a mailto link. */
-export const CONTACT_EMAIL = 'hello@sophia-ei.com'
+export const CONTACT_EMAIL = 'info@sophia-ei.com'
 
 const CONTACT = `Questions, requests about your data, deleting your account, or a problem to report: write to ${CONTACT_EMAIL}. You can also use Send feedback in Sophia’s account menu, where it’s offered.`
 
