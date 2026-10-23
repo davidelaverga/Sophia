@@ -168,6 +168,33 @@ for (const [how, close] of [
   })
 }
 
+test('archive · a sheet opened again while the closed one’s archive is on its way closes once it lands (#368)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?call=on')
+  const inCall = page.getByRole('button', { name: 'Leave the room' }).first()
+  await expect(inCall).toBeVisible()
+  await expect.poll(() => served(page)).toContain('projects:archived')
+  await archiveRepliesHeld(page)
+  const open = async () => {
+    await header(page).getByRole('button', { name: 'Fixture project' }).click()
+    await menu(page).getByRole('menuitem', { name: 'Archive project…' }).click()
+  }
+  await open()
+  await sheet(page).getByRole('button', { name: 'Archive' }).click()
+  await expect.poll(() => served(page)).toContain('archive:true')
+  await sheet(page).getByRole('button', { name: 'Cancel' }).click()
+  // The read still says not archived, so Archive is offered again, and a second sheet opens.
+  await open()
+  await expect(sheet(page).getByRole('button', { name: 'Archive' })).toBeVisible()
+  await page.evaluate(() => window.releaseArchive?.())
+  // Landed: its Archive would change nothing, yet end the call and go to Work, so the sheet goes and the line says so.
+  await expect(page.getByRole('status').filter({ hasText: 'This project is archived' })).toBeVisible()
+  await expect(sheet(page)).toHaveCount(0)
+  await expect(inCall).toBeVisible()
+  expect(await served(page)).not.toContain('went:work')
+})
+
 test('archive · an editor is offered no Archive', async ({ page }) => {
   await page.goto('/room.html?role=editor')
   await header(page).getByRole('button', { name: 'Fixture project' }).click()
