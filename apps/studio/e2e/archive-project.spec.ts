@@ -237,6 +237,27 @@ async function firstRun(page: Page) {
   await expect(page.getByLabel('Project title')).toBeVisible()
 }
 
+/**
+ * None active, the archived list still coming: no line claims anything yet, and the header's New project is there at
+ * once, so making a project is never out of reach while it loads (or retries, or waits offline).
+ */
+async function archivedComing(page: Page, archived: boolean) {
+  await page.goto(`/work-space.html?active=0&hold=archived${archived ? '&archived=1' : ''}`)
+  const make = page.locator('.c3-head').getByRole('button', { name: 'New project' })
+  await expect(make).toBeVisible()
+  await expect(page.getByText('No active projects')).toHaveCount(0)
+  await expect(page.getByText('No projects yet')).toHaveCount(0)
+  await page.evaluate(() => window.workSpaceFixture?.releaseArchived())
+  if (archived) {
+    await expect(page.getByText('No active projects.')).toBeVisible()
+    await expect(make).toBeVisible()
+  } else {
+    // Known to be the first run: its sentence brings Start a project, and the header's press goes.
+    await expect(page.locator('.c3-empty').getByRole('button', { name: 'Start a project' })).toBeVisible()
+    await expect(make).toHaveCount(0)
+  }
+}
+
 /** Nothing reaches past a phone's edge. */
 const sideways = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
@@ -251,13 +272,33 @@ test('archive · Work with no project at all keeps its first-run sentence and St
   await firstRun(page)
 })
 
-test('@phone · archive · on a phone too, only archived: «No active projects», New project in reach; none at all: the first run', async ({
+test('archive · Work with none active offers New project while its archived list is still coming', async ({ page }) => {
+  await archivedComing(page, true)
+  await archivedComing(page, false)
+})
+
+test('archive · Work with none active whose archived list can’t be read says «No active projects», New project in its header', async ({
+  page,
+}) => {
+  await page.goto('/work-space.html?active=0&archived=1&archivedFails=1')
+  // A bodiless 503 is a proxy's: the read is asked three more times before it is said (#470).
+  await expect(page.getByRole('alert').filter({ hasText: 'Couldn’t load your archived projects.' })).toBeVisible({
+    timeout: 15_000,
+  })
+  // It can't say none: not the first run's sentence, and New project in reach.
+  await expect(page.locator('.c3-projects > *').first()).toHaveText('No active projects.')
+  await expect(page.getByText('No projects yet')).toHaveCount(0)
+  await expect(page.locator('.c3-head').getByRole('button', { name: 'New project' })).toBeVisible()
+})
+
+test('@phone · archive · on a phone too, only archived: «No active projects», New project in reach, also while it loads; none at all: the first run', async ({
   page,
 }) => {
   await noneActive(page)
   expect(await sideways(page)).toBeLessThanOrEqual(0)
   await firstRun(page)
   expect(await sideways(page)).toBeLessThanOrEqual(0)
+  await archivedComing(page, true)
 })
 
 test('archive · in Work, Unarchive after no reply sends the same write again, under the same key (Codex on #368)', async ({

@@ -6,7 +6,8 @@
 // lands and its reply never comes, as one whose answer is lost on the way back; `hold`: each reply waits for
 // `workSpaceFixture.release()`; `fails`: the first is refused with a 503 whose body says nothing, as a proxy's.
 // `archivedFails=1`: the archived list's read is refused the same way until `workSpaceFixture.recover()`. `active=0`:
-// no active project (work-none-active.md). New project opens and closes as Places has it.
+// no active project (work-none-active.md). `hold=archived`: the archived list's reads wait for
+// `workSpaceFixture.releaseArchived()`. New project opens and closes as Places has it.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -28,6 +29,7 @@ declare global {
       keys: string[]
       release: () => void
       recover: () => void
+      releaseArchived: () => void
     }
   }
 }
@@ -38,6 +40,9 @@ bootTheme(query.get('theme'))
 let release: () => void = () => undefined
 /** `archivedFails=1`: the archived list can't be read until `workSpaceFixture.recover()`. */
 let archivedFailing = query.has('archivedFails')
+/** `hold=archived`: the archived list's reads waiting, let go together by `releaseArchived()`. */
+let archivedHeld = query.get('hold') === 'archived'
+const heldReads: (() => void)[] = []
 const recorded = {
   opened: [] as string[],
   unarchived: [] as string[],
@@ -45,6 +50,10 @@ const recorded = {
   release: () => release(),
   recover: () => {
     archivedFailing = false
+  },
+  releaseArchived: () => {
+    archivedHeld = false
+    for (const go of heldReads.splice(0)) go()
   },
 }
 window.workSpaceFixture = recorded
@@ -91,7 +100,9 @@ window.fetch = (input, init) => {
   const href = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
   const { pathname } = new URL(href, window.location.href)
   if (pathname === '/api/v1/projects/archived') {
-    return Promise.resolve(archivedFailing ? unavailable() : json({ projects: archived, personalEpoch: 1 }))
+    const answer = () => (archivedFailing ? unavailable() : json({ projects: archived, personalEpoch: 1 }))
+    if (!archivedHeld) return Promise.resolve(answer())
+    return new Promise((go) => heldReads.push(() => go(answer())))
   }
   const archive = ARCHIVE.exec(pathname)?.[1]
   if (archive && init?.method === 'POST') return unarchived(archive, init)
