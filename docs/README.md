@@ -5,7 +5,7 @@
 | [execution/2026-10-01-unified/](execution/2026-10-01-unified/00_START_HERE.md) | The v2.0 unified continuation: the forward plan and navigation since 2026-10-02, installed byte for byte ([installation record](execution/README.md), [its validators](evidence/unified-v2.0/validate.run.txt)) |
 | [progress/LFE-00.md](progress/LFE-00.md) | LFE-00: where the source and the deployments stand, the proposed one-writer map, the BASE cases and the next tickets |
 | [pack/](pack/00_START_HERE.md) | Sophia Implementation Pack v0.4 Part 2 (cumulative: includes Part 1): history since the v2.0 continuation, imported byte-for-byte; do not edit |
-| [SOURCE_MAP.md](SOURCE_MAP.md) | Which document governs what; which upstream files ground which Sophia files; facts learned at the pin |
+| [SOURCE_MAP.md](SOURCE_MAP.md) | Which document governs what; which upstream files ground which Sophia files; facts learned at the pin; the evaluation reports the notes cite, which stay outside the repository |
 | [DESTINATION_MAP.md](DESTINATION_MAP.md) | Every planned source path: built / partial / unbuilt and its owning goal (test-enforced) |
 | [RUNTIME_UNIT.md](RUNTIME_UNIT.md) | The pinned runtime unit, its identities, the profile install and the composition gate |
 | [evidence/S1-01/](evidence/S1-01/) | Retained outputs from actual S1-01 runs (path-normalized, no credentials) |
