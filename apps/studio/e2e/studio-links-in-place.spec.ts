@@ -6,6 +6,7 @@ import { expect, test, type Page } from '@playwright/test'
 // Every message and address here is synthetic.
 
 const PROJECT = '00000000-0000-4000-8000-0000000000aa'
+const READING = '00000000-0000-4000-8000-0000000000c1'
 const BRIEFS = '00000000-0000-4000-8000-0000000000c2'
 const REPORT = '00000000-0000-4000-8000-0000000000b1'
 const HERE = 'http://127.0.0.1:5199'
@@ -61,9 +62,9 @@ test('in place · a link to another site or another project keeps its new tab', 
   }
 })
 
-/** Conversations with the report open beside them, and a link in the open conversation's thread to this address. */
+/** Conversations at the first one, with the report open beside them, and a link to this address in its thread. */
 async function linkBesideReport(page: Page, address: string) {
-  await page.goto(`/room.html?place=conversations&conversations=1&report=${REPORT}`)
+  await page.goto(`/room.html?place=conversations&conversations=1&report=${REPORT}#conversation-${READING}`)
   await expect(page.getByRole('complementary', { name: 'Fixture report' })).toBeVisible()
   const open = page.getByRole('region', { name: 'Open conversation' })
   const field = open.getByRole('textbox', { name: 'Continue this question with the team' })
@@ -76,13 +77,15 @@ test('in place · beside a report, a link that names none closes it and leaves t
   page,
 }) => {
   const report = page.getByRole('complementary', { name: 'Fixture report' })
+  const title = page.getByRole('region', { name: 'Open conversation' }).getByRole('heading', { level: 3 })
   await (await linkBesideReport(page, `${HERE}/p/${PROJECT}/conversations#conversation-${BRIEFS}`)).click()
-  await expect(page.getByRole('region', { name: 'Open conversation' }).getByRole('heading', { level: 3 })).toHaveText(
-    'Short or long briefs?',
-  )
+  await expect(title).toHaveText('Short or long briefs?')
   await expect(report).toBeHidden()
   expect(new URL(page.url()).searchParams.has('report')).toBe(false)
+  // Back is the address the person was at: the report, beside the conversation they read then.
   await page.goBack()
   await expect(report).toBeVisible()
-  expect(new URL(page.url()).searchParams.get('report')).toBe(REPORT)
+  const back = new URL(page.url())
+  expect(back.searchParams.get('report')).toBe(REPORT)
+  expect(back.hash).toBe(`#conversation-${READING}`)
 })

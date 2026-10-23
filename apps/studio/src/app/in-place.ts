@@ -30,6 +30,25 @@ export function inProject(href: string, origin: string, projectId: string): InPr
   return { view: route.view, hash: url.hash, report }
 }
 
+/** What following a link here acts on: the shell's views, the address and the report viewer (InPlaceLinks). */
+export interface Here {
+  view: View
+  show: (view: View) => void
+  /** The address's path now: showing another view moves it when the router pushes an entry for it. */
+  path: () => string
+  /** The report on screen, or null. */
+  shown: string | null
+  open: (report: ReportLink) => void
+  /** The report closes and leaves the address, in a new entry (`push`) or in the one on screen. */
+  leave: (push: boolean) => void
+  /** Names what the fragment names in the entry on screen. */
+  name: (hash: string) => void
+}
+
+export function followHere(_at: InProject, _here: Here): void {
+  throw new Error('in-place.ts: followHere not written yet')
+}
+
 /** How to follow an address here, or null for one that opens in a new tab. */
 export type FollowOf = (href: string) => (() => void) | null
 
