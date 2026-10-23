@@ -140,6 +140,7 @@ test('archive · after no reply, landed and then brought back elsewhere, Archive
 for (const [how, close] of [
   ['Cancel', (page: Page) => sheet(page).getByRole('button', { name: 'Cancel' }).click()],
   ['Escape', (page: Page) => page.keyboard.press('Escape')],
+  ['Close', (page: Page) => sheet(page).getByRole('button', { name: 'Close', exact: true }).click()],
 ] as const) {
   test(`archive · ${how} during «Archiving…» keeps the person in the project and the call, and a late archive shows as the line (#368)`, async ({
     page,
