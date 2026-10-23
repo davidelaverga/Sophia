@@ -5,11 +5,12 @@
 // Idempotency-Key. `role=editor`: the archived one is not theirs to bring back. `unarchive=lost`: the first Unarchive
 // lands and its reply never comes, as one whose answer is lost on the way back; `hold`: each reply waits for
 // `workSpaceFixture.release()`; `fails`: the first is refused with a 503 whose body says nothing, as a proxy's.
-// `archivedFails=1`: the archived list's read is refused the same way until `workSpaceFixture.recover()`.
+// `archivedFails=1`: the archived list's read is refused the same way until `workSpaceFixture.recover()`. `active=0`:
+// no active project (work-none-active.md). New project opens and closes as Places has it.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { StrictMode } from 'react'
+import { StrictMode, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { ProjectSummary } from '@sophia/contracts'
 import { retryRead } from '../src/app/account-cache.ts'
@@ -59,7 +60,7 @@ const project = (n: number, title: string, role: ProjectSummary['role'] = 'admin
   nextSession: null,
   releases: [],
 })
-const active = [project(1, 'Launch plan'), project(2, 'Research notes')]
+const active = query.get('active') === '0' ? [] : [project(1, 'Launch plan'), project(2, 'Research notes')]
 /** The archived list as the API holds it: a project brought back leaves it. */
 let archived = query.has('archived')
   ? [project(3, 'Old pilot', query.get('role') === 'editor' ? 'editor' : 'admin')]
@@ -99,6 +100,7 @@ window.fetch = (input, init) => {
 
 function Page() {
   const fold = useArchivedWork(IDENTITY)
+  const [newProjectOpen, setNewProjectOpen] = useState(false)
   return (
     <div className="places" data-place="work">
       <WorkSpace
@@ -110,7 +112,7 @@ function Page() {
         fresh={new Set()}
         inCallProject={null}
         personalLock={null}
-        newProject={{ open: false, set: () => undefined }}
+        newProject={{ open: newProjectOpen, set: setNewProjectOpen }}
         actions={{
           open: (id) => recorded.opened.push(id),
           join: () => undefined,
