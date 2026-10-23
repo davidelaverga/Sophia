@@ -14,6 +14,7 @@ const OLD_PILOT = '00000000-0000-4000-8000-00000000c003'
 declare global {
   interface Window {
     archiveKeys?: string[]
+    releaseArchive?: () => void
   }
 }
 
@@ -32,6 +33,22 @@ const firstArchiveReplyLost = (page: Page) =>
       keys.push(new Headers(init?.headers).get('idempotency-key') ?? '')
       const answer = await own(input, init)
       if (keys.length === 1) throw new TypeError('Failed to fetch')
+      return answer
+    }
+  })
+
+/** The archive writes land, but their replies wait in the page's own fetch until `window.releaseArchive`. */
+const archiveRepliesHeld = (page: Page) =>
+  page.evaluate(() => {
+    const own = window.fetch
+    let release = () => {}
+    const released = new Promise<void>((resolve) => (release = resolve))
+    window.releaseArchive = () => release()
+    window.fetch = async (input, init) => {
+      const path = new URL(input instanceof Request ? input.url : String(input), window.location.href).pathname
+      if (!path.endsWith('/archive')) return own(input, init)
+      const answer = await own(input, init)
+      await released
       return answer
     }
   })
@@ -119,6 +136,36 @@ test('archive · after no reply, landed and then brought back elsewhere, Archive
   expect(keys).toHaveLength(2)
   expect(keys[1]).not.toBe(keys[0])
 })
+
+for (const [how, close] of [
+  ['Cancel', (page: Page) => sheet(page).getByRole('button', { name: 'Cancel' }).click()],
+  ['Escape', (page: Page) => page.keyboard.press('Escape')],
+] as const) {
+  test(`archive · ${how} during «Archiving…» keeps the person in the project and the call, and a late archive shows as the line (#368)`, async ({
+    page,
+  }) => {
+    await page.goto('/room.html?call=on')
+    const inCall = page.getByRole('button', { name: 'Leave the room' }).first()
+    await expect(inCall).toBeVisible()
+    await expect.poll(() => served(page)).toContain('projects:archived')
+    await archiveRepliesHeld(page)
+    await header(page).getByRole('button', { name: 'Fixture project' }).click()
+    await menu(page).getByRole('menuitem', { name: 'Archive project…' }).click()
+    await sheet(page).getByRole('button', { name: 'Archive' }).click()
+    await expect(sheet(page).getByRole('button', { name: 'Archiving…' })).toBeVisible()
+    await expect.poll(() => served(page)).toContain('archive:true')
+    // Walked away from the write: the sheet goes now; the write may have landed, and isn't taken back.
+    await close(page)
+    await expect(sheet(page)).toHaveCount(0)
+    await page.evaluate(() => window.releaseArchive?.())
+    // It landed: the lists are read again and the line says so, as when archived elsewhere; nobody is moved.
+    await expect(page.getByRole('status').filter({ hasText: 'This project is archived' })).toBeVisible()
+    await header(page).getByRole('button', { name: 'Fixture project' }).click()
+    await expect(menu(page).getByRole('menuitem')).toHaveText(['Rename…', 'Activity', 'Leave project…'])
+    await expect(inCall).toBeVisible()
+    expect(await served(page)).not.toContain('went:work')
+  })
+}
 
 test('archive · an editor is offered no Archive', async ({ page }) => {
   await page.goto('/room.html?role=editor')

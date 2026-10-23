@@ -84,7 +84,8 @@ a refusal or no reply leaves the other choice's key.
   to Work's heading; Unarchive could do the same.
 - While the archived list can't be read, an admin can't archive from inside the project either: Archive comes back
   once a read answers (the lists are read again on focus and after writes). Saying so in the menu is left for later.
-- The sheet's Cancel during «Archiving…» and Work's empty state with archived projects wait for Luis's answers.
+- Work's empty state with archived projects waits for Luis's answer. The sheet's Cancel during «Archiving…»: see
+  «Cancel during “Archiving…” stays» below.
 
 ## A read lets go of an unanswered key (Codex P2 on #471)
 
@@ -188,3 +189,40 @@ the lists invalidated after a write, stay under `identity.name`: they live in th
 
 **Limits.** None new. The same account under a new address (`USER_UPDATED`) keeps its key in the store now, but the
 address is in `archivedKey`, so the list is read again under it, and that read lets go of the key as any read does.
+
+## Cancel during «Archiving…» stays (#368, Luis's question, answer b)
+
+> 2026-10-23 · #368's «Stop a closed archive sheet from redirecting later», put to Luis as a question in
+> `evaluacion-2026-10-16/seguimientos-triage-2026-10-19.md`. Luis 2026-10-23: «Procede con la P2 y pon tus sugerencias a
+> las preguntas»: the recommended answer, (b), is what is built. Studio only; no API, no contract.
+
+**What was read (it holds, at `86eef1c21`).** `ArchiveSheet`'s `archive` (`Archive.tsx`) awaits the write, then calls
+`onClose()` and `onArchived()`. Only «Archive» waits on `state.sending`; Cancel, Escape and the head's Close stay live
+and call `onClose`, which unmounts the sheet (`ProjectName.tsx`, `setSheet(null)`). The pending `archive` doesn't know:
+when the reply comes it still calls `onArchived`, which is `onLeft` (`ProjectShell.tsx`, `ShellTitle`): the call in
+the room ends and the person goes to Work, although they walked away from the write. The triage's lines (Archive.tsx
+63-73, ProjectName.tsx 184) have moved since #469/#471/#473/#475; the path is the same.
+
+**Rule.** Closing the sheet, by Cancel, Escape or Close, while «Archiving…» is the person staying. The sheet goes at
+once; the write isn't taken back (it may already have landed), and when its reply comes nothing moves: no Work, no end
+of the call. If it landed, the write still has the lists read again (`useArchiveWrite`), the read says archived, and
+the line under the header says «This project is archived…» with Unarchive, as when another admin archives it; the
+menu stops offering «Archive project…». If it failed, nothing is said: the sheet that would say it is gone.
+
+**Where.** `ArchiveSheet` keeps whether it is still open (a ref set while mounted, cleared on unmount) and calls
+`onClose`/`onArchived` after the reply only while it is. Unmounting covers every way out, and also a sheet that leaves
+because the project's header does. `useArchiveWrite` and `archive-keys.ts` are untouched: the write settles its key as
+before (landed or refused, it goes; no reply, it stays for a same-key retry; a read lets go of it).
+
+**What stays.** «Archive» pressed and the sheet left open: closed and Work on landing, as before. The same-key retry
+after no reply (Cancel, opened again, Archive). A second sheet opened while the first write is still on its way offers
+«Archive» (the read still says not archived); pressing it sends the same key, the same write, and that sheet, open when
+it lands, goes to Work: the person chose it again.
+
+**Checks, written first.** `archive-project.spec.ts`, in the room with a call on (`?call=on`): the archive's reply held
+in the page's own fetch (it lands, its answer waits), Archive, «Archiving…», then Cancel → the sheet goes; the reply
+let through → still in the call (the dock's «Leave the room»), the line «This project is archived» shows, and no
+`went:work`. The same with Escape. Red before: `went:work` served and the call ended.
+
+**Limits.** Leave project's sheet has the same shape (Cancel live during «Leaving…», `onLeft` after the reply), but
+left, the person has no project to stay in; not changed here.
