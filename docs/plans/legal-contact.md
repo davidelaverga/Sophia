@@ -2,7 +2,8 @@
 
 > 2026-10-16 · Follows terms-privacy.md. The Contact section pointed only to Send feedback, which needs a DSN, and to
 > replying to an email. Codex raised this as a P2 on #366: a request about one's data, or to delete an account, needs
-> an address that doesn't depend on the app. It is Sophia's own address, `hello@sophia-ei.com`, the one its emails already come from.
+> an address that doesn't depend on the app. It is the domain's mailbox, `info@sophia-ei.com` (first written as
+> `hello@sophia-ei.com`, which receives no mail; see «The address» below).
 
 ## What changes
 
@@ -32,3 +33,14 @@
   and only with a DSN (account menu, Settings › Help); «reply to any email» is gone; the sign-in, the code step and the
   page that couldn't open name no channel; the privacy notice's «write to us (see Contact)» now leads to the address.
   The address appears once in product code (`legal-text.ts`); no personal address appears anywhere.
+
+## The address (2026-10-23)
+
+> Luis: «Hello@sophia no creo que reciba correo». The domain's DNS (GoDaddy) points its mail at Microsoft 365, and its
+> GoDaddy panel shows one mailbox, `info@sophia-ei.com`; there is no `hello@`. Luis chose «Usar info@ tal cual»: no
+> alias or new mailbox, nothing changed in the domain's account.
+
+- `CONTACT_EMAIL` is `info@sophia-ei.com`. Both Contact sections link it with `mailto:`, then Send feedback where it's
+  offered. `UPDATED` stays 23 October 2026, the day this lands.
+- Written first: `terms-privacy.spec.ts` names `info@sophia-ei.com`; red on the old address («Expected:
+  "mailto:info@sophia-ei.com"», element not found, terms and privacy), green after.

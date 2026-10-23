@@ -30,8 +30,8 @@ commits on the branch merge its base forward or touch only this record). 4 files
 
 ## Remaining obligations
 
-- **Luis:** make sure hello@sophia-ei.com receives mail. The domain's root mail is Microsoft 365, and Resend only
-  sends from it.
+- ~~**Luis:** make sure hello@sophia-ei.com receives mail.~~ It doesn't; the address is now `info@sophia-ei.com`, the
+  domain's one mailbox (see «The address» below).
 
 ## After the refresh (2026-10-22, for 23 October 2026)
 
@@ -56,3 +56,13 @@ Remaining: Luis confirms hello@sophia-ei.com receives mail (the repo doesn't rec
 the one Sophia's emails come from is the coordinator's word and this record's earlier note); if the PR lands after
 23 October 2026, `UPDATED` and the spec move to that day. Then the coordinator updates #374; merge on green with no
 open P1.
+
+## The address (2026-10-23)
+
+- Luis said `hello@sophia-ei.com` likely receives no mail. Read-only checks: the domain's DNS is at GoDaddy, its MX is
+  Microsoft 365, and its GoDaddy panel (opened by Luis through delegated access) lists one mailbox,
+  `info@sophia-ei.com`. Luis chose «Usar info@ tal cual»; nothing was changed in the domain's account.
+- Written first `8ddabef4e`: the spec names `info@sophia-ei.com`. Red (`pw-logs/legal-info-red`): «Expected:
+  "mailto:info@sophia-ei.com"», element not found, terms and privacy (2 failed, 4 passed). Fixed `dbad283ed`:
+  `CONTACT_EMAIL = 'info@sophia-ei.com'`.
+- `UPDATED` stays 23 October 2026: this lands on 23 October 2026.
