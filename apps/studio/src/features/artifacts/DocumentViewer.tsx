@@ -11,7 +11,7 @@ import type { ShowRender } from '../voice/ShowEveryone.tsx'
 import type { Passage } from './PassageBar.tsx'
 import type { SectionAsk } from './useSectionArrival.ts'
 import { openedLink, readReportLink, withReportLink, type ReportLink, type ViewerTab } from './report-link.ts'
-import { ViewerContext, type OpenRequest } from './viewer-context.ts'
+import { ViewerContext, type OpenRequest, type ViewerApi } from './viewer-context.ts'
 import './artifacts.css'
 
 export { useDocumentViewer, type OpenRequest } from './viewer-context.ts'
@@ -73,7 +73,13 @@ function useReportHistory(projectId: string) {
     },
     [write],
   )
-  return { link, write, back }
+  /** Out of the address in the link's entry, not one of the viewer's own: a later close never steps back over it. */
+  const leave = useCallback((push: boolean) => {
+    if (push) window.history.pushState(null, '', urlWith(null))
+    else window.history.replaceState(null, '', urlWith(null))
+    setLink(null)
+  }, [])
+  return { link, write, back, leave }
 }
 
 /**
@@ -92,6 +98,18 @@ function useLeaveFor(link: ReportLink | null, close: () => void) {
     },
     [link, close],
   )
+}
+
+/** What the viewer gives the page (viewer-context.ts). */
+function useViewerApi(
+  open: ViewerApi['open'],
+  link: ReportLink | null,
+  close: () => void,
+  leave: ViewerApi['leave'],
+): ViewerApi {
+  const leaveFor = useLeaveFor(link, close)
+  const shown = link?.artifactId ?? null
+  return useMemo(() => ({ open, shown, leaveFor, leave }), [open, shown, leaveFor, leave])
 }
 
 interface Props {
@@ -136,7 +154,7 @@ function useOpener() {
 
 export function DocumentViewerProvider(props: Props) {
   const { projectId, identity, panelOpen, closePanel, openChat, chatUnread, call, note, askAbout, children } = props
-  const { link, write, back } = useReportHistory(projectId)
+  const { link, write, back, leave } = useReportHistory(projectId)
   const [tab, setTab] = useState<ViewerTab>('document')
   // The section asked for with the report on screen: none once the report closes or opens without one.
   const [section, setSection] = useState<SectionAsk | null>(null)
@@ -156,8 +174,7 @@ export function DocumentViewerProvider(props: Props) {
     [closePanel, link, noteOpener, write],
   )
   const close = useCallback(() => back(link?.size === 'full' ? 2 : 1, null), [back, link?.size])
-  const leaveFor = useLeaveFor(link, close)
-  const api = useMemo(() => ({ open, shown: link?.artifactId ?? null, leaveFor }), [open, link?.artifactId, leaveFor])
+  const api = useViewerApi(open, link, close, leave)
   // One pane at a time, by what changed: the side panel opened over the report, so the report gives way; a report came
   // (Back or Forward) while the panel was open, so the panel gives way.
   const panelWas = useRef(panelOpen)

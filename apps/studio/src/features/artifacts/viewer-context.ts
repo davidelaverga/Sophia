@@ -23,6 +23,11 @@ export interface ViewerApi {
    * phone, the full page) it closes first, then `after` runs; beside the page it stays, and `after` runs at once.
    */
   leaveFor: (after: () => void) => void
+  /**
+   * A link followed elsewhere in the project names no report: the report closes and leaves the address, in a new entry
+   * (`push`) or in the one the link's view pushed, so Back opens it again (studio-links-in-place.md).
+   */
+  leave: (push: boolean) => void
 }
 
 export const ViewerContext = createContext<ViewerApi | null>(null)
