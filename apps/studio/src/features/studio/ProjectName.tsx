@@ -183,7 +183,7 @@ export function ProjectName(props: Props) {
           document.body,
         )}
       {sheet === 'leave' && createPortal(<LeaveSheet {...shared} onLeft={props.onLeft} />, document.body)}
-      {/* Archived, as left: the call in its room ends and the person goes to Work (archive-project.md). */}
+      {/* Archived, as left: the call ends and the person goes to Work, unless they closed the sheet first. */}
       {sheet === 'archive' && createPortal(<ArchiveSheet {...shared} onArchived={props.onLeft} />, document.body)}
     </span>
   )

@@ -41,9 +41,9 @@ const firstArchiveReplyLost = (page: Page) =>
 const archiveRepliesHeld = (page: Page) =>
   page.evaluate(() => {
     const own = window.fetch
-    let release = () => {}
-    const released = new Promise<void>((resolve) => (release = resolve))
-    window.releaseArchive = () => release()
+    const released = new Promise<void>((resolve) => {
+      window.releaseArchive = resolve
+    })
     window.fetch = async (input, init) => {
       const path = new URL(input instanceof Request ? input.url : String(input), window.location.href).pathname
       if (!path.endsWith('/archive')) return own(input, init)

@@ -126,7 +126,11 @@ interface SheetProps {
   projectId: string
   identity: Identity
   onClose: () => void
-  /** Archived: the call in its room ends, and the person goes to Work, as leaving does. */
+  /**
+   * Archived with the sheet still open: the call in its room ends, and the person goes to Work, as leaving does. The
+   * sheet closed while «Archiving…» (Cancel, Escape, Close) is the person staying: nothing moves when the reply comes,
+   * and an archive that landed shows as the line, as when archived elsewhere (archive-keys-and-work.md).
+   */
   onArchived: () => Promise<void>
 }
 
@@ -134,7 +138,14 @@ export function ArchiveSheet({ title, projectId, identity, onClose, onArchived }
   const write = useArchiveWrite(identity)
   const [state, setState] = useState<{ sending: boolean; failed: string | null }>({ sending: false, failed: null })
   const cancel = useRef<HTMLButtonElement>(null)
+  const open = useRef(true)
   useEffect(() => cancel.current?.focus(), [])
+  useEffect(() => {
+    open.current = true
+    return () => {
+      open.current = false
+    }
+  }, [])
   const archive = async () => {
     setState({ sending: true, failed: null })
     try {
@@ -143,6 +154,7 @@ export function ArchiveSheet({ title, projectId, identity, onClose, onArchived }
       setState({ sending: false, failed: failure(err, 'Couldn’t archive the project. Try again.') })
       return
     }
+    if (!open.current) return
     onClose()
     await onArchived()
   }
