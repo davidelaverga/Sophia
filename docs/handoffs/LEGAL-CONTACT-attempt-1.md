@@ -65,4 +65,10 @@ open P1.
 - Written first `8ddabef4e`: the spec names `info@sophia-ei.com`. Red (`pw-logs/legal-info-red`): «Expected:
   "mailto:info@sophia-ei.com"», element not found, terms and privacy (2 failed, 4 passed). Fixed `dbad283ed`:
   `CONTACT_EMAIL = 'info@sophia-ei.com'`.
-- `UPDATED` stays 23 October 2026: this lands on 23 October 2026.
+- `UPDATED` then moved to the landing day (see «Landing»).
+
+## Landing (2026-10-24)
+
+- `UPDATED` moves to 24 October 2026, the landing day: written first `de8499a73`, red on terms and privacy
+  (`pw-logs/legal-date-red`: «Expected substring: "Last updated 24 October 2026"»), then the date. Main merged in
+  (`ea8378cde`, after #479). Then the coordinator pushes and takes #374 out of draft; merge on green with no open P1.

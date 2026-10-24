@@ -41,6 +41,11 @@
 > alias or new mailbox, nothing changed in the domain's account.
 
 - `CONTACT_EMAIL` is `info@sophia-ei.com`. Both Contact sections link it with `mailto:`, then Send feedback where it's
-  offered. `UPDATED` stays 23 October 2026, the day this lands.
+  offered. `UPDATED` moved again to the landing day (see «Landing»).
 - Written first: `terms-privacy.spec.ts` names `info@sophia-ei.com`; red on the old address («Expected:
   "mailto:info@sophia-ei.com"», element not found, terms and privacy), green after.
+
+## Landing (2026-10-24)
+
+- It lands on 24 October 2026, so `UPDATED` and the spec move to that day: written first `de8499a73` (red: «Expected
+  substring: "Last updated 24 October 2026"», received 23 October, terms and privacy), then the date.
