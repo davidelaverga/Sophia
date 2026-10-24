@@ -37,7 +37,9 @@ export function moves(start: string | null): Moves {
   let acted = start
   let popped: string | null = null
   const follow = (id: string | null): Step => {
-    acted = id
+    // Only a record is acted on: a move naming none of this kind (another kind's link, a report's anchor) is followed,
+    // as before (`seq` still moves), but Back to the record closed since still reopens nothing (review on this branch).
+    if (id !== null) acted = id
     popped = null
     return 'follow'
   }
