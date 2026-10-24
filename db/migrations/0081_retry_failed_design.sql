@@ -16,6 +16,9 @@
 -- * The owner's approval, once. The grant is set by the owner alone (set_research_grant is granted to no login). A retry
 --   names the grant's current revision and approval reference, and is admitted only while that approval is newer than
 --   the latest design of the version: one owner approval admits at most one retry, and a retry that fails needs another.
+--   The retry's design is stamped with its admission's own time (clock_timestamp), read after the grant's row, so an
+--   approval committed while the retry's transaction waited is consumed by it all the same (R2 exchange 2). An approval
+--   whose own transaction began before a retry admitted under the previous one reads as already used: fail-closed.
 -- * Refused, with nothing admitted: a viewer or outsider; a task that is not a failed create, or whose package was never
 --   frozen; a version that is no longer current or already has a designed page (an edit is the way then); a withdrawn
 --   source; a design of the version under way or a later one; the per-report design limit; no designer or capture
@@ -121,10 +124,12 @@ BEGIN
  PERFORM sophia.design_attempt(p_project,goal,actor,'design',job,rt,manifest,ARRAY[v.source_id,f.package_source_id],v.artifact_id);
  INSERT INTO sophia.research_allowances(project_id,root_job_id,cap_usd,headroom_usd,source_policy,max_searches,max_reads)
  VALUES(p_project,job,gr.task_cap_usd,0,gr.source_policy,0,0) RETURNING * INTO al;
+ -- Its time is the admission's own (clock_timestamp, after the grant's row was read), not the transaction's start: a retry
+ -- whose transaction began before the owner approved still consumes that approval, which predates it from then on.
  INSERT INTO sophia.design_tasks(project_id,job_id,research_job_id,root_job_id,allowance_id,actor_id,artifact_id,base_version_id,markdown_sha256,
-  mode,language,targets,role,route,package_source_id,package_sha256,request_key)
+  mode,language,targets,role,route,package_source_id,package_sha256,request_key,created_at)
  VALUES(p_project,job,f.research_job_id,job,al.id,actor,f.artifact_id,f.base_version_id,f.markdown_sha256,'create',f.language,f.targets,f.role,
-  f.route,f.package_source_id,f.package_sha256,stored)
+  f.route,f.package_source_id,f.package_sha256,stored,clock_timestamp())
  RETURNING * INTO t;
  SELECT * INTO last FROM sophia.design_sources WHERE project_id=p_project AND design_job_id=f.job_id ORDER BY seq DESC LIMIT 1;
  IF FOUND THEN

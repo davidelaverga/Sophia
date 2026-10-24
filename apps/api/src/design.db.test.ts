@@ -1215,6 +1215,117 @@ describe('a failed design tried again from its frozen package (0081, FND-B-HTML-
     assert.equal(admitted.json.state, 'designing')
     assert.equal((await http('h2', body)).json.taskId, admitted.json.taskId, 'the same key, the same retry')
   })
+  it('an approval is consumed by the retry it admitted, even one whose transaction began before the owner approved (R2 exchange 2)', async () => {
+    const { w, taskId, at } = await designing()
+    await drafted(w, at)
+    const blocked = await w.runtime('/v1/runtime/design/submit', {
+      ...at,
+      callId: 'b1',
+      blocker: { reason: 'the renderer’s width sweep timed out' },
+    })
+    assert.equal(blocked.json.outcome, 'blocked', JSON.stringify(blocked.json))
+    const versionId = String(
+      (await owner((c) => c.query(`SELECT base_version_id FROM sophia.design_tasks WHERE job_id=$1`, [taskId]))).rows[0]
+        .base_version_id,
+    )
+    const counts = async (): Promise<Body> =>
+      (
+        await owner((c) =>
+          c.query(
+            `SELECT (SELECT count(*)::int FROM sophia.design_tasks WHERE project_id=$1) AS tasks,
+                    (SELECT count(*)::int FROM sophia.jobs WHERE project_id=$1) AS jobs,
+                    (SELECT count(*)::int FROM sophia.research_allowances WHERE project_id=$1) AS allowances,
+                    (SELECT count(*)::int FROM sophia.goals WHERE project_id=$1) AS goals,
+                    (SELECT count(*)::int FROM sophia.outbox WHERE project_id=$1) AS outbox`,
+            [w.projectId],
+          ),
+        )
+      ).rows[0]
+    const request = (key: string, grantRevision: number, approvalRef: string) => ({
+      versionId,
+      grantRevision,
+      approvalRef,
+      key,
+    })
+    const asEditor = (job: string, r: ReturnType<typeof request>) =>
+      withActor(pool, E, 'write', (c) =>
+        retryFailedDesign(c, w.projectId, job, r.key, {
+          versionId,
+          grantRevision: r.grantRevision,
+          approvalRef: r.approvalRef,
+        }),
+      )
+    // 1. The retry's transaction begins first.
+    const retrying = await pool.connect()
+    await retrying.query('BEGIN')
+    await retrying.query(`SELECT set_config('sophia.actor_id', $1, true)`, [E])
+    // 2. The owner approves afterwards, holding the grant's row until it commits.
+    const approving = new pg.Client({ connectionString: db.ownerUrl })
+    await approving.connect()
+    await approving.query('BEGIN')
+    const approved = (
+      (await approving.query(
+        `SELECT revision::int AS revision FROM sophia.set_research_grant($1, 'enabled', 5, 40, 'web-pilot-v1', 'approval:delayed')`,
+        [w.projectId],
+      )) as { rows: Array<{ revision: number }> }
+    ).rows[0] as { revision: number }
+    // 3. The retry names that approval, waits for it, and is admitted once it commits.
+    const d1 = request('d1', approved.revision, 'approval:delayed')
+    const first = retrying.query(`SELECT sophia.retry_failed_design($1, $2, $3) AS receipt`, [
+      w.projectId,
+      taskId,
+      JSON.stringify({ requestKey: d1.key, versionId, grantRevision: d1.grantRevision, approvalRef: d1.approvalRef }),
+    ])
+    const waiting = async () =>
+      Number(
+        (
+          await owner((c) =>
+            c.query(
+              `SELECT count(*)::int AS n FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%retry_failed_design%'`,
+            ),
+          )
+        ).rows[0].n,
+      )
+    for (let i = 0; i < 200 && (await waiting()) === 0; i += 1) await new Promise((resolve) => setTimeout(resolve, 25))
+    assert.equal(await waiting(), 1, 'the retry waits for the owner’s approval')
+    await approving.query('COMMIT')
+    await approving.end()
+    const admitted: Body = ((await first) as { rows: Array<{ receipt: Body }> }).rows[0]?.receipt
+    await retrying.query('COMMIT')
+    retrying.release()
+    assert.equal(admitted.state, 'designing', JSON.stringify(admitted))
+    // 4. That retry ends failed through its designer's own blocker.
+    const { at: next } = await sent(w, 'create', DESIGNER.id)
+    await answer(w, 'create', 'delivered', next.attemptId)
+    const again = await w.runtime('/v1/runtime/design/submit', {
+      ...next,
+      callId: 'b2',
+      blocker: { reason: 'blocked again' },
+    })
+    assert.equal(again.json.outcome, 'blocked', JSON.stringify(again.json))
+    const settled = await counts()
+    // 5. Another key, the latest failed design, the SAME approval: refused, and nothing admitted.
+    assert.match(
+      await retryOutcome(asEditor(String(admitted.taskId), request('d2', approved.revision, 'approval:delayed'))),
+      /^stale_revision Stale spend approval: it predates the last design/,
+    )
+    assert.deepEqual(await counts(), settled, 'no goal, job, allowance or outbox row')
+    // 6. The same key is the same retry.
+    assert.equal((await asEditor(taskId, d1)).taskId, admitted.taskId)
+    assert.deepEqual(await counts(), settled)
+    // 7. A fresh approval admits the next retry, from a new allowance.
+    const fresh = (
+      (await owner((c) =>
+        c.query(
+          `SELECT revision::int AS revision FROM sophia.set_research_grant($1, 'enabled', 5, 40, 'web-pilot-v1', 'approval:next')`,
+          [w.projectId],
+        ),
+      )) as { rows: Array<{ revision: number }> }
+    ).rows[0] as { revision: number }
+    const next2 = await asEditor(String(admitted.taskId), request('d3', fresh.revision, 'approval:next'))
+    assert.equal(next2.state, 'designing')
+    assert.notEqual(next2.allowanceId, admitted.allowanceId)
+  })
 })
 
 describe('SDD-01-RF-0003: a withdrawn source stops design and review (0041)', () => {
