@@ -21,6 +21,7 @@ interface DesignRow {
   mode: NonNullable<DesignProgress['mode']>
   scope: NonNullable<DesignProgress['scope']> | null
   sections: string[] | null
+  retry: NonNullable<DesignProgress['retry']> | null
 }
 
 /** A design task's progress; null when the task is not a design. */
@@ -40,7 +41,22 @@ export async function readDesignProgress(
             t.mode, CASE WHEN t.mode = 'edit' THEN t.scope END AS scope,
             (SELECT jsonb_agg(s->>'id' ORDER BY n) FROM sophia.design_sources d, jsonb_array_elements(d.sections) WITH ORDINALITY q(s, n)
               WHERE d.project_id = t.project_id AND d.design_job_id = t.job_id
-                AND d.seq = (SELECT max(seq) FROM sophia.design_sources d2 WHERE d2.project_id = t.project_id AND d2.design_job_id = t.job_id)) AS sections
+                AND d.seq = (SELECT max(seq) FROM sophia.design_sources d2 WHERE d2.project_id = t.project_id AND d2.design_job_id = t.job_id)) AS sections,
+            -- A42: whether an editor may try this failed design again (0081), and under which of the owner's approvals.
+            CASE WHEN t.mode = 'create' AND t.state = 'failed' AND t.package_source_id IS NOT NULL AND sophia.can_edit(t.project_id)
+                  AND NOT EXISTS (SELECT 1 FROM sophia.design_tasks x WHERE x.project_id = t.project_id AND x.base_version_id = t.base_version_id
+                    AND x.created_at > t.created_at)
+             THEN (SELECT jsonb_strip_nulls(jsonb_build_object(
+                     'approval', CASE WHEN g.state IS DISTINCT FROM 'enabled' THEN 'closed'
+                       WHEN g.updated_at <= (SELECT max(x.created_at) FROM sophia.design_tasks x WHERE x.project_id = t.project_id
+                         AND x.base_version_id = t.base_version_id) THEN 'stale'
+                       -- Used already by a retry in the project, of any report (0081: one approval, one retry).
+                       WHEN EXISTS (SELECT 1 FROM sophia.design_tasks x WHERE x.project_id = t.project_id AND x.mode = 'create'
+                         AND x.request_key IS NOT NULL AND x.created_at >= g.updated_at) THEN 'stale'
+                       ELSE 'fresh' END,
+                     'grantRevision', CASE WHEN g.state = 'enabled' THEN g.revision END,
+                     'approvalRef', CASE WHEN g.state = 'enabled' THEN g.approval_ref END))
+                   FROM (SELECT 1) one LEFT JOIN sophia.research_grants g ON g.project_id = t.project_id) END AS retry
        FROM sophia.design_tasks t
        LEFT JOIN sophia.artifact_versions v ON v.project_id = t.project_id AND v.id = t.base_version_id
       WHERE t.project_id = $1 AND t.job_id = $2`,
@@ -64,6 +80,7 @@ export async function readDesignProgress(
     mode: r.mode,
     ...(r.scope === null ? {} : { scope: r.scope }),
     ...(r.sections === null ? {} : { sections: r.sections }),
+    ...(r.retry === null ? {} : { retry: r.retry }),
   }
 }
 
