@@ -1,0 +1,46 @@
+import assert from 'node:assert/strict'
+import { test } from 'node:test'
+import { moves } from './useAddressed.ts'
+
+// What a move of the address does to a view that reads it (docs/plans/addressed-follows-back.md): Back or Forward that
+// names another record than the one last followed is followed; one that names none is read; the same record is kept,
+// so a sheet closed since stays closed.
+
+const AT = (hash: string) => `https://studio.example/p/x/conversations${hash}`
+
+test('Back naming another record follows it; naming the one last followed keeps what is on screen', () => {
+  const m = moves('c1')
+  assert.equal(m.named('c2'), 'follow') // a link followed
+  assert.equal(m.pop('c1', AT('#c1')), 'follow') // Back: the earlier conversation
+  assert.equal(m.pop('c2', AT('#c2')), 'follow') // Forward
+  assert.equal(m.pop('c2', AT('#c2')), 'keep') // the report's Back, or a close's: the same record
+})
+
+test('Back naming no record is read, and the record last followed stays the one a later move is held to', () => {
+  const m = moves('t1')
+  assert.equal(m.pop(null, AT('')), 'read')
+  // A sheet closed since (its fragment cleared or left): a move landing on it again reopens nothing.
+  assert.equal(m.pop('t1', AT('#t1')), 'keep')
+  assert.equal(m.pop('t2', AT('#t2')), 'follow')
+})
+
+test('a move of the fragment alone is followed once: its popstate, or else its hashchange, as today', () => {
+  const m = moves(null)
+  assert.equal(m.pop('a', AT('#a')), 'follow')
+  assert.equal(m.hash('a', AT('#a')), 'keep') // the same move's hashchange
+  // A fragment typed again after its sheet closed: the popstate keeps (the record last followed), the hashchange follows.
+  assert.equal(m.pop('a', AT('#a')), 'keep')
+  assert.equal(m.hash('a', AT('#a')), 'follow')
+  // A hashchange of another move than the popstate's follows.
+  assert.equal(m.pop('b', AT('#b')), 'follow')
+  assert.equal(m.hash(null, AT('#content')), 'follow')
+})
+
+test('a link followed (ADDRESS_NAMED) always follows, and is the record later moves are held to', () => {
+  const m = moves(null)
+  assert.equal(m.named('g1'), 'follow')
+  assert.equal(m.named('g1'), 'follow')
+  assert.equal(m.pop('g1', AT('#g1')), 'keep')
+  assert.equal(m.hash(null, AT('')), 'follow')
+  assert.equal(m.pop('g1', AT('#g1')), 'follow')
+})

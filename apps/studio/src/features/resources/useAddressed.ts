@@ -14,6 +14,20 @@ export interface Addressed {
 /** The router named a record in the fragment (openAt): a mounted view follows it as a link followed. */
 export const ADDRESS_NAMED = 'sophia:address-named'
 
+/** What a move of the address does to a hook: followed (`seq` goes up), read (`seq` stays), or kept as it is. */
+export type Step = 'follow' | 'read' | 'keep'
+
+/** The moves a hook follows, by the record it last followed (docs/plans/addressed-follows-back.md). */
+export interface Moves {
+  named: (id: string | null) => Step
+  pop: (id: string | null, url: string) => Step
+  hash: (id: string | null, url: string) => Step
+}
+
+export function moves(start: string | null): Moves {
+  throw new Error(`moves not written yet (${String(start)})`)
+}
+
 export function useAddressed(prefix: string): Addressed {
   const [named, setNamed] = useState<Addressed>(() => ({ id: linkedId(window.location.hash, prefix), seq: 0 }))
   useEffect(() => {
