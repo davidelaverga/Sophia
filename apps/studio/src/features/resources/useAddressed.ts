@@ -19,30 +19,83 @@ export type Step = 'follow' | 'read' | 'keep'
 
 /** The moves a hook follows, by the record it last followed (docs/plans/addressed-follows-back.md). */
 export interface Moves {
+  /** A link followed (ADDRESS_NAMED): always followed. */
   named: (id: string | null) => Step
+  /** Back or Forward (`popstate`), landing at `url`. */
   pop: (id: string | null, url: string) => Step
+  /** The fragment moved alone (`hashchange`, after its own `popstate`), to `url`. */
   hash: (id: string | null, url: string) => Step
 }
 
+/**
+ * What each move does, by the record last followed (`acted`, from `start`, the page's). Back or Forward follows only
+ * another record: one naming none is read, and the record last followed is kept as it is, so a sheet closed since
+ * (its fragment cleared, or left in place) never opens again. A close tells nothing here, on purpose. A move of the
+ * fragment alone keeps today's `hashchange`, once: not again when its `popstate` already followed it.
+ */
 export function moves(start: string | null): Moves {
-  throw new Error(`moves not written yet (${String(start)})`)
+  let acted = start
+  let popped: string | null = null
+  const follow = (id: string | null): Step => {
+    acted = id
+    popped = null
+    return 'follow'
+  }
+  return {
+    named: follow,
+    pop: (id, url) => {
+      popped = null
+      if (id === null) return 'read'
+      if (id === acted) return 'keep'
+      follow(id)
+      popped = url
+      return 'follow'
+    },
+    hash: (id, url) => {
+      if (popped !== url) return follow(id)
+      popped = null
+      return 'keep'
+    },
+  }
 }
 
 export function useAddressed(prefix: string): Addressed {
   const [named, setNamed] = useState<Addressed>(() => ({ id: linkedId(window.location.hash, prefix), seq: 0 }))
+  const [start] = useState(named.id)
   useEffect(() => {
-    const follow = () => setNamed((n) => ({ id: linkedId(window.location.hash, prefix), seq: n.seq + 1 }))
-    window.addEventListener('hashchange', follow)
-    window.addEventListener(ADDRESS_NAMED, follow)
+    const m = moves(start)
+    const read = () => linkedId(window.location.hash, prefix)
+    const apply = (step: Step, id: string | null) => {
+      if (step === 'follow') setNamed((n) => ({ id, seq: n.seq + 1 }))
+      // A gone address is gone: read, not followed (`seq` stays, so a choice made since stands).
+      else if (step === 'read') setNamed((n) => (n.id === id ? n : { id, seq: n.seq }))
+    }
+    const onNamed = () => {
+      const id = read()
+      apply(m.named(id), id)
+    }
+    const onPop = () => {
+      const id = read()
+      apply(m.pop(id, window.location.href), id)
+    }
+    const onHash = (e: HashChangeEvent) => {
+      const id = read()
+      apply(m.hash(id, e.newURL), id)
+    }
+    window.addEventListener('hashchange', onHash)
+    window.addEventListener(ADDRESS_NAMED, onNamed)
+    // Back and Forward where the query or the path moved too fire no hashchange (addressed-follows-back.md).
+    window.addEventListener('popstate', onPop)
     // The route's own moves (a view's path pushed) may drop the fragment: read again, not followed (`seq` stays, so a
     // choice made since stands), and a gone address is gone, never replayed (Codex P2 on #300).
-    const moved = () => setNamed((n) => ({ id: linkedId(window.location.hash, prefix), seq: n.seq }))
+    const moved = () => setNamed((n) => ({ id: read(), seq: n.seq }))
     window.addEventListener(ADDRESS_MOVED, moved)
     return () => {
-      window.removeEventListener('hashchange', follow)
-      window.removeEventListener(ADDRESS_NAMED, follow)
+      window.removeEventListener('hashchange', onHash)
+      window.removeEventListener(ADDRESS_NAMED, onNamed)
+      window.removeEventListener('popstate', onPop)
       window.removeEventListener(ADDRESS_MOVED, moved)
     }
-  }, [prefix])
+  }, [prefix, start])
   return named
 }
