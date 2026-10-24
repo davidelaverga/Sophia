@@ -88,4 +88,9 @@ test('in place · beside a report, a link that names none closes it and leaves t
   const back = new URL(page.url())
   expect(back.searchParams.get('report')).toBe(REPORT)
   expect(back.hash).toBe(`#conversation-${READING}`)
+  // And the conversation on screen is the one the address names (addressed-follows-back.md), Back and Forward.
+  await expect(title).toHaveText('What makes a report worth reading?')
+  await page.goForward()
+  await expect(title).toHaveText('Short or long briefs?')
+  await expect(report).toBeHidden()
 })

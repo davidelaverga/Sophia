@@ -12,6 +12,7 @@ import type { Passage } from './PassageBar.tsx'
 import type { SectionAsk } from './useSectionArrival.ts'
 import { openedLink, readReportLink, withReportLink, type ReportLink, type ViewerTab } from './report-link.ts'
 import { ViewerContext, type OpenRequest, type ViewerApi } from './viewer-context.ts'
+import { keptFragment } from '../resources/useAddressed.ts'
 import './artifacts.css'
 
 export { useDocumentViewer, type OpenRequest } from './viewer-context.ts'
@@ -20,6 +21,7 @@ const here = () => readReportLink(window.location.search)
 
 const urlWith = (link: ReportLink | null) =>
   `${window.location.pathname}${withReportLink(window.location.search, link)}${window.location.hash}`
+const withFragment = (hash: string) => `${window.location.pathname}${window.location.search}${hash}`
 
 /**
  * How many of the viewer's own intents (open, enlarge) the current history entry stands on: each entry the viewer
@@ -42,6 +44,9 @@ function useReportHistory(projectId: string) {
       const then = landing.current
       landing.current = null
       if (then) window.history.replaceState(null, '', urlWith(then.link))
+      // The viewer's own step Back: the fragment on screen when it stepped, so only the report changes.
+      const kept = keptFragment.take()
+      if (kept !== null) window.history.replaceState(window.history.state, '', withFragment(kept))
       setLink(then ? then.link : here())
     }
     window.addEventListener('popstate', onPop)
@@ -69,6 +74,9 @@ function useReportHistory(projectId: string) {
         return
       }
       if (n < steps) landing.current = { link: otherwise }
+      // Where the step lands: its depth among the viewer's entries (an entry of anyone else's is 0).
+      const lands = viewerDepth() - n
+      keptFragment.note(window.location.hash, () => viewerDepth() === lands)
       window.history.go(-n)
     },
     [write],
