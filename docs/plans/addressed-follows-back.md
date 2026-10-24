@@ -132,3 +132,39 @@ with (mount), and is set by each follow: `ADDRESS_NAMED`, `hashchange`, and a `p
   it (Tasks → Goals → Back to `#task-…`: the board shows the default goal, read from the code). As today.
 - **`#resource-`**: Resources' own sheet follows no change of the address after load. A follow-up of its own.
 - **Views' writes stay silent.** `showInAddress` tells nobody. Nothing above needs it to.
+
+## As built (2026-10-24)
+
+> The coordinator's review and Luis 2026-10-24 approved both open points: outside a report, the browser's Back follows
+> the record it lands on when that is another record (history semantics), and what was closed stays closed when Back
+> lands on the same record; the viewer's note goes in this batch, as a second pair.
+
+- **`moves(start)`** (`resources/useAddressed.ts`, pure): what each move does by `acted`. `named` always follows; `pop`
+  follows another record, reads none, keeps the same; `hash` follows unless its own `popstate` already did (the
+  address it landed on equals the event's `newURL`). `useAddressed` keeps one per instance from the record it mounted
+  with, and listens to `popstate` too. A `read` that changes nothing returns the same object; a `keep` sets nothing.
+  `ADDRESS_MOVED` is as before, and never touches `acted`.
+- **`keptFragment`** (same file): `note` before the viewer's `history.go(-n)` (`DocumentViewer`'s `back`, which Close,
+  shrink and a covering report's leave go through); `of` is what `useAddressed`'s `popstate` reads while a note is
+  there; `take`, in the viewer's `popstate`, writes it into the entry the step landed on with that entry's
+  `history.state` (after the landing a deep link needs, which writes the report).
+- **Checks, written first.**
+  - `studio-links-in-place.spec.ts`: after Back the thread shows c1, after Forward c2 and the report is hidden. Red at
+    «Expected: "What makes a report worth reading?" Received: "Short or long briefs?"».
+  - `addressed-back.spec.ts`: Chat opened by a mention stays closed after a report opened from it closes; a goal chosen
+    in Tasks' rail stays chosen when Back lands where no task is named (work.html, a view pressed again pushes, as the
+    router does; there is no report to open in Tasks on the fixture, so Back over that push stands for the landing
+    without a task). Both passed before and after; with `pop` following every move (tried, not committed) both fail:
+    «toBeFocused() … Received: inactive» and «Expected substring: "pane" Received string: "Reports export to PDF
+    reliably…"».
+  - `addressed-back.spec.ts`: a conversation pressed beside a report stays when the report closes, and the address
+    names it. Red on the first pair's code at «Expected: "What makes a report worth reading?" Received: "Short or long
+    briefs?"» (after Close).
+  - `useAddressed.test.ts`: 4 units for `moves`, 1 for `keptFragment`, each red against an outline that threw «… not
+    written yet».
+- **Green** at `339e441bd` through the guard (`pw-logs/r3-afb-green2.txt`): the 62 specs that exercise a caller of
+  `useAddressed` or the report viewer (conversations, tasks, goals, decisions, boards, requests and resources, the
+  room's chat and mentions, Updates, the studio links, the reports and passages) and `app-auth`: 1026/1026.
+- **Out of scope, as above, unchanged.** The browser's Back out of a report's entry follows the landing record (the
+  approved history semantics); Back to a plain address in Conversations; moves of the fragment alone; a kept-mounted
+  view after a view's push; `#resource-`.
