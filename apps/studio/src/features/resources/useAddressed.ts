@@ -3,7 +3,7 @@
 // sheet) gives way to the address only when the address is followed again, never when it is merely read again.
 import { useEffect, useState } from 'react'
 import { ADDRESS_MOVED } from '../../app/route.ts'
-import { linkedId } from './link.ts'
+import { ADDRESS_SHOWN, linkedId } from './link.ts'
 
 export interface Addressed {
   id: string | null
@@ -55,8 +55,11 @@ export function moves(start: string | null): Moves {
       popped = url
       return 'follow'
     },
+    // A record opened by a press is the one Back is held to, as if followed but never raising `seq`; a close (none)
+    // leaves the record it closed (review on this branch).
     shown: (id) => {
-      throw new Error(`shown not written yet (${String(id)})`)
+      if (id !== null) acted = id
+      return 'keep'
     },
     hash: (id, url) => {
       if (popped !== url) return follow(id)
@@ -110,6 +113,8 @@ export function useAddressed(prefix: string): Addressed {
       const id = read()
       apply(m.hash(id, e.newURL), id)
     }
+    const onShown = () => m.shown(read())
+    window.addEventListener(ADDRESS_SHOWN, onShown)
     window.addEventListener('hashchange', onHash)
     window.addEventListener(ADDRESS_NAMED, onNamed)
     // Back and Forward where the query or the path moved too fire no hashchange (addressed-follows-back.md).
@@ -119,6 +124,7 @@ export function useAddressed(prefix: string): Addressed {
     const moved = () => setNamed((n) => ({ id: read(), seq: n.seq }))
     window.addEventListener(ADDRESS_MOVED, moved)
     return () => {
+      window.removeEventListener(ADDRESS_SHOWN, onShown)
       window.removeEventListener('hashchange', onHash)
       window.removeEventListener(ADDRESS_NAMED, onNamed)
       window.removeEventListener('popstate', onPop)
