@@ -50,7 +50,9 @@ The retained case: the designer was blocked by the renderer's `widths_visible` s
 - **Studio**: the failed design card shows **Try again** only under a fresh approval, with one key per card so a resend
   is the same retry. Otherwise it says what the owner must do. A `stale_revision` refusal (the owner approved again,
   or a retry used the approval) reads the card's detail again, so the next press, the person's own, names the current
-  approval; nothing is sent again by itself (PR480 CODE).
+  approval; nothing is sent again by itself (PR480 CODE). A card waiting on a stale or closed approval offers **Check
+  again**, a read of its detail, since the owner's approval changes nothing the failed card watches; only a later press
+  of Try again admits work (PR480 CODE r4367645448).
 - **Paid behaviour, stated plainly:** an admitted retry is a NEW designer agent attempt. Its model calls are real paid
   inference under the new allowance; every call still reserves first (`reserve_research`), so a closed gate refuses
   before any provider call.
@@ -81,6 +83,9 @@ The retained case: the designer was blocked by the renderer's `widths_visible` s
   approval admits the other. The old SQL admitted both (journal log 125). The Vite control: refused under the replaced
   approval, one detail read, no automatic second POST, and the next press sends the new approval under the same key;
   the old `DesignCard` fails it (journal log 127).
+- **Approval refresh (FND-B-PR480-APPROVAL-REFRESH-UI-01):** a card waiting on a stale or closed approval, the owner
+  approving while the page stays open, Check again reading the detail, Try again then offered, and nothing sent until
+  it is pressed. The old `DesignCard` fails it (journal log 142); the fixed one passes (143).
 
 ## Limits
 

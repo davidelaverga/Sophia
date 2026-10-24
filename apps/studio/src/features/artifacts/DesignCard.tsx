@@ -86,7 +86,8 @@ type Retrying = { state: 'idle' | 'sending' | 'sent'; failed: string | null }
 
 /**
  * A failed design tried again (A42): its editor is offered Try again only under the owner's fresh spend approval, which
- * the retry names; otherwise the card says what it needs. One key per card, so a resend is the same retry.
+ * the retry names; otherwise the card says what it needs, with Check again to read the design once the owner has acted.
+ * One key per card, so a resend is the same retry.
  */
 function RetryDesign(props: {
   design: NonNullable<NativeTaskDetail['design']>
@@ -108,13 +109,7 @@ function RetryDesign(props: {
     )
   if (!retry) return null
   if (retry.approval !== 'fresh' || retry.grantRevision === undefined || retry.approvalRef === undefined)
-    return (
-      <p className="goal-outcome muted" data-retry={retry.approval}>
-        {retry.approval === 'closed'
-          ? 'Trying again needs the project owner to switch research on.'
-          : 'Trying again needs a new spend approval from the project owner.'}
-      </p>
-    )
+    return <AwaitingApproval approval={retry.approval} projectId={projectId} taskId={taskId} />
   const body = { versionId: design.baseVersionId, grantRevision: retry.grantRevision, approvalRef: retry.approvalRef }
   const send = async () => {
     setSending({ state: 'sending', failed: null })
@@ -141,6 +136,44 @@ function RetryDesign(props: {
       </Button>
       <p className="output-status" role="status" data-error={sending.failed ? true : undefined}>
         {sending.failed}
+      </p>
+    </div>
+  )
+}
+
+/**
+ * A failed design waiting on its owner: what they must do, and Check again. Their approval changes nothing the page
+ * watches (the failed card is not polled), so the person reads the design again when they choose. A read only: Try
+ * again, if it is then offered, is still theirs to press.
+ */
+function AwaitingApproval(props: { approval: 'fresh' | 'stale' | 'closed'; projectId: string; taskId: string }) {
+  const { approval, projectId, taskId } = props
+  const [checking, setChecking] = useState<{ busy: boolean; failed: string | null }>({ busy: false, failed: null })
+  const client = useQueryClient()
+  const check = async () => {
+    setChecking({ busy: true, failed: null })
+    try {
+      await client.refetchQueries({ queryKey: ['native-task', projectId, taskId] }, { throwOnError: true })
+      setChecking({ busy: false, failed: null })
+    } catch (err: unknown) {
+      setChecking({
+        busy: false,
+        failed: err instanceof Error ? err.message : 'Couldn’t check. Try again in a moment.',
+      })
+    }
+  }
+  return (
+    <div className="work-card-retry" data-retry={approval}>
+      <p className="goal-outcome muted">
+        {approval === 'closed'
+          ? 'Trying again needs the project owner to switch research on.'
+          : 'Trying again needs a new spend approval from the project owner.'}
+      </p>
+      <Button kind="ghost" size="sm" disabled={checking.busy} onClick={() => void check()}>
+        Check again
+      </Button>
+      <p className="output-status" role="status" data-error={checking.failed ? true : undefined}>
+        {checking.busy ? 'Checking…' : checking.failed}
       </p>
     </div>
   )

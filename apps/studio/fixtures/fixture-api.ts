@@ -230,7 +230,7 @@ interface Project {
   retryLost?: boolean
   /** A retry was admitted: the failed design offers nothing more (a later design exists). */
   designRetried?: boolean
-  /** The owner approved again after the page read the design (`window.fixture.reapprove`): revision 4. */
+  /** The owner approved again after the page read the design (`window.fixture.reapprove`): revision 4, fresh. */
   reapproved?: boolean
   /** Reads of a version's sources wait until the page lets them through (`hold=sources`), as a slow API's do. */
   sourcesHeld: boolean
