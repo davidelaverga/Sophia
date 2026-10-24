@@ -50,12 +50,13 @@ test('back · Chat closed after a mention stays closed when Back returns from a 
   await expect(entry).toBeInViewport()
   await chatToggle(page).click() // closing Chat leaves the mention in the address
   await expect(entry).toBeHidden()
-  // A link to a task in Tasks, as the router follows one (useProjectRoute.openAt): its path pushed, then the task named.
-  // The room's panel stays mounted (the project body), as it does in the Studio.
+  // A link to a task in Tasks, as the router follows one (useProjectRoute.openAt): its path pushed, the task written
+  // (showInAddress) and then named. The room's panel stays mounted (the project body), as it does in the Studio.
   await page.evaluate((project) => {
     window.history.pushState(null, '', `/p/${project}/work`)
     window.dispatchEvent(new Event('sophia:address-moved'))
     window.history.replaceState(null, '', `/p/${project}/work#task-t1`)
+    window.dispatchEvent(new Event('sophia:address-shown'))
     window.dispatchEvent(new Event('sophia:address-named'))
   }, PROJECT)
   await page.goBack() // across the path: popstate only, onto the mention Chat already followed

@@ -98,3 +98,12 @@ record.
   attempts were stopped by the guard when Blender opened (`r3-afb-green3`, and retries until it closed). Units 17/17;
   whole-repo `oxlint --type-aware`, `tsc`, Prettier clean.
 - **Next bounded action:** a review of `339e441bd..608fab8a7`; push with the next group PR when Luis says.
+
+## Re-review (2026-10-24)
+
+- No P1 or P2. Its one cosmetic P3 is applied: the P2 check's emulated router now fires `sophia:address-shown` between
+  the write and the naming, as `useProjectRoute.openAt` does through `showInAddress`.
+- Noted as designed, for Luis if he prefers otherwise: a press sets `acted` for every hook of its prefix. So after
+  pressing a task, opening a report and choosing another goal in Tasks' rail inside the report's entry (which closes
+  the task), Back onto the entry that named the task keeps the rail's choice («closed stays closed»); the address names
+  a task nothing shows.
