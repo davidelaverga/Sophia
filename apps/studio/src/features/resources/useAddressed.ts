@@ -69,25 +69,25 @@ export function moves(start: string | null): Moves {
   }
 }
 
-let noted: string | null = null
+let noted: { hash: string; landed: () => boolean } | null = null
 
 /**
  * The fragment on screen through the report's own step Back (DocumentViewer's Close and shrink): its entries carry the
  * fragment from when the report opened, and closing a report changes the report only. Noted before the step, read in
- * its stead until the viewer has written it where the step landed, whichever `popstate` listener runs first.
+ * its stead until the viewer has written it where the step landed, whichever `popstate` listener runs first. Only where
+ * the step was to land (`landed`), and gone at the next move either way, so it outlives no step (review on this branch).
  */
 export const keptFragment = {
   note: (hash: string, landed: () => boolean): void => {
-    void landed
-    noted = hash
+    noted = { hash, landed }
   },
   /** The address's fragment, or the one noted for it while a step is writing it. */
-  of: (hash: string): string => noted ?? hash,
-  /** What was noted, once (null for nothing): the viewer writes it where the step landed. */
+  of: (hash: string): string => (noted?.landed() ? noted.hash : hash),
+  /** What was noted for this landing, once (null for nothing): the viewer writes it where the step landed. */
   take: (): string | null => {
-    const hash = noted
+    const kept = noted
     noted = null
-    return hash
+    return kept?.landed() ? kept.hash : null
   },
 }
 

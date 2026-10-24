@@ -74,7 +74,9 @@ function useReportHistory(projectId: string) {
         return
       }
       if (n < steps) landing.current = { link: otherwise }
-      keptFragment.note(window.location.hash, () => true)
+      // Where the step lands: its depth among the viewer's entries (an entry of anyone else's is 0).
+      const lands = viewerDepth() - n
+      keptFragment.note(window.location.hash, () => viewerDepth() === lands)
       window.history.go(-n)
     },
     [write],
