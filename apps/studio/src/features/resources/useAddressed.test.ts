@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { keptFragment, moves } from './useAddressed.ts'
+import { keptFragment, moves, next } from './useAddressed.ts'
 
 // What a move of the address does to a view that reads it (docs/plans/addressed-follows-back.md): Back or Forward that
 // names another record than the one last followed is followed; one that names none is read; the same record is kept,
@@ -78,4 +78,15 @@ test('a note outlives no step: read only where the step was to land, and gone at
   landed = true
   assert.equal(keptFragment.of('#conversation-c2'), '#conversation-c2')
   assert.equal(keptFragment.take(), null)
+})
+
+test('what a view is given after a step: the same object when nothing moves, so effects keyed on it stay still', () => {
+  const at = { id: 'c1', seq: 2 }
+  assert.equal(next(at, 'keep', 'c2'), at) // kept: nothing at all
+  assert.equal(next(at, 'read', 'c1'), at) // read, the same record: the same object
+  const none = { id: null, seq: 2 }
+  assert.equal(next(none, 'read', null), none)
+  assert.deepEqual(next(at, 'read', null), { id: null, seq: 2 }) // read: a gone address is gone, `seq` stays
+  assert.deepEqual(next(at, 'follow', 'c2'), { id: 'c2', seq: 3 })
+  assert.deepEqual(next(at, 'follow', 'c1'), { id: 'c1', seq: 3 }) // followed again: a new object
 })

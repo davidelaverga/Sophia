@@ -69,6 +69,11 @@ export function moves(start: string | null): Moves {
   }
 }
 
+/** What a hook returns after a step, from what it returned before. */
+export function next(named: Addressed, step: Step, id: string | null): Addressed {
+  throw new Error(`next not written yet (${String(named.id)} ${step} ${String(id)})`)
+}
+
 let noted: { hash: string; landed: () => boolean } | null = null
 
 /**
