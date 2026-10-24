@@ -4733,6 +4733,16 @@ button.contribution-quote:hover {
 .sheet-form > input {
   width: 100%;
 }
+/* A chosen report's cited sources (A43), under it and set in, so each belongs to its report. */
+.review-cited {
+  margin: 2px 0 6px;
+  padding: 0 0 0 22px;
+  border: 0;
+}
+.review-cited > legend {
+  padding: 0;
+  margin-bottom: 2px;
+}
 /* What the role chosen may do, under the member's field (docs/plans/invite-members.md). */
 .role-note {
   margin: 0 0 4px;
