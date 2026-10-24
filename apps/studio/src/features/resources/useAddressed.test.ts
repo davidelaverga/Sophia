@@ -61,11 +61,21 @@ test('a record the view opened by a press is the one Back is held to; its close 
 test('the report’s own step Back keeps the fragment on screen: read as noted until written where it lands', () => {
   assert.equal(keptFragment.take(), null) // nothing noted: the address's own
   assert.equal(keptFragment.of('#conversation-c2'), '#conversation-c2')
-  keptFragment.note('#conversation-c1')
+  keptFragment.note('#conversation-c1', () => true)
   assert.equal(keptFragment.of('#conversation-c2'), '#conversation-c1') // landed, not yet written
   assert.equal(keptFragment.take(), '#conversation-c1')
   assert.equal(keptFragment.of('#conversation-c2'), '#conversation-c2')
-  keptFragment.note('')
+  keptFragment.note('', () => true)
   assert.equal(keptFragment.of('#task-t1'), '') // a plain address is kept plain
   assert.equal(keptFragment.take(), '')
+})
+
+test('a note outlives no step: read only where the step was to land, and gone at the next move either way', () => {
+  let landed = false
+  keptFragment.note('#conversation-c1', () => landed)
+  assert.equal(keptFragment.of('#conversation-c2'), '#conversation-c2') // another move than the viewer's step
+  assert.equal(keptFragment.take(), null) // and the note goes with it
+  landed = true
+  assert.equal(keptFragment.of('#conversation-c2'), '#conversation-c2')
+  assert.equal(keptFragment.take(), null)
 })

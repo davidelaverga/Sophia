@@ -77,7 +77,8 @@ let noted: string | null = null
  * its stead until the viewer has written it where the step landed, whichever `popstate` listener runs first.
  */
 export const keptFragment = {
-  note: (hash: string): void => {
+  note: (hash: string, landed: () => boolean): void => {
+    void landed
     noted = hash
   },
   /** The address's fragment, or the one noted for it while a step is writing it. */

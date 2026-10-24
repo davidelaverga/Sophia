@@ -74,7 +74,7 @@ function useReportHistory(projectId: string) {
         return
       }
       if (n < steps) landing.current = { link: otherwise }
-      keptFragment.note(window.location.hash)
+      keptFragment.note(window.location.hash, () => true)
       window.history.go(-n)
     },
     [write],
