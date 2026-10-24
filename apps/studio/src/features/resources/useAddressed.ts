@@ -69,9 +69,15 @@ export function moves(start: string | null): Moves {
   }
 }
 
-/** What a hook returns after a step, from what it returned before. */
+/**
+ * What a hook returns after a step, from what it returned before: followed, the record with `seq` raised; read, the
+ * record with `seq` as it was (a gone address is gone, and a choice made since stands); otherwise, and for a read that
+ * changes nothing, the very object it had, so effects keyed on it stay still.
+ */
 export function next(named: Addressed, step: Step, id: string | null): Addressed {
-  throw new Error(`next not written yet (${String(named.id)} ${step} ${String(id)})`)
+  if (step === 'follow') return { id, seq: named.seq + 1 }
+  if (step === 'read' && named.id !== id) return { id, seq: named.seq }
+  return named
 }
 
 let noted: { hash: string; landed: () => boolean } | null = null
@@ -103,9 +109,7 @@ export function useAddressed(prefix: string): Addressed {
     const m = moves(start)
     const read = () => linkedId(window.location.hash, prefix)
     const apply = (step: Step, id: string | null) => {
-      if (step === 'follow') setNamed((n) => ({ id, seq: n.seq + 1 }))
-      // A gone address is gone: read, not followed (`seq` stays, so a choice made since stands).
-      else if (step === 'read') setNamed((n) => (n.id === id ? n : { id, seq: n.seq }))
+      if (step !== 'keep') setNamed((n) => next(n, step, id))
     }
     const onNamed = () => {
       const id = read()
