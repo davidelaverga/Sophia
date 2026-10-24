@@ -20,7 +20,7 @@ for (const [asked, title, other] of [
   test(`legal · ${asked}: its title, date and sections, and the way to the other and home`, async ({ page }) => {
     await page.goto(`/legal.html?doc=${asked}`)
     await expect(doc(page).getByRole('heading', { level: 1 })).toHaveText(title)
-    await expect(doc(page)).toContainText('Last updated 15 October 2026')
+    await expect(doc(page)).toContainText('Last updated 24 October 2026')
     expect(await doc(page).getByRole('heading', { level: 2 }).count()).toBeGreaterThanOrEqual(8)
     await expect(page.getByRole('link', { name: other })).toHaveAttribute(
       'href',
@@ -38,3 +38,15 @@ test('legal · the privacy notice names who processes what, and that calls aren�
   }
   await expect(doc(page)).toContainText('Calls aren’t recorded.')
 })
+
+// A contact address that doesn't depend on the app (docs/plans/legal-contact.md).
+for (const asked of ['terms', 'privacy'] as const) {
+  test(`legal · ${asked}: Contact gives an email address to write to`, async ({ page }) => {
+    await page.goto(`/legal.html?doc=${asked}`)
+    const contact = doc(page).locator('section', { has: page.getByRole('heading', { name: 'Contact' }) })
+    await expect(contact.getByRole('link', { name: 'info@sophia-ei.com' })).toHaveAttribute(
+      'href',
+      'mailto:info@sophia-ei.com',
+    )
+  })
+}

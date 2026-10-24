@@ -9,12 +9,14 @@ export interface LegalSection {
   body: readonly string[]
 }
 
-export const UPDATED = '15 October 2026'
+export const UPDATED = '24 October 2026'
 
 export const TITLES: Record<LegalDoc, string> = { terms: 'Terms of use', privacy: 'Privacy notice' }
 
-const CONTACT =
-  'Questions, requests about your data, or a problem to report: write to us from Send feedback in Sophia’s account menu, or reply to any email Sophia sent you.'
+/** Where to write, whatever the app can do (legal-contact.md): a page shows it as a mailto link. */
+export const CONTACT_EMAIL = 'info@sophia-ei.com'
+
+const CONTACT = `Questions, requests about your data, deleting your account, or a problem to report: write to ${CONTACT_EMAIL}. You can also use Send feedback in Sophia’s account menu, where it’s offered.`
 
 export const TERMS: readonly LegalSection[] = [
   {
