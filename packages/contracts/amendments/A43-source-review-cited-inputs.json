@@ -1,0 +1,65 @@
+{
+  "id": "A43",
+  "goal": "WBC-02",
+  "title": "Source review: a report version's cited sources offered beside it, for explicit selection",
+  "why": [
+    "A source review reads only the sources its plan names (A13), and the pilot entry offered report versions alone, so a review of a report could never read the evidence the report cites: an honest review returned changes required because the selected sources lacked the cited support (FND-B-REVIEW-CITED-INPUTS-01). The proposal already admits any one to three released, eligible, ready project text sources within 32 KiB; only the offer lacked them.",
+    "Each offered report version now lists, as supporting, the sources it cites as recorded when it was published (its recorded dependencies), and only those that the caller may read now and a review may read now: same project, released, eligible, ready, with text, at most 32 KiB, and drawing on nothing withdrawn. A private source (its owner's own included), a withdrawn one, one that draws on a withdrawn source, another project's, or one the version does not cite is never listed. A cited source that is itself a report version is offered as a report, not again here.",
+    "Supporting sources are named by their source id, the id a proposal takes, never by a note's or a version's own id, and nothing is read from a report's text: an identifier that appears in prose is not a recorded citation. Nothing is selected for the person: they choose supporting sources explicitly beside the report, within the same three sources and 32 KiB. The proposal, its decision and the review's own guards are unchanged and stay authoritative (migration 0082)."
+  ],
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1plans~1source-review/get/summary",
+      "value": "Whether the caller may propose a source review here now, its bounds, its priced route, and the report versions it may review, each with the recorded sources it cites that a review may read beside it."
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/SourceReviewSupportingSource",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A source a report version cites, as recorded when the version was published, that the caller and a review may read now (A43). Named by its source id, the id a proposal's sourceIds take.",
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "What the source is, from its recorded origin: a project note and its kind, a web page or search results the research retrieved, an admitted input, the research question, or a cited source."
+          },
+          "mime": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": ["sourceId", "label", "mime", "byteLength"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/SourceReviewCandidate/properties/supporting",
+      "value": {
+        "type": "array",
+        "maxItems": 50,
+        "description": "The sources this report version cites that may be reviewed beside it (A43), none selected by default; empty when there are none.",
+        "items": {
+          "$ref": "#/components/schemas/SourceReviewSupportingSource"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/SourceReviewCandidate/required/-",
+      "value": "supporting"
+    }
+  ]
+}

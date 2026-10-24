@@ -217,7 +217,7 @@ export type SourceReviewLimits = { "maxSources": number; "maxInputBytes": number
 export type SourceReviewRoute = { "role": string; "id": string; "provider": string; "model": string; "reasoningEffort": string | null; "maxTokens": number; "prices": { "input": number; "cacheRead": number; "cacheWrite": number; "output": number; }; "priceUnit": "usd_per_million_tokens"; };
 export type SourceReviewProposalRequest = { "goalId": string; "goalRevision": number; "criterionIds"?: ReadonlyArray<string>; "sourceIds": ReadonlyArray<string>; "allowanceUsd": number; "purpose"?: string; };
 export type SourceReviewProposal = { "projectId": string; "planId": string; "planRevision": number; "decisionId": string; "decisionRevision": number; "workId": string; "goalId": string; "goalRevision": number; "criteriaRef": string; "manifestSourceId": string; "allowanceUsd": number; "limits": SourceReviewLimits; "route": SourceReviewRoute; "cursor": string; };
-export type SourceReviewCandidate = { "sourceId": string; "label": string; "mime": string; "byteLength": number; "createdAt": string; };
+export type SourceReviewCandidate = { "sourceId": string; "label": string; "mime": string; "byteLength": number; "createdAt": string; "supporting": ReadonlyArray<SourceReviewSupportingSource>; };
 export type SourceReviewAvailability = { "enabled": boolean; "reason": string | null; "runtimeReady": boolean; "maxAllowanceUsd": number | null; "limits": SourceReviewLimits; "route": SourceReviewRoute; "sources": ReadonlyArray<SourceReviewCandidate>; };
 export type WorkDecisionAnswer = { "operation_id": string; "decision_id": string; "revision": number; "choice": string; "work_id": string; "plan_id": string; "plan_revision": number; "candidate_version_ref": string | null; };
 export type WorkCommand = { "operation_id": string; "kind": "guidance" | "hold" | "resume" | "stop"; "text"?: string; "work_id": string; "assignment_id": string; "assignment_generation": number; "attempt_id": string | null; };
@@ -311,6 +311,7 @@ export type ProjectTaskOwnerRequest = { "ownerId": string | null; "expectedRevis
 export type ProjectTaskDoneRequest = { "expectedRevision": number; };
 export type DesignRetryRequest = { "versionId": string; "grantRevision": number; "approvalRef": string; };
 export type DesignRetryReceipt = { "taskId": string; "state": "designing" | "reviewing" | "published" | "failed" | "cancelled" | "superseded"; "versionId": string; "packageSha256": string; "allowanceId": string; };
+export type SourceReviewSupportingSource = { "sourceId": string; "label": string; "mime": string; "byteLength": number; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };

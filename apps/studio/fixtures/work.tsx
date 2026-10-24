@@ -143,6 +143,8 @@ declare global {
       proposalReads?: readonly string[]
       /** `proposed=held`: the first proposal's answer, held until now, arrives; resolved once the page has read it. */
       releaseProposal?: () => Promise<void>
+      /** `served=1`: the pilot stops offering the report version so labelled (withdrawn since); its next read says so. */
+      stopOffering?: (label: string) => void
       replay?: (operationId: string) => void
       /** A newer receipt for an operation saying less of its delivery (Codex F-014). */
       weaken?: (operationId: string) => void
@@ -917,6 +919,11 @@ function Tasks() {
       ...(proposals && { proposals: proposals.sent, proposalReads: proposals.reads }),
       ...(proposals && { releaseProposal: () => new Promise<void>((read) => proposals.held.shift()?.(read)) }),
       ...(admits && { admissions: admission.answers }),
+      ...(served && {
+        stopOffering: (label: string) => {
+          offer.sources = offer.sources.filter((s) => s.label !== label)
+        },
+      }),
     }
   }, [update, viewer, lead, again])
   const board = viewOf(first, arrived, now, coverage)

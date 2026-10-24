@@ -1,5 +1,6 @@
 // The source-review pilot's entry under a goal (WBC-02 G5): Review sources. It offers what Sophia says may be reviewed
-// (one to three report versions, at most 32 KiB of text in all), an allowance within the project's cap, and an
+// (one to three sources, at most 32 KiB of text in all: report versions, and beside a chosen one the sources it cites,
+// A43, none chosen until the person chooses them), an allowance within the project's cap, and an
 // optional purpose; proposing starts nothing: Sophia answers with a plan and a decision on the board, which the
 // proposer takes there. Shown only where Sophia has enrolled the project and offers something to review, or while a
 // proposal is unanswered; nothing is said elsewhere.
@@ -10,7 +11,15 @@ import { proposeReview, recordedProposal, reviewAvailability } from '../../../ap
 import type { Identity } from '../../../app/dev-identity.ts'
 import { outcomeOf } from './review-outcome.ts'
 import { EARLIER, proposals, proposalViewer, type Asked, type Sent } from './review-proposal.ts'
-import { ALLOWANCE_STEP, allowanceOk, kib, offered, selectionOf } from './review-sources.ts'
+import {
+  ALLOWANCE_STEP,
+  allowanceOk,
+  kib,
+  offered,
+  offeredSources,
+  selectionOf,
+  stillChosen,
+} from './review-sources.ts'
 
 interface Props {
   projectId: string
@@ -128,14 +137,51 @@ function SourcesField({
       </legend>
       {availability.sources.length === 0 && <p className="view-note">No report version can be reviewed yet.</p>}
       {availability.sources.map((s) => (
-        <label key={s.sourceId} className="review-source">
+        <div key={s.sourceId} className="review-source-group">
+          <label className="review-source">
+            <input
+              type="checkbox"
+              checked={chosen.includes(s.sourceId)}
+              disabled={frozen}
+              onChange={() => onChoose(s.sourceId)}
+            />
+            <span>{s.label}</span>
+          </label>
+          {chosen.includes(s.sourceId) && <Cited report={s} chosen={chosen} onChoose={onChoose} frozen={frozen} />}
+        </div>
+      ))}
+    </fieldset>
+  )
+}
+
+/**
+ * The sources a chosen report version cites that a review may read beside it (A43): none chosen until the person
+ * chooses them, each within the same three sources and 32 KiB.
+ */
+function Cited({
+  report,
+  chosen,
+  onChoose,
+  frozen,
+}: {
+  report: SourceReviewAvailability['sources'][number]
+  chosen: readonly string[]
+  onChoose: (id: string) => void
+  frozen: boolean
+}) {
+  if (report.supporting.length === 0) return null
+  return (
+    <fieldset className="review-cited" aria-label={`Sources ${report.label} cites`}>
+      <legend className="view-note">Sources it cites</legend>
+      {report.supporting.map((c) => (
+        <label key={c.sourceId} className="review-source">
           <input
             type="checkbox"
-            checked={chosen.includes(s.sourceId)}
+            checked={chosen.includes(c.sourceId)}
             disabled={frozen}
-            onChange={() => onChoose(s.sourceId)}
+            onChange={() => onChoose(c.sourceId)}
           />
-          <span>{s.label}</span>
+          <span>{c.label}</span>
         </label>
       ))}
     </fieldset>
@@ -184,21 +230,30 @@ function ReviewForm(props: FormProps) {
   const [purpose, setPurpose] = useState(() => kept?.purpose ?? '')
   const frozen = kept !== null
   const max = availability.maxAllowanceUsd ?? 0
-  const selection = selectionOf(availability.sources, chosen, availability.limits.maxInputBytes)
-  const valid = frozen || (chosen.length > 0 && !selection.over && allowanceOk(allowance, max))
+  // What is chosen and still offered (a cited source only beside its chosen report): all that is counted, shown and
+  // sent. An unanswered proposal is shown as it was sent.
+  const current = frozen ? chosen : stillChosen(availability.sources, chosen)
+  const selection = selectionOf(offeredSources(availability.sources), current, availability.limits.maxInputBytes)
+  const valid = frozen || (current.length > 0 && !selection.over && allowanceOk(allowance, max))
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!valid) return
-    void propose({ sourceIds: chosen, allowanceUsd: allowance, ...(purpose.trim() ? { purpose: purpose.trim() } : {}) })
+    void propose({
+      sourceIds: current,
+      allowanceUsd: allowance,
+      ...(purpose.trim() ? { purpose: purpose.trim() } : {}),
+    })
   }
   if (sent.state === 'proposed') return <Proposed onClose={onClose} />
   return (
     <form className="sheet-form review-sources" onSubmit={submit} aria-label="Review sources">
       <SourcesField
         availability={availability}
-        chosen={chosen}
+        chosen={current}
         frozen={frozen}
-        onChoose={(id) => setChosen(choose(chosen, id, availability.limits.maxSources))}
+        onChoose={(id) =>
+          setChosen(stillChosen(availability.sources, choose(current, id, availability.limits.maxSources)))
+        }
       />
       <TooMuch bytes={selection.bytes} over={selection.over} limit={availability.limits.maxInputBytes} />
       <TextField id={`review-allowance-${goal.id}`} label={`Allowance, USD (at most ${String(max)})`}>

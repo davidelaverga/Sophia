@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { allowanceOk, kib, offered, selectionOf } from './review-sources.ts'
+import { allowanceOk, kib, offered, offeredSources, selectionOf, stillChosen } from './review-sources.ts'
 
 const sources = [
   { sourceId: 'a', byteLength: 20_000 },
@@ -32,6 +32,37 @@ describe('a source review selection', () => {
     assert.equal(allowanceOk(0.0000015, 0.005), false, 'finer than Sophia keeps')
     assert.equal(allowanceOk(0, 0.5), false)
     assert.equal(allowanceOk(0.51, 0.5), false, 'above the cap')
+  })
+})
+
+/** A report version of 100 bytes and the 10-byte sources it cites. */
+const report = (id: string, ...supporting: string[]) => ({
+  sourceId: id,
+  byteLength: 100,
+  supporting: supporting.map((s) => ({ sourceId: s, byteLength: 10 })),
+})
+
+describe('a report and the sources it cites, chosen together (A43)', () => {
+  const offer = [report('r1', 'n1', 'w1'), report('r2', 'w1'), report('r3')]
+
+  it('offers every source once, a source two reports cite included', () => {
+    assert.deepEqual(
+      offeredSources(offer).map((s) => s.sourceId),
+      ['r1', 'n1', 'w1', 'r2', 'r3'],
+    )
+    assert.deepEqual(selectionOf(offeredSources(offer), ['r1', 'n1'], 32_768), { bytes: 110, over: false })
+  })
+
+  it('keeps a cited source only while a report that cites it is chosen and still offered', () => {
+    assert.deepEqual(stillChosen(offer, ['r1', 'n1', 'w1']), ['r1', 'n1', 'w1'])
+    assert.deepEqual(stillChosen(offer, ['n1', 'w1']), [], 'its report let go: nothing it cites stays chosen')
+    assert.deepEqual(stillChosen(offer, ['r2', 'w1', 'n1']), ['r2', 'w1'], 'another chosen report cites w1, not n1')
+    assert.deepEqual(
+      stillChosen([report('r2', 'w1'), report('r3')], ['r1', 'n1', 'r3']),
+      ['r3'],
+      'r1 is no longer offered',
+    )
+    assert.deepEqual(stillChosen([report('r1', 'w1')], ['r1', 'n1']), ['r1'], 'n1 is no longer offered beside r1')
   })
 })
 
