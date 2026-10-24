@@ -12,8 +12,8 @@ Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1`; a 
 `.claude-guards/safe-browser.cjs` against a fixture server of this branch on port 5299, stopped after).
 Existing authority: Luis 2026-10-24, «Toma el arreglo de Back en Conversations en el próximo lote»; the design reviewed
 by the coordinator and both open points approved by Luis 2026-10-24; earlier «Lo que no se mide, no se puede mejorar».
-Ending commit: the branch's last commit; code last changed at `339e441bd`. Against `8d454289a`:
-`apps/studio/src/features/resources/useAddressed{,.test}.ts`, `apps/studio/src/features/artifacts/DocumentViewer.tsx`,
+Ending commit: the branch's last commit; code last changed at `608fab8a7` (after the review). Against `8d454289a`:
+`apps/studio/src/features/resources/{useAddressed{,.test},link}.ts`, `apps/studio/src/features/artifacts/DocumentViewer.tsx`,
 `apps/studio/e2e/{addressed-back,studio-links-in-place}.spec.ts`, `docs/plans/addressed-follows-back.md` (new), this
 record.
 
@@ -76,3 +76,25 @@ record.
 - An independent review of `8d454289a..339e441bd`; push with the next group PR when Luis says; merge on green with no
   open P1.
 - Source IDs consulted: none from the source register. The work read this repository and the follow-up list.
+
+## After the independent review (2026-10-24: no P1, one P2, P3s)
+
+- **P2.** A link naming another kind of record (`ADDRESS_NAMED`, `hashchange` reach every view) made each other view
+  take «none» as the record it last followed: a mention's Chat, closed, then a link to a task in Tasks, then Back onto
+  the mention, opened Chat again (the brief and a report's `#md-` anchor the same). Only a record is now `acted`; a
+  move naming none is still followed (`seq` moves, for Tasks' rail). Written first `45e56d522`: red through the guard
+  (`pw-logs/r3-afb-red4.txt`) at `addressed-back.spec.ts:63` «toBeHidden() failed … Received: visible»; unit 4 red
+  «actual: 'follow', expected: 'keep'». Fixed in `6173bd332`.
+- **P3, a record opened by a press.** `showInAddress` now says `ADDRESS_SHOWN`; each view takes the record it names as
+  `acted` without following it, and a close leaves it. Back from a report opened beside c2, with c1 pressed since,
+  shows c2 again; the report's Close no longer follows again a record opened by a press. Written first `847736cc4`:
+  red (`pw-logs/r3-afb-red5.txt`) at «Expected: "Short or long briefs?" Received: "What makes a report worth reading?"»
+  after Back; unit red «shown not written yet». Fixed in `179a5e543`.
+- **P3, the note.** It carries the viewer's depth where the step lands, is read only there and goes at the next move.
+  Written first `342983f7e` (unit red «actual: '#conversation-c1', expected: '#conversation-c2'»), fixed `ce327a498`.
+- **P3, units for the object.** `next(named, step, id)`, the one pure step applied: kept, or read with the same
+  record, the same object. Written first `505d657f2` (red «next not written yet»), fixed `608fab8a7`.
+- **Green** at `608fab8a7` (`pw-logs/r3-afb-green4.txt`): the same 62 specs and `app-auth`, 1028/1028. Two earlier
+  attempts were stopped by the guard when Blender opened (`r3-afb-green3`, and retries until it closed). Units 17/17;
+  whole-repo `oxlint --type-aware`, `tsc`, Prettier clean.
+- **Next bounded action:** a review of `339e441bd..608fab8a7`; push with the next group PR when Luis says.

@@ -168,3 +168,30 @@ with (mount), and is set by each follow: `ADDRESS_NAMED`, `hashchange`, and a `p
 - **Out of scope, as above, unchanged.** The browser's Back out of a report's entry follows the landing record (the
   approved history semantics); Back to a plain address in Conversations; moves of the fragment alone; a kept-mounted
   view after a view's push; `#resource-`.
+
+### After the independent review (2026-10-24: no P1, one P2, P3s)
+
+- **P2: a link of another kind cleared what each view last followed.** `ADDRESS_NAMED` and `hashchange` reach every
+  view; one whose prefix the address doesn't name followed «none» and took it as `acted`. A mention opened Chat, Chat
+  was closed, a link to a task in Tasks was followed (the room's panel stays mounted), and Back onto the mention
+  opened Chat again; the brief and a report's `#md-` anchor the same. Now only a record is what a view last followed;
+  a move naming none of its kind is still followed (`seq` moves: Tasks' rail gives way to a goal named in the
+  address). Written first `45e56d522`: `addressed-back.spec.ts`, the mention, Chat closed, the router's push and the
+  task named (as `openAt` does them), Back; red at line 63 «expect(locator).toBeHidden() failed … Received: visible»;
+  unit 4 now expects the opposite of before, red «actual: 'follow', expected: 'keep'». Fixed in `6173bd332`.
+- **P3: a record opened by a press never became the one Back is held to.** `showInAddress` writes silently, so at
+  `#conversation-c2`, a report opened from it, c1 pressed beside it, the browser's Back landed on c2 (= `acted`) and
+  kept c1 on screen (Tasks' board the same with a task pressed). `showInAddress` now says `ADDRESS_SHOWN` on the
+  window, and each view takes the record it names as `acted` without following it (`moves.shown`); a close (none)
+  leaves the record it closed, so closes still hold. The report's Close no longer follows again a record opened by a
+  press. Written first `847736cc4`: red at «Expected: "Short or long briefs?" Received: "What makes a report worth
+  reading?"» after Back; unit red «shown not written yet». Fixed in `179a5e543`.
+- **P3: the note could outlive its step.** It now carries where the step lands (the viewer's depth there), is read
+  only there, and goes at the next move either way. Written first `342983f7e`, red «actual: '#conversation-c1',
+  expected: '#conversation-c2'»; fixed in `ce327a498`.
+- **P3: units for the object a view is given.** `next(named, step, id)` is the one pure step `useAddressed` applies:
+  kept, or read with the same record, the very object it had. Written first `505d657f2`, red «next not written yet»;
+  fixed in `608fab8a7`.
+- **Green** at `608fab8a7` through the guard (`pw-logs/r3-afb-green4.txt`): the same 62 specs and `app-auth`,
+  1028/1028 (two checks more). Units: `useAddressed.test.ts` 10/10, with `link.test.ts` and `in-place.test.ts` 17/17.
+  Whole-repo `oxlint --type-aware`, `tsc`, Prettier on the six source files and specs: clean.
