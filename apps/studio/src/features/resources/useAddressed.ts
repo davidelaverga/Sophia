@@ -59,16 +59,24 @@ export function moves(start: string | null): Moves {
   }
 }
 
-/** The fragment on screen through the report's own step Back (DocumentViewer), until written where it lands. */
+let noted: string | null = null
+
+/**
+ * The fragment on screen through the report's own step Back (DocumentViewer's Close and shrink): its entries carry the
+ * fragment from when the report opened, and closing a report changes the report only. Noted before the step, read in
+ * its stead until the viewer has written it where the step landed, whichever `popstate` listener runs first.
+ */
 export const keptFragment = {
   note: (hash: string): void => {
-    throw new Error(`keptFragment not written yet (${hash})`)
+    noted = hash
   },
-  of: (hash: string): string => {
-    throw new Error(`keptFragment not written yet (${hash})`)
-  },
+  /** The address's fragment, or the one noted for it while a step is writing it. */
+  of: (hash: string): string => noted ?? hash,
+  /** What was noted, once (null for nothing): the viewer writes it where the step landed. */
   take: (): string | null => {
-    throw new Error('keptFragment not written yet')
+    const hash = noted
+    noted = null
+    return hash
   },
 }
 
@@ -88,7 +96,7 @@ export function useAddressed(prefix: string): Addressed {
       apply(m.named(id), id)
     }
     const onPop = () => {
-      const id = read()
+      const id = linkedId(keptFragment.of(window.location.hash), prefix)
       apply(m.pop(id, window.location.href), id)
     }
     const onHash = (e: HashChangeEvent) => {
