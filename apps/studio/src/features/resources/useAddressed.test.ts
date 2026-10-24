@@ -49,6 +49,15 @@ test('a link followed (ADDRESS_NAMED) always follows, and is the record later mo
   assert.equal(m.pop('g2', AT('#g2')), 'follow')
 })
 
+test('a record the view opened by a press is the one Back is held to; its close leaves it so', () => {
+  const m = moves('c2') // the page opened at c2
+  assert.equal(m.shown('c1'), 'keep') // c1 pressed beside a report: written by the view, never followed
+  assert.equal(m.pop('c1', AT('#c1')), 'keep') // the report's Close, its fragment kept: nothing moves
+  assert.equal(m.pop('c2', AT('#c2')), 'follow') // Back to the entry from before: the conversation read then
+  assert.equal(m.shown(null), 'keep') // a close: the record stays the one last acted on
+  assert.equal(m.pop('c2', AT('#c2')), 'keep')
+})
+
 test('the report’s own step Back keeps the fragment on screen: read as noted until written where it lands', () => {
   assert.equal(keptFragment.take(), null) // nothing noted: the address's own
   assert.equal(keptFragment.of('#conversation-c2'), '#conversation-c2')

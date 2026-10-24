@@ -7,6 +7,7 @@ import { expect, test, type Page } from '@playwright/test'
 const MENTIONED_IN = '00000000-0000-4000-8000-00000000003a'
 const PROJECT = '00000000-0000-4000-8000-0000000000aa'
 const READING = '00000000-0000-4000-8000-0000000000c1'
+const BRIEFS = '00000000-0000-4000-8000-0000000000c2'
 const REPORT = '00000000-0000-4000-8000-0000000000b1'
 const HERE = 'http://127.0.0.1:5199'
 
@@ -107,4 +108,29 @@ test('back · a conversation pressed beside a report stays when the report close
   await expect(title).toHaveText('What makes a report worth reading?')
   await expect.poll(() => new URL(page.url()).hash).toBe(`#conversation-${READING}`)
   expect(new URL(page.url()).searchParams.has('report')).toBe(false)
+})
+
+test('back · Back from a report opened beside a conversation shows the one read then, over one pressed since', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 1080 }) // wide enough for the list beside the thread and report
+  await page.goto(`/room.html?place=conversations&conversations=1#conversation-${BRIEFS}`)
+  const list = page.getByRole('region', { name: 'All conversations' })
+  const open = page.getByRole('region', { name: 'Open conversation' })
+  const title = open.getByRole('heading', { level: 3 })
+  await expect(title).toHaveText('Short or long briefs?')
+  const address = `${HERE}/p/${PROJECT}/conversations?report=${REPORT}`
+  const field = open.getByRole('textbox', { name: 'Continue this question with the team' })
+  await field.fill(`Look: ${address}`)
+  await field.press('Enter')
+  await open.getByRole('link', { name: address }).last().click()
+  const report = page.getByRole('complementary', { name: 'Fixture report' })
+  await expect(report).toBeVisible()
+  await list.getByRole('button', { name: /^What makes a report worth reading\?/ }).click()
+  await expect(title).toHaveText('What makes a report worth reading?')
+  // The browser's Back, not Close: the entry from before the report, and the conversation read there.
+  await page.goBack()
+  await expect(report).toBeHidden()
+  expect(new URL(page.url()).hash).toBe(`#conversation-${BRIEFS}`)
+  await expect(title).toHaveText('Short or long briefs?')
 })

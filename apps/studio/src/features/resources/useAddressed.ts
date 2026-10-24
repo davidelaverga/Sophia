@@ -25,6 +25,8 @@ export interface Moves {
   pop: (id: string | null, url: string) => Step
   /** The fragment moved alone (`hashchange`, after its own `popstate`), to `url`. */
   hash: (id: string | null, url: string) => Step
+  /** The view wrote it itself (`showInAddress`, a press): never followed. */
+  shown: (id: string | null) => Step
 }
 
 /**
@@ -52,6 +54,9 @@ export function moves(start: string | null): Moves {
       follow(id)
       popped = url
       return 'follow'
+    },
+    shown: (id) => {
+      throw new Error(`shown not written yet (${String(id)})`)
     },
     hash: (id, url) => {
       if (popped !== url) return follow(id)
