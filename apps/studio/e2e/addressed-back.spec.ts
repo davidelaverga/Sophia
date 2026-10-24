@@ -5,6 +5,9 @@ import { expect, test, type Page } from '@playwright/test'
 // Every message and address here is synthetic.
 
 const MENTIONED_IN = '00000000-0000-4000-8000-00000000003a'
+const PROJECT = '00000000-0000-4000-8000-0000000000aa'
+const READING = '00000000-0000-4000-8000-0000000000c1'
+const REPORT = '00000000-0000-4000-8000-0000000000b1'
 const HERE = 'http://127.0.0.1:5199'
 
 test.beforeEach(async ({ page }) => {
@@ -54,4 +57,32 @@ test('back · a goal chosen in Tasks’ rail stays chosen when Back lands where 
   await page.waitForTimeout(300) // nothing to wait for: what follows is that nothing moved
   await expect(chosen).toContainText('pane')
   await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+test('back · a conversation pressed beside a report stays when the report closes, and the address names it', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 1080 }) // wide enough for the list beside the thread and report
+  await page.goto('/room.html?place=conversations&conversations=1')
+  const list = page.getByRole('region', { name: 'All conversations' })
+  const open = page.getByRole('region', { name: 'Open conversation' })
+  const title = open.getByRole('heading', { level: 3 })
+  await list.getByRole('button', { name: /^Short or long briefs\?/ }).click()
+  await expect(title).toHaveText('Short or long briefs?')
+  // A report opened from a link in its thread: the viewer's own entry, carrying this conversation's address.
+  const address = `${HERE}/p/${PROJECT}/conversations?report=${REPORT}`
+  const field = open.getByRole('textbox', { name: 'Continue this question with the team' })
+  await field.fill(`Look: ${address}`)
+  await field.press('Enter')
+  await open.getByRole('link', { name: address }).last().click()
+  const report = page.getByRole('complementary', { name: 'Fixture report' })
+  await expect(report).toBeVisible()
+  await list.getByRole('button', { name: /^What makes a report worth reading\?/ }).click()
+  await expect(title).toHaveText('What makes a report worth reading?')
+  // Close steps Back over the viewer's entry: the report closes, and only the report.
+  await report.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(report).toBeHidden()
+  await expect(title).toHaveText('What makes a report worth reading?')
+  await expect.poll(() => new URL(page.url()).hash).toBe(`#conversation-${READING}`)
+  expect(new URL(page.url()).searchParams.has('report')).toBe(false)
 })

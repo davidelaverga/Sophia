@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { moves } from './useAddressed.ts'
+import { keptFragment, moves } from './useAddressed.ts'
 
 // What a move of the address does to a view that reads it (docs/plans/addressed-follows-back.md): Back or Forward that
 // names another record than the one last followed is followed; one that names none is read; the same record is kept,
@@ -43,4 +43,16 @@ test('a link followed (ADDRESS_NAMED) always follows, and is the record later mo
   assert.equal(m.pop('g1', AT('#g1')), 'keep')
   assert.equal(m.hash(null, AT('')), 'follow')
   assert.equal(m.pop('g1', AT('#g1')), 'follow')
+})
+
+test('the report’s own step Back keeps the fragment on screen: read as noted until written where it lands', () => {
+  assert.equal(keptFragment.take(), null) // nothing noted: the address's own
+  assert.equal(keptFragment.of('#conversation-c2'), '#conversation-c2')
+  keptFragment.note('#conversation-c1')
+  assert.equal(keptFragment.of('#conversation-c2'), '#conversation-c1') // landed, not yet written
+  assert.equal(keptFragment.take(), '#conversation-c1')
+  assert.equal(keptFragment.of('#conversation-c2'), '#conversation-c2')
+  keptFragment.note('')
+  assert.equal(keptFragment.of('#task-t1'), '') // a plain address is kept plain
+  assert.equal(keptFragment.take(), '')
 })

@@ -59,6 +59,19 @@ export function moves(start: string | null): Moves {
   }
 }
 
+/** The fragment on screen through the report's own step Back (DocumentViewer), until written where it lands. */
+export const keptFragment = {
+  note: (hash: string): void => {
+    throw new Error(`keptFragment not written yet (${hash})`)
+  },
+  of: (hash: string): string => {
+    throw new Error(`keptFragment not written yet (${hash})`)
+  },
+  take: (): string | null => {
+    throw new Error('keptFragment not written yet')
+  },
+}
+
 export function useAddressed(prefix: string): Addressed {
   const [named, setNamed] = useState<Addressed>(() => ({ id: linkedId(window.location.hash, prefix), seq: 0 }))
   const [start] = useState(named.id)
