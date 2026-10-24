@@ -4,6 +4,8 @@ import type {
   ArtifactVersion,
   DesignEditReceipt,
   DesignEditRequest,
+  DesignRetryReceipt,
+  DesignRetryRequest,
   ReportList,
   ReportSourceList,
   ReportSummary,
@@ -13,6 +15,7 @@ import type {
 import {
   parseArtifactVersionList,
   parseDesignEditReceipt,
+  parseDesignRetryReceipt,
   parseReportList,
   parseReportSourceList,
   parseReportSummary,
@@ -83,3 +86,21 @@ export const requestDesignEdit = (
   body: DesignEditRequest,
 ): Promise<DesignEditReceipt> =>
   callApi(`/api/v1/projects/${projectId}/html-edits`, { token, body, key }, parseDesignEditReceipt)
+
+/**
+ * Tries a failed HTML design of a report again (A42): one new design attempt on its frozen content package, spending
+ * under the owner's current research grant. One key per retry, so a resend is the same retry; refused, with nothing
+ * admitted, without that approval.
+ */
+export const retryFailedDesign = (
+  token: string,
+  projectId: string,
+  taskId: string,
+  key: string,
+  body: DesignRetryRequest,
+): Promise<DesignRetryReceipt> =>
+  callApi(
+    `/api/v1/projects/${projectId}/native-tasks/${taskId}/html-retry`,
+    { token, body, key },
+    parseDesignRetryReceipt,
+  )

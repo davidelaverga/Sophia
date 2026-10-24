@@ -86,6 +86,7 @@ const EXPORTS = [
   'ConversationWithdrawal',
   'ConversationErasure',
   'DesignEditReceipt',
+  'DesignRetryReceipt',
 ] as const
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
