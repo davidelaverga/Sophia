@@ -16713,7 +16713,7 @@
             }
           },
           "409": {
-            "description": "The design has not failed, a design of this page is under way or later, the version is no longer current or already has a designed page, the spend approval named is not the current one or predates the last design (stale_revision), the design limit is reached, or the key was used for another retry",
+            "description": "The design has not failed, a design of this page is under way or later, the version is no longer current or already has a designed page, the spend approval named is not the current one, predates the last design or was used by a retry (stale_revision), the design limit is reached, or the key was used for another retry",
             "content": {
               "application/json": {
                 "schema": {
@@ -27380,7 +27380,7 @@
                   "stale",
                   "closed"
                 ],
-                "description": "fresh: the owner's current approval is newer than the latest design of the version, so a retry can be admitted; stale: a new owner approval is needed first; closed: the research gate is off."
+                "description": "fresh: the owner's current approval is newer than the latest design of the version and no retry in the project has used it, so a retry can be admitted; stale: a new owner approval is needed first; closed: the research gate is off."
               },
               "grantRevision": {
                 "type": "integer",

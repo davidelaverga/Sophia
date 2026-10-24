@@ -5,9 +5,9 @@
   "why": [
     "A create design that ended failed (its designer blocked, a capture gate it could not pass) had no supported way back: the edit of A12 revises published pages only, the HTML of a research request is asked for once while it runs, and a failed design is terminal (FND-B-HTML-RETAINED-RECOVERY-01).",
     "retryFailedDesign admits ONE new design attempt of that report version on the failed design's frozen content package (its source and hash, checked again against the stored bytes), never a new research or a redesign from other content. Its first source revision is the failed design's last one, so the designer renders and submits the page it already wrote; every capture, delivery and review gate applies unchanged (migration 0081).",
-    "Fresh money only: the attempt spends from a NEW allowance under the project's research grant, set by the owner alone. The request names the grant's current revision and approval reference, and is admitted only while that approval is newer than the latest design of the version, so one owner approval admits at most one retry. A closed gate, another approval or an older one is refused with nothing admitted; the failed design, its goal, attempt, candidates, reason and allowance stay exactly as they ended.",
+    "Fresh money only: the attempt spends from a NEW allowance under the project's research grant, set by the owner alone. The request names the grant's current revision and approval reference, and is admitted only while that approval is newer than the latest design of the version and no retry in the project has used it, so one owner approval admits at most one retry, of one report, whichever it is; the grant's total cap still bounds what every allowance of the project spends together. A closed gate, another approval, an older one or one a retry has used is refused with nothing admitted; the failed design, its goal, attempt, candidates, reason and allowance stay exactly as they ended.",
     "Editors and admins only. The same Idempotency-Key returns the same retry; the key replayed with another version or another failed design is a conflict. The receipt is admission, not publication: the page is designed, gated and reviewed later.",
-    "A failed design's progress (DesignProgress.retry) tells an editor whether it can be tried again and under which approval: fresh (the owner's current approval is newer than the latest design of the version), stale (a new owner approval is needed) or closed (the gate is off), with the grant's revision and approval reference the retry must name. It is present only for an editor reading a failed create design with a frozen package and no later design of its version; nothing is spent by reading it."
+    "A failed design's progress (DesignProgress.retry) tells an editor whether it can be tried again and under which approval: fresh (the owner's current approval is newer than the latest design of the version, and no retry in the project has used it), stale (a new owner approval is needed) or closed (the gate is off), with the grant's revision and approval reference the retry must name. It is present only for an editor reading a failed create design with a frozen package and no later design of its version; nothing is spent by reading it."
   ],
   "patch": [
     {
@@ -98,7 +98,7 @@
               }
             },
             "409": {
-              "description": "The design has not failed, a design of this page is under way or later, the version is no longer current or already has a designed page, the spend approval named is not the current one or predates the last design (stale_revision), the design limit is reached, or the key was used for another retry",
+              "description": "The design has not failed, a design of this page is under way or later, the version is no longer current or already has a designed page, the spend approval named is not the current one, predates the last design or was used by a retry (stale_revision), the design limit is reached, or the key was used for another retry",
               "content": {
                 "application/json": {
                   "schema": {
@@ -199,7 +199,7 @@
           "approval": {
             "type": "string",
             "enum": ["fresh", "stale", "closed"],
-            "description": "fresh: the owner's current approval is newer than the latest design of the version, so a retry can be admitted; stale: a new owner approval is needed first; closed: the research gate is off."
+            "description": "fresh: the owner's current approval is newer than the latest design of the version and no retry in the project has used it, so a retry can be admitted; stale: a new owner approval is needed first; closed: the research gate is off."
           },
           "grantRevision": {
             "type": "integer",

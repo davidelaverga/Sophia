@@ -471,6 +471,8 @@ interface Fixture {
   failDesign: (how?: 'unavailable' | 'forbidden' | false) => void
   /** A42: the next retry of the failed design loses its reply (a 503); it is recorded all the same. */
   loseRetry: () => void
+  /** A42: the owner approves again (revision 4): a retry naming revision 3 is refused stale from now on. */
+  reapprove: () => void
   /** The page's own cache as it holds a report's or task's fence (read only, never set): its refusal and allowed reads. */
   fenceOf: (key: readonly string[]) => unknown
   /** Sets out the page's own queries under `key` again, through their own owned query functions (nothing set by hand). */
@@ -859,6 +861,7 @@ const project = {
   designRetry: designRetryOf(query.get('designretry')),
   retryLost: false,
   designRetried: false,
+  reapproved: false,
   reportTasksFail: false,
   sourcesHeld: query.get('hold') === 'sources',
   textHeld: query.get('hold') === 'text',
@@ -1654,6 +1657,9 @@ window.fixture = {
   },
   loseRetry: () => {
     project.retryLost = true
+  },
+  reapprove: () => {
+    project.reapproved = true
   },
   failReportTasks: (on) => {
     project.reportTasksFail = on

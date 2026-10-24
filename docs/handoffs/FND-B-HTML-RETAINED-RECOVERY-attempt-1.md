@@ -31,8 +31,11 @@ The retained case: the designer was blocked by the renderer's `widths_visible` s
   - It refuses: a design that is not a failed create, or whose package was never frozen; a version that is not
     current, or already has a page; a withdrawn source; a package whose stored bytes no longer hash to its recorded
     hash; a design under way or a later one; the 16-per-report limit; no designer or capture renderer.
-  - **Money:** the project's research grant must be enabled, be the one named (revision and approval reference), and
-    be newer than the latest design of the version. One owner approval therefore admits at most one retry.
+  - **Money:** the project's research grant must be enabled, be the one named (revision and approval reference), be
+    newer than the latest design of the version, and be unused by any retry in the project. One owner approval
+    therefore admits at most one retry, of one report, whichever it is (PR480 SEC). The retry's design is stamped with
+    its admission's own time (R2 exchange 2). The grant's total cap still bounds every allowance of the project
+    together.
   - **Admission:** a NEW goal and attempt (`design_attempt`) and a NEW allowance (cap = the grant's task cap, no
     searches or reads). The design task is bound to the SAME package source and hash, version and Markdown hash, and
     its first revision is a copy of the failed task's last one.
@@ -45,7 +48,9 @@ The retained case: the designer was blocked by the renderer's `widths_visible` s
   whether it can be retried: `fresh`, `stale` or `closed`, with the approval to name. Persistence `retryFailedDesign`
   and `readDesignProgress` cover these.
 - **Studio**: the failed design card shows **Try again** only under a fresh approval, with one key per card so a resend
-  is the same retry. Otherwise it says what the owner must do.
+  is the same retry. Otherwise it says what the owner must do. A `stale_revision` refusal (the owner approved again,
+  or a retry used the approval) reads the card's detail again, so the next press, the person's own, names the current
+  approval; nothing is sent again by itself (PR480 CODE).
 - **Paid behaviour, stated plainly:** an admitted retry is a NEW designer agent attempt. Its model calls are real paid
   inference under the new allowance; every call still reserves first (`reserve_research`), so a closed gate refuses
   before any provider call.
@@ -70,6 +75,12 @@ The retained case: the designer was blocked by the renderer's `widths_visible` s
   - the failed history unchanged;
   - demotion and removal racing (403, no goal, job, allowance or outbox row);
   - HTTP 401, 409 `stale_revision`, then 202 and replay.
+
+- **Focused correction (FND-B-PR480-FOCUSED-CODE-SEC-01):** two reports of one project under one approval, in
+  sequence and racing, admit one retry. The other is refused with nothing admitted; the winner's key replays; a new
+  approval admits the other. The old SQL admitted both (journal log 125). The Vite control: refused under the replaced
+  approval, one detail read, no automatic second POST, and the next press sends the new approval under the same key;
+  the old `DesignCard` fails it (journal log 127).
 
 ## Limits
 

@@ -15,14 +15,17 @@
 --   enabled, the allowance's cap, the grant's total cap), so a closed gate refuses before any provider call.
 -- * The owner's approval, once. The grant is set by the owner alone (set_research_grant is granted to no login). A retry
 --   names the grant's current revision and approval reference, and is admitted only while that approval is newer than
---   the latest design of the version: one owner approval admits at most one retry, and a retry that fails needs another.
+--   the latest design of the version and no retry in the project has used it yet: one owner approval admits at most one
+--   retry, of one report, whichever it is, and a retry that fails, or another report's, needs another (PR480 SEC). The
+--   project's grant still bounds what every allowance spends in total (reserve_research), as before.
 --   The retry's design is stamped with its admission's own time (clock_timestamp), read after the grant's row, so an
 --   approval committed while the retry's transaction waited is consumed by it all the same (R2 exchange 2). An approval
 --   whose own transaction began before a retry admitted under the previous one reads as already used: fail-closed.
 -- * Refused, with nothing admitted: a viewer or outsider; a task that is not a failed create, or whose package was never
 --   frozen; a version that is no longer current or already has a designed page (an edit is the way then); a withdrawn
 --   source; a design of the version under way or a later one; the per-report design limit; no designer or capture
---   renderer ready; a closed gate, another approval than the current one, or one older than the latest design.
+--   renderer ready; a closed gate, another approval than the current one, one older than the latest design, or one a
+--   retry has already used.
 -- * The same key returns the same retry (a new key would need a new approval); the key replayed with another version
 --   or another failed design is a conflict. The project's row is locked first, as request_design_edit does, and the
 --   caller's editor role is checked again under it: a removal or demotion that commits while the retry waits refuses it.
@@ -101,13 +104,19 @@ BEGIN
  IF rt.id IS NULL THEN RAISE EXCEPTION 'HTML design is unavailable: no runtime is ready with the designer' USING ERRCODE='55000'; END IF;
  IF NOT sophia.capture_renderer_ready() THEN
   RAISE EXCEPTION 'HTML design is unavailable: no capture renderer is asking for work' USING ERRCODE='55000'; END IF;
- -- The owner's spend approval: enabled, the one named, and newer than the latest design of this version.
+ -- The owner's spend approval: enabled, the one named, newer than the latest design of this version, and unused.
  SELECT * INTO gr FROM sophia.research_grants WHERE project_id=p_project FOR SHARE;
  IF NOT FOUND OR gr.state<>'enabled' THEN RAISE EXCEPTION 'Research gate closed' USING ERRCODE='55000'; END IF;
  IF (p_request->>'grantRevision')::numeric IS DISTINCT FROM gr.revision OR p_request->>'approvalRef' IS DISTINCT FROM gr.approval_ref THEN
   RAISE EXCEPTION 'Stale spend approval: the grant named is not the current one' USING ERRCODE='40001'; END IF;
  IF gr.updated_at<=(SELECT max(x.created_at) FROM sophia.design_tasks x WHERE x.project_id=p_project AND x.base_version_id=v.id) THEN
   RAISE EXCEPTION 'Stale spend approval: it predates the last design of this report, and a retry needs a fresh one' USING ERRCODE='40001'; END IF;
+ -- Nor used yet, by a retry of this report or another: a retry is the only create design that carries a request key
+ -- (design_tasks_edit_binding, above), stamped with its admission's time, and the project's row, locked first, puts
+ -- retries of different reports one after the other, so the second sees the first.
+ IF EXISTS(SELECT 1 FROM sophia.design_tasks x WHERE x.project_id=p_project AND x.mode='create' AND x.request_key IS NOT NULL
+    AND x.created_at>=gr.updated_at) THEN
+  RAISE EXCEPTION 'Stale spend approval: a retry has used it, and another needs a fresh one' USING ERRCODE='40001'; END IF;
  -- Admission: a new goal and attempt, a new allowance, the new design task on the frozen package, its first revision.
  SELECT * INTO pr FROM sophia.projects WHERE id=p_project;
  INSERT INTO sophia.goals(project_id,id,title,outcome,criteria,mission_revision,status)

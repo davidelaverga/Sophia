@@ -11,6 +11,7 @@ import { useReportFence } from './report-read.ts'
 import type { NativeTask, NativeTaskDetail } from '@sophia/contracts'
 import { Button, Card, Icon, Tag } from '@sophia/ui'
 import { retryFailedDesign } from '../../api/artifacts.ts'
+import { ApiError } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer } from './DocumentViewer.tsx'
 import { downloadSource } from './download.ts'
@@ -126,6 +127,11 @@ function RetryDesign(props: {
         state: 'idle',
         failed: err instanceof Error ? err.message : 'Couldn’t try again. Try again in a moment.',
       })
+      // A refusal of the approval named (the owner approved again, or a retry used it): the failed card is not polled,
+      // so read its detail again, and the next press names what is current. Nothing is sent again by itself, and the
+      // key stays: nothing was admitted under it. A lost or unknown reply is not this, and keeps what it named.
+      if (err instanceof ApiError && err.code === 'stale_revision')
+        await client.invalidateQueries({ queryKey: ['native-task', projectId, taskId] })
     }
   }
   return (

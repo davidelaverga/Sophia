@@ -230,6 +230,8 @@ interface Project {
   retryLost?: boolean
   /** A retry was admitted: the failed design offers nothing more (a later design exists). */
   designRetried?: boolean
+  /** The owner approved again after the page read the design (`window.fixture.reapprove`): revision 4. */
+  reapproved?: boolean
   /** Reads of a version's sources wait until the page lets them through (`hold=sources`), as a slow API's do. */
   sourcesHeld: boolean
   /** So do reads of a version's text (`hold=text`). */
@@ -1729,8 +1731,11 @@ export function releaseCovers(project: Project): void {
   heldCovers.splice(0).forEach((release, i) => setTimeout(release, (i + 1) * 400))
 }
 
-/** The owner's approval as the fixture holds it: revision 3, `approval:owner-3`. */
-const APPROVAL = { grantRevision: 3, approvalRef: 'approval:owner-3' }
+/** The owner's approval as the fixture holds it: revision 3, `approval:owner-3`; revision 4 once approved again. */
+const approvalOf = (project: Project) =>
+  project.reapproved
+    ? { grantRevision: 4, approvalRef: 'approval:owner-4' }
+    : { grantRevision: 3, approvalRef: 'approval:owner-3' }
 
 /** A42: the design failed (its designer blocked) and, until tried again, what its editor may do about it. */
 function failedDesign(project: Project): NativeTaskDetail {
@@ -1742,7 +1747,7 @@ function failedDesign(project: Project): NativeTaskDetail {
       ? null
       : project.designRetry === 'closed'
         ? { approval: 'closed' as const }
-        : { approval: project.designRetry, ...APPROVAL }
+        : { approval: project.designRetry, ...approvalOf(project) }
   return {
     ...base,
     task: { ...base.task, state: 'failed', phase: 'failed' },
@@ -1761,7 +1766,12 @@ function designRetried(project: Project, init: RequestInit | undefined): Respons
   const field = (k: string): unknown => (typeof body === 'object' && body !== null ? Reflect.get(body, k) : undefined)
   const key = new Headers(init?.headers).get('idempotency-key') ?? ''
   served.push(`html-retry:${String(field('grantRevision'))}:${String(field('approvalRef'))}:${key}`)
-  if (project.designRetry !== 'fresh' || field('grantRevision') !== APPROVAL.grantRevision) {
+  const approval = approvalOf(project)
+  if (
+    project.designRetry !== 'fresh' ||
+    field('grantRevision') !== approval.grantRevision ||
+    field('approvalRef') !== approval.approvalRef
+  ) {
     const problem = { code: 'stale_revision', message: 'Stale spend approval', requestId: PROJECT, retry: 'never' }
     return new Response(JSON.stringify(problem), { status: 409, headers: { 'content-type': 'application/json' } })
   }
@@ -1788,7 +1798,11 @@ function designRead(project: Project): Response | null {
     const body = { code: project.designFail, message: 'No', requestId: '00000000-0000-4000-8000-0000000000bb', retry }
     return new Response(JSON.stringify(body), { status })
   }
-  if (project.designRetry) return json(failedDesign(project))
+  if (project.designRetry) {
+    // Each read of the failed design, with the approval it carried: a refetch is seen, not assumed.
+    served.push(`design-detail:${String(approvalOf(project).grantRevision)}`)
+    return json(failedDesign(project))
+  }
   if (!project.designing && !project.designed && !project.designCard) return null
   return json(designingTask(project.designed ? 'published' : 'designing'))
 }

@@ -49,7 +49,11 @@ export async function readDesignProgress(
              THEN (SELECT jsonb_strip_nulls(jsonb_build_object(
                      'approval', CASE WHEN g.state IS DISTINCT FROM 'enabled' THEN 'closed'
                        WHEN g.updated_at <= (SELECT max(x.created_at) FROM sophia.design_tasks x WHERE x.project_id = t.project_id
-                         AND x.base_version_id = t.base_version_id) THEN 'stale' ELSE 'fresh' END,
+                         AND x.base_version_id = t.base_version_id) THEN 'stale'
+                       -- Used already by a retry in the project, of any report (0081: one approval, one retry).
+                       WHEN EXISTS (SELECT 1 FROM sophia.design_tasks x WHERE x.project_id = t.project_id AND x.mode = 'create'
+                         AND x.request_key IS NOT NULL AND x.created_at >= g.updated_at) THEN 'stale'
+                       ELSE 'fresh' END,
                      'grantRevision', CASE WHEN g.state = 'enabled' THEN g.revision END,
                      'approvalRef', CASE WHEN g.state = 'enabled' THEN g.approval_ref END))
                    FROM (SELECT 1) one LEFT JOIN sophia.research_grants g ON g.project_id = t.project_id) END AS retry

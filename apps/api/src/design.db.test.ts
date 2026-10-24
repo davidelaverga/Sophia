@@ -939,6 +939,79 @@ async function retryOutcome(p: Promise<unknown>) {
   }
 }
 
+/** The designer of `at` gives up on the page: its design ends failed, its content package frozen. */
+async function blockedDesign(w: World, at: Body) {
+  await drafted(w, at)
+  const blocked = await w.runtime('/v1/runtime/design/submit', {
+    ...at,
+    callId: 'b1',
+    blocker: { reason: 'the renderer’s width sweep timed out' },
+  })
+  assert.equal(blocked.json.outcome, 'blocked', JSON.stringify(blocked.json))
+}
+
+/** What each count rose by, from `from` to `to`. */
+const added = (from: Body, to: Body) =>
+  Object.fromEntries(Object.keys(to).map((k) => [k, Number(to[k]) - Number(from[k])]))
+
+/**
+ * Two reports of one project, each on its own artifact, current, and each with a failed create design that predates a
+ * fresh owner approval (`approval:shared`): both retries are eligible, under the same approval (the SEC finding).
+ */
+async function twoFailedReports() {
+  const { w, taskId: taskA, at } = await designing()
+  await blockedDesign(w, at)
+  const admitted = await startResearch(w, {
+    question: 'How do hosts confine a renderer?',
+    outputs: ['markdown', 'html'],
+  })
+  assert.equal(admitted.status, 'admitted', JSON.stringify(admitted))
+  const taskB = String((await published(w)).html.taskId)
+  const { at: atB } = await sent(w, 'create', DESIGNER.id)
+  await answer(w, 'create', 'delivered', atB.attemptId)
+  await blockedDesign(w, atB)
+  const designs = (
+    await owner((c) =>
+      c.query(`SELECT job_id, artifact_id, base_version_id, state FROM sophia.design_tasks WHERE job_id = ANY($1)`, [
+        [taskA, taskB],
+      ]),
+    )
+  ).rows as Array<{ job_id: string; artifact_id: string; base_version_id: string; state: string }>
+  const of = (job: string) => designs.find((d) => d.job_id === job) ?? assert.fail(`no design ${job}`)
+  assert.deepEqual([of(taskA).state, of(taskB).state], ['failed', 'failed'])
+  assert.notEqual(of(taskA).artifact_id, of(taskB).artifact_id, 'two reports, two artifacts')
+  const approve = async (ref: string) =>
+    (
+      (await owner((c) =>
+        c.query(
+          `SELECT revision::int AS revision FROM sophia.set_research_grant($1, 'enabled', 5, 40, 'web-pilot-v1', $2)`,
+          [w.projectId, ref],
+        ),
+      )) as { rows: Array<{ revision: number }> }
+    ).rows[0]?.revision ?? assert.fail('no grant')
+  const shared = await approve('approval:shared')
+  const counts = async (): Promise<Body> =>
+    (
+      await owner((c) =>
+        c.query(
+          `SELECT (SELECT count(*)::int FROM sophia.design_tasks WHERE project_id=$1) AS tasks,
+                  (SELECT count(*)::int FROM sophia.jobs WHERE project_id=$1) AS jobs,
+                  (SELECT count(*)::int FROM sophia.research_allowances WHERE project_id=$1) AS allowances,
+                  (SELECT count(*)::int FROM sophia.goals WHERE project_id=$1) AS goals,
+                  (SELECT count(*)::int FROM sophia.outbox WHERE project_id=$1) AS outbox`,
+          [w.projectId],
+        ),
+      )
+    ).rows[0]
+  const retry = (job: string, key: string, grantRevision: number, approvalRef: string) =>
+    withActor(pool, E, 'write', (c) =>
+      retryFailedDesign(c, w.projectId, job, key, { versionId: of(job).base_version_id, grantRevision, approvalRef }),
+    )
+  const offered = async (job: string): Promise<Body> =>
+    (await withActor(pool, E, 'read', (c) => readNativeTask(c, w.projectId, job))).design?.retry
+  return { w, taskA, taskB, shared, approve, counts, retry, offered }
+}
+
 describe('a failed design tried again from its frozen package (0081, FND-B-HTML-RETAINED-RECOVERY-01)', () => {
   it('needs a fresh, current, enabled owner approval; admits one attempt on the same package with its own allowance; the failed design stays as it ended', async () => {
     const { w, taskId, at } = await designing()
@@ -1325,6 +1398,85 @@ describe('a failed design tried again from its frozen package (0081, FND-B-HTML-
     const next2 = await asEditor(String(admitted.taskId), request('d3', fresh.revision, 'approval:next'))
     assert.equal(next2.state, 'designing')
     assert.notEqual(next2.allowanceId, admitted.allowanceId)
+  })
+
+  it('one owner approval admits one retry in the whole project, not one per report: the other report needs a new one (PR480 SEC)', async () => {
+    const { taskA, taskB, shared, approve, counts, retry, offered } = await twoFailedReports()
+    assert.deepEqual(await offered(taskB), { approval: 'fresh', grantRevision: shared, approvalRef: 'approval:shared' })
+    const start = await counts()
+    const first = await retry(taskA, 'a1', shared, 'approval:shared')
+    assert.equal(first.state, 'designing')
+    const once = await counts()
+    assert.deepEqual(
+      [once.tasks, once.allowances, once.goals],
+      [Number(start.tasks) + 1, Number(start.allowances) + 1, Number(start.goals) + 1],
+    )
+    // The other report, another key, the SAME approval: refused, and nothing admitted.
+    assert.match(
+      await retryOutcome(retry(taskB, 'b1', shared, 'approval:shared')),
+      /^stale_revision Stale spend approval: a retry has used it/,
+    )
+    assert.deepEqual(await counts(), once, 'no goal, job, allowance or outbox row')
+    assert.deepEqual(await offered(taskB), { approval: 'stale', grantRevision: shared, approvalRef: 'approval:shared' })
+    // The winner's key is the same retry, and admits nothing more.
+    assert.equal((await retry(taskA, 'a1', shared, 'approval:shared')).taskId, first.taskId)
+    assert.deepEqual(await counts(), once)
+    // A new owner approval admits the other report's retry, from its own new allowance.
+    const second = await approve('approval:second')
+    assert.deepEqual(await offered(taskB), { approval: 'fresh', grantRevision: second, approvalRef: 'approval:second' })
+    const other = await retry(taskB, 'b2', second, 'approval:second')
+    assert.equal(other.state, 'designing')
+    assert.notEqual(other.allowanceId, first.allowanceId)
+  })
+
+  it('two retries of two reports racing under one approval: one is admitted, the other refused with nothing admitted (PR480 SEC)', async () => {
+    const { w, taskA, taskB, shared, approve, counts, retry } = await twoFailedReports()
+    const start = await counts()
+    // Both arrive while the project's row is held, so both wait for the same lock and decide one after the other.
+    const holder = new pg.Client({ connectionString: db.ownerUrl })
+    await holder.connect()
+    await holder.query('BEGIN')
+    await holder.query('SELECT 1 FROM sophia.projects WHERE id=$1 FOR UPDATE', [w.projectId])
+    const racing = [
+      retryOutcome(retry(taskA, 'ra', shared, 'approval:shared')),
+      retryOutcome(retry(taskB, 'rb', shared, 'approval:shared')),
+    ]
+    const waiting = async () =>
+      Number(
+        (
+          await owner((c) =>
+            c.query(
+              `SELECT count(*)::int AS n FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%retry_failed_design%'`,
+            ),
+          )
+        ).rows[0].n,
+      )
+    for (let i = 0; i < 200 && (await waiting()) < 2; i += 1) await new Promise((resolve) => setTimeout(resolve, 25))
+    assert.equal(await waiting(), 2, 'both retries wait for the project')
+    await holder.query('COMMIT')
+    await holder.end()
+    const outcomes = await Promise.all(racing)
+    assert.equal(outcomes.filter((o) => o === 'admitted').length, 1, JSON.stringify(outcomes))
+    assert.match(
+      outcomes.find((o) => o !== 'admitted') ?? '',
+      /^stale_revision Stale spend approval: a retry has used it/,
+    )
+    const raced = await counts()
+    const [winner, loser] = outcomes[0] === 'admitted' ? [taskA, taskB] : [taskB, taskA]
+    const replayed = await retry(winner, winner === taskA ? 'ra' : 'rb', shared, 'approval:shared')
+    assert.equal(replayed.state, 'designing')
+    assert.deepEqual(await counts(), raced, 'the winner replayed admits nothing more')
+    // The race added exactly one admission's rows: what the loser's own retry adds once the owner approves again.
+    const second = await approve('approval:after-race')
+    const mid = await counts()
+    assert.equal((await retry(loser, 'rl', second, 'approval:after-race')).state, 'designing')
+    const end = await counts()
+    assert.deepEqual(
+      added(start, raced),
+      added(mid, end),
+      'one admission: its design, job, allowance, goal and outbox rows',
+    )
+    assert.deepEqual([added(start, raced).tasks, added(start, raced).allowances, added(start, raced).goals], [1, 1, 1])
   })
 })
 
