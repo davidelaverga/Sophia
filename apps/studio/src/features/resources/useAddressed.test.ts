@@ -41,8 +41,12 @@ test('a link followed (ADDRESS_NAMED) always follows, and is the record later mo
   assert.equal(m.named('g1'), 'follow')
   assert.equal(m.named('g1'), 'follow')
   assert.equal(m.pop('g1', AT('#g1')), 'keep')
-  assert.equal(m.hash(null, AT('')), 'follow')
-  assert.equal(m.pop('g1', AT('#g1')), 'follow')
+  // A move naming none of this record's kind (another kind's link, a report's `#md-` anchor) is followed, as today, and
+  // leaves the record last followed: Back to it later reopens nothing.
+  assert.equal(m.hash(null, AT('#md-a')), 'follow')
+  assert.equal(m.named(null), 'follow')
+  assert.equal(m.pop('g1', AT('#g1')), 'keep')
+  assert.equal(m.pop('g2', AT('#g2')), 'follow')
 })
 
 test('the report’s own step Back keeps the fragment on screen: read as noted until written where it lands', () => {

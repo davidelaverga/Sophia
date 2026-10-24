@@ -41,6 +41,28 @@ test('back · Chat opened by a mention’s address stays closed after a report o
   await expect(entry).toBeHidden()
 })
 
+test('back · Chat closed after a mention stays closed when Back returns from a link to another view', async ({
+  page,
+}) => {
+  await page.goto(`/room.html?call=on&exchange=open&people=2&floor=1&discussion=mentioned#message-${MENTIONED_IN}`)
+  const entry = page.locator(`[data-message="${MENTIONED_IN}"]`)
+  await expect(entry).toBeInViewport()
+  await chatToggle(page).click() // closing Chat leaves the mention in the address
+  await expect(entry).toBeHidden()
+  // A link to a task in Tasks, as the router follows one (useProjectRoute.openAt): its path pushed, then the task named.
+  // The room's panel stays mounted (the project body), as it does in the Studio.
+  await page.evaluate((project) => {
+    window.history.pushState(null, '', `/p/${project}/work`)
+    window.dispatchEvent(new Event('sophia:address-moved'))
+    window.history.replaceState(null, '', `/p/${project}/work#task-t1`)
+    window.dispatchEvent(new Event('sophia:address-named'))
+  }, PROJECT)
+  await page.goBack() // across the path: popstate only, onto the mention Chat already followed
+  expect(new URL(page.url()).hash).toBe(`#message-${MENTIONED_IN}`)
+  await page.waitForTimeout(300) // nothing to wait for: what follows is that nothing moved
+  await expect(entry).toBeHidden()
+})
+
 test('back · a goal chosen in Tasks’ rail stays chosen when Back lands where no task is named', async ({ page }) => {
   // The address names a task of the first goal: its goal is chosen and its sheet opens.
   await page.goto('/work.html?two=1#task-work-1')
