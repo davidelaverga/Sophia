@@ -469,6 +469,8 @@ interface Fixture {
   failVersions: (how?: 'unavailable' | 'not_found' | false) => void
   /** Reads of the design task fail from now on: refused (403) or unavailable (503); given false, they succeed. */
   failDesign: (how?: 'unavailable' | 'forbidden' | false) => void
+  /** A42: the next retry of the failed design loses its reply (a 503); it is recorded all the same. */
+  loseRetry: () => void
   /** The page's own cache as it holds a report's or task's fence (read only, never set): its refusal and allowed reads. */
   fenceOf: (key: readonly string[]) => unknown
   /** Sets out the page's own queries under `key` again, through their own owned query functions (nothing set by hand). */
@@ -542,6 +544,10 @@ const MENTIONING = {
 /** `designfail=forbidden|unavailable`: the design task's reads fail so from the start. */
 const designFailOf = (v: string | null): false | 'unavailable' | 'forbidden' =>
   v === 'unavailable' || v === 'forbidden' ? v : false
+
+/** `designretry=fresh|stale|closed`: the failed design's retry, as its editor reads it. */
+const designRetryOf = (v: string | null): 'fresh' | 'stale' | 'closed' | null =>
+  v === 'fresh' || v === 'stale' || v === 'closed' ? v : null
 
 /** `boardRead=malformed|foreign`: the served board is answered so from the start. */
 const wrongBoard = (v: string | null): 'malformed' | 'foreign' | null =>
@@ -849,6 +855,10 @@ const project = {
   // `designcard=on`: the design task itself is in the project's work (its own DesignCard); `failDesign` fails its read.
   designCard: query.get('designcard') === 'on',
   designFail: designFailOf(query.get('designfail')),
+  // `designretry=fresh|stale|closed` (A42): the design task failed, and can be tried again under that approval.
+  designRetry: designRetryOf(query.get('designretry')),
+  retryLost: false,
+  designRetried: false,
   reportTasksFail: false,
   sourcesHeld: query.get('hold') === 'sources',
   textHeld: query.get('hold') === 'text',
@@ -1641,6 +1651,9 @@ window.fixture = {
   },
   failDesign: (how = 'forbidden') => {
     project.designFail = how
+  },
+  loseRetry: () => {
+    project.retryLost = true
   },
   failReportTasks: (on) => {
     project.reportTasksFail = on

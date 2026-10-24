@@ -21,6 +21,7 @@ import {
   createPool,
   readNativeTask,
   readSnapshot,
+  retryFailedDesign,
   runtimeTokenHash,
   startExchange,
   withActor,
@@ -926,6 +927,295 @@ async function submitCandidate(w: World, at: Body, d: Body, callId = 'c1', names
 
 /** The reviewer looks at every capture it must. */
 const inspectAll = (w: World, at: Body, names: string[]) => look(w, at, 'review', names)
+
+/** A retry's outcome as its caller sees it: admitted, or the classified error's code and message. */
+async function retryOutcome(p: Promise<unknown>) {
+  try {
+    await p
+    return 'admitted'
+  } catch (err: unknown) {
+    const e = err as { code?: string; message?: string }
+    return `${String(e.code)} ${String(e.message)}`
+  }
+}
+
+describe('a failed design tried again from its frozen package (0081, FND-B-HTML-RETAINED-RECOVERY-01)', () => {
+  it('needs a fresh, current, enabled owner approval; admits one attempt on the same package with its own allowance; the failed design stays as it ended', async () => {
+    const { w, taskId, at } = await designing()
+    const d = await drafted(w, at)
+    const blocked = await w.runtime('/v1/runtime/design/submit', {
+      ...at,
+      callId: 'b1',
+      blocker: { reason: 'the renderer’s width sweep timed out' },
+    })
+    assert.equal(blocked.json.outcome, 'blocked', JSON.stringify(blocked.json))
+    const failedNow = async (): Promise<Body> =>
+      (
+        await owner((c) =>
+          c.query(
+            `SELECT t.state, t.reason, t.package_source_id, t.package_sha256, t.allowance_id, t.base_version_id, t.request_key,
+                    j.state AS job, j.reason AS job_reason, wa.state AS attempt, g.id AS goal_id, g.status AS goal, g.revision AS goal_revision,
+                    al.cap_usd::text AS cap, al.reserved_usd::text AS reserved, al.spent_usd::text AS spent, al.uncertain_usd::text AS uncertain,
+                    (SELECT array_agg(c.state ORDER BY c.round) FROM sophia.design_candidates c WHERE c.design_job_id=t.job_id) AS candidates,
+                    (SELECT jsonb_agg(s.files ORDER BY s.seq) FROM sophia.design_sources s WHERE s.design_job_id=t.job_id) AS revisions
+               FROM sophia.design_tasks t JOIN sophia.jobs j ON j.id=t.job_id JOIN sophia.work_attempts wa ON wa.id=j.attempt_id
+               JOIN sophia.goals g ON g.id=wa.goal_id JOIN sophia.research_allowances al ON al.id=t.allowance_id WHERE t.job_id=$1`,
+            [taskId],
+          ),
+        )
+      ).rows[0]
+    const ended = await failedNow()
+    assert.equal(ended.state, 'failed')
+    assert.match(String(ended.reason), /^blocked: /)
+    assert.ok(ended.package_source_id, 'its content package was frozen')
+    const grant = async (): Promise<{ revision: number; approval_ref: string }> => {
+      const { rows } = (await owner((c) =>
+        c.query(`SELECT revision::int AS revision, approval_ref FROM sophia.research_grants WHERE project_id=$1`, [
+          w.projectId,
+        ]),
+      )) as { rows: Array<{ revision: number; approval_ref: string }> }
+      return rows[0] as { revision: number; approval_ref: string }
+    }
+    const setGrant = (state: string, ref: string) =>
+      owner((c) =>
+        c.query(`SELECT sophia.set_research_grant($1, $2, 5, 40, 'web-pilot-v1', $3)`, [w.projectId, state, ref]),
+      )
+    const counts = async (): Promise<Body> =>
+      (
+        await owner((c) =>
+          c.query(
+            `SELECT (SELECT count(*)::int FROM sophia.design_tasks WHERE project_id=$1) AS tasks,
+                    (SELECT count(*)::int FROM sophia.jobs WHERE project_id=$1 AND kind='design') AS jobs,
+                    (SELECT count(*)::int FROM sophia.research_allowances WHERE project_id=$1) AS allowances,
+                    (SELECT count(*)::int FROM sophia.goals WHERE project_id=$1) AS goals`,
+            [w.projectId],
+          ),
+        )
+      ).rows[0]
+    const retry = (
+      actor: string,
+      key: string,
+      body: { versionId: string; grantRevision: number; approvalRef: string },
+      job = taskId,
+    ) => withActor(pool, actor, 'write', (c) => retryFailedDesign(c, w.projectId, job, key, body))
+    const versionId = String(ended.base_version_id)
+    const start = await counts()
+    // What the editor reads of it (A42): whether it can be tried again, and under which approval.
+    const offered = async (job = taskId): Promise<Body> =>
+      (await withActor(pool, E, 'read', (c) => readNativeTask(c, w.projectId, job))).design?.retry
+    // The approval the project had predates this design: not fresh. A closed gate. Another approval than the current one.
+    let g = await grant()
+    const named = () => ({ versionId, grantRevision: g.revision, approvalRef: g.approval_ref })
+    assert.match(
+      await retryOutcome(retry(E, 'k1', named())),
+      /^stale_revision Stale spend approval: it predates the last design/,
+    )
+    assert.deepEqual(await offered(), { approval: 'stale', grantRevision: g.revision, approvalRef: g.approval_ref })
+    await setGrant('disabled', 'approval:closed')
+    g = await grant()
+    assert.match(await retryOutcome(retry(E, 'k1', named())), /^research_gate_closed Research gate closed/)
+    assert.deepEqual(await offered(), { approval: 'closed' })
+    await setGrant('enabled', 'approval:retry-1')
+    g = await grant()
+    assert.deepEqual(await offered(), { approval: 'fresh', grantRevision: g.revision, approvalRef: 'approval:retry-1' })
+    assert.match(
+      await retryOutcome(retry(E, 'k1', { ...named(), grantRevision: g.revision - 1 })),
+      /^stale_revision Stale spend approval: the grant named/,
+    )
+    assert.match(
+      await retryOutcome(retry(E, 'k1', { ...named(), approvalRef: 'approval:other' })),
+      /^stale_revision Stale spend approval: the grant named/,
+    )
+    assert.match(await retryOutcome(retry(randomUUID(), 'k1', named())), /^forbidden Not permitted/)
+    assert.match(
+      await retryOutcome(retry(E, 'k1', { ...named(), versionId: randomUUID() })),
+      /^stale_revision Stale report version/,
+    )
+    assert.deepEqual(await counts(), start, 'a refusal admits nothing')
+    // Two retries race under different keys: exactly one new attempt, one refused.
+    const raced = await Promise.allSettled([retry(E, 'k-a', named()), retry(E, 'k-b', named())])
+    const won = raced.flatMap((r, i) =>
+      r.status === 'fulfilled' ? [{ key: i === 0 ? 'k-a' : 'k-b', receipt: r.value }] : [],
+    )
+    const lost = raced.flatMap((r) => (r.status === 'rejected' ? [(r.reason as Error).message] : []))
+    assert.equal(won.length, 1, JSON.stringify(raced))
+    assert.equal(lost.length, 1, JSON.stringify(raced))
+    assert.match(lost[0] ?? '', /already under way/)
+    const { key: wonKey, receipt } = won[0] as { key: string; receipt: Body }
+    const one = {
+      tasks: start.tasks + 1,
+      jobs: start.jobs + 1,
+      allowances: start.allowances + 1,
+      goals: start.goals + 1,
+    }
+    assert.deepEqual(await counts(), one)
+    assert.equal(await offered(), undefined, 'a later design exists: nothing more to offer on the failed one')
+    // The same key: the same retry, nothing more; under another version it conflicts.
+    assert.deepEqual(await retry(E, wonKey, named()), receipt)
+    assert.match(
+      await retryOutcome(retry(E, wonKey, { ...named(), versionId: randomUUID() })),
+      /^idempotency_conflict Idempotency key reused/,
+    )
+    assert.deepEqual(await counts(), one)
+    // The new task: the same frozen package, version and Markdown, its own allowance (nothing spent), a new goal, and the
+    // failed design's last revision as its first.
+    const fresh = (
+      await owner((c) =>
+        c.query(
+          `SELECT t.mode, t.state, t.package_source_id, t.package_sha256, t.base_version_id, t.markdown_sha256, t.allowance_id,
+                  al.cap_usd::text AS cap, al.reserved_usd::text AS reserved, al.spent_usd::text AS spent, g.id AS goal_id, g.status AS goal,
+                  (SELECT jsonb_agg(s.files ORDER BY s.seq) FROM sophia.design_sources s WHERE s.design_job_id=t.job_id) AS revisions
+             FROM sophia.design_tasks t JOIN sophia.jobs j ON j.id=t.job_id JOIN sophia.work_attempts wa ON wa.id=j.attempt_id
+             JOIN sophia.goals g ON g.id=wa.goal_id JOIN sophia.research_allowances al ON al.id=t.allowance_id WHERE t.job_id=$1`,
+          [receipt.taskId],
+        ),
+      )
+    ).rows[0]
+    assert.deepEqual(
+      [fresh.mode, fresh.state, fresh.package_source_id, fresh.package_sha256, fresh.base_version_id],
+      ['create', 'designing', ended.package_source_id, ended.package_sha256, ended.base_version_id],
+    )
+    assert.equal(receipt.packageSha256, ended.package_sha256)
+    assert.notEqual(fresh.allowance_id, ended.allowance_id, 'a new allowance, never the consumed one')
+    assert.deepEqual([fresh.cap, fresh.reserved, fresh.spent], ['5.000000', '0.000000', '0.000000'])
+    assert.notEqual(fresh.goal_id, ended.goal_id, 'a new goal: the failed design’s goal is not reopened')
+    assert.deepEqual(
+      fresh.revisions,
+      [(ended.revisions as Body[]).at(-1)],
+      'the failed design’s last revision, as the first',
+    )
+    // The failed design, its goal, attempt, candidates, reason and allowance stay exactly as they ended.
+    assert.deepEqual(await failedNow(), ended)
+    // The designer is sent the new attempt; its context is the frozen package; its model calls reserve against the new
+    // allowance, and a closed gate refuses ended any call.
+    const { at: next } = await sent(w, 'create', DESIGNER.id)
+    assert.notEqual(next.attemptId, at.attemptId)
+    await answer(w, 'create', 'delivered', next.attemptId)
+    const ctx = await w.runtime('/v1/runtime/design/context', next)
+    assert.equal(ctx.status, 200, JSON.stringify(ctx.json))
+    assert.deepEqual(ctx.json.package.content, d.pkg, 'the same frozen content package')
+    const model = { ...next, kind: 'model', provider: 'openai', amountUsd: 0.01 }
+    const reserved = await w.runtime('/v1/runtime/design/reserve', { ...model, callId: 'm1' })
+    assert.equal(reserved.json.state, 'reserved', JSON.stringify(reserved.json))
+    const charged = (
+      await owner((c) =>
+        c.query(`SELECT allowance_id FROM sophia.research_reservations WHERE id=$1`, [
+          String(reserved.json.reservationId),
+        ]),
+      )
+    ).rows[0]
+    assert.equal(charged.allowance_id, fresh.allowance_id)
+    await setGrant('disabled', 'approval:closed-2')
+    const refused = await w.runtime('/v1/runtime/design/reserve', { ...model, callId: 'm2' })
+    assert.notEqual(refused.status, 200)
+    assert.match(JSON.stringify(refused.json), /gate closed|unavailable/i)
+    // The retry under way blocks another; the running retry has not failed, so it cannot be tried again.
+    await setGrant('enabled', 'approval:retry-2')
+    g = await grant()
+    assert.match(
+      await retryOutcome(retry(E, 'k-c', named())),
+      /^invalid_state A design of this page is already under way/,
+    )
+    assert.match(
+      await retryOutcome(retry(E, 'k-d', named(), String(receipt.taskId))),
+      /^invalid_state This design has not failed/,
+    )
+    assert.deepEqual(await failedNow(), ended)
+  })
+  it('refuses a retry whose editor is demoted or removed while it waits for the project: nothing admitted (R2 exchange 1)', async () => {
+    const { w, taskId, at } = await designing()
+    await drafted(w, at)
+    const blocked = await w.runtime('/v1/runtime/design/submit', {
+      ...at,
+      callId: 'b1',
+      blocker: { reason: 'the renderer’s width sweep timed out' },
+    })
+    assert.equal(blocked.json.outcome, 'blocked', JSON.stringify(blocked.json))
+    await owner((c) =>
+      c.query(`SELECT sophia.set_research_grant($1, 'enabled', 5, 40, 'web-pilot-v1', 'approval:race')`, [w.projectId]),
+    )
+    const { rows } = (await owner((c) =>
+      c.query(
+        `SELECT g.revision::int AS revision, g.approval_ref, t.base_version_id FROM sophia.research_grants g, sophia.design_tasks t
+          WHERE g.project_id=$1 AND t.job_id=$2`,
+        [w.projectId, taskId],
+      ),
+    )) as { rows: Array<{ revision: number; approval_ref: string; base_version_id: string }> }
+    const named = rows[0] as { revision: number; approval_ref: string; base_version_id: string }
+    const body = { versionId: named.base_version_id, grantRevision: named.revision, approvalRef: named.approval_ref }
+    const counts = async (): Promise<Body> =>
+      (
+        await owner((c) =>
+          c.query(
+            `SELECT (SELECT count(*)::int FROM sophia.design_tasks WHERE project_id=$1) AS tasks,
+                    (SELECT count(*)::int FROM sophia.jobs WHERE project_id=$1) AS jobs,
+                    (SELECT count(*)::int FROM sophia.research_allowances WHERE project_id=$1) AS allowances,
+                    (SELECT count(*)::int FROM sophia.goals WHERE project_id=$1) AS goals,
+                    (SELECT count(*)::int FROM sophia.outbox WHERE project_id=$1) AS outbox`,
+            [w.projectId],
+          ),
+        )
+      ).rows[0]
+    const start = await counts()
+    // The admin's change, in a transaction held open: it takes the project's row first (0056, 0058).
+    const asAdmin = async (sql: string, params: unknown[]) => {
+      const c = await pool.connect()
+      await c.query('BEGIN')
+      await c.query(`SELECT set_config('sophia.actor_id', $1, true)`, [A])
+      await c.query(sql, params)
+      return c
+    }
+    const waiting = async () =>
+      Number(
+        (
+          await owner((c) =>
+            c.query(
+              `SELECT count(*)::int AS n FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%retry_failed_design%'`,
+            ),
+          )
+        ).rows[0].n,
+      )
+    const changes: Array<[string, string, unknown[], string | null]> = [
+      [
+        'demoted to viewer',
+        `SELECT sophia.change_member_role($1, $2, 'viewer')`,
+        [w.projectId, E],
+        `SELECT sophia.change_member_role($1, $2, 'editor')`,
+      ],
+      ['removed', `SELECT sophia.remove_member($1, $2, $3)`, [w.projectId, E, randomUUID()], null],
+    ]
+    for (const [label, sql, params, restore] of changes) {
+      const held = await asAdmin(sql, params)
+      const pending = retryOutcome(
+        withActor(pool, E, 'write', (c) => retryFailedDesign(c, w.projectId, taskId, `race-${label}`, body)),
+      )
+      for (let i = 0; i < 200 && (await waiting()) === 0; i += 1)
+        await new Promise((resolve) => setTimeout(resolve, 25))
+      assert.equal(await waiting(), 1, `${label}: the retry waits for the project`)
+      await held.query('COMMIT')
+      held.release()
+      assert.match(await pending, /^forbidden Not permitted/, label)
+      assert.deepEqual(await counts(), start, `${label}: no goal, job, allowance or outbox row`)
+      if (restore) {
+        const back = await asAdmin(restore, [w.projectId, E])
+        await back.query('COMMIT')
+        back.release()
+      }
+    }
+    // The route (A42): unauthenticated, then a stale approval, then the admin's retry and its replay, as the API answers.
+    const path = `/api/v1/projects/${w.projectId}/native-tasks/${taskId}/html-retry`
+    const http = async (key: string, payload: object) =>
+      call(path, { bearer: await token(A), headers: { 'idempotency-key': key }, body: payload })
+    assert.equal((await call(path, { headers: { 'idempotency-key': 'h0' }, body })).status, 401)
+    const stale = await http('h1', { ...body, grantRevision: body.grantRevision + 1 })
+    assert.deepEqual([stale.status, stale.json.code], [409, 'stale_revision'], JSON.stringify(stale.json))
+    assert.deepEqual(await counts(), start, 'refusals over HTTP admit nothing')
+    const admitted = await http('h2', body)
+    assert.equal(admitted.status, 202, JSON.stringify(admitted.json))
+    assert.equal(admitted.json.state, 'designing')
+    assert.equal((await http('h2', body)).json.taskId, admitted.json.taskId, 'the same key, the same retry')
+  })
+})
 
 describe('SDD-01-RF-0003: a withdrawn source stops design and review (0041)', () => {
   it('revokes the running design and its review in the erasing transaction; nothing reads, reserves, writes, renders, reviews or publishes; incurred usage settles', async () => {

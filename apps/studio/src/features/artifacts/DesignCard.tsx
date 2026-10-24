@@ -2,13 +2,15 @@
 // state in words (designing, with its separate reviewer, published, or why there is no page), the version it designs,
 // and once published its page: the row opens the stored page in the viewer, and Download saves the same bytes after
 // their hash is checked. Hold and Stop live on its goal (WorkControls), as for every task.
+import { useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { TaskRefused } from './TaskRefused.tsx'
 import { useOwnedTaskDetail } from './task-detail.ts'
 import { ReportRefused } from './ReportRefused.tsx'
 import { useReportFence } from './report-read.ts'
 import type { NativeTask, NativeTaskDetail } from '@sophia/contracts'
-import { Card, Icon, Tag } from '@sophia/ui'
+import { Button, Card, Icon, Tag } from '@sophia/ui'
+import { retryFailedDesign } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer } from './DocumentViewer.tsx'
 import { downloadSource } from './download.ts'
@@ -71,8 +73,70 @@ export function DesignCard(props: Props) {
         <span className="muted">{designOf(design)}</span>
       </div>
       {words.note && <p className="goal-outcome">{words.note}</p>}
+      {design?.state === 'failed' && (
+        <RetryDesign design={design} projectId={props.projectId} taskId={task.id} identity={identity} />
+      )}
       {page && task.artifactId && <PageRow page={page} artifactId={task.artifactId} identity={identity} />}
     </Card>
+  )
+}
+
+type Retrying = { state: 'idle' | 'sending' | 'sent'; failed: string | null }
+
+/**
+ * A failed design tried again (A42): its editor is offered Try again only under the owner's fresh spend approval, which
+ * the retry names; otherwise the card says what it needs. One key per card, so a resend is the same retry.
+ */
+function RetryDesign(props: {
+  design: NonNullable<NativeTaskDetail['design']>
+  projectId: string
+  taskId: string
+  identity: Identity
+}) {
+  const { design, projectId, taskId, identity } = props
+  const key = useRef(crypto.randomUUID())
+  const [sending, setSending] = useState<Retrying>({ state: 'idle', failed: null })
+  const client = useQueryClient()
+  const retry = design.retry
+  // Once admitted, the failed design offers nothing more (a later one exists): what was asked stays said.
+  if (sending.state === 'sent')
+    return (
+      <p className="output-status" role="status">
+        Sophia designs this page again from the same report.
+      </p>
+    )
+  if (!retry) return null
+  if (retry.approval !== 'fresh' || retry.grantRevision === undefined || retry.approvalRef === undefined)
+    return (
+      <p className="goal-outcome muted" data-retry={retry.approval}>
+        {retry.approval === 'closed'
+          ? 'Trying again needs the project owner to switch research on.'
+          : 'Trying again needs a new spend approval from the project owner.'}
+      </p>
+    )
+  const body = { versionId: design.baseVersionId, grantRevision: retry.grantRevision, approvalRef: retry.approvalRef }
+  const send = async () => {
+    setSending({ state: 'sending', failed: null })
+    try {
+      await retryFailedDesign(identity.token, projectId, taskId, key.current, body)
+      setSending({ state: 'sent', failed: null })
+      await client.invalidateQueries({ queryKey: ['native-task', projectId] })
+    } catch (err: unknown) {
+      setSending({
+        state: 'idle',
+        failed: err instanceof Error ? err.message : 'Couldn’t try again. Try again in a moment.',
+      })
+    }
+  }
+  return (
+    <div className="work-card-retry" data-retry="fresh">
+      <Button kind="ghost" size="sm" disabled={sending.state !== 'idle'} onClick={() => void send()}>
+        Try again
+      </Button>
+      <p className="output-status" role="status" data-error={sending.failed ? true : undefined}>
+        {sending.failed}
+      </p>
+    </div>
   )
 }
 

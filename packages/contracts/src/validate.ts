@@ -67,6 +67,7 @@ import {
   validateConversationWithdrawal,
   validateConversationErasure,
   validateDesignEditReceipt,
+  validateDesignRetryReceipt,
   validateReceipt,
   validateRoomSession,
   validateRoomToken,
@@ -170,6 +171,7 @@ export const parseConversationMessageSent = parser('ConversationMessageSent', va
 export const parseConversationWithdrawal = parser('ConversationWithdrawal', validateConversationWithdrawal)
 export const parseConversationErasure = parser('ConversationErasure', validateConversationErasure)
 export const parseDesignEditReceipt = parser('DesignEditReceipt', validateDesignEditReceipt)
+export const parseDesignRetryReceipt = parser('DesignRetryReceipt', validateDesignRetryReceipt)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {

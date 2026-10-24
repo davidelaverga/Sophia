@@ -161,7 +161,7 @@ export type RenderReceipt = { "schema": "sophia.pdf-render-receipt.v1"; "jobId":
 export type RenderSettleRequest = { "leaseToken": string; "receipt": RenderReceipt | CaptureReceipt; };
 export type RenderSettlement = { "state": "pending" | "succeeded" | "failed" | "cancelled"; "reason": string | null; };
 export type DesignCandidateState = { "candidateId": string; "round": number; "state": "submitted" | "reviewing" | "needs_revision" | "self_review_only" | "review_unresolved" | "reviewed" | "published" | "superseded" | "failed"; "reviewState"?: "reviewed" | "self_review_only" | "review_unresolved"; };
-export type DesignProgress = { "researchTaskId": string; "artifactId": string; "baseVersionId": string; "baseVersionNumber"?: number; "state": "designing" | "reviewing" | "published" | "failed" | "cancelled" | "superseded"; "reason"?: string; "targets": ReadonlyArray<"w390-light" | "w1280-light">; "revisions": number; "renders": number; "candidates": ReadonlyArray<DesignCandidateState>; "maxRepairs": number; "publishedVersionId"?: string; "mode"?: "create" | "edit" | "audit"; "scope"?: { "sections": ReadonlyArray<string>; "shell"?: boolean; "styles"?: boolean; }; "sections"?: ReadonlyArray<string>; };
+export type DesignProgress = { "researchTaskId": string; "artifactId": string; "baseVersionId": string; "baseVersionNumber"?: number; "state": "designing" | "reviewing" | "published" | "failed" | "cancelled" | "superseded"; "reason"?: string; "targets": ReadonlyArray<"w390-light" | "w1280-light">; "revisions": number; "renders": number; "candidates": ReadonlyArray<DesignCandidateState>; "maxRepairs": number; "publishedVersionId"?: string; "mode"?: "create" | "edit" | "audit"; "scope"?: { "sections": ReadonlyArray<string>; "shell"?: boolean; "styles"?: boolean; }; "sections"?: ReadonlyArray<string>; "retry"?: { "approval": "fresh" | "stale" | "closed"; "grantRevision"?: number; "approvalRef"?: string; }; };
 export type DesignFinding = { "code": string; "severity": "error" | "warning"; "path": string; "message": string; "line"?: number; "block"?: string; };
 export type DesignSourceFile = { "path": "index.html" | "styles.css"; "sourceId": string; "sha256": string; "bytes": number; };
 export type DesignSection = { "id": string; "line": number; "sha256": string; };
@@ -309,6 +309,8 @@ export type ProjectTaskList = { "tasks": ReadonlyArray<ProjectTask>; "next": str
 export type ProjectTaskRequest = { "title": string; "ownerId"?: string | null; "origin"?: { "artifactId": string; "versionId": string; "block": number; "word": number; "count": number; } | null; };
 export type ProjectTaskOwnerRequest = { "ownerId": string | null; "expectedRevision": number; };
 export type ProjectTaskDoneRequest = { "expectedRevision": number; };
+export type DesignRetryRequest = { "versionId": string; "grantRevision": number; "approvalRef": string; };
+export type DesignRetryReceipt = { "taskId": string; "state": "designing" | "reviewing" | "published" | "failed" | "cancelled" | "superseded"; "versionId": string; "packageSha256": string; "allowanceId": string; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
@@ -495,4 +497,5 @@ export interface Operations {
   "setProjectTaskOwner": { method: "PUT"; path: "/api/v1/projects/{projectId}/tasks/{taskId}/owner"; request: ProjectTaskOwnerRequest; response: ProjectTask; };
   "finishProjectTask": { method: "POST"; path: "/api/v1/projects/{projectId}/tasks/{taskId}/done"; request: ProjectTaskDoneRequest; response: ProjectTask; };
   "listReportTasks": { method: "GET"; path: "/api/v1/artifacts/{artifactId}/tasks"; request: undefined; response: ProjectTaskList; };
+  "retryFailedDesign": { method: "POST"; path: "/api/v1/projects/{projectId}/native-tasks/{taskId}/html-retry"; request: DesignRetryRequest; response: DesignRetryReceipt; };
 }
