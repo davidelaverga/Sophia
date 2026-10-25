@@ -9,7 +9,7 @@ export interface LegalSection {
   body: readonly string[]
 }
 
-export const UPDATED = '24 October 2026'
+export const UPDATED = '25 October 2026'
 
 export const TITLES: Record<LegalDoc, string> = { terms: 'Terms of use', privacy: 'Privacy notice' }
 
