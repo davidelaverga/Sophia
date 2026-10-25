@@ -67,6 +67,17 @@ Start: deployed main `26aa0507` (tree `dfff0ebe`), branch `fix/html-design-versi
 - The test now waits for that focus (`toBeFocused`) before pressing Enter. All its other checks are kept.
 - No product, fixture or contract change.
 
+## Mentions test staging (FND-B-MENTIONS-CI-STAGING-CORRECTION-01)
+
+- The required CI run at `63430578` failed `e2e/mentions.spec.ts:1129`. At `:1139` it found 2 seen-write attempts
+  where it expected 1.
+- The test hid the page from the runner after reading the first failed attempt. Locally, a hide that lands after the
+  failure's 1 s retry gives exactly that count, with the retry sent while the page was still in front.
+- The actual CI order is not known (no trace was kept). No dispatch while hidden was observed locally.
+- The page now goes to the background in the page itself, as the first write fails: `failingSeen`'s opt-in
+  `hideOnFailure`. Every assertion of the case is kept.
+- No product, fixture or contract change.
+
 ## Limits
 
 - The Studio witnesses run on the Vite fixture page, not on built bytes or production.
