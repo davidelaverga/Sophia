@@ -56,6 +56,17 @@ Start: deployed main `26aa0507` (tree `dfff0ebe`), branch `fix/html-design-versi
   change.
 - No migration.
 
+## CI test readiness (FND-B-HTML-READ-CONTRACT-FIX-02)
+
+- The required CI run at `2cc79d39` failed one case of room part 2: `e2e/next-up.spec.ts:29` (852 passed, 1 failed).
+  After Enter, the sheet never opened.
+- That test pressed Enter once the Next line showed its words. NextUp moves the focus to the line's press on the next
+  animation frame, so an Enter sent before the focus arrived went to the page body.
+- The local reproduction showed this mechanism. The focused element in the failing CI run is not known, since no trace
+  was kept.
+- The test now waits for that focus (`toBeFocused`) before pressing Enter. All its other checks are kept.
+- No product, fixture or contract change.
+
 ## Limits
 
 - The Studio witnesses run on the Vite fixture page, not on built bytes or production.

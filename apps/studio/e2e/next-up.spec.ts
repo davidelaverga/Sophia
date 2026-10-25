@@ -32,6 +32,8 @@ test('next up · it names the task that waits for the viewer, and Enter opens it
   await expect(press).toHaveText(/^Next: “.+” waits for you/)
   const named = /“(.+)”/.exec((await press.textContent()) ?? '')?.[1] ?? ''
   expect(named).not.toBe('')
+  // The line's words render before NextUp moves the focus to its press (the next animation frame): Enter goes once it has.
+  await expect(press).toBeFocused()
   await page.keyboard.press('Enter')
   const sheet = page.getByRole('dialog')
   await expect(sheet).toBeVisible()
