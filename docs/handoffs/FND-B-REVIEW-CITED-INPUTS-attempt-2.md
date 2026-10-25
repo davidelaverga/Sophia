@@ -54,6 +54,17 @@ Start: `2a27b0bb` (PR482, draft), branch `fix/source-review-cited-inputs-2026102
 - The new API on the old SQL answers 503, because `supporting` is a required field.
 - A ready API does not prove the migration was applied.
 
+## Reader contract integration (FND-B-482-PRESERVE-A44-INTEGRATION-01)
+
+- This branch still declared a version trigger as `research | rendition`. Published as it was, after the reader fix
+  (PR483, A44), it would reintroduce the design-version read failure.
+- The accepted reader source (`8cf20dad`) is merged in, with an ordinary merge.
+- The only conflict was the generated `validators.js`. `openapi.json`, `generated-types.ts` and `validators.js` were
+  regenerated with the normal contract tooling from both amendments: A43's supporting sources, and A44's `design`
+  trigger kind.
+- Unchanged: 0082, A43, A44 and Luis's files.
+- This candidate is local: browser, real PostgreSQL and full checks follow, before any push.
+
 ## Limits
 
 - The regression is synthetic. No production URL, credential or data was read, and no production leak is claimed:

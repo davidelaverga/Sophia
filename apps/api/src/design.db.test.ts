@@ -15,6 +15,7 @@ import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import type { RuntimeCommand } from '@sophia/contracts'
+import { parseArtifactVersionList, parseSnapshot } from '@sophia/contracts/validate'
 import { plainPage } from '@sophia/design/testing'
 import type { ContentPackage } from '@sophia/design'
 import {
@@ -1984,6 +1985,24 @@ describe('a scoped edit of a published page (B-16..B-18, 0041)', () => {
       body,
       headers: { 'idempotency-key': key },
     })
+
+  it('its version names the design that made it, and a reader’s strict client reads the versions and the snapshot (A44)', async () => {
+    const { w, submission, designTask, versionId } = await publishedPage()
+    const bearer = await token(E)
+    // The report pane's read, as Studio parses it (listArtifactVersions): the whole list, the design's version first.
+    const versions = await call(`/api/v1/artifacts/${String(submission.artifactId)}/versions`, { bearer })
+    assert.equal(versions.status, 200, JSON.stringify(versions.json))
+    const list = parseArtifactVersionList(versions.json)
+    assert.equal(list[0]?.id, versionId)
+    assert.deepEqual(list[0]?.trigger, { kind: 'design', taskId: designTask })
+    assert.equal(list[1]?.trigger?.kind, 'research', 'the research version beside it still reads')
+    // The project's snapshot carries each report's current version, now the design's, read as Studio reads it; a
+    // snapshot carries no version notes, the trigger among them (artifacts.ts notesOf), so it never depended on A44.
+    const snapshot = await call(`/api/v1/projects/${w.projectId}/snapshot`, { bearer })
+    assert.equal(snapshot.status, 200, JSON.stringify(snapshot.json))
+    const current = parseSnapshot(snapshot.json).artifacts.find((a) => a.artifactId === submission.artifactId)
+    assert.deepEqual([current?.id, current?.trigger], [versionId, undefined])
+  })
 
   it('is refused, with nothing admitted, for a stale version, a section the page lacks, or a viewer’s request', async () => {
     const { w, submission, d, versionId } = await publishedPage()

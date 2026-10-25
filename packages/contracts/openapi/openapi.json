@@ -17697,7 +17697,8 @@
                 "type": "string",
                 "enum": [
                   "research",
-                  "rendition"
+                  "rendition",
+                  "design"
                 ]
               },
               "taskId": {
@@ -17717,7 +17718,7 @@
               "kind",
               "taskId"
             ],
-            "description": "What produced this version: a research task, or a rendition of the task's report (Try PDF again, with its render job). Omitted when unknown."
+            "description": "What produced this version: a research task, a rendition of the task's report (Try PDF again, with its render job), or a design task that published the report's designed HTML page (taskId names the design task). Omitted when unknown."
           }
         },
         "required": [
