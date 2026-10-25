@@ -1,0 +1,61 @@
+# Implementation-session handoff
+
+Goal and attempt: FND-B-REVIEW-CITED-INPUTS-02, attempt 2 of the cited-sources offer (attempt 1:
+[FND-B-REVIEW-CITED-INPUTS-attempt-1](FND-B-REVIEW-CITED-INPUTS-attempt-1.md)). It has two parts: one review
+correction, and the integration of current main.
+
+Executor: Claude Code lane B (runtime `60d65501-d779-4a4c-80e8-89485d10c86e`), packet `5d74da4e…`.
+
+Inputs:
+
+- R2's finding R2-482-R1, with its result `6539f64b…`, proof `c337d2db…` and host-label witness `47223718…`.
+
+Start: `2a27b0bb` (PR482, draft), branch `fix/source-review-cited-inputs-20261024`.
+
+## Integration
+
+- Remote main was `26aa0507` (tree `dfff0ebe`). It carries PR480 and Luis's PR481 (addressed navigation).
+- It was merged into this branch by an ordinary merge (`ecff1798`, tree `00ae682a`, which is the combined tree R2
+  derived).
+- There were no conflicts: main's delta from the common base `9aa70441` is the eight Luis paths, disjoint from this
+  branch's.
+- All eight Luis paths are byte-identical to main.
+
+## The correction (R2-482-R1, P2)
+
+- 0082's label for a page the research read took everything before the first `@`. So a stored `reportedFinalUrl` of
+  `https://reader:demo@docs.example/path` was offered as "Web page · reader:demo". It also exposed a port and passed a
+  bracketed literal through.
+- A stored reported URL is not checked for its authority (0025 keeps it as reported).
+- Now the whole authority, up to the first `/`, `?` or `#`, must be a DNS name with at most a port. The port is
+  dropped and the host lowercased.
+- A user or password, a bracketed or malformed authority, or no URL gives the neutral "Web page".
+- Path, query and fragment are never part of a label.
+- 0082 is not applied anywhere yet, so it is corrected in place. Nothing else in it changes. The contract is
+  unchanged (labels were already free text up to 200 characters).
+
+## Evidence (journal `B-REVIEW-CITED-INPUTS-02-logs`)
+
+- **Same final test bytes**, real PostgreSQL, on the integrated head:
+  - the old 0082 fails, offering `Web page · reader:demo`, `Web page · Docs.Example.org:8443` and
+    `Web page · [2001:db8::1]` (log 21);
+  - the corrected 0082 passes (log 23).
+- The regression seeds synthetic pages only, each under a settled read of an allowance:
+  - userinfo with path, query and fragment;
+  - an uppercase host with a port, path, query and fragment;
+  - a plain host with a query;
+  - an IPv6 literal;
+  - a value that is not a URL.
+- The full checks on the integrated head are listed in the journal handback.
+
+## Deployment compatibility (unchanged, stated)
+
+- Apply 0082 before the matching API, then the matching Studio.
+- The new API on the old SQL answers 503, because `supporting` is a required field.
+- A ready API does not prove the migration was applied.
+
+## Limits
+
+- The regression is synthetic. No production URL, credential or data was read, and no production leak is claimed:
+  the current Jina reads report no final URL, and a requested URL carrying credentials is refused.
+- The Studio witnesses run on the Vite fixture page.

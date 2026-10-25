@@ -15,7 +15,8 @@
 --   version, by label then id.
 -- * Labels come from what is recorded about the source (a project note's kind, the host of a page the research read,
 --   search results, an admitted input, the research question), never from its text; a source is named by its own id,
---   never by a note's or a version's.
+--   never by a note's or a version's. A page's label carries its host alone, never a user, password, port, path, query
+--   or fragment; an authority that is not a plain DNS name gives "Web page" alone.
 -- * Nothing else changes: who may propose, the grants, the limits, the proposal and its guards. Everything else in the
 --   body is 0042's, unchanged. 0001-0081 are not edited.
 BEGIN;
@@ -47,8 +48,12 @@ BEGIN
        left(coalesce(
         (SELECT 'Project note · '||replace(me.kind,'_',' ') FROM sophia.mission_entries me
           WHERE me.project_id=p_project AND me.source_id=d.source_id ORDER BY me.recorded_at DESC LIMIT 1),
-        (SELECT CASE sp.kind WHEN 'web_read' THEN 'Web page'||coalesce(' · '||substring(coalesce(sp.reported_final_url,sp.requested_url)
-            FROM '^[A-Za-z][A-Za-z0-9+.-]*://([^/?#@]+)'),'')
+        -- A page's host, and only a host: the whole authority (up to the first /, ? or #) must be a DNS name, with at
+        -- most a port, which is dropped. A user or password (an @), a bracketed or malformed authority, or no URL at
+        -- all gives the neutral label: a stored reported URL is not checked for its authority (R2-482-R1).
+        (SELECT CASE sp.kind WHEN 'web_read' THEN 'Web page'||coalesce(' · '||lower(substring(
+            substring(coalesce(sp.reported_final_url,sp.requested_url) FROM '^[A-Za-z][A-Za-z0-9+.-]*://([^/?#]*)')
+            FROM '^([A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*)(?::[0-9]{1,5})?$')),'')
            WHEN 'search_results' THEN 'Search results' ELSE 'Admitted input' END
           FROM sophia.source_provenance sp WHERE sp.project_id=p_project AND sp.source_id=d.source_id),
         (SELECT 'Research question' FROM sophia.research_tasks q WHERE q.project_id=p_project AND q.question_source_id=d.source_id LIMIT 1),

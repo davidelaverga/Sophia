@@ -1318,6 +1318,72 @@ describe("a report's cited sources offered beside it (0082, A43, FND-B-REVIEW-CI
     assert.ok(!later.includes(reportSource) && !later.includes(noteSource), 'nothing forgotten is offered')
     assert.ok(later.includes(earlier), 'the other report still is')
   })
+
+  it('labels a page the research read by its host alone: never a URL’s user, password, port, path, query or fragment (R2-482-R1)', async () => {
+    const w = await world()
+    // Synthetic pages, each read under a settled read of an allowance (the provenance a capture records); a stored
+    // reportedFinalUrl is not checked for its authority, so the label may not trust it.
+    const pages = await asOwner(async (owner) => {
+      const allowance = (
+        await owner.query<{ id: string }>(
+          `INSERT INTO sophia.research_allowances(project_id,cap_usd,headroom_usd,source_policy,max_searches,max_reads)
+           VALUES($1,1,0,'web-pilot-v1',5,5) RETURNING id`,
+          [w.projectId],
+        )
+      ).rows[0]?.id
+      const page = async (requested: string, reported: string | null) => {
+        const id = await textSource(owner, w.projectId, `# A page\n\nRead from ${randomUUID()}.\n`)
+        const target = `input:${randomUUID()}`
+        const reservation = (
+          await owner.query<{ id: string }>(
+            `INSERT INTO sophia.research_reservations(project_id,allowance_id,reservation_key,kind,provider,state,reserved_usd,
+               settled_usd,ended_at,target_ref,target_url)
+             VALUES($1,$2,$3,'read','jina','settled',0.01,0.01,now(),$4,$5) RETURNING id`,
+            [w.projectId, allowance, `read-${id}`, target, requested],
+          )
+        ).rows[0]?.id
+        await owner.query(
+          `INSERT INTO sophia.source_provenance(project_id,source_id,kind,provider,reservation_id,target_ref,requested_url,
+             reported_final_url,coverage)
+           VALUES($1,$2,'web_read','jina',$3,$4,$5,$6,'complete')`,
+          [w.projectId, id, reservation, target, requested, reported],
+        )
+        return id
+      }
+      return {
+        userinfo: await page('https://docs.example/path', 'https://reader:demo@docs.example/path?private=x#part'),
+        port: await page('https://Docs.Example.org:8443/a/b?q=1#frag', null),
+        plain: await page('https://example.org/hosts?x=1', null),
+        literal: await page('https://[2001:db8::1]/inside', null),
+        malformed: await page('https://example.net/ok', 'not a url'),
+      }
+    })
+    const report = await citingReport(w.projectId, w.goalId, 'Hosts', Object.values(pages))
+    const res = await member(E, `/api/v1/projects/${w.projectId}/plans/source-review`)
+    assert.equal(res.status, 200, JSON.stringify(res.json))
+    const offer = res.json as SourceReviewAvailability
+    const labels = Object.fromEntries(offeredReport(offer, report).supporting.map((s) => [s.sourceId, s.label]))
+    assert.deepEqual(
+      {
+        userinfo: labels[pages.userinfo],
+        port: labels[pages.port],
+        plain: labels[pages.plain],
+        literal: labels[pages.literal],
+        malformed: labels[pages.malformed],
+      },
+      {
+        userinfo: 'Web page',
+        port: 'Web page · docs.example.org',
+        plain: 'Web page · example.org',
+        literal: 'Web page',
+        malformed: 'Web page',
+      },
+      'a recognized host alone, otherwise the neutral label',
+    )
+    const said = JSON.stringify(offer)
+    for (const part of ['reader', 'demo', 'private', '#part', '8443', '/a/b', 'q=1', 'frag', 'inside', 'not a url'])
+      assert.ok(!said.includes(part), `"${part}" is never offered`)
+  })
 })
 
 describe('the R1 review, replayed (R1-F02)', () => {
