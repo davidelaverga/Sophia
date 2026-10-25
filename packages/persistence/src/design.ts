@@ -92,6 +92,53 @@ export async function htmlDesignReady(c: pg.PoolClient, projectId: string, desig
   return onlyRow(rows, 'html_design_ready').ready
 }
 
+// --- retry of a failed design (0081) ------------------------------------------------------------------------------------
+
+/** What a retry of a failed design names: its version, and the owner's current spend approval (the research grant). */
+export interface DesignRetryRequest {
+  readonly versionId: string
+  readonly grantRevision: number
+  readonly approvalRef: string
+}
+
+/** A retry as its request is answered: the new design task, its frozen package and its own allowance. */
+export interface DesignRetryReceipt {
+  readonly taskId: string
+  readonly state: string
+  readonly versionId: string
+  readonly packageSha256: string
+  readonly allowanceId: string
+}
+
+/**
+ * Try a failed design of a report again (0081 retry_failed_design): a new design attempt on the failed task's frozen
+ * content package and version, spending from a new allowance under the owner's current research grant, admitted only
+ * while that approval is newer than the latest design of the version. Refused, with nothing admitted, otherwise. The
+ * same key returns the same retry. Inside withActor(..., 'write').
+ */
+export async function retryFailedDesign(
+  c: pg.PoolClient,
+  projectId: string,
+  taskId: string,
+  key: string,
+  request: DesignRetryRequest,
+): Promise<DesignRetryReceipt> {
+  const { rows } = await c.query<{ receipt: DesignRetryReceipt }>(
+    `SELECT sophia.retry_failed_design($1, $2, $3) AS receipt`,
+    [
+      projectId,
+      taskId,
+      JSON.stringify({
+        requestKey: key,
+        versionId: request.versionId,
+        grantRevision: request.grantRevision,
+        approvalRef: request.approvalRef,
+      }),
+    ],
+  )
+  return onlyRow(rows, 'retry_failed_design').receipt
+}
+
 // --- edit (0041) -------------------------------------------------------------------------------------------------------
 
 /**

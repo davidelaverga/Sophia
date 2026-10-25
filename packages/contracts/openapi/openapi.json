@@ -16625,6 +16625,125 @@
           }
         }
       }
+    },
+    "/api/v1/projects/{projectId}/native-tasks/{taskId}/html-retry": {
+      "post": {
+        "operationId": "retryFailedDesign",
+        "summary": "Try a failed HTML design of a report again: one new design attempt on the failed design's frozen content package and version, spending from a new allowance under the owner's current research grant. Editors and admins only. The same Idempotency-Key returns the same retry.",
+        "tags": [
+          "artifacts"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignRetryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Admitted (or what the earlier call with this key admitted); the page is designed, gated and reviewed later",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignRetryReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted (editors and admins only), the report draws on a withdrawn source, or the research gate is closed (research_gate_closed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such design task in this project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The design has not failed, a design of this page is under way or later, the version is no longer current or already has a designed page, the spend approval named is not the current one, predates the last design or was used by a retry (stale_revision), the design limit is reached, or the key was used for another retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or the design is not a failed design of a report or never froze its content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "HTML design is unavailable: no designer or no capture renderer is ready (html_unavailable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -27248,6 +27367,34 @@
               "pattern": "^[a-z][a-z0-9-]{0,63}$"
             },
             "description": "The section ids of the design's latest page, in page order: what an edit can name."
+          },
+          "retry": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "A42: whether this failed design can be tried again (retryFailedDesign) and under which spend approval. Present only for an editor, on a failed create design with a frozen package and no later design of its version.",
+            "properties": {
+              "approval": {
+                "type": "string",
+                "enum": [
+                  "fresh",
+                  "stale",
+                  "closed"
+                ],
+                "description": "fresh: the owner's current approval is newer than the latest design of the version and no retry in the project has used it, so a retry can be admitted; stale: a new owner approval is needed first; closed: the research gate is off."
+              },
+              "grantRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "approvalRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              }
+            },
+            "required": [
+              "approval"
+            ]
           }
         },
         "required": [
@@ -36666,6 +36813,72 @@
         },
         "required": [
           "expectedRevision"
+        ]
+      },
+      "DesignRetryRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A retry of a failed design (A42): the report version it was of, and the owner's current spend approval (the project's research grant) it spends under.",
+        "properties": {
+          "versionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "grantRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "approvalRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "versionId",
+          "grantRevision",
+          "approvalRef"
+        ]
+      },
+      "DesignRetryReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A retry as admitted (A42): the new design task, its state now, the version, the frozen package's hash and the new allowance it spends from.",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "designing",
+              "reviewing",
+              "published",
+              "failed",
+              "cancelled",
+              "superseded"
+            ]
+          },
+          "versionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "packageSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "allowanceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "taskId",
+          "state",
+          "versionId",
+          "packageSha256",
+          "allowanceId"
         ]
       }
     }

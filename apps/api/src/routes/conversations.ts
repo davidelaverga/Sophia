@@ -1,10 +1,17 @@
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
-import type { Contribution, DesignEditRequest, ResearchRender, ResearchRendition } from '@sophia/contracts'
+import type {
+  Contribution,
+  DesignEditRequest,
+  DesignRetryRequest,
+  ResearchRender,
+  ResearchRendition,
+} from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import {
   readNativeTask,
   requestDesignEdit,
+  retryFailedDesign,
   requestResearchRendition,
   submitContribution,
   withActor,
@@ -112,6 +119,29 @@ function renditionRoutes(app: FastifyInstance, pool: pg.Pool): void {
     async (req, reply) => {
       const receipt = await withActor(pool, req.actorId, 'write', (c) =>
         requestDesignEdit(c, req.params.projectId, req.headers['idempotency-key'], req.body),
+      )
+      return reply.status(202).send(receipt)
+    },
+  )
+  // Try a failed HTML design of a report again (A42, 0081): one new design attempt on its frozen content package, under
+  // the owner's current research grant and a new allowance; refused, with nothing admitted, otherwise.
+  app.post<{
+    Params: { projectId: string; taskId: string }
+    Headers: { 'idempotency-key': string }
+    Body: DesignRetryRequest
+  }>(
+    '/api/v1/projects/:projectId/native-tasks/:taskId/html-retry',
+    {
+      schema: {
+        params: taskParams,
+        headers: idempotencyHeader,
+        body: { $ref: 'DesignRetryRequest#' },
+        response: { 202: { $ref: 'DesignRetryReceipt#' } },
+      },
+    },
+    async (req, reply) => {
+      const receipt = await withActor(pool, req.actorId, 'write', (c) =>
+        retryFailedDesign(c, req.params.projectId, req.params.taskId, req.headers['idempotency-key'], req.body),
       )
       return reply.status(202).send(receipt)
     },
