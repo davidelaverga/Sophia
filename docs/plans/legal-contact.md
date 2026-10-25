@@ -49,3 +49,11 @@
 
 - It lands on 24 October 2026, so `UPDATED` and the spec move to that day: written first `de8499a73` (red: «Expected
   substring: "Last updated 24 October 2026"», received 23 October, terms and privacy), then the date.
+
+## Landing, again (2026-10-25)
+
+- It lands on 25 October 2026: `UPDATED` and the spec move to that day (`f46e909fe` test, then the date). The red was not
+  re-run locally (Luis's game was open, so no Playwright); it is the same one-line pair as 24 October's, proven red
+  then, and CI is the run on record.
+- Receipt checked by Luis (2026-10-25): a test message to `info@sophia-ei.com` from an outside address drew no
+  bounce, so Microsoft 365 accepted it for the mailbox.

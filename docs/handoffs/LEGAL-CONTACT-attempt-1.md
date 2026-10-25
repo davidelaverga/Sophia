@@ -72,3 +72,9 @@ open P1.
 - `UPDATED` moves to 24 October 2026, the landing day: written first `de8499a73`, red on terms and privacy
   (`pw-logs/legal-date-red`: «Expected substring: "Last updated 24 October 2026"»), then the date. Main merged in
   (`ea8378cde`, after #479). Then the coordinator pushes and takes #374 out of draft; merge on green with no open P1.
+
+## Landing, again (2026-10-25)
+
+- `UPDATED` moves to 25 October 2026 (`f46e909fe`, then the date); red not re-run locally (Aion 2 open), CI on record.
+- Codex's P1 (verify the advertised mailbox): Luis sent a test message to `info@sophia-ei.com` from an outside address
+  on 2026-10-25 and got no bounce; Microsoft 365 accepted it for the mailbox.
