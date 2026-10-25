@@ -61,8 +61,13 @@ export function linkedId(hash: string, prefix = RESOURCE): string | null {
   }
 }
 
+/** Said on the window after a view writes the address itself (`showInAddress`): the record Back is held to. */
+export const ADDRESS_SHOWN = 'sophia:address-shown'
+
 /** Puts the open sheet in the address, or takes it away, without a new history entry. */
 export function showInAddress(id: string | null, prefix = RESOURCE): void {
   const { pathname, search } = window.location
   window.history.replaceState(window.history.state, '', `${pathname}${search}${id ? linkHash(id, prefix) : ''}`)
+  // Only what a view opened is noted (useAddressed): nothing is followed, and a close leaves the record it closed.
+  window.dispatchEvent(new Event(ADDRESS_SHOWN))
 }
