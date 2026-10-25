@@ -11,14 +11,17 @@
 --   (the function runs as its owner, so eligible_sources_read is restated, never assumed), the source this project's,
 --   released, eligible and ready, with text, at most the review's 32 KiB, and drawing on nothing withdrawn
 --   (review_source_readable, through 0033's closure). A private source, its owner's own included, is never listed.
--- * A cited source that is itself a report version is offered as a report, not again as supporting. At most 50 per
---   version, by label then id.
+-- * A cited report version that the offer returns is offered as a report, not again as supporting. One the bounded
+--   offer leaves out (it names the newest 50) is listed as supporting, so it can still be chosen beside the report
+--   citing it; one the offer never shows (a candidate or a rejected version) is not listed (CODE review on 24df).
+--   At most 50 per version, by label then id.
 -- * Labels come from what is recorded about the source (a project note's kind, the host of a page the research read,
 --   search results, an admitted input, the research question), never from its text; a source is named by its own id,
 --   never by a note's or a version's. A page's label carries its host alone, never a user, password, port, path, query
 --   or fragment; an authority that is not a plain DNS name gives "Web page" alone.
 -- * Nothing else changes: who may propose, the grants, the limits, the proposal and its guards. Everything else in the
---   body is 0042's, unchanged. 0001-0081 are not edited.
+--   body is 0042's: the offered report versions keep its predicates, order and bound of 50, named once (offered) so
+--   that supporting is compared with what is actually offered. 0001-0081 are not edited.
 BEGIN;
 
 CREATE OR REPLACE FUNCTION sophia.source_review_availability(p_project uuid, p_role text, p_route text) RETURNS jsonb LANGUAGE plpgsql STABLE
@@ -38,9 +41,17 @@ BEGIN
   'maxAllowanceUsd',CASE WHEN reason IS NULL THEN least(cg.review_cap_usd,rg.task_cap_usd) END,'limits',sophia.source_review_limits(),
   -- What the entry offers to review: report versions whose text can be read, newest first. Manifests, drafts and
   -- other internal sources are not offered.
-  'sources',(SELECT coalesce(jsonb_agg(x ORDER BY n),'[]') FROM (
-   SELECT jsonb_build_object('sourceId',v.source_id,'label',left(a.title||coalesce(' · version '||v.version_number,''),200),'mime',s.mime,
-    'byteLength',s.byte_length,'createdAt',to_char(v.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+  'sources',(WITH offered AS (
+   SELECT v.id, v.source_id, v.created_at, v.version_number, a.title, s.mime, s.byte_length
+   FROM sophia.artifact_versions v JOIN sophia.artifacts a ON a.project_id=v.project_id AND a.id=v.artifact_id
+    JOIN sophia.source_objects s ON s.project_id=v.project_id AND s.id=v.source_id
+   WHERE v.project_id=p_project AND v.state IN ('stable','superseded','validated')
+    AND s.byte_length<=cap
+    AND sophia.review_source_readable(p_project,v.source_id)
+   ORDER BY v.created_at DESC, v.id LIMIT 50)
+  SELECT coalesce(jsonb_agg(x ORDER BY n),'[]') FROM (
+   SELECT jsonb_build_object('sourceId',o.source_id,'label',left(o.title||coalesce(' · version '||o.version_number,''),200),'mime',o.mime,
+    'byteLength',o.byte_length,'createdAt',to_char(o.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
     -- A43: the sources this version cites, as recorded, that the caller and a review may read now.
     'supporting',(SELECT coalesce(jsonb_agg(jsonb_build_object('sourceId',c.id,'label',c.label,'mime',c.mime,'byteLength',c.byte_length)
        ORDER BY c.label, c.id),'[]') FROM (
@@ -60,21 +71,21 @@ BEGIN
         'Cited source'),200) AS label
       FROM sophia.source_dependencies d
        JOIN sophia.source_objects cs ON cs.project_id=d.project_id AND cs.id=d.source_id
-      WHERE d.project_id=p_project AND d.derived_source_id=v.source_id AND d.source_id<>v.source_id
+      WHERE d.project_id=p_project AND d.derived_source_id=o.source_id AND d.source_id<>o.source_id
        -- Readable by the caller now: eligible_sources_read, restated (a member; a released project source), not its
        -- owner's private one.
        AND sophia.is_member(p_project) AND cs.scope='project' AND cs.eligible AND cs.state='ready'
        -- And by a review: with text, nothing it draws on withdrawn, within what a review reads.
        AND sophia.review_source_readable(p_project,d.source_id) AND cs.byte_length<=cap
-       AND NOT EXISTS(SELECT 1 FROM sophia.artifact_versions av WHERE av.project_id=p_project AND av.source_id=d.source_id)
+       -- A cited report version: not again when the offer returns it; listed when the bound leaves it out; never one
+       -- the offer does not show (a candidate or a rejected version).
+       AND NOT EXISTS(SELECT 1 FROM offered r WHERE r.source_id=d.source_id)
+       AND (NOT EXISTS(SELECT 1 FROM sophia.artifact_versions av WHERE av.project_id=p_project AND av.source_id=d.source_id)
+        OR EXISTS(SELECT 1 FROM sophia.artifact_versions av WHERE av.project_id=p_project AND av.source_id=d.source_id
+         AND av.state IN ('stable','superseded','validated')))
       ORDER BY label, d.source_id LIMIT 50) c)) AS x,
-    row_number() OVER (ORDER BY v.created_at DESC, v.id) AS n
-   FROM sophia.artifact_versions v JOIN sophia.artifacts a ON a.project_id=v.project_id AND a.id=v.artifact_id
-    JOIN sophia.source_objects s ON s.project_id=v.project_id AND s.id=v.source_id
-   WHERE v.project_id=p_project AND v.state IN ('stable','superseded','validated')
-    AND s.byte_length<=cap
-    AND sophia.review_source_readable(p_project,v.source_id)
-   ORDER BY v.created_at DESC, v.id LIMIT 50) q));
+    row_number() OVER (ORDER BY o.created_at DESC, o.id) AS n
+   FROM offered o) q));
 END $$;
 
 COMMIT;
