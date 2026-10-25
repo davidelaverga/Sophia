@@ -3,7 +3,7 @@
   "goal": "SDD-01",
   "title": "A version made by a design names its design task: trigger kind design",
   "why": [
-    "Since migration 0040 (and 0041), publishing a designed HTML page makes a new version of the report whose trigger names the design task that made it, with kind design. A11 declared the trigger before designs existed, as research or rendition only, so every strict reader of the report's versions refused the whole list once a design was published: the report pane said it could not be loaded, and the project snapshot, which carries each report's current version, was refused the same way (FND-B-HTML-READ-CONTRACT-FIX-01).",
+    "Since migration 0040 (and 0041), publishing a designed HTML page makes a new version of the report whose trigger names the design task that made it, with kind design. A11 declared the trigger before designs existed, as research or rendition only, so every strict reader of the report's versions refused the whole list once a design was published: the report pane said it could not be loaded (FND-B-HTML-READ-CONTRACT-FIX-01). The project snapshot was not affected: it carries each report's current version without its notes, the trigger among them, by design.",
     "The trigger's kind now includes design. Nothing else in the trigger changes: kind and taskId stay required, any other kind is still refused, and the trigger keeps no property beyond the four it declares (the design task's own record stays where it was, read from its task)."
   ],
   "patch": [
