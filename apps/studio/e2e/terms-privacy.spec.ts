@@ -20,7 +20,7 @@ for (const [asked, title, other] of [
   test(`legal · ${asked}: its title, date and sections, and the way to the other and home`, async ({ page }) => {
     await page.goto(`/legal.html?doc=${asked}`)
     await expect(doc(page).getByRole('heading', { level: 1 })).toHaveText(title)
-    await expect(doc(page)).toContainText('Last updated 25 October 2026')
+    await expect(doc(page)).toContainText('Last updated 26 October 2026')
     expect(await doc(page).getByRole('heading', { level: 2 }).count()).toBeGreaterThanOrEqual(8)
     await expect(page.getByRole('link', { name: other })).toHaveAttribute(
       'href',
