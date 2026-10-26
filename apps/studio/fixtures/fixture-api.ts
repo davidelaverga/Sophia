@@ -57,6 +57,7 @@ import {
   versions,
   waitingAtTheDoor,
   type Description,
+  type MadeBy,
 } from './report-data.ts'
 import { readingRead } from './reading-data.ts'
 import { noteKept, noteWithdrawn, withdrawalPreview, type Notes } from './brief-data.ts'
@@ -258,6 +259,8 @@ interface Project {
   designing?: boolean
   /** The designed page arrives as bytes its record does not name (`tamper=html`). */
   pageTampered?: boolean
+  /** What made the report's newest version, when not its research (`trigger=design|unknown`, A44). */
+  madeBy?: MadeBy
   /** The research task is in the project's work (`place=work`): its card lists the report's outputs. */
   work: boolean
   /** The snapshot carries the research task and the report's current version (`reports=1`, goal-reports.md). */
@@ -1640,7 +1643,13 @@ const ahead = (card: ReportList['reports'][number]): ReportList['reports'][numbe
 /** Knowledge's list of reports, as the reader asked for it (words, a format, a page, a project). */
 function reportsAnswer(project: Project, url: URL) {
   const filter = { q: url.searchParams.get('q'), format: url.searchParams.get('format') }
-  const published = versions(project.reportVersions, project.reportTitle, project.pilot, project.designed)
+  const published = versions(
+    project.reportVersions,
+    project.reportTitle,
+    project.pilot,
+    project.designed,
+    project.madeBy,
+  )
   const listed = reportList(published, project.description, url.searchParams.get('cursor'), filter)
   const list = project.cardAhead ? { ...listed, reports: listed.reports.map(ahead) } : listed
   if (!project.reportsElsewhere) return json(list)
@@ -2233,7 +2242,11 @@ function versionsRead(project: Project): Response {
     return new Response(JSON.stringify(body), { status: failure.status })
   }
   served.push(`versions:${String(project.reportVersions)}`)
-  return json(versions(project.reportVersions, project.reportTitle, project.pilot, project.designed))
+  const listed = versions(project.reportVersions, project.reportTitle, project.pilot, project.designed, project.madeBy)
+  if (project.madeBy !== 'unknown') return json(listed)
+  // A kind no contract names, as an API serving the stored row unchanged would send it: a strict reader refuses it.
+  const unknown = JSON.stringify(listed).replace('"kind":"design"', '"kind":"renovation"')
+  return new Response(unknown, { headers: { 'content-type': 'application/json' } })
 }
 
 const proposalId = (n: number) => `00000000-0000-4000-8000-0000000072${String(n).padStart(2, '0')}`

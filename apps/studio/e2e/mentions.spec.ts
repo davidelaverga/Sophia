@@ -479,34 +479,40 @@ test('mentions · chosen again while a message goes: its success clears only wha
 
 /**
  * #409 4305869903: the first `failures` seen writes answer 503 (the fixture's fetch is wrapped as the page sets it), and
- * each attempt is counted, so a stationary readable mention's retries are seen without a scroll or a new read.
+ * each attempt is counted, so a stationary readable mention's retries are seen without a scroll or a new read. With
+ * `hideOnFailure` (and `backgroundable` set up first), the page goes to the background as the first failure answers,
+ * before the page hears it: its retry is then scheduled, and falls due, with the page hidden (r4314628605).
  */
-async function failingSeen(page: Page, failures: number) {
-  await page.addInitScript((n) => {
-    let left = n
-    window.seenAttempts = 0
-    const wrap =
-      (f: typeof fetch): typeof fetch =>
-      async (input, init) => {
-        const url = new URL(input instanceof Request ? input.url : String(input), location.href)
-        if (init?.method === 'POST' && /^\/api\/v1\/me\/needs\/[^/]+\/seen$/.test(url.pathname)) {
-          window.seenAttempts = (window.seenAttempts ?? 0) + 1
-          if (left > 0) {
-            left--
-            return new Response(JSON.stringify({ code: 'unavailable', message: 'Busy', retry: 'safe' }), {
-              status: 503,
-            })
+async function failingSeen(page: Page, failures: number, { hideOnFailure = false } = {}) {
+  await page.addInitScript(
+    ({ n, hide }) => {
+      let left = n
+      window.seenAttempts = 0
+      const wrap =
+        (f: typeof fetch): typeof fetch =>
+        async (input, init) => {
+          const url = new URL(input instanceof Request ? input.url : String(input), location.href)
+          if (init?.method === 'POST' && /^\/api\/v1\/me\/needs\/[^/]+\/seen$/.test(url.pathname)) {
+            window.seenAttempts = (window.seenAttempts ?? 0) + 1
+            if (left > 0) {
+              if (hide && left === n) window.setHidden?.(true)
+              left--
+              return new Response(JSON.stringify({ code: 'unavailable', message: 'Busy', retry: 'safe' }), {
+                status: 503,
+              })
+            }
           }
+          return f(input, init)
         }
-        return f(input, init)
-      }
-    let current = wrap(window.fetch.bind(window))
-    Object.defineProperty(window, 'fetch', {
-      configurable: true,
-      get: () => current,
-      set: (f: typeof fetch) => (current = wrap(f)),
-    })
-  }, failures)
+      let current = wrap(window.fetch.bind(window))
+      Object.defineProperty(window, 'fetch', {
+        configurable: true,
+        get: () => current,
+        set: (f: typeof fetch) => (current = wrap(f)),
+      })
+    },
+    { n: failures, hide: hideOnFailure },
+  )
 }
 const seenAttempts = (page: Page) => page.evaluate(() => window.seenAttempts ?? 0)
 
@@ -1130,11 +1136,13 @@ test('mentions · a failed seen write whose retry falls due in the background wa
   page,
 }) => {
   await backgroundable(page, false)
-  await failingSeen(page, 1)
+  // The page goes to the background as the first write fails, in the page itself: a hide sent from here after the count
+  // was read could land after the failure's 1 s retry had already gone in front (CI 40196169238).
+  await failingSeen(page, 1, { hideOnFailure: true })
   await page.goto(`/room.html?call=on&people=2&floor=1&discussion=mentioned#message-${MENTIONED_IN}`)
   await expect(discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)).toBeInViewport()
-  await expect.poll(() => seenAttempts(page)).toBe(1) // the first write, failed
-  await page.evaluate(() => window.setHidden?.(true))
+  await expect.poll(() => seenAttempts(page)).toBe(1) // the first write, sent in front, failed
+  expect(await page.evaluate(() => document.visibilityState)).toBe('hidden')
   await page.waitForTimeout(2500) // its retry falls due (1 s) in the background
   expect(await seenAttempts(page)).toBe(1)
   expect(await seenOf(page)).toEqual([])

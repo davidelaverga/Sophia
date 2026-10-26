@@ -127,6 +127,7 @@ import {
   TASK,
   versionId,
   VERSIONS_HELD,
+  type MadeBy,
 } from './report-data.ts'
 import { seededTasks } from './human-tasks-data.ts'
 import { DEMO, DEMO_LABEL, DEMO_VERSION, VIEWER_NAME } from './demo.ts'
@@ -550,6 +551,9 @@ const MENTIONING = {
 const designFailOf = (v: string | null): false | 'unavailable' | 'forbidden' =>
   v === 'unavailable' || v === 'forbidden' ? v : false
 
+/** `trigger=design|unknown`: the report's newest version made by its design, or by a kind no contract names. */
+const madeByOf = (v: string | null): MadeBy => (v === 'design' || v === 'unknown' ? v : null)
+
 /** `designretry=fresh|stale|closed`: the failed design's retry, as its editor reads it. */
 const designRetryOf = (v: string | null): 'fresh' | 'stale' | 'closed' | null =>
   v === 'fresh' || v === 'stale' || v === 'closed' ? v : null
@@ -883,6 +887,8 @@ const project = {
   designed: query.get('designed') === 'on' || (DEMO && query.get('design') !== 'designing'),
   designing: query.get('design') === 'designing',
   pageTampered: query.get('tamper') === 'html',
+  // `trigger=design|unknown` (A44): what made the report's newest version, when not its research.
+  madeBy: madeByOf(query.get('trigger')),
   work: query.get('place') === 'work',
   // `reports=1`: the research task in the snapshot's work and the report's current version in its artifacts, as the API
   // serves them (goal-reports.md).

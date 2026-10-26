@@ -355,13 +355,34 @@ function version(n: number, title: string, pilot: boolean): ArtifactVersion {
 }
 
 /**
- * The report's versions as the API lists them, newest first: `published` of them (with `pilot`, as in PILOT_TEXTS;
- * with `designed`, version 1 carries its designed page).
+ * What made the newest version, when not its research (`trigger=design|unknown`): its design task, as publishing a
+ * designed page names it (0040/0041, A44), or a kind no contract names, which a strict reader must still refuse.
  */
-export const versions = (published: number, title = TITLE, pilot = false, designed = false): ArtifactVersion[] =>
+export type MadeBy = 'design' | 'unknown' | null
+
+/**
+ * The report's versions as the API lists them, newest first: `published` of them (with `pilot`, as in PILOT_TEXTS;
+ * with `designed`, version 1 carries its designed page; with `madeBy`, the newest is the one a design published, with
+ * its page, and its trigger names what made it).
+ */
+export const versions = (
+  published: number,
+  title = TITLE,
+  pilot = false,
+  designed = false,
+  madeBy: MadeBy = null,
+): ArtifactVersion[] =>
   Array.from({ length: published }, (_, i) => {
     // As the API keeps them: the newest is the stable one, each before it superseded.
     const v = { ...version(published - i, title, pilot), ...(i > 0 && { state: 'superseded' as const }) }
+    if (i === 0 && madeBy) {
+      // An unknown kind is served by the fixture's API as bytes (fixture-api.ts versionsRead), never typed here.
+      return {
+        ...v,
+        renditions: [designedRendition(v.versionNumber)],
+        trigger: { kind: 'design', taskId: DESIGN_TASK },
+      }
+    }
     const paged = designed && (DEMO || v.versionNumber === 1)
     return paged ? { ...v, renditions: [designedRendition(v.versionNumber)] } : v
   })
