@@ -58,3 +58,30 @@ export const SOURCE_REVIEW: SourceReviewAvailability = {
     source(4, 'Risk register v5', 16000),
   ],
 }
+
+/**
+ * `rendition=1` (FND-B-HTML-RENDITION-01, 0083): what Sophia offers for a report a design published as version 2. The
+ * page is a source of its own (compiled HTML, its real size); the Markdown text versions 1 and 2 both keep is offered
+ * once, named for both; each beside the source the version cites. Two more reports reach the three-source and 32 KiB
+ * limits. Synthetic ids and sizes: the shape the corrected offer returns (design.db.test.ts), never production content.
+ */
+export const RENDITION_SOURCES: SourceReviewAvailability['sources'] = [
+  {
+    sourceId: '00000000-0000-4000-8000-000000007301',
+    label: 'Launch report · version 2 · HTML page',
+    mime: 'text/html; charset=utf-8',
+    byteLength: 6725,
+    createdAt: at,
+    supporting: [cited(1, 'Project note · observation', 600)],
+  },
+  {
+    sourceId: '00000000-0000-4000-8000-000000007302',
+    label: 'Launch report · versions 1, 2',
+    mime: 'text/markdown; charset=utf-8',
+    byteLength: 2857,
+    createdAt: at,
+    supporting: [cited(1, 'Project note · observation', 600)],
+  },
+  source(2, 'Press plan v2', 12768),
+  source(4, 'Risk register v5', 26000),
+]

@@ -3394,6 +3394,78 @@ test('a43 · a report Sophia no longer offers leaves the form with what it cites
   await expect.poll(() => sentSources(page)).toEqual([[PRESS]])
 })
 
+// ---- FND-B-HTML-RENDITION-01 (0083): a published HTML page is a source of its own, and one text is one choice. ----
+
+const HTML_PAGE = '00000000-0000-4000-8000-000000007301'
+const RISK = '00000000-0000-4000-8000-000000007104'
+
+/** Review sources on the report a design published as version 2: its page, and the text versions 1 and 2 keep. */
+async function renditionForm(page: Page) {
+  await page.goto(`${PAGE}?served=1&proposed=lost&rendition=1`)
+  const { form, pick, propose, over } = await reviewForm(page)
+  const cites = (label: string) =>
+    form
+      .getByRole('group', { name: `Sources ${label} cites` })
+      .getByRole('checkbox', { name: 'Project note · observation' })
+  return {
+    form,
+    pick,
+    propose,
+    over,
+    html: pick('Launch report · version 2 · HTML page'),
+    text: pick('Launch report · versions 1, 2'),
+    pageNote: cites('Launch report · version 2 · HTML page'),
+    textNote: cites('Launch report · versions 1, 2'),
+  }
+}
+
+test('rendition · the page and the text versions 1 and 2 keep are two choices; the page and its note go by their own ids, the same again', async ({
+  page,
+}) => {
+  const { form, html, text, pageNote, propose } = await renditionForm(page)
+  // One row per source: never a row per version of one text.
+  await expect(form.getByRole('checkbox', { name: /^Launch report/ })).toHaveCount(2)
+  await html.check()
+  await expect(text).not.toBeChecked()
+  await expect(pageNote).not.toBeChecked()
+  await pageNote.check()
+  await propose.click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'No reply from Sophia. Propose again to check; it is the same proposal.',
+  )
+  expect(await sentSources(page)).toEqual([[HTML_PAGE, NOTE]])
+  // Its reply lost: proposed again, the same key and the same request, then answered.
+  await form.getByRole('button', { name: 'Propose again' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Proposed.' })).toBeVisible()
+  const sent = await page.evaluate(() => window.workFixture?.proposals ?? [])
+  expect(sent).toHaveLength(2)
+  expect(sent[1]).toEqual(sent[0])
+})
+
+test('rendition · beside both, the note both cite is one choice counted once; three sources at most, 32 KiB at most', async ({
+  page,
+}) => {
+  const { pick, html, text, pageNote, textNote, propose, over } = await renditionForm(page)
+  await html.check()
+  await text.check()
+  await expect(textNote).not.toBeChecked()
+  await pageNote.check()
+  await expect(textNote).toBeChecked()
+  // Three sources: a fourth is not taken.
+  await pick('Press plan v2').click()
+  await expect(pick('Press plan v2')).not.toBeChecked()
+  // The text let go, the note stays beside the page that cites it.
+  await text.uncheck()
+  await expect(pageNote).toBeChecked()
+  await pick('Risk register v5').check()
+  await expect(over).toContainText('These sources hold 32.6 KiB of text')
+  await expect(propose).toBeDisabled()
+  await pageNote.uncheck()
+  await expect(over).toHaveCount(0)
+  await propose.click()
+  await expect.poll(() => sentSources(page)).toEqual([[HTML_PAGE, RISK]])
+})
+
 // ---- E2E-Q3 (real stack, 2026-10-14): Review sources is offered only where there is something to review. ----
 
 const offersRead = (page: Page) =>

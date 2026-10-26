@@ -15,7 +15,7 @@ import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import type { RuntimeCommand } from '@sophia/contracts'
-import { parseArtifactVersionList, parseSnapshot } from '@sophia/contracts/validate'
+import { parseArtifactVersionList, parseSnapshot, parseSourceReviewAvailability } from '@sophia/contracts/validate'
 import { plainPage } from '@sophia/design/testing'
 import type { ContentPackage } from '@sophia/design'
 import {
@@ -2690,5 +2690,161 @@ describe('a design’s model-call accounting answers a resend as recorded (David
     const other = await w.runtime('/v1/runtime/design/settle', { ...settle, costUsd: 0.005 })
     assert.notEqual(other.status, 200, 'another cost for a settled call is refused')
     assert.deepEqual(await rows(), [['settled', 0.004]], 'settled once, at its first cost')
+  })
+})
+
+describe('a published HTML page offered for source review, each source once (FND-B-HTML-RENDITION-01, 0083)', () => {
+  const COMPANY = 'design-review-company'
+  /** Source review enrolled for the project: both grants, as for the pilot (the integration registered once). */
+  async function enroll(projectId: string) {
+    await owner(async (c) => {
+      const known = await c.query(`SELECT 1 FROM sophia.coordination_integrations WHERE paperclip_company_id=$1`, [
+        COMPANY,
+      ])
+      if (known.rowCount === 0)
+        await c.query(`SELECT sophia.register_coordination_integration($1, $2, 'design review test')`, [
+          COMPANY,
+          createHash('sha256').update(`design-review-${randomUUID()}`).digest(),
+        ])
+      await c.query(`SELECT sophia.set_coordination_grant($1, 'enabled', 2, $2, 'pc-design-review', 'approval:test')`, [
+        projectId,
+        COMPANY,
+      ])
+    })
+  }
+
+  /** What a design's publication recorded (0040): the versions' sources, the page's source, the citation, a goal. */
+  async function recorded(projectId: string, artifactId: string, versionId: string, cited: string) {
+    return owner(async (c) => {
+      const versions = await c.query<{ version_number: number; source_id: string }>(
+        `SELECT version_number, source_id FROM sophia.artifact_versions WHERE project_id=$1 AND artifact_id=$2
+          ORDER BY version_number`,
+        [projectId, artifactId],
+      )
+      const source = `SELECT s.id, s.sha256, s.mime, s.byte_length::int AS bytes FROM sophia.source_objects s`
+      const page = await c.query<{ id: string; sha256: string; mime: string; bytes: number }>(
+        `${source} JOIN sophia.artifact_renditions r ON r.project_id=s.project_id AND r.source_id=s.id
+          WHERE r.project_id=$1 AND r.artifact_version_id=$2 AND r.format='html'`,
+        [projectId, versionId],
+      )
+      const citation = await c.query<{ id: string; sha256: string; mime: string; bytes: number }>(
+        `${source} WHERE s.project_id=$1 AND s.id=$2`,
+        [projectId, cited],
+      )
+      const goal = await c.query<{ id: string; revision: number }>(
+        `SELECT id, revision::int AS revision FROM sophia.goals WHERE project_id=$1 AND title='Admit and replay a command'`,
+        [projectId],
+      )
+      return {
+        versions: versions.rows.map((v) => [v.version_number, v.source_id]),
+        page: page.rows[0] ?? assert.fail('the published page'),
+        citation: citation.rows[0] ?? assert.fail('the cited source'),
+        goal: goal.rows[0] ?? assert.fail('a goal to review against'),
+      }
+    })
+  }
+
+  it('offers the page by its own source, the text versions 1 and 2 keep once, and freezes exactly what is chosen', async () => {
+    const { w, submission, at } = await designing([MD_ROLE, DESIGNER])
+    const d = await drafted(w, at, { perSection: 2 })
+    const done = await submitCandidate(w, at, d)
+    assert.deepEqual([done.json.outcome, done.json.versionNumber], ['published', 2], JSON.stringify(done.json))
+    await enroll(w.projectId)
+    const cited = String(submission.citedSourceId)
+    const { versions, page, citation, goal } = await recorded(
+      w.projectId,
+      String(submission.artifactId),
+      String(done.json.versionId),
+      cited,
+    )
+    // The publication's own shape: version 2 keeps version 1's Markdown source; the page is a source of its own.
+    const markdown = String(versions[0]?.[1])
+    assert.deepEqual(versions, [
+      [1, markdown],
+      [2, markdown],
+    ])
+    assert.notEqual(page.id, markdown)
+
+    const bearer = await token(E)
+    const offered = async () => {
+      const res = await call(`/api/v1/projects/${w.projectId}/plans/source-review`, { bearer })
+      assert.equal(res.status, 200, JSON.stringify(res.json))
+      // Read as the Studio reads it (reviewAvailability), so the offer is the strict client's contract.
+      return parseSourceReviewAvailability(res.json)
+    }
+    const offer = await offered()
+    const search = { sourceId: cited, label: 'Search results', mime: citation.mime, byteLength: citation.bytes }
+    assert.deepEqual(
+      offer.sources.map(({ createdAt: _at, ...rest }) => rest),
+      [
+        {
+          sourceId: page.id,
+          label: `${PAGE_TITLE} · version 2 · HTML page`,
+          mime: page.mime,
+          byteLength: page.bytes,
+          supporting: [search],
+        },
+        {
+          sourceId: markdown,
+          label: `${PAGE_TITLE} · versions 1, 2`,
+          mime: 'text/markdown; charset=utf-8',
+          byteLength: offer.sources.find((s) => s.sourceId === markdown)?.byteLength ?? -1,
+          supporting: [search],
+        },
+      ],
+      'the page by its own source, its version’s recorded citation beside it, and the text both versions keep, once',
+    )
+    assert.equal(page.mime, 'text/html; charset=utf-8')
+
+    // The page and the source it cites, chosen explicitly: the plan freezes those two sources, never the Markdown.
+    const key = randomUUID()
+    const body = { goalId: goal.id, goalRevision: goal.revision, sourceIds: [page.id, cited], allowanceUsd: 0.5 }
+    const propose = (k: string, b: object) =>
+      call(`/api/v1/projects/${w.projectId}/plans/source-review`, {
+        bearer,
+        body: b,
+        headers: { 'idempotency-key': k },
+      })
+    const proposed = await propose(key, body)
+    assert.equal(proposed.status, 201, JSON.stringify(proposed.json))
+    const frozen = await owner(async (c) => {
+      const m = await c.query<{ body: string }>(
+        `SELECT body FROM sophia.source_texts WHERE project_id=$1 AND source_id=$2`,
+        [w.projectId, proposed.json.manifestSourceId],
+      )
+      const plan = await c.query<{ source_ids: string[] }>(
+        `SELECT source_ids::text[] AS source_ids FROM sophia.work_plans WHERE project_id=$1 AND id=$2`,
+        [w.projectId, proposed.json.planId],
+      )
+      const items = await c.query(`SELECT 1 FROM sophia.work_items WHERE project_id=$1`, [w.projectId])
+      return {
+        sources: JSON.parse(m.rows[0]?.body ?? '{}').sources,
+        planned: plan.rows[0]?.source_ids,
+        started: items.rowCount,
+      }
+    })
+    assert.deepEqual(frozen.sources, [
+      { ref: 'S1', sourceId: page.id, sha256: page.sha256, mime: page.mime, byteLength: page.bytes },
+      { ref: 'S2', sourceId: cited, sha256: citation.sha256, mime: citation.mime, byteLength: citation.bytes },
+    ])
+    assert.deepEqual(frozen.planned, [page.id, cited])
+    assert.equal(frozen.started, 0, 'proposing starts nothing')
+    // A reply lost: the same key and request is answered as recorded; the same key with another request is refused.
+    const again = await propose(key, body)
+    assert.deepEqual([again.status, again.json.planId], [201, proposed.json.planId], JSON.stringify(again.json))
+    const other = await propose(key, { ...body, sourceIds: [markdown, cited] })
+    assert.equal(other.status, 409, JSON.stringify(other.json))
+
+    // The source the report cites, forgotten since: its text and its page draw on it, so neither is offered or admitted.
+    await owner((c) =>
+      c.query(
+        `UPDATE sophia.source_objects SET eligible=false, state='deleted', eligibility_revision=eligibility_revision+1
+          WHERE project_id=$1 AND id=$2`,
+        [w.projectId, cited],
+      ),
+    )
+    assert.deepEqual((await offered()).sources, [])
+    const late = await propose(randomUUID(), { ...body, sourceIds: [page.id] })
+    assert.equal(late.status, 403, JSON.stringify(late.json))
   })
 })

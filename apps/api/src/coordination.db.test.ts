@@ -1506,6 +1506,164 @@ describe("a report's cited sources offered beside it (0082, A43, FND-B-REVIEW-CI
   })
 })
 
+/** A rendition-only version 2 of the report whose text is `source`: the same text kept, as a design publishes (0040). */
+const keptVersion = (projectId: string, source: string) =>
+  asOwner(async (owner) => {
+    await owner.query(
+      `INSERT INTO sophia.artifact_versions(project_id,artifact_id,parent_id,source_id,source_hash,goal_id,goal_revision,
+         authority_epoch,state,version_number)
+       SELECT project_id,artifact_id,id,source_id,source_hash,goal_id,goal_revision,authority_epoch,'stable',2
+         FROM sophia.artifact_versions WHERE project_id=$1 AND source_id=$2 AND version_number=1`,
+      [projectId, source],
+    )
+    await owner.query(
+      `UPDATE sophia.artifact_versions SET state='superseded' WHERE project_id=$1 AND source_id=$2 AND version_number=1`,
+      [projectId, source],
+    )
+  })
+
+interface PageOptions {
+  readonly scope?: 'private' | 'project'
+  readonly eligible?: boolean
+  readonly state?: string
+  /** Other sources the page draws on, besides its version's text. */
+  readonly from?: readonly string[]
+}
+
+/**
+ * The HTML page a design published for the newest version whose text is `source` (0040's html rendition, synthetic): a
+ * text/html source of its own, drawn from that text as a design's files are (0039), released and ready unless told.
+ */
+const designedPage = (projectId: string, source: string, body: string, opts: PageOptions = {}) =>
+  asOwner(async (owner) => {
+    const id = randomUUID()
+    const { scope = 'project', eligible = scope === 'project', state = 'ready', from = [] } = opts
+    await owner.query(
+      `INSERT INTO sophia.source_objects(project_id,id,owner_id,scope,sha256,mime,storage_key,byte_length,eligible,state)
+       VALUES($1,$2,$3,$4,$5,'text/html; charset=utf-8',$6,$7,$8,$9)`,
+      [
+        projectId,
+        id,
+        A,
+        scope,
+        createHash('sha256').update(body).digest('hex'),
+        `inline/${projectId}/${id}`,
+        bytes(body),
+        eligible,
+        state,
+      ],
+    )
+    await owner.query(`INSERT INTO sophia.source_texts(project_id,source_id,body) VALUES($1,$2,$3)`, [
+      projectId,
+      id,
+      body,
+    ])
+    await owner.query(
+      `INSERT INTO sophia.source_dependencies(project_id,source_id,derived_source_id) SELECT $1,x,$2 FROM unnest($3::uuid[]) x`,
+      [projectId, id, [source, ...from]],
+    )
+    await owner.query(
+      `INSERT INTO sophia.artifact_renditions(project_id,artifact_version_id,format,source_id,review_state)
+       SELECT project_id,id,'html',$3,'self_review_only' FROM sophia.artifact_versions
+        WHERE project_id=$1 AND source_id=$2 ORDER BY version_number DESC LIMIT 1`,
+      [projectId, source, id],
+    )
+    return id
+  })
+
+describe('a report’s published HTML page offered for source review (0083, FND-B-HTML-RENDITION-01)', () => {
+  it('offers the page by its own source beside the text its versions keep, once, and never a page a review may not read', async () => {
+    const w = await world()
+    // A title long enough to be cut: the page keeps its ending, so the two never read alike.
+    const title = `The launch budget, as the sources state it ${'·x'.repeat(75)}`
+    const report = await citingReport(w.projectId, w.goalId, title, [w.sourceB])
+    await keptVersion(w.projectId, report)
+    const pageBody = `<!doctype html><title>Launch</title><p>${'Budget. '.repeat(2400)}</p>`
+    const page = await designedPage(w.projectId, report, pageBody)
+    // Pages a review may not read, each published for a report of its own; and a page of a version never offered.
+    const report2 = (name: string) => citingReport(w.projectId, w.goalId, name, [])
+    const gone = await asOwner((owner) => textSource(owner, w.projectId, 'A source forgotten since.'))
+    const hidden = {
+      'a private page': await designedPage(w.projectId, await report2('Private'), '<p>private</p>', {
+        scope: 'private',
+      }),
+      'an unreleased page': await designedPage(w.projectId, await report2('Unreleased'), '<p>u</p>', {
+        eligible: false,
+      }),
+      'a page not ready': await designedPage(w.projectId, await report2('Uploading'), '<p>n</p>', {
+        state: 'uploading',
+      }),
+      'a page withdrawn': await designedPage(w.projectId, await report2('Deleted'), '<p>d</p>', { state: 'deleted' }),
+      'a page over 32 KiB': await designedPage(w.projectId, await report2('Long'), `<p>${'y'.repeat(33_000)}</p>`),
+      'a page drawing on a withdrawn source': await designedPage(w.projectId, await report2('Drawn'), '<p>w</p>', {
+        from: [gone],
+      }),
+      'a candidate version’s page': await designedPage(
+        w.projectId,
+        await citingReport(w.projectId, w.goalId, 'Candidate', [], { state: 'candidate' }),
+        '<p>c</p>',
+      ),
+    }
+    await asOwner((owner) =>
+      owner.query(
+        `UPDATE sophia.source_objects SET eligible=false, state='deleted', eligibility_revision=eligibility_revision+1
+          WHERE project_id=$1 AND id=$2`,
+        [w.projectId, gone],
+      ),
+    )
+    const big = await citingReport(w.projectId, w.goalId, 'Big', [], { body: `# Big\n\n${'z'.repeat(20_000)}` })
+    // Another project's report and page, whose members do not include the caller.
+    const other = await seedProject(db.ownerUrl, { admin: A, editors: [], viewers: [] })
+    const theirs = await citingReport(other.projectId, other.goalId, 'Their report', [])
+    const theirPage = await designedPage(other.projectId, theirs, '<p>theirs</p>')
+
+    const res = await member(E, `/api/v1/projects/${w.projectId}/plans/source-review`)
+    assert.equal(res.status, 200, JSON.stringify(res.json))
+    const offer = res.json as SourceReviewAvailability
+    const ids = offer.sources.map((s) => s.sourceId)
+    assert.equal(new Set(ids).size, ids.length, 'each source offered once')
+    const cited = { sourceId: w.sourceB, label: 'Cited source', mime: 'text/markdown', byteLength: bytes(SOURCE_B) }
+    const named = `${title} · versions 1, 2`
+    assert.deepEqual(
+      [offeredReport(offer, page), offeredReport(offer, report)].map(({ createdAt: _at, ...rest }) => rest),
+      [
+        {
+          sourceId: page,
+          label: `${named.slice(0, 188)} · HTML page`,
+          mime: 'text/html; charset=utf-8',
+          byteLength: bytes(pageBody),
+          supporting: [cited],
+        },
+        {
+          sourceId: report,
+          label: named.slice(0, 200),
+          mime: 'text/markdown',
+          byteLength: bytes(reportText(title)),
+          supporting: [cited],
+        },
+      ],
+      'the page by its own source and the text versions 1 and 2 keep, each with the version’s recorded citation',
+    )
+    assert.ok(ids.indexOf(page) < ids.indexOf(report), 'the page before the text it renders, as new')
+    const said = JSON.stringify(offer)
+    for (const [what, id] of Object.entries({ ...hidden, 'another project’s page': theirPage }))
+      assert.ok(!said.includes(id), `${what} is never named`)
+
+    // The proposal is unchanged: the page, its version's text and their citation within 32 KiB; not beside 20 KiB more.
+    const three = await propose(w, { sourceIds: [page, report, w.sourceB] })
+    assert.equal(three.status, 201, JSON.stringify(three.json))
+    const over = await propose(w, { sourceIds: [page, big] })
+    assert.deepEqual(
+      [over.status, over.json.message],
+      [
+        422,
+        `The selected sources hold ${String(bytes(pageBody) + bytes(`# Big\n\n${'z'.repeat(20_000)}`))} bytes of text; a review reads at most 32 KiB`,
+      ],
+    )
+    assert.equal((await propose(w, { sourceIds: [hidden['a private page']] })).status, 403)
+  })
+})
+
 describe('the R1 review, replayed (R1-F02)', () => {
   it('reads its task without a sourceId, refuses a criteriaRef as a criterion with its reason, then publishes', async () => {
     const w = await world()
