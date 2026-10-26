@@ -3300,6 +3300,100 @@ test('codex · #107 · sources over a review’s limit together are said so and 
   await expect(propose).toBeEnabled()
 })
 
+// ---- A43 (FND-B-REVIEW-CITED-INPUTS-01): beside a chosen report, the sources it cites, none chosen. ----
+
+const LAUNCH = '00000000-0000-4000-8000-000000007101'
+const BUDGET = '00000000-0000-4000-8000-000000007103'
+const PRESS = '00000000-0000-4000-8000-000000007102'
+const NOTE = '00000000-0000-4000-8000-000000007201'
+const sentSources = (page: Page) =>
+  page.evaluate(() =>
+    (window.workFixture?.proposals ?? []).map((p) =>
+      typeof p.body === 'object' && p.body !== null ? (Reflect.get(p.body, 'sourceIds') as unknown) : undefined,
+    ),
+  )
+
+async function reviewForm(page: Page) {
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  const form = page.getByRole('form', { name: 'Review sources' })
+  return {
+    form,
+    pick: (label: string) => form.getByRole('checkbox', { name: label, exact: true }),
+    cited: form.getByRole('group', { name: 'Sources Launch brief v3 cites' }),
+    propose: form.getByRole('button', { name: 'Propose review' }),
+    over: form.getByRole('status').filter({ hasText: 'a review reads at most' }),
+  }
+}
+
+test('a43 · a chosen report shows the sources it cites, none chosen; one chosen is sent by its source id beside it, once', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?served=1&proposed=lost`)
+  const { form, pick, cited, propose, over } = await reviewForm(page)
+  // Nothing it cites is shown before the report is chosen.
+  await expect(form.getByRole('checkbox', { name: 'Project note · observation' })).toHaveCount(0)
+  await pick('Launch brief v3').check()
+  await expect(cited.getByRole('checkbox')).toHaveCount(2)
+  await expect(cited.getByRole('checkbox', { name: 'Project note · observation' })).not.toBeChecked()
+  await expect(cited.getByRole('checkbox', { name: 'Web page · example.org' })).not.toBeChecked()
+  // Within the same limits: the page as well holds one byte more than a review reads.
+  await cited.getByRole('checkbox', { name: 'Project note · observation' }).check()
+  await cited.getByRole('checkbox', { name: 'Web page · example.org' }).check()
+  await expect(over).toContainText('These sources hold 32.1 KiB of text')
+  await expect(propose).toBeDisabled()
+  await cited.getByRole('checkbox', { name: 'Web page · example.org' }).uncheck()
+  await expect(over).toHaveCount(0)
+  // Three sources at most: a fourth is not taken.
+  await pick('Budget note v1').check()
+  await cited.getByRole('checkbox', { name: 'Web page · example.org' }).click()
+  await expect(cited.getByRole('checkbox', { name: 'Web page · example.org' })).not.toBeChecked()
+  await propose.click()
+  // Its reply lost: said, and not sent again by itself.
+  await expect(form.getByRole('alert')).toBeVisible()
+  expect(await sentSources(page)).toEqual([[LAUNCH, NOTE, BUDGET]])
+  await expect(form.getByRole('button', { name: 'Propose again' })).toBeEnabled()
+  expect(await sentSources(page)).toHaveLength(1)
+})
+
+test('a43 · a report let go takes what it cites with it: chosen again, nothing it cites is chosen, and none is sent', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?served=1&proposed=lost`)
+  const { pick, cited, propose } = await reviewForm(page)
+  await pick('Launch brief v3').check()
+  await cited.getByRole('checkbox', { name: 'Project note · observation' }).check()
+  await pick('Launch brief v3').uncheck()
+  await expect(cited).toHaveCount(0)
+  await pick('Launch brief v3').check()
+  await expect(cited.getByRole('checkbox', { name: 'Project note · observation' })).not.toBeChecked()
+  await pick('Launch brief v3').uncheck()
+  await pick('Press plan v2').check()
+  await propose.click()
+  await expect.poll(() => sentSources(page)).toEqual([[PRESS]])
+})
+
+test('a43 · a report Sophia no longer offers leaves the form with what it cites; nothing of it is sent', async ({
+  page,
+}) => {
+  await page.clock.install()
+  await page.goto(`${PAGE}?served=1&proposed=lost`)
+  const { form, pick, cited, propose } = await reviewForm(page)
+  await pick('Launch brief v3').check()
+  await cited.getByRole('checkbox', { name: 'Project note · observation' }).check()
+  await expect(propose).toBeEnabled()
+  // Withdrawn since: the offer, read again once it is old and the page is looked at again, no longer has it.
+  await page.evaluate(() => window.workFixture?.stopOffering?.('Launch brief v3'))
+  await page.clock.fastForward(31_000)
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange', { bubbles: true })))
+  await expect.poll(() => offersRead(page)).toContain('review:offered:3')
+  await expect(pick('Launch brief v3')).toHaveCount(0)
+  await expect(form.getByRole('checkbox', { name: 'Project note · observation' })).toHaveCount(0)
+  await expect(propose).toBeDisabled()
+  await pick('Press plan v2').check()
+  await propose.click()
+  await expect.poll(() => sentSources(page)).toEqual([[PRESS]])
+})
+
 // ---- E2E-Q3 (real stack, 2026-10-14): Review sources is offered only where there is something to review. ----
 
 const offersRead = (page: Page) =>

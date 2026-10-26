@@ -11,7 +11,7 @@ import { SignJWT } from 'jose'
 import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import type { CoordinationObservation, RuntimeCommand } from '@sophia/contracts'
+import type { CoordinationObservation, RuntimeCommand, SourceReviewAvailability } from '@sophia/contracts'
 import { execute, httpSophiaClient, SophiaRefusal, type ExecuteDeps } from '@sophia/paperclip-adapters/sophia-dsh'
 import {
   installNamespace,
@@ -20,7 +20,7 @@ import {
   type MemoryPaperclip,
   type MemoryPaperclipOptions,
 } from '@sophia/paperclip-plugin/memory-host'
-import { createPool, readSnapshot, withActor } from '@sophia/persistence'
+import { createPool, readSnapshot, recordMissionEntry, withActor } from '@sophia/persistence'
 import {
   createEmptyDatabase,
   createTestDatabase,
@@ -1130,6 +1130,382 @@ describe('one Paperclip-managed source review', () => {
 // both generated validators: the task read the bridge sends for {"sourceId":"","offset":0}, the source read whole,
 // a submission whose every finding names the goal's criteriaRef as its criterionId (refused, with the reason the
 // bridge now passes on), then the same review with the criterion's id, published once.
+/** An offered report version, by its source id. */
+const offeredReport = (offer: SourceReviewAvailability, id: string) =>
+  offer.sources.find((s) => s.sourceId === id) ?? assert.fail(`report ${id} is offered`)
+
+/** A text's length as the database stores it. */
+const bytes = (body: string) => Buffer.byteLength(body, 'utf8')
+
+/** A text source of `projectId` (put_text_source: project, released, eligible, ready). */
+const textSource = (owner: pg.Client, projectId: string, body: string) =>
+  owner
+    .query<{ id: string }>(`SELECT (sophia.put_text_source($1, $2, 'text/markdown', $3)).id`, [projectId, A, body])
+    .then((r) => r.rows[0]?.id ?? '')
+
+/** A report's text as `citingReport` publishes it. */
+const reportText = (title: string) => `# ${title}\n\nWhat the sources say.\n`
+
+/**
+ * A published report version (seeded as sources.db.test.ts seeds one) citing `cited`, recorded as research_publish
+ * records a citation: one source_dependencies row from the cited source to the version's own source. Stable unless
+ * `state` says otherwise.
+ */
+async function citingReport(
+  projectId: string,
+  goalId: string,
+  title: string,
+  cited: string[],
+  { state = 'stable', body = reportText(title) }: { state?: string; body?: string } = {},
+): Promise<string> {
+  return asOwner(async (owner) => {
+    const source = await textSource(owner, projectId, body)
+    const artifact = (
+      await owner.query<{ id: string }>(
+        `INSERT INTO sophia.artifacts(project_id,title,format) VALUES($1,$2,'markdown') RETURNING id`,
+        [projectId, title],
+      )
+    ).rows[0]?.id
+    await owner.query(
+      `INSERT INTO sophia.artifact_versions(project_id,artifact_id,source_id,source_hash,goal_id,goal_revision,
+         authority_epoch,state,version_number)
+       SELECT $1,$2,s.id,s.sha256,$3,1,1,$5,1 FROM sophia.source_objects s WHERE s.project_id=$1 AND s.id=$4`,
+      [projectId, artifact, goalId, source, state],
+    )
+    await owner.query(
+      `INSERT INTO sophia.source_dependencies(project_id,source_id,derived_source_id) SELECT $1,x,$2 FROM unnest($3::uuid[]) x`,
+      [projectId, source, cited],
+    )
+    return source
+  })
+}
+
+describe("a report's cited sources offered beside it (0082, A43, FND-B-REVIEW-CITED-INPUTS-01)", () => {
+  it('lists only its recorded, readable, unwithdrawn citations, by source id; the proposal stays as it was', async () => {
+    const w = await world()
+    // A project note: its entry id and its source id differ, and only the source id is ever offered.
+    const note = await withActor(pool, E, 'write', (c) =>
+      recordMissionEntry(c, w.projectId, randomUUID(), {
+        kind: 'observation',
+        epistemic: 'reported',
+        text: 'The budget was cut to 30,000 EUR on 20 February.',
+      }),
+    )
+    const noteEntry = note.entryId ?? assert.fail('a note entry')
+    const noteSource = note.sourceId ?? assert.fail('a note source')
+    assert.notEqual(noteEntry, noteSource)
+    const seeded = await asOwner(async (owner) => {
+      const admitted = await textSource(owner, w.projectId, 'An admitted input.')
+      await owner.query(
+        `INSERT INTO sophia.source_provenance(project_id,source_id,kind,coverage) VALUES($1,$2,'admitted_input','complete')`,
+        [w.projectId, admitted],
+      )
+      const withdrawn = await textSource(owner, w.projectId, 'A source forgotten since.')
+      const parent = await textSource(owner, w.projectId, 'A source another was drawn from.')
+      const derived = await textSource(owner, w.projectId, 'Drawn from a source forgotten since.')
+      await owner.query(
+        `INSERT INTO sophia.source_dependencies(project_id,source_id,derived_source_id) VALUES($1,$2,$3)`,
+        [w.projectId, parent, derived],
+      )
+      for (const id of [withdrawn, parent])
+        await owner.query(
+          `UPDATE sophia.source_objects SET eligible=false, state='deleted', eligibility_revision=eligibility_revision+1
+            WHERE project_id=$1 AND id=$2`,
+          [w.projectId, id],
+        )
+      // The caller's own private text: readable by its owner, never by a review.
+      const own = randomUUID()
+      await owner.query(
+        `INSERT INTO sophia.source_objects(project_id,id,owner_id,scope,sha256,mime,storage_key,byte_length,eligible,state)
+         VALUES($1,$2,$3,'private',repeat('a',64),'text/plain',$4,7,false,'ready')`,
+        [w.projectId, own, E, `inline/${w.projectId}/${own}`],
+      )
+      await owner.query(`INSERT INTO sophia.source_texts(project_id,source_id,body) VALUES($1,$2,'private')`, [
+        w.projectId,
+        own,
+      ])
+      const large = await textSource(owner, w.projectId, `# Too long to review\n\n${'x'.repeat(33_000)}`)
+      // A released file with no text a review could read.
+      const binary = randomUUID()
+      await owner.query(
+        `INSERT INTO sophia.source_objects(project_id,id,owner_id,scope,sha256,mime,storage_key,byte_length,eligible,state)
+         VALUES($1,$2,$3,'project',repeat('b',64),'application/pdf',$4,9,true,'ready')`,
+        [w.projectId, binary, A, `objects/${w.projectId}/${binary}`],
+      )
+      const uncited = await textSource(owner, w.projectId, 'Eligible, but cited by no report.')
+      return { admitted, withdrawn, derived, own, large, binary, uncited }
+    })
+    const earlier = await citingReport(w.projectId, w.goalId, 'Budget history', [w.sourceB])
+    const reportSource = await citingReport(w.projectId, w.goalId, 'Launch budget', [
+      noteSource,
+      seeded.admitted,
+      w.sourceA,
+      seeded.large,
+      seeded.binary,
+      earlier,
+    ])
+    // A report that cites a withdrawn source, one drawn from a withdrawn source, or a private one draws on what a
+    // review may not read (0033's closure): it is not offered at all, nor are its citations named.
+    const unreadable = {
+      'a report citing a withdrawn source': await citingReport(w.projectId, w.goalId, 'Old plan', [seeded.withdrawn]),
+      'a report citing a source drawn from a withdrawn one': await citingReport(w.projectId, w.goalId, 'Derived plan', [
+        seeded.derived,
+      ]),
+      'a report citing the caller’s own private text': await citingReport(w.projectId, w.goalId, 'Private plan', [
+        seeded.own,
+      ]),
+    }
+    // Another project's report and citation, whose members do not include the caller.
+    const other = await seedProject(db.ownerUrl, { admin: A, editors: [], viewers: [] })
+    const otherCited = await asOwner((owner) => textSource(owner, other.projectId, 'Another project’s source.'))
+    const otherReport = await citingReport(other.projectId, other.goalId, 'Their report', [otherCited])
+
+    const offer = async (): Promise<SourceReviewAvailability> => {
+      const res = await member(E, `/api/v1/projects/${w.projectId}/plans/source-review`)
+      assert.equal(res.status, 200, JSON.stringify(res.json))
+      return res.json as SourceReviewAvailability
+    }
+    const open = await offer()
+    assert.deepEqual(
+      offeredReport(open, reportSource).supporting,
+      [
+        {
+          sourceId: seeded.admitted,
+          label: 'Admitted input',
+          mime: 'text/markdown',
+          byteLength: bytes('An admitted input.'),
+        },
+        { sourceId: w.sourceA, label: 'Cited source', mime: 'text/markdown', byteLength: bytes(SOURCE_A) },
+        {
+          sourceId: noteSource,
+          label: 'Project note · observation',
+          mime: 'text/plain; charset=utf-8',
+          byteLength: bytes('The budget was cut to 30,000 EUR on 20 February.'),
+        },
+      ],
+      'its readable citations, by label',
+    )
+    assert.deepEqual(offeredReport(open, earlier).supporting, [
+      { sourceId: w.sourceB, label: 'Cited source', mime: 'text/markdown', byteLength: bytes(SOURCE_B) },
+    ])
+    const said = JSON.stringify(open)
+    for (const [what, id] of Object.entries({
+      'the note’s entry id': noteEntry,
+      'a withdrawn source': seeded.withdrawn,
+      'a source drawn from a withdrawn one': seeded.derived,
+      'the caller’s own private text': seeded.own,
+      'a source over 32 KiB': seeded.large,
+      'a source with no text': seeded.binary,
+      ...unreadable,
+      'an uncited source': seeded.uncited,
+      'another project’s report': otherReport,
+      'another project’s source': otherCited,
+    }))
+      assert.ok(!said.includes(id), `${what} is never named`)
+    assert.ok(
+      open.sources.every((s) => s.supporting.every((x) => x.sourceId !== earlier)),
+      'a cited report is offered as a report, not again as supporting',
+    )
+    assert.equal((await member(E, `/api/v1/projects/${other.projectId}/plans/source-review`)).status, 403)
+
+    // The proposal is unchanged and stays authoritative: the report with a citation it offers is admitted by source id;
+    // the note's entry id is no source; four sources, or a stale goal revision, are refused as before.
+    const proposed = await propose(w, { sourceIds: [reportSource, noteSource] })
+    assert.equal(proposed.status, 201, JSON.stringify(proposed.json))
+    assert.equal((await propose(w, { sourceIds: [reportSource, noteEntry] })).status, 403)
+    assert.equal((await propose(w, { sourceIds: [reportSource, w.sourceA, w.sourceB, seeded.admitted] })).status, 422)
+    assert.equal((await propose(w, { sourceIds: [reportSource, w.sourceA], goalRevision: 2 })).status, 409)
+
+    // Forgotten since: the report now draws on a forgotten source, so neither it nor the note is offered any more.
+    await asOwner((owner) =>
+      owner.query(
+        `UPDATE sophia.source_objects SET eligible=false, state='deleted', eligibility_revision=eligibility_revision+1
+          WHERE project_id=$1 AND id=$2`,
+        [w.projectId, noteSource],
+      ),
+    )
+    const later = JSON.stringify(await offer())
+    assert.ok(!later.includes(reportSource) && !later.includes(noteSource), 'nothing forgotten is offered')
+    assert.ok(later.includes(earlier), 'the other report still is')
+  })
+
+  it('labels a page the research read by its host alone: never a URL’s user, password, port, path, query or fragment (R2-482-R1)', async () => {
+    const w = await world()
+    // Synthetic pages, each read under a settled read of an allowance (the provenance a capture records); a stored
+    // reportedFinalUrl is not checked for its authority, so the label may not trust it.
+    const pages = await asOwner(async (owner) => {
+      const allowance = (
+        await owner.query<{ id: string }>(
+          `INSERT INTO sophia.research_allowances(project_id,cap_usd,headroom_usd,source_policy,max_searches,max_reads)
+           VALUES($1,1,0,'web-pilot-v1',5,5) RETURNING id`,
+          [w.projectId],
+        )
+      ).rows[0]?.id
+      const page = async (requested: string, reported: string | null) => {
+        const id = await textSource(owner, w.projectId, `# A page\n\nRead from ${randomUUID()}.\n`)
+        const target = `input:${randomUUID()}`
+        const reservation = (
+          await owner.query<{ id: string }>(
+            `INSERT INTO sophia.research_reservations(project_id,allowance_id,reservation_key,kind,provider,state,reserved_usd,
+               settled_usd,ended_at,target_ref,target_url)
+             VALUES($1,$2,$3,'read','jina','settled',0.01,0.01,now(),$4,$5) RETURNING id`,
+            [w.projectId, allowance, `read-${id}`, target, requested],
+          )
+        ).rows[0]?.id
+        await owner.query(
+          `INSERT INTO sophia.source_provenance(project_id,source_id,kind,provider,reservation_id,target_ref,requested_url,
+             reported_final_url,coverage)
+           VALUES($1,$2,'web_read','jina',$3,$4,$5,$6,'complete')`,
+          [w.projectId, id, reservation, target, requested, reported],
+        )
+        return id
+      }
+      return {
+        userinfo: await page('https://docs.example/path', 'https://reader:demo@docs.example/path?private=x#part'),
+        port: await page('https://Docs.Example.org:8443/a/b?q=1#frag', null),
+        plain: await page('https://example.org/hosts?x=1', null),
+        literal: await page('https://[2001:db8::1]/inside', null),
+        malformed: await page('https://example.net/ok', 'not a url'),
+      }
+    })
+    const report = await citingReport(w.projectId, w.goalId, 'Hosts', Object.values(pages))
+    const res = await member(E, `/api/v1/projects/${w.projectId}/plans/source-review`)
+    assert.equal(res.status, 200, JSON.stringify(res.json))
+    const offer = res.json as SourceReviewAvailability
+    const labels = Object.fromEntries(offeredReport(offer, report).supporting.map((s) => [s.sourceId, s.label]))
+    assert.deepEqual(
+      {
+        userinfo: labels[pages.userinfo],
+        port: labels[pages.port],
+        plain: labels[pages.plain],
+        literal: labels[pages.literal],
+        malformed: labels[pages.malformed],
+      },
+      {
+        userinfo: 'Web page',
+        port: 'Web page · docs.example.org',
+        plain: 'Web page · example.org',
+        literal: 'Web page',
+        malformed: 'Web page',
+      },
+      'a recognized host alone, otherwise the neutral label',
+    )
+    const said = JSON.stringify(offer)
+    for (const part of ['reader', 'demo', 'private', '#part', '8443', '/a/b', 'q=1', 'frag', 'inside', 'not a url'])
+      assert.ok(!said.includes(part), `"${part}" is never offered`)
+  })
+
+  it('lists a cited report the newest 50 leave out beside the report citing it, and one they offer only as a report (CODE review on 24df, 0082:69)', async () => {
+    const w = await world()
+    // The report a recent one cites, the oldest of 51 that may be offered: the offer names the newest 50 alone.
+    const older = await citingReport(w.projectId, w.goalId, 'Budget history', [w.sourceB])
+    await asOwner((owner) =>
+      owner.query(
+        `UPDATE sophia.artifact_versions SET created_at=now()-interval '1 day' WHERE project_id=$1 AND source_id=$2`,
+        [w.projectId, older],
+      ),
+    )
+    // One of the newest 50 cites 51 sources: its supporting stays at 50, by label then id.
+    const plain = await asOwner(async (owner) => {
+      const ids: string[] = []
+      for (let i = 0; i < 51; i++) ids.push(await textSource(owner, w.projectId, `Plain source ${String(i)}.`))
+      return ids
+    })
+    const wide = await citingReport(w.projectId, w.goalId, 'Wide report', plain)
+    for (let i = 0; i < 48; i++) await citingReport(w.projectId, w.goalId, `Filler ${String(i)}`, [])
+    // Cited, and never offered: report versions the offer does not show (a candidate, a rejected one, one over 32 KiB).
+    const candidate = await citingReport(w.projectId, w.goalId, 'Candidate', [], { state: 'candidate' })
+    const rejected = await citingReport(w.projectId, w.goalId, 'Rejected', [], { state: 'rejected' })
+    const oversize = await citingReport(w.projectId, w.goalId, 'Too long', [], {
+      body: `# Too long\n\n${'x'.repeat(33_000)}`,
+    })
+    const recent = await citingReport(w.projectId, w.goalId, 'Launch budget', [
+      older,
+      wide,
+      candidate,
+      rejected,
+      oversize,
+    ])
+    // A report version forgotten since, or a private one, makes the report citing it unreadable (0033's closure):
+    // neither is offered nor named.
+    const forgotten = await citingReport(w.projectId, w.goalId, 'Forgotten report', [])
+    const citesForgotten = await citingReport(w.projectId, w.goalId, 'Cites the forgotten one', [forgotten])
+    await asOwner((owner) =>
+      owner.query(
+        `UPDATE sophia.source_objects SET eligible=false, state='deleted', eligibility_revision=eligibility_revision+1
+          WHERE project_id=$1 AND id=$2`,
+        [w.projectId, forgotten],
+      ),
+    )
+    const privateVersion = await asOwner(async (owner) => {
+      const id = randomUUID()
+      await owner.query(
+        `INSERT INTO sophia.source_objects(project_id,id,owner_id,scope,sha256,mime,storage_key,byte_length,eligible,state)
+         VALUES($1,$2,$3,'private',repeat('c',64),'text/markdown',$4,7,false,'ready')`,
+        [w.projectId, id, E, `inline/${w.projectId}/${id}`],
+      )
+      await owner.query(`INSERT INTO sophia.source_texts(project_id,source_id,body) VALUES($1,$2,'private')`, [
+        w.projectId,
+        id,
+      ])
+      const artifact = (
+        await owner.query<{ id: string }>(
+          `INSERT INTO sophia.artifacts(project_id,title,format) VALUES($1,'Private report','markdown') RETURNING id`,
+          [w.projectId],
+        )
+      ).rows[0]?.id
+      await owner.query(
+        `INSERT INTO sophia.artifact_versions(project_id,artifact_id,source_id,source_hash,goal_id,goal_revision,
+           authority_epoch,state,version_number) VALUES($1,$2,$3,repeat('c',64),$4,1,1,'stable',1)`,
+        [w.projectId, artifact, id, w.goalId],
+      )
+      return id
+    })
+    const citesPrivate = await citingReport(w.projectId, w.goalId, 'Cites the private one', [privateVersion])
+
+    const res = await member(E, `/api/v1/projects/${w.projectId}/plans/source-review`)
+    assert.equal(res.status, 200, JSON.stringify(res.json))
+    const offer = res.json as SourceReviewAvailability
+    const offered = offer.sources.map((s) => s.sourceId)
+    assert.equal(offered.length, 50, 'the newest 50 of 51')
+    assert.ok(!offered.includes(older), 'the oldest is not offered as a report')
+    assert.ok(offered.includes(wide) && offered.includes(recent))
+    assert.deepEqual(
+      offeredReport(offer, recent).supporting,
+      [
+        {
+          sourceId: older,
+          label: 'Cited source',
+          mime: 'text/markdown',
+          byteLength: bytes(reportText('Budget history')),
+        },
+      ],
+      'the cited report the bound leaves out is listed beside it; the one it offers is not listed again',
+    )
+    assert.deepEqual(
+      offeredReport(offer, wide).supporting.map((s) => s.sourceId),
+      plain.toSorted().slice(0, 50),
+      'at most 50 per version, by label then id',
+    )
+    const said = JSON.stringify(offer)
+    for (const [what, id] of Object.entries({
+      'a cited candidate version': candidate,
+      'a cited rejected version': rejected,
+      'a cited version over 32 KiB': oversize,
+      'a forgotten version': forgotten,
+      'the report citing it': citesForgotten,
+      'a private version': privateVersion,
+      'the report citing that': citesPrivate,
+    }))
+      assert.ok(!said.includes(id), `${what} is never named`)
+    assert.equal(said.split(older).length - 1, 1, 'the older report is named once, beside the report citing it')
+
+    // The proposal is unchanged: the report and the citation it lists are admitted together, by source id.
+    const proposed = await propose(w, { sourceIds: [recent, older] })
+    assert.equal(proposed.status, 201, JSON.stringify(proposed.json))
+  })
+})
+
 describe('the R1 review, replayed (R1-F02)', () => {
   it('reads its task without a sourceId, refuses a criteriaRef as a criterion with its reason, then publishes', async () => {
     const w = await world()

@@ -12,6 +12,28 @@ export function selectionOf(sources: readonly Sized[], chosen: readonly string[]
   return { bytes, over: bytes > maxInputBytes }
 }
 
+interface Offered extends Sized {
+  /** The sources this report version cites that may be reviewed beside it (A43). */
+  readonly supporting: readonly Sized[]
+}
+
+/** Every source offered, once: the report versions, and the sources they cite. */
+export function offeredSources(reports: readonly Offered[]): Sized[] {
+  const all = new Map<string, Sized>()
+  for (const r of reports) for (const s of [r, ...r.supporting]) if (!all.has(s.sourceId)) all.set(s.sourceId, s)
+  return [...all.values()]
+}
+
+/**
+ * What stays chosen of `chosen`, in its order: a report version still offered, and a cited source of a chosen report
+ * still offered. A cited source whose report was let go, or anything no longer offered, is dropped, so nothing chosen
+ * is hidden, kept stale or sent.
+ */
+export function stillChosen(reports: readonly Offered[], chosen: readonly string[]): string[] {
+  const parents = reports.filter((r) => chosen.includes(r.sourceId))
+  return chosen.filter((id) => parents.some((r) => r.sourceId === id || r.supporting.some((s) => s.sourceId === id)))
+}
+
 /** "32 KiB", "33.1 KiB": the size as the limit is stated, rounded up, so a total one byte over never reads as the limit. */
 export const kib = (bytes: number): string => `${String(Math.ceil(bytes / 102.4) / 10)} KiB`
 
