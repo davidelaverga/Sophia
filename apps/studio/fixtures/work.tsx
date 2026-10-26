@@ -58,7 +58,7 @@ import { newMeeting } from './meeting-data.ts'
 import { installFixtureApi, served as readOut, unexpected } from './fixture-api.ts'
 import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
 import { actions as requests, NOW, observations, resources as owned, tightClaude } from './resources-data.ts'
-import { SOURCE_REVIEW } from './source-review-data.ts'
+import { RENDITION_SOURCES, SOURCE_REVIEW } from './source-review-data.ts'
 import { inCase } from './work-cases.ts'
 import {
   CASES,
@@ -185,10 +185,13 @@ const served = query.get('served') === '1'
 const cap = query.get('cap')
 /** `sources=0`: the pilot enabled with no report version to review yet (the real stack's first goal, E2E-Q3). */
 const unsourced = query.get('sources') === '0'
+/** `rendition=1`: a report whose version 2 a design published, its HTML page offered as its own source (0083). */
+const rendition = query.get('rendition') === '1'
 /** What the pilot offers on this page: the fixture's sources, or none; under the page's cap, if it sets one. */
 const offer = {
   ...SOURCE_REVIEW,
   ...(cap !== null && { maxAllowanceUsd: Number(cap) }),
+  ...(rendition && { sources: RENDITION_SOURCES }),
   ...(unsourced && { sources: [] }),
 }
 /**
