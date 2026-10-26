@@ -75,7 +75,7 @@ function localSupabaseBackend(): Backend {
     studioEnv: {}, // supabase-local already wrote the Studio's public values
     banner: [
       `Supabase Auth (local) · sign-in emails in Mailpit ${env.MAILPIT_URL}`,
-      'Add a member: node --env-file=.env.supabase.local scripts/add-member.ts <projectId> <email> [editor|viewer|admin]',
+      'Add a member: invite them from the project (Invite) and send them the link it shows',
     ].join('\n'),
   }
 }
