@@ -78,3 +78,8 @@ open P1.
 - `UPDATED` moves to 25 October 2026 (`f46e909fe`, then the date); red not re-run locally (Aion 2 open), CI on record.
 - Codex's P1 (verify the advertised mailbox): Luis sent a test message to `info@sophia-ei.com` from an outside address
   on 2026-10-25 and got no bounce; Microsoft 365 accepted it for the mailbox.
+
+## Landing (2026-10-26)
+
+- CI went green late on 25 October, so it lands on 26 October 2026: `f0c37e7b9` (red locally: «Expected substring:
+  "Last updated 26 October 2026"», terms and privacy), then the date; main merged in again.

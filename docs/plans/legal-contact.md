@@ -57,3 +57,8 @@
   then, and CI is the run on record.
 - Receipt checked by Luis (2026-10-25): a test message to `info@sophia-ei.com` from an outside address drew no
   bounce, so Microsoft 365 accepted it for the mailbox.
+
+## Landing (2026-10-26)
+
+- CI went green late on 25 October, so it lands on 26 October 2026: `f0c37e7b9` (red locally: «Expected substring:
+  "Last updated 26 October 2026"», terms and privacy), then the date; main merged in again.
