@@ -15,6 +15,7 @@ import {
   ProjectEventListener,
   reconcileRuntimeOutbox,
   type AssemblyLimits,
+  type AssemblyMode,
   type DispatchOutcome,
 } from '@sophia/persistence'
 
@@ -55,10 +56,31 @@ export interface DispatcherOptions {
   leaseSeconds?: number
   log?: (line: string) => void
   /**
-   * A login admitted to the conversation assembler role (Q13), or absent: then no context is recorded here, and the
-   * database ends a waiting reply as context_unavailable within its wait.
+   * A login admitted to the conversation assembler role (Q13), or, in the fixed mode, the worker's own login; or absent:
+   * then no context is recorded here, and the database ends a waiting reply as context_unavailable within its wait.
    */
   assemblerUrl?: string | null
+  /** How that login reads a reply's context (assemblyConfig): the login mode unless the fixed one is chosen. */
+  assemblyMode?: AssemblyMode
+}
+
+/**
+ * The worker's assembly from its environment. SOPHIA_CONVERSATION_ASSEMBLY unset or `login`: the assembler login of
+ * SOPHIA_ASSEMBLER_DATABASE_URL, if any (Q13). `fixed` (0084): the worker's own login through the fixed readers, and
+ * then an assembler login set as well is refused, never kept beside it or fallen back to. Anything else is refused.
+ */
+export function assemblyConfig(env: {
+  SOPHIA_CONVERSATION_ASSEMBLY?: string
+  SOPHIA_ASSEMBLER_DATABASE_URL?: string
+  workerUrl: string
+}): { assemblerUrl: string | null; assemblyMode: AssemblyMode } {
+  const mode = env.SOPHIA_CONVERSATION_ASSEMBLY?.trim() || 'login'
+  const assemblerUrl = env.SOPHIA_ASSEMBLER_DATABASE_URL?.trim() || null
+  if (mode === 'login') return { assemblerUrl, assemblyMode: 'login' }
+  if (mode !== 'fixed') throw new Error(`SOPHIA_CONVERSATION_ASSEMBLY is login or fixed, not ${mode}`)
+  if (assemblerUrl)
+    throw new Error('the fixed assembly has no assembler login: unset SOPHIA_ASSEMBLER_DATABASE_URL to choose it')
+  return { assemblerUrl: env.workerUrl, assemblyMode: 'fixed' }
 }
 
 /** A dispatch outcome as one log line: the result, and the runtime command or the reason. */
@@ -78,7 +100,7 @@ async function assembleWaiting(
 ): Promise<void> {
   if (outcome.result !== 'deferred' || outcome.reason !== WAITING_FOR_CONTEXT || !replyId || !options.assemblerUrl)
     return
-  const assembled = await assembleReply(options.assemblerUrl, replyId, ASSEMBLY_LIMITS)
+  const assembled = await assembleReply(options.assemblerUrl, replyId, ASSEMBLY_LIMITS, options.assemblyMode)
   options.log?.(`assembly for reply ${replyId}: ${assembled.outcome}`)
 }
 
