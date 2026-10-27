@@ -15,16 +15,24 @@ test.beforeEach(async ({ page }) => {
   )
 })
 
+interface Runner {
+  /** The runner's own time between 0:00 and the jump. */
+  slowMs?: number
+  /** The project's snapshot arrives after the page has opened, as on a loaded runner (`snapshot=hold`). */
+  lateSnapshot?: boolean
+}
+
 /**
  * The dock's clock reads 0:00 in the call, then 1:05 after 65 s; `slowMs` of the runner's own time pass between. The
  * page's clock stops before the page opens and moves only as the test moves it, so the runner's seconds never reach
  * the call's time (ci-room-basics-flake.md). The call joins on open on a timer of its own (useJoinOnOpen), let go here.
  */
-async function callClock(page: Page, slowMs = 0) {
+async function callClock(page: Page, { slowMs = 0, lateSnapshot = false }: Runner = {}) {
   await page.clock.install()
   await page.clock.pauseAt(Date.now() + 1000)
-  await page.goto('/room.html?call=on&people=2')
+  await page.goto(`/room.html?call=on&people=2${lateSnapshot ? '&snapshot=hold' : ''}`)
   await page.clock.runFor(1)
+  if (lateSnapshot) await page.evaluate(() => window.fixture?.releaseSnapshot())
   await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
   const clock = dock(page).getByRole('timer')
   await expect(clock).toHaveText('0:00')
@@ -39,7 +47,11 @@ test('basics · the dock says how long the call has run', async ({ page }) => {
 })
 
 test('basics · the call’s clock counts the call’s time, never a slow runner’s', async ({ page }) => {
-  await callClock(page, 1500)
+  await callClock(page, { slowMs: 1500 })
+})
+
+test('basics · the call’s clock starts however late the project loads', async ({ page }) => {
+  await callClock(page, { lateSnapshot: true })
 })
 
 test('basics · your tile hides from your own gallery for this call, and shows again', async ({ page }) => {
