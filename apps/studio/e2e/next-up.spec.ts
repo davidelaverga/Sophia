@@ -97,15 +97,18 @@ test('next up · focus moved to another decision during the write stays there (C
 test('next up · answering the one it names, the line goes while the answer is on its way (Codex P2 on #263)', async ({
   page,
 }) => {
-  await page.goto(PAGE)
+  // The first answer is recorded after 300 ms; the second waits on its way until the check releases it.
+  await page.goto(`${PAGE}&decide=held`)
   await page.evaluate(() => window.workFixture?.decisionArrives?.('davide'))
   const decisions = board(page).locator('[data-decision]')
   await expect(decisions).toHaveCount(2)
   await decisions.nth(0).locator('.plan-choice:not(:disabled)').first().click()
   await expect(line(page)).toContainText('Next: decide')
-  // The next one answered in the list itself: the line naming it goes at once, not after the write.
+  // The next one answered in the list itself: the line naming it goes while that answer is still on its way.
   await decisions.nth(1).locator('.plan-choice:not(:disabled)').first().click()
-  await expect(line(page)).toHaveCount(0, { timeout: 250 })
+  await expect.poll(() => page.evaluate(() => window.workFixture?.answered?.length)).toBe(2)
+  await expect(line(page)).toHaveCount(0)
+  expect(await page.evaluate(() => window.workFixture?.releaseDecision?.())).toBe(true)
   await expect(line(page)).toBeVisible()
   await expect(line(page)).not.toContainText('Next: decide')
 })
