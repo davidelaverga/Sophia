@@ -35,7 +35,8 @@ Ending commit: the branch's last commit; code last changed at `f5509aed9`. Again
 - Probe, commit `f7e4d9420` (never on the branch), `-Repeat 3` (`pw-logs/nextup-probe-focus.txt`):
   `document.activeElement` at the Enter was `BODY` 3/3 in the slow case, `BUTTON.text-button` 3/3 at the machine's rate.
 - Green at `f5509aed9`: the whole spec `--repeat-each 20` through the guard, 160 passed
-  (`pw-logs/nextup-green-x20.txt`). Whole-repo `oxlint --type-aware` exit 0, `tsc --noEmit -p apps/studio` clean,
+  (`pw-logs/nextup-green-x20.txt`); neighbours `palette-knows` and `work`, 214 passed
+  (`pw-logs/nextup-neighbours4.txt`). Whole-repo `oxlint --type-aware` exit 0, `tsc --noEmit -p apps/studio` clean,
   Prettier on the spec. No unit file touched.
 
 ## Decisions and changes
@@ -47,7 +48,6 @@ Ending commit: the branch's last commit; code last changed at `f5509aed9`. Again
 
 ## Remaining obligations
 
-- The neighbours `palette-knows` and `work` were stopped by the guard (Blender open); see the report for their run.
 - Two waits in this spec look time-dependent from the code, unmeasured, never failed in the logs: «focus moved to
   another decision…» checks `toBeFocused(other)` as soon as the line shows (can pass before NextUp's frame: vacuous,
   not flaky); «answering the one it names…» waits `toHaveCount(0, { timeout: 250 })`, a fixed window.
