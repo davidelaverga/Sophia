@@ -38,3 +38,9 @@
   `Received: "1:10"`, first `1:06`, as on CI.
 - The fix: green through the guard, both clock cases `-Repeat 20`, then the whole spec `-Repeat 20`, and the room
   neighbours that also install the clock (`host-controls`, `room-captions`).
+
+## Result
+
+- Red: the slow case failed twice before the fix, `Expected: "1:05"`, `Received: "1:10"`, first `1:06` (CI's log).
+- Green: both clock cases 40/40 and the whole spec 80/80 with `-Repeat 20`; with `host-controls` and `room-captions`,
+  40/40. A probe without `runFor(1)` confirmed the join waits on its timer: «Leave the room» never shows.
