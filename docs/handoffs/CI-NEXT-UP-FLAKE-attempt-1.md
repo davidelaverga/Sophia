@@ -7,12 +7,14 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-paper-1`, branch `ci/next-up-flake` from `origin/main`
 `624441362` (through #485); not pushed
-Writable scope: this worktree only (`apps/studio/e2e`, `docs/plans`, `docs/handoffs`); no product code, no API.
+Writable scope: this worktree only (`apps/studio/e2e`, `apps/studio/fixtures`, `NextUp.tsx` for one marker, `docs/plans`,
+`docs/handoffs`); no API.
 Runtime unit: Luis's Windows host (Playwright through `pw.ps1` and `.claude-guards/safe-run.ps1`, two workers); CI as
 the run on record.
 Existing authority: Luis 2026-10-26, the quote above; local only, nothing pushed.
-Ending commit: the branch's last commit; code last changed at `f5509aed9`. Against `624441362`:
-`apps/studio/e2e/next-up.spec.ts`, `docs/plans/ci-next-up-flake.md`, this record.
+Ending commit: the branch's last commit; code last changed at `9f32a19dd`. Against `624441362`:
+`apps/studio/e2e/next-up.spec.ts`, `apps/studio/src/features/work/planning/NextUp.tsx`,
+`apps/studio/fixtures/work-live.ts`, `apps/studio/fixtures/work.tsx`, `docs/plans/ci-next-up-flake.md`, this record.
 
 ## Outcome
 
@@ -48,10 +50,23 @@ Ending commit: the branch's last commit; code last changed at `f5509aed9`. Again
 
 ## Remaining obligations
 
-- Two waits in this spec look time-dependent from the code, unmeasured, never failed in the logs: «focus moved to
-  another decision…» checks `toBeFocused(other)` as soon as the line shows (can pass before NextUp's frame: vacuous,
-  not flaky); «answering the one it names…» waits `toHaveCount(0, { timeout: 250 })`, a fixed window.
 - CI is the run on record.
+
+## The two other timed waits (coordinator's follow-up, same day)
+
+- **«focus moved … stays there»:** the check now waits for the line to say its frame has looked where the focus is
+  (`data-settled`, added to `NextUp.tsx` test-first: `3355a78aa` red, «unexpected value "null"», then `d7a5bd146`).
+  Before, a NextUp that always took the focus passed the old check 10 of 10 at 8 frames a second (control `49880b647`,
+  `pw-logs/nextup-focus-vacuous.txt`; 10 of 10 failed at the machine's rate). Now the same mutant fails it 20 of 20,
+  both rates (control `64adceb12`, `pw-logs/nextup-focus-control-red.txt`).
+- **«answering the one it names…»:** `toHaveCount(0, { timeout: 250 })` gave way to an answer held on its way
+  (`decide=held`, `workFixture.releaseDecision()`, `9f32a19dd`): the line is checked gone while the answer is
+  unrecorded, then back once released. Control `7ab8703fa` (the line kept as the answer goes) fails it 10 of 10, «Expected:
+  0 Received: 1» (`pw-logs/nextup-held-control-red.txt`). One commit, test and lever: the product already passes.
+- Green at `9f32a19dd`: the spec `--repeat-each 20`, 160 passed (`pw-logs/nextup-r2-green-x20b.txt`); `palette-knows`
+  and `work`, 214 passed (`pw-logs/nextup-r2-neighbours.txt`, finished before the guard saw Aion 2 open); whole-repo
+  `oxlint --type-aware` exit 0 (the fixture's `controls` and `Tasks` held at 60 lines by spreading `decisionAnswers`),
+  `tsc`, Prettier, `next-up.test.ts` 8/8.
 
 ## Next bounded action
 

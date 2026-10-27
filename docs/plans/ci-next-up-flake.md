@@ -42,9 +42,33 @@ the focus, `docs/plans/next-up.md`), and the test now waits for exactly that con
 - Red, control mutant (`98e81ccf8`, the focus wait removed): slow case 10/10 failed, `getByRole('dialog')` not found.
 - Green: the whole spec `--repeat-each 20` through the guard, slow case included; neighbours `palette-knows`, `work`.
 
+## The spec's two other timed waits (coordinator's follow-up, same day)
+
+Neither has failed in the logs read; both read a moment instead of an outcome.
+
+- **«focus moved to another decision during the write stays there»** read `toBeFocused(other)` as soon as the line
+  showed, a frame before NextUp looks where the focus is. Measured with a control (never on the branch, `49880b647`:
+  NextUp always takes the focus, the old check also under `slowFrames`): at the machine's own rate the old check fails
+  10 of 10, but at CI's 8 frames a second it **passes 10 of 10**: on CI it could not tell. No DOM change marks the
+  frame when NextUp leaves the focus alone, and a test-side frame tick cannot be ordered against NextUp's (its effect
+  may register its frame after the test's), so **the line says it** (`NextUp.tsx`: `data-settled` once its frame has
+  run, removed when its words change; nothing seen changes; one ref for both kinds of line). The check waits for it,
+  then reads the focus.
+- **«answering the one it names, the line goes while the answer is on its way»** read `toHaveCount(0, { timeout: 250 })`
+  against a write recorded after 300 ms: a window. The fixture can now hold an answer on its way
+  (`fixtures/work-live.ts`: `decide=held`, the first recorded after 300 ms, each later one held until
+  `workFixture.releaseDecision()`). The check waits for the second answer to be sent (`answered` has 2), checks the line
+  gone while it is held, releases it, and sees the line again with what comes next.
+
+### Checks
+
+- `test: … (failing)` for the first: red because no line says `data-settled` («unexpected value "null"»); green with
+  the marker.
+- Controls, never on the branch: NextUp always taking the focus (`64adceb12`) fails the new check 20 of 20, at the
+  machine's rate and at 8 frames a second (`toBeFocused`, «Received: inactive»); the line kept while the answer goes
+  (`7ab8703fa`, `setShown(false)` removed) fails the held check 10 of 10 (`toHaveCount`, «Expected: 0 Received: 1»).
+- Green: the spec `--repeat-each 20`, 160 passed; `palette-knows` and `work`, 214 passed.
+
 ## Limits
 
-- Two other waits in this spec look time-dependent from the code, neither has failed in the logs read: «focus moved to
-  another decision during the write stays there» checks `toBeFocused(other)` as soon as the line shows, which can pass
-  before NextUp's frame has had its chance to move the focus (a vacuous pass, not a flake); «answering the one it
-  names» waits `toHaveCount(0, { timeout: 250 })`, a fixed window on a slow runner. Left as they are; noted.
+- The marker is a test hook in product code, kept to one attribute; it says nothing a person reads.
