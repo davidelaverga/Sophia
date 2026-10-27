@@ -45,8 +45,9 @@ Ending commit: the branch's last commit; code last changed at `9f32a19dd`. Again
 
 - **Test only, one commit, no failing pair:** the fix was already on main; the bite of the new case is shown by the
   control commit, as in `CI-LIGHT-BY-HOUR-CONTRAST`.
-- **No product change:** the focus one frame after the words is NextUp's design (it waits for the disabled choice to
-  drop the focus); the test waits for that condition, not a duration.
+- **No product change for the flake itself:** the focus one frame after the words is NextUp's design (it waits for the
+  disabled choice to drop the focus); the test waits for that condition, not a duration. The follow-up below adds one
+  marker to NextUp.
 
 ## Remaining obligations
 

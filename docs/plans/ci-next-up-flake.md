@@ -34,8 +34,9 @@
 - **A slow-frames case**, the same steps with `slowFrames` from the page's first script: the wait is guarded where CI is
   slow, and dropping it fails every time instead of twice a week.
 
-No product change: the focus a frame after the words is NextUp's design (it must wait for the disabled choice to drop
-the focus, `docs/plans/next-up.md`), and the test now waits for exactly that condition.
+No product change for the flake itself (the follow-up below adds one marker): the focus a frame after the words is
+NextUp's design (it must wait for the disabled choice to drop the focus, `docs/plans/next-up.md`), and the test now
+waits for exactly that condition.
 
 ## Checks
 
