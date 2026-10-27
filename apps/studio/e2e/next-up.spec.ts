@@ -1,6 +1,7 @@
 // Next up (docs/plans/next-up.md): once the viewer answers a decision, a line under the board's bar names what waits on
 // them next and takes the focus, so the keyboard goes on; it never leaves the focus on the page's body.
 import { expect, test, type Page } from '@playwright/test'
+import { slowFrames } from './frames.ts'
 
 const PAGE = '/work.html?viewer=davide&review=material'
 const board = (page: Page) => page.locator('.board').first()
@@ -26,7 +27,8 @@ test('next up · answered from the keyboard, the focus is on the line’s press,
   expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false)
 })
 
-test('next up · it names the task that waits for the viewer, and Enter opens its sheet', async ({ page }) => {
+/** The line names the task that waits for the viewer; Enter on its press, once the focus is there, opens that sheet. */
+async function opensTheNamedTask(page: Page) {
   await answer(page)
   const press = line(page).getByRole('button')
   await expect(press).toHaveText(/^Next: “.+” waits for you/)
@@ -39,6 +41,17 @@ test('next up · it names the task that waits for the viewer, and Enter opens it
   await expect(sheet).toBeVisible()
   await expect(sheet).toContainText(named.replace(/…$/, ''))
   await expect(line(page)).toHaveCount(0)
+}
+
+test('next up · it names the task that waits for the viewer, and Enter opens its sheet', async ({ page }) => {
+  await opensTheNamedTask(page)
+})
+
+// CI's room runners draw about 8 frames a second (docs/plans/ci-next-up-flake.md): the press takes the focus 125 ms
+// after its words show, and an Enter sent on the words alone went to the page's body twice in a week.
+test('next up · with frames as slow as CI draws them, Enter still opens the named task’s sheet', async ({ page }) => {
+  await slowFrames(page)
+  await opensTheNamedTask(page)
 })
 
 test('next up · the decisions’ pill closes the line', async ({ page }) => {
