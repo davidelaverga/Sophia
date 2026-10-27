@@ -89,6 +89,8 @@ test('next up · focus moved to another decision during the write stays there (C
   const other = decisions.nth(1).locator('.plan-choice:not(:disabled)').first()
   await other.focus()
   await expect(line(page)).toBeVisible()
+  // The line shows a frame before NextUp looks where the focus is: «stays there» is read once its line says it has.
+  await expect(line(page)).toHaveAttribute('data-settled', '')
   await expect(other).toBeFocused()
 })
 
