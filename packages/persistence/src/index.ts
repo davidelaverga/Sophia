@@ -50,7 +50,13 @@ export {
 } from './access.ts'
 export { claimOutbox, expireDispatchLeases, recordDispatchResult, type OutboxRow } from './outbox.ts'
 // The conversation assembler (S3, 0064/0070): the worker records a reply's context when its create waits for one.
-export { assembleReply, checkedLimits, type AssemblyLimits, type AssemblyResult } from './conversation-assembly.ts'
+export {
+  assembleReply,
+  checkedLimits,
+  type AssemblyLimits,
+  type AssemblyMode,
+  type AssemblyResult,
+} from './conversation-assembly.ts'
 export { readEventFrames, type EventFrame, type EventPage } from './events.ts'
 export {
   ChannelListener,

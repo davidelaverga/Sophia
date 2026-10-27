@@ -2707,7 +2707,8 @@ async function assertGoalOnlyErrors(urls: TestDatabase) {
  * pin_execution). 0067's own tests cover them.
  */
 const LATER_0067 = {
-  relations: ['conversation_dispatch_provenance'],
+  // 0084's owner-only cutover record (#487 P1) is no table of the sealed candidates either.
+  relations: ['conversation_dispatch_provenance', 'conversation_fixed_assembly_cutover'],
   columns: [
     'conversation_grants.execution',
     'conversation_grants.executor_artifact_digest',

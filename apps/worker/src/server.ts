@@ -4,7 +4,7 @@ import { hostname } from 'node:os'
 import { checkRoleSafety, createPool } from '@sophia/persistence'
 import { CoordinationDispatcher, httpPaperclipClient } from './coordination-dispatch.ts'
 import { liveKitRemover, RemovalReconciler } from './room-removals.ts'
-import { RuntimeDispatcher } from './runtime-dispatch.ts'
+import { assemblyConfig, RuntimeDispatcher } from './runtime-dispatch.ts'
 
 const url = process.env.SOPHIA_WORKER_DATABASE_URL?.trim()
 if (!url) throw new Error('SOPHIA_WORKER_DATABASE_URL is required (a login granted sophia_worker; see .env.example)')
@@ -14,9 +14,10 @@ await checkRoleSafety(pool, 'sophia_worker') // refuse to run as an owner, super
 
 const log = (line: string) => console.log(`[sophia-worker] ${line}`)
 const workerId = `${hostname()}:${process.pid}`
-// Optional: a login admitted to the conversation assembler role (Q13). Without it no reply context is recorded here.
-const assemblerUrl = process.env.SOPHIA_ASSEMBLER_DATABASE_URL?.trim() || null
-const dispatcher = new RuntimeDispatcher(pool, { workerId, log, assemblerUrl })
+// Optional: a login admitted to the conversation assembler role (Q13), or the fixed assembly through this worker's own
+// login (0084, SOPHIA_CONVERSATION_ASSEMBLY=fixed). Without either no reply context is recorded here.
+const assembly = assemblyConfig({ ...process.env, workerUrl: url })
+const dispatcher = new RuntimeDispatcher(pool, { workerId, log, ...assembly })
 dispatcher.start()
 log('runtime dispatch started')
 

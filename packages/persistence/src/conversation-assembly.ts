@@ -17,6 +17,9 @@
 // * The assembly reads as the asker its reply row names, never as the caller: SET LOCAL ROLE to the assembler role, then
 //   the actor set transaction-locally. The role is a member of no other role; reads are bound to the claim this
 //   transaction began. The mission context is readMissionContext's, unchanged, under row security.
+// * Or, in the fixed mode (0084, FND-B-ASK-ALTERNATIVE-01), with no assembler login at all: the caller's own login
+//   assumes no role and sets no actor; the reads are the assembler's fixed readers of the claim begun in the same
+//   transaction, which derive project, asker and window from it. The transactions, bounds and outcomes are the same.
 import pg from 'pg'
 import { safeInt } from './bigint.ts'
 import {
@@ -25,9 +28,15 @@ import {
   type ContextMessage,
   type RenderedContext,
 } from './conversation-context.ts'
-import { readMissionContextForAssembly } from './mission-context.ts'
+import { readMissionContextFixed, readMissionContextForAssembly, type FixedClaim } from './mission-context.ts'
 
 export const ASSEMBLER_ROLE = 'sophia_conversation_assembler'
+
+/**
+ * How a reply's context is read: `login`, through a login admitted to the assembler role (Q13); `fixed`, through the
+ * assembler's fixed readers (0084), by a caller that can be no assembler.
+ */
+export type AssemblyMode = 'login' | 'fixed'
 
 /** Milliseconds, each the caller's: tests pass explicit local values; nothing here chooses a live one. */
 export interface AssemblyLimits {
@@ -215,11 +224,14 @@ async function bounded<T>(pool: pg.Pool, limits: AssemblyLimits, run: (c: pg.Poo
   }
 }
 
-/** BEGIN, the assembler role and the server-side limits: utility statements, so no snapshot is taken before begin. */
-function opening(isolation: 'READ COMMITTED' | 'REPEATABLE READ', limits: AssemblyLimits): string {
+/**
+ * BEGIN, the assembler role (the login mode only) and the server-side limits: utility statements, so no snapshot is
+ * taken before begin.
+ */
+function opening(isolation: 'READ COMMITTED' | 'REPEATABLE READ', limits: AssemblyLimits, mode: AssemblyMode): string {
   return [
     `BEGIN ISOLATION LEVEL ${isolation}`,
-    `SET LOCAL ROLE ${ASSEMBLER_ROLE}`,
+    ...(mode === 'login' ? [`SET LOCAL ROLE ${ASSEMBLER_ROLE}`] : []),
     `SET LOCAL statement_timeout = ${String(limits.statementTimeoutMs)}`,
     `SET LOCAL lock_timeout = ${String(limits.lockTimeoutMs)}`,
     `SET LOCAL idle_in_transaction_session_timeout = ${String(limits.idleInTransactionMs)}`,
@@ -257,8 +269,8 @@ function terminalReason(err: unknown): string | null {
 
 // --- The three transactions ------------------------------------------------------------------------------------------------
 
-async function claimTx(c: pg.PoolClient, replyId: string, limits: AssemblyLimits, tx: Tx) {
-  await c.query(opening('READ COMMITTED', limits))
+async function claimTx(c: pg.PoolClient, replyId: string, limits: AssemblyLimits, tx: Tx, mode: AssemblyMode) {
+  await c.query(opening('READ COMMITTED', limits, mode))
   const v = await answer(c, 'SELECT sophia.conversation_assembly_claim($1, $2) AS v', [replyId, limits.leaseMs])
   await commit(c, tx)
   return v
@@ -333,6 +345,44 @@ export async function renderBound(c: pg.PoolClient, b: Binding): Promise<Rendere
   })
 }
 
+/** The window and the asking message through the fixed reader (0084): every one begin named, or none. */
+async function readWindowFixed(c: pg.PoolClient, k: FixedClaim, b: Binding): Promise<ContextMessage[]> {
+  const { rows } = await c.query<MessageRow>('SELECT * FROM sophia.conversation_assembly_read_window($1, $2, $3)', [
+    k.replyId,
+    k.attempt,
+    k.token,
+  ])
+  const ids = [...b.window, b.messageId]
+  if (rows.length !== ids.length || !ids.every((id) => rows.some((m) => m.id === id)))
+    throw new Unreadable('a message begin named is not readable as the asker')
+  return rows.map((m) => ({
+    id: m.id,
+    conversationId: m.conversation_id,
+    seq: safeInt(m.seq, 'message.seq'),
+    author: m.author,
+    name: m.author_name,
+    body: m.body,
+    at: m.created_at.toISOString(),
+  }))
+}
+
+/**
+ * The context, read and rendered through the fixed readers of the claim begun in this transaction (0084): no actor is
+ * set here; the readers make the claim's asker the transaction's actor themselves, for the record that follows.
+ */
+export async function renderFixed(c: pg.PoolClient, k: FixedClaim, b: Binding): Promise<RenderedContext> {
+  const context = await readMissionContextFixed(c, k, b.projectId, { actorId: b.askedBy, channel: 'studio' })
+  if (!context) throw new Unreadable('the asker cannot read the project')
+  const messages = await readWindowFixed(c, k, b)
+  return renderConversationContext({
+    context,
+    conversationId: b.conversationId,
+    cutoffSeq: b.cutoffSeq,
+    messages,
+    earlierCount: b.earlierCount,
+  })
+}
+
 /** What the record takes: the rendered context, never a source or a hash (those it derives). */
 export function recordPayload(r: RenderedContext): string {
   return JSON.stringify({
@@ -345,15 +395,16 @@ export function recordPayload(r: RenderedContext): string {
   })
 }
 
-async function assemblyTx(
-  c: pg.PoolClient,
-  replyId: string,
-  k: Claimed,
-  limits: AssemblyLimits,
-  tx: Tx,
-): Promise<AssemblyResult> {
+/** How a call runs its transactions: its bounds and its mode. */
+interface Run {
+  limits: AssemblyLimits
+  mode: AssemblyMode
+}
+
+async function assemblyTx(c: pg.PoolClient, replyId: string, k: Claimed, run: Run, tx: Tx): Promise<AssemblyResult> {
+  const { limits, mode } = run
   const args = [replyId, k.attempt, k.token]
-  await c.query(opening('REPEATABLE READ', limits))
+  await c.query(opening('REPEATABLE READ', limits, mode))
   const begun = await answer(c, 'SELECT sophia.conversation_assembly_begin($1, $2, $3) AS v', args)
   const verdict = text(begun, 'verdict')
   if (verdict === 'not_pending') return { outcome: 'not_pending', state: text(begun, 'state') }
@@ -364,7 +415,11 @@ async function assemblyTx(
     return { outcome: 'closed', reason }
   }
   if (verdict !== 'begun') throw new TypeError('an unknown begin verdict')
-  const rendered = await renderBound(c, binding(begun))
+  const bound = binding(begun)
+  const rendered =
+    mode === 'login'
+      ? await renderBound(c, bound)
+      : await renderFixed(c, { replyId, attempt: k.attempt, token: k.token }, bound)
   const recorded = await answer(c, 'SELECT sophia.conversation_record_context($1, $2, $3, $4::jsonb) AS v', [
     ...args,
     recordPayload(rendered),
@@ -383,8 +438,9 @@ async function failTx(
   failing: { replyId: string; k: Claimed; reason: string },
   limits: AssemblyLimits,
   tx: Tx,
+  mode: AssemblyMode,
 ) {
-  await c.query(opening('READ COMMITTED', limits))
+  await c.query(opening('READ COMMITTED', limits, mode))
   const { replyId, k, reason } = failing
   const v = await answer(c, 'SELECT sophia.conversation_assembly_fail($1, $2, $3, $4) AS v', [
     replyId,
@@ -398,14 +454,14 @@ async function failTx(
 
 async function failReply(
   pool: pg.Pool,
-  replyId: string,
-  k: Claimed,
-  reason: string,
+  failing: { replyId: string; k: Claimed; reason: string },
   limits: AssemblyLimits,
+  mode: AssemblyMode,
 ): Promise<AssemblyResult> {
+  const { k, reason } = failing
   const tx: Tx = { committing: false }
   try {
-    const v = await bounded(pool, limits, (c) => failTx(c, { replyId, k, reason }, limits, tx))
+    const v = await bounded(pool, limits, (c) => failTx(c, failing, limits, tx, mode))
     const verdict = text(v, 'verdict')
     if (verdict === 'failed') return { outcome: 'failed', attempt: k.attempt, reason }
     if (verdict === 'not_pending') return { outcome: 'not_pending', state: text(v, 'state') }
@@ -416,22 +472,33 @@ async function failReply(
   }
 }
 
-async function assemble(pool: pg.Pool, replyId: string, k: Claimed, limits: AssemblyLimits): Promise<AssemblyResult> {
+async function assemble(
+  pool: pg.Pool,
+  replyId: string,
+  k: Claimed,
+  limits: AssemblyLimits,
+  mode: AssemblyMode,
+): Promise<AssemblyResult> {
   const tx: Tx = { committing: false }
   try {
-    return await bounded(pool, limits, (c) => assemblyTx(c, replyId, k, limits, tx))
+    return await bounded(pool, limits, (c) => assemblyTx(c, replyId, k, { limits, mode }, tx))
   } catch (err) {
     if (tx.committing) return { outcome: 'unknown', stage: 'assembly', attempt: k.attempt }
     const reason = terminalReason(err)
     if (reason === null) return { outcome: 'retry', stage: 'assembly', attempt: k.attempt, cause: causeOf(err) }
-    return failReply(pool, replyId, k, reason, limits)
+    return failReply(pool, { replyId, k, reason }, limits, mode)
   }
 }
 
-async function claim(pool: pg.Pool, replyId: string, limits: AssemblyLimits): Promise<AssemblyResult | Claimed> {
+async function claim(
+  pool: pg.Pool,
+  replyId: string,
+  limits: AssemblyLimits,
+  mode: AssemblyMode,
+): Promise<AssemblyResult | Claimed> {
   const tx: Tx = { committing: false }
   try {
-    return claimed(await bounded(pool, limits, (c) => claimTx(c, replyId, limits, tx)))
+    return claimed(await bounded(pool, limits, (c) => claimTx(c, replyId, limits, tx, mode)))
   } catch (err) {
     if (tx.committing) return { outcome: 'unknown', stage: 'claim', attempt: null }
     return { outcome: 'retry', stage: 'claim', attempt: null, cause: causeOf(err) }
@@ -439,10 +506,16 @@ async function claim(pool: pg.Pool, replyId: string, limits: AssemblyLimits): Pr
 }
 
 /**
- * Claim an attempt at a pending reply and, when claimed, assemble and record its context, through `url`: a login that
- * is a member of the assembler role. Each of the up to three transactions is bounded by `limits`.
+ * Claim an attempt at a pending reply and, when claimed, assemble and record its context, through `url`: in the login
+ * mode a login that is a member of the assembler role; in the fixed mode (0084) the worker's own login, which reads
+ * only through the fixed readers. Each of the up to three transactions is bounded by `limits`.
  */
-export async function assembleReply(url: string, replyId: string, limits: AssemblyLimits): Promise<AssemblyResult> {
+export async function assembleReply(
+  url: string,
+  replyId: string,
+  limits: AssemblyLimits,
+  mode: AssemblyMode = 'login',
+): Promise<AssemblyResult> {
   checkedLimits(limits)
   const pool = new pg.Pool({
     connectionString: url,
@@ -453,8 +526,8 @@ export async function assembleReply(url: string, replyId: string, limits: Assemb
   })
   pool.on('error', () => undefined)
   try {
-    const k = await claim(pool, replyId, limits)
-    return 'outcome' in k ? k : await assemble(pool, replyId, k, limits)
+    const k = await claim(pool, replyId, limits, mode)
+    return 'outcome' in k ? k : await assemble(pool, replyId, k, limits, mode)
   } finally {
     await pool.end()
   }
