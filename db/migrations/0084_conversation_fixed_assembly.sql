@@ -25,9 +25,22 @@
 --   before it returns. conversation_disable_fixed_assembly() reverses it (taking the functions back needs the owner's
 --   privileges, so its own temporary edge carries INHERIT, likewise revoked). These temporary edges are effects of the
 --   acts, recorded here; a clean final state is not an approval to run them.
+-- * Old sessions (#487 P1): a login that assumed the assembler with SET ROLE keeps it as its current user after its
+--   membership is revoked, until it resets the role or disconnects; PostgreSQL shows no session's current user and
+--   keeps no history of memberships. So no membership state alone shows the login route retired. The owner first
+--   records the cutover (conversation_mark_fixed_assembly_cutover(): no member but the creator edge, its instant kept
+--   in conversation_fixed_assembly_cutover), and enable is refused while any login session of this database (a backend
+--   with a logged-in user; an autovacuum worker has none), other than a superuser's or the trusted owner's, began at
+--   or before that instant, or its start is not visible to the caller (pg_stat_activity without pg_read_all_stats):
+--   such a session may still be the assembler. They are settled by closing, never terminated here (enable reads a
+--   fresh pg_stat_activity, not one cached earlier in its transaction). Both acts hold PostgreSQL's per-role lock on
+--   the assembler (COMMENT ON ROLE, its own comment unchanged; GRANT and REVOKE of the role take the same lock) from
+--   before their membership check to commit, and run in READ COMMITTED, so no membership changes between the check
+--   and the transfer. Disable forgets the cutover: enabling again needs a new one.
 -- * conversation_assembler_admitted() (0071), replaced: while sophia_worker holds the begin entry point it answers for
 --   the fixed mode alone (every reader owned by the assembler, the assembler a bare NOLOGIN role belonging to none and
---   with no member but its creator edge); otherwise its 0071 login rule, byte for byte. Both at once is never true.
+--   with no member but its creator edge, a cutover recorded); otherwise its 0071 login rule, byte for byte. Both at
+--   once is never true.
 -- * New authority, stated (not a fix of Q13, which stays held): sophia_worker may claim, begin, close, fail and record
 --   a reply's context and call the readers; the assembler owns the eight readers. Everything else, and 0001-0083, is
 --   unchanged.
@@ -220,6 +233,16 @@ END $$;
 REVOKE ALL ON FUNCTION sophia.conversation_assembly_read_project(uuid,integer,uuid), sophia.conversation_assembly_read_decisions(uuid,integer,uuid,text), sophia.conversation_assembly_read_entries(uuid,integer,uuid,text), sophia.conversation_assembly_count_entries(uuid,integer,uuid,text), sophia.conversation_assembly_read_work(uuid,integer,uuid), sophia.conversation_assembly_read_note_policy(uuid,integer,uuid), sophia.conversation_assembly_has_history(uuid,integer,uuid), sophia.conversation_assembly_read_window(uuid,integer,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.conversation_assembly_read_project(uuid,integer,uuid), sophia.conversation_assembly_read_decisions(uuid,integer,uuid,text), sophia.conversation_assembly_read_entries(uuid,integer,uuid,text), sophia.conversation_assembly_count_entries(uuid,integer,uuid,text), sophia.conversation_assembly_read_work(uuid,integer,uuid), sophia.conversation_assembly_read_note_policy(uuid,integer,uuid), sophia.conversation_assembly_has_history(uuid,integer,uuid), sophia.conversation_assembly_read_window(uuid,integer,uuid) TO sophia_worker;
 
+-- The recorded cutover: the instant the owner saw the assembler with no member but its creator edge. Owner-only (row
+-- security on, no policy, no grant).
+CREATE TABLE sophia.conversation_fixed_assembly_cutover (
+  one boolean PRIMARY KEY DEFAULT true CHECK (one),
+  marked_at timestamptz NOT NULL,
+  marked_by name NOT NULL
+);
+ALTER TABLE sophia.conversation_fixed_assembly_cutover ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON sophia.conversation_fixed_assembly_cutover FROM PUBLIC;
+
 -- Whether the fixed mode is selected (the worker holds the begin entry point) and whether it is whole: every reader the
 -- assembler's, which is a bare NOLOGIN role belonging to none and with no member but its recorded creator edge (D-Q13).
 CREATE FUNCTION sophia.conversation_fixed_assembly_selected() RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER
@@ -239,7 +262,8 @@ SET search_path=pg_catalog AS $$
      AND shobj_description(a.oid,'pg_authid') IS NOT DISTINCT FROM
       'con01-q13-fresh-creator v1 edge='||m.oid||' installer='||m.member))
    AND (SELECT count(*) FROM unnest(ARRAY['sophia.conversation_assembly_read_project(uuid,integer,uuid)','sophia.conversation_assembly_read_decisions(uuid,integer,uuid,text)','sophia.conversation_assembly_read_entries(uuid,integer,uuid,text)','sophia.conversation_assembly_count_entries(uuid,integer,uuid,text)','sophia.conversation_assembly_read_work(uuid,integer,uuid)','sophia.conversation_assembly_read_note_policy(uuid,integer,uuid)','sophia.conversation_assembly_has_history(uuid,integer,uuid)','sophia.conversation_assembly_read_window(uuid,integer,uuid)']::text[]) f
-     JOIN pg_proc p ON p.oid=to_regprocedure(f) WHERE p.proowner=a.oid AND p.prosecdef)=8) $$;
+     JOIN pg_proc p ON p.oid=to_regprocedure(f) WHERE p.proowner=a.oid AND p.prosecdef)=8
+   AND EXISTS(SELECT FROM sophia.conversation_fixed_assembly_cutover)) $$;
 REVOKE ALL ON FUNCTION sophia.conversation_fixed_assembly_selected(), sophia.conversation_fixed_assembly_whole() FROM PUBLIC;
 
 -- conversation_assembler_admitted (0071), replaced: the fixed mode alone while selected; otherwise 0071's rule, unchanged.
@@ -287,18 +311,63 @@ BEGIN
  IF NOT su THEN EXECUTE 'REVOKE sophia_conversation_assembler FROM postgres GRANTED BY postgres'; END IF;
 END $$;
 
--- The separate operator act: refused unless the assembler stands alone (no login route), then the mode is whole.
-CREATE FUNCTION sophia.conversation_enable_fixed_assembly() RETURNS boolean LANGUAGE plpgsql SET search_path=pg_catalog AS $$
-DECLARE f text;
+-- Before either act decides: the caller is the operator, in READ COMMITTED (each check sees what committed before it);
+-- the assembler's per-role lock is held to commit, so no GRANT or REVOKE of it lands between check and act; and the
+-- assembler stands alone (no login route).
+CREATE FUNCTION sophia.conversation_fixed_assembly_alone() RETURNS void LANGUAGE plpgsql SET search_path=pg_catalog AS $$
 BEGIN
  IF NOT sophia.conversation_fixed_assembly_operator() THEN
   RAISE EXCEPTION 'only the trusted installation owner switches the assembly mode' USING ERRCODE='42501'; END IF;
+ IF current_setting('transaction_isolation')<>'read committed' THEN
+  RAISE EXCEPTION 'the assembly mode is switched in READ COMMITTED' USING ERRCODE='25000'; END IF;
  IF NOT EXISTS(SELECT FROM pg_roles WHERE rolname='sophia_conversation_assembler') THEN
   RAISE EXCEPTION 'no assembler role' USING ERRCODE='42501'; END IF;
+ EXECUTE format('COMMENT ON ROLE sophia_conversation_assembler IS %L',
+  (SELECT shobj_description(oid,'pg_authid') FROM pg_roles WHERE rolname='sophia_conversation_assembler'));
  IF EXISTS(SELECT FROM pg_auth_members m JOIN pg_roles a ON a.oid=m.roleid WHERE a.rolname='sophia_conversation_assembler'
    AND NOT (m.grantor=10 AND m.admin_option AND NOT m.inherit_option AND NOT m.set_option))
   OR EXISTS(SELECT FROM pg_auth_members m JOIN pg_roles a ON a.oid=m.member WHERE a.rolname='sophia_conversation_assembler') THEN
   RAISE EXCEPTION 'the assembler has a member or a membership: retire the login route first' USING ERRCODE='42501'; END IF;
+END $$;
+
+-- The cutover, recorded while the assembler stands alone and the fixed mode is off. Sessions that began before it are
+-- what enable waits for.
+CREATE FUNCTION sophia.conversation_mark_fixed_assembly_cutover() RETURNS timestamptz LANGUAGE plpgsql
+SET search_path=pg_catalog AS $$
+DECLARE t timestamptz;
+BEGIN
+ PERFORM sophia.conversation_fixed_assembly_alone();
+ IF sophia.conversation_fixed_assembly_selected() THEN
+  RAISE EXCEPTION 'the fixed assembly is enabled: disable it first' USING ERRCODE='55000'; END IF;
+ t:=clock_timestamp();
+ INSERT INTO sophia.conversation_fixed_assembly_cutover (marked_at, marked_by) VALUES (t, session_user)
+  ON CONFLICT (one) DO UPDATE SET marked_at=excluded.marked_at, marked_by=excluded.marked_by;
+ RETURN t;
+END $$;
+
+-- The separate operator act: refused unless the assembler stands alone (no login route) and every session that may
+-- still be it has closed since the cutover; then the mode is whole.
+CREATE FUNCTION sophia.conversation_enable_fixed_assembly() RETURNS boolean LANGUAGE plpgsql SET search_path=pg_catalog AS $$
+DECLARE f text; t timestamptz; held text;
+BEGIN
+ PERFORM sophia.conversation_fixed_assembly_alone();
+ SELECT c.marked_at INTO t FROM sophia.conversation_fixed_assembly_cutover c;
+ IF t IS NULL THEN
+  RAISE EXCEPTION 'no cutover recorded: run sophia.conversation_mark_fixed_assembly_cutover() first' USING ERRCODE='55000';
+ END IF;
+ PERFORM pg_stat_clear_snapshot();
+ SELECT string_agg(format('pid %s (%s, %s)', s.pid, coalesce(s.usename::text,'?'),
+   CASE WHEN s.backend_start IS NULL THEN 'its start is not visible' ELSE 'began before the cutover' END), '; '
+   ORDER BY s.pid) INTO held
+  FROM pg_stat_activity s
+  WHERE s.datid=(SELECT oid FROM pg_database WHERE datname=current_database()) AND s.pid<>pg_backend_pid()
+   AND s.usesysid IS NOT NULL AND NOT coalesce((SELECT r.rolsuper OR (r.rolname='postgres'
+     AND r.oid=(SELECT datdba FROM pg_database WHERE datname=current_database())
+     AND r.oid=(SELECT nspowner FROM pg_namespace WHERE nspname='sophia')) FROM pg_roles r WHERE r.oid=s.usesysid), false)
+   AND (s.backend_start IS NULL OR s.backend_start<=t);
+ IF held IS NOT NULL THEN
+  RAISE EXCEPTION 'sessions that may still act as the assembler have not closed since the cutover: %', held
+   USING ERRCODE='55006'; END IF;
  PERFORM sophia.conversation_fixed_assembly_owner('sophia_conversation_assembler');
  GRANT EXECUTE ON FUNCTION sophia.conversation_assembly_bind(uuid,integer,uuid), sophia.conversation_assembly_reader()
   TO sophia_conversation_assembler;
@@ -310,7 +379,8 @@ BEGIN
  RETURN true;
 END $$;
 
--- And back: the worker loses the entry points, the installation owner takes the readers back.
+-- And back: the worker loses the entry points, the installation owner takes the readers back, and the cutover is
+-- forgotten (a login route may follow; enabling again needs a new cutover).
 CREATE FUNCTION sophia.conversation_disable_fixed_assembly() RETURNS boolean LANGUAGE plpgsql SET search_path=pg_catalog AS $$
 DECLARE f text;
 BEGIN
@@ -322,9 +392,11 @@ BEGIN
  REVOKE EXECUTE ON FUNCTION sophia.conversation_assembly_bind(uuid,integer,uuid), sophia.conversation_assembly_reader()
   FROM sophia_conversation_assembler;
  PERFORM sophia.conversation_fixed_assembly_owner('postgres');
+ DELETE FROM sophia.conversation_fixed_assembly_cutover;
  RETURN false;
 END $$;
 REVOKE ALL ON FUNCTION sophia.conversation_fixed_assembly_operator(), sophia.conversation_fixed_assembly_owner(name),
+ sophia.conversation_fixed_assembly_alone(), sophia.conversation_mark_fixed_assembly_cutover(),
  sophia.conversation_enable_fixed_assembly(), sophia.conversation_disable_fixed_assembly() FROM PUBLIC;
 
 COMMIT;

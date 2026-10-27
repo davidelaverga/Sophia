@@ -11,6 +11,12 @@
 -- * Its explicit grants are the login route's allowlist plus EXECUTE on conversation_assembly_bind and
 --   conversation_assembly_reader; it owns the eight readers (0084) and nothing else, anywhere.
 -- * sophia_worker holds EXECUTE on the five entry points and the eight readers; every reviewed callable's ACL is exact.
+-- * No session may still BE the assembler (#487 P1): a login that assumed it with SET ROLE keeps it as its current user
+--   after its membership is revoked, and PostgreSQL shows neither a session's current user nor past memberships. So a
+--   cutover must be recorded (owner-only), and every login session of this database (a backend with a logged-in user)
+--   but a superuser's or the trusted owner's must have begun after it, visibly to the role running this check (pg_stat_activity shows another login's
+--   start only with pg_read_all_stats): an earlier or unseen one holds until it closes. Nothing here terminates it.
+--   Run it in a transaction of its own: pg_stat_activity is read once per transaction and kept until it ends.
 -- Every shared reviewed identity (relations, row security, policies, view, triggers, function definitions) is the
 -- login route's, byte for byte, plus the 0084 functions. Fails closed: a missing role or object is a hold.
 WITH a AS (SELECT * FROM pg_roles WHERE rolname='sophia_conversation_assembler'),
@@ -76,7 +82,7 @@ WITH a AS (SELECT * FROM pg_roles WHERE rolname='sophia_conversation_assembler')
       ('sophia.conversation_assembly_reader()','bb3d0b9c618761ec3847201300c7b7cd'),
       ('sophia.conversation_assembler_admitted()','edbde52747c0a279cd36678631e6d4a7'),
       ('sophia.conversation_fixed_assembly_selected()','19ed4297589bc604604f9f82483a2520'),
-      ('sophia.conversation_fixed_assembly_whole()','59260f4e0ed726e56a5f566922b5e96b')),
+      ('sophia.conversation_fixed_assembly_whole()','8dd96a9401380701956dfc1ccf0a68eb')),
      -- The eight fixed readers (0084), owned by the assembler; any other definition holds.
      reader_defs(f,h) AS (VALUES
       ('sophia.conversation_assembly_count_entries(uuid,integer,uuid,text)','0cc657ab6ff2ffd2ec5f78e1214525d6'),
@@ -158,6 +164,21 @@ UNION ALL SELECT 'hold', 'not enabled or not whole: conversation_assembler_admit
 UNION ALL SELECT 'hold', 'a role can act as the assembler: '||m.member::regrole||CASE WHEN r.rolcanlogin THEN ' (a login)' ELSE '' END
  FROM pg_auth_members m JOIN pg_roles r ON r.oid=m.member, a WHERE m.roleid=a.oid AND m.oid NOT IN (SELECT edge FROM fresh)
 UNION ALL SELECT 'hold', 'the assembler is a member of '||m.roleid::regrole FROM pg_auth_members m, a WHERE m.member=a.oid
+-- Nor any session that may still be it: a cutover recorded by the owner alone, and nothing older or unseen.
+UNION ALL SELECT 'hold', 'no cutover recorded (sophia.conversation_mark_fixed_assembly_cutover)'
+ WHERE NOT EXISTS(SELECT FROM sophia.conversation_fixed_assembly_cutover)
+UNION ALL SELECT 'hold', 'the cutover record is not the owner''s alone'
+ WHERE NOT EXISTS(SELECT FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_roles o ON o.oid=c.relowner
+   WHERE n.nspname='sophia' AND c.relname='conversation_fixed_assembly_cutover' AND c.relkind='r' AND o.rolname='postgres'
+    AND NOT EXISTS(SELECT FROM aclexplode(coalesce(c.relacl,acldefault('r',c.relowner))) x WHERE x.grantee<>c.relowner))
+UNION ALL SELECT 'hold', 'a session may still act as the assembler: pid '||s.pid||' ('||coalesce(s.usename::text,'?')||', '
+   ||CASE WHEN s.backend_start IS NULL THEN 'its start is not visible' ELSE 'began before the cutover' END||')'
+ FROM pg_stat_activity s, t WHERE s.datid=t.oid AND s.pid<>pg_backend_pid() AND s.usesysid IS NOT NULL
+  AND NOT coalesce((SELECT r.rolsuper OR (r.rolname='postgres'
+    AND r.oid=(SELECT datdba FROM pg_database WHERE datname=current_database())
+    AND EXISTS(SELECT FROM pg_namespace n WHERE n.nspname='sophia' AND n.nspowner=r.oid)) FROM pg_roles r WHERE r.oid=s.usesysid), false)
+  AND (s.backend_start IS NULL
+   OR NOT EXISTS(SELECT FROM sophia.conversation_fixed_assembly_cutover c WHERE s.backend_start>c.marked_at))
 -- It owns the eight readers and nothing else, anywhere; it holds grants in the target database alone.
 UNION ALL SELECT 'hold', 'the assembler owns something besides its readers in '||dep.place
  FROM dep, a, t WHERE dep.refobjid=a.oid AND dep.deptype='o'

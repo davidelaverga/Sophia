@@ -2,11 +2,13 @@
 // which can be no assembler. The real API and worker logins and functions, the real Ask, dispatch and assembleReply;
 // owner-run setup only for what no runtime path writes (a mode switch, a lapsed lease, a removed member). Each refusal is
 // asserted at the worker's own connection: no role it may assume, no claim it did not begin in the same transaction, no
-// actor or project of its own, no relation a temporary table of its own could stand in for.
+// actor or project of its own, no relation a temporary table of its own could stand in for. And (#487 P1) no session
+// that assumed the assembler before the owner's cutover may outlive it into the fixed mode: enable waits for it to close.
 import assert from 'node:assert/strict'
 import { createHash, randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { after, before, describe, it } from 'node:test'
+import { setTimeout as delay } from 'node:timers/promises'
 import pg from 'pg'
 import type { MissionProposalRequest } from '@sophia/contracts'
 import { readMissionContextFixed } from './mission-context.ts'
@@ -102,6 +104,36 @@ async function holds(w: World, sql: string, args: unknown[] = []): Promise<strin
 }
 
 const enable = (w: World) => w.owner.query('SELECT sophia.conversation_enable_fixed_assembly() AS on')
+const markCutover = (c: pg.Pool | pg.Client) => c.query('SELECT sophia.conversation_mark_fixed_assembly_cutover()')
+
+/** Login sessions of this database that may be the assembler by enable's rule: no superuser's, begun by the cutover. */
+async function unsettled(w: World): Promise<number[]> {
+  const { rows } = await w.owner.query<{ pid: number }>(
+    `SELECT s.pid FROM pg_stat_activity s, sophia.conversation_fixed_assembly_cutover c
+      WHERE s.datid=(SELECT oid FROM pg_database WHERE datname=current_database()) AND s.pid<>pg_backend_pid()
+        AND s.usesysid IS NOT NULL AND NOT coalesce((SELECT rolsuper FROM pg_roles WHERE oid=s.usesysid), false)
+        AND s.backend_start<=c.marked_at ORDER BY s.pid`,
+  )
+  return rows.map((r) => r.pid)
+}
+
+/** Until `done`, within 5 s: a closed client's backend leaves pg_stat_activity shortly after, not at once. */
+async function until(done: () => Promise<boolean>) {
+  for (const stop = Date.now() + 5_000; !(await done()); await delay(50))
+    if (Date.now() > stop) assert.fail('not settled within 5 s')
+}
+
+/**
+ * The owner's cutover, then what enable waits for: this fixture's API and worker pools, opened before it, close
+ * voluntarily and open again. Nothing is terminated; a session they do not own (`keep`) is left as it is.
+ */
+async function cutover(w: World, keep: number[] = []) {
+  await markCutover(w.owner)
+  await Promise.all([w.api.end(), w.worker.end()])
+  w.api = new pg.Pool({ connectionString: w.db.apiUrl, max: 2 })
+  w.worker = new pg.Pool({ connectionString: w.db.workerUrl, max: 2 })
+  await until(async () => JSON.stringify(await unsettled(w)) === JSON.stringify(keep))
+}
 const admitted = async (w: World) =>
   (await w.owner.query<{ v: boolean }>('SELECT sophia.conversation_assembler_admitted() AS v')).rows[0]?.v
 
@@ -314,6 +346,11 @@ describe('0084 installed and not enabled: OFF', () => {
       owners.rows.map((r) => r.o),
       ['postgres'],
     )
+    // No cutover yet: what an earlier session may still be is unknown, so enable is refused and the gate holds it.
+    await assert.rejects(enable(w), { code: '55000', message: /no cutover recorded/ })
+    assert.ok(
+      (await holds(w, FIXED_CHECK)).includes('no cutover recorded (sophia.conversation_mark_fixed_assembly_cutover)'),
+    )
   })
 })
 
@@ -341,6 +378,7 @@ describe('0084: the same records render the same context through the login route
     assert.ok((await holds(w, LOGIN_CHECK, [w.db.assemblerRole])).includes('admitted to template1 (PUBLIC CONNECT)'))
     // The login route retired (its login no longer a member), then the fixed mode enabled: claim and records unchanged.
     await w.owner.query(`REVOKE ${ROLE} FROM ${w.db.assemblerRole}`)
+    await cutover(w)
     assert.deepEqual((await enable(w)).rows[0], { on: true })
     assert.deepEqual(await holds(w, FIXED_CHECK), [], 'the fixed mode’s own gate holds nothing once enabled')
     const viaFixed = await asWorker(w, async (c) => {
@@ -370,6 +408,7 @@ describe('0084 enabled: the fixed mode end to end, and every boundary at the wor
   let w: World
   before(async () => {
     w = await open(false)
+    await cutover(w)
     assert.deepEqual((await enable(w)).rows[0], { on: true })
   })
   after(() => close(w))
@@ -585,12 +624,145 @@ describe('0084 enabled: the fixed mode end to end, and every boundary at the wor
   it('disabled again: the worker loses the entry points, the readers return to the owner, and the Ask is refused', async () => {
     await w.owner.query('SELECT sophia.conversation_disable_fixed_assembly()')
     assert.equal(await admitted(w), false)
-    assert.ok((await holds(w, FIXED_CHECK)).length > 0, 'disabled, its gate holds')
+    assert.ok(
+      (await holds(w, FIXED_CHECK)).includes('no cutover recorded (sophia.conversation_mark_fixed_assembly_cutover)'),
+    )
     const s = await ask(w, await project(w))
     assert.deepEqual(await reply(w, s.replyId), { state: 'blocked', reason: 'context_assembler_unbound' })
     await asWorker(w, async (c) => {
       assert.equal((await read(c, 'SELECT sophia.conversation_assembly_claim($1, 60000)', [s.replyId])).code, '42501')
     })
+    // Disable forgets the cutover: a login route may have come and gone since, so enabling again needs a new one.
+    await assert.rejects(enable(w), { code: '55000', message: /no cutover recorded/ })
+    await cutover(w)
     assert.deepEqual((await enable(w)).rows[0], { on: true })
+  })
+})
+
+/** A connection's authenticated login and its current user, which SET ROLE changed. */
+const who = async (c: pg.Client) =>
+  (await c.query<{ s: string; c: string }>('SELECT session_user::text AS s, current_user::text AS c')).rows[0]
+
+describe('#487 P1: a session that assumed the assembler before the cutover', () => {
+  let w: World
+  before(async () => {
+    w = await open(true)
+  })
+  after(() => close(w))
+
+  const login = () => w.db.assemblerRole ?? assert.fail('an assembler login')
+  const readerOwners = async () =>
+    (
+      await w.owner.query<{ o: string }>(
+        `SELECT DISTINCT p.proowner::regrole::text AS o FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+          WHERE n.nspname='sophia' AND p.proname ~ '^conversation_assembly_(read_|count_|has_)'`,
+      )
+    ).rows.map((r) => r.o)
+
+  it('kept open across SET ROLE, the revoke and the cutover, it holds enable before anything changes, until it closes', async () => {
+    // The login route's real execution login assumes the assembler for its session and stays connected.
+    const stale = new pg.Client({ connectionString: w.db.assemblerUrl ?? '' })
+    await stale.connect()
+    let connected = true
+    try {
+      await stale.query(`SET ROLE ${ROLE}`)
+      const pid = (await stale.query<{ p: number }>('SELECT pg_backend_pid() AS p')).rows[0]?.p ?? 0
+      await w.owner.query(`REVOKE ${ROLE} FROM ${login()}`)
+      // No member is left, the role is NOLOGIN and pg_stat_activity names the login: none of it shows what this is.
+      assert.deepEqual(await who(stale), { s: login(), c: ROLE })
+      await assert.rejects(enable(w), { code: '55000', message: /no cutover recorded/ })
+      await cutover(w, [pid])
+      // The same login, connected after the cutover: no membership to assume the assembler with, and nothing held.
+      const fresh = new pg.Client({ connectionString: w.db.assemblerUrl ?? '' })
+      await fresh.connect()
+      try {
+        await assert.rejects(fresh.query(`SET ROLE ${ROLE}`), { code: '42501' })
+        assert.deepEqual(await unsettled(w), [pid])
+      } finally {
+        await fresh.end()
+      }
+      const comment = async () =>
+        (await w.owner.query<{ d: string | null }>(`SELECT shobj_description(to_regrole($1),'pg_authid') AS d`, [ROLE]))
+          .rows[0]?.d
+      const kept = await comment()
+      const hold = `pid ${pid} (${login()}, began before the cutover)`
+      await assert.rejects(
+        enable(w),
+        (e: unknown) => e instanceof Error && 'code' in e && e.code === '55006' && e.message.includes(hold),
+      )
+      // Refused before anything changed: the readers the owner's, no entry point for the worker or helper for the
+      // assembler, its comment as it was; the mode not whole and its gate holding that session.
+      assert.deepEqual(await readerOwners(), ['postgres'])
+      const granted = await w.owner.query<{ begin: boolean; bind: boolean }>(
+        `SELECT has_function_privilege('sophia_worker','sophia.conversation_assembly_begin(uuid,integer,uuid)','EXECUTE') AS begin,
+                has_function_privilege($1,'sophia.conversation_assembly_bind(uuid,integer,uuid)','EXECUTE') AS bind`,
+        [ROLE],
+      )
+      assert.deepEqual(granted.rows[0], { begin: false, bind: false })
+      assert.equal(await comment(), kept)
+      assert.equal(await admitted(w), false)
+      assert.ok((await holds(w, FIXED_CHECK)).includes(`a session may still act as the assembler: ${hold}`))
+      // It is still the assembler, owning nothing: no reader to give away.
+      assert.deepEqual(await who(stale), { s: login(), c: ROLE })
+      await assert.rejects(
+        stale.query('GRANT EXECUTE ON FUNCTION sophia.conversation_assembly_read_project(uuid,integer,uuid) TO PUBLIC'),
+        { code: '42501' },
+      )
+      // Closed by its own client (never terminated here), then the mode is enabled and whole.
+      await stale.end()
+      connected = false
+      await until(async () => (await unsettled(w)).length === 0)
+    } finally {
+      if (connected) await stale.end()
+    }
+    assert.deepEqual((await enable(w)).rows[0], { on: true })
+    assert.deepEqual(await readerOwners(), [ROLE])
+    assert.deepEqual(await holds(w, FIXED_CHECK), [])
+    const s = await ask(w, await project(w))
+    assert.equal((await assembleReply(w.db.workerUrl, s.replyId, LIMITS, 'fixed')).outcome, 'recorded')
+  })
+
+  it('the transition is serialized: no GRANT or REVOKE of the assembler lands while the cutover or enable decides', async () => {
+    await w.owner.query('SELECT sophia.conversation_disable_fixed_assembly()')
+    const operator = new pg.Client({ connectionString: w.db.ownerUrl })
+    const other = new pg.Client({ connectionString: w.db.ownerUrl })
+    await Promise.all([operator.connect(), other.connect()])
+    try {
+      await other.query("SET lock_timeout='300ms'")
+      const grant = () => other.query(`GRANT ${ROLE} TO ${login()} WITH INHERIT FALSE, SET TRUE`)
+      // Run in REPEATABLE READ (a snapshot older than the lock), either act is refused.
+      for (const act of [
+        'sophia.conversation_mark_fixed_assembly_cutover()',
+        'sophia.conversation_enable_fixed_assembly()',
+      ]) {
+        await operator.query('BEGIN ISOLATION LEVEL REPEATABLE READ')
+        await assert.rejects(operator.query(`SELECT ${act}`), { code: '25000' })
+        await operator.query('ROLLBACK')
+      }
+      // The cutover's transaction, open: a concurrent grant of the assembler waits for it and here times out.
+      await operator.query('BEGIN')
+      await markCutover(operator)
+      await assert.rejects(grant(), { code: '55P03' })
+      await operator.query('COMMIT')
+      await cutover(w)
+      // Enable's transaction, open after its checks and transfer: the same.
+      await operator.query('BEGIN')
+      assert.deepEqual((await operator.query('SELECT sophia.conversation_enable_fixed_assembly() AS on')).rows[0], {
+        on: true,
+      })
+      await assert.rejects(grant(), { code: '55P03' })
+      await operator.query('COMMIT')
+      assert.equal(await admitted(w), true)
+      // A grant after enable is a login route beside it again: the mode is not whole and its gate holds the member.
+      // (Its revoke leaves no trace PostgreSQL keeps: re-establishing the mode then takes disable and a new cutover.)
+      await grant()
+      assert.equal(await admitted(w), false)
+      assert.ok((await holds(w, FIXED_CHECK)).includes(`a role can act as the assembler: ${login()} (a login)`))
+      await other.query(`REVOKE ${ROLE} FROM ${login()}`)
+      // While the mode is enabled, a new cutover is refused.
+      await assert.rejects(markCutover(w.owner), { code: '55000', message: /disable it first/ })
+    } finally {
+      await Promise.all([operator.end(), other.end()])
+    }
   })
 })

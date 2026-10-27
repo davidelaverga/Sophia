@@ -4,7 +4,9 @@
 // switch's temporary edges are its own: SET (and INHERIT, to take functions back) on the assembler and CREATE on schema
 // sophia for it, each granted and revoked inside the act. Here: template1's PUBLIC CONNECT stays, as on the managed
 // cluster, so the login route's Q13 holds; the fixed mode is enabled, checked, used for a real reply, disabled and
-// enabled again, and every edge it leaves is exactly the recorded creator edge.
+// enabled again, and every edge it leaves is exactly the recorded creator edge. The admitted login's own connection
+// assumes the assembler and outlives its revoke (#487 P1): the owner, without pg_read_all_stats, cannot see when it
+// began, so enable is refused until it closes, and so is the gate for any other login's session it cannot see.
 // Requires the explicit marker AND the owned loopback cluster. No provider, runtime or model executes.
 import assert from 'node:assert/strict'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
@@ -12,6 +14,7 @@ import { readFileSync, statSync } from 'node:fs'
 import { basename, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { after, before, describe, it } from 'node:test'
+import { setTimeout as delay } from 'node:timers/promises'
 import pg from 'pg'
 import { registerRuntime, seedProject } from '@sophia/test-support'
 import { assembleReply, type AssemblyLimits } from './conversation-assembly.ts'
@@ -127,7 +130,7 @@ describe(
   '0084 as the trusted installation owner (owned Supabase-shaped cluster, no hosted effects)',
   { skip: !enabled },
   () => {
-    const held: { owner?: pg.Client; boot?: pg.Client } = {}
+    const held: { owner?: pg.Client; boot?: pg.Client; stale?: pg.Client } = {}
     /** The owner's connection to the target, made by before(). */
     const own = () => held.owner ?? assert.fail('no owner connection')
 
@@ -148,7 +151,9 @@ describe(
     after(async () => {
       const { boot, owner } = held
       if (!boot) return
+      await held.stale?.end().catch(() => undefined)
       await owner?.end().catch(() => undefined)
+      await boot.query('REVOKE pg_read_all_stats FROM postgres')
       await boot.query(`DROP DATABASE IF EXISTS ${target} WITH (FORCE)`)
       await boot.query(`DROP ROLE IF EXISTS ${login},${api},${worker},${ROLE}`)
       await boot.end()
@@ -163,8 +168,40 @@ describe(
       assert.ok((await holds(own(), LOGIN_CHECK, [login])).includes('admitted to template1 (PUBLIC CONNECT)'))
       await assert.rejects(own().query('SELECT sophia.conversation_enable_fixed_assembly()'), { code: '42501' })
       assert.deepEqual(await owners(own()), ['postgres'], 'refused before anything moved')
+      // The login's real connection assumes the assembler for its session and stays connected past the retirement.
+      held.stale = await connect(login, target)
+      await held.stale.query(`SET ROLE ${ROLE}`)
       // The login route retired: its login no longer a member (its own creator edge and CONNECT stay until it is dropped).
       await own().query(`REVOKE ${ROLE} FROM ${login}`)
+      const who = await held.stale.query<{ s: string; c: string }>(
+        'SELECT session_user::text AS s, current_user::text AS c',
+      )
+      assert.deepEqual(who.rows[0], { s: login, c: ROLE })
+    })
+
+    it('that session, unseen by the owner, holds enable and the gate after the cutover until it closes', async () => {
+      const stale = held.stale ?? assert.fail('no stale connection')
+      await assert.rejects(own().query('SELECT sophia.conversation_enable_fixed_assembly()'), {
+        code: '55000',
+        message: /no cutover recorded/,
+      })
+      await own().query('SELECT sophia.conversation_mark_fixed_assembly_cutover()')
+      const pid = (await stale.query<{ p: number }>('SELECT pg_backend_pid() AS p')).rows[0]?.p
+      const hold = `pid ${pid} (${login}, its start is not visible)`
+      await assert.rejects(
+        own().query('SELECT sophia.conversation_enable_fixed_assembly()'),
+        (e: unknown) => e instanceof Error && 'code' in e && e.code === '55006' && e.message.includes(hold),
+      )
+      assert.deepEqual(await owners(own()), ['postgres'], 'refused before anything moved')
+      assert.ok((await holds(own(), FIXED_CHECK)).includes(`a session may still act as the assembler: ${hold}`))
+      await stale.end()
+      delete held.stale
+      for (
+        const stop = Date.now() + 5_000;
+        (await holds(own(), FIXED_CHECK)).some((h) => h.includes(hold));
+        await delay(50)
+      )
+        if (Date.now() > stop) assert.fail('the closed session did not leave within 5 s')
     })
 
     it('enabled by the non-superuser owner: readers the assembler’s, only the creator edge left, its gate holds nothing', async () => {
@@ -262,6 +299,14 @@ describe(
           'recorded',
         )
         assert.equal(await dispatch(), 'dispatched')
+        // Without pg_read_all_stats the owner cannot see when the API's and worker's sessions began, though they began
+        // after the cutover: the gate holds them while they are open, and does not guess.
+        const unseen = (await holds(own(), FIXED_CHECK)).filter((h) => h.includes('its start is not visible'))
+        assert.ok(unseen.length > 0)
+        assert.ok(
+          unseen.every((h) => h.includes(`(${api},`) || h.includes(`(${worker},`)),
+          JSON.stringify(unseen),
+        )
       } finally {
         await Promise.all([pools.api.end(), pools.worker.end()])
       }
@@ -273,9 +318,23 @@ describe(
       assert.deepEqual(await edges(own()), kept, 'the temporary SET/INHERIT edge is gone')
       assert.deepEqual(await owners(own()), ['postgres'])
       assert.ok((await holds(own(), FIXED_CHECK)).length > 0)
+      await assert.rejects(own().query('SELECT sophia.conversation_enable_fixed_assembly()'), { code: '55000' })
+      await own().query('SELECT sophia.conversation_mark_fixed_assembly_cutover()')
       await own().query('SELECT sophia.conversation_enable_fixed_assembly()')
       assert.deepEqual(await edges(own()), kept)
       assert.deepEqual(await holds(own(), FIXED_CHECK), [])
+    })
+
+    it('with pg_read_all_stats (the bootstrap superuser grants it here), a session begun after the cutover is seen and holds nothing', async () => {
+      await (held.boot ?? assert.fail('no bootstrap connection')).query('GRANT pg_read_all_stats TO postgres')
+      const later = new pg.Client({ connectionString: urlOf(worker, target, password) })
+      await later.connect()
+      try {
+        await later.query('SELECT 1')
+        assert.deepEqual(await holds(own(), FIXED_CHECK), [])
+      } finally {
+        await later.end()
+      }
     })
   },
 )
