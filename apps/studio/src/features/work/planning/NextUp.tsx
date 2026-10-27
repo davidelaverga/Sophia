@@ -3,7 +3,7 @@
 // choice leaves it, or from inside the decisions), never from somewhere the person moved to meanwhile. With nothing
 // next it says so, holds the focus, and leaves when the focus does. Once its frame has looked where the focus is, the
 // line says so (`data-settled`): «the focus stayed where the person put it» is then a fact, not a frame still to come.
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { Icon } from '@sophia/ui'
 import type { NextUp as Next } from './next-up.ts'
 
@@ -27,8 +27,11 @@ const leftByAnswer = (at: Element | null, from: Element | null) => at === docume
 export function NextUp({ next, from, onGo, onDone }: Props) {
   const press = useRef<HTMLButtonElement>(null)
   const line = useRef<HTMLParagraphElement>(null)
-  useEffect(() => {
+  // The mark goes as the new words are put on the page, before it paints: never new words under the last ones' mark.
+  useLayoutEffect(() => {
     line.current?.removeAttribute('data-settled')
+  }, [next.words, from])
+  useEffect(() => {
     const frame = requestAnimationFrame(() => {
       if (leftByAnswer(document.activeElement, from)) (press.current ?? line.current)?.focus({ preventScroll: true })
       line.current?.setAttribute('data-settled', '')
