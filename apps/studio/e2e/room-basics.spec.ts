@@ -15,14 +15,24 @@ test.beforeEach(async ({ page }) => {
   )
 })
 
-test('basics · the dock says how long the call has run', async ({ page }) => {
+/** The dock's clock reads 0:00 in the call, then 1:05 after 65 s; `slowMs` of the runner's own time pass between. */
+async function callClock(page: Page, slowMs = 0) {
   await page.clock.install()
   await page.goto('/room.html?call=on&people=2')
   const clock = dock(page).getByRole('timer')
   await expect(clock).toHaveText('0:00')
+  if (slowMs > 0) await page.waitForTimeout(slowMs) // a slow runner, as main's CI on #482 was (ci-room-basics-flake.md)
   await page.clock.fastForward(65_000)
   await expect(clock).toHaveText('1:05')
   await expect(clock).toHaveAccessibleName('In the call for 1 minute')
+}
+
+test('basics · the dock says how long the call has run', async ({ page }) => {
+  await callClock(page)
+})
+
+test('basics · the call’s clock counts the call’s time, never a slow runner’s', async ({ page }) => {
+  await callClock(page, 1500)
 })
 
 test('basics · your tile hides from your own gallery for this call, and shows again', async ({ page }) => {
