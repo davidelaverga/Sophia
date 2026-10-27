@@ -15,10 +15,17 @@ test.beforeEach(async ({ page }) => {
   )
 })
 
-/** The dock's clock reads 0:00 in the call, then 1:05 after 65 s; `slowMs` of the runner's own time pass between. */
+/**
+ * The dock's clock reads 0:00 in the call, then 1:05 after 65 s; `slowMs` of the runner's own time pass between. The
+ * page's clock stops before the page opens and moves only as the test moves it, so the runner's seconds never reach
+ * the call's time (ci-room-basics-flake.md). The call joins on open on a timer of its own (useJoinOnOpen), let go here.
+ */
 async function callClock(page: Page, slowMs = 0) {
   await page.clock.install()
+  await page.clock.pauseAt(Date.now() + 1000)
   await page.goto('/room.html?call=on&people=2')
+  await page.clock.runFor(1)
+  await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
   const clock = dock(page).getByRole('timer')
   await expect(clock).toHaveText('0:00')
   if (slowMs > 0) await page.waitForTimeout(slowMs) // a slow runner, as main's CI on #482 was (ci-room-basics-flake.md)
