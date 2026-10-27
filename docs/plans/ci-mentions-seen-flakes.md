@@ -57,3 +57,49 @@
   TanStack Query's notifications (`setTimeout(…, 0)`) too.
 - The close case runs 2.5 s of page time with the chat closed; on CI it takes 10-19 s against 5-10 s for the open case.
   Not chased here.
+
+## The background case (2026-10-26)
+
+> The reliability report of 2026-10-26 (`ci-2026-10-26/reliability.md`): `mentions.spec.ts:1129`, «a failed seen write
+> whose retry falls due in the background waits, and goes once back in front (r4314628605)», 1 failure, 2026-10-25
+> 13:07 UTC; the batch of three flakes. Luis 2026-10-26: «Procede con el lote de los tres flakes»; earlier «arregla tú
+> los de Davide». Tests only; nothing the person sees changes, and nothing changes in the spec either (below).
+
+### Measured
+
+- **The one failure, quoted.** Run 40196169238 (`fix/html-design-version-contract-20261025` at `63430578b`), «The room
+  in Chromium, part 2 of 3»: «Expected: 1 · Received: 2» at `mentions.spec.ts:1139:36`,
+  `expect(await seenAttempts(page)).toBe(1)`, the count after the 2.5 s in the background. The retry had been sent.
+- **Not the race #473 fixed.** This case runs on the real clock (no `clock.install`), and its 503 answers at once:
+  there is no clock that moves before the answer is read. Its gap was where the hide came from: the runner read the
+  count (`expect.poll`, whose waits grow 100, 250, 500, then 1000 ms) and then hid the page in a call of its own. A
+  write landing just after one of the poll's reads is seen up to a second later, the retry's own wait
+  (`SEEN_RETRY_MS`): the hide then lands after the retry was sent in front, and the count is 2.
+- **Already fixed on main, before this note.** Davide's `8cf20dad4` (2026-10-25 14:19 UTC, an hour after the failure;
+  merged with #482 and in this branch's base `624441362`): `failingSeen`'s `hideOnFailure` hides the page inside the
+  wrapped fetch, as the first seen write is answered 503 and before the page reads that answer. The page's retry is
+  then set, and falls due, with the page already hidden, whatever the runner's pace; the case asserts the page is
+  hidden. Every count and the 2.5 s wait stayed. Every CI run completed since has passed it: 8 successes from
+  40202235554 (`8cf20dad4`) to 40416492082 (main `624441362`); the one failed run since (40320260093, main) failed in
+  `room-basics.spec.ts:18`.
+- **The product holds.** A retry due while hidden goes to `due` (`useMentionAttention.ts`, the `seenRetries` callback)
+  and back in front `look(true)` sends it once; a write is never started hidden (`seen`'s `backgrounded()`).
+
+### Reproduced, and the fix proved
+
+- **The lever:** the runner's next step lands 1.1 s after it read the count (`page.waitForTimeout(1100)` right after
+  the poll), a loaded runner and the poll's lag together. Kept on throwaway local branches, never committed here.
+- **Before `8cf20dad4`** (its parent's spec plus the lever, `3c791317b`): red 30 of 30, «Expected: 1 · Received: 2»
+  at the same assertion (`pw-logs/r3-bg-red-old-lever.txt`): the CI failure.
+- **Now** (the same lever on this branch's spec, `9c77c7d28`): green 30 of 30 (`pw-logs/r3-bg-green-new-lever.txt`).
+- **Still sharp:** with the product's two `backgrounded()` checks taken out of the seen write and its retry
+  (`2c306ecff`, a mutant), the case fails 3 of 3, «Expected: 1 · Received: 2» at the count after the background
+  (`pw-logs/r3-bg-mutant.txt`): the in-page hide didn't make it pass for the wrong reason.
+- **Unchanged spec:** both background cases `--repeat-each=20`, 40/40 (`pw-logs/r3-bg-green-repeat20.txt`); the
+  whole of `mentions.spec.ts` once, 37/37 (`pw-logs/r3-bg-green-spec.txt`).
+
+### Limits
+
+- The way back in front is time-free: the retry fell due 1 s after the failure, at least 2.5 s before the page comes
+  back; if it ever came back first, the retry would go in front once at its time, and the counts would be the same.
+- The first case's 1.5 s and this case's 2.5 s are real waits (about 4 s together); not chased.
