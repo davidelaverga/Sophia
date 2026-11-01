@@ -96,6 +96,9 @@ test('updates · an older meeting opens its own recap, not the latest: one that 
 })
 
 test('updates · in a call, the running meeting is first, and opens with Close for an admin', async ({ page }) => {
+  // A fixed time (UTC, as the list says it here) after the fixture's earlier meetings (2 and 4 October), so the meeting
+  // closed here is said by that day, whatever day the check runs, and is still the newest.
+  await page.clock.setFixedTime(new Date('2026-10-06T10:00:00Z'))
   await page.goto('/room.html?place=updates&call=on')
   await expect(meetings(page).getByRole('button').first()).toHaveText(/^Now · started \d\d:\d\d$/)
   await meetings(page).getByRole('button', { name: /^Now/ }).click()
@@ -107,7 +110,7 @@ test('updates · in a call, the running meeting is first, and opens with Close f
   await recap(page).getByRole('button', { name: 'Close the meeting' }).click()
   await expect(recap(page).locator('.recap-said')).toHaveText('Closed. Everyone’s recap is this one.')
   await page.keyboard.press('Escape')
-  await expect(meetings(page).getByRole('button').first()).toHaveText(/^Oct \d+, \d\d:\d\d · under a minute$/)
+  await expect(meetings(page).getByRole('button').first()).toHaveText('Oct 6, 10:00 · under a minute')
 })
 
 test('updates · leaving from an older meeting’s sheet opens the recap of the meeting left, on top', async ({

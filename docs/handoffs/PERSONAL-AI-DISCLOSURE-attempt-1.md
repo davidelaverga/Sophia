@@ -126,6 +126,12 @@ commits on the branch merge its base forward or touch only this record). 9 files
   - The whole Studio browser suite: 2557 passed and 18 failed. All 18 are in `commands`, `call-keys`, `room-updates`,
     `prod-lenses`, `new-version` and `goal-owner-date`, and fail the same way on clean Main `36520fe3` on this macOS
     host (shortcut keys pressed as Control). They are not caused by this change.
+    - **Corrected 2026-11-01:** the same 18 tests fail on clean Main, as recorded. But «shortcut keys pressed as
+      Control» does not explain all of them. `goal-owner-date` and `room-updates` depend on the calendar: the PR's CI
+      on 1 November showed it. One saves a target date of 30 October and expects «due»; the other expects the meeting
+      just closed to be dated in October. They are not caused by the disclosure feature, and their tests now fix the
+      browser's clock (FND-B-488-CALENDAR-CI-01). The other 16 were not re-diagnosed here: no cause is claimed for
+      them, and the whole suite is not claimed green.
   - `pnpm test` 3740 passed, 0 failed, 70 skipped; toolchain, format, lint, typecheck and build clean.
 - **Not claimed:** any production journey, current availability of the services, legal adequacy, accessibility
   certification, or Help during a talk by voice. CI and an independent review of the whole diff are still to come.
