@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify'
 import type pg from 'pg'
 import { DomainError } from '@sophia/domain'
 import { readDiscussionPage, readSnapshot, withActor, type ServiceControl } from '@sophia/persistence'
+import { withExchanges } from '../voice-joins.ts'
 import { projectParams } from './schemas.ts'
 
 /**
@@ -28,7 +29,10 @@ function readControl(reply: FastifyReply): ServiceControl {
 }
 
 /** getProjectSnapshot — consistent authorized snapshot with replay cursor (S1-02). */
-export function projectionRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool }): void {
+export function projectionRoutes(
+  app: FastifyInstance,
+  { pool, voice = false }: { pool: pg.Pool; voice?: boolean },
+): void {
   app.get<{ Params: { projectId: string }; Querystring: { revisions?: '1' } }>(
     '/api/v1/projects/:projectId/snapshot',
     {
@@ -44,7 +48,11 @@ export function projectionRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool
         pool,
         req.actorId,
         'read',
-        (c) => readSnapshot(c, req.params.projectId, { revisions: req.query.revisions === '1' }),
+        async (c) => {
+          const read = await readSnapshot(c, req.params.projectId, { revisions: req.query.revisions === '1' })
+          // Voice qualification on (A45): each voice-created task names its exchange.
+          return read && voice ? { ...read, work: await withExchanges(c, req.params.projectId, read.work) } : read
+        },
         readControl(reply),
       )
       // Unknown and non-member projects look the same: no existence oracle.

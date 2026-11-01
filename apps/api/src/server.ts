@@ -68,6 +68,12 @@ function conversationsOn(): boolean {
   if (mode !== 'on') throw new Error('SOPHIA_CONVERSATIONS is on, off or unset')
   return true
 }
+function voiceQualificationFromEnv(): boolean {
+  const value = optional('SOPHIA_VOICE_QUALIFICATION')
+  if (value === undefined || value === 'off') return false
+  if (value !== 'on') throw new Error('SOPHIA_VOICE_QUALIFICATION is on, off or unset')
+  return true
+}
 const app = buildApp({
   pool,
   logger: true,
@@ -79,6 +85,10 @@ const app = buildApp({
   byteStore: byteStoreFromEnv(process.env),
   companion: personal.companion,
   conversations: conversationsOn(),
+  // Render sets RENDER_GIT_COMMIT; anything but 40 hex is no identity at all (null), never guessed.
+  commit: /^[0-9a-f]{40}$/.test(process.env.RENDER_GIT_COMMIT ?? '') ? (process.env.RENDER_GIT_COMMIT ?? null) : null,
+  // Voice qualification evidence (A45, 0085): on only by the operator's batch, with 0085 applied.
+  voiceQualification: voiceQualificationFromEnv(),
   ...(mediaBridgeTokenSha256 ? { mediaBridgeTokenSha256 } : {}),
   ...(livekitUrl
     ? { livekit: { url: livekitUrl, apiKey: required('LIVEKIT_API_KEY'), apiSecret: required('LIVEKIT_API_SECRET') } }

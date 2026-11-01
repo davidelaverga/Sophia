@@ -5,7 +5,8 @@
 // every connection, with the latest handle kept by the caller; tools NON_BLOCKING (tools.ts). No Extended
 // Thinking configuration and no `proactivity: false` (3.8 proactivity is not our privacy mechanism).
 // The system instruction and the tool declarations are the caller's: the guide's exact bytes (guide.ts) and its
-// version's declarations (tools.ts), the same on every connection.
+// version's declarations (tools.ts), the same on every connection. Only under a voice qualification grant, the
+// session also caps one generation's output at the grant's (maxOutputTokens); otherwise the setup names no cap.
 // The API key stays in this process; it is never logged or sent to a browser.
 import {
   GoogleGenAI,
@@ -42,6 +43,11 @@ export interface LiveOptions {
   tools: readonly FunctionDeclaration[]
   /** A handle from an earlier connection of the SAME exchange; null opens a fresh session. */
   resumptionHandle: string | null
+  /**
+   * One generation's output cap, only under a voice qualification grant (the grant's maxOutputTokensPerTurn). Absent
+   * otherwise, and then the setup carries none, as before.
+   */
+  maxOutputTokens?: number
 }
 
 export interface LiveEvents extends LiveHandlers {
@@ -76,6 +82,7 @@ export function geminiLive(opts: { baseUrl?: string } = {}): ConnectLive {
         sessionResumption: options.resumptionHandle ? { handle: options.resumptionHandle } : {},
         systemInstruction: options.systemInstruction,
         tools: [{ functionDeclarations: [...options.tools] }],
+        ...(options.maxOutputTokens === undefined ? {} : { maxOutputTokens: options.maxOutputTokens }),
       },
       callbacks: {
         onmessage: (msg: LiveServerMessage) => dispatchServerMessage(msg, events),

@@ -45,12 +45,18 @@ const SEARCH = '0072_project_search.sql'
 const TASKS = '0074_project_human_tasks.sql'
 const RETIREMENTS = '0075_completed_goal_session_retirement.sql'
 const MENTION_VISIBILITY = '0076_mention_source_visibility.sql'
+const VOICE = '0085_voice_qualification.sql'
+const KEYS = '0086_live_call_keys.sql'
+const NUMBERING = '0087_voice_evidence_numbering.sql'
+const PRESENCE = '0088_presence_order.sql'
 
 let dir: string
 let db: TestDatabase
 let pool: pg.Pool
 let app: FastifyInstance
 let stored: FastifyInstance
+/** The same API with voice qualification on (A45). */
+let voiced: FastifyInstance
 
 before(async () => {
   // The migrations before 0043, exactly as written.
@@ -66,11 +72,13 @@ before(async () => {
   })
   app = buildApp({ pool, verifyActor })
   stored = buildApp({ pool, verifyActor, byteStore: memoryByteStore() })
+  voiced = buildApp({ pool, verifyActor, voiceQualification: true })
 })
 
 after(async () => {
   await app.close()
   await stored.close()
+  await voiced.close()
   await pool.end()
   await db.drop()
   rmSync(dir, { recursive: true, force: true })
@@ -221,6 +229,20 @@ describe('readiness across 0043', () => {
     await through(MENTION_VISIBILITY)
     assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0076')
     await migrate(MENTION_VISIBILITY)
+    // G7 (A45, A46): every API claims each voice tool call's key (0086) and orders the bridge's presence reports
+    // (0088); one with voice qualification on also calls 0085's functions and 0087's numbering. 0086 and 0088 need
+    // nothing of 0085, so they are applied first here, to show what each API requires.
+    await through(VOICE)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0086 and 0088')
+    await migrate(KEYS)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0088')
+    await migrate(PRESENCE)
+    assert.deepEqual(await ready(), [200, { ready: true }], 'voice qualification off: needs nothing of 0085 or 0087')
+    assert.deepEqual(await ready(voiced), [503, { ready: false, reason: 'schema' }], 'voice on, without 0085')
+    await migrate(VOICE)
+    assert.deepEqual(await ready(voiced), [503, { ready: false, reason: 'schema' }], 'voice on, without 0087')
+    await migrate(NUMBERING)
+    assert.deepEqual(await ready(voiced), [200, { ready: true }], 'voice on, with 0085 and 0087')
     await current()
     assert.deepEqual(await ready(), [200, { ready: true }], 'with all')
     const snapshot = await withActor(pool, admin, 'read', (c) => readSnapshot(c, projectId))

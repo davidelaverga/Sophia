@@ -54,6 +54,8 @@ const EXPORTS = [
   'MediaAssignmentBatch',
   'MediaToolResult',
   'MediaToolSurface',
+  'MediaEvidenceAck',
+  'MediaQualificationReservation',
   'MissionContext',
   'MissionReceipt',
   'MissionNotePolicy',

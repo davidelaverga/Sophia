@@ -17,6 +17,7 @@ import {
   withActor,
 } from '@sophia/persistence'
 import { namesOf } from './profile.ts'
+import { withVoiceJoins } from '../voice-joins.ts'
 import { idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
 
 const taskParams = {
@@ -46,7 +47,7 @@ export const BRIEF_RETIRED =
  * recorded with its author and never starts work. New brief admission answers 410 before any write, whatever the
  * request (a stale client keeps getting the same answer); existing briefs stay readable.
  */
-export function conversationRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool }): void {
+export function conversationRoutes(app: FastifyInstance, { pool, voice }: { pool: pg.Pool; voice: boolean }): void {
   app.post<{ Params: { projectId: string }; Headers: { 'idempotency-key': string }; Body: Contribution }>(
     '/api/v1/projects/:projectId/contributions',
     {
@@ -80,7 +81,11 @@ export function conversationRoutes(app: FastifyInstance, { pool }: { pool: pg.Po
     '/api/v1/projects/:projectId/native-tasks/:taskId',
     { schema: { params: taskParams, response: { 200: { $ref: 'NativeTaskDetail#' } } } },
     async (req) =>
-      withActor(pool, req.actorId, 'read', (c) => readNativeTask(c, req.params.projectId, req.params.taskId)),
+      withActor(pool, req.actorId, 'read', async (c) => {
+        const detail = await readNativeTask(c, req.params.projectId, req.params.taskId)
+        // Voice qualification on (A45): a voice-created task names its exchange, and what a withdrawal reached of it.
+        return voice ? withVoiceJoins(c, req.params.projectId, detail) : detail
+      }),
   )
 
   renditionRoutes(app, pool)
