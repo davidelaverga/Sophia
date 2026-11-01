@@ -1310,6 +1310,61 @@
   gap: 6px;
   padding: 6px 0 var(--floor);
 }
+/* Under the field, Sophia says she is an AI, and help is one press away (personal-ai-disclosure.md): quiet as the
+   draft's line, but always there. In a talk, under its presses. */
+.places .c3-ai-line {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+  text-align: center;
+}
+.places .c3-ai-line .text-button {
+  margin-left: 2px;
+  font-size: inherit;
+}
+.places .c3-talk .c3-ai-line {
+  margin-top: 14px;
+}
+/* Help now: each line its place in small capitals, its name, when it answers, then its presses. */
+.places .help-lead,
+.places .help-danger {
+  margin: 0 0 12px;
+}
+.places .help-danger {
+  font-weight: 600;
+}
+.places .help-lines {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+.places .help-lines li {
+  display: grid;
+  gap: 2px;
+  padding: 12px;
+  border: 1px solid rgb(var(--ink-rgb) / 0.12);
+  border-radius: 8px;
+}
+.places .help-where {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.places .help-note {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.places .help-ways {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
 /* The Studio's message bar is a box; this one is Home's line: a hairline above that turns violet while you write,
    her padlock, then the voice and the send. */
 .places .ps-composer .message-bar,
@@ -1975,6 +2030,11 @@
   .places .c3-edge .c2-lock {
     min-width: 40px;
     min-height: 40px;
+  }
+  /* Help now under the field (personal-ai-disclosure.md): its target reaches past its line, which keeps its height. */
+  .places .c3-ai-line .text-button {
+    min-height: 40px;
+    margin-block: -8px;
   }
   .places .room-pill {
     height: 46px;

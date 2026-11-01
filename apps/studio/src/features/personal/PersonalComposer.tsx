@@ -386,6 +386,8 @@ interface Props {
   /** Words said to Sophia from Home, handed here to go as this composer's own (Welcome.tsx); taken once. */
   handed: Handed | null
   onHanded: () => void
+  /** Under the field's line: Sophia is an AI, and help (AiDisclosure.tsx). */
+  foot?: React.ReactNode
 }
 
 /**
@@ -647,6 +649,7 @@ export function PersonalComposer(props: Props) {
         onChange={change}
         onSend={() => void send()}
       />
+      {props.foot}
     </form>
   )
 }
