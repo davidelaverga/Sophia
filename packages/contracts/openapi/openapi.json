@@ -38013,7 +38013,8 @@
                   "connections",
                   "turns",
                   "usage",
-                  "bridge"
+                  "bridge",
+                  "unsettled"
                 ]
               },
               {
@@ -38032,7 +38033,7 @@
       "MediaQualificationReserve": {
         "type": "object",
         "additionalProperties": false,
-        "description": "The bridge's durable reservation for an exchange under a grant, before it spends: a provider connection before it opens one; a generation before it sends what can start one (input after a turn ended, a tool response, a notice, a typed message), on a reserved connection; or a generation that started unasked (its output arrived), which is counted and charged whatever the limits; or a top-up of a reserved connection's input allowance (spend), before input it does not cover is sent: a charge only, counting no generation, refused as a generation would be when, charged, the exchange's next turn could reach the budget. charge is a generation's worst case (the context again and its output twice), with the text it sends and, for one input asked for, what fills the connection's input allowance; or a top-up's amount. Or the bridge's own stop (stop: its bound or the deadline stopped the session, whoever holds the floor): it reserves and records nothing, and the exchange ends (reason bridge), once; an exchange already ended answers it the same (ok, ended).",
+        "description": "The bridge's durable reservation for an exchange under a grant, before it spends: a provider connection before it opens one; a generation before it sends what can start one (input after a turn ended, a tool response, a notice, a typed message), on a reserved connection; or a generation that started unasked (its output arrived), which is counted and charged whatever the limits; or a top-up of a reserved connection's input allowance (spend), before input it does not cover is sent: a charge only, counting no generation, refused as a generation would be when, charged, the exchange's next turn could reach the budget. charge is a generation's worst case (the context again and its output twice), with the text it sends and, for one input asked for, what fills the connection's input allowance; or a top-up's amount. Or the bridge's own stop (stop: its bound or the deadline stopped the session, whoever holds the floor): it reserves and records nothing, and the exchange ends (reason bridge), once; an exchange already ended answers it the same (ok, ended). Or a settlement (settle) of a reserved connection, once every charge for what the bridge spent on it landed: until then the connection may have cost more than the ledger holds, and a connection asked for meanwhile ends the exchange (unsettled). A charge for what was already spent (unasked, spend) lands even on an exchange that has ended. owed is the part of a generation's or a top-up's charge already spent (a debt for words heard or said): refused, the reservation grants nothing, and that part is kept all the same, past the budget if need be.",
         "properties": {
           "exchangeId": {
             "type": "string",
@@ -38049,7 +38050,8 @@
               "generation",
               "unasked",
               "spend",
-              "stop"
+              "stop",
+              "settle"
             ]
           },
           "ordinal": {
@@ -38058,6 +38060,11 @@
             "maximum": 64
           },
           "charge": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5000000
+          },
+          "owed": {
             "type": "integer",
             "minimum": 0,
             "maximum": 5000000
@@ -38072,7 +38079,7 @@
       "MediaQualificationReservation": {
         "type": "object",
         "additionalProperties": false,
-        "description": "Granted, with a connection's durable ordinal (null for a generation), or refused: then the exchange has ended (ended true) and stop says why.",
+        "description": "Granted, with a connection's durable ordinal (null for a generation), or refused: then the exchange has ended (ended true) and stop says why (unsettled: a connection was asked for while an earlier one of the exchange was never settled, so its counts may be short). A charge for what was already spent (unasked, spend) and a settlement are taken on an exchange that has ended too: ok true, with ended true. A refused charge says what of it the ledger kept (kept): an unasked generation's whole charge, a reservation's owed part, or 0.",
         "properties": {
           "ok": {
             "type": "boolean"
@@ -38099,7 +38106,8 @@
                   "revoked",
                   "connections",
                   "turns",
-                  "usage"
+                  "usage",
+                  "unsettled"
                 ]
               },
               {
@@ -38109,6 +38117,11 @@
           },
           "ended": {
             "type": "boolean"
+          },
+          "kept": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5000000
           }
         },
         "required": [
@@ -38148,7 +38161,8 @@
               "connections",
               "turns",
               "usage",
-              "bridge"
+              "bridge",
+              "unsettled"
             ]
           },
           "atMs": {
@@ -38280,7 +38294,8 @@
                       "connections",
                       "turns",
                       "usage",
-                      "bridge"
+                      "bridge",
+                      "unsettled"
                     ]
                   },
                   {

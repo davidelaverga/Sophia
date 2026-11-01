@@ -52,9 +52,10 @@ function bound(over: Partial<VoiceQualification> = {}, now: () => number = Date.
     attribution: () => ({ actorId: LUIS, inputEpoch: 1 }),
     ended: () => undefined,
     stop: () => undefined,
+    // Connections and settlements (0085) are answered at once: the tests answer the charges and the stop themselves.
     reserve: async (r) => {
       const refused =
-        r.kind === 'connection'
+        r.kind === 'connection' || r.kind === 'settle'
           ? null
           : await new Promise<Refusal | null>((resolve) =>
               waiting.push({ kind: r.kind, charge: r.charge, answer: () => resolve(null), refuse: resolve }),
@@ -799,19 +800,30 @@ describe('words heard past the budget are recorded and charged before the stop (
     assert.deepEqual(await turnOf(b), { observed: true, chars: 3000, finished: true })
   })
 
-  it('words that come as the deadline passes: recorded, the deadline’s stop as before, and nothing charged for them', async () => {
+  // R2-G7-INTERIM-F1: these words were billed as they came, deadline or not. Before, they were neither counted nor
+  // charged ('the stop alone'); their debt is now charged alone, all of it owed, and the API keeps it even past the
+  // deadline (0085 owed). The stop still waits for it.
+  it('words that come as the deadline passes: recorded, the deadline’s stop as before, and their debt charged alone before it', async () => {
     let clock = Date.now()
     const b = await spoke(30_000, () => clock)
     const { q, waiting } = b
     clock += 900_000
     assert.equal(q.heard(1, 15_000, true), 'deadline')
-    void q.stopped()
+    const stopping = q.stopped()
     await settle()
     assert.deepEqual(
       waiting.map((w) => w.kind),
-      ['generation', 'stop'],
-      'the stop alone: a spend past the deadline is refused',
+      ['generation', 'spend'],
+      'their debt first, the stop behind it',
     )
+    waiting[1]?.answer()
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => w.kind),
+      ['generation', 'spend', 'stop'],
+    )
+    waiting[2]?.answer()
+    await stopping
     assert.deepEqual(await turnOf(b), { observed: true, chars: 15_000, finished: true })
   })
 
@@ -959,7 +971,13 @@ describe('root’s reproduction, in its shape: the words that stop the session a
     assert.equal(q.heard(1, 18_000, true), 'usage')
     const { landed } = q.ledger()
     await q.stopped()
-    assert.deepEqual(requests, OWED)
+    // Its settlement (0085) goes once the debt is answered, beside the stop, never before the debt.
+    const kinds = requests.map(([kind]) => kind)
+    assert.deepEqual(
+      requests.filter(([kind]) => kind !== 'settle'),
+      OWED,
+    )
+    assert.ok(kinds.indexOf('settle') > kinds.indexOf('spend'), `settled after the debt landed: ${kinds.join(', ')}`)
     assert.ok(29_128 + 2004 >= 25_128 + 3.2 + 6000, 'the API holds what was billed: 31,132 ≥ 31,131.2')
     assert.equal(await landed, true)
     assert.equal(q.input(1, LUIS, new Int16Array(1600), 0, 1), 'usage', 'and it stays stopped')

@@ -81,22 +81,34 @@ export async function expireVoiceEvidence(pool: pg.Pool): Promise<number> {
 export interface QualificationReserve {
   exchangeId: string
   grantId: string
-  kind: 'connection' | 'generation' | 'unasked' | 'spend' | 'stop'
-  /** The connection a generation or a top-up is charged to: a durable ordinal a 'connection' reservation returned. */
+  kind: 'connection' | 'generation' | 'unasked' | 'spend' | 'stop' | 'settle'
+  /**
+   * The connection a generation or a top-up is charged to, or a settlement settles: a durable ordinal a 'connection'
+   * reservation returned.
+   */
   ordinal?: number
   /**
    * A generation's worst case, with the text it sends and, for one input asked for, what fills its connection's input
    * allowance; or a top-up of that allowance ('spend', a charge only: it counts no turn).
    */
   charge?: number
+  /**
+   * Of a generation's or a top-up's charge, what was already spent (a debt for words heard or said): kept on the ledger
+   * even when the reservation is refused (R2-G7-INTERIM-F1).
+   */
+  owed?: number
 }
 
-/** Granted (with a connection's durable ordinal), or refused, and then the exchange has ended, and why. */
+/**
+ * Granted (with a connection's durable ordinal), or refused, and then the exchange has ended, and why; a refused charge
+ * says what of it the ledger kept (an unasked generation's whole charge, a reservation's owed part, or 0).
+ */
 export interface QualificationReservation {
   ok: boolean
   ordinal: number | null
   stop: string | null
   ended: boolean
+  kept?: number
 }
 
 /**
@@ -109,8 +121,15 @@ export async function reserveQualification(
   reserve: QualificationReserve,
 ): Promise<QualificationReservation> {
   const { rows } = await c.query<{ r: QualificationReservation }>(
-    `SELECT sophia.media_voice_reserve($1,$2,$3,$4,$5) AS r`,
-    [reserve.exchangeId, reserve.grantId, reserve.kind, reserve.ordinal ?? null, reserve.charge ?? null],
+    `SELECT sophia.media_voice_reserve($1,$2,$3,$4,$5,$6) AS r`,
+    [
+      reserve.exchangeId,
+      reserve.grantId,
+      reserve.kind,
+      reserve.ordinal ?? null,
+      reserve.charge ?? null,
+      reserve.owed ?? null,
+    ],
   )
   return onlyRow(rows, 'media_voice_reserve').r
 }

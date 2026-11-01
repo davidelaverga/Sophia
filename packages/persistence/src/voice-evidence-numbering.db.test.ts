@@ -109,13 +109,18 @@ const write = (
     }),
   )
 
-const reserve = (exchangeId: string, grantId: string, kind: 'connection' | 'generation' | 'spend', ordinal?: number) =>
+const reserve = (
+  exchangeId: string,
+  grantId: string,
+  kind: 'connection' | 'generation' | 'spend' | 'settle',
+  ordinal?: number,
+) =>
   withService(pool, (c) =>
     reserveQualification(c, {
       exchangeId,
       grantId,
       kind,
-      ...(ordinal === undefined ? {} : { ordinal, charge: 1000 }),
+      ...(ordinal === undefined ? {} : kind === 'settle' ? { ordinal } : { ordinal, charge: 1000 }),
     }),
   )
 
@@ -410,6 +415,8 @@ describe('the service numbers the bridge’s receipts (0087, Codex P1 r423290844
     for (let trial = 0; trial < 10; trial += 1) {
       const { exchangeId, grantId } = await exchange({ connections: 3 })
       await reserve(exchangeId, grantId, 'connection')
+      // Settled by its bridge (0085), so the overlapping connection below is granted rather than ending the exchange.
+      await reserve(exchangeId, grantId, 'settle', 1)
       const twice = randomUUID()
       const writes = Array.from({ length: 6 }, (_, i) => write(exchangeId, grantId, randomUUID(), 10 + i))
       const repeats = [write(exchangeId, grantId, twice, 99), write(exchangeId, grantId, twice, 99)]

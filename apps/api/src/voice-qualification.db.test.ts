@@ -2213,6 +2213,9 @@ describe('the exchange’s durable bound through the API (A45, 0085)', () => {
       body: { exchangeId, grantId, kind: 'connection' },
     })
     assert.equal(member.status, 401, 'the bridge capability only')
+    // Settled by its bridge (0085: everything it spent on connection 1 landed), so the next is weighed by the limit.
+    const settled = await reserve({ exchangeId, grantId, kind: 'settle', ordinal: 1 })
+    assert.deepEqual([settled.status, settled.json], [200, { ok: true, ordinal: 1, stop: null, ended: false }])
     const refused = await reserve({ exchangeId, grantId, kind: 'connection' })
     assert.deepEqual(refused.json, { ok: false, ordinal: null, stop: 'connections', ended: true })
     const ended = await reserve({ exchangeId, grantId, kind: 'connection' })
@@ -2229,8 +2232,11 @@ describe('the exchange’s durable bound through the API (A45, 0085)', () => {
       ['ended', 'connections', 1, 1],
     )
     assert.equal(read.json.grant.committedTokens, 31_000, 'the generation and the top-up')
-    const endedTopUp = await reserve({ exchangeId, grantId, kind: 'spend', ordinal: 1, charge: 1 })
-    assert.deepEqual([endedTopUp.status, endedTopUp.json.code], [409, 'invalid_state'], 'nor a top-up')
+    // A charge for what was already spent lands on the ended exchange (0085), and grants nothing; a generation does not.
+    const endedTopUp = await reserve({ exchangeId, grantId, kind: 'spend', ordinal: 1, charge: 1, owed: 1 })
+    assert.deepEqual([endedTopUp.status, endedTopUp.json], [200, { ok: true, ordinal: 1, stop: null, ended: true }])
+    const endedGeneration = await reserve({ exchangeId, grantId, kind: 'generation', ordinal: 1, charge: 1 })
+    assert.deepEqual([endedGeneration.status, endedGeneration.json.code], [409, 'invalid_state'], 'nor a generation')
   })
 
   /**
@@ -2469,22 +2475,32 @@ describe('the exchange’s durable bound through the API (A45, 0085)', () => {
     assert.deepEqual(h.dropped(), [])
   })
 
-  it('two processes on one exchange at once (a deploy’s overlap), their inputs reserving beside each other’s receipts: every receipt kept, one number each, in the order the API took them, no deadlock', async () => {
+  // Before 0085's settlement, both processes connected and ran side by side. Neither can know what the other spent and
+  // has not charged yet, so now the second connection ends the exchange (unsettled): one process connected, nothing
+  // more granted to either, and still every receipt kept, one number each, no deadlock.
+  it('two processes on one exchange at once (a deploy’s overlap): the second’s connection ends the exchange (unsettled), no input goes on, and every receipt is kept, one number each, no deadlock', async () => {
     const { projectId } = await project()
     await grant(projectId, { connections: 3 })
     const exchangeId = await open(projectId)
     const [a, b] = [await bridgeOn(exchangeId), await bridgeOn(exchangeId)]
+    const reason = async () =>
+      (
+        await owner((c) =>
+          c.query<{ r: string | null }>(
+            `SELECT ended_reason AS r FROM sophia.voice_qualification_exchanges WHERE exchange_id=$1`,
+            [exchangeId],
+          ),
+        )
+      ).rows[0]?.r ?? null
     await Promise.all([a.bridge.apply([a.assigned]), b.bridge.apply([b.assigned])])
-    await until('both connected', () => a.lives.length === 1 && b.lives.length === 1)
-    a.lives[0]?.setupComplete()
-    b.lives[0]?.setupComplete()
-    for (let turn = 1; turn <= 3; turn += 1) {
-      a.speak()
-      b.speak()
-      await until(`turn ${String(turn)}’s inputs went on`, () => a.sent[0] === turn && b.sent[0] === turn)
-      a.lives[0]?.turnComplete()
-      b.lives[0]?.turnComplete()
-    }
+    await until('one connected, the other refused', () => a.done() || b.done())
+    assert.equal(await reason(), 'unsettled', 'the second connection ended the exchange')
+    assert.equal(a.lives.length + b.lives.length, 1, 'one provider connection only')
+    const connected = a.lives.length === 1 ? a : b
+    connected.lives[0]?.setupComplete()
+    connected.speak()
+    await until('the connected one stopped too', () => connected.done())
+    assert.deepEqual(connected.sent, [0], 'no input went on: its generation was refused on the ended exchange')
     await Promise.all([a.bridge.stop(), b.bridge.stop()])
     const kept = await keptOf(exchangeId)
     assert.deepEqual(
@@ -2494,20 +2510,10 @@ describe('the exchange’s durable bound through the API (A45, 0085)', () => {
     )
     assert.deepEqual([a.dropped(), b.dropped()], [[], []], 'nothing refused or dropped')
     assert.equal(a.taken.length + b.taken.length, kept.length, 'every receipt either process sent is kept')
-    assert.deepEqual(
-      [...a.taken, ...b.taken].map(([, seq]) => seq).toSorted((x, y) => x - y),
-      dense(kept.length),
+    assert.ok(
+      kept.every(([, , connection]) => connection === null || connection === 1),
+      'no receipt names a second connection',
     )
-    for (const { taken } of [a, b])
-      assert.ok(
-        taken.every(([, seq], i) => i === 0 || seq > (taken[i - 1]?.[1] ?? 0)),
-        'each process’s own numbers increase',
-      )
-    assert.deepEqual(
-      readies(kept).toSorted((x, y) => Number(x) - Number(y)),
-      [1, 2],
-    )
-    assert.equal(kept.filter(([, kind]) => kind === 'input_window').length, 6, 'each process’s three inputs')
   })
 
   it('the real bridge, its first receipt’s answer lost on the way: sent again under the same identity, answered with its own number, kept once (Codex P1 r4232908444)', async () => {

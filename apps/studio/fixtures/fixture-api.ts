@@ -11,6 +11,7 @@ import type {
   MissionContext,
   NativeTaskDetail,
   Receipt,
+  RoomToken,
   Snapshot,
   SourceReviewAvailability,
   WorkBoardView,
@@ -21,6 +22,7 @@ import {
   membership,
   mission,
   PROJECT,
+  QUALIFICATION,
   ROOM,
   roomToken,
   snapshot,
@@ -111,6 +113,17 @@ import { profileAnswer } from './profile-data.ts'
 import { discussionPageOf, messageActAnswer, snapshotDiscussion, type MessageActs } from './message-acts.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
+
+/** Whether the room tokens this page is given name a grant: from `qualification=on`, until `grantTokens` says. */
+let granted = new URLSearchParams(window.location.search).get('qualification') === 'on'
+
+/** The next room tokens name the grant, or not, as the API's do once a grant is made, or once it ends. */
+export function grantTokens(on: boolean): void {
+  granted = on
+}
+
+/** The room token this page is given: naming the grant while there is one, as the API names it to its principal (A45). */
+const issuedToken = (): RoomToken => (granted ? { ...roomToken, qualification: QUALIFICATION } : roomToken)
 
 /** Requests the fixture didn't expect, as `METHOD /path`: the checks assert there are none. */
 export const unexpected: string[] = []
@@ -611,11 +624,11 @@ function tokenAnswer(project: Project, release = false): Response | Promise<Resp
     project.failToken = false
     return unavailable()
   }
-  if (project.tokenLate) return new Promise((late) => setTimeout(() => late(json(roomToken)), 1500))
+  if (project.tokenLate) return new Promise((late) => setTimeout(() => late(json(issuedToken())), 1500))
   const held = project.tokenHeld
   // Held, it is answered when let go, as it would be then: refused if the next token is to fail by that time.
   if (held) return new Promise((reply) => held.push(() => reply(tokenAnswer(project, true))))
-  return json(roomToken)
+  return json(issuedToken())
 }
 
 /** A decision at the door (`POST /api/v1/lobby/{entryId}/decision`), by the entry it answers. */

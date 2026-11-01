@@ -5,6 +5,9 @@
 // Sophia (the media bridge, identity `sophia`, standing signed by the API) is not one of the people: she is
 // read separately through `sophia()`, from the attributes the bridge sets and from whether her sound actually
 // reaches this browser (S1-05A §6.5).
+//
+// Under a voice qualification grant, which the room token names to its principal alone (A45), the page also tells
+// itself its own microphone and Sophia's playback (voice-qualification.ts); without one, nothing of it is attached.
 import {
   ConnectionState,
   DefaultReconnectPolicy,
@@ -29,6 +32,7 @@ import {
   type ChatNotice,
   type ChatReply,
 } from '@sophia/contracts/room-chat'
+import type { RoomQualification } from '@sophia/contracts'
 import type { CallEnd } from './call-end.ts'
 import { RECONNECT_DELAYS_MS } from './call-rejoin.ts'
 import type { BackgroundProcessorWrapper } from '@livekit/track-processors'
@@ -52,6 +56,7 @@ import { isSophia, listenToSophia } from './sophia-channel.ts'
 import { sophiaVoice } from './sophia-voice.ts'
 import type { SophiaSignal } from './sophia-view.ts'
 import { connectWithLevels } from './voice-levels.ts'
+import { watchQualification } from './voice-qualification.ts'
 
 // LiveKit logs every connection step at info level. A deployed Studio keeps warnings and errors in the
 // console; local development keeps the full trace.
@@ -460,7 +465,35 @@ function deviceControls(
   }
 }
 
-export async function connectRoom(serverUrl: string, token: string, cb: RoomCallbacks): Promise<RoomConnection> {
+/**
+ * The room's end: LiveKit leaving by itself (the page hidden for good, or frozen) reads as a lost connection, said so,
+ * but never tried back on its own (call-rejoin.md).
+ */
+function endsWith(room: Room, audio: { clear: () => void }, cb: RoomCallbacks): void {
+  room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
+    audio.clear()
+    cb.onEnded((reason !== undefined && ENDS[reason]) || 'dropped', reason === DisconnectReason.CLIENT_INITIATED)
+  })
+}
+
+/** A change asked of the room, then the page told it changed once it is done. */
+const thenChanged =
+  (cb: RoomCallbacks) =>
+  async (change: Promise<unknown>): Promise<void> => {
+    await change
+    cb.onChange()
+  }
+
+/**
+ * The call the token opens: its server, its token and, for a grant's principal only, the grant it names (A45), whose
+ * voice receipts are watched after the room's audio, so Sophia's element is attached and marked when one looks for it.
+ */
+export async function connectRoom(
+  serverUrl: string,
+  token: string,
+  cb: RoomCallbacks,
+  qualification?: RoomQualification,
+): Promise<RoomConnection> {
   const room = new Room(roomOptions())
   for (const event of CHANGES) room.on(event, cb.onChange)
   const mic = micWhileConnected(room, CHANGES)
@@ -468,23 +501,16 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
   room.on(RoomEvent.Reconnected, () => cb.onStatus('live'))
   let textOnly = false
   const audio = remoteAudio(room)
+  watchQualification(room, qualification)
   stopsWhenHostStops(room)
-  room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
-    audio.clear()
-    // LiveKit leaving by itself (the page hidden for good, or frozen) reads as a lost connection, said so, but never
-    // tried back on its own (call-rejoin.md).
-    cb.onEnded((reason !== undefined && ENDS[reason]) || 'dropped', reason === DisconnectReason.CLIENT_INITIATED)
-  })
+  endsWith(room, audio, cb)
   listenToSophia(room, cb)
   listenToReactions(room, (heard) => cb.onReaction?.(heard))
   const signalMode = modeSignal(room, () => textOnly)
   const following = followingSignal(room, cb.onChange, { resync: VISION })
   const sound = await connectWithLevels(room, serverUrl, token)
   const feedsOf = videoFeeds()
-  const after = async (change: Promise<unknown>) => {
-    await change
-    cb.onChange()
-  }
+  const after = thenChanged(cb)
   const people = () => [...room.remoteParticipants.values()].filter((p) => !isSophia(p))
   const other = (p: Participant) => ({ ...toView(p, false), following: following.of(p.identity) })
   return {

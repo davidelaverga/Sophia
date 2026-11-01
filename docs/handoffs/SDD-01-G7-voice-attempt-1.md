@@ -109,6 +109,17 @@ Corrections to commit messages, which stay as they are:
 - **Wording, not changed:** after the withdrawal, Stop by voice is refused with "the report is still at version 1" while the page is at version 2. That is the report's version, not the page's.
 - **Lab side.** Voice Lab deltas 1–6 are in `voice-lab/studio-livekit-g7`. They are handed over separately, each with its own review and receipts.
 
+## Main port and billing P1 (FND-B-G7-MAIN-PORT-01, 2026-11-01)
+
+PR #190's head `5c10bce3` ported onto Main (base `36520fe3`, with PR #488's accepted head `7580c369` merged in as a local source dependency; Main has since merged #488 as `7653601d`, tree `ac96c0fa`, identical to `7580c369`'s). The donor's migrations 0046, 0047, 0051 and 0052 are renamed 0085 (voice qualification), 0086 (live call keys), 0087 (voice evidence numbering) and 0088 (presence order), every reference remapped; the amendments are A45 and A46. Main's applied 0001–0084 are unchanged. The result record, with the disposition map and evidence, is `B-G7-MAIN-PORT-01-result.json` in the operator journal.
+
+Billing P1 (PR #190's r4235198833 and r4232295959), closed in source with real PostgreSQL and bridge evidence:
+- **Settlement (0085 `settle`).** A connection counts as fully charged only once its bridge settles it; a connection asked for while an earlier one is unsettled ends the exchange (`unsettled`). A charge for what was already spent (`unasked`, `spend`) lands on an ended exchange. The bridge settles at the close (beside its stop), before the next connection, and through a replaced session's handover.
+- **Owed debt kept on refusal (R2-G7-INTERIM-F1).** A `generation` or `spend` says what of its charge is owed; refused, the API grants nothing and keeps that part, and every refused charge answers `kept`. After a refusal, a debt that came while it was in flight is charged alone on the ended exchange; a debt after the stop, words heard at the deadline, and what a credit leaves once stopped are charged alone too.
+- **Shutdown bound (R2-G7-INTERIM-F2).** The settlement goes beside the bridge's stop, so `SETTLE_DEPTH` stays 3 (30.75 s with the defaults), inside `STOP_DEADLINE_MS` 35 s; the host grace precondition (at least 40 s) is unchanged. A close cut short, by its own bound or the stop's deadline, is never reported as settled: the connection stays unsettled, and a restart's first connection ends the exchange.
+
+Limits, accepted and conservative: a bridge killed, or a deploy's overlap of two bridge processes on one exchange, ends that exchange at the next connection (`unsettled`); the ledger may hold more than the budget by what was already spent, never by anything granted; no provider invoice or HTTP cap is claimed. Still default OFF; no SQL is installed by this change.
+
 ## Next bounded action
 
 1. Root's integration review and checks on the frozen combined head.

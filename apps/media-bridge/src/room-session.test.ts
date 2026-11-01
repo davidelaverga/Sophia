@@ -4617,10 +4617,14 @@ describe('room session: the bridge’s own bound under a grant (qualification-re
     await until('the stop asked', () => service.waitingKinds().includes('stop'))
     assert.equal(closed, false, 'nor while the stop is')
     service.answerFirst('stop')
+    // Then its connection is settled (0085): every charge for what was spent on it is on the API.
+    await until('the connection settled', () => service.waitingKinds().includes('settle'))
+    assert.equal(closed, false, 'nor while the settlement is')
+    service.answerFirst('settle')
     await closing
     assert.deepEqual(
       service.reservations.map((r) => r.kind),
-      ['connection', 'unasked', 'stop'],
+      ['connection', 'unasked', 'stop', 'settle'],
     )
     assert.deepEqual(
       logs.filter(([event]) => event === 'qualification.charge_unsettled'),
@@ -5061,7 +5065,10 @@ describe('room session: the exchange’s durable bound, reserved on the API befo
     live.events.goAway('1s') // the provider connection is replaced meanwhile
     clock += 1000
     session.tick()
-    await until('the new connection reserved', () => service.waitingKinds().length === 2)
+    // The old connection is settled before the new one is asked for (0085); its generation's grant may come later.
+    await until('the old connection settled', () => service.waitingKinds().includes('settle'))
+    service.answerLast('settle')
+    await until('the new connection reserved', () => service.waitingKinds().includes('connection'))
     service.answerLast('connection')
     await until('the new connection opened', () => lives.length === 2)
     const next = lives.at(-1)
@@ -5138,8 +5145,14 @@ describe('room session: the exchange’s durable bound, reserved on the API befo
     live.events.goAway('1s') // the provider connection is replaced meanwhile
     clock += 1000
     session.tick()
+    await flush()
+    await flush()
+    // The new connection waits for the old one's debt to be on the API, then for its settlement (0085).
+    assert.deepEqual(service.waitingKinds(), ['spend'], 'no new connection while the old one owes')
+    service.answerFirst('spend') // the old connection's top-up is granted only now, the session on its new connection
+    await until('the old connection settled', () => service.waitingKinds().includes('settle'))
+    service.answerFirst('settle')
     await until('the new connection reserved', () => service.waitingKinds().includes('connection'))
-    service.answerFirst('spend') // the old connection's top-up is granted only now
     await flush()
     await flush()
     assert.equal(service.calls.length, 0, 'the old connection’s call is never run')
@@ -5594,7 +5607,10 @@ describe('room session: a typed message reserved on one connection is sent on it
     live.events.closed('network lost')
     clock += 1000
     session.tick()
-    await flush()
+    // The lost connection is settled first (0085), then the new one reserved.
+    await until('the lost connection settled', () => service.waitingKinds().includes('settle'))
+    service.answerFirst('settle')
+    await until('the new connection asked', () => service.waitingKinds().includes('connection'))
     service.answerFirst('connection')
     await until('the new connection', () => lives.length === 2)
     const next = lives.at(-1)
@@ -5619,8 +5635,8 @@ describe('room session: a typed message reserved on one connection is sent on it
     service.holdReservations = false
     service.answerReservations()
     await flush()
-    // Recorded as the API answered them: the new connection's, then the typed message's generation.
-    assert.deepEqual(kinds(), ['connection', 'connection', 'generation'], 'no turn charged unasked')
+    // Recorded as the API answered them: the lost one's settlement, the new connection's, then the typed message's.
+    assert.deepEqual(kinds(), ['connection', 'settle', 'connection', 'generation'], 'no turn charged unasked')
     assert.deepEqual([live.notices, next.notices], [[], []], 'sent on neither connection')
     assert.equal(room.chat.at(-1)?.packet.kind, 'refused', 'the sender is told')
     service.holdReservations = false
@@ -5652,7 +5668,7 @@ describe('room session: a typed message reserved on one connection is sent on it
     await flush()
     assert.deepEqual([live.notices.length, next.notices.length], [0, 1])
     assert.equal(room.chat.at(-1)?.packet.kind, 'accepted')
-    assert.deepEqual(kinds(), ['connection', 'connection', 'generation'])
+    assert.deepEqual(kinds(), ['connection', 'settle', 'connection', 'generation'])
     service.holdReservations = false
     await session.close()
   })

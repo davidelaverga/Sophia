@@ -387,6 +387,7 @@ describe('the exchange’s durable bound (0085, media_voice_reserve)', () => {
     const g = await grant(projectId, P, { connections: 2 })
     const x = await open(projectId)
     assert.deepEqual(await reserve(x, g, 'connection'), { ok: true, ordinal: 1, stop: null, ended: false })
+    assert.equal((await reserve(x, g, 'settle', 1)).ok, true, 'its bridge settled it (0085): the next may open')
     // The first holds its transaction open with the exchange's lock; the second starts while it does.
     let release = noop
     const held = new Promise<void>((resolve) => (release = resolve))
@@ -402,13 +403,15 @@ describe('the exchange’s durable bound (0085, media_voice_reserve)', () => {
     const results = await Promise.allSettled([first, second])
     assert.deepEqual(
       results.map((r) => (r.status === 'fulfilled' ? r.value : `rejected: ${String(r.reason)}`)),
+      // The second meets the first's connection unsettled (0085), as two processes at once would: it ends the exchange
+      // on that before the connections' limit is weighed. Either way, one granted and the exchange ended.
       [
         { ok: true, ordinal: 2, stop: null, ended: false },
-        { ok: false, ordinal: null, stop: 'connections', ended: true },
+        { ok: false, ordinal: null, stop: 'unsettled', ended: true },
       ],
     )
     assert.deepEqual(await countsOf(x), { connections: 2, turns: 0 })
-    assert.deepEqual(await stateOf(x), { state: 'ended', reason: 'connections' })
+    assert.deepEqual(await stateOf(x), { state: 'ended', reason: 'unsettled' })
     assert.equal(await codeOf(reserve(x, g, 'connection')), 'invalid_state', 'an ended exchange reserves nothing')
   })
 
@@ -422,6 +425,7 @@ describe('the exchange’s durable bound (0085, media_voice_reserve)', () => {
     assert.equal(await committedOf(x), 30_000, 'a report under the charge: the charge stands')
     await record(x, g, 2, 'provider', { connection: 1, usageTokens: 45_000, lastPromptTokens: 500 })
     assert.equal(await committedOf(x), 45_000, 'a report over it: the report')
+    assert.equal((await reserve(x, g, 'settle', 1)).ok, true)
     assert.deepEqual(await reserve(x, g, 'connection'), { ok: true, ordinal: 2, stop: null, ended: false })
     assert.equal((await reserve(x, g, 'generation', 2, 30_000)).ok, true)
     await record(x, g, 3, 'provider', { connection: 2, usageTokens: 10_000, lastPromptTokens: 1000 })
@@ -441,6 +445,7 @@ describe('the exchange’s durable bound (0085, media_voice_reserve)', () => {
       ordinal: null,
       stop: 'usage',
       ended: true,
+      kept: 0,
     })
     assert.deepEqual(await stateOf(x), { state: 'ended', reason: 'usage' })
     assert.equal(await committedOf(x), 75_000, 'a refused charge is not kept')
@@ -467,6 +472,7 @@ describe('the exchange’s durable bound (0085, media_voice_reserve)', () => {
       ordinal: null,
       stop: 'usage',
       ended: true,
+      kept: 27_000,
     })
     assert.equal(await committedOf(x2), 54_000, 'already spent: kept though it passes the budget')
   })
@@ -485,6 +491,7 @@ describe('the exchange’s durable bound (0085, media_voice_reserve)', () => {
       ordinal: null,
       stop: 'turns',
       ended: true,
+      kept: 0,
     })
 
     // Budget 100,000, output cap 2,000, no prompt reported yet: a charge of 97,999 leaves 99,999 with the next turn's
@@ -505,6 +512,7 @@ describe('the exchange’s durable bound (0085, media_voice_reserve)', () => {
       ordinal: null,
       stop: 'usage',
       ended: true,
+      kept: 0,
     })
     assert.equal(await committedOf(x3), 0, 'refused, never granted and cut')
     // A later report of the prompt's size still ends it, as the guard always did: the next turn could pass the budget.
@@ -609,7 +617,13 @@ describe('a top-up of a connection’s input allowance (0085, media_voice_reserv
     await reserve(x, g, 'connection')
     await reserve(x, g, 'generation', 1, 27_000)
     assert.equal((await reserve(x, g, 'spend', 1, 70_999)).ok, true)
-    assert.deepEqual(await reserve(x, g, 'spend', 1, 1), { ok: false, ordinal: null, stop: 'usage', ended: true })
+    assert.deepEqual(await reserve(x, g, 'spend', 1, 1), {
+      ok: false,
+      ordinal: null,
+      stop: 'usage',
+      ended: true,
+      kept: 0,
+    })
     assert.equal(await committedOf(x), 97_999, 'a refused top-up is not kept')
     assert.deepEqual(await countsOf(x), { connections: 1, turns: 1 })
     assert.deepEqual(await stateOf(x), { state: 'ended', reason: 'usage' })
@@ -627,11 +641,11 @@ describe('a top-up of a connection’s input allowance (0085, media_voice_reserv
       ),
     )
     assert.equal(events.rows[0]!.n, 1, 'and the event that wakes the bridge’s poll')
-    assert.equal(
-      await codeOf(reserve(x, g, 'spend', 1, 1)),
-      'invalid_state',
-      'an ended exchange: 40001, as for the others',
-    )
+    // A top-up on the ended exchange is taken as a late charge (0085: what was already spent lands; one for input never
+    // sent only over-counts), and grants nothing; a generation there is refused (40001), as for the others.
+    assert.deepEqual(await reserve(x, g, 'spend', 1, 1), { ok: true, ordinal: 1, stop: null, ended: true })
+    assert.equal(await committedOf(x), 98_000)
+    assert.equal(await codeOf(reserve(x, g, 'generation', 1, 1)), 'invalid_state', 'an ended exchange: 40001')
     assert.deepEqual(await reserve(x, g, 'stop'), { ok: true, ordinal: null, stop: null, ended: true })
 
     // The last prompt reported is the context the next turn bills again: the same rule as a generation's.

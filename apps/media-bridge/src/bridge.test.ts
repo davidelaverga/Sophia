@@ -7,6 +7,7 @@ import { MediaBridge, STOP_DEADLINE_MS } from './bridge.ts'
 import { loadMissionGuide } from './guide.ts'
 import type { LiveEvents, LiveLink } from './live-session.ts'
 import { SETTLE_DEPTH } from './qualification.ts'
+import { RESERVE_RETRY_MS, RESERVE_TIMEOUT_MS } from './qualification-ledger.ts'
 import type { RoomEvents, RoomLink } from './rtc.ts'
 import type { MediaService } from './service.ts'
 import { DECLARED_NAMES } from './tools.ts'
@@ -152,7 +153,14 @@ describe('media bridge assignment loop', () => {
 
   it('a stop with a tool call in flight is not held by it: well within its 35 s deadline; the call, failing after it, is not sent again, and nothing reaches the provider (item 7 B)', async () => {
     assert.equal(STOP_DEADLINE_MS, 35_000, 'the stop bound is unchanged')
-    assert.equal(SETTLE_DEPTH, 3, 'and so is the chain a close settles')
+    assert.equal(
+      SETTLE_DEPTH,
+      3,
+      'and so is the chain a close settles, its settlement beside the stop (R2-G7-INTERIM-F2)',
+    )
+    const once = (RESERVE_RETRY_MS.length + 1) * RESERVE_TIMEOUT_MS + RESERVE_RETRY_MS.reduce((sum, ms) => sum + ms, 0)
+    assert.equal(SETTLE_DEPTH * once, 30_750, 'the ledger’s part of a close, with the defaults')
+    assert.ok(SETTLE_DEPTH * once < STOP_DEADLINE_MS, 'inside the process stop’s deadline')
     const principal = '11111111-1111-4111-8111-111111111111'
     const calls: string[] = []
     let fail: (() => void) | null = null

@@ -89,12 +89,18 @@ interface Durable {
   charged: number
   /** Why the exchange ended: a refused reservation's reason, or a bridge's stop (endsOnStop). */
   ended: Stop | 'bridge' | null
+  /** Connections reserved and not settled by their bridge yet (0085's 'settle'). */
+  unsettled: Set<number>
 }
 
 /**
  * A FAKE of the API's durable bound for one grant: connections and generations counted per exchange, each generation
  * and each top-up of a connection's input allowance (spend) charged, a reservation that does not fit refused and the
- * exchange ended; an ended exchange is refused (409). No prompt size is reported here, so the budget's rule sees none.
+ * exchange ended; an ended exchange is refused (409), but for a charge for what was already spent (unasked, spend),
+ * which lands, and a settlement. A connection asked for while an earlier one is unsettled ends the exchange
+ * (unsettled), as 0085 does. A refused charge keeps what of it was already spent (an unasked generation's whole charge,
+ * a generation's or a top-up's owed part) and says so (kept). No prompt size is reported here, so the budget's rule
+ * sees none.
  */
 class FakeLedger {
   readonly grant: VoiceQualification
@@ -106,6 +112,8 @@ class FakeLedger {
   held: { kind: MediaQualificationReserve['kind']; until: Promise<void> } | null = null
   /** When set, a bridge's stop ends the exchange, as the real API does (0085): what comes after is refused (409). */
   endsOnStop = false
+  /** Kinds the API refuses outright (422, as for a charge it cannot take): a charge refused is lost to the ledger. */
+  readonly rejects = new Set<MediaQualificationReserve['kind']>()
   /**
    * When set, each request waits for what it returns before it is answered: given the request and how many of its kind
    * came before it (0 for the first), so a test holds one request in a chain and not another.
@@ -133,19 +141,24 @@ class FakeLedger {
     const before = this.asked.filter((a) => a.kind === r.kind).length
     this.asked.push(r)
     await this.#waitFor(r, before)
-    const x = this.exchanges.get(r.exchangeId) ?? { connections: 0, turns: 0, charged: 0, ended: null }
+    const x = this.exchanges.get(r.exchangeId) ?? {
+      connections: 0,
+      turns: 0,
+      charged: 0,
+      ended: null,
+      unsettled: new Set<number>(),
+    }
     this.exchanges.set(r.exchangeId, x)
-    if (r.kind === 'stop') {
-      this.stopped.add(r.exchangeId)
-      if (this.endsOnStop) x.ended ??= 'bridge'
-      return { ok: true, ordinal: null, stop: null, ended: true }
+    if (this.rejects.has(r.kind))
+      throw new ServiceError(422, 'POST /v1/media/qualification-reserve: 422 invalid_request')
+    const answered = this.#stopOrSettle(x, r) ?? this.#onEnded(x, r)
+    if (answered) return answered
+    if (r.kind === 'connection' && x.unsettled.size > 0) {
+      x.ended = 'unsettled'
+      return { ok: false, ordinal: null, stop: 'unsettled', ended: true }
     }
-    if (x.ended) throw new ServiceError(409, 'POST /v1/media/qualification-reserve: 409 invalid_state')
     const stop = this.#stop(x, r)
-    if (stop) {
-      x.ended = stop
-      return { ok: false, ordinal: null, stop, ended: true }
-    }
+    if (stop) return this.#refused(x, r, stop)
     this.#count(x, r)
     return {
       ok: true,
@@ -155,9 +168,43 @@ class FakeLedger {
     }
   }
 
+  /** A stop (it ends the exchange when endsOnStop) or a settlement: answered whatever the exchange's state. */
+  #stopOrSettle(x: Durable, r: MediaQualificationReserve): MediaQualificationReservation | null {
+    if (r.kind === 'stop') {
+      this.stopped.add(r.exchangeId)
+      if (this.endsOnStop) x.ended ??= 'bridge'
+      return { ok: true, ordinal: null, stop: null, ended: true }
+    }
+    if (r.kind !== 'settle') return null
+    x.unsettled.delete(r.ordinal ?? 0)
+    return { ok: true, ordinal: r.ordinal ?? null, stop: null, ended: x.ended !== null }
+  }
+
+  /** On an ended exchange: a charge for what was already spent lands; anything else is refused (409). */
+  #onEnded(x: Durable, r: MediaQualificationReserve): MediaQualificationReservation | null {
+    if (!x.ended) return null
+    if (r.kind !== 'unasked' && r.kind !== 'spend')
+      throw new ServiceError(409, 'POST /v1/media/qualification-reserve: 409 invalid_state')
+    if (r.kind === 'unasked') x.turns += 1
+    x.charged += r.charge ?? 0
+    return { ok: true, ordinal: r.ordinal ?? null, stop: null, ended: true }
+  }
+
+  /** Refused: the exchange ends; what was already spent stays (an unasked generation, charged in #stop; a debt, owed). */
+  #refused(x: Durable, r: MediaQualificationReserve, stop: Stop): MediaQualificationReservation {
+    x.ended = stop
+    if (r.kind === 'connection') return { ok: false, ordinal: null, stop, ended: true }
+    const kept = r.kind === 'unasked' ? (r.charge ?? 0) : (r.owed ?? 0)
+    if (r.kind !== 'unasked') x.charged += kept
+    return { ok: false, ordinal: null, stop, ended: true, kept }
+  }
+
   /** A reservation that fits: a connection numbered, a generation counted, a charge added. */
   #count(x: Durable, r: MediaQualificationReserve): void {
-    if (r.kind === 'connection') x.connections += 1
+    if (r.kind === 'connection') {
+      x.connections += 1
+      x.unsettled.add(x.connections)
+    }
     // An unasked generation was counted and charged as it was asked (#stop).
     else if (r.kind !== 'unasked') {
       if (r.kind === 'generation') x.turns += 1
@@ -230,10 +277,15 @@ interface Options {
   lifetime?: number
   /** Each reservation attempt's time limit, when a test bounds it (a close's settling is bounded by it). */
   reserveTimeoutMs?: number
+  /** The whole process stop's deadline, when a test bounds it (STOP_DEADLINE_MS otherwise). */
+  stopDeadlineMs?: number
 }
 
 /** One bridge process: LiveKit and Gemini Live are labelled fakes; the API is the ledger, and keeps the receipts. */
-function harness(ledger: FakeLedger, { now = Date.now, meter, lifetime = 1, reserveTimeoutMs }: Options = {}) {
+function harness(
+  ledger: FakeLedger,
+  { now = Date.now, meter, lifetime = 1, reserveTimeoutMs, stopDeadlineMs }: Options = {},
+) {
   const evidence: MediaEvidenceWrite[] = []
   const roomEvents: RoomEvents[] = []
   const lives: Array<{ events: LiveEvents; audio: number; frames: number }> = []
@@ -303,6 +355,7 @@ function harness(ledger: FakeLedger, { now = Date.now, meter, lifetime = 1, rese
     evidenceRetryMs: [0, 0],
     reserveRetryMs: [0, 0],
     ...(reserveTimeoutMs === undefined ? {} : { reserveTimeoutMs }),
+    ...(stopDeadlineMs === undefined ? {} : { stopDeadlineMs }),
   })
   const stops = () => logs.filter(([event]) => event === 'qualification.stopped').map(([, d]) => d.why)
   return { bridge, evidence, roomEvents, lives, stops, calls, logs }
@@ -417,7 +470,7 @@ describe('what a process sends is paid for on the API before it is sent (charge 
     }
   }
 
-  it('a bridge process that dies after a long turn’s input and frames left nothing unpaid; its restart gets what is left', async () => {
+  it('a bridge process that dies after a long turn’s input and frames left nothing unpaid; its restart ends the exchange (unsettled)', async () => {
     const ledger = control()
     const meter = new Meter(ledger)
     const clock = { now: Date.now() }
@@ -436,8 +489,14 @@ describe('what a process sends is paid for on the API before it is sent (charge 
       assert.deepEqual(meter.unpaid.slice(0, 1), [], 'nothing was sent before the API had committed it')
       assert.ok(meter.spent <= ledger.committed(E1), 'across both lifetimes, everything sent was paid for')
       assert.ok(ledger.committed(E1) < 100_000, 'and the API never committed past the budget')
-      assert.equal(ledger.exchanges.get(E1)?.ended, 'usage', 'the restart’s generation did not fit: the exchange ended')
-      assert.equal(processes[1]?.lives[0]?.audio, 0, 'the restarted process sent nothing it could not pay for')
+      // The dead process never settled its connection, and the API cannot tell it owed nothing (0085): the restart's
+      // first connection ends the exchange rather than spend on counts that may be short.
+      assert.equal(ledger.exchanges.get(E1)?.ended, 'unsettled', 'the restart’s connection ended the exchange')
+      assert.equal(
+        processes[1]?.lives.length,
+        0,
+        'the restarted process opened no provider connection: it sent nothing',
+      )
     } finally {
       for (const h of processes) await h.bridge.stop()
     }
@@ -656,9 +715,10 @@ describe('a bridge process shut down while what it spent is being charged settle
     assert.equal(exited, false, 'not while the charge is unanswered')
     release?.()
     await exiting
+    // Then its connection is settled (0085): everything it spent is on the API.
     assert.deepEqual(
       ledger.asked.map((r) => r.kind),
-      ['connection', 'generation', 'unasked', 'stop'],
+      ['connection', 'generation', 'unasked', 'stop', 'settle'],
     )
     const x = ledger.exchanges.get(E1)
     assert.deepEqual([x?.turns, x?.ended], [2, 'bridge'], 'its turn counted, and the exchange ended by the stop')
@@ -706,7 +766,11 @@ describe('a session replacing another on its exchange opens nothing until the re
       assert.deepEqual(x.kinds(), ['connection', 'unasked'], 'and no reservation of its own')
       x.release()
       await until('the replacement opened', () => x.h.lives.length === 2)
-      assert.deepEqual(x.kinds().slice(0, 3), ['connection', 'unasked', 'connection'], 'after the charge it inherited')
+      assert.deepEqual(
+        x.kinds().slice(0, 4),
+        ['connection', 'unasked', 'settle', 'connection'],
+        'after the charge it inherited, and the replaced session’s settlement',
+      )
       assert.equal(x.h.lives[1]?.audio, 0, 'the chunk heard before it opened was never sent')
     } finally {
       x.release()
@@ -765,7 +829,11 @@ describe('a session replacing another on its exchange opens nothing until the re
       assert.equal(x.h.lives.length, 1)
       x.release()
       await until('the replacement opened', () => x.h.lives.length === 2)
-      assert.deepEqual(x.kinds().slice(0, 3), ['connection', 'unasked', 'connection'], 'after the charge it inherited')
+      assert.deepEqual(
+        x.kinds().slice(0, 4),
+        ['connection', 'unasked', 'settle', 'connection'],
+        'after the charge it inherited, and the replaced session’s settlement',
+      )
     } finally {
       x.release()
       await x.h.bridge.stop()
@@ -775,9 +843,7 @@ describe('a session replacing another on its exchange opens nothing until the re
   it('refused after the bound: the replacement stays closed for good, and says so', async () => {
     const x = await failedClosed()
     try {
-      const durable = x.ledger.exchanges.get(E1)
-      assert.ok(durable)
-      durable.ended = 'usage' // the API ended the exchange meanwhile: the late charge is refused (409)
+      x.ledger.rejects.add('unasked') // the late charge is refused outright (422)
       x.release()
       await until('the charge is refused', () => x.inherited('qualification.inherited_lost'))
       await new Promise((resolve) => setTimeout(resolve, 100))
@@ -804,9 +870,7 @@ describe('a session replacing another on its exchange opens nothing until the re
       h.roomEvents[0]?.connection('disconnected', 'livekit: 1')
       await settle()
       await h.bridge.apply([assigned])
-      const durable = ledger.exchanges.get(E1)
-      assert.ok(durable)
-      durable.ended = 'usage'
+      ledger.rejects.add('unasked') // the charge is refused outright (422)
       release?.()
       const unsettled = () => h.logs.filter(([event]) => event === 'qualification.inherited_unsettled')
       await until('the replacement fails closed', () => unsettled().length > 0)
@@ -826,11 +890,42 @@ describe('a session replacing another on its exchange opens nothing until the re
   })
 })
 
-/** The API ended the exchange (its usage limit): what is charged after is refused (409). */
-function endedByTheApi(ledger: FakeLedger): void {
-  const durable = ledger.exchanges.get(E1)
-  assert.ok(durable)
-  durable.ended = 'usage'
+describe('a late charge on an exchange the API ended meanwhile lands (0085)', () => {
+  it('the replaced session’s charge lands on the ended exchange, and the replacement opens nothing there', async () => {
+    const ledger = new FakeLedger(grant({ maxTurns: 1 }))
+    let release: (() => void) | undefined
+    ledger.held = { kind: 'unasked', until: new Promise<void>((resolve) => (release = resolve)) }
+    const h = harness(ledger)
+    try {
+      const assigned = assignment(ledger.grant)
+      await h.bridge.apply([assigned])
+      await settle()
+      h.lives[0]?.events.setupComplete()
+      h.lives[0]?.events.audio(out(), OUT) // a generation nobody reserved: charged unasked, held
+      await settle()
+      h.roomEvents[0]?.connection('disconnected', 'livekit: 1')
+      await settle()
+      await h.bridge.apply([assigned])
+      const durable = ledger.exchanges.get(E1)
+      assert.ok(durable)
+      const before = durable.charged
+      durable.ended = 'usage' // the API's guard ended the exchange meanwhile
+      release?.()
+      await until('the replaced connection settled', () => ledger.asked.some((r) => r.kind === 'settle'))
+      await settle()
+      assert.equal(durable.turns, 1, 'the unasked generation counted, after the end')
+      assert.ok(durable.charged > before, 'and its charge kept: the provider billed it')
+      assert.equal(h.lives.length, 1, 'no provider connection on the ended exchange')
+    } finally {
+      release?.()
+      await h.bridge.stop()
+    }
+  })
+})
+
+/** The API refuses the late charge outright (422): it is lost to the ledger. */
+function refusedByTheApi(ledger: FakeLedger): void {
+  ledger.rejects.add('unasked')
 }
 
 describe('a chain of replacements waits on every charge the chain owes (Codex r4234949420)', () => {
@@ -860,7 +955,7 @@ describe('a chain of replacements waits on every charge the chain owes (Codex r4
     await settle()
     assert.equal(h.roomEvents.length, 2, 'B joined the room')
     if (opts.before === 'refused') {
-      endedByTheApi(ledger) // A's charge is refused (409), and its close hands over the loss
+      refusedByTheApi(ledger) // A's charge is refused (422), and its close hands over the loss
       free()
     }
     if (opts.before) await until('B fails closed', () => logged('qualification.inherited_unsettled').length === 1)
@@ -900,7 +995,11 @@ describe('a chain of replacements waits on every charge the chain owes (Codex r4
       assert.equal(x.h.lives.length, 1)
       x.release()
       await until('C opened', () => x.h.lives.length === 2)
-      assert.deepEqual(x.kinds().slice(0, 3), ['connection', 'unasked', 'connection'], 'after A’s charge')
+      assert.deepEqual(
+        x.kinds().slice(0, 4),
+        ['connection', 'unasked', 'settle', 'connection'],
+        'after A’s charge and its settlement',
+      )
       assert.equal(x.h.lives[1]?.audio, 0, 'the chunk heard before it opened was never sent')
     } finally {
       x.release()
@@ -912,9 +1011,7 @@ describe('a chain of replacements waits on every charge the chain owes (Codex r4
     const x = await chained()
     try {
       await until('C fails closed', () => x.logged('qualification.inherited_unsettled').length > 0)
-      const durable = x.ledger.exchanges.get(E1)
-      assert.ok(durable)
-      durable.ended = 'usage' // the API ended the exchange meanwhile: A's late charge is refused (409)
+      refusedByTheApi(x.ledger) // A's late charge is refused outright (422)
       x.release()
       await until('the chain’s loss is seen', () => x.logged('qualification.inherited_lost').length > 0)
       await new Promise((resolve) => setTimeout(resolve, 100))
@@ -965,7 +1062,11 @@ describe('a chain of replacements waits on every charge the chain owes (Codex r4
       assert.deepEqual(x.kinds(), ['connection', 'unasked'])
       x.release()
       await until('C opened', () => x.h.lives.length === 2)
-      assert.deepEqual(x.kinds().slice(0, 3), ['connection', 'unasked', 'connection'], 'C alone: B was closed')
+      assert.deepEqual(
+        x.kinds().slice(0, 4),
+        ['connection', 'unasked', 'settle', 'connection'],
+        'C alone, after A’s settlement: B, never connected, had none to settle',
+      )
     } finally {
       x.release()
       await x.h.bridge.stop()
@@ -988,9 +1089,10 @@ describe('a chain of replacements waits on every charge the chain owes (Codex r4
       await settle()
       await h.bridge.apply([assigned])
       await until('C opened', () => h.lives.length === 3)
+      // Each replaced session settles its connection on its way out, before the next one is asked for (0085).
       assert.deepEqual(
         ledger.asked.map((r) => r.kind),
-        ['connection', 'connection', 'connection'],
+        ['connection', 'settle', 'connection', 'settle', 'connection'],
       )
       assert.deepEqual(
         h.logs.filter(([event]) => event === 'qualification.inherited_unsettled'),
@@ -1044,7 +1146,7 @@ describe('a close waits for the whole chain of what it owes, within its bound (C
     const started = Date.now()
     await x.h.bridge.stop()
     const ms = Date.now() - started
-    assert.deepEqual(x.kinds(), ['connection', 'generation', 'spend', 'spend', 'stop'])
+    assert.deepEqual(x.kinds(), ['connection', 'generation', 'spend', 'spend', 'stop', 'settle'])
     assert.ok(ms >= 2 * INSIDE, `it waited for the chain (${String(ms)} ms)`)
     assert.ok(ms < BOUND + MARGIN, `within its bound (${String(ms)} ms)`)
     assert.deepEqual(x.unsettled(), [], 'nothing left unsettled')
@@ -1116,7 +1218,7 @@ describe('a close waits for the whole chain of what it owes, within its bound (C
     const started = Date.now()
     await x.h.bridge.stop()
     const ms = Date.now() - started
-    assert.deepEqual(x.kinds(), ['connection', 'generation', 'stop'])
+    assert.deepEqual(x.kinds(), ['connection', 'generation', 'stop', 'settle'])
     assert.ok(ms >= INSIDE - 50 && ms < ONCE + MARGIN, `it waited for the stop (${String(ms)} ms)`)
     assert.deepEqual(x.unsettled(), [])
     assert.ok(x.ledger.stopped.has(E1))
@@ -1127,7 +1229,7 @@ describe('a close waits for the whole chain of what it owes, within its bound (C
     const started = Date.now()
     await x.h.bridge.stop()
     const ms = Date.now() - started
-    assert.deepEqual(x.kinds(), ['connection', 'generation', 'spend'])
+    assert.deepEqual(x.kinds(), ['connection', 'generation', 'spend', 'settle'])
     assert.ok(ms >= INSIDE - 50 && ms < ONCE + MARGIN, `it waited for the top-up (${String(ms)} ms)`)
     assert.deepEqual(x.unsettled(), [])
     assert.equal(x.ledger.stopped.has(E1), false)
@@ -1198,28 +1300,34 @@ describe('the holder’s words past the budget are recorded and charged before t
     await restarted.bridge.stop()
   })
 
-  it('with no usage report the debt reaches the API’s budget: refused, the exchange ends (usage), and the ledger handed over says lost, so a replacement stays closed', async () => {
+  // R2-G7-INTERIM-F1: the debt is for words already billed. Before, the refusal that ended the exchange dropped it
+  // ('and does not hold it': 29,128) and the session was lost. Now the debt is asked with all of it owed, and the API
+  // keeps it while it refuses (0085 owed): the ledger holds what was spent, the connection is settled, and a replacement
+  // still opens nothing, as the API refuses a connection on the ended exchange.
+  it('with no usage report the debt reaches the API’s budget: refused, the exchange ends (usage), the debt kept all the same, and a replacement opens nothing', async () => {
     const x = await heardPast({ report: false })
     await until('the stop answered', () => x.ledger.stopped.has(E1))
     assert.deepEqual(x.kinds(), ['connection', 'generation', 'spend', 'stop'])
     assert.deepEqual(x.spends(), [1004], 'asked, before the stop')
+    assert.equal(x.ledger.asked.find((r) => r.kind === 'spend')?.owed, 1004, 'all of it owed')
     assert.equal(x.ledger.exchanges.get(E1)?.ended, 'usage', 'refused: the API ended the exchange at its budget')
-    assert.equal(x.ledger.committed(E1), 29_128, 'and does not hold it')
+    assert.equal(x.ledger.committed(E1), 29_128 + 1004, 'and holds the debt all the same: it was already spent')
     try {
       x.h.roomEvents[0]?.connection('disconnected', 'livekit: 1')
       await settle()
       await x.h.bridge.apply([assignment(x.ledger.grant)])
       await until(
-        'the replacement weighed what it inherited',
-        () => x.logged('qualification.inherited_unsettled').length > 0,
+        'the replacement asked for a connection',
+        () => x.kinds().filter((k) => k === 'connection').length > 1,
       )
+      await settle()
       assert.deepEqual(
-        x.logged('qualification.inherited_unsettled').map((d) => [d.charges, d.lost]),
-        [[0, true]],
-        'nothing unanswered, and lost: closed for good',
+        x.kinds(),
+        ['connection', 'generation', 'spend', 'stop', 'settle', 'connection', 'stop'],
+        'the closed session settled its connection, everything on it landed; the replacement asked, was refused, stopped',
       )
-      assert.equal(x.h.lives.length, 1, 'and opened nothing')
-      assert.deepEqual(x.kinds(), ['connection', 'generation', 'spend', 'stop'], 'nor asked anything')
+      assert.equal(x.h.lives.length, 1, 'and opened nothing: the exchange has ended')
+      assert.equal(x.ledger.committed(E1), 29_128 + 1004, 'nothing more charged')
     } finally {
       await x.h.bridge.stop()
     }
@@ -1257,6 +1365,7 @@ describe('the holder’s words past the budget are recorded and charged before t
         ['spend', 3999],
         ['spend', 48],
         ['stop', null],
+        ['settle', null],
       ],
     )
     assert.ok(ms >= 2 * INSIDE, `it waited for the chain (${String(ms)} ms)`)
@@ -1318,4 +1427,79 @@ describe('the holder’s words past the budget are recorded and charged before t
       }
     })
   }
+})
+
+// R2-G7-INTERIM-F2: the settlement goes beside the bridge's stop, so a close still waits at most SETTLE_DEPTH (3)
+// requests one after another, inside the process stop's deadline. Cut short anyway, by the close's own bound or by the
+// process stop's deadline, nothing is claimed settled: the connection stays unsettled on the API, and a restarted
+// process's first connection ends the exchange (unsettled) instead of spending on counts that may be short.
+describe('a settlement cut short is never taken for one: a restart opens nothing (0085)', () => {
+  const ONCE = 3 * 100
+  const BOUND = 3 * ONCE
+  const MARGIN = 250
+
+  /** One turn of the principal's, then the settlement never answered. */
+  async function spoken(options: Options): Promise<{
+    ledger: FakeLedger
+    h: ReturnType<typeof harness>
+    release: () => void
+  }> {
+    const ledger = new FakeLedger(grant())
+    let resolve: (() => void) | undefined
+    const never = new Promise<void>((done) => (resolve = done))
+    ledger.gate = (r) => (r.kind === 'settle' ? never : undefined)
+    const h = harness(ledger, options)
+    await h.bridge.apply([assignment(ledger.grant)])
+    await settle()
+    h.lives[0]?.events.setupComplete()
+    await turn(h, 0)
+    return { ledger, h, release: () => resolve?.() }
+  }
+
+  it('held past the close’s bound: the close ends at its bound, says its connection is unsettled, and a restart ends the exchange', async () => {
+    const { ledger, h, release } = await spoken({ reserveTimeoutMs: 100 })
+    try {
+      const started = Date.now()
+      await h.bridge.stop()
+      const ms = Date.now() - started
+      assert.ok(ms >= BOUND - 50 && ms < BOUND + MARGIN, `the close ended at its bound (${String(ms)} ms)`)
+      assert.deepEqual(
+        h.logs.filter(([event]) => event === 'qualification.charge_unsettled').map(([, d]) => d.settlement),
+        ['unsettled'],
+        'and says so: nothing is claimed settled',
+      )
+      const restarted = harness(ledger, { lifetime: 2 })
+      await restarted.bridge.apply([assignment(ledger.grant)])
+      await settle()
+      assert.equal(ledger.exchanges.get(E1)?.ended, 'unsettled', 'the restart’s connection ended the exchange')
+      assert.equal(restarted.lives.length, 0, 'and it opened nothing')
+      await restarted.bridge.stop()
+    } finally {
+      release()
+    }
+  })
+
+  it('cut short by the process stop’s deadline: the stop resolves at it and says so; the connection stays unsettled, and a restart ends the exchange', async () => {
+    const { ledger, h, release } = await spoken({ reserveTimeoutMs: 1000, stopDeadlineMs: 200 })
+    try {
+      const started = Date.now()
+      await h.bridge.stop()
+      const ms = Date.now() - started
+      assert.ok(ms >= 150 && ms < 200 + MARGIN, `the stop resolved at its deadline (${String(ms)} ms)`)
+      assert.deepEqual(
+        h.logs.filter(([event]) => event === 'bridge.stop_deadline').map(([, d]) => d.unclosed),
+        [1],
+        'one session had not closed',
+      )
+      assert.equal(ledger.exchanges.get(E1)?.unsettled.has(1), true, 'its connection is not settled on the API')
+      const restarted = harness(ledger, { lifetime: 2 })
+      await restarted.bridge.apply([assignment(ledger.grant)])
+      await settle()
+      assert.equal(ledger.exchanges.get(E1)?.ended, 'unsettled')
+      assert.equal(restarted.lives.length, 0)
+      await restarted.bridge.stop()
+    } finally {
+      release()
+    }
+  })
 })

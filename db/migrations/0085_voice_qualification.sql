@@ -16,6 +16,16 @@
 --   restarted bridge, starts from the exchange's true counts. A reservation that does not fit ends the exchange, as
 --   the guard would, and so does a bridge's own stop (its session_closed receipt says guard). A receipt names only a
 --   connection that was reserved.
+-- * What the bridge charges after it arrived (a generation that started unasked, a debt a transcription or Sophia's
+--   words left; PR #190's P1s r4235198833 and r4232295959) is not on the ledger until its charge lands, and a bridge
+--   killed before then leaves it off for good: PostgreSQL cannot know. So a connection counts as fully charged only once
+--   its bridge settles it ('settle', after every such charge landed), and a connection reserved while an earlier one of
+--   the exchange is unsettled ends the exchange ('unsettled'): its counts may be short, so nothing more is spent on
+--   them, and the reason says so. Two bridge processes on one exchange at once (a deploy's overlap) end it the same way.
+--   Such a charge still lands on an exchange that has ended (a charge only, no limit), so an exchange the guard or the
+--   bridge ended keeps what was spent before its end was answered. And a debt charged while the exchange is still open,
+--   with a top-up or a generation (owed), is kept even when that charge is refused and ends the exchange, past the
+--   budget if need be: the refusal grants nothing more, and what was already spent stays on the ledger.
 -- * The guard ends an exchange under a grant, as End would (ended_by stays null), at its deadline, when the grant is
 --   revoked or expires, past its connection or turn limit, or at its budget, and records why. The API runs it on every
 --   bridge presence report and assignment poll, so it acts whether or not the Lab is still there, and every receipt and
@@ -69,7 +79,7 @@ CREATE TABLE sophia.voice_qualification_exchanges (
  project_id uuid NOT NULL, grant_id uuid NOT NULL REFERENCES sophia.voice_qualification_grants(id),
  connections_opened integer NOT NULL DEFAULT 0 CHECK(connections_opened>=0),
  turns integer NOT NULL DEFAULT 0 CHECK(turns>=0),
- ended_reason text CHECK(ended_reason IS NULL OR ended_reason IN ('deadline','expired','revoked','connections','turns','usage','bridge')),
+ ended_reason text CHECK(ended_reason IS NULL OR ended_reason IN ('deadline','expired','revoked','connections','turns','usage','bridge','unsettled')),
  ended_at timestamptz,
  CHECK((ended_reason IS NULL)=(ended_at IS NULL))
 );
@@ -83,6 +93,8 @@ CREATE TABLE sophia.voice_qualification_connections (
  charged bigint NOT NULL DEFAULT 0 CHECK(charged>=0),
  last_prompt bigint NOT NULL DEFAULT 0 CHECK(last_prompt>=0),
  opened_at timestamptz NOT NULL DEFAULT now(),
+ -- Its bridge said every charge for what it spent on it landed (kind 'settle'): until then, it may have cost more.
+ settled boolean NOT NULL DEFAULT false,
  PRIMARY KEY(exchange_id,ordinal)
 );
 
@@ -309,20 +321,31 @@ END $$;
 -- generation fits while it leaves the turns within the grant's and, charged, the exchange's next turn could still not
 -- pass the budget (voice_budget_reached, the guard's own rule): so the guard never cuts one it granted; a top-up fits by
 -- the same budget rule. A reservation that does not fit ends the exchange as the guard would; so does a limit the
--- guard would end it at. An exchange already ended is refused (40001), whatever the kind but a stop. A 'stop' is the
+-- guard would end it at. A generation or a top-up may say what of its charge is owed already (p_owed: a debt for words
+-- heard or said): refused, it grants nothing, and that part is kept all the same, even past the budget; every refused
+-- charge answers what of it was kept (kept: an unasked generation's whole charge, a reservation's owed part, or 0). An
+-- exchange already ended is refused (40001), whatever the kind but a stop, a settlement, and a charge for what was
+-- already spent (unasked, spend; below). A 'stop' is the
 -- bridge's own stop (its bound, or the deadline), whoever holds the floor: it reserves nothing, records nothing, and
 -- ends the exchange (reason bridge), once; an exchange already ended answers it the same.
-CREATE FUNCTION sophia.media_voice_reserve(p_exchange uuid, p_grant uuid, p_kind text, p_ordinal integer, p_charge bigint)
+CREATE FUNCTION sophia.media_voice_reserve(p_exchange uuid, p_grant uuid, p_kind text, p_ordinal integer, p_charge bigint,
+ p_owed bigint DEFAULT NULL)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE e sophia.room_exchanges; g sophia.voice_qualification_grants; q sophia.voice_qualification_exchanges; why text;
- p uuid;
+ p uuid; kept bigint:=0;
 BEGIN
  PERFORM sophia.require_service();
- IF p_kind IS NULL OR p_kind NOT IN ('connection','generation','unasked','spend','stop') THEN
+ IF p_kind IS NULL OR p_kind NOT IN ('connection','generation','unasked','spend','stop','settle') THEN
   RAISE EXCEPTION 'Not a reservation' USING ERRCODE='22023'; END IF;
  IF p_kind IN ('generation','unasked','spend') AND (p_ordinal IS NULL OR p_ordinal NOT BETWEEN 1 AND 64 OR p_charge IS NULL
    OR p_charge NOT BETWEEN 0 AND 5000000) THEN
   RAISE EXCEPTION 'A charge names its connection and is 0 to 5,000,000' USING ERRCODE='22023'; END IF;
+ IF p_kind='settle' AND (p_ordinal IS NULL OR p_ordinal NOT BETWEEN 1 AND 64) THEN
+  RAISE EXCEPTION 'A settlement names its connection' USING ERRCODE='22023'; END IF;
+ -- Of a generation's or a top-up's charge, what was already spent (a debt for words already heard or said): kept even
+ -- when the reservation is refused. An unasked generation's whole charge is already spent; nothing else charges.
+ IF p_owed IS NOT NULL AND (p_kind NOT IN ('generation','spend') OR p_owed NOT BETWEEN 0 AND p_charge) THEN
+  RAISE EXCEPTION 'What is owed is part of a generation''s or a top-up''s charge' USING ERRCODE='22023'; END IF;
  -- Lock order (0003): the project, then its exchange, as control_exchange takes them; ending the exchange emits the
  -- project's event under both.
  SELECT project_id INTO p FROM sophia.room_exchanges WHERE id=p_exchange;
@@ -335,9 +358,34 @@ BEGIN
   PERFORM sophia.voice_end_exchange(e.id, g, 'bridge');
   RETURN jsonb_build_object('ok',true,'ordinal',NULL,'stop',NULL,'ended',true);
  END IF;
+ IF p_kind IN ('settle','unasked','spend') AND NOT EXISTS(SELECT 1 FROM sophia.voice_qualification_connections
+   WHERE exchange_id=e.id AND ordinal=p_ordinal) THEN
+  RAISE EXCEPTION 'The charge or settlement names a connection that was not reserved' USING ERRCODE='22023'; END IF;
+ -- Its bridge says every charge for what it spent on the connection landed: open or ended, the exchange takes it.
+ IF p_kind='settle' THEN
+  UPDATE sophia.voice_qualification_connections SET settled=true WHERE exchange_id=e.id AND ordinal=p_ordinal;
+  RETURN jsonb_build_object('ok',true,'ordinal',p_ordinal,'stop',NULL,'ended',e.state='ended');
+ END IF;
+ -- What was already spent, charged once it arrived (a generation that started unasked, a debt topped up), lands even
+ -- once the exchange has ended (the guard's deadline or limit, the bridge's stop): the provider billed it. A charge only,
+ -- and no limit: nothing more is granted. A top-up for input never sent lands too, and only over-counts.
+ IF e.state='ended' AND p_kind IN ('unasked','spend') THEN
+  IF p_kind='unasked' THEN
+   UPDATE sophia.voice_qualification_exchanges SET turns=turns+1 WHERE exchange_id=e.id;
+  END IF;
+  UPDATE sophia.voice_qualification_connections SET charged=charged+p_charge WHERE exchange_id=e.id AND ordinal=p_ordinal;
+  RETURN jsonb_build_object('ok',true,'ordinal',p_ordinal,'stop',NULL,'ended',true);
+ END IF;
  IF e.state='ended' THEN RAISE EXCEPTION 'The exchange has ended' USING ERRCODE='40001'; END IF;
  -- The exchange's row lock above makes a reservation atomic: the counters are read and moved under it.
  SELECT * INTO q FROM sophia.voice_qualification_exchanges WHERE exchange_id=e.id;
+ -- A connection opened while an earlier one is not settled (its bridge killed before what it spent landed, or a second
+ -- process beside the first): the exchange's counts may be short, so it ends rather than spend more on them.
+ IF p_kind='connection' AND EXISTS(SELECT 1 FROM sophia.voice_qualification_connections
+   WHERE exchange_id=e.id AND NOT settled) THEN
+  PERFORM sophia.voice_end_exchange(e.id, g, 'unsettled');
+  RETURN jsonb_build_object('ok',false,'ordinal',NULL,'stop','unsettled','ended',true);
+ END IF;
  IF q.exchange_id IS NULL THEN
   INSERT INTO sophia.voice_qualification_exchanges(exchange_id,project_id,grant_id) VALUES(e.id,e.project_id,g.id)
   RETURNING * INTO q;
@@ -349,6 +397,7 @@ BEGIN
   UPDATE sophia.voice_qualification_exchanges SET turns=turns+1 WHERE exchange_id=e.id;
   UPDATE sophia.voice_qualification_connections SET charged=charged+p_charge WHERE exchange_id=e.id AND ordinal=p_ordinal;
   why:=sophia.voice_limit_reached(g, e.opened_at, e.id);
+  kept:=p_charge;
  ELSE
   why:=coalesce(sophia.voice_limit_reached(g, e.opened_at, e.id), CASE
    WHEN p_kind='connection' AND q.connections_opened+1>g.max_provider_connections THEN 'connections'
@@ -366,11 +415,18 @@ BEGIN
     UPDATE sophia.voice_qualification_exchanges SET turns=q.turns+1 WHERE exchange_id=e.id;
    END IF;
    UPDATE sophia.voice_qualification_connections SET charged=charged+p_charge WHERE exchange_id=e.id AND ordinal=p_ordinal;
+  ELSIF coalesce(p_owed,0)>0 THEN
+   -- Refused, and so nothing is granted: no turn, no input prepaid. What was already spent is kept all the same (the
+   -- provider billed it), even past the budget: the charge that crosses it is often that very debt.
+   UPDATE sophia.voice_qualification_connections SET charged=charged+p_owed WHERE exchange_id=e.id AND ordinal=p_ordinal;
+   kept:=p_owed;
   END IF;
  END IF;
  IF why IS NULL THEN RETURN jsonb_build_object('ok',true,'ordinal',p_ordinal,'stop',NULL,'ended',false); END IF;
  PERFORM sophia.voice_end_exchange(e.id, g, why);
- RETURN jsonb_build_object('ok',false,'ordinal',NULL,'stop',why,'ended',true);
+ -- A refused charge says what of it the ledger kept: an unasked generation's whole charge, a reservation's owed part.
+ IF p_kind='connection' THEN RETURN jsonb_build_object('ok',false,'ordinal',NULL,'stop',why,'ended',true); END IF;
+ RETURN jsonb_build_object('ok',false,'ordinal',NULL,'stop',why,'ended',true,'kept',kept);
 END $$;
 
 -- A bridge receipt for an exchange under a grant: bound to that grant and its run, once per sequence number (the
@@ -656,7 +712,7 @@ REVOKE ALL ON FUNCTION sophia.voice_grant_of(uuid,timestamptz), sophia.voice_dea
  sophia.voice_budget_reached(sophia.voice_qualification_grants,bigint,bigint), sophia.voice_committed(uuid),
  sophia.voice_last_prompt(uuid), sophia.voice_limit_reached(sophia.voice_qualification_grants,timestamptz,uuid),
  sophia.voice_end_exchange(uuid,sophia.voice_qualification_grants,text),
- sophia.media_voice_reserve(uuid,uuid,text,integer,bigint),
+ sophia.media_voice_reserve(uuid,uuid,text,integer,bigint,bigint),
  sophia.voice_qualification_grant(uuid,uuid,text,text,integer,integer,integer,integer,bigint,integer),
  sophia.voice_qualification_revoke(uuid,uuid,text), sophia.voice_qualification_guard(), sophia.voice_evidence_expire(),
  sophia.voice_assignment_qualification(uuid,timestamptz), sophia.media_record_evidence(uuid,uuid,integer,text,jsonb),
@@ -666,7 +722,7 @@ REVOKE ALL ON FUNCTION sophia.voice_grant_of(uuid,timestamptz), sophia.voice_dea
  sophia.live_call_command(), sophia.live_call_design_edit(), sophia.media_answer_live_call(uuid,uuid,text,text),
  sophia.task_withdrawn_sources(uuid,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.voice_qualification_guard(), sophia.media_record_evidence(uuid,uuid,integer,text,jsonb),
- sophia.media_voice_reserve(uuid,uuid,text,integer,bigint),
+ sophia.media_voice_reserve(uuid,uuid,text,integer,bigint,bigint),
  sophia.voice_qualification_evidence_read(uuid), sophia.voice_room_qualification(uuid),
  sophia.media_record_live_call(uuid,bigint,uuid,text,text), sophia.room_live_presence(uuid),
  sophia.native_task_exchanges(uuid,uuid[]), sophia.exchange_calls(uuid,timestamptz), sophia.live_call_admits(uuid,text),

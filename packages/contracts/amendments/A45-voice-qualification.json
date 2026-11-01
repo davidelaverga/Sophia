@@ -9,7 +9,8 @@
     "The guard (0085) runs on every presence report and assignment poll, and every evidence write and reservation checks the same limits for its own exchange, so an exchange under a grant ends at its deadline or limit whether or not the Lab is still there.",
     "Joins the Lab needs to prove a run's outcome and its cleanup, all only with voice qualification on: a native task names the exchange whose voice tool call created it (exchangeId); a member reads their own voice tool calls in an exchange, in order, each with the command it admitted and the task that command created (getExchangeCalls), so a step is proven by the call that made it, never by a key, a time window or another call; and a member reads the room as the bridge last saw it, only whether they are in it and the counts (getRoomLivePresence). A call's command is linked to it by the transaction that inserted that command for the call, never by its key, so a member's own command, under any key, links to no call.",
     "The bound is the exchange's, held by the service, never a bridge session's: before the bridge opens a provider connection under a grant or lets a generation start, it reserves it (POST /v1/media/qualification-reserve), and the service counts connections and generations durably, with what each connection was charged and reported. A session that replaces a lost one, or a restarted bridge, starts from the exchange's true counts. A reservation that does not fit ends the exchange, as does the bridge's own stop (a session_closed receipt that says guard: reason bridge). A receipt names only a connection that was reserved.",
-    "What a withdrawal reached, only with voice qualification on: a research, design or review task's detail lists the sources its attempt drew on that are withdrawn now (withdrawnSourceIds), from the very closure a withdrawal revokes work by, computed live. The Lab matches a forgotten mission note's sourceId (its record_note receipt's) against it. A task that had already ended lists it too, so the Lab also reads that the task was live just before its withdrawal."
+    "What a withdrawal reached, only with voice qualification on: a research, design or review task's detail lists the sources its attempt drew on that are withdrawn now (withdrawnSourceIds), from the very closure a withdrawal revokes work by, computed live. The Lab matches a forgotten mission note's sourceId (its record_note receipt's) against it. A task that had already ended lists it too, so the Lab also reads that the task was live just before its withdrawal.",
+    "The bridge charges some spend only after it arrived (a generation that started unasked; a debt a transcription or Sophia's words left: PR #190's P1s r4235198833 and r4232295959), and a bridge killed before that charge lands leaves it off the ledger for good. So a connection counts as fully charged only once its bridge settles it (settle), a connection asked for while an earlier one of the exchange is unsettled ends the exchange (stop and ended reason unsettled, as two processes on one exchange at once also do), and such a charge still lands once the exchange has ended. A debt charged while the exchange is still open can be the very charge that crosses its budget or deadline (R2-G7-INTERIM-F1): the request says what of it is owed (owed), and the API keeps that while it refuses and grants nothing more, and says what it kept (kept). So the ledger may hold more than the budget by what was already spent, never by anything granted. No provider invoice or HTTP cap is claimed: this is the application's own bound."
   ],
   "patch": [
     {
@@ -720,7 +721,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": ["deadline", "expired", "revoked", "connections", "turns", "usage", "bridge"]
+                "enum": ["deadline", "expired", "revoked", "connections", "turns", "usage", "bridge", "unsettled"]
               },
               {
                 "type": "null"
@@ -737,7 +738,7 @@
       "value": {
         "type": "object",
         "additionalProperties": false,
-        "description": "The bridge's durable reservation for an exchange under a grant, before it spends: a provider connection before it opens one; a generation before it sends what can start one (input after a turn ended, a tool response, a notice, a typed message), on a reserved connection; or a generation that started unasked (its output arrived), which is counted and charged whatever the limits; or a top-up of a reserved connection's input allowance (spend), before input it does not cover is sent: a charge only, counting no generation, refused as a generation would be when, charged, the exchange's next turn could reach the budget. charge is a generation's worst case (the context again and its output twice), with the text it sends and, for one input asked for, what fills the connection's input allowance; or a top-up's amount. Or the bridge's own stop (stop: its bound or the deadline stopped the session, whoever holds the floor): it reserves and records nothing, and the exchange ends (reason bridge), once; an exchange already ended answers it the same (ok, ended).",
+        "description": "The bridge's durable reservation for an exchange under a grant, before it spends: a provider connection before it opens one; a generation before it sends what can start one (input after a turn ended, a tool response, a notice, a typed message), on a reserved connection; or a generation that started unasked (its output arrived), which is counted and charged whatever the limits; or a top-up of a reserved connection's input allowance (spend), before input it does not cover is sent: a charge only, counting no generation, refused as a generation would be when, charged, the exchange's next turn could reach the budget. charge is a generation's worst case (the context again and its output twice), with the text it sends and, for one input asked for, what fills the connection's input allowance; or a top-up's amount. Or the bridge's own stop (stop: its bound or the deadline stopped the session, whoever holds the floor): it reserves and records nothing, and the exchange ends (reason bridge), once; an exchange already ended answers it the same (ok, ended). Or a settlement (settle) of a reserved connection, once every charge for what the bridge spent on it landed: until then the connection may have cost more than the ledger holds, and a connection asked for meanwhile ends the exchange (unsettled). A charge for what was already spent (unasked, spend) lands even on an exchange that has ended. owed is the part of a generation's or a top-up's charge already spent (a debt for words heard or said): refused, the reservation grants nothing, and that part is kept all the same, past the budget if need be.",
         "properties": {
           "exchangeId": {
             "type": "string",
@@ -749,7 +750,7 @@
           },
           "kind": {
             "type": "string",
-            "enum": ["connection", "generation", "unasked", "spend", "stop"]
+            "enum": ["connection", "generation", "unasked", "spend", "stop", "settle"]
           },
           "ordinal": {
             "type": "integer",
@@ -757,6 +758,11 @@
             "maximum": 64
           },
           "charge": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5000000
+          },
+          "owed": {
             "type": "integer",
             "minimum": 0,
             "maximum": 5000000
@@ -771,7 +777,7 @@
       "value": {
         "type": "object",
         "additionalProperties": false,
-        "description": "Granted, with a connection's durable ordinal (null for a generation), or refused: then the exchange has ended (ended true) and stop says why.",
+        "description": "Granted, with a connection's durable ordinal (null for a generation), or refused: then the exchange has ended (ended true) and stop says why (unsettled: a connection was asked for while an earlier one of the exchange was never settled, so its counts may be short). A charge for what was already spent (unasked, spend) and a settlement are taken on an exchange that has ended too: ok true, with ended true. A refused charge says what of it the ledger kept (kept): an unasked generation's whole charge, a reservation's owed part, or 0.",
         "properties": {
           "ok": {
             "type": "boolean"
@@ -792,7 +798,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": ["deadline", "expired", "revoked", "connections", "turns", "usage"]
+                "enum": ["deadline", "expired", "revoked", "connections", "turns", "usage", "unsettled"]
               },
               {
                 "type": "null"
@@ -801,6 +807,11 @@
           },
           "ended": {
             "type": "boolean"
+          },
+          "kept": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5000000
           }
         },
         "required": ["ok", "ordinal", "stop", "ended"]
@@ -832,7 +843,7 @@
           },
           "reason": {
             "type": "string",
-            "enum": ["deadline", "expired", "revoked", "connections", "turns", "usage", "bridge"]
+            "enum": ["deadline", "expired", "revoked", "connections", "turns", "usage", "bridge", "unsettled"]
           },
           "atMs": {
             "type": "integer",
@@ -949,7 +960,7 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "enum": ["deadline", "expired", "revoked", "connections", "turns", "usage", "bridge"]
+                    "enum": ["deadline", "expired", "revoked", "connections", "turns", "usage", "bridge", "unsettled"]
                   },
                   {
                     "type": "null"

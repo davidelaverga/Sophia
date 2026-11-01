@@ -38,13 +38,19 @@ const MAX_CHARGE = 5_000_000
 /**
  * The longest chain of ledger requests a session's close can wait for, one after another (Codex r4235490757):
  * 1. a top-up, or the reservation input asked for, already in flight on a connection;
- * 2. the debt a cut, or the holder's words past the budget (Codex r4235620508), left on that connection, spent once
- *    that is credited (#chargeDebt): only the call that made the bound's stop leaves one, so there is one;
- * 3. the bridge's stop, sent once every charge is answered (stopped()).
+ * 2. the debt a cut, or the holder's words past the budget (Codex r4235620508) or at the deadline, left on that
+ *    connection, spent once that is credited (#chargeDebt; debts that come meanwhile join it); or, the first refused,
+ *    the debt that came while it was in flight, charged alone on the exchange the refusal ended (#keep);
+ * 3. the bridge's stop, sent once every charge is answered (stopped()), and beside it, never after it, the settlement
+ *    of each connection (0085), sent once every charge is answered and none was lost (#finish()): neither waits for the
+ *    other, as the API takes a settlement on an exchange the stop ended.
  * Nothing else waits on another: an unasked generation's charge is one request, alongside; a debt's top-up may ask
  * one more top-up when its credit leaves a debt (two, with no stop: a stop's debt is #chargeDebt's, and a credit asks
  * nothing once the session stopped); and nothing new is owed once the session closed (no output arrives then). So a
- * close waits at most three times one request's bound (RESERVE_TIMEOUT_MS attempts and RESERVE_RETRY_MS waits).
+ * close waits at most three times one request's bound (RESERVE_TIMEOUT_MS attempts and RESERVE_RETRY_MS waits). One
+ * more debt can only come after the session stopped, while a debt's charge is already in flight (output still arriving
+ * before the provider closes): it waits for that one, and a close the bound cuts short leaves it unanswered, logged
+ * (qualification.charge_unsettled) and its connection unsettled, so the exchange's next connection ends it.
  */
 export const SETTLE_DEPTH = 3
 const INPUT_RATE = 16_000
@@ -106,6 +112,8 @@ interface Link {
   paid: number
   /** Of what audio prepaid, what its transcription may still take. */
   credit: number
+  /** Settled on the API: every charge for what was spent on it landed (0085's 'settle'). */
+  settled: boolean
 }
 
 /** A chunk of 16 kHz audio at the assumed rate, with its transcription prepaid. */
@@ -153,6 +161,12 @@ export class SessionQualification {
   /** The stop was asked and never confirmed: the exchange may still be open on the API. */
   #stopLost = false
   #stopped: GuardStop | null = null
+  /** Of each reservation in #pending, whether the API took it, once it is answered and credited (#inFlight). */
+  readonly #landing = new Map<number, Promise<boolean>>()
+  /** Connections whose debt charge waits for what is in flight on them (#owesDebt): it will take any debt that comes. */
+  readonly #debtWaiting = new Set<number>()
+  /** Its end: every charge answered, the stop, then its connections settled (#finish()). */
+  #finishing: Promise<boolean> | null = null
   /** Frames dropped because the allowance did not cover them yet: never sent unpaid. */
   #framesDropped = 0
 
@@ -213,10 +227,20 @@ export class SessionQualification {
     const local = this.#links.size + 1
     const stop = this.#check(() => this.#reserve.connected(local))
     if (stop) return stop
+    // The connections before it are settled first, once what was spent on them landed: the API ends an exchange whose
+    // earlier connection is unsettled when the next is asked for (0085), so a session never builds on counts it left
+    // short. A charge or a settlement refused, or never confirmed: it does not open, and the session stops.
+    if (this.#links.size > 0) {
+      await this.#settled()
+      const refusal: LedgerAnswer | null = this.#lost
+        ? { ok: false, stop: 'unconfirmed', kept: 0 }
+        : await this.#settleLinks()
+      if (refusal) return this.#refused(refusal)
+    }
     const answer = await this.#ledger.connection()
     if (!answer.ok || answer.ordinal === null) return this.#refused(answer)
     if (this.#stopped) return this.#stopped
-    this.#links.set(connection, { local, durable: answer.ordinal, paid: 0, credit: 0 })
+    this.#links.set(connection, { local, durable: answer.ordinal, paid: 0, credit: 0, settled: false })
     this.#recorder.opened(answer.ordinal, resumed)
     return null
   }
@@ -380,8 +404,9 @@ export class SessionQualification {
    * The holder's words were transcribed on this connection: billed as text, from what their audio prepaid for it
    * first, then the allowance; the receipt keeps only how many characters. Words that take the exchange past its
    * budget were billed all the same (Codex r4235620508): they are recorded and paid the same way, and a debt they
-   * leave is charged before the stop and the end, as a cut's is (#stopsOwing); the stop is returned as it was. Words
-   * that come once the session stopped are returned its stop, as before.
+   * leave is charged before the stop and the end, as a cut's is (#stopsOwing); the stop is returned as it was. So are
+   * words that come as the deadline passes (R2-G7-INTERIM-F1): billed, so paid. Words that come once the session
+   * stopped are returned its stop, as before.
    */
   heard(connection: number, chars: number, finished: boolean): GuardStop | null {
     const going = this.#stopped === null
@@ -392,9 +417,9 @@ export class SessionQualification {
     const tokens = chars / ASSUMED_RATES.charsPerToken
     const fromCredit = Math.min(tokens, this.#links.get(connection)?.credit ?? 0)
     if (!stop) return this.#owe(connection, tokens, fromCredit)
-    // The bound's own stop, made by these words (the reserve was going, as the session was), is paid for; it stays made,
-    // so this is once. The deadline's, found as they came, is returned as it was.
-    return this.#reserve.stopped === null ? stop : this.#stopsOwing(connection, tokens, fromCredit, stop)
+    // The stop these words met (the bound's own, made by them, or the deadline's, found as they came; the session was
+    // going) is paid for: it stays made, so this is once.
+    return this.#stopsOwing(connection, tokens, fromCredit, stop)
   }
 
   /**
@@ -487,9 +512,7 @@ export class SessionQualification {
     const expired = new Promise<'expired'>((resolve) => {
       timer = setTimeout(() => resolve('expired'), SETTLE_DEPTH * once)
     })
-    const settled = this.#settled()
-      .then(() => this.#stopping)
-      .then(() => 'settled' as const)
+    const settled = this.#finish().then(() => 'settled' as const)
     const how = await Promise.race([settled, expired])
     clearTimeout(timer)
     if (how === 'expired') {
@@ -500,6 +523,8 @@ export class SessionQualification {
         charges: this.#owed.size,
         phases: [...this.#owed.values()].map((p) => p.name),
         stop,
+        // Its connections, settled on the API (0085) or not: one unsettled ends the exchange's next connection.
+        settlement: [...this.#links.values()].every((link) => link.settled) ? 'settled' : 'unsettled',
       })
     }
   }
@@ -515,10 +540,36 @@ export class SessionQualification {
     return {
       unanswered: this.#owed.size + (stopOwed ? 1 : 0),
       lost: this.#lost || this.#stopLost,
-      landed: this.#settled()
-        .then(() => this.#stopping)
-        .then(() => !this.#lost && !this.#stopLost),
+      landed: this.#finish(),
     }
+  }
+
+  /**
+   * Once every charge for what was already spent is answered and the bridge's stop, if asked, too: whether all of it is
+   * on the API, its connections settled with it (0085). Nothing lost, each connection still unsettled is settled, side by
+   * side, and beside the stop (SETTLE_DEPTH's third link: the API takes a settlement on an exchange the stop ended); one
+   * refused or never confirmed stays unsettled, so the exchange's next connection ends it. Once.
+   */
+  #finish(): Promise<boolean> {
+    this.#finishing ??= this.#settled().then(async () => {
+      if (this.#lost) return false
+      const [, refusal] = await Promise.all([this.#stopping, this.#settleLinks()])
+      return !this.#stopLost && refusal === null
+    })
+    return this.#finishing
+  }
+
+  /** Every connection of the session not settled yet, settled side by side: null once the API took each, else a refusal. */
+  async #settleLinks(): Promise<LedgerAnswer | null> {
+    const open = [...this.#links.values()].filter((link) => !link.settled)
+    const answers = await Promise.all(
+      open.map(async (link) => {
+        const answer = await this.#ledger.settle(link.durable)
+        link.settled = answer.ok
+        return answer
+      }),
+    )
+    return answers.find((answer) => !answer.ok) ?? null
   }
 
   /** Once every charge for what was already spent is answered, those that come while waiting included. */
@@ -558,10 +609,18 @@ export class SessionQualification {
     return this.#stopped
   }
 
-  /** A generation reserved on the API at its worst case, with `extra`: the API's answer. */
-  #generation(connection: number, unasked: boolean, extra = 0): Promise<LedgerAnswer> {
-    const worst = ASSUMED_RATES.context + 2 * this.#deps.grant.maxOutputTokensPerTurn + extra
-    return this.#ledger.generation(this.#durable(connection), Math.min(MAX_CHARGE, Math.ceil(worst)), unasked)
+  /**
+   * A generation reserved on the API at its worst case, with `extra`, of which `owed` is a debt already spent (kept even
+   * if it is refused): the API's answer.
+   */
+  #generation(connection: number, unasked: boolean, extra = 0, owed = 0): Promise<LedgerAnswer> {
+    const charge = this.#worst(extra)
+    return this.#ledger.generation(this.#durable(connection), charge, unasked, Math.min(charge, owed))
+  }
+
+  /** A generation's worst case, the context again and its output twice, with `extra`: what the API is charged. */
+  #worst(extra: number): number {
+    return Math.min(MAX_CHARGE, Math.ceil(ASSUMED_RATES.context + 2 * this.#deps.grant.maxOutputTokensPerTurn + extra))
   }
 
   /**
@@ -597,19 +656,30 @@ export class SessionQualification {
    * once what is in flight on it is credited.
    */
   #owesDebt(connection: number, link: Link): void {
+    // A debt charge still waiting for what is in flight reads the whole debt when it goes: it takes this one too.
+    if (this.#debtWaiting.has(connection)) return
+    this.#debtWaiting.add(connection)
     const phase = { name: 'debt, after what is in flight' }
-    this.#oblige(this.#chargeDebt(connection, link, phase), phase)
+    // The next debt charged on the connection waits for this one (#chargeDebt), so none is charged twice.
+    const charged = this.#chargeDebt(connection, link, phase)
+    this.#landing.set(connection, charged)
+    this.#oblige(charged, phase)
   }
 
-  /** A stopped connection's debt, charged once a top-up in flight is credited: whether it is on the API. */
+  /**
+   * A stopped connection's debt, charged once what is in flight on it landed (credited, or refused and what it owed kept):
+   * whether it is on the API. All of it is owed: refused, the API keeps it all the same (R2-G7-INTERIM-F1).
+   */
   async #chargeDebt(connection: number, link: Link, phase: { name: string }): Promise<boolean> {
-    await this.#pending.get(connection)
+    await this.#landing.get(connection)
+    this.#debtWaiting.delete(connection)
     phase.name = 'debt'
-    const debt = Math.ceil(-link.paid)
+    const debt = Math.min(MAX_CHARGE, Math.ceil(-link.paid))
     if (debt <= 0) return true
-    const answer = await this.#ledger.spend(link.durable, Math.min(MAX_CHARGE, debt))
-    if (answer.ok) link.paid += debt
-    return answer.ok
+    const answer = await this.#ledger.spend(link.durable, debt, debt)
+    const kept = answer.ok ? debt : answer.kept
+    link.paid += kept
+    return kept >= debt
   }
 
   /**
@@ -619,13 +689,54 @@ export class SessionQualification {
    */
   #reserveInput(connection: number): void {
     const prepay = this.#shortfall(connection)
-    const pending = this.#charge(connection, false, prepay).then((refused) => {
-      this.#pending.delete(connection)
-      if (refused) return refused
-      this.#grant(connection)
-      return this.#credited(connection, prepay)
-    })
+    const answer = this.#generation(connection, false, prepay, this.#debt(connection))
+    const pending = answer
+      .then((a) => (a.ok ? this.#stopped : this.#refused(a)))
+      .then((refused) => {
+        this.#pending.delete(connection)
+        if (refused) return refused
+        this.#grant(connection)
+        return this.#credited(connection, prepay)
+      })
+    // Kept as the connection's landing (#landing); it never rejects: the ledger answers every request.
+    void this.#inFlight(connection, pending, answer)
+  }
+
+  /**
+   * The reservation input waits for on the connection, and once it is answered and credited, whether what was already
+   * spent on the connection is on the API: a debt that comes while it is in flight is paid by it, so it is then owed as
+   * the debt's own top-up would be (#topUp). Refused, it is kept as far as the API kept it (#keep).
+   */
+  #inFlight(connection: number, pending: Promise<GuardStop | null>, answer: Promise<LedgerAnswer>): Promise<boolean> {
     this.#pending.set(connection, pending)
+    const landed = pending.then(() => answer).then((a) => this.#keep(connection, a))
+    this.#landing.set(connection, landed)
+    return landed
+  }
+
+  /**
+   * After a charge the API refused (R2-G7-INTERIM-F1): what of it the API kept, the debt it was asked with, is credited,
+   * and a debt still left, one that came while it was in flight, is charged alone, on the exchange the refusal ended (a
+   * late charge 0085 takes; one more request, SETTLE_DEPTH's second). Whether everything already spent on the connection
+   * is on the API: an answer that never came leaves it unknown, so not.
+   */
+  async #keep(connection: number, answer: LedgerAnswer): Promise<boolean> {
+    if (answer.ok) return true
+    const link = this.#links.get(connection)
+    if (!link) return false
+    link.paid += answer.kept
+    const debt = Math.min(MAX_CHARGE, Math.ceil(-link.paid))
+    if (debt <= 0) return true
+    if (answer.stop === 'unconfirmed') return false
+    const late = await this.#ledger.spend(link.durable, debt, debt)
+    const kept = late.ok ? debt : late.kept
+    link.paid += kept
+    return kept >= debt
+  }
+
+  /** What the connection owes now for what was already spent: a whole number of tokens, 0 when nothing. */
+  #debt(connection: number): number {
+    return Math.max(0, Math.ceil(-(this.#links.get(connection)?.paid ?? 0)))
   }
 
   /** What fills the connection's allowance up to INPUT_SLICE, a debt included: a whole number of tokens. */
@@ -665,25 +776,29 @@ export class SessionQualification {
    */
   #topUp(connection: number): GuardStop | null {
     const due = this.due()
-    if (due) return due
-    if (this.#pending.has(connection)) return null
-    const charge = this.#shortfall(connection)
+    // Stopped: nothing more is prepaid, but a debt is for what was already received: charged alone, and owed before the
+    // stop and the end (a settlement never vouches for a connection whose debt was left off the ledger).
+    if (due) return this.#stillOwes(connection, due)
     const debt = (this.#links.get(connection)?.paid ?? 0) < 0
-    const spent = this.#ledger.spend(this.#durable(connection), Math.min(MAX_CHARGE, charge))
+    // A debt while a reservation is in flight on the connection: that reservation's credit pays it, so it is owed now,
+    // as the debt's own top-up would be (a crash before it lands would leave what was received off the ledger).
+    if (this.#pending.has(connection)) {
+      if (debt) this.#oblige(this.#landing.get(connection) ?? Promise.resolve(false), { name: 'top-up in flight' })
+      return null
+    }
+    const charge = Math.min(MAX_CHARGE, this.#shortfall(connection))
+    // Of it, the debt is for what was already received: the API keeps that even if it refuses the top-up.
+    const spent = this.#ledger.spend(this.#durable(connection), charge, Math.min(charge, this.#debt(connection)))
     const pending = spent.then((answer) => {
       this.#pending.delete(connection)
       const stop = answer.ok ? this.#credited(connection, charge) : this.#refused(answer)
       if (stop) this.#deps.stop(stop)
       return stop
     })
-    this.#pending.set(connection, pending)
+    const landed = this.#inFlight(connection, pending, spent)
     // A debt is for what was already received: owed before the session may stop or end. A top-up for input not sent yet
     // is not: if the session ends first, that input is never sent. Kept until its credit (which may ask another) is done.
-    if (debt)
-      this.#oblige(
-        pending.then(() => spent).then((answer) => answer.ok),
-        { name: 'top-up' },
-      )
+    if (debt) this.#oblige(landed, { name: 'top-up' })
     return null
   }
 
@@ -692,9 +807,16 @@ export class SessionQualification {
     const link = this.#links.get(connection)
     // What the API took is the allowance's, stopped or not: a stopped connection's debt is what is left after it.
     if (link) link.paid += amount
-    if (this.#stopped) return this.#stopped
+    if (this.#stopped) return this.#stillOwes(connection, this.#stopped)
     if (!link) return null
     return link.paid < 0 ? this.#topUp(connection) : null
+  }
+
+  /** A stopped session's connection still in debt: the debt is charged alone (#owesDebt). The stop is returned as it was. */
+  #stillOwes(connection: number, stop: GuardStop): GuardStop {
+    const link = this.#links.get(connection)
+    if (link && link.paid < 0) this.#owesDebt(connection, link)
+    return stop
   }
 
   #grant(connection: number): void {
@@ -722,9 +844,11 @@ export class SessionQualification {
     this.#grant(connection)
     const charges = this.#unaskedCharges.get(connection) ?? new Set<Promise<GuardStop | null>>()
     this.#unaskedCharges.set(connection, charges)
-    const answer = this.#generation(connection, true)
+    const charge = this.#worst(0)
+    const answer = this.#ledger.generation(this.#durable(connection), charge, true)
+    // Already spent: refused past a limit, the API keeps it all the same, and says so.
     this.#oblige(
-      answer.then((a) => a.ok),
+      answer.then((a) => a.ok || a.kept >= charge),
       { name: 'unasked' },
     )
     const charged: Promise<GuardStop | null> = answer

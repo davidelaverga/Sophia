@@ -19,7 +19,8 @@ export const RESERVE_TIMEOUT_MS = 3000
 
 /** Why the API refused: a guard reason, or no answer that could be trusted. */
 export type LedgerStop = NonNullable<MediaQualificationReservation['stop']> | 'unconfirmed'
-export type LedgerAnswer = { ok: true; ordinal: number | null } | { ok: false; stop: LedgerStop }
+/** Refused, with what of the charge the API kept nonetheless (R2-G7-INTERIM-F1): 0 when it kept nothing, or no answer came. */
+export type LedgerAnswer = { ok: true; ordinal: number | null } | { ok: false; stop: LedgerStop; kept: number }
 
 export interface LedgerDeps {
   exchangeId: string
@@ -43,20 +44,33 @@ export class QualificationLedger {
   /** A provider connection, before it opens: its durable ordinal, or why not. */
   async connection(): Promise<LedgerAnswer> {
     const answer = await this.#reserve({ kind: 'connection' })
-    return answer.ok && answer.ordinal === null ? { ok: false, stop: 'unconfirmed' } : answer
+    return answer.ok && answer.ordinal === null ? { ok: false, stop: 'unconfirmed', kept: 0 } : answer
   }
 
-  /** A generation on a reserved connection: before it is asked for, or (unasked) once its output arrived. */
-  generation(ordinal: number, charge: number, unasked = false): Promise<LedgerAnswer> {
-    return this.#reserve({ kind: unasked ? 'unasked' : 'generation', ordinal, charge })
+  /**
+   * A generation on a reserved connection: before it is asked for, or (unasked) once its output arrived. `owed` of a
+   * reserved one's charge is a debt already spent, kept even if it is refused (an unasked one's whole charge is).
+   */
+  generation(ordinal: number, charge: number, unasked = false, owed = 0): Promise<LedgerAnswer> {
+    if (unasked) return this.#reserve({ kind: 'unasked', ordinal, charge })
+    return this.#reserve({ kind: 'generation', ordinal, charge, ...(owed > 0 ? { owed } : {}) })
   }
 
   /**
    * A top-up of a reserved connection's input allowance, before what it pays for is sent: a charge only, counting no
-   * generation. Refused as a generation would be when, charged, the exchange's next turn could reach the budget.
+   * generation. Refused as a generation would be when, charged, the exchange's next turn could reach the budget; `owed`
+   * of it, a debt already spent, is kept all the same.
    */
-  spend(ordinal: number, charge: number): Promise<LedgerAnswer> {
-    return this.#reserve({ kind: 'spend', ordinal, charge })
+  spend(ordinal: number, charge: number, owed = 0): Promise<LedgerAnswer> {
+    return this.#reserve({ kind: 'spend', ordinal, charge, ...(owed > 0 ? { owed } : {}) })
+  }
+
+  /**
+   * Every charge for what this bridge spent on a connection landed (0085's 'settle'): until it says so, a connection the
+   * exchange asks for next ends it (unsettled). The API's answer.
+   */
+  settle(ordinal: number): Promise<LedgerAnswer> {
+    return this.#reserve({ kind: 'settle', ordinal })
   }
 
   /**
@@ -72,12 +86,13 @@ export class QualificationLedger {
     for (let attempt = 0; ; attempt += 1) {
       try {
         const answer = await this.#deps.reserve({ exchangeId, grantId, ...request }, AbortSignal.timeout(timeoutMs))
-        return answer.ok ? { ok: true, ordinal: answer.ordinal } : { ok: false, stop: answer.stop ?? 'unconfirmed' }
+        if (answer.ok) return { ok: true, ordinal: answer.ordinal }
+        return { ok: false, stop: answer.stop ?? 'unconfirmed', kept: answer.kept ?? 0 }
       } catch (err: unknown) {
         const refused = err instanceof ServiceError && err.status < 500
         const wait = retryMs[attempt]
         this.#deps.log('qualification.reserve_failed', { exchangeId, kind: request.kind, attempt, error: message(err) })
-        if (refused || wait === undefined) return { ok: false, stop: 'unconfirmed' }
+        if (refused || wait === undefined) return { ok: false, stop: 'unconfirmed', kept: 0 }
         await sleep(wait)
       }
     }

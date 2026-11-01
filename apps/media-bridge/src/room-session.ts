@@ -1591,10 +1591,11 @@ export class RoomSession {
     if (!inherited || !this.qualification) return true
     const ledger = await inherited
     if (this.closed) return false
-    if (!ledger || (ledger.unanswered === 0 && !ledger.lost)) {
+    if (!ledger) {
       this.inherited = null
       return true
     }
+    if (ledger.unanswered === 0 && !ledger.lost) return this.inheritedLanded(ledger)
     const detail = { exchangeId: this.exchangeId, charges: ledger.unanswered, lost: ledger.lost }
     this.deps.log('qualification.inherited_unsettled', detail)
     this.fail('Sophia waits until what the conversation before this one spent is on the record')
@@ -1605,6 +1606,23 @@ export class RoomSession {
         this.inherited = null
         void this.connect()
       })
+    return false
+  }
+
+  /**
+   * Every inherited charge answered: what is left is the replaced sessions' settlement of their connections (0085),
+   * waited for so this session's connection never finds one unsettled, which would end the exchange. Quick once all is
+   * answered; one refused or never confirmed keeps this session closed.
+   */
+  private async inheritedLanded(ledger: InheritedLedger): Promise<boolean> {
+    const landed = await landedAll(ledger)
+    if (this.closed) return false
+    if (landed) {
+      this.inherited = null
+      return true
+    }
+    this.deps.log('qualification.inherited_lost', { exchangeId: this.exchangeId })
+    this.fail('Sophia waits until what the conversation before this one spent is on the record')
     return false
   }
 
