@@ -1,12 +1,17 @@
 // How a join opens its connection (useProjectRoom's joinConnection): a token from the API, then LiveKit, with the
 // checks a join passes on the way, and the microphone it starts with. Its own module over an injected LiveKit, so the
 // checks are unit-tested; useProjectRoom keeps the one import of LiveKit, which the fixtures replace.
-import type { RoomToken } from '@sophia/contracts'
+import type { RoomQualification, RoomToken } from '@sophia/contracts'
 import { keptIfStill } from './call-fence.ts'
 import type { RoomCallbacks, RoomConnection } from './livekit-room.ts'
 
 /** LiveKit's connect, as the room's module gives it. */
-export type ConnectRoom = (serverUrl: string, token: string, cb: RoomCallbacks) => Promise<RoomConnection>
+export type ConnectRoom = (
+  serverUrl: string,
+  token: string,
+  cb: RoomCallbacks,
+  qualification?: RoomQualification,
+) => Promise<RoomConnection>
 
 /** What a join asks before LiveKit: whether it is still the current one, and still wanted (a try back in). */
 export interface Gate {
@@ -53,7 +58,9 @@ export async function openRoom(
   const ended: RoomCallbacks['onEnded'] = (why, selfLeft) => {
     if (!quiet) cb.onEnded(why, selfLeft)
   }
-  const opened = await connectRoom(issued.serverUrl, issued.token, { ...cb, onEnded: ended })
+  // The grant the token names, if any (A45, its principal's alone), goes with it: only then does the page emit its voice
+  // receipts.
+  const opened = await connectRoom(issued.serverUrl, issued.token, { ...cb, onEnded: ended }, issued.qualification)
   return keptIfStill(opened, gate.still, () => {
     quiet = true
   })

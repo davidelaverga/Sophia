@@ -18,6 +18,9 @@
 // docs/plans/room-fixture-people.md). `seen=earlier`: the viewer last marked seen after the Oct 2 meeting, kept across a
 // reload as the API keeps it, and the page reads as that viewer; `said=home`: Home said that window first
 // (project-arrival-since.md).
+// `qualification=on`: the room token names a voice qualification grant (A45), so the page emits its voice receipts;
+// `window.fixture.voices` attaches Sophia's voice and a member's, `voicesLeave` unsubscribes them (LiveKit keeps one
+// element to attach again), and `grant` says whether the next room tokens name the grant.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { Goal, GoalCommand } from '@sophia/contracts'
@@ -74,6 +77,8 @@ import {
   speakWhileMuted,
   muteByHost,
   connecting,
+  voicesArrive,
+  voicesLeave,
 } from './fake-livekit.ts'
 import {
   blockSound,
@@ -96,6 +101,7 @@ import {
   gap,
   holdFeed,
   MENTIONED_IN,
+  grantTokens,
   installFixtureApi,
   publish,
   type Conversations,
@@ -460,6 +466,15 @@ interface Fixture {
   mutedByHost: () => void
   /** The call's link is lost for a while (true), or back (false), as LiveKit reconnects (reconnecting-on-video.md). */
   linkLost: (lost: boolean) => void
+  /**
+   * Sophia's voice and the first other person's reach the page, in this order (hers first unless asked): an audio
+   * element each, as LiveKit attaches them, a recycled one first.
+   */
+  voices: (order?: readonly ('sophia' | 'member')[]) => void
+  /** Their tracks are unsubscribed: the elements go, and LiveKit keeps one to attach again. */
+  voicesLeave: () => void
+  /** The next room tokens name the voice qualification grant, or not (A45). */
+  grant: (on: boolean) => void
   /** A teammate edits the report's description elsewhere (the page learns of it when it reads the cards again). */
   describeElsewhere: (text: string) => void
   /** Knowledge's reads of the report cards wait from now on, until released (as a slow API's do). */
@@ -1651,6 +1666,9 @@ window.fixture = {
   speakMuted: speakWhileMuted,
   mutedByHost: muteByHost,
   linkLost,
+  voices: voicesArrive,
+  voicesLeave,
+  grant: grantTokens,
   describeElsewhere: (text) => {
     project.description = { text, revision: project.description.revision + 1, author: TEAMMATE }
   },

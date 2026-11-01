@@ -8,18 +8,36 @@ import { type Handover, RoomSession, type SessionDeps } from './room-session.ts'
 /** How long one assignment poll may wait for a change. */
 export const ASSIGNMENT_WAIT_MS = 25_000
 const RETRY_DELAYS_MS = [500, 1000, 2000, 5000, 10_000]
+/**
+ * The most a stop may take: server.ts exits once it resolves (SIGINT, SIGTERM). Its sessions close in parallel, and each
+ * close is bounded on its own except for leaving the LiveKit room: its announcements and its receipts at 3 s each, and
+ * what it owes the exchange's ledger at 30.75 s with the defaults (qualification.ts settle(): SETTLE_DEPTH, 3, times
+ * one request's 10.25 s; Codex r4235490757). It must stay below the host's shutdown grace, with margin for the process
+ * to exit after it: on Render, the bridge service's maxShutdownDelaySeconds must be at least 40, this 35 s and 5 s more,
+ * the margin the 30 s default left over the 25 s before (its default, 30, is not enough). Past it, the stop resolves
+ * anyway and logs how many sessions had not closed.
+ */
+export const STOP_DEADLINE_MS = 35_000
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
+/** The bridge's own setting beside its sessions': how long a stop may take (STOP_DEADLINE_MS unless a test says). */
+export type BridgeDeps = SessionDeps & { stopDeadlineMs?: number }
+
 export class MediaBridge {
   private readonly deps: SessionDeps
+  private readonly stopDeadlineMs: number
   private readonly sessions = new Map<string, RoomSession>()
   private version: string | null = null
   private poll: AbortController | null = null
   private stopped = false
 
-  constructor(deps: SessionDeps) {
-    this.deps = { ...deps, lost: (exchangeId) => this.onLost(exchangeId) }
+  constructor(deps: BridgeDeps) {
+    this.stopDeadlineMs = deps.stopDeadlineMs ?? STOP_DEADLINE_MS
+    this.deps = {
+      ...deps,
+      lost: (exchangeId) => this.onLost(exchangeId),
+    }
   }
 
   /** Poll until stopped. A failed poll backs off; sessions keep running on their last assignment meanwhile. */
@@ -91,11 +109,24 @@ export class MediaBridge {
     return this.sessions.get(exchangeId)
   }
 
+  /**
+   * Stop polling and close every session, in parallel, within STOP_DEADLINE_MS (Codex r4234233106: a close settles what
+   * its session owes the exchange's ledger before it resolves). A close still running at the deadline is left, and
+   * logged (bridge.stop_deadline), so the process exits within its host's grace.
+   */
   async stop(): Promise<void> {
     this.stopped = true
     this.poll?.abort()
     const open = [...this.sessions.values()]
     this.sessions.clear()
-    await Promise.all(open.map((s) => s.close()))
+    let unclosed = open.length
+    const closed = Promise.all(open.map((s) => s.close().finally(() => (unclosed -= 1)))).then(() => 'closed' as const)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const deadline = new Promise<'deadline'>((resolve) => {
+      timer = setTimeout(() => resolve('deadline'), this.stopDeadlineMs)
+    })
+    const how = await Promise.race([closed, deadline])
+    clearTimeout(timer)
+    if (how === 'deadline') this.deps.log('bridge.stop_deadline', { unclosed, deadlineMs: this.stopDeadlineMs })
   }
 }
