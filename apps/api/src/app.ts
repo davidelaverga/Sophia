@@ -270,7 +270,7 @@ export const VOICE_SCHEMA = `SELECT to_regprocedure('sophia.voice_qualification_
   AND to_regprocedure('sophia.media_record_evidence_write(uuid,uuid,uuid,text,jsonb)') IS NOT NULL
   AND to_regclass('sophia.voice_evidence_high_water') IS NOT NULL
   AND to_regclass('sophia.voice_evidence_writes') IS NOT NULL
-  AND to_regprocedure('sophia.media_voice_reserve(uuid,uuid,text,integer,bigint,bigint)') IS NOT NULL
+  AND to_regprocedure('sophia.media_voice_reserve(uuid,uuid,text,integer,bigint,bigint,boolean)') IS NOT NULL
   AND to_regprocedure('sophia.voice_qualification_evidence_read(uuid)') IS NOT NULL
   AND to_regprocedure('sophia.voice_room_qualification(uuid)') IS NOT NULL
   AND to_regprocedure('sophia.media_record_live_call(uuid,bigint,uuid,text,text)') IS NOT NULL

@@ -176,6 +176,9 @@ class FakeLedger {
       return { ok: true, ordinal: null, stop: null, ended: true }
     }
     if (r.kind !== 'settle') return null
+    // A session its bound stopped settles with that stop: the exchange ends with the settlement (0085), as the stop
+    // itself ends it, so under the same switch (endsOnStop).
+    if (r.stopped && this.endsOnStop) x.ended ??= 'bridge'
     x.unsettled.delete(r.ordinal ?? 0)
     return { ok: true, ordinal: r.ordinal ?? null, stop: null, ended: x.ended !== null }
   }

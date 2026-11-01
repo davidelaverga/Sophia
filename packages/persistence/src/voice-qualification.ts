@@ -97,6 +97,11 @@ export interface QualificationReserve {
    * even when the reservation is refused (R2-G7-INTERIM-F1).
    */
   owed?: number
+  /**
+   * A settlement of a session its bridge's bound stopped: the exchange ends with it, in the same transaction
+   * (R2-G7-42CD-P1).
+   */
+  stopped?: boolean
 }
 
 /**
@@ -121,7 +126,7 @@ export async function reserveQualification(
   reserve: QualificationReserve,
 ): Promise<QualificationReservation> {
   const { rows } = await c.query<{ r: QualificationReservation }>(
-    `SELECT sophia.media_voice_reserve($1,$2,$3,$4,$5,$6) AS r`,
+    `SELECT sophia.media_voice_reserve($1,$2,$3,$4,$5,$6,$7) AS r`,
     [
       reserve.exchangeId,
       reserve.grantId,
@@ -129,6 +134,7 @@ export async function reserveQualification(
       reserve.ordinal ?? null,
       reserve.charge ?? null,
       reserve.owed ?? null,
+      reserve.stopped ?? null,
     ],
   )
   return onlyRow(rows, 'media_voice_reserve').r

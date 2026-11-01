@@ -67,10 +67,11 @@ export class QualificationLedger {
 
   /**
    * Every charge for what this bridge spent on a connection landed (0085's 'settle'): until it says so, a connection the
-   * exchange asks for next ends it (unsettled). The API's answer.
+   * exchange asks for next ends it (unsettled). `stopped`: the session's bound stopped it, so the settlement ends the
+   * exchange too, in the same transaction (R2-G7-42CD-P1). The API's answer.
    */
-  settle(ordinal: number): Promise<LedgerAnswer> {
-    return this.#reserve({ kind: 'settle', ordinal })
+  settle(ordinal: number, stopped = false): Promise<LedgerAnswer> {
+    return this.#reserve({ kind: 'settle', ordinal, ...(stopped ? { stopped } : {}) })
   }
 
   /**

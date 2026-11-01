@@ -43,7 +43,8 @@ const MAX_CHARGE = 5_000_000
  *    the debt that came while it was in flight, charged alone on the exchange the refusal ended (#keep);
  * 3. the bridge's stop, sent once every charge is answered (stopped()), and beside it, never after it, the settlement
  *    of each connection (0085), sent once every charge is answered and none was lost (#finish()): neither waits for the
- *    other, as the API takes a settlement on an exchange the stop ended.
+ *    other, as the API takes a settlement on an exchange the stop ended, and a session the bound stopped settles with
+ *    that stop, so its settlement alone ends the exchange when the stop's own request is lost (R2-G7-42CD-P1).
  * Nothing else waits on another: an unasked generation's charge is one request, alongside; a debt's top-up may ask
  * one more top-up when its credit leaves a debt (two, with no stop: a stop's debt is #chargeDebt's, and a credit asks
  * nothing once the session stopped); and nothing new is owed once the session closed (no output arrives then). So a
@@ -559,12 +560,17 @@ export class SessionQualification {
     return this.#finishing
   }
 
-  /** Every connection of the session not settled yet, settled side by side: null once the API took each, else a refusal. */
+  /**
+   * Every connection of the session not settled yet, settled side by side: null once the API took each, else a refusal.
+   * A session its bound stopped settles with that stop (R2-G7-42CD-P1): each settlement ends the exchange too, in its own
+   * transaction, so no connection is reusable while the stop's own request may be lost.
+   */
   async #settleLinks(): Promise<LedgerAnswer | null> {
     const open = [...this.#links.values()].filter((link) => !link.settled)
+    const stopped = this.#stopped !== null
     const answers = await Promise.all(
       open.map(async (link) => {
-        const answer = await this.#ledger.settle(link.durable)
+        const answer = await this.#ledger.settle(link.durable, stopped)
         link.settled = answer.ok
         return answer
       }),

@@ -28,6 +28,8 @@ interface Asked {
   charge: number | undefined
   /** Of the charge, what was already spent: the API keeps it even when it refuses (R2-G7-INTERIM-F1). */
   owed: number | undefined
+  /** On a settlement: the session's bound stopped it, so the settlement ends the exchange too (R2-G7-42CD-P1). */
+  stopped: boolean | undefined
   answer: () => void
   /** Refused, the API keeping `kept` of the charge (0085), as it says. */
   refuse: (why: Refusal, kept?: number) => void
@@ -55,10 +57,10 @@ function bound(now: () => number = Date.now) {
     ended: () => undefined,
     stop: () => undefined,
     reserve: async (r) => {
-      const { kind, ordinal, charge, owed } = r
+      const { kind, ordinal, charge, owed, stopped } = r
       if (kind === 'connection') {
         ordinals += 1
-        asked.push({ kind, ordinal: ordinals, charge, owed, answer: none, refuse: none, fail: none })
+        asked.push({ kind, ordinal: ordinals, charge, owed, stopped, answer: none, refuse: none, fail: none })
         return { ok: true, ordinal: ordinals, stop: null, ended: false }
       }
       const refused = await new Promise<{ why: Refusal; kept: number } | null>((resolve, reject) =>
@@ -67,6 +69,7 @@ function bound(now: () => number = Date.now) {
           ordinal,
           charge,
           owed,
+          stopped,
           answer: () => resolve(null),
           refuse: (why, kept = 0) => resolve({ why, kept }),
           fail: () => reject(new Error('socket hang up')),
@@ -312,5 +315,33 @@ describe('a debt the API refused to top up is still on the ledger, and only then
     last('settle').answer()
     await ending
     assert.equal(await q.ledger().landed, true)
+  })
+})
+
+describe('a session its bound stopped settles with that stop (R2-G7-42CD-P1)', () => {
+  it('stopped, its stop never confirmed: the settlement says stopped, so it alone ends the exchange', async () => {
+    const clock = { now: Date.now() }
+    const { q, last } = bound(() => clock.now)
+    assert.equal(await q.connecting(1, false), null)
+    clock.now += 1_000_000
+    assert.equal(q.due(), 'deadline')
+    const stopping = q.stopped()
+    const ending = q.settle()
+    await settle()
+    last('stop').fail()
+    last('settle').answer()
+    await stopping
+    await ending
+    assert.equal(last('settle').stopped, true)
+  })
+
+  it('a session its bound did not stop settles without it (a process going away is not the grant’s limit)', async () => {
+    const { q, last } = bound()
+    assert.equal(await q.connecting(1, false), null)
+    const ending = q.settle()
+    await settle()
+    assert.equal(last('settle').stopped, undefined)
+    last('settle').answer()
+    await ending
   })
 })

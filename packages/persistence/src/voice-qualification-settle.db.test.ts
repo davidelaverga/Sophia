@@ -257,3 +257,53 @@ describe('a refused charge keeps what was already spent, and grants nothing (008
     assert.equal((await ledgerOf(x.exchangeId))?.committed, '0')
   })
 })
+
+// R2-G7-42CD-P1: the bridge's bound stopped the session and its stop's own request never committed. Its settlement says
+// so (stopped), and the exchange ends with it, in the same transaction: no connection is reusable while that stop is
+// missing.
+describe('a settlement of a session its bound stopped carries that stop (0085 stopped)', () => {
+  it('the stop lost, the settlement taken: the exchange ends (bridge) with it, and the next connection is refused', async () => {
+    const x = await exchange()
+    assert.equal((await reserve(x, 'connection')).ordinal, 1)
+    assert.equal((await reserve(x, 'generation', 1, 3000)).ok, true)
+    const settled = await withService(pool, (c) =>
+      reserveQualification(c, { ...x, kind: 'settle', ordinal: 1, stopped: true }),
+    )
+    assert.deepEqual(settled, { ok: true, ordinal: 1, stop: null, ended: true })
+    assert.deepEqual(await ledgerOf(x.exchangeId), {
+      state: 'ended',
+      reason: 'bridge',
+      connections: 1,
+      turns: 1,
+      committed: '3000',
+    })
+    assert.equal(await codeOf(reserve(x, 'connection')), 'invalid_state')
+  })
+
+  it('on an exchange already ended (the stop taken, or a limit): answered the same, and the first reason stays', async () => {
+    const x = await exchange()
+    assert.equal((await reserve(x, 'connection')).ordinal, 1)
+    for (let turn = 0; turn < 20; turn += 1) assert.equal((await reserve(x, 'generation', 1, 1000)).ok, true)
+    assert.equal((await reserve(x, 'generation', 1, 1000)).stop, 'turns')
+    const settled = await withService(pool, (c) =>
+      reserveQualification(c, { ...x, kind: 'settle', ordinal: 1, stopped: true }),
+    )
+    assert.deepEqual(settled, { ok: true, ordinal: 1, stop: null, ended: true })
+    assert.equal((await ledgerOf(x.exchangeId))?.reason, 'turns')
+  })
+
+  it('a settlement with no stop leaves the exchange open (control); stopped is a settlement’s alone', async () => {
+    const x = await exchange()
+    assert.equal((await reserve(x, 'connection')).ordinal, 1)
+    const plain = await withService(pool, (c) =>
+      reserveQualification(c, { ...x, kind: 'settle', ordinal: 1, stopped: false }),
+    )
+    assert.deepEqual(plain, { ok: true, ordinal: 1, stop: null, ended: false })
+    assert.equal((await ledgerOf(x.exchangeId))?.state, 'open')
+    const misplaced = withService(pool, (c) =>
+      reserveQualification(c, { ...x, kind: 'generation', ordinal: 1, charge: 10, stopped: true }),
+    )
+    assert.equal(await codeOf(misplaced), 'invalid_request')
+    assert.equal((await ledgerOf(x.exchangeId))?.state, 'open')
+  })
+})

@@ -10,7 +10,7 @@ import { SignJWT } from 'jose'
 import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, afterEach, before, describe, it } from 'node:test'
-import type { MediaEvidenceWrite, MediaToolCall } from '@sophia/contracts'
+import type { MediaAssignment, MediaEvidenceWrite, MediaToolCall } from '@sophia/contracts'
 import {
   DECLARED_NAMES,
   httpMediaService,
@@ -2240,23 +2240,44 @@ describe('the exchange’s durable bound through the API (A45, 0085)', () => {
   })
 
   /**
-   * The real MediaBridge on the real API; LiveKit and Gemini Live are LABELLED FAKES. `taken` is each receipt the API
-   * took from this process, in the order it answered: [its write identity, the number the API gave it].
+   * What a test makes fail on the way to the API (each attempt, never reaching it): reservations of these kinds, and the
+   * bridge's session_closed receipt.
    */
-  async function bridgeOn(exchangeId: string, url?: string) {
+  interface Faults {
+    reserve?: ReadonlyArray<'stop' | 'settle'>
+    sessionClosed?: boolean
+  }
+
+  /**
+   * The real MediaBridge on the real API; LiveKit and Gemini Live are LABELLED FAKES. `taken` is each receipt the API
+   * took from this process, in the order it answered: [its write identity, the number the API gave it]. `faults` fail
+   * requests before they reach the API; `assigned` is an assignment the process holds already (a stale one included).
+   */
+  async function bridgeOn(
+    exchangeId: string,
+    url?: string,
+    { faults = {}, assigned: held }: { faults?: Faults; assigned?: MediaAssignment } = {},
+  ) {
     const client = httpMediaService(url ?? (await baseUrl()), MEDIA_TOKEN)
     const taken: Array<[string, number]> = []
     const service: typeof client = {
       ...client,
+      reserveQualification: (r, signal) =>
+        faults.reserve?.includes(r.kind as 'stop' | 'settle')
+          ? Promise.reject(new Error(`socket hang up (${r.kind})`))
+          : client.reserveQualification(r, signal),
       recordEvidence: async (w, signal) => {
+        if (faults.sessionClosed && w.receipt.kind === 'session_closed') throw new Error('socket hang up (receipt)')
         const ack = await client.recordEvidence(w, signal)
         taken.push([w.writeId, ack.seq])
         return ack
       },
     }
-    const assigned = (await service.assignments(null, 0, new AbortController().signal)).assignments.find(
-      (a) => a.exchangeId === exchangeId,
-    )
+    const assigned =
+      held ??
+      (await service.assignments(null, 0, new AbortController().signal)).assignments.find(
+        (a) => a.exchangeId === exchangeId,
+      )
     assert.ok(assigned?.qualification)
     const roomEvents: RoomEvents[] = []
     const lives: LiveEvents[] = []
@@ -2307,7 +2328,8 @@ describe('the exchange’s durable bound through the API (A45, 0085)', () => {
     const done = () => stops().length > 0 || logs.some(([event]) => event === 'qualification.exchange_ended')
     const dropped = () => logs.filter(([event]) => event === 'evidence.dropped').map(([, d]) => d)
     const speak = () => roomEvents.at(-1)?.audio(P, new Int16Array(1600).fill(2000), 16000, 1)
-    return { bridge, assigned, roomEvents, lives, sent, stops, done, dropped, taken, speak }
+    const logged = (event: string) => logs.some(([e]) => e === event)
+    return { bridge, assigned, roomEvents, lives, sent, stops, done, dropped, taken, speak, logged }
   }
 
   /** The bridge's receipts the exchange keeps, in the API's numbering: [seq, kind or provider phase, connection]. */
@@ -2514,6 +2536,114 @@ describe('the exchange’s durable bound through the API (A45, 0085)', () => {
       kept.every(([, , connection]) => connection === null || connection === 1),
       'no receipt names a second connection',
     )
+  })
+
+  /** The exchange and its connections as the API holds them: what a fresh process meets. */
+  const durableOf = async (exchangeId: string) =>
+    owner(async (c) => {
+      const x = await c.query<{ state: string; reason: string | null; connections: number }>(
+        `SELECT e.state, q.ended_reason AS reason, q.connections_opened AS connections
+           FROM sophia.room_exchanges e JOIN sophia.voice_qualification_exchanges q ON q.exchange_id=e.id WHERE e.id=$1`,
+        [exchangeId],
+      )
+      const settled = await c.query<{ ordinal: number; settled: boolean }>(
+        `SELECT ordinal, settled FROM sophia.voice_qualification_connections WHERE exchange_id=$1 ORDER BY ordinal`,
+        [exchangeId],
+      )
+      return { ...x.rows[0], settled: settled.rows.map((r) => [r.ordinal, r.settled]) }
+    })
+
+  /**
+   * A first process whose bridge's own per-turn output guard stops the session, below every global limit (a cap of 64
+   * output tokens a turn; budget, turns, connections and deadline far off), with `faults`; then it stops for good.
+   */
+  async function guardStopped(faults: Faults) {
+    const { projectId } = await project()
+    await grant(projectId, { outputPerTurn: 64, connections: 3 })
+    const exchangeId = await open(projectId)
+    const a = await bridgeOn(exchangeId, undefined, { faults })
+    await a.bridge.apply([a.assigned])
+    await until('the first connection', () => a.lives.length === 1)
+    a.lives[0]?.setupComplete()
+    a.speak()
+    await until('its input went on', () => a.sent[0] === 1)
+    a.lives[0]?.outputTranscript('x'.repeat(3000), false) // 1,000 tokens of Sophia's words: past the turn's 64
+    await until('the bound’s own stop', () => a.stops().includes('output'))
+    await a.bridge.stop()
+    return { exchangeId, a }
+  }
+
+  /** A FRESH process (no handover, no memory of the first) on the same exchange, under the first's assignment. */
+  async function freshAfter(exchangeId: string, assigned: MediaAssignment) {
+    const b = await bridgeOn(exchangeId, undefined, { assigned })
+    await b.bridge.apply([b.assigned])
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    b.speak()
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    await b.bridge.stop()
+    return b
+  }
+
+  // R2-G7-42CD-P1: a stop the bridge's bound asked for that never committed, its session_closed receipt lost too, and
+  // its connection's settlement taken: a fresh process met a settled connection on an open exchange, below every global
+  // limit, and opened a provider connection there. The stop's request must be on the API before the connection is.
+  it('the bound’s stop lost and its receipt too, the settlement taken: a fresh process opens nothing and sends nothing (R2-G7-42CD-P1)', async () => {
+    const { exchangeId, a } = await guardStopped({ reserve: ['stop'], sessionClosed: true })
+    assert.ok(a.logged('qualification.stop_unconfirmed'), 'the stop never committed')
+    const left = await durableOf(exchangeId)
+    const b = await freshAfter(exchangeId, a.assigned)
+    const later = await durableOf(exchangeId)
+    // The whole crossing at once: what the first process left on the API, then what the fresh one did.
+    assert.deepEqual(
+      {
+        left: [left.state, left.reason, left.connections, left.settled],
+        fresh: { providerConnections: b.lives.length, inputSent: b.sent },
+        after: [later.state, later.reason, later.connections],
+      },
+      {
+        left: ['ended', 'bridge', 1, [[1, true]]],
+        fresh: { providerConnections: 0, inputSent: [] },
+        after: ['ended', 'bridge', 1],
+      },
+      'the stop is on the API with the settlement: no provider connection, no input, nothing reserved',
+    )
+  })
+
+  it('the bound’s stop taken (control): the exchange ended, a fresh process opens nothing', async () => {
+    const { exchangeId, a } = await guardStopped({})
+    assert.deepEqual((await durableOf(exchangeId)).reason, 'bridge')
+    const b = await freshAfter(exchangeId, a.assigned)
+    assert.equal(b.lives.length, 0)
+  })
+
+  it('the stop and the settlement both lost: the connection stays unsettled, and a fresh process’s connection ends the exchange', async () => {
+    const { exchangeId, a } = await guardStopped({ reserve: ['stop', 'settle'], sessionClosed: true })
+    const left = await durableOf(exchangeId)
+    assert.deepEqual([left.state, left.settled], ['open', [[1, false]]], 'nothing claimed settled')
+    const b = await freshAfter(exchangeId, a.assigned)
+    assert.equal(b.lives.length, 0)
+    assert.deepEqual(
+      [(await durableOf(exchangeId)).state, (await durableOf(exchangeId)).reason],
+      ['ended', 'unsettled'],
+    )
+  })
+
+  it('no stop asked (a process going away is not the grant’s limit): settled, and a fresh process goes on, on connection 2 (control)', async () => {
+    const { projectId } = await project()
+    await grant(projectId, { connections: 3 })
+    const exchangeId = await open(projectId)
+    const a = await bridgeOn(exchangeId)
+    await a.bridge.apply([a.assigned])
+    await until('the first connection', () => a.lives.length === 1)
+    a.lives[0]?.setupComplete()
+    await a.bridge.stop()
+    const left = await durableOf(exchangeId)
+    assert.deepEqual([left.state, left.settled], ['open', [[1, true]]])
+    const b = await bridgeOn(exchangeId)
+    await b.bridge.apply([b.assigned])
+    await until('the fresh process connected', () => b.lives.length === 1)
+    await b.bridge.stop()
+    assert.equal((await durableOf(exchangeId)).connections, 2)
   })
 
   it('the real bridge, its first receipt’s answer lost on the way: sent again under the same identity, answered with its own number, kept once (Codex P1 r4232908444)', async () => {
