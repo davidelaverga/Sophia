@@ -1,13 +1,15 @@
 // Talking with her (docs/plans/personal-twenty.md): a live talk by voice over the conversation. Her light as Umbral,
 // large in the middle, speaking or listening; captions of the last things said, each with its speaker's half; mute and
 // End (Esc too). A modal: nothing behind it can be reached. Ending writes what was said into the conversation as turns
-// (extras.ts). Shown only once the API gives a voice.
+// (extras.ts). Shown only once the API gives a voice. It covers the field, so it says Sophia is an AI itself
+// (personal-ai-disclosure.md).
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import type { LightMode } from '../light/engine.ts'
 import { SophiaLight } from '../light/SophiaLight.tsx'
 import { Who } from './Conversation.tsx'
 import type { TalkControl, TalkState, Voice } from './extras.ts'
+import { AI_LINE } from './help-lines.ts'
 
 const FORMED = { from: null }
 /** The captions keep the last few lines: a talk is listened to, not read back. */
@@ -114,6 +116,7 @@ export function Talk({ voice, onEnd }: { voice: Voice; onEnd: () => void }) {
           End
         </button>
       </div>
+      <p className="c3-ai-line">{AI_LINE}</p>
     </section>
   )
   return host ? createPortal(view, host) : view
