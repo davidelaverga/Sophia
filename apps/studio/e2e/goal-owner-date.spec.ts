@@ -28,6 +28,9 @@ test.afterEach(async ({ page }) => {
 })
 
 test('owner · an admin gives the goal an owner and a date in its sheet, and its row says them', async ({ page }) => {
+  // Before the date it sets: «due», never «overdue», whatever day the check runs (from 31 October the row would rightly
+  // say «overdue since»; goal-overdue.spec.ts checks that side).
+  await page.clock.setFixedTime(new Date('2026-10-20T12:00:00Z'))
   await open(page)
   const owner = sheet(page).getByRole('combobox', { name: 'Owner' })
   await expect(owner).toHaveValue('')
