@@ -4,13 +4,21 @@
  * Every wait is raced against a timer whose loss is asserted. `settle` ends the group within a bound and returns only
  * once the group, and every descendant ever seen (a descendant that left the group is checked, never signalled), is
  * gone; otherwise it throws, and the caller keeps its fixture rather than delete what may still be in use.
- * It does not see a descendant that started and left the group between two looks.
+ * Descendants are found by `ps`, run asynchronously and bounded by the caller's budget (R1-FINITE-PS): a look that times
+ * out, fails or cannot be read leaves the descendants UNKNOWN, never an empty set, so `settle` still signals the group
+ * and waits for it within its bound but then throws and the fixture is kept.
+ * It does not see a descendant that started and left the group between two looks, nor exclude a seen pid being reused
+ * by an unrelated process within the seconds between a look and the check.
  */
 
-import { spawn, spawnSync } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { sleep } from './harness.mjs'
 
 const LOST = Symbol('the timer won')
+/** The longest one look may take; less when the caller's budget has less left. */
+const LOOK_MS = 2_000
+/** Below this much budget a wait takes no further look (one sample fewer, not a failed one). */
+const MIN_LOOK_MS = 100
 
 /** Whether `target` (a pid, or a negated process group id) still exists; signal 0 sends nothing. */
 function exists(target) {
@@ -23,14 +31,47 @@ function exists(target) {
   }
 }
 
-/** Every process descending from `pid` now, by parent pid. */
-function descendantsOf(pid) {
-  const rows = spawnSync('ps', ['-A', '-o', 'pid=,ppid='], { encoding: 'utf8' }).stdout.trim().split('\n')
+/**
+ * Every process descending from `pid` now, by parent pid, from one `ps` that must finish within `ms`. Rejects when it
+ * does not (it is then killed and left to exit on its own, holding nothing of the caller's), fails, or prints a table
+ * it cannot read.
+ * @returns {Promise<number[]>}
+ */
+function descendantsOf(pid, ms) {
+  return new Promise((resolve, reject) => {
+    const ps = spawn('ps', ['-A', '-o', 'pid=,ppid='], { stdio: ['ignore', 'pipe', 'ignore'] })
+    let table = ''
+    let done = false
+    const finish = (error, rows) => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      if (error) reject(error)
+      else resolve(rows)
+    }
+    const timer = setTimeout(() => {
+      finish(new Error(`ps did not finish within ${ms} ms`))
+      ps.kill('SIGKILL')
+      ps.stdout.destroy()
+      ps.unref()
+    }, ms)
+    ps.stdout.on('data', (chunk) => (table += chunk))
+    ps.once('error', (error) => finish(new Error(`ps could not run: ${error.message}`)))
+    ps.once('close', (code, signal) => {
+      if (code !== 0) return finish(new Error(`ps exited ${code ?? signal}`))
+      const rows = table.trim().split('\n').map((row) => row.trim().split(/\s+/).map(Number))
+      if (!rows.every((row) => row.length === 2 && row.every((n) => Number.isSafeInteger(n) && n >= 0)) || !rows.some(([child]) => child === process.pid)) {
+        return finish(new Error('ps printed a table that cannot be read'))
+      }
+      finish(null, tree(rows, pid))
+    })
+  })
+}
+
+/** The descendants of `pid` in a table of [pid, parent pid] rows. */
+function tree(rows, pid) {
   const children = new Map()
-  for (const row of rows) {
-    const [child, parent] = row.trim().split(/\s+/).map(Number)
-    children.set(parent, [...(children.get(parent) ?? []), child])
-  }
+  for (const [child, parent] of rows) children.set(parent, [...(children.get(parent) ?? []), child])
   const found = []
   for (const queue = [pid]; queue.length > 0; ) {
     for (const child of children.get(queue.shift()) ?? []) {
@@ -69,8 +110,16 @@ export function startOwned(command, args, { cwd, env }) {
   let over = false
   void ended.then(() => (over = true))
   const seen = new Set()
-  const look = () => {
-    if (child.pid !== undefined && !over) for (const pid of descendantsOf(child.pid)) seen.add(pid)
+  /** Why the descendants are not known, once any look has failed; null while every look succeeded. */
+  let unknown = null
+  /** One look within `ms`: adds what it finds to `seen`, or records why it could not. */
+  const look = async (ms) => {
+    if (child.pid === undefined || over || ms < MIN_LOOK_MS) return
+    try {
+      for (const pid of await descendantsOf(child.pid, Math.min(ms, LOOK_MS))) seen.add(pid)
+    } catch (error) {
+      unknown ??= error.message
+    }
   }
   let settling = null
   return {
@@ -90,19 +139,21 @@ export function startOwned(command, args, { cwd, env }) {
       for (let n = 0; !pattern.test(stdout + stderr); n++) {
         if (over) throw new Error(`pid ${child.pid} ended before ${pattern}\n${stdout}${stderr}`.slice(-3000))
         if (Date.now() > deadline) throw new Error(`no ${pattern} from pid ${child.pid} within ${ms} ms\n${stdout}${stderr}`.slice(-3000))
-        if (n % 5 === 0) look()
+        if (n % 5 === 0) await look(deadline - Date.now())
         await sleep(100)
       }
-      look()
+      await look(deadline - Date.now())
     },
     /**
-     * End it: SIGTERM to its group, SIGKILL to the group after `termMs`, then verify within `killMs` that the process,
-     * its group and every descendant seen are gone. Idempotent. Throws, naming what is left, when that is not shown.
+     * End it: one last look (at most `termMs`), SIGTERM to its group, SIGKILL to the group after `termMs`, then verify
+     * within `killMs` that the process, its group and every descendant seen are gone. The signals never wait on a look
+     * that succeeded. Idempotent. Throws, naming what is left, when that is not shown, or when the descendants are
+     * unknown even though the group is gone.
      */
     settle({ termMs = 10_000, killMs = 5_000 } = {}) {
       settling ??= (async () => {
         if (child.pid === undefined) return // never started: spawn failed
-        look()
+        await look(termMs)
         const group = -child.pid
         const signal = (name) => {
           try {
@@ -114,11 +165,16 @@ export function startOwned(command, args, { cwd, env }) {
         }
         const gone = () => over && !exists(group) && [...seen].every((pid) => !exists(pid))
         signal('SIGTERM')
-        if (await within(termMs, gone)) return
-        signal('SIGKILL')
-        if (await within(killMs, gone)) return
+        let settled = await within(termMs, gone)
+        if (!settled) {
+          signal('SIGKILL')
+          settled = await within(killMs, gone)
+        }
+        if (settled && unknown === null) return
         const left = [...seen].filter((pid) => exists(pid))
-        throw new Error(`owned pid ${child.pid} not settled: exited ${over}, group ${exists(group) ? 'present' : 'gone'}, descendants left [${left.join(', ')}]`)
+        const state = `exited ${over}, group ${exists(group) ? 'present' : 'gone'}, descendants left [${left.join(', ')}]`
+        if (unknown !== null) throw new Error(`owned pid ${child.pid}: descendants unknown (${unknown}); ${state}`)
+        throw new Error(`owned pid ${child.pid} not settled: ${state}`)
       })()
       return settling
     },

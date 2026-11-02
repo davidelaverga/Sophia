@@ -65,3 +65,18 @@ R2 independent review of the whole candidate, then P's publication packet.
   - a spawn error;
   - an escaped descendant: the run fails and keeps the fixture.
 - On Main's reconciler the test still fails on the kept-history assertion, and cleans up.
+
+## Finite enumeration (B-NATIVE-PROFILE-HISTORY-FINITE-ENUM-01)
+
+- R2 found that the helper's `ps` ran synchronously with no timeout, so a slow or stuck `ps` held up a wait's deadline and settle's signals.
+- Observed on `0b264b22`'s helper with `ps` stand-ins:
+  - a 100 ms wait took about 1.5 s;
+  - a hanging `ps` delayed settle (and its first signal) by 30 s;
+  - a failing or unreadable `ps` was read as no descendants, and the fixture was removed.
+- `ps` now runs asynchronously, within the caller's remaining budget (at most 2 s a look). A look that times out (the `ps` is then killed), fails, or prints a table that cannot be read leaves the descendants unknown, never empty.
+- `settle` still signals the owned group and waits for it within its bound, then throws when the descendants are unknown, so the test keeps its fixture.
+- Qualified with stand-ins and the real shipped host:
+  - waits keep their bound;
+  - settle ends in about 2 s with a hanging `ps` and still settles the host and its dsh child;
+  - each failed enumeration keeps the fixture;
+  - the real `ps` path, the shipped-host test, the R1 cleanup scenarios and the old-code failure are unchanged.
