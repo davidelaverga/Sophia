@@ -129,7 +129,10 @@ export function startOwned(command, args, { cwd, env }) {
     stderr: () => stderr,
     /** How it ended, within `ms`; throws if it is still running then. */
     async ended(ms) {
-      const outcome = await Promise.race([ended, sleep(ms).then(() => LOST)])
+      // The deadline is cleared once the race is decided: a pending timer would keep the caller's process alive (#493).
+      let timer
+      const deadline = new Promise((resolve) => (timer = setTimeout(resolve, ms, LOST)))
+      const outcome = await Promise.race([ended, deadline]).finally(() => clearTimeout(timer))
       if (outcome === LOST) throw new Error(`pid ${child.pid} still running after ${ms} ms\n${stdout}${stderr}`.slice(-3000))
       return outcome
     },

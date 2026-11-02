@@ -80,3 +80,14 @@ R2 independent review of the whole candidate, then P's publication packet.
   - settle ends in about 2 s with a hanging `ps` and still settles the host and its dsh child;
   - each failed enumeration keeps the fixture;
   - the real `ps` path, the shipped-host test, the R1 cleanup scenarios and the old-code failure are unchanged.
+
+## Losing deadline (B-493-LOSING-TIMER-REPAIR-01)
+
+- The automatic review of `7cf560ff` (#493, one P2) found that `ended(ms)` raced the child's end against `sleep(ms)` and never cleared the losing timer, so a worker whose child had ended and been settled stayed alive until the unused deadline.
+- Reproduced on `7cf560ff` by `tests/unit/owned-process.test.mjs`, which watches a worker process from outside: two workers whose child ended at once (and one whose child could not start) were still running 10 s after reporting their child settled, against a 60 s deadline.
+- `ended` now clears its timer once the race is decided. Its refusal at the deadline, the spawn-error outcome and `settle` are unchanged.
+- After the fix:
+  - the three cases pass in about 1 s (each worker exits as soon as it reports);
+  - a child that does not end is still refused at its 500 ms deadline and settled;
+  - the shipped-host block runs in 23 s instead of about 134 s;
+  - the R1 cleanup (8/8) and finite-enumeration (7/7) qualifications pass again.
