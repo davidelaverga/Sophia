@@ -91,3 +91,22 @@ R2 independent review of the whole candidate, then P's publication packet.
   - a child that does not end is still refused at its 500 ms deadline and settled;
   - the shipped-host block runs in 23 s instead of about 134 s;
   - the R1 cleanup (8/8) and finite-enumeration (7/7) qualifications pass again.
+
+## Meter boundaries (B-493-METER-BOUNDARIES-01)
+
+- CI attempt 2 on `c62` failed two room checks in `apps/studio/e2e/voice-meters.spec.ts`, which `c62` does not touch:
+  - `:56` stability: a 0.5599976 px change between samples;
+  - `:78` (now `:81`): the tallest bar at 4.256 px against 11.2 px within 1000 ms.
+- `:56`, reproduced exactly:
+  - The 11.2 px threshold admits a level still rising: 0.75 gives exactly 11.2 px, and the meter's next frames write 0.80.
+  - With the hook's frames driven by hand (one 83.3 ms frame after the voice is set to 0.8), the threshold passed at 0.75 and the next sample grew by 0.55999755859375 px, CI's value to the bit.
+  - Once the meter had written 0.80, three samples moved 0.00006 px.
+  - The samples now start once the meter has written the voice's own level (0.8). The 1000 ms / 11.2 px response check and the 0.5 px, no-animation and glow checks are unchanged.
+- `:78`:
+  - It set Marco's voice and started its 1000 ms clock right after loading the page, before the call was joined and Marco shown speaking. People are listed only from the joined call, so the meter loop starts only then.
+  - Measured on a throttled CPU (×32), the loop's first frame came 855 ms after the voice was set, and wrote 0.00. A loop's first frames write a low level (0.13 is about 5 ms of a 30 ms attack), which matches CI's 4.256 px reading.
+  - No hook restart or cleanup was seen at the boundary.
+  - The check now waits for Marco shown speaking, as `:56` already did, before setting his voice. The 1000 ms then measure the meter, not the join.
+  - CI's own failure did not repeat locally (it passed at ×1 to ×32), so this cause is shown by measurement, not by a reproduced failure.
+- Only the spec changed: no Studio source, style, hook or fixture.
+- Run locally on macOS arm64 with chromium-headless-shell 1243, the CI revision: the whole file 15/15 with two workers (×3), and the two checks 6/6 serially.
