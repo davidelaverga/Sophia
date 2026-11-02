@@ -984,6 +984,72 @@ describe('the shipped runtime-host entry: service replies only by an explicit ov
     }
   })
 
+  // B-NATIVE-PROFILE-HISTORY-01: the shipped entry reconciles under its lease for print and launch alike, so an upgrade
+  // through either keeps every earlier profile: the one it replaces as .previous, and an earlier .previous by a new name.
+  test('an upgrade through the shipped host keeps every earlier profile, print and launch (B-NATIVE-PROFILE-HISTORY-01)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'b-profile-history-'))
+    const root = join(dir, 'root')
+    const profiles = join(root, 'dsh-home', 'profiles')
+    const current = join(profiles, unit.dsh.profile)
+    const previous = join(profiles, `.${unit.dsh.profile}.previous`)
+    const identity = (path) => `${treeDigest(path).digest} ${readFileSync(join(path, 'pnpm-lock.yaml'), 'base64')}`
+    const kept = () => readdirSync(profiles).filter((name) => name.startsWith(`.${unit.dsh.profile}.previous.`)).sort()
+    const env = { PATH: process.env.PATH, HOME: process.env.HOME }
+    try {
+      const file = join(dir, 'overlay.json')
+      writeFileSync(file, serviceOverlay('http://127.0.0.1:9'))
+      const print = () => spawnSync(process.execPath, ['scripts/runtime-host.mjs', '--root', root, '--service-overlay', file, '--print-executor-digest'],
+        { cwd: REPO_ROOT, encoding: 'utf8', timeout: 120_000, env })
+      assert.equal(print().status, 0, 'installed')
+      // An earlier upgrade's .previous, distinct from the profile, and a profile a later bundle no longer matches.
+      cpSync(current, previous, { recursive: true, verbatimSymlinks: true })
+      writeFileSync(join(previous, 'history-marker'), 'older history')
+      appendFileSync(join(current, 'cordis.patch.yml'), '\n# an older bundle\n')
+      const history = identity(previous)
+      const replaced = identity(current)
+
+      const printed = print()
+      assert.equal(printed.status, 0, printed.stderr)
+      assert.match(printed.stdout, /"event":"profile","state":"upgraded"/)
+      assert.match(printed.stdout, /"event":"executor_digest"/)
+      assert.equal(identity(previous), replaced, 'print: the replaced profile is .previous')
+      assert.deepEqual(kept().map((name) => identity(join(profiles, name))), [history], 'print: the earlier .previous is kept')
+      assert.equal(existsSync(join(root, 'supervisor.lease')), false, 'print: the lease is released')
+
+      // A later start (a restart with its cached pin, say) on a drifted profile: the launch reconciles the same way.
+      appendFileSync(join(current, 'cordis.patch.yml'), '\n# drifted again\n')
+      const replacedAgain = identity(current)
+      const host = spawn(process.execPath, ['scripts/runtime-host.mjs', '--root', root, '--rehearse'],
+        { cwd: REPO_ROOT, env: { ...env, SOPHIA_SERVICE_URL: 'http://127.0.0.1:9', SOPHIA_RUNTIME_TOKEN: 'x' }, stdio: ['ignore', 'pipe', 'pipe'] })
+      let out = ''
+      host.stdout.on('data', (chunk) => (out += chunk))
+      host.stderr.on('data', (chunk) => (out += chunk))
+      const exited = new Promise((resolveExit) => host.on('exit', resolveExit))
+      for (let waited = 0; !/"event":"profile"/.test(out) && host.exitCode === null; waited += 100) {
+        assert.ok(waited < 120_000, `the launch reconciles: ${out.slice(-1500)}`)
+        await sleep(100)
+      }
+      host.kill('SIGTERM')
+      await exited
+      assert.match(out, /"event":"profile","state":"upgraded"/, out.slice(-1500))
+      assert.equal(identity(previous), replacedAgain, 'launch: the replaced profile is .previous')
+      const all = [identity(previous), ...kept().map((name) => identity(join(profiles, name)))]
+      assert.deepEqual(all.slice(1).sort(), [history, replaced].sort(), 'launch: both earlier profiles are kept')
+
+      // Stopped during startup, the launch may leave its lease naming its own, now dead, pid. The next start (recovery)
+      // takes the root again and finds the profile current: nothing moves, and every kept profile stays.
+      const lease = join(root, 'supervisor.lease')
+      if (existsSync(lease)) assert.equal(readFileSync(lease, 'utf8').trim(), String(host.pid), 'only the stopped host held it')
+      const recovered = print()
+      assert.equal(recovered.status, 0, recovered.stderr)
+      assert.match(recovered.stdout, /"event":"profile","state":"current"/)
+      assert.deepEqual([identity(previous), ...kept().map((name) => identity(join(profiles, name)))], all, 'recovery: the history is unchanged')
+      assert.equal(existsSync(lease), false, 'recovery: the lease is released')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   test('a loopback test endpoint must be a valid port, 1 to 65535 (FND-B115)', () => {
     const port = (p) => edit('llm-pi-ai', (c) => { c.providers['openai-conversation'].baseURL = `http://127.0.0.1:${p}/v1`; return c })
     const provider = /llm-pi-ai may only restate the recorded providers/
