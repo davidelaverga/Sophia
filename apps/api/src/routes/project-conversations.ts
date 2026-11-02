@@ -67,14 +67,16 @@ const pageQuery = {
 } as const
 
 /**
- * The functions these routes call (0063), and the reply runtime's five entry points (0064) that the
- * /v1/runtime/conversation routes call: /ready requires them only while those routes are served.
+ * The functions these routes call (0063), the list's Ask capability (0089, which this login must be able to call), and
+ * the reply runtime's five entry points (0064) that the /v1/runtime/conversation routes call: /ready requires them only
+ * while those routes are served.
  */
 export const CONVERSATION_SCHEMA = `SELECT to_regprocedure('sophia.start_conversation(uuid,text,text,text,boolean,text)') IS NOT NULL
   AND to_regprocedure('sophia.send_conversation_message(uuid,text,text,boolean,text)') IS NOT NULL
   AND to_regprocedure('sophia.withdraw_conversation_message(uuid,uuid,text)') IS NOT NULL
   AND to_regprocedure('sophia.erase_conversation(uuid,text)') IS NOT NULL
   AND to_regprocedure('sophia.conversation_access(uuid)') IS NOT NULL
+  AND coalesce(has_function_privilege(to_regprocedure('sophia.conversation_ask_capability(uuid)'), 'EXECUTE'), false)
   AND to_regprocedure('sophia.runtime_conversation_claim(bytea,text,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.runtime_conversation_go(bytea,text,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.runtime_conversation_reserve(bytea,text,text,jsonb)') IS NOT NULL
