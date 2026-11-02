@@ -46,3 +46,22 @@ Ending commit/tree and changed files: the local commit carrying this file (`git 
 ## Next bounded action
 
 R2 independent review of the whole candidate, then P's publication packet.
+
+## R1 test repair (B-NATIVE-PROFILE-HISTORY-R1-TEST-REPAIR-01)
+
+- R2 found that the new shipped-host test signalled the launch at its profile line, awaited its exit without a bound, then printed again and removed the root without showing the host's processes gone.
+- Observed before the repair:
+  - the host, signalled at its profile line (before its shutdown handlers exist), exits and leaves its dsh child running;
+  - an earlier run's removed fixture was recreated by such a child (`root/home/tmp/...native-cache`).
+- The test now starts each host (print and launch) through `tests/support/owned-process.mjs`:
+  - its own process group;
+  - waits raced against a timer whose loss is asserted;
+  - `settle` sends SIGTERM to the group, then SIGKILL, and verifies the process, the group and every descendant seen are gone within a bound.
+- The recovery print and the fixture's removal come only after that. A run not shown settled fails the test and keeps the fixture; a descendant that left the group is checked, never signalled.
+- `scripts/lib/profile.mjs`, the host, the lease, records and artifacts are unchanged.
+- Qualified with the real shipped host:
+  - the success path;
+  - an early failure, an assertion after the dsh child started, a wait timeout and a host not ending within its bound: all settled and the fixture removed;
+  - a spawn error;
+  - an escaped descendant: the run fails and keeps the fixture.
+- On Main's reconciler the test still fails on the kept-history assertion, and cleans up.
