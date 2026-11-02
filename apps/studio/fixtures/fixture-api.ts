@@ -2,6 +2,7 @@
 // viewer's membership, the brief and a room token. Any other request is recorded and refused, so a check that
 // reached for something else fails instead of passing on a real service. A background update is an event on the
 // open stream: the Studio's own feed applies it and refetches the snapshot, as it does with the API.
+import { citedTextRead, withCitedInput } from './cited-text-data.ts'
 import type {
   ContributionReceipt,
   ExchangeReceipt,
@@ -1709,6 +1710,8 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
     served.push(`content:${source ?? ''}`)
     return textRead(project, text)
   }
+  const cited = citedTextRead(REPORT, path)
+  if (cited) return cited
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${TASK}`) return taskRead(project)
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${DESIGN_TASK}`) return designRead(project)
   return workRead(project, path)
@@ -2338,8 +2341,8 @@ function originsRead(path: string): Response {
 
 /** What a version cites; while the page holds them, a read that answers once let through. */
 function sourcesRead(project: Project): Response | Promise<Response> {
-  if (!project.sourcesHeld) return json(citedSources)
-  return new Promise((resolve) => heldSources.push(() => resolve(json(citedSources))))
+  if (!project.sourcesHeld) return json(withCitedInput(citedSources))
+  return new Promise((resolve) => heldSources.push(() => resolve(json(withCitedInput(citedSources)))))
 }
 
 /** Lets the held reads of sources through, and every later one. */

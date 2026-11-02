@@ -4,7 +4,8 @@
 // deployment it stays ready on either database. An API given a byte store also requires 0044's write claim
 // (writeOnce): not ready without it, and an API without a store requires nothing of 0044. The brief and the room's
 // chat read the authors' names of 0048 and 0049 (Codex P1 on #336), and a voice write the room names of 0050: not
-// ready on a database short of any.
+// ready on a database short of any. A report's Sources read a cited project text through 0090's guard: not ready
+// without it.
 import { randomUUID } from 'node:crypto'
 import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -49,6 +50,7 @@ const VOICE = '0085_voice_qualification.sql'
 const KEYS = '0086_live_call_keys.sql'
 const NUMBERING = '0087_voice_evidence_numbering.sql'
 const PRESENCE = '0088_presence_order.sql'
+const CITED_TEXT = '0090_cited_report_text.sql'
 
 let dir: string
 let db: TestDatabase
@@ -237,6 +239,9 @@ describe('readiness across 0043', () => {
     await migrate(KEYS)
     assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0088')
     await migrate(PRESENCE)
+    // Every API reads a report's cited project text through 0090 (getCitedReportText), which needs nothing of 0085.
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0090')
+    await migrate(CITED_TEXT)
     assert.deepEqual(await ready(), [200, { ready: true }], 'voice qualification off: needs nothing of 0085 or 0087')
     assert.deepEqual(await ready(voiced), [503, { ready: false, reason: 'schema' }], 'voice on, without 0085')
     await migrate(VOICE)

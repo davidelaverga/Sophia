@@ -14,6 +14,7 @@
 // (a 401), until the page sends another; `refuseTokens()` refuses every token, new ones too; `dropStream()` ends the
 // feed's stream; `refused` says each request refused so, and `keys` each request's Idempotency-Key
 // (auth-session-renewal.md).
+import { CITED_OPTIONS_KEY } from './cited-text-data.ts'
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { StrictMode } from 'react'
@@ -179,6 +180,10 @@ bootTheme(new URLSearchParams(window.location.search).get('theme'))
 if (new URLSearchParams(window.location.search).get('work') === 'lost') sessionStorage.setItem(WORK_KEY, 'lost')
 if (new URLSearchParams(window.location.search).get('attention') === 'a34') sessionStorage.setItem(ATTENTION_KEY, 'a34')
 if (new URLSearchParams(window.location.search).get('projects') === 'two') sessionStorage.setItem(PROJECTS_KEY, 'two')
+// A cited project text (`cites=input`, cited-text-data.ts): kept for the page's later reads, whose address has moved on.
+if (new URLSearchParams(window.location.search).get('cites') === 'input') {
+  sessionStorage.setItem(CITED_OPTIONS_KEY, 'cites=input')
+}
 if (sessionStorage.getItem(WORK_KEY) === 'lost') {
   const proposals = { lose: 1, how: 'lost' as const, sent: sentBefore(), held: [] }
   const asked = before(ASKED_KEY).map(String)

@@ -1629,3 +1629,39 @@
 .shell:has(.topbar .mini-dock) .report-pane .report-pane-note {
   display: none;
 }
+
+/* A project source's own text, opened in place under its row (CitedText): plain text in the body's ink, kept inside
+   the row however long its lines, scrolled within a bounded height. */
+.source-text {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.source-text-toggle {
+  color: var(--halo-text);
+  font-size: var(--type-small);
+}
+.source-text-region {
+  justify-self: stretch;
+  min-width: 0;
+}
+.source-text-body {
+  max-height: 40vh;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  color: var(--text);
+  font: var(--type-small) / var(--lh-small) var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.source-text-body:focus-visible {
+  outline: 2px solid var(--halo-text);
+  outline-offset: 2px;
+}
+.source-text-note {
+  margin: 0;
+  font-size: var(--type-small);
+}

@@ -400,6 +400,44 @@ export async function readReportSource(c: pg.PoolClient, sourceId: string): Prom
   }
 }
 
+/** A project input's text as a published version cites it (getCitedReportText, 0090). */
+export interface CitedReportText {
+  sourceId: string
+  sha256: string
+  mime: string
+  byteLength: number
+  text: string
+}
+
+interface CitedTextRow {
+  source_id: string
+  sha256: string
+  mime: string
+  byte_length: string
+  body: string
+}
+
+/**
+ * The text of a project input that a published version of `artifactId` cites, read as the caller (0090
+ * cited_report_text): an active member, the version published, the source among the version's recorded citations, a
+ * released ready project input kept inline as plain text or Markdown, nothing it draws on withdrawn, each checked at
+ * this read. Any other case is one not_found, so a refusal says nothing of why. Call inside withActor(..., "read").
+ */
+export async function readCitedReportText(
+  c: pg.PoolClient,
+  artifactId: string,
+  versionId: string,
+  sourceId: string,
+): Promise<CitedReportText> {
+  const { rows } = await c.query<CitedTextRow>(
+    'SELECT source_id, sha256, mime, byte_length, body FROM sophia.cited_report_text($1, $2, $3)',
+    [artifactId, versionId, sourceId],
+  )
+  const r = rows[0]
+  if (!r) throw new DomainError('not_found', 'Source not found')
+  return { sourceId: r.source_id, sha256: r.sha256, mime: r.mime, byteLength: Number(r.byte_length), text: r.body }
+}
+
 interface CitedRow {
   source_id: string
   kind: 'search_results' | 'web_read' | 'admitted_input' | null

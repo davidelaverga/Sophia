@@ -433,6 +433,7 @@ export interface Operations {
   "rendererFile": { method: "GET"; path: "/v1/renderer/jobs/{jobId}/file"; request: undefined; response: AsyncIterable<Event | CursorAdvance>; };
   "rendererOutput": { method: "PUT"; path: "/v1/renderer/jobs/{jobId}/output"; request: undefined; response: RenderOutput; };
   "rendererSettle": { method: "POST"; path: "/v1/renderer/jobs/{jobId}/settle"; request: RenderSettleRequest; response: RenderSettlement; };
+  "getCitedReportText": { method: "GET"; path: "/api/v1/artifacts/{artifactId}/versions/{versionId}/sources/{sourceId}/content"; request: undefined; response: SourceContent; };
   "runtimeDesignContext": { method: "POST"; path: "/v1/runtime/design/context"; request: DesignContextRequest; response: DesignContextReply; };
   "runtimeDesignRecord": { method: "POST"; path: "/v1/runtime/design/record"; request: DesignRecordRequest; response: DesignRecord; };
   "runtimeDesignSource": { method: "POST"; path: "/v1/runtime/design/source"; request: DesignWriteRequest; response: DesignSourceReply; };

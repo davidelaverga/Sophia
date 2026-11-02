@@ -11,6 +11,8 @@ test.use({ timezoneId: 'UTC', locale: 'en-US' })
 const KNOWLEDGE = '/room.html?place=knowledge&demo=1'
 const pane = (page: Page) => page.locator('.report-pane:not([hidden])')
 const rows = (page: Page) => pane(page).locator('.sources > li')
+/** An origin's press in a row: a project source's row also offers its own text (Show text, cited-report-text.md). */
+const press = 'button.source-origin'
 
 test.afterEach(async ({ page }) => {
   expect(await page.evaluate(() => [...(window.fixture?.unexpected ?? [])])).toEqual([])
@@ -30,7 +32,7 @@ test('origins · each project source says where it came from; a file in words, a
 }) => {
   await openSources(page)
   await expect(rows(page).nth(0)).toContainText('A file Lucía added · Sep 29')
-  await expect(rows(page).nth(0).getByRole('button')).toHaveCount(0)
+  await expect(rows(page).nth(0).locator(press)).toHaveCount(0)
   await expect(
     rows(page).nth(1).getByRole('button', { name: 'From the conversation “Who owns setup when an admin changes?”' }),
   ).toBeVisible()
@@ -47,7 +49,7 @@ test('origins · a conversation’s press shows it open in Conversations, the re
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await openSources(page)
-  await rows(page).nth(1).getByRole('button').click()
+  await rows(page).nth(1).locator(press).click()
   await expect(page.getByRole('heading', { name: 'Who owns setup when an admin changes?' })).toBeVisible()
   await expect(
     page.getByRole('navigation', { name: 'Project views' }).getByRole('link', { name: 'Conversations' }),
@@ -58,7 +60,7 @@ test('origins · a conversation’s press shows it open in Conversations, the re
 test('origins · a meeting’s press shows Updates with that meeting’s recap open', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await openSources(page)
-  await rows(page).nth(2).getByRole('button').click()
+  await rows(page).nth(2).locator(press).click()
   // That meeting's recap, the Oct 4 one: what it decided, as the brief has it (updates-digest.md).
   await expect(page.getByRole('dialog', { name: 'This meeting' })).toContainText('Reports open on the answer')
   await expect(
@@ -69,7 +71,7 @@ test('origins · a meeting’s press shows Updates with that meeting’s recap o
 test('origins · on a phone, where the report covers the page, the press closes it first', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await openSources(page)
-  await rows(page).nth(1).getByRole('button').click()
+  await rows(page).nth(1).locator(press).click()
   await expect(page.locator('.report-pane')).toBeHidden()
   await expect(page.getByRole('heading', { name: 'Who owns setup when an admin changes?' })).toBeVisible()
 })
@@ -77,13 +79,13 @@ test('origins · on a phone, where the report covers the page, the press closes 
 test('origins · with the origins’ read failing, every project source says «From the project»', async ({ page }) => {
   await openSources(page, `${KNOWLEDGE}&origins=fail`)
   await expect(pane(page).getByText('From the project')).toHaveCount(4)
-  await expect(rows(page).getByRole('button')).toHaveCount(0)
+  await expect(rows(page).locator(press)).toHaveCount(0)
 })
 
 test('origins · a conversation the list doesn’t hold is said so, never another opened in silence', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await openSources(page, `${KNOWLEDGE}&origins=missing`)
-  await rows(page).nth(1).getByRole('button').click()
+  await rows(page).nth(1).locator(press).click()
   // The list says how many it holds in a status of its own: this is the other one.
   await expect(
     page

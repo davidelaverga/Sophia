@@ -124,10 +124,12 @@ export {
   listReports,
   listReportSources,
   readArtifactVersions,
+  readCitedReportText,
   readReportSource,
   REPORT_PAGE,
   searchQuery,
   searchWords,
+  type CitedReportText,
   type ReportQuery,
   type ReportSource,
 } from './artifacts.ts'
