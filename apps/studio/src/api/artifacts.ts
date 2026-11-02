@@ -35,6 +35,21 @@ export const getSourceContent = (
     parseSourceContent,
   )
 
+/**
+ * The text of a project input this published version cites (getCitedReportText, 0090): named by the report, the
+ * version and the citation only. Inline text, never a URL; the caller checks it before showing it (cited-text.ts).
+ */
+export const getCitedReportText = (
+  token: string,
+  ids: { artifactId: string; versionId: string; sourceId: string },
+  signal?: AbortSignal,
+): Promise<SourceContent> =>
+  callApi(
+    `/api/v1/artifacts/${ids.artifactId}/versions/${ids.versionId}/sources/${ids.sourceId}/content`,
+    { token, method: 'GET', doorRead: true, ...(signal ? { signal } : {}) },
+    parseSourceContent,
+  )
+
 export interface ReportFilter {
   /** A project id, or 'all' for every project the reader is in. */
   project: string

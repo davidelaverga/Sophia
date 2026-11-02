@@ -143,7 +143,8 @@ const columnExists = (table: string, column: string) =>
  * accepts reportSeq, so it requires 0088's last sequence per room and process (its column, read from pg_attribute) and
  * the guest aggregate its media_report_presence calls. The previous API calls 0088's function with no reportSeq (its
  * contract has none) and stays ready on either database; the bridge that sends reportSeq is deployed after this API.
- * The columns above are required too.
+ * The columns above are required too. A report's Sources open a cited project text (amendment A11's
+ * getCitedReportText), which only 0090's contextual guard answers: this API requires it and this login's EXECUTE on it.
  */
 const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT NULL
   AND EXISTS(SELECT 1 FROM pg_catalog.pg_attribute WHERE attrelid=to_regclass('sophia.room_bridge_reports')
@@ -250,6 +251,7 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND ${TASK_WRITES}
   AND to_regprocedure('sophia.goal_retirements(uuid)') IS NOT NULL
   AND to_regprocedure('sophia.media_claim_live_call(uuid,bigint,uuid,text,text,text)') IS NOT NULL
+  AND coalesce(has_function_privilege(to_regprocedure('sophia.cited_report_text(uuid,uuid,uuid)'), 'EXECUTE'), false)
   AND ${COLUMNS.map(([table, column]) => columnExists(table, column)).join('\n  AND ')} AS ok`
 
 /**

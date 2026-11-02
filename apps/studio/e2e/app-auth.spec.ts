@@ -1921,3 +1921,32 @@ test.describe('at 1280×800', () => {
     expect(left.sideways).toBe(0)
   })
 })
+
+test('cited text · another account coming in finds a cited text closed: nothing the last one opened shows, nothing is read as them', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  const report = '00000000-0000-4000-8000-0000000000b1'
+  await page.goto(`${APP}/p/${WORK_PROJECT}/work?work=lost&cites=input&report=${report}`)
+  const side = page.getByRole('complementary').filter({ has: page.getByRole('tab', { name: /Sources/ }) })
+  await side.getByRole('tab', { name: /Sources/ }).click()
+  await side.getByRole('button', { name: 'Show text' }).click()
+  await expect(side.getByRole('region', { name: /^Text of / }).locator('pre')).toContainText('Option A: 90 credits')
+  const cited = `/api/v1/artifacts/${report}/versions/`
+  const readsBy = async (who: Person) =>
+    (await askedOf(page)).filter((a) => a.includes(cited) && a.includes('/content') && a.endsWith(`by ${who.id}`))
+  expect(await readsBy(DAVIDE)).toHaveLength(1)
+  // Another account at the same address: its own cache, so the text Davide opened is gone and the press is closed.
+  await anotherTab(context, session(SAME_ADDRESS))
+  await expect(page.getByText('Option A: 90 credits', { exact: false })).toHaveCount(0)
+  // The report is read again for them; on its Sources, the text is closed.
+  await side.getByRole('tab', { name: /Sources/ }).click()
+  await expect(side.getByRole('button', { name: 'Show text' }).first()).toHaveAttribute('aria-expanded', 'false')
+  await expect(side.getByRole('region', { name: /^Text of / })).toHaveCount(0)
+  expect(await readsBy(SAME_ADDRESS), 'nothing read as the next account until it asks').toEqual([])
+  await side.getByRole('button', { name: 'Show text' }).first().click()
+  await expect(side.getByRole('region', { name: /^Text of / }).locator('pre')).toContainText('Option A: 90 credits')
+  expect(await readsBy(SAME_ADDRESS)).toHaveLength(1)
+  expect(await unexpectedOf(page)).toEqual([])
+})

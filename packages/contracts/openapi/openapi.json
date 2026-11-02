@@ -9476,6 +9476,96 @@
         "x-sophia-release-goal": "SMC-M03"
       }
     },
+    "/api/v1/artifacts/{artifactId}/versions/{versionId}/sources/{sourceId}/content": {
+      "get": {
+        "operationId": "getCitedReportText",
+        "summary": "The text of a project input this published report version cites, read as the caller: an active member, the source among the version's recorded citations, released, ready, inline plain text or Markdown, and nothing it draws on withdrawn. Never cached.",
+        "tags": [
+          "artifacts"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "artifactId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "versionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The cited text inline: downloadUrl and expiresAt are null.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceContent"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "409": {
+            "description": "The text no longer matches its record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not found or not readable: one answer for every refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
     "/v1/runtime/design/context": {
       "post": {
         "operationId": "runtimeDesignContext",

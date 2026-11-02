@@ -21,6 +21,7 @@
 // `qualification=on`: the room token names a voice qualification grant (A45), so the page emits its voice receipts;
 // `window.fixture.voices` attaches Sophia's voice and a member's, `voicesLeave` unsubscribes them (LiveKit keeps one
 // element to attach again), and `grant` says whether the next room tokens name the grant.
+import { citedReads, releaseCited } from './cited-text-data.ts'
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { Goal, GoalCommand } from '@sophia/contracts'
@@ -500,6 +501,10 @@ interface Fixture {
   failReportTasks: (on: boolean) => void
   /** The report's sources, held since the page opened (`hold=sources`), come now. */
   releaseSources: () => void
+  /** Lets the held reads of a cited text through (`hold=cited`), and every later one. */
+  releaseCited: () => void
+  /** How many reads of a cited text the page has set out. */
+  citedReads: () => number
   /** Reads of the report's sources wait again from now on, until released. */
   holdSources: () => void
   /** The report's text, held since the page opened (`hold=text`), comes now. */
@@ -1695,6 +1700,8 @@ window.fixture = {
   fenceOf: (key) => queryClient.getQueryData(key),
   refetch: (key) => void queryClient.refetchQueries({ queryKey: key }).catch(() => undefined),
   releaseSources: () => releaseSources(project),
+  releaseCited,
+  citedReads: () => citedReads.count,
   holdSources: () => {
     project.sourcesHeld = true
   },

@@ -14,7 +14,8 @@
     "S4 part 3: a research task ends through runtimeResearchSubmit, never through its last message: the result publishes the current draft as the report's next stable version with its checks, notes and change facts, or a blocker records why it stopped and what remains.",
     "S4 part 4: a version carries the facts the service computed at publication (sections added, revised, removed and kept; whether the conclusion changed; sources added and dropped), and its notes must agree with them. A research task's detail carries its progress (allowance and source policy). A version lists the sources it cites with their provenance. Members edit a report's description with attribution.",
     "S5a part 2: a render job is a research task's child, carrying a source package (one HTML entry and its images, each a stored source by relative path and SHA-256). The supervisor on the renderer host holds only a render runner capability: it claims under a lease, fetches each file and uploads the PDF through the API (never a storage URL or key), and settles with the kernel's receipt. A Hold returns a render to the queue, a Stop cancels it, and a render that ends after either is never the job's result.",
-    "S6: guide v1.2 by voice and text. A tool call names the guide version its bridge runs (guide; absent is v1.1), and the API executes only what that version declares: a v1.1 call to start_research or render_research, or a v1.1 steer, is refused as not_started:not_declared before anything is read or written. control_work's steer (v1.2) carries the speaker's brief, recorded first as their own voice contribution and used as the steer's body in the same transaction. render_research is Try PDF again by voice (0032): a queued receipt with the render job's id, never 'printed'. project_status lists the research operations, and each work item's kind, to a v1.2 guide only."
+    "S6: guide v1.2 by voice and text. A tool call names the guide version its bridge runs (guide; absent is v1.1), and the API executes only what that version declares: a v1.1 call to start_research or render_research, or a v1.1 steer, is refused as not_started:not_declared before anything is read or written. control_work's steer (v1.2) carries the speaker's brief, recorded first as their own voice contribution and used as the steer's body in the same transaction. render_research is Try PDF again by voice (0032): a queued receipt with the render job's id, never 'printed'. project_status lists the research operations, and each work item's kind, to a v1.2 guide only.",
+    "Cited project text (FND-HTML-SOURCE-REMAINDER-03, migration 0090): getCitedReportText reads the text of one project input that a published report version cites, from that report's Sources, so a member repairing a report's provenance can read the supporting text it cites. The report, the version and its recorded citation are the only way to name it, never a source id alone; the service checks at each read that the caller is an active member, the version is published, the source is among its recorded citations, a released ready project input kept inline as plain text or Markdown (at most 256 KiB), and that nothing it draws on was withdrawn. Every refusal is one not_found. It answers a SourceContent with the text inline (downloadUrl and expiresAt null), never cached; the client checks the text against the hash and size before showing it, as plain text. getSourceContent is unchanged: it still serves a report's own source or rendition only."
   ],
   "patch": [
     {
@@ -4872,6 +4873,98 @@
         "minimum": 0,
         "maximum": 1000,
         "description": "How many members in text mode received it as a chat notice (SMC-M03 S6). Omitted means none. A notice no one heard was delivered as text at least once."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1artifacts~1{artifactId}~1versions~1{versionId}~1sources~1{sourceId}~1content",
+      "value": {
+        "get": {
+          "operationId": "getCitedReportText",
+          "summary": "The text of a project input this published report version cites, read as the caller: an active member, the source among the version's recorded citations, released, ready, inline plain text or Markdown, and nothing it draws on withdrawn. Never cached.",
+          "tags": ["artifacts"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "artifactId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "versionId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "sourceId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "The cited text inline: downloadUrl and expiresAt are null.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SourceContent"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "409": {
+              "description": "The text no longer matches its record",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Not found or not readable: one answer for every refusal",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "SMC-M03"
+        }
       }
     }
   ]

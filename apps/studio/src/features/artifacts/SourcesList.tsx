@@ -1,13 +1,15 @@
 // The Sources tab (plan §2.8.3): the provenance truth of each source a version cites. What was read in full and
 // what only as a snippet, by which route, and the origin's status only when it is known. Links open in a new tab
 // with noopener. A number is the citation's in the document, so a superscript and its row match. A project source says
-// where it came from where A19 (proposed) gives it, and a conversation or a meeting goes there (source-origins.ts).
+// where it came from where A19 (proposed) gives it, and a conversation or a meeting goes there (source-origins.ts). A
+// project source's own text opens in place, as plain text, when the version is known (CitedText, getCitedReportText).
 import { useEffect, useRef } from 'react'
 import type { ArtifactVersion, ReportSource } from '@sophia/contracts'
 import { ReadNote, Tag } from '@sophia/ui'
 import type { SourceOrigin } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useProjectGo } from '../studio/project-go.tsx'
+import { CitedText, type CitingVersion } from './CitedText.tsx'
 import { useDocumentViewer } from './viewer-context.ts'
 import { safeHref } from './markdown.ts'
 import { focusFree, hostOf, sourceTitle, sourceWords } from './report-view.ts'
@@ -24,6 +26,8 @@ interface Props {
   origins?: ReadonlyMap<string, SourceOrigin>
   /** Goes to a conversation's or meeting's origin; null where nothing can take the reader there. */
   onOrigin?: ((origin: SourceOrigin) => void) | null
+  /** The version that cites them, where a project source's text can be opened; none, and no row offers it. */
+  citing?: CitingVersion | undefined
 }
 
 /** The Sources tab in the viewer: the version's sources, and where its project's own came from. */
@@ -41,10 +45,11 @@ export function SourcesTab(
           if (to) viewer.leaveFor(() => go(to))
         }
       : null
-  return <SourcesList {...list} origins={origins} onOrigin={onOrigin} />
+  const citing = version && { identity, artifactId: version.artifactId, versionId: version.id }
+  return <SourcesList {...list} origins={origins} onOrigin={onOrigin} citing={citing} />
 }
 
-export function SourcesList({ sources, numbers, failed, focus, origins, onOrigin = null }: Props) {
+export function SourcesList({ sources, numbers, failed, focus, origins, onOrigin = null, citing }: Props) {
   if (failed) return <p className="muted">The sources couldn’t be loaded. Try again in a moment.</p>
   if (!sources) return <ReadNote>Loading the sources…</ReadNote>
   if (sources.length === 0) return <p className="muted">This version cites no source you can read.</p>
@@ -58,6 +63,7 @@ export function SourcesList({ sources, numbers, failed, focus, origins, onOrigin
           focused={focus === s.sourceId}
           origin={s.kind === 'input' ? origins?.get(s.sourceId) : undefined}
           onOrigin={onOrigin}
+          citing={s.kind === 'input' ? citing : undefined}
         />
       ))}
     </ol>
@@ -101,9 +107,11 @@ interface RowProps {
   focused: boolean
   origin: SourceOrigin | undefined
   onOrigin: ((origin: SourceOrigin) => void) | null
+  /** Where this project source's text can be opened; undefined for any other source. */
+  citing: CitingVersion | undefined
 }
 
-function SourceRow({ source, n, focused, origin, onOrigin }: RowProps) {
+function SourceRow({ source, n, focused, origin, onOrigin, citing }: RowProps) {
   const words = sourceWords(source)
   const title = sourceTitle(source)
   // Only a web address opens; anything else a provider reported stays text.
@@ -144,6 +152,7 @@ function SourceRow({ source, n, focused, origin, onOrigin }: RowProps) {
             ))}
           </ul>
         )}
+        {citing && <CitedText key={source.sourceId} citing={citing} sourceId={source.sourceId} n={n} />}
       </div>
     </li>
   )
