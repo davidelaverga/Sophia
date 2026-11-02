@@ -419,9 +419,10 @@ interface CitedTextRow {
 
 /**
  * The text of a project input that a published version of `artifactId` cites, read as the caller (0090
- * cited_report_text): an active member, the version published, the source among the version's recorded citations, a
- * released ready project input kept inline as plain text or Markdown, nothing it draws on withdrawn, each checked at
- * this read. Any other case is one not_found, so a refusal says nothing of why. Call inside withActor(..., "read").
+ * cited_report_text): an active member; the version published, and its own source readable to the caller as
+ * readReportSource reads it (ready; theirs, or a released project source); the source among the version's recorded
+ * citations, a released ready project input kept inline as plain text or Markdown, nothing it draws on withdrawn; each
+ * checked at this read. Any other case is one not_found, so a refusal says nothing of why. Call inside withActor(..., "read").
  */
 export async function readCitedReportText(
   c: pg.PoolClient,

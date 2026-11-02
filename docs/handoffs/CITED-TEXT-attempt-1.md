@@ -62,3 +62,14 @@ The research outcome and prompt slice is next and separate.
 - R2 independent review of this candidate.
 - Then P's publication packet.
 - Then the next separate slice: neutral research outcome (new forward migration) and the versioned research prompt clarification.
+
+## Repair R1 (R2's CITED-TEXT-R1, P's REPAIR-01)
+
+- **What R2 found.** 0090 checked the cited text, but not whether the caller may still read the report itself. A published version whose own source was blocked, deleted, made private or unreleased still served its cited text by direct HTTP, while `getSourceContent` refused the report.
+- **The repair.** 0090 now binds the version's own source to the existing report reader's rule: ready, and the caller's own or a released project source. No universal parent-dependency rule was added: a report with another citation withdrawn stays readable, as 0033 keeps history.
+- **The evidence.**
+  - Three tests were added to `apps/api/src/cited-report-text.db.test.ts`.
+  - On 61f, 2 of them fail; the sibling and the 23 existing checks pass.
+  - After the repair, 26/26 pass on a fresh owned cluster.
+  - Two mutations of the new guard each fail a test: removing the owner branch, and removing `ready`.
+- **Frontend inputs** (`apps/studio`, `packages/ui`, `packages/contracts`, `packages/report`) are byte-unchanged from 61f.

@@ -340,6 +340,55 @@ describe('getCitedReportText checks again at each read', () => {
   })
 })
 
+/** The version's own source: the report text getSourceContent serves (made by `text`, so owned by E). */
+const parentOf = async (r: Report) =>
+  (await one<{ source_id: string }>('SELECT source_id FROM sophia.artifact_versions WHERE id=$1', [r.versionId]))
+    .source_id
+
+/** The report's own text as `as` reads it through getSourceContent (A11): the reader the cited text follows. */
+const parentRead = async (r: Report, as: string) => get(`/api/v1/sources/${await parentOf(r)}/content`, as)
+
+describe('getCitedReportText reads only through a report the caller may still read (CITED-TEXT-R1)', () => {
+  it('a version whose own source is blocked or deleted reads nothing, while the cited text stays readable elsewhere', async () => {
+    for (const set of [`state='blocked'`, `state='deleted'`]) {
+      const note = await text(main.projectId, NOTE)
+      const r = await publishReport(main.projectId, main.goalId, [note])
+      const elsewhere = await publishReport(main.projectId, main.goalId, [note])
+      for (const as of [E, V]) assert.equal((await cited(r, note, as)).status, 200, `${set}: before, ${as}`)
+      await setSource(main.projectId, await parentOf(r), set)
+      for (const as of [E, V]) {
+        assert.notEqual((await parentRead(r, as)).status, 200, `${set}: the report's own text is refused`)
+        refused(await cited(r, note, as), `${set}: the report's own source, so its cited text through it`)
+      }
+      assert.equal((await cited(elsewhere, note, V)).status, 200, `${set}: the same note through a readable report`)
+    }
+  })
+
+  it('a version whose own source is private or unreleased reads only for whom that source is readable: its owner', async () => {
+    for (const set of [`scope='private'`, 'eligible=false']) {
+      const note = await text(main.projectId, NOTE)
+      const r = await publishReport(main.projectId, main.goalId, [note])
+      assert.equal((await cited(r, note, V)).status, 200, `${set}: before`)
+      await setSource(main.projectId, await parentOf(r), set)
+      // The report's own text: its owner (E, who made it) still reads it; another member does not.
+      assert.equal((await parentRead(r, E)).status, 200, `${set}: the owner reads the report's own text`)
+      assert.equal((await cited(r, note, E)).status, 200, `${set}: so the owner reads its cited text`)
+      assert.notEqual((await parentRead(r, V)).status, 200, `${set}: another member does not read the report`)
+      refused(await cited(r, note, V), `${set}: nor its cited text`)
+    }
+  })
+
+  it('a report whose other citation was withdrawn stays readable, and so does a cited text still released (0033 keeps history)', async () => {
+    const note = await text(main.projectId, NOTE)
+    const other = await text(main.projectId, 'Another cited input, withdrawn later.')
+    const r = await publishReport(main.projectId, main.goalId, [note, other])
+    await setSource(main.projectId, other, `state='deleted'`)
+    assert.equal((await parentRead(r, V)).status, 200, 'the report itself is still readable')
+    assert.equal((await cited(r, note, V)).status, 200, 'its released cited text too')
+    refused(await cited(r, other, V), 'the withdrawn one is not')
+  })
+})
+
 describe('0090 opens one contextual read, and getSourceContent stays as it was', () => {
   it('the API login executes cited_report_text only; source_withdrawn and the closure stay closed to it', async () => {
     const api = await pool.connect()

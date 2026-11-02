@@ -11,6 +11,7 @@ A report's Sources say that a version cites one of the project's own inputs ("A 
 - **`sophia.cited_report_text(artifact, version, source)`** (0090): one row (identity, hash, type, size, text) when all of these hold at the read, otherwise none:
   - the caller is an active member of the version's project (checked in the function);
   - the version is that artifact's and published (stable or superseded), never a candidate, validated or rejected one;
+  - the caller may still read the report itself, exactly as `getSourceContent` reads the version's own source: it is ready, and theirs or a released project source (CITED-TEXT-R1). A report whose own text was blocked, deleted, made private or unreleased reads no cited text through it, except for that text's owner. Another of the report's sources being withdrawn does not close it (0033 keeps published history);
   - the version records the source as one it cites (`source_dependencies` from its own source: the rows `listReportSources` shows);
   - the source is a project input (no provenance, or `admitted_input`), never a web page or a search result;
   - it is a released, ready project source: another member's private source and the caller's own private one alike read nothing;
@@ -68,6 +69,7 @@ Platforms: React text only, with no newer DOM API. `<pre>` with `white-space: pr
   - refusing web and search sources, stored bytes, JSON and HTML, and records past 256 KiB, while exactly 256 KiB reads;
   - size and hash mismatches;
   - a member removed after the list, a source withdrawn after the list, and a source whose own source was withdrawn;
+  - the report's own source blocked or deleted, or private or unreleased to another member. The cited text is refused there, as `getSourceContent` refuses the report, while the same text stays readable through another report. The owner of a private report text still reads both. A report with another citation withdrawn still reads;
   - the function's ACL, and the other functions staying closed;
   - `getSourceContent` unchanged;
   - `/ready` without EXECUTE.
