@@ -61,6 +61,9 @@ test('people · a speaker’s meter follows their voice, with no loop of its own
   expect((await meterOf(page, MARCO)).glow).toBeLessThanOrEqual(0.12)
   await voice(page, 1, 0.8)
   await expect.poll(() => tallest(page, MARCO), { timeout: 1000 }).toBeGreaterThanOrEqual(11.2)
+  // 11.2 admits a level still rising (0.75, whose next frames write 0.80: 0.56 px taller), so the stability samples
+  // start once the meter has written the voice's own level, not at the threshold.
+  await expect.poll(() => levelOf(page, MARCO)).toBe(0.8)
   const reads = []
   for (let i = 0; i < 3; i++) {
     reads.push(await meterOf(page, MARCO))
@@ -77,6 +80,8 @@ test('people · a speaker’s meter follows their voice, with no loop of its own
 
 test('people · a re-render mid-speech restarts nothing; who stops speaking rests', async ({ page }) => {
   await page.goto('/room.html?call=on&people=2&speaking=1')
+  // The call is joined and Marco shown speaking before his voice is set: the 1000 ms are the meter's, not the join's.
+  await expect(page.locator(`.presence[data-actor="${MARCO}"]`)).toHaveAttribute('data-speaking', 'true')
   await voice(page, 1, 0.8)
   await expect.poll(() => tallest(page, MARCO), { timeout: 1000 }).toBeGreaterThanOrEqual(11.2)
   // Someone else starts speaking: the room re-renders, and Marco's meter keeps its height.

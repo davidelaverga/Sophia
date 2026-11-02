@@ -28,6 +28,7 @@ import { assertRecordedArtifacts, executorClosureDigest, homeLayout, installProf
 import { launchRuntime } from '../../scripts/lib/runtime.mjs'
 import { treeDigest } from '../../scripts/lib/tree-digest.mjs'
 import { sleep, unit } from '../support/harness.mjs'
+import { startOwned } from '../support/owned-process.mjs'
 import { conversationRouteOverlay, startMockResponses } from '../support/mock-responses.mjs'
 
 const enabled = Boolean(process.env.SOPHIA_DISPOSABLE_DATABASE_URL)
@@ -982,6 +983,83 @@ describe('the shipped runtime-host entry: service replies only by an explicit ov
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+
+  // B-NATIVE-PROFILE-HISTORY-01: the shipped entry reconciles under its lease for print and launch alike, so an upgrade
+  // through either keeps every earlier profile: the one it replaces as .previous, and an earlier .previous by a new name.
+  // R1: each host runs in its own process group with finite waits; the launch (signalled before its shutdown handlers
+  // exist, its dsh child outliving it) and every print are settled and verified gone before the root is used again or
+  // removed, and a run not shown settled keeps the fixture.
+  test('an upgrade through the shipped host keeps every earlier profile, print and launch (B-NATIVE-PROFILE-HISTORY-01)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'b-profile-history-'))
+    const root = join(dir, 'root')
+    const profiles = join(root, 'dsh-home', 'profiles')
+    const current = join(profiles, unit.dsh.profile)
+    const previous = join(profiles, `.${unit.dsh.profile}.previous`)
+    const identity = (path) => `${treeDigest(path).digest} ${readFileSync(join(path, 'pnpm-lock.yaml'), 'base64')}`
+    const kept = () => readdirSync(profiles).filter((name) => name.startsWith(`.${unit.dsh.profile}.previous.`)).sort()
+    const env = { PATH: process.env.PATH, HOME: process.env.HOME }
+    const owned = []
+    const host = (args, extra = {}) => {
+      const run = startOwned(process.execPath, ['scripts/runtime-host.mjs', '--root', root, ...args], { cwd: REPO_ROOT, env: { ...env, ...extra } })
+      owned.push(run)
+      return run
+    }
+    let failure
+    try {
+      const file = join(dir, 'overlay.json')
+      writeFileSync(file, serviceOverlay('http://127.0.0.1:9'))
+      const print = async () => {
+        const run = host(['--service-overlay', file, '--print-executor-digest'])
+        const outcome = await run.ended(120_000)
+        await run.settle()
+        return { status: outcome.code ?? null, stdout: run.stdout(), stderr: run.stderr() }
+      }
+      assert.equal((await print()).status, 0, 'installed')
+      // An earlier upgrade's .previous, distinct from the profile, and a profile a later bundle no longer matches.
+      cpSync(current, previous, { recursive: true, verbatimSymlinks: true })
+      writeFileSync(join(previous, 'history-marker'), 'older history')
+      appendFileSync(join(current, 'cordis.patch.yml'), '\n# an older bundle\n')
+      const history = identity(previous)
+      const replaced = identity(current)
+
+      const printed = await print()
+      assert.equal(printed.status, 0, printed.stderr)
+      assert.match(printed.stdout, /"event":"profile","state":"upgraded"/)
+      assert.match(printed.stdout, /"event":"executor_digest"/)
+      assert.equal(identity(previous), replaced, 'print: the replaced profile is .previous')
+      assert.deepEqual(kept().map((name) => identity(join(profiles, name))), [history], 'print: the earlier .previous is kept')
+      assert.equal(existsSync(join(root, 'supervisor.lease')), false, 'print: the lease is released')
+
+      // A later start (a restart with its cached pin, say) on a drifted profile: the launch reconciles the same way.
+      appendFileSync(join(current, 'cordis.patch.yml'), '\n# drifted again\n')
+      const replacedAgain = identity(current)
+      const launch = host(['--rehearse'], { SOPHIA_SERVICE_URL: 'http://127.0.0.1:9', SOPHIA_RUNTIME_TOKEN: 'x' })
+      await launch.until(/"event":"profile"/, 120_000)
+      await launch.settle()
+      assert.match(launch.stdout(), /"event":"profile","state":"upgraded"/, launch.stdout().slice(-1500))
+      assert.equal(identity(previous), replacedAgain, 'launch: the replaced profile is .previous')
+      const all = [identity(previous), ...kept().map((name) => identity(join(profiles, name)))]
+      assert.deepEqual(all.slice(1).sort(), [history, replaced].sort(), 'launch: both earlier profiles are kept')
+
+      // Stopped during startup, the launch may leave its lease naming its own, now dead, pid. The next start (recovery),
+      // only once that launch and its descendants are gone, takes the root again and finds the profile current.
+      const lease = join(root, 'supervisor.lease')
+      if (existsSync(lease)) assert.equal(readFileSync(lease, 'utf8').trim(), String(launch.pid), 'only the stopped host held it')
+      const recovered = await print()
+      assert.equal(recovered.status, 0, recovered.stderr)
+      assert.match(recovered.stdout, /"event":"profile","state":"current"/)
+      assert.deepEqual([identity(previous), ...kept().map((name) => identity(join(profiles, name)))], all, 'recovery: the history is unchanged')
+      assert.equal(existsSync(lease), false, 'recovery: the lease is released')
+    } catch (error) {
+      failure = error
+    } finally {
+      const unsettled = []
+      for (const run of owned) await run.settle().catch((error) => unsettled.push(error))
+      if (unsettled.length === 0) rmSync(dir, { recursive: true, force: true })
+      else failure = new AggregateError([...(failure ? [failure] : []), ...unsettled], `owned host runs not settled; the fixture is kept at ${dir}`)
+    }
+    if (failure) throw failure
   })
 
   test('a loopback test endpoint must be a valid port, 1 to 65535 (FND-B115)', () => {

@@ -3,7 +3,8 @@
  * the upstream-supported `dsh plugin` path, and boot it for startup evidence.
  */
 
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { gunzipSync } from 'node:zlib'
 import { DSH_ENTRY, PROFILE_SOURCE_DIR, bundleArchivePath, platformKey, runDsh, sanitizedEnv } from './common.mjs'
@@ -133,17 +134,31 @@ export function profileDrift({ unit, layout }) {
   return drift
 }
 
+/** What is at `path`, without following a link: 'none', 'directory' or 'other' (a link, a file, anything else). */
+function entryKind(path) {
+  const stat = lstatSync(path, { throwIfNoEntry: false })
+  return stat === undefined ? 'none' : stat.isDirectory() ? 'directory' : 'other'
+}
+
+/** A fresh name for a kept profile: UTC to the millisecond and 8 random hex, e.g. `20261102T170512345Z-1f2e3d4c`. */
+const historyStamp = () => `${new Date().toISOString().replace(/[-:.]/g, '')}-${randomBytes(4).toString('hex')}`
+
 /**
  * Bring a project's profile to the recorded bundle without touching anything else in the project root: native
  * sessions and storages (`dsh-home/sessions`, `dsh-home/storages`), the bridge journal (`dsh-home/sophia-bridge`)
  * and the workspace stay as they are. A profile that already runs the recorded bundle is left alone. A stale one
  * is moved aside to `.<profile>.previous` (kept for a manual rollback), reinstalled from the committed inputs with
  * the same frozen, offline install, and verified; if either step fails, the previous profile is put back.
- * Run it only while no runtime uses this root (the runtime host calls it before its supervisor starts).
- * @param {{ unit: any, runtimeDir: string, layout: ReturnType<typeof homeLayout> }} input
+ * No upgrade deletes an earlier one's history: a `.<profile>.previous` already there is first renamed, whole, to
+ * `.<profile>.previous.<stamp>`, and put back if the upgrade fails. Before anything moves, the profile and that
+ * `.previous` must each be a directory of its own (not a link) and the new name must be free; otherwise nothing changes.
+ * Kept profiles are never removed here; retention is the operator's.
+ * Run it only while no runtime uses this root (the runtime host calls it under the root's lease, before its supervisor starts).
+ * @param {{ unit: any, runtimeDir: string, layout: ReturnType<typeof homeLayout>, stamp?: string }} input - `stamp`
+ *   names the kept `.previous` (a fresh one by default).
  * @returns {{ state: 'installed' | 'current' | 'upgraded', drift: string[] }}
  */
-export function reconcileProfile({ unit, runtimeDir, layout }) {
+export function reconcileProfile({ unit, runtimeDir, layout, stamp = historyStamp() }) {
   const profileDir = profileDirOf(unit, layout)
   if (!existsSync(profileDir)) {
     installInto({ unit, runtimeDir, layout })
@@ -154,15 +169,30 @@ export function reconcileProfile({ unit, runtimeDir, layout }) {
   const drift = profileDrift({ unit, layout })
   if (drift.length === 0) return { state: 'current', drift }
   const previous = join(layout.dshHome, 'profiles', `.${unit.dsh.profile}.previous`)
-  rmSync(previous, { recursive: true, force: true })
-  renameSync(profileDir, previous)
+  if (!/^[0-9A-Za-z][0-9A-Za-z_-]{0,63}$/.test(stamp)) throw new Error(`${JSON.stringify(stamp)} is not a safe history name; nothing is changed`)
+  const kept = `${previous}.${stamp}`
+  if (entryKind(profileDir) !== 'directory') throw new Error(`${profileDir} is not a directory; nothing is changed`)
+  const history = entryKind(previous)
+  if (history === 'other') throw new Error(`${previous} is not a directory; nothing is changed`)
+  if (history === 'directory') {
+    if (entryKind(kept) !== 'none') throw new Error(`${kept} exists; nothing is changed`)
+    renameSync(previous, kept)
+  }
+  try {
+    renameSync(profileDir, previous)
+  } catch (error) {
+    if (history === 'directory') renameSync(kept, previous)
+    throw error
+  }
   try {
     installInto({ unit, runtimeDir, layout })
     const after = profileDrift({ unit, layout })
     if (after.length > 0) throw new Error(`the reinstalled profile still differs: ${after.join('; ')}`)
   } catch (error) {
+    // Only the new install, never qualified, is removed; both earlier profiles go back where they were.
     rmSync(profileDir, { recursive: true, force: true })
     renameSync(previous, profileDir)
+    if (history === 'directory') renameSync(kept, previous)
     throw error
   }
   return { state: 'upgraded', drift }
