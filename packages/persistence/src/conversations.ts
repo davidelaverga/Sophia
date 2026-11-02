@@ -178,14 +178,33 @@ async function accessOf(c: pg.PoolClient, projectId: string): Promise<Access> {
   return onlyRow(rows, 'conversation_access').access
 }
 
-function capabilityOf(a: Access): ConversationCapability {
+/** A reason code as A33's askReason holds it. */
+const ASK_REASON = /^[a-z][a-z_]{0,62}$/
+
+/**
+ * Whether Sophia would answer this caller's ask in the project now: null when she would, else why not (0089). Advisory:
+ * the Ask itself is decided again when sent. Anything but null or a reason code is an error, never an answer.
+ */
+async function askReasonOf(c: pg.PoolClient, projectId: string): Promise<string | null> {
+  const { rows } = await c.query<{ reason: unknown }>('SELECT sophia.conversation_ask_capability($1) AS reason', [
+    projectId,
+  ])
+  const { reason } = onlyRow(rows, 'conversation_ask_capability')
+  if (reason === null || (typeof reason === 'string' && ASK_REASON.test(reason))) return reason
+  throw new Error('conversation_ask_capability returned no reason code')
+}
+
+function capabilityOf(a: Access, askReason: string | null): ConversationCapability {
+  const write = a.writer && a.state === 'enabled'
   return {
     state: a.state ?? 'off',
-    write: a.writer && a.state === 'enabled',
+    write,
     moderate: a.admin,
-    // No runtime path answers in a conversation yet (CON-01 G2): an ask is recorded and said as blocked.
-    ask: 'unavailable',
-    askReason: 'replies_not_enabled',
+    // Available only on the database's own null, for a writer here now; otherwise its reason, which says nothing of a
+    // grant to whoever is outside its cohort (0089).
+    ...(askReason === null && write
+      ? { ask: 'available' as const, askReason: null }
+      : { ask: 'unavailable' as const, askReason: askReason ?? 'replies_not_enabled' }),
   }
 }
 
@@ -212,7 +231,7 @@ export async function readConversationList(c: pg.PoolClient, projectId: string):
     conversations: rows.slice(0, CONVERSATION_LIST_LIMIT).map(summaryOf),
     more: rows.length > CONVERSATION_LIST_LIMIT,
     policy: policyOf(access),
-    capability: capabilityOf(access),
+    capability: capabilityOf(access, await askReasonOf(c, projectId)),
   }
 }
 
