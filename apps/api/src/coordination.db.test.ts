@@ -12,6 +12,7 @@ import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import type { CoordinationObservation, RuntimeCommand, SourceReviewAvailability } from '@sophia/contracts'
+import type { SourceReviewRequestContext } from '../../../packages/dsh-bundle/src/runtime-wire-types.generated.ts'
 import { execute, httpSophiaClient, SophiaRefusal, type ExecuteDeps } from '@sophia/paperclip-adapters/sophia-dsh'
 import {
   installNamespace,
@@ -20,7 +21,14 @@ import {
   type MemoryPaperclip,
   type MemoryPaperclipOptions,
 } from '@sophia/paperclip-plugin/memory-host'
-import { createPool, readSnapshot, recordMissionEntry, withActor } from '@sophia/persistence'
+import {
+  admitResearchTask,
+  createPool,
+  readSnapshot,
+  recordMissionEntry,
+  withActor,
+  type ResearchAdmissionRequest,
+} from '@sophia/persistence'
 import {
   createEmptyDatabase,
   createTestDatabase,
@@ -142,8 +150,11 @@ const SOURCE_A =
   '# Launch brief\n\nThe launch is on 3 March. The budget is 40,000 EUR. Owners: Ana (site), Ben (press).\n'
 const SOURCE_B = '# Press plan\n\nPress outreach starts 1 March. The budget is 25,000 EUR.\n'
 
-/** A project enrolled for source review (both grants), two text sources, a ready runtime carrying the reviewer. */
-async function world(plugin: Pick<MemoryPaperclipOptions, 'fails'> = {}) {
+/**
+ * A project enrolled for source review (both grants), two text sources, a ready runtime carrying the reviewer (and any
+ * other role asked for: the research worker, for the requests reviews are given, 0091).
+ */
+async function world(plugin: Pick<MemoryPaperclipOptions, 'fails'> = {}, roles: readonly object[] = [REVIEW_ROLE]) {
   const { projectId, goalId } = await seedProject(db.ownerUrl, { admin: A, editors: [E], viewers: [V] })
   const [sourceA, sourceB] = await asOwner(async (owner) => {
     await owner.query(`SELECT sophia.set_research_grant($1, 'enabled', 5, 40, 'web-pilot-v1', 'approval:test')`, [
@@ -175,7 +186,7 @@ async function world(plugin: Pick<MemoryPaperclipOptions, 'fails'> = {}) {
     bundle: 'test',
     protocolVersion: 1,
     dshVersion: 'x',
-    roles: [REVIEW_ROLE],
+    roles,
   })
   assert.equal(hello.status, 200, JSON.stringify(hello.json))
   assert.equal((await runtime('/v1/runtime/ready', { state: 'ready', reason: null, unrecovered: [] })).status, 204)
@@ -3489,5 +3500,469 @@ describe('a proposal whose answer was lost, read back by its key (Codex’s auto
     const key = randomUUID()
     assert.equal((await proposeUnder(w, key)).status, 201)
     assert.equal((await read(randomUUID(), w, key)).status, 403)
+  })
+})
+
+// --- the request a review is given (0091, A13, FND-RESEARCH-SCOPE-REVIEW-04) -------------------------------------------
+
+/** A report text of exactly `n` UTF-8 bytes (ASCII). */
+const fill = (n: number) => `# Brief\n\n${'b'.repeat(n - '# Brief\n\n'.length)}`
+
+const RESEARCH_ROLE = { id: 'sophia-research-md-v1', route: 'research-sol-medium-v1', presetDigest: 'sha256:md' }
+const V2 = 'sophia.source-review-manifest.v2'
+const LEGACY_OUTCOME =
+  'A sourced research report in the requested formats, drafted by the dsh runtime from the web and the chosen inputs'
+/** A request longer than the 120-character goal title, whose limit to the supplied note comes at its very end. */
+const NOTE_ONLY =
+  'Synthetic reading-room pilot: write a concise, sourced decision brief comparing the two supplied improvement ' +
+  'options, with an exact comparison table and a conditional recommendation. Use only the supplied note; do not ' +
+  'search or read the web.'
+
+/** A world whose runtime also carries the research worker, for admitting the research a review then reads. */
+const researchWorld = () => world({}, [REVIEW_ROLE, RESEARCH_ROLE])
+
+/** One research task admitted through the API login, as start_research admits it (0025, 0091). */
+async function research(w: World, request: Partial<ResearchAdmissionRequest> = {}, key = randomUUID()) {
+  const admission = await withActor(pool, E, 'write', (c) =>
+    admitResearchTask(c, w.projectId, {
+      key,
+      exchangeId: null,
+      request: { question: NOTE_ONLY, outputs: ['markdown'], ...request },
+      specialist: { role: RESEARCH_ROLE.id, route: RESEARCH_ROLE.route },
+    }),
+  )
+  assert.ok('admitted' in admission, JSON.stringify(admission))
+  return admission.admitted
+}
+
+/**
+ * The task's draft published as the report's next version, as research_publish records it (0027): the draft a research
+ * draft of the task's attempt, the version its stable one (the one before superseded), the task ended. Owner-seeded.
+ */
+async function publishDraft(w: World, taskId: string, body: string, artifactId: string | null = null) {
+  return asOwner(async (owner) => {
+    const source = await textSource(owner, w.projectId, body)
+    const job = (
+      await owner.query<{ attempt_id: string; goal_id: string }>(
+        `SELECT j.attempt_id, a.goal_id FROM sophia.jobs j JOIN sophia.work_attempts a ON a.project_id=j.project_id
+          AND a.id=j.attempt_id WHERE j.project_id=$1 AND j.id=$2`,
+        [w.projectId, taskId],
+      )
+    ).rows[0]
+    assert.ok(job)
+    await owner.query(
+      `INSERT INTO sophia.research_drafts(project_id,attempt_id,seq,call_key,source_id,sha256)
+       SELECT $1,$2,coalesce((SELECT max(seq) FROM sophia.research_drafts WHERE project_id=$1 AND attempt_id=$2),0)+1,
+        'draft-'||gen_random_uuid(),s.id,s.sha256 FROM sophia.source_objects s WHERE s.project_id=$1 AND s.id=$3`,
+      [w.projectId, job.attempt_id, source],
+    )
+    const artifact =
+      artifactId ??
+      (
+        await owner.query<{ id: string }>(
+          `INSERT INTO sophia.artifacts(project_id,title,format) VALUES($1,'Reading-room brief','markdown') RETURNING id`,
+          [w.projectId],
+        )
+      ).rows[0]?.id
+    await owner.query(`UPDATE sophia.artifact_versions SET state='superseded' WHERE project_id=$1 AND artifact_id=$2`, [
+      w.projectId,
+      artifact,
+    ])
+    const version = (
+      await owner.query<{ id: string }>(
+        `INSERT INTO sophia.artifact_versions(project_id,artifact_id,source_id,source_hash,goal_id,goal_revision,
+           authority_epoch,state,version_number,trigger,job_id)
+         SELECT $1,$2,s.id,s.sha256,$3,1,1,'stable',
+          coalesce((SELECT max(version_number) FROM sophia.artifact_versions WHERE project_id=$1 AND artifact_id=$2),0)+1,
+          jsonb_build_object('kind','research','taskId',$5::uuid),$5
+          FROM sophia.source_objects s WHERE s.project_id=$1 AND s.id=$4 RETURNING id`,
+        [w.projectId, artifact, job.goal_id, source, taskId],
+      )
+    ).rows[0]?.id
+    await owner.query(`UPDATE sophia.jobs SET state='succeeded', artifact_id=$3 WHERE project_id=$1 AND id=$2`, [
+      w.projectId,
+      taskId,
+      artifact,
+    ])
+    return { source, artifactId: artifact ?? '', versionId: version ?? '' }
+  })
+}
+
+/** A task context carrying `requestContext`, so the bridge's own contract checks a frozen block. */
+const contextWith = (requestContext: unknown) => ({
+  workId: randomUUID(),
+  goal: {
+    id: randomUUID(),
+    revision: 1,
+    title: 'Goal',
+    outcome: 'Outcome',
+    criteriaRef: 'criteria:x',
+    criteria: [{ id: 'c', description: 'd', required: true }],
+  },
+  purpose: null,
+  sources: [
+    { ref: 'S1', sourceId: randomUUID(), sha256: '0'.repeat(64), mime: 'text/markdown', byteLength: 1, readable: true },
+  ],
+  limits: {
+    web: false,
+    shell: false,
+    connectors: false,
+    maxSources: 3,
+    maxInputBytes: 32768,
+    maxReportBytes: 16384,
+    maxModelRequests: 8,
+  },
+  allowance: { capUsd: 1, committedUsd: 0, modelCallsLeft: 8 },
+  requestContext,
+})
+
+/** A frozen manifest's request block, held to the bridge's contract (as a v2 context carries it). */
+function requestContextOf(manifest: unknown): SourceReviewRequestContext {
+  const block =
+    typeof manifest === 'object' && manifest !== null && 'requestContext' in manifest ? manifest.requestContext : null
+  const reply: unknown = contextWith(block)
+  if (!wire.SourceReviewContextReply(reply) || !('goal' in reply) || !reply.requestContext) {
+    assert.fail(`not the bridge's request block: ${JSON.stringify(wire.SourceReviewContextReply.errors)}`)
+  }
+  return reply.requestContext
+}
+
+/** A proposal of `sourceIds`, created (201), and its frozen manifest and the task statement a runtime would get. */
+async function frozen(w: World, sourceIds: string[]) {
+  const proposal = await propose(w, { sourceIds })
+  assert.equal(proposal.status, 201, JSON.stringify(proposal.json))
+  return asOwner(async (owner) => {
+    const row = (
+      await owner.query<{ manifest: unknown; statement: string }>(
+        `SELECT t.body::jsonb AS manifest, sophia.source_review_statement(t.body::jsonb) AS statement
+           FROM sophia.source_texts t WHERE t.project_id=$1 AND t.source_id=$2`,
+        [w.projectId, proposal.json.manifestSourceId],
+      )
+    ).rows[0]
+    assert.ok(row)
+    return {
+      proposal: proposal.json,
+      manifest: row.manifest,
+      ctx: requestContextOf(row.manifest),
+      statement: row.statement,
+    }
+  })
+}
+
+/** What a selected source resolved to in a frozen request block: its request's question, or why it has none. */
+function originOf(ctx: SourceReviewRequestContext, ref: string): string {
+  const request = ctx.requests.find((r) => r.sourceRefs.includes(ref))
+  if (request) return request.question
+  return `unavailable:${String(ctx.unavailable.find((u) => u.sourceRef === ref)?.reason)}`
+}
+
+/** Proposed over `sourceIds`, accepted, commissioned and started: the runtime holds the create (its statement). */
+async function startedOver(w: World, sourceIds: string[]) {
+  const proposal = await propose(w, { sourceIds })
+  assert.equal(proposal.status, 201, JSON.stringify(proposal.json))
+  const answered = await answer(w, proposal.json, 'accept')
+  assert.equal(answered.json.admission, 'recorded', JSON.stringify(answered.json))
+  await deliver(w)
+  const run = { companyId: COMPANY, runId: runId('run') }
+  const permit = await sophia().permit({ ...run, issueId: issueOf(w).id, agentId: 'agent-source-reviewer' })
+  assert.equal(permit.decision, 'start', JSON.stringify(permit))
+  const started = await sophia().start(run)
+  assert.ok(started.attemptId)
+  const create = await created(w, started.attemptId)
+  const at = { attemptId: started.attemptId, nativeSessionId: `sophia-${started.attemptId}` }
+  return { proposal: proposal.json, create, at }
+}
+
+describe('new research says what it was asked (0091)', () => {
+  it('a new goal names no web obligation; a repeated key and an amendment keep the goal they had', async () => {
+    const w = await researchWorld()
+    const key = randomUUID()
+    const first = await research(w, { preferences: { sourceConstraints: 'Only the supplied note.' } }, key)
+    const goal = async () =>
+      asOwner(
+        async (owner) =>
+          (
+            await owner.query<{ title: string; outcome: string; criteria: unknown; revision: string }>(
+              'SELECT title, outcome, criteria, revision FROM sophia.goals WHERE project_id=$1 AND id=$2',
+              [w.projectId, first.goalId],
+            )
+          ).rows[0],
+      )
+    const made = await goal()
+    assert.ok(made)
+    assert.equal(
+      made.outcome,
+      'A sourced research report in the requested formats, drafted by the dsh runtime from the sources its request authorizes',
+    )
+    assert.doesNotMatch(made.outcome, /web/)
+    assert.equal(made.title.length, 120, 'the title is still a summary; the request is not read from it')
+    // The same key again: the first receipt, and no second goal.
+    const again = await withActor(pool, E, 'write', (c) =>
+      admitResearchTask(c, w.projectId, {
+        key,
+        exchangeId: null,
+        request: {
+          question: NOTE_ONLY,
+          outputs: ['markdown'],
+          preferences: { sourceConstraints: 'Only the supplied note.' },
+        },
+        specialist: { role: RESEARCH_ROLE.id, route: RESEARCH_ROLE.route },
+      }),
+    )
+    assert.ok('admitted' in again)
+    assert.equal(again.admitted.taskId, first.taskId)
+    // A goal written before 0091 keeps its words: an amendment reuses it and changes neither outcome nor criteria.
+    await asOwner((owner) =>
+      owner.query('UPDATE sophia.goals SET outcome=$3 WHERE project_id=$1 AND id=$2', [
+        w.projectId,
+        first.goalId,
+        LEGACY_OUTCOME,
+      ]),
+    )
+    await publishDraft(w, first.taskId, '# Brief\n\nFirst.')
+    const amended = await research(w, { question: 'Add the quotations.', amendsTaskId: first.taskId })
+    assert.equal(amended.goalId, first.goalId)
+    const kept = await goal()
+    assert.deepEqual([kept?.outcome, kept?.criteria], [LEGACY_OUTCOME, made.criteria])
+    // Admission's own refusals stand: a viewer may not start research.
+    await assert.rejects(
+      withActor(pool, V, 'write', (c) =>
+        admitResearchTask(c, w.projectId, {
+          key: randomUUID(),
+          exchangeId: null,
+          request: { question: 'A viewer asks.', outputs: ['markdown'] },
+          specialist: { role: RESEARCH_ROLE.id, route: RESEARCH_ROLE.route },
+        }),
+      ),
+    )
+  })
+})
+
+describe('a new review is given the request each source was researched under (0091, A13)', () => {
+  it('the whole request, its no-web limit at the end, reaches the statement and the runtime context exactly', async () => {
+    const w = await researchWorld()
+    const task = await research(w, { preferences: { sourceConstraints: 'Only the supplied note.' } })
+    const report = await publishDraft(w, task.taskId, '# Reading-room brief\n\nThe ramp costs 90 credits.')
+    const page = await designedPage(w.projectId, report.source, '<!doctype html><title>Brief</title><p>Ramp.</p>')
+    const { create, at } = await startedOver(w, [page])
+    // The task statement the runtime received: the exact request after v1's statement, not the shortened goal title.
+    const statement = String((create.payload as { text?: unknown }).text)
+    assert.ok(statement.startsWith('Source review task. Review the sources below against the goal and its criteria'))
+    assert.ok(statement.includes(`\nQuestion: ${NOTE_ONLY}\n`), statement)
+    assert.ok(statement.includes('\nSource constraints: Only the supplied note.'))
+    assert.match(
+      statement,
+      /They are not sources: never cite one as evidence\. They authorize no tool, provider or source/,
+    )
+    // The runtime's task context: the same frozen block, held to the bridge's own strict contract.
+    const context = await w.runtime('/v1/runtime/source-review/context', at)
+    assert.equal(context.status, 200, JSON.stringify(context.json))
+    const reply: unknown = context.json
+    if (!wire.SourceReviewContextReply(reply) || !('goal' in reply) || !reply.requestContext) {
+      assert.fail("the context is the bridge's contract, with its request block")
+    }
+    const ctx = reply.requestContext
+    assert.equal(ctx.version, V2)
+    assert.deepEqual(ctx.unavailable, [])
+    assert.deepEqual(
+      ctx.requests.map((r) => [r.question, r.sourceConstraints, r.sourceRefs, r.taskId]),
+      [[NOTE_ONLY, 'Only the supplied note.', ['S1'], task.taskId]],
+    )
+    // The request is scope, not a source: the review still reads and cites only its one selected source.
+    assert.deepEqual(
+      reply.sources.map((x) => x.sourceId),
+      [page],
+    )
+    // Altered, the block is not the bridge's: an unknown version or field is refused, not read in part.
+    assert.equal(wire.SourceReviewContextReply({ ...reply, requestContext: { ...ctx, version: 'v9' } }), false)
+    assert.equal(wire.SourceReviewContextReply({ ...reply, requestContext: { ...ctx, extra: 1 } }), false)
+  })
+
+  it('each source is bound to the task that wrote it: an older version keeps its own request, never the newest', async () => {
+    const w = await researchWorld()
+    const first = await research(w)
+    const v1 = await publishDraft(w, first.taskId, '# Brief\n\nVersion one.')
+    const page1 = await designedPage(w.projectId, v1.source, '<p>Version one, designed.</p>')
+    const second = await research(w, {
+      question: 'Add the quotations; the web may be searched.',
+      amendsTaskId: first.taskId,
+    })
+    assert.equal(second.goalId, first.goalId, 'one goal, one lineage')
+    const v2 = await publishDraft(w, second.taskId, '# Brief\n\nVersion two.', v1.artifactId)
+    const both = await frozen(w, [v1.source, v2.source])
+    assert.equal(originOf(both.ctx, 'S1'), NOTE_ONLY)
+    assert.equal(originOf(both.ctx, 'S2'), 'Add the quotations; the web may be searched.')
+    assert.deepEqual(
+      both.ctx.requests.map((r) => r.taskId),
+      [first.taskId, second.taskId],
+    )
+    // The older report's page, alone: its own request, though a newer task shares its goal and root.
+    const old = await frozen(w, [page1])
+    assert.equal(originOf(old.ctx, 'S1'), NOTE_ONLY)
+    assert.ok(!old.statement.includes('Add the quotations'), 'nothing of the newer request')
+    // A report's text and its page come from one task: one request, naming both.
+    const same = await frozen(w, [v1.source, page1])
+    assert.deepEqual(
+      same.ctx.requests.map((r) => r.sourceRefs),
+      [['S1', 'S2']],
+    )
+  })
+
+  it('a source no research wrote, or two tasks wrote, has no request, and says why; nothing of another task leaks', async () => {
+    const w = await researchWorld()
+    const first = await research(w)
+    const v1 = await publishDraft(w, first.taskId, '# Brief\n\nOne.')
+    const other = await research(w, { question: 'A different study, never selected.' })
+    // The same Markdown as a draft of a second task: two tasks wrote it.
+    await asOwner(async (owner) => {
+      const attempt = (
+        await owner.query<{ attempt_id: string }>('SELECT attempt_id FROM sophia.jobs WHERE project_id=$1 AND id=$2', [
+          w.projectId,
+          other.taskId,
+        ])
+      ).rows[0]?.attempt_id
+      await owner.query(
+        `INSERT INTO sophia.research_drafts(project_id,attempt_id,seq,call_key,source_id,sha256)
+         SELECT $1,$2,1,'draft-shared',s.id,s.sha256 FROM sophia.source_objects s WHERE s.project_id=$1 AND s.id=$3`,
+        [w.projectId, attempt, v1.source],
+      )
+    })
+    const f = await frozen(w, [w.sourceA, v1.source])
+    assert.equal(originOf(f.ctx, 'S1'), 'unavailable:not_research')
+    assert.equal(originOf(f.ctx, 'S2'), 'unavailable:ambiguous')
+    assert.deepEqual(f.ctx.requests, [])
+    assert.ok(f.statement.includes('S1: no originating request (not a research report).'))
+    assert.ok(f.statement.includes('S2: no originating request (more than one research task wrote it).'))
+    for (const text of [NOTE_ONLY, 'A different study']) assert.ok(!f.statement.includes(text), text)
+  })
+
+  it('a question made private, unreleased or withdrawn, or drawn from a withdrawn source, withdraws its report: nothing is proposed or copied', async () => {
+    const cases: [string, (owner: pg.Client, projectId: string, question: string) => Promise<unknown>][] = [
+      [
+        'private',
+        (o, p, q) => o.query(`UPDATE sophia.source_objects SET scope='private' WHERE project_id=$1 AND id=$2`, [p, q]),
+      ],
+      [
+        'unreleased',
+        (o, p, q) => o.query('UPDATE sophia.source_objects SET eligible=false WHERE project_id=$1 AND id=$2', [p, q]),
+      ],
+      [
+        'withdrawn',
+        (o, p, q) => o.query(`UPDATE sophia.source_objects SET state='deleted' WHERE project_id=$1 AND id=$2`, [p, q]),
+      ],
+      [
+        'drawn from a withdrawn source',
+        async (o, p, q) => {
+          const gone = await textSource(o, p, 'What the question drew on, forgotten since.')
+          await o.query(
+            'INSERT INTO sophia.source_dependencies(project_id,source_id,derived_source_id) VALUES($1,$2,$3)',
+            [p, gone, q],
+          )
+          await o.query(`UPDATE sophia.source_objects SET state='deleted' WHERE project_id=$1 AND id=$2`, [p, gone])
+        },
+      ],
+    ]
+    for (const [why, withdraw] of cases) {
+      const w = await researchWorld()
+      const task = await research(w)
+      const report = await publishDraft(w, task.taskId, `# Brief\n\n${why}.`)
+      await asOwner(async (owner) => {
+        const q = (
+          await owner.query<{ question_source_id: string }>(
+            'SELECT question_source_id FROM sophia.research_tasks WHERE project_id=$1 AND job_id=$2',
+            [w.projectId, task.taskId],
+          )
+        ).rows[0]?.question_source_id
+        assert.ok(q)
+        await withdraw(owner, w.projectId, q)
+      })
+      // 0033's closure runs from the report's draft through its task's manifest to the question: the report itself
+      // can no longer be read, so a review of it is refused before anything is frozen, and no request text is sent.
+      const refused = await propose(w, { sourceIds: [report.source] })
+      assert.equal(refused.status, 403, `${why}: ${JSON.stringify(refused.json)}`)
+      assert.equal(refused.json.code, 'source_ineligible', why)
+      assert.ok(!JSON.stringify(refused.json).includes('do not search or read the web'), `${why}: nothing said`)
+    }
+  })
+
+  it('a request record that does not agree with itself is malformed, not trusted', async () => {
+    const w = await researchWorld()
+    const task = await research(w)
+    const report = await publishDraft(w, task.taskId, '# Brief\n\nTampered.')
+    await asOwner((owner) =>
+      owner.query(
+        `UPDATE sophia.source_texts t SET body=replace(t.body,'decision brief','decision brlef')
+          FROM sophia.research_tasks r WHERE r.project_id=$1 AND r.job_id=$2 AND t.project_id=r.project_id
+          AND t.source_id=r.question_source_id`,
+        [w.projectId, task.taskId],
+      ),
+    )
+    const f = await frozen(w, [report.source])
+    assert.equal(originOf(f.ctx, 'S1'), 'unavailable:malformed')
+    assert.ok(!f.statement.includes('brlef') && !f.statement.includes('decision brief comparing'))
+  })
+
+  it('a copied question withdrawn after the proposal: the proposal can no longer be accepted', async () => {
+    const w = await researchWorld()
+    const task = await research(w)
+    const report = await publishDraft(w, task.taskId, '# Brief\n\nThen withdrawn.')
+    const proposal = await propose(w, { sourceIds: [report.source] })
+    assert.equal(proposal.status, 201, JSON.stringify(proposal.json))
+    await asOwner((owner) =>
+      owner.query(
+        `UPDATE sophia.source_objects s SET state='deleted' FROM sophia.research_tasks r
+          WHERE r.project_id=$1 AND r.job_id=$2 AND s.project_id=r.project_id AND s.id=r.question_source_id`,
+        [w.projectId, task.taskId],
+      ),
+    )
+    const answered = await answer(w, proposal.json, 'accept')
+    assert.notEqual(answered.json?.admission, 'recorded', JSON.stringify(answered.json))
+  })
+
+  it('a copied question withdrawn while the review runs: the review is withdrawn and its context refused', async () => {
+    const w = await researchWorld()
+    const task = await research(w)
+    const report = await publishDraft(w, task.taskId, '# Brief\n\nRunning.')
+    const { at } = await startedOver(w, [report.source])
+    assert.equal((await w.runtime('/v1/runtime/source-review/context', at)).status, 200)
+    await asOwner((owner) =>
+      owner.query(
+        `UPDATE sophia.source_objects s SET eligible=false FROM sophia.research_tasks r
+          WHERE r.project_id=$1 AND r.job_id=$2 AND s.project_id=r.project_id AND s.id=r.question_source_id`,
+        [w.projectId, task.taskId],
+      ),
+    )
+    const refusedRead = await w.runtime('/v1/runtime/source-review/context', at)
+    assert.notEqual(refusedRead.status, 200, JSON.stringify(refusedRead.json))
+    assert.ok(!JSON.stringify(refusedRead.json).includes('do not search or read the web'))
+    const reason = await asOwner(
+      async (owner) =>
+        (
+          await owner.query<{ closed_reason: string | null }>(
+            'SELECT closed_reason FROM sophia.work_items WHERE project_id=$1 ORDER BY created_at DESC LIMIT 1',
+            [w.projectId],
+          )
+        ).rows[0]?.closed_reason,
+    )
+    assert.equal(reason, 'An input of this review was withdrawn')
+  })
+
+  it('the request counts against the 32 KiB in UTF-8 bytes: exactly the cap is proposed, one byte more is refused, nothing cut', async () => {
+    const w = await researchWorld()
+    // 2000 characters, the most admission takes, multi-byte throughout, its no-web limit last.
+    const tail = ' Use only the supplied note; do not search the web.'
+    const question = '☕'.repeat(2000 - tail.length) + tail
+    assert.equal(Array.from(question.matchAll(/./gsu)).length, 2000, 'code points, as admission counts them')
+    const task = await research(w, { question, preferences: { sourceConstraints: 'Only the supplied note, café.' } })
+    const requestBytes = Buffer.byteLength(question) + Buffer.byteLength('Only the supplied note, café.')
+    assert.notEqual(Buffer.byteLength(question), question.length, 'bytes are not characters')
+    const exact = await publishDraft(w, task.taskId, fill(32_768 - requestBytes))
+    const f = await frozen(w, [exact.source])
+    assert.equal(originOf(f.ctx, 'S1'), question, 'exactly 32 KiB: the whole request, its last words kept')
+    assert.ok(f.statement.includes(tail))
+    const over = await publishDraft(w, task.taskId, fill(32_768 - requestBytes + 1), exact.artifactId)
+    const refused = await propose(w, { sourceIds: [over.source] })
+    assert.equal(refused.status, 422, JSON.stringify(refused.json))
+    assert.match(String(refused.json.message), /32769 bytes/)
   })
 })

@@ -32835,6 +32835,9 @@
               "committedUsd",
               "modelCallsLeft"
             ]
+          },
+          "requestContext": {
+            "$ref": "#/components/schemas/SourceReviewRequestContext"
           }
         },
         "required": [
@@ -33398,6 +33401,120 @@
           "reason",
           "result",
           "usage"
+        ]
+      },
+      "SourceReviewRequestOrigin": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The request one research task was admitted with, frozen with a v2 review for the selected sources it wrote: the exact question and its source constraints, with their provenance. Task scope, never a source to cite.",
+        "properties": {
+          "ref": {
+            "type": "string",
+            "pattern": "^R[1-3]$"
+          },
+          "sourceRefs": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 3,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^S[1-3]$"
+            }
+          },
+          "taskId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "questionSourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "questionSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "question": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "sourceConstraints": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Omitted when the request recorded none."
+          },
+          "manifestSourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "manifestSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "ref",
+          "sourceRefs",
+          "taskId",
+          "questionSourceId",
+          "questionSha256",
+          "question",
+          "manifestSourceId",
+          "manifestSha256"
+        ]
+      },
+      "SourceReviewRequestContext": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A v2 review's originating requests, as frozen in its manifest: each selected source either belongs to one request or is listed as unavailable with its reason.",
+        "properties": {
+          "version": {
+            "type": "string",
+            "enum": [
+              "sophia.source-review-manifest.v2"
+            ]
+          },
+          "requests": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "$ref": "#/components/schemas/SourceReviewRequestOrigin"
+            }
+          },
+          "unavailable": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "sourceRef": {
+                  "type": "string",
+                  "pattern": "^S[1-3]$"
+                },
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "not_research",
+                    "ambiguous",
+                    "unreadable",
+                    "malformed"
+                  ]
+                }
+              },
+              "required": [
+                "sourceRef",
+                "reason"
+              ]
+            }
+          }
+        },
+        "required": [
+          "version",
+          "requests",
+          "unavailable"
         ]
       },
       "DesignDeliveryAck": {

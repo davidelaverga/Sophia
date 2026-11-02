@@ -89,6 +89,8 @@ const SCHEMAS = [
   'SourceReviewLimits',
   'SourceReviewContextRequest',
   'SourceReviewCriterion',
+  'SourceReviewRequestOrigin',
+  'SourceReviewRequestContext',
   'SourceReviewTaskContext',
   'SourceReviewPage',
   'SourceReviewContextReply',
