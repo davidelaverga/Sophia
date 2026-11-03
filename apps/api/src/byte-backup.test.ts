@@ -80,8 +80,15 @@ function outcomes(puts: Promise<void>[]) {
   )
 }
 
-/** A caller's own 100 ms deadline, as the API's renderer routes hand one in. */
-const callerDeadline100ms = () => ({ signal: new AbortController().signal, deadline: performance.now() + 100 })
+/**
+ * The fixed control's caller deadline and lock release (R2 disposition 02). A test setup, not a product contract: the
+ * renderer routes hand in 10 s. 500 ms leaves a slow runner room for one worker's start and refusal, which 100 ms did
+ * not (CI and a loaded local run answered by the caller's deadline first), and stays below a 1 s lock wait, which the
+ * rejected a5219130 worker had; 1500 ms holds the lock past both.
+ */
+const CONTROL_CALLER_MS = 500
+const CONTROL_LOCK_MS = 1500
+const callerDeadline = (ms: number) => ({ signal: new AbortController().signal, deadline: performance.now() + ms })
 
 /** What the journal, the disk and the remote hold for one key, and the journal's whole accounting. */
 function afterState(root: string, key: string, remote: { objects: Map<string, Uint8Array> }) {
@@ -194,8 +201,8 @@ describe('private immutable report-byte copies', () => {
   it('refuses a put whose journal another connection holds, uncharged and untouched, then admits it once', async (t) => {
     // The DIRECT inner path (no outer claim), on a healthy journal a first put initialized. The competing lock is
     // INJECTED by a separate connection and held until the put under test has settled (the base control: for a fixed
-    // 300 ms), then released in `finally`: the base worker refuses contention at once (fail closed), and nothing of the
-    // refused put may remain.
+    // CONTROL_LOCK_MS), then released in `finally`: the base worker refuses contention at once (fail closed), and
+    // nothing of the refused put may remain.
     const root = volume(t)
     const remote = memoryByteStore()
     const store = withByteBackup(remote, backupAt(root))
@@ -204,7 +211,8 @@ describe('private immutable report-byte copies', () => {
     const lock = new DatabaseSync(join(root, 'budget', 'reservations.sqlite'), { timeout: 0 })
     t.after(() => lock.close())
     const untouched = { ...before, reservedForKey: 0, copy: false, temporaries: 0, remote: false }
-    // `hold` 0: held until the put settles. The declared base control holds for exactly 300 ms, whatever its outcome.
+    // `hold` 0: held until the put settles. The declared base control holds for exactly CONTROL_LOCK_MS, whatever its
+    // outcome.
     const holding = async (begin: 'BEGIN' | 'BEGIN IMMEDIATE', put: () => Promise<void>, hold = 0) => {
       const started = performance.now()
       lock.exec(begin)
@@ -226,24 +234,26 @@ describe('private immutable report-byte copies', () => {
     }
     refusedUntouched('SHARED', await holding('BEGIN', () => store.put(KEY, new Uint8Array([1]), MIME)))
     refusedUntouched('RESERVED', await holding('BEGIN IMMEDIATE', () => store.put(KEY, new Uint8Array([2]), MIME)))
-    // The base control, fixed: a 100 ms caller deadline under a RESERVED lock released at 300 ms. It qualifies only on
-    // the worker's own capacity refusal before the caller's deadline: the quota wrapper answers that only on the
-    // worker's exit (its one other answer is its 5 s timer), so nothing of that worker can follow the release.
+    // The base control, fixed: a CONTROL_CALLER_MS caller deadline under a RESERVED lock released at CONTROL_LOCK_MS.
+    // It qualifies only on the worker's own capacity refusal before the caller's deadline: the quota wrapper answers
+    // that only on the worker's exit (its one other answer is its 5 s timer), so nothing of that worker can follow the
+    // release.
     const fixed = await holding(
       'BEGIN IMMEDIATE',
-      () => store.put(KEY, new Uint8Array([3]), MIME, undefined, callerDeadline100ms()),
-      300,
+      () => store.put(KEY, new Uint8Array([3]), MIME, undefined, callerDeadline(CONTROL_CALLER_MS)),
+      CONTROL_LOCK_MS,
     )
-    if (fixed?.stage !== 'inner quota 503' || fixed.ms >= 100) {
+    const control = `${CONTROL_CALLER_MS} ms caller / ${CONTROL_LOCK_MS} ms lock`
+    if (fixed?.stage !== 'inner quota 503' || fixed.ms >= CONTROL_CALLER_MS) {
       // INCONCLUSIVE, so FAILED: the caller's deadline or another stage answered before the worker's refusal was seen,
-      // so whether it reserved or copied after the 300 ms release is unknown. The wait below is cleanup only (the
-      // worker's own bound, before the volume goes) and proves nothing about the worker's exit.
+      // so whether it reserved or copied after the release is unknown. The wait below is cleanup only (the worker's own
+      // bound, before the volume goes) and proves nothing about the worker's exit.
       await sleep(BACKUP_QUOTA_MS + 500)
       assert.fail(
-        `inconclusive 100 ms caller / 300 ms lock control: ${JSON.stringify({ fixed, afterCleanup: afterState(root, KEY, remote) })}`,
+        `inconclusive ${control} control: ${JSON.stringify({ fixed, afterCleanup: afterState(root, KEY, remote) })}`,
       )
     }
-    refusedUntouched('100 ms caller, 300 ms lock', fixed)
+    refusedUntouched(control, fixed)
     // Released: the refused key was never charged, so one declared put now goes through, and it is immutable after.
     await store.put(KEY, new Uint8Array([4]), MIME)
     await assert.rejects(store.put(KEY, new Uint8Array([5]), MIME), conflict)
