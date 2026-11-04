@@ -39,13 +39,13 @@
  * upgrades. The `profile` log line says which bundle the runtime loads.
  */
 
-import { readFileSync, rmSync, writeFileSync, writeSync } from 'node:fs'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { RuntimeSupervisor } from '../apps/execution-host/dist/runtime-supervisor.js'
 import { RUNTIME_DIR, DSH_ENTRY, loadRuntimeUnit } from './lib/common.mjs'
-import { assertRecordedArtifacts, executorClosureDigest, homeLayout, reconcileProfileUntilSignalled } from './lib/profile.mjs'
-import { holdRootLease, retainRootLease } from './lib/root-lease.mjs'
+import { assertRecordedArtifacts, executorClosureDigest, homeLayout } from './lib/profile.mjs'
+import { holdHostRoot, reconcileHostProfile } from './lib/root-lease.mjs'
 import { assertRecordedComposition, overlayRows, recordedBridge, stageAdmittedOverlay } from './lib/service-overlay.mjs'
 import { assertToolchain } from './lib/toolchain.mjs'
 import { mockRouteOverlay, startMockLlm } from '../tests/support/mock-llm.mjs'
@@ -137,40 +137,15 @@ if (absent.length > 0) console.log(JSON.stringify({ at: new Date().toISOString()
 assertRecordedArtifacts(unit, RUNTIME_DIR)
 const root = resolve(values.root)
 const layout = homeLayout(root)
-// The root's lease before anything under it changes (FND-B115): a live runtime's root is refused, never reconciled.
-let lease
-try {
-  lease = holdRootLease(root)
-} catch (error) {
-  console.error(`runtime-host: ${error.message}`)
-  process.exit(2)
-}
+// The root's lease before anything under it changes (FND-B115): a live runtime's root is refused, never reconciled,
+// and so is a root an earlier host left excluded (lib/root-lease.mjs holdHostRoot).
+const hold = holdHostRoot(root)
+const lease = hold.lease
 const admitted = service && !printDigest ? stageAdmittedOverlay(root, service.bytes) : null
-// Set when an install this process stopped was not shown gone: the root stays excluded (retainRootLease).
-let retained = false
-process.on('exit', () => {
-  if (admitted) rmSync(admitted, { force: true })
-  if (!retained) lease.release()
-})
+if (admitted) hold.cleanups.push(() => rmSync(admitted, { force: true }))
 // A caller's SIGTERM or SIGINT during reconciliation stops the install's whole process group and puts the earlier
-// profiles back (lib/profile.mjs); this process then exits as signalled, releasing the lease on exit. When the group
-// was not shown gone, nothing is put back and the lease is kept, with its takeover blocked, for an operator.
-let profile
-try {
-  profile = await reconcileProfileUntilSignalled({ unit, runtimeDir: RUNTIME_DIR, layout })
-} catch (error) {
-  if (!error.stopped) throw error
-  if (!error.gone) {
-    retainRootLease(lease, error.message)
-    retained = true
-  }
-  // Written synchronously, as the process exits next (a piped stderr is asynchronous on some platforms). A caller
-  // whose bound expired may have closed its end already (spawnSync does): the stop is not undone by an unread message.
-  try {
-    writeSync(2, `runtime-host: ${error.message}${retained ? `; the root stays leased (${lease.path}.takeover) until an operator finds that install gone` : ''}\n`)
-  } catch {}
-  process.exit(error.signal === 'SIGINT' ? 130 : 143)
-}
+// profiles back; an install whose end is unknown leaves the root leased and excluded (lib/root-lease.mjs).
+const profile = await reconcileHostProfile(hold, { unit, runtimeDir: RUNTIME_DIR, layout })
 console.log(
   JSON.stringify({
     at: new Date().toISOString(),
