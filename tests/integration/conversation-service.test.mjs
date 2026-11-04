@@ -1062,6 +1062,86 @@ describe('the shipped runtime-host entry: service replies only by an explicit ov
     if (failure) throw failure
   })
 
+  // B-NATIVE-PRINT-BOUNDS-01: the shipped entry, stopped by its caller's SIGTERM during a real upgrade (the recorded
+  // runtime's dsh and pnpm), stops the whole install, puts both earlier profiles back and releases the root. A root an
+  // earlier host left excluded (its marker, with or without its lease file) is refused, print and launch, before
+  // anything is reconciled. Every host runs owned and is settled before the root is reused or removed.
+  test('a print stopped during its upgrade puts both profiles back and releases the root; an excluded root is refused (B-NATIVE-PRINT-BOUNDS-01)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'b-print-bounds-'))
+    const root = join(dir, 'root')
+    const profiles = join(root, 'dsh-home', 'profiles')
+    const current = join(profiles, unit.dsh.profile)
+    const previous = join(profiles, `.${unit.dsh.profile}.previous`)
+    const lease = join(root, 'supervisor.lease')
+    const marker = `${lease}.takeover`
+    const env = { PATH: process.env.PATH, HOME: process.env.HOME }
+    const owned = []
+    const host = (args, extra = {}) => {
+      const run = startOwned(process.execPath, ['scripts/runtime-host.mjs', '--root', root, ...args], { cwd: REPO_ROOT, env: { ...env, ...extra } })
+      owned.push(run)
+      return run
+    }
+    const finished = async (run) => {
+      const outcome = await run.ended(120_000)
+      await run.settle()
+      return { status: outcome.code ?? null, stdout: run.stdout(), stderr: run.stderr() }
+    }
+    let failure
+    try {
+      const file = join(dir, 'overlay.json')
+      writeFileSync(file, serviceOverlay('http://127.0.0.1:9'))
+      const printArgs = ['--service-overlay', file, '--print-executor-digest']
+      assert.equal((await finished(host(printArgs))).status, 0, 'installed')
+      cpSync(current, previous, { recursive: true, verbatimSymlinks: true })
+      writeFileSync(join(previous, 'history-marker'), 'older history')
+      appendFileSync(join(current, 'cordis.patch.yml'), '\n# an older bundle\n')
+      const before = treeDigest(profiles).digest
+
+      // Stopped once its upgrade has begun: the exclusion is made and the earlier .previous has its kept name.
+      const print = host(printArgs)
+      const begun = () => existsSync(marker) && readdirSync(profiles).some((name) => name.startsWith(`.${unit.dsh.profile}.previous.`))
+      for (const end = Date.now() + 60_000; !begun(); await sleep(5)) assert.ok(Date.now() < end, `the upgrade began: ${print.stderr()}`)
+      process.kill(print.pid, 'SIGTERM')
+      const stopped = await finished(print)
+      assert.equal(stopped.status, 143, stopped.stderr)
+      assert.match(stopped.stderr, /dsh plugin install was stopped \(SIGTERM received\)(; its process group is gone; the install is not qualified| before it started); both earlier profiles are back where they were/)
+      assert.doesNotMatch(stopped.stdout, /"event":"(profile|executor_digest)"/, 'nothing is reported as reconciled')
+      assert.equal(treeDigest(profiles).digest, before, 'current and .previous are back, byte for byte; no kept copy or partial install')
+      assert.equal(existsSync(lease), false, 'the lease is released')
+      assert.equal(existsSync(marker), false, 'the exclusion is released')
+
+      mkdirSync(marker)
+      const home = treeDigest(join(root, 'dsh-home')).digest
+      for (const [label, args, extra] of [
+        ['print', printArgs, {}],
+        ['launch', ['--rehearse'], { SOPHIA_SERVICE_URL: 'http://127.0.0.1:9', SOPHIA_RUNTIME_TOKEN: 'x' }],
+      ]) {
+        for (const leaseFile of [false, true]) {
+          // A lease file naming the stopped host, now gone, as a host that could not show its install gone leaves it.
+          if (leaseFile) writeFileSync(lease, `${print.pid}\n`)
+          const r = await finished(host(args, extra))
+          const at = `${label}, lease file ${leaseFile}`
+          assert.equal(r.status, 2, `${at}: ${r.stdout}${r.stderr}`)
+          assert.match(r.stderr, leaseFile ? /is leased by another runtime; nothing is reconciled under it/ : /supervisor\.lease\.takeover exists: work an earlier run started/, at)
+          assert.doesNotMatch(r.stdout, /"event":"(profile|executor_digest)"/, `${at}: refused before the profile`)
+          assert.equal(treeDigest(join(root, 'dsh-home')).digest, home, `${at}: the profile and its history are untouched`)
+          assert.ok(statSync(marker).isDirectory(), `${at}: the marker stays`)
+          assert.equal(existsSync(lease), leaseFile, `${at}: no lease is taken, and the stale one stands`)
+          if (leaseFile) rmSync(lease)
+        }
+      }
+      rmSync(marker, { recursive: true })
+    } catch (error) {
+      failure = error
+    } finally {
+      const unsettled = []
+      for (const run of owned) await run.settle().catch((error) => unsettled.push(error))
+      if (unsettled.length === 0) rmSync(dir, { recursive: true, force: true })
+      else failure = new AggregateError([...(failure ? [failure] : []), ...unsettled], `owned host runs not settled; the fixture is kept at ${dir}`)
+    }
+    if (failure) throw failure
+  })
+
   test('a loopback test endpoint must be a valid port, 1 to 65535 (FND-B115)', () => {
     const port = (p) => edit('llm-pi-ai', (c) => { c.providers['openai-conversation'].baseURL = `http://127.0.0.1:${p}/v1`; return c })
     const provider = /llm-pi-ai may only restate the recorded providers/

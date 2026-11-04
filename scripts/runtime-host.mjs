@@ -44,8 +44,8 @@ import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { RuntimeSupervisor } from '../apps/execution-host/dist/runtime-supervisor.js'
 import { RUNTIME_DIR, DSH_ENTRY, loadRuntimeUnit } from './lib/common.mjs'
-import { assertRecordedArtifacts, executorClosureDigest, homeLayout, reconcileProfile } from './lib/profile.mjs'
-import { holdRootLease } from './lib/root-lease.mjs'
+import { assertRecordedArtifacts, executorClosureDigest, homeLayout } from './lib/profile.mjs'
+import { holdHostRoot, reconcileHostProfile } from './lib/root-lease.mjs'
 import { assertRecordedComposition, overlayRows, recordedBridge, stageAdmittedOverlay } from './lib/service-overlay.mjs'
 import { assertToolchain } from './lib/toolchain.mjs'
 import { mockRouteOverlay, startMockLlm } from '../tests/support/mock-llm.mjs'
@@ -137,20 +137,15 @@ if (absent.length > 0) console.log(JSON.stringify({ at: new Date().toISOString()
 assertRecordedArtifacts(unit, RUNTIME_DIR)
 const root = resolve(values.root)
 const layout = homeLayout(root)
-// The root's lease before anything under it changes (FND-B115): a live runtime's root is refused, never reconciled.
-let lease
-try {
-  lease = holdRootLease(root)
-} catch (error) {
-  console.error(`runtime-host: ${error.message}`)
-  process.exit(2)
-}
+// The root's lease before anything under it changes (FND-B115): a live runtime's root is refused, never reconciled,
+// and so is a root an earlier host left excluded (lib/root-lease.mjs holdHostRoot).
+const hold = holdHostRoot(root)
+const lease = hold.lease
 const admitted = service && !printDigest ? stageAdmittedOverlay(root, service.bytes) : null
-process.on('exit', () => {
-  if (admitted) rmSync(admitted, { force: true })
-  lease.release()
-})
-const profile = reconcileProfile({ unit, runtimeDir: RUNTIME_DIR, layout })
+if (admitted) hold.cleanups.push(() => rmSync(admitted, { force: true }))
+// A caller's SIGTERM or SIGINT during reconciliation stops the install's whole process group and puts the earlier
+// profiles back; an install whose end is unknown leaves the root leased and excluded (lib/root-lease.mjs).
+const profile = await reconcileHostProfile(hold, { unit, runtimeDir: RUNTIME_DIR, layout })
 console.log(
   JSON.stringify({
     at: new Date().toISOString(),

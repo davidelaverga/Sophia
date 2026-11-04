@@ -7,7 +7,7 @@ import { randomBytes } from 'node:crypto'
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { gunzipSync } from 'node:zlib'
-import { DSH_ENTRY, PROFILE_SOURCE_DIR, bundleArchivePath, platformKey, runDsh, sanitizedEnv } from './common.mjs'
+import { DSH_ENTRY, OWNED_OUTPUT_BYTES, PROFILE_SOURCE_DIR, bundleArchivePath, platformKey, runDsh, runDshOwned, sanitizedEnv } from './common.mjs'
 import { PROFILE_FILES, profileLockPath } from './artifacts.mjs'
 import { fileIntegrity, treeDigest } from './tree-digest.mjs'
 
@@ -51,20 +51,56 @@ export function installProfile({ unit, runtimeDir, layout, force = false }) {
 /** The profile directory of one install. */
 const profileDirOf = (unit, layout) => join(layout.dshHome, 'profiles', unit.dsh.profile)
 
-/** Write the committed profile inputs into the profile directory and run the frozen, offline install there. */
-function installInto({ unit, runtimeDir, layout }) {
+/** The frozen, offline install's dsh arguments. */
+const installArgs = (unit) => ['plugin', '--profile', unit.dsh.profile, 'install', '--frozen-lockfile', '--offline']
+
+/** Write the committed profile inputs into the profile directory. */
+function stageInputs({ unit, layout }) {
   const profileDir = profileDirOf(unit, layout)
   mkdirSync(profileDir, { recursive: true })
   mkdirSync(layout.cwd, { recursive: true })
   for (const file of PROFILE_FILES) copyFileSync(join(PROFILE_SOURCE_DIR, file), join(profileDir, file))
   copyFileSync(profileLockPath(), join(profileDir, 'pnpm-lock.yaml'))
   copyFileSync(bundleArchivePath(unit), join(profileDir, unit.sophia_bundle.archive))
-  const result = runDsh(runtimeDir, ['plugin', '--profile', unit.dsh.profile, 'install', '--frozen-lockfile', '--offline'], {
-    env: sanitizedEnv(layout),
-    cwd: layout.cwd,
-  })
+}
+
+/** Write the committed profile inputs into the profile directory and run the frozen, offline install there. */
+function installInto({ unit, runtimeDir, layout }) {
+  stageInputs({ unit, layout })
+  const result = runDsh(runtimeDir, installArgs(unit), { env: sanitizedEnv(layout), cwd: layout.cwd })
   if (result.status !== 0) throw new Error(`dsh plugin install exited ${result.status}\n${result.stdout}\n${result.stderr}`)
   return result
+}
+
+/** The last `bytes` of an install's output, for a diagnostic that stays finite however much it printed. */
+const tail = (text, bytes = 8192) => (text.length > bytes ? `[... ${text.length - bytes} earlier characters not shown]${text.slice(-bytes)}` : text)
+
+/**
+ * installInto for the reconciler: the same install, run as its own process group (runDshOwned), so `signal` can stop
+ * all of it and no member outlives the outcome read here. Only an install whose dsh exited 0 by itself, left no
+ * member running and stayed within the output bound counts as installed. Any other end throws:
+ * - `closureUnknown: true` when the group was not shown gone: its members may still write, so nothing may be
+ *   verified, moved back or released beneath them;
+ * - otherwise a plain failure (the group is gone), with `stopped: true` when `signal` stopped it.
+ */
+async function installOwned({ unit, runtimeDir, layout, signal, graceMs, outputBytes }) {
+  if (signal.aborted) throw Object.assign(new Error(`dsh plugin install was stopped (${signal.reason?.message ?? 'aborted'}) before it started`), { stopped: true })
+  stageInputs({ unit, layout })
+  const run = await runDshOwned(runtimeDir, installArgs(unit), { env: sanitizedEnv(layout), cwd: layout.cwd, signal, graceMs, outputBytes })
+  const stopped = run.end === 'stopped'
+  const why = stopped
+    ? `was stopped (${signal.reason?.message ?? 'aborted'})`
+    : run.end === 'output_limit' || run.truncated
+      ? `printed more than its output bound (${outputBytes ?? OWNED_OUTPUT_BYTES} bytes) and was stopped`
+      : run.survivors
+        ? `exited ${run.status ?? run.signal} while members of its process group still ran, and they were stopped`
+        : null
+  if (run.closure === 'unknown') {
+    throw Object.assign(new Error(`dsh plugin install ${why ?? 'ended'}, and its process group was NOT shown gone after SIGKILL: its members may still run`), { closureUnknown: true, stopped })
+  }
+  if (why) throw Object.assign(new Error(`dsh plugin install ${why}; its process group is gone; the install is not qualified`), { stopped })
+  if (run.status !== 0) throw new Error(`dsh plugin install exited ${run.status ?? run.signal}\n${tail(run.stdout)}\n${tail(run.stderr)}`)
+  return run
 }
 
 /**
@@ -153,17 +189,43 @@ const historyStamp = () => `${new Date().toISOString().replace(/[-:.]/g, '')}-${
  * `.<profile>.previous.<stamp>`, and put back if the upgrade fails. Before anything moves, the profile and that
  * `.previous` must each be a directory of its own (not a link) and the new name must be free; otherwise nothing changes.
  * Kept profiles are never removed here; retention is the operator's.
+ *
+ * The install runs as its own process group (installOwned), and this process keeps running while it does, so its
+ * caller can stop it (`signal`; the runtime host aborts it on SIGTERM or SIGINT). Before the first change, the
+ * caller's `exclusion` is held (`hold()`; a hold that cannot be made refuses with nothing changed). It is released
+ * (`release()`) only once the outcome is settled with the install's group gone: the profile installed and verified,
+ * or both earlier profiles put back. When the group is not shown gone (`closureUnknown`), nothing is verified or moved
+ * back beneath it and the exclusion is kept: the rejection says where each profile is. When the release or the
+ * putting back itself fails, the exclusion is kept too, and the call rejects with `exclusionKept: true` (never a
+ * success). A first install that fails leaves its partial profile, as before.
  * Run it only while no runtime uses this root (the runtime host calls it under the root's lease, before its supervisor starts).
- * @param {{ unit: any, runtimeDir: string, layout: ReturnType<typeof homeLayout>, stamp?: string }} input - `stamp`
- *   names the kept `.previous` (a fresh one by default).
- * @returns {{ state: 'installed' | 'current' | 'upgraded', drift: string[] }}
+ * @param {{ unit: any, runtimeDir: string, layout: ReturnType<typeof homeLayout>, stamp?: string, signal?: AbortSignal,
+ *   exclusion?: { hold(): void, release(): void }, graceMs?: number, outputBytes?: number }} input - `stamp` names the
+ *   kept `.previous` (a fresh one by default); `signal` stops the reconciliation; `graceMs` and `outputBytes` are the
+ *   install's stop wait and output bound (runDshOwned's defaults unless a test sets them).
+ * @returns {Promise<{ state: 'installed' | 'current' | 'upgraded', drift: string[] }>}
  */
-export function reconcileProfile({ unit, runtimeDir, layout, stamp = historyStamp() }) {
+export async function reconcileProfile({ unit, runtimeDir, layout, stamp = historyStamp(), signal = new AbortController().signal, exclusion = NO_EXCLUSION, graceMs, outputBytes }) {
   const profileDir = profileDirOf(unit, layout)
+  const owned = { unit, runtimeDir, layout, signal, graceMs, outputBytes }
+  const notStarted = () => {
+    if (signal.aborted) throw Object.assign(new Error('profile reconciliation was stopped before anything changed'), { stopped: true })
+  }
   if (!existsSync(profileDir)) {
-    installInto({ unit, runtimeDir, layout })
-    const after = profileDrift({ unit, layout })
-    if (after.length > 0) throw new Error(`the installed profile differs from the recorded one: ${after.join('; ')}`)
+    notStarted()
+    exclusion.hold()
+    try {
+      await installOwned(owned)
+      const after = profileDrift({ unit, layout })
+      if (after.length > 0) throw new Error(`the installed profile differs from the recorded one: ${after.join('; ')}`)
+    } catch (error) {
+      if (error.closureUnknown) {
+        error.message += `; nothing was verified or removed: the unqualified install is at ${profileDir}`
+        throw error
+      }
+      throw released(exclusion, error)
+    }
+    released(exclusion)
     return { state: 'installed', drift: [] }
   }
   const drift = profileDrift({ unit, layout })
@@ -174,28 +236,100 @@ export function reconcileProfile({ unit, runtimeDir, layout, stamp = historyStam
   if (entryKind(profileDir) !== 'directory') throw new Error(`${profileDir} is not a directory; nothing is changed`)
   const history = entryKind(previous)
   if (history === 'other') throw new Error(`${previous} is not a directory; nothing is changed`)
-  if (history === 'directory') {
-    if (entryKind(kept) !== 'none') throw new Error(`${kept} exists; nothing is changed`)
-    renameSync(previous, kept)
+  if (history === 'directory' && entryKind(kept) !== 'none') throw new Error(`${kept} exists; nothing is changed`)
+  notStarted()
+  exclusion.hold()
+  try {
+    if (history === 'directory') renameSync(previous, kept)
+  } catch (error) {
+    throw released(exclusion, error)
   }
   try {
     renameSync(profileDir, previous)
   } catch (error) {
-    if (history === 'directory') renameSync(kept, previous)
-    throw error
+    if (history === 'directory') {
+      try {
+        renameSync(kept, previous)
+      } catch (back) {
+        error.message += `; putting ${previous} back failed (${back.message}): it is at ${kept}`
+        throw Object.assign(error, { exclusionKept: true })
+      }
+    }
+    throw released(exclusion, error)
   }
   try {
-    installInto({ unit, runtimeDir, layout })
+    await installOwned(owned)
     const after = profileDrift({ unit, layout })
     if (after.length > 0) throw new Error(`the reinstalled profile still differs: ${after.join('; ')}`)
   } catch (error) {
+    if (error.closureUnknown) {
+      const at = history === 'directory' ? `, the one before it at ${kept}` : ''
+      error.message += `; nothing was verified or moved back: the unqualified install is at ${profileDir}, the replaced profile at ${previous}${at}`
+      throw error
+    }
     // Only the new install, never qualified, is removed; both earlier profiles go back where they were.
-    rmSync(profileDir, { recursive: true, force: true })
-    renameSync(previous, profileDir)
-    if (history === 'directory') renameSync(kept, previous)
-    throw error
+    try {
+      rmSync(profileDir, { recursive: true, force: true })
+      renameSync(previous, profileDir)
+      if (history === 'directory') renameSync(kept, previous)
+    } catch (restore) {
+      error.message += `; putting the earlier profiles back failed (${restore.message}): look under ${join(layout.dshHome, 'profiles')}`
+      throw Object.assign(error, { exclusionKept: true })
+    }
+    error.message += '; both earlier profiles are back where they were'
+    throw released(exclusion, error)
   }
+  released(exclusion)
   return { state: 'upgraded', drift }
+}
+
+/** No exclusion, for a caller that holds none (tests of the reconciler alone). */
+const NO_EXCLUSION = { hold() {}, release() {} }
+
+/**
+ * Release `exclusion` once an outcome is settled. Returns `error` (to throw) when there is one; a release that fails
+ * keeps the root excluded and turns the outcome, success included, into a rejection with `exclusionKept: true`.
+ */
+function released(exclusion, error) {
+  try {
+    exclusion.release()
+  } catch (failure) {
+    const kept = error ?? new Error('the profile was reconciled')
+    kept.message += `; the root's exclusion could not be released (${failure.message}), so it stays excluded`
+    throw Object.assign(kept, { exclusionKept: true })
+  }
+  return error
+}
+
+/**
+ * reconcileProfile in a process that holds the root's lease. While it runs, SIGTERM and SIGINT stop it instead of
+ * ending the process at once, which would leave the install running, the profiles moved aside and the lease behind.
+ * A signal that arrives once the profile is reconciled still stops: the call rejects with the state reached. A
+ * rejection after a signal has `stopped: true` and `signal`; `closureUnknown` and `exclusionKept` are kept as they are.
+ * The listeners are removed when it settles, so later phases keep each signal's earlier handling.
+ * @param {Parameters<typeof reconcileProfile>[0]} input - read only once the listeners are in place.
+ * @returns {ReturnType<typeof reconcileProfile>}
+ */
+export async function reconcileProfileUntilSignalled(input) {
+  const stop = new AbortController()
+  let received
+  const handlers = ['SIGTERM', 'SIGINT'].map((name) => [name, () => {
+    received ??= name
+    stop.abort(new Error(`${name} received`))
+  }])
+  for (const [name, handler] of handlers) process.on(name, handler)
+  try {
+    const result = await reconcileProfile({ ...input, signal: stop.signal })
+    // A signal that arrived during the synchronous parts is handled only once the event loop turns; let it.
+    await new Promise((resolve) => setImmediate(resolve))
+    if (received) throw new Error(`${received} received after the profile was reconciled (${result.state})`)
+    return result
+  } catch (error) {
+    if (received) Object.assign(error, { stopped: true, signal: received })
+    throw error
+  } finally {
+    for (const [name, handler] of handlers) process.off(name, handler)
+  }
 }
 
 /**
