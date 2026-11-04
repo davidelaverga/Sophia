@@ -3,7 +3,7 @@
  * S1-01 runtime-unit scripts. No script here reads provider credentials.
  */
 
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
@@ -145,6 +145,72 @@ export function runDsh(runtimeDir, args, { env, cwd, timeoutMs }) {
   const entry = join(runtimeDir, DSH_ENTRY)
   if (!existsSync(entry)) throw new Error(`no dsh launcher at ${entry}; run \`pnpm artifacts\` first`)
   return run(process.execPath, [entry, ...args], { env, cwd, timeout: timeoutMs, killSignal: 'SIGTERM' })
+}
+
+/** Whether any member of process group `pgid` is still alive. */
+function groupAlive(pgid) {
+  try {
+    process.kill(-pgid, 0)
+    return true
+  } catch (error) {
+    return error.code === 'EPERM'
+  }
+}
+
+/**
+ * Launch the pinned dsh like runDsh, but as the leader of its own process group, and wait for it without blocking
+ * this process. `dsh plugin` forwards to pnpm, which keeps dsh's descriptors and group, and pnpm may start lifecycle
+ * scripts; a group is the one target that reaches all of them. When `signal` aborts, the group gets SIGTERM, then
+ * SIGKILL once `graceMs` has passed, and the run settles when no member is left (`gone`) or after a second `graceMs`
+ * (`gone: false`: members may still run, and what they do is unknown).
+ * @param {string} runtimeDir - deployed runtime artifact.
+ * @param {string[]} args - launcher arguments.
+ * @param {{ env: Record<string, string>, cwd: string, signal: AbortSignal, graceMs?: number }} options - launch options.
+ * @returns {Promise<{ status: number|null, signal: string|null, stopped: boolean, gone: boolean, stdout: string, stderr: string }>}
+ */
+export function runDshOwned(runtimeDir, args, { env, cwd, signal, graceMs = 5000 }) {
+  const entry = join(runtimeDir, DSH_ENTRY)
+  if (!existsSync(entry)) throw new Error(`no dsh launcher at ${entry}; run \`pnpm artifacts\` first`)
+  if (signal.aborted) throw new Error('stopped before dsh started')
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [entry, ...args], { env, cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.setEncoding('utf8').on('data', (text) => (stdout += text))
+    child.stderr.setEncoding('utf8').on('data', (text) => (stderr += text))
+    const closed = new Promise((done) => child.once('close', (status, exitSignal) => done({ status, signal: exitSignal })))
+    const wait = (ms) => new Promise((done) => setTimeout(done, ms))
+    /** Whether the group is gone within `ms`. */
+    const goneWithin = async (ms) => {
+      for (const end = Date.now() + ms; groupAlive(child.pid) && Date.now() < end; ) await wait(25)
+      return !groupAlive(child.pid)
+    }
+    let stopping = false
+    const stop = async () => {
+      stopping = true
+      if (groupAlive(child.pid)) process.kill(-child.pid, 'SIGTERM')
+      let gone = await goneWithin(graceMs)
+      if (!gone) {
+        if (groupAlive(child.pid)) process.kill(-child.pid, 'SIGKILL')
+        gone = await goneWithin(graceMs)
+      }
+      // A member left alive may hold the pipes open, so their end is awaited only within the same bound.
+      const outcome = await Promise.race([closed, wait(graceMs).then(() => ({ status: null, signal: null }))])
+      child.stdout.destroy()
+      child.stderr.destroy()
+      resolve({ ...outcome, stopped: true, gone, stdout, stderr })
+    }
+    signal.addEventListener('abort', stop, { once: true })
+    child.once('error', (error) => {
+      signal.removeEventListener('abort', stop)
+      reject(error)
+    })
+    void closed.then((outcome) => {
+      if (stopping) return
+      signal.removeEventListener('abort', stop)
+      resolve({ ...outcome, stopped: false, gone: !groupAlive(child.pid), stdout, stderr })
+    })
+  })
 }
 
 /**

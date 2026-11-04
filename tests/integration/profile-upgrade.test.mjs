@@ -68,22 +68,22 @@ function age(layout) {
   appendFileSync(join(bundle, 'dist', 'control-bridge.js'), '\n// an older build\n')
 }
 
-test('a profile that runs the recorded bundle is left alone', () => {
+test('a profile that runs the recorded bundle is left alone', async () => {
   const { layout, data } = projectRoot()
   assert.deepEqual(profileDrift({ unit, layout }), [])
-  assert.deepEqual(reconcileProfile({ unit, runtimeDir: RUNTIME_DIR, layout }), { state: 'current', drift: [] })
+  assert.deepEqual(await reconcileProfile({ unit, runtimeDir: RUNTIME_DIR, layout }), { state: 'current', drift: [] })
   assert.equal(existsSync(join(layout.dshHome, 'profiles', `.${unit.dsh.profile}.previous`)), false)
   assertDataKept(data)
 })
 
-test('a stale profile is reinstalled in place; sessions, storages, the journal and the workspace are kept', () => {
+test('a stale profile is reinstalled in place; sessions, storages, the journal and the workspace are kept', async () => {
   const { layout, data } = projectRoot()
   age(layout)
   const drift = profileDrift({ unit, layout })
   assert.ok(drift.includes('installed bundle lacks dist/retained-queue.js'), drift.join('; '))
   assert.ok(drift.includes('installed bundle dist/control-bridge.js differs from the recorded archive'), drift.join('; '))
 
-  const result = reconcileProfile({ unit, runtimeDir: RUNTIME_DIR, layout })
+  const result = await reconcileProfile({ unit, runtimeDir: RUNTIME_DIR, layout })
   assert.equal(result.state, 'upgraded')
   assert.deepEqual(result.drift, drift)
   assert.deepEqual(profileDrift({ unit, layout }), [], 'the profile now runs the recorded bundle')
@@ -97,20 +97,20 @@ test('a stale profile is reinstalled in place; sessions, storages, the journal a
   assertDataKept(data)
 })
 
-test('a failed reinstall puts the previous profile back', () => {
+test('a failed reinstall puts the previous profile back', async () => {
   const { layout, data } = projectRoot()
   age(layout)
   const before = profileDrift({ unit, layout })
-  assert.throws(() => reconcileProfile({ unit, runtimeDir: join(scratch, 'no-runtime'), layout }))
+  await assert.rejects(() => reconcileProfile({ unit, runtimeDir: join(scratch, 'no-runtime'), layout }))
   assert.deepEqual(profileDrift({ unit, layout }), before, 'the previous profile is back, unchanged')
   assert.equal(existsSync(join(layout.dshHome, 'profiles', `.${unit.dsh.profile}.previous`)), false)
   assertDataKept(data)
 })
 
-test('a root without a profile gets one', () => {
+test('a root without a profile gets one', async () => {
   const layout = homeLayout(join(scratch, 'fresh'))
   mkdirSync(layout.root, { recursive: true })
-  assert.deepEqual(reconcileProfile({ unit, runtimeDir: RUNTIME_DIR, layout }), { state: 'installed', drift: [] })
+  assert.deepEqual(await reconcileProfile({ unit, runtimeDir: RUNTIME_DIR, layout }), { state: 'installed', drift: [] })
   assert.deepEqual(profileDrift({ unit, layout }), [])
 })
 
@@ -152,14 +152,14 @@ function upgradedBefore() {
   return root
 }
 
-test('an upgrade keeps the earlier .previous as well as the profile it replaces, upgrade after upgrade', () => {
+test('an upgrade keeps the earlier .previous as well as the profile it replaces, upgrade after upgrade', async () => {
   const { layout, data } = upgradedBefore()
   const history = snapshot(previousOf(layout))
   age(layout)
   const replaced = snapshot(profileDir(layout))
   assert.notEqual(history, replaced, 'two distinct profiles')
 
-  const first = reconcileProfile({ unit, runtimeDir: RUNTIME_DIR, layout, stamp: 'first' })
+  const first = await reconcileProfile({ unit, runtimeDir: RUNTIME_DIR, layout, stamp: 'first' })
   assert.equal(first.state, 'upgraded')
   assert.deepEqual(profileDrift({ unit, layout }), [], 'the profile now runs the recorded bundle')
   assert.equal(snapshot(previousOf(layout)), replaced, 'the replaced profile is .previous, byte for byte')
@@ -169,7 +169,7 @@ test('an upgrade keeps the earlier .previous as well as the profile it replaces,
   // The next deploy (a restart on a later bundle, say) keeps all of it again.
   appendFileSync(join(profileDir(layout), 'cordis.patch.yml'), '\n# drifted again\n')
   const replacedAgain = snapshot(profileDir(layout))
-  const second = reconcileProfile({ unit, runtimeDir: RUNTIME_DIR, layout, stamp: 'second' })
+  const second = await reconcileProfile({ unit, runtimeDir: RUNTIME_DIR, layout, stamp: 'second' })
   assert.equal(second.state, 'upgraded')
   assert.deepEqual(profileDrift({ unit, layout }), [])
   assert.equal(snapshot(previousOf(layout)), replacedAgain)
@@ -182,49 +182,49 @@ test('an upgrade keeps the earlier .previous as well as the profile it replaces,
   assertDataKept(data)
 })
 
-test('without a stamp, an upgrade names the earlier .previous by a fresh one of its own', () => {
+test('without a stamp, an upgrade names the earlier .previous by a fresh one of its own', async () => {
   const { layout } = upgradedBefore()
   const history = snapshot(previousOf(layout))
   age(layout)
-  assert.equal(reconcileProfile({ unit, runtimeDir: RUNTIME_DIR, layout }).state, 'upgraded')
+  assert.equal((await reconcileProfile({ unit, runtimeDir: RUNTIME_DIR, layout })).state, 'upgraded')
   const kept = readdirSync(profilesOf(layout)).filter((name) => name.startsWith(`.${unit.dsh.profile}.previous.`))
   assert.equal(kept.length, 1, kept.join(', '))
   assert.match(kept[0], /\.previous\.\d{8}T\d{9}Z-[0-9a-f]{8}$/)
   assert.equal(snapshot(join(profilesOf(layout), kept[0])), history)
 })
 
-test('a current profile with an earlier .previous is left alone, history and all', () => {
+test('a current profile with an earlier .previous is left alone, history and all', async () => {
   const { layout, data } = upgradedBefore()
   const before = snapshot(profilesOf(layout))
-  assert.deepEqual(reconcileProfile({ unit, runtimeDir: RUNTIME_DIR, layout, stamp: 'unused' }), { state: 'current', drift: [] })
+  assert.deepEqual(await reconcileProfile({ unit, runtimeDir: RUNTIME_DIR, layout, stamp: 'unused' }), { state: 'current', drift: [] })
   assert.equal(snapshot(profilesOf(layout)), before)
   assertDataKept(data)
 })
 
-test('a failed reinstall puts back both the profile and the earlier .previous', () => {
+test('a failed reinstall puts back both the profile and the earlier .previous', async () => {
   const { layout, data } = upgradedBefore()
   age(layout)
   const before = snapshot(profilesOf(layout))
-  assert.throws(() => reconcileProfile({ unit, runtimeDir: join(scratch, 'no-runtime'), layout, stamp: 'failed' }), /no dsh launcher/)
+  await assert.rejects(() => reconcileProfile({ unit, runtimeDir: join(scratch, 'no-runtime'), layout, stamp: 'failed' }), /no dsh launcher/)
   assert.equal(snapshot(profilesOf(layout)), before, 'the profile and its history are back, unchanged; nothing new is left')
   assert.equal(existsSync(retiredOf(layout, 'failed')), false)
   assertDataKept(data)
 })
 
-test('a state it cannot handle safely is refused before anything moves', () => {
-  const refused = (label, prepare, stamp, message) => {
+test('a state it cannot handle safely is refused before anything moves', async () => {
+  const refused = async (label, prepare, stamp, message) => {
     const { layout, data } = upgradedBefore()
     age(layout)
     const outside = prepare(layout)
     const profiles = snapshot(profilesOf(layout))
     const target = outside && snapshot(outside)
-    assert.throws(() => reconcileProfile({ unit, runtimeDir: RUNTIME_DIR, layout, stamp }), message, label)
+    await assert.rejects(() => reconcileProfile({ unit, runtimeDir: RUNTIME_DIR, layout, stamp }), message, label)
     assert.equal(snapshot(profilesOf(layout)), profiles, `${label}: the profiles are untouched`)
     if (outside) assert.equal(snapshot(outside), target, `${label}: what a link names is untouched`)
     assertDataKept(data)
   }
   // An earlier .previous that is not a directory of its own.
-  refused('.previous is a link', (layout) => {
+  await refused('.previous is a link', (layout) => {
     const elsewhere = join(layout.root, 'elsewhere')
     mkdirSync(elsewhere)
     writeFileSync(join(elsewhere, 'kept'), 'not the profile history')
@@ -232,21 +232,21 @@ test('a state it cannot handle safely is refused before anything moves', () => {
     symlinkSync(elsewhere, previousOf(layout))
     return elsewhere
   }, 'link', /\.previous is not a directory/)
-  refused('.previous is a file', (layout) => {
+  await refused('.previous is a file', (layout) => {
     rmSync(previousOf(layout), { recursive: true })
     writeFileSync(previousOf(layout), 'a file')
   }, 'file', /\.previous is not a directory/)
   // The name the earlier .previous would take is already used, even by an empty directory (rename would replace it).
-  refused('the new name is an empty directory', (layout) => {
+  await refused('the new name is an empty directory', (layout) => {
     mkdirSync(retiredOf(layout, 'taken'))
   }, 'taken', /exists; nothing is changed/)
-  refused('the new name is kept history', (layout) => {
+  await refused('the new name is kept history', (layout) => {
     mkdirSync(retiredOf(layout, 'taken'))
     writeFileSync(join(retiredOf(layout, 'taken'), 'older'), 'older still')
   }, 'taken', /exists; nothing is changed/)
   // A stamp that is not a plain name, and a profile that is a link.
-  for (const stamp of ['', '../escape', 'a/b', '.', 'x'.repeat(65)]) refused(`stamp ${JSON.stringify(stamp)}`, () => undefined, stamp, /not a safe history name/)
-  refused('the profile is a link', (layout) => {
+  for (const stamp of ['', '../escape', 'a/b', '.', 'x'.repeat(65)]) await refused(`stamp ${JSON.stringify(stamp)}`, () => undefined, stamp, /not a safe history name/)
+  await refused('the profile is a link', (layout) => {
     const real = join(layout.root, 'real-profile')
     cpSync(profileDir(layout), real, { recursive: true, verbatimSymlinks: true })
     rmSync(profileDir(layout), { recursive: true })

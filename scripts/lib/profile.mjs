@@ -7,7 +7,7 @@ import { randomBytes } from 'node:crypto'
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { gunzipSync } from 'node:zlib'
-import { DSH_ENTRY, PROFILE_SOURCE_DIR, bundleArchivePath, platformKey, runDsh, sanitizedEnv } from './common.mjs'
+import { DSH_ENTRY, PROFILE_SOURCE_DIR, bundleArchivePath, platformKey, runDsh, runDshOwned, sanitizedEnv } from './common.mjs'
 import { PROFILE_FILES, profileLockPath } from './artifacts.mjs'
 import { fileIntegrity, treeDigest } from './tree-digest.mjs'
 
@@ -51,18 +51,39 @@ export function installProfile({ unit, runtimeDir, layout, force = false }) {
 /** The profile directory of one install. */
 const profileDirOf = (unit, layout) => join(layout.dshHome, 'profiles', unit.dsh.profile)
 
-/** Write the committed profile inputs into the profile directory and run the frozen, offline install there. */
-function installInto({ unit, runtimeDir, layout }) {
+/** The frozen, offline install's dsh arguments. */
+const installArgs = (unit) => ['plugin', '--profile', unit.dsh.profile, 'install', '--frozen-lockfile', '--offline']
+
+/** Write the committed profile inputs into the profile directory. */
+function stageInputs({ unit, layout }) {
   const profileDir = profileDirOf(unit, layout)
   mkdirSync(profileDir, { recursive: true })
   mkdirSync(layout.cwd, { recursive: true })
   for (const file of PROFILE_FILES) copyFileSync(join(PROFILE_SOURCE_DIR, file), join(profileDir, file))
   copyFileSync(profileLockPath(), join(profileDir, 'pnpm-lock.yaml'))
   copyFileSync(bundleArchivePath(unit), join(profileDir, unit.sophia_bundle.archive))
-  const result = runDsh(runtimeDir, ['plugin', '--profile', unit.dsh.profile, 'install', '--frozen-lockfile', '--offline'], {
-    env: sanitizedEnv(layout),
-    cwd: layout.cwd,
-  })
+}
+
+/** Write the committed profile inputs into the profile directory and run the frozen, offline install there. */
+function installInto({ unit, runtimeDir, layout }) {
+  stageInputs({ unit, layout })
+  const result = runDsh(runtimeDir, installArgs(unit), { env: sanitizedEnv(layout), cwd: layout.cwd })
+  if (result.status !== 0) throw new Error(`dsh plugin install exited ${result.status}\n${result.stdout}\n${result.stderr}`)
+  return result
+}
+
+/**
+ * installInto for the reconciler: the same install, run as its own process group so `signal` can stop all of it
+ * (runDshOwned). A stopped install throws an error with `stopped: true` and `gone`, whether the group was shown gone.
+ */
+async function installOwned({ unit, runtimeDir, layout, signal, graceMs }) {
+  if (signal.aborted) throw Object.assign(new Error(`dsh plugin install was stopped (${signal.reason?.message ?? 'aborted'}) before it started`), { stopped: true, gone: true })
+  stageInputs({ unit, layout })
+  const result = await runDshOwned(runtimeDir, installArgs(unit), { env: sanitizedEnv(layout), cwd: layout.cwd, signal, graceMs })
+  if (result.stopped) {
+    const error = new Error(`dsh plugin install was stopped (${signal.reason?.message ?? 'aborted'}); its process group ${result.gone ? 'is gone' : 'was NOT shown gone after SIGKILL, so its members may still run'}`)
+    throw Object.assign(error, { stopped: true, gone: result.gone })
+  }
   if (result.status !== 0) throw new Error(`dsh plugin install exited ${result.status}\n${result.stdout}\n${result.stderr}`)
   return result
 }
@@ -153,15 +174,23 @@ const historyStamp = () => `${new Date().toISOString().replace(/[-:.]/g, '')}-${
  * `.<profile>.previous.<stamp>`, and put back if the upgrade fails. Before anything moves, the profile and that
  * `.previous` must each be a directory of its own (not a link) and the new name must be free; otherwise nothing changes.
  * Kept profiles are never removed here; retention is the operator's.
+ * The install runs as its own process group (runDshOwned), and this process keeps running while it does, so its
+ * caller can stop it: when `signal` aborts (the runtime host aborts it on SIGTERM or SIGINT), the whole install is
+ * stopped and, once it is shown gone, both earlier profiles are put back as for any failed upgrade; the call then
+ * rejects with `stopped: true`. An install not shown gone after SIGKILL may still be writing, so nothing is moved
+ * back beneath it: the rejection says where each profile is. A first install that is stopped leaves its partial
+ * profile, as a failed first install does.
  * Run it only while no runtime uses this root (the runtime host calls it under the root's lease, before its supervisor starts).
- * @param {{ unit: any, runtimeDir: string, layout: ReturnType<typeof homeLayout>, stamp?: string }} input - `stamp`
- *   names the kept `.previous` (a fresh one by default).
- * @returns {{ state: 'installed' | 'current' | 'upgraded', drift: string[] }}
+ * @param {{ unit: any, runtimeDir: string, layout: ReturnType<typeof homeLayout>, stamp?: string, signal?: AbortSignal, graceMs?: number }}
+ *   input - `stamp` names the kept `.previous` (a fresh one by default); `signal` stops the reconciliation; `graceMs`
+ *   is each of the stop's two waits (runDshOwned's default, 5 s, unless a test sets it).
+ * @returns {Promise<{ state: 'installed' | 'current' | 'upgraded', drift: string[] }>}
  */
-export function reconcileProfile({ unit, runtimeDir, layout, stamp = historyStamp() }) {
+export async function reconcileProfile({ unit, runtimeDir, layout, stamp = historyStamp(), signal = new AbortController().signal, graceMs }) {
   const profileDir = profileDirOf(unit, layout)
   if (!existsSync(profileDir)) {
-    installInto({ unit, runtimeDir, layout })
+    if (signal.aborted) throw Object.assign(new Error('profile reconciliation was stopped before anything changed'), { stopped: true, gone: true })
+    await installOwned({ unit, runtimeDir, layout, signal, graceMs })
     const after = profileDrift({ unit, layout })
     if (after.length > 0) throw new Error(`the installed profile differs from the recorded one: ${after.join('; ')}`)
     return { state: 'installed', drift: [] }
@@ -174,6 +203,7 @@ export function reconcileProfile({ unit, runtimeDir, layout, stamp = historyStam
   if (entryKind(profileDir) !== 'directory') throw new Error(`${profileDir} is not a directory; nothing is changed`)
   const history = entryKind(previous)
   if (history === 'other') throw new Error(`${previous} is not a directory; nothing is changed`)
+  if (signal.aborted) throw Object.assign(new Error('profile reconciliation was stopped before anything changed'), { stopped: true, gone: true })
   if (history === 'directory') {
     if (entryKind(kept) !== 'none') throw new Error(`${kept} exists; nothing is changed`)
     renameSync(previous, kept)
@@ -185,17 +215,55 @@ export function reconcileProfile({ unit, runtimeDir, layout, stamp = historyStam
     throw error
   }
   try {
-    installInto({ unit, runtimeDir, layout })
+    await installOwned({ unit, runtimeDir, layout, signal, graceMs })
     const after = profileDrift({ unit, layout })
     if (after.length > 0) throw new Error(`the reinstalled profile still differs: ${after.join('; ')}`)
   } catch (error) {
+    if (error.stopped && !error.gone) {
+      const at = history === 'directory' ? `, the one before it at ${kept}` : ''
+      error.message += `; nothing was moved back: the unqualified install is at ${profileDir}, the replaced profile at ${previous}${at}`
+      throw error
+    }
     // Only the new install, never qualified, is removed; both earlier profiles go back where they were.
     rmSync(profileDir, { recursive: true, force: true })
     renameSync(previous, profileDir)
     if (history === 'directory') renameSync(kept, previous)
+    if (error.stopped) error.message += '; both earlier profiles are back where they were'
     throw error
   }
   return { state: 'upgraded', drift }
+}
+
+/**
+ * reconcileProfile in a process that holds the root's lease. While it runs, SIGTERM and SIGINT stop it instead of
+ * ending the process at once, which would leave the install running and the profiles moved aside, and the lease
+ * behind. A signal that arrives once the profile is reconciled still stops: the call rejects with the state reached.
+ * Either way the rejection has `stopped: true` and `signal`, and the process can exit normally (releasing its lease).
+ * The listeners are removed when it settles, so later phases keep each signal's earlier handling.
+ * @param {Parameters<typeof reconcileProfile>[0]} input
+ * @returns {ReturnType<typeof reconcileProfile>}
+ */
+export async function reconcileProfileUntilSignalled(input) {
+  const stop = new AbortController()
+  let received
+  const handlers = ['SIGTERM', 'SIGINT'].map((name) => [name, () => {
+    received ??= name
+    stop.abort(new Error(`${name} received`))
+  }])
+  for (const [name, handler] of handlers) process.on(name, handler)
+  try {
+    const result = await reconcileProfile({ ...input, signal: stop.signal })
+    // A signal that arrived during the synchronous parts is handled only once the event loop turns; let it.
+    await new Promise((resolve) => setImmediate(resolve))
+    if (received) throw Object.assign(new Error(`${received} received after the profile was reconciled (${result.state})`), { stopped: true, gone: true })
+    return result
+  } catch (error) {
+    // An install that failed on its own before the signal took effect has ended: only a stop reports `gone: false`.
+    if (received) Object.assign(error, { stopped: true, signal: received, gone: error.gone ?? true })
+    throw error
+  } finally {
+    for (const [name, handler] of handlers) process.off(name, handler)
+  }
 }
 
 /**
