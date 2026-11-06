@@ -204,12 +204,18 @@ export const searchWords = (text: string | null): string[] =>
     ?.slice(0, 8) ?? []
 
 /**
+ * A kept word as a prefix. PostgreSQL's parser keeps a sign before digits ("MENTION-01", "2026-11-06", "x+5" give
+ * '-01', '-11', '+5'), so a word of digits is also that word signed, as the text's own words are.
+ */
+export const searchPrefix = (w: string): string => (/^[0-9]+$/.test(w) ? `(${w}:* | '-${w}':* | '+${w}':*)` : `${w}:*`)
+
+/**
  * A search as a full-text query: each word (letters and digits only, so nothing typed is query syntax) as a prefix,
  * all of them required, at most 8. Null when nothing searchable was typed.
  */
 export function searchQuery(text: string | null): string | null {
   const words = searchWords(text)
-  return words.length === 0 ? null : words.map((w) => `${w}:*`).join(' & ')
+  return words.length === 0 ? null : words.map(searchPrefix).join(' & ')
 }
 
 /** Cards per page. */

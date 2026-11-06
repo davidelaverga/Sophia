@@ -11,4 +11,12 @@ describe('report search', () => {
     assert.equal(searchQuery(':* | !'), null)
     assert.equal(searchQuery(null), null)
   })
+
+  it('asks for a word of digits signed as well, as the parser keeps "-01" and "+5"; any other word as typed', () => {
+    assert.equal(
+      searchQuery('V50-20261106-MENTION-01'),
+      "v50:* & (20261106:* | '-20261106':* | '+20261106':*) & mention:* & (01:* | '-01':* | '+01':*)",
+    )
+    assert.equal(searchQuery('x01 ٣'), 'x01:* & ٣:*', 'only ASCII digits, the ones the parser signs')
+  })
 })

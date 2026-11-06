@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto'
 import type pg from 'pg'
 import type { SearchHit, SearchPage } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
-import { searchWords } from './artifacts.ts'
+import { searchPrefix, searchWords } from './artifacts.ts'
 
 /** Hits per page. */
 export const SEARCH_PAGE = 20
@@ -209,7 +209,7 @@ function queryOf(q: string): string | null {
     throw new DomainError('invalid_request', `A searched word is longer than ${String(LONGEST_WORD)} characters`)
   }
   if (Array.from(typed).length < SHORTEST_QUERY || words.length === 0) return null
-  return words.map((w) => `${w}:*`).join(' & ')
+  return words.map(searchPrefix).join(' & ')
 }
 
 /** The cursor after a page's last hit, bound to its project and query. */
