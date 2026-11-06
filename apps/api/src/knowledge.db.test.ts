@@ -371,4 +371,36 @@ describe('Knowledge reads (A11)', () => {
     const now = (await list(E, `project=${P.one.projectId}`)).reports.find((x) => x.artifactId === r.artifactId)
     assert.deepEqual([now?.summary, now?.summaryAuthorId], ['Where the three seconds go, by stage.', E])
   })
+
+  // Last: its project is A's alone, so no earlier list sees its card (FND-SEARCH-HYPHEN-20261106-01 class addendum).
+  it('finds a report by a literal identifier: digits after a hyphen or sign are words too', async () => {
+    const four = await seedProject(db.ownerUrl, { title: 'Release desk', admin: A })
+    await report(
+      four,
+      'Release REL-2026-07',
+      'Build V50-20261106-MENTION-01 shipped.',
+      [{}, { change: 'Thermostat back at -12, retry x+5.' }],
+      '2026-09-05T10:00:00Z',
+    )
+    const q = (words: string) => `project=${four.projectId}&q=${encodeURIComponent(words)}`
+    // PostgreSQL's parser reads "-20261106", "-01", "-2026", "-07", "-12" and "+5" here as signed numbers.
+    for (const words of [
+      'V50-20261106-MENTION-01',
+      '20261106',
+      'mention 01',
+      'REL-2026-07',
+      '2026-07',
+      'thermostat 12',
+    ])
+      assert.deepEqual(titles(await list(A, q(words))), ['Release REL-2026-07'], words)
+    assert.deepEqual(titles(await list(A, q('retry x+5'))), ['Release REL-2026-07'], 'a plus sign')
+    // Still every word, each a prefix: another number is not this one.
+    assert.deepEqual(titles(await list(A, q('V50-20261106-MENTION-02'))), [])
+    assert.deepEqual(titles(await list(A, q('20261107'))), [])
+    // Never for a reader not in its project.
+    for (const reader of [E, C]) {
+      const all = await list(reader, `project=all&q=${encodeURIComponent('V50-20261106-MENTION-01')}`)
+      assert.deepEqual([titles(all), all.projects], [[], []])
+    }
+  })
 })
