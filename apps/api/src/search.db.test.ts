@@ -401,6 +401,56 @@ describe('project search (A38)', () => {
     assert.ok(!(sharedHit?.title ?? '').includes('@'))
   })
 
+  it('finds a message by its literal identifier: digits after a hyphen or sign are words too (FND-SEARCH-HYPHEN-20261106-01)', async () => {
+    const [admin, a, b] = [randomUUID(), randomUUID(), randomUUID()]
+    const seed = await seedProject(db.ownerUrl, { admin, editors: [a, b] })
+    const { projectId } = seed
+    // PostgreSQL's parser reads "-20261106" and "-01" here as signed numbers: the marker V50 searched for on 6 November.
+    const marker = 'V50-20261106-MENTION-01'
+    const sent = await say(
+      a,
+      projectId,
+      `${marker}: synthetic two-member notification check; no model response requested.`,
+    )
+    for (const sub of [a, b]) {
+      const hits = await found(sub, projectId, marker)
+      assert.deepEqual(hits.map(what), [`message ${sent.contributionId}`])
+      assert.match(hits[0]?.snippet ?? '', /V50-20261106-MENTION-01/)
+    }
+    for (const q of ['20261106', 'MENTION-01', 'mention 01', 'v50-2026', 'two-member', 'v50-20261106-mention-0'])
+      assert.deepEqual((await found(b, projectId, q)).map(what), [`message ${sent.contributionId}`], q)
+    // Still every word, each a prefix: another number is not this one.
+    assert.deepEqual(await found(b, projectId, 'V50-20261106-MENTION-02'), [])
+    assert.deepEqual(await found(b, projectId, '20261107'), [])
+    // A date, a negative number and a plus sign, as the parser splits them.
+    const date = await say(a, projectId, 'Review on 2026-11-07, thermostat at -12, retry x+5.')
+    assert.deepEqual((await found(b, projectId, '2026-11-07')).map(what), [`message ${date.contributionId}`])
+    assert.deepEqual((await found(b, projectId, '11-07')).map(what), [`message ${date.contributionId}`])
+    assert.deepEqual((await found(b, projectId, 'thermostat 12')).map(what), [`message ${date.contributionId}`])
+    assert.deepEqual((await found(b, projectId, 'retry x+5')).map(what), [`message ${date.contributionId}`])
+    // A report section's identifier as well.
+    const r = await report(seed, admin, 'Release log', ['## Builds\nBuild REL-2026-07 shipped.'])
+    assert.deepEqual((await found(b, projectId, 'REL-2026-07')).map(what), [`report_section ${r.artifactId} builds`])
+    // The same boundaries: a private source only for its owner; withdrawn and corrected-away words are gone.
+    const mine = await textSource(projectId, a, 'Private V51-20261106-MENTION-03 of A alone.')
+    await owner(`UPDATE sophia.source_objects SET scope='private' WHERE id=$1`, [mine.sourceId])
+    const privately = await share(a, projectId, mine)
+    assert.deepEqual((await found(a, projectId, 'V51-20261106-MENTION-03')).map(what), [
+      `message ${privately.contributionId}`,
+    ])
+    assert.deepEqual(await found(b, projectId, 'V51-20261106-MENTION-03'), [])
+    const withdrawn = await say(a, projectId, 'V52-20261106-MENTION-04 to withdraw.')
+    assert.equal((await found(b, projectId, 'V52-20261106-MENTION-04')).length, 1)
+    await act(a, projectId, withdrawn.contributionId, 'withdraw')
+    assert.deepEqual(await found(b, projectId, 'V52-20261106-MENTION-04'), [])
+    const corrected = await say(a, projectId, 'V53-20261106-MENTION-05 to correct.')
+    await act(a, projectId, corrected.contributionId, 'correct', 'V53-20261106-MENTION-06 corrected.')
+    assert.deepEqual(await found(b, projectId, 'V53-20261106-MENTION-05'), [])
+    assert.deepEqual((await found(b, projectId, 'V53-20261106-MENTION-06')).map(what), [
+      `message ${corrected.contributionId}`,
+    ])
+  })
+
   it('refuses a non-member and a removed member (403), and never returns another project’s words', async () => {
     const [admin, editor, removed, outsider] = [randomUUID(), randomUUID(), randomUUID(), randomUUID()]
     const one = await seedProject(db.ownerUrl, { admin, editors: [editor, removed] })

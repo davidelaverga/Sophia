@@ -199,6 +199,12 @@ export interface SearchQuery {
 }
 
 /**
+ * A typed word as a prefix. PostgreSQL's parser keeps a sign before digits ("MENTION-01", "2026-11-06", "x+5" give
+ * '-01', '-11', '+5'), so a word of digits is also that word signed, as the text's own words are.
+ */
+const prefixOf = (w: string) => (/^[0-9]+$/.test(w) ? `(${w}:* | '-${w}':* | '+${w}':*)` : `${w}:*`)
+
+/**
  * The words to search, as a full-text query of prefixes, all required (Knowledge's rule, at most eight); null when
  * nothing is searched (under two characters once trimmed, or no letter or digit). A word too long is refused.
  */
@@ -209,7 +215,7 @@ function queryOf(q: string): string | null {
     throw new DomainError('invalid_request', `A searched word is longer than ${String(LONGEST_WORD)} characters`)
   }
   if (Array.from(typed).length < SHORTEST_QUERY || words.length === 0) return null
-  return words.map((w) => `${w}:*`).join(' & ')
+  return words.map(prefixOf).join(' & ')
 }
 
 /** The cursor after a page's last hit, bound to its project and query. */
