@@ -150,9 +150,13 @@ const parse = (html: string) => new DOMParser().parseFromString(html, 'text/html
 /** A CSS escape, as CSS reads one: up to six hex digits (and one space after them), or any other character as itself. */
 const CSS_ESCAPE = /\\(?:([0-9a-f]{1,6})[\t\n\f\r ]?|([^\n\f\r0-9a-f]))/giu
 
-/** `css` with its escapes read, so `[\68 ref]` reads as `[href]`. */
+/**
+ * `css` with its escapes read, so `[\68 ref]` reads as `[href]`. First its line breaks, as CSS reads its input: CR LF,
+ * CR and FF are each one LF, so the one space an escape may take after its digits is the whole of a CR LF (a `style`
+ * attribute written with `&#13;&#10;` keeps both; R2's F01-CRLF-EDGE).
+ */
 function unescaped(css: string): string {
-  return css.replace(CSS_ESCAPE, (_, hex: string | undefined, char: string | undefined) => {
+  return css.replace(/\r\n?|\f/gu, '\n').replace(CSS_ESCAPE, (_, hex: string | undefined, char: string | undefined) => {
     if (hex === undefined) return char ?? ''
     const code = Number.parseInt(hex, 16)
     return code > 0 && code <= 0x10ffff && (code < 0xd800 || code > 0xdfff) ? String.fromCodePoint(code) : '\ufffd'

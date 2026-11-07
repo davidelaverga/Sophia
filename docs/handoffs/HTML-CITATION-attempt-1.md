@@ -1,15 +1,16 @@
 # Implementation-session handoff
 
-Goal and attempt: B-HTML-CITATION-FIX-01, attempt 1 (after B-HTML-CITATION-LOCAL-TRIAGE-01), with its first R2 repair
-(B-HTML-CITATION-FIX-REPAIR-01)  
+Goal and attempt: B-HTML-CITATION-FIX-01, attempt 1 (after B-HTML-CITATION-LOCAL-TRIAGE-01), with its R2 repair
+(B-HTML-CITATION-FIX-REPAIR-01) and focused corrections (B-HTML-CITATION-FOCUSED-02)  
 Human owner / executor resource: Davide (owner); B, the existing Claude Code session; P coordinates, R2 reviews independently  
 Native session: `local_cf492b49-c8d1-4ab7-b811-95eaefc2b61c`; no native, provider or model call was made  
 Starting worktree/commit: `/Users/davidelaverga/Documents/Codex/2026-11-07/sophia-html-citation`, local branch
 `fix/html-inline-citation-20261107` from main `9d6902d6b07f42cb4ef725a2524814f386680759` (tree `258f6807`)  
-Ending commit/tree and changed files: the local candidate commit on that branch (its id is in the handback record, since
-a commit cannot name itself); `apps/studio/src/features/artifacts/HtmlView.tsx`, `in-page-links.ts` (new),
-`in-page-links.test.ts` (new), `apps/studio/e2e/report-html-citation.spec.ts` (new), `apps/studio/fixtures/cited-page.ts`
-(new), `apps/studio/fixtures/report-data.ts`, `apps/studio/fixtures/room.tsx`, this file.
+Ending commit/tree and changed files: the local candidate commits on that branch (their ids are in the handback
+records, since a commit cannot name itself); `apps/studio/src/features/artifacts/HtmlView.tsx`, `DocumentPane.tsx`,
+`artifacts.css`, `in-page-links.ts` (new), `in-page-links.test.ts` (new), `apps/studio/e2e/report-html-citation.spec.ts`
+(new), `apps/studio/fixtures/cited-page.ts` (new), `apps/studio/fixtures/report-data.ts`, `apps/studio/fixtures/room.tsx`,
+this file.
 
 ## Outcome
 
@@ -47,6 +48,13 @@ the frame. The comments no longer say a DOMParser document fetches and runs noth
 endpoint, with and without the compiled CSP, are read by `framed()` and nothing is asked for and nothing runs, while
 the same markup in a live document does ask.
 
+R2's second review asked two more things. CSS reads CR LF as one line break, and an escape may take one space after
+its digits, so `[\68` + CR LF + `ref]` is `[href]`. The policy accepts such a `styles.css` and compile keeps its
+CR LF; the HTML parser folds it to LF in a `<style>`, and the viewer already refused those pages. A `style` attribute
+written with `&#13;&#10;` keeps both characters, and the viewer read `h` + LF + `ref`: it rewrote the page. CSS
+escapes are now read after CSS's own line-break folding (CR LF, CR and FF to LF). And the refusal's «Read as…» button
+goes with the note once pressed: like the pane's other buttons that go, it now gives the focus to the report's title.
+
 Unchanged: the empty sandbox, the page's bytes, its CSP, the hash check and the refusal of bytes no record names,
 Download's bytes and hash, the Sources tab, ReportCover (a passive, inert preview, left as it is), and every page with
 no link to its own fragment, framed byte for byte as before. No API, contract, schema, CSP or header change, and no
@@ -73,10 +81,14 @@ bytes and hash (fixtures/cited-page.ts), Chromium 153 headless from the pinned P
   Download's exact bytes and `c824d3a7`. Read back up by the wheel, another [1] brings the entry back into view.
   In the browser, only fragment links change, however written; links elsewhere, text, comments and raw text don't; a
   page the copy would change differently from how the browser reads it (`href="&#35;a"`) is not framed.
+- Focused corrections, before (`b640dc29` source with the new spec) and after: the `&#13;&#10;` attribute page came
+  back rewritten, then null; after Enter on «Read as Markdown» the title did not have the focus, then did. The three
+  compiled CR LF, CR and FF pages (policy-accepted, CSSOM `a[data-cite][href^="#"]`, citations shown) were already
+  refused at `b640dc29`.
 - `in-page-links.test.ts` 6/6 (the rewrite in node, byte-exact, and the published page's six links only).
 - The report-reader suites (report, knowledge-library, revise-section, report-design-trigger, report-origin,
-  knowledge-honest, report-page, report-reading, report-pane-keys and the new spec, six checks), both projects:
-  147/147.
+  knowledge-honest, report-page, report-reading, report-pane-keys and the new spec, seven checks), both projects:
+  148/148.
 - The full `pnpm check` result and the logs are in the handback record.
 
 ## Remaining limits

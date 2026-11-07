@@ -197,6 +197,13 @@ test('HTML · a page whose citations show through an href selector is not shown:
     withCss('a[h\\r\\00065 f] { color: red }'),
     withCss('a::after { content: attr(href) }'),
     withCss('p { color: red }', ' style="--x: attr(href)"'),
+    // An escape and the line break after it, as CSS reads one: CR LF (raw, as compile keeps a styles.css's, or as
+    // character references in an attribute, which the HTML parser does not fold), CR, FF.
+    withCss('a[\\68\r\nref] { color: red }'),
+    withCss('a[\\68\rref] { color: red }'),
+    withCss('a[\\68\fref] { color: red }'),
+    withCss('p { color: red }', ' style="--x: attr(\\68&#13;&#10;ref)"'),
+    withCss('p { color: red }', ' style="--x: attr(\\68&#13;ref)"'),
   ]
   const plain = withCss('a { color: red } p:has(a) { margin: 0 }')
   expect(await inBrowser(page, 'framed', [...refused, plain])).toEqual([
@@ -211,6 +218,23 @@ test('HTML · a page whose citation the viewer reads otherwise than the browser 
   // Its link is `href="&#35;source-1"`: the browser follows `#source-1`, the viewer's reading of the bytes sees no
   // fragment, so it could not keep the link in the page.
   await notShown(page, 'entity', ENTITY_PAGE)
+})
+
+test('HTML · a format chosen from the keyboard where the page is not shown leaves the focus on the report’s title', async ({
+  page,
+}) => {
+  await page.goto('/room.html?place=work&designed=styled')
+  await page.getByRole('button', { name: 'Open fixture-report-v1.html, HTML page' }).click()
+  const read = pane(page).locator('.report-html-refused').getByRole('button', { name: 'Read as Markdown' })
+  await read.focus()
+  await expect(read).toBeFocused()
+  await page.keyboard.press('Enter')
+  // The button went with the note; the focus is not dropped to the page but held where the pane puts it.
+  await expect(pane(page).locator('.md')).toContainText('The first version of a labelled fixture report.')
+  await expect(read).toHaveCount(0)
+  await expect(pane(page).locator('#report-pane-title')).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect.poll(() => page.evaluate(() => document.activeElement?.closest('.report-pane') !== null)).toBe(true)
 })
 
 /** The policy every compiled designed page carries (packages/design's DESIGN_CSP). */

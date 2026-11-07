@@ -396,7 +396,7 @@ function useCitation(tab: ViewerTab, onTab: (tab: ViewerTab) => void) {
 
 /** What the pane does around what it shows: the version it pins, its keys, the focus and its top's height. */
 function usePaneBehaviour(
-  { link, opener, asked, onVersion, onStepDown, onEnlarge }: Props,
+  { link, opener, asked, onVersion, onFormat, onStepDown, onEnlarge }: Props,
   data: PaneData,
   showing: (to: string) => void,
 ) {
@@ -433,6 +433,12 @@ function usePaneBehaviour(
       toTitle()
     },
   }
+  // A designed page that can't be shown offers the version's other formats; the button goes once one is chosen, so the
+  // focus goes to the title as theirs does.
+  const readAs = (format: ViewerFormat) => {
+    onFormat(format)
+    toTitle()
+  }
   const current = currentOffer(data.versions.data, data.version)
   // Offered once the text on screen is read (or its read failed), so what changed is compared with it (useLiveVersion).
   const offer =
@@ -446,7 +452,7 @@ function usePaneBehaviour(
         }
       : null
   // Whether the version on screen is the report's current one: only that one is shown to everyone.
-  return { title, top: usePaneTop(), offer, recover, onCurrent: current === null }
+  return { title, top: usePaneTop(), offer, recover, readAs, onCurrent: current === null }
 }
 
 export function DocumentPane(props: Props) {
@@ -456,7 +462,7 @@ export function DocumentPane(props: Props) {
   // A section asked for (a search hit's): its heading, once its version's Markdown is on screen.
   useSectionArrival(props.section, { text: data.parsed, inSight: data.shown.inSight, versionId: data.version?.id })
   const live = useLiveVersion(pane, data.shown, data.versions.data)
-  const { title, top, offer, recover, onCurrent } = usePaneBehaviour(props, data, live.showing)
+  const { title, top, offer, recover, readAs, onCurrent } = usePaneBehaviour(props, data, live.showing)
   const width = usePaneWidth()
   const status = useTransientStatus()
   const client = useQueryClient()
@@ -503,7 +509,7 @@ export function DocumentPane(props: Props) {
         changes={live.changes}
         tasks={tasks.list}
         revise={revise}
-        onFormat={onFormat}
+        onFormat={readAs}
       />
       <PaneStatus {...status} withheld={data.refused} />
       <PassageBar pane={pane} version={data.version} viewer={{ ...props, onSeeTasks: () => choose('tasks') }} />
