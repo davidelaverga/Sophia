@@ -34,6 +34,27 @@ function viewerDepth(): number {
   return typeof state.sophiaReport === 'number' ? state.sophiaReport : 0
 }
 
+/**
+ * Back `n` of the page's own history entries. A page framed in the pane adds entries of its own to the tab's history:
+ * a designed page's citation moves within its frame (HtmlView, in-page-links.ts). `history.go(-n)` steps back through
+ * the tab's history, so it would undo that move and leave the report open (B-HTML-CITATION-CLOSE-LIFECYCLE-TRIAGE-01).
+ * The Navigation API lists only the page's own entries, so it goes straight to the entry `n` back. Where a browser has
+ * no Navigation API, `history.go` as before.
+ */
+function stepBack(n: number) {
+  const nav = 'navigation' in window ? window.navigation : null
+  const at = nav?.currentEntry?.index ?? -1
+  const to = at >= n ? nav?.entries()[at - n] : undefined
+  if (!nav || !to) {
+    window.history.go(-n)
+    return
+  }
+  const { committed, finished } = nav.traverseTo(to.key)
+  // A step another navigation overtakes is that navigation's to report, not this one's.
+  committed?.catch(() => undefined)
+  finished?.catch(() => undefined)
+}
+
 /** The open report as the address bar holds it, and the history entries the viewer added for it. */
 function useReportHistory(projectId: string) {
   const [link, setLink] = useState<ReportLink | null>(here)
@@ -77,7 +98,7 @@ function useReportHistory(projectId: string) {
       // Where the step lands: its depth among the viewer's entries (an entry of anyone else's is 0).
       const lands = viewerDepth() - n
       keptFragment.note(window.location.hash, () => viewerDepth() === lands)
-      window.history.go(-n)
+      stepBack(n)
     },
     [write],
   )

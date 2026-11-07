@@ -104,6 +104,97 @@ test('HTML · read back up, another [1] brings the same entry into view again', 
   expect(requests).toEqual([])
 })
 
+// A citation's move within the frame is an entry of the tab's history, beside the page's own: Close, which steps Back
+// over the viewer's own entries, stepped back over that move instead, and the report stayed open with its address
+// (B-HTML-CITATION-CLOSE-LIFECYCLE-TRIAGE-01). Each check below failed so before DocumentViewer's stepBack.
+
+/** Clicks the page's first inline [1], and waits for its move within the frame. */
+async function cite(page: Page) {
+  await page.frameLocator('iframe.report-html-frame').locator('a[data-cite]').first().click()
+  // The pane's own frame: Knowledge's list frames each report's cover too.
+  const frame = await (await pane(page).locator('iframe.report-html-frame').elementHandle()).contentFrame()
+  if (!frame) throw new Error('the designed page has no frame')
+  await expect.poll(() => frame.evaluate(() => location.hash)).toBe('#source-1')
+}
+
+const close = (page: Page) => pane(page).getByRole('button', { name: 'Close', exact: true }).click()
+
+test('HTML · after a citation, one Close closes the report on searched Knowledge; Forward opens it, Back closes it', async ({
+  page,
+}) => {
+  await page.goto('/room.html?place=knowledge&designed=cited')
+  const knowledge = page.url()
+  const search = page.getByRole('searchbox', { name: 'Search reports' })
+  await search.fill('Fixture')
+  await page.getByRole('button', { name: 'Open Fixture report, HTML page' }).click()
+  await expect(page.frameLocator('iframe.report-html-frame').locator('#source-1')).toHaveText(
+    '[1] Supplied synthetic note',
+  )
+  const opened = page.url()
+  await cite(page)
+  expect(page.url()).toBe(opened)
+
+  await close(page)
+
+  await expect(pane(page)).toHaveCount(0)
+  expect(page.url()).toBe(knowledge)
+  await expect(search).toHaveValue('Fixture') // Knowledge as it was searched
+  // The viewer's entry is still Forward of Knowledge, and Back again leaves it.
+  await page.goForward()
+  await expect(pane(page).locator('iframe.report-html-frame')).toHaveCount(1)
+  expect(page.url()).toBe(opened)
+  await page.goBack()
+  await expect(pane(page)).toHaveCount(0)
+  expect(page.url()).toBe(knowledge)
+})
+
+test('HTML · after a citation on the full page, Back to side panel steps down once, and Close then closes', async ({
+  page,
+}) => {
+  await page.goto('/room.html?place=work&designed=cited')
+  const work = page.url()
+  const opener = page.getByRole('button', { name: 'Open fixture-report-v1.html, HTML page' })
+  await opener.click()
+  const side = page.url()
+  await pane(page).getByRole('button', { name: 'Enlarge', exact: true }).click()
+  await expect(page.locator('.report-pane')).toHaveAttribute('data-size', 'full')
+  await cite(page)
+
+  await pane(page).getByRole('button', { name: 'Back to side panel', exact: true }).click()
+  await expect(page.locator('.report-pane')).toHaveAttribute('data-size', 'side')
+  expect(page.url()).toBe(side)
+  await cite(page)
+  await close(page)
+  await expect(pane(page)).toHaveCount(0)
+  expect(page.url()).toBe(work)
+  await expect(opener).toBeFocused() // what opened the report has the focus back
+})
+
+test('HTML · after citations, another format and another version, one Close closes the report', async ({ page }) => {
+  await page.goto('/room.html?place=work&designed=cited&versions=2')
+  const work = page.url()
+  await page.getByRole('button', { name: 'Open fixture-report-v1.html, HTML page' }).click()
+  await cite(page)
+  const formats = pane(page).getByRole('group', { name: 'Format' })
+  await formats.getByRole('button', { name: 'Markdown' }).click()
+  await formats.getByRole('button', { name: 'HTML' }).click()
+  await cite(page) // a new frame, a move of its own; the first frame's is still in the tab's history
+  await pane(page)
+    .getByRole('tab', { name: /^History/ })
+    .click()
+  const shown = new URL(page.url()).searchParams.get('version')
+  const other = pane(page)
+    .locator('.report-history > li')
+    .filter({ has: page.getByText('v2', { exact: true }) })
+  await other.getByRole('button', { name: 'Show this version' }).click()
+  await expect(other.getByRole('button', { name: 'On screen' })).toBeVisible()
+  expect(new URL(page.url()).searchParams.get('version')).not.toBe(shown)
+
+  await close(page)
+  await expect(pane(page)).toHaveCount(0)
+  expect(page.url()).toBe(work)
+})
+
 /** in-page-links.ts as the fixture server serves it to the page, read through the browser's own parser. */
 const MODULE = `/@fs${fileURLToPath(new URL('../src/features/artifacts/in-page-links.ts', import.meta.url))}`
 

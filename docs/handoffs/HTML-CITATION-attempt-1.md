@@ -91,6 +91,34 @@ bytes and hash (fixtures/cited-page.ts), Chromium 153 headless from the pinned P
   148/148.
 - The full `pnpm check` result and the logs are in the handback record.
 
+## Close after a citation (B-HTML-CITATION-CLOSE-LIFECYCLE-TRIAGE-01)
+
+In the live app (P-HTML-CITATION-APP-10, d40f3153) a citation reached its source entry, and then one Close left the
+report open. The frame went from `about:srcdoc#source-1` back to `about:srcdoc`, Forward was enabled, and the outer
+address was unchanged. The same happens locally. On the room fixture with the c824 page (Work, and Knowledge searched
+"Fixture"), a completed citation adds one entry to the tab's history (`history.length` 3 → 4), and the page's own
+`history.state` stays `{ sophiaReport: 1 }`. Close stepped back with `history.go(-1)` (DocumentViewer's `back`), and
+the tab's history steps back through its frames' entries too. So it undid the frame's move and not the viewer's open:
+the frame went back to `about:srcdoc`, the address and the pane stayed, and there was no popstate on the page. Without
+a citation, the same Close closes. "Back to side panel" on the full page (`back(1, …)`) failed the same way. The
+browser's own Back undoing the citation's move is the browser's, and left as it is.
+
+Now `stepBack` goes back through the Navigation API, which lists only the page's own entries: `traverseTo` the entry
+`n` before the current one. That is the viewer's own step, whatever its frames added. Where a browser has no Navigation
+API, `history.go(-n)` as before. Nothing else changes: the entries the viewer pushes, `landing`, the kept fragment, the
+popstate handler, `leaveFor`, the frame, its sandbox, the page's bytes and the citation's move.
+
+Evidence (Chromium 153 headless, desktop):
+
+- On d40's DocumentViewer, the three new checks in report-html-citation.spec.ts fail, 0/3. Close after a citation
+  (Knowledge searched, and after a format change, another frame's citation and another version) leaves the pane open,
+  and "Back to side panel" after a citation leaves the full page.
+- With `stepBack`, 3/3 (and 9/9 repeated three times). One Close closes. The address is Knowledge's, its search still
+  "Fixture"; Forward opens the report again and Back closes it. The full page steps down once, then Close closes, and
+  the focus goes back to the opener.
+- The focus after Close on Knowledge, citation or not, is lost to the body in most runs, and was so on d40 too (3 of 4
+  without any citation, with `history.go`). It is not this cause and is left as it was; the focus is checked on Work.
+
 ## Remaining limits
 
 - Chromium only. `about:srcdoc` as a srcdoc document's address, and a fragment link to it as a move within the page, are
