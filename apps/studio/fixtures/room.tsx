@@ -904,7 +904,8 @@ const project = {
   researchFinished: false,
   textTampered: query.get('tamper') === 'text',
   // The demo's page is published, unless `design=designing` asks for it still being designed.
-  designed: query.get('designed') === 'on' || (DEMO && query.get('design') !== 'designing'),
+  // `designed=cited`: the same, its page one Sophia published, with inline citations (report-data.ts's CITED_PAGE).
+  designed: ['on', 'cited'].includes(query.get('designed') ?? '') || (DEMO && query.get('design') !== 'designing'),
   designing: query.get('design') === 'designing',
   pageTampered: query.get('tamper') === 'html',
   // `trigger=design|unknown` (A44): what made the report's newest version, when not its research.

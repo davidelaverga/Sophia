@@ -2,9 +2,11 @@
 // frame. The frame is sandboxed with no permission at all (no scripts, no same origin, no forms, no popups, no top
 // navigation), so the page cannot run, reach Studio's DOM, cookies or storage, or send anything; its own Content
 // Security Policy, written by the compiler, refuses every load besides. It is never parsed into Studio's DOM and never
-// passes through MarkdownView. Above it, in Studio's words, how it was reviewed and what it says it could not do.
-import type { ReactNode } from 'react'
+// passes through MarkdownView. Above it, in Studio's words, how it was reviewed and what it says it could not do. Its
+// links to its own fragments (an inline citation's to its source entry) are framed to stay in the page (in-page-links.ts).
+import { useMemo, type ReactNode } from 'react'
 import type { ArtifactRendition } from '@sophia/contracts'
+import { framed } from './in-page-links.ts'
 
 /** What a designed page's review state means to a reader, in one sentence. */
 export function reviewWords(state: ArtifactRendition['reviewState']): string {
@@ -37,6 +39,7 @@ interface Props {
 
 export function HtmlView({ html, title, rendition, full, revise }: Props) {
   const limits = rendition.limitations ?? []
+  const page = useMemo(() => framed(html), [html])
   return (
     <div className="report-html" data-full={full || undefined}>
       <div className="report-html-head">
@@ -60,7 +63,7 @@ export function HtmlView({ html, title, rendition, full, revise }: Props) {
         title={`${title}, designed page`}
         sandbox=""
         referrerPolicy="no-referrer"
-        srcDoc={html}
+        srcDoc={page}
       />
     </div>
   )

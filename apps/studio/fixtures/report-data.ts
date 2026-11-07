@@ -27,6 +27,7 @@ import {
 } from './demo.ts'
 import { LIBRARY, libraryContent } from './demo-library.ts'
 import { DEMO_PAGE_SHA, demoPage } from './demo-page.ts'
+import { CITED_PAGE_TEXT } from './cited-page.ts'
 
 export const REPORT = '00000000-0000-4000-8000-0000000000b1'
 export const TASK = '00000000-0000-4000-8000-0000000000b2'
@@ -308,6 +309,20 @@ export const DESIGNED = {
   ].join('\n')}\n`,
 }
 
+/**
+ * With `designed=cited`, version 1's designed page is a page Sophia published, its bytes as stored (cited-page.ts): its
+ * inline [1] markers link to the page's own source entry, as every cited page's do.
+ */
+export const CITED_PAGE = {
+  sourceId: '00000000-0000-4000-8000-0000000000ea',
+  sha256: 'c824d3a73702b70edeab03b1e15d9b42a7d18393f431b6c1faebadd5ab7b94e2',
+  text: CITED_PAGE_TEXT,
+}
+const CITED_ON =
+  typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('designed') === 'cited'
+/** The fixture's own designed page on version 1: the labelled one, or the published one with `designed=cited`. */
+const FIXTURE_PAGE = CITED_ON ? CITED_PAGE : DESIGNED
+
 /** The demo's designed pages (`demo`), one for each version: charts, figures and the findings, as a page. */
 const DEMO_PAGES = [
   { sourceId: '00000000-0000-4000-8000-0000000000e5', sha256: DEMO_PAGE_SHA.v1, text: demoPage(1) },
@@ -315,14 +330,14 @@ const DEMO_PAGES = [
 ]
 
 /** The designed page version `n` carries: the fixture's on version 1, the demo's on each. */
-const pageOf = (n: number) => (DEMO ? (DEMO_PAGES[n - 1] ?? DEMO_PAGES[0]) : DESIGNED)
+const pageOf = (n: number) => (DEMO ? (DEMO_PAGES[n - 1] ?? DEMO_PAGES[0]) : FIXTURE_PAGE)
 
 /** Version `n`'s designed page as the version lists it. */
 const designedRendition = (n = 1) => ({
   format: 'html' as const,
-  sourceId: pageOf(n)?.sourceId ?? DESIGNED.sourceId,
-  sha256: pageOf(n)?.sha256 ?? DESIGNED.sha256,
-  byteLength: new TextEncoder().encode(pageOf(n)?.text ?? DESIGNED.text).byteLength,
+  sourceId: pageOf(n)?.sourceId ?? FIXTURE_PAGE.sourceId,
+  sha256: pageOf(n)?.sha256 ?? FIXTURE_PAGE.sha256,
+  byteLength: new TextEncoder().encode(pageOf(n)?.text ?? FIXTURE_PAGE.text).byteLength,
   mime: 'text/html',
   pageCount: null,
   reviewState: 'reviewed' as const,
@@ -428,7 +443,7 @@ export const citedSources: ReportSourceList = DEMO ? demoSources : fixtureSource
  * `tampered` (`tamper=text`): the text with one space more and the record's sha256 kept, bytes no record names.
  */
 export function content(sourceId: string, tampered = false, pageTampered = false): SourceContent | null {
-  if (sourceId === DESIGNED.sourceId) return designedContent(pageTampered)
+  if (sourceId === FIXTURE_PAGE.sourceId) return designedContent(pageTampered)
   const demoPageAt = DEMO ? DEMO_PAGES.findIndex((p) => p.sourceId === sourceId) : -1
   if (demoPageAt >= 0) return demoPageContent(demoPageAt, pageTampered)
   const shelved = DEMO ? libraryContent(sourceId) : null
@@ -469,10 +484,10 @@ function demoPageContent(i: number, tampered: boolean): SourceContent | null {
 
 /** The designed page as the content read answers it; `tamper=html`: one byte more, the record's hash kept. */
 function designedContent(tampered: boolean): SourceContent {
-  const served = tampered ? `${DESIGNED.text} ` : DESIGNED.text
+  const served = tampered ? `${FIXTURE_PAGE.text} ` : FIXTURE_PAGE.text
   return {
-    sourceId: DESIGNED.sourceId,
-    sha256: DESIGNED.sha256,
+    sourceId: FIXTURE_PAGE.sourceId,
+    sha256: FIXTURE_PAGE.sha256,
     mime: 'text/html',
     byteLength: byteLengthOf(served),
     filename: 'fixture-report-v1.html',
