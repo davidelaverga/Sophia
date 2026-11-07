@@ -7,7 +7,15 @@ import { exportPersonalSpace } from '../../api/personal.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import type { ShowToast } from '../../app/Toast.tsx'
 import { useMounted } from '../../app/useMounted.ts'
-import { browserClip, copyFetched, CopyCalledOff } from './copy.ts'
+import {
+  browserClip,
+  copyFetched,
+  CopyCalledOff,
+  CopyStillWriting,
+  CopyUnconfirmed,
+  eraseAfterWrites,
+  ErasureWaits,
+} from './copy.ts'
 import { confirmsErasure, DATA, exportText, factsOf, factWords } from './data-view.ts'
 import { focusSoon } from './focus.ts'
 import { NOTICE } from './notice-view.ts'
@@ -176,25 +184,34 @@ type CalledOff = ReturnType<typeof useCalledOff>
 
 /**
  * Copying everything as text, one copy at a time: a press while one is under way waits ("Copying…") and starts no
- * other, so an erasure waits for the only clipboard write there can be (`copying`). A copy whose export arrives once
- * the padlock is shut (as stored then, wherever it was shut) or the sheet has gone (closed, signing out) copies
- * nothing; one still on its way then stops at once, and so does one when the space is erased (here, or anywhere this
- * page hears of). Its pages are read against the epoch it began in: one asked for after an erasure is refused.
+ * other. The press waits no longer than the browser's wait (copy.ts): a write it hasn't answered then is said
+ * unconfirmed. From its press until the browser answers it (and any emptying it led to), whether this sheet is still
+ * open or not, no other Personal copy starts and no erasure (copy.ts's `stillWriting`, `eraseAfterWrites`).
+ * A copy whose export arrives once the padlock is shut (as stored then, wherever it was shut) or the sheet has gone
+ * (closed, signing out) copies nothing; one still on its way then stops at once, and so does one when the space is
+ * erased (here, or anywhere this page hears of). Its pages are read against the epoch it began in: one asked for after
+ * an erasure is refused. A write that lands once any of those happened, or while an erasure here waits, is taken back.
  */
 function useCopy(props: Props, calledOff: CalledOff, erasingNow: RefObject<boolean>) {
   const { token, who, epoch, lockedNow, toast } = props
   const open = useMounted()
-  const copying = useRef<Promise<void>>(Promise.resolve())
+  const epochNow = useRef(epoch)
+  useEffect(() => {
+    epochNow.current = epoch
+  })
   const [busy, setBusy] = useState(false)
   const busyNow = useRef(false)
   const copyNow = async () => {
+    const kept = () => open.current && !lockedNow() && !erasingNow.current && epochNow.current === epoch
     try {
       const signal = calledOff.signal()
       const load = async () => exportText(await exportPersonalSpace(token, epoch, signal), who)
-      await copyFetched(load, browserClip(), () => open.current && !lockedNow())
+      await copyFetched(load, browserClip(), kept, () => toast(NOTICE.copied))
       toast(NOTICE.copied)
     } catch (err: unknown) {
       if (err instanceof CopyCalledOff) return // the locked body already says why
+      if (err instanceof CopyUnconfirmed) return toast(NOTICE.copyUnconfirmed)
+      if (err instanceof CopyStillWriting) return toast(NOTICE.copyStillWriting)
       toast(err instanceof DOMException ? NOTICE.clipboardBlocked : personalFailure(err))
     }
   }
@@ -202,12 +219,12 @@ function useCopy(props: Props, calledOff: CalledOff, erasingNow: RefObject<boole
     if (erasingNow.current || busyNow.current) return
     busyNow.current = true
     setBusy(true)
-    copying.current = copyNow().finally(() => {
+    void copyNow().finally(() => {
       busyNow.current = false
       setBusy(false)
     })
   }
-  return { copy, busy, copying }
+  return { copy, busy }
 }
 
 export function DataSheet(props: Props) {
@@ -218,19 +235,20 @@ export function DataSheet(props: Props) {
   // An erasure under way: no copy starts meanwhile, so the two never overlap.
   const [erasing, setErasing] = useState(false)
   const erasingNow = useRef(false)
-  const { copy, busy, copying } = useCopy(props, calledOff, erasingNow)
+  const { copy, busy } = useCopy(props, calledOff, erasingNow)
   const erase = async () => {
     erasingNow.current = true
     setErasing(true)
     calledOff.all() // what is being copied goes with what is erased
-    await copying.current // and a clipboard write already under way settles first
     try {
-      await onErase()
+      // And every Personal clipboard write already handed to the browser (this sheet's, an earlier one's, a reply's)
+      // is answered first: one still unanswered after the browser's wait may yet land, so nothing is erased.
+      await eraseAfterWrites(onErase)
       setErased(true)
       focusSoon('#c-data-h ~ button') // the form goes with what it deleted: the focus goes to the sheet's Close
       toast(NOTICE.erased)
     } catch (err: unknown) {
-      toast(personalFailure(err))
+      toast(err instanceof ErasureWaits ? NOTICE.eraseAfterCopy : personalFailure(err))
     } finally {
       erasingNow.current = false
       setErasing(false)

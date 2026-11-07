@@ -8,6 +8,7 @@ import { onScreen } from '../../app/shortcuts.ts'
 import { UMBRAL } from '../light/threshold.ts'
 import type { Way } from './arrive.ts'
 import { daysOf, notePrefill, opensHere, suggestionFor, type Row } from './conversation-view.ts'
+import { copyWords, CopyStillWriting } from './copy.ts'
 import type { Week } from './extras.ts'
 import { FindLens, Marked, type Lens } from './Find.tsx'
 import { useCapped } from './useCapped.ts'
@@ -172,7 +173,11 @@ interface TurnProps {
   onNote: () => void
 }
 
-/** Her words, copied: it says so (or that the browser refused) for a moment, then offers it again. */
+/**
+ * Her words, copied: it says so (or that the browser refused) for a moment, then offers it again. A write the browser
+ * hasn't answered in its wait (copy.ts) says so too, and Copied once it lands. While an earlier Personal write is
+ * unanswered (any reply's, Your data's, an emptying) or an erasure is under way, a press writes nothing and says so.
+ */
 function Copy({ text }: { text: string }) {
   const button = useRef<HTMLButtonElement>(null)
   const [said, setSaid] = useState<string | null>(null)
@@ -181,17 +186,17 @@ function Copy({ text }: { text: string }) {
     const done = window.setTimeout(() => setSaid(null), 1600)
     return () => window.clearTimeout(done)
   }, [said])
+  // A copy that settles once Personal is out of sight (the padlock shut, another place, signed out) is taken back, as
+  // far as the browser lets a page write then: her words don't stay on the clipboard behind the privacy screen.
+  const shown = () => !!button.current && onScreen(button.current)
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(text)
-    } catch {
-      setSaid('Couldn’t copy')
+      await copyWords(text, shown, () => setSaid('Not confirmed yet'))
+    } catch (err: unknown) {
+      setSaid(err instanceof CopyStillWriting ? 'Not yet: still copying' : 'Couldn’t copy')
       return
     }
-    // A copy that settles once Personal is out of sight (the padlock shut, another place, signed out) is taken back, as
-    // far as the browser lets a page write then: her words don't stay on the clipboard behind the privacy screen.
-    if (button.current && onScreen(button.current)) setSaid('Copied')
-    else await navigator.clipboard.writeText('').catch(() => undefined)
+    if (shown()) setSaid('Copied')
   }
   return (
     <button ref={button} className="ghost c3-copy" type="button" onClick={() => void copy()}>

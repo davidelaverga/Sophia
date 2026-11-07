@@ -871,9 +871,22 @@ their work. Keep these when you change them:
   too: nothing of an erased space reaches the clipboard. One copy goes at a
   time (Copy waits, "Copying…"), so an erasure waits for the only clipboard
   write there can be. A write the browser already has can't be called off:
-  one that settles after the padlock shut or the sheet went is taken back
-  (the clipboard emptied, as far as the browser lets a page), and nothing
-  says it was copied. Dictation stops when the
+  one that settles after the padlock shut, the sheet went, the epoch moved
+  or an erasure began is taken back (the clipboard emptied, as far as the
+  browser lets a page; whether it was stays unknown), and nothing says it
+  was copied. Copy waits for the browser no longer than `WRITE_WAIT_MS`
+  (copy.ts) once the text is in hand, as Personal's reply Copy does from the
+  press: one it hasn't answered then is said unconfirmed (never copied, never
+  failed), and said copied if it lands with the space still there. That wait
+  is only what the page says, not the write's end. Every Personal clipboard
+  write (Your data's, a reply's Copy) is counted from its press, whichever
+  sheet or turn it came from and whether that sheet is still open, until the
+  browser answers it and any emptying it led to (`handedOver`,
+  `stillWriting`): meanwhile no other Personal copy starts (it could land
+  before an older emptying, which would wipe it), and Delete everything waits
+  for those answers no longer than the same wait, then erases nothing and
+  says why (`eraseAfterWrites`), so nothing erased lands there from this page
+  after an erasure (copy.test.ts; app-auth.spec.ts's Your data checks). Dictation stops when the
   space goes out of sight, and a start still waiting for the device's
   language is called off (`useDictation`): the microphone never turns on out
   of sight. What it heard lands only while its composer is there: never
@@ -984,7 +997,7 @@ their work. Keep these when you change them:
   come stay with what was read, also while a page is on its way (it joins
   what was read by the time it arrives), and an erasure lets all of it go; Your data's copy reads the export a page at a time, so it
   carries every turn, and an erasure waits for a copy's clipboard write to
-  settle, so nothing erased lands there after; while an erasure is under
+  settle (every Personal write's answer, never a wait), so nothing erased lands there after; while an erasure is under
   way no copy starts (Copy waits, aria-disabled). Your data's days are the server's count, over the whole
   conversation, in this device's time zone (UTC where the server doesn't
   know it). While the padlock is shut the field is off the page and the
