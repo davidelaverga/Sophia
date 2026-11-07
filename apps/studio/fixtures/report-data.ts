@@ -27,7 +27,7 @@ import {
 } from './demo.ts'
 import { LIBRARY, libraryContent } from './demo-library.ts'
 import { DEMO_PAGE_SHA, demoPage } from './demo-page.ts'
-import { CITED_PAGE_TEXT } from './cited-page.ts'
+import { CITED_PAGE_TEXT, ENTITY_PAGE_TEXT, STYLED_PAGE_TEXT } from './cited-page.ts'
 
 export const REPORT = '00000000-0000-4000-8000-0000000000b1'
 export const TASK = '00000000-0000-4000-8000-0000000000b2'
@@ -318,10 +318,22 @@ export const CITED_PAGE = {
   sha256: 'c824d3a73702b70edeab03b1e15d9b42a7d18393f431b6c1faebadd5ab7b94e2',
   text: CITED_PAGE_TEXT,
 }
-const CITED_ON =
-  typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('designed') === 'cited'
-/** The fixture's own designed page on version 1: the labelled one, or the published one with `designed=cited`. */
-const FIXTURE_PAGE = CITED_ON ? CITED_PAGE : DESIGNED
+/** With `designed=styled`, a page the policy accepts whose citations show only through an href selector. */
+export const STYLED_PAGE = {
+  sourceId: '00000000-0000-4000-8000-0000000000eb',
+  sha256: '52a8295abdb3b46b4563309c53326aad7e21d138706e46c296bee44053f89fca',
+  text: STYLED_PAGE_TEXT,
+}
+/** With `designed=entity`, a stored page whose citation's link is written as a character reference. */
+export const ENTITY_PAGE = {
+  sourceId: '00000000-0000-4000-8000-0000000000ec',
+  sha256: '96fcf442cdd9e8b1697f1e94241b8c6f342d7b50baedd30326a44c601424e22e',
+  text: ENTITY_PAGE_TEXT,
+}
+const DESIGNED_AS = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('designed') : null
+/** The fixture's own designed page on version 1: the labelled one, or the one `designed=cited|styled|entity` names. */
+const PAGES: Partial<Record<string, typeof DESIGNED>> = { cited: CITED_PAGE, styled: STYLED_PAGE, entity: ENTITY_PAGE }
+const FIXTURE_PAGE = PAGES[DESIGNED_AS ?? ''] ?? DESIGNED
 
 /** The demo's designed pages (`demo`), one for each version: charts, figures and the findings, as a page. */
 const DEMO_PAGES = [

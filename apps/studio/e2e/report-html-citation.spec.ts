@@ -5,7 +5,7 @@
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type Frame, type Page } from '@playwright/test'
-import { CITED_PAGE } from '../fixtures/report-data.ts'
+import { CITED_PAGE, ENTITY_PAGE, STYLED_PAGE } from '../fixtures/report-data.ts'
 
 const FIXTURES = 'http://127.0.0.1:5199'
 const pane = (page: Page) => page.getByRole('complementary', { name: 'Fixture report' })
@@ -107,27 +107,33 @@ test('HTML · read back up, another [1] brings the same entry into view again', 
 /** in-page-links.ts as the fixture server serves it to the page, read through the browser's own parser. */
 const MODULE = `/@fs${fileURLToPath(new URL('../src/features/artifacts/in-page-links.ts', import.meta.url))}`
 
-test('HTML · only links to the page’s own fragments change in the framed copy; one read differently is framed as stored', async ({
+/** What in-page-links.ts's `name` makes of each page, in the browser. */
+const inBrowser = (page: Page, name: 'framed' | 'keptInPage', pages: readonly string[]) =>
+  page.evaluate(
+    async ([path, fn, all]) => {
+      const loaded: unknown = await import(path)
+      const call: unknown = typeof loaded === 'object' && loaded !== null ? Reflect.get(loaded, fn) : null
+      if (typeof call !== 'function') throw new Error(`in-page-links.ts has no ${fn}()`)
+      return all.map((html) => {
+        const made: unknown = Reflect.apply(call, undefined, [html])
+        return typeof made === 'string' ? made : null
+      })
+    },
+    [MODULE, name, pages] as const,
+  )
+
+test('HTML · only links to the page’s own fragments change in the framed copy; one read differently is not framed', async ({
   page,
 }) => {
   await page.goto('/room.html')
-  const framedOf = (pages: string[]) =>
-    page.evaluate(
-      async ([path, all]) => {
-        const loaded: unknown = await import(path)
-        const framed: unknown = typeof loaded === 'object' && loaded !== null ? Reflect.get(loaded, 'framed') : null
-        if (typeof framed !== 'function') throw new Error('in-page-links.ts has no framed()')
-        return all.map((html) => String(Reflect.apply(framed, undefined, [html])))
-      },
-      [MODULE, pages] as const,
-    )
+  const framedOf = (pages: string[]) => inBrowser(page, 'framed', pages)
   const head = '<!doctype html><html><head><title>t</title></head><body>'
   const pages = [
     `${head}<p>No links.</p></body></html>`,
     `${head}<p><a href="#a">1</a> <A HREF='#b'>2</A> <a href=#c>3</a> <a href=" #d ">4</a></p><map><area href="#e"></map></body></html>`,
     `${head}<p><a href="https://example.test/#a">x</a> <a href="other.html#a">y</a> <a href="">z</a></p></body></html>`,
     `${head}<p>Write href="#a" as text.</p><!-- <a href="#b"> --><textarea><a href="#c"></textarea></body></html>`,
-    // An entity the browser reads as "#a" that the copy would leave: framed exactly as stored, never half-changed.
+    // An entity the browser reads as "#a" that the copy would leave: not framed at all, never half-changed.
     `${head}<p><a href="&#35;a">1</a> <a href="#b">2</a></p></body></html>`,
   ]
   expect(await framedOf(pages)).toEqual([
@@ -135,10 +141,135 @@ test('HTML · only links to the page’s own fragments change in the framed copy
     `${head}<p><a href="about:srcdoc#a">1</a> <A HREF='about:srcdoc#b'>2</A> <a href=about:srcdoc#c>3</a> <a href="about:srcdoc#d">4</a></p><map><area href="about:srcdoc#e"></map></body></html>`,
     pages[2],
     pages[3],
-    pages[4],
+    null,
   ])
   // The page Sophia published: its six markers' links change, and not one other byte.
   const [cited] = await framedOf([CITED_PAGE.text])
   expect(cited).toBe(CITED_PAGE.text.replaceAll('href="#source-1"', 'href="about:srcdoc#source-1"'))
   expect(CITED_PAGE.text.split('href="#source-1"')).toHaveLength(7)
+})
+
+/**
+ * The designed page of `designed=<as>` opened: it is not shown, and nothing in the pane is a frame or holds a link a
+ * click could follow; the reader is offered the Markdown, and Download keeps the page's bytes.
+ */
+async function notShown(page: Page, as: 'styled' | 'entity', stored: { text: string; sha256: string }) {
+  await page.goto(`/room.html?place=work&designed=${as}`)
+  await page.getByRole('button', { name: 'Open fixture-report-v1.html, HTML page' }).click()
+  const note = pane(page).locator('.report-html-refused')
+  await expect(note).toContainText('This designed page isn’t shown here')
+  await expect(pane(page).locator('iframe')).toHaveCount(0)
+  expect(page.frames()).toHaveLength(1)
+  await expect(pane(page).getByRole('group', { name: 'Format' }).getByRole('button', { name: 'HTML' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  const download = pane(page).getByRole('button', { name: 'Download', exact: true })
+  await expect(download).toHaveAccessibleDescription(new RegExp(`· ${stored.sha256.slice(0, 8)}$`))
+  const saved = page.waitForEvent('download')
+  await download.click()
+  expect(await readFile(await (await saved).path(), 'utf8')).toBe(stored.text)
+  // The version's Markdown, chosen from the note: the report read as text, the page unchanged in its record.
+  await note.getByRole('button', { name: 'Read as Markdown' }).click()
+  await expect(
+    pane(page).getByRole('group', { name: 'Format' }).getByRole('button', { name: 'Markdown' }),
+  ).toHaveAttribute('aria-pressed', 'true')
+  await expect(pane(page).locator('.md')).toContainText('The first version of a labelled fixture report.')
+  await expect(pane(page).locator('.report-html-refused')).toHaveCount(0)
+}
+
+/** A page with one link to its own fragment, styled by `css` (and on its paragraph, `attribute`). */
+const withCss = (css: string, attribute = '') =>
+  `<!doctype html><html><head><style>${css}</style></head><body><p${attribute}><a href="#s">[1]</a></p><p id="s">S</p></body></html>`
+
+test('HTML · a page whose citations show through an href selector is not shown: no frame, its Markdown offered', async ({
+  page,
+}) => {
+  // The design policy accepts this page (safe and complete, no finding; cited-page.ts): its citations are hidden by
+  // `a[data-cite] { display: none }` and shown by `a[data-cite][href^="#"]`. Their links rewritten, they would vanish;
+  // framed as stored, a click on one would empty the frame. So it is not framed.
+  await notShown(page, 'styled', STYLED_PAGE)
+  // Any CSS of the page's that mentions href, however written, keeps it out of a frame; CSS that never does, not.
+  const refused = [
+    withCss('a[href^="#"] { color: red }'),
+    withCss('A[HREF] { color: red }'),
+    withCss('a[\\68 ref] { color: red }'),
+    withCss('a[h\\r\\00065 f] { color: red }'),
+    withCss('a::after { content: attr(href) }'),
+    withCss('p { color: red }', ' style="--x: attr(href)"'),
+  ]
+  const plain = withCss('a { color: red } p:has(a) { margin: 0 }')
+  expect(await inBrowser(page, 'framed', [...refused, plain])).toEqual([
+    ...refused.map(() => null),
+    plain.replace('href="#s"', 'href="about:srcdoc#s"'),
+  ])
+})
+
+test('HTML · a page whose citation the viewer reads otherwise than the browser is not shown: no frame', async ({
+  page,
+}) => {
+  // Its link is `href="&#35;source-1"`: the browser follows `#source-1`, the viewer's reading of the bytes sees no
+  // fragment, so it could not keep the link in the page.
+  await notShown(page, 'entity', ENTITY_PAGE)
+})
+
+/** The policy every compiled designed page carries (packages/design's DESIGN_CSP). */
+const DESIGN_CSP = "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
+
+/** A local endpoint the checks count, never answered by a server: `/__probe/<what asked>`. */
+const PROBE = `${FIXTURES}/__probe/`
+
+/** Every way a page asks for something or runs code, each aimed at the probe; and its own link, so it is read. */
+const ADVERSARIAL = (csp: string) =>
+  [
+    '<!doctype html><html><head><meta charset="utf-8">',
+    csp,
+    `<base href="${PROBE}base/">`,
+    `<link rel="stylesheet" href="${PROBE}stylesheet"><link rel="preload" as="image" href="${PROBE}preload">`,
+    `<link rel="prefetch" href="${PROBE}prefetch"><link rel="icon" href="${PROBE}icon">`,
+    `<meta http-equiv="refresh" content="0;url=${PROBE}refresh">`,
+    `<style>@import url(${PROBE}import); body { background: url(${PROBE}background) }`,
+    `@font-face { font-family: probe; src: url(${PROBE}font) } p { font-family: probe }</style>`,
+    `<script>window.__ran = 'script'; fetch('${PROBE}script-fetch')</script><script src="${PROBE}script-src"></script>`,
+    `</head><body onload="window.__ran = 'onload'">`,
+    `<p><a href="#source-1" ping="${PROBE}ping">[1]</a></p>`,
+    `<img src="${PROBE}img" srcset="${PROBE}srcset 2x" onerror="window.__ran = 'onerror'"><img src="relative.png">`,
+    `<picture><source srcset="${PROBE}source"><img src="${PROBE}picture"></picture>`,
+    `<video poster="${PROBE}poster" src="${PROBE}video"></video><audio src="${PROBE}audio"></audio>`,
+    `<object data="${PROBE}object"></object><embed src="${PROBE}embed"><input type="image" src="${PROBE}input">`,
+    `<iframe src="${PROBE}iframe"></iframe><iframe srcdoc="<script>parent.__ran = 'srcdoc'</script>"></iframe>`,
+    `<svg onload="window.__ran = 'svg'"><image href="${PROBE}svg-image"/></svg>`,
+    `<div style="background: url(${PROBE}inline-style)">x</div>`,
+    '<p id="source-1" data-source="s">[1] Source</p></body></html>',
+  ].join('')
+
+test('HTML · reading a page’s own links outside the frame loads nothing and runs nothing, its CSP or not', async ({
+  page,
+  context,
+}) => {
+  const asked: string[] = []
+  await context.route(`${PROBE}**`, (route) => {
+    asked.push(route.request().url())
+    return route.fulfill({ status: 204 })
+  })
+  // The probe counts: the same page in a live document asks for its resources.
+  const control = await context.newPage()
+  await control.goto('/room.html')
+  await control.evaluate((html) => {
+    document.createElement('div').innerHTML = html
+  }, ADVERSARIAL(''))
+  await expect.poll(() => asked.length).toBeGreaterThan(0)
+  await control.close()
+  asked.length = 0
+
+  await page.goto('/room.html')
+  const csp = `<meta http-equiv="Content-Security-Policy" content="${DESIGN_CSP}">`
+  const pages = [ADVERSARIAL(''), ADVERSARIAL(csp)]
+  // Each has a link to its own fragment, so framed() reads it through the parser, not as it is.
+  expect((await inBrowser(page, 'keptInPage', pages)).every((kept, i) => kept !== pages[i])).toBe(true)
+  const framed = await inBrowser(page, 'framed', pages)
+  expect(framed).toHaveLength(2)
+  await page.waitForTimeout(1500)
+  expect(asked).toEqual([])
+  expect(await page.evaluate(() => Reflect.has(window, '__ran'))).toBe(false)
 })

@@ -60,9 +60,9 @@ describe('a designed page’s own links, kept in the framed page', () => {
     assert.equal(kept.split('about:srcdoc#source-1').length, 7)
   })
 
-  it('frames a page with no own links as it is, and, where no browser parser can check a copy, the page as stored', () => {
+  it('frames a page with no own links as it is; where no browser parser can check a copy, never one with them', () => {
     const plain = page('<p>No links.</p>')
     assert.equal(framed(plain), plain)
-    assert.equal(framed(CITED_PAGE.text), CITED_PAGE.text, 'no DOMParser here: the stored page, unchanged')
+    assert.equal(framed(CITED_PAGE.text), null, 'no DOMParser here: not framed, neither changed nor with its links')
   })
 })

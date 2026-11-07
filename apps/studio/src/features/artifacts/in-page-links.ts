@@ -4,8 +4,15 @@
 // frame to Studio and left it empty, nothing being able to run there (B-HTML-CITATION-LOCAL-TRIAGE-01). Written as
 // `about:srcdoc#source-1`, the frame's own address, the same link only moves within the page. The page's own CSP
 // refuses a <base> (base-uri 'none'), so the link itself is what changes, and only in the framed copy: the stored
-// bytes, their hash and Download keep the page as it was checked. Nothing else in the page is touched, and a copy the
-// browser would read as anything but the page with those links changed is not framed: the page is, as stored.
+// bytes, their hash and Download keep the page as it was checked. Nothing else in the page is touched.
+//
+// A page whose own links can't be kept so is not framed at all (`framed` is null; HtmlView says so and offers the
+// version's other formats): its CSS reads an `href` (a selector such as `a[href^="#"]`, or `attr(href)`), so the design
+// the policy checked may show or place a citation by its link and a changed link would change it (R2's F01); or the
+// browser reads the copy as anything but the page with those links changed. Framed as stored instead, its citations
+// would still empty the frame. A page with no link to its own fragment is framed as stored. The page is read with
+// DOMParser, outside the frame, before it is framed: a document with no browsing context, which
+// report-html-citation.spec.ts measures asking for nothing and running nothing, whatever the page names (R2's F02).
 
 /** The framed page's own address: a link to it with a fragment moves within the page. */
 const FRAME_SELF = 'about:srcdoc'
@@ -140,9 +147,29 @@ export function keptInPage(html: string): string {
 
 const parse = (html: string) => new DOMParser().parseFromString(html, 'text/html')
 
-/** Whether the browser reads `kept` as `page` with only its links to its own fragments kept in the page. */
-function readAsKept(page: string, kept: string): boolean {
-  const meant = parse(page)
+/** A CSS escape, as CSS reads one: up to six hex digits (and one space after them), or any other character as itself. */
+const CSS_ESCAPE = /\\(?:([0-9a-f]{1,6})[\t\n\f\r ]?|([^\n\f\r0-9a-f]))/giu
+
+/** `css` with its escapes read, so `[\68 ref]` reads as `[href]`. */
+function unescaped(css: string): string {
+  return css.replace(CSS_ESCAPE, (_, hex: string | undefined, char: string | undefined) => {
+    if (hex === undefined) return char ?? ''
+    const code = Number.parseInt(hex, 16)
+    return code > 0 && code <= 0x10ffff && (code < 0xd800 || code > 0xdfff) ? String.fromCodePoint(code) : '\ufffd'
+  })
+}
+
+/** Whether the page's own CSS (its `<style>` elements, its `style` attributes) mentions `href` at all. */
+function cssReadsHref(doc: Document): boolean {
+  const styles = [
+    ...[...doc.querySelectorAll('style')].map((style) => style.textContent),
+    ...[...doc.querySelectorAll('[style]')].map((el) => el.getAttribute('style') ?? ''),
+  ]
+  return styles.some((css) => /href/iu.test(unescaped(css)))
+}
+
+/** Whether the browser reads `kept` as `meant` (the page, parsed) with only its links to its own fragments kept in it. */
+function readAsKept(meant: Document, kept: string): boolean {
   for (const link of meant.querySelectorAll('a[href], area[href]')) {
     const href = inPage(link.getAttribute('href') ?? '')
     if (href !== null) link.setAttribute('href', href)
@@ -150,13 +177,20 @@ function readAsKept(page: string, kept: string): boolean {
   return parse(kept).documentElement.outerHTML === meant.documentElement.outerHTML
 }
 
+/** Whether the parsed page has a link to its own fragment. */
+const linksInPage = (doc: Document) =>
+  [...doc.querySelectorAll('a[href], area[href]')].some((link) => inPage(link.getAttribute('href') ?? '') !== null)
+
 /**
- * The page to frame: the checked `page` with its links to its own fragments kept in it, when the browser reads that
- * copy as exactly the page with those links changed; otherwise `page` as it is. Parsed only, never run or loaded:
- * a DOMParser document has no window, runs no script and fetches nothing.
+ * The page to frame: the checked `page` as it is when it has no link to its own fragment; with those links kept in it
+ * when its CSS never mentions `href` and the browser reads that copy as exactly the page with those links changed; or
+ * null, not to be framed, when they can't be kept so (or there is no browser parser to check the copy).
  */
-export function framed(page: string): string {
+export function framed(page: string): string | null {
   const kept = keptInPage(page)
-  if (kept === page || typeof DOMParser === 'undefined') return page
-  return readAsKept(page, kept) ? kept : page
+  if (typeof DOMParser === 'undefined') return kept === page ? page : null
+  const meant = parse(page)
+  if (!linksInPage(meant)) return page
+  if (kept === page || cssReadsHref(meant)) return null
+  return readAsKept(meant, kept) ? kept : null
 }

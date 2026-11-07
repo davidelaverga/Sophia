@@ -503,6 +503,7 @@ export function DocumentPane(props: Props) {
         changes={live.changes}
         tasks={tasks.list}
         revise={revise}
+        onFormat={onFormat}
       />
       <PaneStatus {...status} withheld={data.refused} />
       <PassageBar pane={pane} version={data.version} viewer={{ ...props, onSeeTasks: () => choose('tasks') }} />
@@ -583,6 +584,8 @@ interface BodyProps {
   tasks: ReactNode
   /** «Revise with Sophia…» over the designed page, or null (useRevise). */
   revise: ReactNode
+  /** Another of the version's formats on screen: where a designed page that can't be shown sends its reader. */
+  onFormat: (format: ViewerFormat) => void
 }
 
 /**
@@ -660,7 +663,9 @@ function PaneBody(props: BodyProps) {
  * an isolated frame, never in MarkdownView or the Studio's own DOM, or the Markdown read in the reading voice (with
  * what changed in a version that arrived live).
  */
-function DocumentView(props: Pick<BodyProps, 'data' | 'full' | 'onCite' | 'changes' | 'revise' | 'identity'>) {
+function DocumentView(
+  props: Pick<BodyProps, 'data' | 'full' | 'onCite' | 'changes' | 'revise' | 'identity' | 'onFormat'>,
+) {
   const { data, full, onCite, changes } = props
   // What it was made for stands above the PDF and the designed page too (Codex P2 on #383); the Markdown says it in its
   // own flow, after the note on a missing format.
@@ -676,17 +681,18 @@ function DocumentView(props: Pick<BodyProps, 'data' | 'full' | 'onCite' | 'chang
     return (
       <>
         {origin}
-        <HtmlTab data={data} full={full} revise={props.revise} />
+        <HtmlTab data={data} full={full} revise={props.revise} onFormat={props.onFormat} />
       </>
     )
   return <DocumentTab data={data} onCite={onCite} changes={changes} identity={props.identity} />
 }
 
-function TabContent({ tab, data, full, identity, focusSource, onCite, onVersion, changes, tasks, revise }: BodyProps) {
+function TabContent(props: BodyProps) {
+  const { tab, data, full, identity, focusSource, onCite, onVersion, changes, tasks, revise } = props
   return (
     <>
       {tab === 'document' && (
-        <DocumentView data={data} full={full} onCite={onCite} changes={changes} revise={revise} identity={identity} />
+        <DocumentView {...{ data, full, onCite, changes, revise, identity }} onFormat={props.onFormat} />
       )}
       {tab === 'sources' && (
         <SourcesTab
@@ -1033,7 +1039,8 @@ function PdfTab({ data, full }: { data: PaneData; full: boolean }) {
 }
 
 /** The version's designed page, once its bytes matched the rendition's hash. */
-function HtmlTab({ data, full, revise }: { data: PaneData; full: boolean; revise: ReactNode }) {
+function HtmlTab(props: { data: PaneData; full: boolean; revise: ReactNode; onFormat: (f: ViewerFormat) => void }) {
+  const { data, full, revise } = props
   if (data.html.isError) {
     return (
       <p className="muted" role="alert">
@@ -1051,6 +1058,8 @@ function HtmlTab({ data, full, revise }: { data: PaneData; full: boolean; revise
       rendition={data.page}
       full={full}
       revise={revise}
+      others={viewerFormats(data.version).filter((f) => f !== 'html')}
+      onFormat={props.onFormat}
     />
   )
 }
