@@ -6,7 +6,7 @@
 // (P2) found them kept by the email, which an account can change: they are its account's, its token's subject. The
 // sessions and proposals here are synthetic, for accounts at sophia.test; nothing reaches an Auth service or an API
 // (`work=lost` answers the app's reads in the page, fixtures/app.tsx).
-import { expect, test, type BrowserContext, type Page } from '@playwright/test'
+import { expect, test, type BrowserContext, type Locator, type Page, type Route } from '@playwright/test'
 import { withProbe } from './reliability/measure.ts'
 
 const APP = 'http://127.0.0.1:5198'
@@ -1949,4 +1949,361 @@ test('cited text · another account coming in finds a cited text closed: nothing
   await expect(side.getByRole('region', { name: /^Text of / }).locator('pre')).toContainText('Option A: 90 credits')
   expect(await readsBy(SAME_ADDRESS)).toHaveLength(1)
   expect(await unexpectedOf(page)).toEqual([])
+})
+
+// --- Your data's copy, in the app itself. A clipboard that never answers (a permission asked and left, a bridge that
+// hangs) leaves no press "Copying…" for good and holds back no erasure; a write that lands once the sheet went or the
+// padlock shut is taken back; the export's own failure is said as itself (B-PERSONAL-EXPORT-BOUNDED-01). ---
+
+/** A space's export with nothing in it: what is copied is the export's head alone. */
+const EMPTY_EXPORT = { exportedAt: '2026-11-06T12:00:00.000Z', turns: [], notes: [], releases: [], next: null }
+/**
+ * How long a check waits for the copy to be said: the browser's wait (copy.ts's WRITE_WAIT_MS, 4 s) and some, as the
+ * checks run side by side. A check that sits through the wait more than once has its own time (`waitsTwice`).
+ */
+const SAID_WITHIN = { timeout: 12_000 }
+const waitsTwice = () => test.setTimeout(90_000)
+
+declare global {
+  interface Window {
+    /** The check's clipboard (silentClipboard): each text it was handed, and `answer` settling every write held. */
+    clip?: { writes: string[]; answer: () => void }
+  }
+}
+
+/**
+ * The browser's clipboard as the check makes it, before the app loads: each write noted (`window.clip.writes`, the text
+ * once handed over), none answered until `window.clip.answer()`. `promise`: ClipboardItem is offered, so the text is
+ * handed as a promise (`clipboard.write`), as Safari and Chromium are; else only `writeText`.
+ */
+async function silentClipboard(page: Page, promise: boolean) {
+  await page.addInitScript((offered) => {
+    const writes: string[] = []
+    const held: (() => void)[] = []
+    const unanswered = () => new Promise<void>((resolve) => held.push(resolve))
+    window.clip = {
+      writes,
+      answer: () => {
+        for (const one of held.splice(0)) one()
+      },
+    }
+    if (!offered) Reflect.deleteProperty(window, 'ClipboardItem')
+    navigator.clipboard.writeText = (text) => {
+      writes.push(text)
+      return unanswered()
+    }
+    navigator.clipboard.write = (items) => {
+      void items[0]
+        ?.getType('text/plain')
+        .then((blob) => blob.text())
+        .then(
+          (text) => writes.push(text),
+          () => undefined,
+        )
+      return unanswered()
+    }
+  }, promise)
+}
+
+const clipWrites = (page: Page) => page.evaluate(() => window.clip?.writes ?? [])
+
+/** Davide's Your data, open in the app, its export answered by `exported` (an empty space unless told). */
+async function yourData(context: BrowserContext, exported = (route: Route) => route.fulfill({ json: EMPTY_EXPORT })) {
+  await serve(context)
+  await context.route(`${APP}/api/v1/personal/export**`, exported)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  return page
+}
+
+/** Your data opened from the account menu: the app loaded first unless it already is (`loaded`). */
+async function openYourData(page: Page, loaded = false) {
+  if (!loaded) await page.goto(`${APP}/app.html`)
+  await account(page).click()
+  await page.getByRole('menuitem', { name: 'Your data' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Your data' })
+  await expect(sheet.locator('#c-data-copy')).toHaveText('Copy everything as text')
+  return sheet
+}
+
+for (const promise of [true, false]) {
+  const way = promise ? 'handed as a promise' : 'written once fetched'
+
+  test(`your data · a copy the browser never answers is said unconfirmed, and starts no second write (${way})`, async ({
+    context,
+  }) => {
+    const page = await yourData(context)
+    await silentClipboard(page, promise)
+    const sheet = await openYourData(page)
+    const copy = sheet.locator('#c-data-copy')
+    await copy.click()
+    await expect(copy).toHaveText('Copying…')
+    await expect.poll(() => clipWrites(page).then((w) => w.length)).toBe(1)
+    // The browser never answers: once its wait is over the press says so and is back, never "Copying…" for good.
+    await expect(copy).toHaveText('Copy everything as text', SAID_WITHIN)
+    const toast = page.locator('.toast')
+    await expect(toast).toHaveText('Your browser hasn’t confirmed the copy. It may still reach your clipboard.')
+    // While that write is unanswered a press starts no other: it says why, and nothing more is handed over.
+    await copy.click()
+    await expect(toast).toHaveText('Your browser is still on the last copy. Try again once it answers.')
+    expect(await clipWrites(page)).toHaveLength(1)
+  })
+
+  test(`your data · an erasure waits for the browser's answer to a copy, never for its wait alone (${way})`, async ({
+    context,
+  }) => {
+    waitsTwice()
+    const page = await yourData(context)
+    const erasures: string[] = []
+    // The erasure's answer never comes: what matters is whether it is asked.
+    await context.route(`${APP}/api/v1/personal/erasure`, (route) => {
+      erasures.push(route.request().method())
+    })
+    await silentClipboard(page, promise)
+    const sheet = await openYourData(page)
+    await sheet.locator('#c-data-copy').click()
+    await expect.poll(() => clipWrites(page).then((w) => w.length)).toBe(1)
+    await sheet.locator('#c-del').fill('DELETE')
+    const del = sheet.locator('#c-del ~ button')
+    await del.click()
+    await expect(del).toHaveText('Deleting…')
+    // The browser's wait passes and the write is still unanswered: it may yet land, so nothing is erased. Said, and the
+    // press is back: no "Deleting…" for good, and no erasure asked behind it.
+    const toast = page.locator('.toast')
+    await expect(toast).toHaveText(
+      'Nothing is deleted yet: your browser hasn’t answered the last copy. Delete once it has.',
+      SAID_WITHIN,
+    )
+    await expect(del).toHaveText('Delete everything')
+    // Pressed again: it waits as long again, and still erases nothing.
+    await del.click()
+    await expect(del).toHaveText('Deleting…')
+    await expect(del).toHaveText('Delete everything', SAID_WITHIN)
+    await expect(toast).toHaveText(/Nothing is deleted yet/)
+    expect(erasures).toEqual([])
+    // It lands, the sheet still open: said copied, and only now is the erasure asked.
+    await page.evaluate(() => window.clip?.answer())
+    await expect(toast).toHaveText('Copied to your clipboard')
+    await del.click()
+    await expect.poll(() => erasures).toEqual(['POST'])
+  })
+
+  test(`your data · a copy that lands after its sheet closed is taken back off the clipboard, and says nothing (${way})`, async ({
+    context,
+  }) => {
+    const page = await yourData(context)
+    await silentClipboard(page, promise)
+    const sheet = await openYourData(page)
+    await sheet.locator('#c-data-copy').click()
+    await expect(page.locator('.toast')).toHaveText(/hasn’t confirmed the copy/, SAID_WITHIN)
+    await sheet.getByRole('button', { name: 'Close' }).click()
+    await expect(sheet).toHaveCount(0)
+    await page.evaluate(() => window.clip?.answer())
+    await expect.poll(() => clipWrites(page)).toEqual([expect.stringContaining('personal space with Sophia'), ''])
+    await expect(page.locator('.toast')).not.toHaveText('Copied to your clipboard')
+  })
+
+  test(`your data · a copy that lands after another tab shut the padlock is taken back off the clipboard (${way})`, async ({
+    context,
+  }) => {
+    const page = await yourData(context)
+    await silentClipboard(page, promise)
+    const sheet = await openYourData(page)
+    await sheet.locator('#c-data-copy').click()
+    await expect.poll(() => clipWrites(page).then((w) => w.length)).toBe(1)
+    const other = await context.newPage()
+    await other.goto(`${APP}/favicon.svg`)
+    await other.evaluate((key) => localStorage.setItem(key, 'you'), `sophia.personal.lock.v1.${DAVIDE.id}`)
+    await expect(sheet.getByRole('button', { name: 'Unlock to copy or delete' })).toBeVisible()
+    await page.evaluate(() => window.clip?.answer())
+    await expect.poll(() => clipWrites(page)).toEqual([expect.stringContaining('personal space with Sophia'), ''])
+    await expect(page.locator('.toast')).not.toHaveText('Copied to your clipboard')
+  })
+
+  test(`your data · a copy the browser writes and one it refuses are said so (${way})`, async ({ context }) => {
+    const page = await yourData(context)
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    if (!promise) await page.addInitScript(() => Reflect.deleteProperty(window, 'ClipboardItem'))
+    const sheet = await openYourData(page)
+    const copy = sheet.locator('#c-data-copy')
+    await copy.click()
+    const toast = page.locator('.toast')
+    await expect(toast).toHaveText('Copied to your clipboard')
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('personal space with Sophia')
+    await expect(copy).toHaveText('Copy everything as text')
+    // Refused (no permission, no focus): said as the clipboard's.
+    await page.evaluate(() => {
+      navigator.clipboard.writeText = () => Promise.reject(new DOMException('Refused', 'NotAllowedError'))
+      navigator.clipboard.write = () => Promise.reject(new DOMException('Refused', 'NotAllowedError'))
+    })
+    await copy.click()
+    await expect(toast).toHaveText('Couldn’t copy here. Your browser blocked the clipboard.')
+    await expect(copy).toHaveText('Copy everything as text')
+  })
+}
+
+test('your data · an export that fails while the browser never answers says the failure at once, as itself', async ({
+  context,
+}) => {
+  // A refusal the export's read can't repeat (a 409 with no body it reads): said as the export's own failure.
+  const page = await yourData(context, (route) => route.fulfill({ status: 409, body: '' }))
+  await silentClipboard(page, true)
+  const sheet = await openYourData(page)
+  const copy = sheet.locator('#c-data-copy')
+  const pressed = Date.now()
+  await copy.click()
+  await expect(page.locator('.toast')).toHaveText('That didn’t go through. Try again.', SAID_WITHIN)
+  expect(Date.now() - pressed, 'said as the export failed, not after the browser’s wait').toBeLessThan(3500)
+  await expect(copy).toHaveText('Copy everything as text')
+  expect(await clipWrites(page)).toEqual([])
+})
+
+/** The erasure's requests, noted and never answered: what matters is whether one is asked. */
+async function erasuresAsked(context: BrowserContext) {
+  const erasures: string[] = []
+  await context.route(`${APP}/api/v1/personal/erasure`, (route) => {
+    erasures.push(route.request().method())
+  })
+  return erasures
+}
+
+const ERASE_WAITS = 'Nothing is deleted yet: your browser hasn’t answered the last copy. Delete once it has.'
+
+/** Delete everything, typed and pressed in `sheet`. */
+async function deleteEverything(sheet: Locator) {
+  await sheet.locator('#c-del').fill('DELETE')
+  await sheet.locator('#c-del ~ button').click()
+}
+
+for (const promise of [true, false]) {
+  const way = promise ? 'handed as a promise' : 'written once fetched'
+
+  test(`your data · a copy closed and reopened within the browser's wait still holds back an erasure until the browser answers it and its emptying (${way})`, async ({
+    context,
+  }) => {
+    waitsTwice()
+    const page = await yourData(context)
+    const erasures = await erasuresAsked(context)
+    await silentClipboard(page, promise)
+    let sheet = await openYourData(page)
+    await sheet.locator('#c-data-copy').click()
+    await expect.poll(() => clipWrites(page).then((w) => w.length)).toBe(1)
+    // Well within the browser's wait: closed, opened again, and Delete everything pressed in the new sheet.
+    await sheet.getByRole('button', { name: 'Close' }).click()
+    await expect(sheet).toHaveCount(0)
+    sheet = await openYourData(page, true)
+    await deleteEverything(sheet)
+    const toast = page.locator('.toast')
+    await expect(toast).toHaveText(ERASE_WAITS, SAID_WITHIN)
+    expect(erasures).toEqual([])
+    // The browser writes the closed sheet's copy: it is asked to empty, and that emptying is unanswered too.
+    await page.evaluate(() => window.clip?.answer())
+    await expect.poll(() => clipWrites(page)).toEqual([expect.stringContaining('personal space with Sophia'), ''])
+    const del = sheet.locator('#c-del ~ button')
+    await del.click()
+    await expect(del).toHaveText('Deleting…')
+    await expect(del).toHaveText('Delete everything', SAID_WITHIN)
+    await expect(toast).toHaveText(ERASE_WAITS)
+    expect(erasures).toEqual([])
+    // Both answered: only now is the erasure asked.
+    await page.evaluate(() => window.clip?.answer())
+    await sheet.locator('#c-del ~ button').click()
+    await expect.poll(() => erasures, SAID_WITHIN).toEqual(['POST'])
+  })
+
+  test(`your data · an emptying the browser hasn't answered starts no later copy it could wipe (${way})`, async ({
+    context,
+  }) => {
+    waitsTwice()
+    const page = await yourData(context)
+    await silentClipboard(page, promise)
+    let sheet = await openYourData(page)
+    await sheet.locator('#c-data-copy').click()
+    await expect.poll(() => clipWrites(page).then((w) => w.length)).toBe(1)
+    await sheet.getByRole('button', { name: 'Close' }).click()
+    await page.evaluate(() => window.clip?.answer()) // written once its sheet went: asked to empty, unanswered
+    await expect.poll(() => clipWrites(page)).toEqual([expect.stringContaining('personal space with Sophia'), ''])
+    sheet = await openYourData(page, true)
+    const copy = sheet.locator('#c-data-copy')
+    const toast = page.locator('.toast')
+    await copy.click()
+    await expect(toast).toHaveText('Your browser is still on the last copy. Try again once it answers.')
+    expect(await clipWrites(page)).toHaveLength(2)
+    // The emptying answered: the next copy goes, and nothing empties the clipboard after it.
+    await page.evaluate(() => window.clip?.answer())
+    await copy.click()
+    await expect.poll(() => clipWrites(page).then((w) => w.length)).toBe(3)
+    await page.evaluate(() => window.clip?.answer())
+    await expect(toast).toHaveText('Copied to your clipboard')
+    expect((await clipWrites(page)).at(-1)).toContain('personal space with Sophia')
+  })
+}
+
+/** Davide's space with one exchange, her reply last: what a reply's Copy copies. */
+const SPACE = {
+  companion: 'live',
+  revision: 2,
+  turns: [
+    {
+      id: '00000000-0000-4000-8000-00000000f001',
+      seq: 1,
+      author: 'person',
+      text: 'Which label is on the note?',
+      createdAt: '2026-11-06T17:56:00.000Z',
+      replyTo: null,
+      reply: 'answered',
+      suggestion: null,
+    },
+    {
+      id: '00000000-0000-4000-8000-00000000f002',
+      seq: 2,
+      author: 'sophia',
+      text: 'QA28.',
+      createdAt: '2026-11-06T17:56:05.000Z',
+      replyTo: '00000000-0000-4000-8000-00000000f001',
+      reply: null,
+      suggestion: null,
+    },
+  ],
+  earlier: false,
+  notes: [],
+  releases: [],
+  epoch: 0,
+  days: 1,
+}
+
+test('your data · a reply’s copy the browser hasn’t answered holds back an erasure as Your data’s does', async ({
+  context,
+}) => {
+  waitsTwice()
+  const page = await yourData(context)
+  await context.route(
+    (url) => url.pathname === '/api/v1/personal',
+    (route) => route.fulfill({ json: SPACE }),
+  )
+  const erasures = await erasuresAsked(context)
+  await silentClipboard(page, true)
+  await page.goto(`${APP}/app.html`)
+  await page.getByRole('button', { name: 'Personal', exact: true }).click()
+  const hers = page.locator('.msg.sophia:not(.typing)').last()
+  await expect(hers).toContainText('QA28.')
+  await hers.hover()
+  await hers.getByRole('button', { name: 'Copy' }).click()
+  await expect.poll(() => clipWrites(page)).toEqual(['QA28.'])
+  await expect(hers.getByRole('button', { name: 'Not confirmed yet' })).toBeVisible(SAID_WITHIN)
+  // Another Copy while hers is unanswered writes nothing, and says so.
+  const again = hers.getByRole('button', { name: 'Copy' })
+  await again.click()
+  await expect(hers.getByRole('button', { name: 'Not yet: still copying' })).toBeVisible()
+  expect(await clipWrites(page)).toEqual(['QA28.'])
+  const sheet = await openYourData(page, true)
+  await deleteEverything(sheet)
+  await expect(sheet.locator('#c-del ~ button')).toHaveText('Delete everything', SAID_WITHIN)
+  await expect(page.locator('.toast')).toHaveText(ERASE_WAITS)
+  expect(erasures).toEqual([])
+  // Answered (and, were her turn out of sight behind the sheet, its emptying too): only now is the erasure asked.
+  await page.evaluate(() => window.clip?.answer())
+  await page.waitForTimeout(300)
+  await page.evaluate(() => window.clip?.answer())
+  await sheet.locator('#c-del ~ button').click()
+  await expect.poll(() => erasures, SAID_WITHIN).toEqual(['POST'])
 })

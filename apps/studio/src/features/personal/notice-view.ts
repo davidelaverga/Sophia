@@ -11,6 +11,12 @@ export const NOTICE = {
   forgotten: 'Forgotten',
   copied: 'Copied to your clipboard',
   clipboardBlocked: 'Couldn’t copy here. Your browser blocked the clipboard.',
+  /** The browser didn't answer the copy in its wait (copy.ts): it may still write it, and nothing claims otherwise. */
+  copyUnconfirmed: 'Your browser hasn’t confirmed the copy. It may still reach your clipboard.',
+  /** A press while that write is still unanswered: no second write starts. */
+  copyStillWriting: 'Your browser is still on the last copy. Try again once it answers.',
+  /** An erasure pressed while that write is unanswered: nothing is erased until it settles (copy.ts's stillWriting). */
+  eraseAfterCopy: 'Nothing is deleted yet: your browser hasn’t answered the last copy. Delete once it has.',
   erased: 'Deleted. Sophia starts fresh.',
   /** Another tab's message is on its way (oneAtATime): this one waits, in the field or to be pressed again. */
   waits: 'Another message is on its way: send this one after it',

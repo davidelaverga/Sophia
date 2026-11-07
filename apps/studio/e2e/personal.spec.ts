@@ -709,6 +709,24 @@ test('touch · a copy the browser refuses says so', async ({ page }) => {
   await expect(hers.getByRole('button', { name: 'Couldn’t copy' })).toBeVisible()
 })
 
+test('touch · a copy the browser never answers says so once its wait is over, and Copied when it lands', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  // A clipboard that doesn't answer (a permission asked and left) until the check releases it.
+  await page.evaluate(() => {
+    navigator.clipboard.writeText = () =>
+      new Promise<void>((done) => window.addEventListener('release', () => done(), { once: true }))
+  })
+  const hers = page.locator('.msg.sophia:not(.typing)').last()
+  await hers.hover()
+  await hers.getByRole('button', { name: 'Copy' }).click()
+  await expect(hers.getByRole('button', { name: 'Not confirmed yet' })).toBeVisible({ timeout: 8000 })
+  await expect(hers.getByRole('button', { name: 'Copy' })).toBeAttached({ timeout: 3000 })
+  await page.evaluate(() => window.dispatchEvent(new Event('release')))
+  await expect(hers.getByRole('button', { name: 'Copied' })).toBeVisible()
+})
+
 /** Sends a message with `slow=1` (her answer 2.5 s after it lands) and reads further up before she answers. */
 async function readUpWhileSheAnswers(page: Page) {
   await page.goto(`${PAGE}?slow=1`)
