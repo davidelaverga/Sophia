@@ -15,8 +15,12 @@ export class CitedTextMismatch extends Error {
 
 const TEXT_TYPES = new Set(['text/plain', 'text/markdown'])
 
-/** Whether a type is one the read serves as text (plain text or Markdown), its parameters and case aside. */
-export const opensAsText = (mime: string): boolean => TEXT_TYPES.has(mime.split(';')[0]?.trim().toLowerCase() ?? '')
+/**
+ * Whether a type is one the read serves as text (plain text or Markdown): exactly 0090's rule
+ * (`split_part(lower(s.mime), ';', 1) IN (…)`, 0090_cited_report_text.sql:45): lowercased, the part before any ';',
+ * untrimmed, so the row offers nothing the read would refuse.
+ */
+export const opensAsText = (mime: string): boolean => TEXT_TYPES.has(mime.toLowerCase().split(';')[0] ?? '')
 
 /** What a row whose type the read cannot open says in place of Show text. */
 export const ONLY_TEXT_OPENS = 'Only plain text and Markdown open here.'
