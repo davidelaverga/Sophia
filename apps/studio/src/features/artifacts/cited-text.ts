@@ -69,9 +69,12 @@ const citedSource = (n: number | null): string =>
 /** The region's name: which source's text it holds, as the row says it. */
 export const citedTextRegion = (n: number | null): string => `Text of ${citedSource(n)}`
 
-/** The press's name: its words on screen first (WCAG 2.5.3), then which source it opens, so no two read alike. */
-export const citedTextPress = (open: boolean, n: number | null): string =>
-  `${citedTextToggle(open)} of ${citedSource(n)}`
+/**
+ * The press's name: its words on screen first (WCAG 2.5.3), then which source it opens, so no two read alike: its
+ * citation, or, where the text cites it nowhere, the row's title.
+ */
+export const citedTextPress = (open: boolean, n: number | null, title: string): string =>
+  `${citedTextToggle(open)} of ${n === null ? title : citedSource(n)}`
 
 /** Only a failed read is asked again, twice at most: a refusal or a mismatch does not change by asking. */
 export const retryCitedText = (failures: number, error: unknown): boolean =>

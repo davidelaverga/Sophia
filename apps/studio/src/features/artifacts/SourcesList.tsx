@@ -160,6 +160,7 @@ function SourceRow({ source, n, focused, origin, onOrigin, citing }: RowProps) {
             citing={citing}
             sourceId={source.sourceId}
             n={n}
+            title={title}
             titleId={titleId}
             mime={source.mime}
           />
