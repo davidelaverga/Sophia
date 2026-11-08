@@ -1866,6 +1866,22 @@ function sendAsked(which: string | null): Send | null {
   return sends.find((s) => s === which) ?? null
 }
 
+/** Why Sophia doesn't answer here (`ask=`): `off` is `replies_not_enabled`; one of 0089's reasons, itself; else none. */
+function askReasonAsked(which: string | null): string | null {
+  if (which === 'off') return 'replies_not_enabled'
+  const reasons = [
+    'replies_not_enabled',
+    'replies_disabled',
+    'grant_disabled',
+    'grant_expired',
+    'calls_exhausted',
+    'context_assembler_unbound',
+    'runtime_unavailable',
+    'cleanup_capacity',
+  ]
+  return reasons.find((r) => r === which) ?? null
+}
+
 /** How an erasure goes (`erase=`): its feed first, its first try never reaching the API, its reply lost, or at once. */
 function eraseAsked(which: string | null): 'feedFirst' | 'unreached' | 'lost' | null {
   return which === 'feedFirst' || which === 'unreached' || which === 'lost' ? which : null
@@ -1894,8 +1910,9 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       sameTimeNext: false,
       failMessagesOf: (failMessages ? CONVERSATION.briefs : null) as string | null,
       failOlder: query.get('older') === 'fail',
-      // `ask=off`: Sophia doesn't answer here, as while replies are off (CON-01 C1).
-      askOff: query.get('ask') === 'off',
+      // `ask=off`: Sophia doesn't answer here, as while replies aren't enabled (CON-01 C1); `ask=<reason>`, for that
+      // reason (conversation-wire.ts).
+      askReason: askReasonAsked(query.get('ask')),
       send: sendAsked(query.get('send')),
       start: startAsked(query.get('start')),
       answerMs: query.get('answer') === 'slow' ? 10_000 : 900,

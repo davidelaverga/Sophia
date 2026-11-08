@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict'
+import { readdirSync, readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import type { MissionDecision, ProjectionCoverage } from '@sophia/contracts'
 import type { ConversationMessage, ConversationReply, ConversationSummary } from '../../api/conversations.ts'
 import {
   NAMED_AT_MOST,
   acceptedOf,
+  askUnansweredWords,
   continuesRun,
   coverageWords,
   firstsIn,
@@ -691,6 +693,64 @@ describe('the request a message asked, never the clock (CON01-A09)', () => {
     assert.match(ended, /Asking again asks anew\./)
     // Not the Send's own unconfirmed receipt (client.ts), nor a promise that anything goes again by itself.
     assert.doesNotMatch(ended, /No reply from Sophia|confirm|again by itself|tries once more/)
+  })
+})
+
+// Every reason the API can put in `capability.askReason`: A33 types it as a code (a pattern, no enum), and
+// `sophia.conversation_ask_capability` (0089, or whichever migration last defines it) is the only function that writes
+// it. Read from the migration itself, so a reason added there fails here until it is placed.
+const MIGRATIONS = new URL('../../../../../db/migrations/', import.meta.url)
+
+/** The function's body, as a migration that (re)defines it holds it. */
+const DEFINITION = /CREATE (?:OR REPLACE )?FUNCTION sophia\.conversation_ask_capability\([\s\S]*?\$\$([\s\S]*?)\$\$/
+
+function askReasonsInDatabase(): string[] {
+  const [, body = ''] =
+    readdirSync(MIGRATIONS)
+      .filter((f) => f.endsWith('.sql'))
+      .toSorted()
+      .map((f) => DEFINITION.exec(readFileSync(new URL(f, MIGRATIONS), 'utf8')))
+      .findLast((defined) => defined !== null) ?? []
+  return [...new Set([...body.matchAll(/RETURN '([a-z_]+)'/g)].map(([, reason]) => reason ?? ''))].toSorted()
+}
+
+const YET = 'Sophia doesn’t answer here yet'
+const AWAY = 'Sophia can’t be reached right now'
+const OFF = 'Sophia’s answers are off for this project now'
+
+/** Each reason's words (docs/plans/conversation-ask-reason.md, Luis 2026-11-08). */
+const WORDS_OF: Readonly<Record<string, string>> = {
+  // Passing: the runtime is away, or busy ending replies.
+  runtime_unavailable: AWAY,
+  cleanup_capacity: AWAY,
+  // An owner's or the allowance's decision: «yet» would be false.
+  replies_disabled: OFF,
+  grant_disabled: OFF,
+  grant_expired: OFF,
+  calls_exhausted: OFF,
+  // Not set up for this reader (0089's privacy answer), or the deployment's binding: today's words.
+  replies_not_enabled: YET,
+  context_assembler_unbound: YET,
+}
+
+describe('askUnansweredWords', () => {
+  it('places every reason the database can give, and no other', () => {
+    const reasons = askReasonsInDatabase()
+    assert.ok(reasons.length >= 8, `read the reasons from the migration (${reasons.join(', ')})`)
+    assert.deepEqual(reasons, Object.keys(WORDS_OF).toSorted())
+  })
+
+  for (const [reason, said] of Object.entries(WORDS_OF)) {
+    it(`${reason}: «${said}»`, () => assert.equal(askUnansweredWords(reason), said))
+  }
+
+  it('no reason, or one not known, says today’s words', () => {
+    assert.equal(askUnansweredWords(null), YET)
+    assert.equal(askUnansweredWords('some_new_reason'), YET)
+  })
+
+  it('names no amount, cap, count or date', () => {
+    for (const reason of [...Object.keys(WORDS_OF), null]) assert.doesNotMatch(askUnansweredWords(reason), /\d/)
   })
 })
 
