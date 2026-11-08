@@ -144,7 +144,26 @@ describe('goals and tasks in the search (docs/plans/search-goals.md)', () => {
     assert.deepEqual(localHits(goals, tasks, '--', health), [], 'nothing to search')
   })
 
+  it('finds a goal by words split between its title and a criterion, and shows the criterion (review P3)', () => {
+    const hits = localHits(goals, undefined, 'admin checklist', health)
+    assert.deepEqual(
+      hits.map((h) => [h.id, h.words]),
+      [['g2', 'The checklist opens on its first step']],
+    )
+    assert.deepEqual(localHits(goals, undefined, 'admin zebra', health), [], 'a word neither says finds nothing')
+  })
+
+  it('finds a task by words split between its doer and its purpose (review P3)', () => {
+    assert.deepEqual(
+      localHits(goals, plans, 'translate marco', health).map((h) => [h.kind, h.id, h.doer]),
+      [['task', 't1', 'Marco’s Claude Code']],
+    )
+    assert.deepEqual(localHits(goals, plans, 'marco zebra', health), [])
+  })
+
   it('counts the query as typed, not as lowercased: one İ (two code points once lowercased) finds nothing, two letters find', () => {
+    // Only the count is the point here. «İz» finds «İzmir» because the shared rule (searchWords) splits both at the
+    // combining dot İ lowercases to; «izmir» would not: a limit of the API's rule (search-words-like-the-api.md).
     const turkish = [goal('i1', 'İzmir plan')]
     assert.deepEqual(localHits(turkish, undefined, 'İ', health), [])
     assert.deepEqual(
