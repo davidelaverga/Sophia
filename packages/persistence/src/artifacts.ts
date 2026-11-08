@@ -12,6 +12,7 @@ import type {
   ReportSummary,
   ReportSummaryEdit,
 } from '@sophia/contracts'
+import { searchWords } from '@sophia/contracts/search-words'
 import { DomainError } from '@sophia/domain'
 
 interface VersionRow {
@@ -196,12 +197,8 @@ export interface ReportQuery {
   cursor: string | null
 }
 
-/** The words a search keeps: letters and digits only, lower case, the first 8. */
-export const searchWords = (text: string | null): string[] =>
-  (text ?? '')
-    .toLowerCase()
-    .match(/[\p{L}\p{N}]+/gu)
-    ?.slice(0, 8) ?? []
+/** The words a search keeps, as the Studio reads them too. */
+export { searchWords }
 
 /**
  * A kept word as a prefix. PostgreSQL's parser keeps a sign before digits ("MENTION-01", "2026-11-06", "x+5" give

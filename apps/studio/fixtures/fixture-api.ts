@@ -84,6 +84,7 @@ import {
 } from './conversation-writes.ts'
 import type { ProjectRelease, ReportList } from '@sophia/contracts'
 import { searchHits, searchPage, servedHits } from './search-data.ts'
+import { queryRefusal } from './search-query.ts'
 import { VISION } from '../src/app/vision.ts'
 import { TASKS } from '../src/app/tasks.ts'
 import {
@@ -1240,6 +1241,18 @@ function searchAnswer(project: Project, url: URL): Response | Promise<Response> 
   // The request as it was sent, endpoint and query, so a check sees what the Studio asked for.
   served.push(`search-request:${url.pathname}${url.search}`)
   if (project.failSearch) return unavailable()
+  // As A38 answers a query it doesn't search (queryOf): a word too long is refused, too little finds nothing.
+  const refusal = queryRefusal(q)
+  if (refusal === 'invalid') {
+    const problem = {
+      code: 'invalid_request',
+      message: 'A searched word is longer than 64 characters',
+      requestId: PROJECT,
+      retry: 'never',
+    }
+    return new Response(JSON.stringify(problem), { status: 422, headers: { 'content-type': 'application/json' } })
+  }
+  if (refusal === 'nothing') return json({ hits: [], next: null })
   const held = project.searchHeld
   const kept = project.notes?.kept ?? []
   const report = { versions: project.reportVersions, title: project.reportTitle, pilot: project.pilot }
