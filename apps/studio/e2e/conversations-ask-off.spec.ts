@@ -85,3 +85,34 @@ test('ask off · the allowance runs out mid-session: the blocked ask reads the l
   await expect(hint).toContainText(off)
   await expect(hint).not.toContainText('Sophia will answer')
 })
+
+test('ask off · the composer’s «Ask Sophia» is described by why she won’t answer, on a desktop and on a phone', async ({
+  page,
+}) => {
+  const line = 'Sophia’s answers are off for this project now'
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${PAGE}&ask=calls_exhausted`)
+  const ask = open(page).getByRole('checkbox', { name: 'Ask Sophia' })
+  await ask.check()
+  await expect(ask).toHaveAccessibleDescription(line)
+  // Off, nothing is said of her: the message goes to the team only.
+  await ask.uncheck()
+  await expect(ask).toHaveAccessibleDescription('')
+  // Where she answers, nothing more is said either.
+  await page.goto(PAGE)
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).check()
+  await expect(open(page).getByRole('checkbox', { name: 'Ask Sophia' })).toHaveAccessibleDescription('')
+
+  // A phone hides the hint's keys, not the reason: it is said there, and describes the checkbox.
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto(`${PAGE}&ask=calls_exhausted`)
+  await page
+    .getByRole('region', { name: 'All conversations' })
+    .getByRole('button', { name: /Short or long briefs/ })
+    .click()
+  const phoneAsk = open(page).getByRole('checkbox', { name: 'Ask Sophia' })
+  await phoneAsk.check()
+  await expect(phoneAsk).toHaveAccessibleDescription(line)
+  await expect(open(page).getByText(line)).toBeVisible()
+  await expect(open(page).getByText('Enter sends · Shift+Enter, a new line')).toBeHidden()
+})
