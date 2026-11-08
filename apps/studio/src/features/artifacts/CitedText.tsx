@@ -15,6 +15,7 @@ import {
   checkedCitedText,
   citedTextFailure,
   citedTextKey,
+  citedTextPress,
   citedTextRegion,
   citedTextToggle,
   opensAsText,
@@ -63,14 +64,16 @@ function useCitedText(citing: CitingVersion, sourceId: string, open: boolean) {
 interface Props {
   citing: CitingVersion
   sourceId: string
-  /** The row's citation number, for the region's name. */
+  /** The row's citation number, for the press's and the region's names. */
   n: number | null
+  /** The row's title, which describes the press. */
+  titleId: string
   /** The source's type: only plain text and Markdown open here; any other says so in the press's place. */
   mime: string
 }
 
 /** Show text / Hide text, and the text itself as plain text once its bytes match their record. */
-export function CitedText({ citing, sourceId, n, mime }: Props) {
+export function CitedText({ citing, sourceId, n, titleId, mime }: Props) {
   // Open in one account's cache only: another account coming in (a new cache, account-cache.ts) finds it closed, even
   // at the same address and with this row still mounted.
   const client = useQueryClient()
@@ -87,6 +90,8 @@ export function CitedText({ citing, sourceId, n, mime }: Props) {
       <button
         type="button"
         className="text-button source-text-toggle"
+        aria-label={citedTextPress(shown, n)}
+        aria-describedby={titleId}
         aria-expanded={shown}
         aria-controls={shown ? region : undefined}
         onClick={() => setOpenIn(shown ? null : client)}

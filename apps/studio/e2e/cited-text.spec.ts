@@ -179,10 +179,14 @@ test('cited text · each press names its citation: the demo’s four project sou
   for (const n of [1, 2, 3, 4]) {
     await expect(side.getByRole('button', { name: `Show text of citation ${String(n)}`, exact: true })).toHaveCount(1)
   }
-  const second = side.getByRole('button', { name: 'Show text of citation 2', exact: true })
+  const name = { name: 'Show text of citation 2', exact: true }
+  const second = side.getByRole('button', name)
   await expect(second).toHaveText('Show text')
   // Described by its row's title, so a source not cited in the text is told apart too.
-  const title = await side.locator('.sources > li', { has: second }).locator('.source-title').innerText()
+  const title = await side
+    .locator('.sources > li', { has: page.getByRole('button', name) })
+    .locator('.source-title')
+    .innerText()
   await expect(second).toHaveAccessibleDescription(title)
   await second.click()
   const open = side.getByRole('button', { name: 'Hide text of citation 2', exact: true })

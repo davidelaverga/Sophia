@@ -58,9 +58,16 @@ export const CITED_TEXT_WORDS: Readonly<Record<CitedTextFailure, string>> = {
 /** The press that opens or closes it, named for what it does now. */
 export const citedTextToggle = (open: boolean): string => (open ? 'Hide text' : 'Show text')
 
+/** Which source a press or region is for, as the row says it. */
+const citedSource = (n: number | null): string =>
+  n === null ? 'a source not cited in the text' : `citation ${String(n)}`
+
 /** The region's name: which source's text it holds, as the row says it. */
-export const citedTextRegion = (n: number | null): string =>
-  n === null ? 'Text of a source not cited in the text' : `Text of citation ${String(n)}`
+export const citedTextRegion = (n: number | null): string => `Text of ${citedSource(n)}`
+
+/** The press's name: its words on screen first (WCAG 2.5.3), then which source it opens, so no two read alike. */
+export const citedTextPress = (open: boolean, n: number | null): string =>
+  `${citedTextToggle(open)} of ${citedSource(n)}`
 
 /** Only a failed read is asked again, twice at most: a refusal or a mismatch does not change by asking. */
 export const retryCitedText = (failures: number, error: unknown): boolean =>

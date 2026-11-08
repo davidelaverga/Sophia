@@ -4,7 +4,7 @@
 // where it came from where A19 (proposed) gives it, and a conversation or a meeting goes there (source-origins.ts). A
 // project source's own text opens in place, as plain text, when the version is known and it is plain text or Markdown
 // (CitedText, getCitedReportText).
-import { useEffect, useRef } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import type { ArtifactVersion, ReportSource } from '@sophia/contracts'
 import { ReadNote, Tag } from '@sophia/ui'
 import type { SourceOrigin } from '../../api/vision.ts'
@@ -118,6 +118,7 @@ function SourceRow({ source, n, focused, origin, onOrigin, citing }: RowProps) {
   // Only a web address opens; anything else a provider reported stays text.
   const href = source.url ? safeHref(source.url) : null
   const row = useFocusedRow(focused)
+  const titleId = useId()
   return (
     <li
       ref={row}
@@ -131,7 +132,7 @@ function SourceRow({ source, n, focused, origin, onOrigin, citing }: RowProps) {
       </span>
       <span className="sr-only">{citationWords(n)}</span>
       <div className="source-body">
-        <p className="source-title">
+        <p className="source-title" id={titleId}>
           {href ? (
             <a href={href} target="_blank" rel="noopener noreferrer">
               {title}
@@ -154,7 +155,14 @@ function SourceRow({ source, n, focused, origin, onOrigin, citing }: RowProps) {
           </ul>
         )}
         {citing && (
-          <CitedText key={source.sourceId} citing={citing} sourceId={source.sourceId} n={n} mime={source.mime} />
+          <CitedText
+            key={source.sourceId}
+            citing={citing}
+            sourceId={source.sourceId}
+            n={n}
+            titleId={titleId}
+            mime={source.mime}
+          />
         )}
       </div>
     </li>
