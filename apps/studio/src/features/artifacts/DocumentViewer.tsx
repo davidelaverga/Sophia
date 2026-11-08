@@ -13,6 +13,7 @@ import type { SectionAsk } from './useSectionArrival.ts'
 import { openedLink, readReportLink, withReportLink, type ReportLink, type ViewerTab } from './report-link.ts'
 import { ViewerContext, type OpenRequest, type ViewerApi } from './viewer-context.ts'
 import { keptFragment } from '../resources/useAddressed.ts'
+import { stepBack } from './own-history.ts'
 import './artifacts.css'
 
 export { useDocumentViewer, type OpenRequest } from './viewer-context.ts'
@@ -32,27 +33,6 @@ function viewerDepth(): number {
   const state: unknown = window.history.state
   if (typeof state !== 'object' || state === null || !('sophiaReport' in state)) return 0
   return typeof state.sophiaReport === 'number' ? state.sophiaReport : 0
-}
-
-/**
- * Back `n` of the page's own history entries. A page framed in the pane adds entries of its own to the tab's history:
- * a designed page's citation moves within its frame (HtmlView, in-page-links.ts). `history.go(-n)` steps back through
- * the tab's history, so it would undo that move and leave the report open (B-HTML-CITATION-CLOSE-LIFECYCLE-TRIAGE-01).
- * The Navigation API lists only the page's own entries, so it goes straight to the entry `n` back. Where a browser has
- * no Navigation API, `history.go` as before.
- */
-function stepBack(n: number) {
-  const nav = 'navigation' in window ? window.navigation : null
-  const at = nav?.currentEntry?.index ?? -1
-  const to = at >= n ? nav?.entries()[at - n] : undefined
-  if (!nav || !to) {
-    window.history.go(-n)
-    return
-  }
-  const { committed, finished } = nav.traverseTo(to.key)
-  // A step another navigation overtakes is that navigation's to report, not this one's.
-  committed?.catch(() => undefined)
-  finished?.catch(() => undefined)
 }
 
 /** The open report as the address bar holds it, and the history entries the viewer added for it. */
@@ -86,19 +66,24 @@ function useReportHistory(projectId: string) {
     setLink(next)
   }, [])
 
-  /** Back as far as `steps` of the viewer's own entries, or in place when the current entry is not one of them. */
+  /**
+   * Back as far as `steps` of the viewer's own entries (own-history.ts), or in place when the current entry is not one
+   * of them or the step can't reach them. Whether it stepped: a step ends in a popstate, a change in place doesn't.
+   */
   const back = useCallback(
     (steps: number, otherwise: ReportLink | null) => {
       const n = Math.min(steps, viewerDepth())
-      if (n === 0) {
+      const step = n === 0 ? null : stepBack(n)
+      if (!step) {
         write(otherwise, false)
-        return
+        return false
       }
       if (n < steps) landing.current = { link: otherwise }
       // Where the step lands: its depth among the viewer's entries (an entry of anyone else's is 0).
       const lands = viewerDepth() - n
       keptFragment.note(window.location.hash, () => viewerDepth() === lands)
-      stepBack(n)
+      step()
+      return true
     },
     [write],
   )
@@ -115,15 +100,18 @@ function useReportHistory(projectId: string) {
  * Leaving the report for elsewhere in the project: where it covers the page (a phone, the full page) it closes first.
  * Closing steps Back over the viewer's own entries: what comes after waits for that, or Back would take it away.
  */
-function useLeaveFor(link: ReportLink | null, close: () => void) {
+function useLeaveFor(link: ReportLink | null, close: () => boolean) {
   return useCallback(
     (after: () => void) => {
       const covers = link?.size === 'full' || window.matchMedia('(width <= 760px)').matches
       if (!link || !covers) return after()
-      const depth = viewerDepth()
-      if (depth > 0) window.addEventListener('popstate', () => after(), { once: true })
-      close()
-      if (depth === 0) after()
+      const stepped = () => after()
+      window.addEventListener('popstate', stepped, { once: true })
+      // Closed in place (no entry of the viewer's to step back over, or none it can reach): no popstate comes.
+      if (!close()) {
+        window.removeEventListener('popstate', stepped)
+        after()
+      }
     },
     [link, close],
   )
@@ -133,7 +121,7 @@ function useLeaveFor(link: ReportLink | null, close: () => void) {
 function useViewerApi(
   open: ViewerApi['open'],
   link: ReportLink | null,
-  close: () => void,
+  close: () => boolean,
   leave: ViewerApi['leave'],
 ): ViewerApi {
   const leaveFor = useLeaveFor(link, close)

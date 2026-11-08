@@ -195,6 +195,126 @@ test('HTML · after citations, another format and another version, one Close clo
   expect(page.url()).toBe(work)
 })
 
+// Where the browser has no Navigation API (Safari 16.4, which the build targets), or only part of it, nothing steps
+// Close past a citation's move within the frame: `history.go` undid that move and the report stayed open, as before
+// stepBack (R2's F01 on 0f2f1b64). Taking the frame out of the page leaves its moves in the tab's history too. So there
+// a page whose citations move within its frame is not framed: the reader is told why and offered the version's other
+// formats, Download keeps the page, and the viewer's history is as for any other report (own-history.ts).
+const WITHOUT = {
+  // No Navigation API at all.
+  absent: () => Reflect.deleteProperty(window, 'navigation'),
+  // A Navigation API with no current entry: no entry to step from.
+  partial: () => {
+    if ('navigation' in window) Object.defineProperty(window.navigation, 'currentEntry', { get: () => null })
+  },
+}
+
+for (const [as, without] of Object.entries(WITHOUT)) {
+  test(`HTML · without a whole Navigation API (${as}), a page whose citations move in its frame isn’t framed; Close, Forward, Back and the full page as ever`, async ({
+    page,
+  }) => {
+    await page.addInitScript(without)
+    await page.goto('/room.html?place=work&designed=cited')
+    const work = page.url()
+    const opener = page.getByRole('button', { name: 'Open fixture-report-v1.html, HTML page' })
+    await opener.click()
+    const side = page.url()
+    const note = pane(page).locator('.report-html-refused')
+    await expect(note).toContainText(
+      'This designed page isn’t shown in this browser: here, following one of its citations would keep Close from closing the report.',
+    )
+    await expect(pane(page).locator('iframe')).toHaveCount(0)
+    expect(page.frames()).toHaveLength(1)
+    await expect(
+      pane(page).getByRole('group', { name: 'Format' }).getByRole('button', { name: 'HTML' }),
+    ).toHaveAttribute('aria-pressed', 'true')
+    const download = pane(page).getByRole('button', { name: 'Download', exact: true })
+    await expect(download).toHaveAccessibleDescription(/^[\d.]+ KB · c824d3a7$/)
+    const saved = page.waitForEvent('download')
+    await download.click()
+    expect(await readFile(await (await saved).path(), 'utf8')).toBe(CITED_PAGE.text)
+
+    // One Close closes, the focus back on what opened it; Forward opens the report again and Back closes it.
+    await close(page)
+    await expect(pane(page)).toHaveCount(0)
+    expect(page.url()).toBe(work)
+    await expect(opener).toBeFocused()
+    await page.goForward()
+    await expect(note).toBeVisible()
+    expect(page.url()).toBe(side)
+    await page.goBack()
+    await expect(pane(page)).toHaveCount(0)
+    expect(page.url()).toBe(work)
+
+    // The full page steps down once; the version's Markdown, from the note, reads; Close closes.
+    await opener.click()
+    await pane(page).getByRole('button', { name: 'Enlarge', exact: true }).click()
+    await expect(page.locator('.report-pane')).toHaveAttribute('data-size', 'full')
+    await pane(page).getByRole('button', { name: 'Back to side panel', exact: true }).click()
+    await expect(page.locator('.report-pane')).toHaveAttribute('data-size', 'side')
+    expect(page.url()).toBe(side)
+    await note.getByRole('button', { name: 'Read as Markdown' }).click()
+    await expect(pane(page).locator('.md')).toContainText('The first version of a labelled fixture report.')
+    await close(page)
+    await expect(pane(page)).toHaveCount(0)
+    expect(page.url()).toBe(work)
+  })
+}
+
+test('HTML · without a Navigation API, a designed page with no link to its own fragments is framed as before', async ({
+  page,
+}) => {
+  await page.addInitScript(WITHOUT.absent)
+  await page.goto('/room.html?place=work&designed=on')
+  await page.getByRole('button', { name: 'Open fixture-report-v1.html, HTML page' }).click()
+  await expect(pane(page).locator('iframe.report-html-frame')).toHaveCount(1)
+  await expect(pane(page).locator('.report-html-refused')).toHaveCount(0)
+  await close(page)
+  await expect(pane(page)).toHaveCount(0)
+})
+
+// A Navigation API that can't reach the viewer's entry (none listed): the page is framed, and after a citation each step
+// the viewer would take Back changes its address in place, never `history.go` over the frame's move.
+const UNREACHED = () => {
+  if ('navigation' in window) Object.defineProperty(window.navigation, 'entries', { value: () => [] })
+}
+
+test('HTML · where the Navigation API can’t reach the viewer’s entry, after a citation Back to side panel and Close still step down', async ({
+  page,
+}) => {
+  await page.addInitScript(UNREACHED)
+  await page.goto('/room.html?place=work&designed=cited')
+  const work = page.url()
+  await page.getByRole('button', { name: 'Open fixture-report-v1.html, HTML page' }).click()
+  const side = page.url()
+  await pane(page).getByRole('button', { name: 'Enlarge', exact: true }).click()
+  await cite(page)
+  await pane(page).getByRole('button', { name: 'Back to side panel', exact: true }).click()
+  await expect(page.locator('.report-pane')).toHaveAttribute('data-size', 'side')
+  expect(page.url()).toBe(side)
+  await cite(page)
+  await close(page)
+  await expect(pane(page)).toHaveCount(0)
+  expect(page.url()).toBe(work)
+})
+
+// Leaving for elsewhere from the full page waits for the report to close (useLeaveFor). Closed in place, no popstate
+// comes: the leave goes on at once. The demo's designed page has no citation; the step in place is the same.
+test('HTML · where the Navigation API can’t reach the viewer’s entry, Made for on the full page closes it and opens the goal', async ({
+  page,
+}) => {
+  await page.addInitScript(UNREACHED)
+  await page.goto('/room.html?demo=1&place=work&report=00000000-0000-4000-8000-0000000000b1&format=html')
+  const report = page.locator('.report-pane')
+  await report.getByRole('button', { name: 'Enlarge', exact: true }).click()
+  await expect(report).toHaveAttribute('data-size', 'full')
+  const goal = 'Roll the new onboarding out to every region'
+  await page.getByRole('group', { name: 'What it was made for' }).getByRole('button', { name: goal }).click()
+  await expect(report).toBeHidden()
+  await expect(page.getByRole('dialog', { name: goal })).toBeVisible()
+  expect(new URL(page.url()).searchParams.get('report')).toBeNull()
+})
+
 /** in-page-links.ts as the fixture server serves it to the page, read through the browser's own parser. */
 const MODULE = `/@fs${fileURLToPath(new URL('../src/features/artifacts/in-page-links.ts', import.meta.url))}`
 

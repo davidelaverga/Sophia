@@ -8,7 +8,8 @@ Starting worktree/commit: `/Users/davidelaverga/Documents/Codex/2026-11-07/sophi
 `fix/html-inline-citation-20261107` from main `9d6902d6b07f42cb4ef725a2524814f386680759` (tree `258f6807`)  
 Ending commit/tree and changed files: the local candidate commits on that branch (their ids are in the handback
 records, since a commit cannot name itself); `apps/studio/src/features/artifacts/HtmlView.tsx`, `DocumentPane.tsx`,
-`artifacts.css`, `in-page-links.ts` (new), `in-page-links.test.ts` (new), `apps/studio/e2e/report-html-citation.spec.ts`
+`artifacts.css`, `in-page-links.ts` (new), `in-page-links.test.ts` (new), `DocumentViewer.tsx`, `own-history.ts` (new),
+`own-history.test.ts` (new), `apps/studio/e2e/report-html-citation.spec.ts`
 (new), `apps/studio/fixtures/cited-page.ts` (new), `apps/studio/fixtures/report-data.ts`, `apps/studio/fixtures/room.tsx`,
 this file.
 
@@ -119,10 +120,55 @@ Evidence (Chromium 153 headless, desktop):
 - The focus after Close on Knowledge, citation or not, is lost to the body in most runs, and was so on d40 too (3 of 4
   without any citation, with `history.go`). It is not this cause and is left as it was; the focus is checked on Work.
 
+## Without the Navigation API (B-CLOSE-TARGET-COMPATIBILITY-REPAIR-01)
+
+R2's review of `0f2f1b64` (F01): where the browser has no Navigation API, `stepBack` still fell back to
+`history.go(-n)`, the step that fails after a citation. The build targets Safari 16.4, which has none. Locally, in
+Chromium with `window.navigation` deleted, and with it present but without a current entry or without the viewer's
+entry listed, one Close after a citation left the pane open as before (`history.length` 3 → 4, the frame back to
+`about:srcdoc`). Taking the frame out of the page first does not help: its move stays in the tab's history
+(`history.length` still 4) and `history.go(-1)` then steps over it with no popstate on the page.
+
+So without the API nothing can step Close past a frame's move, and no frame is let move there:
+
+- `own-history.ts` (new) says whether the browser has the whole of the Navigation API the viewer's steps need (its
+  entries, a current entry, `traverseTo`), and gives the step back: `traverseTo` with it, `history.go` without it.
+- HtmlView frames a page whose links it keeps in the frame (`framed` changed it) only where that API is whole. Where it
+  isn't, the page is not framed: the note says "This designed page isn’t shown in this browser: here, following one of
+  its citations would keep Close from closing the report. Download keeps the page as it is." and offers the version's
+  Markdown (and PDF where it has one), as for the pages already refused. A page with no link to its own fragment is
+  framed as before. So `history.go` runs only where no frame moved within itself.
+- Where the API is whole but can't reach the viewer's entry `n` back (none listed: not expected from a browser that
+  follows the standard, which lists the page's contiguous same-origin entries), `back` changes the address in place, as
+  it already did when the current entry is not one of the viewer's; never `history.go` over a frame's move. Closed in
+  place no popstate comes, so `useLeaveFor` goes on at once instead of waiting for one.
+
+Unchanged: the frame, its empty sandbox, the page's bytes, CSP, hash, Download, the citation's move where the API is
+whole, the entries the viewer pushes, `landing`, the kept fragment and the popstate handler.
+
+Evidence (Chromium 153 headless, desktop, the API taken away by an init script as the other Safari 16.4 checks do):
+
+- On `0f2f1b64`, the triage: absent API and API without a current entry, Close after a citation leaves the pane open.
+- On `0f2f1b64`'s DocumentViewer and HtmlView with the new checks: 3 of 5 fail (absent and partial API: the page is
+  framed, no note; entry not listed: Back to side panel leaves the full page). The other two hold before and after: a
+  page with no link to its own fragment is framed without the API, and Made for on the full page closes in place and
+  opens the goal. With `useLeaveFor` as before and the rest new, that last one fails (the goal never opens).
+- After: 5/5, and 15/15 repeated three times. Without the API (absent, partial): no frame, the note, HTML still the
+  format chosen, Download's exact bytes and `c824d3a7`; one Close closes with the focus back on the opener, Forward
+  opens it again and Back closes it; the full page steps down once; Read as Markdown reads; Close closes.
+- `own-history.test.ts`: 5 unit tests (which API is whole, the entry stepped to, no step where none is reached, the
+  overtaken step's rejection handled).
+
 ## Remaining limits
 
 - Chromium only. `about:srcdoc` as a srcdoc document's address, and a fragment link to it as a move within the page, are
-  the HTML standard's; Safari and Firefox were not run.
+  the HTML standard's; Safari and Firefox were not run. No WebKit is installed here and none was added: the missing
+  Navigation API is Chromium with the API taken away, not a Safari acceptance.
+- Without a whole Navigation API, a designed page with citations is not shown as HTML: its readers get the Markdown (or
+  PDF), and Download. That is a refusal, not support.
+- A link to anything but the page's own fragment (the design policy allows http, https and mailto) still navigates the
+  frame when clicked, as on main, and that is an entry in the tab's history too. With the Navigation API Close steps
+  past it; without it, as on main, Close steps back over it. The published page has no such link; not changed here.
 - Not exercised in the deployed app. A production frame navigating to Studio would meet `X-Frame-Options: DENY` and
   show an error page rather than the blank one seen locally; neither is observed.
 - Links to anything but the page's own fragment are unchanged: a click on one still navigates the frame, as before.
