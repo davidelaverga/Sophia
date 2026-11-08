@@ -14,6 +14,9 @@
 - **Checked:** `unanswered` and `erasing` are module state in copy.ts, held in memory only (no storage of any kind). A
   reload loads the module again with an empty set, so Delete everything works on the reloaded page. #498's handoff
   says the same («A reload drops the page's count»).
+- **What a reload is:** it passes the fence by design. The old page's pending write is forgotten, not answered: whether
+  the browser still finishes it after the page unloads is unknown, as #498 said. Naming the reload doesn't make that
+  safe; it says the one way out the page already has.
 
 ## What changes
 
@@ -26,8 +29,13 @@
     called when the last unanswered write settles, then forgotten, so a second settle says nothing.
   - No refusal, no line: a copy that is merely slow says nothing new.
   - An erasure already under way when the set empties says its own outcome («Deleted…»), so the line is dropped then.
+  - Said only to the sheet that was refused, while it is open for the same account: closing it, signing out or another
+    account coming in forgets it (`forgetAnswered`, from the sheet's effect).
   - On Your data, a copy that lands with its sheet still open is said copied and, at once, answered. The toast holds
-    one line, so the answered line is the one left: it is the one the person was waiting for.
+    one line with no queue, so the answered line is the one left: it is the one the person was waiting for, and no new
+    line is invented to say both. With no refused erasure, the late landing still says «Copied to your clipboard».
+  - A late failure or take-back never reads as success: the answered line says only that the browser answered. Your
+    data says nothing else for those (as before); a reply's Copy says «Couldn’t copy» on its button.
 
 ## Not changed
 
