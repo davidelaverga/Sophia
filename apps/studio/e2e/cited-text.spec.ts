@@ -166,3 +166,27 @@ test('cited text · @phone: the text stays inside the pane at 390 px, and wraps 
   expect(await body.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
+
+test('cited text · each press names its citation: the demo’s four project sources, four names, the words on screen kept', async ({
+  page,
+}) => {
+  // The demo's pilot readout cites four project records (Markdown), numbered 1 to 4 in its text.
+  await page.goto('/room.html?place=knowledge&demo=1')
+  await page.locator('.report-card').first().locator('.report-card-title').click()
+  const side = page.locator('.report-pane:not([hidden])')
+  await side.getByRole('tab', { name: /Sources/ }).click()
+  await expect(side.locator('button.source-text-toggle')).toHaveCount(4)
+  for (const n of [1, 2, 3, 4]) {
+    await expect(side.getByRole('button', { name: `Show text of citation ${String(n)}`, exact: true })).toHaveCount(1)
+  }
+  const second = side.getByRole('button', { name: 'Show text of citation 2', exact: true })
+  await expect(second).toHaveText('Show text')
+  // Described by its row's title, so a source not cited in the text is told apart too.
+  const title = await side.locator('.sources > li', { has: second }).locator('.source-title').innerText()
+  await expect(second).toHaveAccessibleDescription(title)
+  await second.click()
+  const open = side.getByRole('button', { name: 'Hide text of citation 2', exact: true })
+  await expect(open).toHaveAttribute('aria-expanded', 'true')
+  await expect(open).toHaveText('Hide text')
+  await expect(side.getByRole('region', { name: 'Text of citation 2' })).toBeVisible()
+})

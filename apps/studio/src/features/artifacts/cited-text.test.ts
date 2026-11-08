@@ -9,6 +9,7 @@ import {
   checkedCitedText,
   citedTextFailure,
   citedTextKey,
+  citedTextPress,
   citedTextRegion,
   citedTextToggle,
   opensAsText,
@@ -108,6 +109,13 @@ describe('how a cited text that is not shown is said', () => {
     assert.deepEqual([citedTextToggle(false), citedTextToggle(true)], ['Show text', 'Hide text'])
     assert.equal(citedTextRegion(1), 'Text of citation 1')
     assert.equal(citedTextRegion(null), 'Text of a source not cited in the text')
+  })
+
+  it('names each press for its citation, starting with the words it shows (WCAG 2.5.3)', () => {
+    assert.equal(citedTextPress(false, 2), 'Show text of citation 2')
+    assert.equal(citedTextPress(true, 2), 'Hide text of citation 2')
+    assert.equal(citedTextPress(false, null), 'Show text of a source not cited in the text')
+    for (const open of [false, true]) assert.ok(citedTextPress(open, 3).startsWith(citedTextToggle(open)))
   })
 
   it('keeps each open text under its account, report, version and source', () => {
