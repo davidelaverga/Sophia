@@ -36,6 +36,19 @@ Not changed: the API, its SQL and its signed digits (a Studio word of digits alr
 `rel`, `2026`, `07`); the limit of three goals and three tasks; the copy. Where the parser keeps a compound whole
 (`1.2.3`, `a@b.com`, a path) the Studio may find a part the API misses; the SEARCH-HYPHEN handoff names that limit.
 
+## After the independent review (no P1/P2; its P3s)
+
+- **A goal shows the words its title lacks.** Found by «admin checklist», «Keep teams through an admin change» shows
+  the criterion that says «checklist», not the outcome that repeats «admin».
+- **The fixture search refuses as A38 does** (`fixtures/search-query.ts`, the API's `queryOf`): a word over 64
+  characters is refused (422), under two characters or no letter or digit finds nothing.
+- **`SEARCH_WORD` is global**: its comment says to use it with `match` or `matchAll`, never `test` or `exec`.
+- **Limits of the shared rule**, the API's as much as the Studio's; each needs an API change, not a Studio one:
+  - Turkish İ lowercases to i and a combining dot (U+0307), which is no letter, so «İzmir» splits into `i` and `zmir`:
+    «zmir» finds it mid-word, «izmir» doesn't.
+  - Text isn't normalised to NFC: decomposed text (NFD) splits at its accents.
+  - `toLowerCase` isn't case folding: «Straße» isn't found by «strasse», nor a ligature by its letters.
+
 ## Checks
 
 - `search-view.test.ts`: «checklist region» and «region checklist» find the task; a word the task lacks finds nothing;

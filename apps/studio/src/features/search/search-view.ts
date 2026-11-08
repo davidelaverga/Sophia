@@ -81,7 +81,9 @@ type HealthWords = (goal: Goal) => string | null
 function goalHit(goal: Goal, words: readonly string[], health: HealthWords): LocalHit | null {
   const answers = [goal.outcome, ...goal.criteria.map((c) => c.description)]
   if (!hasAll([goal.title, ...answers].join(' '), words)) return null
-  const answer = answers.find((t) => hasAny(t, words))
+  // The words that answered beyond the title: those of a word the title lacks, else any of them.
+  const lacking = words.filter((w) => !hasAll(goal.title, [w]))
+  const answer = answers.find((t) => hasAny(t, lacking.length > 0 ? lacking : words))
   const said = health(goal)
   return {
     kind: 'goal',
