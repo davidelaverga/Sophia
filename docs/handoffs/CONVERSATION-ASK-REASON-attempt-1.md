@@ -59,6 +59,25 @@ ConversationsView.tsx, OpenConversation.tsx, ConversationComposer.tsx, NewConver
   `replies_not_enabled`, `cleanup_capacity` included, under «aren’t on for this project now». That differs from the
   approved grouping here (`cleanup_capacity` passes). It is left unchanged: another surface, not in this item.
 
+## After the independent review
+
+No P1/P2. The P3s, test first where they change behaviour:
+
+- `d02252c89` the unit test reads any `$tag$` body and fails on a definition it can't read. Its old regex returned
+  null on a `$fn$` body (checked with node), so such a migration would have been skipped silently.
+- `5ec659e45` / `fdd12bb74` an unknown reason code: red `pw-logs/ask-reason-p3-5-red.txt` (the form's «yet» line not
+  found: the fixture served «available»); the fixture now serves any code A33's pattern allows.
+- `679102052` an ask blocked mid-session. **The finding did not hold**: the case passed on the unfixed code
+  (`pw-logs/ask-reason-p3-2-red.txt`), because every send reads the list again (`ConversationComposer`,
+  `invalidateQueries({ queryKey: LISTS })`). It stays as a guard: with that read removed it fails, `Received string:
+  "Sophia will answerEnter sends · Shift+Enter, a new line"` (`pw-logs/ask-reason-p3-2-mutant.txt`). New lever
+  `allowance=runsOut`. No product change.
+- `f7a2440e7` / `d575e8081` «Ask Sophia» described by the reason, desktop and phone: red
+  `pw-logs/ask-reason-p3-4-red.txt` (`Expected: "Sophia’s answers are off for this project now"`, `Received: ""`).
+  A phone now shows the reason alone (it hid the whole hint); a desktop is unchanged.
+- Green: unit 113/113; through the guard (`pw-logs/ask-reason-p3-green.txt`) ask-off, details, question-asks, start,
+  thread, writes, answers, widths, panes: 97/97; whole-repo oxlint, tsc, Prettier clean.
+
 ## Remaining obligations
 
 - CI is the run on record.

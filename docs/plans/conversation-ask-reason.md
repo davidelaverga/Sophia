@@ -32,9 +32,16 @@ No words name an amount, a cap, a count or an expiry: the reason carries none (0
 
 - `replyEndWords`, the words under a request that ended unanswered. Its blocked words already differ by reason. It groups `cleanup_capacity` with the «aren’t on» words; this change does not touch them (see the handoff).
 - When the hint and note show, the quick asks, and `answers` itself.
-- The composer's hint stays hidden at phone width (its CSS, unchanged).
 
 ## Checks (written first)
 
 - Unit (`conversation-list.test.ts`): each reason 0089 can return, read from the migration itself, has its expected words in the test's table, so a reason added there fails the test until it is placed; null and an unknown code say today's words.
 - E2E (`conversations-ask-off.spec.ts`): with `ask=calls_exhausted`, an open conversation's composer says «Sophia’s answers are off for this project now», never «yet»; the new conversation's form says the «off» line; with `ask=runtime_unavailable`, the form says the «can’t be reached» line.
+
+## After the independent review (no P1/P2; P3s)
+
+- The unit test reads the function's body under any `$tag$` pair, and fails where a migration defines the function in a body it can't read.
+- The fixture's `ask=` serves any code A33's pattern allows; an unknown one says today's words (e2e).
+- An ask blocked mid-session: every send already reads the list again (`ConversationComposer` invalidates `LISTS`), so the hint says why from that send. No product change; a guard case with a new lever, `allowance=runsOut`, which fails when that read is removed.
+- The composer's «Ask Sophia» is described by the reason (`aria-describedby` to the hint's words) where she won't answer. A phone, which hid the whole hint, now shows the reason alone, without the keys; a desktop looks as before.
+- Left for Luis: `replyEndWords`' grouping of `cleanup_capacity` and `context_assembler_unbound`.
