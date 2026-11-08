@@ -70,14 +70,16 @@ describe('a cited text is shown only once it is what its record says', () => {
 })
 
 describe('a row offers its text only where the read can open it', () => {
-  it('plain text and Markdown, whatever their parameters or case', () => {
-    for (const mime of ['text/plain', 'text/markdown', 'text/plain; charset=utf-8', 'Text/Markdown ; charset=UTF-8']) {
+  // The read's own rule (0090, `split_part(lower(mime), ';', 1)`): case aside, the type before any parameter, untrimmed.
+  it('plain text and Markdown, whatever their case or parameters', () => {
+    for (const mime of ['text/plain', 'text/markdown', 'text/plain; charset=utf-8', 'TEXT/markdown;charset=utf-8']) {
       assert.equal(opensAsText(mime), true, mime)
     }
   })
 
-  it('no other type: a PDF, HTML, JSON, CSV, nothing at all', () => {
-    for (const mime of ['application/pdf', 'text/html', 'application/json', 'text/csv', 'text/plainx', '']) {
+  it('no other type: a PDF, HTML, JSON, CSV, nothing at all, or a type the read would not match as written', () => {
+    const others = ['application/pdf', 'text/html', 'application/json', 'text/csv', 'text/plainx', '']
+    for (const mime of [...others, 'Text/Markdown ; charset=UTF-8', ' text/plain']) {
       assert.equal(opensAsText(mime), false, mime)
     }
   })
