@@ -2,6 +2,8 @@
 // padlock that shut, a note carried away, a room left from elsewhere or by opening another project. A result whose
 // place stays on screen is said there instead. Pure, so the words are tested.
 
+import { ErasureWaits } from './copy.ts'
+
 export const NOTICE = {
   locked: 'Your personal space is locked. Opening it asks you to confirm it’s you.',
   kept: 'Kept',
@@ -29,6 +31,10 @@ export const NOTICE = {
   /** Back from a provider, the check couldn't be read in time (reauth.ts): nothing opened. */
   unchecked: 'Couldn’t confirm it’s you. Your personal space stays locked.',
 } as const
+
+/** What Your data says for an erasure refused while a copy is unanswered (eraseAfterWrites), or null for any other. */
+export const erasureRefused = (err: unknown): string | null =>
+  err instanceof ErasureWaits ? NOTICE.eraseAfterCopy : null
 
 export interface CallEnd {
   title: string

@@ -57,6 +57,11 @@ function handedOver(effect: Promise<unknown>): void {
   })
 }
 
+/** The answer an erasure was refused for is said to no one: its sheet went, or the account changed. */
+export function forgetAnswered(): void {
+  onAnswered = null
+}
+
 /** The last unanswered write settled: said once to a refused erasure, unless one is under way and says its own end. */
 function heard(): void {
   const said = onAnswered
