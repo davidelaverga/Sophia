@@ -701,16 +701,30 @@ describe('the request a message asked, never the clock (CON01-A09)', () => {
 // it. Read from the migration itself, so a reason added there fails here until it is placed.
 const MIGRATIONS = new URL('../../../../../db/migrations/', import.meta.url)
 
-/** The function's body, as a migration that (re)defines it holds it. */
-const DEFINITION = /CREATE (?:OR REPLACE )?FUNCTION sophia\.conversation_ask_capability\([\s\S]*?\$\$([\s\S]*?)\$\$/
+/** A migration that (re)defines the function, and the body it gives it, between any `$tag$` pair. */
+const DEFINES = /CREATE (?:OR REPLACE )?FUNCTION sophia\.conversation_ask_capability\(/
+const DEFINITION =
+  /CREATE (?:OR REPLACE )?FUNCTION sophia\.conversation_ask_capability\([\s\S]*?\$(\w*)\$([\s\S]*?)\$\1\$/
+
+/** The body each migration that defines the function gives it, in order; one whose body can't be read is an error. */
+function definedBodies(migrations: readonly string[]): string[] {
+  return migrations
+    .filter((sql) => DEFINES.test(sql))
+    .map((sql) => {
+      const body = DEFINITION.exec(sql)?.[2]
+      // A definition read as none would hide its reasons: nothing passes on it.
+      if (body === undefined) throw new Error('a migration defines sophia.conversation_ask_capability unread here')
+      return body
+    })
+}
 
 function askReasonsInDatabase(): string[] {
-  const [, body = ''] =
-    readdirSync(MIGRATIONS)
-      .filter((f) => f.endsWith('.sql'))
-      .toSorted()
-      .map((f) => DEFINITION.exec(readFileSync(new URL(f, MIGRATIONS), 'utf8')))
-      .findLast((defined) => defined !== null) ?? []
+  const migrations = readdirSync(MIGRATIONS)
+    .filter((f) => f.endsWith('.sql'))
+    .toSorted()
+    .map((f) => readFileSync(new URL(f, MIGRATIONS), 'utf8'))
+  const body = definedBodies(migrations).at(-1)
+  assert.ok(body !== undefined, 'no migration defines sophia.conversation_ask_capability')
   return [...new Set([...body.matchAll(/RETURN '([a-z_]+)'/g)].map(([, reason]) => reason ?? ''))].toSorted()
 }
 
@@ -734,6 +748,14 @@ const WORDS_OF: Readonly<Record<string, string>> = {
 }
 
 describe('askUnansweredWords', () => {
+  it('reads the function’s body between any dollar-quote tag, and refuses a definition it can’t read', () => {
+    const body = "BEGIN RETURN 'calls_exhausted'; END"
+    const head = 'CREATE OR REPLACE FUNCTION sophia.conversation_ask_capability(p uuid) RETURNS text AS '
+    const grant = 'GRANT EXECUTE ON FUNCTION sophia.conversation_ask_capability(uuid) TO sophia_api;'
+    assert.deepEqual(definedBodies([`${head}$$${body}$$;`, grant, `${head}$fn$${body}$fn$;`]), [body, body])
+    assert.throws(() => definedBodies([`${head}'${body}';`]), /unread here/)
+  })
+
   it('places every reason the database can give, and no other', () => {
     const reasons = askReasonsInDatabase()
     assert.ok(reasons.length >= 8, `read the reasons from the migration (${reasons.join(', ')})`)
