@@ -47,6 +47,8 @@ interface Props {
    * which says why it went unanswered; the field says so before, and offers no quick ask that could only end so.
    */
   answers: boolean
+  /** Why she doesn't, where she doesn't (the list's `capability.askReason`, askUnansweredWords). */
+  unanswered: string
   /** The saved-text notice, said above the field before the reader's first message in the project. */
   notice: string | null
   /** Clears the draft if it still holds these words, as the view holds it now (not as this field last saw it). */
@@ -179,8 +181,8 @@ function lineOf(
 }
 
 /** Under the field: who the message goes to (Sophia only where she answers here), and how Enter sends. */
-function Hint({ asks, answers }: { asks: boolean; answers: boolean }) {
-  const to = asks ? (answers ? 'Sophia will answer' : 'Sophia doesn’t answer here yet') : 'To the team only'
+function Hint({ asks, answers, unanswered }: { asks: boolean; answers: boolean; unanswered: string }) {
+  const to = asks ? (answers ? 'Sophia will answer' : unanswered) : 'To the team only'
   return (
     <p className="conv-compose-hint">
       <span data-asked={asks || undefined}>{to}</span>
@@ -306,7 +308,7 @@ export function ConversationComposer(props: Props) {
           onAsk={(w) => void ask(w)}
         />
       )}
-      <Hint asks={asks} answers={props.answers} />
+      <Hint asks={asks} answers={props.answers} unanswered={props.unanswered} />
       <Note words={words} slow={slow} polite={polite} />
     </form>
   )

@@ -25,7 +25,14 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { modalOnScreen } from '../../app/shortcuts.ts'
 import { WIDE } from '../../app/useMedia.ts'
 import { Waiting } from '../../app/Waiting.tsx'
-import { byActivity, listKey, messagesKey, newestWords, type ThreadHeld } from './conversation-list.ts'
+import {
+  askUnansweredWords,
+  byActivity,
+  listKey,
+  messagesKey,
+  newestWords,
+  type ThreadHeld,
+} from './conversation-list.ts'
 import { Rows } from './ConversationRows.tsx'
 import type { Held } from './held-write.ts'
 import { NewConversation } from './NewConversation.tsx'
@@ -167,6 +174,7 @@ function useReader(projectId: string, identity: Identity, membership: Membership
     writer,
     firstNotice: wrote ? null : notice,
     answers: capability?.ask === 'available',
+    unanswered: askUnansweredWords(capability?.askReason ?? null),
     moderate: capability?.moderate === true,
   }
 }
@@ -320,6 +328,7 @@ function Middle(props: {
         {...{ projectId, identity }}
         notice={reader.firstNotice}
         answers={reader.answers}
+        unanswered={reader.unanswered}
         {...start.form}
         conversations={existing.all}
         onOpenExisting={existing.open}
@@ -331,6 +340,7 @@ function Middle(props: {
     <Open
       conversation={shown}
       answers={reader.answers}
+      unanswered={reader.unanswered}
       moderate={reader.moderate}
       notice={reader.firstNotice}
       me={reader.me}
@@ -680,6 +690,8 @@ function Open(props: {
   cursor: string | undefined
   writer: boolean | undefined
   answers: boolean
+  /** Why she doesn't, where she doesn't (askUnansweredWords). */
+  unanswered: string
   moderate: boolean
   notice: string | null
   talk: ReturnType<typeof useTalk>
@@ -713,6 +725,7 @@ function Open(props: {
       cursor={props.cursor}
       writer={props.writer}
       answers={props.answers}
+      unanswered={props.unanswered}
       moderate={props.moderate}
       notice={props.notice}
       {...talk.of(c.id)}

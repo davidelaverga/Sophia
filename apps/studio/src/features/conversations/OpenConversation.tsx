@@ -63,6 +63,8 @@ interface Props {
   writer: boolean | undefined
   /** Sophia answers here now (the list's `capability.ask`). */
   answers: boolean
+  /** Why she doesn't, where she doesn't (the list's `capability.askReason`, askUnansweredWords). */
+  unanswered: string
   /** The reader may remove any message here (an admin: the list's `capability.moderate`). */
   moderate: boolean
   /** The saved-text notice, before the reader's first message in the project; null after it. */
@@ -185,6 +187,7 @@ export function OpenConversation(props: Props) {
           onAskSophia={props.onAskSophia}
           canSend={read.data !== undefined}
           answers={props.answers}
+          unanswered={props.unanswered}
           notice={props.notice}
           onClearIf={props.onClearIf}
           held={props.held}

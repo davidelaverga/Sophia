@@ -248,6 +248,25 @@ export const replyOf = (
   messageId: string,
 ): ConversationReply | null | undefined => messages.find((m) => m.id === messageId)?.ask
 
+/** An owner's or the allowance's decision (0089): «yet» would be false. */
+const ANSWERS_OFF: ReadonlySet<string> = new Set([
+  'replies_disabled',
+  'grant_disabled',
+  'grant_expired',
+  'calls_exhausted',
+])
+
+/**
+ * Why Sophia won't answer an ask here now, from the list's `capability.askReason` (0089's codes; Luis 2026-11-08,
+ * docs/plans/conversation-ask-reason.md): passing for a runtime away or busy, «off» for an owner's or the allowance's
+ * decision, and today's «yet» for replies not enabled to this reader, no reason, or one not known. Never an amount.
+ */
+export function askUnansweredWords(reason: string | null): string {
+  if (reason === 'runtime_unavailable' || reason === 'cleanup_capacity') return 'Sophia can’t be reached right now'
+  if (reason !== null && ANSWERS_OFF.has(reason)) return 'Sophia’s answers are off for this project now'
+  return 'Sophia doesn’t answer here yet'
+}
+
 /** What a request that ended without an answer says, under the message that asked; null for any other. */
 export function replyEndWords(r: Pick<ConversationReply, 'state' | 'reason'>): string | null {
   if (r.state === 'blocked') {
