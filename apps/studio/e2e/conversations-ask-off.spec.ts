@@ -68,3 +68,20 @@ test('ask off · a reason the Studio doesn’t know yet says today’s words, ne
   await expect(f.getByText(unanswered)).toBeVisible()
   await expect(f.getByRole('checkbox', { name: 'Ask Sophia' })).toHaveAccessibleDescription(unanswered)
 })
+
+test('ask off · the allowance runs out mid-session: the blocked ask reads the list again, and the hint says why', async ({
+  page,
+}) => {
+  await page.goto('/room.html?place=conversations&conversations=1&allowance=runsOut')
+  const ask = open(page).getByRole('checkbox', { name: 'Ask Sophia' })
+  const hint = open(page).locator('.conv-compose-hint')
+  await ask.check()
+  await expect(hint).toContainText('Sophia will answer')
+  const field = open(page).getByRole('textbox', { name: 'Continue this question with the team' })
+  await field.fill('Can we still ask her?')
+  await field.press('Enter')
+  await expect(open(page).getByText('Can we still ask her?')).toBeVisible()
+  await ask.check()
+  await expect(hint).toContainText(off)
+  await expect(hint).not.toContainText('Sophia will answer')
+})

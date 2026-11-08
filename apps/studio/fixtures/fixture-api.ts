@@ -401,11 +401,6 @@ export interface Conversations extends TalkWrites {
   heldMessages?: (() => void)[] | null
   /** Reads of the pages before the newest fail (`older=fail`, `window.fixture.failOlderMessages`). */
   failOlder?: boolean
-  /**
-   * Why Sophia doesn't answer here, as the list's `askReason` (`ask=off` is `replies_not_enabled`; `ask=<reason>`, that
-   * reason): the list then says `ask: unavailable`. Null or absent, she answers.
-   */
-  askReason?: string | null
 }
 
 function hrefOf(input: RequestInfo | URL): string {

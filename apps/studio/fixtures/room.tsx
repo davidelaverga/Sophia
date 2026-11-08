@@ -1907,6 +1907,7 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       start: startAsked(query.get('start')),
       answerMs: query.get('answer') === 'slow' ? 10_000 : 900,
       answerUnknown: query.get('answer') === 'unknown',
+      runsOut: query.get('allowance') === 'runsOut',
       withdraw: withdrawAsked(query.get('withdraw')),
       erase: eraseAsked(query.get('erase')),
       receipts: new Map<string, { body: string; receipt: unknown }>(),
