@@ -24,20 +24,20 @@ interface Runner {
 
 /**
  * The dock's clock reads 0:00 in the call, then 1:05 after 65 s; `slowMs` of the runner's own time pass between. The
- * page's clock stops before the page opens and moves only as the test moves it, so the runner's seconds never reach
- * the call's time (ci-room-basics-flake.md). The call joins on open on a timer of its own (useJoinOnOpen), let go here.
+ * page's time is fixed and moves only as the test sets it, so the runner's seconds never reach the call's time, while
+ * timers run as ever: the join on open (useJoinOnOpen) and the project's data need nothing from the test
+ * (ci-room-basics-flake.md).
  */
 async function callClock(page: Page, { slowMs = 0, lateSnapshot = false }: Runner = {}) {
-  await page.clock.install()
-  await page.clock.pauseAt(Date.now() + 1000)
+  const at = Date.now()
+  await page.clock.setFixedTime(at)
   await page.goto(`/room.html?call=on&people=2${lateSnapshot ? '&snapshot=hold' : ''}`)
-  await page.clock.runFor(1)
   if (lateSnapshot) await page.evaluate(() => window.fixture?.releaseSnapshot())
   await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
   const clock = dock(page).getByRole('timer')
   await expect(clock).toHaveText('0:00')
   if (slowMs > 0) await page.waitForTimeout(slowMs) // a slow runner, as main's CI on #482 was (ci-room-basics-flake.md)
-  await page.clock.fastForward(65_000)
+  await page.clock.setFixedTime(at + 65_000)
   await expect(clock).toHaveText('1:05')
   await expect(clock).toHaveAccessibleName('In the call for 1 minute')
 }
