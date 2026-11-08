@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { CITED_TEXT } from '../fixtures/cited-text-data.ts'
+import { CITED_TEXT, SECOND_INPUT_TITLE } from '../fixtures/cited-text-data.ts'
 
 // A project text a report cites, opened from its Sources (A11 getCitedReportText, 0090), on the fixture page: the
 // Studio's own report viewer over the labelled fixture report, which cites the fixture's project input with
@@ -193,4 +193,22 @@ test('cited text · each press names its citation: the demo’s four project sou
   await expect(open).toHaveAttribute('aria-expanded', 'true')
   await expect(open).toHaveText('Hide text')
   await expect(side.getByRole('region', { name: 'Text of citation 2' })).toBeVisible()
+})
+
+test('cited text · two sources not cited in the text are told apart by their titles in their presses’ names', async ({
+  page,
+}) => {
+  await page.goto(`/room.html?report=${REPORT}&cites=inputs`)
+  await expect(pane(page).getByText(FIRST)).toBeVisible()
+  await pane(page)
+    .getByRole('tab', { name: /Sources/ })
+    .click()
+  await expect(pane(page).locator('button.source-text-toggle')).toHaveCount(2)
+  // The untitled input is named as its row names it; the titled one by its title. Each name found once, each led by
+  // the words on screen.
+  for (const title of ['A source from the project', SECOND_INPUT_TITLE]) {
+    const press = pane(page).getByRole('button', { name: `Show text of ${title}`, exact: true })
+    await expect(press).toHaveCount(1)
+    await expect(press).toHaveText('Show text')
+  }
 })

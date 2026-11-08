@@ -116,8 +116,14 @@ describe('how a cited text that is not shown is said', () => {
   it('names each press for its citation, starting with the words it shows (WCAG 2.5.3)', () => {
     assert.equal(citedTextPress(false, 2), 'Show text of citation 2')
     assert.equal(citedTextPress(true, 2), 'Hide text of citation 2')
-    assert.equal(citedTextPress(false, null), 'Show text of a source not cited in the text')
-    for (const open of [false, true]) assert.ok(citedTextPress(open, 3).startsWith(citedTextToggle(open)))
+    assert.equal(citedTextPress(false, 2, 'Call notes'), 'Show text of citation 2', 'a citation needs no title')
+    // Not cited, a source is told by its title: two of them never read alike.
+    assert.equal(citedTextPress(false, null, 'Call notes'), 'Show text of Call notes')
+    assert.equal(citedTextPress(true, null, 'Call notes'), 'Hide text of Call notes')
+    for (const open of [false, true]) {
+      assert.ok(citedTextPress(open, 3, 'x').startsWith(citedTextToggle(open)))
+      assert.ok(citedTextPress(open, null, 'x').startsWith(citedTextToggle(open)))
+    }
   })
 
   it('keeps each open text under its account, report, version and source', () => {
