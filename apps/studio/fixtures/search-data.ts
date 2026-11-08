@@ -1,9 +1,10 @@
 // A project search, answered as A13 proposes (issue #105): the decisions of every meeting, the notes kept, the report's
-// title and its sections, and the meetings' recaps, matched against the query ignoring case, three hits a page. Every
-// snippet is the record's own words. Every word is synthetic.
+// title and its sections, and the meetings' recaps, matched against the query's words as the API matches them, three
+// hits a page. Every snippet is the record's own words. Every word is synthetic.
 import type { SearchHit as ServedHit } from '@sophia/contracts'
 import type { SearchHit } from '../src/api/vision.ts'
 import { anchorOf } from '../src/features/artifacts/markdown.ts'
+import { says } from '../src/features/search/search-view.ts'
 import { allRecaps, type Meeting } from './meeting-data.ts'
 import { DEMO } from './demo.ts'
 import { content, REPORT, versions } from './report-data.ts'
@@ -18,7 +19,8 @@ interface Searched {
   report: { versions: number; title: string; pilot: boolean | undefined }
 }
 
-const has = (text: string, q: string) => text.toLowerCase().includes(q.toLowerCase())
+/** As the API matches (A38): every word typed begins a word of the text, in any order. */
+const has = says
 
 /** A report's words as a snippet says them (the demo's): no citation ids, no emphasis or list marks. */
 const words = (text: string) =>
@@ -67,7 +69,7 @@ function reportHits(s: Searched, q: string): SearchHit[] {
       ]
     : []
   const sections = sectionsOf(text)
-    .filter((x) => has(x.heading, q) || has(x.body, q))
+    .filter((x) => has(`${x.heading} ${x.body}`, q))
     .map((x): SearchHit => ({
       kind: 'report_section',
       id: REPORT,

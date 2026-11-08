@@ -2,6 +2,7 @@
 // words are unit-tested; the dates' formats come from the page (Intl).
 import type { QueryClient } from '@tanstack/react-query'
 import type { Goal } from '@sophia/contracts'
+import { SEARCH_WORD, searchWords, textWords } from '@sophia/contracts/search-words'
 import type { MeetingSummary, SearchHit, SearchPage } from '../../api/vision.ts'
 import { closedDoor } from '../studio/project-door.ts'
 import type { DateWords } from '../updates/updates-view.ts'
@@ -59,14 +60,28 @@ export interface LocalHit {
 /** What a task's line says before its doer. */
 export const TASK_LEAD = 'Task · '
 
-const has = (text: string, q: string) => text.toLowerCase().includes(q)
+/** Whether a text has every word: each one begins a word of it, in any order (the API's rule, A38). */
+const hasAll = (text: string, words: readonly string[]) => {
+  const own = textWords(text)
+  return words.every((w) => own.some((o) => o.startsWith(w)))
+}
+
+/** Whether a text has a word that one of the words begins. */
+const hasAny = (text: string, words: readonly string[]) => words.some((w) => hasAll(text, [w]))
+
+/** Whether a text says what the query asks, by the API's rule: its words, each a beginning, all of them (A38). */
+export const says = (text: string, query: string): boolean => {
+  const words = searchWords(query)
+  return words.length > 0 && hasAll(text, words)
+}
 
 /** A goal's health in words; null while it isn't known (its notes unread): then none is said (search-honest.md). */
 type HealthWords = (goal: Goal) => string | null
 
-function goalHit(goal: Goal, q: string, health: HealthWords): LocalHit | null {
-  const answer = [goal.outcome, ...goal.criteria.map((c) => c.description)].find((t) => has(t, q))
-  if (!has(goal.title, q) && !answer) return null
+function goalHit(goal: Goal, words: readonly string[], health: HealthWords): LocalHit | null {
+  const answers = [goal.outcome, ...goal.criteria.map((c) => c.description)]
+  if (!hasAll([goal.title, ...answers].join(' '), words)) return null
+  const answer = answers.find((t) => hasAny(t, words))
   const said = health(goal)
   return {
     kind: 'goal',
@@ -90,12 +105,12 @@ export function localHits(
   // The minimum counts the query as typed, as the search read and A38 do: lowercasing may lengthen it (İ is i and a
   // combining dot), and one letter typed still finds nothing (R2 on B83).
   const typed = query.trim()
-  if (codePoints(typed) < MIN_LOCAL) return []
-  const q = typed.toLowerCase()
-  const found = goals.flatMap((g) => goalHit(g, q, health) ?? []).slice(0, 3)
+  const words = searchWords(typed)
+  if (codePoints(typed) < MIN_LOCAL || words.length === 0) return []
+  const found = goals.flatMap((g) => goalHit(g, words, health) ?? []).slice(0, 3)
   const tasks = goals
     .flatMap((g) => (plans?.[g.id]?.tasksFound ?? []).map((t) => ({ t, goal: g })))
-    .filter(({ t }) => has(t.purpose, q) || has(t.doer, q))
+    .filter(({ t }) => hasAll(`${t.purpose} ${t.doer}`, words))
     .slice(0, 3)
     .map(({ t, goal }): LocalHit => ({
       kind: 'task',
@@ -108,26 +123,47 @@ export function localHits(
   return [...found, ...tasks]
 }
 
-/** A text in pieces, the query's every match marked, whatever its case. */
+/** The longest of the words that begins `word` (lower case), or undefined. */
+const beginning = (word: string, words: readonly string[]) =>
+  words
+    .filter((w) => word.startsWith(w))
+    .reduce<string | undefined>((a, w) => (a && a.length >= w.length ? a : w), undefined)
+
+/**
+ * Where the query's words are in a text: the beginning of each word of it that one of them begins. A word whose lower
+ * case is longer or shorter than it (İ) is found whole, since its letters can't be counted one to one.
+ */
+function spans(text: string, query: string): { at: number; end: number }[] {
+  const words = searchWords(query)
+  if (words.length === 0) return []
+  return [...text.matchAll(SEARCH_WORD)].flatMap((run) => {
+    const lower = run[0].toLowerCase()
+    const whole = { at: run.index, end: run.index + run[0].length }
+    if (lower.length !== run[0].length) return hasAny(lower, words) ? [whole] : []
+    return [...lower.matchAll(SEARCH_WORD)].flatMap((part) => {
+      const w = beginning(part[0], words)
+      return w ? [{ at: run.index + part.index, end: run.index + part.index + w.length }] : []
+    })
+  })
+}
+
+/** A text in pieces, every beginning of a word the query's words begin marked, whatever its case. */
 export function marked(text: string, query: string): { text: string; mark: boolean }[] {
-  const q = query.trim().toLowerCase()
-  if (!q) return [{ text, mark: false }]
   const pieces: { text: string; mark: boolean }[] = []
-  const lower = text.toLowerCase()
   let from = 0
-  for (let at = lower.indexOf(q); at !== -1; at = lower.indexOf(q, from)) {
+  for (const { at, end } of spans(text, query)) {
     if (at > from) pieces.push({ text: text.slice(from, at), mark: false })
-    pieces.push({ text: text.slice(at, at + q.length), mark: true })
-    from = at + q.length
+    pieces.push({ text: text.slice(at, end), mark: true })
+    from = end
   }
-  if (from < text.length) pieces.push({ text: text.slice(from), mark: false })
+  if (from < text.length || pieces.length === 0) pieces.push({ text: text.slice(from), mark: false })
   return pieces
 }
 
-/** A long text cut to about `size` characters around the query's first match, an ellipsis where it was cut. */
+/** A long text cut to about `size` characters around the first word the query found, an ellipsis where it was cut. */
 export function around(text: string, query: string, size = 160): string {
   if (text.length <= size) return text
-  const at = Math.max(0, text.toLowerCase().indexOf(query.trim().toLowerCase()))
+  const at = spans(text, query)[0]?.at ?? 0
   const start = Math.max(0, Math.min(at - Math.floor(size / 3), text.length - size))
   const end = Math.min(text.length, start + size)
   return `${start > 0 ? '…' : ''}${text.slice(start, end).trim()}${end < text.length ? '…' : ''}`
