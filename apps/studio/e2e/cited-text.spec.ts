@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { CITED_TEXT } from '../fixtures/cited-text-data.ts'
+import { CITED_TEXT, SECOND_INPUT_TITLE } from '../fixtures/cited-text-data.ts'
 
 // A project text a report cites, opened from its Sources (A11 getCitedReportText, 0090), on the fixture page: the
 // Studio's own report viewer over the labelled fixture report, which cites the fixture's project input with
@@ -49,6 +49,8 @@ test('cited text · closed until asked: Show text reads it once and shows it as 
   page,
 }) => {
   await sources(page)
+  // A plain text (`text/plain; charset=utf-8`) opens here: the press, and no line saying only text opens.
+  await expect(pane(page).getByText('Only plain text and Markdown open here.')).toHaveCount(0)
   expect(await reads(page), 'nothing is read before the press').toBe(0)
   await expect(show(page)).toHaveAttribute('aria-expanded', 'false')
   await show(page).click()
@@ -163,4 +165,50 @@ test('cited text · @phone: the text stays inside the pane at 390 px, and wraps 
   expect(box && side && box.x >= side.x - 0.5 && box.x + box.width <= side.x + side.width + 0.5).toBe(true)
   expect(await body.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('cited text · each press names its citation: the demo’s four project sources, four names, the words on screen kept', async ({
+  page,
+}) => {
+  // The demo's pilot readout cites four project records (Markdown), numbered 1 to 4 in its text.
+  await page.goto('/room.html?place=knowledge&demo=1')
+  await page.locator('.report-card').first().locator('.report-card-title').click()
+  const side = page.locator('.report-pane:not([hidden])')
+  await side.getByRole('tab', { name: /Sources/ }).click()
+  await expect(side.locator('button.source-text-toggle')).toHaveCount(4)
+  for (const n of [1, 2, 3, 4]) {
+    await expect(side.getByRole('button', { name: `Show text of citation ${String(n)}`, exact: true })).toHaveCount(1)
+  }
+  const name = { name: 'Show text of citation 2', exact: true }
+  const second = side.getByRole('button', name)
+  await expect(second).toHaveText('Show text')
+  // Described by its row's title, so a source not cited in the text is told apart too.
+  const title = await side
+    .locator('.sources > li', { has: page.getByRole('button', name) })
+    .locator('.source-title')
+    .innerText()
+  await expect(second).toHaveAccessibleDescription(title)
+  await second.click()
+  const open = side.getByRole('button', { name: 'Hide text of citation 2', exact: true })
+  await expect(open).toHaveAttribute('aria-expanded', 'true')
+  await expect(open).toHaveText('Hide text')
+  await expect(side.getByRole('region', { name: 'Text of citation 2' })).toBeVisible()
+})
+
+test('cited text · two sources not cited in the text are told apart by their titles in their presses’ names', async ({
+  page,
+}) => {
+  await page.goto(`/room.html?report=${REPORT}&cites=inputs`)
+  await expect(pane(page).getByText(FIRST)).toBeVisible()
+  await pane(page)
+    .getByRole('tab', { name: /Sources/ })
+    .click()
+  await expect(pane(page).locator('button.source-text-toggle')).toHaveCount(2)
+  // The untitled input is named as its row names it; the titled one by its title. Each name found once, each led by
+  // the words on screen.
+  for (const title of ['A source from the project', SECOND_INPUT_TITLE]) {
+    const press = pane(page).getByRole('button', { name: `Show text of ${title}`, exact: true })
+    await expect(press).toHaveCount(1)
+    await expect(press).toHaveText('Show text')
+  }
 })

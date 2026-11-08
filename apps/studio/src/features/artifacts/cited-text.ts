@@ -15,11 +15,25 @@ export class CitedTextMismatch extends Error {
 
 const TEXT_TYPES = new Set(['text/plain', 'text/markdown'])
 
+/**
+ * Whether a type is one the read serves as text (plain text or Markdown): exactly 0090's rule
+ * (`split_part(lower(s.mime), ';', 1) IN (…)`, 0090_cited_report_text.sql:45): lowercased, the part before any ';',
+ * untrimmed, so the row offers nothing the read would refuse.
+ */
+export const opensAsText = (mime: string): boolean => TEXT_TYPES.has(mime.toLowerCase().split(';')[0] ?? '')
+
+/** What a row whose type the read cannot open says in place of Show text. */
+export const ONLY_TEXT_OPENS = 'Only plain text and Markdown open here.'
+
 /** The read's text once it is what its record says, for the source asked for; otherwise CitedTextMismatch. */
 export async function checkedCitedText(content: SourceContent, sourceId: string): Promise<string> {
-  const type = content.mime.split(';')[0]?.trim().toLowerCase() ?? ''
   const { text } = content
-  if (content.sourceId !== sourceId || text === undefined || content.downloadUrl !== null || !TEXT_TYPES.has(type)) {
+  if (
+    content.sourceId !== sourceId ||
+    text === undefined ||
+    content.downloadUrl !== null ||
+    !opensAsText(content.mime)
+  ) {
     throw new CitedTextMismatch()
   }
   const bytes = utf8(text)
@@ -48,9 +62,19 @@ export const CITED_TEXT_WORDS: Readonly<Record<CitedTextFailure, string>> = {
 /** The press that opens or closes it, named for what it does now. */
 export const citedTextToggle = (open: boolean): string => (open ? 'Hide text' : 'Show text')
 
+/** Which source a press or region is for, as the row says it. */
+const citedSource = (n: number | null): string =>
+  n === null ? 'a source not cited in the text' : `citation ${String(n)}`
+
 /** The region's name: which source's text it holds, as the row says it. */
-export const citedTextRegion = (n: number | null): string =>
-  n === null ? 'Text of a source not cited in the text' : `Text of citation ${String(n)}`
+export const citedTextRegion = (n: number | null): string => `Text of ${citedSource(n)}`
+
+/**
+ * The press's name: its words on screen first (WCAG 2.5.3), then which source it opens, so no two read alike: its
+ * citation, or, where the text cites it nowhere, the row's title.
+ */
+export const citedTextPress = (open: boolean, n: number | null, title: string): string =>
+  `${citedTextToggle(open)} of ${n === null ? title : citedSource(n)}`
 
 /** Only a failed read is asked again, twice at most: a refusal or a mismatch does not change by asking. */
 export const retryCitedText = (failures: number, error: unknown): boolean =>

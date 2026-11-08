@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { READING, READING_TITLE, readingVersionId } from '../fixtures/reading-data.ts'
 import { KEPT_WITH_WORD } from '../src/features/artifacts/cite-view.ts'
+import { lowContrast } from './contrast.ts'
 
 // How the viewer's Document tab reads (html-report-v2, SPEC §4b), on the room's fixture page with the long reading
 // report (fixtures/reading-data.ts): one measure in both pane sizes, the serif reading voice, booktabs tables that never
@@ -754,4 +755,68 @@ test('reading · the version’s limitations sit under an amber rule, not in a t
     }
   })
   expect(box).toEqual({ rule: '2px solid rgb(239, 191, 134)', left: '0px', ground: 'rgba(0, 0, 0, 0)', radius: '0px' })
+})
+
+/** What a project file the read cannot open says in place of «Show text» (sources-show-text.md). */
+const ONLY_TEXT = 'Only plain text and Markdown open here.'
+
+/** The long report's Sources, with row 6, the project's PDF, in view. */
+async function pdfRow(page: Page, theme = '') {
+  await page.goto(`/room.html?report=${READING}${theme}`)
+  await expect(page.locator('.md')).toContainText(SUMMARY)
+  await pane(page).getByRole('tab', { name: 'Sources 6' }).click()
+  const row = pane(page).locator('.sources > li').nth(5)
+  await expect(row).toContainText('Ostrava Systems terms of service, section 14 (assignment)')
+  return row
+}
+
+for (const [scheme, theme] of [
+  ['the room', ''],
+  ['paper', '&theme=light'],
+] as const) {
+  test(`reading · a PDF of the project offers no Show text: a still line says what opens here, in ${scheme}`, async ({
+    page,
+  }) => {
+    const row = await pdfRow(page, theme)
+    if (theme) await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+    // The line is drawn only where the row can open a text (the version is known: `citing`), so the absence of a press
+    // below is not for want of a version.
+    const line = row.getByText(ONLY_TEXT, { exact: true })
+    await expect(line).toBeVisible()
+    // No press anywhere in the list: the web pages and the search listing never offered one, and the PDF no longer does.
+    await expect(pane(page).locator('.sources').getByRole('button', { name: /text/i })).toHaveCount(0)
+    // Still: not a press, nothing that takes a press or looks like one.
+    const still = await line.evaluate((el) => ({
+      press: el.closest('button, a, [role="button"]') !== null,
+      cursor: getComputedStyle(el).cursor,
+      underline: getComputedStyle(el).textDecorationLine,
+    }))
+    expect(still).toEqual({ press: false, cursor: 'auto', underline: 'none' })
+    expect(await lowContrast(page, '.sources .source-text-note')).toEqual([])
+  })
+}
+
+test('reading @phone · at 320 px the still line stays inside its row, the pane and the page', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 })
+  const row = await pdfRow(page)
+  const line = row.getByText(ONLY_TEXT, { exact: true })
+  await expect(line).toBeVisible()
+  const [box, inRow, side] = await Promise.all([line.boundingBox(), row.boundingBox(), pane(page).boundingBox()])
+  expect(box && inRow && side).toBeTruthy()
+  if (!box || !inRow || !side) return
+  expect(box.x).toBeGreaterThanOrEqual(inRow.x - 0.5)
+  expect(box.x + box.width).toBeLessThanOrEqual(inRow.x + inRow.width + 0.5)
+  expect(box.x + box.width).toBeLessThanOrEqual(side.x + side.width + 0.5)
+  // The words themselves, not the paragraph's box: every line of glyphs ends inside the row.
+  const words = await line.evaluate((el) => {
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    return [...range.getClientRects()].map((r) => ({ left: r.left, right: r.right }))
+  })
+  expect(words.length).toBeGreaterThan(0)
+  for (const g of words) {
+    expect(g.left).toBeGreaterThanOrEqual(inRow.x - 0.5)
+    expect(g.right).toBeLessThanOrEqual(inRow.x + inRow.width + 0.5)
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
