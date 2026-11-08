@@ -7,7 +7,7 @@
 // that hangs) is said unconfirmed, and watched: taken back if it lands once the space went, said copied if it lands
 // while it is still there. The wait is only what the page says. Each Personal write is the browser's from the moment it
 // is handed over until the browser answers it, and any emptying it led to: until then no other Personal copy starts
-// and nothing is erased (`stillWriting`, `eraseAfterWrites`).
+// and nothing is erased (`stillWriting`, `eraseAfterWrites`); an erasure refused for it hears once it is answered.
 
 /** What the copy writes to: the text, or (Safari) the text still being fetched. */
 export interface Clip {
@@ -38,6 +38,11 @@ export class ErasureWaits extends Error {}
 const unanswered = new Set<Promise<void>>()
 /** An erasure is under way (eraseAfterWrites): no Personal copy starts meanwhile. */
 let erasing = false
+/**
+ * Told once the writes an erasure was refused for are all answered (eraseAfterWrites' `answered`), then forgotten.
+ * Held in memory only, as `unanswered` is: a reload empties both.
+ */
+let onAnswered: (() => void) | null = null
 
 /** `effect`, among the unanswered until it settles. */
 function handedOver(effect: Promise<unknown>): void {
@@ -46,7 +51,22 @@ function handedOver(effect: Promise<unknown>): void {
     () => undefined,
   )
   unanswered.add(settled)
-  void settled.then(() => unanswered.delete(settled))
+  void settled.then(() => {
+    unanswered.delete(settled)
+    if (!stillWriting()) heard()
+  })
+}
+
+/** The answer an erasure was refused for is said to no one: its sheet went, or the account changed. */
+export function forgetAnswered(): void {
+  onAnswered = null
+}
+
+/** The last unanswered write settled: said once to a refused erasure, unless one is under way and says its own end. */
+function heard(): void {
+  const said = onAnswered
+  onAnswered = null
+  if (!erasing) said?.()
 }
 
 /** An earlier Personal write the browser still hasn't answered (it may yet land, or empty the clipboard). */
@@ -73,13 +93,17 @@ export async function answeredInTime(
 
 /**
  * Erases (`erase`) only once the browser answered every Personal write handed to it, waiting for that answer no longer
- * than its wait; one still unanswered then is ErasureWaits, and nothing is erased. No copy starts meanwhile.
+ * than its wait; one still unanswered then is ErasureWaits, and nothing is erased. No copy starts meanwhile. Refused,
+ * `answered` hears once when those writes are answered (the last refusal's, if pressed again meanwhile).
  */
-export async function eraseAfterWrites<T>(erase: () => Promise<T>): Promise<T> {
+export async function eraseAfterWrites<T>(erase: () => Promise<T>, answered?: () => void): Promise<T> {
   erasing = true
   try {
     await answeredInTime(Promise.all(unanswered).then(() => undefined))
-    if (stillWriting()) throw new ErasureWaits('The browser hasn’t answered a copy')
+    if (stillWriting()) {
+      onAnswered = answered ?? null
+      throw new ErasureWaits('The browser hasn’t answered a copy')
+    }
     return await erase()
   } finally {
     erasing = false
