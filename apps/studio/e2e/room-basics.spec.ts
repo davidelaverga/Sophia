@@ -15,14 +15,43 @@ test.beforeEach(async ({ page }) => {
   )
 })
 
-test('basics · the dock says how long the call has run', async ({ page }) => {
-  await page.clock.install()
-  await page.goto('/room.html?call=on&people=2')
+interface Runner {
+  /** The runner's own time between 0:00 and the jump. */
+  slowMs?: number
+  /** The project's snapshot arrives after the page has opened, as on a loaded runner (`snapshot=hold`). */
+  lateSnapshot?: boolean
+}
+
+/**
+ * The dock's clock reads 0:00 in the call, then 1:05 after 65 s; `slowMs` of the runner's own time pass between. The
+ * page's time is fixed and moves only as the test sets it, so the runner's seconds never reach the call's time, while
+ * timers run as ever: the join on open (useJoinOnOpen) and the project's data need nothing from the test
+ * (ci-room-basics-flake.md).
+ */
+async function callClock(page: Page, { slowMs = 0, lateSnapshot = false }: Runner = {}) {
+  const at = Date.now()
+  await page.clock.setFixedTime(at)
+  await page.goto(`/room.html?call=on&people=2${lateSnapshot ? '&snapshot=hold' : ''}`)
+  if (lateSnapshot) await page.evaluate(() => window.fixture?.releaseSnapshot())
+  await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
   const clock = dock(page).getByRole('timer')
   await expect(clock).toHaveText('0:00')
-  await page.clock.fastForward(65_000)
+  if (slowMs > 0) await page.waitForTimeout(slowMs) // a slow runner, as main's CI on #482 was (ci-room-basics-flake.md)
+  await page.clock.setFixedTime(at + 65_000)
   await expect(clock).toHaveText('1:05')
   await expect(clock).toHaveAccessibleName('In the call for 1 minute')
+}
+
+test('basics · the dock says how long the call has run', async ({ page }) => {
+  await callClock(page)
+})
+
+test('basics · the call’s clock counts the call’s time, never a slow runner’s', async ({ page }) => {
+  await callClock(page, { slowMs: 1500 })
+})
+
+test('basics · the call’s clock starts however late the project loads', async ({ page }) => {
+  await callClock(page, { lateSnapshot: true })
 })
 
 test('basics · your tile hides from your own gallery for this call, and shows again', async ({ page }) => {
