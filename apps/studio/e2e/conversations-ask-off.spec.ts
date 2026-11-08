@@ -62,3 +62,9 @@ test('ask off · where her runtime is away, the form says she can’t be reached
   await expect(f.getByText(`${away}: the question goes to the team.`)).toBeVisible()
   await expect(f.getByText(unanswered)).toHaveCount(0)
 })
+
+test('ask off · a reason the Studio doesn’t know yet says today’s words, never that she answers', async ({ page }) => {
+  const f = await openForm(page, `${PAGE}&ask=some_new_reason`)
+  await expect(f.getByText(unanswered)).toBeVisible()
+  await expect(f.getByRole('checkbox', { name: 'Ask Sophia' })).toHaveAccessibleDescription(unanswered)
+})
