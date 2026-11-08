@@ -15,8 +15,14 @@ export const NOTICE = {
   copyUnconfirmed: 'Your browser hasn’t confirmed the copy. It may still reach your clipboard.',
   /** A press while that write is still unanswered: no second write starts. */
   copyStillWriting: 'Your browser is still on the last copy. Try again once it answers.',
-  /** An erasure pressed while that write is unanswered: nothing is erased until it settles (copy.ts's stillWriting). */
-  eraseAfterCopy: 'Nothing is deleted yet: your browser hasn’t answered the last copy. Delete once it has.',
+  /**
+   * An erasure pressed while that write is unanswered: nothing is erased until it settles (copy.ts's stillWriting). A
+   * browser may never answer; a reload empties the page's count, so it is named.
+   */
+  eraseAfterCopy:
+    'Nothing is deleted yet: your browser hasn’t answered the last copy. Delete again in a moment, or reload the page.',
+  /** That write answered at last, after an erasure was refused for it: said once (copy.ts's eraseAfterWrites). */
+  copyAnswered: 'Your browser answered the copy. You can delete now.',
   erased: 'Deleted. Sophia starts fresh.',
   /** Another tab's message is on its way (oneAtATime): this one waits, in the field or to be pressed again. */
   waits: 'Another message is on its way: send this one after it',

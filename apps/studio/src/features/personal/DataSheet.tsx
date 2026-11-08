@@ -242,8 +242,9 @@ export function DataSheet(props: Props) {
     calledOff.all() // what is being copied goes with what is erased
     try {
       // And every Personal clipboard write already handed to the browser (this sheet's, an earlier one's, a reply's)
-      // is answered first: one still unanswered after the browser's wait may yet land, so nothing is erased.
-      await eraseAfterWrites(onErase)
+      // is answered first: one still unanswered after the browser's wait may yet land, so nothing is erased. Once it
+      // is answered the toast says so, sheet open or not.
+      await eraseAfterWrites(onErase, () => toast(NOTICE.copyAnswered))
       setErased(true)
       focusSoon('#c-data-h ~ button') // the form goes with what it deleted: the focus goes to the sheet's Close
       toast(NOTICE.erased)
