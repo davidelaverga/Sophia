@@ -10,7 +10,7 @@
 // (its id with quotes and brackets); `conflict=1` and `unknown=1` (how a decision's answer comes back); `later=1` (the
 // second goal's plan held back until `workFixture.arrive()`); `twin=1` (a second goal with the first's id); `coverage=partial|unavailable` (as read first;
 // `workFixture.coverage(c)` reads it so next); and how the simulated services answer (work-live.ts: `admission=`,
-// `settle=`, `ask=` (`empty`: a first answer with no words), `result=`, `decide=silent|late`).
+// `settle=`, `ask=` (`empty`: a first answer with no words), `result=`, `decide=silent|late|held`).
 // `workFixture` moves the page on as a live service would: `settle(id)` records a choice and `react(id)` takes it
 // into the plan's next revision; `decisionArrives(deciderId)` brings a new one; `begin(workId)`, `reassign(workId)`,
 // `replan()`, `arrive()`, `viewAs(viewer)`, `reconnect()`, `replay(operationId)`, `weaken(operationId)`,
@@ -83,6 +83,7 @@ import {
   carried,
   commands,
   decide,
+  decisionAnswers,
   misdeliver,
   nextReport,
   questions,
@@ -110,6 +111,8 @@ declare global {
       served?: readonly string[]
       /** Each answer a decider gave, in order, and each command and receipt: for the checks to read. */
       answered?: readonly DecisionAnswer[]
+      /** `decide=held`: the oldest answer on its way is recorded now; false when none waits. */
+      releaseDecision?: () => boolean
       /** Each question sent to the conversation, each send of it included. */
       questions?: readonly Question[]
       commands?: readonly Command[]
@@ -376,7 +379,7 @@ installFixtureApi({
 window.workFixture = {
   unexpected,
   served: readOut,
-  answered: answers,
+  ...decisionAnswers,
   commands,
   receipts,
   questions,
@@ -638,7 +641,7 @@ function controls(
     goalCommands: lead.commands,
     reviewAgain: lead.again,
     challenges,
-    answered: answers,
+    ...decisionAnswers,
     questions,
     commands,
     receipts,
