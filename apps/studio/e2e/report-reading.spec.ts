@@ -779,10 +779,12 @@ for (const [scheme, theme] of [
   }) => {
     const row = await pdfRow(page, theme)
     if (theme) await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
-    // No press anywhere in the list: the web pages and the search listing never offered one, and the PDF no longer does.
-    await expect(pane(page).locator('.sources').getByRole('button', { name: /text/i })).toHaveCount(0)
+    // The line is drawn only where the row can open a text (the version is known: `citing`), so the absence of a press
+    // below is not for want of a version.
     const line = row.getByText(ONLY_TEXT, { exact: true })
     await expect(line).toBeVisible()
+    // No press anywhere in the list: the web pages and the search listing never offered one, and the PDF no longer does.
+    await expect(pane(page).locator('.sources').getByRole('button', { name: /text/i })).toHaveCount(0)
     // Still: not a press, nothing that takes a press or looks like one.
     const still = await line.evaluate((el) => ({
       press: el.closest('button, a, [role="button"]') !== null,
@@ -805,6 +807,16 @@ test('reading @phone · at 320 px the still line stays inside its row, the pane 
   expect(box.x).toBeGreaterThanOrEqual(inRow.x - 0.5)
   expect(box.x + box.width).toBeLessThanOrEqual(inRow.x + inRow.width + 0.5)
   expect(box.x + box.width).toBeLessThanOrEqual(side.x + side.width + 0.5)
-  expect(await line.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+  // The words themselves, not the paragraph's box: every line of glyphs ends inside the row.
+  const words = await line.evaluate((el) => {
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    return [...range.getClientRects()].map((r) => ({ left: r.left, right: r.right }))
+  })
+  expect(words.length).toBeGreaterThan(0)
+  for (const g of words) {
+    expect(g.left).toBeGreaterThanOrEqual(inRow.x - 0.5)
+    expect(g.right).toBeLessThanOrEqual(inRow.x + inRow.width + 0.5)
+  }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
