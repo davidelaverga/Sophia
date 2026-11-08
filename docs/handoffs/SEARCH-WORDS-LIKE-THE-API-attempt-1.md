@@ -11,10 +11,27 @@ Writable scope: this worktree only (`apps/studio`, `packages/contracts`, `packag
 `docs/plans`, `docs/handoffs`); no SQL, no route, no copy.
 Runtime unit: Luis's Windows host (Playwright through the session's `pw.ps1` guard); CI as the run on record.
 Existing authority: Luis, the quote above; local only, nothing pushed.
-Ending commit/tree: `970bd45ae`, the last commit that changes code; the next one adds only this record. Files changed
-against `953e5dc3d`: `apps/studio/src/features/search/search-view.ts` and its test, `apps/studio/e2e/search-goals.spec.ts`,
-`apps/studio/fixtures/search-data.ts`, `packages/contracts/src/search-words.ts` (new), `packages/contracts/package.json`,
-`packages/persistence/src/artifacts.ts`, `docs/plans/search-words-like-the-api.md`, and this record.
+Ending commit/tree: `c6ed4ecc5`, the last commit that changes code (the review's P3s); the next one adds only this
+record's update. Files changed against `953e5dc3d`: `apps/studio/src/features/search/search-view.ts` and its test,
+`apps/studio/src/features/search/search-fixture.test.ts` (new), `apps/studio/e2e/search-goals.spec.ts`,
+`apps/studio/fixtures/search-data.ts`, `apps/studio/fixtures/search-query.ts` (new), `apps/studio/fixtures/fixture-api.ts`,
+`packages/contracts/src/search-words.ts` (new), `packages/contracts/package.json`, `packages/persistence/src/artifacts.ts`
+and its test, `docs/plans/search-words-like-the-api.md`, and this record.
+
+## After the independent review (no P1/P2; its P3s)
+
+- **Written first and failing** (`404756ab3`): «admin checklist» showed `'Keep teams through an admin change, done'`
+  (the outcome, which repeats only «admin») where `'The checklist opens on its first step'` was expected; the fixture
+  refusal test failed with `ERR_MODULE_NOT_FOUND` for `fixtures/search-query.ts` (the refusal didn't exist). The task
+  found by doer and purpose together and the `searchWords` identity check (persistence's is contracts') passed at once:
+  they pin what the first fix already did.
+- **Fix `c6ed4ecc5`**: a goal shows the outcome or criterion that says a word its title lacks; the fixture search
+  refuses a word over 64 characters (422, `invalid_request`) and finds nothing under two characters or with no letter or
+  digit, as `queryOf`; `SEARCH_WORD` warns against `test`/`exec`; the note lists the shared rule's limits (Turkish İ,
+  NFD, no case folding), each an API change; the İ test's comment no longer claims the rule handles İ.
+- **Green**: unit 35/35 (`search-view`, `search-fixture`, persistence `artifacts`); `search-goals`, `project-search`,
+  `room-search` 34/34 through the guard (`pw-logs/words-p3-green.txt`); whole-repo lint exit 0; `tsc` for studio,
+  persistence, contracts exit 0; Prettier clean.
 
 ## Outcome
 
