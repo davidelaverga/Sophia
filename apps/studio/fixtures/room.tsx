@@ -1866,20 +1866,10 @@ function sendAsked(which: string | null): Send | null {
   return sends.find((s) => s === which) ?? null
 }
 
-/** Why Sophia doesn't answer here (`ask=`): `off` is `replies_not_enabled`; one of 0089's reasons, itself; else none. */
+/** Why Sophia doesn't answer here (`ask=`): `off` is `replies_not_enabled`; any reason code (A33's pattern), itself. */
 function askReasonAsked(which: string | null): string | null {
   if (which === 'off') return 'replies_not_enabled'
-  const reasons = [
-    'replies_not_enabled',
-    'replies_disabled',
-    'grant_disabled',
-    'grant_expired',
-    'calls_exhausted',
-    'context_assembler_unbound',
-    'runtime_unavailable',
-    'cleanup_capacity',
-  ]
-  return reasons.find((r) => r === which) ?? null
+  return which !== null && /^[a-z][a-z_]{0,62}$/.test(which) ? which : null
 }
 
 /** How an erasure goes (`erase=`): its feed first, its first try never reaching the API, its reply lost, or at once. */

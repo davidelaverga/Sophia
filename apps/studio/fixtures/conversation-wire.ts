@@ -3,7 +3,7 @@
 // they keep is conversation-data.ts's. Every word is synthetic. Whether Sophia answers here is the page's `ask=`: none,
 // she does (`ask: available`); `ask=off`, she doesn't, as while replies aren't enabled (`replies_not_enabled`); any
 // other reason code, she doesn't, for that reason as the API gives it (`ask=calls_exhausted`, `ask=runtime_unavailable`,
-// … 0089's set; docs/plans/conversation-ask-reason.md).
+// one the Studio doesn't know yet, as `ask=some_new_reason`; docs/plans/conversation-ask-reason.md).
 import type { ConversationList, ConversationMessage, ConversationSummary, ProjectionCoverage } from '@sophia/contracts'
 import { PROJECT } from './data.ts'
 import type { FixtureConversation, FixtureMessage } from './conversation-data.ts'
