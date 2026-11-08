@@ -49,6 +49,8 @@ test('cited text · closed until asked: Show text reads it once and shows it as 
   page,
 }) => {
   await sources(page)
+  // A plain text (`text/plain; charset=utf-8`) opens here: the press, and no line saying only text opens.
+  await expect(pane(page).getByText('Only plain text and Markdown open here.')).toHaveCount(0)
   expect(await reads(page), 'nothing is read before the press').toBe(0)
   await expect(show(page)).toHaveAttribute('aria-expanded', 'false')
   await show(page).click()

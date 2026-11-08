@@ -11,6 +11,7 @@ import {
   citedTextKey,
   citedTextRegion,
   citedTextToggle,
+  opensAsText,
   retryCitedText,
 } from './cited-text.ts'
 
@@ -63,6 +64,20 @@ describe('a cited text is shown only once it is what its record says', () => {
     ]
     for (const [why, over] of cases) {
       await assert.rejects(checkedCitedText(content(over), SOURCE), CitedTextMismatch, why)
+    }
+  })
+})
+
+describe('a row offers its text only where the read can open it', () => {
+  it('plain text and Markdown, whatever their parameters or case', () => {
+    for (const mime of ['text/plain', 'text/markdown', 'text/plain; charset=utf-8', 'Text/Markdown ; charset=UTF-8']) {
+      assert.equal(opensAsText(mime), true, mime)
+    }
+  })
+
+  it('no other type: a PDF, HTML, JSON, CSV, nothing at all', () => {
+    for (const mime of ['application/pdf', 'text/html', 'application/json', 'text/csv', 'text/plainx', '']) {
+      assert.equal(opensAsText(mime), false, mime)
     }
   })
 })
