@@ -2,6 +2,19 @@
 
 Execution and continuation packs, one folder per pack, each installed byte for byte. A pack's own `SHA256SUMS.txt` passes in its folder. Installation records live here rather than inside a pack, so the pack keeps its exact file set.
 
+## [2026-11-08-incremental/](2026-11-08-incremental/README.md)
+
+| Item | Value |
+|---|---|
+| Source | User-supplied `Sophia_Implementation_Specs_Pack_v2_2026-11-08.zip`, SHA-256 `639e263ff02b72eb8730bfd3c8bb26402707254341bb1b81717376eb87c39d60` |
+| Candidate installation | Documentation-only INC-00 candidate, prepared by Codex coordinator `01a1bd48-df51-7692-b30c-9e20f6eb4c81` on base `953e5dc3d4c88e491517f3f0d0eaa18216fea98f`. Local source review, PR review and integration are separate pending gates; no merged installation is asserted here. |
+| Integrity | Complete 37-file pack copied byte for byte. A scoped `.gitattributes` exception preserves its original line endings in Git; other paths retain the existing LF rule. Its `MANIFEST.json` verifies 36 content files by length and SHA-256; the manifest is the 37th file and does not hash itself. All 134 issued acceptance cases remain `not_run`. This pack supplies no validation executable. |
+| Scope amendment | Incremental founder outcomes INC-00 through INC-05 supersede conflicting older planning within that scope. October's continuation and older packs remain immutable history and retained context. Current code, explicit owner decisions, repository security/runtime/toolchain rules and active PR ownership remain binding. |
+| Delivery gates | One coordinator; Claude Code product implementers and design specialist; every-push automatic Codex review; one independent Codex thread for separate source-review and in-app-verification stages. Significant Sophia UI candidates require Davide's explicit approval before dependent expansion, merge or promotion. |
+| Active ownership | PR #499: Davide's HTML citation/navigation repair. PR #501: Luis/EdX2C's `group/follow-ups-14`. Neither is transferred or reset by this installation. |
+| Mutable records | [Mission ledger](../progress/SOPHIA-INC-2026-11.md), [baseline](../coordination/SOPHIA-INC-2026-11/BASELINE.md), [contract map](../coordination/SOPHIA-INC-2026-11/CONTRACT_MAP.md), [installation handoff](../handoffs/INC00-DOC-001.md). Operational evidence belongs outside the frozen pack. |
+| Authority | Installation changes planning/navigation only. It connects no account, activates no payer, changes no source/runtime/schema, deploys no service, and grants no new merge or spending authority. |
+
 ## [2026-10-01-unified/](2026-10-01-unified/00_START_HERE.md)
 
 | Item | Value |

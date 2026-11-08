@@ -1,8 +1,10 @@
 # docs/
 
+Current incremental programme: [SOPHIA-INC-2026-11](execution/2026-11-08-incremental/README.md). Its [mission ledger](progress/SOPHIA-INC-2026-11.md) records actual work; the [installation record](execution/README.md) preserves the prior continuation and active ownership.
+
 | Path | What |
 |---|---|
-| [execution/2026-10-01-unified/](execution/2026-10-01-unified/00_START_HERE.md) | The v2.0 unified continuation: the forward plan and navigation since 2026-10-02, installed byte for byte ([installation record](execution/README.md), [its validators](evidence/unified-v2.0/validate.run.txt)) |
+| [execution/2026-10-01-unified/](execution/2026-10-01-unified/00_START_HERE.md) | The v2.0 unified continuation: retained baseline, amended for SOPHIA-INC-2026-11 by the incremental pack, installed byte for byte ([installation record](execution/README.md), [its validators](evidence/unified-v2.0/validate.run.txt)) |
 | [progress/LFE-00.md](progress/LFE-00.md) | LFE-00: where the source and the deployments stand, the proposed one-writer map, the BASE cases and the next tickets |
 | [pack/](pack/00_START_HERE.md) | Sophia Implementation Pack v0.4 Part 2 (cumulative: includes Part 1): history since the v2.0 continuation, imported byte-for-byte; do not edit |
 | [SOURCE_MAP.md](SOURCE_MAP.md) | Which document governs what; which upstream files ground which Sophia files; facts learned at the pin; the evaluation reports the notes cite, which stay outside the repository |
