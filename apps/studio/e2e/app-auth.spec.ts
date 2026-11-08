@@ -2090,6 +2090,19 @@ for (const promise of [true, false]) {
     await expect.poll(() => erasures).toEqual(['POST'])
   })
 
+  test(`your data · a copy that lands after the browser's wait, its sheet still open and no erasure refused, is said copied (${way})`, async ({
+    context,
+  }) => {
+    const page = await yourData(context)
+    await silentClipboard(page, promise)
+    const sheet = await openYourData(page)
+    await sheet.locator('#c-data-copy').click()
+    const toast = page.locator('.toast')
+    await expect(toast).toHaveText(/hasn’t confirmed the copy/, SAID_WITHIN)
+    await page.evaluate(() => window.clip?.answer())
+    await expect(toast).toHaveText('Copied to your clipboard')
+  })
+
   test(`your data · a copy that lands after its sheet closed is taken back off the clipboard, and says nothing (${way})`, async ({
     context,
   }) => {
@@ -2174,6 +2187,31 @@ async function deleteEverything(sheet: Locator) {
   await sheet.locator('#c-del').fill('DELETE')
   await sheet.locator('#c-del ~ button').click()
 }
+
+test('your data · the answer to a refused erasure is said only while its sheet is open: closed, it is forgotten', async ({
+  context,
+}) => {
+  const page = await yourData(context)
+  const erasures = await erasuresAsked(context)
+  await silentClipboard(page, true)
+  let sheet = await openYourData(page)
+  await sheet.locator('#c-data-copy').click()
+  await expect.poll(() => clipWrites(page).then((w) => w.length)).toBe(1)
+  await deleteEverything(sheet)
+  const toast = page.locator('.toast')
+  await expect(toast).toHaveText(ERASE_WAITS, SAID_WITHIN)
+  await sheet.getByRole('button', { name: 'Close' }).click()
+  await expect(sheet).toHaveCount(0)
+  // Written once its sheet went: taken back, and that emptying answered too.
+  await page.evaluate(() => window.clip?.answer())
+  await expect.poll(() => clipWrites(page)).toEqual([expect.stringContaining('personal space with Sophia'), ''])
+  await page.evaluate(() => window.clip?.answer())
+  // Opened again and pressed: erased at once, so every write was answered before the press, and nothing said so.
+  sheet = await openYourData(page, true)
+  await deleteEverything(sheet)
+  await expect.poll(() => erasures).toEqual(['POST'])
+  await expect(toast).not.toHaveText('Your browser answered the copy. You can delete now.')
+})
 
 for (const promise of [true, false]) {
   const way = promise ? 'handed as a promise' : 'written once fetched'

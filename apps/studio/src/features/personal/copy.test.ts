@@ -8,11 +8,12 @@ import {
   copyWords,
   eraseAfterWrites,
   ErasureWaits,
+  forgetAnswered,
   stillWriting,
   WRITE_WAIT_MS,
   type Clip,
 } from './copy.ts'
-import { NOTICE } from './notice-view.ts'
+import { erasureRefused, NOTICE } from './notice-view.ts'
 
 /**
  * A clipboard that records what it was given; `later` hands it the text as a promise (Safari's way). `during` runs
@@ -369,11 +370,33 @@ describe('erasing after every Personal write is answered', () => {
 })
 
 describe('an erasure held by a write the browser never answers', () => {
-  it('says the way out: again in a moment, or a reload', () => {
+  it('says the way out: again in a moment, or a reload', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const { clip, answer } = silent(false)
+    const copy = copyWords(
+      'Her words',
+      () => true,
+      () => undefined,
+      clip,
+    )
+    copy.catch(() => undefined)
+    const erase = eraseAfterWrites(() => Promise.resolve())
+    const refused = erase.then(
+      () => null,
+      (err: unknown) => err,
+    )
+    await flush()
+    t.mock.timers.tick(WRITE_WAIT_MS)
+    const said = erasureRefused(await refused)
+    answer() // answered before asserting, so a failure here leaves no write held for the next case
+    await copy
+    await flush()
+    // What Your data's toast says for the refusal the erasure raised (DataSheet's erase).
     assert.equal(
-      NOTICE.eraseAfterCopy,
+      said,
       'Nothing is deleted yet: your browser hasn’t answered the last copy. Delete again in a moment, or reload the page.',
     )
+    assert.equal(erasureRefused(new Error('offline')), null, 'any other failure is said as itself')
   })
 
   it('says once that the browser answered, and only after an erasure was refused for it', async (t) => {
@@ -426,5 +449,66 @@ describe('an erasure held by a write the browser never answers', () => {
     await flush()
     assert.equal(answered, 1, 'said once, not again')
     assert.equal(NOTICE.copyAnswered, 'Your browser answered the copy. You can delete now.')
+  })
+
+  it('says nothing when the answer comes during a later erasure’s wait: that erasure says its own end', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const { clip, answer } = silent(false)
+    const copy = copyWords(
+      'Her words',
+      () => true,
+      () => undefined,
+      clip,
+    )
+    copy.catch(() => undefined)
+    let answered = 0
+    let erased = 0
+    const refused = eraseAfterWrites(
+      () => Promise.resolve(erased++),
+      () => answered++,
+    )
+    refused.catch(() => undefined)
+    await flush()
+    t.mock.timers.tick(WRITE_WAIT_MS)
+    await assert.rejects(refused, ErasureWaits)
+    // Pressed again, and the browser answers within that erasure's wait: it erases, and the answer isn't said.
+    const again = eraseAfterWrites(
+      () => Promise.resolve(erased++),
+      () => answered++,
+    )
+    await flush()
+    answer()
+    await copy
+    await again
+    await flush()
+    assert.equal(erased, 1)
+    assert.equal(answered, 0)
+  })
+
+  it('forgets the answer it would say once its sheet went or another account came in (forgetAnswered)', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const { clip, answer } = silent(false)
+    const copy = copyWords(
+      'Her words',
+      () => true,
+      () => undefined,
+      clip,
+    )
+    copy.catch(() => undefined)
+    let answered = 0
+    const refused = eraseAfterWrites(
+      () => Promise.resolve(),
+      () => answered++,
+    )
+    refused.catch(() => undefined)
+    await flush()
+    t.mock.timers.tick(WRITE_WAIT_MS)
+    await assert.rejects(refused, ErasureWaits)
+    forgetAnswered()
+    answer()
+    await copy
+    await flush()
+    assert.equal(answered, 0)
+    assert.equal(stillWriting(), false)
   })
 })
