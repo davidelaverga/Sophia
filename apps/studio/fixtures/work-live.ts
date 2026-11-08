@@ -357,17 +357,33 @@ export const readResult: ReadResult = (ref) => {
 /** Each answer a decider gave, in order: for the checks to read. */
 export const answers: DecisionAnswer[] = []
 
+/** `decide=held`: each send after the first, waiting on its way until `workFixture.releaseDecision()` records it. */
+const heldDecisions: (() => void)[] = []
+
+/** The oldest held send is recorded now: false when none waits. */
+export const releaseDecision = () => {
+  const record = heldDecisions.shift()
+  record?.()
+  return record !== undefined
+}
+
 /**
  * The decider's answer, as the service would take it: recorded, or as the page asks (`conflict=1`, `unknown=1`).
  * `decide=silent`: no reply ever comes. `decide=late`: the first send's reply ("not confirmed") comes 120 s after it,
- * past the Studio's 90 s write limit; each later send is recorded 40 s after it (Codex F-023).
+ * past the Studio's 90 s write limit; each later send is recorded 40 s after it (Codex F-023). `decide=held`: the
+ * first is recorded after 300 ms; each later one is on its way until released (`releaseDecision`).
  */
 export const decide: Decide = (answer) => {
   answers.push(answer)
   const q = query()
   if (q.get('decide') === 'silent') return new Promise(() => undefined)
+  if (q.get('decide') === 'held' && answers.length > 1)
+    return new Promise((done) => heldDecisions.push(() => done('recorded')))
   if (q.get('decide') === 'late' && answers.length === 1)
     return new Promise((done) => setTimeout(() => done('unknown'), 120_000))
   const said = q.get('conflict') === '1' ? 'conflict' : q.get('unknown') === '1' ? 'unknown' : 'recorded'
   return new Promise((done) => setTimeout(() => done(said), q.get('decide') === 'late' ? 40_000 : 300))
 }
+
+/** For the checks: each answer a decider gave, and (`decide=held`) the release of the oldest still on its way. */
+export const decisionAnswers = { answered: answers, releaseDecision }

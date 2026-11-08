@@ -1,8 +1,9 @@
 // Next up (docs/plans/next-up.md): one line under the board's bar once the viewer answers a decision, naming what waits on
 // them next, a press that goes there. It takes the focus as the answer goes (from the page's body, where a disabled
 // choice leaves it, or from inside the decisions), never from somewhere the person moved to meanwhile. With nothing
-// next it says so, holds the focus, and leaves when the focus does.
-import { useEffect, useRef } from 'react'
+// next it says so, holds the focus, and leaves when the focus does. Once its frame has looked where the focus is, the
+// line says so (`data-settled`): «the focus stayed where the person put it» is then a fact, not a frame still to come.
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { Icon } from '@sophia/ui'
 import type { NextUp as Next } from './next-up.ts'
 
@@ -25,21 +26,26 @@ const leftByAnswer = (at: Element | null, from: Element | null) => at === docume
 
 export function NextUp({ next, from, onGo, onDone }: Props) {
   const press = useRef<HTMLButtonElement>(null)
-  const said = useRef<HTMLParagraphElement>(null)
+  const line = useRef<HTMLParagraphElement>(null)
+  // The mark goes as the new words are put on the page, before it paints: never new words under the last ones' mark.
+  useLayoutEffect(() => {
+    line.current?.removeAttribute('data-settled')
+  }, [next.words, from])
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      if (leftByAnswer(document.activeElement, from)) (press.current ?? said.current)?.focus({ preventScroll: true })
+      if (leftByAnswer(document.activeElement, from)) (press.current ?? line.current)?.focus({ preventScroll: true })
+      line.current?.setAttribute('data-settled', '')
     })
     return () => cancelAnimationFrame(frame)
   }, [next.words, from])
   if (next.kind === 'none')
     return (
-      <p ref={said} className="next-up" role="status" tabIndex={-1} onBlur={onDone}>
+      <p ref={line} className="next-up" role="status" tabIndex={-1} onBlur={onDone}>
         {next.words}
       </p>
     )
   return (
-    <p className="next-up" role="status">
+    <p ref={line} className="next-up" role="status">
       <button ref={press} type="button" className="text-button" onClick={onGo}>
         {next.words}
         <Icon name="forward" size={12} />
