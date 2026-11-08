@@ -11,11 +11,13 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { SlowNote } from '../../app/SignIn.tsx'
 import {
   CITED_TEXT_WORDS,
+  ONLY_TEXT_OPENS,
   checkedCitedText,
   citedTextFailure,
   citedTextKey,
   citedTextRegion,
   citedTextToggle,
+  opensAsText,
   retryCitedText,
 } from './cited-text.ts'
 import { useReportFence } from './report-read.ts'
@@ -63,10 +65,12 @@ interface Props {
   sourceId: string
   /** The row's citation number, for the region's name. */
   n: number | null
+  /** The source's type: only plain text and Markdown open here; any other says so in the press's place. */
+  mime: string
 }
 
 /** Show text / Hide text, and the text itself as plain text once its bytes match their record. */
-export function CitedText({ citing, sourceId, n }: Props) {
+export function CitedText({ citing, sourceId, n, mime }: Props) {
   // Open in one account's cache only: another account coming in (a new cache, account-cache.ts) finds it closed, even
   // at the same address and with this row still mounted.
   const client = useQueryClient()
@@ -76,6 +80,8 @@ export function CitedText({ citing, sourceId, n }: Props) {
   const read = useCitedText(citing, sourceId, shown)
   const region = useId()
   if (withheld) return null
+  // A type the read never serves: said before any press, which could only end refused.
+  if (!opensAsText(mime)) return <p className="muted source-text-note">{ONLY_TEXT_OPENS}</p>
   return (
     <div className="source-text">
       <button

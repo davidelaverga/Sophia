@@ -15,11 +15,21 @@ export class CitedTextMismatch extends Error {
 
 const TEXT_TYPES = new Set(['text/plain', 'text/markdown'])
 
+/** Whether a type is one the read serves as text (plain text or Markdown), its parameters and case aside. */
+export const opensAsText = (mime: string): boolean => TEXT_TYPES.has(mime.split(';')[0]?.trim().toLowerCase() ?? '')
+
+/** What a row whose type the read cannot open says in place of Show text. */
+export const ONLY_TEXT_OPENS = 'Only plain text and Markdown open here.'
+
 /** The read's text once it is what its record says, for the source asked for; otherwise CitedTextMismatch. */
 export async function checkedCitedText(content: SourceContent, sourceId: string): Promise<string> {
-  const type = content.mime.split(';')[0]?.trim().toLowerCase() ?? ''
   const { text } = content
-  if (content.sourceId !== sourceId || text === undefined || content.downloadUrl !== null || !TEXT_TYPES.has(type)) {
+  if (
+    content.sourceId !== sourceId ||
+    text === undefined ||
+    content.downloadUrl !== null ||
+    !opensAsText(content.mime)
+  ) {
     throw new CitedTextMismatch()
   }
   const bytes = utf8(text)

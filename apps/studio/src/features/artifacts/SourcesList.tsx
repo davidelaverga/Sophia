@@ -2,7 +2,8 @@
 // what only as a snippet, by which route, and the origin's status only when it is known. Links open in a new tab
 // with noopener. A number is the citation's in the document, so a superscript and its row match. A project source says
 // where it came from where A19 (proposed) gives it, and a conversation or a meeting goes there (source-origins.ts). A
-// project source's own text opens in place, as plain text, when the version is known (CitedText, getCitedReportText).
+// project source's own text opens in place, as plain text, when the version is known and it is plain text or Markdown
+// (CitedText, getCitedReportText).
 import { useEffect, useRef } from 'react'
 import type { ArtifactVersion, ReportSource } from '@sophia/contracts'
 import { ReadNote, Tag } from '@sophia/ui'
@@ -152,7 +153,9 @@ function SourceRow({ source, n, focused, origin, onOrigin, citing }: RowProps) {
             ))}
           </ul>
         )}
-        {citing && <CitedText key={source.sourceId} citing={citing} sourceId={source.sourceId} n={n} />}
+        {citing && (
+          <CitedText key={source.sourceId} citing={citing} sourceId={source.sourceId} n={n} mime={source.mime} />
+        )}
       </div>
     </li>
   )
