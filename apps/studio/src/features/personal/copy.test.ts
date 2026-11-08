@@ -12,6 +12,7 @@ import {
   WRITE_WAIT_MS,
   type Clip,
 } from './copy.ts'
+import { NOTICE } from './notice-view.ts'
 
 /**
  * A clipboard that records what it was given; `later` hands it the text as a promise (Safari's way). `during` runs
@@ -364,5 +365,66 @@ describe('erasing after every Personal write is answered', () => {
     assert.deepEqual(written, ['Her words', ''], 'taken back')
     await eraseAfterWrites(() => Promise.resolve(erased++))
     assert.equal(erased, 1)
+  })
+})
+
+describe('an erasure held by a write the browser never answers', () => {
+  it('says the way out: again in a moment, or a reload', () => {
+    assert.equal(
+      NOTICE.eraseAfterCopy,
+      'Nothing is deleted yet: your browser hasn’t answered the last copy. Delete again in a moment, or reload the page.',
+    )
+  })
+
+  it('says once that the browser answered, and only after an erasure was refused for it', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const { clip, answer } = silent(false)
+    const copy = copyWords(
+      'Her words',
+      () => true,
+      () => undefined,
+      clip,
+    )
+    copy.catch(() => undefined)
+    let answered = 0
+    let erased = 0
+    // Refused twice while the browser holds the write: nothing erased, and nothing said yet.
+    for (let refusals = 0; refusals < 2; refusals++) {
+      const erase = eraseAfterWrites(
+        () => Promise.resolve(erased++),
+        () => answered++,
+      )
+      erase.catch(() => undefined)
+      await flush()
+      t.mock.timers.tick(WRITE_WAIT_MS)
+      await assert.rejects(erase, ErasureWaits)
+      t.mock.timers.tick(3_600_000)
+      await flush()
+    }
+    assert.equal(erased, 0)
+    assert.equal(answered, 0)
+    // The browser answers: said once, and Delete goes.
+    answer()
+    await copy
+    await flush()
+    assert.equal(answered, 1)
+    await eraseAfterWrites(
+      () => Promise.resolve(erased++),
+      () => answered++,
+    )
+    assert.equal(erased, 1)
+    // A later write that settles on its own says nothing: no erasure was refused for it.
+    const next = copyWords(
+      'Again',
+      () => true,
+      () => undefined,
+      clip,
+    )
+    await flush()
+    answer()
+    await next
+    await flush()
+    assert.equal(answered, 1, 'said once, not again')
+    assert.equal(NOTICE.copyAnswered, 'Your browser answered the copy. You can delete now.')
   })
 })
