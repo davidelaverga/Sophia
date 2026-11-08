@@ -20,8 +20,10 @@ against `624441362`: `apps/studio/e2e/room-basics.spec.ts`, `docs/plans/ci-room-
   to 1:10, one a second: the product counted right, but the page's clock kept running in real time
   (`page.clock.install()` alone), so the runner's own seconds between the call going live and the jump landed on the
   call's time.
-- **The page's clock now stops before the page opens** (`pauseAt`, a second past where `install` put it) and moves
-  only as the test moves it. The room's join-on-open timer (`useJoinOnOpen`, a `setTimeout(0)`) is let go with
+- **After the review, the page's time is fixed instead** (`setFixedTime`, `dd014d24f`; plan «After the independent
+  review»): timers keep running, so a late project still joins. What follows is the first fix it replaced.
+- **First fix: the page's clock stopped before the page opened** (`pauseAt`, a second past where `install` put it)
+  and moved only as the test moved it. The room's join-on-open timer (`useJoinOnOpen`, a `setTimeout(0)`) is let go with
   `runFor(1)`, and the test waits for «Leave the room» before it reads 0:00. The assertions are unchanged: 0:00,
   exactly 1:05 after 65 s, «In the call for 1 minute».
 - **New slow-runner case**: the same steps with 1.5 s of the runner's own time between 0:00 and the jump. Both cases
