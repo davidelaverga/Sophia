@@ -22,6 +22,25 @@ The second attempt does not re-author, re-run or re-review the first. Each fact 
 
   The repair session cannot read the coordinator's host and did not run or read those records.
 
+## Later attempts (forward bridge)
+
+This record covers attempts 1 and 2. Later INC-00 documentation attempts continue in
+[INC00-DOC-003](INC00-DOC-003.md). The identities after this record's own snapshot:
+
+- **INC00-DOC-002 r4.** `422e9ba1f51fcde0c7367aff91959eeace9d04fc`, tree `e9ff5278ac1e0e1cd43d7c584c6817ad8416a9cd`,
+  parent `4cb4bbe5…`. Same four paths. The same independent reviewer accepted the whole 46-path diff before push
+  (review record SHA256 `3ebce8180d53e08ab4024a39f199418c4364c00d30d7f78b354b07a03330de88`), and the coordinator
+  published it to PR503 (supplied). Its automatic review then raised P1 `discussion_r4518692235` on
+  `docs/SOURCE_MAP.md`.
+- **INC00-DOC-003 r1.** The backend author's companion, `f6175c83a2154716d1a548131337159559a1d093`, tree
+  `d78e54cabba476aa379cf30dd41ac875feaa220b`, parent `422e9ba`. It changes only `docs/SOURCE_MAP.md` and is published.
+- **INC00-DOC-003 r2.** The documentation author's handoff and integrity-navigation repair: a local child of
+  `f6175c83`, pending review.
+
+The "Current state", "Remaining obligations" and "Next bounded action" sections below are the 2026-11-09 snapshot of
+attempt 2. For anything later, use INC00-DOC-003 and the [mission ledger](../progress/SOPHIA-INC-2026-11.md)'s dated
+INC-00 continuation.
+
 ## Attempt 1 — original installation (coordinator)
 
 Goal and attempt: INC-00 documentation installation, requirement INC00-R02 and case AC-00-02 of

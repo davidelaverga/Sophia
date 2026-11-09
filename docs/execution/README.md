@@ -1,6 +1,11 @@
 # docs/execution/
 
-Execution and continuation packs, one folder per pack, each installed byte for byte. A pack's own `SHA256SUMS.txt` passes in its folder. Installation records live here rather than inside a pack, so the pack keeps its exact file set.
+Execution and continuation packs, one folder per pack, each installed byte for byte. Check each pack with the integrity record it was **supplied** with, as its section says. Not every pack has the same one, and none is added after installation:
+
+- **October** ([2026-10-01-unified/](2026-10-01-unified/00_START_HERE.md)): `SHA256SUMS.txt`. In its folder, `sha256sum -c SHA256SUMS.txt` passes for the 306 files it lists. The pack has 307 files, that list included.
+- **November** ([2026-11-08-incremental/](2026-11-08-incremental/README.md)): `MANIFEST.json` only. Its `files` entries give the byte length and SHA-256 of the 36 payload files. The manifest is the 37th file and does not hash itself. The pack has no `SHA256SUMS.txt`, and none is added.
+
+Installation records live here rather than inside a pack, so the pack keeps its exact file set.
 
 ## [2026-11-08-incremental/](2026-11-08-incremental/README.md)
 
@@ -15,7 +20,7 @@ Execution and continuation packs, one folder per pack, each installed byte for b
 | Delivery gates | One coordinator; Claude Code product implementers and design specialist; every-push automatic Codex review; one independent Codex thread for separate source-review and in-app-verification stages. Significant Sophia UI candidates require Davide's explicit approval before dependent expansion, merge or promotion. |
 | Active ownership | PR #499: Davide's HTML citation/navigation repair. PR #501: Luis/EdX2C's `group/follow-ups-14`. Neither is transferred or reset by this installation. |
 | Active amendments | [Release-trust amendment](../coordination/SOPHIA-INC-2026-11/RELEASE_TRUST_AMENDMENT.md): a restrictive hold on credentialed release from source-exposed contexts, taking precedence over the conflicting pack passages it lists. It changes no pack byte. |
-| Mutable records | [Mission ledger](../progress/SOPHIA-INC-2026-11.md), [baseline](../coordination/SOPHIA-INC-2026-11/BASELINE.md), [contract map](../coordination/SOPHIA-INC-2026-11/CONTRACT_MAP.md), [installation handoff](../handoffs/INC00-DOC-001.md). Operational evidence belongs outside the frozen pack. |
+| Mutable records | [Mission ledger](../progress/SOPHIA-INC-2026-11.md), [baseline](../coordination/SOPHIA-INC-2026-11/BASELINE.md), [contract map](../coordination/SOPHIA-INC-2026-11/CONTRACT_MAP.md), [installation handoff](../handoffs/INC00-DOC-001.md), and its latest attempt, the [source-map companion and repair handoff](../handoffs/INC00-DOC-003.md). Operational evidence belongs outside the frozen pack. |
 | Authority | Installation changes planning/navigation only. It connects no account, activates no payer, changes no source/runtime/schema, deploys no service, and grants no new merge or spending authority. |
 
 ## [2026-10-01-unified/](2026-10-01-unified/00_START_HERE.md)

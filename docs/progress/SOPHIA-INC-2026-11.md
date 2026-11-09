@@ -19,9 +19,38 @@ Stable references:
 - Programme: [the pack entry](../execution/2026-11-08-incremental/README.md), [INC-00](../execution/2026-11-08-incremental/modules/INC-00_BASELINE_AND_INSTALLATION.md).
 - Process: [delivery and review](../execution/2026-11-08-incremental/operations/DELIVERY_AND_REVIEW.md), [design approval](../execution/2026-11-08-incremental/operations/DESIGN_APPROVAL.md).
 - Current mapping: [baseline](../coordination/SOPHIA-INC-2026-11/BASELINE.md), [contract map](../coordination/SOPHIA-INC-2026-11/CONTRACT_MAP.md).
-- Installation: [the installation handoff and its repair history](../handoffs/INC00-DOC-001.md).
+- Installation: [the installation handoff and its repair history](../handoffs/INC00-DOC-001.md); the latest INC-00 attempt is [INC00-DOC-003](../handoffs/INC00-DOC-003.md).
 - **Active restriction:** the [release-trust amendment](../coordination/SOPHIA-INC-2026-11/RELEASE_TRUST_AMENDMENT.md). Credentialed release from source-exposed contexts is on hold, and enforcement is unqualified. Where they conflict, it takes precedence over the pack's reviewer-deployment passages.
 - Programme issue: https://github.com/davidelaverga/Sophia/issues/502.
+
+## INC-00 continuation (dated 2026-11-09T23:04–23:20Z; supersedes only the INC-00 and PR503 rows below)
+
+The rest of this ledger stays the snapshot dated above. Reconcile before acting. Sources: the independent final review
+INC00-DOC-003-r1-SOURCE-FINAL-001 (2026-11-09T23:04:18Z, review record SHA256 `b64b888b…`, supplied), and the
+documentation author's `git ls-remote` and fetch at 23:10Z (observed).
+
+| Attempt | Author / session | Commit / tree / parent | Changed paths | Review | Published |
+|---|---|---|---|---|---|
+| INC00-DOC-002 r4 | Documentation author `session_01FGXfrGdEeRRkWqHnZfiF8C` | `422e9ba` / `e9ff5278` / `4cb4bbe` | Four INC00-DOC-002 paths; 46 against base | Pre-push accepted (review record SHA256 `3ebce818…`). Its automatic review raised P1 `r4518692235`. Final gate `needs_revision` (supplied). | Yes |
+| INC00-DOC-003 r1 | Backend author `session_01FGXfrJoUMojmJSW3H7XfoG` | `f6175c83` / `d78e54ca` / `422e9ba` | `docs/SOURCE_MAP.md` only; 47 against base | Pre-push accepted (review record SHA256 `251818db…`). Final gate `needs_revision` for two automatic P2s (supplied). | Yes: PR503 head at 23:10Z (observed) |
+| INC00-DOC-003 r2 | Documentation author `session_01FGXfrGdEeRRkWqHnZfiF8C` | Local child of `f6175c83`, with subject prefix `docs: INC00-DOC-003 r2`. Its head and tree are bound by the export manifest whose `source.head_git_commit` equals it. Earlier unpublished amendments `970eca9` and `675b9d6` and their exports are history. | Four paths; 48 against base | Pending: same reviewer, whole 48 paths | No |
+
+The full record of these attempts is in [INC00-DOC-003](../handoffs/INC00-DOC-003.md): identities, digests, evidence
+locations, CI and review threads.
+
+**Current state.**
+- **Merge.** Not merged. Luis/EdX2C's integration review is requested, with no approval.
+- **Security.** The security review on `f617` returned `null` finding flags, which is not clear, and the Medium advisory
+  `r4517682095` is still open.
+- **CI.** CI on `f617` (42716479853) had 2 jobs succeeded and 6 running at 23:03Z. The earlier `422e9ba` run
+  (42710881865) is not a complete pass, and the `4cb4bbe` failure (42693446183, `home.spec.ts:301`) is retained.
+- **Backend map.** Its reconciliation is planned and pending.
+- **Design.** UI r2 received a changes request, and r3 is being implemented, not approved.
+- **Release trust.** The release-trust hold is unchanged.
+- **Acceptance.** The register still has 3 historical passes and 131 `not_run`. The issued CSV stays at 134 `not_run`.
+
+**Next INC-00 action.** The independent reviewer reviews r2. If accepted, the coordinator publishes it to PR503, then CI
+and automatic review run on the new head, then Luis decides on integration.
 
 ## Identity and current authority
 
