@@ -1,12 +1,33 @@
 # Document and source map
 
 This file answers two questions: which document governs a decision, and which
-upstream source a Sophia file is grounded in. Forward planning authority is the
-v2.0 continuation in
-[`docs/execution/2026-10-01-unified/`](execution/2026-10-01-unified/00_START_HERE.md)
-since 2026-10-02. The v0.4 pack below is history, and what was built from it
-stays as built. Upstream sources establish mechanisms and never override a
-Sophia decision.
+upstream source a Sophia file is grounded in.
+
+**Current authority.** The user's latest actual choices govern. No document,
+this map included, grants an account, spending, merge, deployment or any other
+authority.
+
+- **Current programme.** For its own scope, the current continuation is the
+  November incremental founder programme, SOPHIA-INC-2026-11, in
+  [`docs/execution/2026-11-08-incremental/`](execution/2026-11-08-incremental/README.md).
+  See its [installation record](execution/README.md) and its
+  [current mission ledger](progress/SOPHIA-INC-2026-11.md).
+- **Active restriction.** The programme's
+  [release-trust amendment](coordination/SOPHIA-INC-2026-11/RELEASE_TRUST_AMENDMENT.md)
+  is active and restrictive. Where they conflict, it takes precedence over the
+  pack passages it lists.
+- **October continuation.** Within that scope, the November programme amends
+  the forward scope of the October v2.0 continuation in
+  [`docs/execution/2026-10-01-unified/`](execution/2026-10-01-unified/00_START_HERE.md).
+  October was the forward planning authority from 2026-10-02. It stays
+  immutable history, and retained context outside the amendment.
+- **v0.4 pack.** The v0.4 pack below is older history.
+- **What stays binding.** Current source, explicit owner decisions, in-flight
+  ownership and the security, runtime and toolchain rules in
+  [AGENTS.md](../AGENTS.md).
+
+What was built from any of these packs stays as built. Upstream sources
+establish mechanisms and never override a Sophia decision.
 
 ## 1. The implementation pack
 
@@ -233,6 +254,39 @@ Read in the installed runtime of dsh `0.2.0-rc.2` and pi-ai `0.87.1` (`.artifact
 | CON-B2-PREPARE | `@deepseek-ai/dsh-llm` `lib/index.js` `prepareCall(config, signal)` (line 2203) and `lib/types/index.d.ts` `PreparedLlmCall` (line 93) | One call is prepared with its config and adapter registration resolved together; the returned config is detached and frozen, with any adapter default materialized; its `stream` dispatches once (a second dispatch, or a request whose call-config fields differ from the prepared ones, fails `INVALID_PREPARED_CALL`, lines 2224–2225) | `packages/dsh-bundle/src/reply-service.ts` (`prepare`, `call`: the prepared config must equal the pinned route; one stream per reply) |
 | CON-B2-ADAPTER-PREPARE | `@deepseek-ai/dsh-llm-pi-ai` `lib/index.js` `prepareCall(provider, model, _signal)` (line 1831) | The adapter's preparation reads its current profile snapshot and the model's info from it, and returns the stream bound to that snapshot: no provider I/O happens before `stream` | `reply-service.ts` (preparation before the reservation; no provider request until the reserved call) |
 | CON-B2-NO-RETRY | `@deepseek-ai/dsh-llm-pi-ai` `lib/index.js` `profileOptions` (lines 1674–1685, `maxRetries: 0`); pi-ai `dist/api/openai-responses.js` (lines 117–124: SDK request `maxRetries: 0`, then `retryProviderRequest` with the adapter's 0) and `dist/utils/provider-retry.js` (lines 75–90: no retry while `maxRetries` is 0) | A prepared call with no session id and no Agent makes one HTTP request: neither the SDK, pi-ai nor the adapter retries a 429 or 5xx (`dsh-llm-retry` hooks only `agent/request-error`) | `reply-service.ts`; `tests/integration/conversation-service.test.mjs` (a controlled 429 and 503 each reach the provider double once) |
+
+## 2k. Donor sources named by the November programme (INC-00)
+
+The [November programme](execution/2026-11-08-incremental/README.md) records
+these donor pins in its frozen
+[baseline and source register](execution/2026-11-08-incremental/references/BASELINE_AND_SOURCES.md)
+(§4 and sources D1, D2, T1, T2, I1, I2). Its current
+[contract map](coordination/SOPHIA-INC-2026-11/CONTRACT_MAP.md) puts T3 behind
+one `SophiaRunnerPort` and the designer's work behind a reviewed Impeccable
+setup.
+
+How to read this section:
+
+- **Provenance only.** This section was written from that register. It is not
+  a fresh primary-source inspection. No upstream file was browsed, cloned,
+  installed, run or qualified to write it. Licences and pins are as the
+  register records them.
+- **A studied pin.** A pin is the source the pack's authors studied. It is
+  neither the latest upstream nor an installed or qualified version.
+- **Nothing installed.** None of these is installed in Sophia, and nothing here
+  upgrades the selected dsh runtime. That runtime stays `0.2.0-rc.2` at
+  `639ed015` (§2c).
+- **Nothing qualified.** No profile, account, toolkit, owner-host route,
+  designer setup or product candidate is qualified by this section.
+- **Nothing relied on yet.** No file in this repository relies on these
+  sources. When a goal starts relying on one, record its exact upstream file
+  and the Sophia files grounded in it here, as in §2–2j.
+
+| Register id | Repository and studied pin | Upstream files relied on | Purpose in the programme | Status and limits |
+|---|---|---|---|---|
+| D1, D2 | DSH Super Agent, `deepseek-ai/dsh-superagent-prototype@8c32a9dc5d72c033816c6a8110b37f40cf94fba4` (MIT; a research prototype) | [`README.md`](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/8c32a9dc5d72c033816c6a8110b37f40cf94fba4/README.md), [`src/policy.ts`](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/8c32a9dc5d72c033816c6a8110b37f40cf94fba4/src/policy.ts), [`src/app/delivery.ts`](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/8c32a9dc5d72c033816c6a8110b37f40cf94fba4/src/app/delivery.ts) (D1); [`package.json`](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/8c32a9dc5d72c033816c6a8110b37f40cf94fba4/package.json), [`src/app/role-models.ts`](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/8c32a9dc5d72c033816c6a8110b37f40cf94fba4/src/app/role-models.ts) (D2) | Patterns only: admission and intent evidence, observation mode, durable delivery, correlation, model defaults | Studied, not installed. It is not a second coordinator, agent loop, scheduler or subscription broker. It targets the `0.2.1-alpha.2` family; Sophia records `0.2.0-rc.2`. Adopting a pattern requires no runtime migration |
+| T1, T2 | T3 Code, `pingdotgg/t3code@ade473018d32003658b7d38693e083ee2e314bd8` (MIT) | [`apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts), [`apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts) (T1); [`docs/orchestration-v2/orchestrator-mcp-server.md`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/docs/orchestration-v2/orchestrator-mcp-server.md), [`docs/user/outside-agents.md`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/docs/user/outside-agents.md) (T2) | The preferred bounded native-session adapter candidate, behind Sophia's authority: instance, session, input, events, control, reconciliation. An ordinary follow-up queues; steer and restart are stronger interventions, not the default. T3's environment-wide MCP scope must be narrowed by Sophia's owner, project, repository and grant gateway | A source-bound candidate. Not installed. These documents qualify no live profile, account, injected toolkit or owner-host route; that is INC-01's work |
+| I1, I2 | Impeccable, `pbakaus/impeccable@924bbd194d02e5e15a227e75b5901fb0d7a4ecad`, package and skill 4.8.1 (Apache-2.0) | [`README.md`](https://github.com/pbakaus/impeccable/blob/924bbd194d02e5e15a227e75b5901fb0d7a4ecad/README.md) (I1); [`.claude/skills/impeccable/SKILL.md`](https://github.com/pbakaus/impeccable/blob/924bbd194d02e5e15a227e75b5901fb0d7a4ecad/.claude/skills/impeccable/SKILL.md) (I2) | Project-scoped Claude Code design tooling for the designer: a pinned, reviewed setup, refinement of the incumbent UI and real preview checks, through the normal agent-permission path | Studied, not installed here. Its documented live Apply fallback is excluded because it bypasses normal agent permissions. A studied pin is neither runtime or product qualification nor Davide's approval of a candidate. Evidence of the designer's actual setup is kept separately. Nothing here installs, authenticates or runs it |
 
 ## 3. Facts learned at the pin (not in the pack)
 
