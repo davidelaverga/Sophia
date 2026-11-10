@@ -2,3 +2,6 @@
 # archive (its SHA256SUMS), and the contract tests compare files byte for
 # byte; with core.autocrlf=true a Windows checkout would otherwise get CRLF.
 * text=auto eol=lf
+
+# Preserve the November source pack exactly, including its CRLF acceptance CSV.
+docs/execution/2026-11-08-incremental/** -text
