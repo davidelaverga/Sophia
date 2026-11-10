@@ -407,3 +407,20 @@ export {
   type RunnerClaim,
   type RunnerRecordTarget,
 } from './runner-operations.ts'
+export {
+  createOwnerHostPairing,
+  DbExchangeStore,
+  DbHostChannel,
+  listOwnerHosts,
+  maintainOwnerHosts,
+  ownerHostRunner,
+  redeemOwnerHostPairing,
+  retireOwnerHost,
+  revokeOwnerHost,
+  revokeOwnerHostPairing,
+  type OwnerHostPairing,
+  type OwnerHostPairingView,
+  type OwnerHostRunner,
+  type OwnerHostView,
+  type RedeemResult,
+} from './owner-host-enrollment.ts'

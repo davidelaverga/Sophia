@@ -278,10 +278,11 @@ How to read this section:
   `639ed015` (§2c).
 - **Nothing qualified.** No profile, account, toolkit, owner-host route,
   designer setup or product candidate is qualified by this section.
-- **Relied on only as §2l records.** Apart from the T3 files that §2l records
-  for INC01-CC-002, no file in this repository relies on these sources. When a
-  goal starts relying on one, record its exact upstream file and the Sophia
-  files grounded in it here, as in §2–2j and §2l.
+- **Relied on only as §2l and §2m record.** Apart from the T3 files that §2l
+  records for INC01-CC-002 and §2m for INC01-CC-003 S1a, no file in this
+  repository relies on these sources. When a goal starts relying on one, record
+  its exact upstream file and the Sophia files grounded in it here, as in
+  §2–2j, §2l and §2m.
 
 | Register id | Repository and studied pin | Upstream files relied on | Purpose in the programme | Status and limits |
 |---|---|---|---|---|
@@ -312,6 +313,31 @@ derives identities and builds calls exactly as these files do at the pin; the fa
 | `docs/orchestration-v2/orchestrator-mcp-server.md`, `docs/user/outside-agents.md` | `2f6ba536`, `ebc477d7` | Delivery modes (`auto`, `queue`, `steer`, `restart`); `clientRequestId` is scoped to its namespace; outside-agent scopes cover every project in the environment |
 | `apps/server/src/orchestration-v2/ThreadManagementService.ts` | `46ea4543` | r2 (R1-F04): `isActiveRun` counts `preparing`, `starting`, `running` and `waiting`, not `queued`; `latestActiveRun` (the read's `activeRunId`) covers every run of the thread, while `recentRuns` is cut by `runLimit` |
 | `apps/server/src/mcp/OrchestratorMcpService.ts` (`threadDetail`) | `9d154084` | r2 (R1-F04): the read's `thread` carries `threadId`, `activeRunId` and `runCount`; its `settled` is the user-interface `settledOverride`, never run settlement, and is not read |
+
+## 2m. Upstream sources at INC01-CC-003 S1a (owner-host transport)
+
+The same T3 Code pin as §2l, [`pingdotgg/t3code`](https://github.com/pingdotgg/t3code) at
+`ade473018d32003658b7d38693e083ee2e314bd8` (MIT), read outside this tree from a local clone whose `HEAD` is that commit;
+each blob below was checked against it. It is a **studied pin, not an installed or qualified version**: no T3 code is
+copied, installed or called by Sophia, and the runtime pin is unchanged.
+
+This is source-study evidence only. The operational evidence for this slice is a fake loopback Streamable HTTP server
+backed by `runner-fake-t3.ts`, in `t3-mcp-transport.test.ts`. No T3 install, sign-in, account, provider or profile was
+used, and none is qualified here.
+
+Sophia files grounded here: `packages/coordination/src/t3-mcp-transport.ts` (the protocol), and the declared namespace
+rule in `packages/coordination/src/owner-host-channel.ts`, `scripts/owner-host.ts` and
+`db/migrations/0093_owner_host_enrollment.sql` (`owner_hosts.t3_namespace`).
+
+| File at the pin | Blob | What Sophia relies on |
+|---|---|---|
+| [`apps/server/src/peer/PeerMcpClient.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/peer/PeerMcpClient.ts) | `885c91dc` | T3's own Streamable HTTP client, which the transport follows. Protocol `2025-06-18` (L22). A JSON body, or one server-sent event's `data:` lines (L88–95). A POST with `accept: application/json, text/event-stream` and a bearer (L104–114). `initialize`, the `mcp-session-id` header, then `notifications/initialized` (L116–153). `tools/call` with `mcp-session-id` and `mcp-protocol-version`; a 404 renews the session once (L184–188); a 401 is `capability_denied` (L189–195). An `isError` result's text decodes as `{code, message}`, success as JSON text (L225–242). Not followed: T3 maps a JSON-RPC error to `invalid_request` (L214–217); Sophia keeps it `unknown`, conservatively |
+| [`apps/server/src/auth/McpOAuth.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/auth/McpOAuth.ts) | `0be7c1eb` | An outside agent's request namespace is `client:${client.sessionId}` (L599). Only the `authorization_code` grant is offered (L96) and accepted (L499–500): there is no refresh grant, so a new sign-in is a new namespace |
+| [`apps/server/src/auth/EnvironmentAuth.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/auth/EnvironmentAuth.ts) | `b6bf6379` | `authenticateMcpClient` (L1298–1311): that `sessionId` is the verified bearer's auth session (`session.sessionId`), not the MCP transport session. Hence the namespace is declared in the host's configuration and bound at hello, never derived from `Mcp-Session-Id` |
+
+Still unproven, for live qualification: that the namespace a host declares is the one T3 uses (a launch receipt's thread
+id must equal `launchCommandId(namespace, key)`); that HTTP 401 and 403 are pre-dispatch for an outside agent; and the
+response shapes of a real install.
 
 ## 3. Facts learned at the pin (not in the pack)
 
