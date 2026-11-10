@@ -14,8 +14,13 @@ import { after, before, describe, it } from 'node:test'
 import { FakeT3 } from '@sophia/coordination/runner-fake-t3'
 import { RunnerGateway, type GatewayProfile } from '@sophia/coordination/runner-gateway'
 import { RunnerJournal } from '@sophia/coordination/runner-journal'
-import { digestOf } from '@sophia/coordination/runner-port'
-import { launchCommandId } from '@sophia/coordination/t3-port-mapping'
+import {
+  digestOf,
+  type RunnerIdentity,
+  type RunObservation,
+  type SophiaRunnerPort,
+} from '@sophia/coordination/runner-port'
+import { launchCommandId, type T3Call, type T3Reply, type T3Transport } from '@sophia/coordination/t3-port-mapping'
 import {
   admitGoalCommand,
   admitRunnerOperation,
@@ -24,6 +29,7 @@ import {
   maintainRunnerOperations,
   prepareRunnerSend,
   recordRunnerAnswer,
+  runnerFollowups,
   withActor,
 } from '@sophia/persistence'
 import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
@@ -111,9 +117,41 @@ const recordRaw = (projectId: string, operationId: string, journalId: string, an
       .then(() => undefined),
   )
 
+/**
+ * A transport that can keep one `t3_thread_send` in transit (integrated r2, F01): the gateway gets a lost answer at
+ * once, and the very same request reaches the fake T3 only when the test releases it. A delayed delivery, never a
+ * resend: nothing here builds a request.
+ */
+class TransitT3 implements T3Transport {
+  holdNextSend = false
+  private readonly held: T3Call[] = []
+  readonly fake: FakeT3
+  constructor(fake: FakeT3) {
+    this.fake = fake
+  }
+  namespace(): string {
+    return this.fake.namespace()
+  }
+  async call(call: T3Call): Promise<T3Reply> {
+    if (call.tool === 't3_thread_send' && this.holdNextSend) {
+      this.holdNextSend = false
+      this.held.push(call)
+      return { kind: 'transport_error', reason: 'fake: the request is still in transit' }
+    }
+    return this.fake.call(call)
+  }
+  /** Deliver every held request now, exactly once. */
+  async release(): Promise<number> {
+    const landing = this.held.splice(0)
+    for (const call of landing) await this.fake.call(call)
+    return landing.length
+  }
+}
+
 interface WorldOptions {
   accountKey?: string
   t3?: FakeT3
+  transport?: T3Transport
   who?: string
   allowance?: number
 }
@@ -122,6 +160,7 @@ interface WorldOptions {
 async function world({
   accountKey = `claude:${randomUUID()}`,
   t3 = new FakeT3(),
+  transport,
   who = randomUUID(),
   allowance = 50,
 }: WorldOptions = {}) {
@@ -158,8 +197,15 @@ async function world({
     operations: new Set(['create', 'input', 'stop'] as const),
   }
   const journalFile = join(root, `${randomUUID()}.jsonl`)
-  const gateway = new RunnerGateway({ journal: new RunnerJournal(journalFile), transport: t3, profile })
+  const gateway = new RunnerGateway({ journal: new RunnerJournal(journalFile), transport: transport ?? t3, profile })
   gateways.push(gateway)
+  /** The owner host restarts its gateway on the same journal (same journal id). */
+  const restart = (old: RunnerGateway) => {
+    old.close()
+    const next = new RunnerGateway({ journal: new RunnerJournal(journalFile), transport: transport ?? t3, profile })
+    gateways.push(next)
+    return next
+  }
   const runner = { ownerId: who, environmentRef: 'env-owner-1' }
   const claim = async () =>
     (await claimRunnerOutbox(worker, 'crashed-worker', runner, { newWork: true, limit: 50, leaseSeconds: 30 })).filter(
@@ -179,7 +225,7 @@ async function world({
   const input = (target: string, message = 'And the outbox boundary?') =>
     admit({ kind: 'input', targetOperationId: target, message, expectedGoalRevision: 1, expectedAuthorityEpoch: 1 })
   const stop = (target: string, key?: string) => admit({ kind: 'stop', targetOperationId: target }, key)
-  const pass = (opts: { sends?: boolean; port?: RunnerGateway; minAge?: number } = {}) =>
+  const pass = (opts: { sends?: boolean; port?: SophiaRunnerPort; minAge?: number } = {}) =>
     runnerDispatchOnce(worker, {
       workerId: 'runner-test',
       runner,
@@ -205,6 +251,7 @@ async function world({
     journalFile,
     profile,
     gateway,
+    restart,
     t3,
     runner,
     claim,
@@ -703,14 +750,19 @@ describe('a Stop fences its binding at once and stays available (R1-F05, R1-F04)
     assert.equal(w.t3.count('t3_thread_send'), 0)
   })
 
-  it('admits a Stop at an exhausted work allowance, consuming none, and answers a second Stop with the first', async () => {
+  it('admits a Stop at an exhausted work allowance, consuming none; a second Stop under a fresh key is refused', async () => {
     const w = await world({ allowance: 1 })
     const created = await w.create()
     await w.pass()
     assert.equal(await codeOf(w.input(created.operationId)), 'runner_unqualified', 'new work: allowance used')
-    const first = await w.stop(created.operationId)
-    const second = await w.stop(created.operationId)
-    assert.equal(second.operationId, first.operationId)
+    const firstKey = randomUUID()
+    const first = await w.stop(created.operationId, firstKey)
+    assert.equal(
+      await codeOf(w.stop(created.operationId)),
+      'invalid_state',
+      'integrated r2 F02: never an unbound success',
+    )
+    assert.equal((await w.stop(created.operationId, firstKey)).operationId, first.operationId, 'its own key replays')
     const used = await one<{ used: number }>(
       `SELECT used_operations AS used FROM sophia.owner_runner_qualifications WHERE id=$1`,
       [w.qualificationId],
@@ -836,6 +888,325 @@ describe("a follow-up never moves its binding's route (R1-F07)", () => {
       1,
       'the original reservation stays with the original account',
     )
+  })
+})
+
+/** The binding's operations, by kind and state, oldest first. */
+const bindingOps = async (bindingId: string) =>
+  (
+    await owner.query<{ id: string; kind: string; state: string; reason: string | null }>(
+      `SELECT id, kind, state, reason FROM sophia.owner_runner_operations WHERE binding_id=$1 ORDER BY created_at`,
+      [bindingId],
+    )
+  ).rows
+
+describe('a Stop settles only after every earlier input has converged (integrated r2, F01)', () => {
+  it('keeps a Stop unresolved over an input still in transit; the late input is reconciled, a second Stop ends it', async () => {
+    const t3 = new FakeT3()
+    const transit = new TransitT3(t3)
+    const w = await world({ t3, transport: transit })
+    const created = await w.create()
+    await w.pass()
+    const b = (await op(created.operationId)).binding_id
+    transit.holdNextSend = true
+    const late = await w.input(created.operationId)
+    await w.pass({ minAge: 3600 })
+    assert.equal((await op(late.operationId)).state, 'unknown', 'sent, its answer lost, its request still in transit')
+    w.finishAll()
+    // Rollback (admissions and sends off) still admits and dispatches the Stop.
+    const stopped = await w.stop(created.operationId)
+    await w.pass({ sends: false })
+    await w.pass({ sends: false })
+    const waiting = await op(stopped.operationId)
+    assert.equal(waiting.state, 'received', 'no active run now, but an earlier input may still arrive')
+    assert.match(waiting.reason ?? '', /earlier input/)
+    assert.equal((await binding(b)).state, 'stopping')
+    assert.deepEqual(await reservations(w.accountKey), [{ binding_id: b }])
+    // The very request in transit lands after the interrupt; the owner host reconnects under a renewed session.
+    assert.equal(await transit.release(), 1)
+    const restarted = w.restart(w.gateway)
+    t3.renewSession('client:fake-session-2')
+    await w.pass({ sends: false, port: restarted })
+    await w.pass({ sends: false, port: restarted })
+    const landed = await op(late.operationId)
+    assert.equal(landed.state, 'received', 'reconciled by its original identities')
+    assert.equal(landed.native_namespace, 'client:fake-session-1')
+    const overtaken = await op(stopped.operationId)
+    assert.equal(overtaken.state, 'received', 'its late run is active: still not settled')
+    assert.match(overtaken.reason ?? '', /after this Stop was sent/)
+    assert.equal((await binding(b)).state, 'stopping')
+    // The owner's control: a second Stop, admitted because the first was overtaken, reaches the late run.
+    const again = await w.stop(created.operationId)
+    assert.notEqual(again.operationId, stopped.operationId)
+    await w.pass({ sends: false, port: restarted })
+    assert.equal(t3.count('t3_thread_interrupt'), 2)
+    w.finishAll('interrupted')
+    await w.pass({ sends: false, port: restarted })
+    await w.pass({ sends: false, port: restarted })
+    assert.deepEqual(
+      (await bindingOps(b)).map((o) => [o.kind, o.state]),
+      [
+        ['create', 'settled'],
+        ['input', 'settled'],
+        ['stop', 'settled'],
+        ['stop', 'settled'],
+      ],
+    )
+    assert.equal((await binding(b)).state, 'settled')
+    assert.deepEqual(await reservations(w.accountKey), [])
+    assert.equal(t3.effects.launches, 1)
+    assert.equal(t3.effects.messages, 1, 'the late request once; nothing replayed')
+    assert.equal(t3.count('t3_thread_send'), 1, 'the fake saw the one released request; nothing was resent')
+  })
+
+  it('keeps the Stop unresolved while a lost-response input is unreconciled, then settles it on a fresh proof', async () => {
+    const w = await world()
+    const created = await w.create()
+    await w.pass()
+    w.t3.inject('t3_thread_send', { kind: 'lose_after_effect' })
+    const lost = await w.input(created.operationId)
+    await w.pass({ minAge: 3600 })
+    assert.equal((await op(lost.operationId)).state, 'unknown')
+    const stopped = await w.stop(created.operationId)
+    await w.pass({ minAge: 3600 })
+    assert.equal((await op(stopped.operationId)).state, 'received')
+    w.finishAll('interrupted')
+    // The create's and the input's reads fail this pass (they are followed before the Stop, which was followed last),
+    // so the Stop is observed while the input is still unknown.
+    w.t3.inject('t3_thread_read', { kind: 'malformed_read' })
+    w.t3.inject('t3_thread_read', { kind: 'malformed_read' })
+    await w.pass()
+    assert.equal((await op(lost.operationId)).state, 'unknown')
+    assert.equal(
+      (await op(stopped.operationId)).state,
+      'received',
+      'the barrier holds while an earlier input is unknown',
+    )
+    await w.pass()
+    await w.pass()
+    const converged = (await op(lost.operationId)).state
+    assert.ok(['received', 'settled'].includes(converged), `the input converged (${converged})`)
+    assert.equal((await op(stopped.operationId)).state, 'settled', 'converged, then proven by a fresh complete read')
+    assert.equal(w.t3.effects.messages, 1)
+    assert.equal(w.t3.count('t3_thread_interrupt'), 1)
+  })
+
+  it('never settles a Stop over an input possibly sent and never answered: an operator settles it', async () => {
+    const w = await world()
+    const created = await w.create()
+    await w.pass()
+    const sent = await w.input(created.operationId)
+    const [row] = await w.claim()
+    assert.equal(
+      (await prepareRunnerSend(worker, w.projectId, row?.id ?? '', row?.lease_token ?? '', w.gateway.journalId)).result,
+      'send',
+    )
+    const stopped = await w.stop(created.operationId)
+    await expireLeases(w.projectId)
+    w.finishAll()
+    for (let i = 0; i < 4; i++) {
+      await w.pass()
+      await due(w.projectId)
+    }
+    assert.equal((await op(sent.operationId)).state, 'unknown')
+    const s = await op(stopped.operationId)
+    assert.equal(s.state, 'received')
+    assert.match(s.reason ?? '', /earlier input/)
+    assert.equal((await binding(s.binding_id)).state, 'stopping')
+    assert.deepEqual(await reservations(w.accountKey), [{ binding_id: s.binding_id }])
+    assert.equal(w.t3.effects.messages, 0)
+  })
+
+  it("never settles from a gateway's cached settlement: a lost Stop needs a fresh read after its inputs converge", async () => {
+    const t3 = new FakeT3()
+    const transit = new TransitT3(t3)
+    const w = await world({ t3, transport: transit })
+    const created = await w.create()
+    await w.pass()
+    transit.holdNextSend = true
+    const late = await w.input(created.operationId)
+    await w.pass({ minAge: 3600 })
+    w.finishAll()
+    const stopped = await w.stop(created.operationId)
+    t3.inject('t3_thread_interrupt', { kind: 'lose_after_effect' })
+    await w.pass({ minAge: 3600 })
+    assert.equal((await op(stopped.operationId)).state, 'unknown')
+    await w.pass()
+    assert.equal((await op(stopped.operationId)).state, 'unknown', 'the read showed no run, but an input is in transit')
+    // Recorded directly, the journaled settlement is still no settlement.
+    const cached = await recordRunnerAnswer(
+      worker,
+      { projectId: w.projectId, operationId: stopped.operationId, leaseToken: null, journalId: w.gateway.journalId },
+      { kind: 'settled', identity: null, reason: 'a cached read' },
+    )
+    assert.equal(cached.changed, false)
+    assert.equal((await op(stopped.operationId)).state, 'unknown')
+    assert.equal(await transit.release(), 1)
+    await w.pass()
+    await w.pass()
+    assert.equal((await op(late.operationId)).state, 'received')
+    assert.equal((await op(stopped.operationId)).state, 'unknown', "the gateway's journaled settlement predates run 2")
+    w.finishAll('interrupted')
+    await w.pass()
+    await w.pass()
+    assert.equal((await op(stopped.operationId)).state, 'settled')
+    const records = await one<{ outbox: string; command: string }>(
+      `SELECT ob.state AS outbox, c.state AS command FROM sophia.owner_runner_operations o
+        JOIN sophia.outbox ob ON ob.id=o.outbox_id JOIN sophia.commands c ON c.id=o.command_id WHERE o.id=$1`,
+      [stopped.operationId],
+    )
+    assert.deepEqual(
+      records,
+      { outbox: 'settled', command: 'checked' },
+      'a lost Stop, proven settled, settles its records',
+    )
+    assert.equal(t3.effects.messages, 1)
+  })
+
+  it('never settles on an observation made before an earlier input converged, even if recorded after it', async () => {
+    const t3 = new FakeT3()
+    const transit = new TransitT3(t3)
+    const w = await world({ t3, transport: transit })
+    const created = await w.create()
+    await w.pass()
+    transit.holdNextSend = true
+    const late = await w.input(created.operationId)
+    await w.pass({ minAge: 3600 })
+    w.finishAll()
+    const stopped = await w.stop(created.operationId)
+    await w.pass({ minAge: 3600 })
+    assert.equal((await op(stopped.operationId)).state, 'received')
+    // The Stop is observed (no active run); before that observation is recorded, the input lands and converges.
+    const inner = w.gateway
+    let armed = true
+    const interleaving: SophiaRunnerPort = {
+      get journalId() {
+        return inner.journalId
+      },
+      send: (e, d, j) => inner.send(e, d, j),
+      reconcile: (i) => inner.reconcile(i),
+      observe: async (i: RunnerIdentity): Promise<RunObservation> => {
+        const seen = await inner.observe(i)
+        if (!armed || i.envelope.operationId !== stopped.operationId) return seen
+        armed = false
+        assert.equal(seen.kind, 'no_active_run', 'run 2 has not started when the Stop is observed')
+        assert.equal(await transit.release(), 1)
+        const f = (await runnerFollowups(worker, w.runner, inner.journalId, 50, 0)).find(
+          (x) => x.operationId === late.operationId,
+        )
+        assert.ok(f)
+        const answer = await inner.reconcile({
+          envelope: f.envelope,
+          digest: digestOf(f.envelope),
+          journalId: inner.journalId,
+        })
+        await recordRunnerAnswer(
+          worker,
+          { projectId: w.projectId, operationId: late.operationId, leaseToken: null, journalId: inner.journalId },
+          answer,
+        )
+        assert.equal((await op(late.operationId)).state, 'received')
+        return seen
+      },
+    }
+    await w.pass({ port: interleaving })
+    assert.equal(armed, false)
+    assert.equal((await op(stopped.operationId)).state, 'received', 'the observation predates run 2: no settlement')
+    assert.equal((await binding((await op(stopped.operationId)).binding_id)).state, 'stopping')
+    await w.pass()
+    assert.equal((await op(stopped.operationId)).state, 'received', 'run 2 is active')
+    w.finishAll('interrupted')
+    await w.pass()
+    assert.equal((await op(stopped.operationId)).state, 'settled')
+  })
+})
+
+/** The promise's outcome, asserted to arrive before an independent deadline of this test's own. */
+async function settled<T>(
+  what: string,
+  p: Promise<T>,
+  ms: number,
+): Promise<{ ok: true; v: T } | { ok: false; e: unknown }> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const sentinel = new Promise<'sentinel'>((resolve) => {
+    timer = setTimeout(() => resolve('sentinel'), ms)
+  })
+  try {
+    const won = await Promise.race([
+      p.then(
+        (v) => ({ ok: true as const, v }),
+        (e: unknown) => ({ ok: false as const, e }),
+      ),
+      sentinel,
+    ])
+    if (won === 'sentinel') assert.fail(`${what} did not finish within ${ms} ms: the independent sentinel won`)
+    return won
+  } finally {
+    clearTimeout(timer)
+  }
+}
+const sqlstate = (e: unknown) => (e instanceof Error && 'code' in e ? String(e.code) : String(e))
+
+describe('maintenance takes its locks in the recorder order (integrated r2, F03)', () => {
+  it('never deadlocks with a recorder holding the project: no 40P01, the operation stays unknown and reserved', async () => {
+    const w = await world()
+    const created = await w.create()
+    const [row] = await w.claim()
+    assert.equal(
+      (await prepareRunnerSend(worker, w.projectId, row?.id ?? '', row?.lease_token ?? '', w.gateway.journalId)).result,
+      'send',
+    )
+    await expireLeases(w.projectId)
+    const recorder = await owner.connect()
+    const maintainer = await worker.connect()
+    let open = false
+    try {
+      await recorder.query('BEGIN')
+      open = true
+      // The recorder's first step: the project, before any operation or outbox row.
+      await recorder.query('SELECT 1 FROM sophia.projects WHERE id=$1 FOR UPDATE', [w.projectId])
+      const maintainerPid = (await maintainer.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]?.pid
+      // Its outcome is captured at once, so a failure is asserted below rather than surfacing as an unhandled rejection.
+      const maintained = maintainer.query<{ n: number }>('SELECT sophia.owner_runner_maintain(50) AS n').then(
+        (r) => r,
+        (e: unknown) => Promise.reject(e instanceof Error ? e : new Error(String(e))),
+      )
+      maintained.catch(() => undefined)
+      // Until maintenance either finishes or waits on the recorder (the old row-first order), bounded.
+      const blockedOrDone = (async () => {
+        for (;;) {
+          const { rows } = await owner.query<{ blocked: boolean; active: boolean }>(
+            `SELECT cardinality(pg_blocking_pids($1)) > 0 AS blocked,
+                    EXISTS (SELECT 1 FROM pg_stat_activity WHERE pid=$1 AND state='active') AS active`,
+            [maintainerPid],
+          )
+          if (rows[0]?.blocked || !rows[0]?.active) return
+          await new Promise((r) => setTimeout(r, 20))
+        }
+      })()
+      await settled('maintenance to finish or wait on the recorder', blockedOrDone, 10_000)
+      const recorded = recorder.query('SELECT sophia.owner_runner_record($1, $2, NULL, $3, $4::jsonb) AS r', [
+        w.projectId,
+        created.operationId,
+        w.gateway.journalId,
+        JSON.stringify({ kind: 'unknown', identity: null, reason: 'the recorder answers while maintenance runs' }),
+      ])
+      const rec = await settled('the recorder', recorded, 10_000)
+      await recorder.query(rec.ok ? 'COMMIT' : 'ROLLBACK')
+      open = false
+      const main = await settled('maintenance', maintained, 10_000)
+      assert.ok(rec.ok, `recorder failed: ${rec.ok ? '' : sqlstate(rec.e)}`)
+      assert.ok(main.ok, `maintenance failed: ${main.ok ? '' : sqlstate(main.e)}`)
+    } finally {
+      if (open) await recorder.query('ROLLBACK').catch(() => undefined)
+      recorder.release()
+      maintainer.release()
+    }
+    await w.pass({ minAge: 3600 })
+    const kept = await op(created.operationId)
+    assert.equal(kept.state, 'unknown')
+    assert.deepEqual(await reservations(w.accountKey), [{ binding_id: kept.binding_id }])
+    assert.equal(w.t3.calls.length, 0)
   })
 })
 

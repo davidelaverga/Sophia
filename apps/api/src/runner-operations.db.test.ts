@@ -13,7 +13,13 @@ import { SignJWT } from 'jose'
 import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { claimRunnerOutbox, createPool, prepareRunnerSend, recordRunnerAnswer } from '@sophia/persistence'
+import {
+  claimRunnerOutbox,
+  createPool,
+  prepareRunnerSend,
+  recordRunnerAnswer,
+  runnerFollowups,
+} from '@sophia/persistence'
 import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
@@ -103,6 +109,35 @@ describe('with 0092 installed', () => {
         runId: 'run-1',
         delivery: 'started',
       },
+    )
+  }
+
+  /** A Stop sent, acknowledged and proven settled through the worker's own SQL functions (no T3 is involved). */
+  async function settleStop(projectId: string, stopId: string) {
+    const runner = { ownerId: A, environmentRef: 'env-owner-1' }
+    const [row] = (
+      await claimRunnerOutbox(worker, 'api-test-worker', runner, { newWork: true, limit: 50, leaseSeconds: 30 })
+    ).filter((o) => o.project_id === projectId)
+    assert.ok(row?.lease_token)
+    const journalId = randomUUID()
+    assert.equal((await prepareRunnerSend(worker, projectId, row.id, row.lease_token, journalId)).result, 'send')
+    const thread = `mcp:launch:${'a'.repeat(64)}`
+    await recordRunnerAnswer(
+      worker,
+      { projectId, operationId: stopId, leaseToken: row.lease_token, journalId },
+      {
+        kind: 'received',
+        identity: { namespace: 'client:s1', commandId: 'command:mcp:stop', messageId: null, threadId: thread },
+        runId: null,
+        delivery: 'stop_requested',
+      },
+    )
+    const followup = (await runnerFollowups(worker, runner, journalId, 50, 0)).find((f) => f.operationId === stopId)
+    assert.ok(followup)
+    await recordRunnerAnswer(
+      worker,
+      { projectId, operationId: stopId, leaseToken: null, journalId },
+      { kind: 'no_active_run', barrier: followup.barrier },
     )
   }
 
@@ -242,9 +277,9 @@ describe('with 0092 installed', () => {
     assert.equal(stopped.json.state, 'admitted')
     assert.deepEqual(await call(off, A, p.base, stop, key), stopped, 'the same key replays its receipt')
     assert.equal(
-      (await call(off, A, p.base, stop)).json.operationId,
-      stopped.json.operationId,
-      'a second Stop answers the unsettled one',
+      (await call(off, A, p.base, stop)).json.code,
+      'invalid_state',
+      'integrated r2 F02: a second Stop under a fresh key is refused, never an unbound success',
     )
     assert.deepEqual(await operationsOf(), [
       { kind: 'create', state: 'received' },
@@ -256,6 +291,65 @@ describe('with 0092 installed', () => {
       [target],
     )
     assert.equal(binding.rows[0]?.state, 'stopping', "the Stop's fence, unchanged")
+  })
+
+  it('binds every successful Stop key; a fresh-key duplicate is refused and binds nothing (integrated r2, F02)', async () => {
+    const p = await qualifiedProject()
+    const created = await call(admit, A, p.base, p.create)
+    await received(p.projectId, created.json.operationId)
+    const stop = { kind: 'stop', resourceId: p.resourceId, targetOperationId: created.json.operationId }
+    const rowsUnder = async (key: string) =>
+      (
+        await owner.query<{ n: number }>(
+          `SELECT count(*)::int AS n FROM sophia.owner_runner_operations WHERE project_id=$1 AND client_request_id=$2`,
+          [p.projectId, key],
+        )
+      ).rows[0]?.n
+    // Two concurrent gestures under different keys: one Stop is admitted, the other refused.
+    const keys = [randomUUID(), randomUUID()] as const
+    const both = await Promise.all(keys.map((k) => call(admit, A, p.base, stop, k)))
+    const wonAt = both.findIndex((r) => r.status === 202)
+    assert.equal(both.filter((r) => r.status === 202).length, 1, JSON.stringify(both))
+    const won = both[wonAt]
+    const refused = both[1 - wonAt]
+    const wonKey = keys[wonAt]
+    const refusedKey = keys[1 - wonAt]
+    assert.ok(won && refused && wonKey && refusedKey)
+    assert.equal(refused.json.code, 'invalid_state')
+    assert.equal(await rowsUnder(refusedKey), 0, 'a refused key binds nothing')
+    assert.equal(await rowsUnder(wonKey), 1)
+    // The successful key replays exactly; another request under it conflicts.
+    assert.deepEqual(await call(admit, A, p.base, stop, wonKey), won)
+    assert.equal((await call(admit, A, p.base, p.create, wonKey)).json.code, 'idempotency_conflict')
+    assert.equal(
+      (await call(admit, A, p.base, { ...stop, targetOperationId: randomUUID() }, wonKey)).json.code,
+      'idempotency_conflict',
+      'a changed target under the same key',
+    )
+    // After settlement (and with admissions off) the same key still replays its own, now settled, receipt.
+    await settleStop(p.projectId, won.json.operationId)
+    const replay = await call(off, A, p.base, stop, wonKey)
+    assert.equal(replay.status, 202)
+    assert.equal(replay.json.operationId, won.json.operationId)
+    assert.equal(replay.json.state, 'settled')
+    // A refused key may carry another request later: the refusal bound nothing.
+    const reused = await call(admit, A, p.base, p.create, refusedKey)
+    assert.equal(reused.status, 202)
+    assert.notEqual(reused.json.operationId, won.json.operationId)
+    // One actual Stop, and no allowance used by any Stop.
+    const stops = await owner.query(
+      `SELECT id FROM sophia.owner_runner_operations WHERE project_id=$1 AND kind='stop'`,
+      [p.projectId],
+    )
+    assert.equal(stops.rowCount, 1)
+    const used = await owner.query<{ used: number }>(
+      `SELECT used_operations AS used FROM sophia.owner_runner_qualifications WHERE id=$1`,
+      [p.qualificationId],
+    )
+    assert.equal(used.rows[0]?.used, 2, 'the two creates only')
+    // Keys are scoped to their project and owner: the same key elsewhere is another request entirely.
+    const elsewhere = await qualifiedProject()
+    assert.equal((await call(admit, A, elsewhere.base, elsewhere.create, wonKey)).status, 202)
   })
 
   it('with admissions off: a Stop on a revoked route is still refused (no revocation policy is invented)', async () => {

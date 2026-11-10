@@ -4,7 +4,8 @@
  *
  * r2 (independent review INC01-CC-002-r1):
  * - Identity (R1-F01): the file starts with a header carrying its `journalId`, written once at creation. Sophia binds an
- *   operation to it at prepare-send; only this journal, by this id, can prove that operation was never sent.
+ *   operation to it at prepare-send; only this journal, by this id, speaks for that operation. It never proves that a
+ *   possibly-sent operation was not sent (r3, R2-F01): an id names the file, not the completeness of its history.
  * - One writer (R1-F02): opening takes the cross-process lock (runner-journal-lock.ts); every append first checks that
  *   the lock is still ours and that the file is exactly as long as this writer left it.
  * - Validation (R1-F03, R2-F03): every complete record is validated with its legal transition, its derived identity

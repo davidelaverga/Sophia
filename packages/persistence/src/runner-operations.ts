@@ -190,7 +190,14 @@ export async function prepareRunnerSend(
 }
 
 /** What the worker records: the gateway's answer, or an observation (an unknown observation is `unobserved`). */
-export type RunnerRecord = RunnerAnswer | Exclude<RunObservation, { kind: 'unknown' }> | { kind: 'unobserved' }
+/**
+ * What is recorded: a gateway answer, or an observation. A Stop's observation carries the barrier token its follow-up
+ * returned (integrated r2, F01): SQL settles a Stop only on an observation made under its inputs' current token.
+ */
+export type RunnerRecord =
+  | RunnerAnswer
+  | (Exclude<RunObservation, { kind: 'unknown' }> & { readonly barrier?: string | null })
+  | { kind: 'unobserved' }
 
 /** Record an answer for a send (with its lease) or a reconciliation or observation (without). */
 export interface RunnerRecordTarget {
@@ -228,6 +235,8 @@ export interface RunnerFollowup {
   kind: OwnerRunnerOperation['kind']
   state: 'unknown' | 'received'
   envelope: RunnerEnvelope
+  /** A Stop's barrier token over its binding's inputs (integrated r2, F01); null for a create or an input. */
+  barrier: string | null
 }
 
 /** One runner's operations to reconcile (unknown) or observe (received), each with the envelope its digest binds. */
@@ -246,6 +255,7 @@ export async function runnerFollowups(
       kind: RunnerFollowup['kind']
       state: RunnerFollowup['state']
       envelope: RunnerEnvelope
+      barrier: string | null
     }>('SELECT * FROM sophia.owner_runner_followups($1, $2, $3, $4, $5)', [
       runner.ownerId,
       runner.environmentRef,
@@ -260,5 +270,6 @@ export async function runnerFollowups(
     kind: r.kind,
     state: r.state,
     envelope: r.envelope,
+    barrier: r.barrier,
   }))
 }

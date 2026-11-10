@@ -16,6 +16,10 @@
 --   sent, unknown. A goal Hold/Stop supersedes pending non-cleanup rows (admit_goal_command); maintain denies them.
 -- * A possibly-sent operation never returns to admitted (r3, R2-F01): no gateway journal can prove its own history
 --   complete, so an unproven possible send stays unknown, its reservation held, for an operator to settle.
+-- * Integrated r2 (PR #505): a Stop settles only after every earlier input of its binding converged and a fresh read,
+--   made under the inputs' current barrier token, proves no active run (F01); a successful admission always binds its
+--   key, so a fresh-key duplicate Stop is refused (F02); every writer locks the project before operation and outbox
+--   rows, maintenance included, and maintenance skips anything locked instead of waiting (F03).
 -- * Commands and outbox rows are readable by every member (0002), so their semantic request holds only the kind, the
 --   operation id and the payload digest. The operation, its message and its events are the owner's alone.
 -- 0001-0091 are not edited. Additive: new tables and functions only.
@@ -199,10 +203,23 @@ BEGIN
  END LOOP;
 END $$;
 
+-- The barrier over a binding's inputs (integrated r2, F01). `blocked`: one of them is admitted, possibly sent or unknown,
+-- so a request sent before a Stop may still reach T3 after it. `token`: changes whenever an input converges (leaves
+-- those states) or appears, so an observation made before an input converged can never settle the Stop. A converged
+-- input's later changes (received to settled) do not matter to the barrier and do not change it.
+CREATE FUNCTION sophia.owner_runner_barrier(p_project uuid, p_binding uuid, OUT blocked boolean, OUT token text)
+LANGUAGE sql STABLE SET search_path=pg_catalog,sophia AS $$
+ SELECT coalesce(bool_or(i.state IN ('admitted','possible_send','unknown')),false),
+  md5(coalesce(string_agg(i.id::text||':'||(i.state IN ('admitted','possible_send','unknown'))::text, ',' ORDER BY i.id),''))
+ FROM sophia.owner_runner_operations i WHERE i.project_id=p_project AND i.binding_id=p_binding AND i.kind='input'
+$$;
+
 -- Admission (sophia_api, inside withActor 'write'). The same key and request return the first receipt; another request
 -- under the key conflicts. Every refusal happens before any write. r2: a connection past its expiry is not
 -- authenticated (R1-F06); a follow-up or Stop keeps its binding's original route or is refused (R1-F07); a Stop fences
--- its binding at once, needs no new-work allowance, consumes none, and a second Stop answers the unsettled one (R1-F05).
+-- its binding at once, needs no new-work allowance and consumes none (R1-F05). Integrated r2 (F02): every successful
+-- admission binds its key; a Stop under a fresh key while an unsettled Stop of the binding was not overtaken is refused,
+-- writing nothing, so its key stays unbound.
 CREATE FUNCTION sophia.admit_owner_runner_operation(p_project uuid, p_key text, p_request jsonb, p_digest text)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.actor_id(); k text; prior sophia.owner_runner_operations; r sophia.executor_resources;
@@ -266,10 +283,15 @@ BEGIN
   IF b.state IN ('settled','lost') THEN RAISE EXCEPTION 'Its native session is settled' USING ERRCODE='40001'; END IF;
   IF k='input' AND b.state='stopping' THEN RAISE EXCEPTION 'Its native session is stopping' USING ERRCODE='40001'; END IF;
   IF k='stop' THEN
-   -- One Stop at a time per binding: another request answers the unsettled one; nothing new is written.
-   SELECT * INTO pending FROM sophia.owner_runner_operations WHERE project_id=p_project AND binding_id=t.binding_id AND kind='stop'
-    AND state IN ('admitted','possible_send','received','unknown') ORDER BY created_at LIMIT 1;
-   IF FOUND THEN RETURN sophia.owner_runner_receipt(pending); END IF;
+   -- One Stop at a time per binding (integrated r2, F02): another, under a fresh key, is refused and binds nothing,
+   -- unless an earlier input landed after the pending Stop was sent (overtaken, F01): its run may have started after
+   -- that interrupt, so the owner may Stop again.
+   SELECT s.* INTO pending FROM sophia.owner_runner_operations s WHERE s.project_id=p_project AND s.binding_id=t.binding_id
+    AND s.kind='stop' AND s.state IN ('admitted','possible_send','received','unknown')
+    AND NOT (s.possible_send_at IS NOT NULL AND EXISTS (SELECT 1 FROM sophia.owner_runner_operations i
+     WHERE i.project_id=p_project AND i.binding_id=s.binding_id AND i.kind='input' AND i.received_at>s.possible_send_at))
+    ORDER BY s.created_at LIMIT 1;
+   IF FOUND THEN RAISE EXCEPTION 'A Stop is already pending for this native session: %', pending.id USING ERRCODE='40001'; END IF;
   END IF;
   SELECT * INTO g FROM sophia.goals WHERE project_id=p_project AND id=t.goal_id FOR UPDATE;
   att:=t.attempt_id; bnd:=t.binding_id; thread:=t.native_thread_id;
@@ -437,7 +459,8 @@ BEGIN
    WHERE project_id=p_project AND id=p_outbox;
   RETURN jsonb_build_object('result','deferred','reason','the account is busy with another assignment');
  END IF;
- -- Bound to the journal it goes through (R1-F01): only that journal can later prove it was never sent.
+ -- Bound to the journal it goes through (R1-F01): only that journal speaks for it later. No journal proves it was never
+ -- sent (r3, R2-F01): a possible send never returns to admitted.
  UPDATE sophia.owner_runner_operations SET state='possible_send', possible_send_at=now(), reason=NULL, gateway_journal_id=p_journal,
   revision=revision+1 WHERE project_id=p_project AND id=o.id RETURNING * INTO o;
  UPDATE sophia.commands SET state='dispatching' WHERE project_id=p_project AND id=o.command_id AND state='admitted';
@@ -451,6 +474,8 @@ RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE o sophia.owner_runner_operations; ob sophia.outbox; k text:=p_answer->>'kind'; ident jsonb:=p_answer->'identity';
  ans_delivery text; ans_terminal boolean; ans_status text; ans_reason text:=left(nullif(p_answer->>'reason',''),500);
+ s sophia.owner_runner_operations; bar record; waiting text:='settlement is not proven: an earlier input of this native '
+  ||'session is not reconciled yet and may still arrive after the interrupt';
 BEGIN
  PERFORM 1 FROM sophia.projects WHERE id=p_project FOR UPDATE;
  SELECT * INTO o FROM sophia.owner_runner_operations WHERE project_id=p_project AND id=p_operation FOR UPDATE;
@@ -497,6 +522,18 @@ BEGIN
     WHERE project_id=p_project AND id=o.binding_id AND state IN ('launching','idle','running');
    UPDATE sophia.work_attempts SET state='running' WHERE project_id=p_project AND id=o.attempt_id AND state='admitted';
   END IF;
+  -- An input landing after a Stop of its binding was sent (integrated r2, F01): its run may have started after that
+  -- interrupt. The Stop says so and is overtaken, so the owner may Stop again; it is never settled by this receipt.
+  IF o.kind='input' THEN
+   FOR s IN UPDATE sophia.owner_runner_operations SET revision=revision+1,
+     reason='overtaken: an earlier input landed after this Stop was sent; its run may have started after the interrupt. '
+      ||'Stop again to interrupt it'
+    WHERE project_id=p_project AND binding_id=o.binding_id AND kind='stop' AND state IN ('possible_send','received','unknown')
+     AND possible_send_at IS NOT NULL AND possible_send_at<o.received_at RETURNING *
+   LOOP
+    PERFORM sophia.owner_runner_event(s,'runner_operation.updated');
+   END LOOP;
+  END IF;
  WHEN 'rejected', 'refused' THEN
   UPDATE sophia.owner_runner_operations SET state=CASE k WHEN 'rejected' THEN 'rejected' ELSE 'denied' END,
    reason=left(CASE k WHEN 'rejected' THEN 'T3 refused it ('||coalesce(p_answer->>'code','unknown')||'): ' ELSE 'the owner gateway refused it: ' END
@@ -517,14 +554,15 @@ BEGIN
   UPDATE sophia.outbox SET state='outcome_unknown', lease_token=NULL, lease_until=NULL WHERE project_id=p_project AND id=ob.id;
   UPDATE sophia.commands SET state='outcome_unknown' WHERE project_id=p_project AND id=o.command_id;
  WHEN 'settled' THEN
+  -- A gateway's journaled settlement is a cached past read (integrated r2, F01): it settles nothing. A Stop settles only
+  -- on a fresh observation recorded under its inputs' current barrier token (below).
   IF o.kind<>'stop' THEN RAISE EXCEPTION 'Only a stop settles by observation' USING ERRCODE='22023'; END IF;
-  UPDATE sophia.owner_runner_operations SET state='settled', reason=coalesce(ans_reason,'no active run observed'), settled_at=now(),
-   followed_at=now(), revision=revision+1 WHERE project_id=p_project AND id=o.id RETURNING * INTO o;
-  UPDATE sophia.outbox SET state='settled', lease_token=NULL, lease_until=NULL WHERE project_id=p_project AND id=ob.id;
-  UPDATE sophia.commands SET state='checked' WHERE project_id=p_project AND id=o.command_id;
-  PERFORM sophia.owner_runner_end_binding(o,'stopped');
+  UPDATE sophia.owner_runner_operations SET followed_at=now() WHERE project_id=p_project AND id=o.id;
+  RETURN jsonb_build_object('operationId',o.id,'state',o.state,'changed',false);
  WHEN 'run', 'no_active_run', 'unobserved' THEN
-  IF o.state<>'received' THEN RETURN jsonb_build_object('operationId',o.id,'state',o.state,'changed',false); END IF;
+  -- A received operation is observed; so is a Stop whose own delivery is unknown (its settlement can still be proven).
+  IF NOT (o.state='received' OR (o.kind='stop' AND o.state='unknown')) THEN
+   RETURN jsonb_build_object('operationId',o.id,'state',o.state,'changed',false); END IF;
   ans_status:=CASE k WHEN 'run' THEN p_answer->>'status' WHEN 'no_active_run' THEN 'no_active_run' END;
   ans_terminal:=k='no_active_run' OR (k='run' AND (p_answer->>'terminal')::boolean);
   IF NOT ans_terminal THEN
@@ -537,10 +575,27 @@ BEGIN
    PERFORM sophia.owner_runner_event(o,'runner_operation.updated');
    RETURN jsonb_build_object('operationId',o.id,'state',o.state,'changed',true);
   END IF;
-  UPDATE sophia.owner_runner_operations SET state='settled', run_status=left(ans_status,40), settled_at=now(), followed_at=now(), revision=revision+1
+  IF o.kind='stop' THEN
+   -- The causal barrier (integrated r2, F01): no earlier input still in flight, and an observation made under the
+   -- inputs' current token. Otherwise the Stop stays unresolved, its binding stopping, its reservation held.
+   SELECT * INTO bar FROM sophia.owner_runner_barrier(p_project,o.binding_id);
+   IF bar.blocked OR (p_answer->>'barrier') IS DISTINCT FROM bar.token THEN
+    IF bar.blocked AND o.reason IS DISTINCT FROM waiting THEN
+     UPDATE sophia.owner_runner_operations SET followed_at=now(), reason=waiting, revision=revision+1
+      WHERE project_id=p_project AND id=o.id RETURNING * INTO o;
+     PERFORM sophia.owner_runner_event(o,'runner_operation.updated');
+     RETURN jsonb_build_object('operationId',o.id,'state',o.state,'changed',true);
+    END IF;
+    UPDATE sophia.owner_runner_operations SET followed_at=now() WHERE project_id=p_project AND id=o.id;
+    RETURN jsonb_build_object('operationId',o.id,'state',o.state,'changed',false);
+   END IF;
+  END IF;
+  UPDATE sophia.owner_runner_operations SET state='settled', run_status=left(ans_status,40), settled_at=now(), followed_at=now(), revision=revision+1,
+   reason=CASE WHEN o.kind='stop' THEN 'proven: no active and no unsettled run, after every earlier input converged' ELSE o.reason END
    WHERE project_id=p_project AND id=o.id RETURNING * INTO o;
-  UPDATE sophia.outbox SET state='settled' WHERE project_id=p_project AND id=ob.id AND state='acknowledged';
-  UPDATE sophia.commands SET state='checked' WHERE project_id=p_project AND id=o.command_id AND state='acknowledged';
+  UPDATE sophia.outbox SET state='settled', lease_token=NULL, lease_until=NULL
+   WHERE project_id=p_project AND id=ob.id AND state IN ('acknowledged','outcome_unknown');
+  UPDATE sophia.commands SET state='checked' WHERE project_id=p_project AND id=o.command_id AND state IN ('acknowledged','outcome_unknown');
   IF o.kind='stop' THEN PERFORM sophia.owner_runner_end_binding(o,'stopped'); END IF;
  ELSE
   RAISE EXCEPTION 'Invalid runner answer' USING ERRCODE='22023';
@@ -551,37 +606,50 @@ BEGIN
 END $$;
 
 -- Expired leases and superseded rows. Never possibly sent (still admitted): requeued. Possibly sent: unknown. Superseded
--- by a goal Hold/Stop before it was sent: denied.
+-- by a goal Hold/Stop before it was sent: denied. Integrated r2 (F03): candidates are chosen without locks, then each is
+-- locked in the recorder's order (its project, then its operation and outbox rows) and rechecked under those locks.
+-- Anything already locked is skipped for a later pass, never waited on, so maintenance cannot deadlock with a recorder,
+-- an admission or another maintainer.
 CREATE FUNCTION sophia.owner_runner_maintain(p_limit integer DEFAULT 50) RETURNS integer LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
-DECLARE x record; o sophia.owner_runner_operations; n integer:=0;
+DECLARE x record; o sophia.owner_runner_operations; ob sophia.outbox; n integer:=0;
 BEGIN
  IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 500 THEN RAISE EXCEPTION 'Invalid bound' USING ERRCODE='22023'; END IF;
- FOR x IN SELECT ob.project_id, ob.id AS outbox_id, ob.state AS outbox_state, op.id AS op_id, op.state AS op_state FROM sophia.outbox ob
-   JOIN sophia.owner_runner_operations op ON op.project_id=ob.project_id AND op.outbox_id=ob.id
-   WHERE ob.destination IN ('runner.create','runner.input','runner.stop')
-    AND ((ob.state='dispatching' AND ob.lease_until<clock_timestamp())
-     OR (ob.state='outcome_unknown' AND op.state IN ('admitted','possible_send'))
-     OR (ob.state IN ('superseded','denied') AND op.state='admitted'))
-   ORDER BY ob.created_at LIMIT p_limit FOR UPDATE OF ob, op SKIP LOCKED
+ FOR x IN SELECT c.project_id, c.id AS outbox_id, op.id AS op_id FROM sophia.outbox c
+   JOIN sophia.owner_runner_operations op ON op.project_id=c.project_id AND op.outbox_id=c.id
+   WHERE c.destination IN ('runner.create','runner.input','runner.stop')
+    AND ((c.state='dispatching' AND c.lease_until<clock_timestamp())
+     OR (c.state='outcome_unknown' AND op.state IN ('admitted','possible_send'))
+     OR (c.state IN ('superseded','denied') AND op.state='admitted'))
+   ORDER BY c.created_at LIMIT p_limit
  LOOP
-  IF x.outbox_state IN ('superseded','denied') THEN
+  PERFORM 1 FROM sophia.projects WHERE id=x.project_id FOR UPDATE SKIP LOCKED;
+  CONTINUE WHEN NOT FOUND;
+  SELECT * INTO o FROM sophia.owner_runner_operations WHERE project_id=x.project_id AND id=x.op_id FOR UPDATE SKIP LOCKED;
+  CONTINUE WHEN NOT FOUND;
+  SELECT * INTO ob FROM sophia.outbox WHERE project_id=x.project_id AND id=x.outbox_id FOR UPDATE SKIP LOCKED;
+  CONTINUE WHEN NOT FOUND;
+  -- Rechecked under the locks: a recorder or dispatcher may have moved it since it was chosen.
+  CONTINUE WHEN NOT ((ob.state='dispatching' AND ob.lease_until<clock_timestamp())
+   OR (ob.state='outcome_unknown' AND o.state IN ('admitted','possible_send'))
+   OR (ob.state IN ('superseded','denied') AND o.state='admitted'));
+  IF ob.state IN ('superseded','denied') THEN
    UPDATE sophia.owner_runner_operations SET state='denied', reason='the goal was held or stopped before it was sent', revision=revision+1
-    WHERE project_id=x.project_id AND id=x.op_id RETURNING * INTO o;
+    WHERE project_id=o.project_id AND id=o.id RETURNING * INTO o;
    UPDATE sophia.commands SET state='denied' WHERE project_id=o.project_id AND id=o.command_id AND state IN ('admitted','dispatching');
    IF o.kind='create' THEN PERFORM sophia.owner_runner_end_binding(o,'failed'); END IF;
    PERFORM sophia.owner_runner_event(o,'runner_operation.denied');
-  ELSIF x.op_state='admitted' THEN
+  ELSIF o.state='admitted' THEN
    UPDATE sophia.outbox SET state='pending', lease_token=NULL, lease_until=NULL, available_at=now()+interval '1 second'
-    WHERE project_id=x.project_id AND id=x.outbox_id;
-  ELSIF x.op_state='possible_send' THEN
+    WHERE project_id=ob.project_id AND id=ob.id;
+  ELSIF o.state='possible_send' THEN
    UPDATE sophia.owner_runner_operations SET state='unknown', reason='the dispatch lease expired after a possible send', revision=revision+1
-    WHERE project_id=x.project_id AND id=x.op_id RETURNING * INTO o;
-   UPDATE sophia.outbox SET state='outcome_unknown', lease_token=NULL, lease_until=NULL WHERE project_id=x.project_id AND id=x.outbox_id;
+    WHERE project_id=o.project_id AND id=o.id RETURNING * INTO o;
+   UPDATE sophia.outbox SET state='outcome_unknown', lease_token=NULL, lease_until=NULL WHERE project_id=ob.project_id AND id=ob.id;
    UPDATE sophia.commands SET state='outcome_unknown' WHERE project_id=o.project_id AND id=o.command_id;
    PERFORM sophia.owner_runner_event(o,'runner_operation.updated');
   ELSE
-   UPDATE sophia.outbox SET state='outcome_unknown', lease_token=NULL, lease_until=NULL WHERE project_id=x.project_id AND id=x.outbox_id;
+   UPDATE sophia.outbox SET state='outcome_unknown', lease_token=NULL, lease_until=NULL WHERE project_id=ob.project_id AND id=ob.id;
   END IF;
   n:=n+1;
  END LOOP;
@@ -589,17 +657,20 @@ BEGIN
 END $$;
 
 -- One owner runner's operations to reconcile (unknown) or observe (received), each with its envelope; the least
--- recently followed first.
+-- recently followed first. A Stop also carries its inputs' barrier token (integrated r2, F01), returned with its
+-- observation so a stale read cannot settle it.
 CREATE FUNCTION sophia.owner_runner_followups(p_owner uuid, p_environment text, p_journal uuid, p_limit integer DEFAULT 20,
  p_min_age_seconds integer DEFAULT 10)
-RETURNS TABLE(project_id uuid, operation_id uuid, kind text, state text, envelope jsonb) LANGUAGE plpgsql
+RETURNS TABLE(project_id uuid, operation_id uuid, kind text, state text, envelope jsonb, barrier text) LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 #variable_conflict use_column
 BEGIN
  IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 100 OR p_min_age_seconds IS NULL OR p_min_age_seconds NOT BETWEEN 0 AND 3600
     OR p_owner IS NULL OR p_environment IS NULL OR p_journal IS NULL THEN
   RAISE EXCEPTION 'Invalid bound' USING ERRCODE='22023'; END IF;
- RETURN QUERY SELECT o.project_id, o.id, o.kind, o.state, sophia.owner_runner_envelope(o) FROM sophia.owner_runner_operations o
+ RETURN QUERY SELECT o.project_id, o.id, o.kind, o.state, sophia.owner_runner_envelope(o),
+  CASE WHEN o.kind='stop' THEN (sophia.owner_runner_barrier(o.project_id,o.binding_id)).token END
+  FROM sophia.owner_runner_operations o
   -- Only operations bound to this runner's journal: one bound to a replaced journal stays unknown, visibly.
   WHERE o.state IN ('unknown','received') AND o.owner_id=p_owner AND o.environment_ref=p_environment
    AND o.gateway_journal_id=p_journal
@@ -612,7 +683,7 @@ REVOKE ALL ON FUNCTION sophia.owner_runner_event(sophia.owner_runner_operations,
  sophia.owner_runner_ineligible(sophia.owner_runner_operations), sophia.owner_runner_release(sophia.owner_runner_operations),
  sophia.owner_runner_end_binding(sophia.owner_runner_operations,text),
  sophia.owner_runner_same_route(sophia.owner_runner_operations,sophia.owner_runner_qualifications,sophia.execution_connections,sophia.executor_resources),
- sophia.owner_runner_fence(uuid,uuid),
+ sophia.owner_runner_fence(uuid,uuid), sophia.owner_runner_barrier(uuid,uuid),
  sophia.admit_owner_runner_operation(uuid,text,jsonb,text), sophia.claim_owner_runner_outbox(text,uuid,text,boolean,integer,integer),
  sophia.owner_runner_prepare_send(uuid,uuid,uuid,uuid), sophia.owner_runner_record(uuid,uuid,uuid,uuid,jsonb),
  sophia.owner_runner_maintain(integer), sophia.owner_runner_followups(uuid,text,uuid,integer,integer) FROM PUBLIC;

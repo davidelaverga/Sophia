@@ -6,6 +6,8 @@
 //      committed transaction), then sends through the port and records its answer under the lease. A possibly-sent
 //      operation is never prepared again: without a receipt it stays unknown (r3, R2-F01),
 //   3. follows up: an unknown operation is reconciled by its original identities, a received one is observed (no turn).
+//      A Stop's observation is recorded with its inputs' barrier token (integrated r2, F01), and a gateway's journaled
+//      settlement of a lost Stop is only a cached past read: the dispatcher answers it with a fresh observation.
 // Its rows (runner.*) are never claimed by the dsh dispatcher (native.*). The port is injected: in this candidate only
 // tests give one (an owner gateway over a fake T3 transport). No live owner-host transport exists yet (INC01-CC-003).
 //
@@ -25,6 +27,7 @@ import {
   type OutboxRow,
   type OwnerRunner,
   type PrepareOutcome,
+  type RunnerFollowup,
 } from '@sophia/persistence'
 
 export interface RunnerDispatchOptions {
@@ -107,23 +110,43 @@ async function sendClaimed(
   }
 }
 
+/** Observe one operation and record what the read proves; a Stop's observation carries its barrier token. */
+async function observeOne(pool: pg.Pool, options: RunnerDispatchOptions, f: RunnerFollowup, pass: RunnerPass) {
+  const journalId = options.port.journalId
+  const seen = await options.port.observe({ envelope: f.envelope, digest: digestOf(f.envelope), journalId })
+  const target = { projectId: f.projectId, operationId: f.operationId, leaseToken: null, journalId }
+  await recordRunnerAnswer(
+    pool,
+    target,
+    seen.kind === 'unknown' ? { kind: 'unobserved' } : { ...seen, barrier: f.barrier },
+  )
+  pass.observed += 1
+}
+
+/**
+ * Reconcile one unknown operation by its original identities. A lost Stop's `settled` from the gateway's journal is a
+ * cached past read (integrated r2, F01): it is answered with a fresh observation, never recorded as settlement.
+ */
+async function reconcileOne(pool: pg.Pool, options: RunnerDispatchOptions, f: RunnerFollowup, pass: RunnerPass) {
+  const journalId = options.port.journalId
+  const answer = await options.port.reconcile({ envelope: f.envelope, digest: digestOf(f.envelope), journalId })
+  pass.reconciled += 1
+  if (f.kind === 'stop' && answer.kind === 'settled') return observeOne(pool, options, f, pass)
+  await recordRunnerAnswer(
+    pool,
+    { projectId: f.projectId, operationId: f.operationId, leaseToken: null, journalId },
+    answer,
+  )
+}
+
 /** Step 3: reconcile what is unknown, observe what was received, each through this runner's own gateway. */
 async function followUp(pool: pg.Pool, options: RunnerDispatchOptions, pass: RunnerPass) {
   const limit = options.followupLimit ?? 20
   const journalId = options.port.journalId
   const followups = await runnerFollowups(pool, options.runner, journalId, limit, options.followupMinAgeSeconds ?? 10)
   for (const f of followups) {
-    const identity = { envelope: f.envelope, digest: digestOf(f.envelope), journalId }
-    const target = { projectId: f.projectId, operationId: f.operationId, leaseToken: null, journalId }
     try {
-      if (f.state === 'unknown') {
-        await recordRunnerAnswer(pool, target, await options.port.reconcile(identity))
-        pass.reconciled += 1
-      } else {
-        const seen = await options.port.observe(identity)
-        await recordRunnerAnswer(pool, target, seen.kind === 'unknown' ? { kind: 'unobserved' } : seen)
-        pass.observed += 1
-      }
+      await (f.state === 'unknown' ? reconcileOne(pool, options, f, pass) : observeOne(pool, options, f, pass))
     } catch (err) {
       options.log?.(`runner operation ${f.operationId}: follow-up failed: ${text(err)}`)
     }

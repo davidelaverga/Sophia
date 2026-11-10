@@ -90,7 +90,8 @@ Seven classes, each repaired as a class. They are rules of this plan, not notes 
      admitted but not yet sent.
    - Input admission and every prepare-send refuse a binding that is `stopping`, `settled` or `lost`.
    - A Stop needs its route's `stop` qualification but no new-work allowance, and never consumes or refunds any.
-   - A second Stop for a binding with an unsettled one answers that one's receipt.
+   - *Superseded in integrated r2 (PR505 F02):* a second Stop under a fresh key no longer answers the unsettled one.
+     It is refused, unless a late input overtook the first Stop (see below).
    - Hold and Resume stay unsupported. A stopped binding is never reopened.
 6. **R1-F06. Every frozen revision is rechecked.**
    - Prepare-send compares the goal revision and epoch, the member revision and role, and the resource, connection and
@@ -162,6 +163,64 @@ Three classes, each a rule of this plan.
      - Hold and Resume stay unsupported;
      - an acknowledgement still never settles;
      - Stop fences, unknown effects and reservations are kept.
+
+## Integrated r2 repairs (PR #505 automatic review, confirmed by INC01-CC-002-integrated-r1-SOURCE-FINAL-001)
+
+The published head `db414c02` is never rewritten; these repairs are one child commit of it.
+
+1. **F01 (P1). A Stop settles only after every earlier input has converged.**
+   - **The defect.** An input sent before a Stop, and still `possible_send` or `unknown`, may reach T3 after the
+     interrupt. T3's `thread.stop` at the pin stops the active run and holds queued ones; it does not refuse a request
+     that arrives later. So "no active run now" proves nothing about a request still in flight.
+   - **The barrier.** A Stop (`received`, or `unknown` with its delivery unproven) settles, and ends its binding, only
+     when both hold:
+     - no input of its binding is `admitted`, `possible_send` or `unknown`;
+     - a fresh, decoded, complete read shows no active and no unsettled run.
+   - **Stale evidence.** The fresh read must also post-date the inputs' last convergence. The follow-up query hands
+     the dispatcher a barrier token over the binding's inputs (each id and whether it has converged). The dispatcher
+     returns it with the observation, and SQL refuses a settlement whose token no longer matches.
+   - **No cached settlement.** A gateway's journaled `settled` answer is a cached past read. SQL no longer settles a
+     Stop from it. The dispatcher answers it with a fresh observation of the same Stop, recorded with the token.
+   - **While blocked.** The Stop stays unresolved: still `received` (or `unknown`), its binding `stopping`, its account
+     reservation held. Its reason names the wait, so the pending safety status stays visible.
+   - **A late landing.** If an earlier input lands after the Stop was sent (its receipt recorded after the Stop's
+     possible send), its run may have started after the interrupt. The Stop's reason says so, and the Stop is
+     **overtaken**. The owner may then Stop again: a new Stop operation, admitted with every existing check and
+     dispatched as usual (also with admissions or sends off). Its interrupt reaches the late run. Both Stops then
+     settle on proof.
+   - **Never.** Nothing replays the unknown input, opens a new session or account, releases its commitment, or claims
+     a T3 guarantee the pin does not give. An input that stays `unknown` (lost for good, or a violated delivery) keeps
+     the Stop unresolved, for an operator.
+2. **F02 (P2). A successful admission always binds its key.**
+   - A Stop under a fresh key, while its binding has an unsettled Stop that was not overtaken, is **refused** (40001,
+     `invalid_state`). The refusal names the pending Stop, and nothing is written, so the refused key stays unbound.
+   - The same key replays its own receipt (a project-and-owner-scoped key lookup comes first), before and after
+     settlement and after a restart. Another request under it conflicts.
+   - A refused key may later carry another request: a refusal binds nothing.
+   - Concurrent Stops serialize on the project lock: one is admitted and the others are refused. There is one actual
+     Stop, one native interrupt and no allowance use.
+3. **F03 (P2). Maintenance takes locks in the recorder's order.**
+   - Every writer takes the project first, then the operation and outbox rows. Maintenance now selects candidates
+     without locks, then for each one locks its project (`SKIP LOCKED`), then its rows (`SKIP LOCKED`), and rechecks
+     the candidate's condition under those locks.
+   - A busy project or row is skipped and maintained on a later pass, never waited on. So maintenance can deadlock
+     neither with a recorder nor with another maintainer.
+   - The bound and the one-way unknown semantics are unchanged.
+
+### Integrated r2 crossings
+
+| Crossing | Rule |
+|---|---|
+| Input in transit (delayed before effect, response lost); run 1 ends; Stop sent; a read shows no active run | The Stop stays `received`, its binding `stopping`, its reservation held, its reason naming the unconverged input |
+| That input lands later, after a reconnect or a namespace renewal | Reconciled by its original identities to `received`. The Stop is marked overtaken and stays unsettled while the late run is active |
+| Owner Stops again after the overtaking | A new Stop is admitted (also with admissions or sends off), one interrupt is sent, and both Stops settle on proof |
+| Earlier input stays `unknown` for good | The Stop never settles automatically; it stays visible for an operator |
+| Earlier input `received` (queued or started) before the Stop | No barrier; the Stop settles when the complete read shows every run terminal |
+| Gateway answers a cached `settled` for a lost Stop | It is not settlement; a fresh observation with the current token is required |
+| Observation made, then an input converges before it is recorded | The token changed: no settlement on that observation |
+| Second Stop under a fresh key, first not overtaken | Refused (`invalid_state`); no row and no key binding |
+| Same-key Stop retry, before or after settlement | Its own receipt |
+| Recorder holds the project while maintenance runs | Maintenance skips that project. No 40P01; the recorder completes; the next pass maintains the rest |
 
 ## Records (0092, additive)
 
