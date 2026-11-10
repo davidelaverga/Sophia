@@ -1,6 +1,6 @@
 # Implementation-session handoff — INC01-DES-001
 
-Goal and attempt: INC01-DES-001, revision 3 (r2 `changes_requested` by Davide's iteration pack), attempt 1 (INC-01)  
+Goal and attempt: INC01-DES-001, revision 3 repair 3 (r2 `changes_requested` by Davide's iteration pack), attempt 1 (INC-01)  
 Human owner / executor resource: Davide / the dedicated Claude Code designer (cloud session, Auto mode)  
 Native session: `session_01FGXfrKKdKs2Y9XbfrHzs3s`; coordinator Codex `01a1bd48-df51-7692-b30c-9e20f6eb4c81`  
 Starting worktree/commit: `/home/user/Sophia`, branch `claude/determined-ritchie-eujmht` at `main`
@@ -9,7 +9,9 @@ Ending commit/tree and changed files: one local, unpushed commit; its hash and t
 commit can't name its own hash). r1 was `face27996b5702f8586640238ec39ab168b37396` / tree
 `6d682af05b33f4040a9f61bcd887c61d13fd6c70`, kept in the r1 export; r2 replaced that unpublished commit
 (`00d8193c56ac42d2cc8ee31a4f96a0c479141c5f` / `c1a1f0d09aedf346d48b12e2d2d55ed983eca5ab`, kept with its export). r3 is
-one publication commit on the base, its r2-based work commit kept on a separate local ref (manifest). Changed:
+one publication commit on the base, its r2-based work commit kept on a separate local ref (manifest). r3 repair 2 was
+published as `1164e75dce7ffea5724d2b20d58856ae8e4f63fd` (tree `fd233c6b4a314ae35f026bcbddf80208e0521f1e`, PR 506);
+repair 3 is one local, unpushed child of that published commit, never a rewrite of it. Changed:
 `apps/studio/src/features/resources/{ResourceSheet.tsx, ResourceTile.tsx, resource.ts, resources.css, status-words.ts,
 status-words.test.ts, receipts.ts, receipts.test.ts, SessionActs.tsx, work-control.ts, work-control.test.ts}`,
 `apps/studio/src/features/work/planning/{actions.ts, actions.test.ts}`, `apps/studio/fixtures/{resources.tsx,
@@ -46,7 +48,10 @@ its Try again the same operation. The state comes from the one store Resources a
 execution; Tasks draws no second Hold either, nor names H for one. Readiness opens on request, fact by fact, the
 unknown ones said as not reported. Control support uses the pack's words.
 
-State: `awaiting_design_approval` (revision 3, repair 2), and awaiting the independent whole-diff review of repair 2.
+State: repair 3 of the published `1164e75d` (UI1164-F08), local and unpushed, awaiting the same reviewer's whole-diff
+source review; root and that reviewer assess its materiality on the actual diff. Davide approved exactly `1164e75d` /
+`fd233c6b` for publication and integration review; that approval is not claimed for this repair's head. Repair 2 had
+been `awaiting_design_approval` until that decision; its pre-push source acceptance (`8a556808…`) stays historical.
 r3 repair 1 (`9c1ee251…`) was reviewed NEEDS_REVISION (DES-R3-REPAIR1-F05…F07; F01–F04 closed), kept as history.
 r3 (`848f1105…`) was reviewed NEEDS_REVISION (DES-R3-F01…F04) and is kept as history. Not approved, not
 pushed. r2 is `changes_requested`.
@@ -205,10 +210,50 @@ Review `INC01-DES-001-r3-repair1-SOURCE-PRE-PUSH-001` (SHA-256 `a601a6b1…`) on
    after. Then the final browser suites, `pnpm check` and the Studio build on the final source (manifest); these docs
    were written while they ran.
 
+## r3 repair 3, as it happened
+
+Review `INC01-DES-001-r3-repair2-SOURCE-FINAL-001` (`needs_revision`) on the published `1164e75d`: one P2 class,
+UI1164-F08, from the automatic review and confirmed by the same reviewer. The readiness summary asked only whether the
+window `capacity()` picked stood at 100 %; credits or tokens at 0 are a balance, never that window, so a signed-in,
+verified Codex with none left read `Ready for repository analysis` in the tile and the sheet alike.
+
+1. The plan's repair 3 section first. The new checks, over the exact `1164e75d` `status-words.ts` and `resource.ts`
+   (blobs verified): 5 of 21 unit tests failed (zero alone, mixed in both orders, a used-up 7-day window behind a 5-hour
+   one that runs out first at its pace, which one is named, a reading still holding); the browser check failed at its
+   first case; a probe of all 13 fixture readings showed the six adverse ones `Ready` in tile and sheet, `spent=1`
+   waiting, the siblings ready.
+2. The repair, in `status-words.ts` only: every window of a current reading is weighed by its unit and number (a
+   percentage at or past 100, a count at or below 0), known to apply and observed now; the existing
+   `Waiting for capacity: <name> window` line and `wait` tone, with that window's own reset; with several used up, the
+   one that holds it longest (no reset known, else the latest). A reset time that isn't an instant counts as no reset
+   known, for the order only. `capacity()`, the capacity line, `resource.ts`, CSS, components, Tasks and the control,
+   Open work, focus and lineage paths are untouched. The fixture gains `count=` readings for Codex.
+3. One pass-after unit run failed 20/21 on the test's own words (`1 day`; the app's existing time words say
+   `resets in 24 h`): the expectation was corrected, the source not. Then 21/21, the probe as planned, and both affected
+   Resources specs, both projects, 126 passed.
+4. Mutations, each applied exactly, restored byte-identical, 0 cancelled: counts never used up (4 unit, browser),
+   first window only (3 unit, browser), zero not used up (4 unit, browser), a partial window limits (1 unit, browser),
+   unknown or due weighed (1 unit, browser), an expired reading weighed (1 unit, browser), the longest not first (1
+   unit; unit-only: no fixture reading has two used up).
+5. Captures: 7 states before (the `1164e75d` summary with the new fixture readings) and after, desktop and narrow. Then
+   the focused checks, `pnpm check` and the Studio build on the final source (manifest). The 341-check browser campaign
+   of repair 2 is not rerun; its counts stay those of `1164e75d`'s source and are not restamped. No new Impeccable
+   detector: no CSS or component changed.
+6. The first `pnpm check`, on a first local commit (`1aa10afa`, kept on a local ref, never pushed), failed at lint:
+   `Array#sort()` (now `toSorted`, the same order) and the new tests' helpers scoped inside their `describe` (moved
+   out, unchanged). The final commit replaces it as the same single child of `1164e75d`; mutations, focused checks,
+   captures, `pnpm check` and the build ran again on it.
+
 ## Remaining obligations
 
-- Independent whole-diff review before any push; automatic Codex review on every pushed commit; Luis's integration.
-- Davide's candidate-specific design approval. Until then the UI change is held: no push, PR, Ready, merge or deploy.
+- Same reviewer's whole-diff source review of repair 3 before root pushes it; then root fast-forwards once, and the
+  current-head automatic review, CI and Luis's integration follow on PR 506.
+- Davide's approval covers exactly `1164e75d`. Root and the reviewer judge repair 3's materiality on its diff (a false
+  Ready corrected to the existing Waiting line); any material UI change needs his decision on that working candidate.
+- r3 repair 3 bounds: the mixed capacity line is unchanged (beside a 25 % window, the tile's capacity still names that
+  window while the summary waits for the used-up count); a count's name follows the existing `windowName` (an unmapped
+  id reads as words, e.g. "daily tokens"); no live readiness projection or quota collector exists, so this is fixture
+  proof only.
 - Chromium emulation is not physical Safari or touch hardware.
 - r3 repair 1 bounds: the readiness projection and `runtimeControl` are the Studio's proposal; no service supplies them,
   so production shows the unknown states; the seeds prove the UI rebuilds from a retained record, not that a service
@@ -227,6 +272,6 @@ Review `INC01-DES-001-r3-repair1-SOURCE-PRE-PUSH-001` (SHA-256 `a601a6b1…`) on
 
 ## Next bounded action
 
-The coordinator sends the exported bundle to the independent reviewer and presents the candidate to Davide. On
-approval, the next consumer is INC01-S2: bind real `ResourcePanel` data in `ProjectShell` and add the readiness and
+Root sends the repair 3 export to the same reviewer for its whole-diff source review; nothing is pushed before that.
+After integration, the next consumer is INC01-S2: bind real `ResourcePanel` data in `ProjectShell` and add the readiness and
 authentication observations C01-R05 names. This candidate's "not reported" line then shows what is observed.

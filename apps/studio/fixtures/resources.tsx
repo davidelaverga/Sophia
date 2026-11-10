@@ -17,6 +17,7 @@
 // target), as on the plan's page; `reassign(sessionId)` gives a session its next assignment. `unfenced=1`: the runtimes report each session's work, but not which assignment it
 // is or its generation, so nothing can be sent to them (PR #76 review).
 // Open work leaves for that board, carrying `held=<work id>` when this viewer's Hold on it was confirmed here.
+// `count=<case>` (with `readiness=1`): Codex's reading as credits or tokens, used up or not (below).
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -34,7 +35,7 @@ import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
 import type { EffortAsk } from '../src/features/resources/change.ts'
-import type { Readiness, Resource, Session } from '../src/features/resources/resource.ts'
+import type { QuotaObservation, QuotaWindow, Readiness, Resource, Session } from '../src/features/resources/resource.ts'
 import { sessionTarget, type Command, type Known } from '../src/features/resources/receipts.ts'
 import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
 import { plan, secondView } from './work-data.ts'
@@ -248,13 +249,53 @@ const stale = query.get('stale') === '1'
 const busy = query.get('busy') === '1'
 const spent = query.get('spent') === '1'
 const tight = query.get('tight') === '1'
+
+/**
+ * `count=<case>`: Codex's reading as counts, all simulated (INC01-DES-001 r3 repair 3, UI1164-F08): credits or tokens
+ * at zero alone (`credits0`, `tokens0`), beside a 5-hour window at 25 % or a positive count in either order
+ * (`percent-credits0`, `credits0-percent`, `tokens-credits0`, `credits0-tokens`), and the siblings that are not used up:
+ * credits left (`credits`), zero that applies only in part (`partial`), unknown (`unknown`), or whose reset is already
+ * due (`due`). With `stale=1` the reading is past its time, whatever it said.
+ */
+const countWindow = (
+  unit: QuotaWindow['unit'],
+  value: number | null,
+  over: Partial<QuotaWindow> = {},
+): QuotaWindow => ({
+  window_id: unit === 'tokens_remaining' ? 'daily_tokens' : 'daily_requests',
+  unit,
+  value,
+  resets_at: minutes(9 * 60),
+  scope: 'account',
+  applicability: 'known',
+  state: 'observed',
+  ...over,
+})
+const roomy: QuotaWindow = { ...countWindow('percent_used', 25), window_id: 'five_hour', resets_at: minutes(120) }
+const noCredits = countWindow('credits_remaining', 0)
+const COUNTS: Record<string, QuotaWindow[]> = {
+  credits0: [noCredits],
+  tokens0: [countWindow('tokens_remaining', 0, { resets_at: null })],
+  'percent-credits0': [roomy, noCredits],
+  'credits0-percent': [noCredits, roomy],
+  'tokens-credits0': [countWindow('tokens_remaining', 5000), noCredits],
+  'credits0-tokens': [noCredits, countWindow('tokens_remaining', 5000)],
+  credits: [countWindow('credits_remaining', 820)],
+  partial: [countWindow('credits_remaining', 0, { applicability: 'partial' })],
+  unknown: [countWindow('credits_remaining', null, { state: 'unknown' })],
+  due: [countWindow('credits_remaining', 0, { resets_at: minutes(-30) })],
+}
+const counts = COUNTS[query.get('count') ?? '']
+const codexRead = (o: QuotaObservation): QuotaObservation => {
+  const given = counts ? { ...o, windows: counts } : o
+  if (stale) return { ...given, valid_until: expiredAt() }
+  if (spent) return spentCodex(given)
+  return busy ? busyCodex(given) : given
+}
 const read = [...observations, ...(more ? moreObservations : [])].map((o) => {
   if (busy && o.entitlement_id === 'ent-davide-anthropic') return busyClaude(o)
   if (tight && o.entitlement_id === 'ent-davide-anthropic') return tightClaude(o)
-  if (o.entitlement_id !== 'ent-davide-openai') return o
-  if (stale) return { ...o, valid_until: expiredAt() }
-  if (spent) return spentCodex(o)
-  return busy ? busyCodex(o) : o
+  return o.entitlement_id === 'ent-davide-openai' ? codexRead(o) : o
 })
 
 /**

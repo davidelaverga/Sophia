@@ -495,6 +495,49 @@ test('r3-repair · R3-06 · a used-up window holds a ready connection: it waits 
   await expect(tile(page, 'Davide · Codex').locator('.resource-tile-readiness')).toHaveText(/^Waiting for capacity: /)
 })
 
+// ---- r3 repair 3 (UI1164-F08): a used-up count waits like a used-up window, in the tile and the sheet alike. ----
+
+test('r3-repair3 · F08 · credits or tokens at zero wait for capacity, whatever window is beside them; the rest read as before', async ({
+  page,
+}) => {
+  test.setTimeout(120_000) // thirteen readings, each in its tile and its sheet
+  type Said = { tone: string; line: string; more: string | null }
+  const CREDITS: Said = { tone: 'wait', line: 'Waiting for capacity: Daily requests window', more: 'resets in 9 h' }
+  const READY: Said = {
+    tone: 'ready',
+    line: 'Ready for repository analysis',
+    more: 'Code changes: not verified for this connection yet',
+  }
+  const cases: [string, Said][] = [
+    ['count=credits0', CREDITS],
+    ['count=tokens0', { tone: 'wait', line: 'Waiting for capacity: daily tokens window', more: null }],
+    ['count=percent-credits0', CREDITS],
+    ['count=credits0-percent', CREDITS],
+    ['count=tokens-credits0', CREDITS],
+    ['count=credits0-tokens', CREDITS],
+    ['spent=1', { tone: 'wait', line: 'Waiting for capacity: Spend limit window', more: 'resets in 10 days' }], // as before
+    ['count=credits', READY],
+    ['count=partial', READY],
+    ['count=unknown', READY],
+    ['count=due', READY],
+    ['count=credits0&stale=1', READY],
+    ['', READY],
+  ]
+  for (const [reading, { tone, line, more }] of cases) {
+    await page.goto(`${PAGE}?viewer=davide&readiness=1&${reading}`)
+    const said = tile(page, 'Davide · Codex').locator('.resource-tile-readiness')
+    await expect(said, `${reading}: tile`).toHaveText(line)
+    await expect(said, `${reading}: tile`).toHaveAttribute('data-tone', tone)
+    const sheet = await open(page, 'Davide · Codex')
+    const summary = sheet.locator('.resource-readiness')
+    await expect(summary, `${reading}: sheet`).toHaveAttribute('data-tone', tone)
+    await expect(summary.locator('.readiness-line'), `${reading}: sheet`).toHaveText(line)
+    const after = summary.locator('.readiness-more')
+    await (more === null ? expect(after, reading).toHaveCount(0) : expect(after, reading).toHaveText(more))
+    await expect(sheet.getByRole('button', { name: /sign in|reconnect|top up|buy/i })).toHaveCount(0) // no press
+  }
+})
+
 test('@phone · r3-repair · readiness at a phone’s width: its line and details inside the sheet', async ({ page }) => {
   await page.goto(`${PAGE}?viewer=davide&readiness=1`)
   const sheet = await open(page, 'Davide · Codex')

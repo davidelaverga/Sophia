@@ -179,6 +179,36 @@ Written before the repair's code. The review (SHA-256 `a601a6b1â€¦`) closed F01â
   last observed), every row not observed, never "NaN" or "just now". `validUntil: null` keeps its meaning for a valid
   observation. No age limit or clock tolerance is invented.
 
+## Revision 3, repair 3: a used-up count waits like a used-up window (review INC01-DES-001-r3-repair2-SOURCE-FINAL-001)
+
+Written before the repair's code. Davide approved exactly `1164e75d` (tree `fd233c6b`) for publication and integration
+review; root published it once as PR 506. The automatic review on that head found, and the same reviewer confirmed,
+one P2 class (UI1164-F08); this repair is its child and claims no approval of its own.
+
+- **The class.** `readinessSummary` asked only whether the window `capacity()` picked (the one that runs out first at
+  its pace, else the most used percentage) stood at 100 % or more. A count is never that window: a balance of
+  `credits_remaining` or `tokens_remaining` at 0 comes back as `balance` with `limiting: null`, so a signed-in,
+  verified connection with no credits or tokens left read `Ready for repository analysis`, in the tile and the sheet
+  alike (both call `readinessSummary`). The same pick also hides a used-up count behind a percentage with room, and a
+  100 % window behind another that runs out first at its pace.
+- **The repair, in `status-words.ts` only.** The summary weighs every window of a current reading, in no favoured
+  order: used up is a percentage (`percent_used`, `spend_percent_used`) at or past 100, or a count at or below 0, read
+  from the window's unit and numeric value, never from its words. Only a window known to apply whose state is observed
+  now counts: no reading, one that can't see the account (`unavailable`) or past its `valid_until`, a window unknown
+  (or without a value), a reset already due (refresh pending), or one that applies only in part or may not apply is
+  never used up, and none of it is made zero or made capacity. Used up, the summary says the existing
+  `Waiting for capacity: <name> window`, tone `wait`, with that window's own reset; with several used up, the one that
+  holds the connection longest names it (no reset known first, else the latest reset). Host, freshness and sign-in
+  still say first; positive, unknown, partial, expired and due windows read exactly as before.
+- **Bounded.** No layout, CSS, component, flow, copy or capacity-line change; `resource.ts`, `capacity()`, the tile's
+  capacity line, Tasks and every control, Open work, focus and lineage class are untouched. Paths: `status-words.ts`,
+  `status-words.test.ts`, `fixtures/resources.tsx` (a `count=` reading for Codex), `e2e/resource-control-status.spec.ts`
+  and the three records.
+- **Evidence.** Unit and browser (tile and sheet) cases: credits 0 and tokens 0 alone; each beside a 25 % window and a
+  positive count, in both orders; 100 % as before; positive, partial, unknown, expired and due siblings unchanged.
+  Fail-before on exact `1164e75d` with the new checks, pass after; guard mutations that must fail assertions;
+  before/after captures, desktop and narrow.
+
 ## Evidence plan
 
 - Unit (`status-words.test.ts`): host words, grouping/order, every note branch including the teammate and no-port cases.

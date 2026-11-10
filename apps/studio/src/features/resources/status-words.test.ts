@@ -289,3 +289,108 @@ describe('a readiness summary keeps every operation state, and a bad or future t
     )
   })
 })
+
+type Window = QuotaObservation['windows'][number]
+const percentAt = (value: number, over: Partial<Window> = {}): Window => ({
+  window_id: 'five_hour',
+  unit: 'percent_used',
+  value,
+  resets_at: '2026-10-02T14:00:00Z',
+  scope: 'account',
+  applicability: 'known',
+  state: 'observed',
+  ...over,
+})
+const credits = (value: number | null, over: Partial<Window> = {}) =>
+  percentAt(0, {
+    window_id: 'daily_requests',
+    unit: 'credits_remaining',
+    value,
+    resets_at: '2026-10-02T21:00:00Z',
+    ...over,
+  })
+const tokens = (value: number | null, over: Partial<Window> = {}) =>
+  percentAt(0, { window_id: 'daily_tokens', unit: 'tokens_remaining', value, resets_at: null, ...over })
+const reading = (windows: Window[], over: Partial<QuotaObservation> = {}): QuotaObservation => ({
+  ...full(0),
+  windows,
+  ...over,
+})
+
+describe('a used-up count waits like a used-up window, whatever window is beside it (r3 repair 3, UI1164-F08)', () => {
+  const now = new Date('2026-10-02T12:00:00Z')
+  const summary = (windows: Window[], over: Partial<QuotaObservation> = {}) =>
+    readinessSummary(withReadiness(fresh()), reading(windows, over), now)
+  const READY = {
+    tone: 'ready',
+    line: 'Ready for repository analysis',
+    more: 'Code changes: not verified for this connection yet',
+  }
+  const CREDITS_OUT = { tone: 'wait', line: 'Waiting for capacity: Daily requests window', more: 'resets in 9 h' }
+  const TOKENS_OUT = { tone: 'wait', line: 'Waiting for capacity: daily tokens window', more: null }
+
+  it('waits for credits or tokens at zero, alone, with the window’s own name and reset', () => {
+    assert.deepEqual(summary([credits(0)]), CREDITS_OUT)
+    assert.deepEqual(summary([tokens(0)]), TOKENS_OUT) // no reset reported: none said
+    assert.deepEqual(summary([credits(-5)]), CREDITS_OUT) // past zero is used up too
+  })
+
+  it('never lets a percentage with room or a count left hide a used-up count, in either order', () => {
+    assert.deepEqual(summary([percentAt(25), credits(0)]), CREDITS_OUT)
+    assert.deepEqual(summary([credits(0), percentAt(25)]), CREDITS_OUT)
+    assert.deepEqual(summary([percentAt(25), tokens(0)]), TOKENS_OUT)
+    assert.deepEqual(summary([tokens(0), percentAt(25)]), TOKENS_OUT)
+    assert.deepEqual(summary([tokens(5000), credits(0)]), CREDITS_OUT)
+    assert.deepEqual(summary([credits(0), tokens(5000)]), CREDITS_OUT)
+    assert.deepEqual(summary([credits(820), tokens(0)]), TOKENS_OUT)
+    assert.deepEqual(summary([tokens(0), credits(820)]), TOKENS_OUT)
+  })
+
+  it('keeps a used-up percentage waiting, even beside a window that runs out first at its pace', () => {
+    assert.deepEqual(summary([percentAt(100)]), {
+      tone: 'wait',
+      line: 'Waiting for capacity: 5-hour window',
+      more: 'resets in 2 h',
+    })
+    const spend = percentAt(120, { window_id: 'spend_limit', unit: 'spend_percent_used', scope: 'spend' })
+    assert.equal(summary([percentAt(40), spend]).line, 'Waiting for capacity: Spend limit window')
+    // Claude Code's 5-hour window, 81 % used halfway through, runs out first at its pace; its 7-day one is used up.
+    const paced = { source_channel: 'claude-code-statusline', observed_at: '2026-10-02T12:00:00Z' }
+    const fiveHour = percentAt(81, { resets_at: '2026-10-02T14:30:00Z' })
+    const sevenDay = percentAt(100, { window_id: 'seven_day', resets_at: '2026-10-05T12:00:00Z' })
+    assert.equal(summary([fiveHour, sevenDay], paced).line, 'Waiting for capacity: 7-day window')
+  })
+
+  it('names the used-up window that holds it longest: no reset known first, else the latest reset', () => {
+    assert.deepEqual(summary([percentAt(100), credits(0)]), CREDITS_OUT) // credits reset after the 5-hour window
+    assert.deepEqual(summary([credits(0), tokens(0)]), TOKENS_OUT) // the tokens report no reset
+    assert.equal(summary([credits(0), percentAt(100, { resets_at: '2026-10-03T12:00:00Z' })]).more, 'resets in 24 h')
+  })
+
+  it('makes nothing used up that the reading doesn’t say is: positive, partial, unknown, expired, due or unseen', () => {
+    assert.deepEqual(summary([credits(820)]), READY)
+    assert.deepEqual(summary([tokens(1)]), READY)
+    assert.deepEqual(summary([percentAt(25), credits(820)]), READY)
+    assert.deepEqual(summary([credits(0, { applicability: 'partial' })]), READY)
+    assert.deepEqual(summary([tokens(0, { applicability: 'unknown' })]), READY)
+    assert.deepEqual(summary([credits(null, { state: 'unknown' })]), READY) // unknown is never zero
+    assert.deepEqual(summary([credits(0, { state: 'unknown' })]), READY)
+    assert.deepEqual(summary([credits(0, { state: 'refresh_pending' })]), READY)
+    assert.deepEqual(summary([credits(0, { resets_at: '2026-10-02T11:00:00Z' })]), READY) // its reset already due
+    assert.deepEqual(summary([credits(0)], { valid_until: '2026-10-02T11:30:00Z' }), READY) // the reading expired
+    assert.deepEqual(summary([credits(0)], { valid_until: '2026-10-02T12:30:00Z' }), CREDITS_OUT) // still holds
+    assert.deepEqual(summary([credits(0)], { coverage: 'unavailable' }), READY)
+    assert.deepEqual(summary([credits(0)], { coverage: 'partial' }), CREDITS_OUT) // the window itself applies
+    assert.deepEqual(summary([]), READY)
+  })
+
+  it('says its host, a stale readiness and a sign-in first, as before', () => {
+    const out = reading([credits(0)])
+    const offline = withReadiness(fresh(), { state: 'offline', observedAt: '2026-10-01T10:00:00Z' })
+    assert.equal(readinessSummary(offline, out, now).line, 'Waits for its host to reconnect')
+    assert.equal(readinessSummary(withReadiness(fresh({ signIn: 'expired' })), out, now).line, 'Codex sign-in expired')
+    const stale = fresh({ observedAt: '2026-10-02T11:20:00Z', validUntil: '2026-10-02T11:35:00Z' })
+    assert.equal(readinessSummary(withReadiness(stale), out, now).line, 'Readiness last observed 40 min ago')
+    assert.equal(readinessSummary(withReadiness(null), out, now).line, 'Sign-in and readiness not reported')
+  })
+})

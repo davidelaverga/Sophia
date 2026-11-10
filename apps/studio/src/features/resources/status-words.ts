@@ -5,14 +5,17 @@
 // confirms it (receipts.ts says each step). Only the owner sends them. Pure, so the words are unit-tested.
 import {
   ago,
-  capacity,
+  expired,
   TOOL,
+  windowView,
   type ControlName,
   type OperationReadiness,
   type QuotaObservation,
+  type QuotaWindow,
   type Readiness,
   type Resource,
   type Support,
+  type WindowView,
 } from './resource.ts'
 
 const HOST_STATE: Record<Resource['host']['state'], string> = {
@@ -155,7 +158,7 @@ const listed = (names: readonly string[]) =>
 
 /**
  * The readiness summary, from the facts given and nothing more (C01-R05): a host offline or unknown first; then a
- * readiness not reported or past its time; then the tool's sign-in; then a capacity window used up; and only with every
+ * readiness not reported or past its time; then the tool's sign-in; then any capacity window used up; and only with every
  * fact current, "Ready for" the operations this connection's profile qualifies. A host online alone is never ready.
  */
 export function readinessSummary(
@@ -167,11 +170,36 @@ export function readinessSummary(
   const before = hostWait(resource) ?? (readiness ? projectionWait(resource, readiness, now) : null)
   if (before) return before
   if (!readiness) return { tone: 'unknown', line: READINESS_UNREPORTED, more: null }
-  const { limiting } = capacity(observation, now)
-  if (limiting && limiting.percent !== null && limiting.percent >= 100) {
-    return { tone: 'wait', line: `Waiting for capacity: ${limiting.name} window`, more: limiting.reset }
-  }
+  const [out] = usedUp(observation, now)
+  if (out) return { tone: 'wait', line: `Waiting for capacity: ${out.name} window`, more: out.reset }
   return operationsSummary(readiness)
+}
+
+/** A count says what is left, not how much of a window is used. */
+const COUNT: ReadonlySet<QuotaWindow['unit']> = new Set(['credits_remaining', 'tokens_remaining'])
+
+/** Used up, by its unit and number: a percentage at or past 100, a count at or below 0. */
+const spent = ({ unit, value }: QuotaWindow) => value !== null && (COUNT.has(unit) ? value <= 0 : value >= 100)
+
+/** How long a used-up window holds the connection: no reset known (none, or not an instant) longest, else the later. */
+function holds({ resets_at }: QuotaWindow): number {
+  const at = resets_at === null ? NaN : Date.parse(resets_at)
+  return Number.isFinite(at) ? at : Infinity
+}
+
+/**
+ * The windows that hold a connection now (r3 repair 3, UI1164-F08): every window of a current reading weighed, in no
+ * favoured order, so a percentage with room or a count left never hides one used up. Only a window known to apply and
+ * observed now counts, from its unit and value, never its words: no reading, one that can't see the account or past its
+ * time, a window unknown, due for its reset, or that may apply only in part is never used up, nor made capacity. The
+ * one that holds it longest first.
+ */
+function usedUp(obs: QuotaObservation | undefined, now: Date): WindowView[] {
+  if (!obs || obs.coverage === 'unavailable' || expired(obs, now)) return []
+  return obs.windows
+    .filter((w) => w.applicability === 'known' && windowView(w, now).state === 'observed' && spent(w))
+    .toSorted((a, b) => holds(b) - holds(a))
+    .map((w) => windowView(w, now))
 }
 
 /**
