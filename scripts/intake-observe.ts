@@ -52,7 +52,7 @@ import {
   type ZeroEffects,
 } from '../packages/coordination/src/intake-observation.ts'
 
-export const REPORT_SCHEMA = 'sophia.intake-observation.report.v3'
+export const REPORT_SCHEMA = 'sophia.intake-observation.report.v4'
 export const CLI_LIMITS = { fileBytes: 2 * 1024 * 1024, cases: 500, idChars: 200 } as const
 
 /** Corpus schemas this tool reads, and the interaction a case without an `interaction` member is observed under. */
@@ -464,11 +464,14 @@ const labelOf = (r: CaseRecord, field: ScoredField): unknown => r.comparison.fin
  * Development-set tallies for INC03-R16's promotion list. They are observations on this corpus only, not safety
  * evidence: the r1 review found novel inputs that a clean tally had not revealed.
  */
+const actionResult = (r: CaseRecord): FieldResult | undefined =>
+  r.comparison.find((c) => c.field === 'proposedAction')?.result
+
 function developmentTallies(records: readonly CaseRecord[]): Record<string, unknown> {
-  const unexpected = records.filter(
-    (r) =>
-      CONSEQUENTIAL.has(r.observation.proposal.kind) && labelOf(r, 'proposedAction') !== r.observation.proposal.kind,
-  )
+  const consequential = records.filter((r) => CONSEQUENTIAL.has(r.observation.proposal.kind))
+  // Only an actual action label can be missed; a case without one is not assessed here, never a match (r9 F03).
+  const unexpected = consequential.filter((r) => actionResult(r) === 'mismatch')
+  const notLabelled = consequential.filter((r) => actionResult(r) === 'not_labelled')
   const humanOverrides = records.filter((r) => {
     const label = labelOf(r, 'addressee')
     const humanOnly = typeof label === 'string' && label !== 'none' && !label.split('+').includes('sophia')
@@ -479,6 +482,7 @@ function developmentTallies(records: readonly CaseRecord[]): Record<string, unkn
     unexpectedConsequentialProposalsUnblocked: unexpected
       .filter((r) => !BLOCKING.has(r.observation.admission.outcome))
       .map((r) => r.caseId),
+    consequentialProposalsActionNotLabelled: notLabelled.map((r) => r.caseId),
     explicitHumanAddressOverrides: humanOverrides.map((r) => r.caseId),
     audienceMismatches: records
       .filter((r) => r.comparison.some((c) => c.field === 'audience' && c.result === 'mismatch'))

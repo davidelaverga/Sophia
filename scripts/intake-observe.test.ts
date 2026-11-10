@@ -730,3 +730,167 @@ describe('r8 through the consumer: origin before legacy Ask; imports before quot
     assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
   })
 })
+
+interface TallyView {
+  developmentTallies: Record<string, unknown>
+  comparison: { fields: Record<string, Record<string, number>> }
+  counts: Record<string, number>
+  actualEffects: Record<string, number>
+}
+
+function checkLabelTallies(r: TallyView): void {
+  assert.deepEqual(r.developmentTallies.unexpectedConsequentialProposals, ['U-miss', 'U-miss-blocked'])
+  assert.deepEqual(r.developmentTallies.unexpectedConsequentialProposalsUnblocked, ['U-miss'])
+  assert.deepEqual(r.developmentTallies.consequentialProposalsActionNotLabelled, ['U-none', 'U-partial'])
+  const action = r.comparison.fields.proposedAction
+  assert.deepEqual([action?.match, action?.mismatch, action?.not_labelled, action?.denominator], [1, 2, 2, 3])
+  assert.equal(r.counts.observed, 5)
+  assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+}
+
+describe('F03 (r9): only a comparable action label can make a proposal unexpected', () => {
+  const live = { audience: 'project', activeMission: 'm9', control: 'running', stopQualified: true }
+  function labelCorpus(): TestDoc {
+    const doc = corpus()
+    doc.cases = [
+      testCase('U-none', 'Stop the job.', live, {}),
+      testCase('U-partial', 'Stop the job.', live, { audience: 'unchanged' }),
+      testCase('U-match', 'Stop the job.', live, { proposedAction: 'control_stop' }),
+      testCase('U-miss', 'Stop the job.', live, { proposedAction: 'answer' }),
+      testCase('U-miss-blocked', 'Stop the job.', { ...live, stopQualified: false }, { proposedAction: 'answer' }),
+    ]
+    return doc
+  }
+
+  it('in the built report: unlabelled and partially labelled cases are listed apart, never as matches or misses', () => {
+    const r = report(labelCorpus())
+    checkLabelTallies(r as unknown as TallyView)
+    assert.equal(field(r, 'U-partial', 'proposedAction')?.result, 'not_labelled')
+    assert.equal(field(r, 'U-partial', 'audience')?.result, 'match')
+  })
+
+  it('in the written report from the command line', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, labelCorpus())
+      const out = join(dir, 'r.json')
+      assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
+      const written = JSON.parse(readFileSync(out, 'utf8'))
+      assert.equal(written.schema, 'sophia.intake-observation.report.v4')
+      checkLabelTallies(written)
+    })
+  })
+})
+
+describe('r9 through the consumer: acknowledgement prefixes and transport redelivery addressing', () => {
+  const live = {
+    audience: 'project',
+    activeMission: 'm9',
+    control: 'running',
+    stopQualified: true,
+    holdQualified: true,
+  }
+  const acks = ['thanks', 'thank you', 'thx', 'got it', 'ok', 'okay', 'great', 'perfect']
+  const verbs = { stop: 'control_stop', halt: 'control_stop', hold: 'control_hold', pause: 'control_hold' }
+
+  it('every acknowledgement before every protective verb keeps the control; a bare acknowledgement stays silent', () => {
+    const doc = corpus()
+    doc.cases = [
+      ...acks.flatMap((ack, i) =>
+        Object.keys(verbs).map((verb) => testCase(`A-${i}-${verb}`, `${ack} ${verb}`, live, {})),
+      ),
+      ...Object.keys(verbs).map((verb) => testCase(`B-${verb}`, verb, live, {})),
+      ...acks.map((ack, i) => testCase(`S-${i}`, `${ack}!`, live, {})),
+    ]
+    const r = report(doc)
+    assert.equal(r.counts.observed, 44)
+    for (const c of r.cases) {
+      const verb = c.caseId.split('-').at(-1) as keyof typeof verbs
+      const want = c.caseId.startsWith('S-') ? 'no_action' : verbs[verb]
+      assert.equal(c.observation.proposal.kind, want, c.caseId)
+    }
+    assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+  })
+
+  it('redelivery without addressing reports no addressee under automatic and legacy Ask false', () => {
+    const doc = corpus()
+    const interactions = {
+      auto: { contract: 'automatic_v1' },
+      legacy: { contract: 'legacy_explicit_ask', askSophia: false },
+    }
+    doc.cases = Object.entries(interactions).flatMap(([name, interaction]) =>
+      [true, false].flatMap((samePayload) => [
+        {
+          ...testCase(
+            `R-${name}-${String(samePayload)}`,
+            'Explain it.',
+            { audience: 'project', redeliveryOf: 'op9', samePayload },
+            {},
+          ),
+          interaction,
+        },
+        {
+          ...testCase(
+            `H-${name}-${String(samePayload)}`,
+            'Explain it.',
+            { audience: 'project', trustedMentions: ['marta'], redeliveryOf: 'op9', samePayload },
+            {},
+          ),
+          interaction,
+        },
+      ]),
+    )
+    const r = report(doc)
+    assert.equal(r.counts.observed, 8)
+    for (const c of r.cases) {
+      const human = c.caseId.startsWith('H-')
+      assert.deepEqual(c.observation.addressee.ids, human ? ['marta'] : [], c.caseId)
+      assert.equal(c.observation.addressee.basis, human ? 'structured_mention' : 'unresolved', c.caseId)
+      assert.equal(c.observation.audience.attention, 'none', c.caseId)
+      assert.equal(c.observation.provenance.humanInstruction, false, c.caseId)
+      assert.ok(['replay_original', 'conflict'].includes(c.observation.proposal.kind), c.caseId)
+    }
+    assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+  })
+})
+
+describe('r10 through the consumer: unread words after an acknowledgement stay unread', () => {
+  const live = {
+    audience: 'project',
+    activeMission: 'm9',
+    control: 'running',
+    stopQualified: true,
+    holdQualified: true,
+  }
+  const acks = ['thanks', 'thank you', 'thx', 'got it', 'ok', 'okay', 'great', 'perfect']
+  const verbs = ['stop', 'halt', 'hold', 'pause']
+
+  it('each acknowledgement before unread words abstains as the words alone; acknowledgements and requests keep theirs', () => {
+    const doc = corpus()
+    doc.cases = [
+      ...['urgently', 'right'].flatMap((word) =>
+        verbs.flatMap((verb) => [
+          testCase(`U-${word}-${verb}`, `${word} ${verb} the job`, live, {}),
+          ...acks.map((ack, i) => testCase(`AU-${i}-${word}-${verb}`, `${ack} ${word} ${verb} the job`, live, {})),
+          testCase(`AC-${word}-${verb}`, `thanks, ${word} ${verb} the job`, live, {}),
+        ]),
+      ),
+      ...acks.map((ack, i) => testCase(`Q-${i}`, `${ack}!`, live, {})),
+      testCase('R-stop', 'thanks stop the job', live, {}),
+      testCase('R-hold', 'okay, hold the job', live, {}),
+    ]
+    const r = report(doc)
+    assert.equal(r.counts.observed, 2 * 4 * 10 + 8 + 2)
+    for (const c of r.cases) {
+      const want = c.caseId.startsWith('Q-')
+        ? 'no_action'
+        : c.caseId === 'R-stop'
+          ? 'control_stop'
+          : c.caseId === 'R-hold'
+            ? 'control_hold'
+            : 'abstain'
+      assert.equal(c.observation.proposal.kind, want, c.caseId)
+      if (want === 'abstain') assert.equal(c.observation.assessment, 'absent_abstained', c.caseId)
+    }
+    assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+  })
+})

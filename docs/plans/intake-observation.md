@@ -6,7 +6,7 @@ installed automatic routing, not a live intake service and not the shipped INC-0
 from `@sophia/coordination`, registered in an app, or reachable from a request.
 
 - `packages/coordination/src/intake-observation.ts` — a pure, versioned, deterministic observation policy
-  (currently `sophia.intake-observation.policy.v8`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7). It reads a validated input and returns a proposal. It holds no
+  (currently `sophia.intake-observation.policy.v10`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished)). It reads a validated input and returns a proposal. It holds no
   transport, provider, database, notification, control or dispatch handle and reads no clock or environment.
 - `scripts/intake-observe.ts` — the consumer: an offline CLI that validates a bounded corpus file, strips every
   label before the policy sees a case, runs the policy, compares results with the labels separately and writes a
@@ -54,7 +54,7 @@ wrong type, an oversized string or list is an input error. What each group means
 The policy never sees `caseId`, `family`, `split`, `expected`, `status`, `labelAuthority` or `fixtureAuthority`:
 the CLI keeps them as comparison metadata, and a context that carries any of those keys is an input error.
 
-## States (one observation) — policy v8
+## States (one observation) — policy v10
 
 Policy v2 (`sophia.intake-observation.policy.v2`) replaced v1 after the independent r1 review
 (INC03-CC-001-r1-SOURCE-PRE-PUSH-001, F01–F07). Policy v3 (`sophia.intake-observation.policy.v3`) replaces v2 after
@@ -74,7 +74,7 @@ contraction or name shape (`said's first line. Stop the job's next`) were both d
 read as authored. v7 adds a whole-input pair check (below). No earlier version's semantics are reused under a later
 name.
 
-Order (v8): **origin (terminal)** → **transport redelivery** → interaction contract (legacy explicit Ask, or
+Order (v8, unchanged since; the descriptor's `order` lists it this way from v10 — v8 and v9 still listed the interaction contract first): **origin (terminal)** → **transport redelivery** → interaction contract (legacy explicit Ask, or
 automatic) → addressing → **human-only addressing (terminal)** → correction of an earlier operation → quotation check →
 **identified control** → structural ambiguity → text intent → mission identity → target → blockers.
 
@@ -97,6 +97,37 @@ counted as fenced spans. Before v8 they were removed last, so an unmatched quote
 apostrophes wholly inside a declared import made the authored text around it abstain as `malformed_quotation`. A
 directive inside a declared import is still data; malformed quotation in the authored text outside it still abstains.
 
+v9 (published r8 `08925d90`, automatic review on PR 504, gate SHA-256 `ed8cd02f…`) repairs two policy classes:
+
+- **Acknowledgement prefix.** v8 classified a whole clause as an acknowledgement as soon as it began with one of the
+  eight acknowledgement terms, so `Thanks stop` or `Okay hold` lost the control (32 of 32 acknowledgement × Stop/Hold
+  verb pairs were `no_action`). v9 peels leading acknowledgements — repeated, with the existing fillers or `also`
+  between them, or followed by a hyphen or dash — and reads the words after them as a clause of their own, with the
+  existing lexicon, exactly as `Thanks, stop` was already read. v9 also kept any acknowledgement whose remaining words
+  named no request as an acknowledgement (`Thanks for the update.`, but equally `Okay immediately halt the job.`):
+  **superseded by v10, below.** Fences, declared imports, non-human origins and the legacy contract decide before
+  this, unchanged. An acknowledgement followed by other words and a question mark reads as a question, like its
+  comma form.
+- **Transport redelivery addressee.** v8 gave a redelivery with no addressing an invented `sophia` addressee on basis
+  `operation_reference`. v9 reports only what the delivery's own addressing resolves (trusted mention, reply target,
+  direct address, or the personal default); otherwise no addressee with basis `unresolved`, and dropped non-members
+  stay reported. A redelivery never asks for attention. `operation_reference` remains only for a fresh correction of
+  the actor's own operation, which is a new act, not a delivery.
+
+v10 (unpublished r9 `5fc91608`, independent gate `INC03-CC-001-r9-SOURCE-PRE-PUSH-001`, SHA-256 `59cac462…`) closes
+the remaining acknowledgement class: an acknowledgement never decides words the lexicon cannot read. In v9 an
+acknowledgement prefix turned an unread remainder into `no_action` (64 of 64 review forms with an unknown word before
+Stop/Hold), and `combine` did the same for a separate clause (`Thanks, <unread>`, `Okay. <unread>`, `<unread>, thanks`).
+In v10 a clause with words of no family is unread; a message whose only recognised clauses are acknowledgements and
+that has an unread clause has family none and abstains (`outside_lexicon`, semantic assessment required) exactly as
+the unread words alone do. A message is quiet `no_action` by acknowledgement only when every authored clause is an
+acknowledgement (the existing terms, with fillers, `also`, repetition and separators: `Thanks!`, `Got it, thanks.`,
+`Perfect, thank you!`). Nothing was added to the lexicon, so ordinary gratitude with other words
+(`Thanks for the update.`, `Great job everyone.`) now abstains too; a `needsReply:false` hint still quiets it, as it
+quiets any unread remark, and never a request. An acknowledgement with a recognised request keeps the request
+(Stop/Hold first). Quoted, imported, non-human and legacy inputs keep their outcomes; the one crossing that changed is
+authored words left around a quotation (`Thanks, she wrote "stop the job".`), which now abstain instead of `no_action`.
+
 | State | When | Proposal | Admission |
 |---|---|---|---|
 | legacy false | `legacy_explicit_ask`, `askSophia:false` | `recorded_only`, no addressee inference | `recorded_only` / `legacy_ask_false_no_assessment` |
@@ -106,7 +137,7 @@ directive inside a declared import is still data; malformed quotation in the aut
 | voice interim | `origin:voice_interim` | `record_provisional` | `recorded_only` / `voice_interim_not_instruction` |
 | delayed output, same audience | `origin:delayed_output`, audience unchanged | `no_action`, correlation kept in `provenance.correlation` and the target; `proposal.rule: origin.delayed_deliver_after_recheck` | `recorded_only` / `output_not_instruction` |
 | delayed output, audience changed | `origin:delayed_output`, participants/audience changed | `withhold_from_current_call` | `recorded_only` / `audience_changed_withheld` |
-| transport redelivery | `redeliveryOf` with `samePayload` | `replay_original` / `conflict`; addressee as resolved, never invented | same, `operation_redelivered` / `operation_payload_changed` |
+| transport redelivery | `redeliveryOf` with `samePayload` | `replay_original` / `conflict`; addressee only as this delivery's addressing resolves it, else none (`unresolved`, v9); attention none | same, `operation_redelivered` / `operation_payload_changed` |
 | ledger replay / conflict | same `operationId`, same / changed payload hash | the stored observation / `conflict` | unchanged / `operation_payload_changed` |
 | private human mention | personal audience, human-only trusted mention (any operation metadata ignored, flagged) | `recorded_only`, attention none | `recorded_only` / `private_audience_no_attention` |
 | human message | project, human-only trusted mention or human reply author (operation metadata ignored, flagged) | `human_message`, no AI response | `recorded_only` / `human_directed` |
@@ -147,9 +178,13 @@ Comparisons (F06): `selectedComparison` holds exactly two refs and each `possibl
 every comparison ref is `name@version[:region]` without `..`. Anything else is an input error
 (`unsupported_comparison`), never silently truncated. Target scoring compares structured refs, not a display string.
 
-Text (lexicon v2) is deliberately small and recorded in the policy descriptor; everything outside it abstains.
+Text (lexicon v2) is deliberately small and recorded in the policy descriptor (with its text rules from v10). A message
+with no clause in the lexicon abstains, and so does one whose only recognised clauses are acknowledgements beside
+unread words (v10). A clause outside the lexicon beside a recognised request is **not** read: the request decides.
+That is a disclosed limit, not an abstention.
 Auxiliary verbs (is, do, can …) open a question only with a question mark. A `needsReply:false` hint quiets an
-acknowledgement, a remark or a question; it never turns a request such as Stop into `no_action`. The lexicon runs on
+acknowledgement, a remark or a question; it never turns a request such as Stop into `no_action`. A leading
+acknowledgement is a prefix (v9): the words after it are classified as their own clause, and unread words after it stay unread (v10). The lexicon runs on
 authored text only: balanced `"…"`, `“…”`, `‘…’`, `'…'`, `«…»`, `„…“`, backticks, fenced code and `>` blockquote lines
 are removed first — every form may span lines — as are `quotedText` and `attachmentInstruction`; `@name` text is never
 an identity.
@@ -219,7 +254,7 @@ the final name (which fails if it exists) — no silent overwrite of a source, a
 
 ## Report
 
-`sophia.intake-observation.report.v3`: tool and policy version, policy descriptor and source SHA-256, input
+`sophia.intake-observation.report.v4`: tool and policy version, policy descriptor and source SHA-256, input
 basename/SHA-256/bytes/schema, explicit scored and unscored label fields, semantic assessment `absent`, counts with
 denominators (cases, observed, invalidCases, errorIssues, abstentions, clarifications, by kind/admission), per-field
 comparison (`match` / `mismatch` / `abstained` / `unassessed`; the denominator includes all four), every miss and
@@ -227,7 +262,10 @@ unassessed item with its reason, development-set tallies, the synthetic fixture'
 zero actual-effect counts. The output is
 deterministic (no timestamps). The audience score is coarse: it compares only `change: unchanged`, not owner,
 member, revision, thread or publication qualification. The tallies are development-set observations, not safety
-evidence: novel counterexamples showed r1 gaps that a clean development tally did not reveal.
+evidence: novel counterexamples showed r1 gaps that a clean development tally did not reveal. An unexpected
+consequential proposal needs an actual proposed-action label that it misses (report v4): a case without that label,
+wholly unlabelled or labelled only in other fields, is listed under `consequentialProposalsActionNotLabelled` —
+neither a miss nor a match, and no evidence of safety. Report v3 counted those cases as unexpected.
 
 Admission comparison (F04, bounded choice in r3) is separate from proposal comparison and never changes the policy
 outcome. A policy outcome that is a deterministic result — `waiting`, `denied`, `conflict`, `replay_original`,

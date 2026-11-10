@@ -20,7 +20,7 @@
 import { createHash } from 'node:crypto'
 import { canonicalJson } from './canonical.ts'
 
-export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v8'
+export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v10'
 
 export const INTAKE_LIMITS = { textChars: 4000, contextKeys: 64, stringChars: 200, listItems: 16 } as const
 
@@ -525,6 +525,8 @@ interface Clause {
   readonly words: string
   readonly question: boolean
   readonly also: boolean
+  /** The clause opened with an acknowledgement, peeled off its words (r9 F01). */
+  readonly ack: boolean
 }
 
 interface TextIntent {
@@ -693,14 +695,40 @@ function stripFillers(words: string): { readonly words: string; readonly also: b
   return { words: rest, also }
 }
 
+/** What may stand between an acknowledgement and the words after it in one clause. */
+const ACK_SEPARATOR = /^[\s\-\u2013\u2014]+/u
+
+/**
+ * Leading acknowledgements, repeated or with fillers between them, are a prefix: the words after them are read as a
+ * clause of their own, exactly as "Thanks, stop" already was (r9 F01). Only the existing lexicon is used.
+ */
+function peelAcknowledgements(words: string): {
+  readonly words: string
+  readonly ack: boolean
+  readonly also: boolean
+} {
+  let rest = words
+  let ack = false
+  let also = false
+  for (let term = leading(rest, LEXICON.ack); term !== undefined; term = leading(rest, LEXICON.ack)) {
+    ack = true
+    const after = stripFillers(rest.slice(term.length).replace(ACK_SEPARATOR, ''))
+    rest = after.words
+    also ||= after.also
+  }
+  return { words: rest, ack, also }
+}
+
 function clausesOf(text: string): Clause[] {
   const clauses: Clause[] = []
   for (const sentence of text.match(SENTENCE) ?? []) {
     const question = sentence.trim().endsWith('?')
     const parts = sentence.replace(/[.;!?:]+$/, '').split(SUBCLAUSE)
     parts.forEach((part, i) => {
-      const { words, also } = stripFillers(part.replace(/\s+/g, ' '))
-      if (words.length > 0 || also) clauses.push({ words, question: question && i === parts.length - 1, also })
+      const filled = stripFillers(part.replace(/\s+/g, ' '))
+      const { words, ack, also } = peelAcknowledgements(filled.words)
+      if (words.length > 0 || ack || filled.also || also)
+        clauses.push({ words, question: question && i === parts.length - 1, also: filled.also || also, ack })
     })
   }
   return clauses
@@ -730,21 +758,30 @@ function nounFamily(words: string): Family {
   return isStart && mentionsAny(rest, LEXICON.buildNouns) ? 'build' : 'none'
 }
 
+/**
+ * A clause's family from its words. An acknowledgement is the clause's family only when nothing follows it: words
+ * after it that the lexicon cannot read stay unread (none), never an acknowledgement (r10, INC03-R9-F01).
+ */
 function clauseFamily(clause: Clause): Family {
-  const { words } = clause
-  if (leading(words, LEXICON.ack) !== undefined) return 'ack'
+  if (clause.words.length === 0) return clause.ack ? 'ack' : 'none'
+  return wordsFamily(clause.words, clause.question)
+}
+
+function wordsFamily(words: string, question: boolean): Family {
   const byNoun = nounFamily(words)
   if (byNoun !== 'none') return byNoun
   const byVerb = verbFamily(words)
   if (byVerb !== 'none') return byVerb
-  return clause.question || leading(words, LEXICON.questionWords) !== undefined ? 'answer' : 'none'
+  return question || leading(words, LEXICON.questionWords) !== undefined ? 'answer' : 'none'
 }
 
 /** Stop, then Hold: protective controls are never lost in a mixed message (F02). Resume is not protective. */
 const PROTECTIVE = ['control_stop', 'control_hold'] as const satisfies readonly Family[]
 
-function combine(families: readonly Family[]): Family | 'mixed' {
+function combine(families: readonly Family[], unread: boolean): Family | 'mixed' {
   const found = new Set(families.filter((f) => f !== 'none'))
+  // Acknowledgements decide only a message they wholly make up: beside unread words they decide nothing (r10).
+  if (unread && found.size === 1 && found.has('ack')) return 'none'
   if (found.size > 1) found.delete('ack')
   const protective = PROTECTIVE.find((f) => found.has(f))
   if (protective !== undefined) return protective
@@ -759,7 +796,8 @@ export function readIntent(text: string, facts: Facts): TextIntent {
   const authored = authoredText(text, facts)
   const clauses = clausesOf(authored.text)
   const families = clauses.map(clauseFamily)
-  const family = combine(families)
+  const unread = clauses.some((c, i) => c.words.length > 0 && families[i] === 'none')
+  const family = combine(families, unread)
   return {
     family,
     question: clauses.some((c) => c.question),
@@ -1450,7 +1488,12 @@ function legacyAdmission(askSophia: boolean): IntakeObservation['admission'] {
   return { outcome: 'recorded_only', reason, authority: 'none' }
 }
 
-/** A retry or correction of the actor's own operation addresses Sophia's intake unless a structure says otherwise. */
+/** Exactly what addressing resolved: trusted structure, reply, direct address or the personal default; else none. */
+function resolvedAddressee(addressing: Addressing): Addressee {
+  return { ids: addressing.sophia ? [...addressing.humans, 'sophia'] : addressing.humans, basis: addressing.basis }
+}
+
+/** A fresh correction of the actor's own operation addresses Sophia's intake unless a structure says otherwise. */
 function operationAddressee(addressing: Addressing): Addressee {
   if (addressing.sophia || addressing.humans.length > 0)
     return { ids: addressing.sophia ? [...addressing.humans, 'sophia'] : addressing.humans, basis: addressing.basis }
@@ -1483,10 +1526,13 @@ function assessmentOf(input: IntakeInput, p: Proposal): IntakeObservation['asses
   return p.kind === 'abstain' ? 'absent_abstained' : 'not_needed'
 }
 
+/** Results, legacy paths and transport redeliveries (r9 F02) never ask for new attention. */
+const SILENT_RULES = ['origin.', 'legacy.', 'identity.redelivery'] as const
+
 /** Human addressees in a shared audience may get attention; a private audience notifies nobody. */
 function attentionOf(facts: Facts, p: Proposal): IntakeObservation['audience']['attention'] {
   const humans = (p.addressee?.ids ?? []).some((id) => id !== 'sophia')
-  const silent = p.kind === 'recorded_only' || p.rule.startsWith('origin.') || p.rule.startsWith('legacy.')
+  const silent = p.kind === 'recorded_only' || SILENT_RULES.some((prefix) => p.rule.startsWith(prefix))
   return humans && !silent && facts.str('audience') === 'project' ? 'audience_members' : 'none'
 }
 
@@ -1500,9 +1546,10 @@ function terminalProposal(facts: Facts): { readonly p: Proposal; readonly droppe
   if (generated !== undefined) return { p: generated, dropped: [] }
   const transport = redeliveryRule(facts)
   if (transport === undefined) return undefined
-  // Transport redelivery of an already-bound operation returns or conflicts with it: no new interpretation.
+  // Transport redelivery of an already-bound operation returns or conflicts with it: no new interpretation, and only
+  // the addressing this delivery itself resolves. A delivery is not a request to Sophia (r9 F02).
   const addressing = resolveAddressing(facts)
-  return { p: { ...transport, addressee: operationAddressee(addressing) }, dropped: addressing.dropped }
+  return { p: { ...transport, addressee: resolvedAddressee(addressing) }, dropped: addressing.dropped }
 }
 
 interface Chosen {
@@ -1614,10 +1661,11 @@ export function observeWithLedger(ledger: ObservationLedger, raw: unknown): Obse
 /** Everything that decides an observation besides the code: version, lexicon, limits, schema. */
 export const INTAKE_OBSERVATION_POLICY = {
   version: INTAKE_OBSERVATION_POLICY_VERSION,
+  // The order the code applies (v8 put origin and redelivery before the interaction contract; corrected here in v10).
   order: [
-    'interaction',
     'origin_terminal',
     'transport_redelivery',
+    'interaction',
     'addressing',
     'human_only_terminal',
     'correction',
@@ -1630,6 +1678,13 @@ export const INTAKE_OBSERVATION_POLICY = {
     'blockers',
   ],
   lexicon: LEXICON,
+  text: {
+    unread: 'a message with no clause in the lexicon abstains (outside_lexicon, semantic assessment required)',
+    acknowledgement:
+      'leading acknowledgements are a prefix; a message is an acknowledgement only if every authored clause is one, and beside unread words it abstains like those words alone',
+    besideRequest: 'an unread clause beside a recognised request is not read; the request decides (disclosed limit)',
+    noReplyHint: 'needsReply:false quiets an acknowledgement, unread text or a question, never a request',
+  },
   limits: INTAKE_LIMITS,
   contextFields: CONTEXT_FIELDS,
   labelKeys: LABEL_KEYS,

@@ -1435,3 +1435,240 @@ describe('F02 (r8): declared imports are removed before any authored quotation a
     }
   })
 })
+
+const decision = (o: IntakeObservation) => ({ proposal: o.proposal, admission: o.admission, addressee: o.addressee })
+
+describe('F01 (r9): an acknowledgement is a prefix, never the whole clause, when a request follows', () => {
+  const live = {
+    audience: 'project',
+    activeMission: 'm9',
+    control: 'running',
+    stopQualified: true,
+    holdQualified: true,
+  }
+  const contexts: Record<string, Record<string, unknown>> = {
+    'running, qualified': live,
+    'running, unqualified': { ...live, stopQualified: false, holdQualified: false },
+    'qualification unknown': { audience: 'project', activeMission: 'm9', control: 'running' },
+    held: { ...live, control: 'held' },
+    stopped: { ...live, control: 'stopped' },
+    'no mission': { audience: 'project' },
+    'conflicting missions': { ...live, selectedMission: 'm8' },
+  }
+  const acks = ['thanks', 'thank you', 'thx', 'got it', 'ok', 'okay', 'great', 'perfect']
+  const verbs = ['stop', 'halt', 'hold', 'pause']
+
+  it('every acknowledgement before every protective verb decides exactly as the bare verb, in every control state', () => {
+    for (const [name, ctx] of Object.entries(contexts))
+      for (const verb of verbs) {
+        const bare = decision(observe(`${verb[0]?.toUpperCase()}${verb.slice(1)} the job.`, ctx))
+        for (const ack of acks) {
+          const text = `${ack[0]?.toUpperCase()}${ack.slice(1)} ${verb} the job.`
+          assert.deepEqual(decision(observe(text, ctx)), bare, `${name}: ${text}`)
+        }
+      }
+    assert.equal(kindOf(observe('Thanks stop.', live)), 'control_stop')
+    assert.equal(kindOf(observe('Okay hold.', live)), 'control_hold')
+    // Text the lexicon cannot read abstains with or without the acknowledgement.
+    assert.equal(kindOf(observe('Thanks\u2026 stop', live)), 'abstain')
+    assert.equal(kindOf(observe('Stop\u2026', live)), 'abstain')
+  })
+
+  it('polite, filler, repeated, punctuated and capitalised prefixes still leave the control', () => {
+    for (const text of [
+      'Thanks please stop.',
+      'Ok sophia, stop the job.',
+      'Okay just stop',
+      'Thanks thank you halt.',
+      'Ok ok stop',
+      'Got it — stop the job.',
+      'Thanks - stop!',
+      'THANKS STOP',
+      'Perfect, thanks, now stop.',
+    ])
+      assert.equal(kindOf(observe(text, live)), 'control_stop', text)
+    for (const text of ['Great hold on the deploy.', 'Thx kindly pause.', 'Okay, okay hold'])
+      assert.equal(kindOf(observe(text, live)), 'control_hold', text)
+  })
+
+  it('a request of any existing family after an acknowledgement is read as that request, Stop first', () => {
+    const ctx = { ...project, selectedArtifact: 'card@v2', directAddress: 'sophia' }
+    assert.equal(kindOf(observe('Thanks explain the card.', ctx)), kindOf(observe('Explain the card.', ctx)))
+    assert.equal(kindOf(observe('Okay research the market.', ctx)), kindOf(observe('Research the market.', ctx)))
+    assert.equal(kindOf(observe('Ok start the research.', ctx)), kindOf(observe('Start the research.', ctx)))
+    assert.equal(kindOf(observe('Great what is next?', ctx)), kindOf(observe('What is next?', ctx)))
+    const followup = observe('Thanks also add a loading state.', { ...live, manager: 'pm9', managerGeneration: 2 })
+    const bareFollowup = observe('Also add a loading state.', { ...live, manager: 'pm9', managerGeneration: 2 })
+    assert.deepEqual(decision(followup), decision(bareFollowup))
+    assert.equal(kindOf(observe('Thanks build the feature and stop the job.', live)), 'control_stop')
+    assert.ok(
+      observe('Thanks build the feature and stop the job.', live).uncertainty.includes(
+        'additional_requests_not_processed',
+      ),
+    )
+  })
+
+  // r10: this list once also held acknowledgements followed by unread words ("Thanks for the update."); those now
+  // abstain like the unread words alone (r9 review INC03-R9-F01, below).
+  it('a standalone acknowledgement stays silent', () => {
+    for (const text of ['Thanks!', 'Okay.', 'Got it, thanks.', 'Ok ok', 'Perfect, thank you!'])
+      assert.equal(kindOf(observe(text, live)), 'no_action', text)
+  })
+
+  it('fences, origins and the legacy contract still decide before the remainder is read', () => {
+    assert.equal(kindOf(observe('Thanks "stop the job".', live)), 'no_action')
+    assert.equal(kindOf(observe('Thanks stop the job.', { ...live, quotedText: 'stop the job' })), 'no_action')
+    assert.equal(kindOf(observe('Thanks stop the job.', { ...live, origin: 'agent_result' })), 'no_action')
+    const legacyFalse = observe('Thanks stop the job.', live, legacy(false))
+    assert.equal(kindOf(legacyFalse), 'recorded_only')
+    assert.equal(legacyFalse.admission.reason, 'legacy_ask_false_no_assessment')
+    assert.equal(observe('Thanks stop the job.', live, legacy(true)).proposal.rule, 'legacy.ask_true')
+    assert.equal(kindOf(observe('Thanks stop the job.', { ...live, needsReply: false })), 'control_stop')
+    assert.deepEqual(observe('Okay hold the job.', live).effects, ZERO_EFFECTS)
+  })
+})
+
+describe('F02 (r9): a transport redelivery keeps the addressing it carries and invents none', () => {
+  const interactions = { automatic: AUTO, 'legacy true': legacy(true), 'legacy false': legacy(false) }
+  const siblings: Record<string, { context: Record<string, unknown>; ids: string[]; basis: string }> = {
+    'project, no addressing': { context: { audience: 'project' }, ids: [], basis: 'unresolved' },
+    'project, human mention': {
+      context: { audience: 'project', trustedMentions: ['marta'] },
+      ids: ['marta'],
+      basis: 'structured_mention',
+    },
+    'project, human and Sophia': {
+      context: { audience: 'project', trustedMentions: ['marta', 'sophia'] },
+      ids: ['marta', 'sophia'],
+      basis: 'structured_mention',
+    },
+    'project, non-member mention': {
+      context: { audience: 'project', trustedMentions: ['ghost'], currentMembers: ['marta'] },
+      ids: [],
+      basis: 'unresolved',
+    },
+    'project, Sophia reply target': {
+      context: { audience: 'project', replyTo: 'msg1', replyAuthor: 'sophia' },
+      ids: ['sophia'],
+      basis: 'reply_target',
+    },
+    'project, direct human address': {
+      context: { audience: 'project', directAddress: 'luis' },
+      ids: ['luis'],
+      basis: 'direct_address',
+    },
+    'personal, no addressing': { context: { audience: 'personal' }, ids: ['sophia'], basis: 'personal_default' },
+  }
+
+  it('each sibling, under each contract, replays or conflicts with only its resolved addressee and no attention', () => {
+    for (const [name, s] of Object.entries(siblings))
+      for (const [contract, interaction] of Object.entries(interactions))
+        for (const same of [true, false]) {
+          const label = `${name} / ${contract} / same=${String(same)}`
+          const o = observe('Explain it.', { ...s.context, redeliveryOf: 'op9', samePayload: same }, interaction)
+          assert.equal(kindOf(o), same ? 'replay_original' : 'conflict', label)
+          assert.equal(renderTarget(o.proposal.target), 'op9', label)
+          assert.deepEqual(o.addressee.ids, s.ids, label)
+          assert.equal(o.addressee.basis, s.basis, label)
+          assert.notEqual(o.addressee.basis, 'operation_reference', label)
+          assert.equal(o.audience.attention, 'none', label)
+          assert.equal(o.provenance.humanInstruction, false, label)
+          assert.equal(o.admission.outcome, same ? 'replay_original' : 'conflict', label)
+          assert.deepEqual(o.effects, ZERO_EFFECTS, label)
+        }
+  })
+
+  it('the dropped non-member is still reported, and a fresh correction keeps its operation reference', () => {
+    const dropped = observe('Explain it.', {
+      audience: 'project',
+      trustedMentions: ['ghost'],
+      currentMembers: ['marta'],
+      redeliveryOf: 'op9',
+      samePayload: true,
+    })
+    assert.deepEqual(dropped.addressee.ids, [])
+    assert.ok(dropped.uncertainty.includes('mention_not_current_member'))
+    const correction = observe('Use v3 instead.', {
+      audience: 'project',
+      originalOperation: 'op9',
+      newTarget: 'card@v3',
+      dispatchState: 'not_sent',
+      expectedRevision: 2,
+      currentRevision: 2,
+    })
+    assert.equal(kindOf(correction), 'correct_proposal')
+    assert.deepEqual(correction.addressee.ids, ['sophia'])
+    assert.equal(correction.addressee.basis, 'operation_reference')
+  })
+})
+
+const cap = (t: string) => `${t[0]?.toUpperCase()}${t.slice(1)}`
+/** Every placement of an acknowledgement around the same words: prefix, comma, sentence, trailing, repeated. */
+const ackPlacements = (ack: string, rest: string) => [
+  `${cap(ack)} ${rest}.`,
+  `${cap(ack)}, ${rest}.`,
+  `${cap(ack)}. ${cap(rest)}.`,
+  `${cap(rest)}, ${ack}.`,
+  `${cap(ack)} ${ack} please ${rest}.`,
+]
+
+describe('r10 (INC03-R9-F01): an acknowledgement never decides words the lexicon cannot read', () => {
+  const live = {
+    audience: 'project',
+    activeMission: 'm9',
+    control: 'running',
+    stopQualified: true,
+    holdQualified: true,
+  }
+  const acks = ['thanks', 'thank you', 'thx', 'got it', 'ok', 'okay', 'great', 'perfect']
+  const verbs = ['stop', 'halt', 'hold', 'pause']
+  // Words outside the lexicon, chosen for this class (not the review's probe words); any such word behaves the same.
+  const unread = ['urgently', 'right', 'definitely']
+
+  it('after any acknowledgement, in any position, unread words decide exactly as they do alone', () => {
+    for (const word of unread)
+      for (const verb of verbs) {
+        const rest = `${word} ${verb} the job`
+        const alone = observe(`${cap(rest)}.`, live)
+        assert.equal(kindOf(alone), 'abstain', rest)
+        assert.ok(alone.uncertainty.includes('outside_lexicon'), rest)
+        assert.equal(alone.assessment, 'absent_abstained', rest)
+        for (const text of acks.flatMap((ack) => ackPlacements(ack, rest)))
+          assert.deepEqual(decision(observe(text, live)), decision(alone), text)
+      }
+  })
+
+  it('ordinary words after an acknowledgement abstain too, and a no-reply hint still quiets them', () => {
+    for (const text of ['Thanks for the update.', 'Great job everyone.', 'Thank you so much!', 'Thanks, all clear.']) {
+      const o = observe(text, live)
+      assert.equal(kindOf(o), 'abstain', text)
+      assert.ok(o.uncertainty.includes('semantic_assessment_required'), text)
+      assert.equal(kindOf(observe(text, { ...live, needsReply: false })), 'no_action', text)
+    }
+  })
+
+  it('a recognised request after an acknowledgement still decides, and a hint never quiets a control', () => {
+    assert.equal(kindOf(observe('Thanks urgently, stop the job.', live)), 'control_stop')
+    assert.equal(kindOf(observe('Okay, definitely hold the job, then pause it.', live)), 'control_hold')
+    assert.equal(kindOf(observe('Thanks right, stop the job.', { ...live, needsReply: false })), 'control_stop')
+    assert.equal(
+      kindOf(
+        observe('Thanks, explain the card.', { ...project, selectedArtifact: 'card@v2', directAddress: 'sophia' }),
+      ),
+      'answer',
+    )
+  })
+
+  it('quoted, imported, non-human and legacy crossings keep their own outcome', () => {
+    assert.equal(kindOf(observe('Thanks, she wrote "stop the job".', live)), 'abstain')
+    assert.equal(kindOf(observe('Thanks "urgently stop the job".', live)), 'no_action')
+    assert.equal(
+      kindOf(observe('Thanks urgently stop the job.', { ...live, quotedText: 'urgently stop the job' })),
+      'no_action',
+    )
+    assert.equal(kindOf(observe('Thanks urgently stop the job.', { ...live, origin: 'receipt' })), 'no_action')
+    assert.equal(kindOf(observe('Thanks urgently stop the job.', live, legacy(false))), 'recorded_only')
+    assert.equal(observe('Thanks urgently stop the job.', live, legacy(true)).proposal.rule, 'legacy.ask_true')
+    assert.deepEqual(observe('Thanks urgently stop the job.', live).effects, ZERO_EFFECTS)
+  })
+})
