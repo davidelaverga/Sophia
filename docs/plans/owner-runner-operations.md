@@ -222,6 +222,49 @@ The published head `db414c02` is never rewritten; these repairs are one child co
 | Same-key Stop retry, before or after settlement | Its own receipt |
 | Recorder holds the project while maintenance runs | Maintenance skips that project. No 40P01; the recorder completes; the next pass maintains the rest |
 
+## Integrated r3 repair (PR #505 automatic review on `7629c104`, confirmed by INC01-CC-002-integrated-r2-SOURCE-FINAL-001)
+
+The published head `7629c104` is never rewritten; this repair is one child commit of it.
+
+**F01 (P1). A run identity that is missing or malformed is never a receipt.**
+
+- **The defect.** The read decoder turned a missing, non-string or empty `runId` into null and still indexed the exact
+  message. Reconcile then journaled `received`/`started` with no run, and the direct send path accepted the same.
+  SQL counted that input as converged, so a Stop and its binding settled while the original request was still in
+  transit. When it landed, it started a run.
+- **The pinned schema.** At `ade47301`, `RunId` is a trimmed non-blank string, and the shapes that carry it are:
+  - a timeline item's `runId`: required and nullable;
+  - a send result's `runId`: required and never null;
+  - a launch result's `runId`: nullable, because an idle launch starts no run;
+  - an interrupt result's `runId`: nullable.
+- **Rules.**
+  - **Decoding.** An item whose `runId` is missing, not a string, empty or blank, or whose non-null `messageId` is
+    blank, makes the whole page no evidence. Items with an explicit null `runId` keep their place: unrelated nullable
+    items stay valid.
+  - **Reconcile.** A matched target message whose `runId` is null proves no accepted run. A create or input stays
+    `unknown`, nothing is journaled as received, and SQL's barrier stays up.
+  - **Direct receipts.**
+    - An input's receipt needs a non-blank `runId`; otherwise `unknown`, not a violation.
+    - A create's receipt needs one too: Sophia always launches with a message, so a null run proves no accepted
+      work. It stays `unknown` and is reconciled.
+    - A Stop acknowledgement keeps its nullable `runId`, but a present one must be non-blank.
+    - Malformed data from a possible send is always `unknown`: never refused, rejected or "not sent".
+  - **The gateway's own check.** Before it journals or returns any answer, from a send or a reconcile, the gateway
+    checks the receipt: a create or input receipt needs a non-blank run, a Stop receipt a null or non-blank one.
+    Anything else becomes `unknown`. So an invalid reply cannot pass merely because the mapping normally validates.
+  - **Unchanged.** Exact thread, message and namespace matching; the barrier token; the pending and overtaken Stop;
+    held commitments; the Stop under admissions off; the lock order; the fresh-key refusal; the bounded process test.
+- **Crossings.**
+
+| Crossing | Rule |
+|---|---|
+| Input still in transit; a read names its exact message with `runId` missing, null, a number, an object, empty or blank | Input stays `unknown`; Stop and binding stay unsettled; the request lands later and is reconciled to its real run, once |
+| Same request; the send itself answers `delivery` started or queued with such a `runId` | `unknown`, not received; the same late landing |
+| A valid non-blank run for the exact message (read or send) | `received`, as before |
+| An unrelated item with null `messageId` and null `runId` on the page | Still a valid read |
+| Stop acknowledgement with `runId: null` (`no_active_run`) | Still an acknowledgement |
+| A create answered with a null or malformed `runId` | `unknown`, then reconciled by its exact message |
+
 ## Records (0092, additive)
 
 | Record | Anchored on | Holds |

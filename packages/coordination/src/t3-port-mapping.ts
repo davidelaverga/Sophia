@@ -153,12 +153,33 @@ export const readCall = (environmentId: string, threadId: string, afterPosition?
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 const str = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null)
+/** An entity id at the pin (RunId, MessageId: a trimmed, non-blank string), or null when it is not one. */
+const entityId = (v: unknown): string | null => (typeof v === 'string' && v.trim().length > 0 ? v : null)
+/**
+ * A result's run field (integrated r3, F01): `run` is a run id, `none` an explicit null, `invalid` anything else: a
+ * missing key, a non-string, an empty or blank string. Only `run` is evidence that a run was accepted.
+ */
+function runField(
+  body: Record<string, unknown>,
+): { kind: 'run'; runId: string } | { kind: 'none' } | { kind: 'invalid' } {
+  if (!('runId' in body)) return { kind: 'invalid' }
+  if (body.runId === null) return { kind: 'none' }
+  const runId = entityId(body.runId)
+  return runId === null ? { kind: 'invalid' } : { kind: 'run', runId }
+}
 
 const unknownWith = (identity: NativeIdentity, reason: string): RunnerAnswer => ({ kind: 'unknown', identity, reason })
 
-/** An input's receipt: queued or started only; a stronger delivery is an effect, but not the one admitted. */
-function inputAnswer(identity: NativeIdentity, body: Record<string, unknown>, runId: string | null): RunnerAnswer {
+/**
+ * An input's receipt: queued or started only; a stronger delivery is an effect, but not the one admitted. Its run must be
+ * a run id (the pin's send result never omits it): anything else proves no accepted run, so the input stays unknown.
+ */
+function inputAnswer(identity: NativeIdentity, body: Record<string, unknown>): RunnerAnswer {
   if (str(body.messageId) !== identity.messageId) return unknownWith(identity, 'T3 answered with another message')
+  const run = runField(body)
+  if (run.kind !== 'run')
+    return unknownWith(identity, 'T3 named no valid run for the message; no accepted run is proven')
+  const runId = run.runId
   const delivery = body.delivery
   if (delivery === 'queued' || delivery === 'started') return { kind: 'received', identity, runId, delivery }
   return {
@@ -187,12 +208,19 @@ export function classifyReply(envelope: RunnerEnvelope, identity: NativeIdentity
   const body = reply.body
   if (!isRecord(body)) return unknownWith(identity, 'T3 answered without a result')
   if (str(body.threadId) !== identity.threadId) return unknownWith(identity, 'T3 answered for another thread')
-  const runId = str(body.runId)
-  if (envelope.kind === 'create') return { kind: 'received', identity, runId, delivery: 'started' }
-  if (envelope.kind === 'input') return inputAnswer(identity, body, runId)
+  if (envelope.kind === 'input') return inputAnswer(identity, body)
+  const run = runField(body)
+  // Sophia always launches with a message, so a create's receipt needs its run; a null one (an idle launch) proves none.
+  if (envelope.kind === 'create') {
+    return run.kind === 'run'
+      ? { kind: 'received', identity, runId: run.runId, delivery: 'started' }
+      : unknownWith(identity, 'T3 named no valid run for the launch; no accepted run is proven')
+  }
+  // A Stop's acknowledgement may name no run (no_active_run); a run it names must be a run id.
+  if (run.kind === 'invalid') return unknownWith(identity, 'T3 answered the stop with a malformed run')
   const delivery = stopDelivery(body.status)
   return delivery
-    ? { kind: 'received', identity, runId, delivery }
+    ? { kind: 'received', identity, runId: run.kind === 'run' ? run.runId : null, delivery }
     : unknownWith(identity, 'T3 answered an unknown stop status')
 }
 
@@ -227,14 +255,22 @@ function runsIn(list: unknown): Map<string, string> | null {
   return runs
 }
 
+/**
+ * The page's items by exact message id, with the run each names (OrchestratorMcpThreadTimelineItem: `runId` and
+ * `messageId` are required and nullable). Integrated r3 (F01): an item whose `runId` or non-null `messageId` is not a
+ * valid id (missing, not a string, empty or blank) makes the page no evidence; it is never turned into null. An explicit
+ * null stays null: it names no run.
+ */
 function messagesIn(list: unknown): Map<string, string | null> | null {
   if (!Array.isArray(list)) return null
   const messages = new Map<string, string | null>()
   for (const item of list) {
-    if (!isRecord(item)) return null
-    const id = item.messageId === null ? null : str(item.messageId)
+    if (!isRecord(item) || !('messageId' in item)) return null
+    const id = item.messageId === null ? null : entityId(item.messageId)
     if (item.messageId !== null && id === null) return null
-    if (id !== null) messages.set(id, item.runId === null ? null : str(item.runId))
+    const run = runField(item)
+    if (run.kind === 'invalid') return null
+    if (id !== null) messages.set(id, run.kind === 'run' ? run.runId : null)
   }
   return messages
 }

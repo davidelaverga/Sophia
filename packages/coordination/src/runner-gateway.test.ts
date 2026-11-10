@@ -4,10 +4,11 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { FakeT3 } from './runner-fake-t3.ts'
+import * as gatewayModule from './runner-gateway.ts'
 import { RunnerGateway, type GatewayProfile } from './runner-gateway.ts'
 import { RunnerJournal } from './runner-journal.ts'
 import { digestOf, type RunnerAnswer, type RunnerEnvelope } from './runner-port.ts'
-import { deriveIdentity } from './t3-port-mapping.ts'
+import { deriveIdentity, stableMessageId, type T3Call, type T3Reply, type T3Transport } from './t3-port-mapping.ts'
 
 const root = mkdtempSync(join(tmpdir(), 'sophia-runner-gateway-'))
 after(() => rmSync(root, { recursive: true, force: true }))
@@ -432,5 +433,168 @@ describe('settlement is proven, never inferred (R1-F04)', () => {
     assert.equal((await w.obs(e)).kind, 'unknown')
     w.t3.finishRun(runOf(a))
     assert.deepEqual(await w.obs(e), { kind: 'run', status: 'completed', terminal: true })
+  })
+})
+
+/** A run identity that is none at the pin; `missing` omits the key. */
+const BAD_RUNS: readonly [string, Record<string, unknown>][] = [
+  ['missing', {}],
+  ['null', { runId: null }],
+  ['a number', { runId: 19 }],
+  ['an object', { runId: {} }],
+  ['empty', { runId: '' }],
+  ['blank', { runId: '   ' }],
+]
+
+/**
+ * A transport that holds one send in transit (it lands only on release, exactly once) and, meanwhile, forges either
+ * the send's own reply or a read item naming the held message, with a given run field. Integrated r3, F01.
+ */
+class ForgingT3 implements T3Transport {
+  holdNextSend = false
+  forgedSendRun: Record<string, unknown> | null = null
+  forgedReadRun: Record<string, unknown> | null = null
+  private readonly held: { call: T3Call; messageId: string }[] = []
+  readonly fake: FakeT3
+  constructor(fake: FakeT3) {
+    this.fake = fake
+  }
+  namespace(): string {
+    return this.fake.namespace()
+  }
+  async call(call: T3Call): Promise<T3Reply> {
+    if (call.tool === 't3_thread_send' && this.holdNextSend) {
+      this.holdNextSend = false
+      const messageId = stableMessageId(this.fake.namespace(), 'thread-send', String(call.args.clientRequestId))
+      this.held.push({ call, messageId })
+      if (!this.forgedSendRun) return { kind: 'transport_error', reason: 'fake: still in transit' }
+      return {
+        kind: 'ok',
+        body: {
+          threadId: call.args.threadId,
+          messageId,
+          status: 'running',
+          delivery: 'started',
+          ...this.forgedSendRun,
+        },
+      }
+    }
+    const reply = await this.fake.call(call)
+    const held = this.held[0]
+    if (call.tool !== 't3_thread_read' || !this.forgedReadRun || !held || reply.kind !== 'ok') return reply
+    const body = reply.body as { items: unknown[] }
+    return {
+      kind: 'ok',
+      body: { ...body, items: [...body.items, { position: 900, messageId: held.messageId, ...this.forgedReadRun }] },
+    }
+  }
+  /** Stop forging and deliver the held request now, once. */
+  async release(): Promise<number> {
+    this.forgedSendRun = null
+    this.forgedReadRun = null
+    const landing = this.held.splice(0)
+    for (const h of landing) await this.fake.call(h.call)
+    return landing.length
+  }
+}
+
+describe('a missing or malformed run identity is never a receipt (integrated r3, F01)', () => {
+  async function inTransit(forge: (t: ForgingT3) => void) {
+    const fake = new FakeT3()
+    const forging = new ForgingT3(fake)
+    const g = new RunnerGateway({ journal: new RunnerJournal(journalFile()), transport: forging, profile })
+    const thread = threadOf(await g.send(create(300), digestOf(create(300)), g.journalId))
+    forging.holdNextSend = true
+    forge(forging)
+    const e = follow(301, 300, thread)
+    return { g, fake, forging, e, first: await g.send(e, digestOf(e), g.journalId) }
+  }
+
+  for (const [what, run] of BAD_RUNS) {
+    it(`direct: a send reply with its runId ${what} is unknown, journaled as no receipt, and reconciled after it lands`, async () => {
+      const t = await inTransit((f) => {
+        f.forgedSendRun = run
+      })
+      assert.equal(t.first.kind, 'unknown')
+      assert.equal(t.first.kind === 'unknown' && t.first.violation, undefined)
+      const id = { envelope: t.e, digest: digestOf(t.e), journalId: t.g.journalId }
+      assert.equal((await t.g.reconcile(id)).kind, 'unknown', 'not landed yet: nothing to find')
+      assert.equal(await t.forging.release(), 1)
+      const landed = await t.g.reconcile(id)
+      assert.equal(landed.kind, 'received')
+      assert.ok(landed.kind === 'received' && typeof landed.runId === 'string' && landed.runId.length > 0)
+      assert.equal(t.fake.effects.messages, 1)
+      t.g.close()
+    })
+
+    it(`reconcile: a read naming the exact message with its runId ${what} proves no accepted run`, async () => {
+      const t = await inTransit((f) => {
+        f.forgedReadRun = run
+      })
+      assert.equal(t.first.kind, 'unknown')
+      const id = { envelope: t.e, digest: digestOf(t.e), journalId: t.g.journalId }
+      assert.equal((await t.g.reconcile(id)).kind, 'unknown')
+      assert.equal((await t.g.reconcile(id)).kind, 'unknown', 'and nothing was journaled as received')
+      assert.equal(await t.forging.release(), 1)
+      const landed = await t.g.reconcile(id)
+      assert.equal(landed.kind, 'received')
+      assert.ok(landed.kind === 'received' && typeof landed.runId === 'string' && landed.runId.trim().length > 0)
+      assert.equal(t.fake.effects.messages, 1)
+      t.g.close()
+    })
+  }
+
+  it('checks every receipt itself: a separately constructed answer without a valid run never passes the gateway', () => {
+    const check = (gatewayModule as Record<string, unknown>).receiptError
+    assert.equal(typeof check, 'function', 'the gateway has its own receipt check')
+    const receiptError = check as (kind: string, answer: RunnerAnswer) => string | null
+    const identity = deriveIdentity(create(310), 'client:x')
+    const received = (runId: unknown, delivery = 'started') =>
+      ({ kind: 'received', identity, runId, delivery }) as unknown as RunnerAnswer
+    for (const kind of ['create', 'input']) {
+      for (const bad of [null, undefined, '', '  ', 19, {}])
+        assert.notEqual(receiptError(kind, received(bad)), null, `${kind} ${JSON.stringify(bad) ?? 'undefined'}`)
+      assert.equal(receiptError(kind, received('run-1')), null)
+    }
+    assert.equal(receiptError('stop', received(null, 'no_active_run')), null)
+    assert.equal(receiptError('stop', received('run-1', 'stop_requested')), null)
+    for (const bad of [undefined, '', '  ', 19, {}])
+      assert.notEqual(receiptError('stop', received(bad, 'stop_requested')), null)
+    assert.equal(receiptError('input', { kind: 'unknown', identity, reason: 'r' }), null, 'only receipts are checked')
+  })
+
+  it('never answers from a journal whose receipt names no run (written before this check): it stays unknown', async () => {
+    const file = journalFile()
+    const journal = new RunnerJournal(file)
+    const e = create(330)
+    const identity = deriveIdentity(e, 'client:fake-session-1')
+    journal.append('intent', e.operationId, { digest: digestOf(e), envelope: e, identity })
+    journal.append('possible_send', e.operationId, {})
+    journal.append('answer', e.operationId, {
+      answer: { kind: 'received', identity, runId: null, delivery: 'started' },
+    })
+    const g = new RunnerGateway({ journal, transport: new FakeT3(), profile })
+    assert.equal((await g.reconcile({ envelope: e, digest: digestOf(e), journalId: g.journalId })).kind, 'unknown')
+    assert.equal((await g.send(e, digestOf(e), g.journalId)).kind, 'unknown')
+    g.close()
+  })
+
+  it('a create answered with no run is unknown, never a receipt', async () => {
+    const fake = new FakeT3()
+    const forged: T3Transport = {
+      namespace: () => fake.namespace(),
+      call: async (call) => {
+        if (call.tool !== 't3_thread_launch') return fake.call(call)
+        const reply = await fake.call(call)
+        return reply.kind === 'ok' ? { kind: 'ok', body: { ...(reply.body as object), runId: null } } : reply
+      },
+    }
+    const g = new RunnerGateway({ journal: new RunnerJournal(journalFile()), transport: forged, profile })
+    const e = create(320)
+    assert.equal((await g.send(e, digestOf(e), g.journalId)).kind, 'unknown')
+    const r = await g.reconcile({ envelope: e, digest: digestOf(e), journalId: g.journalId })
+    assert.equal(r.kind, 'received', 'reconciled by its exact message, which the read shows with its run')
+    assert.equal(fake.effects.launches, 1)
+    g.close()
   })
 })

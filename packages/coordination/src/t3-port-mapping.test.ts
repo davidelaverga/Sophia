@@ -6,6 +6,7 @@ import {
   callFor,
   classifyReply,
   clientRequestIdOf,
+  decodeThreadRead,
   deriveIdentity,
   launchCommandId,
   stableCommandId,
@@ -150,5 +151,97 @@ describe('classifying a reply', () => {
     assert.equal(classifyReply(e, id, { kind: 'failure', code: 'orchestration_error', message: 'm' }).kind, 'unknown')
     assert.equal(classifyReply(e, id, { kind: 'failure', code: 'something_new', message: 'm' }).kind, 'unknown')
     assert.equal(classifyReply(e, id, { kind: 'transport_error', reason: 'reset' }).kind, 'unknown')
+  })
+})
+
+/** A `runId` that is no run identity at the pin (RunId is a trimmed, non-blank string). Absent: the key is missing. */
+const BAD_RUN_IDS: readonly [string, Record<string, unknown>][] = [
+  ['missing', {}],
+  ['a number', { runId: 19 }],
+  ['an object', { runId: {} }],
+  ['empty', { runId: '' }],
+  ['blank', { runId: '   ' }],
+]
+
+/** One decodable read page of thread t-1 with these items. */
+const page = (items: unknown[]) => ({
+  thread: { threadId: 't-1', activeRunId: null, runCount: 0 },
+  recentRuns: [],
+  items,
+  hasMore: false,
+  nextPosition: null,
+})
+
+describe('a run identity is evidence only when it is one (integrated r3, F01)', () => {
+  const input = envelope({ kind: 'input', title: null, targetOperationId: OP, nativeThreadId: 't-1' })
+  const inputId = deriveIdentity(input, 'client:x')
+  const create = envelope()
+  const createId = deriveIdentity(create, 'client:x')
+  const stop = envelope({ kind: 'stop', title: null, message: null, targetOperationId: OP, nativeThreadId: 't-1' })
+  const stopId = deriveIdentity(stop, 'client:x')
+
+  it("never receives an input whose send reply names no valid run, started or queued (null is not the pin's shape)", () => {
+    for (const [what, run] of [...BAD_RUN_IDS, ['null', { runId: null }]] as const) {
+      for (const delivery of ['started', 'queued']) {
+        const a = classifyReply(input, inputId, ok({ threadId: 't-1', messageId: inputId.messageId, delivery, ...run }))
+        assert.equal(a.kind, 'unknown', `${what}, ${delivery}`)
+        assert.ok(a.kind === 'unknown' && a.violation === undefined, 'not a violated delivery: nothing proves one')
+      }
+    }
+    const valid = classifyReply(
+      input,
+      inputId,
+      ok({ threadId: 't-1', messageId: inputId.messageId, runId: 'run-7', delivery: 'started' }),
+    )
+    assert.deepEqual(valid, { kind: 'received', identity: inputId, runId: 'run-7', delivery: 'started' })
+  })
+
+  it('never receives a create whose launch reply names no run: Sophia always launches with a message', () => {
+    for (const [what, run] of [...BAD_RUN_IDS, ['null', { runId: null }]] as const) {
+      assert.equal(classifyReply(create, createId, ok({ threadId: createId.threadId, ...run })).kind, 'unknown', what)
+    }
+    assert.equal(classifyReply(create, createId, ok({ threadId: createId.threadId, runId: 'run-1' })).kind, 'received')
+  })
+
+  it("keeps a Stop's nullable run, but no malformed one", () => {
+    const noRun = classifyReply(stop, stopId, ok({ threadId: 't-1', runId: null, status: 'no_active_run' }))
+    assert.deepEqual(noRun, { kind: 'received', identity: stopId, runId: null, delivery: 'no_active_run' })
+    const interrupted = classifyReply(
+      stop,
+      stopId,
+      ok({ threadId: 't-1', runId: 'run-1', status: 'interrupt_requested' }),
+    )
+    assert.equal(interrupted.kind, 'received')
+    for (const [what, run] of BAD_RUN_IDS) {
+      assert.equal(
+        classifyReply(stop, stopId, ok({ threadId: 't-1', status: 'interrupt_requested', ...run })).kind,
+        'unknown',
+        what,
+      )
+    }
+  })
+
+  it('decodes no page with a malformed run identity on any item, instead of turning it into null', () => {
+    for (const [what, run] of BAD_RUN_IDS) {
+      assert.ok('error' in decodeThreadRead(page([{ position: 0, messageId: 'm-1', ...run }]), 't-1'), what)
+    }
+    assert.ok(
+      'error' in decodeThreadRead(page([{ position: 0, messageId: '  ', runId: null }]), 't-1'),
+      'a blank message id',
+    )
+  })
+
+  it("keeps the pin's nullable item shapes, and a matched null run stays null (no run)", () => {
+    const read = decodeThreadRead(
+      page([
+        { position: 0, messageId: null, runId: null },
+        { position: 1, messageId: 'm-1', runId: null },
+        { position: 2, messageId: 'm-2', runId: 'run-2' },
+      ]),
+      't-1',
+    )
+    assert.ok(!('error' in read))
+    assert.equal(read.messages.get('m-1'), null)
+    assert.equal(read.messages.get('m-2'), 'run-2')
   })
 })

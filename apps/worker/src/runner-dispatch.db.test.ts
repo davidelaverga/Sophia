@@ -20,7 +20,13 @@ import {
   type RunObservation,
   type SophiaRunnerPort,
 } from '@sophia/coordination/runner-port'
-import { launchCommandId, type T3Call, type T3Reply, type T3Transport } from '@sophia/coordination/t3-port-mapping'
+import {
+  launchCommandId,
+  stableMessageId,
+  type T3Call,
+  type T3Reply,
+  type T3Transport,
+} from '@sophia/coordination/t3-port-mapping'
 import {
   admitGoalCommand,
   admitRunnerOperation,
@@ -144,6 +150,55 @@ class TransitT3 implements T3Transport {
   async release(): Promise<number> {
     const landing = this.held.splice(0)
     for (const call of landing) await this.fake.call(call)
+    return landing.length
+  }
+}
+
+/**
+ * Integrated r3 (F01): holds one send in transit like TransitT3, and meanwhile forges either that send's own reply or a
+ * read item naming the held message, with a given run field. The request lands only on release, exactly once.
+ */
+class ForgingT3 implements T3Transport {
+  holdNextSend = false
+  forgedSendRun: Record<string, unknown> | null = null
+  forgedReadRun: Record<string, unknown> | null = null
+  private readonly held: { call: T3Call; messageId: string }[] = []
+  readonly fake: FakeT3
+  constructor(fake: FakeT3) {
+    this.fake = fake
+  }
+  namespace(): string {
+    return this.fake.namespace()
+  }
+  async call(call: T3Call): Promise<T3Reply> {
+    if (call.tool === 't3_thread_send' && this.holdNextSend) {
+      this.holdNextSend = false
+      const messageId = stableMessageId(this.fake.namespace(), 'thread-send', String(call.args.clientRequestId))
+      this.held.push({ call, messageId })
+      if (!this.forgedSendRun) return { kind: 'transport_error', reason: 'fake: still in transit' }
+      return {
+        kind: 'ok',
+        body: {
+          threadId: call.args.threadId,
+          messageId,
+          status: 'running',
+          delivery: 'started',
+          ...this.forgedSendRun,
+        },
+      }
+    }
+    const reply = await this.fake.call(call)
+    const held = this.held[0]
+    if (call.tool !== 't3_thread_read' || !this.forgedReadRun || !held || reply.kind !== 'ok') return reply
+    const body = reply.body as { items: unknown[] }
+    const forged = { position: 900, messageId: held.messageId, ...this.forgedReadRun }
+    return { kind: 'ok', body: { ...body, items: [...body.items, forged] } }
+  }
+  async release(): Promise<number> {
+    this.forgedSendRun = null
+    this.forgedReadRun = null
+    const landing = this.held.splice(0)
+    for (const h of landing) await this.fake.call(h.call)
     return landing.length
   }
 }
@@ -1146,6 +1201,58 @@ async function settled<T>(
   }
 }
 const sqlstate = (e: unknown) => (e instanceof Error && 'code' in e ? String(e.code) : String(e))
+
+describe('a missing or malformed run identity never lifts the Stop barrier (integrated r3, F01)', () => {
+  const BAD_RUNS: readonly [string, Record<string, unknown>][] = [
+    ['missing', {}],
+    ['null', { runId: null }],
+    ['a number', { runId: 19 }],
+    ['an object', { runId: {} }],
+    ['empty', { runId: '' }],
+    ['blank', { runId: '   ' }],
+  ]
+  for (const path of ['direct receipt', 'reconcile read'] as const) {
+    for (const [what, run] of BAD_RUNS) {
+      it(`${path}, runId ${what}: the input stays unknown, the Stop unsettled; the held request lands once`, async () => {
+        const t3 = new FakeT3()
+        const forging = new ForgingT3(t3)
+        const w = await world({ t3, transport: forging })
+        const created = await w.create()
+        await w.pass()
+        const b = (await op(created.operationId)).binding_id
+        forging.holdNextSend = true
+        if (path === 'direct receipt') forging.forgedSendRun = run
+        else forging.forgedReadRun = run
+        const late = await w.input(created.operationId)
+        await w.pass({ minAge: 3600 })
+        w.finishAll()
+        const stopped = await w.stop(created.operationId)
+        await w.pass()
+        await w.pass()
+        await w.pass()
+        const held = await op(late.operationId)
+        assert.equal(held.state, 'unknown', 'no valid run: not received')
+        assert.equal(held.native_run_id, null)
+        assert.notEqual((await op(stopped.operationId)).state, 'settled')
+        assert.equal((await binding(b)).state, 'stopping')
+        assert.deepEqual(await reservations(w.accountKey), [{ binding_id: b }])
+        // The very request lands after the interrupt; the owner host restarts under a renewed session.
+        assert.equal(await forging.release(), 1)
+        const restarted = w.restart(w.gateway)
+        t3.renewSession('client:fake-session-2')
+        await w.pass({ port: restarted })
+        await w.pass({ port: restarted })
+        const landed = await op(late.operationId)
+        assert.equal(landed.state, 'received', 'its real run, by its original identities')
+        assert.ok(landed.native_run_id && landed.native_run_id.trim().length > 0)
+        assert.equal(landed.native_namespace, 'client:fake-session-1')
+        assert.notEqual((await op(stopped.operationId)).state, 'settled', 'its run is active')
+        assert.equal(t3.effects.messages, 1, 'landed once; never replayed')
+        assert.equal(t3.effects.launches, 1)
+      })
+    }
+  }
+})
 
 describe('maintenance takes its locks in the recorder order (integrated r2, F03)', () => {
   it('never deadlocks with a recorder holding the project: no 40P01, the operation stays unknown and reserved', async () => {

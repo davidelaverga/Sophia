@@ -15,6 +15,10 @@
  * the id. So no record, or an intent without its possible send, is unknown, never "not sent". A possible send without
  * an answer is read back by its ORIGINAL identities in decoded reads of the exact thread; not found stays unknown.
  *
+ * receipts (integrated r3, F01): a create's or input's receipt needs a valid run id, from a send reply or a read of its
+ * exact message; a missing, null or malformed run keeps it unknown, and the gateway checks every receipt itself
+ * (receiptError) before journaling or returning it.
+ *
  * settlement (R1-F04): a Stop settles, and a run counts as ended, only on a complete, decoded read of the exact thread
  * (t3-port-mapping.ts stopSettled, runState). An acknowledgement, a malformed or foreign read, a truncated run list or
  * an unknown status is no evidence.
@@ -80,6 +84,25 @@ function idOf(value: unknown): string | null {
 const UNPROVEN_ABSENCE =
   'no possible send is journaled here, which proves nothing: a restored prefix of this journal would look the same. ' +
   'It stays unknown for an operator; it is never sent again.'
+
+/**
+ * The gateway's own receipt check (integrated r3, F01), applied to every answer it journals or returns, whatever produced
+ * it: a create's or input's receipt needs a run id (a trimmed, non-blank string, as RunId at the pin); a Stop's may name
+ * none (null) but never a malformed one. Why a receipt is not one, or null when it is (or when it is no receipt).
+ */
+export function receiptError(kind: string, answer: RunnerAnswer): string | null {
+  if (answer.kind !== 'received') return null
+  const runId: unknown = answer.runId
+  const isRun = typeof runId === 'string' && runId.trim().length > 0
+  if (kind === 'stop') return runId === null || isRun ? null : 'a stop acknowledgement with a malformed run'
+  return isRun ? null : `a ${kind} receipt names no valid run: no accepted run is proven`
+}
+
+/** The answer itself, or unknown when it is a receipt the check refuses: never a receipt without its evidence. */
+function admitted(kind: string, answer: RunnerAnswer): RunnerAnswer {
+  const error = receiptError(kind, answer)
+  return error && answer.kind === 'received' ? { kind: 'unknown', identity: answer.identity, reason: error } : answer
+}
 
 type Read =
   | { kind: 'read'; read: ThreadRead; found: boolean; runId: string | null; pages: number }
@@ -205,7 +228,7 @@ export class RunnerGateway implements SophiaRunnerPort {
     } catch (err) {
       reply = { kind: 'transport_error', reason: errorText(err) }
     }
-    const answer = classifyReply(envelope, identity, reply)
+    const answer = admitted(envelope.kind, classifyReply(envelope, identity, reply))
     // Definite answers, and a violated delivery, are final; anything else stays to be reconciled.
     const final =
       answer.kind === 'received' || answer.kind === 'rejected' || (answer.kind === 'unknown' && answer.violation)
@@ -237,6 +260,9 @@ export class RunnerGateway implements SophiaRunnerPort {
 
   /** What the journal alone answers: its final answer, its refusal, unknown, or null to read T3. */
   private settledInJournal(entry: JournalEntry): RunnerAnswer | null {
+    if (entry.answer && entry.envelope && receiptError(entry.envelope.kind, entry.answer)) {
+      return { kind: 'unknown', identity: entry.identity, reason: 'its journaled receipt names no valid run' }
+    }
     if (entry.answer) return entry.answer
     if (entry.refused !== null) return { kind: 'refused', reason: entry.refused }
     // A validated journal never holds a possible send without its intent; if it somehow did, nothing is proved.
@@ -263,14 +289,18 @@ export class RunnerGateway implements SophiaRunnerPort {
         reason: `not found by its original identity in ${found.pages} page(s); absence is not proof`,
       }
     }
-    const queued = envelope.kind === 'input' && found.runId !== null && found.read.runs.get(found.runId) === 'queued'
-    const answer: RunnerAnswer = {
+    // The exact message with no run (integrated r3, F01): no accepted run is proven, so nothing is received.
+    if (found.runId === null) {
+      return { kind: 'unknown', identity, reason: 'its message is in the read with no run; no accepted run is proven' }
+    }
+    const queued = envelope.kind === 'input' && found.read.runs.get(found.runId) === 'queued'
+    const answer = admitted(envelope.kind, {
       kind: 'received',
       identity,
       runId: found.runId,
       delivery: queued ? 'queued' : 'started',
-    }
-    this.journal.append('answer', envelope.operationId, { answer })
+    })
+    if (answer.kind === 'received') this.journal.append('answer', envelope.operationId, { answer })
     return answer
   }
 
