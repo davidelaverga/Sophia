@@ -11,7 +11,7 @@
 // next assignment starts with none of the old one's. The latest command for the execution shown speaks; earlier ones
 // still open stay listed under it, each named. Only those for the execution shown can be tried again: one for an
 // earlier attempt or another session is said as such, and kept as it was (Codex F-007).
-import { useSyncExternalStore } from 'react'
+import { useLayoutEffect, useRef, useSyncExternalStore } from 'react'
 import { ConfirmButton, Tip } from '@sophia/ui'
 import {
   added,
@@ -44,6 +44,7 @@ import {
   type Offer,
 } from './receipts.ts'
 import type { Resource } from './resource.ts'
+import { guidanceWithheld, retryKinds, stillOffered, workState, type Observed } from './work-control.ts'
 
 export type { Offer } from './receipts.ts'
 
@@ -197,7 +198,6 @@ function Earlier({ known, shown, retryable, onRetry }: EarlierProps) {
 }
 
 type Control = 'steer' | 'hold' | 'stop'
-const ACT_NAME: Record<Control, string> = { steer: 'Guidance', hold: 'Hold', stop: 'Stop' }
 const AS_COMMAND: Record<Control, CommandKind> = { steer: 'guidance', hold: 'hold', stop: 'stop' }
 
 /** The acts a resource's route supports, in order. */
@@ -210,9 +210,9 @@ export const routeOffers = (resource: Resource): Offer[] => supported(resource).
 /** Whether its owner can act on a session at all here: some control its route supports. */
 export const canAct = (resource: Resource) => supported(resource).length > 0
 
-/** What the route's acts are, in words: "Guidance, Hold or Stop", "Hold or Stop". */
-export function actsSaid(resource: Resource): string {
-  const names = supported(resource).map((c) => ACT_NAME[c])
+/** What may be sent now, in words, in the order offered: "Guidance, Hold or Stop", "Stop". */
+export function offersSaid(offers: readonly Offer[]): string {
+  const names = offers.map((o) => KIND_NAME[o.kind])
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names.at(-1) ?? ''}` : (names[0] ?? '')
 }
 
@@ -226,6 +226,8 @@ interface Props {
   acts: Acts
   /** The keys that press Hold (or Resume) and Stop where they are bound (a task's sheet: H, S), shown in their tips. */
   keys?: { hold: string; stop: string } | undefined
+  /** What the work's view observes of its control, apart from what was sent here (work-control.ts). */
+  observed?: Observed | undefined
 }
 
 /**
@@ -311,11 +313,39 @@ function Offered({ target, offer, acts, onSend, keys }: Props & { onSend: (kind:
  * The commands offered for one target, each said as it is observed. With no port to send through, none is offered,
  * nor tried again, and what was sent is still said, its receipts landing as they come (Codex F-021).
  */
-export function SessionActs({ target, offer, acts, keys }: Props) {
+/**
+ * When the press that had the focus leaves because what may be sent changed (Hold pressed by keys, a Stop settled), the
+ * focus goes to the status line in the same sheet, never to the page; a focus elsewhere is left where it is.
+ */
+function useFocusKept(allowedKey: string) {
+  const box = useRef<HTMLDivElement>(null)
+  const status = useRef<HTMLDivElement>(null)
+  const held = useRef(false)
+  useLayoutEffect(() => {
+    const lost = document.activeElement === null || document.activeElement === document.body
+    if (held.current && lost) status.current?.focus()
+  }, [allowedKey])
+  const onFocus = () => {
+    held.current = true
+  }
+  const onBlur = (e: React.FocusEvent) => {
+    // Gone elsewhere on purpose: not ours to bring back. Removed from under the focus: no next target, kept.
+    if (e.relatedTarget instanceof Node && !box.current?.contains(e.relatedTarget)) held.current = false
+  }
+  return { box, status, onFocus, onBlur }
+}
+
+export function SessionActs({ target, offer, acts, keys, observed = null }: Props) {
   const known = acts.of(scopeOf(target))
   // The execution shown speaks; another attempt's or session's commands are its history, listed under it.
   const latest = known.findLast((k) => sameTarget(k.command.target, target))
-  const kinds = new Set(offer.map((o) => o.kind))
+  // Its control state, from every control sent for it and its view (work-control.ts): what is withheld, and why.
+  const state = workState(known, target, observed)
+  const allowed = stillOffered(offer, state)
+  const withheld = guidanceWithheld(offer, state, acts.draft(executionOf(target)))
+  // Tried again: what is still offered, and the controls in play, always their own operation, never a new one.
+  const kinds = retryKinds(offer, state)
+  const focus = useFocusKept(allowed.map((o) => o.kind).join(' '))
   const send = (kind: CommandKind) => acts.send(kind, target)
   // Tried again only with a port to send it through, and by the same rule as ever (Codex F-002, F-007, F-021).
   const retryable = (k: Known) => acts.canSend && retryableNow(k, kinds, target)
@@ -324,14 +354,19 @@ export function SessionActs({ target, offer, acts, keys }: Props) {
     if (retryable(k)) acts.retry(k.command.operation_id)
   }
   return (
-    <div className="session-acts">
+    <div className="session-acts" ref={focus.box} onFocus={focus.onFocus} onBlur={focus.onBlur}>
       {acts.canSend ? (
-        <Offered target={target} offer={offer} acts={acts} onSend={send} keys={keys} />
+        <>
+          {allowed.length > 0 && <Offered target={target} offer={allowed} acts={acts} onSend={send} keys={keys} />}
+          {withheld && <p className="act-note muted">{withheld}</p>}
+        </>
       ) : (
         <p className="act-note muted">{NOT_SENDABLE}</p>
       )}
       {/* Mounted before anything is said, so each step of the latest is announced as it comes; the rest is read. */}
-      <div role="status">{latest && <Steps known={latest} retryable={retryable} onRetry={() => retry(latest)} />}</div>
+      <div role="status" tabIndex={-1} ref={focus.status} className="act-status">
+        {latest && <Steps known={latest} retryable={retryable} onRetry={() => retry(latest)} />}
+      </div>
       <Earlier
         known={known.filter((k) => k !== latest && unresolved(k))}
         shown={target}

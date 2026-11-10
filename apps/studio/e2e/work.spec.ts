@@ -861,8 +861,9 @@ test('wbc · UI-03 · a proposed replacement sits beside the accepted plan, comp
 
 test('wbc · UI-04 · a review that found defects is complete; the work it reviewed needs changes', async ({ page }) => {
   await page.goto(`${PAGE}?viewer=davide&case=defects`)
-  expect(await titles(lane(page, 'Complete'))).toContain('Review the retry’s candidate')
-  expect(await titles(lane(page, 'Active'))).toContain('Implement the PDF retry')
+  // Read once the board has drawn its lanes: a single read right after load could meet them empty (r2 and r3 runs).
+  await expect.poll(() => titles(lane(page, 'Complete'))).toContain('Review the retry’s candidate')
+  await expect.poll(() => titles(lane(page, 'Active'))).toContain('Implement the PDF retry')
   await expect(tile(page, 'work-1').locator('.task-chip')).toHaveText('Changes needed')
   const sheet = await openTask(page, 'work-1-review', 'Review the retry’s candidate')
   await sheet.getByRole('button', { name: 'Open result' }).click()
@@ -1015,7 +1016,8 @@ test('wbc · Resume is offered only for a hold the runtime confirmed, and never 
   const sheet = await openTask(page, 'work-2', 'Review the report pane')
   await expect(sheet.getByRole('button', { name: /^Resume/ })).toHaveCount(0)
   await sheet.getByRole('button', { name: /^Hold/ }).click()
-  await expect(sheet.locator('.act-steps')).toContainText('Held. Work and remaining allowance are retained.')
+  await expect(sheet.locator('.act-steps')).toContainText('Held. Its runtime confirmed the hold.')
+  await expect(sheet.locator('.act-steps')).not.toContainText(/allowance|retained/) // a held effect proves no cost
   await expect(tile(page, 'work-2').locator('.task-chip')).toHaveText('Held')
   await expect(sheet.getByRole('button', { name: /^Hold/ })).toHaveCount(0)
   await sheet.getByRole('button', { name: /^Resume/ }).click()
@@ -1059,15 +1061,34 @@ test('wbc · UI-11 · an open command of the earlier generation stays with it: t
   await expect(sheet.getByRole('list', { name: 'Earlier, still open' })).toHaveCount(0)
 })
 
+test('r3 · R3-02 · a Hold on its way in Tasks: no second Hold drawn, no H in the foot, and H sends nothing more', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide`) // no settlement: the Hold stays requested
+  const sheet = await openTask(page, 'work-2', 'Review the report pane')
+  const footH = sheet.locator('.task-sheet-plan kbd', { hasText: /^H$/ })
+  await expect(footH).toBeVisible()
+  await sheet.getByRole('button', { name: /^Hold/ }).click()
+  await expect(sheet.locator('.act-steps')).toContainText('Hold requested; waiting for the runtime to confirm.')
+  await expect(sheet.getByRole('button', { name: /^Hold/ })).toHaveCount(0)
+  await expect(sheet.getByRole('button', { name: /^Resume/ })).toHaveCount(0) // not held yet
+  await expect(footH).toHaveCount(0)
+  await expect(sheet.locator('.task-sheet-plan kbd', { hasText: /^S$/ })).toBeVisible() // Stop stays as it was
+  await sheet.focus()
+  await page.keyboard.press('h')
+  await page.waitForTimeout(500)
+  expect((await commanded(page)).map((c) => c.kind)).toEqual(['hold']) // one operation in all
+})
+
 test('wbc · UI-12 · a receipt repeated, late, or for another task changes nothing', async ({ page }) => {
   await paused(page, `${PAGE}?viewer=davide&settle=confirmed`)
   const review = await openTask(page, 'work-2', 'Review the report pane')
   await review.getByRole('button', { name: /^Hold/ }).click()
   await page.clock.runFor(3000)
-  await expect(review.locator('.act-steps')).toContainText('Held. Work and remaining allowance are retained.')
+  await expect(review.locator('.act-steps')).toContainText('Held. Its runtime confirmed the hold.')
   const hold = (await commanded(page))[0]?.operation_id ?? ''
   await page.evaluate((op) => window.workFixture?.replay?.(op), hold) // every receipt again, newest first
-  await expect(review.locator('.act-steps')).toContainText('Held. Work and remaining allowance are retained.')
+  await expect(review.locator('.act-steps')).toContainText('Held. Its runtime confirmed the hold.')
   await page.keyboard.press('Escape')
   // Another task's guidance, only recorded so far: the settled Hold's receipts sent to it change nothing there.
   const retry = await openTask(page, 'work-1', 'Implement the PDF retry')
@@ -1332,21 +1353,38 @@ test('pre-push · a lost Stop outlives choosing another goal, and is tried again
   expect(ops[1]).toBe(ops[0])
 })
 
-test('pre-push · an earlier command still open is named, and has its own Try again', async ({ page }) => {
+// INC01-DES-001 r3 (C01-R16, coordinator's ruling): a Stop requested or unconfirmed fences new guidance to that exact
+// assignment and generation. This check once sent guidance after a lost Stop; now the guidance comes first, and past
+// the Stop only the Stop is tried again, as its own operation.
+test('pre-push · an earlier command still open is named; past a lost Stop only that Stop is tried again, the same operation', async ({
+  page,
+}) => {
   await page.goto(`${PAGE}?viewer=davide&admission=lost`)
   const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
-  await sheet.getByRole('button', { name: 'Stop', exact: true }).click()
-  await sheet.getByRole('group', { name: 'Stop' }).getByRole('button', { name: 'Stop' }).click()
-  await expect(sheet.locator('.act-steps')).toContainText('Not confirmed whether it was recorded.')
   await sheet.getByRole('textbox', { name: 'Guidance for its session' }).fill('Use the staging fixtures')
   await sheet.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect(sheet.locator('.act-steps')).toContainText('Not confirmed whether it was recorded.')
+  await sheet.getByRole('button', { name: 'Stop', exact: true }).click()
+  await sheet.getByRole('group', { name: 'Stop' }).getByRole('button', { name: 'Stop' }).click()
+  // The Stop speaks; the guidance before it is named as still open, never sent again from here past the Stop.
   const earlier = sheet.getByRole('list', { name: 'Earlier, still open' })
-  await expect(earlier).toContainText('Stop Not confirmed whether it was recorded.')
-  await earlier.getByRole('button', { name: 'Try again' }).click()
-  await expect(earlier).toContainText('Stop Stop requested; waiting for the runtime to confirm.')
-  const stops = (await commanded(page)).filter((c) => c.kind === 'stop').map((c) => c.operation_id)
+  await expect(earlier).toContainText(
+    'Guidance Not confirmed whether it was recorded. It can’t be sent again from here',
+  )
+  await expect(earlier.getByRole('button', { name: 'Try again' })).toHaveCount(0)
+  await expect(sheet.getByRole('textbox', { name: 'Guidance for its session' })).toHaveCount(0)
+  // Its words stay in the field (its reply was lost, so they never left it): kept, nothing more sent from them.
+  await expect(sheet.locator('.session-acts .act-note')).toHaveText(
+    'No guidance while its Stop is under way. What you wrote is kept on this page; nothing more is sent from it.',
+  )
+  // The Stop, unconfirmed, is tried again from its own line: the same operation, never a second Stop.
+  await sheet.locator('.act-steps').getByRole('button', { name: 'Try again' }).click()
+  await expect(sheet.locator('.act-steps')).toContainText('Stop requested; waiting for the runtime to confirm.')
+  const sent = await commanded(page)
+  const stops = sent.filter((c) => c.kind === 'stop').map((c) => c.operation_id)
   expect(stops).toHaveLength(2)
   expect(stops[1]).toBe(stops[0])
+  expect(sent.filter((c) => c.kind === 'guidance')).toHaveLength(1) // the guidance went once, before the Stop
 })
 
 test('pre-push · work observed outside the plan in force is said, never hidden', async ({ page }) => {
@@ -2038,6 +2076,76 @@ async function retryInTasks(page: Page) {
   await views(page).getByRole('link', { name: 'Tasks', exact: true }).click()
   return openTask(page, 'work-1', 'Implement the PDF retry')
 }
+
+// ---- INC01-DES-001 r3 repair 1 (review INC01-DES-001-r3-SOURCE-PRE-PUSH-001): one fence for both surfaces. ----
+
+test('r3-repair · F01 · a task observed held takes no guidance or Hold, with nothing sent here yet, after a reload too', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&held=work-1#task-work-1`) // held as observed, the page's store empty
+  for (const pass of ['opened', 'reloaded']) {
+    const task = sheetOf(page, 'Implement the PDF retry')
+    await expect(task, pass).toBeVisible()
+    await expect(page.locator('[data-task="work-1"] .task-chip')).toHaveText('Held')
+    await expect(task.getByRole('textbox', { name: 'Guidance for its session' }), pass).toHaveCount(0)
+    await expect(task.getByRole('button', { name: /^Hold/ }), pass).toHaveCount(0)
+    await expect(task.locator('.session-acts .act-note')).toHaveText(
+      'No guidance to held work: it would start a new turn.',
+    )
+    expect(await commanded(page), pass).toEqual([])
+    if (pass === 'opened') await page.reload()
+  }
+})
+
+test('r3-repair · F02 · a Stop not yet settled keeps fencing guidance after a later Resume took effect', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&held=work-1`) // no settlement: the Stop stays requested
+  const task = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await stopIn(task)
+  await expect(task.locator('.act-steps')).toContainText('Stop requested; waiting for the runtime to confirm.')
+  // The next send only is settled, as a later service answer would be: the Resume takes effect, the Stop does not.
+  await page.evaluate(() =>
+    window.history.replaceState(null, '', `${window.location.pathname}?viewer=davide&held=work-1&settle=confirmed`),
+  )
+  await task.getByRole('button', { name: /^Resume/ }).click()
+  await expect(task.locator('.act-steps')).toContainText('Resumed.')
+  await expect(task.getByRole('textbox', { name: 'Guidance for its session' })).toHaveCount(0)
+  await expect(task.getByRole('list', { name: 'Earlier, still open' })).toContainText('Stop')
+  expect((await commanded(page)).map((c) => c.kind)).toEqual(['stop', 'resume'])
+})
+
+test('r3-repair · F03 · a Stop sent from Resources, its attempt unnamed, fences guidance on the task’s named attempt; never resent', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&admission=lost`) // the default: Tasks names the attempt, Resources can't
+  await expect(board(page)).toBeVisible({ timeout: 15_000 })
+  const worker = await workerInResources(page)
+  await stopIn(worker)
+  await expect(worker.getByRole('button', { name: 'Try again' })).toBeVisible() // its reply lost
+  const task = await retryInTasks(page)
+  await expect(task.getByRole('textbox', { name: 'Guidance for its session' })).toHaveCount(0)
+  await expect(task.getByRole('list', { name: 'Earlier, still open' })).toContainText('sent without naming its attempt')
+  // Its operation is never rebound to the named attempt: no Try again for it here.
+  await expect(
+    task.getByRole('list', { name: 'Earlier, still open' }).getByRole('button', { name: 'Try again' }),
+  ).toHaveCount(0)
+  expect((await commanded(page)).map((c) => c.kind)).toEqual(['stop'])
+})
+
+test('r3-repair · F04 · Hold by keys in Tasks: the focus stays in the sheet when Hold leaves; Escape returns to its tile', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&settle=confirmed`)
+  const task = await openTask(page, 'work-2', 'Review the report pane')
+  await task.getByRole('button', { name: /^Hold/ }).focus()
+  await page.keyboard.press('Enter')
+  await expect(task.getByRole('button', { name: /^Hold/ })).toHaveCount(0)
+  await expect.poll(() => task.evaluate((s) => s.contains(document.activeElement))).toBe(true)
+  await expect(task.getByRole('button', { name: /^Resume/ })).toBeVisible() // offered by its view once held
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-task="work-2"]')).toBeFocused()
+})
 
 test('codex · F-016 · a Stop sent from Resources is Tasks’ too: the same request there is its own operation', async ({
   page,
@@ -3894,7 +4002,7 @@ test('the sheet’s H works with Caps Lock or Shift, and its controls say H and 
   // Shift held (or Caps Lock on) gives «H», not «h»: the sheet's key is the letter, whatever its case.
   await sheet.focus()
   await page.keyboard.press('Shift+H')
-  await expect(sheet.locator('.act-steps')).toContainText('Held. Work and remaining allowance are retained.')
+  await expect(sheet.locator('.act-steps')).toContainText('Held. Its runtime confirmed the hold.')
   // S asks Stop's question, its tip («Stop · S») not mistaken for its words (Codex on #241).
   await sheet.focus()
   await page.keyboard.press('s')

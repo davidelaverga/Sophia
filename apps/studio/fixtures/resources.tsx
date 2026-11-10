@@ -16,6 +16,7 @@
 // isn't). An owner's act on a session is taken as a runtime would (`acted` records it, `commands` each with its exact
 // target), as on the plan's page; `reassign(sessionId)` gives a session its next assignment. `unfenced=1`: the runtimes report each session's work, but not which assignment it
 // is or its generation, so nothing can be sent to them (PR #76 review).
+// Open work leaves for that board, carrying `held=<work id>` when this viewer's Hold on it was confirmed here.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -23,6 +24,8 @@ import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { glance, writeSeen } from '../src/features/resources/away.ts'
+import { added, commandSpace, received, spaceOf } from '../src/features/resources/command-store.ts'
+import { covers, workState } from '../src/features/resources/work-control.ts'
 import { linkHash, TASK } from '../src/features/resources/link.ts'
 import { ResourcePanel } from '../src/features/resources/ResourcePanel.tsx'
 import type { TaskLinks } from '../src/features/resources/ResourceSheet.tsx'
@@ -31,8 +34,8 @@ import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
 import type { EffortAsk } from '../src/features/resources/change.ts'
-import type { Command } from '../src/features/resources/receipts.ts'
-import type { Resource, Session } from '../src/features/resources/resource.ts'
+import type { Readiness, Resource, Session } from '../src/features/resources/resource.ts'
+import { sessionTarget, type Command, type Known } from '../src/features/resources/receipts.ts'
 import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
 import { plan, secondView } from './work-data.ts'
 import { acted, actOn, carried, commands, nextActivity, withActivity } from './work-live.ts'
@@ -118,7 +121,129 @@ const unfenced = (list: Resource[]): Resource[] =>
     ),
   }))
 const listed = more ? [...resources, ...moreResources] : resources
-const shown = query.get('unfenced') === '1' ? unfenced(listed) : listed
+
+/** A minute offset from the view's time, as an instant. */
+const minutes = (m: number) => new Date(NOW.getTime() + m * 60_000).toISOString()
+const SIMULATED = 'simulated fixture'
+const analysis = { id: 'repository_analysis', name: 'Repository analysis' }
+const changes = { id: 'code_changes', name: 'Code changes' }
+
+/**
+ * `readiness=1`: each resource's readiness as a collector would report it, all simulated (INC01-DES-001 r3): Codex
+ * signed in, analysis verified and code changes not yet; Davide's Claude Code signed out; Gemini's last reading past its
+ * time; the others report none. Without it, no resource reports readiness, as everywhere today.
+ */
+const READINESS: Record<string, Readiness> = {
+  'davide-codex': {
+    signIn: 'signed_in',
+    operations: [
+      { ...analysis, state: 'qualified' },
+      { ...changes, state: 'unqualified' },
+    ],
+    observedAt: minutes(-1),
+    validUntil: minutes(14),
+    source: SIMULATED,
+  },
+  'davide-claude': {
+    signIn: 'signed_out',
+    operations: [
+      { ...analysis, state: 'unknown' },
+      { ...changes, state: 'unknown' },
+    ],
+    observedAt: minutes(-2),
+    validUntil: minutes(13),
+    source: SIMULATED,
+  },
+  'luis-gemini': {
+    signIn: 'signed_in',
+    operations: [{ ...analysis, state: 'qualified' }],
+    observedAt: minutes(-40),
+    validUntil: minutes(-25),
+    source: SIMULATED,
+  },
+  'davide-grok': {
+    signIn: 'signed_in',
+    operations: [{ ...analysis, state: 'qualified' }],
+    observedAt: minutes(-26 * 60),
+    validUntil: minutes(-26 * 60 + 15),
+    source: SIMULATED,
+  },
+}
+/**
+ * `readiness=edge`: the adverse projections the r3 repair 2 review named, all simulated: Codex verified for analysis and
+ * not supported for code changes; Davide's Claude Code signed in, its operations not reported; Gemini observed after now;
+ * Grok's observation time not an instant (its host offline says first).
+ */
+/** A fixture projection by its resource, there by construction: a missing one is the fixture's own error. */
+function base(id: string): Readiness {
+  const r = READINESS[id]
+  if (!r) throw new Error(`fixtures/resources.tsx: no readiness for ${id}`)
+  return r
+}
+const READINESS_EDGE: Record<string, Readiness> = {
+  'davide-codex': {
+    ...base('davide-codex'),
+    operations: [
+      { ...analysis, state: 'qualified' },
+      { ...changes, state: 'unsupported' },
+    ],
+  },
+  'davide-claude': {
+    ...base('davide-claude'),
+    signIn: 'signed_in',
+  },
+  'luis-gemini': { ...base('luis-gemini'), observedAt: minutes(60), validUntil: minutes(75) },
+  'davide-grok': { ...base('davide-grok'), observedAt: 'not-an-instant', validUntil: null },
+}
+const READINESS_SETS: Record<string, Record<string, Readiness>> = { '1': READINESS, edge: READINESS_EDGE }
+const readinessSet = READINESS_SETS[query.get('readiness') ?? '']
+const withReadiness = (list: Resource[]): Resource[] =>
+  readinessSet ? list.map((r) => ({ ...r, readiness: readinessSet[r.id] ?? null })) : list
+
+/**
+ * `seed=held|pending|unknown`: what the service retained for Codex's reviewer when the page opened, as a reload or a
+ * navigation back would read it again (INC01-DES-001 r3): its runtime reporting it held (the view), or a Hold already
+ * sent whose receipt says it is pending, or whose outcome is unknown (the store). Nothing is sent from the page.
+ */
+const seed = query.get('seed')
+const seeded = (list: Resource[]): Resource[] =>
+  seed === 'held'
+    ? list.map((r) => ({
+        ...r,
+        sessions: r.sessions.map((s) =>
+          s.id === 'codex-reviewer' && s.assignment
+            ? { ...s, assignment: { ...s.assignment, runtimeControl: 'held' as const } }
+            : s,
+        ),
+      }))
+    : list
+
+const shown = seeded(withReadiness(query.get('unfenced') === '1' ? unfenced(listed) : listed))
+
+const reviewer = shown.flatMap((r) => r.sessions).find((s) => s.id === 'codex-reviewer')
+const reviewerTarget = reviewer ? sessionTarget(PROJECT, reviewer) : null
+if ((seed === 'pending' || seed === 'unknown') && reviewerTarget) {
+  const space = commandSpace(PROJECT, viewer.id)
+  const hold: Command = { operation_id: 'seeded-hold', kind: 'hold', target: reviewerTarget }
+  added(space, hold)
+  received(space, hold.operation_id, {
+    schema_version: 'sophia.work.receipt.v1',
+    operation_id: hold.operation_id,
+    receipt_id: 'seeded-hold-receipt',
+    project_id: reviewerTarget.project_id,
+    work_id: reviewerTarget.work_id,
+    assignment_id: reviewerTarget.assignment_id,
+    assignment_generation: reviewerTarget.assignment_generation,
+    kind: 'hold',
+    revision: 1,
+    observed_at: NOW.toISOString(),
+    admission: seed === 'pending' ? 'recorded' : 'unknown',
+    delivery: seed === 'pending' ? 'delivered' : 'unknown',
+    effect: seed === 'pending' ? 'pending' : 'unknown',
+    rejection: null,
+    evidence_refs: seed === 'pending' ? ['seeded-admission'] : [],
+  })
+}
 const stale = query.get('stale') === '1'
 const busy = query.get('busy') === '1'
 const spent = query.get('spent') === '1'
@@ -151,9 +276,40 @@ if (query.get('since') === '1') {
 
 /** The tasks on the plan's fixture board: only those open there; any other work is only its title. */
 const planned = new Set([...plan.items, ...secondView.proposed_plans.flatMap((p) => p.items)].map((i) => i.id))
+
+/**
+ * What Open work carries to the plan's page, which keeps a store of its own (the app's one page shares one and needs
+ * none of this): the work's state as structure (work-control.ts), held as its view reports or by a Hold its runtime
+ * confirmed (`held=`), and every control retained for it, each as itself, its command with its original target and
+ * its receipt as observed, pending or unknown as it is (`retained=`). Nothing is confirmed or rebound on the way.
+ */
+function carriedState(workId: string): [string, string][] {
+  const session = shown.flatMap((r) => r.sessions).find((s) => s.assignment?.workId === workId)
+  const target = session ? sessionTarget(PROJECT, session) : null
+  if (!session || !target) return []
+  const known = spaceOf(commandSpace(PROJECT, viewer.id)).known.filter(
+    (k) => k.command.kind !== 'guidance' && covers(target, k.command.target),
+  )
+  const state = workState(known, target, session.assignment?.runtimeControl ?? null)
+  const retained: Pick<Known, 'command' | 'local' | 'receipt'>[] = known.map((k) => ({
+    command: k.command,
+    local: k.local,
+    receipt: k.receipt,
+  }))
+  return [
+    ...(state.settled === 'held' ? [['held', workId] as [string, string]] : []),
+    ...(retained.length > 0 ? [['retained', JSON.stringify(retained)] as [string, string]] : []),
+  ]
+}
+
 const tasks: TaskLinks = {
   has: (workId) => planned.has(workId),
-  open: (workId) => window.location.assign(`work.html${carried(window.location.search)}${linkHash(workId, TASK)}`),
+  open: (workId) => {
+    const search = new URLSearchParams(carried(window.location.search))
+    for (const [key, value] of carriedState(workId)) search.set(key, value)
+    const said = search.toString()
+    window.location.assign(`work.html${said ? `?${said}` : ''}${linkHash(workId, TASK)}`)
+  },
 }
 
 const waitingOn = (list: typeof actions, id: string) =>
@@ -339,7 +495,8 @@ if (!root) throw new Error('resources.html must contain #root')
 createRoot(root).render(
   <StrictMode>
     <p className="fixture-label" role="note">
-      Simulated — no tool, host or account read · viewing as {viewer.name}
+      Simulated — no tool, host or account read{readinessSet && ' · readiness simulated'}
+      {seed && ` · seeded: ${seed}`} · viewing as {viewer.name}
     </p>
     <QueryClientProvider client={new QueryClient()}>
       <ShortcutScope.Provider value>

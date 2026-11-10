@@ -71,6 +71,11 @@ export interface Session {
      * replaced it. The Studio's proposal for SCM-01/02 (LFE-06: "current assignment IDs and epochs").
      */
     epoch?: number
+    /**
+     * Its control as its runtime reports it, apart from any command sent from here: held or stopped; absent or null
+     * when neither is reported. The Studio's proposal for SCM-02 (INC01-DES-001 r3): no service supplies it yet.
+     */
+    runtimeControl?: 'held' | 'stopped' | null
   } | null
   /**
    * The last thing its tool reported doing, in its own words, and when it was observed ("ran the export tests"). Never
@@ -105,6 +110,30 @@ export interface Resource {
   controls: Record<ControlName, Support>
   /** What the owner keeps back from the project, in percent of a window; null when they set none. */
   reservePercent: number | null
+  /**
+   * What its tool's readiness is observed to be, beyond its host: absent where nothing reports it, which is everywhere
+   * today. The Studio's proposal for SCM-01 (INC01-DES-001 r3, C01-R05); no service supplies it yet.
+   */
+  readiness?: Readiness | null
+}
+
+/** One operation a connection may be used for, as its profile qualifies it (C01-R06). */
+export interface OperationReadiness {
+  id: string
+  /** As people say it: "Repository analysis", "Code changes". */
+  name: string
+  state: 'qualified' | 'unqualified' | 'unsupported' | 'unknown'
+}
+
+/** A tool's readiness as observed: its sign-in and its operations, when, until when, and from where. */
+export interface Readiness {
+  signIn: 'signed_in' | 'signed_out' | 'expired' | 'unknown'
+  operations: OperationReadiness[]
+  observedAt: string
+  /** Until when it holds; past it, it is said as last observed, never as current. Null: no stated limit. */
+  validUntil: string | null
+  /** Where it came from, in words: a collector, or "simulated fixture". */
+  source: string
 }
 
 export interface QuotaWindow {
@@ -365,12 +394,6 @@ export const FULL_AT = 90
 export function usageTone(percent: number): UsageTone {
   if (percent >= FULL_AT) return 'full'
   return percent >= WARN_AT ? 'warn' : 'ok'
-}
-
-export const SUPPORT: Record<Support, string> = {
-  supported: 'supported',
-  unqualified: 'not qualified yet',
-  unsupported: 'not offered',
 }
 
 /** The resource list's filters: everything, what has a request waiting, what is online, what is the viewer's own. */
