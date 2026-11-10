@@ -52,7 +52,7 @@ import {
   type ZeroEffects,
 } from '../packages/coordination/src/intake-observation.ts'
 
-export const REPORT_SCHEMA = 'sophia.intake-observation.report.v4'
+export const REPORT_SCHEMA = 'sophia.intake-observation.report.v5'
 export const CLI_LIMITS = { fileBytes: 2 * 1024 * 1024, cases: 500, idChars: 200 } as const
 
 /** Corpus schemas this tool reads, and the interaction a case without an `interaction` member is observed under. */
@@ -395,10 +395,13 @@ const ABSTAINABLE: ReadonlySet<ScoredField> = new Set([
 ])
 
 function fieldResult(field: ScoredField, expected: unknown, observed: unknown, o: IntakeObservation): FieldResult {
+  // An abstention leaves addressee, action, target and admission unknown: abstained before any equality, so a label
+  // that happens to equal an abstention's placeholder (abstain, none, unresolved, recorded_only, null) is never a
+  // match (r11, report v5).
+  if (ABSTAINABLE.has(field) && o.proposal.kind === 'abstain') return 'abstained'
   if (equalField(field, expected, o, observed)) return 'match'
   if (field === 'admission' && observed === 'unassessed') return 'unassessed'
-  // An abstention leaves addressee, action, target and admission unknown: counted as abstained, never as a match.
-  return ABSTAINABLE.has(field) && o.proposal.kind === 'abstain' ? 'abstained' : 'mismatch'
+  return 'mismatch'
 }
 
 export function compareCase(o: IntakeObservation, meta: CaseMeta): FieldComparison[] {

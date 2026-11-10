@@ -20,7 +20,7 @@
 import { createHash } from 'node:crypto'
 import { canonicalJson } from './canonical.ts'
 
-export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v10'
+export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v11'
 
 export const INTAKE_LIMITS = { textChars: 4000, contextKeys: 64, stringChars: 200, listItems: 16 } as const
 
@@ -1089,9 +1089,13 @@ function answerOrWork(facts: Facts, intent: TextIntent): Proposal {
   return proposal('answer', thread(facts), 'current_thread', 'family.answer', { route: 'api' })
 }
 
+/** A null qualification is known absence, as for apiGrant and nativePair; only an omitted one is unknown (r11). */
+const inquiryNegative = (facts: Facts): boolean =>
+  facts.isNull('inquiryGrant') || facts.str('inquiryGrant') === 'unqualified'
+
 function inquiryBlock(facts: Facts, mission: MissionTarget): Block | undefined {
   if (heldOrStopped(facts)) return { outcome: 'waiting', reason: 'held_no_fresh_inquiry' }
-  if (facts.str('inquiryGrant') === 'unqualified') return { outcome: 'waiting', reason: 'inquiry_unqualified' }
+  if (inquiryNegative(facts)) return { outcome: 'waiting', reason: 'inquiry_unqualified' }
   if (managerUnresolved(mission)) return { outcome: 'waiting', reason: 'manager_identity_unresolved' }
   return undefined
 }
@@ -1102,7 +1106,7 @@ function workQuestion(facts: Facts, mission: MissionTarget): Proposal {
     return proposal('work_read', mission, 'mission_reference', 'family.work_read_retained')
   const block = inquiryBlock(facts, mission)
   const uncertainty = [
-    facts.str('inquiryGrant') === 'qualified' ? '' : 'inquiry_grant_unknown',
+    facts.has('inquiryGrant') ? '' : 'inquiry_grant_unknown',
     managerUnresolved(mission) ? 'manager_identity_unknown' : '',
   ].filter((u) => u !== '')
   return proposal('manager_inquiry', mission, 'mission_reference', 'family.inquiry', {

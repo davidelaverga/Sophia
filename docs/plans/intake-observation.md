@@ -6,7 +6,7 @@ installed automatic routing, not a live intake service and not the shipped INC-0
 from `@sophia/coordination`, registered in an app, or reachable from a request.
 
 - `packages/coordination/src/intake-observation.ts` — a pure, versioned, deterministic observation policy
-  (currently `sophia.intake-observation.policy.v10`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished)). It reads a validated input and returns a proposal. It holds no
+  (currently `sophia.intake-observation.policy.v11`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10). It reads a validated input and returns a proposal. It holds no
   transport, provider, database, notification, control or dispatch handle and reads no clock or environment.
 - `scripts/intake-observe.ts` — the consumer: an offline CLI that validates a bounded corpus file, strips every
   label before the policy sees a case, runs the policy, compares results with the labels separately and writes a
@@ -54,7 +54,7 @@ wrong type, an oversized string or list is an input error. What each group means
 The policy never sees `caseId`, `family`, `split`, `expected`, `status`, `labelAuthority` or `fixtureAuthority`:
 the CLI keeps them as comparison metadata, and a context that carries any of those keys is an input error.
 
-## States (one observation) — policy v10
+## States (one observation) — policy v11
 
 Policy v2 (`sophia.intake-observation.policy.v2`) replaced v1 after the independent r1 review
 (INC03-CC-001-r1-SOURCE-PRE-PUSH-001, F01–F07). Policy v3 (`sophia.intake-observation.policy.v3`) replaces v2 after
@@ -127,6 +127,17 @@ acknowledgement (the existing terms, with fillers, `also`, repetition and separa
 quiets any unread remark, and never a request. An acknowledgement with a recognised request keeps the request
 (Stop/Hold first). Quoted, imported, non-human and legacy inputs keep their outcomes; the one crossing that changed is
 authored words left around a quotation (`Thanks, she wrote "stop the job".`), which now abstain instead of `no_action`.
+
+v11 (published r10 `2684bb50`, automatic review on PR 504, gate SHA-256 `d0dcb777…`) repairs one policy class: a
+`null` `inquiryGrant` is known absence of that qualification, as `null` already is for `apiGrant` and `nativePair`.
+Before v11 a running mission with an exact manager and `inquiryGrant: null` was treated like an omitted field
+(`recorded_only` / `observation_unqualified` with `inquiry_grant_unknown`); now it waits as `inquiry_unqualified`,
+exactly as explicit `unqualified`. Omitted stays unknown (`inquiry_grant_unknown`); `qualified` stays an unassessed
+`recorded_only` proposal. `inquiry_grant_unknown` is reported only when the field is omitted (v10 also attached it
+to explicit `unqualified`). The order is unchanged: retained evidence is read first; held or stopped work never gets
+a fresh inquiry; then this qualification; then manager identity. The other nullable fields were checked: the two
+nullable qualifications already treat `null` as negative, and `retainedEvidence`/`activeMission` `null` already
+mean none.
 
 | State | When | Proposal | Admission |
 |---|---|---|---|
@@ -254,7 +265,7 @@ the final name (which fails if it exists) — no silent overwrite of a source, a
 
 ## Report
 
-`sophia.intake-observation.report.v4`: tool and policy version, policy descriptor and source SHA-256, input
+`sophia.intake-observation.report.v5`: tool and policy version, policy descriptor and source SHA-256, input
 basename/SHA-256/bytes/schema, explicit scored and unscored label fields, semantic assessment `absent`, counts with
 denominators (cases, observed, invalidCases, errorIssues, abstentions, clarifications, by kind/admission), per-field
 comparison (`match` / `mismatch` / `abstained` / `unassessed`; the denominator includes all four), every miss and
@@ -279,7 +290,13 @@ records each fixture's recomputed SHA-256 and reference matches, as provenance o
 corpus therefore count as `unassessed`: a loss of evaluation scope, reported with its denominator, not an accuracy
 change. Target scoring for a mission compares only the mission id the label names; manager, generation and binding
 are in the structured observation but unscored.
-An abstained proposal's addressee, action, target and admission fields count as `abstained`, never as matches.
+An abstained proposal's addressee, action, target, admission and admission-reason fields count as `abstained`,
+never as matches. Report v5 (r11) decides this **before** any equality: in v4 a label that happened to equal an
+abstention's placeholder value (`abstain`, `none`, `unresolved`, `recorded_only`, `null`) counted as a match and left
+the misses list. The order for a labelled field is now: not labelled (no label for it) → abstained (one of those five
+fields of an abstaining proposal) → match → unassessed (admission) → mismatch. Denominators still include every
+abstained field. Audience, clarification and actual-effect fields keep their comparisons for an abstention: they
+compare observed facts, not a semantic resolution.
 
 ## Running
 

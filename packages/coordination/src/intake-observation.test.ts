@@ -1672,3 +1672,60 @@ describe('r10 (INC03-R9-F01): an acknowledgement never decides words the lexicon
     assert.deepEqual(observe('Thanks urgently stop the job.', live).effects, ZERO_EFFECTS)
   })
 })
+
+describe('r11 (P2 discussion_r4520830076): a null inquiry qualification is known absence, not an unknown', () => {
+  const known = {
+    audience: 'project',
+    activeMission: 'm11',
+    control: 'running',
+    manager: 'pm11',
+    managerGeneration: 3,
+  }
+  const ask = 'Why was that test removed?'
+
+  it('null waits as inquiry_unqualified exactly as explicit unqualified; omitted stays unknown; qualified stays unassessed', () => {
+    const omitted = observe(ask, known)
+    const none = observe(ask, { ...known, inquiryGrant: null })
+    const unqualified = observe(ask, { ...known, inquiryGrant: 'unqualified' })
+    const qualified = observe(ask, { ...known, inquiryGrant: 'qualified' })
+    for (const o of [omitted, none, unqualified, qualified]) assert.equal(kindOf(o), 'manager_inquiry')
+    assert.deepEqual(none.admission, { outcome: 'waiting', reason: 'inquiry_unqualified', authority: 'none' })
+    assert.deepEqual(decision(none), decision(unqualified))
+    assert.deepEqual(none.uncertainty, unqualified.uncertainty)
+    assert.ok(!none.uncertainty.includes('inquiry_grant_unknown'))
+    assert.deepEqual(omitted.admission, {
+      outcome: 'recorded_only',
+      reason: 'observation_unqualified',
+      authority: 'none',
+    })
+    assert.ok(omitted.uncertainty.includes('inquiry_grant_unknown'))
+    assert.deepEqual(qualified.admission, omitted.admission)
+    assert.ok(!qualified.uncertainty.includes('inquiry_grant_unknown'))
+    for (const o of [omitted, none, unqualified, qualified]) assert.deepEqual(o.effects, ZERO_EFFECTS)
+  })
+
+  it('in every sibling context null decides as explicit unqualified, and the earlier gates keep their order', () => {
+    const siblings: Record<string, Record<string, unknown>> = {
+      'retained evidence': { ...known, retainedEvidence: 'checkpoint7' },
+      held: { ...known, control: 'held' },
+      stopped: { ...known, control: 'stopped' },
+      'manager unresolved': { audience: 'project', activeMission: 'm11', control: 'running' },
+      'source ineligible': { ...known, currentSourceEligible: false },
+      'actor unauthorized': { ...known, currentActorAuthorized: false },
+    }
+    for (const [name, ctx] of Object.entries(siblings))
+      assert.deepEqual(
+        decision(observe(ask, { ...ctx, inquiryGrant: null })),
+        decision(observe(ask, { ...ctx, inquiryGrant: 'unqualified' })),
+        name,
+      )
+    assert.equal(kindOf(observe(ask, { ...siblings['retained evidence'], inquiryGrant: null })), 'work_read')
+    assert.equal(observe(ask, { ...siblings.held, inquiryGrant: null }).admission.reason, 'held_no_fresh_inquiry')
+    assert.equal(observe(ask, { ...siblings.stopped, inquiryGrant: null }).admission.reason, 'held_no_fresh_inquiry')
+    assert.equal(
+      observe(ask, { ...siblings['manager unresolved'], inquiryGrant: null }).admission.reason,
+      'inquiry_unqualified',
+    )
+    assert.equal(observe(ask, { ...siblings['manager unresolved'] }).admission.reason, 'manager_identity_unresolved')
+  })
+})

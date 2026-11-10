@@ -775,7 +775,8 @@ describe('F03 (r9): only a comparable action label can make a proposal unexpecte
       const out = join(dir, 'r.json')
       assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
       const written = JSON.parse(readFileSync(out, 'utf8'))
-      assert.equal(written.schema, 'sophia.intake-observation.report.v4')
+      // v4 introduced this list; v5 (r11) keeps it and changes only how abstentions score.
+      assert.equal(written.schema, 'sophia.intake-observation.report.v5')
       checkLabelTallies(written)
     })
   })
@@ -891,6 +892,141 @@ describe('r10 through the consumer: unread words after an acknowledgement stay u
       assert.equal(c.observation.proposal.kind, want, c.caseId)
       if (want === 'abstain') assert.equal(c.observation.assessment, 'absent_abstained', c.caseId)
     }
+    assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+  })
+})
+
+describe('r11 (P1 discussion_r4520830068): an abstention is never a semantic match', () => {
+  const live = { audience: 'project', activeMission: 'm9', control: 'running', stopQualified: true }
+  // The values an abstention reports in the five semantic fields; a label equal to them is still not a match.
+  const placeholders = {
+    audience: 'unchanged',
+    addressee: 'none',
+    proposedAction: 'abstain',
+    target: 'unresolved',
+    clarificationRequired: false,
+    admission: 'recorded_only',
+    admissionDenialOrWaitReason: null,
+    actualObservationModeEffects: { providerInferences: 0, nativeInputs: 0 },
+  }
+  function abstentionCorpus(): TestDoc {
+    const doc = corpus()
+    doc.cases = [
+      testCase('AB-plain', 'Urgently stop the job.', live, placeholders),
+      testCase('AB-prefix', 'Thanks urgently stop the job.', live, placeholders),
+      testCase('AB-clause', 'Thanks, urgently stop the job.', live, placeholders),
+      testCase('AB-unequal', 'Urgently stop the job.', live, {
+        addressee: 'sophia',
+        proposedAction: 'control_stop',
+        target: 'm9',
+        admission: 'admitted',
+        admissionDenialOrWaitReason: 'stop_unqualified',
+      }),
+      testCase('AB-partial', 'Urgently stop the job.', live, { audience: 'unchanged', proposedAction: 'abstain' }),
+      testCase('AB-none', 'Urgently stop the job.', live, {}),
+      testCase('NA-match', 'Stop the job.', live, {
+        addressee: 'sophia',
+        proposedAction: 'control_stop',
+        target: 'm9',
+        admission: 'admitted',
+        admissionDenialOrWaitReason: null,
+      }),
+      testCase('NA-miss', 'Stop the job.', live, { proposedAction: 'answer', target: 'm8' }),
+    ]
+    return doc
+  }
+  const expectedFields: Record<string, Record<string, number>> = {
+    proposedAction: { match: 1, mismatch: 1, abstained: 5, unassessed: 0, not_labelled: 1, denominator: 7 },
+    addressee: { match: 1, mismatch: 0, abstained: 4, unassessed: 0, not_labelled: 3, denominator: 5 },
+    target: { match: 1, mismatch: 1, abstained: 4, unassessed: 0, not_labelled: 2, denominator: 6 },
+    admission: { match: 0, mismatch: 0, abstained: 4, unassessed: 1, not_labelled: 3, denominator: 5 },
+    admissionReason: { match: 1, mismatch: 0, abstained: 4, unassessed: 0, not_labelled: 3, denominator: 5 },
+    audience: { match: 4, mismatch: 0, abstained: 0, unassessed: 0, not_labelled: 4, denominator: 4 },
+    clarificationRequired: { match: 3, mismatch: 0, abstained: 0, unassessed: 0, not_labelled: 5, denominator: 3 },
+    actualEffects: { match: 3, mismatch: 0, abstained: 0, unassessed: 0, not_labelled: 5, denominator: 3 },
+  }
+  function checkAbstentionReport(r: {
+    counts: Record<string, unknown>
+    comparison: { fields: Record<string, Record<string, number>>; misses: { caseId: string; result: string }[] }
+    actualEffects: Record<string, number>
+  }): void {
+    assert.equal(r.counts.observed, 8)
+    assert.equal(r.counts.abstentions, 6)
+    for (const [name, want] of Object.entries(expectedFields)) assert.deepEqual(r.comparison.fields[name], want, name)
+    const abstainedMisses = r.comparison.misses.filter((m) => m.result === 'abstained')
+    assert.equal(abstainedMisses.length, 21)
+    assert.equal(r.comparison.misses.length, 24)
+    for (const id of ['AB-plain', 'AB-prefix', 'AB-clause'])
+      assert.equal(abstainedMisses.filter((m) => m.caseId === id).length, 5, id)
+    assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+  }
+
+  it('in the built report, placeholder-equal labels on an abstention count as abstained, not matched', () => {
+    const r = report(abstentionCorpus())
+    checkAbstentionReport(r as unknown as Parameters<typeof checkAbstentionReport>[0])
+    for (const name of ['addressee', 'proposedAction', 'target', 'admission', 'admissionReason'])
+      assert.equal(field(r, 'AB-plain', name)?.result, 'abstained', name)
+    assert.equal(field(r, 'AB-partial', 'addressee')?.result, 'not_labelled')
+    assert.equal(field(r, 'NA-match', 'admission')?.result, 'unassessed')
+  })
+
+  it('in the written report from the command line', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, abstentionCorpus())
+      const out = join(dir, 'r.json')
+      assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
+      const written = JSON.parse(readFileSync(out, 'utf8'))
+      assert.equal(written.schema, 'sophia.intake-observation.report.v5')
+      checkAbstentionReport(written)
+    })
+  })
+})
+
+describe('r11 (P2) through the consumer: null, omitted, unqualified and qualified inquiry qualification', () => {
+  const known = { audience: 'project', activeMission: 'm11', control: 'running', manager: 'pm11', managerGeneration: 3 }
+  const ask = 'Why was that test removed?'
+  it('null and unqualified wait; omitted and qualified stay unassessed; retained evidence and held work are unchanged', () => {
+    const labels = {
+      proposedAction: 'manager_inquiry',
+      admission: 'waiting',
+      admissionDenialOrWaitReason: 'inquiry_unqualified',
+    }
+    const doc = corpus()
+    doc.cases = [
+      testCase('Q-omitted', ask, known, labels),
+      testCase('Q-null', ask, { ...known, inquiryGrant: null }, labels),
+      testCase('Q-unqualified', ask, { ...known, inquiryGrant: 'unqualified' }, labels),
+      testCase('Q-qualified', ask, { ...known, inquiryGrant: 'qualified' }, labels),
+      testCase('Q-retained-null', ask, { ...known, retainedEvidence: 'cp7', inquiryGrant: null }, {}),
+      testCase('Q-held-null', ask, { ...known, control: 'held', inquiryGrant: null }, {}),
+    ]
+    const r = report(doc)
+    const o = byId(r)
+    const observed = (id: string) => {
+      const observation = o.get(id)
+      assert.ok(observation, id)
+      return observation
+    }
+    const reasons = {
+      'Q-null': 'inquiry_unqualified',
+      'Q-unqualified': 'inquiry_unqualified',
+      'Q-omitted': 'observation_unqualified',
+      'Q-qualified': 'observation_unqualified',
+      'Q-held-null': 'held_no_fresh_inquiry',
+    }
+    for (const [id, reason] of Object.entries(reasons)) assert.equal(observed(id).admission.reason, reason, id)
+    assert.ok(observed('Q-omitted').uncertainty.includes('inquiry_grant_unknown'))
+    assert.ok(!observed('Q-null').uncertainty.includes('inquiry_grant_unknown'))
+    assert.equal(observed('Q-retained-null').proposal.kind, 'work_read')
+    // Omitted and qualified stay unassessed; their missing wait reason is a real miss against this label.
+    const results = {
+      'Q-null': ['match', 'match'],
+      'Q-unqualified': ['match', 'match'],
+      'Q-omitted': ['unassessed', 'mismatch'],
+      'Q-qualified': ['unassessed', 'mismatch'],
+    }
+    for (const [id, want] of Object.entries(results))
+      assert.deepEqual([field(r, id, 'admission')?.result, field(r, id, 'admissionReason')?.result], want, id)
     assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
   })
 })
