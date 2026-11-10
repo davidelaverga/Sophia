@@ -1177,6 +1177,15 @@
 .report-html-head .report-format-note {
   margin-bottom: 0;
 }
+/* A designed page that can't be shown here (HtmlView's NotShown): why, then the version's other formats. */
+.report-html-refused p {
+  margin: 0 0 12px;
+}
+.report-html-refused p:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
 .report-revise {
   display: flex;
   flex: none;
