@@ -6,7 +6,7 @@ installed automatic routing, not a live intake service and not the shipped INC-0
 from `@sophia/coordination`, registered in an app, or reachable from a request.
 
 - `packages/coordination/src/intake-observation.ts` — a pure, versioned, deterministic observation policy
-  (currently `sophia.intake-observation.policy.v12`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11). It reads a validated input and returns a proposal. It holds no
+  (currently `sophia.intake-observation.policy.v13`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11, v12 r12). It reads a validated input and returns a proposal. It holds no
   transport, provider, database, notification, control or dispatch handle and reads no clock or environment.
 - `scripts/intake-observe.ts` — the consumer: an offline CLI that validates a bounded corpus file, strips every
   label before the policy sees a case, runs the policy, compares results with the labels separately and writes a
@@ -54,7 +54,7 @@ wrong type, an oversized string or list is an input error. What each group means
 The policy never sees `caseId`, `family`, `split`, `expected`, `status`, `labelAuthority` or `fixtureAuthority`:
 the CLI keeps them as comparison metadata, and a context that carries any of those keys is an input error.
 
-## States (one observation) — policy v12
+## States (one observation) — policy v13
 
 Policy v2 (`sophia.intake-observation.policy.v2`) replaced v1 after the independent r1 review
 (INC03-CC-001-r1-SOURCE-PRE-PUSH-001, F01–F07). Policy v3 (`sophia.intake-observation.policy.v3`) replaces v2 after
@@ -156,6 +156,22 @@ v12 (published r11 `7079989c`, automatic review on PR 504, gate SHA-256 `141d000
   `explicit_selection` for an actual selected artifact, comparison or decision with its exact target. The legacy
   answer path, its admission and legacy false are unchanged.
 
+v13 (published r12 `9bd567a8`, automatic review on PR 504, gate SHA-256 `d3f1a0be…`) repairs two policy classes, and
+the report one accounting class:
+
+- **A dash directly after an acknowledgement.** v9 documented hyphen, en dash and em dash as separators after an
+  acknowledgement, but an acknowledgement was only recognised when a space followed it, so `Thanks—stop` or `okay-hold`
+  never reached the separator and abstained while `Thanks — stop` was a control (48 of 48 joined forms). v13 recognises
+  an acknowledgement term followed by the end, whitespace or one of those dashes, and peels the dash as before. A word
+  that only begins with an acknowledgement is none (`Thanksgiving`, `Okayish`, `Okstop`); other lexicon boundaries are
+  unchanged; unread words after it still abstain (v10).
+- **Comparison ref syntax.** v12 checked only for one `@` and no whitespace. v13 implements `name@version[:region]`
+  (below) for the selected pair and every possible pair.
+- **Report tallies** (`scripts/intake-observe.ts`, report v5 shape unchanged): counts by kind, admission, family and
+  field result were accumulated in an ordinary object, so a family named `__proto__` vanished and one named
+  `constructor` or `toString` was not a number. They are now accumulated in a `Map` and written as own numeric
+  properties for every name; family counts sum to the observed cases. No global prototype was changed before or after.
+
 | State | When | Proposal | Admission |
 |---|---|---|---|
 | legacy false | `legacy_explicit_ask`, `askSophia:false` | `recorded_only`, no addressee inference | `recorded_only` / `legacy_ask_false_no_assessment` |
@@ -204,8 +220,10 @@ Held or stopped work: a question with retained evidence is a `work_read`; withou
 only, queued (no fan-out, no new mission, no allowance reset); an unrelated build while a mission is active waits.
 
 Comparisons (F06): `selectedComparison` holds exactly two refs and each `possibleComparisons` entry exactly two;
-every comparison ref is `name@version[:region]` without `..`. Anything else is an input error
-(`unsupported_comparison`), never silently truncated. Target scoring compares structured refs, not a display string.
+every comparison ref is `name@version[:region]` (v13): exactly one non-empty name and one non-empty version, and at
+most one non-empty region, each made only of letters, digits, `.`, `_` and `-`, with no `..` inside a ref. Empty
+components, a second `:`, `/`, a backslash, whitespace or any other character are outside this bounded grammar. Anything
+else is an input error (`unsupported_comparison`), counted among the invalid cases and never silently truncated. Target scoring compares structured refs, not a display string.
 
 Text (lexicon v2) is deliberately small and recorded in the policy descriptor (with its text rules from v10). A message
 with no clause in the lexicon abstains, and so does one whose only recognised clauses are acknowledgements beside

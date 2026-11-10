@@ -1110,3 +1110,94 @@ describe('r12 through the consumer: failed structured addressing and legacy targ
     })
   })
 })
+
+/** A case relabelled with another family (any string, or none). */
+const family = (c: TestCase, name: string | null) => ({ ...c, family: name })
+
+/** The r13 consumer corpus: dash-joined acknowledgements, malformed and valid comparisons, prototype-named families. */
+function r13Corpus(): TestDoc {
+  const doc = corpus()
+  const live = {
+    audience: 'project',
+    activeMission: 'm13',
+    control: 'running',
+    stopQualified: true,
+    holdQualified: true,
+  }
+  doc.cases = [
+    testCase('D-stop', 'Thanks—stop the job.', live, { proposedAction: 'control_stop' }),
+    testCase('D-hold', 'okay-hold the job', live, { proposedAction: 'control_hold' }),
+    testCase(
+      'C-bad',
+      'Compare them.',
+      { audience: 'project', selectedComparison: ['w@v1:', 'w@v2'] },
+      { target: 'w@v1:..v2' },
+    ),
+    testCase('C-bad-possible', 'Compare them.', { audience: 'project', possibleComparisons: [['w@v1/x', 'w@v2']] }, {}),
+    testCase(
+      'C-ok',
+      'Compare them.',
+      { audience: 'project', directAddress: 'sophia', selectedComparison: ['w@v1:intro', 'w@v2:intro'] },
+      { target: 'w@v1:intro..v2:intro' },
+    ),
+    family(testCase('P-1', 'Thanks!', live, {}), '__proto__'),
+    family(testCase('P-2', 'Thanks!', live, {}), '__proto__'),
+    family(testCase('P-3', 'Thanks!', live, {}), 'constructor'),
+    family(testCase('P-4', 'Thanks!', live, {}), 'toString'),
+    family(testCase('P-5', 'Thanks!', live, {}), 'hasOwnProperty'),
+    family(testCase('P-6', 'Thanks!', live, {}), null),
+  ]
+  return doc
+}
+
+interface R13View {
+  cases: { caseId: string; observation: IntakeObservation; comparison: { field: string; result: string }[] }[]
+  errors: { caseId?: string; code: string }[]
+  counts: { observed: number; invalidCases: number; byFamily: Record<string, unknown>; byKind: Record<string, unknown> }
+  actualEffects: Record<string, number>
+}
+
+function checkR13(r: R13View): void {
+  const o = new Map(r.cases.map((c) => [c.caseId, c]))
+  assert.equal(o.get('D-stop')?.observation.proposal.kind, 'control_stop')
+  assert.equal(o.get('D-hold')?.observation.proposal.kind, 'control_hold')
+  assert.equal(r.counts.invalidCases, 2)
+  assert.ok(!o.has('C-bad') && !o.has('C-bad-possible'), 'malformed comparisons are not observed')
+  assert.equal(r.errors.filter((e) => e.code === 'unsupported_comparison').length, 2)
+  assert.equal(o.get('C-ok')?.comparison.find((f) => f.field === 'target')?.result, 'match')
+  const families = r.counts.byFamily
+  for (const [name, n] of [
+    ['__proto__', 2],
+    ['constructor', 1],
+    ['toString', 1],
+    ['hasOwnProperty', 1],
+    ['unlabelled', 1],
+    ['test_family', 3],
+  ] as const) {
+    assert.ok(Object.hasOwn(families, name), name)
+    assert.equal(families[name], n, name)
+  }
+  const values = Object.values(families)
+  assert.ok(values.every((v) => typeof v === 'number'))
+  assert.equal(
+    values.reduce((sum: number, v) => sum + (typeof v === 'number' ? v : 0), 0),
+    r.counts.observed,
+  )
+  assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+}
+
+describe('r13 through the consumer: dash-joined acknowledgements, comparison syntax, prototype-safe tallies', () => {
+  it('in the built report', () => {
+    checkR13(report(r13Corpus()) as unknown as R13View)
+    assert.equal(Object.getPrototypeOf({}), Object.prototype)
+  })
+
+  it('in the written report from the command line', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, r13Corpus())
+      const out = join(dir, 'r.json')
+      assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 1, 'invalid cases exit 1')
+      checkR13(JSON.parse(readFileSync(out, 'utf8')))
+    })
+  })
+})

@@ -1836,3 +1836,102 @@ describe('r12 (P2 discussion_r4529211542): a legacy Ask names explicit selection
     )
   })
 })
+
+describe('r13 (P1 discussion_r4529758474): a dash directly after an acknowledgement separates it', () => {
+  const live = {
+    audience: 'project',
+    activeMission: 'm13',
+    control: 'running',
+    stopQualified: true,
+    holdQualified: true,
+  }
+  const acks = ['thanks', 'thank you', 'thx', 'got it', 'ok', 'okay', 'great', 'perfect']
+  const dashes = ['-', '–', '—']
+
+  it('every acknowledgement joined to a Stop or Hold by any documented dash decides as the spaced form', () => {
+    for (const ack of acks)
+      for (const dash of dashes)
+        for (const verb of ['stop', 'hold']) {
+          const joined = observe(`${cap(ack)}${dash}${verb} the job.`, live)
+          const spaced = observe(`${cap(ack)} ${dash} ${verb} the job.`, live)
+          assert.equal(kindOf(joined), verb === 'stop' ? 'control_stop' : 'control_hold', `${ack}${dash}${verb}`)
+          assert.deepEqual(decision(joined), decision(spaced), `${ack}${dash}${verb}`)
+        }
+  })
+
+  it('repeated and multi-word acknowledgements, fillers and mixed dashes still peel', () => {
+    for (const text of ['Thanks—thanks—stop.', 'Thank you–please stop.', 'Got it-ok-hold the job.', 'OK—just pause.'])
+      assert.ok(['control_stop', 'control_hold'].includes(kindOf(observe(text, live))), text)
+  })
+
+  it('a longer word is no acknowledgement, unread words still abstain, and fences, origins and people still decide', () => {
+    assert.notEqual(observe('Thanksgiving.', live).proposal.rule, 'family.acknowledgement')
+    assert.notEqual(observe('Okayish.', live).proposal.rule, 'family.acknowledgement')
+    // A word that merely begins with an acknowledgement is not one, so nothing after it is peeled into a control.
+    for (const text of ['Okstop the job.', 'Thanksstop.', 'Greathold the job.'])
+      assert.equal(kindOf(observe(text, live)), 'abstain', text)
+    assert.equal(kindOf(observe('Thanks—urgently stop the job.', live)), 'abstain')
+    assert.equal(kindOf(observe('Thanks—"stop the job".', live)), 'no_action')
+    assert.equal(kindOf(observe('Thanks—stop the job.', { ...live, quotedText: 'stop the job' })), 'no_action')
+    assert.equal(kindOf(observe('Thanks—stop the job.', { ...live, origin: 'receipt' })), 'no_action')
+    assert.equal(kindOf(observe('Thanks—stop the job.', { ...live, trustedMentions: ['marta'] })), 'human_message')
+    assert.equal(kindOf(observe('Thanks—stop the job.', live, legacy(false))), 'recorded_only')
+  })
+})
+
+describe('r13 (P2 discussion_r4529758477): comparison refs follow name@version[:region] exactly', () => {
+  const malformed = [
+    'w@:intro',
+    'w@v1:',
+    'w@v1:a:b',
+    'w@v1/x',
+    'w/x@v1',
+    '@v1',
+    'w@',
+    'w@@v1',
+    'w@v1\\x',
+    'w@v1 ',
+    'w@v1#x',
+  ]
+
+  it('every malformed ref is refused in the selected pair and in any possible pair', () => {
+    for (const bad of malformed) {
+      assert.deepEqual(
+        errorCodes({
+          interaction: AUTO,
+          text: 'Compare them.',
+          context: { ...project, selectedComparison: [bad, 'w@v2'] },
+        }),
+        ['unsupported_comparison'],
+        bad,
+      )
+      assert.deepEqual(
+        errorCodes({
+          interaction: AUTO,
+          text: 'Compare them.',
+          context: {
+            ...project,
+            possibleComparisons: [
+              ['w@v1', 'w@v2'],
+              ['w@v2', bad],
+            ],
+          },
+        }),
+        ['unsupported_comparison'],
+        bad,
+      )
+    }
+  })
+
+  it('names, versions and regions with letters, digits, dots, hyphens and underscores stay supported', () => {
+    for (const pair of [
+      ['w@v1', 'w@v2'],
+      ['w@v1:intro', 'w@v2:intro'],
+      ['deck-2.final@1.2.0-rc_3:slide-4', 'deck-2.final@1.3.0:slide-4'],
+      ['café@v1', 'café@v2'],
+    ]) {
+      const o = observe('Compare them.', { ...project, directAddress: 'sophia', selectedComparison: pair })
+      assert.deepEqual(o.proposal.target, { kind: 'comparison', refs: pair }, pair.join(' '))
+    }
+  })
+})

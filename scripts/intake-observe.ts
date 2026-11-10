@@ -428,10 +428,15 @@ export interface CaseRecord {
   readonly comparison: readonly FieldComparison[]
 }
 
+/**
+ * Counts per value, as own numeric properties for every value (r13): a Map accumulates, so a family or kind named
+ * `__proto__`, `constructor` or `toString` is counted like any other, never read from or lost to Object.prototype.
+ * Object.fromEntries defines own properties, `__proto__` included.
+ */
 const tally = (values: readonly string[]): Record<string, number> => {
-  const counts: Record<string, number> = {}
-  for (const v of values.toSorted()) counts[v] = (counts[v] ?? 0) + 1
-  return counts
+  const counts = new Map<string, number>()
+  for (const v of values.toSorted()) counts.set(v, (counts.get(v) ?? 0) + 1)
+  return Object.fromEntries(counts)
 }
 
 function fieldSummary(records: readonly CaseRecord[]): Record<string, Record<string, number>> {

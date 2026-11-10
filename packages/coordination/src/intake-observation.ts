@@ -20,7 +20,7 @@
 import { createHash } from 'node:crypto'
 import { canonicalJson } from './canonical.ts'
 
-export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v12'
+export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v13'
 
 export const INTAKE_LIMITS = { textChars: 4000, contextKeys: 64, stringChars: 200, listItems: 16 } as const
 
@@ -307,8 +307,13 @@ function originErrors(values: ReadonlyMap<ContextField, FactValue>): InputError[
   return contradictory ? [{ code: 'contradictory_origin', path: 'context.isFinal' }] : []
 }
 
-/** A comparison ref is `name@version[:region]`; `..` is the comparison delimiter and may not appear inside one. */
-const COMPARISON_REF = /^[^@\s]+@[^@\s]+$/
+/**
+ * A comparison ref is `name@version[:region]` (r13): exactly one non-empty name and version and at most one non-empty
+ * region, each made of letters, digits, `.`, `_` and `-` only. `@` and `:` are the component delimiters; `..` is the
+ * comparison delimiter and may not appear inside one; whitespace, `/`, a backslash and any other character are outside this
+ * bounded grammar and refused (never truncated).
+ */
+const COMPARISON_REF = /^[\p{L}\p{N}_.-]+@[\p{L}\p{N}_.-]+(?::[\p{L}\p{N}_.-]+)?$/u
 const isComparisonPair = (v: unknown): boolean =>
   Array.isArray(v) &&
   v.length === 2 &&
@@ -699,6 +704,13 @@ function stripFillers(words: string): { readonly words: string; readonly also: b
 const ACK_SEPARATOR = /^[\s\-\u2013\u2014]+/u
 
 /**
+ * The acknowledgement a clause opens with: a term followed by the end, whitespace or a documented dash (r13; `Thanks—stop`
+ * reads as `Thanks — stop`). A longer word is no acknowledgement (`thanksgiving`, `okayish`).
+ */
+const leadingAck = (words: string): string | undefined =>
+  LEXICON.ack.find((t) => words === t || (words.startsWith(t) && ACK_SEPARATOR.test(words.slice(t.length))))
+
+/**
  * Leading acknowledgements, repeated or with fillers between them, are a prefix: the words after them are read as a
  * clause of their own, exactly as "Thanks, stop" already was (r9 F01). Only the existing lexicon is used.
  */
@@ -710,7 +722,7 @@ function peelAcknowledgements(words: string): {
   let rest = words
   let ack = false
   let also = false
-  for (let term = leading(rest, LEXICON.ack); term !== undefined; term = leading(rest, LEXICON.ack)) {
+  for (let term = leadingAck(rest); term !== undefined; term = leadingAck(rest)) {
     ack = true
     const after = stripFillers(rest.slice(term.length).replace(ACK_SEPARATOR, ''))
     rest = after.words
