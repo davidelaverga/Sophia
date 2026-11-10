@@ -1729,3 +1729,110 @@ describe('r11 (P2 discussion_r4520830076): a null inquiry qualification is known
     assert.equal(observe(ask, { ...siblings['manager unresolved'] }).admission.reason, 'manager_identity_unresolved')
   })
 })
+
+describe('r12 (P1 discussion_r4529211530): structured addressing that names no current recipient abstains', () => {
+  const live = {
+    audience: 'project',
+    activeMission: 'm12',
+    control: 'running',
+    stopQualified: true,
+    selectedArtifact: 'panel@v4',
+  }
+  const gone = { trustedMentions: ['ines'], currentMembers: ['marta'] }
+  const contexts: Record<string, Record<string, unknown>> = {
+    'project, one removed human': { ...live, ...gone },
+    'project, two removed humans': { ...live, trustedMentions: ['ines', 'tomas'], currentMembers: ['marta'] },
+    'no current members at all': { ...live, trustedMentions: ['ines'], currentMembers: [] },
+    'reply to Sophia would otherwise decide': { ...live, ...gone, replyTo: 'msg12', replyAuthor: 'sophia' },
+    'direct address to Sophia would otherwise decide': { ...live, ...gone, directAddress: 'sophia' },
+    'personal default would otherwise decide': { ...live, ...gone, audience: 'personal' },
+    'correction metadata would otherwise decide': {
+      ...live,
+      ...gone,
+      originalOperation: 'op12',
+      newTarget: 'panel@v5',
+      dispatchState: 'not_sent',
+      expectedRevision: 3,
+      currentRevision: 3,
+    },
+  }
+  const texts = ['Implement the selected panel.', 'Stop the job.', 'Explain the panel.', 'Use v5 instead.']
+
+  it('every fallback is refused: abstain, no recipient, no attention, the failure said', () => {
+    for (const [name, ctx] of Object.entries(contexts))
+      for (const text of texts) {
+        const o = observe(text, ctx)
+        const label = `${name}: ${text}`
+        assert.equal(kindOf(o), 'abstain', label)
+        assert.equal(o.proposal.rule, 'address.structured_unresolved', label)
+        assert.deepEqual(o.addressee, { ids: [], basis: 'unresolved' }, label)
+        assert.equal(o.audience.attention, 'none', label)
+        assert.ok(o.uncertainty.includes('structured_addressing_failed'), label)
+        assert.ok(o.uncertainty.includes('mention_not_current_member'), label)
+        assert.ok(!JSON.stringify(o).includes('ines') && !JSON.stringify(o).includes('tomas'), label)
+        assert.deepEqual(o.effects, ZERO_EFFECTS, label)
+      }
+  })
+
+  it('absent and empty mentions are the same and are not a failure; partial, mixed and current recipients keep theirs', () => {
+    const text = 'Implement the selected panel.'
+    const without = observe(text, live)
+    assert.deepEqual(decision(observe(text, { ...live, trustedMentions: [] })), decision(without))
+    assert.ok(!without.uncertainty.includes('structured_addressing_failed'))
+    const partial = observe(text, { ...live, trustedMentions: ['marta', 'ines'], currentMembers: ['marta'] })
+    assert.equal(kindOf(partial), 'human_message')
+    assert.deepEqual(partial.addressee.ids, ['marta'])
+    const mixed = observe(text, { ...live, trustedMentions: ['sophia', 'ines'], currentMembers: ['marta'] })
+    assert.notEqual(kindOf(mixed), 'abstain')
+    assert.deepEqual(mixed.addressee.ids, ['sophia'])
+    assert.ok(mixed.uncertainty.includes('mention_not_current_member'))
+    const rejoined = observe(text, { ...live, trustedMentions: ['ines'], currentMembers: ['marta', 'ines'] })
+    assert.equal(kindOf(rejoined), 'human_message')
+    const unknownMembers = observe(text, { ...live, trustedMentions: ['ines'] })
+    assert.equal(kindOf(unknownMembers), 'human_message')
+  })
+
+  it('origin, transport redelivery and the legacy contract still decide first', () => {
+    const ctx = contexts['project, one removed human'] ?? {}
+    assert.equal(kindOf(observe('Stop the job.', { ...ctx, origin: 'agent_result' })), 'no_action')
+    const redelivered = observe('Stop the job.', { ...ctx, redeliveryOf: 'op12', samePayload: true })
+    assert.equal(kindOf(redelivered), 'replay_original')
+    assert.deepEqual(redelivered.addressee.ids, [])
+    assert.equal(kindOf(observe('Stop the job.', ctx, legacy(false))), 'recorded_only')
+    assert.equal(observe('Stop the job.', ctx, legacy(true)).proposal.rule, 'legacy.ask_true')
+  })
+})
+
+describe('r12 (P2 discussion_r4529211542): a legacy Ask names explicit selection only when there is one', () => {
+  it('without a selection: the current thread, said as current_thread, in every audience', () => {
+    for (const audience of ['project', 'personal', 'voice_call']) {
+      const o = observe('What changed?', { audience }, legacy(true))
+      assert.equal(kindOf(o), 'answer', audience)
+      assert.deepEqual(o.proposal.target, { kind: 'thread', scope: audience }, audience)
+      assert.equal(o.proposal.targetBasis, 'current_thread', audience)
+      assert.equal(o.admission.reason, 'legacy_explicit_path', audience)
+    }
+  })
+
+  it('with an artifact, a comparison or a decision selected: that exact target, as explicit_selection', () => {
+    const cases: [Record<string, unknown>, string][] = [
+      [{ selectedArtifact: 'panel@v4' }, 'panel@v4'],
+      [{ selectedComparison: ['panel@v3', 'panel@v4'] }, 'panel@v3..v4'],
+      [{ uniqueDecision: 'decision12' }, 'decision12'],
+    ]
+    for (const [selection, rendered] of cases) {
+      const o = observe('What changed?', { audience: 'project', ...selection }, legacy(true))
+      assert.equal(o.proposal.targetBasis, 'explicit_selection', rendered)
+      assert.equal(renderTarget(o.proposal.target), rendered)
+    }
+  })
+
+  it('legacy false stays quiet on the thread, and a generated legacy true is still a result', () => {
+    const quiet = observe('What changed?', { audience: 'project' }, legacy(false))
+    assert.deepEqual([kindOf(quiet), quiet.proposal.targetBasis], ['recorded_only', 'current_thread'])
+    assert.equal(
+      kindOf(observe('What changed?', { audience: 'project', origin: 'generated' }, legacy(true))),
+      'no_action',
+    )
+  })
+})

@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { canonicalJson } from '../packages/coordination/src/canonical.ts'
+import type { IntakeObservation } from '../packages/coordination/src/intake-observation.ts'
 import { buildReport, checkOutputPath, parseCli, parseCorpus, REPOSITORY_ROOT, UsageError } from './intake-observe.ts'
 
 const SCRIPT = fileURLToPath(new URL('./intake-observe.ts', import.meta.url))
@@ -1028,5 +1029,84 @@ describe('r11 (P2) through the consumer: null, omitted, unqualified and qualifie
     for (const [id, want] of Object.entries(results))
       assert.deepEqual([field(r, id, 'admission')?.result, field(r, id, 'admissionReason')?.result], want, id)
     assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+  })
+})
+
+/** The r12 consumer cases' expected observations, in a built or a written report. */
+function checkR12(cases: { caseId: string; observation: IntakeObservation }[]): void {
+  const o = new Map(cases.map((c) => [c.caseId, c.observation]))
+  for (const id of ['F-build', 'F-stop', 'F-reply', 'F-personal']) {
+    assert.equal(o.get(id)?.proposal.kind, 'abstain', id)
+    assert.deepEqual(o.get(id)?.addressee.ids, [], id)
+    assert.ok(o.get(id)?.uncertainty.includes('structured_addressing_failed'), id)
+  }
+  assert.equal(o.get('V-partial')?.proposal.kind, 'human_message')
+  assert.equal(o.get('V-empty')?.proposal.kind, 'control_stop')
+  assert.equal(o.get('L-thread')?.proposal.targetBasis, 'current_thread')
+  assert.equal(o.get('L-selected')?.proposal.targetBasis, 'explicit_selection')
+}
+
+describe('r12 through the consumer: failed structured addressing and legacy target provenance', () => {
+  const live = {
+    audience: 'project',
+    activeMission: 'm12',
+    control: 'running',
+    stopQualified: true,
+    selectedArtifact: 'panel@v4',
+  }
+  function r12Corpus(): TestDoc {
+    const doc = corpus()
+    const legacyTrue = { contract: 'legacy_explicit_ask', askSophia: true }
+    doc.cases = [
+      testCase(
+        'F-build',
+        'Implement the selected panel.',
+        { ...live, trustedMentions: ['ines'], currentMembers: ['marta'] },
+        {},
+      ),
+      testCase('F-stop', 'Stop the job.', { ...live, trustedMentions: ['ines'], currentMembers: [] }, {}),
+      testCase(
+        'F-reply',
+        'Stop the job.',
+        { ...live, trustedMentions: ['ines'], currentMembers: ['marta'], replyTo: 'm', replyAuthor: 'sophia' },
+        {},
+      ),
+      testCase(
+        'F-personal',
+        'Explain the panel.',
+        { ...live, audience: 'personal', trustedMentions: ['ines'], currentMembers: ['marta'] },
+        {},
+      ),
+      testCase(
+        'V-partial',
+        'Implement the selected panel.',
+        { ...live, trustedMentions: ['marta', 'ines'], currentMembers: ['marta'] },
+        {},
+      ),
+      testCase('V-empty', 'Stop the job.', { ...live, trustedMentions: [] }, {}),
+      { ...testCase('L-thread', 'What changed?', { audience: 'project' }, {}), interaction: legacyTrue },
+      {
+        ...testCase('L-selected', 'What changed?', { audience: 'project', selectedArtifact: 'panel@v4' }, {}),
+        interaction: legacyTrue,
+      },
+    ]
+    return doc
+  }
+
+  it('in the built report', () => {
+    const r = report(r12Corpus())
+    checkR12(r.cases)
+    assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+  })
+
+  it('in the written report from the command line', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, r12Corpus())
+      const out = join(dir, 'r.json')
+      assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
+      const written = JSON.parse(readFileSync(out, 'utf8'))
+      checkR12(written.cases)
+      assert.ok(Object.values(written.actualEffects).every((v) => v === 0))
+    })
   })
 })

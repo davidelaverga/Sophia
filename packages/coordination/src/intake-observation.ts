@@ -20,7 +20,7 @@
 import { createHash } from 'node:crypto'
 import { canonicalJson } from './canonical.ts'
 
-export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v11'
+export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v12'
 
 export const INTAKE_LIMITS = { textChars: 4000, contextKeys: 64, stringChars: 200, listItems: 16 } as const
 
@@ -986,9 +986,15 @@ interface Addressing {
   readonly sophia: boolean
   readonly basis: AddresseeBasis
   readonly dropped: readonly string[]
+  /** Structured mentions were supplied and none named a current recipient (r12): not the same as none supplied. */
+  readonly failed: boolean
 }
 
-/** Structured mentions validated against current members when known; text mentions are never read here. */
+/**
+ * Structured mentions validated against current members when known; text mentions are never read here. Mentions that
+ * were supplied but name no current recipient are failed addressing (r12): they stop here, before any reply target,
+ * direct address or personal default could stand in for the recipients the author actually chose.
+ */
 function resolveAddressing(facts: Facts): Addressing {
   const members = facts.has('currentMembers') ? new Set(facts.list('currentMembers')) : undefined
   const mentioned = facts.list('trustedMentions')
@@ -1000,20 +1006,48 @@ function resolveAddressing(facts: Facts): Addressing {
       sophia: trusted.includes('sophia'),
       basis: 'structured_mention',
       dropped,
+      failed: false,
     }
+  if (mentioned.length > 0) return { humans: [], sophia: false, basis: 'unresolved', dropped, failed: true }
+  return fallbackAddressing(facts)
+}
+
+/** Addressing when no structured mention was supplied: a reply target, a direct address, the personal default. */
+function fallbackAddressing(facts: Facts): Addressing {
   const author = facts.str('replyAuthor')
   if (author !== undefined)
-    return { humans: author === 'sophia' ? [] : [author], sophia: author === 'sophia', basis: 'reply_target', dropped }
+    return {
+      humans: author === 'sophia' ? [] : [author],
+      sophia: author === 'sophia',
+      basis: 'reply_target',
+      dropped: [],
+      failed: false,
+    }
   const direct = facts.str('directAddress')
   if (direct !== undefined)
     return {
       humans: direct === 'sophia' ? [] : [direct],
       sophia: direct === 'sophia',
       basis: 'direct_address',
-      dropped,
+      dropped: [],
+      failed: false,
     }
-  if (facts.str('audience') === 'personal') return { humans: [], sophia: true, basis: 'personal_default', dropped }
-  return { humans: [], sophia: false, basis: 'unresolved', dropped }
+  if (facts.str('audience') === 'personal')
+    return { humans: [], sophia: true, basis: 'personal_default', dropped: [], failed: false }
+  return { humans: [], sophia: false, basis: 'unresolved', dropped: [], failed: false }
+}
+
+/**
+ * Failed structured addressing abstains (r12): the author chose recipients and none is current, so nothing below it —
+ * correction, control, intent, a Sophia default — may reinterpret the message as addressed to someone else. Nobody is
+ * notified and no recipient is claimed.
+ */
+function failedAddressingRule(addressing: Addressing): Proposal | undefined {
+  if (!addressing.failed) return undefined
+  return proposal('abstain', UNRESOLVED, 'unresolved', 'address.structured_unresolved', {
+    addressee: { ids: [], basis: 'unresolved' },
+    uncertainty: ['structured_addressing_failed'],
+  })
 }
 
 /** Clear human-directed text gets no substantive AI response; a private mention notifies nobody (INC03-R01). */
@@ -1480,10 +1514,18 @@ function legacyProposal(input: IntakeInput, askSophia: boolean): Proposal {
     return proposal('recorded_only', thread(input.facts), 'current_thread', 'legacy.ask_false', {
       addressee: { ids: [], basis: 'legacy_contract' },
     })
-  const target = selectedTarget(input.facts) ?? thread(input.facts)
-  return proposal('answer', target, 'explicit_selection', 'legacy.ask_true', {
-    addressee: { ids: ['sophia'], basis: 'legacy_contract' },
-  })
+  // Explicit selection only when something was selected; otherwise the current thread, said as such (r12).
+  const selected = selectedTarget(input.facts)
+  const target = selected ?? thread(input.facts)
+  return proposal(
+    'answer',
+    target,
+    selected === undefined ? 'current_thread' : 'explicit_selection',
+    'legacy.ask_true',
+    {
+      addressee: { ids: ['sophia'], basis: 'legacy_contract' },
+    },
+  )
 }
 
 /** The existing explicit path owns a legacy Ask; false never gains an assessment, answer or work (C03-R01). */
@@ -1513,6 +1555,8 @@ function automaticProposal(
   // A new message addressed only to people stays theirs, whatever operation metadata travels with it (F03).
   const human = humanRule(facts, addressing)
   if (human !== undefined) return { p: withIgnoredOperation(facts, human), dropped }
+  const failed = failedAddressingRule(addressing)
+  if (failed !== undefined) return { p: withIgnoredOperation(facts, failed), dropped }
   const correction = correctionRule(facts)
   if (correction !== undefined) return { p: { ...correction, addressee: operationAddressee(addressing) }, dropped }
   return { p: sophiaRule(facts, addressing, intent), dropped }

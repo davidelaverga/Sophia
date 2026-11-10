@@ -6,7 +6,7 @@ installed automatic routing, not a live intake service and not the shipped INC-0
 from `@sophia/coordination`, registered in an app, or reachable from a request.
 
 - `packages/coordination/src/intake-observation.ts` — a pure, versioned, deterministic observation policy
-  (currently `sophia.intake-observation.policy.v11`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10). It reads a validated input and returns a proposal. It holds no
+  (currently `sophia.intake-observation.policy.v12`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11). It reads a validated input and returns a proposal. It holds no
   transport, provider, database, notification, control or dispatch handle and reads no clock or environment.
 - `scripts/intake-observe.ts` — the consumer: an offline CLI that validates a bounded corpus file, strips every
   label before the policy sees a case, runs the policy, compares results with the labels separately and writes a
@@ -54,7 +54,7 @@ wrong type, an oversized string or list is an input error. What each group means
 The policy never sees `caseId`, `family`, `split`, `expected`, `status`, `labelAuthority` or `fixtureAuthority`:
 the CLI keeps them as comparison metadata, and a context that carries any of those keys is an input error.
 
-## States (one observation) — policy v11
+## States (one observation) — policy v12
 
 Policy v2 (`sophia.intake-observation.policy.v2`) replaced v1 after the independent r1 review
 (INC03-CC-001-r1-SOURCE-PRE-PUSH-001, F01–F07). Policy v3 (`sophia.intake-observation.policy.v3`) replaces v2 after
@@ -139,10 +139,27 @@ a fresh inquiry; then this qualification; then manager identity. The other nulla
 nullable qualifications already treat `null` as negative, and `retainedEvidence`/`activeMission` `null` already
 mean none.
 
+v12 (published r11 `7079989c`, automatic review on PR 504, gate SHA-256 `141d0000…`) repairs two policy classes:
+
+- **Failed structured addressing.** In v11, when every supplied `trustedMentions` entry was a human outside
+  `currentMembers`, the mentions were dropped and the message fell through as if no addressing had been supplied:
+  to a reply target, a direct address, the personal default, a correction, a control or text intent — so a message
+  addressed to a removed person could become a Sophia `build_start` or `control_stop`. v12 distinguishes **absent**
+  addressing (no `trustedMentions`, or an empty list) from **failed** addressing (a non-empty list naming no current
+  recipient). Failed addressing stops before every fallback: `abstain` (rule `address.structured_unresolved`), no
+  addressee (basis `unresolved`), attention none, uncertainty `structured_addressing_failed` plus one
+  `mention_not_current_member` per dropped mention. The dropped ids are never reported. Partial drops keep the
+  remaining current humans; an explicit `sophia` mention beside dropped humans stays Sophia-directed; with
+  `currentMembers` unknown nothing is dropped. Origin, transport redelivery and the legacy contract still decide first.
+- **Legacy target provenance.** A legacy `askSophia:true` without a selection answered on the current thread but
+  reported `targetBasis: explicit_selection`. v12 reports `current_thread` for that fallback and keeps
+  `explicit_selection` for an actual selected artifact, comparison or decision with its exact target. The legacy
+  answer path, its admission and legacy false are unchanged.
+
 | State | When | Proposal | Admission |
 |---|---|---|---|
 | legacy false | `legacy_explicit_ask`, `askSophia:false` | `recorded_only`, no addressee inference | `recorded_only` / `legacy_ask_false_no_assessment` |
-| legacy true | `askSophia:true` | `answer` via the existing explicit path | `recorded_only` / `legacy_explicit_path` |
+| legacy true | `askSophia:true` | `answer` via the existing explicit path; target the selection (`explicit_selection`) or else the current thread (`current_thread`, v12) | `recorded_only` / `legacy_explicit_path` |
 | contradictory origin | `isFinal` without a voice origin; `voice_interim` with `isFinal:true`; `voice_final` with `isFinal:false` | none — input error `contradictory_origin` | — |
 | generated output | `origin` agent_result/receipt/generated | `no_action`, addressee none, target = cause | `recorded_only` / `output_not_instruction` |
 | voice interim | `origin:voice_interim` | `record_provisional` | `recorded_only` / `voice_interim_not_instruction` |
@@ -150,6 +167,7 @@ mean none.
 | delayed output, audience changed | `origin:delayed_output`, participants/audience changed | `withhold_from_current_call` | `recorded_only` / `audience_changed_withheld` |
 | transport redelivery | `redeliveryOf` with `samePayload` | `replay_original` / `conflict`; addressee only as this delivery's addressing resolves it, else none (`unresolved`, v9); attention none | same, `operation_redelivered` / `operation_payload_changed` |
 | ledger replay / conflict | same `operationId`, same / changed payload hash | the stored observation / `conflict` | unchanged / `operation_payload_changed` |
+| failed structured addressing | non-empty `trustedMentions`, none a current recipient (v12) | `abstain`, addressee none (`unresolved`), attention none, `structured_addressing_failed` | universal blockers, else `semantic_assessment_unavailable` |
 | private human mention | personal audience, human-only trusted mention (any operation metadata ignored, flagged) | `recorded_only`, attention none | `recorded_only` / `private_audience_no_attention` |
 | human message | project, human-only trusted mention or human reply author (operation metadata ignored, flagged) | `human_message`, no AI response | `recorded_only` / `human_directed` |
 | correction before dispatch | Sophia-directed or unaddressed; `originalOperation`, `not_sent`, matching revision, `newTarget` | `correct_proposal` | no blocker → `recorded_only` |
