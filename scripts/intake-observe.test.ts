@@ -1201,3 +1201,81 @@ describe('r13 through the consumer: dash-joined acknowledgements, comparison syn
     })
   })
 })
+
+/** The r14 consumer corpus: a supplied date and other exact selections beside generic target lists. */
+function r14Corpus(): TestDoc {
+  const doc = corpus()
+  const base = { audience: 'project', directAddress: 'sophia' }
+  const legacyTrue = { contract: 'legacy_explicit_ask', askSophia: true }
+  doc.cases = [
+    testCase('X-date', 'Remind me.', { ...base, uniqueDate: 'date14' }, { target: 'date14', proposedAction: 'answer' }),
+    {
+      ...testCase('X-date-legacy', 'Remind me.', { audience: 'project', uniqueDate: 'date14' }, { target: 'date14' }),
+      interaction: legacyTrue,
+    },
+    testCase(
+      'X-attach-candidates',
+      'Remind me.',
+      { ...base, attachment: 'brief@v1', candidates: ['a', 'b'] },
+      { target: 'brief@v1' },
+    ),
+    testCase(
+      'X-decision-possible',
+      'Remind me.',
+      { ...base, uniqueDecision: 'decision14', possibleTargets: ['a', 'b'] },
+      { target: 'decision14' },
+    ),
+    testCase(
+      'X-comparison-candidates',
+      'Remind me.',
+      { ...base, selectedComparison: ['card@v1', 'card@v2'], candidates: ['a', 'b'] },
+      { target: 'card@v1..v2' },
+    ),
+    testCase(
+      'X-date-candidates',
+      'Remind me.',
+      { ...base, uniqueDate: 'date14', candidates: ['a', 'b'] },
+      { target: 'date14' },
+    ),
+    testCase('X-none-candidates', 'Remind me.', { ...base, candidates: ['a', 'b'] }, { clarificationRequired: true }),
+  ]
+  return doc
+}
+
+interface R14View {
+  cases: { caseId: string; observation: IntakeObservation; comparison: { field: string; result: string }[] }[]
+  actualEffects: Record<string, number>
+}
+
+function checkR14(r: R14View): void {
+  const o = new Map(r.cases.map((c) => [c.caseId, c]))
+  for (const id of [
+    'X-date',
+    'X-date-legacy',
+    'X-attach-candidates',
+    'X-decision-possible',
+    'X-comparison-candidates',
+    'X-date-candidates',
+  ]) {
+    const c = o.get(id)
+    assert.equal(c?.observation.proposal.targetBasis, 'explicit_selection', id)
+    assert.equal(c?.comparison.find((f) => f.field === 'target')?.result, 'match', id)
+  }
+  assert.equal(o.get('X-none-candidates')?.observation.proposal.rule, 'target.ambiguous')
+  assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+}
+
+describe('r14 through the consumer: supplied dates and exact selections beside generic lists', () => {
+  it('in the built report', () => {
+    checkR14(report(r14Corpus()) as unknown as R14View)
+  })
+
+  it('in the written report from the command line', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, r14Corpus())
+      const out = join(dir, 'r.json')
+      assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
+      checkR14(JSON.parse(readFileSync(out, 'utf8')))
+    })
+  })
+})

@@ -20,7 +20,7 @@
 import { createHash } from 'node:crypto'
 import { canonicalJson } from './canonical.ts'
 
-export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v13'
+export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v14'
 
 export const INTAKE_LIMITS = { textChars: 4000, contextKeys: 64, stringChars: 200, listItems: 16 } as const
 
@@ -1084,7 +1084,8 @@ function humanRule(facts: Facts, addressing: Addressing): Proposal | undefined {
 // Ambiguity -------------------------------------------------------------------------------------------------------
 
 function ambiguityRule(facts: Facts): Proposal | undefined {
-  const selected = facts.str('selectedArtifact') !== undefined
+  // Any exact selection resolves the generic target lists (r14): the same notion target resolution uses.
+  const selected = exactSelection(facts) !== undefined
   const reasons = [
     !selected && (facts.count('possibleTargets') > 1 || facts.count('candidates') > 1)
       ? 'multiple_plausible_targets'
@@ -1101,14 +1102,25 @@ function ambiguityRule(facts: Facts): Proposal | undefined {
 
 // Targets -----------------------------------------------------------------------------------------------------------
 
-/** The exact context the input was submitted with, in precedence order (INC03-R05). Never `latest`. */
-function selectedTarget(facts: Facts): Target | undefined {
+/**
+ * The exact context the input was submitted with (INC03-R05), in this precedence when several are present: the
+ * selected comparison, the selected artifact, an attachment, a unique decision, a unique date (r14). A date is an opaque
+ * reference id: never parsed, never scheduled. Never `latest`. A null selection is none.
+ */
+function exactSelection(facts: Facts): Target | undefined {
   const comparison = facts.list('selectedComparison')
   if (comparison.length >= 2) return { kind: 'comparison', refs: comparison }
   const artifact = facts.str('selectedArtifact') ?? facts.str('attachment')
   if (artifact !== undefined) return { kind: 'artifact', ref: artifact }
-  const decision = facts.str('uniqueDecision')
-  if (decision !== undefined) return { kind: 'reference', id: decision }
+  const reference = facts.str('uniqueDecision') ?? facts.str('uniqueDate')
+  if (reference !== undefined) return { kind: 'reference', id: reference }
+  return undefined
+}
+
+/** The target an input names: its exact selection, else unrelated native history (a target, not a resolution). */
+function selectedTarget(facts: Facts): Target | undefined {
+  const exact = exactSelection(facts)
+  if (exact !== undefined) return exact
   if (facts.bool('unrelatedNativeHistory') === true) return { kind: 'native_history' }
   return undefined
 }

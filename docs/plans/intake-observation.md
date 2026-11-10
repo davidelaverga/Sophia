@@ -6,7 +6,7 @@ installed automatic routing, not a live intake service and not the shipped INC-0
 from `@sophia/coordination`, registered in an app, or reachable from a request.
 
 - `packages/coordination/src/intake-observation.ts` — a pure, versioned, deterministic observation policy
-  (currently `sophia.intake-observation.policy.v13`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11, v12 r12). It reads a validated input and returns a proposal. It holds no
+  (currently `sophia.intake-observation.policy.v14`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11, v12 r12, v13 r13). It reads a validated input and returns a proposal. It holds no
   transport, provider, database, notification, control or dispatch handle and reads no clock or environment.
 - `scripts/intake-observe.ts` — the consumer: an offline CLI that validates a bounded corpus file, strips every
   label before the policy sees a case, runs the policy, compares results with the labels separately and writes a
@@ -54,7 +54,7 @@ wrong type, an oversized string or list is an input error. What each group means
 The policy never sees `caseId`, `family`, `split`, `expected`, `status`, `labelAuthority` or `fixtureAuthority`:
 the CLI keeps them as comparison metadata, and a context that carries any of those keys is an input error.
 
-## States (one observation) — policy v13
+## States (one observation) — policy v14
 
 Policy v2 (`sophia.intake-observation.policy.v2`) replaced v1 after the independent r1 review
 (INC03-CC-001-r1-SOURCE-PRE-PUSH-001, F01–F07). Policy v3 (`sophia.intake-observation.policy.v3`) replaces v2 after
@@ -171,6 +171,20 @@ the report one accounting class:
   field result were accumulated in an ordinary object, so a family named `__proto__` vanished and one named
   `constructor` or `toString` was not a number. They are now accumulated in a `Map` and written as own numeric
   properties for every name; family counts sum to the observed cases. No global prototype was changed before or after.
+
+v14 (published r13 `bc11826b`, automatic review on PR 504, gate SHA-256 `caa98503…`) repairs two policy classes:
+
+- **A supplied date is an exact reference.** `uniqueDate` was an accepted exact-context field that target resolution
+  never read, so `Remind me.` with a supplied date answered on the current thread, for automatic and legacy Ask alike.
+  v14 resolves it as a `reference` target with `explicit_selection` basis. It is an opaque id: never parsed as a date,
+  time or timezone, and nothing is scheduled.
+- **One notion of exact selection.** Generic target ambiguity (two or more `possibleTargets` or `candidates`, and the
+  reply-referent check) counted only `selectedArtifact` as a selection, so an attachment, a selected comparison or a
+  unique decision with the same exactness was clarified before its target was used. v14 uses the same exact selection
+  for both target resolution and that ambiguity. Precedence when several are present: the selected comparison, the
+  selected artifact, an attachment, a unique decision, a unique date. Unrelated native history is a target kind but
+  not a resolved reference, so it does not suppress ambiguity; a null selection is none. Comparison and repository
+  ambiguity stay specialized; people, origins, transport, legacy false and identified controls still decide first.
 
 | State | When | Proposal | Admission |
 |---|---|---|---|

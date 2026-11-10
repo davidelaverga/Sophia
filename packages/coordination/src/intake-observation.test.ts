@@ -1935,3 +1935,103 @@ describe('r13 (P2 discussion_r4529758477): comparison refs follow name@version[:
     }
   })
 })
+
+describe('r14 (F01 discussion_r4530868593, F02 discussion_r4530868599): every exact selection is one notion', () => {
+  const base = { audience: 'project', directAddress: 'sophia' }
+  const selectors: Record<string, [Record<string, unknown>, unknown]> = {
+    artifact: [{ selectedArtifact: 'card@v2' }, { kind: 'artifact', ref: 'card@v2' }],
+    attachment: [{ attachment: 'brief@v1' }, { kind: 'artifact', ref: 'brief@v1' }],
+    comparison: [{ selectedComparison: ['card@v1', 'card@v2'] }, { kind: 'comparison', refs: ['card@v1', 'card@v2'] }],
+    decision: [{ uniqueDecision: 'decision14' }, { kind: 'reference', id: 'decision14' }],
+    date: [{ uniqueDate: 'date14' }, { kind: 'reference', id: 'date14' }],
+  }
+  const lists: Record<string, Record<string, unknown>> = {
+    'no generic list': {},
+    'two candidates': { candidates: ['x1', 'x2'] },
+    'two possible targets': { possibleTargets: ['x1', 'x2'] },
+  }
+
+  it('each selector kind, with or without a generic list, is the exact explicit target', () => {
+    for (const [name, [selector, target]] of Object.entries(selectors))
+      for (const [variant, list] of Object.entries(lists)) {
+        const o = observe('Remind me.', { ...base, ...selector, ...list })
+        assert.equal(kindOf(o), 'answer', `${name} / ${variant}`)
+        assert.deepEqual(o.proposal.target, target, `${name} / ${variant}`)
+        assert.equal(o.proposal.targetBasis, 'explicit_selection', `${name} / ${variant}`)
+        assert.equal(o.admission.reason, 'observation_unqualified', `${name} / ${variant}`)
+        assert.deepEqual(o.effects, ZERO_EFFECTS)
+      }
+  })
+
+  it('a legacy Ask true keeps a supplied date or any other selection as its explicit target', () => {
+    for (const [name, [selector, target]] of Object.entries(selectors)) {
+      const o = observe('Remind me.', { audience: 'project', ...selector }, legacy(true))
+      assert.deepEqual([o.proposal.target, o.proposal.targetBasis], [target, 'explicit_selection'], name)
+    }
+  })
+
+  it('a date is an opaque reference: words in the text are never read as one', () => {
+    const o = observe('Remind me tomorrow at noon.', base)
+    assert.notEqual(o.proposal.targetBasis, 'explicit_selection')
+    assert.deepEqual(observe('Remind me.', { ...base, uniqueDate: 'tomorrow' }).proposal.target, {
+      kind: 'reference',
+      id: 'tomorrow',
+    })
+  })
+
+  it('several exact selectors resolve by the documented precedence', () => {
+    const date = { uniqueDate: 'date14' }
+    const cases: [Record<string, unknown>, unknown][] = [
+      [
+        { ...date, uniqueDecision: 'decision14' },
+        { kind: 'reference', id: 'decision14' },
+      ],
+      [
+        { ...date, attachment: 'brief@v1' },
+        { kind: 'artifact', ref: 'brief@v1' },
+      ],
+      [
+        { ...date, attachment: 'brief@v1', selectedArtifact: 'card@v2' },
+        { kind: 'artifact', ref: 'card@v2' },
+      ],
+      [
+        { ...date, selectedArtifact: 'card@v2', selectedComparison: ['card@v1', 'card@v2'] },
+        { kind: 'comparison', refs: ['card@v1', 'card@v2'] },
+      ],
+    ]
+    for (const [ctx, target] of cases)
+      assert.deepEqual(observe('Remind me.', { ...base, ...ctx }).proposal.target, target)
+  })
+
+  it('ambiguity stays where nothing exact resolves it', () => {
+    const generic = { candidates: ['x1', 'x2'] }
+    for (const ctx of [{}, { selectedArtifact: null }, { unrelatedNativeHistory: true }]) {
+      const o = observe('Remind me.', { ...base, ...generic, ...ctx })
+      assert.equal(o.proposal.rule, 'target.ambiguous', JSON.stringify(ctx))
+      assert.ok(o.uncertainty.includes('multiple_plausible_targets'))
+    }
+    const comparisons = observe('Remind me.', {
+      ...base,
+      uniqueDate: 'date14',
+      possibleComparisons: [
+        ['card@v1', 'card@v2'],
+        ['card@v2', 'card@v3'],
+      ],
+    })
+    assert.ok(comparisons.uncertainty.includes('multiple_plausible_comparisons'))
+    const repos = observe('Remind me.', { ...base, uniqueDate: 'date14', possibleRepos: ['r1', 'r2'] })
+    assert.ok(repos.uncertainty.includes('multiple_plausible_repositories'))
+  })
+
+  it('people, origins, legacy false and an identified Stop still decide before any target', () => {
+    const ctx = { ...base, uniqueDate: 'date14', candidates: ['x1', 'x2'] }
+    const toMarta = { audience: 'project', uniqueDate: 'date14', candidates: ['x1', 'x2'], trustedMentions: ['marta'] }
+    assert.equal(kindOf(observe('Remind me.', toMarta)), 'human_message')
+    assert.equal(kindOf(observe('Remind me.', { ...ctx, origin: 'receipt' })), 'no_action')
+    assert.equal(kindOf(observe('Remind me.', ctx, legacy(false))), 'recorded_only')
+    const stop = observe('Stop the job.', { ...ctx, activeMission: 'm14', control: 'running', stopQualified: true })
+    assert.equal(kindOf(stop), 'control_stop')
+    // An imported request beside authored words is data: the authored acknowledgement decides, not the selection.
+    assert.equal(kindOf(observe('Remind me. Thanks.', { ...ctx, quotedText: 'Remind me.' })), 'no_action')
+  })
+})
