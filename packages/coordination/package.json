@@ -6,7 +6,12 @@
   "exports": {
     ".": "./src/index.ts",
     "./envelope": "./src/envelope.ts",
-    "./plugin-wire": "./src/plugin-wire.ts"
+    "./plugin-wire": "./src/plugin-wire.ts",
+    "./runner-port": "./src/runner-port.ts",
+    "./runner-journal": "./src/runner-journal.ts",
+    "./runner-gateway": "./src/runner-gateway.ts",
+    "./runner-fake-t3": "./src/runner-fake-t3.ts",
+    "./t3-port-mapping": "./src/t3-port-mapping.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p ."

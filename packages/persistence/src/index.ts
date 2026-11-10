@@ -391,3 +391,19 @@ export {
   removedJustNow,
   removeMember,
 } from './activity.ts'
+export {
+  admitRunnerOperation,
+  claimRunnerOutbox,
+  maintainRunnerOperations,
+  prepareRunnerSend,
+  readRunnerOperation,
+  readRunnerOperations,
+  recordRunnerAnswer,
+  runnerFollowups,
+  type OwnerRunner,
+  type PrepareOutcome,
+  type RunnerFollowup,
+  type RunnerRecord,
+  type RunnerClaim,
+  type RunnerRecordTarget,
+} from './runner-operations.ts'

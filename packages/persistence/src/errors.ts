@@ -86,6 +86,13 @@ const RULES: readonly Rule[] = [
     code: 'conversations_closed',
   },
   { sqlstate: '55000', when: (m) => LIMITS.some((p) => m.startsWith(p)), code: 'research_limit_reached' },
+  // Owner-runner operations (0092, A47): the route's qualification says which check failed, about the caller's own resource.
+  { sqlstate: '55000', when: (m) => m.startsWith('Owner runner route is not qualified'), code: 'runner_unqualified' },
+  {
+    sqlstate: '0A000',
+    when: (m) => m.startsWith('Owner runner operation unsupported'),
+    code: 'runner_operation_unsupported',
+  },
   // The mission ledger (0018): the note policy's refusals say what would allow the write, so their words are kept.
   {
     sqlstate: '42501',
