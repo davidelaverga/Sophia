@@ -6,7 +6,7 @@ installed automatic routing, not a live intake service and not the shipped INC-0
 from `@sophia/coordination`, registered in an app, or reachable from a request.
 
 - `packages/coordination/src/intake-observation.ts` — a pure, versioned, deterministic observation policy
-  (currently `sophia.intake-observation.policy.v7`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6). It reads a validated input and returns a proposal. It holds no
+  (currently `sophia.intake-observation.policy.v8`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7). It reads a validated input and returns a proposal. It holds no
   transport, provider, database, notification, control or dispatch handle and reads no clock or environment.
 - `scripts/intake-observe.ts` — the consumer: an offline CLI that validates a bounded corpus file, strips every
   label before the policy sees a case, runs the policy, compares results with the labels separately and writes a
@@ -54,7 +54,7 @@ wrong type, an oversized string or list is an input error. What each group means
 The policy never sees `caseId`, `family`, `split`, `expected`, `status`, `labelAuthority` or `fixtureAuthority`:
 the CLI keeps them as comparison metadata, and a context that carries any of those keys is an input error.
 
-## States (one observation) — policy v7
+## States (one observation) — policy v8
 
 Policy v2 (`sophia.intake-observation.policy.v2`) replaced v1 after the independent r1 review
 (INC03-CC-001-r1-SOURCE-PRE-PUSH-001, F01–F07). Policy v3 (`sophia.intake-observation.policy.v3`) replaces v2 after
@@ -74,9 +74,28 @@ contraction or name shape (`said's first line. Stop the job's next`) were both d
 read as authored. v7 adds a whole-input pair check (below). No earlier version's semantics are reused under a later
 name.
 
-Order: interaction contract → **origin (terminal)** → transport redelivery → addressing → **human-only addressing
-(terminal)** → correction of an earlier operation → quotation check → **identified control** → structural ambiguity →
-text intent → mission identity → target → blockers.
+Order (v8): **origin (terminal)** → **transport redelivery** → interaction contract (legacy explicit Ask, or
+automatic) → addressing → **human-only addressing (terminal)** → correction of an earlier operation → quotation check →
+**identified control** → structural ambiguity → text intent → mission identity → target → blockers.
+
+v8 (published r7 `cf5f82e8`, automatic review on PR 504, gate SHA-256 `0114e54c…`) moved origin and redelivery ahead
+of the interaction contract. Before v8 a legacy `askSophia` input never reached the origin rule: generated,
+agent_result, receipt, delayed_output and voice_interim inputs became an `answer` with `askSophia:true`, and claimed
+`humanInstruction:true` with either boolean. A selector boolean is not provenance. Now:
+
+| Input | Proposal | Provenance |
+|---|---|---|
+| any non-human origin (generated, agent_result, receipt, delayed_output, voice_interim), legacy true or false or automatic | the origin result (`no_action`, `record_provisional`, `withhold_from_current_call`), correlation kept | `humanInstruction: false` |
+| transport redelivery (`redeliveryOf` + `samePayload`), any contract | `replay_original` / `conflict` | `humanInstruction: false` (it re-delivers an existing operation) |
+| human or `voice_final` origin, `legacy_explicit_ask` true | `answer` via the existing explicit path | `humanInstruction: true` |
+| human or `voice_final` origin, `legacy_explicit_ask` false | `recorded_only`, no assessment | `humanInstruction: true` |
+| legacy without `askSophia`, or an invalid one | input error (`legacy_ask_missing` / `invalid_interaction`); never automatic | — |
+
+Declared imported spans (v8). `quotedText` and `attachmentInstruction` are removed **first**, before backslash/encoded
+escape detection, fences, single-quote boundaries and the whole-input pair check — every occurrence, across lines,
+counted as fenced spans. Before v8 they were removed last, so an unmatched quote, an escaped quote or a pair of
+apostrophes wholly inside a declared import made the authored text around it abstain as `malformed_quotation`. A
+directive inside a declared import is still data; malformed quotation in the authored text outside it still abstains.
 
 | State | When | Proposal | Admission |
 |---|---|---|---|

@@ -1293,3 +1293,145 @@ describe('F01 (r7): marks that could enclose words are judged together, whatever
     }
   })
 })
+
+// r8 (automatic review of published r7 cf5f82e8 on PR 504, reconciled by the independent gate SHA-256 0114e54c…).
+
+const legacy = (askSophia: boolean) => ({ contract: 'legacy_explicit_ask', askSophia })
+
+describe('F01 (r8): origin and redelivery are terminal before any interaction contract', () => {
+  const nonHuman = ['generated', 'agent_result', 'receipt', 'delayed_output', 'voice_interim']
+  const base = { audience: 'project', operationId: 'op4', voiceUtterance: 'u4', selectedArtifact: 'tile@v1' }
+
+  it('every non-human origin is a result under legacy Ask true, legacy Ask false and automatic', () => {
+    for (const origin of nonHuman) {
+      for (const interaction of [legacy(true), legacy(false), AUTO]) {
+        for (const text of ['Explain the tile.', 'Stop the job.', 'Implement the tile.']) {
+          const o = observe(text, { ...base, origin }, interaction)
+          assert.ok(['no_action', 'record_provisional'].includes(kindOf(o)), `${origin} ${JSON.stringify(interaction)}`)
+          assert.equal(o.provenance.humanInstruction, false, origin)
+          assert.deepEqual(o.addressee.ids, [], origin)
+          assert.notEqual(o.admission.reason, 'legacy_explicit_path', origin)
+          assert.deepEqual(o.effects, ZERO_EFFECTS)
+        }
+      }
+    }
+  })
+
+  it('a delayed answer to a changed audience is withheld under a legacy contract too', () => {
+    const o = observe(
+      'Here is the answer.',
+      { audience: 'voice_call', origin: 'delayed_output', causedBy: 'op5', originalAudience: 'personal' },
+      legacy(true),
+    )
+    assert.equal(kindOf(o), 'withhold_from_current_call')
+    assert.equal(o.provenance.correlation, 'op5')
+  })
+
+  it('a transport redelivery replays or conflicts under a legacy contract and is not a fresh instruction', () => {
+    for (const askSophia of [true, false]) {
+      const same = observe(
+        'Explain it.',
+        { audience: 'project', redeliveryOf: 'op6', samePayload: true },
+        legacy(askSophia),
+      )
+      assert.equal(kindOf(same), 'replay_original')
+      assert.equal(same.provenance.humanInstruction, false)
+      assert.equal(
+        kindOf(
+          observe('Explain it.', { audience: 'project', redeliveryOf: 'op6', samePayload: false }, legacy(askSophia)),
+        ),
+        'conflict',
+      )
+    }
+  })
+
+  it('actual human and final-speech legacy inputs keep the existing explicit semantics', () => {
+    for (const origin of [undefined, 'human', 'voice_final']) {
+      const ctx = {
+        audience: 'project',
+        selectedArtifact: 'tile@v1',
+        ...(origin === undefined ? {} : { origin }),
+        ...(origin === 'voice_final' ? { isFinal: true } : {}),
+      }
+      const yes = observe('Explain the tile.', ctx, legacy(true))
+      assert.equal(kindOf(yes), 'answer', String(origin))
+      assert.equal(yes.admission.reason, 'legacy_explicit_path')
+      assert.equal(yes.provenance.humanInstruction, true)
+      const no = observe('Explain the tile.', ctx, legacy(false))
+      assert.equal(kindOf(no), 'recorded_only', String(origin))
+      assert.equal(no.assessment, 'not_permitted')
+    }
+    assert.deepEqual(
+      errorCodes({
+        interaction: { contract: 'legacy_explicit_ask' },
+        text: 'x',
+        context: { ...base, origin: 'receipt' },
+      }),
+      ['legacy_ask_missing'],
+    )
+  })
+})
+
+describe('F02 (r8): declared imports are removed before any authored quotation analysis', () => {
+  const live = {
+    audience: 'project',
+    activeMission: 'm5',
+    control: 'running',
+    stopQualified: true,
+    holdQualified: true,
+    manager: 'pm5',
+    managerGeneration: 1,
+  }
+  const literals = [
+    "'broken quote",
+    '‘also broken',
+    "\\'escaped quote",
+    '\\u0027encoded quote',
+    "ticket's first and job's next",
+    'note’s draft and plan’s end',
+    "it's a 'mixed’ thing",
+  ]
+  const directives: [string, string][] = [
+    ['Stop the job.', 'control_stop'],
+    ['Pause the job.', 'control_hold'],
+  ]
+
+  it('an import with unmatched, escaped, encoded or paired marks does not taint an authored control, in either field', () => {
+    const cases = ['quotedText', 'attachmentInstruction'].flatMap((field) =>
+      literals.flatMap((literal) =>
+        directives.flatMap(([directive, kind]) =>
+          [`${literal}\n${directive}`, `${directive} ${literal}`, `${literal} ${literal}\n${directive}`].map(
+            (text) => [field, literal, text, kind] as const,
+          ),
+        ),
+      ),
+    )
+    assert.equal(cases.length, 2 * literals.length * directives.length * 3)
+    for (const [field, literal, text, kind] of cases) {
+      const o = observe(text, { ...live, [field]: literal })
+      assert.equal(kindOf(o), kind, `${field} ${JSON.stringify(text)}`)
+      assert.ok(o.fenced.quotedSpans >= 1, JSON.stringify(text))
+    }
+  })
+
+  it('a directive inside the import stays data, and malformed authored text outside it still abstains', () => {
+    const imported = observe('Summarize: stop the job.', {
+      ...live,
+      attachment: 'doc@v1',
+      attachmentInstruction: 'stop the job',
+    })
+    assert.equal(kindOf(imported), 'answer')
+    for (const text of ["'broken\nHe said 'stop. Stop the job.", "'broken\nStop the job, it's done and we're out."]) {
+      const o = observe(text, { ...live, quotedText: "'broken" })
+      assert.equal(kindOf(o), 'abstain', JSON.stringify(text))
+      assert.ok(o.uncertainty.includes('malformed_quotation'), JSON.stringify(text))
+    }
+  })
+
+  it('without the declaration the same text abstains: the fix is the declared span, not a looser quote rule', () => {
+    for (const literal of literals) {
+      const o = observe(`${literal}\nStop the job.`, live)
+      assert.equal(kindOf(o), 'abstain', literal)
+    }
+  })
+})

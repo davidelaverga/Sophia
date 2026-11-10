@@ -20,7 +20,7 @@
 import { createHash } from 'node:crypto'
 import { canonicalJson } from './canonical.ts'
 
-export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v7'
+export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v8'
 
 export const INTAKE_LIMITS = { textChars: 4000, contextKeys: 64, stringChars: 200, listItems: 16 } as const
 
@@ -657,9 +657,17 @@ export function authoredText(
   facts: Facts,
 ): { readonly text: string; readonly fencedSpans: number; readonly malformed: boolean } {
   let t = text.toLowerCase()
-  // Escaping is judged on the text as written, before any span is removed.
-  const escaped = ESCAPED_QUOTE.test(t)
   let fencedSpans = 0
+  // Declared imports are data, removed before any quotation analysis, so their own unmatched, escaped or paired
+  // marks cannot make the authored text around them malformed (r8 F02).
+  for (const literal of [facts.str('quotedText'), facts.str('attachmentInstruction')]) {
+    if (literal === undefined) continue
+    const parts = t.split(literal.toLowerCase())
+    fencedSpans += parts.length - 1
+    t = parts.join(' ')
+  }
+  // Escaping is judged on the authored text as written, before any authored span is removed.
+  const escaped = ESCAPED_QUOTE.test(t)
   for (const fence of FENCES) {
     fencedSpans += t.match(fence)?.length ?? 0
     t = t.replace(fence, ' ')
@@ -668,12 +676,6 @@ export function authoredText(
   t = single.text
   fencedSpans += single.spans
   const ambiguous = escaped || single.ambiguous
-  for (const literal of [facts.str('quotedText'), facts.str('attachmentInstruction')]) {
-    if (literal === undefined) continue
-    const parts = t.split(literal.toLowerCase())
-    fencedSpans += parts.length - 1
-    t = parts.join(' ')
-  }
   return { text: t.replace(MENTION_TEXT, ' '), fencedSpans, malformed: ambiguous || UNBALANCED.test(t) }
 }
 
@@ -1459,13 +1461,8 @@ function automaticProposal(
   facts: Facts,
   intent: TextIntent,
 ): { readonly p: Proposal; readonly dropped: readonly string[] } {
-  const generated = originRule(facts)
-  if (generated !== undefined) return { p: generated, dropped: [] }
   const addressing = resolveAddressing(facts)
   const { dropped } = addressing
-  // Transport redelivery of an already-bound operation returns or conflicts with it: no new interpretation.
-  const transport = redeliveryRule(facts)
-  if (transport !== undefined) return { p: { ...transport, addressee: operationAddressee(addressing) }, dropped }
   // A new message addressed only to people stays theirs, whatever operation metadata travels with it (F03).
   const human = humanRule(facts, addressing)
   if (human !== undefined) return { p: withIgnoredOperation(facts, human), dropped }
@@ -1493,8 +1490,46 @@ function attentionOf(facts: Facts, p: Proposal): IntakeObservation['audience']['
   return humans && !silent && facts.str('audience') === 'project' ? 'audience_members' : 'none'
 }
 
+/**
+ * Origin and transport redelivery are decided before any interaction contract (r8 F01): generated, delayed and
+ * interim inputs are results and a redelivery returns its bound operation, whatever a legacy Ask boolean or the
+ * automatic contract would otherwise select. A selector is not provenance.
+ */
+function terminalProposal(facts: Facts): { readonly p: Proposal; readonly dropped: readonly string[] } | undefined {
+  const generated = originRule(facts)
+  if (generated !== undefined) return { p: generated, dropped: [] }
+  const transport = redeliveryRule(facts)
+  if (transport === undefined) return undefined
+  // Transport redelivery of an already-bound operation returns or conflicts with it: no new interpretation.
+  const addressing = resolveAddressing(facts)
+  return { p: { ...transport, addressee: operationAddressee(addressing) }, dropped: addressing.dropped }
+}
+
+interface Chosen {
+  readonly p: Proposal
+  readonly dropped: readonly string[]
+  readonly admission: IntakeObservation['admission']
+}
+
+function chooseProposal(input: IntakeInput, intent: TextIntent): Chosen {
+  const { facts, interaction } = input
+  const terminal = terminalProposal(facts)
+  if (terminal !== undefined) return { ...terminal, admission: admissionOf(facts, terminal.p) }
+  if (interaction.contract === 'legacy_explicit_ask')
+    return {
+      p: legacyProposal(input, interaction.askSophia),
+      dropped: [],
+      admission: legacyAdmission(interaction.askSophia),
+    }
+  const chosen = automaticProposal(facts, intent)
+  return { ...chosen, admission: admissionOf(facts, chosen.p) }
+}
+
+/** Outputs and redeliveries are not new human instructions (r8 F01). */
+const NOT_HUMAN_INSTRUCTION = ['origin.', 'identity.redelivery'] as const
+
 function provenanceOf(facts: Facts, p: Proposal): IntakeObservation['provenance'] {
-  const fromOutput = p.rule.startsWith('origin.')
+  const fromOutput = NOT_HUMAN_INSTRUCTION.some((prefix) => p.rule.startsWith(prefix))
   const correlation = facts.str('causedBy') ?? facts.str('operationId') ?? facts.str('voiceUtterance') ?? null
   return { origin: facts.str('origin') ?? 'unspecified', humanInstruction: !fromOutput, correlation }
 }
@@ -1503,14 +1538,9 @@ function provenanceOf(facts: Facts, p: Proposal): IntakeObservation['provenance'
 export function observeValidated(input: IntakeInput): IntakeObservation {
   const { facts, interaction } = input
   const intent = readIntent(input.text, facts)
-  const { p, dropped } =
-    interaction.contract === 'legacy_explicit_ask'
-      ? { p: legacyProposal(input, interaction.askSophia), dropped: [] }
-      : automaticProposal(facts, intent)
+  const { p, dropped, admission } = chooseProposal(input, intent)
   const inputSha256 = inputDigest(input)
   const legacy = interaction.contract === 'legacy_explicit_ask'
-  const admission =
-    interaction.contract === 'legacy_explicit_ask' ? legacyAdmission(interaction.askSophia) : admissionOf(facts, p)
   const uncertainty = [
     ...(p.uncertainty ?? []),
     ...(legacy ? [] : routeUncertainty(facts, p)),

@@ -690,3 +690,43 @@ describe('F01 (r7) through the consumer: shaped bounds around a directive are no
     assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
   })
 })
+
+describe('r8 through the consumer: origin before legacy Ask; imports before quote analysis', () => {
+  it('non-human origins under legacy Ask are results, and declared imports leave authored controls intact', () => {
+    const doc = corpus()
+    const origins = ['generated', 'agent_result', 'receipt', 'delayed_output', 'voice_interim']
+    const live = { audience: 'project', activeMission: 'm5', control: 'running', stopQualified: true }
+    doc.cases = [
+      ...origins.flatMap((origin, i) =>
+        [true, false].map((askSophia) => ({
+          ...testCase(
+            `O-${i}-${String(askSophia)}`,
+            'Explain the tile.',
+            { audience: 'project', origin, operationId: 'op1' },
+            {},
+          ),
+          interaction: { contract: 'legacy_explicit_ask', askSophia },
+        })),
+      ),
+      ...["'broken quote", "\\'escaped", "ticket's first and job's next"].flatMap((literal, i) =>
+        ['quotedText', 'attachmentInstruction'].map((importField) =>
+          testCase(
+            `I-${i}-${importField}`,
+            `${literal}\nStop the job.`,
+            { ...live, [importField]: literal },
+            { proposedAction: 'control_stop' },
+          ),
+        ),
+      ),
+    ]
+    const r = report(doc)
+    assert.equal(r.counts.observed, 16)
+    for (const c of r.cases.filter((x) => x.caseId.startsWith('O-'))) {
+      assert.ok(['no_action', 'record_provisional'].includes(c.observation.proposal.kind), c.caseId)
+      assert.equal(c.observation.provenance.humanInstruction, false, c.caseId)
+    }
+    for (const c of r.cases.filter((x) => x.caseId.startsWith('I-')))
+      assert.equal(c.observation.proposal.kind, 'control_stop', c.caseId)
+    assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+  })
+})
