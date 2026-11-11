@@ -1,7 +1,23 @@
 import { after, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import {
+  appendFileSync,
+  chmodSync,
+  existsSync,
+  linkSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { hostname, tmpdir } from 'node:os'
+import { pathToFileURL } from 'node:url'
 import { join } from 'node:path'
 import { FakeT3 } from './runner-fake-t3.ts'
 import * as gatewayModule from './runner-gateway.ts'
@@ -838,5 +854,433 @@ describe('message and title limits count characters as code points (repair 1, CC
     }
     const input = withText(rocket.repeat(8000), null, 'input')
     assert.equal(checkPayload(input.envelope, input.payload).ok, true)
+  })
+})
+
+// ---- repair 5 (INC01-CC-005-repair4-SOURCE-FINAL-001, NATIVE4-F01): the journal's private path ----
+// Temporary synthetic files only, under this file's own mkdtemp root. Every case goes through the actual journal, the
+// gateway's send and FakeT3: a refused journal must leave no native call and its target's bytes and mode untouched.
+
+/** A fresh directory of this test's own (mkdtemp: 0700, this uid). */
+const place = () => mkdtempSync(join(root, 'path-'))
+const modeOf = (p: string) => statSync(p).mode & 0o7777
+const bytesOf = (p: string) => (existsSync(p) ? readFileSync(p).toString('base64') : null)
+/** A valid journal written and closed at `file` (0600, private). */
+function validJournal(file: string): string {
+  const j = new RunnerJournal(file)
+  const id = j.id
+  j.close()
+  return id
+}
+/** Open the journal at `file`, build the gateway over it and send one create: what reaches FakeT3, or the refusal. */
+async function sendThrough(file: string, i = 900) {
+  const t3 = new FakeT3()
+  let journal: RunnerJournal | null = null
+  try {
+    journal = new RunnerJournal(file)
+    const gateway = new RunnerGateway({ journal, transport: t3, profile })
+    const e = create(i)
+    const answer = await gateway.send(e, digestOf(e), gateway.journalId)
+    return { refused: null as unknown, answer, t3 }
+  } catch (err) {
+    return { refused: err, answer: null, t3 }
+  } finally {
+    journal?.close()
+  }
+}
+const UNSAFE = /runner journal path is unsafe/
+
+describe("the journal's path is private before anything is read or written (repair 5, NATIVE4-F01)", () => {
+  const cases: [string, (dir: string, file: string) => string][] = [
+    ...[0o644, 0o640, 0o660, 0o604].map((mode): [string, (dir: string, file: string) => string] => [
+      `an existing empty journal of mode ${mode.toString(8)}`,
+      (_dir, file) => {
+        writeFileSync(file, '', { mode })
+        chmodSync(file, mode)
+        return file
+      },
+    ]),
+    [
+      'an existing valid journal made 0644',
+      (_dir, file) => {
+        validJournal(file)
+        chmodSync(file, 0o644)
+        return file
+      },
+    ],
+    [
+      'a torn 0640 journal (its torn line must not be cut)',
+      (_dir, file) => {
+        validJournal(file)
+        appendFileSync(file, '{"seq":1,"type":"inte')
+        chmodSync(file, 0o640)
+        return file
+      },
+    ],
+    [
+      'a second hard link to a valid 0600 journal',
+      (dir, file) => {
+        const other = join(dir, 'other.jsonl')
+        validJournal(other)
+        linkSync(other, file)
+        return other
+      },
+    ],
+    [
+      'a symlink to an empty 0600 file',
+      (dir, file) => {
+        const target = join(dir, 'target')
+        writeFileSync(target, '', { mode: 0o600 })
+        symlinkSync(target, file)
+        return target
+      },
+    ],
+    [
+      'a symlink to a valid 0600 journal',
+      (dir, file) => {
+        const target = join(dir, 'target.jsonl')
+        validJournal(target)
+        symlinkSync(target, file)
+        return target
+      },
+    ],
+    [
+      'a symlink to a torn non-JSON 0600 file (never truncated)',
+      (dir, file) => {
+        const target = join(dir, 'target')
+        writeFileSync(target, 'not a journal, no newline', { mode: 0o600 })
+        symlinkSync(target, file)
+        return target
+      },
+    ],
+    [
+      'a dangling symlink (its target is never created)',
+      (dir, file) => {
+        const target = join(dir, 'missing')
+        symlinkSync(target, file)
+        return target
+      },
+    ],
+  ]
+  for (const [name, make] of cases) {
+    it(`refuses ${name}: no native call, the target unchanged, the lock released`, async () => {
+      const dir = place()
+      const file = join(dir, 'journal.jsonl')
+      const target = make(dir, file)
+      const before = { bytes: bytesOf(target), mode: existsSync(target) ? modeOf(target) : null }
+      const r = await sendThrough(file)
+      assert.match(String(r.refused), UNSAFE)
+      assert.equal(r.answer, null)
+      assert.equal(r.t3.calls.length, 0, 'no native call')
+      assert.deepEqual({ bytes: bytesOf(target), mode: existsSync(target) ? modeOf(target) : null }, before)
+      assert.equal(existsSync(`${file}.lock`), false, 'the lock is released')
+    })
+  }
+
+  for (const mode of [0o777, 0o770, 0o757]) {
+    it(`refuses a directory others can write (${mode.toString(8)}) before creating anything in it`, async () => {
+      const dir = place()
+      chmodSync(dir, mode)
+      const file = join(dir, 'journal.jsonl')
+      const r = await sendThrough(file)
+      assert.match(String(r.refused), UNSAFE)
+      assert.equal(r.t3.calls.length, 0)
+      assert.equal(existsSync(file), false, 'no journal created')
+      assert.equal(existsSync(`${file}.lock`), false, 'no lock created')
+      assert.equal(modeOf(dir), mode, 'the directory is not chmodded')
+    })
+  }
+
+  for (const [mode, refused] of [
+    [0o777, true],
+    [0o1777, false],
+  ] as const) {
+    it(`${refused ? 'refuses' : 'opens (control)'} a private directory under an ancestor of mode ${mode.toString(8)}`, async () => {
+      const outer = place()
+      chmodSync(outer, mode)
+      const dir = join(outer, 'inner')
+      mkdirSync(dir, { mode: 0o700 })
+      const file = join(dir, 'journal.jsonl')
+      const r = await sendThrough(file)
+      if (refused) {
+        assert.match(String(r.refused), UNSAFE)
+        assert.equal(r.t3.calls.length, 0)
+        assert.equal(existsSync(file), false)
+        assert.equal(existsSync(`${file}.lock`), false)
+      } else {
+        assert.equal(r.refused, null)
+        assert.equal(r.t3.effects.launches, 1)
+      }
+    })
+  }
+
+  it('refuses a symlinked lock file as unreadable, never presumed stale, and leaves its target alone', async () => {
+    const dir = place()
+    const file = join(dir, 'journal.jsonl')
+    validJournal(file)
+    const target = join(dir, 'lock-target')
+    // What a stale lock of this host would hold: followed, it would be recovered over.
+    writeFileSync(target, JSON.stringify({ pid: 2 ** 22 + 7, host: hostname(), start: null, token: 't' }), {
+      mode: 0o600,
+    })
+    symlinkSync(target, `${file}.lock`)
+    const before = bytesOf(target)
+    const r = await sendThrough(file)
+    assert.match(String(r.refused), /cannot be read/)
+    assert.equal(r.t3.calls.length, 0)
+    assert.equal(bytesOf(target), before)
+    assert.equal(lstatSync(`${file}.lock`).isSymbolicLink(), true, 'not recovered over')
+  })
+
+  for (const how of ['a same-length 0644 copy', 'a symlink to a same-length 0644 copy'] as const) {
+    it(`fails closed when, after opening, the path is replaced by ${how}: nothing written to either file`, async () => {
+      const dir = place()
+      const file = join(dir, 'journal.jsonl')
+      const t3 = new FakeT3()
+      const journal = new RunnerJournal(file)
+      const gateway = new RunnerGateway({ journal, transport: t3, profile })
+      try {
+        const first = create(910)
+        assert.equal((await gateway.send(first, digestOf(first), gateway.journalId)).kind, 'received')
+        const moved = join(dir, 'moved.jsonl')
+        const copy = join(dir, 'copy.jsonl')
+        renameSync(file, moved)
+        writeFileSync(copy, readFileSync(moved), { mode: 0o644 })
+        if (how === 'a same-length 0644 copy') renameSync(copy, file)
+        else symlinkSync(copy, file)
+        const replacement = how === 'a same-length 0644 copy' ? file : copy
+        const before = { moved: bytesOf(moved), replacement: bytesOf(replacement) }
+        const second = create(911)
+        await assert.rejects(gateway.send(second, digestOf(second), gateway.journalId), UNSAFE)
+        assert.equal(t3.effects.launches, 1, 'no second native launch')
+        assert.deepEqual({ moved: bytesOf(moved), replacement: bytesOf(replacement) }, before)
+      } finally {
+        journal.close()
+      }
+    })
+  }
+
+  it('creates a fresh private journal (0700 directory, 0600 file) and sends once (control)', async () => {
+    const file = join(place(), 'nested', 'journal.jsonl')
+    const r = await sendThrough(file)
+    assert.equal(r.refused, null)
+    assert.equal(r.answer?.kind, 'received')
+    assert.equal(r.t3.effects.launches, 1)
+    assert.equal(modeOf(file), 0o600)
+    assert.equal(modeOf(join(file, '..')), 0o700)
+  })
+
+  it('reopens a valid 0600 journal in a 0755 directory of its owner, and recovers its torn line (control)', async () => {
+    const dir = place()
+    chmodSync(dir, 0o755)
+    const file = join(dir, 'journal.jsonl')
+    const id = validJournal(file)
+    appendFileSync(file, '{"seq":1,"type":"inte')
+    const r = await sendThrough(file)
+    assert.equal(r.refused, null)
+    assert.equal(r.answer?.kind, 'received')
+    assert.equal(r.t3.effects.launches, 1)
+    const lines = readFileSync(file, 'utf8').trimEnd().split('\n')
+    assert.equal((JSON.parse(lines[0] ?? '{}') as { journalId?: string }).journalId, id, 'the same durable identity')
+    assert.equal(
+      lines.some((l) => l.includes('"inte"') || l.endsWith('"inte')),
+      false,
+      'the torn line was cut',
+    )
+    assert.equal(modeOf(file), 0o600)
+  })
+
+  it('still refuses a complete malformed 0600 journal, unchanged (control)', async () => {
+    const dir = place()
+    const file = join(dir, 'journal.jsonl')
+    writeFileSync(file, 'not json\n', { mode: 0o600 })
+    const r = await sendThrough(file)
+    assert.match(String(r.refused), /corrupt/)
+    assert.equal(r.t3.calls.length, 0)
+    assert.equal(readFileSync(file, 'utf8'), 'not json\n')
+    assert.equal(existsSync(`${file}.lock`), false)
+  })
+
+  it('a refused journal keeps its unknown operation: once its owner makes it private, it reconciles by its original identity', async () => {
+    const dir = place()
+    const file = join(dir, 'journal.jsonl')
+    const t3 = new FakeT3()
+    t3.inject('t3_thread_launch', { kind: 'lose_after_effect' })
+    const e = create(920)
+    const first = new RunnerJournal(file)
+    const id = first.id
+    const gw = new RunnerGateway({ journal: first, transport: t3, profile })
+    assert.equal((await gw.send(e, digestOf(e), gw.journalId)).kind, 'unknown')
+    first.close()
+    chmodSync(file, 0o644)
+    const before = bytesOf(file)
+    assert.throws(() => new RunnerJournal(file), UNSAFE)
+    assert.equal(bytesOf(file), before, 'not reset, not given a new identity')
+    chmodSync(file, 0o600)
+    const again = new RunnerJournal(file)
+    try {
+      assert.equal(again.id, id)
+      const back = new RunnerGateway({ journal: again, transport: t3, profile })
+      const r = await back.reconcile({ envelope: e, digest: digestOf(e), journalId: id })
+      assert.equal(r.kind, 'received')
+      assert.equal(t3.effects.launches, 1, 'reconciled, never relaunched')
+    } finally {
+      again.close()
+    }
+  })
+})
+
+// ---- repair 6 (INC01-CC-005-repair5-SOURCE-PRE-PUSH-001, NATIVE5-F01): a non-regular lock path is refused promptly ----
+// A FIFO at the lock path used to hang the process in its synchronous open, where no in-process timer can reach. So each
+// case runs in a real child process through the actual journal, gateway and FakeT3, under an independent parent
+// deadline. A child killed at that deadline is a FAILED case, never a pass. Synthetic temporary files only (mkfifo).
+
+const CHILD = `
+const input = JSON.parse(process.env.R6_INPUT)
+const { RunnerJournal } = await import(input.urls.journal)
+const { RunnerGateway } = await import(input.urls.gateway)
+const { FakeT3 } = await import(input.urls.fake)
+const { digestOf } = await import(input.urls.port)
+const { execFileSync } = await import('node:child_process')
+const { renameSync } = await import('node:fs')
+const fifo = (p) => execFileSync('mkfifo', ['-m', '600', p])
+const profile = { ...input.profile, nativeProjectRefs: new Set(input.profile.nativeProjectRefs), operations: new Set(input.profile.operations) }
+const t3 = new FakeT3()
+const out = { stage: input.stage }
+const file = input.file
+try {
+  if (input.stage === 'acquire') fifo(file + '.lock')
+  if (input.stage === 'journal-fifo') fifo(file)
+  const journal = new RunnerJournal(file)
+  out.opened = true
+  const gateway = new RunnerGateway({ journal, transport: t3, profile })
+  if (input.stage === 'append' || input.stage === 'release') {
+    renameSync(file + '.lock', file + '.lock.aside')
+    fifo(file + '.lock')
+  }
+  if (input.stage === 'journal-replaced') {
+    renameSync(file, file + '.aside')
+    fifo(file)
+  }
+  if (input.stage !== 'release') {
+    try {
+      await gateway.send(input.envelope, digestOf(input.envelope), gateway.journalId)
+      out.sent = true
+    } catch (err) {
+      out.refused = String(err)
+    }
+  }
+  journal.close()
+  out.closed = true
+} catch (err) {
+  out.refused = String(err)
+}
+out.t3calls = t3.calls.length
+process.stdout.write(JSON.stringify(out))
+`
+const here = import.meta.dirname
+const urls = Object.fromEntries(
+  (
+    [
+      ['journal', 'runner-journal.ts'],
+      ['gateway', 'runner-gateway.ts'],
+      ['fake', 'runner-fake-t3.ts'],
+      ['port', 'runner-port.ts'],
+    ] as const
+  ).map(([k, f]) => [k, pathToFileURL(join(here, f)).href]),
+)
+const DEADLINE_MS = 8000
+interface ChildOut {
+  stage: string
+  opened?: boolean
+  sent?: boolean
+  refused?: string
+  closed?: boolean
+  t3calls: number
+}
+/** One bounded child: its own exit (status 0) with its report, or a kill at the parent's deadline (a failure). */
+function inChild(stage: string, file: string) {
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e', CHILD], {
+    env: {
+      ...process.env,
+      R6_INPUT: JSON.stringify({
+        stage,
+        file,
+        urls,
+        envelope: create(950),
+        profile: { ...profile, nativeProjectRefs: [...profile.nativeProjectRefs], operations: [...profile.operations] },
+      }),
+    },
+    encoding: 'utf8',
+    timeout: DEADLINE_MS,
+    killSignal: 'SIGKILL',
+  })
+  const finished = r.signal === null && r.status === 0
+  return {
+    finished,
+    signal: r.signal,
+    stderr: r.stderr,
+    out: finished ? (JSON.parse(r.stdout) as ChildOut) : null,
+  }
+}
+const isFifo = (p: string) => existsSync(p) && lstatSync(p).isFIFO()
+const lineCount = (p: string) => readFileSync(p, 'utf8').trimEnd().split('\n').length
+
+describe('a non-regular lock path is refused promptly, in bounded child processes (repair 6, NATIVE5-F01)', () => {
+  it('a FIFO at the lock path before opening: refused at acquisition, nothing created, no native call', () => {
+    const file = join(place(), 'journal.jsonl')
+    const r = inChild('acquire', file)
+    assert.equal(r.finished, true, `the child must end on its own, not be killed (${r.signal ?? ''}) ${r.stderr}`)
+    assert.equal(r.out?.opened, undefined)
+    assert.match(r.out?.refused ?? '', /cannot be read/)
+    assert.equal(r.out?.t3calls, 0)
+    assert.equal(existsSync(file), false, 'no journal created')
+    assert.equal(isFifo(`${file}.lock`), true, 'the FIFO is left in place')
+  })
+
+  it('a FIFO replacing the lock after opening: the gateway send is refused before any native call, and close ends', () => {
+    const file = join(place(), 'journal.jsonl')
+    const r = inChild('append', file)
+    assert.equal(r.finished, true, `the child must end on its own, not be killed (${r.signal ?? ''}) ${r.stderr}`)
+    assert.equal(r.out?.opened, true)
+    assert.equal(r.out?.sent, undefined)
+    assert.match(r.out?.refused ?? '', /no longer ours/)
+    assert.equal(r.out?.t3calls, 0, 'no native call')
+    assert.equal(r.out?.closed, true)
+    assert.equal(lineCount(file), 1, 'nothing appended after the header')
+    assert.equal(isFifo(`${file}.lock`), true, 'the FIFO is neither unlinked nor adopted')
+    assert.equal(existsSync(`${file}.lock.aside`), true)
+  })
+
+  it('a FIFO replacing the lock after opening: close() releases nothing it does not own, and ends', () => {
+    const file = join(place(), 'journal.jsonl')
+    const r = inChild('release', file)
+    assert.equal(r.finished, true, `the child must end on its own, not be killed (${r.signal ?? ''}) ${r.stderr}`)
+    assert.equal(r.out?.opened, true)
+    assert.equal(r.out?.closed, true)
+    assert.equal(r.out?.refused, undefined)
+    assert.equal(isFifo(`${file}.lock`), true, 'the FIFO is left in place')
+  })
+
+  it('the journal path itself a FIFO, before or after opening, is refused promptly (control)', () => {
+    for (const stage of ['journal-fifo', 'journal-replaced']) {
+      const file = join(place(), 'journal.jsonl')
+      const r = inChild(stage, file)
+      assert.equal(r.finished, true, `${stage}: the child must end on its own (${r.signal ?? ''}) ${r.stderr}`)
+      assert.match(r.out?.refused ?? '', /runner journal path is unsafe/, stage)
+      assert.equal(r.out?.t3calls, 0, stage)
+    }
+  })
+
+  it('a lock that is a directory is refused as unreadable, and a regular lock still works (controls)', async () => {
+    const dir = place()
+    const file = join(dir, 'journal.jsonl')
+    mkdirSync(`${file}.lock`)
+    assert.throws(() => new RunnerJournal(file), /cannot be read/)
+    const ok = join(place(), 'journal.jsonl')
+    const r = await sendThrough(ok)
+    assert.equal(r.refused, null)
+    assert.equal(r.t3.effects.launches, 1)
+    assert.equal(existsSync(`${ok}.lock`), false, 'released')
   })
 })

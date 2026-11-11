@@ -14,21 +14,31 @@
  *   torn (a crash mid-append); a complete final record whose newline was cut is validated, then terminated.
  * - Privacy: the directory is created 0700 and the journal and lock files 0600. Records hold the envelope (the owner's
  *   message) and identities only: no credential, transcript or home path.
+ * - Its private path (repair 5, NATIVE4-F01): before anything is read or written, the journal's real directory must be
+ *   this uid's and writable by no one else, and every ancestor this uid's or root's and not writable by others unless
+ *   sticky. The file is opened once without following a symbolic link and must be a regular file of this uid, with no
+ *   group or other permission and one link. Otherwise it is refused, never chmodded, truncated or rewritten. Every
+ *   read, torn-line repair and append goes through that one descriptor, and each append first checks that the path
+ *   still names it. Limits: POSIX hosts only (O_NOFOLLOW, getuid); this uid and root are trusted; ancestors are judged
+ *   once, at opening; no filesystem's isolation is qualified by this.
  * @module @sophia/coordination/runner-journal
  */
 import { randomUUID } from 'node:crypto'
 import {
   closeSync,
-  existsSync,
+  constants,
   fstatSync,
   fsyncSync,
   ftruncateSync,
+  lstatSync,
   mkdirSync,
   openSync,
-  readFileSync,
+  readSync,
+  realpathSync,
+  statSync,
   writeSync,
 } from 'node:fs'
-import { dirname } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { JournalLock } from './runner-journal-lock.ts'
 import {
   checkTarget,
@@ -50,6 +60,86 @@ type Body<T extends OperationRecord['type']> = Omit<
 >
 
 const describe = (error: unknown) => (error instanceof Error ? error.message : String(error))
+const codeOf = (error: unknown) => (error instanceof Error && 'code' in error ? String(error.code) : '')
+/** A refusal to use the journal's path. It names no path: what is wrong, never where. */
+const unsafe = (why: string, options?: ErrorOptions) => new Error(`runner journal path is unsafe: ${why}`, options)
+
+/** This process's uid. Without one, or without O_NOFOLLOW (not POSIX), the journal does not open. */
+function ownUid(): number {
+  if (typeof process.getuid !== 'function' || typeof constants.O_NOFOLLOW !== 'number')
+    throw unsafe('this platform cannot open a file without following links or name its owner')
+  return process.getuid()
+}
+
+const othersWrite = (mode: number) => (mode & 0o022) !== 0
+const sticky = (mode: number) => (mode & 0o1000) !== 0
+
+/**
+ * The journal's real path, once its directory is proven private: created 0700 when missing, then a directory of this
+ * uid that no one else can write, under ancestors of this uid or root that no one else can write unless sticky. Nothing
+ * is changed to make it so: an unsafe directory is refused before a lock or a journal is created in it.
+ */
+function privatePath(file: string, uid: number): string {
+  mkdirSync(dirname(file), { recursive: true, mode: 0o700 })
+  const dir = realpathSync(dirname(file))
+  const own = statSync(dir)
+  if (!own.isDirectory()) throw unsafe('its directory is not a directory')
+  if (own.uid !== uid) throw unsafe("its directory is another user's")
+  if (othersWrite(own.mode)) throw unsafe('its directory is writable by others')
+  for (let at = dirname(dir); ; at = dirname(at)) {
+    const up = statSync(at)
+    if (up.uid !== uid && up.uid !== 0) throw unsafe("an ancestor directory is another user's")
+    if (othersWrite(up.mode) && !sticky(up.mode)) throw unsafe('an ancestor directory is writable by others')
+    if (dirname(at) === at) break
+  }
+  return join(dir, basename(file))
+}
+
+/** The open journal must be a regular file of this uid, private to it, with this one name. */
+function checkDescriptor(fd: number, uid: number): void {
+  const st = fstatSync(fd)
+  if (!st.isFile()) throw unsafe('it is not a regular file')
+  if (st.uid !== uid) throw unsafe("it is another user's file")
+  if ((st.mode & 0o077) !== 0) throw unsafe('others may read or write it')
+  if (st.nlink !== 1) throw unsafe('it has another name (a hard link)')
+}
+
+/** Open the journal once, never through a symbolic link: an existing file as it is, a missing one created 0600. */
+function openPrivate(file: string, uid: number): number {
+  const { O_RDWR, O_CREAT, O_EXCL, O_NOFOLLOW } = constants
+  let fd: number
+  try {
+    fd = openSync(file, O_RDWR | O_NOFOLLOW)
+  } catch (err) {
+    if (codeOf(err) === 'ELOOP') throw unsafe('it is a symbolic link', { cause: err })
+    if (codeOf(err) !== 'ENOENT') throw err
+    try {
+      fd = openSync(file, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
+    } catch (created) {
+      if (codeOf(created) === 'EEXIST') throw unsafe('it is a symbolic link, or appeared while it was created')
+      throw created
+    }
+  }
+  try {
+    checkDescriptor(fd, uid)
+  } catch (err) {
+    closeSync(fd)
+    throw err
+  }
+  return fd
+}
+
+/** Every byte of the open file. */
+function readAll(fd: number): Buffer {
+  const bytes = Buffer.alloc(fstatSync(fd).size)
+  let at = 0
+  while (at < bytes.length) {
+    const n = readSync(fd, bytes, at, bytes.length - at, at)
+    if (n === 0) throw new Error('runner journal changed while it was read')
+    at += n
+  }
+  return bytes
+}
 
 export class RunnerJournal {
   private readonly entries = new Map<string, JournalEntry>()
@@ -57,17 +147,24 @@ export class RunnerJournal {
   private length = 0
   private journalId = ''
   private readonly file: string
+  private readonly uid: number
   private readonly lock: JournalLock
+  private fd = -1
 
-  /** Opens (or creates) the journal, holding its lock until close(). Throws JournalLocked or a corruption error. */
+  /**
+   * Opens (or creates) the journal, holding its lock and its one descriptor until close(). Throws on an unsafe path
+   * (before anything is read or written), JournalLocked, or a corruption error.
+   */
   constructor(file: string) {
-    this.file = file
-    mkdirSync(dirname(file), { recursive: true, mode: 0o700 })
-    this.lock = JournalLock.acquire(file)
+    this.uid = ownUid()
+    this.file = privatePath(file, this.uid)
+    this.lock = JournalLock.acquire(this.file)
     try {
-      if (existsSync(file) && readFileSync(file).length > 0) this.load()
+      this.fd = openPrivate(this.file, this.uid)
+      if (fstatSync(this.fd).size > 0) this.load()
       else this.create()
     } catch (err) {
+      this.closeFile()
       this.lock.release()
       throw err
     }
@@ -81,14 +178,11 @@ export class RunnerJournal {
   private create(): void {
     this.journalId = randomUUID()
     const header = { seq: 0, time: Date.now(), type: 'header', journalId: this.journalId, version: JOURNAL_VERSION }
-    const fd = openSync(this.file, 'w', 0o600)
-    try {
-      writeSync(fd, `${JSON.stringify(header)}\n`)
-      fsyncSync(fd)
-      this.length = fstatSync(fd).size
-    } finally {
-      closeSync(fd)
-    }
+    // Only ever an empty file: a new one, or one whose torn header was cut to nothing.
+    if (fstatSync(this.fd).size !== 0) throw new Error('runner journal: a header is written only to an empty file')
+    writeSync(this.fd, `${JSON.stringify(header)}\n`, 0)
+    fsyncSync(this.fd)
+    this.length = fstatSync(this.fd).size
     const dir = openSync(dirname(this.file), 'r')
     try {
       fsyncSync(dir)
@@ -99,7 +193,7 @@ export class RunnerJournal {
   }
 
   private load(): void {
-    const bytes = readFileSync(this.file)
+    const bytes = readAll(this.fd)
     const text = bytes.toString('utf8')
     const lines = text.split('\n')
     const complete = text.endsWith('\n')
@@ -152,14 +246,24 @@ export class RunnerJournal {
   }
 
   private truncate(length: number, suffix: string): void {
-    const fd = openSync(this.file, 'r+')
+    ftruncateSync(this.fd, length)
+    if (suffix) writeSync(this.fd, suffix, length)
+    fsyncSync(this.fd)
+  }
+
+  /** The configured path must still name this open file, unchanged in kind, owner and privacy: else nothing is written. */
+  private assertSamePath(): void {
+    if (this.fd < 0) throw new Error('runner journal is closed')
+    checkDescriptor(this.fd, this.uid)
+    const open = fstatSync(this.fd)
+    let named: ReturnType<typeof lstatSync>
     try {
-      ftruncateSync(fd, length)
-      if (suffix) writeSync(fd, suffix, length)
-      fsyncSync(fd)
-    } finally {
-      closeSync(fd)
+      named = lstatSync(this.file)
+    } catch (err) {
+      throw unsafe('its path no longer names this journal', { cause: err })
     }
+    if (named.isSymbolicLink() || named.dev !== open.dev || named.ino !== open.ino)
+      throw unsafe('its path no longer names this journal')
   }
 
   entry(operationId: string): JournalEntry | undefined {
@@ -179,21 +283,25 @@ export class RunnerJournal {
     const checked = recordOf(JSON.parse(line), this.seq)
     if (checked.type === 'header') throw new Error('runner journal: a header cannot be appended')
     const next = this.next(checked)
-    const fd = openSync(this.file, 'a', 0o600)
-    try {
-      if (fstatSync(fd).size !== this.length) throw new Error('runner journal was written by another writer')
-      writeSync(fd, line)
-      fsyncSync(fd)
-      this.length += Buffer.byteLength(line)
-    } finally {
-      closeSync(fd)
-    }
+    this.assertSamePath()
+    if (fstatSync(this.fd).size !== this.length) throw new Error('runner journal was written by another writer')
+    writeSync(this.fd, line, this.length)
+    fsyncSync(this.fd)
+    this.length += Buffer.byteLength(line)
     this.seq += 1
     this.entries.set(operationId, next)
   }
 
-  /** Release the lock. The journal stays on disk; reopening it reloads and revalidates every record. */
+  /** Close the file and release the lock. The journal stays on disk; reopening it reloads and revalidates it. */
   close(): void {
+    this.closeFile()
     this.lock.release()
+  }
+
+  private closeFile(): void {
+    if (this.fd < 0) return
+    const fd = this.fd
+    this.fd = -1
+    closeSync(fd)
   }
 }

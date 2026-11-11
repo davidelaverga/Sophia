@@ -1,7 +1,17 @@
 import { after, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import {
+  appendFileSync,
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { hostname, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { JournalLocked, RunnerJournal } from './runner-journal.ts'
@@ -53,8 +63,9 @@ function written(): { file: string; lines: Record<string, unknown>[] } {
     .map((l) => JSON.parse(l) as Record<string, unknown>)
   return { file, lines }
 }
+/** Journal fixtures are written as the journal writes them: owner-only (repair 5 refuses anything readable by others). */
 const rewrite = (file: string, lines: unknown[]) =>
-  writeFileSync(file, `${lines.map((l) => JSON.stringify(l)).join('\n')}\n`)
+  writeFileSync(file, `${lines.map((l) => JSON.stringify(l)).join('\n')}\n`, { mode: 0o600 })
 
 // r3 (R2-F03) fixtures: journal records built from their envelopes.
 const NS = 'client:s1'
@@ -440,6 +451,35 @@ describe('one writer per journal (R1-F02)', () => {
       JSON.stringify({ pid: process.pid, host: hostname(), start: null, token: 'someone-else', journal: kFile }),
     )
     assert.throws(() => k.append('intent', OP, { digest, envelope, identity }), JournalLocked)
+  })
+})
+
+describe("the journal's private path, at the journal itself (repair 5, NATIVE4-F01)", () => {
+  it('stops appending once its open file is made readable by others: nothing written, the lock still released', () => {
+    const file = fresh()
+    const j = new RunnerJournal(file)
+    chmodSync(file, 0o640)
+    const before = readFileSync(file)
+    assert.throws(() => j.append('intent', OP, { digest, envelope, identity }), /runner journal path is unsafe/)
+    assert.deepEqual(readFileSync(file), before)
+    j.close()
+    assert.throws(() => statSync(`${file}.lock`), /ENOENT/)
+  })
+
+  it('judges a symlinked directory by its real directory: private is opened, writable by others is refused', () => {
+    const real = mkdtempSync(join(root, 'real-'))
+    const link = join(root, `link-${(n += 1)}`)
+    symlinkSync(real, link)
+    const j = new RunnerJournal(join(link, 'journal.jsonl'))
+    j.append('intent', OP, { digest, envelope, identity })
+    j.close()
+    assert.equal(statSync(join(real, 'journal.jsonl')).mode & 0o777, 0o600)
+    const shared = mkdtempSync(join(root, 'shared-'))
+    chmodSync(shared, 0o777)
+    const viaLink = join(root, `link-${(n += 1)}`)
+    symlinkSync(shared, viaLink)
+    assert.throws(() => new RunnerJournal(join(viaLink, 'journal.jsonl')), /runner journal path is unsafe/)
+    assert.throws(() => statSync(join(shared, 'journal.jsonl')), /ENOENT/)
   })
 })
 

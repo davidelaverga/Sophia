@@ -8,12 +8,29 @@
  * - A lock written on another host, or one whose content cannot be read, is never presumed stale: refused.
  * - The holder re-reads the lock before each append and fails closed unless it still holds its own token, so a lost
  *   recovery race ends in a refusal, never two writers.
+ * - Repair 5 (NATIVE4-F01): the lock is created and read without following a symbolic link. A symlinked lock cannot be
+ *   read, so it is refused, never presumed stale or recovered over. It lives in the journal's directory, which the
+ *   journal proves private before taking it.
+ * - Repair 6 (NATIVE5-F01): every read is also non-blocking, and only a regular file is read. A FIFO, socket, directory
+ *   or other special file at the lock path is refused at once at acquisition, refuses an append at assertHeld, and is
+ *   left in place by release: never waited on, consumed, unlinked or adopted.
  * Limits: the lock is per host (a journal on a shared network filesystem written from two hosts is out of scope);
  * where the process start time is unavailable (non-Linux), a live pid is always treated as a live holder.
  * @module @sophia/coordination/runner-journal-lock
  */
 import { randomUUID } from 'node:crypto'
-import { closeSync, fsyncSync, linkSync, openSync, readFileSync, renameSync, unlinkSync, writeSync } from 'node:fs'
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  fsyncSync,
+  linkSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeSync,
+} from 'node:fs'
 import { hostname } from 'node:os'
 import { dirname } from 'node:path'
 
@@ -50,9 +67,31 @@ function alive(content: LockContent): boolean {
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 
+/**
+ * A lock file's text, read without following a symbolic link: null for a link or anything but a regular file. The one
+ * reader of every lock read (acquisition and its stale re-read, assertHeld, release). Repair 6 (NATIVE5-F01): opened
+ * O_NONBLOCK, so a FIFO or other special file opens (or fails) at once instead of waiting for a writer, and is closed
+ * unread, nothing consumed. O_NONBLOCK has no effect on reading a regular file.
+ */
+function lockText(path: string): string | null {
+  let fd: number
+  try {
+    fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
+  } catch {
+    return null
+  }
+  try {
+    return fstatSync(fd).isFile() ? readFileSync(fd, 'utf8') : null
+  } finally {
+    closeSync(fd)
+  }
+}
+
 function readLock(path: string): LockContent | null {
   try {
-    const r: unknown = JSON.parse(readFileSync(path, 'utf8'))
+    const text = lockText(path)
+    if (text === null) return null
+    const r: unknown = JSON.parse(text)
     if (!isRecord(r)) return null
     if (typeof r.pid !== 'number' || typeof r.host !== 'string' || typeof r.token !== 'string') return null
     return {
@@ -79,7 +118,7 @@ function syncDir(path: string): void {
 function create(path: string, content: LockContent): boolean {
   let fd: number
   try {
-    fd = openSync(path, 'wx', 0o600)
+    fd = openSync(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600)
   } catch (err) {
     if (err instanceof Error && 'code' in err && err.code === 'EEXIST') return false
     throw err

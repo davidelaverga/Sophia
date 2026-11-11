@@ -348,3 +348,138 @@ Unsupported kinds are named and refused before any write: `hold`, `resume`, `res
 No owner-host process, pairing, native sign-in or account provenance; no qualification of the real read-only
 profile or of T3's injected orchestration toolkit (finding F04): until that exists, no qualification row may be written.
 No Studio change. Hold, Resume, permission approval and question answers stay unsupported.
+
+## Repair 5: the journal's private path and durable identity (INC01-CC-005-repair4-SOURCE-FINAL-001, NATIVE4-F01, P2)
+
+Written before any code. One signed sole child of the published `a528ab84`. Only the journal, its lock, their tests,
+this plan and the INC01-CC-005 handoff change. No SQL, record format, gateway, channel or transport changes.
+
+### The defect
+
+The 0700 and 0600 modes applied only when the path was created. An existing journal path was used as found, at every
+step: creating it, loading it, recovering a torn line, and appending each record. That included:
+- a group- or world-readable file;
+- a file owned by another user;
+- a symlink, whether to an empty file, a valid 0600 journal, or a missing target;
+- a file in a directory that others can write.
+
+Each of those steps also reopened the path by name and followed symlinks. So a replacement after opening (rename the
+journal away, put a same-length copy or a symlink in its place) passed the lock and length checks and redirected the
+writes.
+
+### The rule
+
+The journal is one owner-only regular file, opened once without following symlinks, in a directory that no other user
+can change. Every read, recovery and append goes through that one descriptor, and the path must still name it.
+
+### The protocol
+
+- **The directory.** Missing ancestors are created 0700. The journal's own directory must be a real directory owned by
+  this process's uid and writable by no group or other.
+  - Every ancestor of its resolved path must be owned by this uid or root, and writable by group or other only if
+    sticky (as `/tmp` is).
+  - Otherwise the journal refuses to open, before its lock file is created and before anything is read.
+  - Nothing is chmodded or chowned.
+- **The file.**
+  - An existing file is opened `O_RDWR|O_NOFOLLOW`. A missing one is created `O_RDWR|O_CREAT|O_EXCL|O_NOFOLLOW`, 0600.
+    A symlink is refused whatever its target, and a dangling one is never created through.
+  - The open descriptor must then be a regular file, owned by this uid, with no group or other permission bits, and
+    with one link.
+  - Otherwise it is closed and refused: never read, truncated, written or chmodded, so its bytes are unchanged. The
+    lock taken for it is released.
+- **One descriptor.**
+  - Loading reads through it.
+  - A torn final line is cut, or a cut newline restored, with `ftruncate` and a positional write on it.
+  - Header creation writes through it.
+  - Every append writes through it, at the length this writer left, after checking the lock token, that the size still
+    equals that length, and that the path still names the same file (`lstat` versus `fstat`: device and inode).
+  - A path renamed away, replaced, or made a symlink fails closed. The gateway journals the intent before any T3 call,
+    so a refused append means no new native effect. The replacement is never written, and nothing is unlinked.
+  - `close()` closes the descriptor and releases the lock.
+- **The lock.** `<journal>.lock` is created `O_CREAT|O_EXCL|O_NOFOLLOW` 0600 and read `O_NOFOLLOW`. A symlinked lock is
+  unreadable, so it is refused, never presumed stale. It lives in the directory already checked. The recovery protocol
+  is unchanged.
+- **Unchanged:**
+  - the journal id, header, records, validation, v1 bytes and v2 redaction;
+  - the receipts, the unknown commitments and the no-resend rule;
+  - cross-process fencing.
+
+  A legitimate 0600 journal opens, reopens and recovers as before. An existing unsafe journal is refused, never
+  adopted, reset or given a new id: its operations keep their identities, and the owner fixes the path.
+
+### Limits
+
+- **Platform.** POSIX hosts with `O_NOFOLLOW` and `process.getuid`, as Linux and macOS have. Elsewhere the journal
+  refuses to open.
+- **Trust.** The same uid and root are trusted: either can read or replace the journal regardless.
+- **Ancestors.** Checked once at open. Ancestors that another non-root user owns or can write are refused.
+- **Network filesystems.** Not detected: there is no filesystem-type check, so one whose metadata satisfies the checks
+  is not refused. They are unsupported and unqualified (the lock is per host); corrected in repair 6.
+- **Not qualified.** This is not a qualification of any filesystem's isolation.
+
+### Proof plan
+
+**Fail-before on `a528ab84`.** Temporary synthetic files only, through the actual `RunnerGateway`, `RunnerJournal`,
+disk and FakeT3:
+- an existing 0644, 0640, 0660 or 0604 journal (empty, and valid);
+- a symlink to an empty file, a valid 0600 journal, or a missing target;
+- a torn symlink target, and a torn 0640 file;
+- a group- or world-writable directory;
+- a same-length replacement after opening.
+
+Each must refuse with no FakeT3 call. The target's bytes and mode must be unchanged, and the lock released.
+
+**Controls.**
+- A fresh private create, a valid 0600 reopen and 0600 torn recovery.
+- A malformed complete file is still refused, unchanged.
+- The two-process lock, and a prior unknown operation reconciled by its original identity after a refused open.
+
+**Mutations.** Each guard alone: `O_NOFOLLOW`, the descriptor mode or owner check, the directory check, the per-append
+identity check, and writing through the descriptor.
+
+## Repair 6: a non-regular lock path is refused promptly (INC01-CC-005-repair5-SOURCE-PRE-PUSH-001, NATIVE5-F01, P2)
+
+Written before any code. The development identity is a signed child of `3e901c20`. The publication identity is one
+signed sole child of the published `a528ab84` with the same final tree. Only the lock, its tests, this plan and the
+INC01-CC-005 handoff change. The journal file's open is not changed: its `O_RDWR` open of a FIFO already refuses
+promptly (`not a regular file`), on Linux and as the gate observed on macOS.
+
+### The defect
+
+Every lock read (acquisition, the stale re-read in recovery, `assertHeld` before each append, and `release`) opened the
+lock `O_RDONLY|O_NOFOLLOW` and only then checked that it was a regular file. A FIFO is not a symbolic link, and opening
+one read-only waits for a writer. So a FIFO at `<journal>.lock` hung the process before the check. That could happen
+before acquisition, or as a replacement after opening, before the next append or at `close()`. A timer in the same
+thread cannot interrupt that synchronous wait.
+
+### The fix
+
+- **One reader for every lock read.** It opens `O_RDONLY|O_NOFOLLOW|O_NONBLOCK`. A FIFO, socket or other special file
+  then opens (or fails) at once, without waiting for a writer. The descriptor must be a regular file, or it is closed
+  unread: nothing is consumed from a FIFO.
+  - Anything else (a symbolic link, a directory, a FIFO, an open error) reads as an unreadable lock, as before. At
+    acquisition, that is refused (`JournalLocked`, never presumed stale or recovered over).
+  - At `assertHeld` it is "no longer ours", so the append is refused before any T3 call.
+  - At `release` it is not ours, so it is left in place, never unlinked, and `close()` completes.
+- **Unchanged.** `O_NONBLOCK` has no effect on reading a regular file. The lock's creation, recovery protocol, host and
+  token rules and contents are unchanged, and so are the journal's checks: private directory, `O_NOFOLLOW`, regular,
+  owner, mode, single link, held descriptor and path identity.
+
+### Proof plan
+
+**Real child processes with an independent parent deadline.** A child killed at the deadline is a failure, never a
+pass. Each runs through the actual journal, gateway and FakeT3:
+- a FIFO at the lock path before the journal opens;
+- a FIFO replacing the lock after opening, then a `RunnerGateway.send` (`append`, `assertHeld`);
+- the same replacement, then `close()` (`release`).
+
+Each must end on its own, with an ordinary refusal or close, no FakeT3 call, and the FIFO left in place. Recovery's
+stale re-read goes through the same reader. That shares the fix by construction: no recovery race is forced or claimed.
+
+**Controls.** A lock that is a directory or a symbolic link; a regular lock of a live or dead holder; the journal path
+itself a FIFO, or replaced after opening; and the existing journal, gateway and process suites.
+
+**Mutations.**
+- `O_NONBLOCK` removed: expected to hang, so the parent kills the child and the assertion fails.
+- The regular-file check removed: expected redundant, since a non-regular lock then fails to parse; reported as a
+  survivor.
