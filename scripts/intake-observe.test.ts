@@ -1279,3 +1279,141 @@ describe('r14 through the consumer: supplied dates and exact selections beside g
     })
   })
 })
+
+/** The r15 consumer corpus: no-reply hints, malformed quotation and exact build selections. */
+function r15Corpus(): TestDoc {
+  const doc = corpus()
+  const base = { audience: 'project', directAddress: 'sophia', selectedArtifact: 'plan@v3' }
+  const repo = { audience: 'project', directAddress: 'sophia', repo: 'repo15' }
+  doc.cases = [
+    testCase('N-explain', 'Explain the plan.', { ...base, needsReply: false }, { proposedAction: 'answer' }),
+    testCase('N-tell', 'Tell me the answer.', { ...base, needsReply: false }, { proposedAction: 'answer' }),
+    testCase('N-question', 'What changed?', { ...base, needsReply: false }, { proposedAction: 'no_action' }),
+    testCase('M-quote', 'Explain "the plan.', { ...base, needsReply: false }, {}),
+    testCase('M-backtick', 'What is `this?', { ...base, needsReply: false }, {}),
+    testCase(
+      'B-attach',
+      'Implement this change.',
+      { ...repo, attachment: 'spec@frozen-7', candidates: ['a', 'b'] },
+      {
+        target: 'repo15/spec@frozen-7',
+      },
+    ),
+    testCase('B-date', 'Implement this change.', { ...repo, uniqueDate: 'date15', possibleTargets: ['a', 'b'] }, {}),
+  ]
+  return doc
+}
+
+interface R15View {
+  cases: { caseId: string; observation: IntakeObservation; comparison: { field: string; result: string }[] }[]
+  actualEffects: Record<string, number>
+}
+
+function checkR15(r: R15View): void {
+  const o = new Map(r.cases.map((c) => [c.caseId, c.observation]))
+  assert.equal(o.get('N-explain')?.proposal.kind, 'answer')
+  assert.equal(o.get('N-tell')?.proposal.kind, 'answer')
+  assert.equal(o.get('N-question')?.proposal.kind, 'no_action')
+  for (const id of ['M-quote', 'M-backtick']) {
+    assert.equal(o.get(id)?.proposal.kind, 'abstain', id)
+    assert.ok(o.get(id)?.uncertainty.includes('malformed_quotation'), id)
+  }
+  assert.deepEqual(o.get('B-attach')?.proposal.target, {
+    kind: 'repository_work',
+    repo: 'repo15',
+    item: 'spec@frozen-7',
+  })
+  assert.equal(o.get('B-attach')?.proposal.targetBasis, 'explicit_selection')
+  assert.equal(
+    r.cases.find((c) => c.caseId === 'B-attach')?.comparison.find((f) => f.field === 'target')?.result,
+    'match',
+  )
+  assert.equal(o.get('B-date')?.proposal.rule, 'family.build_selection_unsupported')
+  assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+}
+
+describe('r15 through the consumer: no-reply hints, malformed quotation and exact build selections', () => {
+  it('in the built report', () => {
+    checkR15(report(r15Corpus()) as unknown as R15View)
+  })
+
+  it('in the written report from the command line', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, r15Corpus())
+      const out = join(dir, 'r.json')
+      assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
+      checkR15(JSON.parse(readFileSync(out, 'utf8')))
+    })
+  })
+})
+
+/** The r16 consumer corpus: the accepted-version wait follows the item the build consumes. */
+function r16Corpus(): TestDoc {
+  const doc = corpus()
+  const base = { audience: 'project', directAddress: 'sophia', repo: 'repo16', acceptedVersion: 'r8' }
+  const text = 'Implement the requested change.'
+  const wait = { admissionDenialOrWaitReason: 'selected_version_not_accepted' }
+  doc.cases = [
+    testCase('V-issue', text, { ...base, issue: '#431' }, { target: 'repo16/issue#431', ...wait }),
+    testCase(
+      'V-issue-match',
+      text,
+      { ...base, issue: '#431', attachment: 'ignored@r8' },
+      { target: 'repo16/issue#431', ...wait },
+    ),
+    testCase(
+      'V-issue-other',
+      text,
+      { ...base, issue: '#77', attachment: 'ignored@r8' },
+      { target: 'repo16/issue#77', ...wait },
+    ),
+    testCase(
+      'V-attach-match',
+      text,
+      { ...base, attachment: 'att@r8' },
+      { target: 'repo16/att@r8', admissionDenialOrWaitReason: null },
+    ),
+    testCase('V-attach-miss', text, { ...base, attachment: 'att@r7' }, { target: 'repo16/att@r7', ...wait }),
+    testCase(
+      'V-selected',
+      text,
+      { ...base, selectedArtifact: 'card@r7', attachment: 'att@r8' },
+      { target: 'repo16/card@r7', ...wait },
+    ),
+    testCase(
+      'V-selected-match',
+      text,
+      { ...base, selectedArtifact: 'card@r8', attachment: 'att@r7' },
+      { target: 'repo16/card@r8', admissionDenialOrWaitReason: null },
+    ),
+  ]
+  return doc
+}
+
+interface R16View {
+  cases: { caseId: string; comparison: { field: string; result: string }[] }[]
+  actualEffects: Record<string, number>
+}
+
+function checkR16(r: R16View): void {
+  for (const c of r.cases)
+    for (const name of ['target', 'admissionReason'])
+      assert.equal(c.comparison.find((f) => f.field === name)?.result, 'match', `${c.caseId} ${name}`)
+  assert.equal(r.cases.length, 7)
+  assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+}
+
+describe('r16 through the consumer: the accepted-version wait follows the consumed build item', () => {
+  it('in the built report', () => {
+    checkR16(report(r16Corpus()) as unknown as R16View)
+  })
+
+  it('in the written report from the command line', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, r16Corpus())
+      const out = join(dir, 'r.json')
+      assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
+      checkR16(JSON.parse(readFileSync(out, 'utf8')))
+    })
+  })
+})

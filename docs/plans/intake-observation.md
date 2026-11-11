@@ -6,7 +6,7 @@ installed automatic routing, not a live intake service and not the shipped INC-0
 from `@sophia/coordination`, registered in an app, or reachable from a request.
 
 - `packages/coordination/src/intake-observation.ts` — a pure, versioned, deterministic observation policy
-  (currently `sophia.intake-observation.policy.v14`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11, v12 r12, v13 r13). It reads a validated input and returns a proposal. It holds no
+  (currently `sophia.intake-observation.policy.v16`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11, v12 r12, v13 r13, v14 r14, v15 r15 (unpublished)). It reads a validated input and returns a proposal. It holds no
   transport, provider, database, notification, control or dispatch handle and reads no clock or environment.
 - `scripts/intake-observe.ts` — the consumer: an offline CLI that validates a bounded corpus file, strips every
   label before the policy sees a case, runs the policy, compares results with the labels separately and writes a
@@ -54,7 +54,7 @@ wrong type, an oversized string or list is an input error. What each group means
 The policy never sees `caseId`, `family`, `split`, `expected`, `status`, `labelAuthority` or `fixtureAuthority`:
 the CLI keeps them as comparison metadata, and a context that carries any of those keys is an input error.
 
-## States (one observation) — policy v14
+## States (one observation) — policy v16
 
 Policy v2 (`sophia.intake-observation.policy.v2`) replaced v1 after the independent r1 review
 (INC03-CC-001-r1-SOURCE-PRE-PUSH-001, F01–F07). Policy v3 (`sophia.intake-observation.policy.v3`) replaces v2 after
@@ -185,6 +185,30 @@ v14 (published r13 `bc11826b`, automatic review on PR 504, gate SHA-256 `caa9850
   selected artifact, an attachment, a unique decision, a unique date. Unrelated native history is a target kind but
   not a resolved reference, so it does not suppress ambiguity; a null selection is none. Comparison and repository
   ambiguity stay specialized; people, origins, transport, legacy false and identified controls still decide first.
+
+v15 (published r14 `25117228`, automatic review on PR 504, gate SHA-256 `bb0953ee…`) repairs three policy classes:
+
+- **A no-reply hint never quiets a request.** `needsReply:false` quieted every answer, so `Explain the plan.` or
+  `Tell me the answer.` became `no_action`. An answer clause that opens with an imperative answer verb (explain,
+  summarise, describe, compare, remind, tell) is a request; the hint now quiets only acknowledgements, unread remarks
+  and questions, and never controls, exploration, builds, follow-ups or publications.
+- **Malformed quotation is decided before the hint.** The hint was checked before the quotation rule, so a malformed
+  authored quotation became a quiet `no_action`. Malformed or unadopted quotation now abstains first, whatever the
+  hint. Origin, transport, human and legacy rules still decide earlier; balanced and imported evidence and quiet
+  acknowledgements keep their outcomes.
+- **A build uses the exact selection that resolved it.** An attachment suppressed generic ambiguity (v14) but the
+  build dropped it for a text objective. The build item is now the selected artifact, else an issue, else an
+  attachment, with the same basis rule and the accepted-version guard applied to the item actually used. A selected
+  comparison, decision or date is no build item: the build clarifies (`selected_context_not_buildable`) and none is
+  turned into an artifact. Answer and exploration consume every exact selection; follow-up, inquiry, controls and
+  publication target the mission or the pending operation (unchanged; a documented limit).
+
+v16 (unpublished r15 `be8e5169`, independent gate `INC03-CC-001-r15-SOURCE-PRE-PUSH-001`) closes the residual of the
+build-selection class: the accepted-version guard read the selected artifact or else an attachment, while the build
+item could be an issue ahead of that attachment, so an unused `ignored@r8` attachment lifted the wait on an issue
+build. In v16 the build item reports the artifact it actually consumes (the selected artifact, or the attachment when
+it is the item), and the guard reads only that, by the same precedence. An issue or a text objective has no version,
+so a supplied accepted version keeps it waiting, as before, whatever an unused attachment says.
 
 | State | When | Proposal | Admission |
 |---|---|---|---|

@@ -2035,3 +2035,169 @@ describe('r14 (F01 discussion_r4530868593, F02 discussion_r4530868599): every ex
     assert.equal(kindOf(observe('Remind me. Thanks.', { ...ctx, quotedText: 'Remind me.' })), 'no_action')
   })
 })
+
+/** A context with an explicit no-reply hint. */
+const hint = (ctx: Record<string, unknown>, needsReply: boolean) => ({ ...ctx, needsReply })
+
+describe('r15 (F01 discussion_r4531614346, F02 discussion_r4531614354): a no-reply hint never quiets a request or a malformed quotation', () => {
+  const base = { audience: 'project', directAddress: 'sophia', selectedArtifact: 'plan@v3' }
+
+  it('an imperative answer request decides the same with and without the hint', () => {
+    for (const text of [
+      'Explain the plan.',
+      'Describe the diagram.',
+      'Summarise this result.',
+      'Tell me the answer.',
+      'Compare them.',
+      'Can you explain the plan?',
+      'Thanks, now explain the plan.',
+    ]) {
+      const quiet = observe(text, hint(base, false))
+      assert.equal(kindOf(quiet), 'answer', text)
+      assert.deepEqual(decision(quiet), decision(observe(text, hint(base, true))), text)
+    }
+  })
+
+  it('a question, a remark and an acknowledgement are still quieted; other requests are untouched', () => {
+    for (const text of ['What changed?', 'All clear.', 'Thanks!', 'Why?'])
+      assert.equal(kindOf(observe(text, hint(base, false))), 'no_action', text)
+    assert.equal(kindOf(observe('What changed?', hint(base, true))), 'answer')
+    const work = {
+      audience: 'project',
+      directAddress: 'sophia',
+      activeMission: 'm15',
+      control: 'running',
+      stopQualified: true,
+    }
+    assert.equal(kindOf(observe('Stop the job.', hint(work, false))), 'control_stop')
+    assert.equal(kindOf(observe('Research the market.', hint({ ...base }, false))), 'explore')
+    assert.equal(kindOf(observe('Implement this change.', hint({ ...base, repo: 'repo15' }, false))), 'build_start')
+  })
+
+  it('malformed authored quotation abstains with or without the hint', () => {
+    for (const text of [
+      'Explain "the plan.',
+      'Thanks “stop',
+      'What is `this?',
+      "Describe 'the diagram.",
+      'All clear "x',
+    ])
+      for (const needsReply of [false, true]) {
+        const o = observe(text, hint(base, needsReply))
+        assert.equal(kindOf(o), 'abstain', `${text} needsReply=${String(needsReply)}`)
+        assert.ok(o.uncertainty.includes('malformed_quotation'), text)
+      }
+  })
+
+  it('balanced and imported evidence, origins, people, legacy and controls keep their precedence', () => {
+    assert.equal(kindOf(observe('Thanks, "great".', hint(base, false))), 'no_action')
+    assert.equal(kindOf(observe('Thanks. Explain "x', hint({ ...base, quotedText: 'Explain "x' }, false))), 'no_action')
+    assert.equal(kindOf(observe('Explain "the plan.', hint({ ...base, origin: 'agent_result' }, false))), 'no_action')
+    const toMarta = { audience: 'project', trustedMentions: ['marta'], needsReply: false }
+    assert.equal(kindOf(observe('Explain "the plan.', toMarta)), 'human_message')
+    assert.equal(kindOf(observe('Explain "the plan.', hint(base, false), legacy(false))), 'recorded_only')
+    const work = { ...base, activeMission: 'm15', control: 'running', stopQualified: true }
+    assert.deepEqual(
+      decision(observe('Stop "the job.', hint(work, false))),
+      decision(observe('Stop "the job.', hint(work, true))),
+    )
+  })
+})
+
+describe('r15 (F03 discussion_r4531614362): a build uses the exact selection it was resolved by, or says it cannot', () => {
+  const base = { audience: 'project', directAddress: 'sophia', repo: 'repo15' }
+  const lists: Record<string, Record<string, unknown>> = {
+    'no list': {},
+    candidates: { candidates: ['a', 'b'] },
+    'possible targets': { possibleTargets: ['a', 'b'] },
+  }
+  const text = 'Implement this change.'
+
+  it('an attachment is the build item, beside any generic list, with its explicit basis', () => {
+    for (const [name, list] of Object.entries(lists)) {
+      const o = observe(text, { ...base, ...list, attachment: 'spec@frozen-7' })
+      assert.equal(kindOf(o), 'build_start', name)
+      assert.deepEqual(o.proposal.target, { kind: 'repository_work', repo: 'repo15', item: 'spec@frozen-7' }, name)
+      assert.equal(o.proposal.targetBasis, 'explicit_selection', name)
+      assert.ok(!o.uncertainty.includes('objective_from_text_unverified'), name)
+      assert.equal(o.admission.reason, 'observation_unqualified', name)
+      assert.deepEqual(o.effects, ZERO_EFFECTS)
+    }
+  })
+
+  it('the selected artifact and an issue keep precedence over an attachment', () => {
+    const both = observe(text, { ...base, selectedArtifact: 'card@v2', attachment: 'spec@frozen-7' })
+    assert.deepEqual(both.proposal.target, { kind: 'repository_work', repo: 'repo15', item: 'card@v2' })
+    const issue = observe(text, { ...base, issue: '#42', attachment: 'spec@frozen-7' })
+    assert.deepEqual(issue.proposal.target, { kind: 'repository_work', repo: 'repo15', item: 'issue#42' })
+  })
+
+  it('a selected comparison, decision or date is no build item: the build clarifies, with or without a list', () => {
+    for (const selection of [
+      { selectedComparison: ['card@v1', 'card@v2'] },
+      { uniqueDecision: 'decision15' },
+      { uniqueDate: 'date15' },
+    ])
+      for (const [name, list] of Object.entries(lists)) {
+        const o = observe(text, { ...base, ...list, ...selection })
+        assert.equal(o.proposal.rule, 'family.build_selection_unsupported', `${JSON.stringify(selection)} / ${name}`)
+        assert.ok(o.uncertainty.includes('selected_context_not_buildable'))
+      }
+  })
+
+  it('without any selection, the text objective and the generic ambiguity are as before; the guards still decide', () => {
+    assert.ok(observe(text, base).uncertainty.includes('objective_from_text_unverified'))
+    assert.equal(observe(text, { ...base, candidates: ['a', 'b'] }).proposal.rule, 'target.ambiguous')
+    const attach = { ...base, attachment: 'spec@v7' }
+    assert.equal(observe(text, { ...attach, acceptedVersion: 'v6' }).admission.reason, 'selected_version_not_accepted')
+    assert.notEqual(
+      observe(text, { ...attach, acceptedVersion: 'v7' }).admission.reason,
+      'selected_version_not_accepted',
+    )
+    assert.ok(
+      observe(text, { audience: 'project', directAddress: 'sophia', attachment: 'spec@v7' }).uncertainty.includes(
+        'repository_unresolved',
+      ),
+    )
+    assert.equal(observe(text, { ...attach, activeMission: 'm15' }).proposal.rule, 'family.build_relation_unknown')
+  })
+})
+
+describe('r16 (INC03-R15-F01): the accepted-version guard reads only the item the build consumes', () => {
+  const base = { audience: 'project', directAddress: 'sophia', repo: 'repo16' }
+  const text = 'Implement the requested change.'
+  const reason = (ctx: Record<string, unknown>) => observe(text, { ...base, ...ctx }).admission.reason
+
+  it('an issue build keeps its conservative wait whatever an unused attachment says', () => {
+    for (const issue of ['#431', '#77'])
+      for (const attachment of [{}, { attachment: 'ignored@r8' }, { attachment: 'ignored@r7' }]) {
+        const o = observe(text, { ...base, issue, acceptedVersion: 'r8', ...attachment })
+        const label = `${issue} ${JSON.stringify(attachment)}`
+        assert.deepEqual(o.proposal.target, { kind: 'repository_work', repo: 'repo16', item: `issue${issue}` }, label)
+        assert.equal(o.proposal.targetBasis, 'explicit_selection', label)
+        assert.equal(o.admission.reason, 'selected_version_not_accepted', label)
+      }
+    assert.equal(reason({ issue: '#431', attachment: 'ignored@r8' }), 'observation_unqualified')
+  })
+
+  it('the consumed artifact decides: a selected artifact over an attachment, an attachment when it is the item', () => {
+    assert.equal(
+      reason({ selectedArtifact: 'card@r7', attachment: 'att@r8', acceptedVersion: 'r8' }),
+      'selected_version_not_accepted',
+    )
+    assert.equal(
+      reason({ selectedArtifact: 'card@r7', attachment: 'att@r8', acceptedVersion: 'r7' }),
+      'observation_unqualified',
+    )
+    assert.equal(reason({ attachment: 'att@r8', acceptedVersion: 'r8' }), 'observation_unqualified')
+    assert.equal(reason({ attachment: 'att@r8', acceptedVersion: 'r7' }), 'selected_version_not_accepted')
+    assert.equal(reason({ attachment: 'att@r8' }), 'observation_unqualified')
+    assert.equal(reason({ attachment: 'att@r8:intro', acceptedVersion: 'r8' }), 'observation_unqualified')
+  })
+
+  it('a text objective and unsupported selections keep their existing outcomes', () => {
+    assert.equal(reason({ acceptedVersion: 'r8' }), 'selected_version_not_accepted')
+    const unsupported = observe(text, { ...base, uniqueDecision: 'decision16', acceptedVersion: 'r8' })
+    assert.equal(unsupported.proposal.rule, 'family.build_selection_unsupported')
+  })
+})

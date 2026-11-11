@@ -20,7 +20,7 @@
 import { createHash } from 'node:crypto'
 import { canonicalJson } from './canonical.ts'
 
-export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v14'
+export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v16'
 
 export const INTAKE_LIMITS = { textChars: 4000, contextKeys: 64, stringChars: 200, listItems: 16 } as const
 
@@ -542,6 +542,8 @@ interface TextIntent {
   readonly extraRequests: boolean
   readonly fencedSpans: number
   readonly malformedQuote: boolean
+  /** An answer clause opens with an imperative answer verb (explain, tell…): a request, never quieted by a hint (r15). */
+  readonly answerRequested: boolean
 }
 
 /**
@@ -817,6 +819,7 @@ export function readIntent(text: string, facts: Facts): TextIntent {
     extraRequests: new Set(families.filter((f) => f !== 'none' && f !== 'ack')).size > 1,
     fencedSpans: authored.fencedSpans,
     malformedQuote: authored.malformed,
+    answerRequested: clauses.some((c) => c.words.length > 0 && verbFamily(c.words) === 'answer'),
   }
 }
 
@@ -1219,13 +1222,27 @@ function followup(facts: Facts): Proposal {
   })
 }
 
-function buildItem(facts: Facts): { readonly item: string | null; readonly basis: TargetBasis } {
-  const artifact = facts.str('selectedArtifact')
-  if (artifact !== undefined)
-    return { item: artifact, basis: facts.has('acceptedStandard') ? 'accepted_standard' : 'explicit_selection' }
+/**
+ * The item a build works on, in this precedence: the selected artifact, an issue, an attachment (r15). `artifact` is
+ * the artifact ref actually consumed (r16): the selected artifact or the attachment when it is the item, never an
+ * unused lower-precedence selection, and none for an issue or a text objective (they carry no version). A selected
+ * comparison, decision or date is no buildable item: it is reported as such (`unsupported`), never turned into an
+ * artifact and never dropped for a text objective.
+ */
+function buildItem(facts: Facts): {
+  readonly item: string | null
+  readonly basis: TargetBasis
+  readonly unsupported: boolean
+  readonly artifact?: string
+} {
+  const basis: TargetBasis = facts.has('acceptedStandard') ? 'accepted_standard' : 'explicit_selection'
+  const selected = facts.str('selectedArtifact')
+  if (selected !== undefined) return { item: selected, basis, unsupported: false, artifact: selected }
   const issue = facts.str('issue')
-  if (issue !== undefined) return { item: `issue${issue}`, basis: 'explicit_selection' }
-  return { item: null, basis: 'text_objective' }
+  if (issue !== undefined) return { item: `issue${issue}`, basis: 'explicit_selection', unsupported: false }
+  const attachment = facts.str('attachment')
+  if (attachment !== undefined) return { item: attachment, basis, unsupported: false, artifact: attachment }
+  return { item: null, basis: 'text_objective', unsupported: exactSelection(facts) !== undefined }
 }
 
 /** A new coding mission needs a resolved repository; a project with active work holds its one slot (C03-R06). */
@@ -1242,7 +1259,11 @@ function build(facts: Facts): Proposal {
     return proposal('clarify', UNRESOLVED, 'unresolved', 'family.build_relation_unknown', {
       uncertainty: ['relation_to_active_mission_unknown'],
     })
-  const { item, basis } = buildItem(facts)
+  const { item, basis, unsupported } = buildItem(facts)
+  if (unsupported)
+    return proposal('clarify', UNRESOLVED, 'unresolved', 'family.build_selection_unsupported', {
+      uncertainty: ['selected_context_not_buildable'],
+    })
   const block = buildBlock(facts, active !== undefined)
   return proposal('build_start', { kind: 'repository_work', repo, item }, basis, 'family.build_start', {
     route: 'native',
@@ -1270,7 +1291,9 @@ const BUILD_BLOCKS: readonly (readonly [(facts: Facts) => boolean, Block])[] = [
 ]
 
 function versionNotAccepted(facts: Facts): boolean {
-  const version = facts.str('selectedArtifact')?.split('@')[1]?.split(':')[0]
+  // The version of the artifact the build actually consumes (r16), by the same precedence as its item: an issue or a
+  // text objective has none, so a supplied accepted version cannot be shown met, whatever an unused attachment says.
+  const version = buildItem(facts).artifact?.split('@')[1]?.split(':')[0]
   const accepted = facts.str('acceptedVersion')
   return accepted !== undefined && version !== accepted
 }
@@ -1415,17 +1438,23 @@ function inferredAddressee(addressing: Addressing, intent: TextIntent, p: Propos
   return { ids: ['sophia'], basis: 'clear_request' }
 }
 
-const QUIETABLE: ReadonlySet<TextIntent['family']> = new Set(['ack', 'none', 'answer'])
+/**
+ * What a no-reply hint may quiet: an acknowledgement, an unread remark or a question. Never a request — an imperative
+ * answer request (r15), a control, exploration, build, follow-up or publication.
+ */
+const quietable = (intent: TextIntent): boolean =>
+  intent.family === 'ack' || intent.family === 'none' || (intent.family === 'answer' && !intent.answerRequested)
 
 function sophiaRule(facts: Facts, addressing: Addressing, intent: TextIntent): Proposal {
-  // A no-reply hint quiets an acknowledgement or a remark; it never swallows a request such as Stop.
-  if (facts.bool('needsReply') === false && QUIETABLE.has(intent.family))
+  // Malformed or unadopted quotation is decided first and fails closed; a no-reply hint cannot bypass it (r15).
+  const quoted = quotationRule(facts, intent)
+  if (quoted === undefined && facts.bool('needsReply') === false && quietable(intent))
     return proposal('no_action', thread(facts), 'current_thread', 'family.no_reply_needed', {
       addressee: { ids: addressing.sophia ? ['sophia'] : [], basis: addressing.basis },
     })
   // An identified control precedes ambiguity about unrelated targets (F02); a quotation is checked first (F01).
   const p =
-    quotationRule(facts, intent) ??
+    quoted ??
     (CONTROL_FAMILIES.has(intent.family) ? familyProposal(facts, intent) : undefined) ??
     ambiguityRule(facts) ??
     familyProposal(facts, intent)
@@ -1755,7 +1784,10 @@ export const INTAKE_OBSERVATION_POLICY = {
     acknowledgement:
       'leading acknowledgements are a prefix; a message is an acknowledgement only if every authored clause is one, and beside unread words it abstains like those words alone',
     besideRequest: 'an unread clause beside a recognised request is not read; the request decides (disclosed limit)',
-    noReplyHint: 'needsReply:false quiets an acknowledgement, unread text or a question, never a request',
+    noReplyHint:
+      'needsReply:false quiets an acknowledgement, unread text or a question, never a request (an imperative answer request included); malformed or unadopted quotation is decided first',
+    buildItem:
+      'selected artifact, issue, attachment; the accepted-version guard reads only the artifact the build consumes; a selected comparison, decision or date is no build item and clarifies',
   },
   limits: INTAKE_LIMITS,
   contextFields: CONTEXT_FIELDS,
