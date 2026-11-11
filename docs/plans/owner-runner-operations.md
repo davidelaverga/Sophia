@@ -483,3 +483,62 @@ itself a FIFO, or replaced after opening; and the existing journal, gateway and 
 - `O_NONBLOCK` removed: expected to hang, so the parent kills the child and the assertion fails.
 - The regular-file check removed: expected redundant, since a non-regular lock then fails to parse; reported as a
   survivor.
+
+## Repair 7A: new owner-runner work requires the real 0096 capability (INC01-CC-005-repair6-SOURCE-FINAL-001, NATIVE6-F01, P1)
+
+Written before any code. One signed local development child of the published `5eb86c22`. Only
+`apps/api/src/routes/runner-operations.ts`, its DB test, this plan and the INC01-CC-005 handoff change. The transport,
+host and documentation files of repair 7B are not touched. No publication parent is chosen: root composes repairs 7A
+and 7B into one final candidate later.
+
+### The defect
+
+**Readiness.** `OWNER_RUNNER_SCHEMA` (readiness with admissions on) checked only 0092's admission signature and table.
+
+**Each request.** The per-request `installation()` checked only the operations table, and remembered `true`.
+
+**The result.** A database through 0092, or through 0093 without 0096, reported ready. It admitted a contract-valid
+A50 create or input through the frozen 0092 admission, which ignores sources, base, scope and settings and prepares a
+v1 envelope. An ineligible selected source was bypassed, and a send could follow.
+
+### The fix
+
+- **One capability definition, used everywhere.** `OWNER_RUNNER_SCHEMA` now names what A50 actually needs from 0096,
+  each checked without failing on a missing object:
+  - 0092's admission function and operations table;
+  - 0096's `owner_runner_operation_sources` table, the `owner_runner_content(uuid,uuid)` read and the
+    `declare_owner_runner_source_policy(uuid,uuid,jsonb)` declaration;
+  - the operations table's `envelope_version` and `requested_settings` columns, and the qualification table's
+    `source_policy` column.
+- **Both readiness and requests use it.** `app.ts` already imports it for `/ready` with admissions on. The route's
+  per-request check now runs the same query.
+- **Only a complete installation is remembered.** A partial one is never cached, so the same API instance moves from
+  missing to installed without a restart. A database error answers `unavailable`, and an incomplete installation
+  `projection_unavailable` (503), before any admission write: never an empty list, a v1 downgrade or a queued send.
+- **Order and semantics unchanged.** New work with admissions off is still refused first
+  (`runner_admission_disabled`). On a complete installation, owner reads, reconcile and the qualified Stop with
+  admissions off work as before, and so do the current source refusals, exact idempotency, and v1 received and unknown
+  commitments. No SQL, contract, environment flag or `app.ts` change.
+
+### Proof plan
+
+**Real authenticated HTTP on real PostgreSQL, through three databases.** Each is built from the exact `5eb86c22`
+migration prefix:
+- through 0092;
+- through 0093, without 0096;
+- complete.
+
+**On each partial database:**
+- `/ready` with admissions on is 503;
+- an A50 create (with an ineligible selected source) and an A50 input are refused `projection_unavailable` (503), with
+  no operation, command or outbox row written;
+- reads are `projection_unavailable`;
+- with admissions off, new work is still `runner_admission_disabled`.
+
+**The upgrade.** On the 0093 database, 0096 is then applied, with the same API instance and no restart. `/ready`
+becomes 200, the same invalid-source create is refused by 0096's source check with nothing written, and reads answer.
+
+**The existing complete-installation suite stays unchanged.**
+
+**Fail-before and mutations.** Fail-before runs on `5eb86c22`'s route with these final tests. The mutations: the
+capability reduced back to 0092's objects, and the per-request check that caches partial presence.

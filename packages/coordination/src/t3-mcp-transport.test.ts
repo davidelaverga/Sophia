@@ -7,11 +7,20 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { newSecret } from './owner-host-channel.ts'
+import { OwnerHostAgent } from './owner-host-agent.ts'
+import {
+  exchangeRequest,
+  newSecret,
+  type Delivered,
+  type GoResult,
+  type HelloResult,
+  type HostChannel,
+  type HostHello,
+} from './owner-host-channel.ts'
 import { FakeT3 } from './runner-fake-t3.ts'
 import { RunnerGateway } from './runner-gateway.ts'
 import { RunnerJournal } from './runner-journal.ts'
-import { digestOf, type RunnerEnvelope } from './runner-port.ts'
+import { digestOf, type RunnerAnswer, type RunnerEnvelope, type RunObservation } from './runner-port.ts'
 import { loopbackRefusal, MCP_PROTOCOL_VERSION, T3McpTransport, toolReply } from './t3-mcp-transport.ts'
 import { launchCommandId, readCall, type T3Call } from './t3-port-mapping.ts'
 
@@ -726,4 +735,277 @@ describe('one validated snapshot of an error name, never a second read (r7, HOST
       }
     })
   }
+})
+
+// repair7 B (NATIVE6-F02): a bearer the transport sent never leaves it in a SUCCESSFUL reply either. Every value below
+// is invented and marked synthetic; injected fetch only, no network, no real T3, credential or provider.
+const SYN = 'r7b-synthetic-bearer'
+const synthetic = (tag: string) => `${SYN}-${tag}-${newSecret().slice(0, 12)}`
+/** Every form of `value` that would show it: raw, JSON-escaped, or any 8+ character prefix of either. */
+const shows = (out: string, value: string) =>
+  escapes(out, value) ?? escapes(out, JSON.stringify(value).slice(1, -1)) ?? null
+const launchIdentity = () => launchCommandId(NS, `sophia:${env().operationId}`)
+
+/**
+ * An in-memory MCP endpoint whose tool call succeeds with the text `reply` builds from the bearer that request carried.
+ * `hold` keeps one call's answer until released (an in-flight request).
+ */
+function successFetch(reply: (bearer: string) => string, hold?: { call: number; released: Promise<void> }) {
+  const seen: string[] = []
+  let calls = 0
+  const fn: typeof fetch = async (_url, init) => {
+    const headers = (init?.headers ?? {}) as Record<string, string>
+    const bearer = (headers.authorization ?? '').replace(/^Bearer /, '')
+    seen.push(bearer)
+    const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { id?: number; method: string }
+    if (body.method === 'initialize')
+      return jsonResponse(
+        { jsonrpc: '2.0', id: body.id, result: { protocolVersion: MCP_PROTOCOL_VERSION } },
+        { 'mcp-session-id': 'mcp-session-r7b' },
+      )
+    if (body.method === 'notifications/initialized') return new Response(null, { status: 202 })
+    calls += 1
+    if (hold && calls === hold.call) await hold.released
+    return jsonResponse({ jsonrpc: '2.0', id: body.id, result: { content: [{ type: 'text', text: reply(bearer) }] } })
+  }
+  return { fn, seen }
+}
+const launchReply = (fields: Record<string, unknown>) => JSON.stringify({ threadId: launchIdentity(), ...fields })
+/** Each read returns the next value: a rotating token file. */
+const rotating = (values: readonly string[]) => {
+  let i = 0
+  return () => values[Math.min(i++, values.length - 1)] ?? ''
+}
+
+/** A host channel for the agent: GO once, records every answer. */
+class AnswerChannel implements HostChannel {
+  queue: Delivered[] = []
+  readonly answers: { exchangeId: string; answer: RunnerAnswer | RunObservation }[] = []
+  hello(): Promise<HelloResult> {
+    return Promise.resolve({ result: 'ok', hostId: 'h-r7b', state: 'active', first: true })
+  }
+  poll() {
+    const out = this.queue
+    this.queue = []
+    return Promise.resolve(out)
+  }
+  go(): Promise<GoResult> {
+    return Promise.resolve({ result: 'go' })
+  }
+  answer(exchangeId: string, answer: RunnerAnswer | RunObservation) {
+    this.answers.push({ exchangeId, answer })
+    return Promise.resolve({ result: 'ok' } as const)
+  }
+}
+const PROFILE = {
+  ownerId: env().ownerId,
+  environmentRef: ENV,
+  adapterPin: env().adapterPin,
+  nativeProjectRefs: new Set(['project-sophia']),
+  accountKey: 'claude:acct-1',
+  profileId: 'read-only-v1',
+  profileRevision: 1,
+  operations: new Set(['create', 'input', 'stop'] as const),
+}
+
+/** One launch through the real transport, gateway, fsynced journal and owner-host agent to the fake channel. */
+async function launchThroughHost(bearer: () => string, reply: (bearer: string) => string) {
+  const dir = mkdtempSync(join(tmpdir(), 'sophia-r7b-journal-'))
+  const file = join(dir, 'journal.jsonl')
+  const f = successFetch(reply)
+  const journal = new RunnerJournal(file)
+  const gateway = new RunnerGateway({
+    journal,
+    transport: new T3McpTransport({ url: NO_NETWORK, environmentId: ENV, namespace: NS, bearer, fetch: f.fn }),
+    profile: PROFILE,
+  })
+  const channel = new AnswerChannel()
+  const hello: HostHello = {
+    v: 1,
+    journalId: journal.id,
+    environmentRef: ENV,
+    adapterPin: PROFILE.adapterPin,
+    profileId: PROFILE.profileId,
+    profileRevision: 1,
+    accountKey: PROFILE.accountKey,
+    t3Namespace: NS,
+  }
+  const agent = new OwnerHostAgent({ channel, gateway, journal, hello, log: () => undefined })
+  try {
+    const e = env()
+    channel.queue.push({
+      exchangeId: 'x-r7b',
+      kind: 'send',
+      request: exchangeRequest('send', e, journal.id),
+      deadlineAt: '',
+    })
+    const served = await agent.serveOnce()
+    return { served, answers: channel.answers, bytes: readFileSync(file, 'utf8'), seen: f.seen }
+  } finally {
+    gateway.close()
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+describe('no read bearer in a successful reply (repair7 B, NATIVE6-F02)', () => {
+  it('still receives a clean launch with its exact native ids (control)', async () => {
+    const value = synthetic('clean')
+    const out = await launchThroughHost(
+      () => value,
+      () => launchReply({ runId: 'run-clean-1', messageId: launchIdentity() }),
+    )
+    assert.deepEqual(out.served, ['answered'])
+    const a = out.answers[0]?.answer
+    assert.equal(a?.kind, 'received')
+    assert.equal(a?.kind === 'received' ? a.runId : null, 'run-clean-1')
+    assert.equal(a?.kind === 'received' ? a.identity.threadId : null, launchIdentity())
+  })
+
+  const quoted = `${SYN}"q\\b-${newSecret().slice(0, 8)}`
+  const digits = '1234567890123456'
+  const cases: { name: string; bearer: () => string; value: string; reply: (b: string) => string }[] = [
+    { name: 'the current bearer as runId', ...one('current'), reply: (b) => launchReply({ runId: b }) },
+    {
+      name: 'the bearer Unicode-escaped in the JSON text',
+      ...one('unicode'),
+      reply: (b) =>
+        `{"threadId":${JSON.stringify(launchIdentity())},"runId":"${b
+          .split('')
+          .map((c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`)
+          .join('')}"}`,
+    },
+    {
+      name: 'a bearer with a quote and a backslash',
+      bearer: () => quoted,
+      value: quoted,
+      reply: (b) => launchReply({ runId: b }),
+    },
+    { name: 'the bearer inside a longer runId', ...one('inside'), reply: (b) => launchReply({ runId: `run-${b}-1` }) },
+    {
+      name: 'the bearer as a nested value',
+      ...one('nested'),
+      reply: (b) => launchReply({ runId: 'run-ok-1', extra: { deep: [{ x: b }] } }),
+    },
+    {
+      name: 'the bearer as an object key',
+      ...one('key'),
+      reply: (b) => launchReply({ runId: 'run-ok-1', extra: { [b]: 1 } }),
+    },
+    {
+      name: 'the bearer as a primitive number',
+      bearer: () => digits,
+      value: digits,
+      reply: () => `{"threadId":${JSON.stringify(launchIdentity())},"runId":"run-ok-1","count":${digits}}`,
+    },
+    {
+      name: 'the bearer JSON-escaped inside a string value',
+      bearer: () => quoted,
+      value: quoted,
+      reply: (b) => launchReply({ runId: 'run-ok-1', note: JSON.stringify({ token: b }) }),
+    },
+  ]
+  // Two layers: a key written with Unicode escapes is absent from the raw text but equal once decoded; a digits-only
+  // bearer as a number too long for a double is lost once decoded but present in the raw text.
+  const longDigits = '12345678901234567890123'
+  cases.push(
+    {
+      name: 'the bearer Unicode-escaped as an object key',
+      ...one('ukey'),
+      reply: (b) =>
+        `{"threadId":${JSON.stringify(launchIdentity())},"runId":"run-ok-1","extra":{"${b
+          .split('')
+          .map((c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`)
+          .join('')}":1}}`,
+    },
+    {
+      name: 'a bearer as a number too long to survive decoding',
+      bearer: () => longDigits,
+      value: longDigits,
+      reply: () => `{"threadId":${JSON.stringify(launchIdentity())},"runId":"run-ok-1","count":${longDigits}}`,
+    },
+  )
+  function one(tag: string) {
+    const value = synthetic(tag)
+    return { bearer: () => value, value }
+  }
+
+  for (const c of cases) {
+    it(`keeps ${c.name} out of the reply, the fsynced journal and the channel answer`, async () => {
+      const out = await launchThroughHost(c.bearer, c.reply)
+      assert.ok(out.seen.includes(c.value), 'the synthetic bearer was read and sent')
+      assert.deepEqual(out.served, ['answered'])
+      const answer = out.answers[0]?.answer
+      assert.equal(answer?.kind, 'unknown', `answered: ${JSON.stringify(answer)}`)
+      assert.equal(
+        answer?.kind === 'unknown' && 'identity' in answer ? answer.identity?.threadId : null,
+        launchIdentity(),
+        'the original identity is kept for reconciliation',
+      )
+      assert.equal(shows(JSON.stringify(out.answers), c.value), null, 'the channel answer holds no bearer')
+      assert.ok(out.bytes.length > 0, 'the journal was written')
+      assert.equal(shows(out.bytes, c.value), null, 'the journal on disk holds no bearer')
+    })
+  }
+
+  it('keeps an earlier rotated bearer out of a later success', async () => {
+    const values = Array.from({ length: 6 }, (_, i) => synthetic(`rot${i}`))
+    const first = values[0] ?? ''
+    const f = successFetch(() => launchReply({ runId: first }))
+    const t = new T3McpTransport({
+      url: NO_NETWORK,
+      environmentId: ENV,
+      namespace: NS,
+      bearer: rotating(values),
+      fetch: f.fn,
+    })
+    const r1 = await t.call(read())
+    const r2 = await t.call(read())
+    assert.ok(f.seen.includes(first) && !f.seen.slice(3).includes(first), 'the first value was sent only before')
+    for (const r of [r1, r2]) {
+      assert.equal(r.kind, 'transport_error')
+      assert.equal(shows(JSON.stringify(r), first), null)
+    }
+  })
+
+  it("keeps a request's own bearer guarded through its reply after nine later reads rotate the history", async () => {
+    const values = Array.from({ length: 16 }, (_, i) => synthetic(`flight${i}`))
+    let release: (() => void) | undefined
+    const released = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    // The first call's reply echoes the bearer that call sent; the nine later calls answer cleanly.
+    const f = successFetch((b) => launchReply({ runId: b === f.seen[2] ? b : 'run-clean' }), { call: 1, released })
+    const t = new T3McpTransport({
+      url: NO_NETWORK,
+      environmentId: ENV,
+      namespace: NS,
+      bearer: rotating(values),
+      fetch: f.fn,
+    })
+    const inFlight = t.call(read())
+    while (f.seen.length < 3) await new Promise((r) => setTimeout(r, 1))
+    const own = f.seen[2] ?? ''
+    for (let i = 0; i < 9; i++) assert.equal((await t.call(read())).kind, 'ok', 'a later clean call is answered')
+    const history = Reflect.get(t, 'readValues') as string[]
+    assert.equal(history.length, 8, 'the history stays bounded')
+    assert.ok(!history.includes(own), 'the in-flight bearer was rotated out of the history')
+    release?.()
+    const r = await inFlight
+    assert.equal(r.kind, 'transport_error', `answered: ${JSON.stringify(r)}`)
+    assert.equal(shows(JSON.stringify(r), own), null)
+  })
+
+  it('answers a refused success with a fixed reason, never a rewritten id or a pre-dispatch refusal', async () => {
+    const value = synthetic('fixed')
+    const t = new T3McpTransport({
+      url: NO_NETWORK,
+      environmentId: ENV,
+      namespace: NS,
+      bearer: () => value,
+      fetch: successFetch((b) => launchReply({ runId: b })).fn,
+    })
+    const r = await t.call(read())
+    assert.equal(r.kind, 'transport_error')
+    assert.ok(!('body' in r) && !('code' in r), 'no redacted body and no failure code')
+  })
 })

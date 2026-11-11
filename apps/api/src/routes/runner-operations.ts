@@ -24,9 +24,23 @@ import { idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
 
 export type OwnerRunnerAdmissions = 'off' | 'admit'
 
-/** What admitting calls of 0092. /ready requires it only with admissions on; reads check installation per request. */
+/**
+ * What the current A47/A50 boundary needs installed, as one query: readiness with admissions on (app.ts) and every
+ * request here use exactly this (repair 7A, NATIVE6-F01). Not merely 0092's admission signature and table, which a
+ * database without 0096 also has: there the frozen 0092 admission would ignore an A50 request's sources, base, scope
+ * and settings and prepare a v1 envelope. So 0096's own objects are required too: the admitted-sources table, the
+ * owner's content read, the source-policy declaration, and the columns the A50 operation and qualification carry. Each
+ * check returns false, never an error, for something missing.
+ */
 export const OWNER_RUNNER_SCHEMA = `SELECT to_regprocedure('sophia.admit_owner_runner_operation(uuid,text,jsonb,text)') IS NOT NULL
-  AND to_regclass('sophia.owner_runner_operations') IS NOT NULL AS ok`
+  AND to_regclass('sophia.owner_runner_operations') IS NOT NULL
+  AND to_regclass('sophia.owner_runner_operation_sources') IS NOT NULL
+  AND to_regprocedure('sophia.owner_runner_content(uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.declare_owner_runner_source_policy(uuid,uuid,jsonb)') IS NOT NULL
+  AND (SELECT count(*) FROM pg_catalog.pg_attribute a
+        WHERE NOT a.attisdropped AND a.attnum > 0
+          AND ((a.attrelid = to_regclass('sophia.owner_runner_operations') AND a.attname IN ('envelope_version','requested_settings'))
+            OR (a.attrelid = to_regclass('sophia.owner_runner_qualifications') AND a.attname = 'source_policy'))) = 3 AS ok`
 
 const operationParams = {
   type: 'object',
@@ -38,17 +52,25 @@ const operationParams = {
   required: ['projectId', 'operationId'],
 } as const
 
-/** Whether 0092 is installed: remembered once seen (a migration is never undone under a running API). */
+/**
+ * Whether the whole capability is installed (OWNER_RUNNER_SCHEMA), checked before any admission write or read. Only a
+ * complete installation is remembered (a migration is never undone under a running API); a partial one is asked again
+ * each time, so the same instance serves once the missing migration lands, with no restart. Incomplete is
+ * projection_unavailable, never an empty list or a v1 admission; a failed check is unavailable, never its message.
+ */
 function installation(pool: pg.Pool): () => Promise<void> {
   let installed = false
   return async () => {
     if (installed) return
-    const { rows } = await pool.query<{ ok: boolean }>(
-      `SELECT to_regclass('sophia.owner_runner_operations') IS NOT NULL AS ok`,
-    )
-    if (rows[0]?.ok !== true) {
-      throw new DomainError('projection_unavailable', 'Owner-runner operations are not installed on this database')
+    let ok = false
+    try {
+      const { rows } = await pool.query<{ ok: boolean }>(OWNER_RUNNER_SCHEMA)
+      ok = rows[0]?.ok === true
+    } catch (err) {
+      throw new DomainError('unavailable', 'Database unavailable', { cause: err })
     }
+    if (!ok)
+      throw new DomainError('projection_unavailable', 'Owner-runner operations are not installed on this database')
     installed = true
   }
 }

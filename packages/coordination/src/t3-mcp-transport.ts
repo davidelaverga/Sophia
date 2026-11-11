@@ -13,7 +13,10 @@
  * HOST-S1A-R4-F03); every other reason it produces is a fixed text, an HTTP status or one of DIAGNOSTIC_ERROR_NAMES,
  * never a name taken from the error itself (r6, HOST-S1A-R5-F01), and that name is the one snapshot read and
  * validated, never read again (r7, HOST-S1A-R6-F01). The general redaction of bearer-shaped and long
- * opaque text applies as well.
+ * opaque text applies as well. A SUCCESSFUL result is never masked: one that carries any guarded value anywhere (a
+ * decoded string, key or primitive, the raw text, or a JSON-escaped form) is refused whole, as no certain answer, since
+ * the call may have had its effect (repair7 B, NATIVE6-F02). The guarded values are the last few read plus every
+ * bearer the call itself sent, kept until its own reply is decided, however many later reads rotate the history.
  *
  * Answers: a 404 on a call renews the MCP session once (the request was not processed). A 401 or 403 is T3 refusing the
  * credential before dispatch (`capability_denied`). A tool's isError result decodes to T3's typed failure. Anything
@@ -127,9 +130,46 @@ export function responseJson(contentType: string | null, text: string): unknown 
   return JSON.parse(body)
 }
 
+/** Each guarded value, and its JSON-escaped form (a value with a quote or a backslash is escaped inside JSON text). */
+function guardedForms(secrets: readonly string[]): string[] {
+  return [...new Set(secrets.flatMap((v) => (v.length > 0 ? [v, JSON.stringify(v).slice(1, -1)] : [])))]
+}
+
+/** Every text a decoded JSON value holds: its strings, its object keys and its primitives' text, at any depth. */
+function* textsOf(decoded: unknown): Generator<string> {
+  const pending: unknown[] = [decoded]
+  while (pending.length > 0) {
+    const v = pending.pop()
+    if (Array.isArray(v)) pending.push(...(v as unknown[]))
+    else if (isRecord(v)) {
+      for (const [k, item] of Object.entries(v)) {
+        yield k
+        pending.push(item)
+      }
+    } else if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') yield String(v)
+  }
+}
+
+/**
+ * Whether a decoded success carries a guarded value: in any string, object key or primitive's text, at any depth, or in
+ * the raw text it was decoded from. Compared as decoded text, so neither JSON escaping nor Unicode escapes hide one.
+ */
+function carriesSecret(raw: string, decoded: unknown, secrets: readonly string[]): boolean {
+  const forms = guardedForms(secrets)
+  const holds = (text: string) => forms.some((f) => text.includes(f))
+  if (forms.length === 0) return false
+  if (holds(raw)) return true
+  for (const text of textsOf(decoded)) if (holds(text)) return true
+  return false
+}
+
 /** A decoded tool result's text: T3's success body, or its typed failure, with `secrets` masked before truncation. */
-function decodedReply(decoded: unknown, isError: boolean, secrets: readonly string[]): T3Reply {
-  if (!isError) return { kind: 'ok', body: decoded }
+function decodedReply(decoded: unknown, isError: boolean, secrets: readonly string[], raw = ''): T3Reply {
+  // Never masked or rewritten into a receipt: the whole success is no certain answer (the call may have run).
+  if (!isError)
+    return carriesSecret(raw, decoded, secrets)
+      ? transportError('a tool result carried a credential; an effect is not ruled out')
+      : { kind: 'ok', body: decoded }
   if (isRecord(decoded) && typeof decoded.code === 'string' && typeof decoded.message === 'string')
     return {
       kind: 'failure',
@@ -153,7 +193,7 @@ export function toolReply(message: unknown, id: number, secrets: readonly string
     .map((part: unknown) => (isRecord(part) && typeof part.text === 'string' ? part.text : ''))
     .join('')
   try {
-    return decodedReply(JSON.parse(text), isError, secrets)
+    return decodedReply(JSON.parse(text), isError, secrets, text)
   } catch {
     return transportError(isError ? 'an undecodable tool failure' : 'an undecodable tool result')
   }
@@ -187,7 +227,7 @@ export class T3McpTransport implements T3Transport {
     return this.o.namespace
   }
 
-  private token(): string {
+  private token(used: string[]): string {
     let token: string
     try {
       token = this.o.bearer().trim()
@@ -196,6 +236,8 @@ export class T3McpTransport implements T3Transport {
     }
     if (!BEARER.test(token)) throw new Reply(transportError('the bearer is not a token'))
     if (!this.readValues.includes(token)) this.readValues = [token, ...this.readValues].slice(0, READ_VALUES_KEPT)
+    // The call keeps what it sent until its own reply is decided, however many later reads rotate the history.
+    if (!used.includes(token)) used.push(token)
     return token
   }
 
@@ -203,11 +245,12 @@ export class T3McpTransport implements T3Transport {
   private async post(
     body: unknown,
     session: string | null,
+    used: string[],
   ): Promise<{ status: number; type: string | null; session: string | null; text: string }> {
     const headers: Record<string, string> = {
       accept: 'application/json, text/event-stream',
       'content-type': 'application/json',
-      authorization: `Bearer ${this.token()}`,
+      authorization: `Bearer ${this.token(used)}`,
     }
     if (session !== null) {
       headers['mcp-session-id'] = session
@@ -259,7 +302,7 @@ export class T3McpTransport implements T3Transport {
   }
 
   /** initialize: the session T3 started, from a 200 with a session id and a result for this request. */
-  private async initialize(): Promise<string> {
+  private async initialize(used: string[]): Promise<string> {
     const id = this.nextId++
     const init = await this.post(
       {
@@ -273,6 +316,7 @@ export class T3McpTransport implements T3Transport {
         },
       },
       null,
+      used,
     )
     if (init.status === 401 || init.status === 403) throw new Reply(denied)
     if (init.status !== 200 || init.session === null || init.session.length > 200)
@@ -289,9 +333,9 @@ export class T3McpTransport implements T3Transport {
   }
 
   /** initialize, then notifications/initialized. A 401 or 403 is T3 refusing the credential; nothing was called. */
-  private async open(): Promise<string> {
-    const session = await this.initialize()
-    const done = await this.post({ jsonrpc: '2.0', method: 'notifications/initialized' }, session)
+  private async open(used: string[]): Promise<string> {
+    const session = await this.initialize(used)
+    const done = await this.post({ jsonrpc: '2.0', method: 'notifications/initialized' }, session, used)
     if (done.status === 401 || done.status === 403) throw new Reply(denied)
     if (done.status !== 202 && done.status !== 200)
       throw new Reply(transportError(`T3 did not accept the initialized notification (HTTP ${done.status})`))
@@ -299,10 +343,11 @@ export class T3McpTransport implements T3Transport {
     return session
   }
 
-  private async callOnce(session: string, call: T3Call, id: number) {
+  private async callOnce(session: string, call: T3Call, id: number, used: string[]) {
     return this.post(
       { jsonrpc: '2.0', id, method: 'tools/call', params: { name: call.tool, arguments: call.args } },
       session,
+      used,
     )
   }
 
@@ -312,13 +357,15 @@ export class T3McpTransport implements T3Transport {
       return { kind: 'failure', code: 'invalid_request', message: 'not a tool this host may call' }
     if (call.args.environmentId !== this.o.environmentId)
       return { kind: 'failure', code: 'invalid_request', message: 'not the environment this host is bound to' }
+    // Every bearer this call sends: guarded in its reply together with the bounded history, never stored elsewhere.
+    const used: string[] = []
     try {
       const id = this.nextId++
-      let response = await this.callOnce(this.session ?? (await this.open()), call, id)
+      let response = await this.callOnce(this.session ?? (await this.open(used)), call, id, used)
       if (response.status === 404) {
         // The session is gone (T3 restarted): the request was not processed. Renew once.
         this.session = null
-        response = await this.callOnce(await this.open(), call, id)
+        response = await this.callOnce(await this.open(used), call, id, used)
       }
       if (response.status === 401 || response.status === 403) return denied
       if (response.status !== 200) return transportError(`T3 answered HTTP ${response.status}`)
@@ -328,7 +375,7 @@ export class T3McpTransport implements T3Transport {
       } catch {
         return transportError('an undecodable response')
       }
-      return toolReply(message, id, this.readValues)
+      return toolReply(message, id, [...new Set([...used, ...this.readValues])])
     } catch (err) {
       if (err instanceof Reply) return err.reply
       return transportError('the call failed')

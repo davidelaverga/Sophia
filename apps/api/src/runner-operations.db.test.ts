@@ -5,7 +5,7 @@
 // admissions off stays ready on it. The qualification rows are SYNTHETIC fixtures: no route, account or T3 install
 // is qualified by them.
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, readdirSync, rmSync, symlinkSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { FastifyInstance } from 'fastify'
@@ -497,3 +497,158 @@ describe('on a database that never had 0092', () => {
     )
   })
 })
+
+// ---- repair 7A (INC01-CC-005-repair6-SOURCE-FINAL-001, NATIVE6-F01): new work needs the real 0096 capability ----
+// A database built from an exact prefix of this tree's own migrations: through 0092, or through 0093 without 0096. The
+// current A50 contract must never fall through to the frozen 0092 admission there (which ignores sources, base, scope
+// and settings and prepares a v1 envelope): refused projection_unavailable before any write, and /ready says so.
+
+const A50_POLICY = POLICY
+const ready = async (app: FastifyInstance) => (await app.inject({ method: 'GET', url: '/ready' })).statusCode
+/** The tree's own migrations before `upTo` (exclusive), linked into a fresh directory. */
+function prefixOf(upTo: string): string {
+  const dir = mkdtempSync(join(tmpdir(), `sophia-before-${upTo}-`))
+  const migrations = resolve('db/migrations')
+  for (const f of readdirSync(migrations).filter((n) => n.endsWith('.sql') && n < upTo)) {
+    symlinkSync(join(migrations, f), join(dir, f))
+  }
+  return dir
+}
+
+for (const [upTo, label] of [
+  ['0093', 'through 0092 only'],
+  ['0096', 'through 0093, without 0096'],
+] as const) {
+  describe(`on a database ${label} (repair 7A, NATIVE6-F01)`, () => {
+    let db: TestDatabase
+    let pool: pg.Pool
+    let owner: pg.Pool
+    let off: FastifyInstance
+    let admit: FastifyInstance
+    const dir = prefixOf(upTo)
+
+    before(async () => {
+      db = await createTestDatabase(dir)
+      pool = createPool(db.apiUrl, { max: 2 })
+      owner = new pg.Pool({ connectionString: db.ownerUrl, max: 2 })
+      off = buildApp({ pool, verifyActor })
+      admit = buildApp({ pool, verifyActor, ownerRunnerAdmissions: 'admit' })
+      await off.ready()
+      await admit.ready()
+    })
+    after(async () => {
+      await off.close()
+      await admit.close()
+      await pool.end()
+      await owner.end()
+      await db.drop()
+      rmSync(dir, { recursive: true, force: true })
+    })
+
+    /** A qualified synthetic route of A with the frozen 0092 qualifier, and the project's source made ineligible. */
+    async function seeded() {
+      const p = await seedProject(db.ownerUrl, { admin: A, editors: [E] })
+      const connectionId = randomUUID()
+      const resourceId = randomUUID()
+      await owner.query(
+        `INSERT INTO sophia.execution_connections(id, owner_id, upstream_origin, upstream_subject, state)
+         VALUES ($1, $2, 'synthetic-owner-host', 'synthetic-account', 'linked')`,
+        [connectionId, A],
+      )
+      await owner.query(
+        `INSERT INTO sophia.executor_resources(project_id, id, owner_id, connection_id, harness, label, repository_root, state)
+         VALUES ($1, $2, $3, $4, 'codex-native', 'Synthetic Codex', 'synthetic/repository', 'active')`,
+        [p.projectId, resourceId, A, connectionId],
+      )
+      const { rows } = await owner.query<{ id: string }>(
+        `SELECT sophia.qualify_owner_runner($1, $2, $3, 'env-owner-1', 'project-sophia', 'read-only-v1', 1, 'gateway_enforced',
+           $4, ARRAY['create','input','stop'], 50, now() + interval '1 day', 'synthetic fixture: not a live qualification') AS id`,
+        [p.projectId, resourceId, PIN, `codex:${randomUUID()}`],
+      )
+      await owner.query(`UPDATE sophia.source_objects SET eligible = false WHERE project_id = $1 AND id = $2`, [
+        p.projectId,
+        p.sourceId,
+      ])
+      return { ...p, resourceId, qualificationId: rows[0]?.id ?? '' }
+    }
+    const create = (w: Awaited<ReturnType<typeof seeded>>, sourceIds: string[]) => ({
+      kind: 'create',
+      resourceId: w.resourceId,
+      goalId: w.goalId,
+      title: 'Read-only qualification',
+      message: 'Report the Ask admission boundary.',
+      expectedGoalRevision: 1,
+      expectedAuthorityEpoch: 1,
+      sourceIds,
+      baseCommit: BASE,
+      writeScope: 'read_only',
+      settings: SETTINGS,
+    })
+    const writes = async (projectId: string) =>
+      (
+        await owner.query<{ n: number }>(
+          `SELECT ((SELECT count(*) FROM sophia.owner_runner_operations WHERE project_id=$1)
+                + (SELECT count(*) FROM sophia.outbox WHERE project_id=$1)
+                + (SELECT count(*) FROM sophia.commands WHERE project_id=$1))::int AS n`,
+          [projectId],
+        )
+      ).rows[0]?.n
+
+    it('refuses current A50 new work and reads projection_unavailable, writes nothing, and is not ready to admit', async () => {
+      const w = await seeded()
+      const base = `/api/v1/projects/${w.projectId}/runner-operations`
+      const refused = await call(admit, A, base, create(w, [w.sourceId]))
+      assert.equal(
+        await writes(w.projectId),
+        0,
+        'an A50 create with an ineligible source writes nothing: no v1 downgrade',
+      )
+      assert.equal(refused.status, 503, JSON.stringify(refused.json))
+      assert.equal(refused.json.code, 'projection_unavailable')
+      assert.equal(await ready(admit), 503, 'admissions on: not ready without 0096')
+      assert.equal(await ready(off), 200, 'admissions off: ready as before')
+      const input = {
+        kind: 'input',
+        resourceId: w.resourceId,
+        targetOperationId: randomUUID(),
+        message: 'And the outbox?',
+        expectedGoalRevision: 1,
+        expectedAuthorityEpoch: 1,
+        sourceIds: [],
+      }
+      assert.equal((await call(admit, A, base, input)).json.code, 'projection_unavailable')
+      assert.equal(await writes(w.projectId), 0, 'no operation, command or outbox row: no v1 downgrade, nothing queued')
+      assert.equal((await call(off, A, base, create(w, []))).json.code, 'runner_admission_disabled')
+      for (const url of [base, `${base}/${randomUUID()}`]) {
+        const read = await call(off, A, url)
+        assert.equal(read.status, 503)
+        assert.equal(read.json.code, 'projection_unavailable', 'never an empty list or a database message')
+      }
+    })
+
+    if (upTo === '0096')
+      it('the same API instance admits through 0096 once it is installed, with no restart', async () => {
+        const w = await seeded()
+        const base = `/api/v1/projects/${w.projectId}/runner-operations`
+        assert.equal((await call(admit, A, base, create(w, []))).json.code, 'projection_unavailable')
+        await owner.query(readFileSync(resolve('db/migrations/0096_owner_runner_source_authority.sql'), 'utf8'))
+        await owner.query(`SELECT sophia.declare_owner_runner_source_policy($1, $2, $3)`, [
+          w.projectId,
+          w.qualificationId,
+          JSON.stringify(A50_POLICY),
+        ])
+        assert.equal(await ready(admit), 200, 'ready once 0096 is installed')
+        const invalid = await call(admit, A, base, create(w, [w.sourceId]))
+        assert.notEqual(invalid.status, 202, JSON.stringify(invalid.json))
+        assert.equal(await writes(w.projectId), 0, "0096's source check refuses the ineligible source before a write")
+        const valid = await call(admit, A, base, create(w, []))
+        assert.equal(valid.status, 202, JSON.stringify(valid.json))
+        const { rows } = await owner.query<{ v: number }>(
+          `SELECT envelope_version AS v FROM sophia.owner_runner_operations WHERE id=$1`,
+          [valid.json.operationId],
+        )
+        assert.equal(rows[0]?.v, 2, 'admitted as a v2 operation with its source facts')
+        assert.equal((await call(off, A, base)).status, 200, 'reads answer once installed')
+      })
+  })
+}

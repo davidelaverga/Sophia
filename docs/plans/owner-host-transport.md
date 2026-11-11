@@ -352,3 +352,49 @@ No source, runtime, migration, contract, generated, pack or release-amendment by
 **Base.** INC01-CC-005 `33c020af` (tree `e1efbfd1`) is a development parent only. Its final gate holds integration on
 two P1 authority races, so it is not release-ready. Root retargets this documentation onto the accepted repaired parent
 and proves doc equivalence before the whole-source gate. Nothing here is a live qualification.
+
+## repair7 B: no read bearer in a successful reply (NATIVE6-F02)
+
+**Base.** Published `5eb86c22` (tree `7877ab02`), a development child only. Written before the code. The other P1
+(NATIVE6-F01, runner readiness) and the CC005 docs belong to repair7 A. The S2 patch at `22c9eee8` is not part of
+this candidate.
+
+**Finding.** `decodedReply` returns every successful decoded body unchanged; only a failure is masked. A bearer the
+transport sent, echoed by T3 in a success, therefore leaves the transport. For example, as a `runId` next to the
+expected thread: `classifyReply` accepts it, the gateway fsyncs it, and the agent answers it on the channel. The
+review adds two siblings:
+
+- a bearer with `"` or `\` decodes equal to the value, though `JSON.stringify` of the body does not contain it;
+- a request's own bearer can be evicted from the last-8 history by more than eight later reads while its reply is in
+  flight.
+
+**Repair (transport only).**
+
+- **Request-local bearers.** Each call keeps the bearer(s) it actually sent in a local set, until its own reply is
+  returned. Those plus the bounded last-8 history are the values guarded. History stays 8: nothing unbounded, no reread.
+- **Reject the whole body.** A successful body is refused if any guarded value occurs in:
+  - any decoded string (top-level, nested, in arrays);
+  - any object key;
+  - any primitive's text;
+  - the tool's raw text;
+  - the JSON-escaped form of any of those.
+
+  The answer is a fixed `transport_error`. The gateway keeps it `unknown` with the original identity, so it is
+  reconciled and never sent again. Nothing is redacted or rewritten into a receipt, and nothing claims `not_sent` or a
+  refusal before dispatch.
+- **Unchanged:** clean successes (exact native ids), failure masking and truncation, the error-name snapshot, the
+  protocol, namespace, time, byte and HTTP-status rules, and the 404 renewal.
+
+**Not changed:** the gateway, the agent, persistence and the database channel. The boundary holds at the transport.
+
+**Tests (one test file; synthetic, marked values only; injected fetch; no network).** Through the real transport,
+gateway, fsynced journal and owner-host agent to a fake channel:
+
+- a bearer echoed as `runId`: the current one, a rotated one, one Unicode-escaped, and one with `"` and `\`;
+- nested values, keys and primitives;
+- a bearer inside a longer string;
+- a request's own bearer after nine concurrent rotations.
+
+Each answers `unknown` with no bearer in the reply, the journal bytes or the channel answer. A clean launch is still
+received with its exact ids. Fail-before on exact `5eb`, then minimal mutants: guard removed, escaped-form check
+removed, request-local set removed.
