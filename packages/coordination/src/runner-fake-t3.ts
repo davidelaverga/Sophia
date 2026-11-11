@@ -2,6 +2,11 @@
  * A FAKE T3 transport for tests: an in-memory stand-in that derives identities the way the pin does
  * (t3-port-mapping.ts) and counts every native effect. Synthetic only: it proves the gateway's and the service's
  * transitions, never that a T3 install, an account or a provider works. It is never a live transport.
+ *
+ * Its launch takes the pin's optional `workspaceStrategy` and `modelSelection` in their exact shapes
+ * (packages/contracts/src/orchestrationV2.ts:654-670, modelSelection.ts:9-50; refused `invalid_request` before any effect
+ * otherwise) and echoes the thread's stored selection as the pin's launch result does (project/tools.ts:157-164). Like
+ * the pin, the echo is the thread's selection, not what a run used, and nothing checks out a base here.
  * @module @sophia/coordination/runner-fake-t3
  */
 import { launchCommandId, stableMessageId, type T3Call, type T3Reply, type T3Transport } from './t3-port-mapping.ts'
@@ -19,6 +24,41 @@ interface FakeThread {
   projectId: string
   runs: FakeRun[]
   messages: FakeMessage[]
+  /** What the launch asked for, as given: the pin keeps both on the thread. */
+  workspaceStrategy: unknown
+  modelSelection: unknown
+}
+
+/** The selection a fake thread gets when its launch names none: a stand-in for T3's project defaults, never real. */
+export const FAKE_DEFAULT_SELECTION = { instanceId: 'fake-default', model: 'fake-default-model' } as const
+
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
+const nonBlank = (v: unknown) => typeof v === 'string' && v.trim().length > 0
+const keysIn = (v: Record<string, unknown>, allowed: readonly string[]) =>
+  Object.keys(v).every((k) => allowed.includes(k))
+
+/** The pin's OrchestrationV2ThreadLaunchWorkspaceStrategy, or false. */
+function workspaceOk(v: unknown): boolean {
+  if (!isObj(v)) return false
+  if (v.type === 'root') return keysIn(v, ['type', 'branch'])
+  if (v.type === 'existing_worktree') return keysIn(v, ['type', 'worktreePath', 'branch']) && nonBlank(v.worktreePath)
+  if (v.type !== 'worktree' || !keysIn(v, ['type', 'baseRef', 'branch', 'startFromOrigin'])) return false
+  return nonBlank(v.baseRef) && (v.startFromOrigin === undefined || typeof v.startFromOrigin === 'boolean')
+}
+
+/** The pin's ModelSelection: a slug instance, a model, and options of {id, value: non-blank text or boolean}. */
+function selectionOk(v: unknown): boolean {
+  if (!isObj(v) || !keysIn(v, ['instanceId', 'model', 'options'])) return false
+  if (typeof v.instanceId !== 'string' || !/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(v.instanceId) || !nonBlank(v.model))
+    return false
+  if (v.options === undefined) return true
+  return (
+    Array.isArray(v.options) &&
+    v.options.every(
+      (o: unknown) =>
+        isObj(o) && keysIn(o, ['id', 'value']) && nonBlank(o.id) && (typeof o.value === 'boolean' || nonBlank(o.value)),
+    )
+  )
 }
 
 /** A fault for the next call of a tool: answered with a typed failure, lost after (or before) the effect, or altered. */
@@ -114,12 +154,19 @@ export class FakeT3 implements T3Transport {
     const threadId = launchCommandId(this.session, String(a.clientRequestId))
     let thread = this.threads.get(threadId)
     if (!thread) {
+      // The pin decodes its input before anything happens: a malformed strategy or selection is no effect at all.
+      if (a.workspaceStrategy !== undefined && !workspaceOk(a.workspaceStrategy))
+        return { kind: 'failure', code: 'invalid_request', message: 'fake: malformed workspaceStrategy' }
+      if (a.modelSelection !== undefined && !selectionOk(a.modelSelection))
+        return { kind: 'failure', code: 'invalid_request', message: 'fake: malformed modelSelection' }
       const run = this.nextRun('running')
       thread = {
         threadId,
         projectId: String(a.projectId),
         runs: [run],
         messages: [{ messageId: threadId, runId: run.runId }],
+        workspaceStrategy: a.workspaceStrategy ?? { type: 'root' },
+        modelSelection: a.modelSelection ?? FAKE_DEFAULT_SELECTION,
       }
       this.threads.set(threadId, thread)
       this.effects.launches += 1
@@ -127,7 +174,13 @@ export class FakeT3 implements T3Transport {
     const run = thread.runs[0]
     return {
       kind: 'ok',
-      body: { threadId, projectId: thread.projectId, runId: run?.runId ?? null, status: run?.status ?? null },
+      body: {
+        threadId,
+        projectId: thread.projectId,
+        modelSelection: thread.modelSelection,
+        runId: run?.runId ?? null,
+        status: run?.status ?? null,
+      },
     }
   }
 

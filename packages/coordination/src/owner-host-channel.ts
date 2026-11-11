@@ -5,6 +5,10 @@
  * exchanges with a capability it generated itself, asks for GO immediately before its gateway acts on a send, and
  * answers. Both sides reach the channel through these interfaces only: in this slice the database functions, later a
  * route. Nothing here grants authority; the host capability authenticates the channel and nothing else.
+ *
+ * Source authority (INC01-CC-005, 0096): an exchange carries Sophia's envelope exactly, and a v2 envelope is
+ * content-free. A v2 send's instruction never sits in an exchange or a poll: it is returned only with a GO that Sophia
+ * granted after its last recheck (`GoResult.payload`), and the host's gateway checks it against the envelope's digest.
  * @module @sophia/coordination/owner-host-channel
  */
 import { createHash, randomBytes } from 'node:crypto'
@@ -211,8 +215,13 @@ export interface Delivered {
   readonly deadlineAt: string
 }
 
+/**
+ * GO, or not. A granted GO for a v2 send carries its instruction (`payload`: the canonical text whose SHA-256 is the
+ * envelope's payloadSha256), read by Sophia under the same recheck; a v1 send's GO carries none. A refusal never does.
+ */
 export type GoResult =
-  { readonly result: 'go' } | { readonly result: 'denied'; readonly reason: string; readonly grantedBefore: boolean }
+  | { readonly result: 'go'; readonly payload?: string }
+  | { readonly result: 'denied'; readonly reason: string; readonly grantedBefore: boolean }
 
 export type AnswerResult = { readonly result: 'ok' } | { readonly result: 'conflict' }
 

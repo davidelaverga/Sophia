@@ -442,3 +442,45 @@ describe('one writer per journal (R1-F02)', () => {
     assert.throws(() => k.append('intent', OP, { digest, envelope, identity }), JournalLocked)
   })
 })
+
+describe('a journal holding v1 and v2 intents (INC01-CC-005, 0096)', () => {
+  it('reloads both, binds each by its own digest, and keeps no instruction text', () => {
+    const file = join(root, `journal-v2-${randomUUID()}.jsonl`)
+    const journal = new RunnerJournal(file)
+    const v1 = { ...envelope, operationId: '00000000-0000-4000-8000-0000000000e1' }
+    const { message: _m, title: _t, ...common } = envelope
+    const v2 = {
+      ...common,
+      operationId: '00000000-0000-4000-8000-0000000000e2',
+      v: 2,
+      payloadSha256: 'a'.repeat(64),
+      manifestSha256: 'c'.repeat(64),
+      baseCommit: '0123456789abcdef0123456789abcdef01234567',
+      writeScope: 'read_only',
+      settings: { instanceId: 'claudeAgent', model: 'synthetic-model', options: [] },
+    } as unknown as RunnerEnvelope
+    for (const e of [v1, v2]) {
+      journal.append('intent', e.operationId, {
+        digest: digestOf(e),
+        envelope: e,
+        identity: deriveIdentity(e, 'client:s1'),
+      })
+      journal.append('possible_send', e.operationId, {})
+    }
+    journal.close()
+    const reopened = new RunnerJournal(file)
+    assert.equal(reopened.entry(v1.operationId)?.envelope?.v, 1)
+    assert.equal(reopened.entry(v2.operationId)?.envelope?.v, 2)
+    assert.equal(reopened.entry(v2.operationId)?.digest, digestOf(v2))
+    reopened.close()
+    assert.equal(
+      readFileSync(file, 'utf8').includes('"message"'),
+      true,
+      'the v1 intent keeps its inline text, as before',
+    )
+    const v2Line = readFileSync(file, 'utf8')
+      .split('\n')
+      .find((l) => l.includes(v2.operationId) && l.includes('"intent"'))
+    assert.equal(v2Line?.includes('"message"'), false, 'the v2 intent holds no instruction')
+  })
+})

@@ -12,7 +12,14 @@
  * @module @sophia/coordination/t3-port-mapping
  */
 import { createHash } from 'node:crypto'
-import type { NativeIdentity, RunnerAnswer, RunnerDelivery, RunnerEnvelope } from './runner-port.ts'
+import {
+  envelopeV2,
+  type NativeIdentity,
+  type RunnerAnswer,
+  type RunnerDelivery,
+  type RunnerEnvelope,
+  type RunnerPayload,
+} from './runner-port.ts'
 
 export const T3_SOURCE_PIN = 'ade473018d32003658b7d38693e083ee2e314bd8'
 
@@ -69,6 +76,19 @@ const DEFINITE_REFUSALS = new Set([
   'invalid_request',
 ])
 
+/**
+ * Repair 1 (CC005-E7-F01): a native code is named in a diagnostic only when it is one the pin defines and this mapping
+ * lists; nothing else a runner or transport says (a failure's message, an unlisted code, a delivery or status, a
+ * transport or thrown error's text) is ever copied into an answer, a journal record, a reason or a view. It may echo
+ * the private instruction it was sent.
+ */
+const KNOWN_CODES = new Set([...DEFINITE_REFUSALS, 'orchestration_error'])
+export const codeLabel = (code: unknown): string =>
+  typeof code === 'string' && KNOWN_CODES.has(code) ? code : 'an unlisted code'
+const KNOWN_DELIVERIES = new Set(['auto', 'steered', 'restarted'])
+/** The fixed diagnostic of an uncertain call: the reply was lost, or the transport failed or threw. */
+export const NO_CERTAIN_ANSWER = 'no certain answer: the call failed or its reply was lost'
+
 /** The key T3 derives identities from: Sophia's global operation id, never a member's idempotency key. */
 export const clientRequestIdOf = (operationId: string): string => `sophia:${operationId}`
 
@@ -104,9 +124,46 @@ export function deriveIdentity(envelope: RunnerEnvelope, namespace: string): Nat
   return { namespace, commandId: stableCommandId(namespace, 'thread-stop', key), messageId: null, threadId }
 }
 
-/** The one call an operation maps to. An input is always queued: never auto, steer or restart. */
-export function callFor(envelope: RunnerEnvelope, environmentId: string): T3Call {
+/**
+ * The one call an operation maps to. An input is always queued: never auto, steer or restart.
+ *
+ * A v2 envelope (0096) carries no text: its instruction is `payload`, which the gateway checked against the envelope's
+ * digest before calling this. A v2 create also asks for its requested base and settings in the pin's exact shapes:
+ * `workspaceStrategy: {type: "worktree", baseRef}` (packages/contracts/src/orchestrationV2.ts:654-670) and
+ * `modelSelection: {instanceId, model, options: [{id, value}]}` (modelSelection.ts:9-50), both accepted by
+ * t3_thread_launch (apps/server/src/mcp/toolkits/project/tools.ts:124-164). t3_thread_send takes neither
+ * (orchestratorMcp.ts:501-513): an input runs in its create's thread. Asking is not proof: T3's base check is
+ * permissive and its echo of the selection is the thread's stored one, never what a run used.
+ */
+export function callFor(envelope: RunnerEnvelope, environmentId: string, payload?: RunnerPayload): T3Call {
   const clientRequestId = clientRequestIdOf(envelope.operationId)
+  const v2 = envelopeV2(envelope)
+  if (v2) {
+    if (!payload) throw new Error('a v2 envelope is sent with its checked payload')
+    if (v2.kind === 'input') {
+      return {
+        tool: 't3_thread_send',
+        args: { environmentId, threadId: v2.nativeThreadId, message: payload.message, mode: 'queue', clientRequestId },
+      }
+    }
+    return {
+      tool: 't3_thread_launch',
+      args: {
+        environmentId,
+        projectId: v2.nativeProjectRef,
+        title: payload.title,
+        message: payload.message,
+        runtimeMode: T3_RUNTIME_MODE,
+        workspaceStrategy: { type: 'worktree', baseRef: v2.baseCommit },
+        modelSelection: {
+          instanceId: v2.settings.instanceId,
+          model: v2.settings.model,
+          options: v2.settings.options.map((o) => ({ id: o.id, value: o.value })),
+        },
+        clientRequestId,
+      },
+    }
+  }
   if (envelope.kind === 'create') {
     return {
       tool: 't3_thread_launch',
@@ -185,7 +242,7 @@ function inputAnswer(identity: NativeIdentity, body: Record<string, unknown>): R
   return {
     kind: 'unknown',
     identity,
-    reason: `T3 reported a ${String(delivery)} delivery; queue was requested`,
+    reason: `T3 reported ${typeof delivery === 'string' && KNOWN_DELIVERIES.has(delivery) ? `a ${delivery}` : 'another'} delivery; queue was requested`,
     violation: true,
   }
 }
@@ -199,11 +256,11 @@ function stopDelivery(status: unknown): RunnerDelivery | null {
 
 /** Classify a reply to the operation's own call, against the identities derived before it was made. */
 export function classifyReply(envelope: RunnerEnvelope, identity: NativeIdentity, reply: T3Reply): RunnerAnswer {
-  if (reply.kind === 'transport_error') return unknownWith(identity, `no certain answer: ${reply.reason}`)
+  if (reply.kind === 'transport_error') return unknownWith(identity, NO_CERTAIN_ANSWER)
   if (reply.kind === 'failure') {
     return DEFINITE_REFUSALS.has(reply.code)
-      ? { kind: 'rejected', identity, code: reply.code, reason: reply.message.slice(0, 500) }
-      : unknownWith(identity, `T3 failed with ${reply.code}; an effect is not ruled out`)
+      ? { kind: 'rejected', identity, code: reply.code, reason: 'refused before any effect' }
+      : unknownWith(identity, `T3 failed with ${codeLabel(reply.code)}; an effect is not ruled out`)
   }
   const body = reply.body
   if (!isRecord(body)) return unknownWith(identity, 'T3 answered without a result')

@@ -15,7 +15,8 @@ import {
 import { FakeT3 } from './runner-fake-t3.ts'
 import { RunnerGateway, type GatewayProfile } from './runner-gateway.ts'
 import { RunnerJournal } from './runner-journal.ts'
-import { digestOf, type RunnerAnswer, type RunnerEnvelope, type RunObservation } from './runner-port.ts'
+import { canonicalJson } from './canonical.ts'
+import { digestOf, sha256Hex, type RunnerAnswer, type RunnerEnvelope, type RunObservation } from './runner-port.ts'
 import { launchCommandId } from './t3-port-mapping.ts'
 
 const root = mkdtempSync(join(tmpdir(), 'sophia-owner-host-agent-'))
@@ -305,5 +306,70 @@ describe('the owner-host agent', () => {
     })
     await agent.run(ac.signal)
     assert.deepEqual(sleeps, [5, 5, 5])
+  })
+})
+
+describe('the owner-host agent under source authority (INC01-CC-005, 0096)', () => {
+  const POLICY = {
+    v: 1,
+    instanceId: 'claudeAgent',
+    models: [{ model: 'synthetic-model', options: [{ id: 'effort', values: ['high'] }] }],
+  } as const
+  const payload = canonicalJson({ message: 'A private instruction.', title: 'A title' })
+  const { message: _m, title: _t, ...common } = env()
+  const v2 = {
+    ...common,
+    v: 2,
+    payloadSha256: sha256Hex(payload),
+    manifestSha256: 'c'.repeat(64),
+    baseCommit: '0123456789abcdef0123456789abcdef01234567',
+    writeScope: 'read_only',
+    settings: { instanceId: 'claudeAgent', model: 'synthetic-model', options: [{ id: 'effort', value: 'high' }] },
+  } as unknown as RunnerEnvelope
+  function sourcedHost() {
+    const journal = new RunnerJournal(join(root, `journal-${(n += 1)}.jsonl`))
+    const t3 = new FakeT3(NS)
+    const gateway = new RunnerGateway({ journal, transport: t3, profile: { ...profile, sourcePolicy: POLICY } })
+    open.push(gateway)
+    const channel = new Channel()
+    const hello: HostHello = {
+      v: 1,
+      journalId: journal.id,
+      environmentRef: profile.environmentRef,
+      adapterPin: profile.adapterPin,
+      profileId: profile.profileId,
+      profileRevision: 1,
+      accountKey: profile.accountKey,
+      t3Namespace: NS,
+    }
+    const agent = new OwnerHostAgent({ channel, gateway, journal, hello, log: () => undefined })
+    channel.queue.push({
+      exchangeId: 'x-send',
+      kind: 'send',
+      request: exchangeRequest('send', v2, journal.id),
+      deadlineAt: '',
+    })
+    return { channel, agent, t3, journal }
+  }
+
+  it('hands the gateway exactly the instruction its GO carried, and journals none of it', async () => {
+    const h = sourcedHost()
+    h.channel.goes.push({ result: 'go', payload })
+    assert.deepEqual(await h.agent.serveOnce(), ['answered'])
+    assert.equal(h.t3.calls.find((c) => c.tool === 't3_thread_launch')?.args.message, 'A private instruction.')
+    assert.equal(h.channel.answers[0]?.answer.kind, 'received')
+  })
+
+  it('a GO without the instruction, or with another one, is refused by the gateway: nothing reaches T3', async () => {
+    for (const go of [
+      { result: 'go' } as const,
+      { result: 'go', payload: payload.replace('private', 'public') } as const,
+    ]) {
+      const h = sourcedHost()
+      h.channel.goes.push(go)
+      assert.deepEqual(await h.agent.serveOnce(), ['refused'])
+      assert.equal(h.t3.calls.length, 0)
+      assert.equal(h.journal.entry(env().operationId)?.possibleSend ?? false, false)
+    }
   })
 })

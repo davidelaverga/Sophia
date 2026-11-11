@@ -16,6 +16,9 @@
  * exact-thread proof, a create's or input's its own run's known status; anything else is unknown.
  * A possible send that was granted GO is never turned into refused or rejected, never re-sent and never given a fresh
  * key. Reconcile and observe are reads: with no host or no answer they are unknown, never refused.
+ *
+ * A v2 send's payload (0096) is never carried by the proxy: the exchange holds the content-free envelope, and the host
+ * receives the instruction only from a GO granted after Sophia's last recheck. A payload handed to `send` is dropped.
  * @module @sophia/coordination/owner-host-port-proxy
  */
 import { randomUUID } from 'node:crypto'
@@ -27,7 +30,6 @@ import {
   EXCHANGE_DEADLINE_MIN_MS,
   exchangeRequest,
   readKey,
-  redact,
   sendKey,
   type ExchangeKind,
   type ExchangeStore,
@@ -111,7 +113,8 @@ export class OwnerHostPortProxy implements SophiaRunnerPort {
     }
   }
 
-  async send(envelope: RunnerEnvelope, digest: string, journalId: string): Promise<RunnerAnswer> {
+  /** `_payload` is ignored: the owner's host receives a v2 instruction only with its GO, never in an exchange. */
+  async send(envelope: RunnerEnvelope, digest: string, journalId: string, _payload?: string): Promise<RunnerAnswer> {
     if (journalId !== this.o.journalId) return { kind: 'unknown', identity: null, reason: 'bound to another journal' }
     // Nothing is queued for a digest that does not bind its envelope, so nothing can be sent for it.
     if (digestOf(envelope) !== digest) return { kind: 'refused', reason: 'the digest does not bind the envelope' }
@@ -172,8 +175,8 @@ export class OwnerHostPortProxy implements SophiaRunnerPort {
     let raw: unknown
     try {
       raw = await this.read('reconcile', identity)
-    } catch (err) {
-      return { kind: 'unknown', identity: null, reason: `the owner host was not reached: ${redact(String(err))}` }
+    } catch {
+      return { kind: 'unknown', identity: null, reason: 'the owner host was not reached' }
     }
     if (raw === null) return { kind: 'unknown', identity: null, reason: 'no answer from an owner host of this journal' }
     const answer = checkRunnerAnswer(raw)
@@ -185,8 +188,8 @@ export class OwnerHostPortProxy implements SophiaRunnerPort {
     let raw: unknown
     try {
       raw = await this.read('observe', identity)
-    } catch (err) {
-      return { kind: 'unknown', reason: `the owner host was not reached: ${redact(String(err))}` }
+    } catch {
+      return { kind: 'unknown', reason: 'the owner host was not reached' }
     }
     if (raw === null) return { kind: 'unknown', reason: 'no answer from an owner host of this journal' }
     // Checked for ITS operation (r5): a stop settles only from the complete exact-thread proof; a create or input only

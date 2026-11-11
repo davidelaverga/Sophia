@@ -9,6 +9,9 @@
  * read-back, never a new send; otherwise `refused`, since the gateway never saw it. Reconcile and observe go straight to
  * the gateway: they are reads that start no turn. After a restart it reopens the SAME journal file (its lock keeps a
  * second writer out), and a redelivered send is answered from that journal.
+ *
+ * A v2 send (0096) reaches the gateway with the payload its GO carried, and with nothing else: the agent never reads,
+ * keeps or logs an instruction, and a GO without one leaves the gateway to refuse the send before journaling it.
  * @module @sophia/coordination/owner-host-agent
  */
 import {
@@ -161,7 +164,8 @@ export class OwnerHostAgent {
       this.log(`owner host: exchange ${exchangeId}: no GO: ${err instanceof Error ? err.message : String(err)}`)
       return null
     }
-    if (go.result === 'go') return this.o.gateway.send(identity.envelope, identity.digest, identity.journalId)
+    if (go.result === 'go')
+      return this.o.gateway.send(identity.envelope, identity.digest, identity.journalId, go.payload)
     if (go.grantedBefore) return this.o.gateway.reconcile(identity)
     if (this.o.journal.entry(identity.envelope.operationId)) {
       // The journal holds an operation Sophia never granted: the ledgers disagree. Nothing is claimed either way.

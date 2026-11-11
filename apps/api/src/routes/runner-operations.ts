@@ -10,6 +10,11 @@
 // owner still reads each operation's state, its uncertainty and its native identities. A database that never had 0092
 // is not an empty list: its reads answer projection_unavailable (503), so an old installation is never reported as
 // "nothing".
+//
+// Source authority (INC01-CC-005, migration 0096, amendment A50): a create names its project sources, base, write scope
+// and settings, and an input a subset of its create's sources; the database refuses any of them missing, ineligible or
+// outside the route's declared policy before a write. A read's instruction is rechecked now: `withdrawn` keeps the
+// operation's state, identities, Stop and reconciliation. Nothing here claims what a run used.
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import type { OwnerRunnerOperationRequest } from '@sophia/contracts'

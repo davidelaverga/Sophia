@@ -34,6 +34,7 @@ import {
   createPool,
   maintainRunnerOperations,
   prepareRunnerSend,
+  readRunnerOperation,
   recordRunnerAnswer,
   runnerFollowups,
   withActor,
@@ -44,6 +45,14 @@ import { runnerDispatchFromEnv, runnerDispatchOnce } from './runner-dispatch.ts'
 /** The admission request, as persistence takes it (the worker does not depend on the contracts package). */
 type OwnerRunnerOperationRequest = Parameters<typeof admitRunnerOperation>[3]
 const PIN = 'ade473018d32003658b7d38693e083ee2e314bd8'
+/** SYNTHETIC source facts (0096): a requested base and a declared policy with one model and one effort option. */
+const BASE = '0123456789abcdef0123456789abcdef01234567'
+const POLICY = {
+  v: 1,
+  instanceId: 'claudeAgent',
+  models: [{ model: 'synthetic-model', options: [{ id: 'effort', values: ['low', 'high'] }] }],
+} as const
+const SETTINGS = { instanceId: 'claudeAgent', model: 'synthetic-model', options: [{ id: 'effort', value: 'high' }] }
 
 let db: TestDatabase
 let api: pg.Pool
@@ -88,6 +97,7 @@ interface Op {
   native_run_id: string | null
   native_delivery: string | null
   binding_id: string
+  payload_source_id: string | null
   account_key: string
   gateway_journal_id: string | null
 }
@@ -232,14 +242,19 @@ async function world({
      VALUES ($1, $2, $3, $4, 'claude-native', 'Synthetic Claude Code', 'synthetic/repository', 'active')`,
     [p.projectId, resourceId, who, connectionId],
   )
-  const qualify = async (key: string, profileId = 'read-only-v1') =>
-    (
-      await one<{ id: string }>(
-        `SELECT sophia.qualify_owner_runner($1, $2, $3, 'env-owner-1', 'project-sophia', $5, 1, 'gateway_enforced',
-           $4, ARRAY['create','input','stop'], $6, now() + interval '1 day', 'synthetic fixture: not a live qualification') AS id`,
-        [p.projectId, resourceId, PIN, key, profileId, allowance],
-      )
-    ).id
+  const qualify = async (key: string, profileId = 'read-only-v1') => {
+    const { id } = await one<{ id: string }>(
+      `SELECT sophia.qualify_owner_runner($1, $2, $3, 'env-owner-1', 'project-sophia', $5, 1, 'gateway_enforced',
+         $4, ARRAY['create','input','stop'], $6, now() + interval '1 day', 'synthetic fixture: not a live qualification') AS id`,
+      [p.projectId, resourceId, PIN, key, profileId, allowance],
+    )
+    await owner.query(`SELECT sophia.declare_owner_runner_source_policy($1, $2, $3)`, [
+      p.projectId,
+      id,
+      JSON.stringify(POLICY),
+    ])
+    return id
+  }
   const qualificationId = await qualify(accountKey)
   const profile: GatewayProfile = {
     ownerId: who,
@@ -250,6 +265,7 @@ async function world({
     profileId: 'read-only-v1',
     profileRevision: 1,
     operations: new Set(['create', 'input', 'stop'] as const),
+    sourcePolicy: POLICY,
   }
   const journalFile = join(root, `${randomUUID()}.jsonl`)
   const gateway = new RunnerGateway({ journal: new RunnerJournal(journalFile), transport: transport ?? t3, profile })
@@ -276,9 +292,20 @@ async function world({
       message: 'Report the Ask admission boundary.',
       expectedGoalRevision: 1,
       expectedAuthorityEpoch: 1,
+      sourceIds: [],
+      baseCommit: BASE,
+      writeScope: 'read_only',
+      settings: SETTINGS,
     })
   const input = (target: string, message = 'And the outbox boundary?') =>
-    admit({ kind: 'input', targetOperationId: target, message, expectedGoalRevision: 1, expectedAuthorityEpoch: 1 })
+    admit({
+      kind: 'input',
+      targetOperationId: target,
+      message,
+      expectedGoalRevision: 1,
+      expectedAuthorityEpoch: 1,
+      sourceIds: [],
+    })
   const stop = (target: string, key?: string) => admit({ kind: 'stop', targetOperationId: target }, key)
   const pass = (opts: { sends?: boolean; port?: SophiaRunnerPort; minAge?: number } = {}) =>
     runnerDispatchOnce(worker, {
@@ -421,7 +448,8 @@ describe('the owner-runner path', () => {
     assert.equal(prepared.result, 'send')
     if (prepared.result !== 'send') return
     assert.equal(
-      (await w.gateway.send(prepared.envelope, digestOf(prepared.envelope), w.gateway.journalId)).kind,
+      (await w.gateway.send(prepared.envelope, digestOf(prepared.envelope), w.gateway.journalId, prepared.payload))
+        .kind,
       'received',
     )
     // The worker died before recording; the owner host restarted its gateway on the same journal: same journal id.
@@ -622,7 +650,8 @@ describe('only the bound journal speaks, and nothing proves no send (R1-F01, R2-
       // T3 applies the launch and the receipt is lost; the worker then dies before recording anything in SQL.
       w.t3.inject('t3_thread_launch', { kind: 'lose_after_effect' })
       assert.equal(
-        (await w.gateway.send(prepared.envelope, digestOf(prepared.envelope), w.gateway.journalId)).kind,
+        (await w.gateway.send(prepared.envelope, digestOf(prepared.envelope), w.gateway.journalId, prepared.payload))
+          .kind,
         'unknown',
       )
       const boundTo = w.gateway.journalId
@@ -1315,6 +1344,736 @@ describe('maintenance takes its locks in the recorder order (integrated r2, F03)
     assert.deepEqual(await reservations(w.accountKey), [{ binding_id: kept.binding_id }])
     assert.equal(w.t3.calls.length, 0)
   })
+})
+
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, ms)
+  })
+const dbNow = async () => (await one<{ t: Date }>('SELECT clock_timestamp() AS t')).t
+
+/**
+ * Run `work` while another transaction holds `lockSql`, until the database's actual clock is past `until`; check that
+ * the work is still waiting (`waiting`), then release the lock and return what the work did.
+ */
+async function whileLocked<T>(
+  lockSql: string,
+  params: unknown[],
+  until: Date,
+  work: () => Promise<T>,
+  waiting: () => Promise<void>,
+): Promise<T> {
+  const locker = await owner.connect()
+  let open = false
+  try {
+    await locker.query('BEGIN')
+    open = true
+    await locker.query(lockSql, params)
+    assert.ok((await dbNow()) < until, 'the work starts before the deadline')
+    const running = work()
+    while ((await dbNow()) <= until) await sleep(50)
+    await sleep(150)
+    await waiting()
+    await locker.query('ROLLBACK')
+    open = false
+    return await running
+  } finally {
+    if (open) await locker.query('ROLLBACK').catch(() => undefined)
+    locker.release()
+  }
+}
+
+/** Expire the route's qualification or its connection at `at` (the database's clock). */
+async function expireAt(w: { qualificationId: string; connectionId: string }, what: string, at: Date) {
+  if (what === 'qualification')
+    await owner.query(`UPDATE sophia.owner_runner_qualifications SET expires_at=$2 WHERE id=$1`, [
+      w.qualificationId,
+      at,
+    ])
+  else await owner.query(`UPDATE sophia.execution_connections SET expires_at=$2 WHERE id=$1`, [w.connectionId, at])
+}
+
+describe('the decision clock: expiry is judged after every wait, before the possible send (INC01-30813-EXPIRY-F01)', () => {
+  for (const what of ['qualification', 'connection'] as const) {
+    for (const expires of [true, false]) {
+      it(`a ${what} that ${expires ? 'expires' : 'stays valid'} while prepare-send waits on the project is ${expires ? 'denied with no native call' : 'sent once (control)'}`, async () => {
+        const w = await world()
+        const created = await w.create()
+        const until = new Date((await dbNow()).getTime() + 1200)
+        await expireAt(w, what, expires ? until : new Date(until.getTime() + 3_600_000))
+        const pass = await whileLocked(
+          'SELECT 1 FROM sophia.projects WHERE id=$1 FOR UPDATE',
+          [w.projectId],
+          until,
+          () => w.pass(),
+          async () => assert.equal((await op(created.operationId)).state, 'admitted', 'still waiting on the project'),
+        )
+        const o = await op(created.operationId)
+        if (expires) {
+          assert.deepEqual(pass.prepared, ['denied'])
+          assert.deepEqual(pass.sent, [])
+          assert.equal(o.state, 'denied')
+          assert.match(o.reason ?? '', /expired|revoked, expired or changed/)
+          assert.equal(w.t3.calls.length, 0, 'no native call after the expiry')
+          assert.deepEqual(await reservations(w.accountKey), [], 'no account commitment')
+          assert.equal((await binding(o.binding_id)).state, 'settled')
+        } else {
+          assert.deepEqual(pass.prepared, ['send'])
+          assert.deepEqual(pass.sent, ['received'])
+          assert.equal(o.state, 'received')
+          assert.equal(w.t3.effects.launches, 1)
+        }
+      })
+    }
+  }
+
+  for (const expires of [true, false]) {
+    it(`an input whose qualification ${expires ? 'expires' : 'stays valid'} while prepare-send waits on the account's reservation is ${expires ? 'denied, its binding still committed' : 'sent once (control)'}`, async () => {
+      const w = await world()
+      const created = await w.create()
+      await w.pass()
+      assert.equal((await op(created.operationId)).state, 'received')
+      const input = await w.input(created.operationId)
+      const until = new Date((await dbNow()).getTime() + 1200)
+      await expireAt(w, 'qualification', expires ? until : new Date(until.getTime() + 3_600_000))
+      const pass = await whileLocked(
+        'SELECT 1 FROM sophia.owner_runner_reservations WHERE account_key=$1 FOR UPDATE',
+        [w.accountKey],
+        until,
+        () => w.pass(),
+        async () => assert.equal((await op(input.operationId)).state, 'admitted', 'still waiting on the account'),
+      )
+      const o = await op(input.operationId)
+      if (expires) {
+        assert.deepEqual(pass.prepared, ['denied'])
+        assert.equal(o.state, 'denied')
+        assert.equal(w.t3.count('t3_thread_send'), 0, 'no native message after the expiry')
+        assert.equal(w.t3.effects.messages, 0)
+        // The create's own possible commitment is kept: its binding still holds the account.
+        assert.deepEqual(await reservations(w.accountKey), [{ binding_id: o.binding_id }])
+        assert.equal((await op(created.operationId)).state, 'received')
+      } else {
+        assert.deepEqual(pass.prepared, ['send'])
+        assert.equal(o.state, 'received')
+        assert.equal(w.t3.effects.messages, 1)
+      }
+    })
+  }
+})
+
+/**
+ * The FROZEN 0092 bytes of admission, eligibility and prepare-send, installed under legacy names: exactly how an operation
+ * was admitted, prepared and sent BEFORE 0096. 0092 is not edited, and the current functions stay 0096's.
+ */
+let legacyInstalled = false
+async function installLegacy0092() {
+  if (legacyInstalled) return
+  const sql = readFileSync(new URL('../../../db/migrations/0092_owner_runner_operations.sql', import.meta.url), 'utf8')
+  const fn = (name: string) => {
+    const start = sql.indexOf(`CREATE FUNCTION sophia.${name}(`)
+    assert.ok(start >= 0, name)
+    return sql.slice(start, sql.indexOf('END $$;', start) + 'END $$;'.length)
+  }
+  const ineligible = fn('owner_runner_ineligible').replace(
+    'sophia.owner_runner_ineligible(',
+    'sophia.legacy0092_ineligible(',
+  )
+  const admitFn = fn('admit_owner_runner_operation').replace(
+    'sophia.admit_owner_runner_operation(',
+    'sophia.legacy0092_admit(',
+  )
+  const prepare = fn('owner_runner_prepare_send')
+    .replace('sophia.owner_runner_prepare_send(', 'sophia.legacy0092_prepare_send(')
+    .replace('sophia.owner_runner_ineligible(o)', 'sophia.legacy0092_ineligible(o)')
+  for (const statement of [ineligible, admitFn, prepare]) await owner.query(statement)
+  await owner.query(`GRANT EXECUTE ON FUNCTION sophia.legacy0092_admit(uuid,text,jsonb,text) TO sophia_api`)
+  await owner.query(`GRANT EXECUTE ON FUNCTION sophia.legacy0092_prepare_send(uuid,uuid,uuid,uuid) TO sophia_worker`)
+  legacyInstalled = true
+}
+
+type World = Awaited<ReturnType<typeof world>>
+const v1Create = (w: World) => ({
+  kind: 'create',
+  resourceId: w.resourceId,
+  goalId: w.goalId,
+  title: 'Read-only qualification',
+  message: 'A v1 instruction, inline as before 0096.',
+  expectedGoalRevision: 1,
+  expectedAuthorityEpoch: 1,
+})
+/** Admit as 0092 did: the owner on sophia_api, inside withActor. */
+async function legacyAdmit(w: World, request: Record<string, unknown>, key = randomUUID()) {
+  await installLegacy0092()
+  return withActor(api, w.who, 'write', async (c) => {
+    const { rows } = await c.query<{ r: { operationId: string } }>(
+      'SELECT sophia.legacy0092_admit($1, $2, $3, $4) AS r',
+      [w.projectId, key, JSON.stringify(request), digestOf(request)],
+    )
+    return rows[0]?.r ?? assert.fail('no receipt')
+  })
+}
+/** Prepare as 0092 did, send through the owner gateway, and record the answer under the lease. */
+async function legacySend(w: World, operationId: string) {
+  const outbox = (
+    await one<{ outbox_id: string }>(`SELECT outbox_id FROM sophia.owner_runner_operations WHERE id=$1`, [operationId])
+  ).outbox_id
+  const row = (await w.claim()).find((r) => r.id === outbox)
+  assert.ok(row?.lease_token)
+  const { rows } = await worker.query<{ r: { result: string; envelope: Parameters<SophiaRunnerPort['send']>[0] } }>(
+    'SELECT sophia.legacy0092_prepare_send($1, $2, $3, $4) AS r',
+    [w.projectId, row.id, row.lease_token, w.gateway.journalId],
+  )
+  const prepared = rows[0]?.r
+  assert.equal(prepared?.result, 'send')
+  assert.equal(prepared?.envelope.v, 1)
+  const envelope = prepared?.envelope ?? assert.fail('no envelope')
+  const answer = await w.gateway.send(envelope, digestOf(envelope), w.gateway.journalId)
+  await recordRunnerAnswer(
+    worker,
+    { projectId: w.projectId, operationId, leaseToken: row.lease_token, journalId: w.gateway.journalId },
+    answer,
+  )
+  return { envelope, answer }
+}
+const journalRecords = (file: string) =>
+  readFileSync(file, 'utf8')
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l) as { type: string; operationId?: string; digest?: string; envelope?: { v: number } })
+
+describe('v1 operations admitted before 0096: characterized, kept, never given new work', () => {
+  it('a v1 create sent before 0096 keeps its bytes, observation, inline view and qualified Stop, and takes no input', async () => {
+    const w = await world()
+    const created = await legacyAdmit(w, v1Create(w))
+    const { envelope, answer } = await legacySend(w, created.operationId)
+    assert.equal(answer.kind, 'received')
+    const launch = w.t3.calls.find((c) => c.tool === 't3_thread_launch')
+    assert.equal(launch?.args.message, 'A v1 instruction, inline as before 0096.')
+    assert.equal('workspaceStrategy' in (launch?.args ?? {}), false, 'a v1 launch asks for no base')
+    assert.equal('modelSelection' in (launch?.args ?? {}), false, 'and for no settings')
+    // Its envelope now is byte for byte the one journaled before 0096: the same digest binds it for every follow-up.
+    const [followup] = (await runnerFollowups(worker, w.runner, w.gateway.journalId, 50, 0)).filter(
+      (f) => f.operationId === created.operationId,
+    )
+    assert.equal(digestOf(followup?.envelope), digestOf(envelope))
+    const intent = journalRecords(w.journalFile).find((r) => r.type === 'intent')
+    assert.equal(intent?.digest, digestOf(followup?.envelope))
+    const view = await withActor(api, w.who, 'read', (c) => readRunnerOperation(c, w.projectId, created.operationId))
+    assert.equal(view.envelopeVersion, 1)
+    assert.equal(view.content, 'inline')
+    assert.equal(view.message, 'A v1 instruction, inline as before 0096.')
+    assert.equal(view.sourceIds, null)
+    // No new work on a v1 binding: it has no selection to bound an input.
+    assert.equal(await codeOf(w.input(created.operationId)), 'invalid_request')
+    // Its qualified Stop is unchanged: admitted, sent once, settled only by a proven read.
+    await w.stop(created.operationId)
+    await w.pass()
+    assert.equal(w.t3.effects.stops, 1)
+    w.finishAll()
+    await w.pass()
+    await w.pass()
+    assert.equal((await binding((await op(created.operationId)).binding_id)).state, 'settled')
+    assert.deepEqual(await reservations(w.accountKey), [])
+    assert.equal(w.t3.effects.launches, 1)
+  })
+
+  it('a v1 create lost after its effect before 0096 is reconciled by its original identity, never relaunched', async () => {
+    const w = await world()
+    const created = await legacyAdmit(w, v1Create(w))
+    w.t3.inject('t3_thread_launch', { kind: 'lose_after_effect' })
+    assert.equal((await legacySend(w, created.operationId)).answer.kind, 'unknown')
+    assert.equal((await op(created.operationId)).state, 'unknown')
+    await w.pass()
+    assert.equal((await op(created.operationId)).state, 'received')
+    assert.equal(w.t3.count('t3_thread_launch'), 1)
+    assert.equal(w.t3.effects.launches, 1)
+  })
+
+  it('a v1 create admitted before 0096 but never sent is denied at its prepare-send, with no native call', async () => {
+    const w = await world()
+    const created = await legacyAdmit(w, v1Create(w))
+    const pass = await w.pass()
+    assert.deepEqual(pass.prepared, ['denied'])
+    const o = await op(created.operationId)
+    assert.equal(o.state, 'denied')
+    assert.match(o.reason ?? '', /before source authority/)
+    assert.equal(w.t3.calls.length, 0)
+    assert.deepEqual(await reservations(w.accountKey), [])
+    assert.equal((await binding(o.binding_id)).state, 'settled')
+  })
+
+  it('a key first admitted before 0096 replays its first receipt; another request under it conflicts', async () => {
+    const w = await world()
+    const key = randomUUID()
+    const first = await legacyAdmit(w, v1Create(w), key)
+    const { resourceId: _r, ...request } = v1Create(w)
+    assert.deepEqual(await w.admit(request as OwnerRunnerOperationRequest, key), first)
+    assert.equal(
+      await codeOf(w.admit({ ...request, message: 'Something else.' } as OwnerRunnerOperationRequest, key)),
+      'idempotency_conflict',
+    )
+  })
+})
+
+/** A project-scoped, eligible, ready source, as the existing source flows write one (put_text_source). */
+const projectSource = async (w: World, body: string) =>
+  (
+    await one<{ id: string }>(`SELECT (sophia.put_text_source($1, $2, 'text/plain', $3)).id AS id`, [
+      w.projectId,
+      w.who,
+      body,
+    ])
+  ).id
+/** Erase a source as every existing caller does: the project locked first, then mission_erase_source. */
+async function erase(projectId: string, sourceId: string) {
+  const c = await owner.connect()
+  try {
+    await c.query('BEGIN')
+    await c.query('SELECT 1 FROM sophia.projects WHERE id=$1 FOR UPDATE', [projectId])
+    await c.query('SELECT sophia.mission_erase_source($1, $2)', [projectId, sourceId])
+    await c.query('COMMIT')
+  } catch (err) {
+    await c.query('ROLLBACK')
+    throw err
+  } finally {
+    c.release()
+  }
+}
+const createWith = (w: World, sourceIds: string[], message = 'A private instruction: report the boundary.') =>
+  w.admit({
+    kind: 'create',
+    goalId: w.goalId,
+    title: 'A private title',
+    message,
+    expectedGoalRevision: 1,
+    expectedAuthorityEpoch: 1,
+    sourceIds,
+    baseCommit: BASE,
+    writeScope: 'read_only',
+    settings: SETTINGS,
+  })
+const viewOf = (w: World, operationId: string) =>
+  withActor(api, w.who, 'read', (c) => readRunnerOperation(c, w.projectId, operationId))
+
+describe('source authority across the dispatcher, gateway, fsynced journal and FakeT3 (INC01-CC-005, 0096)', () => {
+  it("sends each create's and input's own instruction, the requested base and settings, and journals no body", async () => {
+    const w = await world()
+    const spec = await projectSource(w, 'A shared project spec')
+    const created = await createWith(w, [spec])
+    await w.pass()
+    assert.equal((await op(created.operationId)).state, 'received')
+    const launch = w.t3.calls.find((c) => c.tool === 't3_thread_launch')
+    assert.equal(launch?.args.message, 'A private instruction: report the boundary.')
+    assert.equal(launch?.args.title, 'A private title')
+    assert.deepEqual(launch?.args.workspaceStrategy, { type: 'worktree', baseRef: BASE })
+    assert.deepEqual(launch?.args.modelSelection, SETTINGS)
+    const input = await w.admit({
+      kind: 'input',
+      targetOperationId: created.operationId,
+      message: 'A second private instruction.',
+      expectedGoalRevision: 1,
+      expectedAuthorityEpoch: 1,
+      sourceIds: [spec],
+    })
+    await w.pass()
+    const send = w.t3.calls.find((c) => c.tool === 't3_thread_send')
+    assert.equal(send?.args.message, 'A second private instruction.')
+    assert.equal('modelSelection' in (send?.args ?? {}), false, 'an input runs in its create thread')
+    // Each its own private instruction and context; nothing of either text in the gateway's journal.
+    const rows = await owner.query<{ payload_source_id: string; manifest_id: string; envelope_version: number }>(
+      `SELECT payload_source_id, manifest_id, envelope_version FROM sophia.owner_runner_operations WHERE id = ANY($1)`,
+      [[created.operationId, input.operationId]],
+    )
+    assert.equal(new Set(rows.rows.map((r) => r.payload_source_id)).size, 2)
+    assert.equal(new Set(rows.rows.map((r) => r.manifest_id)).size, 2)
+    assert.ok(rows.rows.every((r) => r.envelope_version === 2))
+    const journal = readFileSync(w.journalFile, 'utf8')
+    for (const text of ['private instruction', 'A private title', 'second private'])
+      assert.equal(journal.includes(text), false)
+    assert.ok(journalRecords(w.journalFile).some((r) => r.type === 'intent' && r.envelope?.v === 2))
+  })
+
+  it('a withdrawal before prepare-send denies it at once, with no native call and no body in the view', async () => {
+    const w = await world()
+    const spec = await projectSource(w, 'A spec withdrawn before the send')
+    const created = await createWith(w, [spec])
+    await erase(w.projectId, spec)
+    const o = await op(created.operationId)
+    assert.equal(o.state, 'denied')
+    assert.match(o.reason ?? '', /withdrawn before it was sent/)
+    await w.pass()
+    assert.equal(w.t3.calls.length, 0)
+    assert.deepEqual(await reservations(w.accountKey), [])
+    const view = await viewOf(w, created.operationId)
+    assert.equal(view.content, 'withdrawn')
+    assert.equal(view.message, null)
+    assert.equal(view.title, null)
+    assert.deepEqual(view.sourceIds, [spec])
+    assert.equal(view.baseCommit, BASE)
+  })
+
+  it('a withdrawal of a source in the closure, or of the instruction itself, after the claim is denied by prepare-send', async () => {
+    for (const which of ['closure', 'instruction'] as const) {
+      const w = await world()
+      const base = await projectSource(w, 'An upstream source')
+      const derived = await projectSource(w, 'A source derived from it')
+      await owner.query(
+        `INSERT INTO sophia.source_dependencies(project_id, source_id, derived_source_id) VALUES ($1,$2,$3)`,
+        [w.projectId, base, derived],
+      )
+      const created = await createWith(w, [derived])
+      const [row] = await w.claim()
+      assert.ok(row?.lease_token)
+      const payload = await op(created.operationId)
+      await erase(w.projectId, which === 'closure' ? base : (payload.payload_source_id ?? ''))
+      const prepared = await prepareRunnerSend(worker, w.projectId, row.id, row.lease_token, w.gateway.journalId)
+      assert.equal(prepared.result, 'denied', which)
+      assert.equal(w.t3.calls.length, 0)
+      assert.equal((await viewOf(w, created.operationId)).content, 'withdrawn')
+    }
+  })
+
+  it('after a possible send, a withdrawal keeps the state, the commitment and the reconciliation by original identity', async () => {
+    const w = await world()
+    const spec = await projectSource(w, 'A spec withdrawn after the send')
+    const created = await createWith(w, [spec])
+    w.t3.inject('t3_thread_launch', { kind: 'lose_after_effect' })
+    await w.pass({ minAge: 3600 })
+    const prior = await op(created.operationId)
+    assert.equal(prior.state, 'unknown')
+    await erase(w.projectId, spec)
+    const later = await op(created.operationId)
+    assert.equal(later.state, 'unknown', 'never denied, reset or replayed after a possible send')
+    assert.equal(later.native_command_id, prior.native_command_id)
+    assert.deepEqual(await reservations(w.accountKey), [{ binding_id: later.binding_id }])
+    const marked = await one<{ at: Date | null }>(
+      `SELECT source_withdrawn_at AS at FROM sophia.owner_runner_operations WHERE id=$1`,
+      [created.operationId],
+    )
+    assert.ok(marked.at)
+    assert.equal((await viewOf(w, created.operationId)).content, 'withdrawn')
+    // Reconciled by its original identity: the body is never needed again, and nothing is relaunched.
+    await w.pass()
+    assert.equal((await op(created.operationId)).state, 'received')
+    assert.equal(w.t3.count('t3_thread_launch'), 1)
+    assert.equal(w.t3.effects.launches, 1)
+  })
+
+  for (const [what, change] of [
+    ['audience', 'UPDATE sophia.projects SET audience_revision=audience_revision+1 WHERE id=$1'],
+    ['eligibility', 'UPDATE sophia.projects SET eligibility_revision=eligibility_revision+1 WHERE id=$1'],
+  ] as const) {
+    it(`a moved ${what} revision denies before prepare-send, never re-snapshotted`, async () => {
+      const w = await world()
+      const created = await createWith(w, [])
+      await owner.query(change, [w.projectId])
+      const pass = await w.pass()
+      assert.deepEqual(pass.prepared, ['denied'])
+      assert.match((await op(created.operationId)).reason ?? '', new RegExp(what))
+      assert.equal(w.t3.calls.length, 0)
+    })
+  }
+
+  it('an altered stored instruction is denied; a payload altered in transit is refused by the gateway before intent', async () => {
+    const w = await world()
+    const altered = await createWith(w, [])
+    const o = await op(altered.operationId)
+    await owner.query(`UPDATE sophia.source_texts SET body=replace(body,'report','delete') WHERE source_id=$1`, [
+      o.payload_source_id,
+    ])
+    assert.deepEqual((await w.pass()).prepared, ['denied'])
+    assert.equal(w.t3.calls.length, 0)
+    const w2 = await world()
+    const created = await createWith(w2, [])
+    const [row] = await w2.claim()
+    assert.ok(row?.lease_token)
+    const prepared = await prepareRunnerSend(worker, w2.projectId, row.id, row.lease_token, w2.gateway.journalId)
+    assert.equal(prepared.result, 'send')
+    if (prepared.result !== 'send') return
+    assert.ok(prepared.payload?.includes('report the boundary'))
+    const forged = prepared.payload?.replace('report', 'delete')
+    const answer = await w2.gateway.send(prepared.envelope, digestOf(prepared.envelope), w2.gateway.journalId, forged)
+    assert.equal(answer.kind, 'refused')
+    assert.equal(w2.t3.calls.length, 0)
+    const records = journalRecords(w2.journalFile)
+    assert.ok(records.some((r) => r.type === 'refused' && r.operationId === created.operationId))
+    assert.equal(
+      records.some((r) => r.type === 'intent'),
+      false,
+      'nothing journaled as possibly sent',
+    )
+  })
+
+  it('a selected source that is no longer eligible by any path, or whose hash moved, is denied before prepare-send', async () => {
+    for (const change of [
+      `UPDATE sophia.source_objects SET eligible=false WHERE id=$1`,
+      `UPDATE sophia.source_objects SET sha256=repeat('e',64) WHERE id=$1`,
+    ]) {
+      const w = await world()
+      const spec = await projectSource(w, 'A spec changed outside the erase hook')
+      const created = await createWith(w, [spec])
+      await owner.query(change, [spec])
+      assert.deepEqual((await w.pass()).prepared, ['denied'], change)
+      assert.match(
+        (await op(created.operationId)).reason ?? '',
+        /a source it was admitted with was withdrawn or changed/,
+      )
+      assert.equal(w.t3.calls.length, 0)
+    }
+  })
+
+  it('restarts a journal holding a v1 and a v2 operation, and resends neither', async () => {
+    const w = await world()
+    const old = await legacyAdmit(w, v1Create(w))
+    await legacySend(w, old.operationId)
+    w.finishAll()
+    await w.stop(old.operationId)
+    await w.pass()
+    await w.pass()
+    assert.deepEqual(await reservations(w.accountKey), [])
+    const created = await createWith(w, [])
+    await w.pass()
+    assert.equal((await op(created.operationId)).state, 'received')
+    const versions = journalRecords(w.journalFile)
+      .filter((r) => r.type === 'intent')
+      .map((r) => r.envelope?.v)
+    assert.deepEqual(
+      versions.toSorted((a, b) => Number(a) - Number(b)),
+      [1, 1, 2],
+    )
+    const restarted = w.restart(w.gateway)
+    assert.equal(restarted.journalId, w.gateway.journalId)
+    await w.pass({ port: restarted })
+    await w.pass({ port: restarted })
+    assert.equal(w.t3.effects.launches, 2)
+    assert.equal(w.t3.count('t3_thread_launch'), 2)
+  })
+})
+
+// ---- repair 1 (gate INC01-CC-005-final-53f42da1-SOURCE-PRE-PUSH-001) ----
+
+const SECRET_MESSAGE = 'SECRET-INSTRUCTION-7f3a'
+const SECRET_TITLE = 'SECRET-TITLE-9b1c'
+const textOf = (v: unknown) => (typeof v === 'string' ? v : '')
+/** A FakeT3 that echoes a call's instruction and title through one untrusted diagnostic field of its reply. */
+class EchoT3 extends FakeT3 {
+  mode: 'failure' | 'transport' | 'throw' | null = null
+  override async call(call: T3Call): Promise<T3Reply> {
+    const send = call.tool === 't3_thread_launch' || call.tool === 't3_thread_send'
+    if (!send || this.mode === null) return super.call(call)
+    const echo = `${textOf(call.args.title)} ${textOf(call.args.message)}`
+    if (this.mode === 'failure') return { kind: 'failure', code: 'invalid_request', message: echo }
+    if (this.mode === 'transport') return { kind: 'transport_error', reason: echo }
+    throw new Error(echo)
+  }
+}
+const leaks = (text: string | null | undefined) =>
+  (text ?? '').includes(SECRET_MESSAGE) || (text ?? '').includes(SECRET_TITLE)
+
+describe('a private instruction never becomes a diagnostic (repair 1, CC005-E7-F01)', () => {
+  for (const mode of ['failure', 'transport', 'throw'] as const) {
+    it(`keeps a ${mode} that echoes it out of the operation's reason, its events and the view, before and after erasure`, async () => {
+      const t3 = new EchoT3()
+      t3.mode = mode
+      const w = await world({ t3 })
+      const created = await createWith(w, [], `${SECRET_MESSAGE}: report the boundary.`)
+      await w.pass({ minAge: 3600 })
+      const o = await op(created.operationId)
+      assert.notEqual(o.state, 'admitted')
+      assert.equal(leaks(o.reason), false, o.reason ?? '')
+      await erase(w.projectId, o.payload_source_id ?? '')
+      const view = await viewOf(w, created.operationId)
+      assert.equal(view.content, 'withdrawn')
+      assert.equal(leaks(view.reason), false, view.reason ?? '')
+      assert.equal(leaks(JSON.stringify(view)), false)
+      // A reconciliation after the erasure (the journal answers it) restores nothing of it either.
+      t3.mode = null
+      await w.pass()
+      assert.equal(leaks((await op(created.operationId)).reason), false)
+      const events = await owner.query<{ summary_code: string }>(
+        `SELECT summary_code FROM sophia.project_events WHERE project_id=$1`,
+        [w.projectId],
+      )
+      assert.equal(leaks(JSON.stringify(events.rows)), false)
+      assert.equal(leaks(readFileSync(w.journalFile, 'utf8')), false)
+      assert.equal(w.t3.count('t3_thread_launch') <= 1, true)
+    })
+  }
+})
+
+describe('a port that throws the instruction back (repair 1, CC005-E7-F01)', () => {
+  it("records a fixed reason, never the port's error text", async () => {
+    const w = await world()
+    const created = await createWith(w, [], `${SECRET_MESSAGE}: report the boundary.`)
+    const throwing: SophiaRunnerPort = {
+      journalId: w.gateway.journalId,
+      send: (_e, _d, _j, payload) => Promise.reject(new Error(`echo ${String(payload)}`)),
+      reconcile: (i) => w.gateway.reconcile(i),
+      observe: (i) => w.gateway.observe(i),
+    }
+    await w.pass({ port: throwing, minAge: 3600 })
+    const o = await op(created.operationId)
+    assert.equal(o.state, 'unknown')
+    assert.equal(leaks(o.reason), false, o.reason ?? '')
+  })
+})
+
+const sends = (w: World) => w.t3.count('t3_thread_send')
+const inputWith = (w: World, target: string, sourceIds: string[], message = 'A follow-up instruction.') =>
+  w.admit({
+    kind: 'input',
+    targetOperationId: target,
+    message,
+    expectedGoalRevision: 1,
+    expectedAuthorityEpoch: 1,
+    sourceIds,
+  })
+
+describe("an input is fenced by its native session's whole disclosed context (repair 1, CC005-E7-F02)", () => {
+  /** A received create with one selected source, and, when asked, one received input with its own instruction. */
+  async function session(withInput = false) {
+    const w = await world()
+    const spec = await projectSource(w, 'A spec the create selected')
+    const created = await createWith(w, [spec])
+    await w.pass()
+    assert.equal((await op(created.operationId)).state, 'received')
+    let earlier: string | null = null
+    if (withInput) {
+      earlier = (await inputWith(w, created.operationId, [spec], 'An earlier input.')).operationId
+      await w.pass()
+      assert.equal((await op(earlier)).state, 'received')
+    }
+    return { w, spec, created: created.operationId, earlier }
+  }
+
+  for (const [what, withdraw] of [
+    ["the create's selected source", async (s: Awaited<ReturnType<typeof session>>) => erase(s.w.projectId, s.spec)],
+    [
+      "the create's private instruction",
+      async (s: Awaited<ReturnType<typeof session>>) =>
+        erase(s.w.projectId, (await op(s.created)).payload_source_id ?? ''),
+    ],
+    [
+      "an earlier input's private instruction",
+      async (s: Awaited<ReturnType<typeof session>>) =>
+        erase(s.w.projectId, (await op(s.earlier ?? '')).payload_source_id ?? ''),
+    ],
+    [
+      "a revision of the create's selected source",
+      async (s: Awaited<ReturnType<typeof session>>) => {
+        await owner.query(
+          `UPDATE sophia.source_objects SET sha256=repeat('e',64), eligibility_revision=eligibility_revision+1 WHERE id=$1`,
+          [s.spec],
+        )
+      },
+    ],
+  ] as const) {
+    it(`refuses a new input with an empty selection once ${what} is withdrawn or changed`, async () => {
+      const s = await session(what.includes('earlier'))
+      const sentBefore = sends(s.w)
+      await withdraw(s)
+      assert.equal(await codeOf(inputWith(s.w, s.created, [])), 'invalid_request')
+      await s.w.pass()
+      assert.equal(sends(s.w), sentBefore, 'no native message')
+    })
+
+    it(`denies an admitted input before prepare-send once ${what} is withdrawn or changed`, async () => {
+      const s = await session(what.includes('earlier'))
+      const sentBefore = sends(s.w)
+      const queued = await inputWith(s.w, s.created, [])
+      await withdraw(s)
+      await s.w.pass()
+      assert.equal((await op(queued.operationId)).state, 'denied')
+      assert.equal(sends(s.w), sentBefore, 'no native message')
+    })
+  }
+
+  it('never rebases a selected source onto another revision under the same id', async () => {
+    const s = await session()
+    await owner.query(`UPDATE sophia.source_objects SET sha256=repeat('e',64) WHERE id=$1`, [s.spec])
+    assert.equal(await codeOf(inputWith(s.w, s.created, [s.spec])), 'invalid_request')
+  })
+
+  it("refuses a new input once the project's audience moved since its create", async () => {
+    const s = await session()
+    await owner.query('UPDATE sophia.projects SET audience_revision=audience_revision+1 WHERE id=$1', [s.w.projectId])
+    assert.equal(await codeOf(inputWith(s.w, s.created, [])), 'invalid_request')
+  })
+
+  it('keeps an unchanged session usable, and its qualified Stop after a withdrawal', async () => {
+    const s = await session(true)
+    await inputWith(s.w, s.created, [s.spec])
+    await s.w.pass()
+    assert.equal(s.w.t3.effects.messages, 2, 'an unchanged subset is still sent')
+    await erase(s.w.projectId, s.spec)
+    await s.w.stop(s.created)
+    await s.w.pass()
+    assert.equal(s.w.t3.count('t3_thread_interrupt'), 1)
+  })
+})
+
+describe('characters are code points from admission to the gateway (repair 1, CC005-E7-F03)', () => {
+  const rocket = '\u{1F680}'
+  const allowance = async (w: World) =>
+    (
+      await one<{ used: number }>(
+        `SELECT used_operations AS used FROM sophia.owner_runner_qualifications WHERE id=$1`,
+        [w.qualificationId],
+      )
+    ).used
+  const createText = (w: World, message: string, title: string) =>
+    w.admit({
+      kind: 'create',
+      goalId: w.goalId,
+      title,
+      message,
+      expectedGoalRevision: 1,
+      expectedAuthorityEpoch: 1,
+      sourceIds: [],
+      baseCommit: BASE,
+      writeScope: 'read_only',
+      settings: SETTINGS,
+    })
+
+  for (const [name, message, title] of [
+    ['4001 supplementary characters', rocket.repeat(4001), 'T'],
+    ['8000 supplementary characters and a 120-character title', rocket.repeat(8000), rocket.repeat(120)],
+    ['8000 mixed characters', `a${rocket}`.repeat(4000), `b${rocket}`.repeat(60)],
+  ] as const) {
+    it(`sends what it admits: ${name}`, async () => {
+      const w = await world()
+      const created = await createText(w, message, title)
+      await w.pass()
+      assert.equal((await op(created.operationId)).state, 'received')
+      const launch = w.t3.calls.find((c) => c.tool === 't3_thread_launch')
+      assert.equal(launch?.args.message, message)
+      assert.equal(launch?.args.title, title)
+    })
+  }
+
+  it('sends an input of 8000 supplementary characters', async () => {
+    const w = await world()
+    const created = await createText(w, 'm', 'T')
+    await w.pass()
+    await inputWith(w, created.operationId, [], rocket.repeat(8000))
+    await w.pass()
+    assert.equal(w.t3.calls.find((c) => c.tool === 't3_thread_send')?.args.message, rocket.repeat(8000))
+  })
+
+  for (const [name, message, title] of [
+    ['8001 characters', rocket.repeat(8001), 'T'],
+    ['a 121-character title', 'm', rocket.repeat(121)],
+    ['a message of only non-ASCII blank characters', '  　', 'T'],
+    ['a title of only line breaks', 'm', '\n\n'],
+  ] as const) {
+    it(`refuses before any write or allowance: ${name}`, async () => {
+      const w = await world()
+      const used = await allowance(w)
+      assert.equal(await codeOf(createText(w, message, title)), 'invalid_request')
+      assert.equal(await allowance(w), used)
+      assert.equal(w.t3.calls.length, 0)
+    })
+  }
 })
 
 describe('the worker setting', () => {

@@ -1,8 +1,17 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import type { EnqueueResult, ExchangeRequest, ExchangeStore, ExchangeView, SettleResult } from './owner-host-channel.ts'
+import {
+  checkExchangeRequest,
+  exchangeRequest,
+  type EnqueueResult,
+  type ExchangeRequest,
+  type ExchangeStore,
+  type ExchangeView,
+  type SettleResult,
+} from './owner-host-channel.ts'
+import { canonicalJson } from './canonical.ts'
 import { OwnerHostPortProxy } from './owner-host-port-proxy.ts'
-import { digestOf, type RunnerEnvelope } from './runner-port.ts'
+import { digestOf, sha256Hex, type RunnerEnvelope } from './runner-port.ts'
 import { deriveIdentity } from './t3-port-mapping.ts'
 
 const JOURNAL = '00000000-0000-4000-8000-0000000000aa'
@@ -471,4 +480,27 @@ describe('operation-aware create receipts (r4, CC003-S1A-STUDY-R2-F01)', () => {
       assert.deepEqual(await run(answer), answer)
     })
   }
+})
+
+describe('the owner-host port proxy under source authority (INC01-CC-005, 0096)', () => {
+  it('never puts an instruction in an exchange: a payload handed to send is dropped', async () => {
+    const payload = canonicalJson({ message: 'A private instruction.', title: 'A title' })
+    const { message: _m, title: _t, ...common } = env()
+    const v2 = {
+      ...common,
+      v: 2,
+      payloadSha256: sha256Hex(payload),
+      manifestSha256: 'c'.repeat(64),
+      baseCommit: '0123456789abcdef0123456789abcdef01234567',
+      writeScope: 'read_only',
+      settings: { instanceId: 'claudeAgent', model: 'synthetic-model', options: [] },
+    } as unknown as RunnerEnvelope
+    const { s, calls } = store({ views: [view({ state: 'denied', reason: 'x' })] })
+    await proxy(s).send(v2, digestOf(v2), JOURNAL, payload)
+    const request = calls.enqueue[0]?.request
+    assert.deepEqual(request, exchangeRequest('send', v2, JOURNAL))
+    assert.equal(JSON.stringify(request).includes('private instruction'), false)
+    assert.equal(checkExchangeRequest(request).ok, true, 'the host accepts the content-free v2 request')
+    assert.equal(checkExchangeRequest({ ...request, payload }).ok, false, 'and refuses one that carries more')
+  })
 })

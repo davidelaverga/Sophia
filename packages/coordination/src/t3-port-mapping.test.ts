@@ -245,3 +245,63 @@ describe('a run identity is evidence only when it is one (integrated r3, F01)', 
     assert.equal(read.messages.get('m-2'), 'run-2')
   })
 })
+
+describe('the v2 calls (INC01-CC-005, 0096): the pinned launch shapes, the instruction from the payload only', () => {
+  const settings = {
+    instanceId: 'codex',
+    model: 'synthetic-model',
+    options: [{ id: 'reasoningEffort', value: 'high' }],
+  }
+  const { message: _m, title: _t, ...common } = envelope()
+  const v2 = (over: Record<string, unknown> = {}) =>
+    ({
+      ...common,
+      v: 2,
+      payloadSha256: 'a'.repeat(64),
+      manifestSha256: 'c'.repeat(64),
+      baseCommit: '0123456789abcdef0123456789abcdef01234567',
+      writeScope: 'read_only',
+      settings,
+      ...over,
+    }) as unknown as RunnerEnvelope
+
+  it('launches with workspaceStrategy {type: worktree, baseRef} and modelSelection {instanceId, model, options}', () => {
+    const call = callFor(v2(), 'env-1', { message: 'From the payload.', title: 'Its title' })
+    assert.equal(call.tool, 't3_thread_launch')
+    assert.deepEqual(call.args, {
+      environmentId: 'env-1',
+      projectId: 'project-sophia',
+      title: 'Its title',
+      message: 'From the payload.',
+      runtimeMode: 'approval-required',
+      workspaceStrategy: { type: 'worktree', baseRef: '0123456789abcdef0123456789abcdef01234567' },
+      modelSelection: settings,
+      clientRequestId: `sophia:${envelope().operationId}`,
+    })
+  })
+
+  it('sends an input queued with its payload message only: t3_thread_send takes no selection or workspace', () => {
+    const call = callFor(
+      v2({ kind: 'input', targetOperationId: envelope().operationId, nativeThreadId: 'thread-1' }),
+      'env-1',
+      {
+        message: 'A follow-up.',
+        title: null,
+      },
+    )
+    assert.deepEqual(call, {
+      tool: 't3_thread_send',
+      args: {
+        environmentId: 'env-1',
+        threadId: 'thread-1',
+        message: 'A follow-up.',
+        mode: 'queue',
+        clientRequestId: `sophia:${envelope().operationId}`,
+      },
+    })
+  })
+
+  it('builds no v2 call without its checked payload', () => {
+    assert.throws(() => callFor(v2(), 'env-1'), /checked payload/)
+  })
+})

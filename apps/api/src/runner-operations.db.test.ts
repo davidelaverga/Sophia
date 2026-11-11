@@ -30,6 +30,14 @@ const A = randomUUID() // the resource's owner
 const E = randomUUID() // another editor
 const C = randomUUID() // an outsider
 const PIN = 'ade473018d32003658b7d38693e083ee2e314bd8'
+/** SYNTHETIC source facts (0096): a requested base and a declared policy with one model and one effort option. */
+const BASE = '0123456789abcdef0123456789abcdef01234567'
+const POLICY = {
+  v: 1,
+  instanceId: 'codex',
+  models: [{ model: 'synthetic-model', options: [{ id: 'reasoningEffort', values: ['low', 'high'] }] }],
+} as const
+const SETTINGS = { instanceId: 'codex', model: 'synthetic-model', options: [{ id: 'reasoningEffort', value: 'high' }] }
 
 const token = (sub: string) =>
   new SignJWT({ role: 'authenticated' })
@@ -166,6 +174,11 @@ describe('with 0092 installed', () => {
         [p.projectId, resourceId],
       )
     ).rows[0]?.id
+    await owner.query(`SELECT sophia.declare_owner_runner_source_policy($1, $2, $3)`, [
+      p.projectId,
+      qualificationId,
+      JSON.stringify(POLICY),
+    ])
     const create = {
       kind: 'create',
       resourceId,
@@ -174,6 +187,10 @@ describe('with 0092 installed', () => {
       message: 'Report the Ask admission boundary.',
       expectedGoalRevision: 1,
       expectedAuthorityEpoch: 1,
+      sourceIds: [],
+      baseCommit: BASE,
+      writeScope: 'read_only',
+      settings: SETTINGS,
     }
     return { ...p, resourceId, qualificationId, create, base: `/api/v1/projects/${p.projectId}/runner-operations` }
   }
@@ -246,7 +263,13 @@ describe('with 0092 installed', () => {
     const created = await call(admit, A, p.base, p.create)
     await received(p.projectId, created.json.operationId)
     const target = created.json.operationId as string
-    const input = { kind: 'input', resourceId: p.resourceId, targetOperationId: target, message: 'And the outbox?' }
+    const input = {
+      kind: 'input',
+      resourceId: p.resourceId,
+      targetOperationId: target,
+      message: 'And the outbox?',
+      sourceIds: [],
+    }
     const stop = { kind: 'stop', resourceId: p.resourceId, targetOperationId: target }
     const operationsOf = async () =>
       (
@@ -364,6 +387,61 @@ describe('with 0092 installed', () => {
     })
     assert.equal(refused.status, 403)
     assert.equal(refused.json.code, 'runner_unqualified')
+  })
+
+  it('agrees with the database on characters: 8000 supplementary characters are admitted, 8001 refused (repair 1, F03)', async () => {
+    const p = await qualifiedProject()
+    const rocket = '\u{1F680}'
+    const at = await call(admit, A, p.base, { ...p.create, message: rocket.repeat(8000), title: rocket.repeat(120) })
+    assert.equal(at.status, 202, JSON.stringify(at.json))
+    assert.equal((await call(admit, A, p.base, { ...p.create, message: rocket.repeat(8001) })).status, 422)
+    assert.equal((await call(admit, A, p.base, { ...p.create, title: rocket.repeat(121) })).status, 422)
+    const view = await call(admit, A, `${p.base}/${at.json.operationId}`)
+    assert.equal(view.json.message, rocket.repeat(8000))
+  })
+
+  it('admits source authority over the route (A50), refuses missing or undeclared facts, and reads the instruction again now', async () => {
+    const p = await qualifiedProject()
+    const spec = (
+      await owner.query<{ id: string }>(
+        `SELECT (sophia.put_text_source($1, $2, 'text/plain', 'A shared spec')).id AS id`,
+        [p.projectId, A],
+      )
+    ).rows[0]?.id
+    const create = { ...p.create, sourceIds: [spec] }
+    const first = await call(admit, A, p.base, create)
+    assert.equal(first.status, 202)
+    const { baseCommit: _b, ...noBase } = create
+    assert.equal((await call(admit, A, p.base, noBase)).json.code, 'invalid_request')
+    assert.equal((await call(admit, A, p.base, { ...create, baseCommit: 'main' })).status, 422, 'a malformed base')
+    assert.equal(
+      (await call(admit, A, p.base, { ...create, settings: { ...SETTINGS, model: 'undeclared-model' } })).json.code,
+      'runner_unqualified',
+    )
+    assert.equal((await call(admit, A, p.base, { ...create, writeScope: 'read_write' })).status, 422)
+    const view = await call(admit, A, `${p.base}/${first.json.operationId}`)
+    assert.equal(view.status, 200)
+    assert.deepEqual(
+      [view.json.envelopeVersion, view.json.content, view.json.message, view.json.sourceIds, view.json.baseCommit],
+      [2, 'available', 'Report the Ask admission boundary.', [spec], BASE],
+    )
+    assert.deepEqual(view.json.settings, SETTINGS)
+    // Erased: the owner still reads the operation and its metadata, never the instruction.
+    const c = await owner.connect()
+    try {
+      await c.query('BEGIN')
+      await c.query('SELECT 1 FROM sophia.projects WHERE id=$1 FOR UPDATE', [p.projectId])
+      await c.query('SELECT sophia.mission_erase_source($1, $2)', [p.projectId, spec])
+      await c.query('COMMIT')
+    } finally {
+      c.release()
+    }
+    const withdrawn = await call(off, A, `${p.base}/${first.json.operationId}`)
+    assert.deepEqual(
+      [withdrawn.json.content, withdrawn.json.message, withdrawn.json.title, withdrawn.json.state],
+      ['withdrawn', null, null, 'denied'],
+    )
+    assert.equal((await call(off, E, `${p.base}/${first.json.operationId}`)).json.code, 'not_found')
   })
 })
 

@@ -39169,6 +39169,32 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 9007199254740991
+          },
+          "sourceIds": {
+            "type": "array",
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "create and input (A50): the project sources it may read, each project-scoped, eligible, ready and withdrawn from nothing it drew on. An input names a subset of its create's. Frozen with their hashes and revisions; empty is allowed."
+          },
+          "baseCommit": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$",
+            "description": "create only (A50): the requested repository base, a full commit. Recorded and sent as T3's worktree baseRef; never proof of a checkout. An input inherits its create's."
+          },
+          "writeScope": {
+            "type": "string",
+            "enum": [
+              "read_only"
+            ],
+            "description": "create only (A50): read_only, the one scope this slice admits. A request the qualified profile must enforce, not enforcement."
+          },
+          "settings": {
+            "$ref": "#/components/schemas/OwnerRunnerSettings",
+            "description": "create only (A50). An input inherits its create's."
           }
         },
         "required": [
@@ -39404,6 +39430,72 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
+          },
+          "envelopeVersion": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ],
+            "description": "1: admitted before source authority (A47), its text inline. 2: its instruction is an owner-private source."
+          },
+          "content": {
+            "type": "string",
+            "enum": [
+              "inline",
+              "available",
+              "withdrawn"
+            ],
+            "description": "inline: a version-1 row's text. available: a version-2 instruction, read again under its source authority now. withdrawn: it, its context or a source it drew on was withdrawn, so its title and message are null; its state, identities, Stop and reconciliation are unchanged. A native copy already delivered is not recalled."
+          },
+          "sourceIds": {
+            "anyOf": [
+              {
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "baseCommit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "writeScope": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "read_only"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "settings": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OwnerRunnerSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -39426,7 +39518,13 @@
           "nativeDelivery",
           "runStatus",
           "deferrals",
-          "reconcileAttempts"
+          "reconcileAttempts",
+          "envelopeVersion",
+          "content",
+          "sourceIds",
+          "baseCommit",
+          "writeScope",
+          "settings"
         ]
       },
       "OwnerRunnerOperationList": {
@@ -39443,6 +39541,60 @@
         },
         "required": [
           "operations"
+        ]
+      },
+      "OwnerRunnerSettings": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Requested runner settings (A50), the T3 pin ade473018d32003658b7d38693e083ee2e314bd8 ModelSelection shape: a provider instance, a model and every option the route's operator-declared source policy names for it (Codex reasoningEffort, Claude effort), sorted by id. Only what that policy declares is admitted; there is no default and no fallback. A request, never what an adapter accepted or what a run used: those stay unknown.",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$"
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "options": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "value"
+              ]
+            }
+          }
+        },
+        "required": [
+          "instanceId",
+          "model",
+          "options"
         ]
       }
     }

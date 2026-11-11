@@ -22,16 +22,28 @@
  * settlement (R1-F04): a Stop settles, and a run counts as ended, only on a complete, decoded read of the exact thread
  * (t3-port-mapping.ts stopSettled, runState). An acknowledgement, a malformed or foreign read, a truncated run list or
  * an unknown status is no evidence.
+ *
+ * source authority (INC01-CC-005, 0096): a v2 create or input is sent only by a host whose profile declares a source
+ * policy, only with settings that policy declares and write scope read_only, and only with its payload: the exact
+ * canonical text whose SHA-256 is the envelope's payloadSha256. Anything else is refused before its intent is journaled,
+ * so nothing is sent. An input keeps its create's version, base, scope and settings. The journal keeps the content-free
+ * envelope, never the payload; reconcile and observe never need it.
  * @module @sophia/coordination/runner-gateway
  */
+import { canonicalJson } from './canonical.ts'
 import {
   checkEnvelope,
+  checkPayload,
   digestOf,
+  envelopeV2,
+  settingsRefusal,
   type NativeIdentity,
   type RunnerAnswer,
   type RunnerEnvelope,
   type RunnerIdentity,
   type RunnerOperationKind,
+  type RunnerPayload,
+  type RunnerSourcePolicy,
   type RunObservation,
   type SophiaRunnerPort,
 } from './runner-port.ts'
@@ -40,6 +52,7 @@ import { followupTargetError } from './runner-journal-records.ts'
 import {
   callFor,
   classifyReply,
+  codeLabel,
   decodeThreadRead,
   deriveIdentity,
   readCall,
@@ -62,6 +75,11 @@ export interface GatewayProfile {
   readonly profileId: string
   readonly profileRevision: number
   readonly operations: ReadonlySet<RunnerOperationKind>
+  /**
+   * The settings this profile may be asked for, as its qualification declared them (0096 source_policy). Without one
+   * the host takes no source-bound (v2) work at all.
+   */
+  readonly sourcePolicy?: RunnerSourcePolicy
 }
 
 export interface GatewayOptions {
@@ -72,7 +90,6 @@ export interface GatewayOptions {
   readonly maxReadPages?: number
 }
 
-const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err)).slice(0, 300)
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /** A malformed envelope's id, when it has a well-formed one: its refusal is journaled under it. */
 function idOf(value: unknown): string | null {
@@ -132,7 +149,7 @@ export class RunnerGateway implements SophiaRunnerPort {
     this.journal.close()
   }
 
-  async send(envelope: RunnerEnvelope, digest: string, journalId: string): Promise<RunnerAnswer> {
+  async send(envelope: RunnerEnvelope, digest: string, journalId: string, payload?: string): Promise<RunnerAnswer> {
     // Bound to another journal: this one can neither send it nor speak for it.
     if (journalId !== this.journal.id) return { kind: 'unknown', identity: null, reason: 'bound to another journal' }
     const checked = checkEnvelope(envelope)
@@ -143,7 +160,7 @@ export class RunnerGateway implements SophiaRunnerPort {
       await running.catch(() => undefined)
       return this.answerFromJournal(id, digest)
     }
-    const work = this.sendOnce(checked.envelope, digest)
+    const work = this.sendOnce(checked.envelope, digest, payload)
     this.inFlight.set(id, work)
     try {
       return await work
@@ -196,10 +213,38 @@ export class RunnerGateway implements SophiaRunnerPort {
     if (!this.profile.operations.has(e.kind)) return `an operation this host was not qualified for (${e.kind})`
     if (e.kind !== 'create' && this.foreignThread(e))
       return 'a native thread this gateway did not create for this binding and lineage'
-    return null
+    return e.kind === 'input' ? this.versionLineage(e) : null
   }
 
-  private async sendOnce(envelope: RunnerEnvelope, digest: string): Promise<RunnerAnswer> {
+  /**
+   * An input keeps its create's envelope version, and a v2 input its create's base, scope and settings: a v1 binding
+   * never takes a v2 follow-up, and a v2 binding never a v1 one (0096). A Stop is v1 for every binding.
+   */
+  private versionLineage(e: RunnerEnvelope): string | null {
+    const created = e.targetOperationId ? this.journal.entry(e.targetOperationId)?.envelope : undefined
+    if (!created || created.v !== e.v) return 'an input of another envelope version than its create'
+    if (e.v !== 2) return null
+    const same =
+      created.baseCommit === e.baseCommit &&
+      created.writeScope === e.writeScope &&
+      canonicalJson(created.settings) === canonicalJson(e.settings)
+    return same ? null : "an input with another base, scope or settings than its create's"
+  }
+
+  /** A v2 send's source authority on this host, and its payload; or why it is refused before anything is journaled. */
+  private sourceCheck(
+    e: RunnerEnvelope,
+    payload: string | undefined,
+  ): { refusal: string } | { payload?: RunnerPayload } {
+    const v2 = envelopeV2(e)
+    if (!v2) return {}
+    const settings = settingsRefusal(this.profile.sourcePolicy, v2.settings)
+    if (settings) return { refusal: `settings this host may not use: ${settings}` }
+    const checked = checkPayload(v2, payload)
+    return checked.ok ? { payload: checked.payload } : { refusal: checked.reason }
+  }
+
+  private async sendOnce(envelope: RunnerEnvelope, digest: string, rawPayload?: string): Promise<RunnerAnswer> {
     if (digestOf(envelope) !== digest)
       return this.refuse(envelope.operationId, digest, 'the digest does not bind the envelope')
     const prior = this.journal.entry(envelope.operationId)
@@ -209,24 +254,33 @@ export class RunnerGateway implements SophiaRunnerPort {
     if (prior) return this.reconcileEntry(prior)
     const scope = this.scopeRefusal(envelope)
     if (scope) return this.refuse(envelope.operationId, digest, `refused: ${scope}`)
+    const source = this.sourceCheck(envelope, rawPayload)
+    if ('refusal' in source) return this.refuse(envelope.operationId, digest, `refused: ${source.refusal}`)
     let identity: NativeIdentity
     try {
       identity = deriveIdentity(envelope, this.transport.namespace())
-    } catch (err) {
-      return this.refuse(envelope.operationId, digest, `no native session: ${errorText(err)}`)
+    } catch {
+      // Repair 1 (F01): a fixed diagnostic; what the transport threw is never journaled.
+      return this.refuse(envelope.operationId, digest, 'no native session')
     }
     this.journal.append('intent', envelope.operationId, { digest, envelope, identity })
-    return this.callOnce(envelope, identity)
+    return this.callOnce(envelope, identity, source.payload)
   }
 
   /** Journal the possible send, make the one call, and journal what it proved. */
-  private async callOnce(envelope: RunnerEnvelope, identity: NativeIdentity): Promise<RunnerAnswer> {
+  private async callOnce(
+    envelope: RunnerEnvelope,
+    identity: NativeIdentity,
+    payload: RunnerPayload | undefined,
+  ): Promise<RunnerAnswer> {
+    const call = callFor(envelope, this.profile.environmentRef, payload)
     this.journal.append('possible_send', envelope.operationId, {})
     let reply: T3Reply
     try {
-      reply = await this.transport.call(callFor(envelope, this.profile.environmentRef))
-    } catch (err) {
-      reply = { kind: 'transport_error', reason: errorText(err) }
+      reply = await this.transport.call(call)
+    } catch {
+      // Repair 1 (F01): what a transport throws may echo the instruction; classifyReply gives it a fixed diagnostic.
+      reply = { kind: 'transport_error', reason: 'thrown' }
     }
     const answer = admitted(envelope.kind, classifyReply(envelope, identity, reply))
     // Definite answers, and a violated delivery, are final; anything else stays to be reconciled.
@@ -327,11 +381,13 @@ export class RunnerGateway implements SophiaRunnerPort {
     let reply: T3Reply
     try {
       reply = await this.transport.call(readCall(this.profile.environmentRef, threadId, after))
-    } catch (err) {
-      reply = { kind: 'transport_error', reason: errorText(err) }
+    } catch {
+      reply = { kind: 'transport_error', reason: 'thrown' }
     }
-    if (reply.kind === 'failure') return { error: `read failed with ${reply.code}; absence is not proof` }
-    if (reply.kind === 'transport_error') return { error: reply.reason }
+    // Repair 1 (F01): fixed diagnostics; a read's failure text or code may echo the thread's messages.
+    if (reply.kind === 'failure') return { error: `read failed with ${codeLabel(reply.code)}; absence is not proof` }
+    if (reply.kind === 'transport_error')
+      return { error: 'the read failed or its reply was lost; absence is not proof' }
     return decodeThreadRead(reply.body, threadId)
   }
 

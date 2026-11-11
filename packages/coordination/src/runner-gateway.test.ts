@@ -7,7 +7,16 @@ import { FakeT3 } from './runner-fake-t3.ts'
 import * as gatewayModule from './runner-gateway.ts'
 import { RunnerGateway, type GatewayProfile } from './runner-gateway.ts'
 import { RunnerJournal } from './runner-journal.ts'
-import { digestOf, type RunnerAnswer, type RunnerEnvelope } from './runner-port.ts'
+import { canonicalJson } from './canonical.ts'
+import {
+  checkPayload,
+  digestOf,
+  sha256Hex,
+  type RunnerAnswer,
+  type RunnerEnvelope,
+  type RunnerEnvelopeV2,
+  type RunnerSourcePolicy,
+} from './runner-port.ts'
 import { deriveIdentity, stableMessageId, type T3Call, type T3Reply, type T3Transport } from './t3-port-mapping.ts'
 
 const root = mkdtempSync(join(tmpdir(), 'sophia-runner-gateway-'))
@@ -596,5 +605,238 @@ describe('a missing or malformed run identity is never a receipt (integrated r3,
     assert.equal(r.kind, 'received', 'reconciled by its exact message, which the read shows with its run')
     assert.equal(fake.effects.launches, 1)
     g.close()
+  })
+})
+
+// ---- source authority (INC01-CC-005, 0096): v2 sends with a hash-checked payload ----
+
+const POLICY: RunnerSourcePolicy = {
+  v: 1,
+  instanceId: 'claudeAgent',
+  models: [{ model: 'synthetic-model', options: [{ id: 'effort', values: ['low', 'high'] }] }],
+}
+const SETTINGS = { instanceId: 'claudeAgent', model: 'synthetic-model', options: [{ id: 'effort', value: 'high' }] }
+const BASE = '0123456789abcdef0123456789abcdef01234567'
+const sourced: GatewayProfile = { ...profile, sourcePolicy: POLICY }
+const bodyOf = (message: string, title: string | null) => canonicalJson({ message, title })
+
+/** A v2 create (or input) and its payload: the content-free envelope and the canonical instruction beside it. */
+function v2(i: number, kind: 'create' | 'input', over: Record<string, unknown> = {}, title: string | null = 'A title') {
+  const payload = bodyOf(
+    kind === 'create' ? 'A private instruction.' : 'A private follow-up.',
+    kind === 'create' ? title : null,
+  )
+  const { message: _m, title: _t, ...common } = create(i)
+  const envelope = {
+    ...common,
+    v: 2,
+    kind,
+    payloadSha256: sha256Hex(payload),
+    manifestSha256: 'c'.repeat(64),
+    baseCommit: BASE,
+    writeScope: 'read_only',
+    settings: SETTINGS,
+    ...over,
+  } as unknown as RunnerEnvelope
+  return { envelope, payload }
+}
+const sendV2 = (g: RunnerGateway, e: RunnerEnvelope, payload?: string) => g.send(e, digestOf(e), g.journalId, payload)
+
+describe('source authority at the gateway (0096)', () => {
+  it('sends a v2 create with its payload, base and settings, journals no body, and answers a replay without one', async () => {
+    const { gateway, t3, file } = setup({ hostProfile: sourced })
+    const { envelope, payload } = v2(1, 'create')
+    const first = await sendV2(gateway, envelope, payload)
+    assert.equal(first.kind, 'received')
+    const launch = t3.calls.find((c) => c.tool === 't3_thread_launch')
+    assert.deepEqual(
+      [launch?.args.message, launch?.args.title, launch?.args.workspaceStrategy, launch?.args.modelSelection],
+      ['A private instruction.', 'A title', { type: 'worktree', baseRef: BASE }, SETTINGS],
+    )
+    assert.equal(readFileSync(file, 'utf8').includes('A private instruction'), false)
+    assert.deepEqual(await sendV2(gateway, envelope), first, 'a replay needs no payload and sends nothing')
+    assert.equal(t3.count('t3_thread_launch'), 1)
+    // An input of the same lineage, with its own payload.
+    const input = v2(2, 'input', { targetOperationId: opId(1), nativeThreadId: threadOf(first) })
+    assert.equal((await sendV2(gateway, input.envelope, input.payload)).kind, 'received')
+    assert.equal(t3.calls.find((c) => c.tool === 't3_thread_send')?.args.message, 'A private follow-up.')
+  })
+
+  it('refuses before intent: no payload, an altered one, no declared policy, settings outside it', async () => {
+    const cases: [GatewayProfile, (e: RunnerEnvelope, p: string) => [RunnerEnvelope, string | undefined], RegExp][] = [
+      [sourced, (e) => [e, undefined], /needs its payload/],
+      [sourced, (e, p) => [e, p.replace('private', 'public')], /does not match its digest/],
+      [profile, (e, p) => [e, p], /no source policy/],
+      [
+        {
+          ...sourced,
+          sourcePolicy: {
+            ...POLICY,
+            models: [{ model: 'synthetic-model', options: [{ id: 'effort', values: ['low'] }] }],
+          },
+        },
+        (e, p) => [e, p],
+        /not declared/,
+      ],
+    ]
+    for (const [hostProfile, alter, reason] of cases) {
+      const { gateway, t3, file } = setup({ hostProfile })
+      const { envelope, payload } = v2(1, 'create')
+      const [e, p] = alter(envelope, payload)
+      const answer = await sendV2(gateway, e, p)
+      assert.equal(answer.kind, 'refused')
+      assert.match(answer.kind === 'refused' ? answer.reason : '', reason)
+      assert.equal(t3.calls.length, 0)
+      const types = readFileSync(file, 'utf8')
+        .split('\n')
+        .filter(Boolean)
+        .map((l) => (JSON.parse(l) as { type: string }).type)
+      assert.deepEqual(types, ['header', 'refused'], 'nothing journaled as possibly sent')
+    }
+  })
+
+  it('never lets a binding change version, base or settings through a follow-up', async () => {
+    // A v1 binding takes no v2 input; a v2 binding takes no v1 input, and no input of another base or settings.
+    const legacy = setup({ hostProfile: sourced })
+    const t1 = threadOf(await legacy.send(create(1)))
+    const onV1 = v2(2, 'input', { targetOperationId: opId(1), nativeThreadId: t1 })
+    assert.match(JSON.stringify(await sendV2(legacy.gateway, onV1.envelope, onV1.payload)), /another envelope version/)
+    const { gateway, t3 } = setup({ hostProfile: sourced })
+    const created = v2(1, 'create')
+    const thread = threadOf(await sendV2(gateway, created.envelope, created.payload))
+    const v1Input = follow(2, 1, thread)
+    assert.match(JSON.stringify(await sendV2(gateway, v1Input)), /another envelope version/)
+    const moved = v2(3, 'input', { targetOperationId: opId(1), nativeThreadId: thread, baseCommit: 'f'.repeat(40) })
+    assert.match(
+      JSON.stringify(await sendV2(gateway, moved.envelope, moved.payload)),
+      /another base, scope or settings/,
+    )
+    assert.equal(t3.count('t3_thread_send'), 0)
+    // A Stop stays v1 on either binding.
+    assert.equal((await sendV2(gateway, follow(4, 1, thread, 'stop'))).kind, 'received')
+  })
+})
+
+// ---- repair 1 (CC005-E7-F01): nothing a native runner says becomes a durable diagnostic ----
+
+const SECRET_MESSAGE = 'SECRET-INSTRUCTION-7f3a'
+const SECRET_TITLE = 'SECRET-TITLE-9b1c'
+type Echo = 'failure' | 'failure_code' | 'transport' | 'throw' | 'delivery' | 'read_failure'
+
+const textOf = (v: unknown) => (typeof v === 'string' ? v : '')
+
+/** A FakeT3 that echoes the call's instruction and title through one untrusted diagnostic field of its reply. */
+class EchoT3 extends FakeT3 {
+  mode: Echo | null = null
+  override async call(call: T3Call): Promise<T3Reply> {
+    const echo = `${textOf(call.args.title)} ${textOf(call.args.message)} ${SECRET_MESSAGE}`
+    const send = call.tool === 't3_thread_launch' || call.tool === 't3_thread_send'
+    if (this.mode === 'read_failure' && call.tool === 't3_thread_read')
+      return { kind: 'failure', code: echo, message: echo }
+    if (!send || this.mode === null || this.mode === 'read_failure') return super.call(call)
+    if (this.mode === 'failure') return { kind: 'failure', code: 'invalid_request', message: echo }
+    if (this.mode === 'failure_code') return { kind: 'failure', code: echo, message: echo }
+    if (this.mode === 'transport') return { kind: 'transport_error', reason: echo }
+    if (this.mode === 'throw') throw new Error(echo)
+    const reply = await super.call(call)
+    return reply.kind === 'ok'
+      ? { kind: 'ok', body: { ...(reply.body as object), delivery: echo, status: echo } }
+      : reply
+  }
+}
+
+const leaks = (text: string) => text.includes(SECRET_MESSAGE) || text.includes(SECRET_TITLE)
+
+describe('diagnostics are fixed and content-free (repair 1, CC005-E7-F01)', () => {
+  const secretV2 = (i: number, kind: 'create' | 'input', over: Record<string, unknown> = {}) => {
+    const payload = bodyOf(SECRET_MESSAGE, kind === 'create' ? SECRET_TITLE : null)
+    const { message: _m, title: _t, ...common } = create(i)
+    const envelope = {
+      ...common,
+      v: 2,
+      kind,
+      payloadSha256: sha256Hex(payload),
+      manifestSha256: 'c'.repeat(64),
+      baseCommit: BASE,
+      writeScope: 'read_only',
+      settings: SETTINGS,
+      ...over,
+    } as unknown as RunnerEnvelope
+    return { envelope, payload }
+  }
+
+  for (const mode of ['failure', 'failure_code', 'transport', 'throw'] as const) {
+    it(`keeps a ${mode} that echoes the instruction out of the answer, the journal and a restart's reconcile`, async () => {
+      const t3 = new EchoT3()
+      t3.mode = mode
+      const file = journalFile()
+      const { gateway } = setup({ hostProfile: sourced, t3, file })
+      const { envelope, payload } = secretV2(1, 'create')
+      const answer = await sendV2(gateway, envelope, payload)
+      assert.notEqual(answer.kind, 'received')
+      assert.equal(leaks(JSON.stringify(answer)), false, JSON.stringify(answer))
+      gateway.close()
+      const restarted = setup({ hostProfile: sourced, t3, file }).gateway
+      const again = await restarted.reconcile({ envelope, digest: digestOf(envelope), journalId: restarted.journalId })
+      assert.equal(leaks(JSON.stringify(again)), false, JSON.stringify(again))
+      restarted.close()
+      assert.equal(leaks(readFileSync(file, 'utf8')), false, 'nothing of it in the journal')
+    })
+  }
+
+  it('keeps an echoed delivery, and a read failure that echoes it, out of every answer and the journal', async () => {
+    const t3 = new EchoT3()
+    const file = journalFile()
+    const { gateway } = setup({ hostProfile: sourced, t3, file })
+    const created = secretV2(1, 'create')
+    const thread = threadOf(await sendV2(gateway, created.envelope, created.payload))
+    t3.mode = 'delivery'
+    const input = secretV2(2, 'input', { targetOperationId: opId(1), nativeThreadId: thread })
+    const answer = await sendV2(gateway, input.envelope, input.payload)
+    assert.equal(answer.kind, 'unknown')
+    assert.equal(leaks(JSON.stringify(answer)), false, JSON.stringify(answer))
+    t3.mode = 'read_failure'
+    const observed = await gateway.observe({
+      envelope: created.envelope,
+      digest: digestOf(created.envelope),
+      journalId: gateway.journalId,
+    })
+    assert.equal(leaks(JSON.stringify(observed)), false, JSON.stringify(observed))
+    assert.equal(leaks(readFileSync(file, 'utf8')), false)
+  })
+})
+
+// ---- repair 1 (CC005-E7-F03): a character is a code point, as the admission counts it ----
+
+describe('message and title limits count characters as code points (repair 1, CC005-E7-F03)', () => {
+  const rocket = '\u{1F680}'
+  const withText = (message: string, title: string | null, kind: 'create' | 'input' = 'create') => {
+    const payload = bodyOf(message, kind === 'create' ? title : null)
+    const { message: _m, title: _t, ...common } = create(1)
+    const envelope = {
+      ...common,
+      v: 2,
+      kind,
+      payloadSha256: sha256Hex(payload),
+      manifestSha256: 'c'.repeat(64),
+      baseCommit: BASE,
+      writeScope: 'read_only',
+      settings: SETTINGS,
+      ...(kind === 'input' ? { targetOperationId: opId(9), nativeThreadId: 't' } : {}),
+    } as unknown as RunnerEnvelopeV2
+    return { envelope, payload }
+  }
+  it('admits 8000 supplementary characters and a 120-character title; refuses 8001 and 121', () => {
+    for (const [message, title, ok] of [
+      [rocket.repeat(8000), rocket.repeat(120), true],
+      [`a${rocket}`.repeat(4000), `b${rocket}`.repeat(60), true],
+      [rocket.repeat(8001), 'T', false],
+      ['m', rocket.repeat(121), false],
+    ] as const) {
+      const { envelope, payload } = withText(message, title)
+      assert.equal(checkPayload(envelope, payload).ok, ok, `${message.length}/${title.length} UTF-16 units`)
+    }
+    const input = withText(rocket.repeat(8000), null, 'input')
+    assert.equal(checkPayload(input.envelope, input.payload).ok, true)
   })
 })

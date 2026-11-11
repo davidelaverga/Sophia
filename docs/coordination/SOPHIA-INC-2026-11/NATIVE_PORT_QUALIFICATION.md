@@ -81,7 +81,8 @@ Still open after r2, and named rather than emulated:
   rather than sent under a route that is no longer qualified (settlement under revocation is a policy for INC01-CC-003).
 - The lock is per host. A journal shared across machines is out of scope. Where the process start time cannot be read
   (non-Linux), a live pid is always treated as a live holder.
-- Source manifest, repository base, settings and source withdrawal are not represented.
+- Source manifest, repository base, settings and source withdrawal are not represented. (INC01-CC-005, 0096,
+  represents them in source; see the section below.)
 
 ## Live blockers for INC01-CC-003 (not resolved here)
 
@@ -95,3 +96,48 @@ Still open after r2, and named rather than emulated:
 6. That T3's typed failure codes listed as definite refusals really are pre-effect. Until confirmed live, they are
    treated as refusals only in the fake.
 7. A bounded live read-only task through Sophia with reconnect and Stop evidence, which is the actual INC-01 case.
+
+## INC01-CC-005: source authority in source (0096, A50): what is and is not shown
+
+**Shown in source, against real disposable PostgreSQL and the FakeT3:**
+
+- **Payloads.** A create's and each input's instruction is an owner-private source.
+- **Selected project sources and closure.** They are frozen with their hashes and revisions, and checked again
+  through `source_closure`.
+- **Base and settings.**
+  - A requested 40-hex base and `read_only` write scope are frozen.
+  - Requested settings must sit inside the qualification's operator-declared source policy.
+  - The pinned launch shapes are `workspaceStrategy {type:"worktree", baseRef}` and
+    `modelSelection {instanceId, model, options:[{id, value}]}`. Option ids are per provider: `reasoningEffort` (Codex)
+    and `effort` (Claude).
+- **Content-free v2 envelope.** The instruction travels only as a hash-checked payload, handed to the owner host only
+  with a granted GO.
+- **Rechecks.**
+  - Withdrawal and revisions are rechecked at prepare-send, delivery and GO.
+  - Expiry is judged at the actual time after every lock wait (INC01-30813-EXPIRY-F01).
+- **After a possible send.** Nothing is undone.
+
+Pinned facts used (`pingdotgg/t3code` `ade473018d32003658b7d38693e083ee2e314bd8`):
+
+| File | Lines | SHA-256 |
+|---|---|---|
+| `packages/contracts/src/orchestrationV2.ts` | 654-674 | `9f791f7e75031f56c36fddabb2529913c2c4f1f539415037f9d7b9355dc597fb` |
+| `packages/contracts/src/modelSelection.ts` | 9-50 | `54832cd6d41fae198eca90fe58cfceab4f6b97572c90e32cbfff703b584b434a` |
+| `packages/contracts/src/providerInstance.ts` | 7-22 | `ade67de404651ff6c5373ba1b0359f598c06d49f5e4de2aa77ebf396ab91233a` |
+| `packages/contracts/src/orchestratorMcp.ts` | 501-525 | `a1a1f5ffc84c5cc151947db666069a440f1f4f15c96cdd6dabfbc0b9bae826d1` |
+| `apps/server/src/mcp/toolkits/project/tools.ts` | 124-164 | `ccaba4a185d959ce0c3c0b812f23cbc5196e21dfa87349f06b15904b66bd0d6c` |
+| `apps/server/src/mcp/toolkits/project/handlers.ts` | 146-236, 277-284 | `0d7027332a51cf6d8e23222484daf50be263e61f8b2c665ccbe66dbdd4bb0284` |
+
+**Still unqualified:**
+
+- **Base.** That T3 checks out exactly the requested base. Its pre-launch check is permissive and nothing echoes the
+  base.
+- **Read-only enforcement** and the toolkit scope (F03, F04).
+- **Model and effort actually used.** The launch's `modelSelection` echo is the thread's stored selection, and a run's
+  `model` is a label. Neither is recorded as an observation: accepted, reported and observed stay unknown.
+- **Catalog values.** A real profile's effort values.
+- **Live routes.** The owner profile, account, billing and sign-in, and any live route.
+- **Native copies.** The privacy of a native copy once delivered: it cannot be recalled.
+- **Release isolation.** Operational release isolation.
+
+Admission and dispatch stay off.

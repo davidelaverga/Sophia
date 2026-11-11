@@ -4,6 +4,11 @@
 // the operation, its command and its outbox row together. The worker (sophia_worker login) claims, prepares, records,
 // maintains and follows up through the 0092 functions; it never writes the tables directly. Reads run under the
 // owner's RLS: another member's operation answers like a missing one.
+// Source authority (INC01-CC-005, migration 0096, amendment A50): a create or input is admitted with its sources, base,
+// write scope and settings, and its instruction kept as an owner-private source. Its text is read back only through
+// sophia.owner_runner_content, which rechecks that authority now (owner-only RLS is not reauthorization): `available`,
+// or `withdrawn` with its metadata. A v1 (A47) row's text stays inline. Prepare-send returns a v2 send's instruction
+// beside its content-free envelope, only after its recheck.
 import type pg from 'pg'
 import type { OwnerRunnerOperation, OwnerRunnerOperationReceipt, OwnerRunnerOperationRequest } from '@sophia/contracts'
 import { digestOf, type RunnerAnswer, type RunnerEnvelope, type RunObservation } from '@sophia/coordination/runner-port'
@@ -58,16 +63,34 @@ interface OperationRow {
   run_status: string | null
   deferrals: number
   reconcile_attempts: number
+  /** sophia.owner_runner_content: the source facts and the instruction as they may be read now. */
+  content: SourceContent
+}
+
+interface SourceContent {
+  envelopeVersion: 1 | 2
+  content: OwnerRunnerOperation['content']
+  sourceIds: string[] | null
+  baseCommit: string | null
+  writeScope: 'read_only' | null
+  settings: OwnerRunnerOperation['settings']
+  message?: string | null
+  title?: string | null
 }
 
 const COLUMNS = `id, kind, state, reason, goal_id, resource_id, target_operation_id, title, message, revision, created_at,
   possible_send_at, received_at, settled_at, native_thread_id, native_run_id, native_delivery, run_status, deferrals,
-  reconcile_attempts`
+  reconcile_attempts, sophia.owner_runner_content(project_id, id) AS content`
 
 const iso = (d: Date | null) => (d === null ? null : d.toISOString())
 
-/** The owner's view. The native namespace and derived command/message ids stay in the database, out of the view. */
+/**
+ * The owner's view. The native namespace and derived command/message ids stay in the database, out of the view. A v2
+ * row's title and message are its instruction only while it may be read now; withdrawn, they are null.
+ */
 function view(r: OperationRow): OwnerRunnerOperation {
+  const c = r.content
+  const inline = c.envelopeVersion === 1
   return {
     operationId: r.id,
     kind: r.kind,
@@ -76,8 +99,8 @@ function view(r: OperationRow): OwnerRunnerOperation {
     goalId: r.goal_id,
     resourceId: r.resource_id,
     targetOperationId: r.target_operation_id,
-    title: r.title,
-    message: r.message,
+    title: inline ? r.title : (c.title ?? null),
+    message: inline ? r.message : (c.message ?? null),
     revision: Number(r.revision),
     admittedAt: r.created_at.toISOString(),
     possibleSendAt: iso(r.possible_send_at),
@@ -89,6 +112,12 @@ function view(r: OperationRow): OwnerRunnerOperation {
     runStatus: r.run_status,
     deferrals: r.deferrals,
     reconcileAttempts: r.reconcile_attempts,
+    envelopeVersion: c.envelopeVersion,
+    content: c.content,
+    sourceIds: c.sourceIds,
+    baseCommit: c.baseCommit,
+    writeScope: c.writeScope,
+    settings: c.settings,
   }
 }
 
@@ -161,8 +190,12 @@ export async function claimRunnerOutbox(
   return rows
 }
 
+/**
+ * A send carries, for a v2 envelope, its instruction (`payload`: the canonical text whose SHA-256 is payloadSha256),
+ * read under the same recheck. An owner-host proxy drops it; an in-process gateway checks and sends it.
+ */
 export type PrepareOutcome =
-  | { result: 'send'; envelope: RunnerEnvelope }
+  | { result: 'send'; envelope: RunnerEnvelope; payload?: string }
   | { result: 'denied'; reason: string }
   | { result: 'deferred'; reason: string }
   | { result: 'expired'; reason: string }

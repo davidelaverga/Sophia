@@ -27,6 +27,15 @@ const E = randomUUID() // editor
 const V = randomUUID() // viewer
 const C = randomUUID() // outsider
 const PIN = 'ade473018d32003658b7d38693e083ee2e314bd8'
+/** SYNTHETIC source facts (0096): a requested base and a declared policy with one model and one effort option. */
+const BASE = '0123456789abcdef0123456789abcdef01234567'
+const POLICY = {
+  v: 1,
+  instanceId: 'claudeAgent',
+  models: [{ model: 'synthetic-model', options: [{ id: 'effort', values: ['low', 'high'] }] }],
+}
+const SETTINGS = { instanceId: 'claudeAgent', model: 'synthetic-model', options: [{ id: 'effort', value: 'high' }] }
+const SOURCE_FACTS = { sourceIds: [], baseCommit: BASE, writeScope: 'read_only', settings: SETTINGS } as const
 
 let db: TestDatabase
 let pool: pg.Pool
@@ -66,6 +75,7 @@ async function nativeResource(
     operations = ['create', 'input', 'stop'],
     allowance = 50,
     accountKey = `claude:${randomUUID()}`,
+    policy = true,
   } = {},
 ) {
   const connectionId = randomUUID()
@@ -89,6 +99,12 @@ async function nativeResource(
         [projectId, resourceId, PIN, accountKey, operations, allowance],
       )
     ).id
+    if (policy)
+      await owner.query(`SELECT sophia.declare_owner_runner_source_policy($1, $2, $3)`, [
+        projectId,
+        qualificationId,
+        JSON.stringify(POLICY),
+      ])
   }
   return { resourceId, connectionId, qualificationId, accountKey }
 }
@@ -105,6 +121,7 @@ const createReq = (
   message: 'Report the Ask admission boundary.',
   expectedGoalRevision: 1,
   expectedAuthorityEpoch: 1,
+  ...SOURCE_FACTS,
   ...over,
 })
 
@@ -234,6 +251,7 @@ describe('admission', () => {
           message: 'x',
           expectedGoalRevision: 1,
           expectedAuthorityEpoch: 1,
+          sourceIds: [],
         }),
       ),
       'runner_unqualified',
@@ -268,6 +286,7 @@ describe('admission', () => {
       message: 'And the outbox?',
       expectedGoalRevision: 1,
       expectedAuthorityEpoch: 1,
+      sourceIds: [],
     }
     assert.equal(await codeOf(admit(A, p.projectId, input)), 'invalid_state', 'its thread is not known yet')
     assert.equal(await codeOf(admit(A, p.projectId, { ...input, targetOperationId: randomUUID() })), 'not_found')
@@ -365,4 +384,307 @@ describe('admission', () => {
     ])
     assert.equal(op.state, 'denied')
   })
+})
+
+// ---- source authority (INC01-CC-005, migration 0096, amendment A50) ----
+
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, ms)
+  })
+const dbNow = async () => (await one<{ t: Date }>('SELECT clock_timestamp() AS t')).t
+/** A project-scoped, eligible, ready source as the existing source flows write one (put_text_source). */
+const projectSource = async (projectId: string, who: string, body: string) =>
+  (
+    await one<{ id: string }>(`SELECT (sophia.put_text_source($1, $2, 'text/plain', $3)).id AS id`, [
+      projectId,
+      who,
+      body,
+    ])
+  ).id
+async function erase(projectId: string, sourceId: string) {
+  const c = await owner.connect()
+  try {
+    await c.query('BEGIN')
+    await c.query('SELECT 1 FROM sophia.projects WHERE id=$1 FOR UPDATE', [projectId])
+    await c.query('SELECT sophia.mission_erase_source($1, $2)', [projectId, sourceId])
+    await c.query('COMMIT')
+  } finally {
+    c.release()
+  }
+}
+const opRow = (id: string) =>
+  one<{
+    message: string | null
+    title: string | null
+    semantic: Record<string, unknown>
+    payload_source_id: string
+    payload_sha256: string
+    manifest_id: string
+    manifest_sha256: string
+    envelope_version: number
+    requested_settings: unknown
+  }>(`SELECT * FROM sophia.owner_runner_operations WHERE id=$1`, [id])
+
+describe('source authority at admission (0096)', () => {
+  it("keeps a create's instruction and title as the owner's private source, out of every member-readable record", async () => {
+    const p = await seedProject(db.ownerUrl, { admin: A, editors: [E] })
+    const r = await nativeResource(p.projectId, A)
+    const spec = await projectSource(p.projectId, A, 'A shared spec')
+    const receipt = await admit(A, p.projectId, createReq(r.resourceId, p.goalId, { sourceIds: [spec] }))
+    const o = await opRow(receipt.operationId)
+    assert.equal(o.envelope_version, 2)
+    assert.equal(o.message, null)
+    assert.equal(o.title, null)
+    assert.deepEqual(Object.keys(o.semantic).includes('message') || Object.keys(o.semantic).includes('title'), false)
+    assert.equal(o.semantic.payloadSha256, o.payload_sha256)
+    const payload = await one<{
+      scope: string
+      eligible: boolean
+      owner_id: string
+      state: string
+      body: string
+      sha256: string
+    }>(
+      `SELECT s.scope, s.eligible, s.owner_id, s.state, s.sha256, t.body FROM sophia.source_objects s
+        JOIN sophia.source_texts t ON t.project_id=s.project_id AND t.source_id=s.id WHERE s.id=$1`,
+      [o.payload_source_id],
+    )
+    assert.deepEqual(
+      { scope: payload.scope, eligible: payload.eligible, owner: payload.owner_id, state: payload.state },
+      { scope: 'private', eligible: false, owner: A, state: 'ready' },
+    )
+    assert.equal(payload.body, '{"message":"Report the Ask admission boundary.","title":"Read-only qualification"}')
+    assert.equal(payload.sha256, o.payload_sha256)
+    // Another member reads neither the instruction nor its context; the owner reads both under RLS.
+    const readable = (who: string) =>
+      withActor(pool, who, 'read', async (c) => {
+        const { rows } = await c.query<{ n: number }>(
+          `SELECT (SELECT count(*)::int FROM sophia.source_texts WHERE source_id=$1)
+                + (SELECT count(*)::int FROM sophia.source_objects WHERE id=$1) AS n`,
+          [o.payload_source_id],
+        )
+        return rows[0]?.n
+      })
+    assert.equal(await readable(E), 0)
+    assert.equal(await readable(A), 2)
+    // Its selection and its context are its own, frozen with their hashes and revisions.
+    const selected = await one<{ ids: string[]; sha: string[] }>(
+      `SELECT array_agg(os.source_id) ids, array_agg(os.sha256=s.sha256) sha FROM sophia.owner_runner_operation_sources os
+        JOIN sophia.source_objects s ON s.project_id=os.project_id AND s.id=os.source_id WHERE os.operation_id=$1`,
+      [receipt.operationId],
+    )
+    assert.deepEqual(selected.ids, [spec])
+    const manifest = await one<{ state: string; sha256: string; body: string }>(
+      `SELECT m.state, s.sha256, t.body FROM sophia.context_manifests m JOIN sophia.source_objects s ON s.id=m.body_source_id
+        JOIN sophia.source_texts t ON t.source_id=s.id WHERE m.id=$1`,
+      [o.manifest_id],
+    )
+    assert.equal(manifest.state, 'eligible')
+    assert.equal(manifest.sha256, o.manifest_sha256)
+    const body = JSON.parse(manifest.body) as Record<string, unknown>
+    assert.equal(body.payloadSha256, o.payload_sha256)
+    assert.equal(body.baseCommit, BASE)
+    assert.equal(manifest.body.includes('Report the Ask'), false, 'the context holds no instruction text')
+    const view = await withActor(pool, A, 'read', (c) => readRunnerOperation(c, p.projectId, receipt.operationId))
+    assert.deepEqual(
+      {
+        content: view.content,
+        message: view.message,
+        title: view.title,
+        sourceIds: view.sourceIds,
+        baseCommit: view.baseCommit,
+        writeScope: view.writeScope,
+        settings: view.settings,
+        envelopeVersion: view.envelopeVersion,
+      },
+      {
+        content: 'available',
+        message: 'Report the Ask admission boundary.',
+        title: 'Read-only qualification',
+        sourceIds: [spec],
+        baseCommit: BASE,
+        writeScope: 'read_only',
+        settings: SETTINGS,
+        envelopeVersion: 2,
+      },
+    )
+  })
+
+  it('refuses a selected source that is private, unready, erased, withdrawn through its closure, or unknown', async () => {
+    const p = await seedProject(db.ownerUrl, { admin: A, editors: [E] })
+    const r = await nativeResource(p.projectId, A)
+    const mine = await one<{ id: string }>(
+      `SELECT (sophia.owner_runner_put_private($1, $2, 'text/plain', 'my private note')).id AS id`,
+      [p.projectId, A],
+    )
+    const theirs = await one<{ id: string }>(
+      `SELECT (sophia.owner_runner_put_private($1, $2, 'text/plain', 'their private note')).id AS id`,
+      [p.projectId, E],
+    )
+    const unready = await projectSource(p.projectId, A, 'not ready yet')
+    await owner.query(`UPDATE sophia.source_objects SET state='uploading' WHERE id=$1`, [unready])
+    const erased = await projectSource(p.projectId, A, 'erased')
+    await erase(p.projectId, erased)
+    const upstream = await projectSource(p.projectId, A, 'upstream')
+    const derived = await projectSource(p.projectId, A, 'derived')
+    await owner.query(
+      `INSERT INTO sophia.source_dependencies(project_id, source_id, derived_source_id) VALUES ($1,$2,$3)`,
+      [p.projectId, upstream, derived],
+    )
+    await erase(p.projectId, upstream)
+    for (const id of [mine.id, theirs.id, unready, erased, derived, randomUUID()]) {
+      assert.equal(
+        await codeOf(admit(A, p.projectId, createReq(r.resourceId, p.goalId, { sourceIds: [id] }))),
+        'invalid_request',
+        id,
+      )
+    }
+    assert.deepEqual(await counts(p.projectId), { ops: 0, commands: 0, outbox: 0 })
+  })
+
+  it('refuses a missing or malformed base, scope or selection, and settings outside the declared policy', async () => {
+    const p = await seedProject(db.ownerUrl, { admin: A })
+    const r = await nativeResource(p.projectId, A)
+    // Each request lacks one fact, or names it malformed (an unchecked request, as an API body could be).
+    const invalid: [string, unknown][] = [
+      ['baseCommit', undefined],
+      ['baseCommit', 'main'],
+      ['baseCommit', '0123456'],
+      ['writeScope', undefined],
+      ['writeScope', 'read_write'],
+      ['sourceIds', undefined],
+      ['sourceIds', ['not-an-id']],
+    ]
+    for (const [key, value] of invalid) {
+      const req: Record<string, unknown> = { ...createReq(r.resourceId, p.goalId) }
+      if (value === undefined) delete req[key]
+      else req[key] = value
+      const malformed = req as unknown as OwnerRunnerOperationRequest
+      assert.equal(await codeOf(admit(A, p.projectId, malformed)), 'invalid_request', `${key}: ${String(value)}`)
+    }
+    const unqualified = [
+      { ...SETTINGS, model: 'undeclared-model' },
+      { ...SETTINGS, options: [{ id: 'effort', value: 'xhigh' }] },
+      { ...SETTINGS, options: [] },
+      { ...SETTINGS, instanceId: 'codex' },
+    ]
+    for (const settings of unqualified)
+      assert.equal(
+        await codeOf(admit(A, p.projectId, createReq(r.resourceId, p.goalId, { settings }))),
+        'runner_unqualified',
+        JSON.stringify(settings),
+      )
+    const undeclared = await nativeResource(p.projectId, A, { policy: false })
+    assert.equal(
+      await codeOf(admit(A, p.projectId, createReq(undeclared.resourceId, p.goalId))),
+      'runner_unqualified',
+      'no source policy declared for the route',
+    )
+    assert.deepEqual(await counts(p.projectId), { ops: 0, commands: 0, outbox: 0 })
+  })
+
+  it("gives each input its own instruction and context, within its create's selection, never changing the create's", async () => {
+    const p = await seedProject(db.ownerUrl, { admin: A })
+    const r = await nativeResource(p.projectId, A)
+    const one1 = await projectSource(p.projectId, A, 'first')
+    const two = await projectSource(p.projectId, A, 'second')
+    const other = await projectSource(p.projectId, A, 'not selected')
+    const created = await admit(A, p.projectId, createReq(r.resourceId, p.goalId, { sourceIds: [one1, two] }))
+    await owner.query(
+      `UPDATE sophia.owner_runner_operations SET state='received', native_thread_id='t-1' WHERE id=$1`,
+      [created.operationId],
+    )
+    const prior = await opRow(created.operationId)
+    const input = (over: Partial<OwnerRunnerOperationRequest> = {}) =>
+      admit(A, p.projectId, {
+        kind: 'input',
+        resourceId: r.resourceId,
+        targetOperationId: created.operationId,
+        message: 'A follow-up instruction.',
+        expectedGoalRevision: 1,
+        expectedAuthorityEpoch: 1,
+        sourceIds: [two],
+        ...over,
+      })
+    assert.equal(await codeOf(input({ sourceIds: [other] })), 'invalid_request', 'outside its create selection')
+    assert.equal(await codeOf(input({ baseCommit: BASE })), 'invalid_request', 'an input inherits its base')
+    assert.equal(await codeOf(input({ settings: SETTINGS })), 'invalid_request', 'and its settings')
+    const followed = await input()
+    const mineInput = await opRow(followed.operationId)
+    assert.notEqual(mineInput.payload_source_id, prior.payload_source_id)
+    assert.notEqual(mineInput.manifest_id, prior.manifest_id)
+    assert.deepEqual(mineInput.requested_settings, prior.requested_settings)
+    const later = await opRow(created.operationId)
+    assert.deepEqual(later, prior, "the create's frozen record is unchanged")
+    const selection = await one<{ create: number; input: number }>(
+      `SELECT (SELECT count(*)::int FROM sophia.owner_runner_operation_sources WHERE operation_id=$1) AS create,
+              (SELECT count(*)::int FROM sophia.owner_runner_operation_sources WHERE operation_id=$2) AS input`,
+      [created.operationId, followed.operationId],
+    )
+    assert.deepEqual(selection, { create: 2, input: 1 })
+    // Admitted facts are immutable, even to the migration owner's direct writes.
+    assert.notEqual(
+      await codeOf(
+        owner.query(`UPDATE sophia.owner_runner_operations SET base_commit=$2 WHERE id=$1`, [
+          created.operationId,
+          'f'.repeat(40),
+        ]),
+      ),
+      'resolved',
+    )
+    assert.notEqual(
+      await codeOf(
+        owner.query(`DELETE FROM sophia.owner_runner_operation_sources WHERE operation_id=$1`, [created.operationId]),
+      ),
+      'resolved',
+    )
+  })
+
+  it("reauthorizes the owner's read now: an erased instruction or source reads withdrawn, its metadata kept", async () => {
+    const p = await seedProject(db.ownerUrl, { admin: A })
+    const r = await nativeResource(p.projectId, A)
+    const spec = await projectSource(p.projectId, A, 'spec')
+    const a = await admit(A, p.projectId, createReq(r.resourceId, p.goalId, { sourceIds: [spec] }))
+    const b = await admit(A, p.projectId, createReq(r.resourceId, p.goalId, { message: 'Another.' }))
+    await erase(p.projectId, spec)
+    await erase(p.projectId, (await opRow(b.operationId)).payload_source_id)
+    for (const id of [a.operationId, b.operationId]) {
+      const v = await withActor(pool, A, 'read', (c) => readRunnerOperation(c, p.projectId, id))
+      assert.equal(v.content, 'withdrawn')
+      assert.equal(v.message, null)
+      assert.equal(v.title, null)
+      assert.equal(v.baseCommit, BASE)
+      assert.equal(v.state, 'denied', 'admitted and unclaimed: denied by the withdrawal itself')
+    }
+  })
+
+  for (const expires of [true, false]) {
+    it(`an admission whose qualification ${expires ? 'expires' : 'stays valid'} while it waits on the goal is ${expires ? 'refused before any write' : 'admitted (control)'} (INC01-30813-EXPIRY-F01)`, async () => {
+      const p = await seedProject(db.ownerUrl, { admin: A })
+      const r = await nativeResource(p.projectId, A)
+      const until = new Date((await dbNow()).getTime() + 1200)
+      await owner.query(`UPDATE sophia.owner_runner_qualifications SET expires_at=$2 WHERE id=$1`, [
+        r.qualificationId,
+        expires ? until : new Date(until.getTime() + 3_600_000),
+      ])
+      const locker = await owner.connect()
+      try {
+        await locker.query('BEGIN')
+        await locker.query('SELECT 1 FROM sophia.goals WHERE project_id=$1 AND id=$2 FOR UPDATE', [
+          p.projectId,
+          p.goalId,
+        ])
+        const admitted = codeOf(admit(A, p.projectId, createReq(r.resourceId, p.goalId)))
+        while ((await dbNow()) <= until) await sleep(50)
+        await sleep(150)
+        assert.deepEqual(await counts(p.projectId), { ops: 0, commands: 0, outbox: 0 }, 'still waiting on the goal')
+        await locker.query('ROLLBACK')
+        assert.equal(await admitted, expires ? 'runner_unqualified' : 'resolved')
+      } finally {
+        locker.release()
+      }
+      assert.equal((await counts(p.projectId)).ops, expires ? 0 : 1)
+    })
+  }
 })

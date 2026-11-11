@@ -168,16 +168,13 @@ export class DbHostChannel implements HostChannel {
   }
 
   async go(exchangeId: string): Promise<GoResult> {
-    const r = await call<{ result: 'go' } | { result: 'denied'; reason: string; grantedBefore?: boolean }>(
-      this.pool,
-      'SELECT sophia.owner_host_go($1, $2) AS r',
-      [this.capability, exchangeId],
-      'go',
-    )
-    // Anything but an explicit grant is no GO (fail closed); a grant counted before is reported as such.
-    return r.result === 'go'
-      ? { result: 'go' }
-      : { result: 'denied', reason: r.reason, grantedBefore: r.grantedBefore === true }
+    const r = await call<
+      { result: 'go'; payload?: unknown } | { result: 'denied'; reason: string; grantedBefore?: boolean }
+    >(this.pool, 'SELECT sophia.owner_host_go($1, $2) AS r', [this.capability, exchangeId], 'go')
+    // Anything but an explicit grant is no GO (fail closed); a grant counted before is reported as such. A v2 send's
+    // grant carries its instruction (0096), passed on as text and checked by the gateway against its digest.
+    if (r.result !== 'go') return { result: 'denied', reason: r.reason, grantedBefore: r.grantedBefore === true }
+    return typeof r.payload === 'string' ? { result: 'go', payload: r.payload } : { result: 'go' }
   }
 
   answer(exchangeId: string, answer: RunnerAnswer | RunObservation): Promise<AnswerResult> {

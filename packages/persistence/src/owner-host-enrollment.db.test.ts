@@ -5,7 +5,7 @@
 // Every case counts native effects. The qualification rows are SYNTHETIC fixtures written by the migration owner:
 // nothing here qualifies a real owner route, host, account, T3 install or provider.
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pg from 'pg'
@@ -17,6 +17,7 @@ import {
   helloRefusal,
   newSecret,
   secretDigest,
+  type GoResult,
   type HostChannel,
   type HostHello,
 } from '@sophia/coordination/owner-host-channel'
@@ -40,11 +41,20 @@ import {
   redeemOwnerHostPairing,
   retireOwnerHost,
   revokeOwnerHost,
+  readRunnerOperation,
   revokeOwnerHostPairing,
   withActor,
 } from './index.ts'
 
 const PIN = 'ade473018d32003658b7d38693e083ee2e314bd8'
+/** SYNTHETIC source facts (0096): a requested base and a declared policy with one model and one effort option. */
+const BASE = '0123456789abcdef0123456789abcdef01234567'
+const POLICY = {
+  v: 1,
+  instanceId: 'claudeAgent',
+  models: [{ model: 'synthetic-model', options: [{ id: 'effort', values: ['low', 'high'] }] }],
+} as const
+const SETTINGS = { instanceId: 'claudeAgent', model: 'synthetic-model', options: [{ id: 'effort', value: 'high' }] }
 const NS = 'client:fake-session-1'
 let db: TestDatabase
 let api: pg.Pool
@@ -108,11 +118,16 @@ async function world() {
      VALUES ($1, $2, $3, $4, 'claude-native', 'Synthetic Claude Code', 'synthetic/repository', 'active')`,
     [p.projectId, resourceId, who, connectionId],
   )
-  await owner.query(
+  const qualified = await owner.query<{ id: string }>(
     `SELECT sophia.qualify_owner_runner($1, $2, $3, 'env-owner-1', 'project-sophia', 'read-only-v1', 1, 'gateway_enforced',
-       $4, ARRAY['create','input','stop'], 50, now() + interval '1 day', 'synthetic fixture: not a live qualification')`,
+       $4, ARRAY['create','input','stop'], 50, now() + interval '1 day', 'synthetic fixture: not a live qualification') AS id`,
     [p.projectId, resourceId, PIN, accountKey],
   )
+  await owner.query(`SELECT sophia.declare_owner_runner_source_policy($1, $2, $3)`, [
+    p.projectId,
+    qualified.rows[0]?.id,
+    JSON.stringify(POLICY),
+  ])
   const profile: GatewayProfile = {
     ownerId: who,
     environmentRef: 'env-owner-1',
@@ -122,6 +137,7 @@ async function world() {
     profileId: 'read-only-v1',
     profileRevision: 1,
     operations: new Set(['create', 'input', 'stop'] as const),
+    sourcePolicy: POLICY,
   }
   const runner = { ownerId: who, environmentRef: 'env-owner-1' }
   const create = () =>
@@ -134,6 +150,10 @@ async function world() {
         message: 'Report the Ask admission boundary.',
         expectedGoalRevision: 1,
         expectedAuthorityEpoch: 1,
+        sourceIds: [],
+        baseCommit: BASE,
+        writeScope: 'read_only',
+        settings: SETTINGS,
       }),
     )
   const pair = () => withActor(api, who, 'write', (c) => createOwnerHostPairing(c, connectionId))
@@ -537,6 +557,7 @@ describe('operation-aware receipts end to end (r2, CC003-S1A-STUDY-F01)', () => 
         message: 'And the outbox boundary?',
         expectedGoalRevision: 1,
         expectedAuthorityEpoch: 1,
+        sourceIds: [],
       }),
     )
     const sent = await pass(w, port, h, false)
@@ -607,6 +628,7 @@ describe('r3 integration on the reviewed backend: run identity shapes, direct an
           message: 'And the outbox boundary?',
           expectedGoalRevision: 1,
           expectedAuthorityEpoch: 1,
+          sourceIds: [],
         }),
       )
       assert.deepEqual((await pass(w, port, h, false)).sent, ['unknown'], 'direct: not received')
@@ -723,6 +745,237 @@ describe('r3 integration on the reviewed backend: run identity shapes, direct an
   })
 })
 
+/** Erase a source as every existing caller does: the project locked first, then mission_erase_source. */
+async function erase(projectId: string, sourceId: string) {
+  const c = await owner.connect()
+  try {
+    await c.query('BEGIN')
+    await c.query('SELECT 1 FROM sophia.projects WHERE id=$1 FOR UPDATE', [projectId])
+    await c.query('SELECT sophia.mission_erase_source($1, $2)', [projectId, sourceId])
+    await c.query('COMMIT')
+  } finally {
+    c.release()
+  }
+}
+const payloadOf = async (operationId: string) =>
+  (
+    await one<{ id: string }>(`SELECT payload_source_id AS id FROM sophia.owner_runner_operations WHERE id=$1`, [
+      operationId,
+    ])
+  ).id
+
+/**
+ * A host whose channel withdraws the create's instruction at one point (at delivery, between delivery and GO, or just
+ * after a granted GO), and records every GO it was given.
+ */
+async function withdrawnAt(at: 'delivery' | 'go' | 'after_go') {
+  const w = await world()
+  const gos: GoResult[] = []
+  let operationId = ''
+  let withdrawn = false
+  const withdraw = async () => {
+    withdrawn = true
+    await erase(w.projectId, await payloadOf(operationId))
+  }
+  const h = await enroll(w, {
+    channel: (c) => ({
+      hello: (x) => c.hello(x),
+      poll: async (l, r) => {
+        if (at === 'delivery' && !withdrawn && operationId && (await exchanges(operationId)).length > 0)
+          await withdraw()
+        return c.poll(l, r)
+      },
+      go: async (id) => {
+        if (at === 'go' && !withdrawn) await withdraw()
+        const go = await c.go(id)
+        gos.push(go)
+        if (at === 'after_go' && !withdrawn && go.result === 'go') await withdraw()
+        return go
+      },
+      answer: (id, a) => c.answer(id, a),
+    }),
+  })
+  const created = await w.create()
+  operationId = created.operationId
+  const p = await pass(w, await proxyFor(w), h, false)
+  assert.ok(withdrawn)
+  return { w, h, p, gos, operationId }
+}
+
+describe('source authority over the owner-host channel (INC01-CC-005, 0096)', () => {
+  it('carries no instruction in any exchange; only a granted GO hands it to the host, and the journal keeps none', async () => {
+    const w = await world()
+    const gos: GoResult[] = []
+    const h = await enroll(w, {
+      channel: (c) => ({
+        hello: (x) => c.hello(x),
+        poll: (l, r) => c.poll(l, r),
+        answer: (i, a) => c.answer(i, a),
+        go: async (id) => {
+          const go = await c.go(id)
+          gos.push(go)
+          return go
+        },
+      }),
+    })
+    const created = await w.create()
+    const p = await pass(w, await proxyFor(w), h)
+    assert.deepEqual(p.sent, ['received'])
+    const requests = await owner.query<{ request: unknown }>(
+      `SELECT request FROM sophia.owner_host_exchanges WHERE operation_id=$1`,
+      [created.operationId],
+    )
+    assert.ok(requests.rows.length >= 1)
+    for (const r of requests.rows) {
+      const text = JSON.stringify(r.request)
+      assert.equal(text.includes('Report the Ask'), false, 'no instruction in an exchange')
+      assert.equal(text.includes('Read-only qualification'), false, 'nor its title')
+      assert.equal((r.request as { envelope: { v: number } }).envelope.v, 2)
+    }
+    assert.deepEqual(gos, [
+      { result: 'go', payload: '{"message":"Report the Ask admission boundary.","title":"Read-only qualification"}' },
+    ])
+    const launch = h.t3.calls.find((c) => c.tool === 't3_thread_launch')
+    assert.equal(launch?.args.message, 'Report the Ask admission boundary.')
+    assert.deepEqual(launch?.args.workspaceStrategy, { type: 'worktree', baseRef: BASE })
+    assert.deepEqual(launch?.args.modelSelection, SETTINGS)
+    assert.equal(readFileSync(h.file, 'utf8').includes('Report the Ask'), false)
+  })
+
+  it('denies at delivery an instruction withdrawn after prepare-send: no GO, no body, no native call', async () => {
+    const { h, p, gos, operationId } = await withdrawnAt('delivery')
+    assert.deepEqual(p.sent, ['refused'])
+    assert.equal((await op(operationId)).state, 'denied')
+    assert.deepEqual(gos, [])
+    assert.equal(h.t3.calls.length, 0)
+    const [x] = await exchanges(operationId)
+    assert.match(x?.reason ?? '', /^at delivery: (a source it was admitted with|its private instruction) was withdrawn/)
+  })
+
+  it('refuses GO for an instruction withdrawn between delivery and GO: the host never receives it or sends', async () => {
+    const { h, p, gos, operationId } = await withdrawnAt('go')
+    assert.deepEqual(p.sent, ['refused'])
+    assert.equal((await op(operationId)).state, 'denied')
+    assert.equal(gos.length, 1)
+    assert.equal(gos[0]?.result, 'denied')
+    assert.equal('payload' in (gos[0] ?? {}), false, 'a refused GO carries no instruction')
+    assert.equal(h.t3.calls.length, 0)
+  })
+
+  it('after a granted GO, a withdrawal keeps the send and its commitment: a delivered copy is never claimed unsent', async () => {
+    const { w, h, p, gos, operationId } = await withdrawnAt('after_go')
+    assert.equal(gos[0]?.result, 'go')
+    assert.deepEqual(p.sent, ['received'])
+    assert.equal((await op(operationId)).state, 'received')
+    assert.equal(h.t3.effects.launches, 1)
+    const marked = await one<{ at: Date | null; reserved: number }>(
+      `SELECT o.source_withdrawn_at AS at, (SELECT count(*)::int FROM sophia.owner_runner_reservations r
+         WHERE r.binding_id=o.binding_id) AS reserved FROM sophia.owner_runner_operations o WHERE o.id=$1`,
+      [operationId],
+    )
+    assert.ok(marked.at)
+    assert.equal(marked.reserved, 1)
+    const view = await withActor(api, w.who, 'read', (c) => readRunnerOperation(c, w.projectId, operationId))
+    assert.equal(view.content, 'withdrawn')
+    assert.equal(view.state, 'received')
+  })
+})
+
+// ---- repair 1 over the configured channel (gate INC01-CC-005-final-53f42da1-SOURCE-PRE-PUSH-001) ----
+
+const SECRET_MESSAGE = 'SECRET-INSTRUCTION-7f3a'
+/** A FakeT3 that answers a launch or send with a refusal whose message echoes the call's instruction. */
+class EchoT3 extends FakeT3 {
+  echo = false
+  override async call(call: Parameters<FakeT3['call']>[0]): ReturnType<FakeT3['call']> {
+    if (this.echo && (call.tool === 't3_thread_launch' || call.tool === 't3_thread_send'))
+      return {
+        kind: 'failure',
+        code: 'invalid_request',
+        message: `${String(call.args.title)} ${String(call.args.message)}`,
+      }
+    return super.call(call)
+  }
+}
+
+describe('repair 1 across the owner-host channel (CC005-E7-F01, F02)', () => {
+  it("keeps a native refusal that echoes the instruction out of the host's answer, the exchange and the operation", async () => {
+    const w = await world()
+    const t3 = new EchoT3(NS)
+    t3.echo = true
+    const h = await enroll(w, { t3 })
+    const created = await withActor(api, w.who, 'write', (c) =>
+      admitRunnerOperation(c, w.projectId, randomUUID(), {
+        kind: 'create',
+        resourceId: w.resourceId,
+        goalId: w.goalId,
+        title: 'Read-only qualification',
+        message: `${SECRET_MESSAGE}: report the boundary.`,
+        expectedGoalRevision: 1,
+        expectedAuthorityEpoch: 1,
+        sourceIds: [],
+        baseCommit: BASE,
+        writeScope: 'read_only',
+        settings: SETTINGS,
+      }),
+    )
+    const p = await pass(w, await proxyFor(w), h, false)
+    assert.deepEqual(p.sent, ['rejected'])
+    const stored = await owner.query<{ answer: unknown; reason: string | null }>(
+      `SELECT x.answer, o.reason FROM sophia.owner_host_exchanges x JOIN sophia.owner_runner_operations o ON o.id=x.operation_id
+        WHERE x.operation_id=$1`,
+      [created.operationId],
+    )
+    assert.equal(JSON.stringify(stored.rows).includes(SECRET_MESSAGE), false, JSON.stringify(stored.rows))
+  })
+
+  it("refuses GO for an input once its create's instruction is withdrawn between delivery and GO", async () => {
+    const w = await world()
+    let createId = ''
+    let withdrawn = false
+    const gos: GoResult[] = []
+    const h = await enroll(w, {
+      channel: (c) => ({
+        hello: (x) => c.hello(x),
+        poll: (l, r) => c.poll(l, r),
+        answer: (i, a) => c.answer(i, a),
+        go: async (id) => {
+          if (createId && !withdrawn) {
+            withdrawn = true
+            await erase(w.projectId, await payloadOf(createId))
+          }
+          const go = await c.go(id)
+          gos.push(go)
+          return go
+        },
+      }),
+    })
+    const created = await w.create()
+    const port = await proxyFor(w)
+    await pass(w, port, h)
+    assert.equal((await op(created.operationId)).state, 'received')
+    createId = created.operationId
+    gos.length = 0
+    const input = await withActor(api, w.who, 'write', (c) =>
+      admitRunnerOperation(c, w.projectId, randomUUID(), {
+        kind: 'input',
+        resourceId: w.resourceId,
+        targetOperationId: created.operationId,
+        message: 'A follow-up through the host.',
+        expectedGoalRevision: 1,
+        expectedAuthorityEpoch: 1,
+        sourceIds: [],
+      }),
+    )
+    const p = await pass(w, port, h, false)
+    assert.ok(withdrawn)
+    assert.deepEqual(p.sent, ['refused'])
+    assert.equal((await op(input.operationId)).state, 'denied')
+    assert.equal(gos[0]?.result, 'denied')
+    assert.equal(h.t3.count('t3_thread_send'), 0, 'the host never sent it')
+  })
+})
+
 describe('the exchange ledger', () => {
   it('is idempotent by key, conflicts on another payload, counts every GO, keeps the first answer, and lapses', async () => {
     const w = await world()
@@ -770,8 +1023,10 @@ describe('the exchange ledger', () => {
       await codeOf(h.channel.answer(exchangeId, { kind: 'unknown', identity: null, reason: 'x' })),
       'resolved',
     )
-    assert.deepEqual(await h.channel.go(exchangeId), { result: 'go' })
-    assert.deepEqual(await h.channel.go(exchangeId), { result: 'go' })
+    // Each grant of a v2 send carries its instruction (0096), read under that grant's recheck; nothing else does.
+    const payload = '{"message":"Report the Ask admission boundary.","title":"Read-only qualification"}'
+    assert.deepEqual(await h.channel.go(exchangeId), { result: 'go', payload })
+    assert.deepEqual(await h.channel.go(exchangeId), { result: 'go', payload })
     assert.equal((await exchanges(created.operationId))[0]?.go_count, 2)
     const first = { kind: 'unknown', identity: null, reason: 'no certain answer' } as const
     assert.deepEqual(await h.channel.answer(exchangeId, first), { result: 'ok' })
@@ -920,6 +1175,7 @@ describe('operation-aware observations end to end (r5, HOST-S1A-R4-F01)', () => 
         message: 'And the outbox boundary?',
         expectedGoalRevision: 1,
         expectedAuthorityEpoch: 1,
+        sourceIds: [],
       }),
     )
     await pass(w, port, h, false)

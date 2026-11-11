@@ -10,6 +10,8 @@
 //      settlement of a lost Stop is only a cached past read: the dispatcher answers it with a fresh observation.
 // Its rows (runner.*) are never claimed by the dsh dispatcher (native.*). The port is injected: in this candidate only
 // tests give one (an owner gateway over a fake T3 transport). No live owner-host transport exists yet (INC01-CC-003).
+// A v2 send (INC01-CC-005, 0096) is handed its instruction exactly as prepare-send returned it after its recheck; the
+// dispatcher never reads, keeps or logs it, and reconcile and observe never need it.
 //
 // `sends: false` turns new WORK off without hiding or abandoning anything: step 2 claims no create or input (they wait,
 // unsent), but still claims and sends an already-admitted Stop (r3, R2-F08), with every recheck prepare-send makes.
@@ -86,10 +88,12 @@ async function sendClaimed(
   const envelope = prepared.envelope
   let answer: RunnerAnswer
   try {
-    answer = await options.port.send(envelope, digestOf(envelope), options.port.journalId)
-  } catch (err) {
+    answer = await options.port.send(envelope, digestOf(envelope), options.port.journalId, prepared.payload)
+  } catch {
     // The port threw after the possible send was committed: nothing proves either way.
-    answer = { kind: 'unknown', identity: null, reason: `the gateway call failed: ${text(err)}`.slice(0, 300) }
+    // Repair 1 (F01): a fixed reason. What the port threw may echo the instruction: it is neither recorded nor logged.
+    options.log?.(`runner operation ${envelope.operationId}: the gateway call threw`)
+    answer = { kind: 'unknown', identity: null, reason: 'the gateway call failed; a send may have happened' }
   }
   pass.sent.push(answer.kind)
   try {
