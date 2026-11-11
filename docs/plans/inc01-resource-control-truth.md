@@ -209,6 +209,114 @@ one P2 class (UI1164-F08); this repair is its child and claims no approval of it
   Fail-before on exact `1164e75d` with the new checks, pass after; guard mutations that must fail assertions;
   before/after captures, desktop and narrow.
 
+## Revision 3, repair 4: a reset that isn't an instant is an unknown reset (review INC01-DES-001-r3-repair3-SOURCE-FINAL-001)
+
+Written before the repair's code. Root published `85c4a886` to PR 506 after the same reviewer's whole-diff acceptance;
+the automatic review on that head found, and the reviewer confirmed, one P2 class (UI85C4-F09). Davide's approval stays
+that of `1164e75d`; this repair is an ordinary correction within it and claims no approval of its own.
+
+- **The class.** `holds` already ordered a reset that isn't an instant (`'not-an-instant'`, `''`) as unknown, but
+  `windowView` still formatted it: `Date.parse` gives NaN, so it was never due and read `resets in NaN days`, in the
+  readiness line's `more` (the tile's tooltip, the sheet), in the capacity line and the tile's capacity, for every unit.
+  The same value reaches `pace()` through `capacity()`, whose early warning then read `used up ~NaN days before it
+  resets` (probe on `85c4a886`).
+- **The repair, at one boundary in `resource.ts`.** `resetAt(w)`: a window's reset as an instant, or null when it has
+  none or it isn't one. `windowView` formats only that instant (due, or in how long) and says nothing for null, as for a
+  window with no reset reported; `capacity()` asks no pace of a window without one; `holds` reads the same instant.
+  Found while checking, after this plan was first written: `pace()` itself (`pace.ts`, not leased) gives `passed: NaN`
+  for such a window, and `CapacityBlock` passes it to the meter of a non-headline window directly; see the handoff's
+  repair 4 bounds.
+  The raw `resets_at` is kept as reported (`saysNow`, `history.ts` compare it as given), never rewritten.
+- **Preserved.** A used-up window with an unknown reset still waits (its state stays observed; never Ready by guess,
+  never refresh pending by guess); null, valid and due resets read as before; the longest-holding order (no reset
+  known first) and the current, applicable, observed checks; host, freshness and sign-in first. No CSS, component,
+  layout, flow, Tasks or control change.
+- **Evidence.** Unit cases through the real helpers (`readinessSummary`, `capacity`, `windowView`): malformed and empty
+  resets on percent, spend percent, credits and tokens; null, valid and due controls; two used up with one unknown;
+  precedence. Browser: tile line, tooltip and capacity, and sheet, at desktop and phone widths, no `NaN` or
+  `Invalid Date`. Fail-before on exact `85c4a886`, pass after, guard mutations, before/after captures.
+
+## Revision 3, repair 5: pace refuses a time that isn't one (root's lease extension, the rest of UI85C4-F09)
+
+Written before the repair's code. Repair 4 (`b466f693`) stays unpublished, a preserved partial repair. Root confirmed the
+gap it reported and leased `pace.ts` and its `pace.test.ts` to this designer; `CapacityBlock.tsx` and `Meter.tsx` stay
+untouched.
+
+- **The class, in `pace()`.** It parsed the reset and the reading's `observed_at` without asking whether either was an
+  instant. On `b466f693` (probe): a reset that isn't one gives `passed: NaN` and `~NaN days`, which `CapacityBlock`'s
+  list of other windows hands to `Meter` (`aria-valuetext` "… · NaN% of the window passed", its mark `left: NaN%`);
+  an `observed_at` that isn't one does the same through `capacity()` too, since repair 4 guarded only the reset there.
+- **The repair.** `pace()` returns null, its existing "no pace" answer, unless the reset, the reading's time, now and
+  the value are each a finite number; every valid pace is computed as before. `capacity()` then calls `pace()` as it
+  did on `85c4a886`: repair 4's own guard there (`paceOf`) is removed, one boundary for pacing, `resetAt` for the
+  words. Nothing is invented: no date, no elapsed fraction, no availability; the raw reading is kept.
+- **Reported, not edited.** A reading time that isn't an instant also reaches `ago()` (`resource.ts`): the capacity's
+  line of facts says `NaN days ago`; and `windowHistory` (`history.ts`, not leased) makes a point at NaN for the
+  sparkline. The first needs words for an observation time that isn't valid (new copy), the second a file outside the
+  lease: both are left as a concrete gap for root, with the probe as evidence.
+- **Evidence.** `pace.test.ts`: malformed and empty reset and reading time, null reset, valid, due, an unknown source,
+  a balance, a window that applies in part. The fixture gains `reset=bad-7day` (Claude Code's 7-day window, below the
+  5-hour headline, its reset not an instant, so it sits in the other-windows list) and `reset=bad-observed` (the
+  reading's time isn't one). Browser: open that list and read each `Meter`'s `aria-valuetext` and its mark's `left`, at
+  desktop and phone widths. Fail-before on exact `b466f693`, pass after, a mutation removing the finite-time refusal.
+  Development as a signed child of `b466f693`; the candidate is one signed child of `85c4a886` with the same tree.
+
+## Revision 3, repair 6: a reading time that isn't an instant gives no history point, span or age (UI85C4-F09)
+
+Written before the repair's code. Repair 5 (`fbebda5e`) stays unpublished, a preserved partial repair. Root leased the
+existing `history.ts` and `history.test.ts` to this designer; `CapacityBlock`, `Meter`, `Sparkline`, `time-words`,
+components and CSS stay untouched.
+
+- **The class (probe on `fbebda5e`).** `windowHistory` made a point at `Date.parse(observed_at)`, NaN for a reading
+  whose time isn't an instant, latest or historic; `spanOf` then formatted `6 readings in NaN days` (and `Infinity days`
+  from an infinite one); `resource.ago` formatted any non-empty string, `NaN days ago` in the capacity's line of facts,
+  and took an empty string for `never observed`, false for a reading that exists. The host row in `readinessRows`
+  (`status-words.ts`) gets the same `NaN days ago` from a host time that isn't an instant.
+- **The repair.** `windowHistory` makes no point from a reading whose time isn't a finite instant (the reading itself
+  is kept as given; no time, zero point or count is put in its place). `spanOf` says nothing unless its first and last
+  points are finite and in order. `ago` keeps `never observed` for null and its words for a valid time, and gives
+  nothing (`''`) for a string that isn't an instant: the line of facts already drops an empty fragment
+  (`CapacityBlock.Meta`), so no age is said. The host row, which would then read `· observed ` with nothing after it,
+  says the host's state alone, as the line of facts omits its fragment.
+- **Direct consumers checked.** `Sparkline` draws from the finite points only (its `since`, x, y and caption follow);
+  `observedSaid` already says an invalid readiness time as not valid before it asks `ago`; `windowView` and the
+  expired-reading line call `ago` only with an instant. Reported, not edited: `ResourceSheet.Since` (not leased) would
+  show `observed` followed by an empty age for a host time that isn't an instant; `expiry` (`resource.ts`), used by
+  Tasks' decisions too, would say `expired` with no age for a deadline that isn't one; both lose their NaN, neither is
+  changed here.
+- **Evidence.** `history.test.ts`: malformed latest and historic readings, an infinite span, valid controls.
+  `status-words.test.ts`: `ago` and the host row. The fixture's `reset=bad-observed` (malformed live reading) and a new
+  `reset=bad-history` (one earlier reading's time malformed): the line of facts, the sparklines' `aria-label`,
+  `points`, caption and marker style, at desktop and phone widths, no `NaN`, `Infinity` or `Invalid Date`, the valid
+  readings and the 57 % pace kept. Fail-before on exact `fbebda5e`, pass after, a mutation removing the finite-time
+  guard. Development as a signed child of `fbebda5e`; the candidate is one signed child of `85c4a886`, same tree.
+
+## Revision 3, repair 7: a host time that isn't an instant is an unknown age, never "never observed" (UI58E-F10)
+
+Written before the repair's code. Repair 6 (`58e44a2a`) stays unpublished, a preserved partial repair. The same
+reviewer's whole-26 pre-push gate (`7c72f635…`) found one P2 class: host age. Root leased `ResourceSheet.tsx` for `Since`
+and its host age and separator; on this designer's report, it also leased `ResourceTile.tsx`'s offline host label
+(`hostLabel`) only.
+
+- **The class (probe on `58e44a2a`).** Each host-age reader guarded by truthiness, not by absence: an empty host time
+  read as absence (`Never observed` in the details row, with `observed: true`; `never observed` in the sheet's
+  heading), and a whitespace or malformed one as a time (the heading's bare `observed `; the offline tile's
+  `Host offline · NaN days`).
+- **The repair, one boundary in `status-words.ts`.** `hostAge(at, now)`: null when the host has no observation time
+  (`never observed`, as before), `''` when it has one that isn't an instant, else the existing words (`2 min ago`).
+  `offlineFor(host, now)`: an offline host's time gone in a word (`1 day`), or null when there is none to say. The
+  details row says `Never observed` only for null, the state alone for a time that isn't one, and keeps
+  `observed: host.observedAt !== null` (a host state was reported). `ResourceSheet.Since` renders its own separator:
+  `· observed <time>` with its `dateTime` and title for a valid time, `· never observed` for null, nothing at all for
+  a time that isn't an instant: no bare `observed`, no empty `<time>`, no dangling `·`. `ResourceTile.hostLabel` says
+  `Host offline · 1 day` only from a valid time, its bare label otherwise. Raw `observedAt` is kept as reported.
+- **Not changed.** CSS, layout, copy, other components; Tasks and `expiry` (disclosed, not leased).
+- **Evidence.** Unit: `hostAge`, `offlineFor` and the details row for null, empty, whitespace, malformed and valid
+  times, online, offline and unknown hosts. Browser, desktop and phone: a fixture `host=<case>` that sets the Codex
+  host's time (and, for `offline`, Grok's), read through the real tile label, sheet heading (text, `<time>`, title,
+  separators) and Readiness details; focus returns to the tile on Escape. Fail-before on exact `58e44a2a`, pass after,
+  mutations on each guard. Development as a signed child of `58e44a2a`; the candidate one signed child of `85c4a886`.
+
 ## Evidence plan
 
 - Unit (`status-words.test.ts`): host words, grouping/order, every note branch including the teammate and no-port cases.

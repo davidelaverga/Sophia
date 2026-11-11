@@ -176,9 +176,14 @@ export interface RequiredAction {
   openTarget: string | null
 }
 
-/** How long ago (app/time-words.ts): "just now", "4 min ago", "3 h ago", "2 days ago"; or never observed. */
+/**
+ * How long ago (app/time-words.ts): "just now", "4 min ago", "3 h ago", "2 days ago"; never observed when there is no
+ * time. A time that isn't an instant gives nothing to say, never an age made up from it, nor "never observed" for what
+ * was (r3 repair 6, UI85C4-F09): a line of facts leaves the empty fragment out.
+ */
 export function ago(at: string | null, now: Date): string {
-  return at ? agoWords(at, now.getTime()) : 'never observed'
+  if (at === null) return 'never observed'
+  return Number.isFinite(Date.parse(at)) ? agoWords(at, now.getTime()) : ''
 }
 
 /** How long ago a session's activity was observed, to the second while it is fresh: "40 s ago", then "3 min ago". */
@@ -251,15 +256,27 @@ function valueOf(w: QuotaWindow, v: number): string {
 }
 
 /**
+ * A window's reset as an instant, or null when it reports none or what it reports isn't one: an unknown reset, never a
+ * made-up time (r3 repair 4, UI85C4-F09). The reported `resets_at` itself is kept as given.
+ */
+export function resetAt(w: QuotaWindow): number | null {
+  if (w.resets_at === null) return null
+  const at = Date.parse(w.resets_at)
+  return Number.isFinite(at) ? at : null
+}
+
+/**
  * A window as it stands now: a reset already due is refresh pending, never fresh capacity; unknown stays unknown; a
- * reading past its `valid_until` is expired; a value whose applicability isn't known says so.
+ * reading past its `valid_until` is expired; a value whose applicability isn't known says so. A reset that isn't an
+ * instant is said as none is: not due, and no time.
  */
 export function windowView(w: QuotaWindow, now: Date, stale = false): WindowView {
-  const due = w.resets_at !== null && Date.parse(w.resets_at) <= now.getTime()
+  const at = resetAt(w)
+  const due = at !== null && at <= now.getTime()
   const applies = w.applicability
   const state = stateOf(w, due, stale)
-  const reset =
-    w.resets_at === null ? null : due ? `reset was due ${ago(w.resets_at, now)}` : `resets ${until(w.resets_at, now)}`
+  const when = at === null ? null : new Date(at).toISOString()
+  const reset = when === null ? null : due ? `reset was due ${ago(when, now)}` : `resets ${until(when, now)}`
   const name = windowName(w.window_id)
   const withheld = NOT_A_VALUE[state]
   if (withheld) return { id: w.window_id, name, state, value: withheld, reset, percent: null, applies }

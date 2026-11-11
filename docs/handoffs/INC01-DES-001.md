@@ -1,6 +1,6 @@
 # Implementation-session handoff — INC01-DES-001
 
-Goal and attempt: INC01-DES-001, revision 3 repair 3 (r2 `changes_requested` by Davide's iteration pack), attempt 1 (INC-01)  
+Goal and attempt: INC01-DES-001, revision 3 repair 7 (r2 `changes_requested` by Davide's iteration pack), attempt 1 (INC-01)  
 Human owner / executor resource: Davide / the dedicated Claude Code designer (cloud session, Auto mode)  
 Native session: `session_01FGXfrKKdKs2Y9XbfrHzs3s`; coordinator Codex `01a1bd48-df51-7692-b30c-9e20f6eb4c81`  
 Starting worktree/commit: `/home/user/Sophia`, branch `claude/determined-ritchie-eujmht` at `main`
@@ -11,7 +11,10 @@ commit can't name its own hash). r1 was `face27996b5702f8586640238ec39ab168b3739
 (`00d8193c56ac42d2cc8ee31a4f96a0c479141c5f` / `c1a1f0d09aedf346d48b12e2d2d55ed983eca5ab`, kept with its export). r3 is
 one publication commit on the base, its r2-based work commit kept on a separate local ref (manifest). r3 repair 2 was
 published as `1164e75dce7ffea5724d2b20d58856ae8e4f63fd` (tree `fd233c6b4a314ae35f026bcbddf80208e0521f1e`, PR 506);
-repair 3 is one local, unpushed child of that published commit, never a rewrite of it. Changed:
+repair 3 was published as `85c4a88606704ba7a9ce88907d7b218086851cf2` (tree `8aae2238135780c2f53773cafe473a10437ac91f`,
+PR 506); repairs 4 to 7 are one local, unpushed child of that published commit, never a rewrite of it (`b466f693`,
+`fbebda5e` and `58e44a2a` are kept unpublished as partial repairs; each later repair was developed as a child of the one
+before). Changed:
 `apps/studio/src/features/resources/{ResourceSheet.tsx, ResourceTile.tsx, resource.ts, resources.css, status-words.ts,
 status-words.test.ts, receipts.ts, receipts.test.ts, SessionActs.tsx, work-control.ts, work-control.test.ts}`,
 `apps/studio/src/features/work/planning/{actions.ts, actions.test.ts}`, `apps/studio/fixtures/{resources.tsx,
@@ -48,9 +51,13 @@ its Try again the same operation. The state comes from the one store Resources a
 execution; Tasks draws no second Hold either, nor names H for one. Readiness opens on request, fact by fact, the
 unknown ones said as not reported. Control support uses the pack's words.
 
-State: repair 3 of the published `1164e75d` (UI1164-F08), local and unpushed, awaiting the same reviewer's whole-diff
-source review; root and that reviewer assess its materiality on the actual diff. Davide approved exactly `1164e75d` /
-`fd233c6b` for publication and integration review; that approval is not claimed for this repair's head. Repair 2 had
+State: repairs 4 to 7 of the published `85c4a886` (UI85C4-F09: the readiness and capacity words, `pace`, the history
+and the age; UI58E-F10: the host's age), one local, unpushed candidate, awaiting the same reviewer's whole-diff source
+review; root and that reviewer assess its materiality on the actual diff. `b466f693`, `fbebda5e` and `58e44a2a` are
+preserved partial repairs, not source accepted (`58e44a2a`'s whole-26 pre-push gate `7c72f635…`: needs revision, F10). Repair 3 (`85c4a886`, UI1164-F08) was
+accepted pre-push (`04d63f48…`), judged an ordinary correction within the approved design and published by root.
+Davide approved exactly `1164e75d` / `fd233c6b` for publication and integration review; that approval is not claimed
+for either repair's head. Repair 2 had
 been `awaiting_design_approval` until that decision; its pre-push source acceptance (`8a556808…`) stays historical.
 r3 repair 1 (`9c1ee251…`) was reviewed NEEDS_REVISION (DES-R3-REPAIR1-F05…F07; F01–F04 closed), kept as history.
 r3 (`848f1105…`) was reviewed NEEDS_REVISION (DES-R3-F01…F04) and is kept as history. Not approved, not
@@ -244,16 +251,151 @@ verified Codex with none left read `Ready for repository analysis` in the tile a
    out, unchanged). The final commit replaces it as the same single child of `1164e75d`; mutations, focused checks,
    captures, `pnpm check` and the build ran again on it.
 
+## r3 repair 4, as it happened
+
+Review `INC01-DES-001-r3-repair3-SOURCE-FINAL-001` (`needs_revision`, SHA-256 `86c20da8…`) on the published `85c4a886`:
+one P2 class, UI85C4-F09, from the automatic review and confirmed by the same reviewer. `holds` ordered a reset that
+isn't an instant as unknown, but `windowView` still formatted it, so the readiness tooltip and sheet, the capacity line
+and the tile's capacity read `resets in NaN days`; through `capacity()`, `pace()` added `out in ~NaN days` and
+`At this pace, used up ~NaN days before it resets`.
+
+1. The plan's repair 4 section first. Fail-before on the exact `85c4a886` `status-words.ts`, `resource.ts` and
+   `pace.ts` (blobs verified): 4 of 26 unit tests failed (the fifth, siblings and precedence, passed as it should); both
+   new browser checks, desktop and phone, failed at their first case (the tooltip `resets in NaN days`); a probe of ten
+   readings at both widths found the made-up time in every malformed one and none in the valid ones.
+2. The repair: `resetAt` in `resource.ts`, a window's reset as an instant or null; `windowView` formats only that
+   instant and says nothing for null, as for no reset reported; `capacity()` asks no pace of a window without one;
+   `holds` in `status-words.ts` reads the same instant. A used-up window with such a reset still waits (still observed,
+   neither refresh pending nor ready by guess); the reported `resets_at` is kept as given. `pace.ts`, `CapacityBlock`
+   and `Meter` are untouched (not leased; see the bounds below). The fixture gains six
+   `count=` readings and `reset=bad` (Claude Code's paced 5-hour window).
+3. Pass-after: 26/26 unit, the probe clean at both widths, both affected Resources specs on both projects 128 passed.
+4. Mutations, each applied exactly once, 0 cancelled, restored byte-identical: `windowView` formatting the reported
+   reset again (4 unit assertions, both browser checks), `capacity()` pacing it (1 unit assertion, both browser
+   checks), an unknown reset ordered shortest (2 unit assertions, the desktop browser check); `resetAt` letting NaN
+   through fails as a thrown `RangeError` (5 unit, both browser checks), not as assertions. One mutant, `when` taken
+   from the reported string once `resetAt` has found an instant, survived: it is equivalent (only a valid instant gets
+   there). The first mutation run is kept beside the final one.
+5. Captures: 7 states before on `85c4a886` and after, desktop and narrow. Then the focused checks, `pnpm check` and the
+   Studio build on the final commit (manifest). Earlier campaigns are not rerun or restamped; no new Impeccable
+   detector: no CSS or component changed.
+6. A first local commit (`3bc873e4`, kept on a local ref, never pushed) carried the plan's wrong `passed: null` claim;
+   its `pnpm check` was stopped at typecheck (kept as aborted, no result claimed) and the docs corrected. The final
+   commit replaces it as the same single child of `85c4a886`; its code paths are byte-identical to `3bc873e4`'s, so
+   the focused checks, captures and probe run on `3bc873e4` are reused as byte-matched, and `pnpm check` and the build
+   ran on the final commit.
+
+## r3 repair 5, as it happened
+
+Root received repair 4 (`b466f693`) as a partial repair, confirmed the gap it reported and leased `pace.ts` and
+`pace.test.ts` to this designer.
+
+1. The plan's repair 5 section first. A probe on `b466f693` found the same class in a second input: a reading whose
+   `observed_at` isn't an instant also gives `pace()` a NaN, and repair 4 had guarded only the reset in `capacity()`.
+2. Fail-before on the exact `b466f693` `pace.ts`, `resource.ts`, `status-words.ts`, `CapacityBlock.tsx` and `Meter.tsx`
+   (blobs verified): 2 of 35 unit tests failed (`pace()` direct, and `capacity()` from a reading time that isn't one);
+   all 3 new browser checks failed: the 7-day window in the other windows read `40% used · NaN% of the window passed`
+   (its mark drawn at the start of the track: repair 4's bounds said that mark was dropped; the capture shows it
+   drawn at 0), and with a reading time that isn't one the headline meter, its early warning (`used up ~NaN days`) and
+   the tile did the same. The first browser attempt is kept: the `reset=bad-observed` fixture crashed the page inside
+   the shared fixture's `earlierReadings` (`toISOString` on NaN, `resources-data.ts`), not in product code; the
+   fixture was reworked to change only the live reading.
+3. The repair: `pace()` returns null, its existing "no pace", unless the reset, the reading's time, the clock and the
+   value are each finite; every valid pace is as before. Repair 4's own guard in `capacity()` (`paceOf`) is removed:
+   `capacity()` calls `pace()` as on `85c4a886`. The fixture gains `reset=bad-7day`, `reset=ok-7day` (its control) and
+   `reset=bad-observed`.
+4. Pass-after: 35/35 unit; the probe at both widths: every meter's `aria-valuetext` and mark clean, the valid control's
+   mark kept (57 %); both affected Resources specs, both projects, 131 passed (128 and the 3 new).
+5. Mutations on the refusal, each applied exactly once, 0 cancelled, restored byte-identical, all failing assertions:
+   removed (3 unit, 3 browser), without the reading time (2 unit, 2 browser), without the reset (2 unit, 2 browser).
+   Repair 4's mutation record stands as it was: M-V an equivalent survivor, M-U caught by a thrown `RangeError`, not an
+   assertion.
+6. Captures: 5 states before on `b466f693` and after, desktop and narrow. The candidate is one signed child of
+   `85c4a886` whose tree equals the development commit's; the focused checks, captures, `pnpm check` and the build ran
+   on it (manifest).
+
+## r3 repair 6, as it happened
+
+Root received repair 5 (`fbebda5e`) as a partial repair: it still rendered NaN in the line of facts from its own
+malformed-reading fixture. Root leased `history.ts` and `history.test.ts` to this designer.
+
+1. The plan's repair 6 section first. A probe on `fbebda5e`: `windowHistory` made a NaN point from a reading time that
+   isn't an instant; `spanOf` said `NaN days` (and `Infinity days`); `ago` said `NaN days ago` and took an empty
+   string for `never observed`; the host row said `observed NaN days ago`; `expiry` said `expired NaN days ago`.
+2. Fail-before on the exact `fbebda5e` `history.ts`, `resource.ts` and `status-words.ts` (blobs verified): 4 of 35
+   unit tests failed. The browser checks failed on the malformed live reading (`6 readings in NaN days · NaN days ago`,
+   and the browser rejected the sparkline's SVG `points`, `NaN,19.44 …`) and on a malformed earlier reading, which
+   crashed the whole panel: `Sparkline.tsx:18` called `toISOString` on a NaN first point (`RangeError: Invalid time
+   value`); the sheet never opened. The valid control passed. Run again with the final spec over the same source files
+   (set aside and restored by blob): the same three failures, the control passing.
+3. The repair: `windowHistory` makes no point from a reading whose time isn't a finite instant; `spanOf` says nothing
+   unless both ends are finite and in order; `ago` says `never observed` only for null and nothing (`''`) for a time
+   that isn't an instant, which the line of facts already leaves out; the host row says the host's state alone then.
+   No other consumer changed: `Sparkline` draws only finite points; `observedSaid`, `windowView` and the expired-reading
+   line ask `ago` only with an instant. The fixture gains `reset=bad-history`, applied after the shared fixture builds
+   the earlier readings.
+4. Pass-after: 35/35 unit; the probe at both widths: every line of facts, sparkline label, `points` and marker finite,
+   no page error, the valid `6 readings in 3 h · 1 min ago` and the 57 % pace kept. The first browser run failed 2
+   checks on the test's own expectation (two sparklines; the 7-day window is due for its reset in those readings and
+   draws none): corrected to the actual counts, no source change; then 135 passed (131 and the 4 new).
+5. Mutations, each applied exactly once, 0 cancelled, restored byte-identical, all failing assertions: a point from a
+   time that isn't one (1 unit, 3 browser), a span from ends that aren't finite (1 unit; unit-only: with finite points no
+   fixture reaches it), an age from a time that isn't one (2 unit, 2 browser), the host row's dangling `observed` (1
+   unit; unit-only: the host row isn't in these views). Earlier mutation records stand as they were.
+6. Captures: 5 states before on `fbebda5e`'s source and after, desktop and narrow. The candidate is one signed child of
+   `85c4a886` whose tree equals the development commit's; the focused checks, captures, `pnpm check` and the build ran
+   on it (manifest).
+
+## r3 repair 7, as it happened
+
+The same reviewer's whole-26 pre-push gate on `58e44a2a` (`7c72f635…`) kept every earlier closure and found one P2
+class, UI58E-F10: host age by truthiness. Root leased `ResourceSheet.tsx` for `Since` and its host age and separator.
+
+1. The plan's repair 7 section first. A probe found a third consumer outside the lease, `ResourceTile.hostLabel`
+   (`Host offline · NaN days` from a whitespace or malformed time); it was reported before any edit, and the lease was
+   extended to that label only.
+2. Fail-before on the exact `58e44a2a` `status-words.ts`, `ResourceSheet.tsx`, `ResourceTile.tsx` and `resource.ts`
+   (blobs verified): 2 of 31 unit tests failed (the empty-time row, and the absent helpers, by assertion); the browser
+   checks failed on an empty host time, desktop and phone (`Host online · never observed`, `Never observed`), the null
+   and valid control passing. The first browser attempt is kept: its harness read `innerText` (the tile's label
+   upper-cased by CSS, the heading with a layout break), so even the control failed; it reads `textContent` now. A
+   rendered probe of every host case at both widths: empty as never observed; whitespace and malformed as a bare
+   `observed` with an empty `<time>` and title, and `Host offline · NaN days` on the tile; null and valid correct.
+3. The repair: `hostAge` (null without a time, `''` for one that isn't an instant, else its words) and `offlineFor`
+   (`1 day`, or null) in `status-words.ts`; the details row says `Never observed` only for null and the state alone
+   otherwise; `Since` renders its own ` · ` and nothing at all for a time that isn't an instant; `hostLabel` uses
+   `offlineFor`. `observed: host.observedAt !== null` and the raw `observedAt` are kept. The fixture gains
+   `host=empty|blank|bad|none` for Codex and Grok.
+4. Pass-after: 31/31 unit (the test's inline helper moved to module scope for lint, its assertions unchanged); the
+   probe at both widths: the state alone for empty, whitespace and malformed, `never observed` for null, valid times as
+   before, focus back on the tile, no page error; both affected Resources specs, both projects, 138 passed (135 and 3).
+5. Mutations, each applied exactly once, 0 cancelled, restored byte-identical, all failing assertions: `hostAge` by
+   truthiness (2 unit, 2 browser), `Since`'s bare `observed` (browser only, 2: a component), `offlineFor` without its
+   finite check (1 unit, 2 browser), the row by truthiness (2 unit, 2 browser). Earlier records stand as they were.
+6. Captures: 7 states before on `58e44a2a` and after, desktop and narrow. The candidate is one signed child of
+   `85c4a886` whose tree equals the development commit's; the focused checks, captures, `pnpm check` and the build ran
+   on it (manifest).
+
 ## Remaining obligations
 
-- Same reviewer's whole-diff source review of repair 3 before root pushes it; then root fast-forwards once, and the
+- Same reviewer's whole-diff source review of repairs 4 to 7 before root pushes them; then root fast-forwards once, and the
   current-head automatic review, CI and Luis's integration follow on PR 506.
-- Davide's approval covers exactly `1164e75d`. Root and the reviewer judge repair 3's materiality on its diff (a false
-  Ready corrected to the existing Waiting line); any material UI change needs his decision on that working candidate.
+- Davide's approval covers exactly `1164e75d`. Root and the reviewer judge repairs 4 to 7's materiality on their diff (a made-up
+  reset time corrected to the existing unknown-reset wording, saying none); any material UI change needs his decision on that working candidate.
 - r3 repair 3 bounds: the mixed capacity line is unchanged (beside a 25 % window, the tile's capacity still names that
   window while the summary waits for the used-up count); a count's name follows the existing `windowName` (an unmapped
   id reads as words, e.g. "daily tokens"); no live readiness projection or quota collector exists, so this is fixture
   proof only.
+- r3 repair 4 bounds, as first written, said `pace()`'s NaN reached only the other windows' meter and that its mark
+  was dropped; repair 5 found it also came from a reading time that isn't an instant, and that the mark was drawn at the
+  start of the track. Repair 5 closes both in `pace()`. A due reset still reads refresh pending, never ready; an
+  unknown one keeps a used-up window waiting with no time said.
+- r3 repair 5 bounds, as first written, left a reading time that isn't an instant in `ago` and `history.ts`; repair 6
+  closes both. r3 repair 6 bounds, reported, not edited, as first written: `ResourceSheet.Since` showed `observed`
+  with an empty age for a host time that isn't an instant; repair 7 closes it, with the details row and the tile's
+  label. Still reported, not edited: `expiry` (`resource.ts`), which Tasks' decisions also use, says `expired` with no
+  age for a deadline that isn't one (its NaN is gone) and still treats it as past; the action deadline's service and
+  DTO are not integrated, and no action-expiry acceptance is claimed. This is not all temporal-input handling.
 - Chromium emulation is not physical Safari or touch hardware.
 - r3 repair 1 bounds: the readiness projection and `runtimeControl` are the Studio's proposal; no service supplies them,
   so production shows the unknown states; the seeds prove the UI rebuilds from a retained record, not that a service
@@ -272,6 +414,6 @@ verified Codex with none left read `Ready for repository analysis` in the tile a
 
 ## Next bounded action
 
-Root sends the repair 3 export to the same reviewer for its whole-diff source review; nothing is pushed before that.
+Root sends the repair 7 export (repairs 4 to 7 together) to the same reviewer for its whole-diff source review; nothing is pushed before that.
 After integration, the next consumer is INC01-S2: bind real `ResourcePanel` data in `ProjectShell` and add the readiness and
 authentication observations C01-R05 names. This candidate's "not reported" line then shows what is observed.

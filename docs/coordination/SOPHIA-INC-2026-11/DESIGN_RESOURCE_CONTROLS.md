@@ -7,20 +7,20 @@ assertion that a ledger table holds it.
 |---|---|
 | design_change_id | INC01-DES-001 |
 | mission_id | SOPHIA-INC-2026-11 (INC-01, resource UX part of INC01-S6) |
-| revision | 3, repair 3 (published r3 repair 2 `1164e75d…` / `fd233c6b…`, PR 506, approved by Davide for publication and integration review, then `needs_revision` on UI1164-F08; r3 repair 2 pre-push source-accepted `8a556808…`; r3 repair 1 `9c1ee251…` NEEDS_REVISION: DES-R3-REPAIR1-F05…F07, its F01–F04 closed; r1 `face2799…` NEEDS_REVISION: DES-R1-F01; r2 `00d8193c…` source-accepted, then `changes_requested` by Davide's iteration pack; r3 `848f1105…` NEEDS_REVISION: DES-R3-F01…F04) |
+| revision | 3, repair 7 (repairs 4 to 7 together; `b466f693…`, `fbebda5e…` and `58e44a2a…` preserved, unpublished partial repairs, `58e44a2a…`'s whole-26 gate `7c72f635…` needs revision on UI58E-F10; published r3 repair 3 `85c4a886…` / `8aae2238…`, accepted pre-push `04d63f48…`, then `needs_revision` on UI85C4-F09; published r3 repair 2 `1164e75d…` / `fd233c6b…`, PR 506, approved by Davide for publication and integration review, then `needs_revision` on UI1164-F08; r3 repair 2 pre-push source-accepted `8a556808…`; r3 repair 1 `9c1ee251…` NEEDS_REVISION: DES-R3-REPAIR1-F05…F07, its F01–F04 closed; r1 `face2799…` NEEDS_REVISION: DES-R1-F01; r2 `00d8193c…` source-accepted, then `changes_requested` by Davide's iteration pack; r3 `848f1105…` NEEDS_REVISION: DES-R3-F01…F04) |
 | author_thread_id | Claude Code designer, `session_01FGXfrKKdKs2Y9XbfrHzs3s` |
 | coordinator_thread_id | Codex `01a1bd48-df51-7692-b30c-9e20f6eb4c81` |
-| base | `main` at `953e5dc3d4c88e491517f3f0d0eaa18216fea98f`; repair 3 is a local child of the published `1164e75dce7ffea5724d2b20d58856ae8e4f63fd` |
+| base | `main` at `953e5dc3d4c88e491517f3f0d0eaa18216fea98f`; repairs 4 to 7 are one local child of the published `85c4a88606704ba7a9ce88907d7b218086851cf2` |
 | candidate_commit_sha, candidate_tree_sha | In the exported manifest (`MANIFEST.json` beside the bundle); a commit cannot name its own hash |
 | affected_surfaces | Resources: tile host label; sheet host, Readiness details, session status and Open work, Control support; Act and Tasks' Act on it (shared `SessionActs`, `work-control.ts`); Tasks' H key |
-| design_scope_digest | SHA-256 of `git diff --binary --full-index --no-ext-diff --no-textconv 953e5dc3..HEAD`, and of `1164e75d..HEAD`, in the manifest |
+| design_scope_digest | SHA-256 of `git diff --binary --full-index --no-ext-diff --no-textconv 953e5dc3..HEAD`, and of `85c4a886..HEAD`, in the manifest |
 | preview_reference | Fixture page `apps/studio/fixtures/resources.html` on the candidate commit (setup below) |
-| evidence_references | repair 3: 7 before (`1164e75d` summary) and 7 after captures, r3-repair3 export; r1: 13 pairs; r2: 4 settled-Hold pairs; r3: 12 before (r2 source) and 20 final after captures (17 earlier ones superseded pre-fence, kept as history), r3 export; repair 1: 15 before (`848f1105` source) and 15 after, r3-repair1 export |
+| evidence_references | repair 7: 7 before (`58e44a2a`) and 7 after captures, r3-repair7 export; repair 6: 5 before (`fbebda5e` source) and 5 after captures, r3-repair6 export; repair 5: 5 before (`b466f693`) and 5 after captures, r3-repair5 export; repair 4: 7 before (`85c4a886`) and 7 after captures, r3-repair4 export; repair 3: 7 before (`1164e75d` summary) and 7 after captures, r3-repair3 export; r1: 13 pairs; r2: 4 settled-Hold pairs; r3: 12 before (r2 source) and 20 final after captures (17 earlier ones superseded pre-fence, kept as history), r3 export; repair 1: 15 before (`848f1105` source) and 15 after, r3-repair1 export |
 | significance | significant |
 | significance_reason | Product promise: changes what a Stop/Hold control and an online host are said to mean (UI-R06) |
-| state | repair 3 awaiting the same reviewer's whole-diff source review; root and that reviewer assess its materiality on the actual diff (an ordinary false Ready corrected to the existing Waiting line). Davide's approval is recorded for exactly `1164e75d` |
-| requested_at | r3 repair 2: presented and approved by Davide for publication and integration review (root's record `INC01-DES-001-r3-repair2-DAVIDE-APPROVAL.json`); repair 3: source review requested at hand-back (time in its export manifest); r3 repair 1 not presented; r2 presented, `changes_requested`; r3 not presented (source review NEEDS_REVISION) |
-| decided_at, decision_actor, decision_reference | r3 repair 2 (`1164e75d`): Davide, root's approval record (time there); repair 3: no decision of its own |
+| state | repairs 4 to 7 awaiting the same reviewer's whole-diff source review; root and that reviewer assess its materiality on the actual diff (a made-up reset time corrected to the existing unknown-reset wording). Repair 3 was judged an ordinary correction and published. Davide's approval is recorded for exactly `1164e75d` |
+| requested_at | r3 repair 2: presented and approved by Davide for publication and integration review (root's record `INC01-DES-001-r3-repair2-DAVIDE-APPROVAL.json`); repair 3: accepted pre-push and published by root; repair 4: handed back, kept as a partial repair; repair 5: handed back, kept as a partial repair; repair 6: whole-26 gate needs revision (F10), kept as a partial repair; repair 7: source review requested at hand-back (time in its export manifest); r3 repair 1 not presented; r2 presented, `changes_requested`; r3 not presented (source review NEEDS_REVISION) |
+| decided_at, decision_actor, decision_reference | r3 repair 2 (`1164e75d`): Davide, root's approval record (time there); repairs 3 to 7: no decision of their own |
 | approved_scope, conditions | none |
 | final_candidate_sha, equivalence_record | unknown |
 
@@ -72,6 +72,19 @@ assertion that a ledger table holds it.
   `Waiting for capacity: <name> window` and its own reset, whatever window is beside them and in either order; every
   window of a current reading is weighed, so a percentage that runs out first at its pace no longer hides a used-up one.
   Credits left, a window applying only in part, unknown, due for its reset or a reading past its time read as before.
+- **Repair 4 (UI85C4-F09):** a reset that isn't an instant is said as none is: no `resets in NaN days` in the
+  readiness tooltip or sheet, the capacity line or the tile, and no pace estimated from it; a used-up window with such a
+  reset still waits.
+- **Repair 5 (UI85C4-F09, pace):** no pace is estimated from a reset or a reading time that isn't an instant: a meter
+  in the list of other windows, or the headline's, says its value without "NaN% of the window passed" and draws no mark;
+  no early warning is made up. A valid pace is unchanged.
+- **Repair 6 (UI85C4-F09, history and age):** a reading whose time isn't an instant gives no history point, no span and
+  no age: the capacity's line of facts leaves the age out and counts only the readings with a time; a sparkline is drawn
+  from those alone (an invalid earlier reading no longer stops the sheet from opening). The host's state is said alone
+  when its time isn't one.
+- **Repair 7 (UI58E-F10, host age):** a host time that isn't an instant (empty, whitespace or otherwise) says the
+  host's state alone in the sheet's heading, Readiness details and the offline tile, with no age, no bare "observed",
+  no empty time and no dangling separator; "never observed" only when there is no time at all.
 - **Unchanged:** Act, the Stop confirmation, the receipt steps (Requested → Recorded/Delivered → only a settled receipt
   says Stopped/Held), the effort controls, task links, navigation, J/K, Esc focus return.
 
@@ -86,7 +99,7 @@ pnpm --filter @sophia/studio exec vite --config vite.fixtures.config.ts
 ```
 
 Then open `http://127.0.0.1:5199/resources.html` with `?viewer=davide` (owner) or `?viewer=luis` (teammate); add `more=1`
-(offline Grok, Gemini), `readiness=1&count=credits0|tokens0|percent-credits0|credits0-percent|tokens-credits0|credits0-tokens|credits|partial|unknown|due` (repair 3), `stale=1`, `settle=unknown|confirmed`, `admission=lost|refused|slow`, `loading=1`. The page
+(offline Grok, Gemini), `reset=bad|bad-7day|ok-7day|bad-observed|bad-history`, `more=1&host=empty|blank|bad|none`, `readiness=1&count=credits0-badreset|tokens0-emptyreset|percent100-badreset|spend-badreset|badreset-percent100|credits-badreset|credits0|tokens0|percent-credits0|credits0-percent|tokens-credits0|credits0-tokens|credits|partial|unknown|due` (repair 3), `stale=1`, `settle=unknown|confirmed`, `admission=lost|refused|slow`, `loading=1`. The page
 says `Simulated — no tool, host or account read`. The settled Hold on Tasks: `http://127.0.0.1:5199/work.html` with
 `?viewer=davide&settle=confirmed`, open "Review the report pane", press Hold.
 

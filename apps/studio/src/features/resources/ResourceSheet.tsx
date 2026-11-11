@@ -10,7 +10,6 @@ import { Sheet } from '../../app/Sheet.tsx'
 import { CapacityBlock } from './CapacityBlock.tsx'
 import { ResourceRequests } from './RequiredActions.tsx'
 import {
-  ago,
   observedAgo,
   reportsLive,
   TOOL,
@@ -34,6 +33,7 @@ import {
   CONTROL_NAME,
   controlGroups,
   controlsNote,
+  hostAge,
   hostState,
   readinessRows,
   readinessSummary,
@@ -42,15 +42,27 @@ import { ToolLogo } from './ToolLogo.tsx'
 import { stillOffered, workState, type ControlSaid, type WorkState } from './work-control.ts'
 import { when } from '../../app/time-words.ts'
 
+/**
+ * After its host's state: " · observed 2 min ago", or " · never observed" without a time; nothing at all for a time
+ * that isn't an instant, no bare "observed", empty time or dangling separator (r3 repair 7, UI58E-F10).
+ */
 function Since({ at, now }: { at: string | null; now: Date }) {
-  if (!at) return <span className="resource-age">never observed</span>
+  const age = hostAge(at, now)
+  if (age === '') return null
   return (
-    <span className="resource-age">
-      observed{' '}
-      <time dateTime={at} title={when(at, now.getTime())}>
-        {ago(at, now)}
-      </time>
-    </span>
+    <>
+      {' · '}
+      {age === null || at === null ? (
+        <span className="resource-age">never observed</span>
+      ) : (
+        <span className="resource-age">
+          observed{' '}
+          <time dateTime={at} title={when(at, now.getTime())}>
+            {age}
+          </time>
+        </span>
+      )}
+    </>
   )
 }
 
@@ -75,7 +87,8 @@ function Host({
     <div className="resource-host">
       <p className={host.state}>
         <span className="resource-dot" aria-hidden />
-        {hostState(host)} · <Since at={host.observedAt} now={now} />
+        {hostState(host)}
+        <Since at={host.observedAt} now={now} />
       </p>
       <p className="resource-readiness" data-tone={summary.tone}>
         <span className="readiness-line">{summary.line}</span>

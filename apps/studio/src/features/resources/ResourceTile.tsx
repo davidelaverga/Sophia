@@ -24,17 +24,16 @@ import {
   type Resource,
   type Session,
 } from './resource.ts'
-import { hostShort, readinessSummary } from './status-words.ts'
+import { hostShort, offlineFor, readinessSummary } from './status-words.ts'
 import { ToolLogo } from './ToolLogo.tsx'
-import { roughly } from '../../app/time-words.ts'
 
 /**
  * Its host, named as the host: an online host is not a ready tool (status-words.ts). An offline host says how long it
  * has been gone, in a word: "Host offline · 3 h", "Host offline · 1 day".
  */
 function hostLabel(host: Resource['host'], now: Date): string {
-  if (host.state !== 'offline' || !host.observedAt) return hostShort(host)
-  return `${hostShort(host)} · ${roughly(now.getTime() - Date.parse(host.observedAt))}`
+  const gone = offlineFor(host, now) // only from a time that is an instant (r3 repair 7)
+  return gone === null ? hostShort(host) : `${hostShort(host)} · ${gone}`
 }
 
 interface Props {

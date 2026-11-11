@@ -17,7 +17,9 @@
 // target), as on the plan's page; `reassign(sessionId)` gives a session its next assignment. `unfenced=1`: the runtimes report each session's work, but not which assignment it
 // is or its generation, so nothing can be sent to them (PR #76 review).
 // Open work leaves for that board, carrying `held=<work id>` when this viewer's Hold on it was confirmed here.
-// `count=<case>` (with `readiness=1`): Codex's reading as credits or tokens, used up or not (below).
+// `count=<case>` (with `readiness=1`): Codex's reading as credits or tokens, used up or not, or a reset that isn't an
+// instant (below); `reset=bad|bad-7day|ok-7day|bad-observed|bad-history`: a time of Claude Code's that isn't one;
+// `host=empty|blank|bad|none`: Codex's and Grok's host time.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -219,7 +221,21 @@ const seeded = (list: Resource[]): Resource[] =>
       }))
     : list
 
-const shown = seeded(withReadiness(query.get('unfenced') === '1' ? unfenced(listed) : listed))
+/**
+ * `host=empty|blank|bad|none`: Davide's Codex (online) and Grok (offline, with `more=1`) report their host's
+ * observation time as an empty string, whitespace, something that isn't an instant, or none at all (r3 repair 7).
+ */
+const HOST_TIMES: Record<string, string | null> = { empty: '', blank: ' ', bad: 'not-an-instant', none: null }
+const hostTime = query.get('host') ?? ''
+const withHostTime = (list: Resource[]): Resource[] =>
+  hostTime in HOST_TIMES
+    ? list.map((r) =>
+        r.id === 'davide-codex' || r.id === 'davide-grok'
+          ? { ...r, host: { ...r.host, observedAt: HOST_TIMES[hostTime] ?? null } }
+          : r,
+      )
+    : list
+const shown = seeded(withReadiness(withHostTime(query.get('unfenced') === '1' ? unfenced(listed) : listed)))
 
 const reviewer = shown.flatMap((r) => r.sessions).find((s) => s.id === 'codex-reviewer')
 const reviewerTarget = reviewer ? sessionTarget(PROJECT, reviewer) : null
@@ -255,7 +271,9 @@ const tight = query.get('tight') === '1'
  * at zero alone (`credits0`, `tokens0`), beside a 5-hour window at 25 % or a positive count in either order
  * (`percent-credits0`, `credits0-percent`, `tokens-credits0`, `credits0-tokens`), and the siblings that are not used up:
  * credits left (`credits`), zero that applies only in part (`partial`), unknown (`unknown`), or whose reset is already
- * due (`due`). With `stale=1` the reading is past its time, whatever it said.
+ * due (`due`). With `stale=1` the reading is past its time, whatever it said. Repair 4 (UI85C4-F09): a reset that isn't
+ * an instant, on each unit used up (`credits0-badreset`, `tokens0-emptyreset`, `percent100-badreset`, `spend-badreset`),
+ * beside a used-up window whose reset is known (`badreset-percent100`), and on credits left (`credits-badreset`).
  */
 const countWindow = (
   unit: QuotaWindow['unit'],
@@ -284,6 +302,34 @@ const COUNTS: Record<string, QuotaWindow[]> = {
   partial: [countWindow('credits_remaining', 0, { applicability: 'partial' })],
   unknown: [countWindow('credits_remaining', null, { state: 'unknown' })],
   due: [countWindow('credits_remaining', 0, { resets_at: minutes(-30) })],
+  'credits0-badreset': [countWindow('credits_remaining', 0, { resets_at: 'not-an-instant' })],
+  'tokens0-emptyreset': [countWindow('tokens_remaining', 0, { resets_at: '' })],
+  'percent100-badreset': [{ ...roomy, value: 100, resets_at: 'not-an-instant' }],
+  'spend-badreset': [
+    { ...roomy, window_id: 'spend_limit', unit: 'spend_percent_used', scope: 'spend', value: 120, resets_at: 'NaN' },
+  ],
+  'badreset-percent100': [
+    countWindow('credits_remaining', 0, { resets_at: 'not-an-instant' }),
+    { ...roomy, value: 100 },
+  ],
+  'credits-badreset': [countWindow('credits_remaining', 820, { resets_at: '' })],
+}
+/**
+ * `reset=bad`: Davide's Claude Code reports its 5-hour window's reset as something that isn't an instant (repair 4).
+ * `reset=bad-7day`: its 7-day window, at 40 %, below the 5-hour headline, reports a reset that isn't an instant: it sits
+ * in the list of other windows, paced (repair 5); `reset=ok-7day`, the same with a reset that is one, its control.
+ * `reset=bad-observed`: the reading's own time isn't an instant.
+ */
+const badReset = (o: QuotaObservation): QuotaObservation => {
+  const kind = query.get('reset')
+  const id = kind === 'bad-7day' || kind === 'ok-7day' ? 'seven_day' : 'five_hour'
+  const resets_at = kind === 'ok-7day' ? minutes(3 * 1440) : 'not-an-instant'
+  return {
+    ...o,
+    windows: o.windows.map((w) =>
+      w.window_id !== id ? w : { ...w, resets_at, ...(id === 'seven_day' ? { value: 40 } : {}) },
+    ),
+  }
 }
 const counts = COUNTS[query.get('count') ?? '']
 const codexRead = (o: QuotaObservation): QuotaObservation => {
@@ -295,8 +341,33 @@ const codexRead = (o: QuotaObservation): QuotaObservation => {
 const read = [...observations, ...(more ? moreObservations : [])].map((o) => {
   if (busy && o.entitlement_id === 'ent-davide-anthropic') return busyClaude(o)
   if (tight && o.entitlement_id === 'ent-davide-anthropic') return tightClaude(o)
+  if (query.get('reset')?.endsWith('7day') || query.get('reset') === 'bad') {
+    if (o.entitlement_id === 'ent-davide-anthropic') return badReset(o)
+  }
   return o.entitlement_id === 'ent-davide-openai' ? codexRead(o) : o
 })
+
+/**
+ * `reset=bad-observed`: the live reading of Davide's Claude Code says a time that isn't an instant. The earlier readings
+ * are built from the reading as given (`earlierReadings` shifts its time), so only the one the panel shows is changed.
+ */
+const shownReadings = (list: QuotaObservation[]): QuotaObservation[] =>
+  query.get('reset') === 'bad-observed'
+    ? list.map((o) => (o.entitlement_id === 'ent-davide-anthropic' ? { ...o, observed_at: 'not-an-instant' } : o))
+    : list
+
+/**
+ * `reset=bad-history`: the earliest of Davide's Claude Code's earlier readings says a time that isn't an instant
+ * (repair 6); the history is built as given first, then only that one reading is changed.
+ */
+const shownHistory = (list: QuotaObservation[]): QuotaObservation[] =>
+  query.get('reset') === 'bad-history'
+    ? list.map((o) =>
+        o.observation_id.endsWith('-earlier-0') && o.entitlement_id === 'ent-davide-anthropic'
+          ? { ...o, observed_at: 'not-an-instant' }
+          : o,
+      )
+    : list
 
 /**
  * `since=1`: the viewer last looked a while ago, when Codex's review was still queued, nothing waited on Davide, and
@@ -480,7 +551,7 @@ function Live() {
   const [live, setLive] = useState<LiveState>({
     actions: query.get('quiet') === '1' ? [] : actions,
     resources: withActivity(shown),
-    observations: read,
+    observations: shownReadings(read),
     loading: query.get('loading') === '1' || query.get('refreshing') === '1',
     asks: {},
   })
@@ -514,7 +585,7 @@ function Live() {
           viewerId={viewer.id}
           now={NOW}
           loading={live.loading}
-          history={earlierReadings(read)}
+          history={shownHistory(earlierReadings(read))}
           tasks={tasks}
           scope="fixture"
           projectId={PROJECT}

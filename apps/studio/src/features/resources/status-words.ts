@@ -6,6 +6,7 @@
 import {
   ago,
   expired,
+  resetAt,
   TOOL,
   windowView,
   type ControlName,
@@ -17,6 +18,7 @@ import {
   type Support,
   type WindowView,
 } from './resource.ts'
+import { roughly } from '../../app/time-words.ts'
 
 const HOST_STATE: Record<Resource['host']['state'], string> = {
   online: 'Host online',
@@ -30,6 +32,20 @@ export const hostState = (host: Resource['host']) => HOST_STATE[host.state]
 /** The same on a tile, short enough to leave its tool's name whole: "Host unknown" there. */
 export const hostShort = (host: Resource['host']) =>
   host.state === 'unknown' ? 'Host unknown' : HOST_STATE[host.state]
+
+/**
+ * How long ago its host was observed, the same for the sheet's heading and its details (r3 repair 7, UI58E-F10): null
+ * when the host has no observation time (never observed); nothing (`''`) when it has one that isn't an instant, an age
+ * unknown, its state said alone; else the words, "2 min ago". By absence, never by truthiness.
+ */
+export const hostAge = (at: string | null, now: Date): string | null => (at === null ? null : ago(at, now))
+
+/** How long an offline host has been gone, in a word for its tile ("1 day"); null when there is none to say. */
+export function offlineFor(host: Resource['host'], now: Date): string | null {
+  if (host.state !== 'offline' || host.observedAt === null) return null
+  const at = Date.parse(host.observedAt)
+  return Number.isFinite(at) ? roughly(now.getTime() - at) : null
+}
 
 /** Said under the host while the resource reports no sign-in or readiness: an online host is not a ready tool. */
 export const READINESS_UNREPORTED = 'Sign-in and readiness not reported'
@@ -108,9 +124,11 @@ function observedSaid(r: Readiness, f: Freshness, now: Date): string {
  */
 export function readinessRows(resource: Resource, now: Date): ReadinessRow[] {
   const { host, tool, readiness } = resource
+  const age = hostAge(host.observedAt, now)
   const hostRow = {
     label: 'Host',
-    value: host.observedAt ? `${HOST_VALUE[host.state]} · observed ${ago(host.observedAt, now)}` : 'Never observed',
+    // Never observed only without a time; a time that isn't an instant says the state alone (r3 repairs 6 and 7).
+    value: age === null ? 'Never observed' : `${HOST_VALUE[host.state]}${age ? ` · observed ${age}` : ''}`,
     observed: host.observedAt !== null,
   }
   if (!readiness) {
@@ -182,10 +200,7 @@ const COUNT: ReadonlySet<QuotaWindow['unit']> = new Set(['credits_remaining', 't
 const spent = ({ unit, value }: QuotaWindow) => value !== null && (COUNT.has(unit) ? value <= 0 : value >= 100)
 
 /** How long a used-up window holds the connection: no reset known (none, or not an instant) longest, else the later. */
-function holds({ resets_at }: QuotaWindow): number {
-  const at = resets_at === null ? NaN : Date.parse(resets_at)
-  return Number.isFinite(at) ? at : Infinity
-}
+const holds = (w: QuotaWindow): number => resetAt(w) ?? Infinity
 
 /**
  * The windows that hold a connection now (r3 repair 3, UI1164-F08): every window of a current reading weighed, in no

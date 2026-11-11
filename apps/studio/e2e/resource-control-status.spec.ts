@@ -538,6 +538,285 @@ test('r3-repair3 · F08 · credits or tokens at zero wait for capacity, whatever
   }
 })
 
+// ---- r3 repair 4 (UI85C4-F09): a reset that isn't an instant is an unknown reset, in the tile and the sheet alike. ----
+
+const INVENTED = /NaN|Invalid Date|Infinity|undefined/
+const UNKNOWN_RESETS: [string, string, string | null][] = [
+  ['count=credits0-badreset', 'Waiting for capacity: Daily requests window', null],
+  ['count=tokens0-emptyreset', 'Waiting for capacity: daily tokens window', null],
+  ['count=percent100-badreset', 'Waiting for capacity: 5-hour window', null],
+  ['count=spend-badreset', 'Waiting for capacity: Spend limit window', null],
+  ['count=badreset-percent100', 'Waiting for capacity: Daily requests window', null], // unknown holds longest
+  ['count=credits-badreset', 'Ready for repository analysis', 'Code changes: not verified for this connection yet'],
+]
+
+/** A tile and its sheet say the line, its tooltip and `more` as given, and no made-up time anywhere in either. */
+async function saysNoInventedTime(page: Page, reading: string, name: string, line: string, more: string | null) {
+  await page.goto(`${PAGE}?viewer=davide&readiness=1&${reading}`)
+  const card = tile(page, name)
+  const said = card.locator('.resource-tile-readiness')
+  await expect(said, `${reading}: tile`).toHaveText(line)
+  await expect(said, `${reading}: tooltip`).toHaveAttribute('title', more ?? line)
+  expect(await card.innerText(), `${reading}: tile`).not.toMatch(INVENTED)
+  const sheet = await open(page, name)
+  const summary = sheet.locator('.resource-readiness')
+  await expect(summary.locator('.readiness-line'), `${reading}: sheet`).toHaveText(line)
+  const after = summary.locator('.readiness-more')
+  await (more === null ? expect(after, reading).toHaveCount(0) : expect(after, reading).toHaveText(more))
+  expect(await sheet.innerText(), `${reading}: sheet`).not.toMatch(INVENTED)
+  await page.keyboard.press('Escape')
+}
+
+test('r3-repair4 · F09 · a used-up window whose reset isn’t an instant waits, its reset unsaid, never NaN', async ({
+  page,
+}) => {
+  test.setTimeout(120_000) // six readings and Claude Code's, each in its tile and its sheet
+  for (const [reading, line, more] of UNKNOWN_RESETS)
+    await saysNoInventedTime(page, reading, 'Davide · Codex', line, more)
+  // A paced window (Claude Code's 5-hour) whose reset isn't an instant: no reset said, no pace made up.
+  await saysNoInventedTime(
+    page,
+    'reset=bad',
+    'Davide · Claude Code',
+    'Claude Code sign-in needed',
+    'Its owner signs in on its host.',
+  )
+  await expect(page.getByRole('dialog', { name: 'Davide · Claude Code' })).toHaveCount(0)
+  await open(page, 'Davide · Claude Code')
+  await expect(page.getByText(/At this pace/)).toHaveCount(0)
+})
+
+test('@phone · r3-repair4 · F09 · at a phone’s width, the tile and sheet say no made-up reset', async ({ page }) => {
+  test.setTimeout(90_000)
+  for (const [reading, line, more] of UNKNOWN_RESETS.slice(0, 3)) {
+    await saysNoInventedTime(page, reading, 'Davide · Codex', line, more)
+  }
+  await saysNoInventedTime(
+    page,
+    'reset=bad',
+    'Davide · Claude Code',
+    'Claude Code sign-in needed',
+    'Its owner signs in on its host.',
+  )
+})
+
+// ---- r3 repair 5 (UI85C4-F09): a time that isn't an instant gives no pace, in the list of other windows too. ----
+
+/** Each meter of Claude Code's sheet, with its other windows open: its label, `aria-valuetext` and mark's `left`. */
+async function claudeMeters(page: Page, reading: string) {
+  await page.goto(`${PAGE}?viewer=davide&${reading}`)
+  const sheet = await open(page, 'Davide · Claude Code')
+  await sheet.getByRole('button', { name: /more windows?$/ }).click()
+  const meters = sheet.getByRole('meter')
+  await expect(meters.first()).toBeVisible()
+  const read = await meters.evaluateAll((all) =>
+    all.map((m) => ({
+      label: m.getAttribute('aria-label') ?? '',
+      text: m.getAttribute('aria-valuetext') ?? '',
+      left: m.querySelector<HTMLElement>('.capacity-meter-pace')?.style.left ?? null,
+    })),
+  )
+  return { sheet, read }
+}
+
+test('r3-repair5 · F09 · a paced window in the other windows, its reset not an instant, says no pace: no NaN mark or text', async ({
+  page,
+}) => {
+  const { sheet, read } = await claudeMeters(page, 'reset=bad-7day')
+  const sevenDay = read.find((m) => m.label === '7-day window')
+  expect(sevenDay, 'the 7-day window is in the other windows, with its meter').toBeDefined()
+  expect(sevenDay?.text).toBe('40% used') // its value, and no share of a window that isn't known
+  expect(sevenDay?.left).toBeNull() // no mark drawn
+  for (const m of read) {
+    expect(m.text, m.label).not.toMatch(INVENTED)
+    if (m.left !== null) expect(m.left, m.label).toMatch(/^\d+(\.\d+)?%$/)
+  }
+  await expect(sheet.locator('.capacity-windows')).not.toContainText(INVENTED)
+  await expect(sheet.locator('.capacity-pace')).toHaveCount(0)
+})
+
+test('r3-repair5 · F09 · a valid reset keeps its pace mark; a reading time that isn’t an instant gives no pace', async ({
+  page,
+}) => {
+  const valid = await claudeMeters(page, 'reset=ok-7day')
+  const sevenDay = valid.read.find((m) => m.label === '7-day window')
+  expect(sevenDay?.text).toMatch(/^40% used · \d+% of the window passed$/)
+  expect(sevenDay?.left).toMatch(/^\d+(\.\d+)?%$/)
+  const observed = await claudeMeters(page, 'reset=bad-observed')
+  for (const m of observed.read) {
+    expect(m.text, m.label).not.toMatch(INVENTED)
+    expect(m.left, `${m.label}: no mark from a time that isn't one`).toBeNull()
+  }
+  await expect(observed.sheet.locator('.capacity-pace')).toHaveCount(0)
+  await expect(observed.sheet.locator('.capacity-line')).not.toContainText(INVENTED)
+  await expect(observed.sheet.locator('.capacity-windows')).not.toContainText(INVENTED)
+})
+
+test('@phone · r3-repair5 · F09 · at a phone’s width, the other windows’ meters say no made-up pace', async ({
+  page,
+}) => {
+  for (const reading of ['reset=bad-7day', 'reset=bad-observed']) {
+    const { read } = await claudeMeters(page, reading)
+    for (const m of read) {
+      expect(m.text, `${reading} ${m.label}`).not.toMatch(INVENTED)
+      if (m.left !== null) expect(m.left, `${reading} ${m.label}`).toMatch(/^\d+(\.\d+)?%$/)
+    }
+    expect(read.find((m) => m.label === '7-day window')?.left ?? null, reading).toBeNull()
+  }
+})
+
+// ---- r3 repair 6 (UI85C4-F09): a reading time that isn't an instant gives no history point, span or age. ----
+
+/** Claude Code's capacity, its other windows open: the line of facts, each sparkline's words, points and marker. */
+async function claudeHistory(page: Page, reading: string) {
+  const { sheet, read: meters } = await claudeMeters(page, reading)
+  const meta = (await sheet.locator('.capacity-meta').innerText()).trim()
+  const lines = await sheet.locator('figure.capacity-history').evaluateAll((all) =>
+    all.map((f) => ({
+      label: f.getAttribute('aria-label') ?? '',
+      caption: f.querySelector('figcaption')?.textContent ?? '',
+      points: [...f.querySelectorAll('polyline, polygon')].map((e) => e.getAttribute('points') ?? '').join(' '),
+      marker: (() => {
+        const m = f.querySelector<HTMLElement>('.capacity-history-now')
+        return m ? `${m.style.left} ${m.style.top}` : ''
+      })(),
+    })),
+  )
+  return { sheet, meta, lines, meters }
+}
+
+/** Every number in a sparkline's points and marker is finite: none drawn from a time that isn't one. */
+const finiteNumbers = (text: string) =>
+  (text.match(/-?[\d.]+|NaN|Infinity/g) ?? []).every((n) => Number.isFinite(Number(n)))
+
+// The 7-day window draws a sparkline only in `ok-7day`: elsewhere its reset is due (refresh pending), as on the fixture.
+for (const [reading, meta, sparklines] of [
+  ['reset=bad-observed', 'shared by 2 sessions · 5 readings in 2 h', 1], // the live reading's time isn't one: no age, no point
+  ['reset=bad-history', 'shared by 2 sessions · 5 readings in 2 h · 1 min ago', 1], // an earlier one's isn't: a point fewer
+  ['reset=ok-7day', 'shared by 2 sessions · 6 readings in 3 h · 1 min ago', 2], // the valid control
+] as const) {
+  test(`r3-repair6 · F09 · ${reading}: the line of facts and every sparkline say only what is finite`, async ({
+    page,
+  }) => {
+    const { sheet, meta: said, lines, meters } = await claudeHistory(page, reading)
+    expect(said).toBe(meta)
+    expect(lines.length, 'its sparklines').toBe(sparklines)
+    for (const l of lines) {
+      expect(`${l.label} ${l.caption}`, l.label).not.toMatch(INVENTED)
+      expect(finiteNumbers(l.points), `${l.label}: ${l.points}`).toBe(true)
+      expect(finiteNumbers(l.marker), `${l.label}: ${l.marker}`).toBe(true)
+    }
+    for (const m of meters) expect(m.text, m.label).not.toMatch(INVENTED)
+    await expect(sheet.locator('.capacity-line')).not.toContainText(INVENTED)
+    if (reading === 'reset=ok-7day') {
+      expect(meters.find((m) => m.label === '7-day window')?.text).toMatch(/^40% used · 57% of the window passed$/)
+    }
+  })
+}
+
+test('@phone · r3-repair6 · F09 · at a phone’s width, no history point, span or age from a time that isn’t one', async ({
+  page,
+}) => {
+  for (const [reading, meta] of [
+    ['reset=bad-observed', 'shared by 2 sessions · 5 readings in 2 h'],
+    ['reset=bad-history', 'shared by 2 sessions · 5 readings in 2 h · 1 min ago'],
+  ] as const) {
+    const { meta: said, lines } = await claudeHistory(page, reading)
+    expect(said, reading).toBe(meta)
+    for (const l of lines) {
+      expect(`${l.label} ${l.caption}`, `${reading} ${l.label}`).not.toMatch(INVENTED)
+      expect(finiteNumbers(`${l.points} ${l.marker}`), `${reading} ${l.label}`).toBe(true)
+    }
+  }
+})
+
+// ---- r3 repair 7 (UI58E-F10): a host time that isn't an instant is an unknown age, in the tile, heading and details. ----
+
+/** Its text as written (not as styled: the tile's label is upper-cased by CSS), its spaces collapsed. */
+const textOf = async (l: Locator) => ((await l.textContent()) ?? '').replace(/\s+/g, ' ').trim()
+
+/** A host as the tile, the sheet's heading and Readiness details say it; focus back on its tile after Escape. */
+async function hostSaid(page: Page, name: string) {
+  const card = tile(page, name)
+  const label = await textOf(card.locator('.resource-tile-host'))
+  const sheet = await open(page, name)
+  const heading = sheet.locator('.resource-host > p').first()
+  const time = heading.locator('time')
+  const times = await time.count()
+  const said = {
+    label,
+    heading: await textOf(heading),
+    times,
+    dateTime: times ? await time.getAttribute('datetime') : null,
+    title: times ? await time.getAttribute('title') : null,
+  }
+  await sheet.getByRole('button', { name: 'Readiness details' }).click()
+  const detail = await textOf(sheet.locator('.readiness-details dd').first())
+  await page.keyboard.press('Escape')
+  await expect(card, `${name}: focus returns to its tile`).toBeFocused()
+  return { ...said, row: detail }
+}
+
+const MADE_UP = /NaN|Infinity|Invalid Date|undefined|never observed|observed\s*$|·\s*$/
+
+test('r3-repair7 · F10 · a host time that isn’t an instant: the state alone, never “never observed”, no bare “observed”', async ({
+  page,
+}) => {
+  test.setTimeout(120_000) // three readings, two hosts each
+  for (const kind of ['empty', 'blank', 'bad']) {
+    await page.goto(`${PAGE}?viewer=davide&more=1&host=${kind}`)
+    const codex = await hostSaid(page, 'Davide · Codex')
+    expect(codex, kind).toMatchObject({ label: 'Host online', heading: 'Host online', times: 0, row: 'Online' })
+    const grok = await hostSaid(page, 'Davide · Grok')
+    expect(grok, kind).toMatchObject({ label: 'Host offline', heading: 'Host offline', times: 0, row: 'Offline' })
+    for (const s of [codex, grok]) for (const v of [s.label, s.heading, s.row]) expect(v, kind).not.toMatch(MADE_UP)
+  }
+})
+
+test('r3-repair7 · F10 · none is never observed; a valid time keeps its age, its <time> and its title', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&more=1&host=none`)
+  expect(await hostSaid(page, 'Davide · Codex')).toMatchObject({
+    label: 'Host online',
+    heading: 'Host online · never observed',
+    times: 0,
+    row: 'Never observed',
+  })
+  expect(await hostSaid(page, 'Davide · Grok')).toMatchObject({
+    label: 'Host offline',
+    heading: 'Host offline · never observed',
+  })
+  await page.goto(`${PAGE}?viewer=davide&more=1`)
+  const codex = await hostSaid(page, 'Davide · Codex')
+  expect(codex).toMatchObject({ label: 'Host online', heading: 'Host online · observed 2 min ago', times: 1 })
+  expect(codex.row).toBe('Online · observed 2 min ago')
+  expect(codex.dateTime).toMatch(/^\d{4}-\d\d-\d\dT/)
+  expect(codex.title ?? '').not.toMatch(/NaN|Invalid Date|^$/)
+  const grok = await hostSaid(page, 'Davide · Grok')
+  expect(grok).toMatchObject({ label: 'Host offline · 1 day', heading: 'Host offline · observed 1 day ago', times: 1 })
+})
+
+test('@phone · r3-repair7 · F10 · at a phone’s width, a host time that isn’t an instant says the state alone', async ({
+  page,
+}) => {
+  for (const kind of ['empty', 'bad']) {
+    await page.goto(`${PAGE}?viewer=davide&more=1&host=${kind}`)
+    expect(await hostSaid(page, 'Davide · Codex'), kind).toMatchObject({
+      label: 'Host online',
+      heading: 'Host online',
+      times: 0,
+      row: 'Online',
+    })
+    expect(await hostSaid(page, 'Davide · Grok'), kind).toMatchObject({
+      label: 'Host offline',
+      heading: 'Host offline',
+      times: 0,
+      row: 'Offline',
+    })
+  }
+})
+
 test('@phone · r3-repair · readiness at a phone’s width: its line and details inside the sheet', async ({ page }) => {
   await page.goto(`${PAGE}?viewer=davide&readiness=1`)
   const sheet = await open(page, 'Davide · Codex')

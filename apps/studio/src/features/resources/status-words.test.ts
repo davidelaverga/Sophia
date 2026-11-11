@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { OperationReadiness, QuotaObservation, Readiness, Resource } from './resource.ts'
+import { ago, capacity, windowView } from './resource.ts'
 import { controlGroups, controlsNote, hostShort, hostState, readinessRows, readinessSummary } from './status-words.ts'
+import * as sw from './status-words.ts'
 
 const resource = (controls: Partial<Resource['controls']> = {}): Resource => ({
   id: 'davide-codex',
@@ -392,5 +394,167 @@ describe('a used-up count waits like a used-up window, whatever window is beside
     const stale = fresh({ observedAt: '2026-10-02T11:20:00Z', validUntil: '2026-10-02T11:35:00Z' })
     assert.equal(readinessSummary(withReadiness(stale), out, now).line, 'Readiness last observed 40 min ago')
     assert.equal(readinessSummary(withReadiness(null), out, now).line, 'Sign-in and readiness not reported')
+  })
+})
+
+describe('a reset that isn’t an instant is an unknown reset, never a made-up time (r3 repair 4, UI85C4-F09)', () => {
+  const now = new Date('2026-10-02T12:00:00Z')
+  const MALFORMED = ['not-an-instant', '', 'NaN', '2026-13-45T99:99:99Z']
+  const invented = /NaN|Invalid Date|Infinity|undefined/
+  const spend = (value: number, over: Partial<Window> = {}) =>
+    percentAt(value, { window_id: 'spend_limit', unit: 'spend_percent_used', scope: 'spend', ...over })
+  const summary = (windows: Window[], over: Partial<QuotaObservation> = {}) =>
+    readinessSummary(withReadiness(fresh()), reading(windows, over), now)
+  const KINDS: [string, (resets_at: string | null) => Window, string][] = [
+    ['percent', (resets_at) => percentAt(100, { resets_at }), 'Waiting for capacity: 5-hour window'],
+    ['spend percent', (resets_at) => spend(120, { resets_at }), 'Waiting for capacity: Spend limit window'],
+    ['credits', (resets_at) => credits(0, { resets_at }), 'Waiting for capacity: Daily requests window'],
+    ['tokens', (resets_at) => tokens(0, { resets_at }), 'Waiting for capacity: daily tokens window'],
+  ]
+
+  it('keeps a used-up window waiting, its reset unsaid, for every unit and every malformed time', () => {
+    for (const [kind, used, line] of KINDS) {
+      for (const bad of MALFORMED) {
+        const said = summary([used(bad)])
+        assert.deepEqual(said, { tone: 'wait', line, more: null }, `${kind} ${JSON.stringify(bad)}`)
+        const view = windowView(used(bad), now)
+        assert.equal(view.reset, null, `${kind} ${JSON.stringify(bad)}`)
+        assert.equal(view.state, 'observed', `${kind} ${JSON.stringify(bad)}: still observed, never pending by guess`)
+        const line2 = capacity(reading([used(bad)]), now).line
+        assert.doesNotMatch(line2, invented, `${kind} ${JSON.stringify(bad)}: ${line2}`)
+      }
+    }
+  })
+
+  it('keeps null, valid and due resets as they were', () => {
+    for (const [kind, used, line] of KINDS) {
+      assert.deepEqual(summary([used(null)]), { tone: 'wait', line, more: null }, kind)
+      assert.equal(summary([used('2026-10-02T21:00:00Z')]).more, 'resets in 9 h', kind)
+      assert.equal(summary([used('2026-10-02T11:00:00Z')]).tone, 'ready', `${kind}: a due reset is refresh pending`)
+      assert.equal(windowView(used('2026-10-02T11:00:00Z'), now).reset, 'reset was due 1 h ago', kind)
+    }
+    assert.equal(capacity(reading([credits(820)]), now).line, 'Daily requests: 820 credits left, resets in 9 h')
+    assert.equal(
+      capacity(reading([credits(820, { resets_at: 'not-an-instant' })]), now).line,
+      'Daily requests: 820 credits left',
+    )
+  })
+
+  it('asks no pace of a window whose reset isn’t an instant: no estimate is made up', () => {
+    const paced = { source_channel: 'claude-code-statusline', observed_at: '2026-10-02T12:00:00Z' }
+    for (const bad of MALFORMED) {
+      const held = capacity(reading([percentAt(81, { resets_at: bad })], paced), now)
+      assert.equal(held.pace, null, JSON.stringify(bad))
+      assert.equal(held.line, '5-hour window: 81% used', JSON.stringify(bad))
+    }
+    const valid = capacity(reading([percentAt(81, { resets_at: '2026-10-02T14:30:00Z' })], paced), now)
+    assert.match(valid.pace?.early ?? '', /^At this pace, used up ~\d/) // a real reset keeps its pace
+  })
+
+  it('orders an unknown reset as holding longest, beside a valid or a null one, and names it without a time', () => {
+    const unknownCredits = credits(0, { resets_at: 'not-an-instant' })
+    assert.deepEqual(summary([percentAt(100), unknownCredits]), {
+      tone: 'wait',
+      line: 'Waiting for capacity: Daily requests window',
+      more: null,
+    })
+    assert.deepEqual(summary([unknownCredits, percentAt(100)]).line, 'Waiting for capacity: Daily requests window')
+    // Two unknown resets, one malformed and one null: neither is later; the reading's order decides.
+    assert.equal(summary([unknownCredits, tokens(0)]).line, 'Waiting for capacity: Daily requests window')
+    assert.equal(summary([tokens(0), unknownCredits]).line, 'Waiting for capacity: daily tokens window')
+    // A valid later reset still outranks a valid earlier one.
+    assert.equal(summary([percentAt(100), credits(0)]).more, 'resets in 9 h')
+  })
+
+  it('says nothing used up that the reading doesn’t, and its host and sign-in still first', () => {
+    const bad = credits(0, { resets_at: '' })
+    const ready = 'Ready for repository analysis'
+    assert.equal(summary([credits(0, { resets_at: '', applicability: 'partial' })]).line, ready)
+    assert.equal(summary([credits(null, { resets_at: '', state: 'unknown' })]).line, ready)
+    assert.equal(summary([bad], { valid_until: '2026-10-02T11:30:00Z' }).line, ready)
+    const offline = withReadiness(fresh(), { state: 'offline', observedAt: '2026-10-01T10:00:00Z' })
+    assert.equal(readinessSummary(offline, reading([bad]), now).line, 'Waits for its host to reconnect')
+    const out = readinessSummary(withReadiness(fresh({ signIn: 'signed_out' })), reading([bad]), now)
+    assert.equal(out.line, 'Codex sign-in needed')
+  })
+})
+
+const statusLineAt = (observed_at: string) => ({ source_channel: 'claude-code-statusline', observed_at })
+
+describe('a reading time that isn’t an instant gives the capacity no pace (r3 repair 5, UI85C4-F09)', () => {
+  const now = new Date('2026-10-02T12:00:00Z')
+  const fiveHour = percentAt(92, { resets_at: '2026-10-02T12:40:00Z' })
+  it('keeps its line and makes up no estimate, while a valid reading keeps its pace', () => {
+    for (const bad of ['not-an-instant', '', 'NaN']) {
+      const held = capacity(reading([fiveHour], statusLineAt(bad)), now)
+      assert.equal(held.pace, null, JSON.stringify(bad))
+      assert.equal(held.line, '5-hour window: 92% used, resets in 40 min', JSON.stringify(bad))
+    }
+    assert.equal(capacity(reading([fiveHour], statusLineAt('2026-10-02T12:00:00Z')), now).pace?.runsOut, '~23 min')
+  })
+})
+
+describe('an observation time that isn’t an instant says no age (r3 repair 6, UI85C4-F09)', () => {
+  const now = new Date('2026-10-02T12:00:00Z')
+  const MALFORMED = ['not-an-instant', '', 'NaN', '2026-13-45T99:99:99Z']
+  it('gives nothing to say for a time that isn’t one; never observed only for none, and valid times as before', () => {
+    for (const bad of MALFORMED) assert.equal(ago(bad, now), '', JSON.stringify(bad))
+    assert.equal(ago(null, now), 'never observed')
+    assert.equal(ago('2026-10-02T11:00:00Z', now), '1 h ago')
+    assert.equal(ago('2026-10-02T11:59:30Z', now), 'just now')
+  })
+
+  it('says the host’s state alone when its observation time isn’t one, never observed only when it has none', () => {
+    const host = (observedAt: string | null) =>
+      readinessRows(withReadiness(null, { state: 'online', observedAt }), now)[0]
+    for (const bad of ['not-an-instant', 'NaN', '2026-13-45T99:99:99Z']) {
+      assert.deepEqual(host(bad), { label: 'Host', value: 'Online', observed: true }, JSON.stringify(bad))
+    }
+    assert.deepEqual(host('2026-10-02T11:58:00Z'), {
+      label: 'Host',
+      value: 'Online · observed 2 min ago',
+      observed: true,
+    })
+    assert.deepEqual(host(null), { label: 'Host', value: 'Never observed', observed: false })
+  })
+})
+
+const offlineHost = (observedAt: string | null) => ({ state: 'offline' as const, observedAt })
+
+describe('a host time that isn’t an instant is an unknown age, never “never observed” (r3 repair 7, UI58E-F10)', () => {
+  const now = new Date('2026-10-02T12:00:00Z')
+  const NOT_INSTANTS = ['', ' ', '\t', 'not-an-instant', '2026-13-45T99:99:99Z']
+  const STATE = { online: 'Online', offline: 'Offline', unknown: 'State unknown' } as const
+  const row = (state: Resource['host']['state'], observedAt: string | null) =>
+    readinessRows(withReadiness(null, { state, observedAt }), now)[0]
+
+  it('says the host’s state alone for a time that isn’t one, never observed only for none, valid times as before', () => {
+    for (const state of ['online', 'offline', 'unknown'] as const) {
+      for (const bad of NOT_INSTANTS) {
+        assert.deepEqual(
+          row(state, bad),
+          { label: 'Host', value: STATE[state], observed: true },
+          `${state} ${JSON.stringify(bad)}`,
+        )
+      }
+      assert.deepEqual(row(state, null), { label: 'Host', value: 'Never observed', observed: false }, state)
+      assert.deepEqual(row(state, '2026-10-01T10:00:00Z'), {
+        label: 'Host',
+        value: `${STATE[state]} · observed 1 day ago`,
+        observed: true,
+      })
+    }
+  })
+
+  it('gives the host’s age once, for the sheet and the tile: none, unknown, or its words', () => {
+    assert.equal(typeof sw.hostAge, 'function', 'hostAge')
+    assert.equal(typeof sw.offlineFor, 'function', 'offlineFor')
+    assert.equal(sw.hostAge(null, now), null) // never observed
+    for (const bad of NOT_INSTANTS) assert.equal(sw.hostAge(bad, now), '', JSON.stringify(bad)) // unknown: no age
+    assert.equal(sw.hostAge('2026-10-02T11:58:00Z', now), '2 min ago')
+    assert.equal(sw.offlineFor(offlineHost('2026-10-01T10:00:00Z'), now), '1 day')
+    for (const bad of [null, ...NOT_INSTANTS])
+      assert.equal(sw.offlineFor(offlineHost(bad), now), null, JSON.stringify(bad))
+    assert.equal(sw.offlineFor({ state: 'online', observedAt: '2026-10-01T10:00:00Z' }, now), null) // only offline says it
   })
 })
