@@ -6,7 +6,7 @@ installed automatic routing, not a live intake service and not the shipped INC-0
 from `@sophia/coordination`, registered in an app, or reachable from a request.
 
 - `packages/coordination/src/intake-observation.ts` — a pure, versioned, deterministic observation policy
-  (currently `sophia.intake-observation.policy.v19`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11, v12 r12, v13 r13, v14 r14, v15 r15 (unpublished), v16 r16, v17 r17, v18 r18). It reads a validated input and returns a proposal. It holds no
+  (currently `sophia.intake-observation.policy.v20`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11, v12 r12, v13 r13, v14 r14, v15 r15 (unpublished), v16 r16, v17 r17, v18 r18, v19 r19). It reads a validated input and returns a proposal. It holds no
   transport, provider, database, notification, control or dispatch handle and reads no clock or environment.
 - `scripts/intake-observe.ts` — the consumer: an offline CLI that validates a bounded corpus file, strips every
   label before the policy sees a case, runs the policy, compares results with the labels separately and writes a
@@ -57,7 +57,7 @@ the CLI keeps them as comparison metadata, and a context that carries any of tho
 `unlabelled`. Any other value (number, boolean, array, object) is the case error `invalid_family` at
 `cases[i].family` (r18), so the case is counted invalid, never observed, and the command line exits 1.
 
-## States (one observation) — policy v19
+## States (one observation) — policy v20
 
 Policy v2 (`sophia.intake-observation.policy.v2`) replaced v1 after the independent r1 review
 (INC03-CC-001-r1-SOURCE-PRE-PUSH-001, F01–F07). Policy v3 (`sophia.intake-observation.policy.v3`) replaces v2 after
@@ -264,6 +264,29 @@ v19 (published r18 `8a718786`, gate `INC03-CC-001-r18-SOURCE-FINAL-001`) repairs
 - Unchanged: every other rule keeps the supplied chain (outputs, voice, fresh corrections), generated and other
   non-human origins still decide before redelivery with their own cause, and replay, conflict, addressee, quiet
   attention and no-admission behave as before.
+
+v20 (published r19 `90e46f7b`, gate `INC03-CC-001-r19-SOURCE-FINAL-001`) repairs two classes:
+
+- **Quiet mixed addressees.** On a quietable acknowledgement, question or unread remark, `needsReply:false` answered
+  `no_action` with the addressee `[sophia]`, dropping the humans structured addressing had resolved. Now the addressee
+  is the same resolved projection as every other path: distinct current humans in first-occurrence order, then
+  Sophia. Departed members stay dropped. The hint quiets Sophia's answer only. Attention follows the existing audience
+  rule, as without the hint: shared members may see it, and a personal message stays private. Nothing is notified,
+  admitted or granted.
+- **Whole code points at word boundaries.** Every neighbour the quotation check reads is now a whole Unicode code
+  point, so a supplementary letter or digit (two UTF-16 units) is a word character exactly as its ASCII and BMP
+  analogues are. Offsets stay UTF-16. The sites are:
+  - the apostrophe's left and right neighbours;
+  - the character before a one-letter name prefix;
+  - the outer neighbours of a supported quote pair;
+  - the suffix window, now the two-unit suffix plus one whole code point, four units instead of three, so its
+    lookahead never sees half a letter.
+
+  Both directions are fixed. Valid supplementary possessives and name prefixes no longer abstain, and a quote pair or
+  contraction touching a supplementary letter no longer counts as bounded. A lone surrogate, a combining mark and a
+  symbol are still no word character. The pair shapes, the whole-input pair check, escaping and imports are
+  unchanged. The lexicon's own `\b` matching treats every non-ASCII letter alike, BMP or supplementary, and is not a
+  quote boundary; it is unchanged.
 
 | State | When | Proposal | Admission |
 |---|---|---|---|

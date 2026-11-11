@@ -2673,3 +2673,142 @@ describe('r19 (R18-F01 comment 4543231220): a redelivery keeps its original oper
     assert.deepEqual(conflict.addressee, { ids: [], basis: 'unresolved' })
   })
 })
+
+describe('r20 (R19-F01 comment 4544262973): a no-reply hint quiets the answer, never the addressees', () => {
+  const shared = { audience: 'project' }
+  const texts = ['Thanks.', 'What changed?', 'Lorem ipsum.']
+  const addressings: [string, Record<string, unknown>, string[]][] = [
+    ['human then Sophia', { trustedMentions: ['maria', 'sophia'] }, ['maria', 'sophia']],
+    ['Sophia then human', { trustedMentions: ['sophia', 'maria'] }, ['maria', 'sophia']],
+    [
+      'repeats, first occurrence',
+      { trustedMentions: ['luis', 'maria', 'sophia', 'luis'] },
+      ['luis', 'maria', 'sophia'],
+    ],
+    [
+      'a departed member dropped',
+      { trustedMentions: ['maria', 'gone', 'sophia'], currentMembers: ['maria'] },
+      ['maria', 'sophia'],
+    ],
+    ['every human departed', { trustedMentions: ['gone', 'sophia'], currentMembers: ['maria'] }, ['sophia']],
+    ['Sophia only', { trustedMentions: ['sophia'] }, ['sophia']],
+  ]
+
+  it('ack, question and remark keep the resolved humans beside Sophia, as without the hint', () => {
+    for (const text of texts)
+      for (const [name, ctx, ids] of addressings) {
+        const label = `${text} ${name}`
+        const quiet = observe(text, { ...shared, ...ctx, needsReply: false })
+        assert.equal(quiet.proposal.rule, 'family.no_reply_needed', label)
+        assert.equal(kindOf(quiet), 'no_action', label)
+        assert.deepEqual(quiet.addressee, { ids, basis: 'structured_mention' }, label)
+        for (const given of [undefined, true]) {
+          const asked = observe(text, { ...shared, ...ctx, ...(given === undefined ? {} : { needsReply: given }) })
+          assert.deepEqual(asked.addressee, quiet.addressee, `${label} hint ${String(given)}`)
+          assert.equal(asked.audience.attention, quiet.audience.attention, `${label} hint ${String(given)}`)
+        }
+        assert.ok(!JSON.stringify(quiet.addressee).includes('gone'), label)
+        assert.deepEqual(quiet.admission.authority, 'none', label)
+        assert.deepEqual(quiet.effects, ZERO_EFFECTS, label)
+      }
+  })
+
+  it('attention follows the audience rule, not the hint: shared members may see it, a personal message stays private', () => {
+    const inShared = observe('Thanks.', { ...shared, trustedMentions: ['maria', 'sophia'], needsReply: false })
+    assert.equal(inShared.audience.attention, 'audience_members')
+    const personal = observe('Thanks.', {
+      audience: 'personal',
+      trustedMentions: ['maria', 'sophia'],
+      needsReply: false,
+    })
+    assert.deepEqual(personal.addressee.ids, ['maria', 'sophia'])
+    assert.equal(personal.audience.attention, 'none')
+  })
+
+  it('human-only, protective controls, quotation, generated origin and legacy keep their precedence', () => {
+    const human = observe('Thanks.', { ...shared, trustedMentions: ['maria'], needsReply: false })
+    assert.equal(kindOf(human), 'human_message')
+    assert.deepEqual(human.addressee.ids, ['maria'])
+    const live = { audience: 'project', activeMission: 'm20', control: 'running', stopQualified: true }
+    const stop = observe('Stop the job.', { ...live, trustedMentions: ['maria', 'sophia'], needsReply: false })
+    assert.equal(kindOf(stop), 'control_stop')
+    assert.deepEqual(stop.addressee.ids, ['maria', 'sophia'])
+    const malformed = observe("What is 'this?", { ...shared, trustedMentions: ['maria', 'sophia'], needsReply: false })
+    assert.equal(kindOf(malformed), 'abstain')
+    const generated = observe('Thanks.', {
+      ...shared,
+      trustedMentions: ['maria', 'sophia'],
+      needsReply: false,
+      origin: 'generated',
+      causedBy: 'op20',
+    })
+    assert.equal(kindOf(generated), 'no_action')
+    assert.deepEqual(generated.addressee.ids, [])
+    const legacyFalse = observe(
+      'Thanks.',
+      { ...shared, trustedMentions: ['maria', 'sophia'], needsReply: false },
+      legacy(false),
+    )
+    assert.equal(kindOf(legacyFalse), 'recorded_only')
+  })
+})
+
+describe('r20 (R19-F02 comment 4544262979): word boundaries read whole Unicode code points', () => {
+  const live = { audience: 'project', activeMission: 'm20', control: 'running', stopQualified: true }
+  const LETTER = '\u{10400}' // DESERET CAPITAL LETTER LONG I: \p{L}, two UTF-16 units
+  const DIGIT = '\u{1D7D8}' // MATHEMATICAL DOUBLE-STRUCK DIGIT ZERO: \p{N}, two UTF-16 units
+  const read = (text: string) => observe(text, live)
+  const malformed = (text: string) => {
+    const o = read(text)
+    assert.equal(kindOf(o), 'abstain', JSON.stringify(text))
+    assert.ok(o.uncertainty.includes('malformed_quotation'), JSON.stringify(text))
+  }
+  const stops = (text: string) => assert.equal(kindOf(read(text)), 'control_stop', JSON.stringify(text))
+
+  it('a supplementary letter or digit before an apostrophe is a word character, as its ASCII and BMP analogues', () => {
+    for (const c of [LETTER, DIGIT, 'A', '1', 'é']) for (const mark of ["'", '’']) stops(`Stop ${c}${mark}s job.`)
+  })
+
+  it('a supplementary letter after a name prefix is a word character', () => {
+    for (const c of [LETTER, 'A', 'é']) stops(`Stop l'${c} now.`)
+  })
+
+  it('a letter before a one-letter prefix makes it no name prefix, whatever its width', () => {
+    for (const c of [LETTER, DIGIT, 'A', 'é']) malformed(`Stop ${c}o'x job.`)
+  })
+
+  it('a contraction suffix followed by a supplementary letter does not end the token (no truncated lookahead)', () => {
+    for (const c of [LETTER, DIGIT, 'a', 'é']) malformed(`Stop x're${c} job.`)
+    stops("Stop x're job.")
+  })
+
+  it('a quoted pair touching a word character outside, on either side, is no bounded quotation', () => {
+    for (const c of [LETTER, DIGIT, 'A', 'é']) {
+      for (const [o, cl] of [
+        ["'", "'"],
+        ['‘', '’'],
+      ]) {
+        malformed(`Stop ${o}note${cl}${c}.`)
+        malformed(`Stop ${c}${o}note${cl} now.`)
+      }
+    }
+    const bounded = read("Stop 'note' now.")
+    assert.equal(kindOf(bounded), 'control_stop')
+    assert.equal(bounded.fenced.quotedSpans, 1)
+    stops("Stop 'note'.")
+  })
+
+  it('a quoted span keeps its exact UTF-16 offsets around supplementary characters inside and beside it', () => {
+    const o = read(`Stop '${LETTER}note${LETTER}' now.`)
+    assert.equal(kindOf(o), 'control_stop')
+    assert.equal(o.fenced.quotedSpans, 1)
+    const imported = read(`Stop '${LETTER}' now. Explain 'x`)
+    assert.equal(kindOf(imported), 'abstain')
+  })
+
+  it('unsupported combining marks and lone surrogates stay outside the word class (documented conservatism)', () => {
+    malformed("Stop é's job.")
+    malformed("Stop \ud801's job.")
+    malformed("Stop x'\udc00 now.")
+  })
+})

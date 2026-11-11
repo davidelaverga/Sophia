@@ -20,7 +20,7 @@
 import { createHash } from 'node:crypto'
 import { canonicalJson } from './canonical.ts'
 
-export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v19'
+export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v20'
 
 export const INTAKE_LIMITS = { textChars: 4000, contextKeys: 64, stringChars: 200, listItems: 16 } as const
 
@@ -578,6 +578,26 @@ const APOSTROPHE_GLYPHS: ReadonlySet<string> = new Set(["'", '’', 'ʼ', '＇']
 const WORD_CHAR = /^[\p{L}\p{N}]$/u
 const isWordChar = (c: string | undefined): boolean => c !== undefined && WORD_CHAR.test(c)
 
+const isHighSurrogate = (unit: number): boolean => unit >= 0xd800 && unit <= 0xdbff
+const isLowSurrogate = (unit: number): boolean => unit >= 0xdc00 && unit <= 0xdfff
+
+/**
+ * The whole code point ending just before UTF-16 offset `end`, or undefined at the start (r20). A surrogate pair is one
+ * character, so a supplementary letter or digit is a word character on either side of a mark, as its ASCII and BMP
+ * analogues are; a lone surrogate is itself and is no word character. Offsets stay UTF-16.
+ */
+function charBefore(text: string, end: number): string | undefined {
+  if (end <= 0) return undefined
+  const pair = end >= 2 && isLowSurrogate(text.charCodeAt(end - 1)) && isHighSurrogate(text.charCodeAt(end - 2))
+  return text.slice(pair ? end - 2 : end - 1, end)
+}
+
+/** The whole code point starting at UTF-16 offset `start`, or undefined at the end (r20). */
+function charAfter(text: string, start: number): string | undefined {
+  const point = text.codePointAt(start)
+  return point === undefined ? undefined : String.fromCodePoint(point)
+}
+
 /** The only fenced single-quote pairs: straight with straight, ‘ with ’. */
 const SINGLE_PAIRS: readonly (readonly [string, string])[] = [
   ["'", "'"],
@@ -591,6 +611,11 @@ interface BoundaryMark {
 
 /** A contraction or possessive suffix after the mark, ending the token: it's, don't, we're, I'll, Maria's, 90's. */
 const CONTRACTION_SUFFIX = /^(?:s|t|re|ve|ll|d|m)(?![\p{L}\p{N}])/u
+/**
+ * What the suffix test reads after the mark (r20): the longest suffix (two units) and one whole code point after it
+ * (up to two units), so its lookahead never sees half of a supplementary letter.
+ */
+const SUFFIX_WINDOW = 4
 /** A one-letter name prefix before the mark: O'Brien, d'Arcy, l'Oréal, o'clock (text is lower-cased). */
 const NAME_PREFIXES: ReadonlySet<string> = new Set(['o', 'd', 'l'])
 
@@ -600,9 +625,11 @@ const NAME_PREFIXES: ReadonlySet<string> = new Set(['o', 'd', 'l'])
  * other shape (said'first, job'next) may bound a quotation that crosses words or clauses, so it stays a boundary.
  */
 function isProvableApostrophe(text: string, index: number, mark: string): boolean {
-  if (!APOSTROPHE_GLYPHS.has(mark) || !isWordChar(text[index - 1]) || !isWordChar(text[index + 1])) return false
-  if (CONTRACTION_SUFFIX.test(text.slice(index + 1, index + 4))) return true
-  return NAME_PREFIXES.has(text[index - 1] ?? '') && !isWordChar(text[index - 2])
+  const before = charBefore(text, index)
+  if (!APOSTROPHE_GLYPHS.has(mark) || !isWordChar(before) || !isWordChar(charAfter(text, index + 1))) return false
+  if (CONTRACTION_SUFFIX.test(text.slice(index + 1, index + 1 + SUFFIX_WINDOW))) return true
+  // The prefix's own boundary is the whole code point before it (r20), never half of a supplementary letter.
+  return before !== undefined && NAME_PREFIXES.has(before) && !isWordChar(charBefore(text, index - before.length))
 }
 
 /**
@@ -623,10 +650,10 @@ interface SingleQuoteResult {
 
 const isSupportedPair = (text: string, open: BoundaryMark, close: BoundaryMark): boolean =>
   SINGLE_PAIRS.some(([o, c]) => open.mark === o && close.mark === c) &&
-  !isWordChar(text[open.index - 1]) &&
-  /\S/.test(text[open.index + 1] ?? '') &&
-  /\S/.test(text[close.index - 1] ?? '') &&
-  !isWordChar(text[close.index + 1])
+  !isWordChar(charBefore(text, open.index)) &&
+  /\S/u.test(charAfter(text, open.index + 1) ?? '') &&
+  /\S/u.test(charBefore(text, close.index) ?? '') &&
+  !isWordChar(charAfter(text, close.index + 1))
 
 const TOKEN_INTERIOR = /^[\p{L}\p{N}]*$/u
 
@@ -1527,8 +1554,9 @@ function sophiaRule(facts: Facts, addressing: Addressing, intent: TextIntent): P
   // Malformed or unadopted quotation is decided first and fails closed; a no-reply hint cannot bypass it (r15).
   const quoted = quotationRule(facts, intent)
   if (quoted === undefined && facts.bool('needsReply') === false && quietable(intent))
+    // The hint quiets Sophia's answer, never who is addressed (r20): the resolved humans stay beside Sophia.
     return proposal('no_action', thread(facts), 'current_thread', 'family.no_reply_needed', {
-      addressee: { ids: addressing.sophia ? ['sophia'] : [], basis: addressing.basis },
+      addressee: resolvedAddressee(addressing),
     })
   // An identified control precedes ambiguity about unrelated targets (F02); a quotation is checked first (F01).
   const p =
@@ -1909,6 +1937,10 @@ export const INTAKE_OBSERVATION_POLICY = {
       'ambiguity counts distinct candidates (targets, candidates, repositories; comparisons as whole ordered pairs); one distinct candidate grants no target',
     recipients:
       'structured mentions are distinct recipient ids in first-occurrence order before the membership check; a repeated id is one recipient and never restores a departed member',
+    quietAddressees:
+      'a no-reply hint quiets the answer only: the resolved humans (distinct, first occurrence, current members) stay beside Sophia',
+    unicodeBoundaries:
+      'apostrophe, name-prefix and quote-pair boundaries read whole code points (a surrogate pair is one character; a lone surrogate is no word character); offsets stay UTF-16',
     redeliveryCorrelation:
       'a redelivery correlates to the operation it returns to (originalAdmission, else redeliveryOf), the same id as its target; supplied causedBy, operationId or voiceUtterance do not replace it; generated origin decides first',
     ledgerConflict:

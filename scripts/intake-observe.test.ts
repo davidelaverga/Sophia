@@ -1716,3 +1716,79 @@ describe('r19 through the consumer: redelivery correlation', () => {
     })
   })
 })
+
+/** The r20 consumer corpus: quiet mixed addressees, and whole-code-point quote boundaries, with ASCII controls. */
+function r20Corpus(): TestDoc {
+  const doc = corpus()
+  const live = { audience: 'project', activeMission: 'm20', control: 'running', stopQualified: true }
+  const quiet = { audience: 'project', needsReply: false }
+  const L = '\u{10400}'
+  doc.cases = [
+    testCase('Q-ack', 'Thanks.', { ...quiet, trustedMentions: ['maria', 'sophia'] }, { addressee: 'maria+sophia' }),
+    testCase(
+      'Q-question',
+      'What changed?',
+      { ...quiet, trustedMentions: ['luis', 'maria', 'sophia', 'luis'] },
+      { addressee: 'luis+maria+sophia' },
+    ),
+    testCase(
+      'Q-remark-drop',
+      'Lorem ipsum.',
+      { ...quiet, trustedMentions: ['maria', 'gone', 'sophia'], currentMembers: ['maria'] },
+      { addressee: 'maria+sophia' },
+    ),
+    testCase('U-possessive', `Stop ${L}'s job.`, live, { proposedAction: 'control_stop' }),
+    testCase('U-prefix-right', `Stop l'${L} now.`, live, { proposedAction: 'control_stop' }),
+    testCase('U-prefix-left', `Stop ${L}o'x job.`, live, {}),
+    testCase('U-suffix', `Stop x're${L} job.`, live, {}),
+    testCase('U-pair-right', `Stop 'note'${L}.`, live, {}),
+    testCase('U-pair-left', `Stop ${L}'note' now.`, live, {}),
+    testCase('A-pair-right', "Stop 'note'A.", live, {}),
+    testCase('A-possessive', "Stop A's job.", live, { proposedAction: 'control_stop' }),
+  ]
+  return doc
+}
+
+interface R20View {
+  cases: readonly {
+    caseId: string
+    observation: IntakeObservation
+    comparison: readonly { field: string; result: string }[]
+  }[]
+  counts: { cases: number; observed: number; invalidCases: number }
+  actualEffects: Record<string, number>
+}
+
+function checkR20(r: R20View): void {
+  const o = new Map(r.cases.map((c) => [c.caseId, c]))
+  for (const id of ['Q-ack', 'Q-question', 'Q-remark-drop']) {
+    const c = o.get(id)
+    assert.equal(c?.observation.proposal.rule, 'family.no_reply_needed', id)
+    assert.equal(c.comparison.find((f) => f.field === 'addressee')?.result, 'match', id)
+  }
+  assert.deepEqual(o.get('Q-question')?.observation.addressee.ids, ['luis', 'maria', 'sophia'])
+  for (const id of ['U-possessive', 'U-prefix-right', 'A-possessive'])
+    assert.equal(o.get(id)?.comparison.find((f) => f.field === 'proposedAction')?.result, 'match', id)
+  for (const id of ['U-prefix-left', 'U-suffix', 'U-pair-right', 'U-pair-left', 'A-pair-right']) {
+    const obs = o.get(id)?.observation
+    assert.equal(obs?.proposal.kind, 'abstain', id)
+    assert.ok(obs.uncertainty.includes('malformed_quotation'), id)
+  }
+  assert.deepEqual([r.counts.cases, r.counts.observed, r.counts.invalidCases], [11, 11, 0])
+  assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+}
+
+describe('r20 through the consumer: quiet mixed addressees and whole-code-point boundaries', () => {
+  it('in the built report', () => {
+    checkR20(report(r20Corpus()))
+  })
+
+  it('in the written report from the command line', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, r20Corpus())
+      const out = join(dir, 'r.json')
+      assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
+      checkR20(JSON.parse(readFileSync(out, 'utf8')))
+    })
+  })
+})
