@@ -1652,3 +1652,67 @@ describe('r18 through the consumer: distinct recipients and explicit family meta
     checkR18Families(written.report)
   })
 })
+
+/** The r19 consumer corpus: redeliveries keep their original operation as the correlation; origin controls. */
+function r19Corpus(): TestDoc {
+  const doc = corpus()
+  const live = { audience: 'project', activeMission: 'm19', control: 'running', stopQualified: true }
+  const text = 'Stop the job.'
+  doc.cases = [
+    testCase('D-same', text, { ...live, redeliveryOf: 'op19', samePayload: true }, {}),
+    testCase('D-changed', text, { ...live, redeliveryOf: 'op19', samePayload: false }, {}),
+    testCase('D-unknown', text, { ...live, redeliveryOf: 'op19' }, {}),
+    testCase('D-admission', text, { ...live, redeliveryOf: 'op19', originalAdmission: 'adm19', samePayload: true }, {}),
+    testCase('D-supplied', text, { ...live, redeliveryOf: 'op19', causedBy: 'cause19', samePayload: false }, {}),
+    {
+      ...testCase('D-legacy-false', text, { ...live, redeliveryOf: 'op19', samePayload: true }, {}),
+      interaction: { contract: 'legacy_explicit_ask', askSophia: false },
+    },
+    testCase('C-generated', text, { ...live, redeliveryOf: 'op19', origin: 'generated', causedBy: 'cause19' }, {}),
+    testCase('C-fresh', text, { ...live, operationId: 'op-fresh' }, {}),
+  ]
+  return doc
+}
+
+interface R19View {
+  cases: { caseId: string; observation: IntakeObservation }[]
+  counts: { cases: number; observed: number; invalidCases: number }
+  actualEffects: Record<string, number>
+}
+
+function checkR19(r: R19View): void {
+  const o = new Map(r.cases.map((c) => [c.caseId, c.observation]))
+  for (const [id, want] of [
+    ['D-same', 'op19'],
+    ['D-changed', 'op19'],
+    ['D-unknown', 'op19'],
+    ['D-admission', 'adm19'],
+    ['D-supplied', 'op19'],
+    ['D-legacy-false', 'op19'],
+  ] as const) {
+    const obs = o.get(id)
+    assert.ok(obs !== undefined && obs.proposal.rule.startsWith('identity.redelivery'), id)
+    assert.equal(obs.provenance.correlation, want, id)
+    assert.deepEqual(obs.proposal.target, { kind: 'operation', id: want, newTarget: null }, id)
+  }
+  assert.equal(o.get('C-generated')?.proposal.rule, 'origin.output_not_instruction')
+  assert.equal(o.get('C-generated')?.provenance.correlation, 'cause19')
+  assert.equal(o.get('C-fresh')?.provenance.correlation, 'op-fresh')
+  assert.deepEqual([r.counts.cases, r.counts.observed, r.counts.invalidCases], [8, 8, 0])
+  assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+}
+
+describe('r19 through the consumer: redelivery correlation', () => {
+  it('in the built report', () => {
+    checkR19(report(r19Corpus()))
+  })
+
+  it('in the written report from the command line', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, r19Corpus())
+      const out = join(dir, 'r.json')
+      assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
+      checkR19(JSON.parse(readFileSync(out, 'utf8')))
+    })
+  })
+})

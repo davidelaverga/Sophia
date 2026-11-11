@@ -20,7 +20,7 @@
 import { createHash } from 'node:crypto'
 import { canonicalJson } from './canonical.ts'
 
-export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v18'
+export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v19'
 
 export const INTAKE_LIMITS = { textChars: 4000, contextKeys: 64, stringChars: 200, listItems: 16 } as const
 
@@ -1006,11 +1006,19 @@ function audienceChanged(facts: Facts): boolean {
   return facts.bool('participantsChanged') === true || (original !== undefined && original !== facts.str('audience'))
 }
 
+/**
+ * The operation a redelivery returns to: its original admission when the ingestion layer names one, else the id it was
+ * redelivered as. One identity for the target and the correlation (r19).
+ */
+function redeliveredOperation(facts: Facts): string | undefined {
+  const of = facts.str('redeliveryOf')
+  return of === undefined ? undefined : (facts.str('originalAdmission') ?? of)
+}
+
 /** A redelivery the ingestion layer identified returns the original or conflicts (C03-R08). */
 function redeliveryRule(facts: Facts): Proposal | undefined {
-  const of = facts.str('redeliveryOf')
-  if (of === undefined) return undefined
-  const original = facts.str('originalAdmission') ?? of
+  const original = redeliveredOperation(facts)
+  if (original === undefined) return undefined
   const target: Target = { kind: 'operation', id: original, newTarget: null }
   const same = facts.bool('samePayload')
   if (same === true)
@@ -1746,9 +1754,18 @@ function chooseProposal(input: IntakeInput, intent: TextIntent): Chosen {
 /** Outputs and redeliveries are not new human instructions (r8 F01). */
 const NOT_HUMAN_INSTRUCTION = ['origin.', 'identity.redelivery'] as const
 
+/**
+ * The observation's audit link (r19): a redelivery's is the operation it returns to, the same id as its target, and a
+ * supplied causedBy, operationId or voiceUtterance does not replace it. Every other rule keeps the supplied chain.
+ */
+function correlationOf(facts: Facts, p: Proposal): string | null {
+  if (p.rule.startsWith('identity.redelivery')) return redeliveredOperation(facts) ?? null
+  return facts.str('causedBy') ?? facts.str('operationId') ?? facts.str('voiceUtterance') ?? null
+}
+
 function provenanceOf(facts: Facts, p: Proposal): IntakeObservation['provenance'] {
   const fromOutput = NOT_HUMAN_INSTRUCTION.some((prefix) => p.rule.startsWith(prefix))
-  const correlation = facts.str('causedBy') ?? facts.str('operationId') ?? facts.str('voiceUtterance') ?? null
+  const correlation = correlationOf(facts, p)
   return { origin: facts.str('origin') ?? 'unspecified', humanInstruction: !fromOutput, correlation }
 }
 
@@ -1892,6 +1909,8 @@ export const INTAKE_OBSERVATION_POLICY = {
       'ambiguity counts distinct candidates (targets, candidates, repositories; comparisons as whole ordered pairs); one distinct candidate grants no target',
     recipients:
       'structured mentions are distinct recipient ids in first-occurrence order before the membership check; a repeated id is one recipient and never restores a departed member',
+    redeliveryCorrelation:
+      'a redelivery correlates to the operation it returns to (originalAdmission, else redeliveryOf), the same id as its target; supplied causedBy, operationId or voiceUtterance do not replace it; generated origin decides first',
     ledgerConflict:
       'a changed payload under a stored operation id is not interpreted: the conflict keeps its digest and contract and the stored operation identity, audience scope and origin only',
   },

@@ -2587,3 +2587,89 @@ describe('r18 (R17-F01 comment 4542825715): trusted recipients are distinct befo
     assert.ok(errorCodes({ interaction: AUTO, text, context: { ...live, trustedMentions: many } }).length > 0)
   })
 })
+
+describe('r19 (R18-F01 comment 4543231220): a redelivery keeps its original operation as its correlation', () => {
+  const live = { audience: 'project', activeMission: 'm19', control: 'running', stopQualified: true }
+  const payloads: [boolean | undefined, string][] = [
+    [true, 'identity.redelivery_same_payload'],
+    [false, 'identity.redelivery_changed_payload'],
+    [undefined, 'identity.redelivery_payload_unknown'],
+  ]
+  const contracts: [string, unknown][] = [
+    ['automatic', AUTO],
+    ['legacy true', legacy(true)],
+    ['legacy false', legacy(false)],
+  ]
+  const delivery = (same: boolean | undefined, extra: Record<string, unknown> = {}) => ({
+    ...live,
+    redeliveryOf: 'op19',
+    ...(same === undefined ? {} : { samePayload: same }),
+    ...extra,
+  })
+
+  it('every payload state and contract: the correlation is the operation the target names', () => {
+    for (const [same, rule] of payloads)
+      for (const [name, interaction] of contracts) {
+        const label = `${String(same)} ${name}`
+        const o = observe('Stop the job.', delivery(same), interaction)
+        assert.equal(o.proposal.rule, rule, label)
+        assert.deepEqual(o.proposal.target, { kind: 'operation', id: 'op19', newTarget: null }, label)
+        assert.deepEqual(o.provenance, { origin: 'unspecified', humanInstruction: false, correlation: 'op19' }, label)
+        assert.deepEqual(o.effects, ZERO_EFFECTS, label)
+      }
+  })
+
+  it('an original admission overrides the redelivered id for the target and the correlation alike', () => {
+    for (const [same] of payloads)
+      for (const [name, interaction] of contracts) {
+        const o = observe('Stop the job.', delivery(same, { originalAdmission: 'adm19' }), interaction)
+        assert.equal(o.proposal.target.kind === 'operation' && o.proposal.target.id, 'adm19', name)
+        assert.equal(o.provenance.correlation, 'adm19', `${String(same)} ${name}`)
+      }
+  })
+
+  it('a supplied causedBy, operationId or voiceUtterance does not replace the retained operation', () => {
+    for (const extra of [{ causedBy: 'cause19' }, { operationId: 'transport19' }, { voiceUtterance: 'utt19' }]) {
+      for (const [same] of payloads) {
+        const o = observe('Stop the job.', delivery(same, extra))
+        assert.equal(o.provenance.correlation, 'op19', JSON.stringify(extra))
+        const admitted = observe('Stop the job.', delivery(same, { ...extra, originalAdmission: 'adm19' }))
+        assert.equal(admitted.provenance.correlation, 'adm19', JSON.stringify(extra))
+      }
+    }
+  })
+
+  it('generated origin still decides before redelivery, with its own cause; other rules keep their chain', () => {
+    const generated = observe('Stop the job.', delivery(true, { origin: 'generated', causedBy: 'cause19' }))
+    assert.equal(generated.proposal.rule, 'origin.output_not_instruction')
+    assert.equal(generated.provenance.correlation, 'cause19')
+    const noCause = observe('Stop the job.', delivery(false, { origin: 'agent_result' }))
+    assert.equal(noCause.proposal.rule, 'origin.output_not_instruction')
+    assert.equal(noCause.provenance.correlation, null)
+    const fresh = observe('Stop the job.', { ...live, operationId: 'op-fresh' })
+    assert.equal(fresh.proposal.kind, 'control_stop')
+    assert.equal(fresh.provenance.correlation, 'op-fresh')
+    const voice = observe('Stop the job.', { ...live, origin: 'voice_final', voiceUtterance: 'utt19' })
+    assert.equal(voice.provenance.correlation, 'utt19')
+    assert.equal(observe('Stop the job.', live).provenance.correlation, null)
+  })
+
+  it('replay, conflict, addressee, quiet attention and admission are unchanged', () => {
+    const replay = observe('Stop the job.', delivery(true, { trustedMentions: ['marta'] }))
+    assert.equal(replay.proposal.kind, 'replay_original')
+    assert.deepEqual(replay.admission, {
+      outcome: 'replay_original',
+      reason: 'operation_redelivered',
+      authority: 'none',
+    })
+    assert.deepEqual(replay.addressee, { ids: ['marta'], basis: 'structured_mention' })
+    assert.equal(replay.audience.attention, 'none')
+    const conflict = observe('Stop the job.', delivery(false))
+    assert.deepEqual(conflict.admission, {
+      outcome: 'conflict',
+      reason: 'operation_payload_changed',
+      authority: 'none',
+    })
+    assert.deepEqual(conflict.addressee, { ids: [], basis: 'unresolved' })
+  })
+})

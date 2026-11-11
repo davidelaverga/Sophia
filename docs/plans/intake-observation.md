@@ -6,7 +6,7 @@ installed automatic routing, not a live intake service and not the shipped INC-0
 from `@sophia/coordination`, registered in an app, or reachable from a request.
 
 - `packages/coordination/src/intake-observation.ts` — a pure, versioned, deterministic observation policy
-  (currently `sophia.intake-observation.policy.v18`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11, v12 r12, v13 r13, v14 r14, v15 r15 (unpublished), v16 r16, v17 r17). It reads a validated input and returns a proposal. It holds no
+  (currently `sophia.intake-observation.policy.v19`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11, v12 r12, v13 r13, v14 r14, v15 r15 (unpublished), v16 r16, v17 r17, v18 r18). It reads a validated input and returns a proposal. It holds no
   transport, provider, database, notification, control or dispatch handle and reads no clock or environment.
 - `scripts/intake-observe.ts` — the consumer: an offline CLI that validates a bounded corpus file, strips every
   label before the policy sees a case, runs the policy, compares results with the labels separately and writes a
@@ -57,7 +57,7 @@ the CLI keeps them as comparison metadata, and a context that carries any of tho
 `unlabelled`. Any other value (number, boolean, array, object) is the case error `invalid_family` at
 `cases[i].family` (r18), so the case is counted invalid, never observed, and the command line exits 1.
 
-## States (one observation) — policy v18
+## States (one observation) — policy v19
 
 Policy v2 (`sophia.intake-observation.policy.v2`) replaced v1 after the independent r1 review
 (INC03-CC-001-r1-SOURCE-PRE-PUSH-001, F01–F07). Policy v3 (`sophia.intake-observation.policy.v3`) replaces v2 after
@@ -252,6 +252,19 @@ v18 (published r17 `2bbaae7a`, gate `INC03-CC-001-r17-SOURCE-FINAL-001`) repairs
 - **Family metadata** (command line, not the policy): an explicit non-string, non-null family was silently counted as
   `unlabelled`. It is now `invalid_family` (above); `null` is the documented way to say "no family".
 
+v19 (published r18 `8a718786`, gate `INC03-CC-001-r18-SOURCE-FINAL-001`) repairs one class:
+
+- **Redelivery correlation.** A redelivery targets the operation it returns to: `originalAdmission`, else
+  `redeliveryOf`. Up to v18 its `provenance.correlation` was read only from `causedBy`, `operationId` or
+  `voiceUtterance`, so a redelivery identified only by `redeliveryOf` (and an `originalAdmission` override) had a
+  target but a null correlation. This held for the same, changed and unknown payload, and under the automatic contract
+  and legacy true or false, since redelivery decides before the contract.
+- Now every `identity.redelivery*` observation correlates to that same resolved operation. A supplied `causedBy`,
+  `operationId` or `voiceUtterance` does not replace it; they are not the retained operation.
+- Unchanged: every other rule keeps the supplied chain (outputs, voice, fresh corrections), generated and other
+  non-human origins still decide before redelivery with their own cause, and replay, conflict, addressee, quiet
+  attention and no-admission behave as before.
+
 | State | When | Proposal | Admission |
 |---|---|---|---|
 | legacy false | `legacy_explicit_ask`, `askSophia:false` | `recorded_only`, no addressee inference | `recorded_only` / `legacy_ask_false_no_assessment` |
@@ -261,7 +274,7 @@ v18 (published r17 `2bbaae7a`, gate `INC03-CC-001-r17-SOURCE-FINAL-001`) repairs
 | voice interim | `origin:voice_interim` | `record_provisional` | `recorded_only` / `voice_interim_not_instruction` |
 | delayed output, same audience | `origin:delayed_output`, audience unchanged | `no_action`, correlation kept in `provenance.correlation` and the target; `proposal.rule: origin.delayed_deliver_after_recheck` | `recorded_only` / `output_not_instruction` |
 | delayed output, audience changed | `origin:delayed_output`, participants/audience changed | `withhold_from_current_call` | `recorded_only` / `audience_changed_withheld` |
-| transport redelivery | `redeliveryOf` with `samePayload` | `replay_original` / `conflict`; addressee only as this delivery's addressing resolves it, else none (`unresolved`, v9); attention none | same, `operation_redelivered` / `operation_payload_changed` |
+| transport redelivery | `redeliveryOf` with `samePayload` | `replay_original` / `conflict`; correlation = the operation returned to (v19); addressee only as this delivery's addressing resolves it, else none (`unresolved`, v9); attention none | same, `operation_redelivered` / `operation_payload_changed` |
 | ledger replay / conflict | same `operationId`, same / changed payload hash | the stored observation / `conflict` built from audit facts only (v17: the changed payload is not interpreted) | unchanged / `operation_payload_changed` |
 | failed structured addressing | non-empty `trustedMentions`, none a current recipient (v12) | `abstain`, addressee none (`unresolved`), attention none, `structured_addressing_failed` | universal blockers, else `semantic_assessment_unavailable` |
 | private human mention | personal audience, human-only trusted mention (any operation metadata ignored, flagged) | `recorded_only`, attention none | `recorded_only` / `private_audience_no_attention` |
