@@ -20,7 +20,7 @@
 import { createHash } from 'node:crypto'
 import { canonicalJson } from './canonical.ts'
 
-export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v17'
+export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v18'
 
 export const INTAKE_LIMITS = { textChars: 4000, contextKeys: 64, stringChars: 200, listItems: 16 } as const
 
@@ -1080,7 +1080,9 @@ interface Addressing {
  */
 function resolveAddressing(facts: Facts): Addressing {
   const members = facts.has('currentMembers') ? new Set(facts.list('currentMembers')) : undefined
-  const mentioned = facts.list('trustedMentions')
+  // Each recipient once, in first-occurrence order, before membership is checked (r18): a repeated id is one person,
+  // and every distinct id is still checked, so a departed member is never restored.
+  const mentioned = [...new Set(facts.list('trustedMentions'))]
   const trusted = mentioned.filter((m) => m === 'sophia' || members === undefined || members.has(m))
   const dropped = mentioned.filter((m) => !trusted.includes(m))
   if (trusted.length > 0)
@@ -1888,6 +1890,8 @@ export const INTAKE_OBSERVATION_POLICY = {
       'a declared import is removed only as a complete span (the rest of its token on each side is punctuation); an occurrence inside an authored token, or two partially overlapping, leaves the bounds unknown and abstains as malformed',
     candidates:
       'ambiguity counts distinct candidates (targets, candidates, repositories; comparisons as whole ordered pairs); one distinct candidate grants no target',
+    recipients:
+      'structured mentions are distinct recipient ids in first-occurrence order before the membership check; a repeated id is one recipient and never restores a departed member',
     ledgerConflict:
       'a changed payload under a stored operation id is not interpreted: the conflict keeps its digest and contract and the stored operation identity, audience scope and origin only',
   },

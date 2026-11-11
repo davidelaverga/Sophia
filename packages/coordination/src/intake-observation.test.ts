@@ -2525,3 +2525,65 @@ describe('r17 (F03 discussion_r4532833107): a ledger conflict carries audit fact
     assert.equal(ledger.size, 1)
   })
 })
+
+describe('r18 (R17-F01 comment 4542825715): trusted recipients are distinct before addressing', () => {
+  const live = { audience: 'project', activeMission: 'm18', control: 'running', stopQualified: true }
+  const text = 'Can you check the panel?'
+
+  it('a repeated current human is one recipient; distinct people stay distinct, first occurrence first', () => {
+    const once = observe(text, { ...live, trustedMentions: ['person-a'], currentMembers: ['person-a'] })
+    const twice = observe(text, { ...live, trustedMentions: ['person-a', 'person-a'], currentMembers: ['person-a'] })
+    assert.equal(kindOf(twice), 'human_message')
+    assert.deepEqual(twice.addressee, { ids: ['person-a'], basis: 'structured_mention' })
+    assert.deepEqual(decision(twice), decision(once))
+    const people = observe(text, { ...live, trustedMentions: ['person-b', 'person-a', 'person-b', 'person-a'] })
+    assert.deepEqual(people.addressee.ids, ['person-b', 'person-a'])
+    // First occurrence, not last: a, b, a is a then b.
+    const order = observe(text, { ...live, trustedMentions: ['person-a', 'person-b', 'person-a'] })
+    assert.deepEqual(order.addressee.ids, ['person-a', 'person-b'])
+    const duplicateMembers = observe(text, {
+      ...live,
+      trustedMentions: ['person-a', 'person-a'],
+      currentMembers: ['person-a', 'person-a'],
+    })
+    assert.deepEqual(duplicateMembers.addressee.ids, ['person-a'])
+  })
+
+  it('repeated humans beside a repeated Sophia: each recipient once, Sophia last as before', () => {
+    const mixed = observe('Explain the panel.', {
+      ...live,
+      selectedArtifact: 'panel@v4',
+      trustedMentions: ['person-b', 'person-a', 'sophia', 'person-b', 'person-a', 'sophia'],
+    })
+    assert.deepEqual(mixed.addressee, { ids: ['person-b', 'person-a', 'sophia'], basis: 'structured_mention' })
+    assert.equal(kindOf(mixed), 'answer')
+  })
+
+  it('dedupe never restores a departed member or invents a Sophia fallback', () => {
+    const partial = observe(text, {
+      ...live,
+      trustedMentions: ['person-a', 'gone', 'person-a', 'gone'],
+      currentMembers: ['person-a'],
+    })
+    assert.deepEqual(partial.addressee.ids, ['person-a'])
+    assert.ok(partial.uncertainty.includes('mention_not_current_member'))
+    assert.ok(!JSON.stringify(partial).includes('gone'))
+    const allGone = observe(text, { ...live, trustedMentions: ['gone', 'gone'], currentMembers: ['person-a'] })
+    assert.equal(kindOf(allGone), 'abstain')
+    assert.equal(allGone.proposal.rule, 'address.structured_unresolved')
+    assert.deepEqual(allGone.addressee, { ids: [], basis: 'unresolved' })
+    const unknownMembers = observe(text, { ...live, trustedMentions: ['person-a', 'person-a'] })
+    assert.deepEqual(unknownMembers.addressee.ids, ['person-a'])
+  })
+
+  it('origin, legacy and the list bound still decide; effects stay zero', () => {
+    const repeated = { ...live, trustedMentions: ['person-a', 'person-a'], currentMembers: ['person-a'] }
+    const generated = observe(text, { ...repeated, origin: 'generated', causedBy: 'opG' })
+    assert.equal(kindOf(generated), 'no_action')
+    assert.deepEqual(generated.addressee.ids, [])
+    assert.equal(kindOf(observe(text, repeated, legacy(false))), 'recorded_only')
+    assert.deepEqual(observe(text, repeated).effects, ZERO_EFFECTS)
+    const many = Array.from({ length: 1000 }, () => 'person-a')
+    assert.ok(errorCodes({ interaction: AUTO, text, context: { ...live, trustedMentions: many } }).length > 0)
+  })
+})

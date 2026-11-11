@@ -1532,3 +1532,123 @@ describe('r17 through the consumer: complete import spans and distinct candidate
     })
   })
 })
+
+/** A case whose family metadata is any value at all, valid or not. */
+const withFamily = (c: TestCase, value: unknown) => ({ ...c, family: value })
+
+/** The r18 consumer corpus: repeated recipients, and family metadata that is a string, absent, null or invalid. */
+function r18Corpus(): TestDoc {
+  const doc = corpus()
+  const live = { audience: 'project', activeMission: 'm18', control: 'running' }
+  const text = 'Can you check the panel?'
+  const plain = (id: string) => testCase(id, 'Thanks!', live, {})
+  const { family: _omitted, ...absent } = plain('F-absent')
+  doc.cases = [
+    testCase(
+      'R-repeat',
+      text,
+      { ...live, trustedMentions: ['person-a', 'person-a'], currentMembers: ['person-a'] },
+      { addressee: 'person-a' },
+    ),
+    testCase(
+      'R-mixed',
+      text,
+      { ...live, trustedMentions: ['person-b', 'person-a', 'person-b', 'person-a'] },
+      { addressee: 'person-a+person-b' },
+    ),
+    testCase(
+      'R-order',
+      text,
+      { ...live, trustedMentions: ['person-a', 'person-b', 'person-a'] },
+      { addressee: 'person-a+person-b' },
+    ),
+    withFamily(plain('F-number'), 42),
+    withFamily(plain('F-false'), false),
+    withFamily(plain('F-array'), []),
+    withFamily(plain('F-object'), {}),
+    withFamily(plain('F-null'), null),
+    absent,
+    withFamily(plain('F-proto'), '__proto__'),
+    withFamily(plain('F-constructor'), 'constructor'),
+    withFamily(plain('F-string'), 'acks'),
+  ]
+  return doc
+}
+
+interface R18View {
+  cases: { caseId: string; observation: IntakeObservation; comparison: { field: string; result: string }[] }[]
+  errors: { index?: number; caseId?: string | null; code: string; path?: string }[]
+  counts: { cases: number; observed: number; invalidCases: number; byFamily: Record<string, unknown> }
+  actualEffects: Record<string, number>
+}
+
+function checkR18Recipients(r: R18View): void {
+  const o = new Map(r.cases.map((c) => [c.caseId, c]))
+  assert.deepEqual(o.get('R-repeat')?.observation.addressee.ids, ['person-a'])
+  assert.deepEqual(o.get('R-mixed')?.observation.addressee.ids, ['person-b', 'person-a'])
+  assert.deepEqual(o.get('R-order')?.observation.addressee.ids, ['person-a', 'person-b'])
+  for (const id of ['R-repeat', 'R-mixed', 'R-order'])
+    assert.equal(o.get(id)?.comparison.find((f) => f.field === 'addressee')?.result, 'match', id)
+  assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+}
+
+function checkR18Families(r: R18View): void {
+  const observed = new Set(r.cases.map((c) => c.caseId))
+  const invalid = ['F-number', 'F-false', 'F-array', 'F-object']
+  for (const [i, id] of invalid.entries()) {
+    assert.ok(!observed.has(id), `${id} is not observed`)
+    assert.deepEqual(
+      r.errors.find((e) => e.caseId === id),
+      { index: i + 3, caseId: id, code: 'invalid_family', path: `cases[${String(i + 3)}].family` },
+      id,
+    )
+  }
+  assert.equal(r.counts.cases, 12)
+  assert.equal(r.counts.invalidCases, 4)
+  assert.equal(r.counts.observed, 8)
+  assert.equal(r.counts.observed + r.counts.invalidCases, r.counts.cases)
+  const families = r.counts.byFamily
+  for (const [name, n] of [
+    ['unlabelled', 2],
+    ['__proto__', 1],
+    ['constructor', 1],
+    ['acks', 1],
+    ['test_family', 3],
+  ] as const) {
+    assert.ok(Object.hasOwn(families, name), name)
+    assert.equal(families[name], n, name)
+  }
+}
+
+/** The written report and its exit status, from the command line. */
+function writtenR18(): { status: number | null; report: R18View } {
+  let written: { status: number | null; report: R18View } | undefined
+  withTmp((dir) => {
+    const { path, hash } = writeCorpus(dir, r18Corpus())
+    const out = join(dir, 'r.json')
+    const status = run(['--input', path, '--input-sha256', hash, '--out', out]).status
+    written = { status, report: JSON.parse(readFileSync(out, 'utf8')) as R18View }
+  })
+  assert.ok(written !== undefined)
+  return written
+}
+
+describe('r18 through the consumer: distinct recipients and explicit family metadata', () => {
+  it('recipients in the built report', () => {
+    checkR18Recipients(report(r18Corpus()) as unknown as R18View)
+  })
+
+  it('families, errors and the denominator in the built report', () => {
+    checkR18Families(report(r18Corpus()) as unknown as R18View)
+  })
+
+  it('recipients in the written report from the command line', () => {
+    checkR18Recipients(writtenR18().report)
+  })
+
+  it('families in the written report, and the command line exits 1 for the invalid cases', () => {
+    const written = writtenR18()
+    assert.equal(written.status, 1)
+    checkR18Families(written.report)
+  })
+})

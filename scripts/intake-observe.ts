@@ -252,10 +252,13 @@ export function prepareCase(raw: unknown, index: number, defaultInteraction: unk
   const unknown = Object.keys(raw).find((k) => !CASE_KEYS.some((allowed) => allowed === k))
   if (unknown !== undefined) return fail('unknown_case_field', `.${unknown}`)
   if (raw.expected !== undefined && !isRecord(raw.expected)) return fail('invalid_expected', '.expected')
+  // A family is any string; absent or null means no family (r18). Anything else is an error, never "unlabelled".
+  const family = raw.family ?? null
+  if (family !== null && typeof family !== 'string') return fail('invalid_family', '.family')
   const meta: CaseMeta = {
     index,
     caseId,
-    family: typeof raw.family === 'string' ? raw.family : null,
+    family,
     expected: isRecord(raw.expected) ? raw.expected : null,
   }
   const interaction = Object.hasOwn(raw, 'interaction') ? raw.interaction : defaultInteraction

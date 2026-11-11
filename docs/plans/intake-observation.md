@@ -6,7 +6,7 @@ installed automatic routing, not a live intake service and not the shipped INC-0
 from `@sophia/coordination`, registered in an app, or reachable from a request.
 
 - `packages/coordination/src/intake-observation.ts` — a pure, versioned, deterministic observation policy
-  (currently `sophia.intake-observation.policy.v17`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11, v12 r12, v13 r13, v14 r14, v15 r15 (unpublished), v16 r16). It reads a validated input and returns a proposal. It holds no
+  (currently `sophia.intake-observation.policy.v18`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11, v12 r12, v13 r13, v14 r14, v15 r15 (unpublished), v16 r16, v17 r17). It reads a validated input and returns a proposal. It holds no
   transport, provider, database, notification, control or dispatch handle and reads no clock or environment.
 - `scripts/intake-observe.ts` — the consumer: an offline CLI that validates a bounded corpus file, strips every
   label before the policy sees a case, runs the policy, compares results with the labels separately and writes a
@@ -53,8 +53,11 @@ wrong type, an oversized string or list is an input error. What each group means
 
 The policy never sees `caseId`, `family`, `split`, `expected`, `status`, `labelAuthority` or `fixtureAuthority`:
 the CLI keeps them as comparison metadata, and a context that carries any of those keys is an input error.
+`family` is any string (`__proto__` and `constructor` included); absent or `null` means no family and is tallied as
+`unlabelled`. Any other value (number, boolean, array, object) is the case error `invalid_family` at
+`cases[i].family` (r18), so the case is counted invalid, never observed, and the command line exits 1.
 
-## States (one observation) — policy v17
+## States (one observation) — policy v18
 
 Policy v2 (`sophia.intake-observation.policy.v2`) replaced v1 after the independent r1 review
 (INC03-CC-001-r1-SOURCE-PRE-PUSH-001, F01–F07). Policy v3 (`sophia.intake-observation.policy.v3`) replaces v2 after
@@ -238,6 +241,17 @@ v17 (published r16 `e6292dee`, gate `INC03-CC-001-r16-SOURCE-FINAL-001`) repairs
   `observationId` binds both digests. The stored observation and an exact replay are unchanged. The command line uses
   a fresh ledger per case, so this is tested on the stateful function itself; no cross-case CLI behaviour is claimed.
 
+v18 (published r17 `2bbaae7a`, gate `INC03-CC-001-r17-SOURCE-FINAL-001`) repairs two classes:
+
+- **Distinct recipients.** Structured mentions were filtered and projected as supplied, so `trustedMentions:
+  [a, a]` gave `addressee.ids: [a, a]`, and repeats survived partial drops and unknown members. Now the ids are made
+  distinct, in first-occurrence order, before the membership check and before the addressee is built. Every distinct
+  id is still checked against `currentMembers`, so a repeated departed member is still dropped, all-dropped mentions
+  are still failed addressing (no Sophia fallback), distinct people stay distinct and Sophia stays last. The list bound
+  and validation still apply to the list as supplied.
+- **Family metadata** (command line, not the policy): an explicit non-string, non-null family was silently counted as
+  `unlabelled`. It is now `invalid_family` (above); `null` is the documented way to say "no family".
+
 | State | When | Proposal | Admission |
 |---|---|---|---|
 | legacy false | `legacy_explicit_ask`, `askSophia:false` | `recorded_only`, no addressee inference | `recorded_only` / `legacy_ask_false_no_assessment` |
@@ -358,7 +372,7 @@ check rather than documented.
 | usage (missing, unknown or repeated argument, URL-like path) | 2 | none written |
 | `input_hash_mismatch`, unreadable/oversized file, invalid JSON, unknown schema, too many cases | 2 | none written |
 | `output_exists`, output inside the repository, output equal to input | 2 | none written |
-| a case fails validation (`invalid_case`, `unknown_context_field`, `label_in_context`, `legacy_ask_missing`, `contradictory_origin`, `unsupported_comparison`, `duplicate_case_id`, bounds) | 1 | written; the case appears only in `errors`, never as a classification. `counts.invalidCases` counts cases, `counts.errorIssues` counts issues (one case may have several) |
+| a case fails validation (`invalid_case`, `unknown_context_field`, `label_in_context`, `legacy_ask_missing`, `contradictory_origin`, `unsupported_comparison`, `duplicate_case_id`, `invalid_family`, bounds) | 1 | written; the case appears only in `errors`, never as a classification. `counts.invalidCases` counts cases, `counts.errorIssues` counts issues (one case may have several) |
 | all cases valid | 0 | written |
 
 Bounds: file 2 MiB, 500 cases, text 4000 characters, 64 context keys, strings 200 characters, lists 16 items.
