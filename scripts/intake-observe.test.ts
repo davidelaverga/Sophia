@@ -1417,3 +1417,118 @@ describe('r16 through the consumer: the accepted-version wait follows the consum
     })
   })
 })
+
+/** The r17 consumer corpus: complete import spans and distinct candidates, through the report and the CLI. */
+function r17Corpus(): TestDoc {
+  const doc = corpus()
+  const live = {
+    audience: 'project',
+    activeMission: 'm17',
+    control: 'running',
+    stopQualified: true,
+    holdQualified: true,
+  }
+  const project = { audience: 'project', directAddress: 'sophia' }
+  doc.cases = [
+    testCase('I-ping', 'Stopping the job.', { ...live, quotedText: 'ping' }, { proposedAction: 'control_stop' }),
+    testCase(
+      'I-ing',
+      'Holding the job.',
+      { ...live, attachmentInstruction: 'ing' },
+      { proposedAction: 'control_hold' },
+    ),
+    testCase('I-mark', 'Stoṕ the job.', { ...live, quotedText: '́' }, { proposedAction: 'control_stop' }),
+    testCase(
+      'I-suffix',
+      '"Stoppe den Job" stop the job.',
+      { ...live, quotedText: 'Stoppe den Job' },
+      { proposedAction: 'control_stop' },
+    ),
+    testCase(
+      'I-whole',
+      'Thanks—stop the job.',
+      { ...live, quotedText: 'stop the job' },
+      { proposedAction: 'no_action' },
+    ),
+    testCase('U-targets', 'Explain the card.', { ...project, possibleTargets: ['card@v1', 'card@v1'] }, {}),
+    testCase(
+      'U-pairs',
+      'Compare the cards.',
+      {
+        ...project,
+        possibleComparisons: [
+          ['card@v1', 'card@v2'],
+          ['card@v1', 'card@v2'],
+        ],
+      },
+      {},
+    ),
+    testCase(
+      'U-ordered',
+      'Compare the cards.',
+      {
+        ...project,
+        possibleComparisons: [
+          ['card@v1', 'card@v2'],
+          ['card@v2', 'card@v1'],
+        ],
+      },
+      {},
+    ),
+    testCase('U-repos', 'Implement the card.', { ...project, possibleRepos: ['web', 'web'] }, {}),
+    testCase('O-1', 'Also cover the error state.', { ...live, operationId: 'op17' }, {}),
+    testCase('O-2', 'Also remove the header.', { ...live, operationId: 'op17' }, {}),
+  ]
+  return doc
+}
+
+interface R17View {
+  cases: { caseId: string; observation: IntakeObservation; comparison: { field: string; result: string }[] }[]
+  actualEffects: Record<string, number>
+}
+
+function checkR17(r: R17View): void {
+  const o = new Map(r.cases.map((c) => [c.caseId, c]))
+  checkR17Imports(o)
+  checkR17Candidates(o)
+  // Each case is its own scenario with a fresh ledger: the CLI makes no cross-case operation claim.
+  for (const id of ['O-1', 'O-2']) assert.notEqual(o.get(id)?.observation.proposal.kind, 'conflict', id)
+  assert.equal(r.cases.length, 11)
+  assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+}
+
+function checkR17Imports(o: Map<string, R17View['cases'][number]>): void {
+  for (const id of ['I-ping', 'I-ing', 'I-mark']) {
+    const c = o.get(id)
+    assert.equal(c?.observation.proposal.kind, 'abstain', id)
+    assert.ok(c?.observation.uncertainty.includes('malformed_quotation'), id)
+    // The label wants the command the sliced text would have shown: an abstention is never that match.
+    assert.notEqual(c?.comparison.find((f) => f.field === 'proposedAction')?.result, 'match', id)
+  }
+  for (const id of ['I-suffix', 'I-whole'])
+    assert.equal(o.get(id)?.comparison.find((f) => f.field === 'proposedAction')?.result, 'match', id)
+}
+
+function checkR17Candidates(o: Map<string, R17View['cases'][number]>): void {
+  assert.equal(o.get('U-targets')?.observation.proposal.kind, 'answer')
+  assert.equal(o.get('U-pairs')?.observation.proposal.kind, 'answer')
+  assert.deepEqual(o.get('U-ordered')?.observation.uncertainty, ['multiple_plausible_comparisons'])
+  assert.equal(o.get('U-repos')?.observation.proposal.rule, 'family.build_without_repository')
+  for (const id of ['U-targets', 'U-pairs', 'U-repos'])
+    assert.notEqual(o.get(id)?.observation.proposal.rule, 'target.ambiguous', id)
+}
+
+describe('r17 through the consumer: complete import spans and distinct candidates', () => {
+  it('in the built report', () => {
+    checkR17(report(r17Corpus()) as unknown as R17View)
+  })
+
+  it('in the written report from the command line', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, r17Corpus())
+      const out = join(dir, 'r.json')
+      assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
+      checkR17(JSON.parse(readFileSync(out, 'utf8')))
+    })
+  })
+})

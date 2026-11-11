@@ -2201,3 +2201,327 @@ describe('r16 (INC03-R15-F01): the accepted-version guard reads only the item th
     assert.equal(unsupported.proposal.rule, 'family.build_selection_unsupported')
   })
 })
+
+describe('r17 (F01 discussion_r4532833094): a declared import is removed only as a complete span', () => {
+  const live = {
+    audience: 'project',
+    activeMission: 'm5',
+    control: 'running',
+    stopQualified: true,
+    holdQualified: true,
+    manager: 'pm5',
+    managerGeneration: 1,
+  }
+  // Each literal sits inside an authored token: removing it would leave a command the author never wrote.
+  const inside: [string, string][] = [
+    ['Stopping the job.', 'ping'],
+    ['Holding the job.', 'ing'],
+    ['Xhold the job.', 'x'],
+    ['Non-stop the job.', 'non-'],
+    ['Stop2 the job.', '2'],
+    ['Stopé the job.', 'é'],
+    ['Stoṕ the job.', '́'],
+    ['停止stop the job.', '停止'],
+    ['Stop.pause the job.', 'stop.'],
+    ['Hold’s the job.', '’s'],
+    // The rest of the token is a non-ASCII letter or mark only: an ASCII word test would call these complete.
+    ['Ñping. Stop the job.', 'ping'],
+    ['Pingñ. Stop the job.', 'ping'],
+    ['停止ping. Stop the job.', 'ping'],
+    ['Ping\u0301. Stop the job.', 'ping'],
+  ]
+
+  it('an occurrence inside an authored token is never sliced: the input abstains, in either field', () => {
+    for (const field of ['quotedText', 'attachmentInstruction'])
+      for (const [text, literal] of inside) {
+        const o = observe(text, { ...live, [field]: literal })
+        assert.equal(kindOf(o), 'abstain', `${field} ${JSON.stringify(text)}`)
+        assert.ok(o.uncertainty.includes('malformed_quotation'), `${field} ${JSON.stringify(text)}`)
+        assert.equal(o.fenced.quotedSpans, 0, JSON.stringify(text))
+        assert.deepEqual(o.effects, ZERO_EFFECTS)
+      }
+  })
+
+  it('a token-internal occurrence beside a complete one still abstains; repeated complete spans are all removed', () => {
+    const text = '"Stop the job" and stop the jobs. Thanks.'
+    assert.equal(kindOf(observe(text, { ...live, quotedText: 'stop the job' })), 'abstain')
+    const repeated = observe('"Stop the job" and "stop the job". Thanks.', { ...live, quotedText: 'stop the job' })
+    assert.equal(kindOf(repeated), 'no_action')
+    // Two imports, then the two emptied quote pairs around them.
+    assert.equal(repeated.fenced.quotedSpans, 4)
+  })
+
+  it('partially overlapping imports leave the bounds unknown; a contained or identical one is part of the larger', () => {
+    const attached = { ...live, attachment: 'doc@v1' }
+    const text = 'Summarize: stop the job.'
+    const partial = observe(text, { ...attached, quotedText: 'stop the', attachmentInstruction: 'the job' })
+    assert.equal(kindOf(partial), 'abstain')
+    assert.ok(partial.uncertainty.includes('malformed_quotation'))
+    for (const inner of ['the job', 'stop the job']) {
+      const o = observe(text, { ...attached, quotedText: 'stop the job', attachmentInstruction: inner })
+      assert.equal(kindOf(o), 'answer', inner)
+      assert.equal(o.fenced.quotedSpans, 1, inner)
+    }
+    const self = observe('Thanks. Hold hold hold.', { ...live, quotedText: 'hold hold' })
+    assert.equal(kindOf(self), 'abstain')
+  })
+
+  it('complete spans bounded by whitespace, punctuation or a clause dash stay data; authored controls beside them act', () => {
+    const cases: [string, string, string][] = [
+      ['"Stoppe den Job" stop the job.', 'Stoppe den Job', 'control_stop'],
+      ['«Stoppe den Job». Pause the job.', 'Stoppe den Job', 'control_hold'],
+      ['(halt the job), hold the job.', 'halt the job', 'control_hold'],
+      ['Stop the job — "resume the job".', 'resume the job', 'control_stop'],
+      ['Thanks—stop the job.', 'stop the job', 'no_action'],
+      ['Thanks – stop the job!', 'stop the job', 'no_action'],
+      ['停止 stop the job.', '停止', 'control_stop'],
+    ]
+    for (const field of ['quotedText', 'attachmentInstruction'])
+      for (const [text, literal, kind] of cases) {
+        const o = observe(text, { ...live, [field]: literal })
+        assert.equal(kindOf(o), kind, `${field} ${JSON.stringify(text)}`)
+        assert.ok(o.fenced.quotedSpans >= 1, JSON.stringify(text))
+      }
+  })
+
+  it('a wholly imported command stays data, and the same text without a declaration is still read', () => {
+    assert.equal(kindOf(observe('Stop the job.', { ...live, quotedText: 'stop the job.' })), 'abstain')
+    assert.equal(kindOf(observe('Stopping the job.', live)), 'abstain')
+    assert.equal(kindOf(observe('Stop the job.', live)), 'control_stop')
+  })
+})
+
+describe('r17 (F02 discussion_r4532833098): ambiguity counts distinct candidates', () => {
+  const repo = { audience: 'project', directAddress: 'sophia' }
+
+  it('a repeated candidate is one candidate, decided exactly as the single list, never as an exact target', () => {
+    const lists: [string, string, unknown, unknown][] = [
+      ['Explain the card.', 'possibleTargets', ['card@v1', 'card@v1'], ['card@v1']],
+      ['Explain the card.', 'candidates', ['card@v1', 'card@v1', 'card@v1'], ['card@v1']],
+      [
+        'Compare the cards.',
+        'possibleComparisons',
+        [
+          ['card@v1', 'card@v2'],
+          ['card@v1', 'card@v2'],
+        ],
+        [['card@v1', 'card@v2']],
+      ],
+      ['Implement the card.', 'possibleRepos', ['web', 'web'], ['web']],
+    ]
+    for (const [text, field, repeated, single] of lists) {
+      const twice = observe(text, { ...project, [field]: repeated })
+      const once = observe(text, { ...project, [field]: single })
+      assert.deepEqual(decision(twice), decision(once), field)
+      assert.deepEqual(twice.uncertainty, once.uncertainty, field)
+      assert.notEqual(twice.proposal.rule, 'target.ambiguous', field)
+      assert.notEqual(twice.proposal.targetBasis, 'explicit_selection', field)
+    }
+    const build = observe('Implement the card.', { ...repo, possibleRepos: ['web', 'web'] })
+    assert.equal(build.proposal.rule, 'family.build_without_repository')
+    assert.ok(build.uncertainty.includes('repository_unresolved'))
+  })
+
+  it('genuine multiples stay ambiguous; a comparison is its whole ordered pair', () => {
+    const lists: [string, string, unknown, string][] = [
+      ['Explain the card.', 'possibleTargets', ['card@v1', 'card@v2', 'card@v1'], 'multiple_plausible_targets'],
+      ['Explain the card.', 'candidates', ['card@v1', 'Card@v1'], 'multiple_plausible_targets'],
+      [
+        'Compare the cards.',
+        'possibleComparisons',
+        [
+          ['card@v1', 'card@v2'],
+          ['card@v2', 'card@v1'],
+        ],
+        'multiple_plausible_comparisons',
+      ],
+      ['Implement the card.', 'possibleRepos', ['web', 'api', 'web'], 'multiple_plausible_repositories'],
+    ]
+    for (const [text, field, list, reason] of lists) {
+      const o = observe(text, { ...project, [field]: list })
+      assert.equal(o.proposal.rule, 'target.ambiguous', field)
+      assert.deepEqual(o.uncertainty, [reason], field)
+      assert.equal(o.admission.outcome, 'clarification_required', field)
+    }
+  })
+
+  it('exact selections, a named repository, controls and people keep precedence; ordered selections keep their order', () => {
+    const selected = observe('Compare the cards.', {
+      ...project,
+      selectedComparison: ['card@v2', 'card@v1'],
+      possibleComparisons: [
+        ['card@v1', 'card@v2'],
+        ['card@v2', 'card@v1'],
+      ],
+    })
+    assert.deepEqual(selected.proposal.target, { kind: 'comparison', refs: ['card@v2', 'card@v1'] })
+    const named = observe('Implement the card.', { ...repo, repo: 'web', possibleRepos: ['web', 'api'] })
+    assert.equal(named.proposal.kind, 'build_start')
+    const stop = observe('Stop the job.', {
+      ...running,
+      stopQualified: true,
+      possibleTargets: ['a', 'a', 'b'],
+    })
+    assert.equal(kindOf(stop), 'control_stop')
+    const human = observe('Marta, explain the card.', {
+      ...project,
+      trustedMentions: ['marta'],
+      currentMembers: ['marta'],
+      possibleTargets: ['card@v1', 'card@v1'],
+    })
+    assert.equal(kindOf(human), 'human_message')
+    for (const origin of ['generated', 'receipt'])
+      assert.equal(
+        kindOf(observe('Explain the card.', { ...project, origin, causedBy: 'opG', possibleTargets: ['a', 'b'] })),
+        'no_action',
+        origin,
+      )
+  })
+
+  it('duplicates remain bounded by the list limits and still refused when malformed', () => {
+    const tooMany = Array.from({ length: 1000 }, () => 'card@v1')
+    assert.ok(
+      errorCodes({ interaction: AUTO, text: 'Explain the card.', context: { ...project, possibleTargets: tooMany } })
+        .length > 0,
+    )
+    assert.ok(
+      errorCodes({
+        interaction: AUTO,
+        text: 'Compare the cards.',
+        context: { ...project, possibleComparisons: [['card@v1'], ['card@v1']] },
+      }).length > 0,
+    )
+  })
+})
+
+/** The r17 conflict expected for a payload rejected under operation op17: audit facts only. */
+const conflictFor = (stored: IntakeObservation, payload: Record<string, unknown>): IntakeObservation => {
+  const alone = observeIntake(payload)
+  assert.ok(alone.ok)
+  return {
+    policy: INTAKE_OBSERVATION_POLICY_VERSION,
+    observationId: '(checked separately)',
+    inputSha256: alone.observation.inputSha256,
+    contract: alone.observation.contract,
+    audience: { scope: stored.audience.scope, change: 'unchanged', attention: 'none', exactness: 'scope_only' },
+    provenance: { origin: stored.provenance.origin, humanInstruction: false, correlation: 'op17' },
+    addressee: { ids: [], basis: 'unresolved' },
+    proposal: {
+      kind: 'conflict',
+      target: { kind: 'operation', id: 'op17', newTarget: null },
+      targetBasis: 'operation_identity',
+      route: 'none',
+      rule: 'identity.ledger_changed_payload',
+    },
+    uncertainty: ['changed_payload_not_interpreted'],
+    fenced: { quotedSpans: 0, generatedOrigin: false },
+    assessment: 'not_needed',
+    admission: { outcome: 'conflict', reason: 'operation_payload_changed', authority: 'none' },
+    effects: ZERO_EFFECTS,
+  }
+}
+describe('r17 (F03 discussion_r4532833107): a ledger conflict carries audit facts only', () => {
+  const op = { ...running, operationId: 'op17' }
+  const original = { interaction: AUTO, text: 'Also cover the error state.', context: op }
+  const changed: [string, Record<string, unknown>][] = [
+    [
+      'human',
+      {
+        interaction: AUTO,
+        text: 'Marta, stop the job.',
+        context: { ...op, trustedMentions: ['marta'], currentMembers: ['marta'] },
+      },
+    ],
+    [
+      'private',
+      {
+        interaction: AUTO,
+        text: 'Explain the card.',
+        context: { ...op, audience: 'personal', selectedArtifact: 'card@v1' },
+      },
+    ],
+    [
+      'generated',
+      { interaction: AUTO, text: 'Build it now.', context: { ...op, origin: 'generated', causedBy: 'opG' } },
+    ],
+    ['malformed', { interaction: AUTO, text: "'broken Stop the job.", context: op }],
+    ['unread', { interaction: AUTO, text: 'Lorem ipsum dolor.', context: op }],
+    ['imported', { interaction: AUTO, text: '"Stop the job" now.', context: { ...op, quotedText: 'stop the job' } }],
+    ['legacy', { interaction: { contract: 'legacy_explicit_ask', askSophia: true }, text: 'Explain it.', context: op }],
+  ]
+
+  it('each changed payload yields a coherent conflict, never the rejected payload’s interpretation', () => {
+    const ledger: ObservationLedger = new Map()
+    const first = observeWithLedger(ledger, original)
+    assert.ok(first.ok)
+    const stored = first.observation
+    const bytes = JSON.stringify(stored)
+    for (const [label, payload] of changed) {
+      const alone = observeIntake(payload)
+      const result = observeWithLedger(ledger, payload)
+      assert.ok(result.ok && alone.ok, label)
+      const conflict = result.observation
+      assert.deepEqual({ ...conflict, observationId: '(checked separately)' }, conflictFor(stored, payload), label)
+      assert.match(conflict.observationId, /^[0-9a-f]{64}$/, label)
+      assert.notEqual(conflict.observationId, alone.observation.observationId, label)
+      assert.notEqual(conflict.observationId, stored.observationId, label)
+      // The rejected payload's own reading differs from the conflict in what it would have claimed.
+      assert.notDeepEqual(
+        [
+          alone.observation.addressee,
+          alone.observation.audience,
+          alone.observation.provenance,
+          alone.observation.uncertainty,
+        ],
+        [conflict.addressee, conflict.audience, conflict.provenance, conflict.uncertainty],
+        label,
+      )
+      assert.deepEqual(observeWithLedger(ledger, payload), result, `${label} deterministic`)
+      assert.equal(ledger.get('op17'), stored, label)
+    }
+    assert.equal(ledger.size, 1)
+    assert.equal(JSON.stringify(ledger.get('op17')), bytes)
+    const replay = observeWithLedger(ledger, original)
+    assert.ok(replay.ok)
+    assert.equal(replay.observation, stored)
+    assert.deepEqual(stored.effects, ZERO_EFFECTS)
+  })
+
+  it('the stored operation’s audience and origin are kept, whatever the rejected payload claims', () => {
+    const ledger: ObservationLedger = new Map()
+    const first = observeWithLedger(ledger, {
+      interaction: AUTO,
+      text: 'Explain the card.',
+      context: { audience: 'personal', selectedArtifact: 'card@v1', operationId: 'op17' },
+    })
+    assert.ok(first.ok)
+    const result = observeWithLedger(ledger, {
+      interaction: AUTO,
+      text: 'Explain the card.',
+      context: {
+        audience: 'project',
+        origin: 'agent_result',
+        causedBy: 'opA',
+        selectedArtifact: 'card@v1',
+        operationId: 'op17',
+      },
+    })
+    assert.ok(result.ok)
+    assert.equal(result.observation.audience.scope, 'personal')
+    assert.deepEqual(result.observation.provenance, {
+      origin: 'unspecified',
+      humanInstruction: false,
+      correlation: 'op17',
+    })
+  })
+
+  it('without an operation identity nothing is keyed, and an invalid payload is an error, never a conflict', () => {
+    const ledger: ObservationLedger = new Map()
+    assert.ok(observeWithLedger(ledger, { interaction: AUTO, text: 'Explain it.', context: running }).ok)
+    assert.equal(ledger.size, 0)
+    assert.ok(observeWithLedger(ledger, original).ok)
+    const invalid = observeWithLedger(ledger, { interaction: AUTO, text: '', context: op })
+    assert.equal(invalid.ok, false)
+    assert.equal(ledger.size, 1)
+  })
+})

@@ -6,7 +6,7 @@ installed automatic routing, not a live intake service and not the shipped INC-0
 from `@sophia/coordination`, registered in an app, or reachable from a request.
 
 - `packages/coordination/src/intake-observation.ts` — a pure, versioned, deterministic observation policy
-  (currently `sophia.intake-observation.policy.v16`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11, v12 r12, v13 r13, v14 r14, v15 r15 (unpublished)). It reads a validated input and returns a proposal. It holds no
+  (currently `sophia.intake-observation.policy.v17`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11, v12 r12, v13 r13, v14 r14, v15 r15 (unpublished), v16 r16). It reads a validated input and returns a proposal. It holds no
   transport, provider, database, notification, control or dispatch handle and reads no clock or environment.
 - `scripts/intake-observe.ts` — the consumer: an offline CLI that validates a bounded corpus file, strips every
   label before the policy sees a case, runs the policy, compares results with the labels separately and writes a
@@ -44,7 +44,7 @@ wrong type, an oversized string or list is an input error. What each group means
 | Addressing | `trustedMentions`, `currentMembers`, `directAddress`, `replyTo`, `replyAuthor`, `needsReply` | Structured mentions/reply targets as the composer would send them. A mention not in `currentMembers` (when given) is dropped. |
 | Untrusted text | `untrustedTextMentions`, `quotedText`, `attachmentInstruction` | Evidence only. Fenced out of the text before rules run; never an addressee or an instruction. |
 | Exact context | `selectedArtifact`, `selectedComparison`, `attachment`, `uniqueDecision`, `uniqueDate`, `retainedEvidence`, `latestArtifact`, `otherArtifact`, `acceptedVersion`, `accepted`, `acceptedStandard`, `repo`, `base`, `issue` | Exact references; a selected version is never replaced by `latestArtifact`. |
-| Ambiguity | `possibleTargets`, `possibleComparisons`, `candidates`, `possibleRepos` | More than one plausible referent → clarify. |
+| Ambiguity | `possibleTargets`, `possibleComparisons`, `candidates`, `possibleRepos` | More than one distinct plausible referent → clarify (v17: repeated entries are one; a comparison is its ordered pair). |
 | Work | `activeMission`, `selectedMission`, `manager`, `control`, `relatedToActive`, `pendingOperation` | Current mission link and control state. |
 | Resource/permission facts | `apiGrant`, `apiResource`, `nativePair`, `nativeSubscription`, `inquiryGrant`, `stop/hold/resumeQualified`, `pin`, `pinUnavailable`, `alternateAvailable`, `requester`, `resourceOwner`, `nativeDelegationQualified`, `projectExcludedByGrant`, `currentSourceEligible`, `sourceEligible`, `sourcePermission`, `unrelatedNativeHistory`, `membershipRemovedBeforePublication`, `grantRevokedBeforeSend`, `designState`, `implementationAuthorized`, `currentActorAuthorized`, `currentGrant` | **Supplied facts, not grants.** A negative fact can wait or deny; a positive one never admits. |
 | Origin/identity | `origin`, `causedBy`, `voiceUtterance`, `isFinal`, `operationId`, `redeliveryOf`, `samePayload`, `originalAdmission`, `originalOperation`, `dispatchState`, `expectedRevision`, `currentRevision`, `newTarget`, `correctedSourceManifest`, `originalBinding`, `currentBindingRevision`, `missionAllowanceLineage`, `originalEffectState`, `nativeSession` | Ingestion facts. Generated output never becomes a human instruction. |
@@ -54,7 +54,7 @@ wrong type, an oversized string or list is an input error. What each group means
 The policy never sees `caseId`, `family`, `split`, `expected`, `status`, `labelAuthority` or `fixtureAuthority`:
 the CLI keeps them as comparison metadata, and a context that carries any of those keys is an input error.
 
-## States (one observation) — policy v16
+## States (one observation) — policy v17
 
 Policy v2 (`sophia.intake-observation.policy.v2`) replaced v1 after the independent r1 review
 (INC03-CC-001-r1-SOURCE-PRE-PUSH-001, F01–F07). Policy v3 (`sophia.intake-observation.policy.v3`) replaces v2 after
@@ -96,6 +96,7 @@ escape detection, fences, single-quote boundaries and the whole-input pair check
 counted as fenced spans. Before v8 they were removed last, so an unmatched quote, an escaped quote or a pair of
 apostrophes wholly inside a declared import made the authored text around it abstain as `malformed_quotation`. A
 directive inside a declared import is still data; malformed quotation in the authored text outside it still abstains.
+From v17 an occurrence is removed only as a complete span (below); every complete occurrence is still removed.
 
 v9 (published r8 `08925d90`, automatic review on PR 504, gate SHA-256 `ed8cd02f…`) repairs two policy classes:
 
@@ -210,6 +211,33 @@ build. In v16 the build item reports the artifact it actually consumes (the sele
 it is the item), and the guard reads only that, by the same precedence. An issue or a text objective has no version,
 so a supplied accepted version keeps it waiting, as before, whatever an unused attachment says.
 
+v17 (published r16 `e6292dee`, gate `INC03-CC-001-r16-SOURCE-FINAL-001`) repairs three classes:
+
+- **Complete import spans.** Up to v16 a declared import was cut out wherever its characters appeared, even inside an
+  authored word: `Stopping the job.` with `quotedText: "ping"` read as `stop the job`, and `Holding` minus `ing` as
+  `hold`. Now an occurrence is removed only when the rest of its token on each side is punctuation (`\p{P}`: quotes,
+  brackets, stops). Tokens are split by Unicode whitespace and by the clause dashes (en, em, bar) that already separate
+  an acknowledgement (v13); a hyphen joins a word and stays inside the token. Any letter, number, mark or symbol in
+  that rest, in any script, means the import sits inside an authored token. An occurrence inside a larger complete one
+  is part of it, and identical spans from both fields count once. Any other inside-token occurrence, or two that
+  partially overlap, leaves the bounds unknown: nothing is removed and the input abstains as `malformed_quotation`
+  before any family is read. Complete spans become a space, so no two fragments are joined. Imports are still removed
+  before escape and quote analysis; a wholly imported command stays data; an authored control beside a complete import
+  still acts.
+- **Distinct candidates.** Ambiguity counted list entries, so `possibleTargets: [a, a]` was two targets. Now
+  `possibleTargets`, `candidates` and `possibleRepos` count distinct ids, and `possibleComparisons` counts distinct
+  whole ordered pairs (`[a, b]` and `[b, a]` stay two). A list with one distinct candidate decides exactly as the
+  one-entry list. It is no exact target and no permission. Other lists, `selectedComparison` included, keep their
+  order and length; list bounds and validation are unchanged.
+- **Coherent ledger conflicts.** `observeWithLedger` built the conflict by spreading the rejected payload's own
+  observation, so a changed payload's addressee, attention, assessment, uncertainty, fences and provenance appeared
+  in the conflict. Now a changed payload under a stored `operationId` is not interpreted. The conflict carries the
+  rejected input's digest and contract, plus the stored operation's identity (target and `provenance.correlation`),
+  audience scope and origin. It also carries: addressee none (`unresolved`), attention none, `humanInstruction:
+  false`, no fenced spans, assessment `not_needed`, uncertainty `changed_payload_not_interpreted`, zero effects. Its
+  `observationId` binds both digests. The stored observation and an exact replay are unchanged. The command line uses
+  a fresh ledger per case, so this is tested on the stateful function itself; no cross-case CLI behaviour is claimed.
+
 | State | When | Proposal | Admission |
 |---|---|---|---|
 | legacy false | `legacy_explicit_ask`, `askSophia:false` | `recorded_only`, no addressee inference | `recorded_only` / `legacy_ask_false_no_assessment` |
@@ -220,7 +248,7 @@ so a supplied accepted version keeps it waiting, as before, whatever an unused a
 | delayed output, same audience | `origin:delayed_output`, audience unchanged | `no_action`, correlation kept in `provenance.correlation` and the target; `proposal.rule: origin.delayed_deliver_after_recheck` | `recorded_only` / `output_not_instruction` |
 | delayed output, audience changed | `origin:delayed_output`, participants/audience changed | `withhold_from_current_call` | `recorded_only` / `audience_changed_withheld` |
 | transport redelivery | `redeliveryOf` with `samePayload` | `replay_original` / `conflict`; addressee only as this delivery's addressing resolves it, else none (`unresolved`, v9); attention none | same, `operation_redelivered` / `operation_payload_changed` |
-| ledger replay / conflict | same `operationId`, same / changed payload hash | the stored observation / `conflict` | unchanged / `operation_payload_changed` |
+| ledger replay / conflict | same `operationId`, same / changed payload hash | the stored observation / `conflict` built from audit facts only (v17: the changed payload is not interpreted) | unchanged / `operation_payload_changed` |
 | failed structured addressing | non-empty `trustedMentions`, none a current recipient (v12) | `abstain`, addressee none (`unresolved`), attention none, `structured_addressing_failed` | universal blockers, else `semantic_assessment_unavailable` |
 | private human mention | personal audience, human-only trusted mention (any operation metadata ignored, flagged) | `recorded_only`, attention none | `recorded_only` / `private_audience_no_attention` |
 | human message | project, human-only trusted mention or human reply author (operation metadata ignored, flagged) | `human_message`, no AI response | `recorded_only` / `human_directed` |

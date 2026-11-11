@@ -20,7 +20,7 @@
 import { createHash } from 'node:crypto'
 import { canonicalJson } from './canonical.ts'
 
-export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v16'
+export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v17'
 
 export const INTAKE_LIMITS = { textChars: 4000, contextKeys: 64, stringChars: 200, listItems: 16 } as const
 
@@ -213,6 +213,14 @@ export class Facts {
   count(field: ContextField): number {
     const v = this.#values.get(field)
     return Array.isArray(v) ? v.length : 0
+  }
+  /**
+   * How many different candidates a list names (r17): a repeated candidate is one candidate. A comparison candidate is
+   * its whole ordered pair, so [a,b] and [b,a] stay two. Order and cardinality of the list itself are untouched.
+   */
+  distinct(field: ContextField): number {
+    const v = this.#values.get(field)
+    return Array.isArray(v) ? new Set(v.map((candidate) => JSON.stringify(candidate))).size : 0
   }
   toJSON(): Record<string, FactValue> {
     return Object.fromEntries(this.#values)
@@ -660,21 +668,81 @@ const leading = (words: string, terms: readonly string[]): string | undefined =>
 const mentionsAny = (words: string, terms: readonly string[]): boolean =>
   terms.some((t) => new RegExp(`\\b${t}\\b`).test(words))
 
+interface ImportSpan {
+  readonly start: number
+  readonly end: number
+  readonly complete: boolean
+}
+
+/**
+ * What separates authored tokens: whitespace, and the clause dashes (en, em, bar) that also separate an acknowledgement
+ * from its clause (r13). A hyphen joins a word (`non-stop`) and stays inside the token.
+ */
+const TOKEN_HEAD = /[^\s\u2013\u2014\u2015\u2e3a\u2e3b]*$/u
+const TOKEN_TAIL = /^[^\s\u2013\u2014\u2015\u2e3a\u2e3b]*/u
+/** What may share a token with an imported span: punctuation only (quotes, brackets, stops). */
+const SPAN_EDGE = /^\p{P}*$/u
+const tokenHead = (text: string, at: number): string => TOKEN_HEAD.exec(text.slice(0, at))?.[0] ?? ''
+const tokenTail = (text: string, end: number): string => TOKEN_TAIL.exec(text.slice(end))?.[0] ?? ''
+
+/** Every occurrence of a literal, overlapping ones included, and whether each one is a complete span. */
+function importOccurrences(text: string, literal: string): ImportSpan[] {
+  const spans: ImportSpan[] = []
+  for (let at = text.indexOf(literal); at !== -1; at = text.indexOf(literal, at + 1)) {
+    const end = at + literal.length
+    spans.push({
+      start: at,
+      end,
+      complete: SPAN_EDGE.test(tokenHead(text, at)) && SPAN_EDGE.test(tokenTail(text, end)),
+    })
+  }
+  return spans
+}
+
+/**
+ * Removes declared imports as complete spans only (r17 F01). An occurrence is complete when the rest of its token on
+ * each side is punctuation only; a letter, number, mark or symbol there means it sits inside an authored token
+ * (`stopping` holds `ping`, `holding` holds `ing`). An occurrence inside a larger complete one is part of it. Any
+ * other occurrence inside a token, or two that partially overlap, leaves the bounds unknown: nothing is removed and the
+ * input is malformed. Complete spans become a space, so no two authored fragments are ever joined.
+ */
+function fenceImports(
+  text: string,
+  literals: readonly string[],
+): { readonly text: string; readonly spans: number; readonly ambiguous: boolean } {
+  const found = literals.flatMap((literal) => importOccurrences(text, literal))
+  const unique = [...new Map(found.map((s) => [`${s.start}:${s.end}`, s])).values()]
+  const ordered = unique.toSorted((a, b) => a.start - b.start || b.end - a.end)
+  const kept: ImportSpan[] = []
+  for (const span of ordered) {
+    const last = kept.at(-1)
+    const inside = last !== undefined && span.start < last.end
+    if (inside && last.complete && span.end <= last.end) continue
+    if (inside || !span.complete) return { text, spans: 0, ambiguous: true }
+    kept.push(span)
+  }
+  let out = ''
+  let from = 0
+  for (const span of kept) {
+    out += `${text.slice(from, span.start)} `
+    from = span.end
+  }
+  return { text: out + text.slice(from), spans: kept.length, ambiguous: false }
+}
+
 /** Removes quoted, fenced and imported spans and text-only @mentions; counts what it fenced; flags what it cannot. */
 export function authoredText(
   text: string,
   facts: Facts,
 ): { readonly text: string; readonly fencedSpans: number; readonly malformed: boolean } {
-  let t = text.toLowerCase()
-  let fencedSpans = 0
   // Declared imports are data, removed before any quotation analysis, so their own unmatched, escaped or paired
-  // marks cannot make the authored text around them malformed (r8 F02).
-  for (const literal of [facts.str('quotedText'), facts.str('attachmentInstruction')]) {
-    if (literal === undefined) continue
-    const parts = t.split(literal.toLowerCase())
-    fencedSpans += parts.length - 1
-    t = parts.join(' ')
-  }
+  // marks cannot make the authored text around them malformed (r8 F02); only as complete spans (r17 F01).
+  const literals = [facts.str('quotedText'), facts.str('attachmentInstruction')]
+    .filter((literal) => literal !== undefined)
+    .map((literal) => literal.toLowerCase())
+  const imports = fenceImports(text.toLowerCase(), literals)
+  let t = imports.text
+  let fencedSpans = imports.spans
   // Escaping is judged on the authored text as written, before any authored span is removed.
   const escaped = ESCAPED_QUOTE.test(t)
   for (const fence of FENCES) {
@@ -684,7 +752,7 @@ export function authoredText(
   const single = fenceSingleQuotes(t)
   t = single.text
   fencedSpans += single.spans
-  const ambiguous = escaped || single.ambiguous
+  const ambiguous = imports.ambiguous || escaped || single.ambiguous
   return { text: t.replace(MENTION_TEXT, ' '), fencedSpans, malformed: ambiguous || UNBALANCED.test(t) }
 }
 
@@ -1090,13 +1158,13 @@ function ambiguityRule(facts: Facts): Proposal | undefined {
   // Any exact selection resolves the generic target lists (r14): the same notion target resolution uses.
   const selected = exactSelection(facts) !== undefined
   const reasons = [
-    !selected && (facts.count('possibleTargets') > 1 || facts.count('candidates') > 1)
+    !selected && (facts.distinct('possibleTargets') > 1 || facts.distinct('candidates') > 1)
       ? 'multiple_plausible_targets'
       : '',
-    facts.count('possibleComparisons') > 1 && facts.count('selectedComparison') === 0
+    facts.distinct('possibleComparisons') > 1 && facts.count('selectedComparison') === 0
       ? 'multiple_plausible_comparisons'
       : '',
-    facts.count('possibleRepos') > 1 && facts.str('repo') === undefined ? 'multiple_plausible_repositories' : '',
+    facts.distinct('possibleRepos') > 1 && facts.str('repo') === undefined ? 'multiple_plausible_repositories' : '',
     !selected && facts.has('replyTo') && facts.bool('sourceEligible') === false ? 'reply_referent_ineligible' : '',
   ].filter((r) => r !== '')
   if (reasons.length === 0) return undefined
@@ -1734,26 +1802,54 @@ export function observeWithLedger(ledger: ObservationLedger, raw: unknown): Obse
   if (!v.ok) return v
   const key = v.input.facts.str('operationId')
   const prior = key === undefined ? undefined : ledger.get(key)
-  const fresh = observeValidated(v.input)
-  if (prior === undefined) {
+  if (key === undefined || prior === undefined) {
+    const fresh = observeValidated(v.input)
     if (key !== undefined) ledger.set(key, fresh)
     return { ok: true, observation: fresh }
   }
-  if (prior.inputSha256 === fresh.inputSha256) return { ok: true, observation: prior }
-  const target: Target = { kind: 'operation', id: key ?? '', newTarget: null }
+  const inputSha256 = inputDigest(v.input)
+  if (prior.inputSha256 === inputSha256) return { ok: true, observation: prior }
+  return { ok: true, observation: ledgerConflict(prior, key, inputSha256, v.input.interaction.contract) }
+}
+
+/**
+ * The terminal observation for a changed payload under a stored operation identity (r17 F03). The rejected payload is
+ * not interpreted at all: no addressee, attention, assessment, fence or provenance is read from it. It keeps audit
+ * facts only: its own digest and contract, and the stored operation's identity, audience scope and origin.
+ */
+function ledgerConflict(
+  prior: IntakeObservation,
+  key: string,
+  inputSha256: string,
+  contract: Interaction['contract'],
+): IntakeObservation {
+  const target: Target = { kind: 'operation', id: key, newTarget: null }
   return {
-    ok: true,
-    observation: {
-      ...fresh,
-      proposal: {
-        kind: 'conflict',
-        target,
-        targetBasis: 'operation_identity',
-        route: 'none',
-        rule: 'identity.ledger_changed_payload',
-      },
-      admission: { outcome: 'conflict', reason: 'operation_payload_changed', authority: 'none' },
+    policy: INTAKE_OBSERVATION_POLICY_VERSION,
+    observationId: sha256(
+      canonicalJson({
+        policy: INTAKE_OBSERVATION_POLICY_VERSION,
+        input: inputSha256,
+        conflictsWith: prior.inputSha256,
+      }),
+    ),
+    inputSha256,
+    contract,
+    audience: { scope: prior.audience.scope, change: 'unchanged', attention: 'none', exactness: 'scope_only' },
+    provenance: { origin: prior.provenance.origin, humanInstruction: false, correlation: key },
+    addressee: { ids: [], basis: 'unresolved' },
+    proposal: {
+      kind: 'conflict',
+      target,
+      targetBasis: 'operation_identity',
+      route: 'none',
+      rule: 'identity.ledger_changed_payload',
     },
+    uncertainty: ['changed_payload_not_interpreted'],
+    fenced: { quotedSpans: 0, generatedOrigin: false },
+    assessment: 'not_needed',
+    admission: { outcome: 'conflict', reason: 'operation_payload_changed', authority: 'none' },
+    effects: ZERO_EFFECTS,
   }
 }
 
@@ -1788,6 +1884,12 @@ export const INTAKE_OBSERVATION_POLICY = {
       'needsReply:false quiets an acknowledgement, unread text or a question, never a request (an imperative answer request included); malformed or unadopted quotation is decided first',
     buildItem:
       'selected artifact, issue, attachment; the accepted-version guard reads only the artifact the build consumes; a selected comparison, decision or date is no build item and clarifies',
+    importSpans:
+      'a declared import is removed only as a complete span (the rest of its token on each side is punctuation); an occurrence inside an authored token, or two partially overlapping, leaves the bounds unknown and abstains as malformed',
+    candidates:
+      'ambiguity counts distinct candidates (targets, candidates, repositories; comparisons as whole ordered pairs); one distinct candidate grants no target',
+    ledgerConflict:
+      'a changed payload under a stored operation id is not interpreted: the conflict keeps its digest and contract and the stored operation identity, audience scope and origin only',
   },
   limits: INTAKE_LIMITS,
   contextFields: CONTEXT_FIELDS,
