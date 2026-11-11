@@ -44,7 +44,7 @@ import {
   type Offer,
 } from './receipts.ts'
 import type { Resource } from './resource.ts'
-import { guidanceWithheld, retryKinds, stillOffered, workState, type Observed } from './work-control.ts'
+import { guidanceWithheld, inForce, retryKinds, stillOffered, workState, type Observed } from './work-control.ts'
 
 export type { Offer } from './receipts.ts'
 
@@ -118,8 +118,22 @@ const followed = (space: string, command: Command) => ({
 /** Whether a command may be tried again from here now (receipts.ts `retryableNow`). */
 type Retryable = (k: Known) => boolean
 
-/** Where a command is: three bars filling as each step is observed, what that means, and Try again when unknown. */
-function Steps({ known, retryable, onRetry }: { known: Known; retryable: Retryable; onRetry: () => void }) {
+/**
+ * Where a command is: three bars filling as each step is observed, what that means, and Try again when unknown. `of`
+ * names it when it isn't the latest for the execution shown (r3 repair 8): its kind, and its own execution when that
+ * isn't the one shown.
+ */
+function Steps({
+  known,
+  retryable,
+  onRetry,
+  of,
+}: {
+  known: Known
+  retryable: Retryable
+  onRetry: () => void
+  of?: string | undefined
+}) {
   const steps = stepsOf(known.command.kind)
   const at = reached(known)
   const again = retryable(known)
@@ -137,6 +151,8 @@ function Steps({ known, retryable, onRetry }: { known: Known; retryable: Retryab
         ))}
       </ol>
       <p>
+        {of && <span className="act-earlier-kind">{of}</span>}
+        {of && ' '}
         {knownSaid(known, !againable(known) || again)}
         {again && (
           <>
@@ -345,6 +361,9 @@ export function SessionActs({ target, offer, acts, keys, observed = null }: Prop
   const withheld = guidanceWithheld(offer, state, acts.draft(executionOf(target)))
   // Tried again: what is still offered, and the controls in play, always their own operation, never a new one.
   const kinds = retryKinds(offer, state)
+  // The settled control its state rests on, said as sent, when it isn't the latest here (r3 repair 8, UI-DE66-F11).
+  const force = inForce(known, target)
+  const forceShown = force && force !== latest ? force : undefined
   const focus = useFocusKept(allowed.map((o) => o.kind).join(' '))
   const send = (kind: CommandKind) => acts.send(kind, target)
   // Tried again only with a port to send it through, and by the same rule as ever (Codex F-002, F-007, F-021).
@@ -365,6 +384,14 @@ export function SessionActs({ target, offer, acts, keys, observed = null }: Prop
       )}
       {/* Mounted before anything is said, so each step of the latest is announced as it comes; the rest is read. */}
       <div role="status" tabIndex={-1} ref={focus.status} className="act-status">
+        {forceShown && (
+          <Steps
+            known={forceShown}
+            of={[KIND_NAME[forceShown.command.kind], executionSaid(forceShown, target)].filter(Boolean).join(' ')}
+            retryable={retryable}
+            onRetry={() => retry(forceShown)}
+          />
+        )}
         {latest && <Steps known={latest} retryable={retryable} onRetry={() => retry(latest)} />}
       </div>
       <Earlier

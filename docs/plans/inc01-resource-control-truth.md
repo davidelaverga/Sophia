@@ -317,6 +317,33 @@ and its host age and separator; on this designer's report, it also leased `Resou
   separators) and Readiness details; focus returns to the tile on Escape. Fail-before on exact `58e44a2a`, pass after,
   mutations on each guard. Development as a signed child of `58e44a2a`; the candidate one signed child of `85c4a886`.
 
+## Revision 3, repair 8: the settled control a work's state rests on stays said (UI-DE66-F11)
+
+Written before the repair's code. Root published repair 7 as `de661b30`; the same reviewer's post-push gate
+(`cc68625c…`) kept every earlier closure and confirmed one P2 class from the automatic review. Lease: `SessionActs.tsx`
+(status and receipt presentation), a pure selector in `work-control.ts` with its existing tests, the two e2e specs and
+the three records.
+
+- **The class.** `workState` fences a work by every control that `covers` it (same project, work, assignment and
+  generation; attempt and session the same or unnamed), but `SessionActs` said only the latest command for the exact
+  execution (`sameTarget`) and the earlier ones still open. A settled control sent without naming the attempt (Resources)
+  covers the named attempt Tasks shows, yet is neither: on `de661b30`, Stop confirmed in Resources, then Open work, and
+  Tasks' Act is empty while its task still says Working; the same for a confirmed Hold when the task's view lags. (With
+  the view reporting it held, the task already says Held; that path is kept as the control.)
+- **The repair.** `inForce(known, target)` in `work-control.ts`: the settled control the work's state rests on, the last
+  Stop its runtime confirmed, else the last Hold or Resume it confirmed, among the controls that cover the execution
+  shown (refused ones never). `SessionActs` says it in its status line when it isn't already the latest there, as its
+  own record: its kind and, when it isn't the shown execution's, which (`sent without naming its attempt`, as earlier
+  lines say), then its receipt's words. Its operation and original target are kept; it is never tried again (retry stays
+  exact, `retryableNow` unchanged), never rebound, and never said as the named attempt's own settlement. A Hold or Stop
+  still under way stays where it is said now (latest or earlier, still open).
+- **Not changed.** `sameTarget`, `retryableNow`, receipts, `covers`, the fences, TaskActions, fixtures, CSS, navigation.
+- **Evidence.** Unit: `inForce` for settled, pending, unknown and refused controls; a later Resume, a later Stop; a
+  foreign generation or session; an unnamed attempt on either side; retry denied. Browser, desktop and phone, through
+  Resources and the real Tasks consumer: Stop confirmed then Open work; a confirmed Hold whose task view lags (the URL's
+  `held` removed, nothing else); the view-held control; a later Resume from Tasks; reload; nothing sent on arrival, the
+  original target retained. Fail-before on exact `de661b30`, pass after, a mutation removing the selector's use.
+
 ## Evidence plan
 
 - Unit (`status-words.test.ts`): host words, grouping/order, every note branch including the teammate and no-port cases.

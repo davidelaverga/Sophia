@@ -817,6 +817,111 @@ test('@phone · r3-repair7 · F10 · at a phone’s width, a host time that isn�
   }
 })
 
+// ---- r3 repair 8 (UI-DE66-F11): the settled control a work rests on stays said, in Tasks after Open work too. ----
+
+/** A Stop or Hold of Codex's reviewer, confirmed by its runtime in Resources; then Open work into Tasks. */
+async function confirmedThenOpen(page: Page, kind: 'stop' | 'hold') {
+  await page.goto(`${PAGE}?viewer=davide&settle=confirmed`)
+  const sheet = await open(page, 'Davide · Codex')
+  const reviewer = row(sheet)
+  await reviewer.getByRole('button', { name: 'Act' }).click()
+  if (kind === 'stop') {
+    await reviewer.getByRole('button', { name: 'Stop', exact: true }).click()
+    await reviewer.getByRole('button', { name: 'Stop', exact: true }).last().click()
+    await expect(reviewer.locator('.resource-work .chip')).toHaveText('Stopped')
+  } else {
+    await reviewer.getByRole('button', { name: 'Hold', exact: true }).click()
+    await expect(reviewer.locator('.resource-work .chip')).toHaveText('Held')
+  }
+  await reviewer.getByRole('button', { name: 'Open work: Review the report pane' }).click()
+  await expect(page).toHaveURL(/work\.html\?.*#task-work-2$/)
+  const task = page.getByRole('dialog', { name: /Review the report pane/ })
+  await expect(task).toBeVisible()
+  return task
+}
+/** The controls Open work carried, as written: each kind, operation and the attempt it was sent for. */
+type Carried = { command: { kind: string; operation_id: string; target: { attempt_id: string | null } } }
+const isCarried = (k: unknown): k is Carried => typeof k === 'object' && k !== null && 'command' in k
+function carriedControls(page: Page) {
+  const raw: unknown = JSON.parse(new URL(page.url()).searchParams.get('retained') ?? '[]')
+  const list: unknown[] = Array.isArray(raw) ? raw : []
+  return list.filter(isCarried).map((k) => ({
+    kind: k.command.kind,
+    attempt: k.command.target.attempt_id,
+    operation: k.command.operation_id,
+  }))
+}
+const workSent = (page: Page) => page.evaluate(() => (window.workFixture?.commands ?? []).map((c) => c.kind))
+const STOPPED = 'Stopped. Completed work is kept.'
+const HELD = 'Held. Its runtime confirmed the hold.'
+
+test('r3-repair8 · F11 · a Stop confirmed in Resources is still said in Tasks, as its own, after Open work and a reload', async ({
+  page,
+}) => {
+  const task = await confirmedThenOpen(page, 'stop')
+  const status = task.locator('.act-status')
+  for (const pass of ['opened', 'reloaded']) {
+    if (pass === 'reloaded') await page.reload()
+    await expect(status, pass).toContainText('Stop sent without naming its attempt') // its own, not the attempt's
+    await expect(status, pass).toContainText(STOPPED)
+    await expect(task.getByRole('button', { name: 'Try again' }), pass).toHaveCount(0) // never sent again
+    expect(carriedControls(page), pass).toEqual([expect.objectContaining({ kind: 'stop', attempt: null })])
+    expect(await workSent(page), `${pass}: nothing sent on arrival`).toEqual([])
+  }
+})
+
+test('r3-repair8 · F11 · a confirmed Hold stays said while its task view lags (still Working), and in the held view', async ({
+  page,
+}) => {
+  const task = await confirmedThenOpen(page, 'hold')
+  // The view reports it held: its task says Held, and its Hold is said as confirmed (the control path).
+  await expect(page.locator('[data-task="work-2"] .task-chip')).toHaveText('Held')
+  await expect(task.locator('.act-status')).toContainText(HELD)
+  // The same page with only `held` removed: the task's view lagging behind the receipt.
+  const lagging = new URL(page.url())
+  lagging.searchParams.delete('held')
+  await page.goto(lagging.toString())
+  await expect(page.locator('[data-task="work-2"] .task-chip')).toHaveText('Working')
+  const lagged = page.getByRole('dialog', { name: /Review the report pane/ })
+  const status = lagged.locator('.act-status')
+  await expect(status).toContainText('Hold sent without naming its attempt')
+  await expect(status).toContainText(HELD)
+  await expect(lagged.getByRole('button', { name: /^Hold/ })).toHaveCount(0) // no second Hold for this task
+  expect(carriedControls(page)).toEqual([expect.objectContaining({ kind: 'hold', attempt: null })])
+  expect(await workSent(page)).toEqual([])
+})
+
+test('r3-repair8 · F11 · a Resume pressed in Tasks: the confirmed Hold stays said beside it until its runtime confirms it', async ({
+  page,
+}) => {
+  const task = await confirmedThenOpen(page, 'hold')
+  const [hold] = carriedControls(page)
+  await task.getByRole('button', { name: /^Resume/ }).click()
+  const status = task.locator('.act-status')
+  await expect(status).toContainText('Resume requested; waiting for the runtime to confirm.')
+  await expect(status).toContainText('Hold sent without naming its attempt')
+  await expect(status).toContainText(HELD)
+  expect(await workSent(page)).toEqual(['resume']) // its own new operation; the Hold kept as it was
+  expect(carriedControls(page)).toEqual([hold])
+})
+
+test('@phone · r3-repair8 · F11 · at a phone’s width, the confirmed Stop and the lagging Hold are still said in Tasks', async ({
+  page,
+}) => {
+  test.setTimeout(90_000)
+  const task = await confirmedThenOpen(page, 'stop')
+  await expect(task.locator('.act-status')).toContainText('Stop sent without naming its attempt')
+  await expect(task.locator('.act-status')).toContainText(STOPPED)
+  await confirmedThenOpen(page, 'hold')
+  const lagging = new URL(page.url())
+  lagging.searchParams.delete('held')
+  await page.goto(lagging.toString())
+  const status = page.getByRole('dialog', { name: /Review the report pane/ }).locator('.act-status')
+  await expect(status).toContainText('Hold sent without naming its attempt')
+  await expect(status).toContainText(HELD)
+  expect(await workSent(page)).toEqual([])
+})
+
 test('@phone · r3-repair · readiness at a phone’s width: its line and details inside the sheet', async ({ page }) => {
   await page.goto(`${PAGE}?viewer=davide&readiness=1`)
   const sheet = await open(page, 'Davide · Codex')

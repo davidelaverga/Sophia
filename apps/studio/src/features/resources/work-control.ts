@@ -185,6 +185,28 @@ function fencesOf(stopUnsettled: boolean, { held, resuming }: Pause): Set<Comman
   return fenced
 }
 
+/**
+ * The settled control the work's state rests on, as its own record (r3 repair 8, UI-DE66-F11): the last Stop its runtime
+ * confirmed, else the last Hold or Resume it confirmed, among the controls that cover the execution shown (refused ones
+ * changed nothing). It may have been sent for the same work without naming the attempt shown, or naming it where the
+ * view names none: it is said as it was sent, never as the shown attempt's own settlement, and never tried again (retry
+ * stays exact, receipts.ts `retryableNow`). Undefined while none is settled: one still under way is said as such.
+ */
+export function inForce(known: readonly Known[], target: CommandTarget | null): Known | undefined {
+  if (!target) return undefined
+  const settledControls = known.filter(
+    (k) =>
+      k.command.kind !== 'guidance' &&
+      k.receipt?.admission !== 'rejected' &&
+      !unresolved(k) &&
+      covers(target, k.command.target),
+  )
+  return (
+    settledControls.findLast((k) => k.command.kind === 'stop') ??
+    settledControls.findLast((k) => k.command.kind === 'hold' || k.command.kind === 'resume')
+  )
+}
+
 /** What may still be offered: everything its view offers that the work's control state doesn't withhold. */
 export const stillOffered = (offer: readonly Offer[], state: WorkState): Offer[] =>
   offer.filter((o) => !state.fenced.has(o.kind))

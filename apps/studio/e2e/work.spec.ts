@@ -1021,7 +1021,10 @@ test('wbc · Resume is offered only for a hold the runtime confirmed, and never 
   await expect(tile(page, 'work-2').locator('.task-chip')).toHaveText('Held')
   await expect(sheet.getByRole('button', { name: /^Hold/ })).toHaveCount(0)
   await sheet.getByRole('button', { name: /^Resume/ }).click()
-  await expect(sheet.locator('.act-steps')).toContainText('Resumed.')
+  // r3 repair 8: while its Resume is on its way, the Hold it would undo stays said as confirmed beside it; once the
+  // Resume is confirmed, it alone is said.
+  await expect(sheet.locator('.act-steps').last()).toContainText('Resumed.')
+  await expect(sheet.locator('.act-steps')).toHaveCount(1)
   await expect(tile(page, 'work-2').locator('.task-chip')).toHaveText('Working')
 })
 

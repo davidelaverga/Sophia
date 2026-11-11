@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { fold, lost, sending, type Command, type CommandTarget, type Known, type Receipt } from './receipts.ts'
+import {
+  fold,
+  lost,
+  retryableNow,
+  sending,
+  type Command,
+  type CommandTarget,
+  type Known,
+  type Receipt,
+} from './receipts.ts'
 import { covers, guidanceWithheld, observedOf, retryKinds, stillOffered, workState } from './work-control.ts'
+import * as wc from './work-control.ts'
 
 /** Resources names no attempt; Tasks does. Both name the same project, work, assignment, generation and session. */
 const resources: CommandTarget = {
@@ -190,5 +200,65 @@ describe('a work’s settled control as structure (r3 repair 2, F05)', () => {
     assert.equal(workState([], tasks, 'stopped').settled, 'stopped')
     assert.equal(workState([settled(command('stop'), 'stopped')], resources, null).settled, 'stopped')
     assert.equal(workState([pending(command('stop'))], resources, null).settled, null)
+  })
+})
+
+const inForceOf = (known: readonly Known[], at: CommandTarget | null) => {
+  assert.equal(typeof wc.inForce, 'function', 'inForce')
+  return wc.inForce(known, at)
+}
+const refused = (c: Command) =>
+  through(
+    c,
+    receipt(c, 1, { admission: 'rejected', delivery: 'not_sent', rejection: 'denied', effect: 'not_applicable' }),
+  )
+
+describe('the settled control a work’s state rests on, said as its own (r3 repair 8, UI-DE66-F11)', () => {
+  it('is a Stop its runtime confirmed, sent without naming the attempt, for the named attempt Tasks shows', () => {
+    const stop = settled(command('stop'), 'stopped')
+    const k = inForceOf([stop], tasks)
+    assert.equal(k, stop) // its own record, not a copy
+    assert.equal(k?.command.target.attempt_id, null) // its original target, never rebound to the attempt shown
+    assert.equal(retryableNow(stop, new Set(['stop', 'hold', 'resume', 'guidance']), tasks), false) // never tried again
+    // And the other way: one Tasks sent for its named attempt, as Resources shows the work.
+    const fromTasks = settled(command('hold', 'op-hold-tasks', tasks), 'held')
+    assert.equal(inForceOf([fromTasks], resources), fromTasks)
+  })
+
+  it('is none while nothing has settled: pending, unknown, lost or refused stay said where they are', () => {
+    assert.equal(inForceOf([pending(command('stop'))], tasks), undefined)
+    assert.equal(inForceOf([lost(sending(command('stop')))], tasks), undefined)
+    const unknown = through(
+      command('hold'),
+      receipt(command('hold'), 1, { admission: 'unknown', delivery: 'unknown', effect: 'unknown' }),
+    )
+    assert.equal(inForceOf([unknown], tasks), undefined)
+    assert.equal(inForceOf([refused(command('stop'))], tasks), undefined)
+    assert.equal(inForceOf([settled(command('guidance'), 'not_applicable')], tasks), undefined) // guidance is no control
+    assert.equal(inForceOf([], tasks), undefined)
+    assert.equal(inForceOf([settled(command('stop'), 'stopped')], null), undefined) // no execution shown
+  })
+
+  it('keeps the order: a confirmed Stop over all; else the last Hold or Resume confirmed, not one still on its way', () => {
+    const hold = settled(command('hold'), 'held')
+    const resumeOnWay = pending(command('resume', 'op-resume'))
+    const resumed = settled(command('resume', 'op-resume'), 'resumed')
+    assert.equal(inForceOf([hold, resumeOnWay], tasks), hold) // held until the Resume is confirmed
+    assert.equal(inForceOf([hold, resumed], tasks), resumed) // running again, as its Resume's runtime confirmed
+    const holdAgain = pending(command('hold', 'op-hold-2'))
+    assert.equal(inForceOf([hold, resumed, holdAgain], tasks), resumed) // the new Hold is on its way, said there
+    const stop = settled(command('stop'), 'stopped')
+    assert.equal(inForceOf([hold, stop, resumed], tasks), stop) // stopped stays stopped
+    assert.equal(inForceOf([stop, pending(command('stop', 'op-stop-2'))], tasks), stop)
+    assert.equal(inForceOf([pending(command('stop')), hold], tasks), hold) // a Stop on its way doesn't settle anything
+  })
+
+  it('is none for another generation, another session, or another named attempt: those are other executions', () => {
+    const other = (over: Partial<CommandTarget>) => settled(command('stop', 'op-x', { ...tasks, ...over }), 'stopped')
+    assert.equal(inForceOf([other({ assignment_generation: 4 })], tasks), undefined)
+    assert.equal(inForceOf([other({ session_id: 's2' })], tasks), undefined)
+    assert.equal(inForceOf([other({ attempt_id: 'attempt-2' })], tasks), undefined)
+    assert.equal(inForceOf([other({ assignment_id: 'b' })], tasks), undefined)
+    assert.equal(inForceOf([other({ work_id: 'w2' })], tasks), undefined)
   })
 })
