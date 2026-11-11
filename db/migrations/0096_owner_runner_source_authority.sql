@@ -204,9 +204,35 @@ RETURNS void LANGUAGE plpgsql SET search_path=pg_catalog,sophia AS $$
 DECLARE why text:=sophia.owner_runner_policy_refusal(p_policy);
 BEGIN
  IF why IS NOT NULL THEN RAISE EXCEPTION 'Invalid source policy: %', why USING ERRCODE='22023'; END IF;
+ -- Repair 2 (PR505-33-F01): a route change holds the project's authority lock, like every send decision.
+ PERFORM 1 FROM sophia.projects WHERE id=p_project FOR UPDATE;
  UPDATE sophia.owner_runner_qualifications SET source_policy=p_policy, revision=revision+1
   WHERE project_id=p_project AND id=p_qualification AND revoked_at IS NULL;
  IF NOT FOUND THEN RAISE EXCEPTION 'Qualification not found' USING ERRCODE='22023'; END IF;
+END $$;
+
+-- revoke_owner_runner (0092), replaced (repair 2, PR505-33-F01): the same signature, error, privileges (migration owner
+-- only: EXECUTE stays revoked from PUBLIC) and fixed search_path; it now takes the project's authority lock first, then
+-- the qualification row. A prepare-send or GO that holds that lock decided first: its possible send keeps its original
+-- identities and commitments, and the revocation governs what comes after. One that waits for it sees it and denies.
+CREATE OR REPLACE FUNCTION sophia.revoke_owner_runner(p_project uuid, p_qualification uuid, p_reason text)
+RETURNS void LANGUAGE plpgsql SET search_path=pg_catalog,sophia AS $$
+BEGIN
+ PERFORM 1 FROM sophia.projects WHERE id=p_project FOR UPDATE;
+ UPDATE sophia.owner_runner_qualifications SET revoked_at=now(), revoked_reason=p_reason, revision=revision+1
+  WHERE project_id=p_project AND id=p_qualification AND revoked_at IS NULL;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Qualification not found' USING ERRCODE='22023'; END IF;
+END $$;
+
+-- Repair 2: the authority rows of one operation, locked FOR SHARE in admission's order (resource, connection,
+-- qualification) under the project lock. A writer that changes one of them without the project lock (an operator's
+-- direct update) waits for the decision holding them, or the decision waits for it and rechecks what it committed.
+CREATE FUNCTION sophia.owner_runner_lock_authority(o sophia.owner_runner_operations) RETURNS void LANGUAGE plpgsql
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+BEGIN
+ PERFORM 1 FROM sophia.executor_resources WHERE project_id=o.project_id AND id=o.resource_id FOR SHARE;
+ PERFORM 1 FROM sophia.execution_connections WHERE id=o.connection_id FOR SHARE;
+ PERFORM 1 FROM sophia.owner_runner_qualifications WHERE project_id=o.project_id AND id=o.qualification_id FOR SHARE;
 END $$;
 
 -- --- the recheck -----------------------------------------------------------------------------------------------------
@@ -585,12 +611,13 @@ END $$;
 -- owner_runner_prepare_send (0092), replaced: the same, and a v2 send's result carries its payload (the instruction's
 -- exact canonical bytes), read in the same transaction as the recheck. INC01-30813-EXPIRY-F01: every recheck runs at
 -- the actual time (clock_timestamp in owner_runner_ineligible), after the project, outbox and operation locks; a create
--- or input is rechecked once more after the account reservation's lock, immediately before its possible send. A Stop
--- takes no reservation, so its one recheck already follows its last wait. The owner-host proxy drops it: the host receives
--- it only with a granted GO.
+-- or input is rechecked once more after the account reservation's lock. Repair 4 (CC005-R3-F01): the possible send's own
+-- writes can wait too, so the decision is the last statement of the block that writes them (below). The owner-host proxy
+-- drops the payload: the host receives it only with a granted GO.
 CREATE OR REPLACE FUNCTION sophia.owner_runner_prepare_send(p_project uuid, p_outbox uuid, p_lease uuid, p_journal uuid) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
-DECLARE ob sophia.outbox; o sophia.owner_runner_operations; why text; res sophia.owner_runner_reservations; body text;
+DECLARE ob sophia.outbox; o sophia.owner_runner_operations; sent sophia.owner_runner_operations; why text;
+ res sophia.owner_runner_reservations; body text;
 BEGIN
  IF p_journal IS NULL THEN RAISE EXCEPTION 'A send must name the gateway journal it goes through' USING ERRCODE='22023'; END IF;
  PERFORM 1 FROM sophia.projects WHERE id=p_project FOR UPDATE;
@@ -605,6 +632,9 @@ BEGIN
  END IF;
  SELECT * INTO o FROM sophia.owner_runner_operations WHERE project_id=p_project AND outbox_id=p_outbox FOR UPDATE;
  IF o.state<>'admitted' THEN RAISE EXCEPTION 'Operation is not waiting to be sent' USING ERRCODE='40001'; END IF;
+ -- Repair 2 (PR505-33-F01): the project lock above serializes every authority writer that takes it (revocation, policy,
+ -- erasure, membership); the authority rows are held too, until this decision commits.
+ PERFORM sophia.owner_runner_lock_authority(o);
  SELECT c.why, c.body INTO why, body FROM sophia.owner_runner_send_check(o) c;
  IF why IS NOT NULL THEN RETURN sophia.owner_runner_deny_prepared(o,why); END IF;
  -- A stop starts no inference: it never waits behind the account's reservation. A create or input takes it, or waits.
@@ -627,34 +657,63 @@ BEGIN
   SELECT c.why, c.body INTO why, body FROM sophia.owner_runner_send_check(o) c;
   IF why IS NOT NULL THEN RETURN sophia.owner_runner_deny_prepared(o,why); END IF;
  END IF;
- -- Bound to the journal it goes through (R1-F01): only that journal speaks for it later. No journal proves it was never
- -- sent (r3, R2-F01): a possible send never returns to admitted. Its time is the actual time of this commitment.
- UPDATE sophia.owner_runner_operations SET state='possible_send', possible_send_at=clock_timestamp(), reason=NULL, gateway_journal_id=p_journal,
-  revision=revision+1 WHERE project_id=p_project AND id=o.id RETURNING * INTO o;
- UPDATE sophia.commands SET state='dispatching' WHERE project_id=p_project AND id=o.command_id AND state='admitted';
- PERFORM sophia.owner_runner_event(o,'runner_operation.sending');
- RETURN jsonb_build_object('result','send','envelope',sophia.owner_runner_envelope(o))
+ -- Repair 4 (CC005-R3-F01): the possible send is written in a block (a subtransaction) whose last statement is the whole
+ -- send check again at the actual time, after every write that could still wait on a lock: the operation, its command
+ -- and the owner's event. Only the commit follows it. If anything fails there, an expiry above all, the block is
+ -- rolled back (no possible send, no command change, no sending event to replay) and the operation is denied exactly as
+ -- an earlier denial. Those writes may wait in turn: a denial authorizes nothing. Every row the check reads is held
+ -- already, so it takes no new lock. The payload sent is the one read by this last check.
+ BEGIN
+  -- Bound to the journal it goes through (R1-F01): only that journal speaks for it later. No journal proves it was never
+  -- sent (r3, R2-F01): a possible send never returns to admitted. Its time is the actual time of this commitment.
+  UPDATE sophia.owner_runner_operations SET state='possible_send', possible_send_at=clock_timestamp(), reason=NULL, gateway_journal_id=p_journal,
+   revision=revision+1 WHERE project_id=p_project AND id=o.id RETURNING * INTO sent;
+  UPDATE sophia.commands SET state='dispatching' WHERE project_id=p_project AND id=o.command_id AND state='admitted';
+  PERFORM sophia.owner_runner_event(sent,'runner_operation.sending');
+  SELECT c.why, c.body INTO why, body FROM sophia.owner_runner_send_check(o) c;
+  IF why IS NOT NULL THEN RAISE EXCEPTION 'refused at its last write' USING ERRCODE='SR4F1'; END IF;
+ EXCEPTION WHEN SQLSTATE 'SR4F1' THEN
+  RETURN sophia.owner_runner_deny_prepared(o,why);
+ END;
+ RETURN jsonb_build_object('result','send','envelope',sophia.owner_runner_envelope(sent))
   ||CASE WHEN body IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('payload',body) END;
 END $$;
 
 -- owner_host_go (0093), replaced: the same recheck and ledger; when it grants a v2 send it also returns the payload, read
--- under the same recheck. Nothing of the instruction is ever stored in an exchange, delivered by a poll or returned
+-- under the same recheck. Repair 2: lock order project (FOR SHARE) -> host -> exchange -> authority rows; the decision,
+-- the payload read and the grant all hold them. Repair 4 (CC005-R3-F01): the grant's own write can wait, so the
+-- deadline, the recheck and the payload read are taken again as the last statement of the block that writes it. Nothing of the instruction is ever stored in an exchange, delivered by a poll or returned
 -- with a refusal: a withdrawal before GO keeps the body from the host.
 CREATE OR REPLACE FUNCTION sophia.owner_host_go(p_capability_sha256 bytea, p_exchange uuid) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
-DECLARE h sophia.owner_hosts:=sophia.owner_host_authenticate(p_capability_sha256); x sophia.owner_host_exchanges; why text;
- o sophia.owner_runner_operations; body text;
+DECLARE h sophia.owner_hosts; x sophia.owner_host_exchanges; why text; o sophia.owner_runner_operations; body text;
+ v_host uuid; v_project uuid; lapsed boolean:=false;
 BEGIN
+ -- Repair 2 (PR505-33-F02): find the exchange's project first, WITHOUT a lock and authorizing nothing. An unknown,
+ -- malformed or revoked capability and another host's or a missing exchange answer exactly as before.
+ IF p_capability_sha256 IS NULL OR length(p_capability_sha256)<>32 THEN
+  RAISE EXCEPTION 'Owner host not authenticated' USING ERRCODE='42501'; END IF;
+ SELECT id INTO v_host FROM sophia.owner_hosts WHERE capability_sha256=p_capability_sha256 AND state<>'revoked';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Owner host not authenticated' USING ERRCODE='42501'; END IF;
+ SELECT e.project_id INTO v_project FROM sophia.owner_host_exchanges e WHERE e.id=p_exchange AND e.host_id=v_host;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;
+ -- Then the project's authority lock, before any mutable GO state is locked or read: an erasure, a revocation or an
+ -- audience change either committed before (and is seen) or waits until this GO commits. Then the host and the
+ -- exchange, revalidated under the locks.
+ PERFORM 1 FROM sophia.projects WHERE id=v_project FOR SHARE;
+ h:=sophia.owner_host_authenticate(p_capability_sha256);
  SELECT * INTO x FROM sophia.owner_host_exchanges WHERE id=p_exchange FOR UPDATE;
- IF NOT FOUND OR x.host_id<>h.id THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;
+ IF NOT FOUND OR x.host_id<>h.id OR x.project_id<>v_project THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;
  IF x.kind<>'send' THEN RETURN jsonb_build_object('result','denied','reason','only a send asks for GO'); END IF;
  IF x.state NOT IN ('delivered','go_granted') THEN
   RETURN jsonb_build_object('result','denied','reason','the exchange is '||x.state,'grantedBefore',x.go_count>0); END IF;
  IF x.deadline_at<=clock_timestamp() THEN
   RETURN jsonb_build_object('result','denied','reason','the exchange''s deadline passed','grantedBefore',x.go_count>0); END IF;
+ SELECT * INTO o FROM sophia.owner_runner_operations WHERE project_id=x.project_id AND id=x.operation_id;
+ IF FOUND THEN PERFORM sophia.owner_runner_lock_authority(o); END IF;
+ -- The final recheck, the payload read and the grant, all under the same locks.
  why:=sophia.owner_host_send_refusal(x,h);
  IF why IS NULL THEN
-  SELECT * INTO o FROM sophia.owner_runner_operations WHERE project_id=x.project_id AND id=x.operation_id;
   IF o.envelope_version=2 THEN
    body:=sophia.owner_runner_private_text(o.project_id,o.payload_source_id,o.owner_id,o.payload_sha256);
    IF body IS NULL THEN why:='its private instruction was withdrawn or altered'; END IF;
@@ -666,7 +725,32 @@ BEGIN
   END IF;
   RETURN jsonb_build_object('result','denied','reason',why,'grantedBefore',x.go_count>0);
  END IF;
- UPDATE sophia.owner_host_exchanges SET state='go_granted', go_count=go_count+1, reason=NULL WHERE id=x.id;
+ -- Repair 4 (CC005-R3-F01): the grant is written in a block (a subtransaction) whose last statement is the final check at
+ -- the actual time, after the grant's write, which can wait on a lock: the exchange's deadline, the whole recheck (host,
+ -- route, operation and both expiries) and, for v2, the private body read again. Only the commit follows it. If any
+ -- fails, the block is rolled back (no grant, no go_count, no payload) and the refusal is the one an earlier check gives.
+ -- Every row it reads is held already, so it takes no new lock.
+ BEGIN
+  UPDATE sophia.owner_host_exchanges SET state='go_granted', go_count=go_count+1, reason=NULL WHERE id=x.id;
+  IF x.deadline_at<=clock_timestamp() THEN lapsed:=true;
+  ELSE
+   why:=sophia.owner_host_send_refusal(x,h);
+   IF why IS NULL AND o.envelope_version=2 THEN
+    body:=sophia.owner_runner_private_text(o.project_id,o.payload_source_id,o.owner_id,o.payload_sha256);
+    IF body IS NULL THEN why:='its private instruction was withdrawn or altered'; END IF;
+   END IF;
+  END IF;
+  IF lapsed OR why IS NOT NULL THEN RAISE EXCEPTION 'refused at the grant' USING ERRCODE='SR4F1'; END IF;
+ EXCEPTION WHEN SQLSTATE 'SR4F1' THEN NULL;
+ END;
+ IF lapsed THEN
+  RETURN jsonb_build_object('result','denied','reason','the exchange''s deadline passed','grantedBefore',x.go_count>0); END IF;
+ IF why IS NOT NULL THEN
+  IF x.go_count=0 THEN UPDATE sophia.owner_host_exchanges SET state='denied', reason=left('at go: '||why,500) WHERE id=x.id;
+  ELSE UPDATE sophia.owner_host_exchanges SET reason=left('go refused after an earlier grant: '||why,500) WHERE id=x.id;
+  END IF;
+  RETURN jsonb_build_object('result','denied','reason',why,'grantedBefore',x.go_count>0);
+ END IF;
  RETURN jsonb_build_object('result','go')||CASE WHEN body IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('payload',body) END;
 END $$;
 
@@ -777,6 +861,69 @@ BEGIN
  RETURN facts||jsonb_build_object('content','available','message',body::jsonb->>'message','title',body::jsonb->>'title');
 END $$;
 
+-- --- one live host per connection (repair 3, PR505-33-73-F03) -----------------------------------------------------
+
+-- 0093's redemption retired only the hosts it could see committed: two distinct codes for one connection redeemed at
+-- once each inserted a host the other could not see, and both stayed live. Now, per connection, every redemption that
+-- would bind a host is serialized, and the invariant is also a constraint. A database that already holds two live hosts
+-- for one connection stops this migration: which one serves is the owner's decision, never this migration's.
+DO $$ BEGIN
+ IF EXISTS(SELECT 1 FROM sophia.owner_hosts WHERE state IN ('bound','active') GROUP BY connection_id HAVING count(*)>1) THEN
+  RAISE EXCEPTION 'More than one live owner host for one connection: retire or revoke the extra hosts first'
+   USING ERRCODE='23505'; END IF;
+END $$;
+CREATE UNIQUE INDEX owner_hosts_one_live_per_connection ON sophia.owner_hosts(connection_id) WHERE state IN ('bound','active');
+
+-- owner_host_redeem (0093), replaced: the same signature, answers, privileges (sophia_api only, granted in 0093 and kept
+-- by the replacement) and safe search_path. Lock order: the pairing (FOR UPDATE), then the connection's redemption lock
+-- (a transaction advisory lock: no table row, so nothing a GO, a hello or a retirement holds can wait on it), then the
+-- connection's live hosts (FOR UPDATE: the same host-first order as GO, retirement and revocation), then the connection
+-- (FOR SHARE: compatible with a GO's authority rows). After those waits the decision is taken again on the decision
+-- clock: the code's expiry and revocation, the connection's owner, state and expiry, and the capability. A refusal
+-- changes nothing. Only then are the earlier hosts retired (never revoked; their journals stay observable, their
+-- reconciliation and Stop stay theirs) and their ungranted new work fenced, the host inserted and the code consumed.
+CREATE OR REPLACE FUNCTION sophia.owner_host_redeem(p_code_sha256 bytea, p_capability_sha256 bytea) RETURNS jsonb LANGUAGE plpgsql
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE p sophia.owner_host_pairings; conn sophia.execution_connections; h sophia.owner_hosts; prior uuid; priors uuid[];
+ linked boolean;
+BEGIN
+ IF p_code_sha256 IS NULL OR length(p_code_sha256)<>32 OR p_capability_sha256 IS NULL OR length(p_capability_sha256)<>32 THEN
+  RAISE EXCEPTION 'Invalid redemption' USING ERRCODE='22023'; END IF;
+ SELECT * INTO p FROM sophia.owner_host_pairings WHERE code_sha256=p_code_sha256 FOR UPDATE;
+ IF NOT FOUND THEN RETURN jsonb_build_object('result','refused','reason','unknown pairing code'); END IF;
+ IF p.consumed_at IS NOT NULL THEN
+  SELECT * INTO h FROM sophia.owner_hosts WHERE id=p.host_id;
+  IF h.capability_sha256=p_capability_sha256 AND h.state<>'revoked' THEN
+   RETURN jsonb_build_object('result','bound','hostId',h.id,'ownerId',h.owner_id,'connectionId',h.connection_id,'replayed',true);
+  END IF;
+  RETURN jsonb_build_object('result','refused','reason','the pairing code was already used');
+ END IF;
+ IF p.revoked_at IS NOT NULL THEN RETURN jsonb_build_object('result','refused','reason','the pairing was revoked'); END IF;
+ IF p.expires_at<=clock_timestamp() THEN RETURN jsonb_build_object('result','refused','reason','the pairing expired'); END IF;
+ -- The connection's redemption lock, then its live hosts, then the connection.
+ PERFORM pg_advisory_xact_lock(hashtext('sophia.owner_host_redeem'),hashtext(p.connection_id::text));
+ SELECT array_agg(x.id ORDER BY x.id) INTO priors FROM (SELECT id FROM sophia.owner_hosts
+  WHERE owner_id=p.owner_id AND connection_id=p.connection_id AND state IN ('bound','active') ORDER BY id FOR UPDATE) x;
+ SELECT * INTO conn FROM sophia.execution_connections WHERE id=p.connection_id FOR SHARE;
+ linked:=FOUND AND conn.owner_id=p.owner_id AND conn.state='linked';
+ -- The decision, after every wait, on the decision clock. The pairing row is held since the start: it cannot have been
+ -- consumed or revoked meanwhile, but its time can have run out.
+ IF p.expires_at<=clock_timestamp() THEN RETURN jsonb_build_object('result','refused','reason','the pairing expired'); END IF;
+ IF NOT linked OR (conn.expires_at IS NOT NULL AND conn.expires_at<=clock_timestamp()) THEN
+  RETURN jsonb_build_object('result','refused','reason','the connection is no longer linked'); END IF;
+ IF EXISTS(SELECT 1 FROM sophia.owner_hosts WHERE capability_sha256=p_capability_sha256) THEN
+  RETURN jsonb_build_object('result','refused','reason','this capability is already bound'); END IF;
+ -- Re-pairing replaces the host for new work: earlier hosts of the connection are retired, never silently revoked.
+ FOREACH prior IN ARRAY coalesce(priors,'{}') LOOP
+  UPDATE sophia.owner_hosts SET state='retired', retired_at=now() WHERE id=prior;
+  PERFORM sophia.owner_host_fence_new_work(prior,'the owner host was replaced by a new pairing before this send was authorized');
+ END LOOP;
+ INSERT INTO sophia.owner_hosts(owner_id,connection_id,pairing_id,capability_sha256)
+ VALUES(p.owner_id,p.connection_id,p.id,p_capability_sha256) RETURNING * INTO h;
+ UPDATE sophia.owner_host_pairings SET consumed_at=now(), host_id=h.id WHERE id=p.id;
+ RETURN jsonb_build_object('result','bound','hostId',h.id,'ownerId',h.owner_id,'connectionId',h.connection_id,'replayed',false);
+END $$;
+
 REVOKE ALL ON FUNCTION sophia.owner_runner_payload_body(text,text), sophia.owner_runner_sha256(text),
  sophia.owner_runner_put_private(uuid,uuid,text,text), sophia.owner_runner_private_text(uuid,uuid,uuid,text),
  sophia.owner_runner_json_string(jsonb,text), sophia.owner_runner_policy_refusal(jsonb),
@@ -785,7 +932,8 @@ REVOKE ALL ON FUNCTION sophia.owner_runner_payload_body(text,text), sophia.owner
  sophia.owner_runner_content(uuid,uuid), sophia.owner_runner_deny_prepared(sophia.owner_runner_operations,text),
  sophia.owner_runner_send_check(sophia.owner_runner_operations), sophia.owner_runner_blank(text),
  sophia.owner_runner_context_ineligible(sophia.owner_runner_operations), sophia.owner_runner_lineage_ineligible(uuid,uuid,uuid,uuid),
- sophia.owner_runner_draws_on(sophia.owner_runner_operations,uuid) FROM PUBLIC;
+ sophia.owner_runner_draws_on(sophia.owner_runner_operations,uuid),
+ sophia.owner_runner_lock_authority(sophia.owner_runner_operations) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.owner_runner_content(uuid,uuid) TO sophia_api;
 
 COMMIT;

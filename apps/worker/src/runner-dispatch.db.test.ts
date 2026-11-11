@@ -11,6 +11,9 @@ import { join } from 'node:path'
 import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
+import { OwnerHostAgent } from '@sophia/coordination/owner-host-agent'
+import { newSecret, type GoResult, type HostChannel, type HostHello } from '@sophia/coordination/owner-host-channel'
+import { OwnerHostPortProxy } from '@sophia/coordination/owner-host-port-proxy'
 import { FakeT3 } from '@sophia/coordination/runner-fake-t3'
 import { RunnerGateway, type GatewayProfile } from '@sophia/coordination/runner-gateway'
 import { RunnerJournal } from '@sophia/coordination/runner-journal'
@@ -31,11 +34,15 @@ import {
   admitGoalCommand,
   admitRunnerOperation,
   claimRunnerOutbox,
+  createOwnerHostPairing,
   createPool,
+  DbExchangeStore,
+  DbHostChannel,
   maintainRunnerOperations,
   prepareRunnerSend,
   readRunnerOperation,
   recordRunnerAnswer,
+  redeemOwnerHostPairing,
   runnerFollowups,
   withActor,
 } from '@sophia/persistence'
@@ -65,7 +72,7 @@ before(async () => {
   db = await createTestDatabase()
   api = createPool(db.apiUrl, { max: 4 })
   worker = createPool(db.workerUrl, { max: 4 })
-  owner = new pg.Pool({ connectionString: db.ownerUrl, max: 2 })
+  owner = new pg.Pool({ connectionString: db.ownerUrl, max: 6 })
 })
 after(async () => {
   for (const g of gateways) g.close()
@@ -2074,6 +2081,439 @@ describe('characters are code points from admission to the gateway (repair 1, CC
       assert.equal(w.t3.calls.length, 0)
     })
   }
+})
+
+// ---- repair 2 (PR505-33-F01): revocation and the final prepare-send decision serialize ----
+
+/** Ungranted locks in this test database: a backend genuinely waiting on another (pg_locks), optionally one backend. */
+const ungranted = async (pid?: number) =>
+  (
+    await one<{ n: number }>(
+      `SELECT count(*)::int AS n FROM pg_locks l JOIN pg_stat_activity a ON a.pid=l.pid
+        WHERE NOT l.granted AND a.datname=current_database() AND ($1::int IS NULL OR l.pid=$1)`,
+      [pid ?? null],
+    )
+  ).n
+/** Whether `work` settles first or a waiter is observed in pg_locks first (`pid`'s, or any). Bounded, never a sleep. */
+async function settledOrWaiting(work: Promise<unknown>, pid?: number): Promise<'settled' | 'waiting'> {
+  let done = false
+  work.then(
+    () => (done = true),
+    () => (done = true),
+  )
+  const deadline = Date.now() + 15_000
+  while (Date.now() < deadline) {
+    if (done) return 'settled'
+    if ((await ungranted(pid)) > 0) return 'waiting'
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error('neither settled nor observed waiting')
+}
+/**
+ * Until a backend of this database waits for an ungranted lock on `relation` (pg_locks), with its own finite bound: a
+ * barrier that never arrives fails the test here instead of hanging it (repair 3: the reviewer's bounded-wait note).
+ */
+async function untilWaitingOn(relation: string, ms = 15_000) {
+  const deadline = Date.now() + ms
+  for (;;) {
+    const { n } = await one<{ n: number }>(
+      `SELECT count(*)::int AS n FROM pg_locks WHERE NOT granted AND relation=$1::regclass`,
+      [relation],
+    )
+    if (n > 0) return
+    if (Date.now() >= deadline) throw new Error(`no backend waited on ${relation} within ${ms} ms`)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+}
+const pidOf = async (c: pg.PoolClient) =>
+  (await c.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]?.pid ?? 0
+const revokeSql = `SELECT sophia.revoke_owner_runner($1, $2, 'synthetic revocation')`
+
+describe('revocation and the final prepare-send decision serialize (repair 2, PR505-33-F01)', () => {
+  it('a revocation waits for a prepare-send that decided first; that send keeps its commitment', async () => {
+    const w = await world()
+    await w.create()
+    const locker = await owner.connect()
+    const revoker = await owner.connect()
+    const revokerPid = await pidOf(revoker)
+    try {
+      // Prepare-send's own event insert is held back: it has made its final check and marked the possible send.
+      await locker.query('BEGIN')
+      await locker.query('LOCK TABLE sophia.project_events IN SHARE MODE')
+      const pass = w.pass()
+      await untilWaitingOn('sophia.project_events')
+      const revoke = revoker.query(revokeSql, [w.projectId, w.qualificationId])
+      assert.equal(
+        await settledOrWaiting(revoke, revokerPid),
+        'waiting',
+        'the revocation waits for the decision that holds the authority lock',
+      )
+      await locker.query('ROLLBACK')
+      const done = await pass
+      await revoke
+      assert.deepEqual(done.prepared, ['send'])
+      assert.deepEqual(done.sent, ['received'])
+      assert.equal(w.t3.effects.launches, 1)
+      assert.equal((await reservations(w.accountKey)).length, 1, 'its account commitment is kept')
+      // The revocation is in force for what comes after.
+      assert.equal(await codeOf(w.create()), 'runner_unqualified')
+    } finally {
+      await locker.query('ROLLBACK').catch(() => undefined)
+      locker.release()
+      revoker.release()
+    }
+  })
+
+  it("a prepare-send waits for a connection revoked by a writer that holds only the connection's row", async () => {
+    const w = await world()
+    const created = await w.create()
+    const operator = await owner.connect()
+    try {
+      // An operator's direct update: no project lock, only the connection row.
+      await operator.query('BEGIN')
+      await operator.query(`UPDATE sophia.execution_connections SET state='revoked', revision=revision+1 WHERE id=$1`, [
+        w.connectionId,
+      ])
+      const pass = w.pass()
+      assert.equal(await settledOrWaiting(pass), 'waiting', "prepare-send waits on the connection's row")
+      await operator.query('COMMIT')
+      const done = await pass
+      assert.deepEqual(done.prepared, ['denied'])
+      assert.equal((await op(created.operationId)).state, 'denied')
+      assert.equal(w.t3.calls.length, 0)
+    } finally {
+      await operator.query('ROLLBACK').catch(() => undefined)
+      operator.release()
+    }
+  })
+
+  it('a prepare-send waits for a revocation that holds the authority lock, then denies with no native call', async () => {
+    const w = await world()
+    const created = await w.create()
+    const revoker = await owner.connect()
+    try {
+      await revoker.query('BEGIN')
+      await revoker.query(revokeSql, [w.projectId, w.qualificationId])
+      const pass = w.pass()
+      assert.equal(await settledOrWaiting(pass), 'waiting', 'prepare-send waits for the revocation')
+      await revoker.query('COMMIT')
+      const done = await pass
+      assert.deepEqual(done.prepared, ['denied'])
+      assert.equal((await op(created.operationId)).state, 'denied')
+      assert.equal(w.t3.calls.length, 0)
+      assert.deepEqual(await reservations(w.accountKey), [])
+    } finally {
+      await revoker.query('ROLLBACK').catch(() => undefined)
+      revoker.release()
+    }
+  })
+})
+
+// ---- repair 4 (gate INC01-CC-005-repair3-map-compose-SOURCE-PRE-PUSH-001: CC005-R3-F01) ----
+
+/** The backends of this database waiting for `table`'s lock while running `fn` (pg_locks, pg_stat_activity). */
+const waitersAt = async (table: string, fn: string) =>
+  (
+    await owner.query<{ pid: number }>(
+      `SELECT l.pid FROM pg_locks l JOIN pg_stat_activity a ON a.pid=l.pid
+        WHERE NOT l.granted AND l.relation=$1::regclass AND a.datname=current_database() AND strpos(a.query, $2) > 0`,
+      [table, fn],
+    )
+  ).rows.map((r) => r.pid)
+/** What the barrier saw: the call waited on the final write before the limit, and still waited after it. */
+interface Seen {
+  waitedBefore?: boolean
+  stillWaitingAfter?: boolean
+}
+/**
+ * Run `work` while another transaction holds `table` in SHARE mode: only a write (ROW EXCLUSIVE) waits, never the reads
+ * and row locks before it. Bounded: the call running `fn` must be observed waiting on `table` within 15 s, then the
+ * database's clock must pass `until` within 30 s while it still waits. Then the lock is released.
+ */
+async function finalWriteWait<T>(table: string, fn: string, until: Date, work: () => Promise<T>, seen: Seen) {
+  const locker = await owner.connect()
+  let open = false
+  try {
+    await locker.query('BEGIN')
+    open = true
+    await locker.query(`LOCK TABLE ${table} IN SHARE MODE`)
+    const running = work()
+    running.catch(() => undefined)
+    const deadline = Date.now() + 15_000
+    let pid: number | undefined
+    while (pid === undefined) {
+      pid = (await waitersAt(table, fn))[0]
+      if (pid === undefined && Date.now() >= deadline) throw new Error(`no ${fn} waited on ${table} within 15 s`)
+      if (pid === undefined) await sleep(10)
+    }
+    seen.waitedBefore = (await dbNow()) < until
+    const bound = Date.now() + 30_000
+    while ((await dbNow()) <= until) {
+      if (Date.now() >= bound) throw new Error('the database clock did not pass the limit within 30 s')
+      await sleep(50)
+    }
+    seen.stillWaitingAfter = (await waitersAt(table, fn)).includes(pid)
+    await locker.query('ROLLBACK')
+    open = false
+    return await running
+  } finally {
+    if (open) await locker.query('ROLLBACK').catch(() => undefined)
+    locker.release()
+  }
+}
+const eventsOf = async (operationId: string) =>
+  (
+    await owner.query<{ type: string }>(
+      `SELECT type FROM sophia.project_events WHERE entity_type='runner_operation' AND entity_id=$1 ORDER BY sequence`,
+      [operationId],
+    )
+  ).rows.map((r) => r.type)
+const commandOf = async (operationId: string) =>
+  (
+    await one<{ state: string }>(
+      `SELECT c.state FROM sophia.commands c JOIN sophia.owner_runner_operations o ON o.command_id=c.id WHERE o.id=$1`,
+      [operationId],
+    )
+  ).state
+const intents = (file: string) => journalRecords(file).filter((r) => r.type === 'intent')
+const soon = async (ms = 1500) => new Date((await dbNow()).getTime() + ms)
+
+describe('prepare-send decides after its last write wait (repair 4, CC005-R3-F01)', () => {
+  const cases = [
+    ['sophia.project_events', 'event INSERT', 'qualification'],
+    ['sophia.project_events', 'event INSERT', 'connection'],
+    ['sophia.commands', 'command UPDATE', 'qualification'],
+  ] as const
+  for (const [table, label, what] of cases) {
+    for (const expires of [true, false]) {
+      it(`a ${what} that ${expires ? 'expires' : 'stays valid'} while prepare-send waits on its ${label} is ${expires ? 'denied: no send, no sending event' : 'sent once (control)'}`, async () => {
+        const w = await world()
+        const created = await w.create()
+        const until = await soon()
+        await expireAt(w, what, expires ? until : new Date(until.getTime() + 3_600_000))
+        const seen: Seen = {}
+        const pass = await finalWriteWait(table, 'owner_runner_prepare_send', until, () => w.pass(), seen)
+        assert.deepEqual(
+          seen,
+          { waitedBefore: true, stillWaitingAfter: true },
+          'decided before the limit, written after',
+        )
+        const o = await op(created.operationId)
+        if (expires) {
+          assert.deepEqual(pass.prepared, ['denied'])
+          assert.deepEqual(pass.sent, [])
+          assert.equal(o.state, 'denied')
+          assert.match(o.reason ?? '', /expired/)
+          assert.equal(w.t3.calls.length, 0, 'no native call after the expiry')
+          assert.equal(intents(w.journalFile).length, 0, 'nothing journaled as possibly sent')
+          assert.deepEqual(await reservations(w.accountKey), [], 'no account commitment')
+          assert.equal(o.gateway_journal_id, null, 'bound to no journal')
+          assert.equal(await commandOf(created.operationId), 'denied')
+          const events = await eventsOf(created.operationId)
+          assert.equal(events.includes('runner_operation.sending'), false, 'no sending event to replay')
+          assert.equal(events.at(-1), 'runner_operation.denied')
+        } else {
+          assert.deepEqual(pass.prepared, ['send'])
+          assert.deepEqual(pass.sent, ['received'])
+          assert.equal(o.state, 'received')
+          assert.equal(w.t3.effects.launches, 1)
+          assert.equal((await eventsOf(created.operationId)).filter((e) => e === 'runner_operation.sending').length, 1)
+        }
+      })
+    }
+  }
+
+  it('an input denied at its last write keeps the received create: binding, reservation, journal, and its later reconciliation', async () => {
+    const w = await world()
+    const created = await w.create()
+    await w.pass()
+    assert.equal((await op(created.operationId)).state, 'received')
+    const bindingBefore = await binding((await op(created.operationId)).binding_id)
+    const input = await w.input(created.operationId)
+    const until = await soon()
+    await expireAt(w, 'qualification', until)
+    const seen: Seen = {}
+    const pass = await finalWriteWait('sophia.project_events', 'owner_runner_prepare_send', until, () => w.pass(), seen)
+    assert.deepEqual(seen, { waitedBefore: true, stillWaitingAfter: true })
+    assert.deepEqual(pass.prepared, ['denied'])
+    assert.equal((await op(input.operationId)).state, 'denied')
+    assert.equal(w.t3.count('t3_thread_send'), 0, 'no native message after the expiry')
+    const kept = await op(created.operationId)
+    assert.equal(kept.state, 'received', 'the earlier send is untouched')
+    assert.deepEqual(await binding(kept.binding_id), bindingBefore, 'its binding unchanged')
+    assert.deepEqual(await reservations(w.accountKey), [{ binding_id: kept.binding_id }])
+    assert.deepEqual(
+      intents(w.journalFile).map((r) => r.operationId),
+      [created.operationId],
+    )
+    // Its observation goes on to proven settlement, by its original identity, with one launch.
+    w.finishAll()
+    await w.pass()
+    assert.equal((await op(created.operationId)).state, 'settled')
+    assert.equal(w.t3.effects.launches, 1)
+  })
+})
+
+const NS = 'client:fake-session-r4'
+/** An owner host on the world's FakeT3: a pairing redeemed through persistence, the DB channel, agent and gateway. */
+async function hostOf(w: World, wrap: (c: HostChannel) => HostChannel) {
+  const capability = newSecret()
+  const pairing = await withActor(api, w.who, 'write', (c) => createOwnerHostPairing(c, w.connectionId))
+  assert.equal((await redeemOwnerHostPairing(api, pairing.code, capability)).result, 'bound')
+  const journalFile = join(root, `${randomUUID()}.jsonl`)
+  const journal = new RunnerJournal(journalFile)
+  const gateway = new RunnerGateway({ journal, transport: w.t3, profile: w.profile })
+  gateways.push(gateway)
+  const hello: HostHello = {
+    v: 1,
+    journalId: journal.id,
+    environmentRef: 'env-owner-1',
+    adapterPin: PIN,
+    profileId: 'read-only-v1',
+    profileRevision: 1,
+    accountKey: w.accountKey,
+    t3Namespace: NS,
+  }
+  const channel = wrap(new DbHostChannel(api, capability))
+  const agent = new OwnerHostAgent({ channel, gateway, journal, hello, redeliverSeconds: 1, log: () => undefined })
+  await agent.greet()
+  return { agent, journal, journalFile }
+}
+type Host = Awaited<ReturnType<typeof hostOf>>
+/** One dispatcher pass through the owner-host proxy while the host serves, bounded by the pass itself (and 60 s). */
+async function hostPass(w: World, host: Host, deadlineMs: number) {
+  const port = new OwnerHostPortProxy({
+    store: new DbExchangeStore(worker),
+    ownerId: w.who,
+    environmentRef: 'env-owner-1',
+    journalId: host.journal.id,
+    namespace: NS,
+    deadlineMs,
+    pollMs: 20,
+  })
+  const state = { done: false }
+  const result = w.pass({ port, minAge: 3600 }).finally(() => {
+    state.done = true
+  })
+  const bound = Date.now() + 60_000
+  while (!state.done) {
+    if (Date.now() >= bound) throw new Error('the pass did not end within 60 s')
+    await host.agent.serveOnce()
+    await sleep(15)
+  }
+  return result
+}
+/** A channel whose next GO meets the final-write barrier, until the limit `until` names for its exchange. */
+function goAt(armed: { on: boolean }, gos: GoResult[], seen: Seen, until: (exchange: string) => Promise<Date>) {
+  return (c: HostChannel): HostChannel => ({
+    hello: (x) => c.hello(x),
+    poll: (l, r) => c.poll(l, r),
+    answer: (i, a) => c.answer(i, a),
+    go: async (id) => {
+      if (!armed.on) return c.go(id).then((g) => (gos.push(g), g))
+      armed.on = false
+      const g = await finalWriteWait(
+        'sophia.owner_host_exchanges',
+        'owner_host_go',
+        await until(id),
+        () => c.go(id),
+        seen,
+      )
+      gos.push(g)
+      return g
+    },
+  })
+}
+const deadlineOf = async (exchange: string) =>
+  (await one<{ t: Date }>('SELECT deadline_at AS t FROM sophia.owner_host_exchanges WHERE id=$1', [exchange])).t
+const exchangeOf = (operationId: string) =>
+  one<{ state: string; go_count: number }>(
+    `SELECT state, go_count FROM sophia.owner_host_exchanges WHERE operation_id=$1 AND kind='send'`,
+    [operationId],
+  )
+
+describe('GO decides after its final exchange write wait (repair 4, CC005-R3-F01)', () => {
+  for (const what of ['qualification', 'connection', 'deadline'] as const) {
+    it(`a ${what} that runs out while GO waits on its final write: no grant, no payload, no native call`, async () => {
+      const w = await world({ t3: new FakeT3(NS) })
+      const gos: GoResult[] = []
+      const seen: Seen = {}
+      const armed = { on: false }
+      let until = new Date(0)
+      const host = await hostOf(
+        w,
+        goAt(armed, gos, seen, async (x) => (what === 'deadline' ? deadlineOf(x) : until)),
+      )
+      const created = await w.create()
+      armed.on = true
+      if (what !== 'deadline') {
+        until = await soon(2500)
+        await expireAt(w, what, until)
+      }
+      await hostPass(w, host, what === 'deadline' ? 2000 : 8000)
+      assert.deepEqual(seen, { waitedBefore: true, stillWaitingAfter: true }, 'decided before the limit, written after')
+      assert.equal(gos.at(-1)?.result, 'denied')
+      assert.equal('payload' in (gos.at(-1) ?? {}), false, 'no private payload')
+      assert.equal(w.t3.calls.length, 0, 'no native call')
+      assert.equal(intents(host.journalFile).length, 0, 'nothing journaled as possibly sent')
+      assert.equal((await exchangeOf(created.operationId)).go_count, 0, 'never granted')
+      assert.notEqual((await op(created.operationId)).state, 'received')
+    })
+  }
+
+  it('an authority that stays valid through the same wait is granted once (control)', async () => {
+    const w = await world({ t3: new FakeT3(NS) })
+    const gos: GoResult[] = []
+    const seen: Seen = {}
+    const armed = { on: false }
+    const until = await soon(2500)
+    const host = await hostOf(
+      w,
+      goAt(armed, gos, seen, () => Promise.resolve(until)),
+    )
+    const created = await w.create()
+    armed.on = true
+    await hostPass(w, host, 8000)
+    assert.deepEqual(seen, { waitedBefore: true, stillWaitingAfter: true })
+    assert.equal(gos.at(-1)?.result, 'go')
+    const granted = gos.at(-1)
+    assert.ok(granted?.result === 'go' && granted.payload?.includes('Report the Ask admission boundary.'))
+    assert.equal((await op(created.operationId)).state, 'received')
+    assert.equal(w.t3.effects.launches, 1)
+    assert.equal((await exchangeOf(created.operationId)).go_count, 1)
+  })
+
+  it("an input refused at its GO's deadline keeps the received create, its reservation, journal and qualified Stop", async () => {
+    const w = await world({ t3: new FakeT3(NS) })
+    const gos: GoResult[] = []
+    const seen: Seen = {}
+    const armed = { on: false }
+    const host = await hostOf(w, goAt(armed, gos, seen, deadlineOf))
+    const created = await w.create()
+    await hostPass(w, host, 8000)
+    assert.equal((await op(created.operationId)).state, 'received')
+    const input = await w.input(created.operationId)
+    armed.on = true
+    await hostPass(w, host, 2000)
+    assert.deepEqual(seen, { waitedBefore: true, stillWaitingAfter: true })
+    assert.equal(gos.at(-1)?.result, 'denied')
+    assert.equal('payload' in (gos.at(-1) ?? {}), false)
+    assert.equal(w.t3.count('t3_thread_send'), 0, 'no native message')
+    assert.equal((await exchangeOf(input.operationId)).go_count, 0)
+    const kept = await op(created.operationId)
+    assert.equal(kept.state, 'received', 'the earlier send is untouched')
+    assert.deepEqual(await reservations(w.accountKey), [{ binding_id: kept.binding_id }])
+    assert.deepEqual(
+      intents(host.journalFile).map((r) => r.operationId),
+      [created.operationId],
+    )
+    // The route is still qualified: its Stop goes through the same host, and the create settles from an observation.
+    const stop = await w.stop(created.operationId)
+    await hostPass(w, host, 8000)
+    assert.equal((await op(stop.operationId)).state, 'received')
+    assert.equal(w.t3.effects.stops, 1)
+    assert.equal(w.t3.effects.launches, 1)
+  })
 })
 
 describe('the worker setting', () => {

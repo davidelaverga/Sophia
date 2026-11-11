@@ -118,4 +118,75 @@ DO $$ DECLARE d text:=pg_get_functiondef('sophia.mission_erase_source(uuid,uuid)
   RAISE EXCEPTION 'mission_erase_source lost a hook'; END IF;
  IF strpos(d,'design_revoke_source')>strpos(d,'owner_runner_source_withdrawn') THEN RAISE EXCEPTION 'The runner fence runs first'; END IF;
 END $$;
+-- --- one live host per connection (repair 3, PR505-33-73-F03) -----------------------------------------------------
+-- The concurrent redemptions themselves are exercised in packages/persistence/src/owner-host-enrollment.db.test.ts.
+DO $$ DECLARE d text:=pg_get_functiondef('sophia.owner_host_redeem(bytea,bytea)'::regprocedure); f pg_proc; BEGIN
+ SELECT * INTO f FROM pg_proc WHERE oid='sophia.owner_host_redeem(bytea,bytea)'::regprocedure;
+ IF NOT f.prosecdef OR f.proconfig IS DISTINCT FROM ARRAY['search_path=pg_catalog, sophia'] THEN
+  RAISE EXCEPTION 'The redemption lost its definer or its search_path: %', f.proconfig; END IF;
+ IF NOT has_function_privilege('sophia_api','sophia.owner_host_redeem(bytea,bytea)','EXECUTE')
+    OR has_function_privilege('sophia_worker','sophia.owner_host_redeem(bytea,bytea)','EXECUTE')
+    OR EXISTS(SELECT 1 FROM aclexplode(f.proacl) a WHERE a.grantee=0) THEN
+  RAISE EXCEPTION 'The redemption''s execute privileges changed'; END IF;
+ -- Lock order: pairing, the connection's redemption lock, its live hosts, the connection; the decision clock after them.
+ IF NOT (strpos(d,'owner_host_pairings WHERE code_sha256')<strpos(d,'pg_advisory_xact_lock')
+    AND strpos(d,'pg_advisory_xact_lock')<strpos(d,'ORDER BY id FOR UPDATE')
+    AND strpos(d,'ORDER BY id FOR UPDATE')<strpos(d,'execution_connections WHERE id=p.connection_id FOR SHARE')
+    AND strpos(d,'execution_connections WHERE id=p.connection_id FOR SHARE')<strpos(d,'INSERT INTO sophia.owner_hosts')) THEN
+  RAISE EXCEPTION 'The redemption''s lock order changed'; END IF;
+ IF d ~ 'now\(\)\s*THEN' OR d ~ 'expires_at<=now' THEN RAISE EXCEPTION 'An expiry is judged at transaction start'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM pg_indexes WHERE schemaname='sophia' AND indexname='owner_hosts_one_live_per_connection'
+   AND indexdef ~ 'UNIQUE' AND indexdef ~ 'bound' AND indexdef ~ 'active') THEN RAISE EXCEPTION 'No one-live-host index'; END IF;
+END $$;
+INSERT INTO sophia.execution_connections(id,owner_id,upstream_origin,upstream_subject,state)
+ VALUES('96000000-0000-0000-0000-0000000000c1','96000000-0000-0000-0000-0000000000a1','synthetic-owner-host','synthetic-account','linked');
+INSERT INTO sophia.owner_host_pairings(owner_id,connection_id,code_sha256,expires_at)
+ SELECT '96000000-0000-0000-0000-0000000000a1','96000000-0000-0000-0000-0000000000c1',sha256(c::bytea),now()+interval '300 seconds'
+ FROM unnest(ARRAY['r3-one','r3-two','r3-three']) c;
+SET LOCAL ROLE sophia_api;
+DO $$ DECLARE r jsonb; one jsonb; BEGIN
+ one:=sophia.owner_host_redeem(sha256('r3-one'),sha256('r3-cap-one'));
+ r:=sophia.owner_host_redeem(sha256('r3-two'),sha256('r3-cap-two'));
+ IF one->>'result'<>'bound' OR r->>'result'<>'bound' THEN RAISE EXCEPTION 'Sequential replacement: % %', one, r; END IF;
+ -- Replay and the used-code conflict are unchanged, and a replay retires nothing.
+ r:=sophia.owner_host_redeem(sha256('r3-one'),sha256('r3-cap-one'));
+ IF r->>'result'<>'bound' OR NOT (r->>'replayed')::boolean OR r->>'hostId'<>one->>'hostId' THEN RAISE EXCEPTION 'Replay: %', r; END IF;
+ r:=sophia.owner_host_redeem(sha256('r3-one'),sha256('r3-cap-other'));
+ IF r->>'result'<>'refused' OR r->>'reason' !~ 'already used' THEN RAISE EXCEPTION 'Used code: %', r; END IF;
+ -- A capability already bound is refused before anything is retired.
+ r:=sophia.owner_host_redeem(sha256('r3-three'),sha256('r3-cap-two'));
+ IF r->>'result'<>'refused' OR r->>'reason' !~ 'already bound' THEN RAISE EXCEPTION 'Bound capability: %', r; END IF;
+END $$;
+RESET ROLE;
+DO $$ BEGIN
+ IF (SELECT array_agg(state ORDER BY state) FROM sophia.owner_hosts
+     WHERE connection_id='96000000-0000-0000-0000-0000000000c1') IS DISTINCT FROM ARRAY['bound','retired'] THEN
+  RAISE EXCEPTION 'Not one live host: %', (SELECT array_agg(state) FROM sophia.owner_hosts
+   WHERE connection_id='96000000-0000-0000-0000-0000000000c1'); END IF;
+ -- The constraint: a second live host for the connection is refused, whatever path writes it.
+ BEGIN UPDATE sophia.owner_hosts SET state='active' WHERE connection_id='96000000-0000-0000-0000-0000000000c1' AND state='retired';
+  RAISE EXCEPTION 'Two live hosts for one connection'; EXCEPTION WHEN unique_violation THEN NULL; END;
+END $$;
+-- --- the last write, then the decision (repair 4, CC005-R3-F01) ----------------------------------------------------
+-- The races themselves run through the actual dispatcher, host channel, agent, gateway and FakeT3 in
+-- apps/worker/src/runner-dispatch.db.test.ts. Here: in both functions the final check follows the last write that can
+-- wait, inside the block that rolls the writes back, and refuses with the private SQLSTATE that block catches.
+DO $$ DECLARE p text:=pg_get_functiondef('sophia.owner_runner_prepare_send(uuid,uuid,uuid,uuid)'::regprocedure);
+ g text:=pg_get_functiondef('sophia.owner_host_go(bytea,uuid)'::regprocedure); last_check integer; BEGIN
+ last_check:=length(p)-strpos(reverse(p),reverse('sophia.owner_runner_send_check(o)'))+1;
+ IF NOT (strpos(p,'BEGIN
+  -- Bound to the journal')>0 AND strpos(p,'runner_operation.sending')<last_check
+    AND strpos(p,'UPDATE sophia.commands SET state=''dispatching''')<last_check
+    AND last_check<strpos(p,'EXCEPTION WHEN SQLSTATE ''SR4F1''')) THEN
+  RAISE EXCEPTION 'prepare-send decides before its last write'; END IF;
+ IF NOT (strpos(g,'SET state=''go_granted''')<strpos(g,'x.deadline_at<=clock_timestamp() THEN lapsed')
+    AND strpos(g,'x.deadline_at<=clock_timestamp() THEN lapsed')<strpos(g,'RAISE EXCEPTION ''refused at the grant''')
+    AND strpos(g,'RAISE EXCEPTION ''refused at the grant''')<strpos(g,'EXCEPTION WHEN SQLSTATE ''SR4F1''')) THEN
+  RAISE EXCEPTION 'GO decides before its grant''s write'; END IF;
+ IF NOT has_function_privilege('sophia_worker','sophia.owner_runner_prepare_send(uuid,uuid,uuid,uuid)','EXECUTE')
+    OR has_function_privilege('sophia_api','sophia.owner_runner_prepare_send(uuid,uuid,uuid,uuid)','EXECUTE')
+    OR NOT has_function_privilege('sophia_api','sophia.owner_host_go(bytea,uuid)','EXECUTE')
+    OR has_function_privilege('sophia_worker','sophia.owner_host_go(bytea,uuid)','EXECUTE') THEN
+  RAISE EXCEPTION 'prepare-send or GO privileges changed'; END IF;
+END $$;
 ROLLBACK;

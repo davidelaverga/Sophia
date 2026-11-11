@@ -67,7 +67,7 @@ before(async () => {
   db = await createTestDatabase()
   api = createPool(db.apiUrl, { max: 6 })
   worker = createPool(db.workerUrl, { max: 6 })
-  owner = new pg.Pool({ connectionString: db.ownerUrl, max: 2 })
+  owner = new pg.Pool({ connectionString: db.ownerUrl, max: 6 })
 })
 after(async () => {
   for (const g of gateways) g.close()
@@ -973,6 +973,531 @@ describe('repair 1 across the owner-host channel (CC005-E7-F01, F02)', () => {
     assert.equal((await op(input.operationId)).state, 'denied')
     assert.equal(gos[0]?.result, 'denied')
     assert.equal(h.t3.count('t3_thread_send'), 0, 'the host never sent it')
+  })
+})
+
+// ---- repair 2 (PR505-33-F01, F02): GO serializes with revocation and source erasure ----
+
+const ungranted = async (pid?: number) =>
+  (
+    await one<{ n: number }>(
+      `SELECT count(*)::int AS n FROM pg_locks l JOIN pg_stat_activity a ON a.pid=l.pid
+        WHERE NOT l.granted AND a.datname=current_database() AND ($1::int IS NULL OR l.pid=$1)`,
+      [pid ?? null],
+    )
+  ).n
+/** Whether `work` settles first or a waiter is observed in pg_locks first (`pid`'s, or any). Bounded, never a sleep. */
+async function settledOrWaiting(work: Promise<unknown>, pid?: number): Promise<'settled' | 'waiting'> {
+  let settled = false
+  work.then(
+    () => (settled = true),
+    () => (settled = true),
+  )
+  const deadline = Date.now() + 15_000
+  while (Date.now() < deadline) {
+    if (settled) return 'settled'
+    if ((await ungranted(pid)) > 0) return 'waiting'
+    await sleep(10)
+  }
+  throw new Error('neither settled nor observed waiting')
+}
+/**
+ * Until a backend of this database waits for an ungranted lock on `relation` (pg_locks), with its own finite bound: a
+ * barrier that never arrives fails the test here instead of hanging it (repair 3: the reviewer's bounded-wait note).
+ */
+async function untilWaitingOn(relation: string, ms = 15_000) {
+  const deadline = Date.now() + ms
+  for (;;) {
+    const { n } = await one<{ n: number }>(
+      `SELECT count(*)::int AS n FROM pg_locks WHERE NOT granted AND relation=$1::regclass`,
+      [relation],
+    )
+    if (n > 0) return
+    if (Date.now() >= deadline) throw new Error(`no backend waited on ${relation} within ${ms} ms`)
+    await sleep(10)
+  }
+}
+const pidOf = async (c: pg.PoolClient) =>
+  (await c.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]?.pid ?? 0
+const qualificationOf = async (w: World) =>
+  (
+    await one<{ id: string }>(
+      `SELECT id FROM sophia.owner_runner_qualifications WHERE project_id=$1 AND resource_id=$2 AND revoked_at IS NULL`,
+      [w.projectId, w.resourceId],
+    )
+  ).id
+
+type Change = (c: pg.PoolClient, w: World, operationId: string) => Promise<unknown>
+const eraseOwn: Change = async (c, w, operationId) => {
+  await c.query('SELECT 1 FROM sophia.projects WHERE id=$1 FOR UPDATE', [w.projectId])
+  return c.query('SELECT sophia.mission_erase_source($1, $2)', [w.projectId, await payloadOf(operationId)])
+}
+const revoke: Change = async (c, w) =>
+  c.query(`SELECT sophia.revoke_owner_runner($1, $2, 'synthetic revocation')`, [w.projectId, await qualificationOf(w)])
+
+/**
+ * A host whose GO meets `change` at one boundary. `paused`: GO is held at its own final exchange update (that table
+ * held in SHARE mode, an ungranted lock observed), then `change` runs and commits on another client. `open`: `change`
+ * runs in an open transaction first, then GO runs and the change commits. `target` names the operation whose context
+ * the change withdraws (null: the sent operation's own). Each outcome is recorded.
+ */
+async function goMeets(w: World, at: 'paused' | 'open', change: Change, target: () => string | null) {
+  const gos: GoResult[] = []
+  const order: string[] = []
+  let armed = false
+  const h = await enroll(w, {
+    channel: (c) => ({
+      hello: (x) => c.hello(x),
+      poll: (l, r) => c.poll(l, r),
+      answer: (i, a) => c.answer(i, a),
+      go: async (id) => {
+        if (!armed) return c.go(id).then((g) => (gos.push(g), g))
+        armed = false
+        const locker = await owner.connect()
+        const changer = await owner.connect()
+        const changerPid = await pidOf(changer)
+        const operationId =
+          target() ??
+          (await one<{ id: string }>('SELECT operation_id AS id FROM sophia.owner_host_exchanges WHERE id=$1', [id])).id
+        try {
+          let go: Promise<GoResult>
+          if (at === 'paused') {
+            await locker.query('BEGIN')
+            await locker.query('LOCK TABLE sophia.owner_host_exchanges IN SHARE MODE')
+            go = c.go(id)
+            go.then(
+              () => order.push('go'),
+              () => order.push('go'),
+            )
+            await untilWaitingOn('sophia.owner_host_exchanges')
+            await changer.query('BEGIN')
+            const changed = change(changer, w, operationId).then(() => changer.query('COMMIT'))
+            changed.then(
+              () => order.push('change'),
+              () => order.push('change'),
+            )
+            order.push(`change ${await settledOrWaiting(changed, changerPid)}`)
+            await locker.query('ROLLBACK')
+            await changed
+          } else {
+            await changer.query('BEGIN')
+            await change(changer, w, operationId)
+            go = c.go(id)
+            go.then(
+              () => order.push('go'),
+              () => order.push('go'),
+            )
+            order.push(`go ${await settledOrWaiting(go)}`)
+            await changer.query('COMMIT')
+            order.push('change')
+          }
+          const result = await go
+          gos.push(result)
+          return result
+        } finally {
+          await locker.query('ROLLBACK').catch(() => undefined)
+          await changer.query('ROLLBACK').catch(() => undefined)
+          locker.release()
+          changer.release()
+        }
+      },
+    }),
+  })
+  return { h, gos, order, arm: () => (armed = true) }
+}
+
+describe('GO serializes with revocation and source erasure (repair 2, PR505-33-F01, F02)', () => {
+  for (const [name, change] of [
+    ['an erasure of its instruction', eraseOwn],
+    ['a revocation of its route', revoke],
+  ] as const) {
+    it(`${name} that commits first denies GO: no payload, no native call`, async () => {
+      const w = await world()
+      const r = await goMeets(w, 'open', change, () => null)
+      r.arm()
+      const created = await w.create()
+      const p = await pass(w, await proxyFor(w), r.h, false)
+      assert.deepEqual(r.order.slice(0, 1), ['go waiting'], 'GO waits for the change that holds the authority lock')
+      assert.equal(r.gos.at(-1)?.result, 'denied')
+      assert.equal('payload' in (r.gos.at(-1) ?? {}), false)
+      assert.deepEqual(p.sent, ['refused'])
+      assert.equal((await op(created.operationId)).state, 'denied')
+      assert.equal(r.h.t3.calls.length, 0)
+    })
+
+    it(`${name} waits for a GO that decided first; that send keeps its commitment`, async () => {
+      const w = await world()
+      const r = await goMeets(w, 'paused', change, () => null)
+      r.arm()
+      const created = await w.create()
+      const p = await pass(w, await proxyFor(w), r.h, false)
+      assert.equal(r.order[0], 'change waiting', 'the change waits for the GO that holds the authority lock')
+      assert.equal(r.gos.at(-1)?.result, 'go')
+      assert.deepEqual(p.sent, ['received'])
+      assert.equal((await op(created.operationId)).state, 'received')
+      assert.equal(r.h.t3.effects.launches, 1)
+      const kept = await one<{ n: number }>(
+        `SELECT count(*)::int AS n FROM sophia.owner_runner_reservations r JOIN sophia.owner_runner_operations o
+          ON o.binding_id=r.binding_id WHERE o.id=$1`,
+        [created.operationId],
+      )
+      assert.equal(kept.n, 1, 'its account commitment is kept')
+    })
+  }
+
+  it('a connection revoked by a writer that holds only its row, uncommitted, makes GO wait, then deny', async () => {
+    const w = await world()
+    const directRevoke: Change = async (c) =>
+      c.query(`UPDATE sophia.execution_connections SET state='revoked', revision=revision+1 WHERE id=$1`, [
+        w.connectionId,
+      ])
+    const r = await goMeets(w, 'open', directRevoke, () => null)
+    r.arm()
+    const created = await w.create()
+    const p = await pass(w, await proxyFor(w), r.h, false)
+    assert.deepEqual(r.order.slice(0, 1), ['go waiting'])
+    assert.equal(r.gos.at(-1)?.result, 'denied')
+    assert.deepEqual(p.sent, ['refused'])
+    assert.equal((await op(created.operationId)).state, 'denied')
+    assert.equal(r.h.t3.calls.length, 0)
+  })
+
+  it("an erasure of an input's create context that commits first denies the input's GO", async () => {
+    const w = await world()
+    let createId = ''
+    const r = await goMeets(w, 'open', eraseOwn, () => createId)
+    const created = await w.create()
+    const port = await proxyFor(w)
+    await pass(w, port, r.h)
+    assert.equal((await op(created.operationId)).state, 'received')
+    createId = created.operationId
+    r.arm()
+    const input = await withActor(api, w.who, 'write', (c) =>
+      admitRunnerOperation(c, w.projectId, randomUUID(), {
+        kind: 'input',
+        resourceId: w.resourceId,
+        targetOperationId: created.operationId,
+        message: 'A follow-up through the host.',
+        expectedGoalRevision: 1,
+        expectedAuthorityEpoch: 1,
+        sourceIds: [],
+      }),
+    )
+    const p = await pass(w, port, r.h, false)
+    assert.deepEqual(r.order.slice(0, 1), ['go waiting'])
+    assert.equal(r.gos.at(-1)?.result, 'denied')
+    assert.deepEqual(p.sent, ['refused'])
+    assert.equal((await op(input.operationId)).state, 'denied')
+    assert.equal(r.h.t3.count('t3_thread_send'), 0)
+  })
+
+  it("an erasure of an input's create context waits for the input's GO that decided first; that send is kept", async () => {
+    const w = await world()
+    let createId = ''
+    const r = await goMeets(w, 'paused', eraseOwn, () => createId)
+    const created = await w.create()
+    const port = await proxyFor(w)
+    await pass(w, port, r.h)
+    createId = created.operationId
+    r.arm()
+    const input = await withActor(api, w.who, 'write', (c) =>
+      admitRunnerOperation(c, w.projectId, randomUUID(), {
+        kind: 'input',
+        resourceId: w.resourceId,
+        targetOperationId: created.operationId,
+        message: 'A follow-up through the host.',
+        expectedGoalRevision: 1,
+        expectedAuthorityEpoch: 1,
+        sourceIds: [],
+      }),
+    )
+    const p = await pass(w, port, r.h, false)
+    assert.equal(r.order[0], 'change waiting')
+    assert.equal(r.gos.at(-1)?.result, 'go')
+    assert.deepEqual(p.sent, ['received'])
+    assert.equal((await op(input.operationId)).state, 'received')
+    assert.equal(r.h.t3.effects.messages, 1)
+  })
+
+  it('an unchanged GO still grants, and grants again on redelivery', async () => {
+    const w = await world()
+    const r = await goMeets(
+      w,
+      'paused',
+      () => Promise.resolve(),
+      () => null,
+    )
+    r.arm()
+    const created = await w.create()
+    await pass(w, await proxyFor(w), r.h, false)
+    assert.equal(r.gos.at(-1)?.result, 'go')
+    assert.equal((await op(created.operationId)).state, 'received')
+    assert.equal(r.h.t3.effects.launches, 1)
+  })
+})
+
+// ---- repair 3 (PR505-33-73-F03): one live host per connection under concurrent pairing ----
+
+/** Redeem through the actual persistence consumer on one held client (its transaction left open by the caller). */
+const redeemOn = (c: pg.PoolClient, code: string, capability: string) =>
+  redeemOwnerHostPairing(c as unknown as pg.Pool, code, capability)
+const liveHosts = async (w: World) =>
+  (
+    await owner.query<{ id: string; state: string }>(
+      `SELECT id, state FROM sophia.owner_hosts WHERE owner_id=$1 AND connection_id=$2 ORDER BY created_at`,
+      [w.who, w.connectionId],
+    )
+  ).rows
+const dbClock = async () => (await one<{ t: Date }>('SELECT clock_timestamp() AS t')).t
+
+describe('one live host per connection under concurrent pairing (repair 3, PR505-33-73-F03)', () => {
+  it('two distinct codes redeemed at once leave one live host: the second waits, then replaces the first', async () => {
+    const w = await world()
+    const [a, b] = [await w.pair(), await w.pair()]
+    const [capA, capB] = [newSecret(), newSecret()]
+    const first = await api.connect()
+    try {
+      await first.query('BEGIN')
+      const boundA = await redeemOn(first, a.code, capA)
+      assert.equal(boundA.result, 'bound')
+      const second = redeemOwnerHostPairing(api, b.code, capB)
+      const waited = await settledOrWaiting(second)
+      await first.query('COMMIT')
+      const boundB = await second
+      assert.equal(boundB.result, 'bound')
+      assert.deepEqual(
+        (await liveHosts(w)).map((h) => h.state),
+        ['retired', 'bound'],
+        'one live host: the first is retired, never revoked',
+      )
+      assert.equal(waited, 'waiting', 'the second redemption waited for the first')
+      // The replacement serves the runner's new work.
+      const hb = await enroll(w, { capability: capB })
+      assert.equal((await ownerHostRunner(worker, w.who, 'env-owner-1'))?.journalId, hb.journal.id)
+    } finally {
+      await first.query('ROLLBACK').catch(() => undefined)
+      first.release()
+    }
+  })
+
+  it('refuses the second code when it expires while it waits, judged at the actual time', async () => {
+    const w = await world()
+    const [a, b] = [await w.pair(), await w.pair()]
+    const until = new Date((await dbClock()).getTime() + 1200)
+    await owner.query(`UPDATE sophia.owner_host_pairings SET expires_at=$2 WHERE id=$1`, [b.pairingId, until])
+    const first = await api.connect()
+    try {
+      await first.query('BEGIN')
+      assert.equal((await redeemOn(first, a.code, newSecret())).result, 'bound')
+      const second = redeemOwnerHostPairing(api, b.code, newSecret())
+      assert.equal(await settledOrWaiting(second), 'waiting')
+      while ((await dbClock()) <= until) await sleep(50)
+      await first.query('COMMIT')
+      const refused = await second
+      assert.equal(refused.result, 'refused')
+      assert.match(refused.result === 'refused' ? refused.reason : '', /expired/)
+      assert.deepEqual(
+        (await liveHosts(w)).map((h) => h.state),
+        ['bound'],
+      )
+    } finally {
+      await first.query('ROLLBACK').catch(() => undefined)
+      first.release()
+    }
+  })
+
+  it('refuses both codes once the connection is revoked while they wait (control)', async () => {
+    const w = await world()
+    const [a, b] = [await w.pair(), await w.pair()]
+    const operator = await owner.connect()
+    try {
+      await operator.query('BEGIN')
+      await operator.query(`UPDATE sophia.execution_connections SET state='revoked', revision=revision+1 WHERE id=$1`, [
+        w.connectionId,
+      ])
+      const ra = redeemOwnerHostPairing(api, a.code, newSecret())
+      const rb = redeemOwnerHostPairing(api, b.code, newSecret())
+      assert.equal(await settledOrWaiting(ra), 'waiting')
+      await operator.query('COMMIT')
+      for (const r of [await ra, await rb]) assert.equal(r.result, 'refused')
+      assert.deepEqual(await liveHosts(w), [])
+    } finally {
+      await operator.query('ROLLBACK').catch(() => undefined)
+      operator.release()
+    }
+  })
+
+  it('keeps sequential replacement, same-code replay and used-code refusal (controls)', async () => {
+    const w = await world()
+    const [a, b] = [await w.pair(), await w.pair()]
+    const [capA, capB] = [newSecret(), newSecret()]
+    const boundA = await redeemOwnerHostPairing(api, a.code, capA)
+    const replay = await redeemOwnerHostPairing(api, a.code, capA)
+    assert.equal(replay.result === 'bound' && boundA.result === 'bound' && replay.hostId === boundA.hostId, true)
+    assert.equal((await redeemOwnerHostPairing(api, a.code, newSecret())).result, 'refused')
+    assert.equal((await redeemOwnerHostPairing(api, b.code, capB)).result, 'bound')
+    assert.deepEqual(
+      (await liveHosts(w)).map((h) => h.state),
+      ['retired', 'bound'],
+    )
+  })
+
+  it("another owner's redemption neither waits for nor replaces this connection's host (control)", async () => {
+    const [w, v] = [await world(), await world()]
+    const [a, b] = [await w.pair(), await v.pair()]
+    const first = await api.connect()
+    try {
+      await first.query('BEGIN')
+      assert.equal((await redeemOn(first, a.code, newSecret())).result, 'bound')
+      const foreign = redeemOwnerHostPairing(api, b.code, newSecret())
+      assert.equal(await settledOrWaiting(foreign), 'settled')
+      assert.equal((await foreign).result, 'bound')
+      await first.query('COMMIT')
+      for (const x of [w, v])
+        assert.deepEqual(
+          (await liveHosts(x)).map((h) => h.state),
+          ['bound'],
+        )
+    } finally {
+      await first.query('ROLLBACK').catch(() => undefined)
+      first.release()
+    }
+  })
+
+  for (const first of ['retire', 'redeem'] as const)
+    it(`a ${first} that holds the old host first: the other waits, and one live host remains`, async () => {
+      const w = await world()
+      const old = await w.pair()
+      const bound = await redeemOwnerHostPairing(api, old.code, newSecret())
+      const oldId = bound.result === 'bound' ? bound.hostId : ''
+      const b = await w.pair()
+      const gate = Promise.withResolvers<undefined>()
+      const redeemer = await api.connect()
+      try {
+        let retired: Promise<unknown>
+        let redeemed: Promise<Awaited<ReturnType<typeof redeemOwnerHostPairing>>>
+        let waited: 'settled' | 'waiting'
+        if (first === 'retire') {
+          const entered = Promise.withResolvers<undefined>()
+          retired = withActor(api, w.who, 'write', async (c) => {
+            const r = await retireOwnerHost(c, oldId)
+            entered.resolve(undefined)
+            await gate.promise
+            return r
+          })
+          await entered.promise
+          redeemed = redeemOwnerHostPairing(api, b.code, newSecret())
+          waited = await settledOrWaiting(redeemed)
+          gate.resolve(undefined)
+        } else {
+          await redeemer.query('BEGIN')
+          redeemed = redeemOn(redeemer, b.code, newSecret())
+          await redeemed
+          retired = withActor(api, w.who, 'write', (c) => retireOwnerHost(c, oldId))
+          waited = await settledOrWaiting(retired)
+          await redeemer.query('COMMIT')
+        }
+        await retired
+        assert.equal((await redeemed).result, 'bound')
+        assert.equal(waited, 'waiting')
+        assert.deepEqual(
+          (await liveHosts(w)).map((h) => h.state),
+          ['retired', 'bound'],
+        )
+      } finally {
+        gate.resolve(undefined)
+        await redeemer.query('ROLLBACK').catch(() => undefined)
+        redeemer.release()
+      }
+    })
+
+  it('a host replaced by concurrent pairing keeps its unknown create: reconciled by identity, then its Stop', async () => {
+    const w = await world()
+    const t3 = new FakeT3(NS)
+    const h = await enroll(w, { t3 })
+    const created = await w.create()
+    t3.inject('t3_thread_launch', { kind: 'lose_after_effect' })
+    await pass(w, await proxyFor(w), h, false)
+    assert.equal((await op(created.operationId)).state, 'unknown')
+    // Two new codes redeemed at once: the old host is retired, never revoked, and one new host is live.
+    const [a, b] = [await w.pair(), await w.pair()]
+    const first = await api.connect()
+    try {
+      await first.query('BEGIN')
+      assert.equal((await redeemOn(first, a.code, newSecret())).result, 'bound')
+      const second = redeemOwnerHostPairing(api, b.code, newSecret())
+      assert.equal(await settledOrWaiting(second), 'waiting')
+      await first.query('COMMIT')
+      assert.equal((await second).result, 'bound')
+    } finally {
+      await first.query('ROLLBACK').catch(() => undefined)
+      first.release()
+    }
+    assert.deepEqual(
+      (await liveHosts(w)).map((x) => x.state),
+      ['retired', 'retired', 'bound'],
+    )
+    // Nothing was unsent, refunded or settled by the replacement.
+    assert.equal((await op(created.operationId)).state, 'unknown')
+    const reserved = await one<{ n: number }>(
+      `SELECT count(*)::int AS n FROM sophia.owner_runner_reservations WHERE account_key=$1`,
+      [w.accountKey],
+    )
+    assert.equal(reserved.n, 1)
+    // The retired host reconciles its own create by its original identity: no relaunch.
+    const port = await proxyFor(w, h.journal.id)
+    await pass(w, port, h)
+    assert.equal((await op(created.operationId)).state, 'received')
+    assert.equal(t3.effects.launches, 1)
+    // Its qualified Stop still goes through it.
+    const stop = await withActor(api, w.who, 'write', (c) =>
+      admitRunnerOperation(c, w.projectId, randomUUID(), {
+        kind: 'stop',
+        resourceId: w.resourceId,
+        targetOperationId: created.operationId,
+      }),
+    )
+    await pass(w, port, h, false)
+    assert.equal((await op(stop.operationId)).state, 'received')
+    assert.equal(t3.effects.stops, 1)
+  })
+
+  it('a redemption waits for a GO that holds the old host; that send and its commitment are kept', async () => {
+    const w = await world()
+    const b = await w.pair()
+    const capB = newSecret()
+    const redeemB: Change = (c) => redeemOn(c, b.code, capB)
+    const r = await goMeets(w, 'paused', redeemB, () => null)
+    r.arm()
+    const created = await w.create()
+    const p = await pass(w, await proxyFor(w), r.h, false)
+    assert.equal(r.order[0], 'change waiting', "the redemption waits for the GO holding the old host's row")
+    assert.equal(r.gos.at(-1)?.result, 'go')
+    assert.deepEqual(p.sent, ['received'])
+    assert.equal((await op(created.operationId)).state, 'received')
+    assert.equal(r.h.t3.effects.launches, 1)
+    assert.deepEqual(
+      (await liveHosts(w)).map((h) => h.state),
+      ['retired', 'bound'],
+    )
+    // The retired host still observes its own possible work.
+    await pass(w, await proxyFor(w, r.h.journal.id), r.h)
+    assert.equal((await op(created.operationId)).state, 'received')
+  })
+
+  it('a redemption that commits first retires the old host before its GO: no new send through it (control)', async () => {
+    const w = await world()
+    const b = await w.pair()
+    const redeemB: Change = (c) => redeemOn(c, b.code, newSecret())
+    const r = await goMeets(w, 'open', redeemB, () => null)
+    r.arm()
+    const created = await w.create()
+    const p = await pass(w, await proxyFor(w), r.h, false)
+    assert.equal(r.order[0], 'go waiting')
+    assert.equal(r.gos.at(-1)?.result, 'denied')
+    assert.deepEqual(p.sent, ['refused'])
+    assert.equal((await op(created.operationId)).state, 'denied')
+    assert.equal(r.h.t3.calls.length, 0)
   })
 })
 

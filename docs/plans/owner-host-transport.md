@@ -321,3 +321,34 @@ Fake and disposable only:
   reason or the bytes on disk.
 - **r7:** changing `name` accessors (allowed then a bearer, allowed then disallowed), a throwing accessor, and stable
   allowed and arbitrary names, on fetch and stream failures, through the real gateway and a temporary fsynced journal.
+
+## Source-map reconciliation for INC01-CC-005 (doc-only companion)
+
+The exclusive SOURCE_MAP owner (this slice) records the six upstream pins that INC01-CC-005 relies on. The CC005 author
+does not edit the map.
+
+**Plan.**
+
+1. **Verify.** Re-read the six files at `pingdotgg/t3code@ade473018d32003658b7d38693e083ee2e314bd8`, outside the
+   tree, with no copy or install. Check each full-file SHA-256 against the CC005 qualification record and the
+   reviewer's receipt.
+2. **Record.** Add one additive section to `docs/SOURCE_MAP.md`, at the next free number after §2m. It holds:
+   - the six file paths, with links at the full 40-hex commit;
+   - each full 64-hex file SHA-256 and the relied-on lines;
+   - the narrow wire facts relied on, and the limits.
+
+   §2k, §2l, §2m and the older baseline links are kept byte-for-byte. Only the reliance overview in §2k is updated to
+   name the new section.
+3. **Hand off.** Append a handoff entry with the base, the scope and the expected retarget.
+
+**Scope.** Three documents only:
+
+- `docs/SOURCE_MAP.md`;
+- this plan;
+- `docs/handoffs/INC01-CC-003.md`.
+
+No source, runtime, migration, contract, generated, pack or release-amendment byte changes.
+
+**Base.** INC01-CC-005 `33c020af` (tree `e1efbfd1`) is a development parent only. Its final gate holds integration on
+two P1 authority races, so it is not release-ready. Root retargets this documentation onto the accepted repaired parent
+and proves doc equivalence before the whole-source gate. Nothing here is a live qualification.

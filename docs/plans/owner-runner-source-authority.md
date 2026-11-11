@@ -302,3 +302,238 @@ code points cannot invalidate any v1 envelope or journal written before.
 
 **Then** the repair, assertion-failing mutations with zero cancellations and the bytes restored, the affected suites,
 the generator check, and `pnpm check` plus `git diff --check` on the exact final source.
+
+## 9. Repair 2 (gate INC01-CC-005-repair1-33c020af-SOURCE-FINAL-001: two concurrency classes)
+
+Written before any code. The parent is the published `33c020af`, now immutable. The fix is a new signed child, in the
+active `0096` only, through `CREATE OR REPLACE`. Nothing in `0092` or `0093` is edited. The repair-1 classes, the da42
+expiry fix and all privacy guards stay.
+
+### The authority lock
+
+**The projects row is the one authority lock.** Every decision that may send or disclose, and every change of the
+authority it depends on, must hold it. Whichever commits first wins.
+
+**Writers holding it `FOR UPDATE`:**
+- admission;
+- prepare-send;
+- every caller of `mission_erase_source` (0018, 0068, 0069), with the hook as well;
+- the membership changes (0052, 0056, 0058);
+- now also `revoke_owner_runner` and `declare_owner_runner_source_policy`.
+
+**Lock order:**
+
+| Path | Order |
+|---|---|
+| Admission | project → resource → connection → qualification → goal → target → binding → sources |
+| Prepare-send | project → outbox → operation → reservation, then (new) the resource, connection and qualification rows `FOR SHARE` before its final recheck |
+| GO (new) | project `FOR SHARE` → host → exchange → resource, connection and qualification `FOR SHARE`. Then the final recheck, the payload read and the grant, all in one transaction |
+
+**Why the extra row locks.** The row-level `FOR SHARE` on the resource, connection and qualification serializes even a
+writer that does not take the project lock, such as an operator's direct update of a connection or resource.
+Prepare-send and GO take those rows after the project, in admission's resource → connection → qualification order.
+
+**No deadlock.** No writer takes those rows before the project and then waits on the project. No writer locks a host or
+an exchange while holding a project. Poll locks host → exchange and never the project.
+
+### PR505-33-F01: revocation against the final prepare-send and GO decisions
+
+`revoke_owner_runner` is replaced with the same signature, errors and privileges: it is still migration-owner only, and
+the replacement keeps its pinned `search_path`. It now locks the project first, then the qualification.
+`declare_owner_runner_source_policy` does the same.
+
+**Outcomes:**
+- **Revocation first.** A revocation that commits before the decision makes prepare-send, which waits on the project,
+  recheck after its wait and deny. GO, which waits on the project in `FOR SHARE`, refuses with no payload.
+- **Decision first.** A decision that holds the lock first commits first. Its possible send or granted GO stays, with
+  the original identities, binding, account reservation and unknown reconciliation. The revocation then takes effect
+  for later work only. Nothing is falsely unsent, purged, refunded, reset or resent.
+
+### PR505-33-F02: GO against a source erasure
+
+`owner_host_go` is replaced. In order, it:
+1. **Looks up the exchange's project, without a lock.** The lookup authorizes nothing. An unknown capability or
+   exchange answers exactly as before: "not authenticated", or Forbidden.
+2. **Takes the project lock** `FOR SHARE`.
+3. **Authenticates and locks the host.**
+4. **Locks the exchange and revalidates it.** The exchange must still be this host's, and still the same project.
+5. **Takes the authority rows** `FOR SHARE`.
+6. **Decides under these locks:** the final recheck, including the cumulative input lineage, then the payload read,
+   then the grant.
+
+An erasure or retirement through `mission_erase_source` needs the project `FOR UPDATE`, so it waits for a GO in
+progress, and a GO waits for an erase in progress. The same holds for audience changes.
+
+### Proof plan
+
+**Fail-before on exact `33c020af`.** These use real two-client lock barriers: an ungranted lock observed in `pg_locks`,
+never a sleep taken as proof. They use the original roles and SQL, with no rewritten production function and no
+trigger.
+- **Revocation while prepare-send is paused** at its event insert (the `project_events` table held in `SHARE` mode).
+- **Revocation open before prepare-send.**
+- **GO paused** at its final exchange update (the `owner_host_exchanges` table held in `SHARE` mode), against:
+  - an erasure of a create's instruction;
+  - an erasure of an input's create context;
+  - a revocation.
+- **Erasure or revocation open before GO.**
+
+**After the repair, the same barriers assert the winner order:**
+- the later writer is observed waiting;
+- the decision that won keeps its commitment;
+- the change that won blocks the payload and any new native call.
+
+They also cover unchanged controls, repeated GO, a qualified Stop, read and reconcile. Each new lock gets an
+assertion-failing mutation.
+
+## 10. Repair 3 (addendum INC01-CC-005-33-73-PAIRING-AND-COVERAGE-ADDENDUM-001: PR505-33-73-F03, P1)
+
+Written before any code. The development child is a child of `73f73137`. The publication candidate is one signed child
+of the published `33c020af`, holding repairs 2 and 3 with the same tree. The repair is in `0096` only, by
+`CREATE OR REPLACE` plus one additive index. `0093` stays frozen.
+
+### The defect
+
+Two different codes paired to one connection can be redeemed at once:
+- each redemption locks only its own pairing row;
+- they share the connection `FOR SHARE`, which does not conflict;
+- each retires only the committed hosts it can see.
+
+So both insert, and the connection keeps two live hosts.
+
+### The protocol
+
+**One live host per connection, two ways:**
+- **Serialization.** A transaction-scoped advisory lock on the connection, `pg_advisory_xact_lock(class, hashtext(connection id))`,
+  serializes every redemption of the connection. It conflicts with nothing but another redemption of the same
+  connection. A hash collision only adds serialization, never a wrong answer. No other path takes it, so it cannot
+  invert against GO, retirement or revocation.
+- **Structure.** A partial unique index, `owner_hosts(connection_id) WHERE state IN ('bound','active')`, makes "one live
+  host per connection" a database invariant. If the advisory lock were ever skipped, the second insert fails rather than
+  leaving two live hosts.
+
+**Lock order.** `owner_host_redeem` is replaced (same signature, `SECURITY DEFINER`, pinned `search_path`; still granted
+to `sophia_api` only) and takes: pairing `FOR UPDATE` → the connection's advisory lock → the connection's live hosts
+`FOR UPDATE` → the connection `FOR SHARE`. That is host before connection, the same order GO uses (project `FOR SHARE` →
+host → exchange → resource → connection → qualification). Retirement and revocation lock only host and then exchange.
+So no path holds a connection lock while waiting for a host. The operator's direct connection update holds only the
+connection row, and `owner_host_create_pairing` holds only the connection row.
+
+**The decision, after every wait and before any change:**
+- the pairing is unconsumed, unrevoked and unexpired, judged at `clock_timestamp()`;
+- the connection is the pairing owner's, linked and unexpired, also at `clock_timestamp()`;
+- the capability is not bound already.
+
+A refusal changes nothing.
+
+**Unchanged:**
+- the same code with the same capability replays the same host;
+- a used code with another capability is refused;
+- an expired, revoked or foreign pairing or connection is refused.
+
+**A replaced host is retired, never revoked.** Its fenced queued new work is cancelled exactly as before. Its journal's
+operations keep their state, identities, commitments, Stop, read and reconcile through it. Nothing is unsent, refunded,
+settled or unbound.
+
+### Proof plan
+
+**Fail-before on `73f73137`.** Real transactions through `redeemOwnerHostPairing` (one held open on its own client) and
+the actual `DbHostChannel`, `OwnerHostAgent`, gateway and journal:
+- two distinct codes redeemed concurrently: one live host after both commit, and the second waits for the first;
+- an expiry that falls during that wait;
+- a connection revoked during that wait;
+- redemption against GO in both orders.
+
+**Controls:**
+- the same code and capability replayed, and a used code with another capability;
+- a sequential replacement;
+- a foreign owner;
+- the retired host still observing its own operation.
+
+**Cleanup.** The repair-2 lock-wait loops get their own finite deadlines.
+
+**Mutations.** Each of the advisory lock, the unique index and the decision clock, alone and paired.
+
+### As built
+
+The protocol above, with three additions found while proving it:
+- **Migration precondition.** Before the index is created, a database that already holds two live hosts for one
+  connection stops the migration with a named error. Which host keeps serving is the owner's decision, so the migration
+  retires nothing.
+- **Retirement race.** An owner's retirement of the old host racing a redemption is covered in both orders.
+- **Re-pairing a host with unknown work.** A host replaced by a concurrent re-pairing keeps its unknown create and its
+  qualified Stop.
+
+The mutations are N1 to N5:
+- the lock alone and the index alone;
+- both together;
+- the after-wait expiry on the transaction clock;
+- the lock taken after the host scan.
+
+The index alone is a redundant layer for the DB tests; the SQL test judges it.
+
+## 11. Repair 4 (gate INC01-CC-005-repair3-map-compose-SOURCE-PRE-PUSH-001: CC005-R3-F01, P1)
+
+Written before any code. The development child is a child of the composed `50cd1054`. The publication candidate is one
+signed child of the published `33c020af` with the same tree, so the source-map companion's three documents stay
+byte-for-byte those of `84e01bc9`. The repair is in `0096` only, by `CREATE OR REPLACE`. The three closed concurrency
+classes (revocation, source erasure, pairing redemption) keep their locks and order.
+
+### The defect
+
+Holding the authority rows serializes writers, but it cannot hold time still. Each time-bound decision was taken before
+writes that can still wait on a lock:
+- **Prepare-send** rechecks everything, then writes the possible send, the command and the owner's event. The event
+  `INSERT` (and either `UPDATE`) can wait on a table lock while a qualification or connection expires, and then the
+  send commits.
+- **GO** checks the exchange deadline, the current authority and the private body, then its final exchange `UPDATE` can
+  wait while any of them expires. It then grants and returns the payload.
+
+### The rule
+
+A clock-sensitive authorization is decided after the last statement that can wait, inside the transaction that commits
+it. Only the commit follows it.
+
+### The protocol
+
+- **Prepare-send.** The possible-send writes (operation, command, event) run in a PL/pgSQL block, which is a
+  subtransaction. Its last statement is the whole send check again on `clock_timestamp()`: the same check as before
+  (`owner_runner_send_check`), the payload re-read with it.
+  - **Expiry wins.** The block raises a private SQLSTATE and is rolled back: no possible send, no `sending` event, no
+    command change. The operation is then denied through `owner_runner_deny_prepared` exactly as an earlier denial: its
+    outbox and command, a create's binding, a reservation with nothing unsettled, and a `denied` event. Those writes may
+    wait; a denial authorizes nothing.
+  - **The decision wins.** It commits as before, with the payload read under the final check.
+  - **Scope.** This holds for every kind, a Stop included, with the same check as its first. A Stop's own rules are
+    unchanged.
+- **GO.** The grant (the exchange `UPDATE`) runs in a block whose last statement is the final check: the exchange
+  deadline, `owner_host_send_refusal` (host, route, operation state, and the whole operation recheck with both expiries)
+  and, for v2, the private body re-read.
+  - **Any of them fails.** The block is rolled back: no grant, no `go_count`, no payload. The answer is the existing
+    refusal. A first GO denies the exchange, and a GO after an earlier grant only records the refusal. A deadline that
+    passed answers as an earlier deadline refusal does.
+  - **The grant wins.** The payload returned is the one read under the final check.
+- **Order.** Unchanged: project → host → exchange → authority rows, and the per-connection pairing lock and
+  one-live-host rule. The final check takes no new lock: every row it reads is already held. The rollback releases only
+  what the block took.
+- **Already-possible effects.** An effect that is already possible is not touched: an earlier send stays
+  possible, unknown or received with its binding, reservation, journal, reconciliation and Stop. Nothing is marked
+  unsent, refunded or reset. A first send denied this late leaves no `sending` event and no grant to replay.
+- **Admission is not changed.** It authorizes no outward effect, and prepare and GO decide again.
+
+### Proof plan
+
+**Fail-before on `50cd1054`.** Real PostgreSQL, the actual dispatcher, persistence, `OwnerHostPortProxy`,
+`DbHostChannel`, `OwnerHostAgent`, gateway, fsynced journal and FakeT3. The barrier is a real table `SHARE` lock that
+blocks only the final write. The waiting backend is identified in `pg_locks` and `pg_stat_activity` (its query is the
+function under test), and every wait is bounded.
+- prepare-send waiting on its event `INSERT`: qualification and connection expiry, each with a valid control;
+- prepare-send waiting on its command `UPDATE`: qualification expiry;
+- GO waiting on its final exchange `UPDATE`: qualification and connection expiry, and the exchange deadline
+  passing, each against a valid control;
+- an earlier received create kept when its input is denied this late.
+
+**After the fix.** No launch, no message, no payload and no grant when expiry wins. When the decision wins, exactly
+one send. The original effect keeps its journal, reservation and later reconciliation.
+
+**Mutations.** The prepare final check removed, the GO final check removed, the GO deadline left out of it, and the
+final check moved back before the writes.
