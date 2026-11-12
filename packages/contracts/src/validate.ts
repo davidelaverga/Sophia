@@ -78,6 +78,7 @@ import {
   validateSearchPage,
   validateProjectTask,
   validateProjectTaskList,
+  validateProjectNativeResourcePage,
 } from './generated/validators.js'
 import type { CursorAdvance, Error as ErrorBody, Event } from './generated-types.ts'
 
@@ -179,6 +180,12 @@ export const parseConversationWithdrawal = parser('ConversationWithdrawal', vali
 export const parseConversationErasure = parser('ConversationErasure', validateConversationErasure)
 export const parseDesignEditReceipt = parser('DesignEditReceipt', validateDesignEditReceipt)
 export const parseDesignRetryReceipt = parser('DesignRetryReceipt', validateDesignRetryReceipt)
+/**
+ * One page of a project's native resource catalog (A51). A tolerant reader like the rest: a property the contract does
+ * not list is dropped, not refused. The schema's relational meaning (owner and viewer agreement, the operations' set
+ * and order, nextCursor against complete) is left to the consumer that reads it.
+ */
+export const parseProjectNativeResourcePage = parser('ProjectNativeResourcePage', validateProjectNativeResourcePage)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {

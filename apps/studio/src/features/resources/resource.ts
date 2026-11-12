@@ -71,6 +71,11 @@ export interface Session {
      * replaced it. The Studio's proposal for SCM-01/02 (LFE-06: "current assignment IDs and epochs").
      */
     epoch?: number
+    /**
+     * Its control as its runtime reports it, apart from any command sent from here: held or stopped; absent or null
+     * when neither is reported. The Studio's proposal for SCM-02 (INC01-DES-001 r3): no service supplies it yet.
+     */
+    runtimeControl?: 'held' | 'stopped' | null
   } | null
   /**
    * The last thing its tool reported doing, in its own words, and when it was observed ("ran the export tests"). Never
@@ -105,6 +110,30 @@ export interface Resource {
   controls: Record<ControlName, Support>
   /** What the owner keeps back from the project, in percent of a window; null when they set none. */
   reservePercent: number | null
+  /**
+   * What its tool's readiness is observed to be, beyond its host: absent where nothing reports it, which is everywhere
+   * today. The Studio's proposal for SCM-01 (INC01-DES-001 r3, C01-R05); no service supplies it yet.
+   */
+  readiness?: Readiness | null
+}
+
+/** One operation a connection may be used for, as its profile qualifies it (C01-R06). */
+export interface OperationReadiness {
+  id: string
+  /** As people say it: "Repository analysis", "Code changes". */
+  name: string
+  state: 'qualified' | 'unqualified' | 'unsupported' | 'unknown'
+}
+
+/** A tool's readiness as observed: its sign-in and its operations, when, until when, and from where. */
+export interface Readiness {
+  signIn: 'signed_in' | 'signed_out' | 'expired' | 'unknown'
+  operations: OperationReadiness[]
+  observedAt: string
+  /** Until when it holds; past it, it is said as last observed, never as current. Null: no stated limit. */
+  validUntil: string | null
+  /** Where it came from, in words: a collector, or "simulated fixture". */
+  source: string
 }
 
 export interface QuotaWindow {
@@ -147,9 +176,14 @@ export interface RequiredAction {
   openTarget: string | null
 }
 
-/** How long ago (app/time-words.ts): "just now", "4 min ago", "3 h ago", "2 days ago"; or never observed. */
+/**
+ * How long ago (app/time-words.ts): "just now", "4 min ago", "3 h ago", "2 days ago"; never observed when there is no
+ * time. A time that isn't an instant gives nothing to say, never an age made up from it, nor "never observed" for what
+ * was (r3 repair 6, UI85C4-F09): a line of facts leaves the empty fragment out.
+ */
 export function ago(at: string | null, now: Date): string {
-  return at ? agoWords(at, now.getTime()) : 'never observed'
+  if (at === null) return 'never observed'
+  return Number.isFinite(Date.parse(at)) ? agoWords(at, now.getTime()) : ''
 }
 
 /** How long ago a session's activity was observed, to the second while it is fresh: "40 s ago", then "3 min ago". */
@@ -222,15 +256,27 @@ function valueOf(w: QuotaWindow, v: number): string {
 }
 
 /**
+ * A window's reset as an instant, or null when it reports none or what it reports isn't one: an unknown reset, never a
+ * made-up time (r3 repair 4, UI85C4-F09). The reported `resets_at` itself is kept as given.
+ */
+export function resetAt(w: QuotaWindow): number | null {
+  if (w.resets_at === null) return null
+  const at = Date.parse(w.resets_at)
+  return Number.isFinite(at) ? at : null
+}
+
+/**
  * A window as it stands now: a reset already due is refresh pending, never fresh capacity; unknown stays unknown; a
- * reading past its `valid_until` is expired; a value whose applicability isn't known says so.
+ * reading past its `valid_until` is expired; a value whose applicability isn't known says so. A reset that isn't an
+ * instant is said as none is: not due, and no time.
  */
 export function windowView(w: QuotaWindow, now: Date, stale = false): WindowView {
-  const due = w.resets_at !== null && Date.parse(w.resets_at) <= now.getTime()
+  const at = resetAt(w)
+  const due = at !== null && at <= now.getTime()
   const applies = w.applicability
   const state = stateOf(w, due, stale)
-  const reset =
-    w.resets_at === null ? null : due ? `reset was due ${ago(w.resets_at, now)}` : `resets ${until(w.resets_at, now)}`
+  const when = at === null ? null : new Date(at).toISOString()
+  const reset = when === null ? null : due ? `reset was due ${ago(when, now)}` : `resets ${until(when, now)}`
   const name = windowName(w.window_id)
   const withheld = NOT_A_VALUE[state]
   if (withheld) return { id: w.window_id, name, state, value: withheld, reset, percent: null, applies }
@@ -365,12 +411,6 @@ export const FULL_AT = 90
 export function usageTone(percent: number): UsageTone {
   if (percent >= FULL_AT) return 'full'
   return percent >= WARN_AT ? 'warn' : 'ok'
-}
-
-export const SUPPORT: Record<Support, string> = {
-  supported: 'supported',
-  unqualified: 'not qualified yet',
-  unsupported: 'not offered',
 }
 
 /** The resource list's filters: everything, what has a request waiting, what is online, what is the viewer's own. */
