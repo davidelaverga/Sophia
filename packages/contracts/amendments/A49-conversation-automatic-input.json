@@ -1,0 +1,352 @@
+{
+  "id": "A49",
+  "goal": "INC03-S01",
+  "title": "Saved-conversation automatic inputs: a member's message retained under the explicit automatic_v1 contract, with no effect",
+  "why": [
+    "SOPHIA-INC-2026-11 INC-03 slice S01 (INC03-CC-002 S01b): the HTTP boundary for migration 0095's two writers. Its generated output is regenerated with `pnpm --filter @sophia/contracts generate`, never by hand.",
+    "New paths, not a variant of A33: the legacy ConversationStart/ConversationSend bodies (askSophia required) and their routes are unchanged, so an old client cannot opt in by accident and a new one cannot fall back to legacy Ask.",
+    "The actor is the verified token subject and the author name comes from the token. Bodies are closed: no actor, name, audience, origin, mention, reply, selection, context or askSophia field. Authority (a current admin or editor), audience, settings and revisions are resolved by the database under its locks. The same Idempotency-Key and request replays the first receipt under the caller's current authority; another request under it conflicts.",
+    "Recorded only: the message is kept once, with metadata-only input; no reply, assessment, attention, notification, outbox or work follows. Served only when the API is built with conversations and automatic inputs (both off by default)."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationInputStart",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "interactionContract": {
+            "type": "string",
+            "enum": ["automatic_v1"],
+            "description": "The interaction contract, explicit and required. No other value, no default; a legacy askSophia body is a different request."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        },
+        "required": ["interactionContract", "title", "text"],
+        "description": "A new conversation whose first message is retained as an automatic_v1 input. Closed: the actor, name, audience, origin, addressing and context are the server's, never the request's."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationInputSend",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "interactionContract": {
+            "type": "string",
+            "enum": ["automatic_v1"],
+            "description": "The interaction contract, explicit and required. No other value, no default; a legacy askSophia body is a different request."
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        },
+        "required": ["interactionContract", "text"],
+        "description": "A message retained as an automatic_v1 input. Closed, as ConversationInputStart."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationInputRef",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "interactionContract": {
+            "type": "string",
+            "enum": ["automatic_v1"]
+          },
+          "contractVersion": {
+            "type": "integer",
+            "enum": [1]
+          },
+          "state": {
+            "type": "string",
+            "enum": ["recorded"]
+          },
+          "effect": {
+            "type": "string",
+            "enum": ["none"]
+          }
+        },
+        "required": ["id", "interactionContract", "contractVersion", "state", "effect"],
+        "description": "The retained input. Recorded is not received, answered, routed or admitted: no reply, assessment, attention or work follows from it."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationInputStarted",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "conversation": {
+            "$ref": "#/components/schemas/ConversationSummary"
+          },
+          "message": {
+            "$ref": "#/components/schemas/ConversationMessage"
+          },
+          "input": {
+            "$ref": "#/components/schemas/ConversationInputRef"
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "description": "The project's feed position this receipt is current at, read in the start's own transaction after its write, as for ConversationStarted."
+          }
+        },
+        "required": ["conversation", "message", "input", "cursor"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationInputRecorded",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/ConversationMessage"
+          },
+          "input": {
+            "$ref": "#/components/schemas/ConversationInputRef"
+          }
+        },
+        "required": ["message", "input"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1conversation-inputs",
+      "value": {
+        "post": {
+          "operationId": "startConversationInput",
+          "summary": "Start a conversation whose first message is retained as an automatic_v1 input, with no effect. Writers only, in a project whose conversations are on; served only when the API is built with automatic inputs (off by default). Once per Idempotency-Key.",
+          "tags": ["conversations"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC03-S01",
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationInputStart"
+                }
+              }
+            }
+          },
+          "responses": {
+            "202": {
+              "description": "Recorded: the input is retained and nothing follows from it (effect none)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ConversationInputStarted"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted (not a member; not a writer now, also on a retry; conversations not turned on or read-only: conversations_closed)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Automatic inputs are not served by this API (off by default)"
+            },
+            "409": {
+              "description": "Idempotency key reused with a different request, including a legacy Ask request or the other operation (idempotency_conflict), or a request whose text was since withdrawn or erased (request_erased)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema (unknown fields such as askSophia, actorId, name, audience, origin, mentions, replyTo, selection or context are refused); a conversation the caller cannot see is not_found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Automatic inputs are not installed on this database (projection_unavailable), the database is unavailable, or the write's outcome is unknown: retry with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1conversations~1{conversationId}~1inputs",
+      "value": {
+        "post": {
+          "operationId": "sendConversationInput",
+          "summary": "A message retained as an automatic_v1 input, with no effect. Writers only; served only when the API is built with automatic inputs (off by default). Once per Idempotency-Key.",
+          "tags": ["conversations"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC03-S01",
+          "parameters": [
+            {
+              "name": "conversationId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationInputSend"
+                }
+              }
+            }
+          },
+          "responses": {
+            "202": {
+              "description": "Recorded: the input is retained and nothing follows from it (effect none)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ConversationInputRecorded"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted (not a member; not a writer now, also on a retry; conversations not turned on or read-only: conversations_closed)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Automatic inputs are not served by this API (off by default)"
+            },
+            "409": {
+              "description": "Idempotency key reused with a different request, including a legacy Ask request or the other operation (idempotency_conflict), or a request whose text was since withdrawn or erased (request_erased)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema (unknown fields such as askSophia, actorId, name, audience, origin, mentions, replyTo, selection or context are refused); a conversation the caller cannot see is not_found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Automatic inputs are not installed on this database (projection_unavailable), the database is unavailable, or the write's outcome is unknown: retry with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
