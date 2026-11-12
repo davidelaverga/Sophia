@@ -16,6 +16,7 @@ import {
   VENDOR,
   WORK_STATE,
   type QuotaObservation,
+  type CatalogFacts,
   type RequiredAction,
   type Resource,
   type Session,
@@ -30,13 +31,22 @@ import type { Room } from './room.ts'
 import { scopeOf, sessionTarget, UNFENCED, type CommandTarget } from './receipts.ts'
 import { canAct, offersSaid, routeOffers, SessionActs, type Acts } from './SessionActs.tsx'
 import {
+  CATALOG_EVIDENCE,
+  CATALOG_LIVE_UNREPORTED,
+  CATALOG_PRIVATE,
+  CATALOG_UNREPORTED,
+  catalogHostLines,
+  catalogState,
+  connectionSaid,
   CONTROL_NAME,
   controlGroups,
   controlsNote,
   hostAge,
   hostState,
+  qualificationSaid,
   readinessRows,
   readinessSummary,
+  SESSIONS_UNREPORTED,
 } from './status-words.ts'
 import { ToolLogo } from './ToolLogo.tsx'
 import { stillOffered, workState, type ControlSaid, type WorkState } from './work-control.ts'
@@ -112,6 +122,78 @@ function Host({
           </div>
         ))}
       </dl>
+    </div>
+  )
+}
+
+/** When a recorded qualification was made and until when, where those times are representable; else nothing. */
+function QualificationTimes({ q, now }: { q: NonNullable<CatalogFacts['mine']>['qualification']; now: Date }) {
+  if (q.qualifiedAt === null && q.expiresAt === null) return null
+  return (
+    <span className="resource-recorded-times">
+      {q.qualifiedAt !== null && (
+        <>
+          {' '}
+          Recorded <time dateTime={q.qualifiedAt}>{when(q.qualifiedAt, now.getTime())}</time>.
+        </>
+      )}
+      {q.expiresAt !== null && (
+        <>
+          {' '}
+          Recorded expiry <time dateTime={q.expiresAt}>{when(q.expiresAt, now.getTime())}</time>.
+        </>
+      )}
+    </span>
+  )
+}
+
+/**
+ * The owner's own recorded facts (UX02), behind one closed disclosure: the host as recorded and its handshake, any
+ * conflict, and the recorded qualification with its exact operations and its own recorded times; or that none is
+ * recorded. Evidence, read as the server judged it at the page's time: never online, signed in, ready or a control.
+ */
+function CatalogEvidence({ mine, now }: { mine: NonNullable<CatalogFacts['mine']>; now: Date }) {
+  const qualification = qualificationSaid(mine.qualification)
+  return (
+    <details className="resource-evidence">
+      <summary>{CATALOG_EVIDENCE}</summary>
+      <div className="resource-evidence-body">
+        {catalogHostLines(mine.host).map((line) => (
+          <p key={line} className="resource-recorded">
+            {line}
+          </p>
+        ))}
+        <p className="resource-recorded" data-qualification={mine.qualification.state}>
+          {qualification ?? 'No qualification recorded'}
+          <QualificationTimes q={mine.qualification} now={now} />
+        </p>
+      </div>
+    </details>
+  )
+}
+
+/**
+ * A resource read from A51's catalog (INC01-DES-002), its meaning before its record (UX02): the connection as recorded,
+ * or, to a teammate, that it is private to its owner; its state; when the service observed it; and that live sign-in
+ * and readiness aren't reported. Then, for its owner only, the recorded evidence, closed. A teammate's sheet holds no
+ * evidence at all, not even hidden. Every state is the server's at the page's time, said with it.
+ */
+function CatalogHost({ facts, now }: { facts: CatalogFacts; now: Date }) {
+  const state = catalogState(facts)
+  return (
+    <div className="resource-host resource-catalog">
+      <p className={facts.mine === null ? 'unknown resource-private' : 'unknown resource-connection'}>
+        <span className="resource-dot" aria-hidden />
+        {facts.mine === null ? CATALOG_PRIVATE : connectionSaid(facts.mine.connection)}
+      </p>
+      {state && <p className="resource-recorded resource-catalog-state">{state}</p>}
+      <p className="resource-as-read">
+        As observed by the service <time dateTime={facts.observedAt}>{when(facts.observedAt, now.getTime())}</time>
+      </p>
+      <p className="resource-readiness" data-tone="unknown">
+        <span className="readiness-line">{CATALOG_LIVE_UNREPORTED}</span>
+      </p>
+      {facts.mine !== null && <CatalogEvidence mine={facts.mine} now={now} />}
     </div>
   )
 }
@@ -558,6 +640,7 @@ function Head({ resource, mine }: { resource: Resource; mine: boolean }) {
           <OwnerAvatar owner={owner} />
           {owner.name}
           {mine && <Tag tone="lav">You</Tag>}
+          {owner.former && <Tag tone="muted">Former member</Tag>}
         </span>
       </span>
     </span>
@@ -601,6 +684,15 @@ function Sessions({
   tasks?: TaskLinks | undefined
   acts?: Acts | undefined
 }) {
+  if (resource.sessions === null) {
+    // Not reported (A51's catalog): said, never an empty list, which would say there are none.
+    return (
+      <section className="sheet-section" aria-labelledby="sessions-title">
+        <h3 id="sessions-title">Sessions</h3>
+        <p className="resource-unreported">{SESSIONS_UNREPORTED}</p>
+      </section>
+    )
+  }
   return (
     <section className="sheet-section" aria-labelledby="sessions-title">
       <h3 id="sessions-title">Sessions</h3>
@@ -661,8 +753,43 @@ function usePageTurns(panel: React.RefObject<HTMLDivElement | null>, onStep: Pro
   return { turn, show }
 }
 
+/**
+ * What a known-data resource reports below its host: its sessions, its capacity and its controls. A catalog record
+ * reports none of them, said once instead (UX02): never three empty sections, never none or zero.
+ */
+function Reported(props: Props & { mine: boolean; acts: Acts | undefined; show: ((id: string) => void) | undefined }) {
+  const { resource, observation, earlier, now, effort, room, mine, acts, show } = props
+  if (resource.catalog) {
+    return (
+      <section className="sheet-section resource-unreported-group" aria-label="Not reported">
+        <p className="resource-unreported">{CATALOG_UNREPORTED}</p>
+      </section>
+    )
+  }
+  return (
+    <>
+      <Sessions resource={resource} now={now} control={mine ? effort : undefined} tasks={props.tasks} acts={acts} />
+      <section className="sheet-section" aria-labelledby="capacity-title">
+        <h3 id="capacity-title">Capacity</h3>
+        <CapacityBlock
+          observation={observation}
+          sessions={resource.sessions?.length ?? 0}
+          reservePercent={resource.reservePercent}
+          now={now}
+          earlier={earlier}
+          room={room && <RoomLine room={room} onShow={show} />}
+        />
+      </section>
+      <section className="sheet-section" aria-labelledby="controls-title">
+        <h3 id="controls-title">Controls</h3>
+        <Controls resource={resource} mine={mine} offered={acts?.canSend === true} />
+      </section>
+    </>
+  )
+}
+
 export function ResourceSheet(props: Props) {
-  const { resource, observation, earlier, actions, viewerId, now, onClose, onStep, effort, room, onShow } = props
+  const { resource, observation, actions, viewerId, now, onClose, onStep, onShow } = props
   const panel = useRef<HTMLDivElement>(null)
   const { turn, show } = usePageTurns(panel, onStep, onShow)
   const mine = resource.owner.id === viewerId
@@ -685,26 +812,15 @@ export function ResourceSheet(props: Props) {
       onKeyDown={(e) => stepKey(e, turn)}
       data={{ tool: resource.tool }}
     >
-      {/* Keyed by the resource: stepping to another plays the sheet's arrival again, a page turned. */}
+      {/* Keyed by the resource: stepping to another plays the sheet's arrival again, a page turned, its evidence closed. */}
       <Fragment key={resource.id}>
-        <Host resource={resource} observation={observation} now={now} />
+        {resource.catalog ? (
+          <CatalogHost facts={resource.catalog} now={now} />
+        ) : (
+          <Host resource={resource} observation={observation} now={now} />
+        )}
         <ResourceRequests actions={actions} resource={resource} viewerId={viewerId} now={now} />
-        <Sessions resource={resource} now={now} control={mine ? effort : undefined} tasks={props.tasks} acts={acts} />
-        <section className="sheet-section" aria-labelledby="capacity-title">
-          <h3 id="capacity-title">Capacity</h3>
-          <CapacityBlock
-            observation={observation}
-            sessions={resource.sessions.length}
-            reservePercent={resource.reservePercent}
-            now={now}
-            earlier={earlier}
-            room={room && <RoomLine room={room} onShow={show} />}
-          />
-        </section>
-        <section className="sheet-section" aria-labelledby="controls-title">
-          <h3 id="controls-title">Controls</h3>
-          <Controls resource={resource} mine={mine} offered={acts?.canSend === true} />
-        </section>
+        <Reported {...props} mine={mine} acts={acts} show={show} />
       </Fragment>
     </Sheet>
   )

@@ -2160,3 +2160,95 @@
     animation: none;
   }
 }
+
+/*
+ * A51's catalog (INC01-DES-002): what it is under its head, its read states, its loaded cue before the tiles, its
+ * recorded and private facts with the owner's evidence closed, and an owner with no known name. Quiet, in the
+ * incumbent tokens: nothing here is a status to act on.
+ */
+.resources-scope {
+  margin: 6px 0 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.resources-read,
+.resources-cue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  padding: 28px 0;
+  color: var(--text-3);
+  font-size: var(--type-body);
+}
+.resources-read p,
+.resources-cue p {
+  margin: 0;
+}
+/* While rows remain unread: one line before the toolbar, so a phone shows it before any tile. */
+.resources-cue {
+  padding: 12px 0 0;
+  color: var(--text-2);
+}
+.resources-cue-count {
+  color: var(--text);
+}
+.resources-partial .resources-cue-count {
+  color: var(--amber);
+}
+.resources-none[data-none='loaded'] p {
+  color: var(--text-2);
+}
+.resource-recorded,
+.resource-as-read,
+.resource-unreported {
+  padding-left: 13px; /* under the words, past the dot and its gap, as the readiness line */
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.resource-as-read {
+  color: var(--text-3);
+}
+.resource-unreported {
+  margin: 0;
+  padding-left: 0;
+}
+.resource-recorded-times {
+  color: var(--text-3);
+}
+/* The owner's recorded evidence, closed until asked for: its summary a press, its facts in the secondary ink. */
+.resource-evidence {
+  margin-top: 10px;
+}
+.resource-evidence > summary {
+  width: fit-content;
+  padding: 4px 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+  cursor: pointer;
+}
+.resource-evidence > summary:hover {
+  color: var(--text);
+}
+.resource-evidence-body {
+  display: grid;
+  gap: 4px;
+  padding: 4px 0 2px;
+}
+.resource-evidence-body p {
+  margin: 0;
+}
+.resource-catalog-state {
+  color: var(--amber);
+}
+.resource-avatar-unknown {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border: 1px dashed var(--line-2);
+  border-radius: 50%;
+  background: transparent;
+}
+.resource-tile[data-catalog='private'] .resource-tile-host {
+  color: var(--text-3);
+}

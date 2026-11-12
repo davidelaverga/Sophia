@@ -24,14 +24,16 @@ import {
   type Resource,
   type Session,
 } from './resource.ts'
-import { hostShort, offlineFor, readinessSummary } from './status-words.ts'
+import { catalogHostShort, catalogState, hostShort, offlineFor, readinessSummary } from './status-words.ts'
 import { ToolLogo } from './ToolLogo.tsx'
 
 /**
  * Its host, named as the host: an online host is not a ready tool (status-words.ts). An offline host says how long it
  * has been gone, in a word: "Host offline · 3 h", "Host offline · 1 day".
  */
-function hostLabel(host: Resource['host'], now: Date): string {
+function hostLabel({ host, catalog }: Resource, now: Date): string {
+  // A51's catalog says its host only as recorded, and only to its owner (INC01-DES-002): never online, never an age.
+  if (catalog) return catalogHostShort(catalog)
   const gone = offlineFor(host, now) // only from a time that is an instant (r3 repair 7)
   return gone === null ? hostShort(host) : `${hostShort(host)} · ${gone}`
 }
@@ -60,6 +62,8 @@ interface Props {
 
 interface OwnerProps {
   owner: Resource['owner']
+  /** The catalog's state of the resource, when it is not simply enrolled ("Needs a connection", "Revoked"). */
+  state: string | null
   mine: boolean
   waiting: number
   /** The session reporting live, whose last report's age empties the ring around the picture; null when none is. */
@@ -70,7 +74,7 @@ interface OwnerProps {
 }
 
 /** Whose it is, and the tags that apply: "You", and how many requests wait on its owner. */
-function Owner({ owner, mine, waiting, live, now, said }: OwnerProps) {
+function Owner({ owner, state, mine, waiting, live, now, said }: OwnerProps) {
   const reported = live?.activity
   return (
     <span className="resource-tile-owner">
@@ -86,6 +90,16 @@ function Owner({ owner, mine, waiting, live, now, said }: OwnerProps) {
       {mine && (
         <span id={said('you')}>
           <Tag tone="lav">You</Tag>
+        </span>
+      )}
+      {owner.former && (
+        <span id={said('former')}>
+          <Tag tone="muted">Former member</Tag>
+        </span>
+      )}
+      {state && (
+        <span id={said('state')}>
+          <Tag tone="amber">{state}</Tag>
         </span>
       )}
       {waiting > 0 && (
@@ -220,6 +234,8 @@ function describedBy({ resource, mine, waiting }: Props, speaks: boolean, said: 
     'host',
     resource.readiness && 'readiness',
     mine && 'you',
+    resource.owner.former && 'former',
+    resource.catalog && catalogState(resource.catalog) && 'state',
     waiting > 0 && 'waiting',
     'activity',
     speaks && 'live',
@@ -230,13 +246,24 @@ function describedBy({ resource, mine, waiting }: Props, speaks: boolean, said: 
     .join(' ')
 }
 
+/** What the tile's owner line says: whose, its catalog state where it has one, and its tags. */
+const ownerOf = ({ resource, mine, waiting, now }: Props, live: Session | null, said: (part: string) => string) => ({
+  owner: resource.owner,
+  state: resource.catalog ? catalogState(resource.catalog) : null,
+  mine,
+  waiting,
+  live,
+  now,
+  said,
+})
+
 export function ResourceTile(props: Props) {
-  const { resource, observation, now, mine, waiting, onOpen, current, onFocus, ref, buddy, drag } = props
+  const { resource, observation, now, waiting, onOpen, current, onFocus, ref, buddy, drag } = props
   const { tool, owner, host } = resource
   const held = capacity(observation, now)
   // The model of the session at work, else the first one reported.
-  const model = (resource.sessions.find((s) => s.assignment && s.model) ?? resource.sessions.find((s) => s.model))
-    ?.model
+  const sessions = resource.sessions ?? []
+  const model = (sessions.find((s) => s.assignment && s.model) ?? sessions.find((s) => s.model))?.model
   const speaks = liveSession(resource)
   const live = reportsLive(resource, speaks, now)
   const id = useId()
@@ -251,6 +278,7 @@ export function ResourceTile(props: Props) {
       data-resource={resource.id}
       data-buddy={buddy}
       data-host={host.state}
+      data-catalog={resource.catalog ? (resource.catalog.mine ? 'mine' : 'private') : undefined}
       {...marks({ changed, waiting, away: props.away })}
       aria-label={`${owner.name} · ${TOOL[tool]}`}
       aria-haspopup="dialog"
@@ -267,10 +295,10 @@ export function ResourceTile(props: Props) {
         <span className="resource-tile-name">{TOOL[tool]}</span>
         <span id={said('host')} className={`resource-tile-host ${host.state}`}>
           <span className="resource-dot" aria-hidden />
-          {hostLabel(host, now)}
+          {hostLabel(resource, now)}
         </span>
       </span>
-      <Owner owner={owner} mine={mine} waiting={waiting} live={live ? speaks : null} now={now} said={said} />
+      <Owner {...ownerOf(props, live ? speaks : null, said)} />
       {resource.readiness && (
         <TileReadiness resource={resource} observation={observation} now={now} id={said('readiness')} />
       )}
