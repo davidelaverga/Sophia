@@ -3291,8 +3291,133 @@ describe('v24: quotation and escape framing around adopted content is never its 
     }
   })
 
-  it('names v24 in the version and the descriptor', () => {
-    assert.equal(INTAKE_OBSERVATION_POLICY_VERSION, 'sophia.intake-observation.policy.v24')
+  it('the descriptor still states the v24 framing rule', () => {
     assert.match(INTAKE_OBSERVATION_POLICY.text.also, /without its own quotation, escaped-quote and encoded-quote/)
+  })
+})
+
+/** r30: everything an observation decides, for comparing a dash-joined form with its spaced form. */
+const facts = (o: IntakeObservation) =>
+  JSON.stringify([o.proposal.kind, o.proposal.rule, o.uncertainty, o.addressee, o.fenced])
+/** r30: a term as written, capitalised and in capitals. */
+const cased = (t: string) => [t, `${t[0]?.toUpperCase() ?? ''}${t.slice(1)}`, t.toUpperCase()]
+
+describe('v25: a leading filler or "also" ends where an acknowledgement does, and is consumed with its separator', () => {
+  const live = {
+    audience: 'project',
+    activeMission: 'm-r30',
+    manager: 'pm-r30',
+    managerGeneration: 3,
+    control: 'running',
+    stopQualified: true,
+  }
+  const DASHES = ['-', '\u2013', '\u2014', ' - ', ' \u2013 ', ' \u2014 ']
+  const prefixes = [...LEXICON.fillers, ...LEXICON.followupMarkers]
+
+  it('every existing filler and "also", in each casing, joined by a dash, reads as its spaced form: Stop and Hold', () => {
+    const requests = [
+      ['stop.', 'control_stop'],
+      ['hold the job.', 'control_hold'],
+    ] as const
+    for (const t of prefixes.flatMap(cased))
+      for (const [request, want] of requests) {
+        const spaced = observe(`${t} ${request}`, live)
+        assert.equal(kindOf(spaced), want, `${t} ${request}`)
+        for (const text of DASHES.map((dash) => `${t}${dash}${request}`))
+          assert.equal(facts(observe(text, live)), facts(spaced), text)
+      }
+  })
+
+  it('"also" joined by a dash to its own words follows up', () => {
+    for (const dash of DASHES)
+      for (const t of cased('also')) {
+        const text = `${t}${dash}add tests.`
+        assert.equal(ruleOf(observe(text, live)), 'manager_followup family.followup', text)
+      }
+  })
+
+  it('repeated and acknowledgement-interleaved prefixes compose, each with its own separator', () => {
+    const cases: Array<[string, string]> = [
+      ['Thanks\u2014please\u2014stop.', 'control_stop'],
+      ['Now\u2014just\u2014stop.', 'control_stop'],
+      ['Please - also - thanks - stop.', 'control_stop'],
+      ['Okay\u2013kindly\u2013also\u2013hold the job.', 'control_hold'],
+      ['Hey-Sophia-stop.', 'control_stop'],
+      ['Please\u2014can you\u2014stop.', 'control_stop'],
+      ['Thanks\u2014also\u2014add tests.', 'manager_followup'],
+    ]
+    for (const [text, want] of cases) assert.equal(kindOf(observe(text, live)), want, text)
+  })
+
+  it('an "also", filler or acknowledgement with no words of its own after a dash adds nothing', () => {
+    for (const [dashed, spaced] of [
+      ['Also\u2014.', 'Also.'],
+      ['Please\u2014.', 'Please.'],
+      ['Also\u2014thanks.', 'Also, thanks.'],
+      ['Thanks\u2014also.', 'Thanks, also.'],
+      ['Please\u2013thanks.', 'Please, thanks.'],
+    ] as const) {
+      const o = observe(dashed, live)
+      assert.equal(facts(o), facts(observe(spaced, live)), dashed)
+      assert.notEqual(kindOf(o), 'manager_followup', dashed)
+    }
+    assert.equal(ruleOf(observe('Also\u2014thanks.', live)), 'no_action family.acknowledgement')
+  })
+
+  it('verbs are not widened: compounds and longer tokens beginning with a filler or a verb stay unread', () => {
+    for (const text of [
+      'non-stop.',
+      'stop-motion.',
+      'stop-gap.',
+      'Please\u2014non-stop.',
+      'Please\u2014stop-motion.',
+      'Please-stop-gap.',
+      'nowhere stop.',
+      'pleasehood stop.',
+      'Sophiaish stop.',
+      'just-in-time stop.',
+      'alsohold the job.',
+    ]) {
+      const o = observe(text, live)
+      assert.equal(kindOf(o), 'abstain', text)
+      assert.ok(o.uncertainty.includes('outside_lexicon'), text)
+    }
+    // A peeled "also" lends its follow-up to the unread compound, exactly as with a space; it is never a control.
+    assert.equal(facts(observe('Also-stop-gap.', live)), facts(observe('Also stop-gap.', live)))
+    assert.equal(kindOf(observe('Also-stop-gap.', live)), 'manager_followup')
+  })
+
+  it('questions, quotations, imports, generated and human input and legacy Ask keep their precedence', () => {
+    for (const [dashed, spaced] of [
+      ['Please\u2014how is the mission going?', 'Please how is the mission going?'],
+      ['Also\u2014how is the mission going?', 'Also how is the mission going?'],
+      ['Please\u2014"stop".', 'Please "stop".'],
+      ['Also\u2014\u201cadd tests\u201d.', 'Also \u201cadd tests\u201d.'],
+    ] as const)
+      assert.equal(facts(observe(dashed, live)), facts(observe(spaced, live)), dashed)
+    assert.equal(kindOf(observe('Please\u2014how is the mission going?', live)), 'manager_inquiry')
+    const imported = observe('Please\u2014hold on, summarize the note.', {
+      ...live,
+      attachment: 'note@v1',
+      attachmentInstruction: 'hold on',
+    })
+    assert.equal(kindOf(imported), 'answer')
+    assert.equal(imported.fenced.quotedSpans, 1)
+    assert.equal(
+      ruleOf(observe('Please\u2014stop.', { ...live, origin: 'generated' })),
+      'no_action origin.output_not_instruction',
+    )
+    assert.equal(
+      ruleOf(observe('Please\u2014stop.', { ...live, trustedMentions: ['h-r30'], currentMembers: ['h-r30'] })),
+      ruleOf(observe('Please stop.', { ...live, trustedMentions: ['h-r30'], currentMembers: ['h-r30'] })),
+    )
+    const unasked = { contract: 'legacy_explicit_ask', askSophia: false }
+    assert.equal(kindOf(observe('Please\u2014stop.', live, unasked)), kindOf(observe('Please stop.', live, unasked)))
+  })
+
+  it('names v25 in the version, and the descriptor states the prefix rule', () => {
+    assert.equal(INTAKE_OBSERVATION_POLICY_VERSION, 'sophia.intake-observation.policy.v25')
+    assert.match(INTAKE_OBSERVATION_POLICY.text.prefixes, /hyphen, an en dash or an em dash/)
+    assert.match(INTAKE_OBSERVATION_POLICY.text.prefixes, /compounds are never commands/)
   })
 })

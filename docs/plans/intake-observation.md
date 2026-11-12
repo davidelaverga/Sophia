@@ -6,7 +6,7 @@ installed automatic routing, not a live intake service and not the shipped INC-0
 from `@sophia/coordination`, registered in an app, or reachable from a request.
 
 - `packages/coordination/src/intake-observation.ts` — a pure, versioned, deterministic observation policy
-  (currently `sophia.intake-observation.policy.v24`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11, v12 r12, v13 r13, v14 r14, v15 r15 (unpublished), v16 r16, v17 r17, v18 r18, v19 r19, v20 r20, v21 r20 published, v22 r26 (unpublished, not accepted), v23 r27 (unpublished, not accepted)). It reads a validated input and returns a proposal. It holds no
+  (currently `sophia.intake-observation.policy.v25`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11, v12 r12, v13 r13, v14 r14, v15 r15 (unpublished), v16 r16, v17 r17, v18 r18, v19 r19, v20 r20, v21 r20 published, v22 r26 (unpublished, not accepted), v23 r27 (unpublished, not accepted), v24 r28, v25 r30). It reads a validated input and returns a proposal. It holds no
   transport, provider, database, notification, control or dispatch handle and reads no clock or environment.
 - `scripts/intake-observe.ts` — the consumer: an offline CLI that validates a bounded corpus file, strips every
   label before the policy sees a case, runs the policy, compares results with the labels separately and writes a
@@ -57,7 +57,7 @@ the CLI keeps them as comparison metadata, and a context that carries any of tho
 `unlabelled`. Any other value (number, boolean, array, object) is the case error `invalid_family` at
 `cases[i].family` (r18), so the case is counted invalid, never observed, and the command line exits 1.
 
-## States (one observation) — policy v24
+## States (one observation) — policy v25
 
 Policy v2 (`sophia.intake-observation.policy.v2`) replaced v1 after the independent r1 review
 (INC03-CC-001-r1-SOURCE-PRE-PUSH-001, F01–F07). Policy v3 (`sophia.intake-observation.policy.v3`) replaces v2 after
@@ -416,6 +416,48 @@ around adopted content count as words.
   first prediction is reinterpreted or retallied. Report v7, target-label.v1, the depth bound and the comparator are
   unchanged. Effects stay zero.
 
+v25 (r30, gate `INC03-CC-001-r29r1-SOURCE-FINAL-001`, finding R29r1-F01) repairs one class: a leading filler or
+followup marker joined to its words by a dash was not recognised.
+
+- **Before v25:**
+  - `Please—stop.`, `Sophia–hold the job.`, `kindly-stop.` and `Also—add tests.` abstained (`outside_lexicon`), for
+    all ten existing fillers and `also`, with a hyphen, an en dash or an em dash.
+  - The spaced forms (`Please stop.`) and a dash after an acknowledgement (`Thanks—stop.`, r13) were already read.
+  - **Cause:** `stripFillers` found fillers and `also` with the generic `startsWithTerm` (the exact term, or the term
+    and a space), which also recognises verbs, and consumed only whitespace and commas after them.
+- **Now:** one prefix-only matcher, `leadingPrefix`, used by `stripFillers` for the existing fillers and followup
+  markers only.
+  - A term matches when it is the whole clause or is followed by `ACK_SEPARATOR`, the separator `leadingAck` already
+    documents: whitespace, a hyphen, an en dash or an em dash.
+  - The term is consumed with `[\s,\-–—]+`: the comma it always took, and the same separators.
+  - Repeated and acknowledgement-interleaved prefixes compose through the existing loops: `Thanks—please—stop.`,
+    `Now—just—stop.`, `Okay–kindly–also–hold the job.`.
+- **Not widened:** the generic `startsWithTerm`/`leading`, which recognises verbs, is unchanged, so verbs still need
+  the exact term or a following space.
+  - `non-stop`, `stop-motion` and `stop-gap` are never a Stop.
+  - A filler is never peeled from a longer token: `nowhere`, `pleasehood`, `Sophiaish`, `alsohold`.
+  - `just-in-time stop.` still abstains: `just` is peeled, and `in-time` is unread.
+  - No new vocabulary and no new separator.
+- **Kept:**
+  - An `also`, filler or acknowledgement with no words of its own stays quiet or outside the lexicon (`Also—thanks.`
+    is `no_action`, `Also—.` abstains as `Also.` does), never a follow-up.
+  - Questions, quotations, declared imports, adoption, origin, human addressing, legacy Ask and their precedence are
+    unchanged.
+  - A quotation or import after a correctly peeled filler is read as it is after a spaced one, which may be a quiet
+    `no_action`. No earlier abstention for it is pinned.
+- **Changed outcomes,** from 4560 fresh texts:
+  - Shape: the ten fillers, `also` and the eight acknowledgements, each in three casings, × 8 separators (space,
+    comma, the three dashes, and the three dashes with spaces) × 10 tails (Stop, Hold, a follow-up, a question, an
+    acknowledgement, nothing, an unread word, a quotation, two compounds).
+  - 828 change from v24. All of them are filler or `also` rows joined by a dash.
+  - Every one of the 1980 dash-joined filler and `also` rows now has exactly its spaced form's outcome.
+  - The acknowledgement, space and comma rows are all unchanged, and so are the compound and longer-token negatives.
+- **Identity:** `sophia.intake-observation.policy.v25`. A new descriptor rule, `rules.prefixes`, states where a
+  prefix ends; its digest moves from `96fad3004393c9b4038d229559f95f94f658ddd115b24c794f88eeb8c760893f` (v24) to
+  `ce012b8b4e931d8e3cc005a58e0a20cfe9a2afd4efb46dc13c01bf3919cd4f54` (v25). No earlier report, corpus or first
+  prediction is reinterpreted or retallied. Report v7, target-label.v1, the depth bound, the bounds and the comparator
+  are unchanged. Effects stay zero.
+
 | State | When | Proposal | Admission |
 |---|---|---|---|
 | legacy false | `legacy_explicit_ask`, `askSophia:false` | `recorded_only`, no addressee inference | `recorded_only` / `legacy_ask_false_no_assessment` |
@@ -535,7 +577,8 @@ check rather than documented.
 |---|---|---|
 | usage (missing, unknown or repeated argument, URL-like path) | 2 | none written |
 | `input_hash_mismatch`, unreadable/oversized file, invalid JSON, unknown schema, too many cases | 2 | none written |
-| `input_unreadable` also for every expected filesystem failure resolving or reading the input (r29) | 2 | none written |
+| `input_unreadable` also for every expected filesystem failure resolving or reading the input (r29), and for an input whose opened descriptor is not a regular file (r30) | 2 | none written |
+| `input_too_large`: the opened file is over 2 MiB ("exceeds"), or more than 2 MiB was read from it ("grew past the limit", r30) | 2 | none written |
 | `output_exists`, output inside the repository, output equal to input | 2 | none written |
 | `output_unusable` (r29): an expected filesystem failure resolving the report path or writing, syncing or linking it, or a publication that cannot be verified as this run's report (r29 repair1) | 2 | none written by this run; anything at the path is not this report |
 | an authority fixture body nests deeper than 32 (`input_fixture_too_deep`, r26) | 2 | none written |
@@ -555,10 +598,10 @@ the final name (which fails if it exists) — no silent overwrite of a source, a
 - **What stays visible, uncaught:** a `TypeError`, `RangeError` or other programming error, and the
   installation-integrity reads (the policy source, the repository root).
 - **Input:**
-  - The input is resolved twice: first when checking that the report is not the input (`stat` and `realpath`), then
-    when it is read (`stat` and `read`). Any expected failure at either point is `input_unreadable`.
-  - A read refused because the file grew past what a buffer holds (`ERR_FS_FILE_TOO_LARGE`) is `input_too_large`
-    ("the input grew past the limit"). Nothing broader is mapped.
+  - The input is resolved first when checking that the report is not the input (`stat` and `realpath`), then opened
+    once and read through that descriptor (r30, below). Any expected failure at either point is `input_unreadable`.
+  - r29 mapped a read refused for growth past a buffer (`ERR_FS_FILE_TOO_LARGE`) to `input_too_large`. Since r30 the
+    read is bounded, so that error cannot arise, and the mapping is removed.
   - **Observed on Node 24.21.0:** `stat` of `<file>/x` with `throwIfNoEntry: false` returns nothing, as for a missing
     file. So a file used as a directory was already `input_unreadable` for an input and `output_directory_missing`
     for a report. A looping link and an over-long name were not, and raised raw errors.
@@ -594,6 +637,39 @@ the final name (which fails if it exists) — no silent overwrite of a source, a
     line to stderr: `intake-observe: warning: temporary_report_left: a private temporary copy of the report could not
     be removed`. The hidden `.<report>.<hex>.tmp` file may remain beside the report.
   - A later close failure changes nothing.
+
+**Bounded input (r30, finding R29r1-F02).**
+- **Before:** the input was checked with a `stat` of its path and then read with `readFileSync(path)`, which opened the
+  path again and buffered whatever it named before the length was checked.
+  - A file grown or replaced between the two was read whole: over 2 MiB was held before the refusal.
+  - A FIFO swapped in at the read blocked the run until it was killed.
+- **Now:** `readBoundedInput` uses ONE descriptor.
+  1. **Open:** the path is opened once, read-only and non-blocking (`O_RDONLY | O_NONBLOCK`).
+     - Opening a FIFO, or a FIFO swapped in for the path, returns at once instead of waiting for a writer.
+     - On a regular file the flag changes nothing.
+     - Symlinks are followed, so a symlink to a regular file stays a valid input.
+  2. **Check:** `fstat` of that descriptor must be a regular file, otherwise `input_unreadable`. A size over 2 MiB is
+     `input_too_large` ("exceeds").
+  3. **Read:** a loop of `readSync` calls fills one buffer of 2 MiB + 1 bytes until end of file or until it is full.
+     - Short reads are fine.
+     - At most one byte past the limit is ever acquired.
+     - The path is never opened again.
+  4. **Refuse or hash:** more than 2 MiB held is `input_too_large` ("grew past the limit"). Otherwise exactly the
+     bytes held are hashed against `--input-sha256` and parsed. A file truncated after opening is therefore a short
+     read, and its hash does not match.
+  5. **Close:** the descriptor is closed on every branch.
+     - A close failure never replaces an earlier failure.
+     - After a complete bounded read, an expected close failure changes nothing.
+     - A programming error at close stays visible.
+- **Boundary:**
+  - The bytes are what this descriptor returned; this is not a physical snapshot.
+  - No bound is claimed for an arbitrary filesystem stall.
+  - Prompt refusal is shown for the named cases only: a FIFO, a link to one, a directory, a link to one, a missing
+    path, and a FIFO or directory swapped in before the open.
+  - A FIFO, directory or larger file swapped in after the open is never read; the opened file is.
+  - The policy-source installation read is separate and unchanged.
+  - The r29 repair1 publication rules are unchanged: identity, no overwrite, foreign-file preservation and the fixed
+    warning.
 
 **Fixture declarations (r29).**
 - `checkFixtures` validates every declaration before any body is hashed or any case is observed, in the built and the

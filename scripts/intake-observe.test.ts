@@ -6,11 +6,12 @@
 // run explicitly; these tests do not replay it or its expected answers.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
+import { execFileSync, spawnSync } from 'node:child_process'
 import {
   existsSync,
   lstatSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
@@ -22,7 +23,7 @@ import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { canonicalJson } from '../packages/coordination/src/canonical.ts'
-import type { IntakeObservation } from '../packages/coordination/src/intake-observation.ts'
+import { LEXICON, type IntakeObservation } from '../packages/coordination/src/intake-observation.ts'
 import {
   buildReport,
   checkOutputPath,
@@ -2749,7 +2750,7 @@ function checkR26Ack(r: R26AckView, want: Map<string, string>): void {
   // Negative-only admission, checked on the written values rather than trusted from the type.
   const negative: readonly string[] = ['recorded_only', 'clarification_required', 'waiting', 'denied']
   assert.ok(r.cases.every((c) => negative.includes(c.observation.admission.outcome)))
-  assert.equal(r.policy.version, 'sophia.intake-observation.policy.v24')
+  assert.equal(r.policy.version, 'sophia.intake-observation.policy.v25')
 }
 
 describe('r26 through the consumer: an empty "also" adds nothing (policy v22, kept in v23)', () => {
@@ -2967,6 +2968,113 @@ describe('r28 through the consumer: framing around adopted content is never its 
       assert.equal(written.schema, 'sophia.intake-observation.report.v7')
       checkR27(written, want)
     })
+  })
+})
+
+// r30 (R29r1-F01): a leading filler or "also" ends at the same separators as an acknowledgement and is consumed with
+// its separator (policy v25). One batched corpus, every proposal labelled; semantics are checked apart from the
+// version name, so an older policy fails on outcomes, not on its identity.
+const R30_MISSION = {
+  audience: 'project',
+  activeMission: 'm-r30',
+  manager: 'pm-r30',
+  managerGeneration: 3,
+  control: 'running',
+  stopQualified: true,
+}
+
+function r30PrefixCorpus(): { doc: TestDoc; want: Map<string, string> } {
+  const doc = corpus()
+  const want = new Map<string, string>()
+  doc.cases = []
+  const add = (id: string, input: string, context: Record<string, unknown>, kind: string, interaction?: unknown) => {
+    const c = testCase(id, input, context, { proposedAction: kind })
+    doc.cases.push(interaction === undefined ? c : { ...c, interaction })
+    want.set(id, kind)
+  }
+  const dashes: [string, string][] = [
+    ['hyphen', '-'],
+    ['en', '–'],
+    ['em', '—'],
+    ['spaced-em', ' — '],
+  ]
+  for (const [i, term] of [...LEXICON.fillers, ...LEXICON.followupMarkers].entries())
+    for (const [d, dash] of dashes) {
+      const t = i % 2 === 0 ? term : term.toUpperCase()
+      add(`P-${String(i)}-${d}-stop`, `${t}${dash}stop.`, R30_MISSION, 'control_stop')
+      add(`P-${String(i)}-${d}-hold`, `${t}${dash}hold the job.`, R30_MISSION, 'control_hold')
+    }
+  for (const [d, dash] of dashes) add(`P-also-${d}-followup`, `Also${dash}add tests.`, R30_MISSION, 'manager_followup')
+  add('P-repeat-ack', 'Thanks—please—stop.', R30_MISSION, 'control_stop')
+  add('P-repeat-fillers', 'Now—just—stop.', R30_MISSION, 'control_stop')
+  add('P-repeat-mixed', 'Okay–kindly–also–hold the job.', R30_MISSION, 'control_hold')
+  add('P-ack-also-followup', 'Thanks—also—add tests.', R30_MISSION, 'manager_followup')
+  add('P-empty-also', 'Also—thanks.', R30_MISSION, 'no_action')
+  add('P-empty-filler', 'Please–thanks.', R30_MISSION, 'no_action')
+  add('P-empty-alone', 'Also—.', R30_MISSION, 'abstain')
+  for (const [i, text] of [
+    'non-stop.',
+    'stop-motion.',
+    'Please—stop-gap.',
+    'nowhere stop.',
+    'pleasehood stop.',
+    'Sophiaish stop.',
+    'just-in-time stop.',
+  ].entries())
+    add(`N-${String(i)}`, text, R30_MISSION, 'abstain')
+  add('C-question', 'Please—how is the mission going?', R30_MISSION, 'manager_inquiry')
+  add('C-generated', 'Please—stop.', { ...R30_MISSION, origin: 'generated' }, 'no_action')
+  add(
+    'C-import',
+    'Please—hold on, summarize the note.',
+    { ...R30_MISSION, attachment: 'note@v1', attachmentInstruction: 'hold on' },
+    'answer',
+  )
+  add(
+    'C-human',
+    'Please—add tests.',
+    { ...R30_MISSION, trustedMentions: ['h-r30'], currentMembers: ['h-r30'] },
+    'human_message',
+  )
+  add('C-legacy', 'Please—stop.', R30_MISSION, 'recorded_only', { contract: 'legacy_explicit_ask', askSophia: false })
+  return { doc, want }
+}
+
+/** The r30 outcomes, labelled; no version name is read here. */
+function checkR30(r: ReturnType<typeof report>, want: Map<string, string>): void {
+  assert.deepEqual(
+    Object.fromEntries(r.cases.map((c) => [c.caseId, c.observation.proposal.kind])),
+    Object.fromEntries(want),
+  )
+  assert.deepEqual([r.counts.cases, r.counts.observed, r.counts.invalidCases], [want.size, want.size, 0])
+  assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+  for (const c of r.cases) {
+    const action = c.comparison.find((f) => f.field === 'proposedAction')
+    assert.equal(action?.result, want.get(c.caseId) === 'abstain' ? 'abstained' : 'match', c.caseId)
+  }
+}
+
+describe('r30 through the consumer: dash-joined fillers and "also" read as their spaced forms (policy v25)', () => {
+  it('in the built report', () => {
+    const { doc, want } = r30PrefixCorpus()
+    checkR30(report(doc), want)
+  })
+
+  it('in the written report from the command line', () => {
+    const { doc, want } = r30PrefixCorpus()
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, doc)
+      const out = join(dir, 'r.json')
+      assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
+      checkR30(JSON.parse(readFileSync(out, 'utf8')) as ReturnType<typeof report>, want)
+    })
+  })
+
+  it('names policy v25 and report v7 (identity, checked apart from the outcomes)', () => {
+    const { doc } = r30PrefixCorpus()
+    const r = report(doc)
+    assert.equal(r.schema, 'sophia.intake-observation.report.v7')
+    assert.equal(r.policy.version, 'sophia.intake-observation.policy.v25')
   })
 })
 
@@ -3253,6 +3361,7 @@ try {
  * ESM exports so the CLI's named imports see it. It is never part of the product; nothing global is patched here.
  */
 const FAULT_PRELOAD = `import fs from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { syncBuiltinESMExports } from 'node:module'
 const spec = JSON.parse(process.env.R29_FAULT)
 const real = { ...fs }
@@ -3316,39 +3425,134 @@ onPath('realpathSync', 'realpath')
 onPath('readFileSync', 'open')
 onPath('linkSync', 'link')
 onPath('unlinkSync', 'unlink')
+// r30: abstract input acquisition points, so the same spec means the same moment for either reader. "acquire" is the
+// first opening of the input (one readFileSync(path), or openSync(path)); "firstRead" is the first read of its bytes
+// (that same readFileSync, or the first readSync on the input descriptor); "close" is the input descriptor's close.
+// Calls nested inside a wrapped call or an action pass straight through.
+let inner = 0
+const input = { opens: 0, closes: 0, acquired: 0 }
+const inputFds = new Set()
+const seen = { acquire: false, firstRead: false }
+const quiet = (f) => { inner += 1; try { return f() } finally { inner -= 1 } }
+const save = () => quiet(() => real.writeFileSync(spec.hitsFile, JSON.stringify({ hits, links, input })))
+const isInput = (p) => inner === 0 && spec.at !== undefined && p === spec.path
+const act = (point, syscall) => {
+  if (seen[point]) return
+  seen[point] = true
+  if (spec.at !== point) return
+  hits += 1
+  save()
+  quiet(() => {
+    const p = spec.path
+    if (spec.kind === 'fail') throw fail(spec.code, syscall)
+    if (spec.kind === 'type') throw new TypeError('contract fault: not a system error')
+    if (spec.kind === 'resize') real.truncateSync(p, spec.size)
+    if (spec.kind === 'remove') real.unlinkSync(p)
+    if (spec.kind === 'swapLarger') { real.unlinkSync(p); real.writeFileSync(p, ''); real.truncateSync(p, spec.size) }
+    if (spec.kind === 'swapFifo') { real.unlinkSync(p); execFileSync('mkfifo', [p]) }
+    if (spec.kind === 'swapDirectory') { real.unlinkSync(p); real.mkdirSync(p) }
+  })
+}
+const pathOpen = fs.openSync
+fs.openSync = function (p, ...rest) {
+  if (!isInput(p)) return pathOpen(p, ...rest)
+  act('acquire', 'open')
+  const fd = real.openSync(p, ...rest)
+  input.opens += 1
+  inputFds.add(fd)
+  save()
+  return fd
+}
+const pathRead = fs.readFileSync
+fs.readFileSync = function (p, ...rest) {
+  if (!isInput(p)) return pathRead(p, ...rest)
+  act('acquire', 'open')
+  act('firstRead', 'read')
+  input.opens += 1
+  save()
+  try {
+    const bytes = quiet(() => real.readFileSync(p, ...rest))
+    input.acquired += bytes.length
+    return bytes
+  } finally {
+    input.closes += 1
+    save()
+  }
+}
+fs.readSync = function (fd, ...rest) {
+  if (inner > 0 || !inputFds.has(fd)) return real.readSync(fd, ...rest)
+  act('firstRead', 'read')
+  const n = real.readSync(fd, ...rest)
+  input.acquired += n
+  save()
+  return n
+}
+const fdClose = fs.closeSync
+fs.closeSync = function (fd, ...rest) {
+  if (inner > 0 || !inputFds.has(fd)) return fdClose(fd, ...rest)
+  inputFds.delete(fd)
+  real.closeSync(fd, ...rest)
+  input.closes += 1
+  save()
+  act('close', 'close')
+}
 syncBuiltinESMExports()
-process.on('exit', () => real.writeFileSync(spec.hitsFile, JSON.stringify({ hits, links })))
+process.on('exit', save)
 `
 
 interface FaultRun {
   status: number | null
+  signal: string | null
+  ms: number
   stdout: string
   stderr: string
   hits: number
   links: number
+  /** r30: openings and closings of the input, and the input bytes the CLI acquired (its reads' total). */
+  input: { opens: number; closes: number; acquired: number }
   report: boolean
   leftovers: string[]
 }
 
 /** The written CLI in a child with the fault preload (or none); what it printed, wrote and left behind. */
-function runWithFault(dir: string, args: string[], out: string, spec?: Record<string, unknown>): FaultRun {
+function runWithFault(
+  dir: string,
+  args: string[],
+  out: string,
+  spec?: Record<string, unknown>,
+  timeout = SENTINEL_MS,
+): FaultRun {
   const preload = join(dir, 'fault-preload.mjs')
   const hitsFile = join(dir, 'fault-hits.txt')
   writeFileSync(preload, FAULT_PRELOAD)
   rmSync(hitsFile, { force: true })
   const fault = { tmpPrefix: join(dirname(out), `.${basename(out)}.`), hitsFile, ...spec }
   const flags = spec === undefined ? [] : ['--import', pathToFileURL(preload).href]
+  const started = performance.now()
   const r = spawnSync(process.execPath, [...flags, SCRIPT, ...args], {
     encoding: 'utf8',
-    timeout: SENTINEL_MS,
+    timeout,
     killSignal: 'SIGKILL',
     env: { ...process.env, R29_FAULT: JSON.stringify(fault) },
   })
+  const ms = performance.now() - started
+  const none = { opens: 0, closes: 0, acquired: 0 }
   const counted = existsSync(hitsFile)
-    ? (JSON.parse(readFileSync(hitsFile, 'utf8')) as { hits: number; links: number })
+    ? (JSON.parse(readFileSync(hitsFile, 'utf8')) as Pick<FaultRun, 'hits' | 'links'> & { input?: FaultRun['input'] })
     : { hits: 0, links: 0 }
   const leftovers = readdirSync(dirname(out)).filter((f) => f.startsWith(`.${basename(out)}.`))
-  return { status: r.status, stdout: r.stdout, stderr: r.stderr, ...counted, report: existsSync(out), leftovers }
+  return {
+    status: r.status,
+    signal: r.signal,
+    ms,
+    stdout: r.stdout,
+    stderr: r.stderr,
+    hits: counted.hits,
+    links: counted.links,
+    input: counted.input ?? none,
+    report: existsSync(out),
+    leftovers,
+  }
 }
 
 /** A fixed usage refusal: exactly one line, no stack frame, no path, no errno text. */
@@ -3411,9 +3615,10 @@ describe('r29: expected input filesystem failures are input_unreadable (exit 2, 
     withTmp((dir) => {
       const { path, hash } = writeCorpus(dir, corpus())
       const cases: [string, Record<string, unknown>][] = [
-        ['read denied', { fn: 'readFileSync', path, code: 'EACCES' }],
-        ['read I/O error', { fn: 'readFileSync', path, code: 'EIO' }],
-        ['removed between stat and read', { fn: 'readFileSync', path, kind: 'removeThenCall' }],
+        // r30: the input's opening and first read are named as acquisition points, whichever call performs them.
+        ['open denied', { at: 'acquire', path, kind: 'fail', code: 'EACCES' }],
+        ['read I/O error', { at: 'firstRead', path, kind: 'fail', code: 'EIO' }],
+        ['removed between stat and open', { at: 'acquire', path, kind: 'remove' }],
         ['stat denied', { fn: 'statSync', path, code: 'EACCES' }],
         ['realpath denied', { fn: 'realpathSync', path, code: 'EACCES' }],
       ]
@@ -3423,24 +3628,30 @@ describe('r29: expected input filesystem failures are input_unreadable (exit 2, 
         const r = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', out], out, spec)
         assert.ok(r.hits >= 1, `${label}: the fault was reached`)
         assertRefusal(r, 'input_unreadable', UNREADABLE, dir, label)
+        assert.equal(r.input.opens, r.input.closes, `${label}: every opening of the input is closed`)
       }
     })
   })
 
-  it('a read refused for growth past a buffer is input_too_large; a programming error stays visible', () => {
+  it('r30: growth after the input is opened acquires at most one byte past the limit; a programming error stays visible', () => {
     withTmp((dir) => {
       const { path, hash } = writeCorpus(dir, corpus())
       const grown = join(dir, 'grown.report.json')
+      // Same file, grown sparsely past the limit after it was opened, before its first read (no large data is written).
       const r = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', grown], grown, {
-        fn: 'readFileSync',
+        at: 'firstRead',
         path,
-        kind: 'tooLarge',
+        kind: 'resize',
+        size: CLI_LIMITS.fileBytes + 4096,
       })
       assert.equal(r.hits, 1)
       assertRefusal(r, 'input_too_large', 'the input grew past the limit', dir, 'grew')
+      assert.ok(r.input.acquired <= CLI_LIMITS.fileBytes + 1, `acquired ${r.input.acquired} bytes`)
+      assert.equal(r.input.opens, r.input.closes, 'the input is closed')
       const typed = join(dir, 'typed.report.json')
+      writeCorpus(dir, corpus())
       const t = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', typed], typed, {
-        fn: 'readFileSync',
+        at: 'firstRead',
         path,
         kind: 'type',
       })
@@ -3466,6 +3677,212 @@ describe('r29: expected input filesystem failures are input_unreadable (exit 2, 
       assert.match(fine.stdout, /^intake-observe: \d+\/\d+ observed, /)
       assert.equal(fine.report, true)
       assert.deepEqual(fine.leftovers, [])
+    })
+  })
+})
+
+/** r30: a child that must finish by itself: a hung reader is killed at this bound and reported as a kill, not a result. */
+const PROMPT_MS = 10_000
+
+/** A completed run that published the report from exactly the original bytes. */
+function assertPublishedFrom(r: FaultRun, out: string, hash: string, size: number, label: string): void {
+  assert.equal(r.signal, null, `${label}: not killed`)
+  assert.ok(r.status === 0 || r.status === 1, `${label}: ${r.stderr}`)
+  assert.equal(r.stderr, '', label)
+  assert.match(r.stdout, /^intake-observe: \d+\/\d+ observed, /, label)
+  const written = JSON.parse(readFileSync(out, 'utf8')) as { input: { sha256: string; bytes: number } }
+  assert.deepEqual([written.input.sha256, written.input.bytes], [hash, size], label)
+  assert.deepEqual(r.leftovers, [], label)
+}
+
+describe('r30: the input is read through one opened, regular, bounded descriptor', () => {
+  it('a larger regular file swapped in after the input is opened is never read; the opened bytes are reported', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, corpus())
+      const size = readFileSync(path).length
+      const out = join(dir, 'swapped.report.json')
+      const r = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', out], out, {
+        at: 'firstRead',
+        path,
+        kind: 'swapLarger',
+        size: CLI_LIMITS.fileBytes + 4096,
+      })
+      assert.equal(r.hits, 1)
+      assertPublishedFrom(r, out, hash, size, 'swapped larger')
+      assert.equal(r.input.acquired, size, 'only the opened file was read')
+      assert.equal(r.input.opens, 1)
+      assert.equal(r.input.closes, 1)
+    })
+  })
+
+  it('truncation after opening is a short read: the bytes held are hashed, so the hash no longer matches', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, corpus())
+      const out = join(dir, 'short.report.json')
+      const r = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', out], out, {
+        at: 'firstRead',
+        path,
+        kind: 'resize',
+        size: 10,
+      })
+      assert.equal(r.status, 2, r.stderr)
+      assert.match(r.stderr, /^intake-observe: input_hash_mismatch: input SHA-256 is [0-9a-f]{64}\n$/)
+      assert.equal(r.input.acquired, 10)
+      assert.equal(r.input.opens, r.input.closes)
+      assert.equal(r.report, false)
+    })
+  })
+
+  it('a FIFO swapped in before the input is opened is refused at once (input_unreadable), never waited on', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, corpus())
+      const out = join(dir, 'fifo-before.report.json')
+      const spec = { at: 'acquire', path, kind: 'swapFifo' }
+      const r = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', out], out, spec, PROMPT_MS)
+      assert.equal(r.hits, 1)
+      assert.equal(r.signal, null, `the reader finished by itself (${Math.round(r.ms)} ms)`)
+      assertRefusal(r, 'input_unreadable', UNREADABLE, dir, 'fifo before open')
+      assert.equal(r.input.acquired, 0)
+      assert.equal(r.input.opens, r.input.closes)
+    })
+  })
+
+  it('a FIFO or a directory swapped in after the input is opened changes nothing: the opened file is read', () => {
+    withTmp((dir) => {
+      for (const kind of ['swapFifo', 'swapDirectory']) {
+        const { path, hash } = writeCorpus(dir, corpus())
+        const size = readFileSync(path).length
+        const out = join(dir, `${kind}-after.report.json`)
+        const spec = { at: 'firstRead', path, kind }
+        const r = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', out], out, spec, PROMPT_MS)
+        assert.equal(r.hits, 1, kind)
+        assertPublishedFrom(r, out, hash, size, `${kind} after open`)
+        assert.equal(r.input.acquired, size, kind)
+        assert.equal(r.input.opens, r.input.closes, kind)
+        rmSync(path, { recursive: true, force: true })
+      }
+    })
+  })
+
+  it('a directory swapped in before the input is opened is input_unreadable', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, corpus())
+      const out = join(dir, 'dir-before.report.json')
+      const spec = { at: 'acquire', path, kind: 'swapDirectory' }
+      const r = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', out], out, spec, PROMPT_MS)
+      assert.equal(r.hits, 1)
+      assertRefusal(r, 'input_unreadable', UNREADABLE, dir, 'directory before open')
+      assert.equal(r.input.opens, r.input.closes)
+    })
+  })
+
+  it('non-regular inputs are refused promptly: a FIFO, a link to a FIFO, a directory, a link to one, character devices, a missing path', () => {
+    withTmp((dir) => {
+      const { hash } = writeCorpus(dir, corpus())
+      const fifo = join(dir, 'pipe.json')
+      execFileSync('mkfifo', [fifo])
+      const toFifo = join(dir, 'to-pipe.json')
+      symlinkSync(fifo, toFifo)
+      const folder = join(dir, 'folder.json')
+      mkdirSync(folder)
+      const toFolder = join(dir, 'to-folder.json')
+      symlinkSync(folder, toFolder)
+      for (const [label, input] of [
+        ['fifo', fifo],
+        ['link to fifo', toFifo],
+        ['directory', folder],
+        ['link to directory', toFolder],
+        // Character devices read without error (empty, or endless zeros): only the regular-file check refuses them.
+        ['empty character device', '/dev/null'],
+        ['endless character device', '/dev/zero'],
+        ['missing', join(dir, 'absent.json')],
+      ] as const) {
+        const out = join(dir, `${label.replace(/\W/g, '-')}.report.json`)
+        const spec = { at: 'observe', path: input }
+        const r = runWithFault(dir, ['--input', input, '--input-sha256', hash, '--out', out], out, spec, PROMPT_MS)
+        assert.equal(r.signal, null, `${label}: finished by itself (${Math.round(r.ms)} ms)`)
+        assertRefusal(r, 'input_unreadable', UNREADABLE, dir, label)
+        assert.equal(r.input.acquired, 0, label)
+        assert.equal(r.input.opens, r.input.closes, label)
+      }
+    })
+  })
+
+  it('an ordinary file and a symlink to a regular file are both read, once each', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, corpus())
+      const size = readFileSync(path).length
+      const link = join(dir, 'link.json')
+      symlinkSync(path, link)
+      for (const [label, input] of [
+        ['ordinary', path],
+        ['symlink to regular', link],
+      ] as const) {
+        const out = join(dir, `${label.replace(/\W/g, '-')}.report.json`)
+        const spec = { at: 'observe', path: input }
+        const r = runWithFault(dir, ['--input', input, '--input-sha256', hash, '--out', out], out, spec)
+        assertPublishedFrom(r, out, hash, size, label)
+        assert.equal(r.input.acquired, size, label)
+        assert.deepEqual([r.input.opens, r.input.closes], [1, 1], label)
+      }
+    })
+  })
+
+  it('exactly the limit is read and reported; one byte more is refused before any read', () => {
+    withTmp((dir) => {
+      const text = JSON.stringify(corpus())
+      const full = join(dir, 'full.json')
+      writeFileSync(full, text + ' '.repeat(CLI_LIMITS.fileBytes - Buffer.byteLength(text)))
+      const fullHash = sha256(readFileSync(full))
+      const out = join(dir, 'full.report.json')
+      const r = runWithFault(dir, ['--input', full, '--input-sha256', fullHash, '--out', out], out, {
+        at: 'observe',
+        path: full,
+      })
+      assertPublishedFrom(r, out, fullHash, CLI_LIMITS.fileBytes, 'exactly the limit')
+      assert.equal(r.input.acquired, CLI_LIMITS.fileBytes)
+      const over = join(dir, 'over.json')
+      writeFileSync(over, text + ' '.repeat(CLI_LIMITS.fileBytes + 1 - Buffer.byteLength(text)))
+      const overOut = join(dir, 'over.report.json')
+      const o = runWithFault(
+        dir,
+        ['--input', over, '--input-sha256', sha256(readFileSync(over)), '--out', overOut],
+        overOut,
+        {
+          at: 'observe',
+          path: over,
+        },
+      )
+      assertRefusal(o, 'input_too_large', `the input exceeds ${CLI_LIMITS.fileBytes} bytes`, dir, 'limit + 1')
+      assert.equal(o.input.acquired, 0)
+      assert.equal(o.input.opens, o.input.closes)
+    })
+  })
+
+  it('a close failure after a complete read changes nothing; a read failure closes the descriptor', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, corpus())
+      const size = readFileSync(path).length
+      const out = join(dir, 'close.report.json')
+      const r = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', out], out, {
+        at: 'close',
+        path,
+        kind: 'fail',
+        code: 'EIO',
+      })
+      assert.equal(r.hits, 1, 'the close fault was reached')
+      assertPublishedFrom(r, out, hash, size, 'close EIO')
+      const failed = join(dir, 'read.report.json')
+      const f = runWithFault(dir, ['--input', path, '--input-sha256', hash, '--out', failed], failed, {
+        at: 'firstRead',
+        path,
+        kind: 'fail',
+        code: 'EIO',
+      })
+      assert.equal(f.hits, 1)
+      assertRefusal(f, 'input_unreadable', UNREADABLE, dir, 'read EIO')
+      assert.equal(f.input.acquired, 0)
+      assert.equal(f.input.opens, f.input.closes, 'whatever was opened is closed')
     })
   })
 })

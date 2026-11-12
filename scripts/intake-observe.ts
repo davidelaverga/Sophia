@@ -21,12 +21,14 @@
 import { createHash, randomBytes } from 'node:crypto'
 import {
   closeSync,
+  constants,
   fstatSync,
   fsyncSync,
   linkSync,
   lstatSync,
   openSync,
   readFileSync,
+  readSync,
   realpathSync,
   statSync,
   unlinkSync,
@@ -247,27 +249,65 @@ export function checkOutputPath(out: string, input: string, repositoryRoot = REP
     throw new UsageError('output_exists', 'the report path already exists; nothing is overwritten')
 }
 
+/**
+ * How the input is opened (r30): read-only and non-blocking, so opening a FIFO (or a FIFO swapped in for the path)
+ * returns at once instead of waiting for a writer; for a regular file the flag changes nothing. Symlinks are followed,
+ * so a symlink to a regular file stays a valid input.
+ */
+const INPUT_OPEN_FLAGS = constants.O_RDONLY | constants.O_NONBLOCK
+
+/**
+ * Reads the input through ONE descriptor (r30): opened once, checked to be a regular file on that descriptor, and read
+ * in a loop into a buffer of CLI_LIMITS.fileBytes + 1 bytes, so at most one byte past the limit is ever acquired, however
+ * the file grows, and the path is never opened again. The bytes held are exactly what is hashed and parsed. The
+ * descriptor is closed on every branch; a close failure never replaces an earlier failure, and after a complete bounded
+ * read an expected close failure changes nothing. No guarantee is made against an arbitrary filesystem stall, nor of a
+ * physical snapshot: the bytes are what this descriptor returned.
+ */
 export function readBoundedInput(
   path: string,
   expectedSha256: string,
 ): { readonly bytes: Buffer; readonly sha256: string } {
-  const stat = filesystem(() => statSync(path, { throwIfNoEntry: false }), unreadableInput)
-  if (!stat?.isFile()) throw unreadableInput()
-  if (stat.size > CLI_LIMITS.fileBytes)
-    throw new UsageError('input_too_large', `the input exceeds ${CLI_LIMITS.fileBytes} bytes`)
-  const grew = () => new UsageError('input_too_large', 'the input grew past the limit')
+  const fd = filesystem(() => openSync(path, INPUT_OPEN_FLAGS), unreadableInput)
   let bytes: Buffer
   try {
-    bytes = filesystem(() => readFileSync(path), unreadableInput)
+    bytes = readOpenedInput(fd)
   } catch (err: unknown) {
-    // The read itself refusing a file that grew past what a buffer holds is the same growth (r29); nothing broader.
-    if (err instanceof RangeError && 'code' in err && err.code === 'ERR_FS_FILE_TOO_LARGE') throw grew()
+    // The earlier failure wins: closing is attempted, and whatever closing throws is not reported instead.
+    try {
+      closeSync(fd)
+    } catch {
+      // Intentionally ignored: the read failure above is the one reported.
+    }
     throw err
   }
-  if (bytes.length > CLI_LIMITS.fileBytes) throw grew()
+  // After a complete bounded read, an expected close failure changes nothing; a programming error stays visible.
+  try {
+    closeSync(fd)
+  } catch (err: unknown) {
+    if (!isSystemError(err)) throw err
+  }
   const digest = sha256(bytes)
   if (digest !== expectedSha256) throw new UsageError('input_hash_mismatch', `input SHA-256 is ${digest}`)
   return { bytes, sha256: digest }
+}
+
+/** The bytes of an opened input, bounded (r30): a regular file only, and never more than fileBytes + 1 bytes read. */
+function readOpenedInput(fd: number): Buffer {
+  const stat = filesystem(() => fstatSync(fd), unreadableInput)
+  if (!stat.isFile()) throw unreadableInput()
+  if (stat.size > CLI_LIMITS.fileBytes)
+    throw new UsageError('input_too_large', `the input exceeds ${CLI_LIMITS.fileBytes} bytes`)
+  const buffer = Buffer.alloc(CLI_LIMITS.fileBytes + 1)
+  let held = 0
+  while (held < buffer.length) {
+    const offset = held
+    const read = filesystem(() => readSync(fd, buffer, offset, buffer.length - offset, offset), unreadableInput)
+    if (read === 0) break
+    held += read
+  }
+  if (held > CLI_LIMITS.fileBytes) throw new UsageError('input_too_large', 'the input grew past the limit')
+  return buffer.subarray(0, held)
 }
 
 interface FileIdentity {

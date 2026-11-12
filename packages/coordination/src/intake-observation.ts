@@ -20,7 +20,7 @@
 import { createHash } from 'node:crypto'
 import { canonicalJson } from './canonical.ts'
 
-export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v24'
+export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v25'
 
 export const INTAKE_LIMITS = { textChars: 4000, contextKeys: 64, stringChars: 200, listItems: 16 } as const
 
@@ -907,22 +907,34 @@ export function authoredText(
   return { text: authored, fencedSpans, malformed }
 }
 
+/** What may stand between an acknowledgement and the words after it in one clause. */
+const ACK_SEPARATOR = /^[\s\-\u2013\u2014]+/u
+/** What a leading filler or followup marker is consumed with (v25): the comma it always took, and the same separators. */
+const PREFIX_SEPARATOR = /^[\s,\-\u2013\u2014]+/u
+
+/**
+ * A leading filler or followup marker (v25): a term followed by the end, or by the same documented separator as an
+ * acknowledgement (whitespace, hyphen, en dash, em dash), so `Please—stop` and `Now-hold` read as `Please stop` and
+ * `Now hold`. Prefixes only: verbs keep the generic `leading` (the exact term or a following space), so a compound such
+ * as `stop-motion`, `non-stop` or `stop-gap` is never read as a command, and a longer word (`nowhere`, `pleasehood`,
+ * `Sophiaish`) is never a prefix.
+ */
+const leadingPrefix = (words: string, terms: readonly string[]): string | undefined =>
+  terms.find((t) => words === t || (words.startsWith(t) && ACK_SEPARATOR.test(words.slice(t.length))))
+
 function stripFillers(words: string): { readonly words: string; readonly also: boolean } {
-  const next = (w: string) => leading(w, LEXICON.fillers) ?? leading(w, LEXICON.followupMarkers)
+  const next = (w: string) => leadingPrefix(w, LEXICON.fillers) ?? leadingPrefix(w, LEXICON.followupMarkers)
   let rest = words.trim()
   let also = false
   let filler = next(rest)
   while (filler !== undefined) {
     const found = filler
     if (LEXICON.followupMarkers.some((m) => m === found)) also = true
-    rest = rest.slice(found.length).replace(/^[\s,]+/, '')
+    rest = rest.slice(found.length).replace(PREFIX_SEPARATOR, '')
     filler = next(rest)
   }
   return { words: rest, also }
 }
-
-/** What may stand between an acknowledgement and the words after it in one clause. */
-const ACK_SEPARATOR = /^[\s\-\u2013\u2014]+/u
 
 /**
  * The acknowledgement a clause opens with: a term followed by the end, whitespace or a documented dash (r13; `Thanks—stop`
@@ -2094,6 +2106,8 @@ export const INTAKE_OBSERVATION_POLICY = {
     unread: 'a message with no clause in the lexicon abstains (outside_lexicon, semantic assessment required)',
     acknowledgement:
       'leading acknowledgements are a prefix; a message is an acknowledgement only if every authored clause is one, and beside unread words it abstains like those words alone',
+    prefixes:
+      'leading fillers and followup markers end where an acknowledgement does: at the end, whitespace, a hyphen, an en dash or an em dash, and are consumed with that separator or a comma (v25); verbs still need the exact term or a following space, so compounds are never commands',
     besideRequest: 'an unread clause beside a recognised request is not read; the request decides (disclosed limit)',
     noReplyHint:
       'needsReply:false quiets an acknowledgement, unread text or a question, never a request (an imperative answer request included); malformed or unadopted quotation is decided first',
