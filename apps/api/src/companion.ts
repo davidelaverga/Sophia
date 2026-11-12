@@ -25,6 +25,7 @@ import {
   fencePersonalWrite,
   forgetErasedCompanionCalls,
   nextPersonalReply,
+  personalAnswerGuardInstalled,
   readCompanionContext,
   readPersonalAnswerOrigin,
   readPersonalEpoch,
@@ -395,7 +396,9 @@ export class CompanionRunner {
    * waiting, while no other process is answering one (next_personal_reply).
    */
   private async run(actorId: string, turnId: string): Promise<void> {
-    await this.answerOne(actorId, turnId)
+    // A deferred turn (A2-F02) stays the person's next turn: this run ends here, so it is not selected again now, nor
+    // its own run awaited; a later wake (a restart, a committed send or retry) asks again.
+    if ((await this.answerOne(actorId, turnId)) === 'deferred') return
     const next = await withActor(this.pool, actorId, 'read', (c) => nextPersonalReply(c)).catch((err: unknown) => {
       this.onError(err)
       return null
@@ -404,7 +407,31 @@ export class CompanionRunner {
     if (next) await this.answer(actorId, next).catch(() => undefined)
   }
 
-  private async answerOne(actorId: string, turnId: string): Promise<void> {
+  /**
+   * Whether a live companion may take `turnId` now (A2-F02), decided before any claim. A legacy turn may, as before. An
+   * automatic turn (an automatic_v1 input, 0098) needs what a new paid answer needs: 0102's guard installed and the
+   * companion ready (0078, and its payer still admitted for the owner); without them only an answer already kept for it
+   * is written (no call). Otherwise it is deferred: nothing is claimed, failed, reserved, prepared or decided, its
+   * asked_at and frozen admission are untouched, and its two-minute wait runs on as for any pending turn. A read that
+   * fails is reported and defers; it is never read as legacy. A companion that is not live keeps its own refusal (ask).
+   */
+  private async eligible(actorId: string, turnId: string): Promise<boolean> {
+    if (this.companion.mode !== 'live') return true
+    try {
+      const origin = await withActor(this.pool, actorId, 'read', (c) => readPersonalAnswerOrigin(c, turnId))
+      if (origin === 'legacy') return true
+      const ready = (await personalAnswerGuardInstalled(this.pool)) && (await (this.companion.ready?.() ?? true))
+      if (ready) return true
+      const kept = await withActor(this.pool, actorId, 'read', (c) => readPersonalSettledAnswer(c, turnId))
+      return kept !== null
+    } catch (err: unknown) {
+      this.onError(err)
+      return false
+    }
+  }
+
+  private async answerOne(actorId: string, turnId: string): Promise<'deferred' | 'done'> {
+    if (!(await this.eligible(actorId, turnId))) return 'deferred'
     // One process asks the companion for a turn, under its claim: another one answering it (a retry that reached it)
     // leaves it, and an attempt whose claim lapsed (it stalled past it) writes neither its reply nor its failure.
     const claim = await withActor(this.pool, actorId, 'write', (c) => claimPersonalReply(c, turnId)).catch(
@@ -413,7 +440,7 @@ export class CompanionRunner {
         return null
       },
     )
-    if (!claim) return
+    if (!claim) return 'done'
     // An answer already paid for and kept with its cost (0078), its reply not written yet (by this process or another,
     // before a restart): written now, the companion not asked again. If even the read fails, nothing is asked.
     // Only a live companion keeps answers with their cost (0078); a rehearsal asks no one and needs no 0078.
@@ -423,10 +450,10 @@ export class CompanionRunner {
       if (live) kept = await withActor(this.pool, actorId, 'read', (c) => readPersonalSettledAnswer(c, turnId))
     } catch (err: unknown) {
       this.onError(err)
-      return
+      return 'done'
     }
     const reply = kept ?? (await this.ask(actorId, turnId, claim))
-    if (!reply) return
+    if (!reply) return 'done'
     const { text, suggestion } = reply
     // The companion answered: its words are written, tried again while the database is away for a moment, from the
     // answer kept with its cost when there is one (else as given, a rehearsal's). The turn is never marked failed for
@@ -440,6 +467,7 @@ export class CompanionRunner {
     ).catch((err: unknown) => {
       this.onError(err)
     })
+    return 'done'
   }
 
   /** The companion asked for the turn under its claim; null when nothing is to be written (failed, or not due). */

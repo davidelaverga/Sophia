@@ -6,6 +6,9 @@
 // turn left by an earlier process); every state no writer reaches is forged as the migration owner and says so.
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
+import { mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import type { GenerateOptions, LlmCallConfig, StreamChunk } from '@deepseek-ai/dsh-llm'
 import type { FastifyInstance } from 'fastify'
@@ -27,6 +30,8 @@ let db: TestDatabase
 let pool: pg.Pool
 let ownerPool: pg.Pool
 const apps: FastifyInstance[] = []
+/** The main database was closed and dropped by the last suite, which needs the cluster to itself (0070). */
+let mainRetired = false
 
 async function owner<T extends pg.QueryResultRow>(sql: string, params: unknown[] = []): Promise<T[]> {
   return (await ownerPool.query<T>(sql, params)).rows
@@ -266,6 +271,7 @@ before(async () => {
 })
 after(async () => {
   for (const app of apps) await app.close()
+  if (mainRetired) return
   await pool.end()
   await ownerPool.end()
   await db.drop()
@@ -878,5 +884,194 @@ describe('A2-F01 the declared UUID language (format uuid) on the three input rou
     const cancel = await call(app, ['POST', `${url}/${spellings(mine).urn}/cancel`], stranger, { expectedSeq: 1 })
     assert.equal(cancel.json?.code, 'not_found')
     assert.equal(await decisionCount(mine), 1)
+  })
+})
+
+/** A moment for a background wake to have done whatever it would do. */
+const quiet = () => new Promise((r) => setTimeout(r, 600))
+
+/** `p`, or a failure naming what did not end within `ms`. */
+async function within<T>(ms: number, what: string, p: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      p,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`not in ${String(ms)} ms: ${what}`)), ms)
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+describe('A2-F02 an automatic original waits, pending, while its answer cannot be made', () => {
+  // A genuine database of migrations 0001-0101 (0102 not installed): a directory of links to the real files, so the
+  // admitted originals below are made by 0101's own writer, granted to the API role, as an earlier process could have.
+  // A cluster holds one migrated installation at a time (0070's role), so this last suite retires the main database and
+  // points the module's pools at this one; 0102 itself is installed later, from its file.
+  const MIGRATIONS = resolve('db/migrations')
+  const GUARD_MIGRATION = '0102_personal_answer_effect_guard.sql'
+  let linked = ''
+  let db101: TestDatabase | null = null
+  /** The originals the 0102-absent cases leave pending, resumed once 0102 is installed. */
+  const waiting: { person: string; payer: string; turnId: string; asked: string }[] = []
+  let r2: { person: string; payer: string; auto: string; held: string } | null = null
+
+  const state = async (id: string) => {
+    const [row] = await owner<{ reply: string; claim: string | null; asked: string }>(
+      `SELECT reply, answering_claim AS claim, asked_at::text AS asked FROM sophia.personal_turns WHERE id=$1`,
+      [id],
+    )
+    assert.ok(row)
+    return row
+  }
+  const decisionCount = async (turnId: string) =>
+    Number(
+      (
+        await owner<{ n: string }>('SELECT count(*) AS n FROM sophia.personal_input_decisions WHERE turn_id=$1', [
+          turnId,
+        ])
+      )[0]?.n,
+    )
+
+  before(async () => {
+    for (const app of apps.splice(0)) await app.close()
+    await pool.end()
+    await ownerPool.end()
+    await db.drop()
+    mainRetired = true
+    linked = mkdtempSync(join(tmpdir(), 'sophia-0101-'))
+    for (const file of readdirSync(MIGRATIONS).filter((n) => n.endsWith('.sql') && n < '0102'))
+      symlinkSync(join(MIGRATIONS, file), join(linked, file))
+    db101 = await createTestDatabase(linked)
+    pool = createPool(db101.apiUrl, { max: 12 })
+    ownerPool = new pg.Pool({ connectionString: db101.ownerUrl, max: 4 })
+    const [guard] = await owner<{ ok: boolean }>(
+      `SELECT to_regprocedure('sophia.reserve_personal_' || 'answer_guarded(uuid,text,text,bigint,uuid,uuid,jsonb)') IS NULL
+         AND to_regprocedure('sophia.send_personal_answer_input(text,text,bigint,text,jsonb)') IS NOT NULL AS ok`,
+    )
+    assert.equal(guard?.ok, true, 'the suite needs 0101 installed and 0102 absent')
+  })
+  after(async () => {
+    for (const app of apps.splice(0)) await app.close()
+    if (db101) {
+      await pool.end()
+      await ownerPool.end()
+      await db101.drop()
+    }
+    rmSync(linked, { recursive: true, force: true })
+  })
+
+  it('without 0102, R1 with the Answer switch on or off defers: nothing claimed, failed, reserved or prepared', async () => {
+    // R1: an admitted original made by 0101's writer, then a start with the Answer switch off and one with it on.
+    const one = await enrolled()
+    const auto = await admitted(one.person, profileOf(one.person, one.payer), 'Waiting for its guard')
+    assert.equal(auto.outcome, 'admitted')
+    const initial = await state(auto.turnId)
+    const llm = new FakeLlm()
+    for (const personalAnswers of [false, true]) {
+      const app = api(live(one.person, one.payer, llm), { personalAnswers })
+      await app.ready()
+      await quiet()
+      assert.deepEqual(await state(auto.turnId), { reply: 'pending', claim: null, asked: initial.asked })
+      // Readiness stays truthful: with the switch on, the Answer schema is missing.
+      if (personalAnswers) assert.equal((await app.inject({ method: 'GET', url: '/ready' })).statusCode, 503)
+    }
+    assert.equal(llm.prepared, 0)
+    assert.equal((await usage(one.person)).length, 0)
+    assert.equal(await decisionCount(auto.turnId), 1)
+    waiting.push({ ...one, turnId: auto.turnId, asked: initial.asked })
+  })
+
+  it('without 0102, R2 after a committed legacy send defers at the waiting original and stops; legacy before it is answered', async () => {
+    // R2: a legacy turn before 0102 is answered as before; an original admitted after it waits; a later legacy send
+    // wakes the queue, which stops at the waiting original instead of failing it (and holds the later turn behind it).
+    const two = await enrolled()
+    const twoLlm = new FakeLlm()
+    const app = api(live(two.person, two.payer, twoLlm))
+    await app.ready()
+    const first = await call(app, ['POST', '/api/v1/personal/turns'], two.person, { text: 'Legacy before 0102' })
+    assert.equal(await settled(String(first.json?.turnId)), 'answered')
+    assert.equal(twoLlm.prepared, 1)
+    const auto2 = await admitted(two.person, profileOf(two.person, two.payer), 'Admitted before 0102')
+    const asked2 = (await state(auto2.turnId)).asked
+    const second = await call(app, ['POST', '/api/v1/personal/turns'], two.person, { text: 'A later legacy turn' })
+    assert.equal(second.status, 202, second.body)
+    const held = String(second.json?.turnId)
+    await quiet()
+    assert.deepEqual(await state(auto2.turnId), { reply: 'pending', claim: null, asked: asked2 })
+    // FIFO: the later legacy turn is held behind the waiting original, untouched; it is not answered out of order.
+    assert.deepEqual(await state(held).then((t) => [t.reply, t.claim]), ['pending', null])
+    assert.equal(await answerOf(held), null)
+    assert.equal(twoLlm.prepared, 1)
+    assert.equal((await usage(two.person)).length, 1)
+    // A direct resume ends at once: it does not select the same head again, nor wait on its own run.
+    const runner = new CompanionRunner(pool, live(two.person, two.payer, twoLlm), () => undefined)
+    await within(3000, 'a deferred resume to end', runner.resume(two.person))
+    await runner.close()
+    assert.deepEqual(await state(auto2.turnId), { reply: 'pending', claim: null, asked: asked2 })
+    assert.equal(twoLlm.prepared, 1)
+    r2 = { ...two, auto: auto2.turnId, held }
+  })
+
+  it('without 0102, an answer already kept for an automatic original is still written, with no call', async () => {
+    const { person, payer } = await enrolled()
+    const auto = await admitted(person, profileOf(person, payer), 'Kept before 0102')
+    await earlierCall(person, payer, auto.turnId, 'keep')
+    // The process that kept it went away: its claim lapsed (asked_at untouched, so the turn is still pending).
+    await owner(`UPDATE sophia.personal_turns SET answering_since=now()-interval '3 minutes' WHERE id=$1`, [
+      auto.turnId,
+    ])
+    const llm = new FakeLlm()
+    await api(live(person, payer, llm)).ready()
+    assert.equal(await settled(auto.turnId), 'answered')
+    assert.equal(await answerOf(auto.turnId), 'Kept words')
+    assert.equal(llm.prepared, 0)
+    assert.deepEqual(
+      (await usage(person)).map((u) => u.state),
+      ['settled'],
+    )
+  })
+
+  it('once 0102 is installed, a restart or a legitimate wake answers each waiting original once, as admitted', async () => {
+    await owner(readFileSync(join(MIGRATIONS, GUARD_MIGRATION), 'utf8'))
+    const [w] = waiting
+    assert.ok(w && r2)
+    // R1 after the install: the same original, under its own admission (one decision), answered once.
+    const llm = new FakeLlm()
+    await api(live(w.person, w.payer, llm)).ready()
+    assert.equal(await settled(w.turnId), 'answered')
+    assert.equal(llm.prepared, 1)
+    assert.equal(await decisionCount(w.turnId), 1)
+    // R2: a committed legacy send wakes the queue: the waiting original, then the held turn, then the new one.
+    const r2Llm = new FakeLlm()
+    const app = api(live(r2.person, r2.payer, r2Llm))
+    const wake = await call(app, ['POST', '/api/v1/personal/turns'], r2.person, { text: 'After the install' })
+    for (const id of [r2.auto, r2.held, String(wake.json?.turnId)]) assert.equal(await settled(id), 'answered')
+    assert.equal(r2Llm.prepared, 3)
+    assert.ok(r2Llm.prompts[0]?.endsWith('Admitted before 0102'))
+    assert.equal(await decisionCount(r2.auto), 1)
+    assert.deepEqual(await refusals(r2.person), [])
+  })
+
+  it('with 0102 installed, an original waits while the companion is not ready (its payer no longer admitted)', async () => {
+    const { person, payer } = await enrolled()
+    const auto = await admitted(person, profileOf(person, payer), 'Waiting for its payer')
+    const asked = (await state(auto.turnId)).asked
+    await owner('UPDATE sophia.personal_companion_payers SET owner_id=$2 WHERE payer=$1', [payer, randomUUID()])
+    const llm = new FakeLlm()
+    const app = api(live(person, payer, llm))
+    await app.ready()
+    await quiet()
+    assert.equal((await app.inject({ method: 'GET', url: '/ready' })).statusCode, 503)
+    assert.deepEqual(await state(auto.turnId), { reply: 'pending', claim: null, asked })
+    assert.equal(llm.prepared, 0)
+    assert.deepEqual(await refusals(person), [])
+    // The payer admitted again: the next start answers it once.
+    await owner('UPDATE sophia.personal_companion_payers SET owner_id=$2 WHERE payer=$1', [payer, person])
+    await api(live(person, payer, llm)).ready()
+    assert.equal(await settled(auto.turnId), 'answered')
+    assert.equal(llm.prepared, 1)
   })
 })

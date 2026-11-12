@@ -244,3 +244,60 @@ paths only: `routes/personal-answers.ts`, `personal-answers.db.test.ts`, this pl
 - One reached mutant that restores the lowercase-only validation, with its bytes restored afterwards.
 - The changed API DB file, plus the affected static and type checks.
 - ONE ordinary on the new signed head.
+
+## Repair A2-F02: keep a waiting original pending while its answer's prerequisites are unavailable
+
+Written before this repair's code. Task `INC03-CC-003-A2-F02-READINESS-REPAIR-001` (`f1acfee9…`), from the independent
+`INC03-CC-003-A2-F01-PR510-SOURCE-FINAL-001` (`1354631d…`), finding A2-F02 (P1). That finding confirmed the automatic
+review comment 4556204505. The repair is one signed child of `4a152826`, writing at most these paths: `companion.ts`,
+`app.ts`, the API DB test, this plan and the A2 handoff.
+
+**Cause (confirmed).**
+- 0101's writer, granted to `sophia_api`, can leave an admitted automatic turn pending before 0102 is installed.
+- The runner claims that turn whatever its prerequisites are. The reservation then refuses it:
+  - with no guard, `not_installed`;
+  - with a payer no longer admitted, `not_admitted`.
+- The runner's generic failure path marks the turn `failed`. `next_personal_reply` reads pending turns only, so a later
+  install and restart never resume it.
+- R1 (startup), R2 (a committed send or retry) and the chained queue all reach this one place, `CompanionRunner`, so a
+  check on startup alone would not close it.
+
+**Repair, in the shared runner (`companion.ts`); `app.ts` is not needed.**
+- Before a turn is claimed, a live companion decides whether the turn may be answered now:
+  - **Legacy turns** (no 0098 input row) may, exactly as before. No 0102 or Answer-switch gate is added to them.
+  - **Automatic turns** may when 0102's guard is installed and the companion is ready. Ready means 0078 is installed and
+    the payer is admitted for the owner (`Companion.ready`).
+  - **Otherwise**, an automatic turn may still go ahead when an answer is already kept for it: it is written with no new
+    call. If none is kept, it is deferred.
+- **What deferral does and does not do.**
+  - It writes nothing: no claim, failure, reservation, preparation or decision, and no change to `asked_at`, the epoch or
+    the profile.
+  - It ends that run of the queue. The runner does not chain to the next turn, which would be the same pending head, so
+    it never selects the same turn again or waits on its own in-flight promise, and it adds no timer or polling.
+- **Errors.** A read that fails (the origin, the guard's presence, readiness or a kept answer) is reported through
+  `onError` and defers. It is never taken as legacy and never fails the turn.
+- **Rehearsal, and the guard's own refusals.**
+  - A companion that is not live keeps its explicit refusal of automatic turns (`AutomaticNotLive`).
+  - With the guard installed and the companion ready, the guard's refusals (`not_admitted`, `profile_mismatch`,
+    `profile_unsupported`, `lost`) still fail the turn explicitly, as before.
+- **Resuming.** A later wake (a restart's R1, or a committed send or retry) on an eligible database resumes the same
+  still-pending original once, under its frozen admission: same decision, same key, nothing re-admitted.
+- **What deferral cannot change.**
+  - The existing two-minute rule. A pending turn whose `asked_at` is older than two minutes reads as failed. That holds
+    for a deferred turn too; it is not held indefinitely.
+  - Turn order. Turns are answered one at a time, in order (`claim_personal_reply`, SQL that is frozen here), so a
+    deferred automatic turn ahead of a legacy turn holds that legacy turn behind it until it is answered or lapses.
+    A legacy turn with no automatic turn ahead of it is answered as before.
+
+**Checks.**
+- On a genuine 0001–0101 database (0102 not installed), in the API DB test:
+  - R1 with the switch on and off defers, with zero claims, failures or preparations;
+  - R2, from a legacy send, defers and stops without selecting the turn again;
+  - legacy before 0102 is answered;
+  - installing 0102, then a restart or a legitimate wake, answers the original once;
+  - kept-first: a kept answer is written with zero calls while 0102 is absent.
+- With 0102 installed and the payer no longer admitted (the companion not ready), the turn is deferred.
+- Fail-before on exact `4a15`.
+- A few cause-reaching mutants (the missing-guard check, the readiness check, kept-first), each restored.
+- The changed API DB file and the static checks.
+- ONE ordinary on the new head.
