@@ -1522,3 +1522,144 @@ describe('a read naming runs by malformed ids never settles a Stop (repair 9, NA
     g.close()
   })
 })
+
+type ReadBody = { thread: Record<string, unknown>; recentRuns: unknown[]; items: unknown[] }
+/**
+ * Repair 10 (NATIVE9-F01/F02): holds one `t3_thread_send` in transit (it lands only on release, exactly once, never
+ * rebuilt), and while `forge` is set rewrites each read of the actual FakeT3 with the held message's id. The fake's own
+ * runs, messages and effects are untouched.
+ */
+class HeldReadT3 implements T3Transport {
+  holdNextSend = false
+  forge: ((messageId: string, body: ReadBody) => ReadBody) | null = null
+  private readonly held: { call: T3Call; messageId: string }[] = []
+  readonly fake: FakeT3
+  constructor(fake: FakeT3) {
+    this.fake = fake
+  }
+  namespace(): string {
+    return this.fake.namespace()
+  }
+  async call(call: T3Call): Promise<T3Reply> {
+    if (call.tool === 't3_thread_send' && this.holdNextSend) {
+      this.holdNextSend = false
+      const messageId = stableMessageId(this.fake.namespace(), 'thread-send', String(call.args.clientRequestId))
+      this.held.push({ call, messageId })
+      return { kind: 'transport_error', reason: 'fake: the request is still in transit' }
+    }
+    const reply = await this.fake.call(call)
+    const held = this.held[0] ?? this.landed
+    if (call.tool !== 't3_thread_read' || !this.forge || !held || reply.kind !== 'ok') return reply
+    return { kind: 'ok', body: this.forge(held.messageId, reply.body as ReadBody) }
+  }
+  private landed: { call: T3Call; messageId: string } | undefined
+  /** Deliver the held request now, exactly once. */
+  async release(): Promise<void> {
+    for (const h of this.held.splice(0)) {
+      this.landed = h
+      await this.fake.call(h.call)
+    }
+  }
+}
+
+const withItems = (body: ReadBody, ...items: Record<string, unknown>[]): ReadBody => ({
+  ...body,
+  items: [...body.items, ...items.map((item, i) => ({ position: 900 + i, ...item }))],
+})
+/** The inconsistent pages of NATIVE9-F01 (one message, two associations) and F02 (a summary against its own runs). */
+const INCONSISTENT: [string, (m: string, body: ReadBody) => ReadBody][] = [
+  ['no run, then run-1', (m, b) => withItems(b, { messageId: m, runId: null }, { messageId: m, runId: 'run-1' })],
+  ['run-1, then no run', (m, b) => withItems(b, { messageId: m, runId: 'run-1' }, { messageId: m, runId: null })],
+  ['run-x, then run-1', (m, b) => withItems(b, { messageId: m, runId: 'run-x' }, { messageId: m, runId: 'run-1' })],
+  ['run-1, then run-x', (m, b) => withItems(b, { messageId: m, runId: 'run-1' }, { messageId: m, runId: 'run-x' })],
+  [
+    'complete 0, active absent',
+    (m, b) => ({
+      ...withItems(b, { messageId: m, runId: 'opaque/absent:\u{10400}' }),
+      thread: { ...b.thread, activeRunId: 'opaque/absent:\u{10400}', runCount: 0 },
+      recentRuns: [],
+    }),
+  ],
+  [
+    'complete, another listed, active absent',
+    (m, b) => ({
+      ...withItems(b, { messageId: m, runId: 'run-z' }),
+      thread: { ...b.thread, activeRunId: 'run-z', runCount: 1 },
+      recentRuns: [{ runId: 'run-1', status: 'completed' }],
+    }),
+  ],
+  [
+    'more runs listed than counted',
+    (m, b) => ({
+      ...withItems(b, { messageId: m, runId: 'run-z' }),
+      thread: { ...b.thread, activeRunId: 'run-z', runCount: 1 },
+      recentRuns: [
+        { runId: 'run-1', status: 'completed' },
+        { runId: 'run-z', status: 'running' },
+      ],
+    }),
+  ],
+]
+
+describe('an input is never received on a read inconsistent with itself (repair 10, NATIVE9-F01/F02)', () => {
+  it('keeps the in-transit input unknown across a reopen, then converges once when it lands, with no resend', async () => {
+    const seen: unknown[] = []
+    for (const [i, [what, forge]] of INCONSISTENT.entries()) {
+      const fake = new FakeT3()
+      const t3 = new HeldReadT3(fake)
+      const file = journalFile()
+      const g = new RunnerGateway({ journal: new RunnerJournal(file), transport: t3, profile })
+      const c = create(8800 + 10 * i)
+      const thread = threadOf(await g.send(c, digestOf(c), g.journalId))
+      t3.holdNextSend = true
+      const e = follow(8801 + 10 * i, 8800 + 10 * i, thread)
+      const id = { envelope: e, digest: digestOf(e), journalId: g.journalId }
+      assert.equal((await g.send(e, id.digest, id.journalId)).kind, 'unknown')
+      t3.forge = forge
+      const first = await g.reconcile(id)
+      g.close()
+      const again = new RunnerGateway({ journal: new RunnerJournal(file), transport: t3, profile })
+      const replay = await again.reconcile(id)
+      const inconsistent = [first.kind, replay.kind, finals(file, e.operationId), fake.effects.messages]
+      // The same held request lands now, once; a coherent read (nothing forged) shows it queued behind the launch.
+      t3.forge = null
+      await t3.release()
+      const late = await again.reconcile(id)
+      const realRun = fake.threads.get(thread)?.runs.at(-1)?.runId ?? ''
+      seen.push([
+        what,
+        ...inconsistent,
+        late.kind === 'received'
+          ? `received ${late.delivery} ${late.runId === realRun ? 'its own run' : late.runId}`
+          : late.kind,
+        finals(file, e.operationId),
+        fake.effects.messages,
+        fake.count('t3_thread_send'),
+      ])
+      again.close()
+    }
+    assert.deepEqual(
+      seen,
+      INCONSISTENT.map(([what]) => [what, 'unknown', 'unknown', 0, 0, 'received queued its own run', 1, 1, 1]),
+    )
+  })
+
+  it('receives a coherent read that repeats the same association (control)', async () => {
+    const fake = new FakeT3()
+    const t3 = new HeldReadT3(fake)
+    const file = journalFile()
+    const g = new RunnerGateway({ journal: new RunnerJournal(file), transport: t3, profile })
+    const thread = threadOf(await g.send(create(8900), digestOf(create(8900)), g.journalId))
+    t3.holdNextSend = true
+    const e = follow(8901, 8900, thread)
+    const id = { envelope: e, digest: digestOf(e), journalId: g.journalId }
+    await g.send(e, id.digest, id.journalId)
+    await t3.release()
+    const run = fake.threads.get(thread)?.runs.at(-1)?.runId ?? ''
+    t3.forge = (m, b) => withItems(b, { messageId: m, runId: run }, { messageId: null, runId: 'run-1' })
+    const r = await g.reconcile(id)
+    assert.deepEqual([r.kind === 'received' && r.delivery, runOf(r), finals(file, e.operationId)], ['queued', run, 1])
+    assert.deepEqual([fake.effects.messages, fake.count('t3_thread_send')], [1, 1])
+    g.close()
+  })
+})

@@ -376,3 +376,94 @@ describe('a recent or active run identity is evidence only when it is one (repai
     assert.deepEqual([active.activeRunId, stopSettled(active)], [' padded ', false])
   })
 })
+
+// Repair 10 helpers: a timeline row, a decode of thread t-1, and a decoded summary.
+const row = (position: number, messageId: string | null, runId: string | null) => ({ position, messageId, runId })
+const decoded = (body: unknown) => {
+  const read = decodeThreadRead(body, 't-1')
+  return 'error' in read ? 'no evidence' : read
+}
+const summaryOf = (r: ReturnType<typeof decoded>) =>
+  r === 'no evidence' ? r : [r.activeRunId, r.runs.size, r.runCount, stopSettled(r)]
+
+describe('a read is evidence only when it is consistent with itself (repair 10, NATIVE9-F01/F02)', () => {
+  it('decodes no page naming one message with conflicting runs, in either order (F01)', () => {
+    const conflicts: [string, [string | null, string | null]][] = [
+      ['no run, then a run', [null, 'run-1']],
+      ['a run, then no run', ['run-1', null]],
+      ['run A, then run B', ['run-1', 'run-2']],
+      ['run B, then run A', ['run-2', 'run-1']],
+    ]
+    assert.deepEqual(
+      conflicts.map(([what, [first, second]]) => [
+        what,
+        decoded(page([row(0, 'm-1', first), row(1, 'other', 'run-9'), row(2, 'm-1', second)])),
+      ]),
+      conflicts.map(([what]) => [what, 'no evidence']),
+    )
+  })
+
+  it('keeps coherent repetitions, rows without a message, and distinct ids exactly (F01 controls)', () => {
+    const read = decoded(
+      page([
+        row(0, 'm-1', 'run-1'),
+        row(1, null, 'run-1'),
+        row(2, null, 'run-2'),
+        row(3, null, null),
+        row(4, 'm-1', 'run-1'),
+        row(5, 'm-2', null),
+        row(6, 'm-2', null),
+        row(7, 'opaque/msg:\u{10400}', ' padded '),
+        row(8, 'opaque/msg:\u{10400}', ' padded '),
+      ]),
+    )
+    assert.notEqual(read, 'no evidence')
+    if (read === 'no evidence') return
+    assert.deepEqual(
+      [...read.messages],
+      [
+        ['m-1', 'run-1'],
+        ['m-2', null],
+        ['opaque/msg:\u{10400}', ' padded '],
+      ],
+    )
+  })
+
+  it('decodes no summary that contradicts its own run list: an absent active run in a complete list, or an overcount (F02)', () => {
+    const cases: [string, unknown][] = [
+      ['complete 0, active absent', readOf([], 'opaque/absent:\u{10400}')],
+      ['complete, another run listed, active absent', readOf([{ runId: 'run-1', status: 'completed' }], 'run-2')],
+      [
+        'more runs listed than counted',
+        readOf(
+          [
+            { runId: 'run-1', status: 'completed' },
+            { runId: 'run-2', status: 'running' },
+          ],
+          'run-2',
+          { runCount: 1 },
+        ),
+      ],
+      ['more runs listed than counted, idle', readOf([{ runId: 'run-1', status: 'completed' }], null, { runCount: 0 })],
+    ]
+    assert.deepEqual(
+      cases.map(([what, body]) => [what, decoded(body)]),
+      cases.map(([what]) => [what, 'no evidence']),
+    )
+  })
+
+  it('keeps complete active and idle summaries, and a truncated window that omits the active run (F02 controls)', () => {
+    const active = decoded(readOf([{ runId: 'run-1', status: 'running' }], 'run-1'))
+    const idle = decoded(readOf([{ runId: 'run-1', status: 'completed' }], null))
+    const window = Array.from({ length: 50 }, (_, i) => ({ runId: `run-${i + 11}`, status: 'queued' }))
+    const truncated = decoded(readOf(window, 'opaque/old:\u{10400}', { runCount: 60 }))
+    assert.deepEqual(
+      [summaryOf(active), summaryOf(idle), summaryOf(truncated)],
+      [
+        ['run-1', 1, 1, false],
+        [null, 1, 1, true],
+        ['opaque/old:\u{10400}', 50, 60, false],
+      ],
+    )
+  })
+})

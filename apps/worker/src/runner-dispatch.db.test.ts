@@ -2598,3 +2598,140 @@ describe('a read naming runs by blank ids never settles a Stop or its binding (r
     assert.deepEqual([t3.effects.stops, t3.count('t3_thread_interrupt'), t3.effects.launches], [0, 1, 1])
   })
 })
+
+type ReadBody = { thread: Record<string, unknown>; recentRuns: unknown[]; items: unknown[] }
+/**
+ * Repair 10 (NATIVE9-F01/F02): holds one `t3_thread_send` in transit (it lands only on release, exactly once, never
+ * rebuilt), and while `forge` is set rewrites each read of the actual FakeT3 with the held message's id. The fake's own
+ * runs, messages and effects are untouched.
+ */
+class HeldReadT3 implements T3Transport {
+  holdNextSend = false
+  forge: ((messageId: string, body: ReadBody) => ReadBody) | null = null
+  private readonly held: { call: T3Call; messageId: string }[] = []
+  readonly fake: FakeT3
+  constructor(fake: FakeT3) {
+    this.fake = fake
+  }
+  namespace(): string {
+    return this.fake.namespace()
+  }
+  async call(call: T3Call): Promise<T3Reply> {
+    if (call.tool === 't3_thread_send' && this.holdNextSend) {
+      this.holdNextSend = false
+      const messageId = stableMessageId(this.fake.namespace(), 'thread-send', String(call.args.clientRequestId))
+      this.held.push({ call, messageId })
+      return { kind: 'transport_error', reason: 'fake: the request is still in transit' }
+    }
+    const reply = await this.fake.call(call)
+    const held = this.held[0]
+    if (call.tool !== 't3_thread_read' || !this.forge || !held || reply.kind !== 'ok') return reply
+    return { kind: 'ok', body: this.forge(held.messageId, reply.body as ReadBody) }
+  }
+  /** Deliver the held request now, exactly once. */
+  async release(): Promise<void> {
+    for (const h of this.held.splice(0)) await this.fake.call(h.call)
+  }
+}
+const withItems = (body: ReadBody, ...items: Record<string, unknown>[]): ReadBody => ({
+  ...body,
+  items: [...body.items, ...items.map((item, i) => ({ position: 900 + i, ...item }))],
+})
+/** How many final answers the gateway journal file holds for one operation. */
+const journalAnswers = (file: string, operationId: string) =>
+  readFileSync(file, 'utf8')
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l) as { type?: string; operationId?: string })
+    .filter((r) => r.type === 'answer' && r.operationId === operationId).length
+
+describe('an inconsistent read never clears the input barrier under a Stop (repair 10, NATIVE9-F01/F02)', () => {
+  const cases: [string, (m: string, body: ReadBody) => ReadBody][] = [
+    [
+      'duplicate: no run, then the launch run',
+      (m, b) => withItems(b, { messageId: m, runId: null }, { messageId: m, runId: 'run-1' }),
+    ],
+    [
+      'duplicate: another run, then the launch run',
+      (m, b) => withItems(b, { messageId: m, runId: 'run-x' }, { messageId: m, runId: 'run-1' }),
+    ],
+    [
+      'complete summary without its active run',
+      (m, b) => ({
+        ...withItems(b, { messageId: m, runId: 'opaque/absent:\u{10400}' }),
+        thread: { ...b.thread, activeRunId: 'opaque/absent:\u{10400}', runCount: 0 },
+        recentRuns: [],
+      }),
+    ],
+  ]
+  for (const [what, forge] of cases) {
+    it(`${what}: the input stays unknown, the Stop and binding unsettled, until the held request lands and runs end`, async () => {
+      const t3 = new FakeT3()
+      const held = new HeldReadT3(t3)
+      const w = await world({ t3, transport: held })
+      const created = await w.create()
+      await w.pass()
+      held.holdNextSend = true
+      const lost = await w.input(created.operationId)
+      await w.pass({ minAge: 3600 })
+      const stopped = await w.stop(created.operationId)
+      await w.pass({ minAge: 3600 })
+      held.forge = forge
+      await w.pass()
+      await w.pass()
+      // Genuine reads from here on. The acknowledged Stop does not end the running launch run in the fake: end it
+      // explicitly. The input's request is still in transit, so no read shows its message.
+      held.forge = null
+      w.finishAll()
+      for (let i = 0; i < 4; i++) {
+        await w.pass()
+        await due(w.projectId)
+      }
+      const s = await op(stopped.operationId)
+      assert.deepEqual(
+        {
+          input: (await op(lost.operationId)).state,
+          inputAnswers: journalAnswers(w.journalFile, lost.operationId),
+          stop: s.state,
+          binding: (await binding(s.binding_id)).state,
+          reservations: (await reservations(w.accountKey)).length,
+          messages: t3.effects.messages,
+          sends: t3.count('t3_thread_send'),
+          interrupts: t3.count('t3_thread_interrupt'),
+        },
+        {
+          input: 'unknown',
+          inputAnswers: 0,
+          stop: 'received',
+          binding: 'stopping',
+          reservations: 1,
+          messages: 0,
+          sends: 0,
+          interrupts: 1,
+        },
+        'the inconsistent read is no evidence: the barrier holds, the commitment stays, nothing is sent',
+      )
+      // The SAME held request lands now, once, and starts a run; coherent reads converge it.
+      await held.release()
+      for (let i = 0; i < 2; i++) {
+        await w.pass()
+        await due(w.projectId)
+      }
+      const landed = await op(lost.operationId)
+      assert.deepEqual(
+        [landed.state, landed.native_delivery, (await op(stopped.operationId)).state],
+        ['received', 'started', 'received'],
+      )
+      w.finishAll()
+      for (let i = 0; i < 4; i++) {
+        await w.pass()
+        await due(w.projectId)
+      }
+      assert.equal((await op(stopped.operationId)).state, 'settled')
+      assert.equal((await binding(s.binding_id)).state, 'settled')
+      assert.deepEqual(await reservations(w.accountKey), [])
+      assert.equal(journalAnswers(w.journalFile, lost.operationId), 1, 'converged once')
+      assert.deepEqual([t3.effects.messages, t3.count('t3_thread_send'), t3.count('t3_thread_interrupt')], [1, 1, 1])
+    })
+  }
+})

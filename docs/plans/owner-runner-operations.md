@@ -684,3 +684,90 @@ whole page no evidence. The page is never repaired, trimmed or turned into null.
 assertions.
 
 **Then:** focused mapping, gateway, journal and worker crossings, and one ordinary `pnpm check` on the committed head.
+
+## Repair 10: a read must be consistent with itself (INC01-CC-005-repair9-SOURCE-FINAL-001, NATIVE9-F01 and F02, P1)
+
+Written before any code. One signed sole child of the published `55839827` (tree `670ca8ee`). The same six writable
+paths as repair 9; the gateway, the worker, SQL, contracts, the generated outputs and FakeT3 stay byte-exact. The pinned
+upstream reference (`ade47301`, its three files hashed in `PIN.json`) was read outside the product tree; nothing of it
+was run.
+
+### The pin's facts
+
+- **Timeline rows.** `OrchestratorMcpThreadTimelineItem` (contracts `orchestratorMcp.ts` 471-495) carries its own row
+  identity (`position`, `sourceThreadId`, `itemId`) and a nullable `messageId` and `runId`. The items array has no
+  uniqueness rule, so the same message id may appear on more than one row, and many rows have no message at all.
+- **The run summary.** `threadDetail` (`OrchestratorMcpService.ts` 835-865) takes `runCount` and `activeRunId` from the
+  same `target.runs`. `recentRuns` (3127-3131) is that array sorted and cut to `runLimit`. `latestActiveRun`
+  (`ThreadManagementService.ts` 546-551) picks the active run from the same array.
+
+### The defects
+
+- **F01.** `messagesIn` set the map entry for every non-null message id, so the last row won. A page naming the original
+  input's message once with no run and once with a run, or with two different runs, was read as the last association,
+  in either order. That reconciled a possibly-sent input as `received started`, which was then:
+  - fsynced, and replayed after a reopen;
+  - used by SQL to clear the input's causal barrier, so the Stop and its binding settled.
+- **F02.** A summary claiming a complete run list (`recentRuns` as long as `runCount`) could name a non-null
+  `activeRunId` that the list does not contain:
+  - with `runCount` 0;
+  - or with another run listed.
+
+  An item naming that run then got `started` from the gateway's active-run fallback. A list longer than `runCount` was
+  also accepted. Neither can come from the pin.
+
+### The rule
+
+- **One association per message.** Within a page, every row naming the same non-null message id must name the same run
+  (or all no run).
+  - Repetitions of the same association are coherent and kept.
+  - Rows with a null message id are ordinary rows and ignored as before.
+  - A null and a run, or two runs, for one message make the whole page no evidence, in either order. Neither the first
+    nor the last is chosen. Ids stay exact.
+- **A summary consistent with its own runs.**
+  - More listed runs than `runCount` makes the page no evidence.
+  - So does a complete list (as many runs as `runCount`) whose non-null `activeRunId` is not in it.
+  - A truncated list (fewer than `runCount`) may still omit the active run: that is the window, and the repair-8
+    active fallback stays for it.
+- **Unchanged:**
+  - complete active and idle summaries;
+  - listed queued against active contradictions;
+  - terminal and unknown statuses as non-started;
+  - absence never as proof of no send;
+  - opaque, padded and non-ASCII ids, and repair 9's id rule;
+  - the exact thread and message checks;
+  - Stop settlement; no resend or rebinding.
+- **Limit, stated plainly.** The decoder judges one page. The gateway reads pages until the first one containing the
+  message. A row for the same message on a page it never reads is not compared, and this repair does not change the
+  gateway.
+
+### Proof plan
+
+**Mapping (public `decodeThreadRead`):**
+- conflicts: null then run, run then null, run A then run B, and run B then run A;
+- coherent controls: identical repeated associations, repeated null associations, many null-message rows, distinct
+  ids, opaque ids;
+- summaries:
+  - no evidence: complete 0 with an absent active run, complete with another run listed and the active absent, and an
+    overcount;
+  - controls: complete with the active listed, complete idle, and truncated with the active absent (still decoded).
+
+**Gateway:** actual `FakeT3`, a transport that holds the input's send in transit and rewrites reads, then
+`RunnerGateway`, the fsynced `RunnerJournal`, and a reopen.
+- Each inconsistent page leaves the lost input unknown, with no final answer in the file, also after the reopen.
+- Then the held request lands, once, and a coherent read converges it once as `queued`, with no resend.
+
+**Worker (real PostgreSQL 16):** the duplicate-null, duplicate-other and complete-absent-active cases under a Stop.
+- The input stays unknown and the Stop barrier holds: the Stop is not settled and the binding stays `stopping`.
+- The reservation is held. Only one interrupt is called, and no message is sent until the held request lands.
+- Then the held request lands as a queued run. The test ends every run explicitly: a Stop acknowledgement does not end
+  a running fake run. Coherent reads then converge the input once, and settle the Stop and the binding.
+
+**Fail-before** runs on the mapping at exact `55839827` bytes with the final tests.
+
+**Mutations:**
+- the message conflict check removed;
+- the overcount check removed;
+- the complete-list active check removed.
+
+**Then:** focused crossings and one ordinary `pnpm check` on the committed head.

@@ -326,14 +326,25 @@ function messagesIn(list: unknown): Map<string, string | null> | null {
   if (!Array.isArray(list)) return null
   const messages = new Map<string, string | null>()
   for (const item of list) {
-    if (!isRecord(item) || !('messageId' in item)) return null
-    const id = item.messageId === null ? null : entityId(item.messageId)
-    if (item.messageId !== null && id === null) return null
-    const run = runField(item)
-    if (run.kind === 'invalid') return null
-    if (id !== null) messages.set(id, run.kind === 'run' ? run.runId : null)
+    const row = itemOf(item)
+    if (row === null) return null
+    if (row.messageId === null) continue
+    // Repair 10 (NATIVE9-F01): the pin does not make message ids unique across rows, so the same association repeated is
+    // coherent; but one message named with no run and with a run, or with two runs, is no evidence in either order.
+    if (messages.has(row.messageId) && messages.get(row.messageId) !== row.runId) return null
+    messages.set(row.messageId, row.runId)
   }
   return messages
+}
+
+/** One timeline row's message id and run id (each may be null), or null when either is malformed. */
+function itemOf(item: unknown): { messageId: string | null; runId: string | null } | null {
+  if (!isRecord(item) || !('messageId' in item)) return null
+  const messageId = item.messageId === null ? null : entityId(item.messageId)
+  if (item.messageId !== null && messageId === null) return null
+  const run = runField(item)
+  if (run.kind === 'invalid') return null
+  return { messageId, runId: run.kind === 'run' ? run.runId : null }
 }
 
 /** The thread detail of the read (OrchestratorMcpThreadDetail): exactly `threadId`, its activeRunId and runCount. */
@@ -350,6 +361,21 @@ function detailOf(
   return { activeRunId, runCount: thread.runCount }
 }
 
+/**
+ * Repair 10 (NATIVE9-F02): at the pin runCount, activeRunId and recentRuns come from the same runs. So more listed runs
+ * than counted, or a complete list without its active run, is a summary inconsistent with itself: no evidence. A
+ * truncated list may omit the active run.
+ */
+function summaryError(
+  runs: Map<string, string>,
+  detail: { activeRunId: string | null; runCount: number },
+): string | null {
+  if (runs.size > detail.runCount) return 'the read lists more runs than it counts'
+  if (runs.size === detail.runCount && detail.activeRunId !== null && !runs.has(detail.activeRunId))
+    return 'the read lists every run but not its active run'
+  return null
+}
+
 /** The decoded read of exactly `threadId`, or why it is not evidence. */
 export function decodeThreadRead(body: unknown, threadId: string): ThreadRead | { error: string } {
   if (!isRecord(body)) return { error: 'the read is not an object' }
@@ -358,10 +384,19 @@ export function decodeThreadRead(body: unknown, threadId: string): ThreadRead | 
   const runs = runsIn(body.recentRuns)
   const messages = messagesIn(body.items)
   if (!runs || !messages) return { error: 'the read has malformed runs or items' }
+  const summary = summaryError(runs, detail)
+  if (summary) return { error: summary }
+  const next = nextOf(body)
+  if (typeof next === 'object' && next !== null) return next
+  return { threadId, ...detail, runs, messages, nextPosition: next }
+}
+
+/** The read's next page position (null when it has no more), or why its paging fields are malformed. */
+function nextOf(body: Record<string, unknown>): number | null | { error: string } {
   if (typeof body.hasMore !== 'boolean') return { error: 'the read has no hasMore' }
   const next = body.nextPosition === null ? null : nonNegative(body.nextPosition) ? body.nextPosition : undefined
   if (next === undefined || (body.hasMore && next === null)) return { error: 'the read has a malformed nextPosition' }
-  return { threadId, ...detail, runs, messages, nextPosition: body.hasMore ? next : null }
+  return body.hasMore ? next : null
 }
 
 /** Whether the read shows every run of the thread (none cut off by `runLimit`). */
