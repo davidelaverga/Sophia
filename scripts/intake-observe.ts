@@ -43,7 +43,6 @@ import {
   policyDigest,
   isCompactAddresseeId,
   renderAddressee,
-  renderTarget,
   type InputError,
   type IntakeObservation,
   type ObservationLedger,
@@ -53,7 +52,7 @@ import {
   type ZeroEffects,
 } from '../packages/coordination/src/intake-observation.ts'
 
-export const REPORT_SCHEMA = 'sophia.intake-observation.report.v6'
+export const REPORT_SCHEMA = 'sophia.intake-observation.report.v7'
 export const CLI_LIMITS = { fileBytes: 2 * 1024 * 1024, cases: 500, idChars: 200 } as const
 
 /** Corpus schemas this tool reads, and the interaction a case without an `interaction` member is observed under. */
@@ -383,12 +382,176 @@ export function parseComparisonLabel(label: string): string[] | undefined {
   return [first, `${first.slice(0, first.indexOf('@'))}@${second}`]
 }
 
-/** Exact-target acceptance compares structure: every comparison ref, in order; other targets by their full id. */
-export function targetMatches(target: Target, label: unknown): boolean {
-  if (typeof label !== 'string') return false
-  if (target.kind !== 'comparison') return renderTarget(target) === label
-  const refs = parseComparisonLabel(label)
-  return refs !== undefined && refs.length === target.refs.length && refs.every((r, i) => r === target.refs[i])
+/** The target label notation this report reads (r24): structured labels in full, legacy strings explicitly limited. */
+export const TARGET_LABEL_NOTATION = 'sophia.intake-observation.target-label.v1'
+
+export type TargetLabelForm = 'structured' | 'legacy' | 'invalid'
+export interface TargetVerdict {
+  readonly result: 'match' | 'mismatch' | 'unassessed'
+  readonly form: TargetLabelForm
+  readonly note?: string
+}
+
+const isText = (v: unknown): v is string => typeof v === 'string'
+const isNullableText = (v: unknown): boolean => v === null || typeof v === 'string'
+
+/**
+ * Each kind of the policy's Target and its fields, in a fixed order, with the type each must have (policy v21). A
+ * structured label names exactly these fields, no more and no fewer; a target's identity is these fields, kind
+ * included.
+ */
+const TARGET_FIELDS: Readonly<Record<Target['kind'], ReadonlyArray<readonly [string, (v: unknown) => boolean]>>> = {
+  thread: [['scope', isText]],
+  artifact: [['ref', isText]],
+  comparison: [['refs', (v) => Array.isArray(v) && v.every(isText)]],
+  mission: [
+    ['id', isText],
+    ['manager', isNullableText],
+    ['generation', (v) => v === null || (typeof v === 'number' && Number.isSafeInteger(v))],
+    ['binding', isNullableText],
+  ],
+  message: [['id', isText]],
+  reference: [['id', isText]],
+  operation: [
+    ['id', isText],
+    ['newTarget', isNullableText],
+  ],
+  utterance: [['id', isText]],
+  repository_work: [
+    ['repo', isText],
+    ['item', isNullableText],
+  ],
+  native_history: [],
+  text_objective: [],
+  unresolved: [],
+}
+
+const isTargetKind = (k: unknown): k is Target['kind'] => typeof k === 'string' && Object.hasOwn(TARGET_FIELDS, k)
+
+/** A target's identity as one exact key: its kind and its fields in their fixed order (JSON keeps null apart from "null"). */
+const identityKey = (kind: Target['kind'], values: readonly unknown[]): string => JSON.stringify([kind, ...values])
+
+function fieldsOf(target: Target): unknown[] {
+  const record: Record<string, unknown> = { ...target }
+  return TARGET_FIELDS[target.kind].map(([name]) => record[name])
+}
+
+/**
+ * A structured target label read exactly (r24): an object with a kind the policy has and exactly that kind's fields,
+ * each of its type. Its identity key, or undefined when it is no such object. Nothing is coerced, trimmed or split.
+ */
+export function structuredTargetKey(label: Record<string, unknown>): string | undefined {
+  const { kind } = label
+  if (!isTargetKind(kind)) return undefined
+  const fields = TARGET_FIELDS[kind]
+  const names = Object.keys(label).filter((k) => k !== 'kind')
+  if (names.length !== fields.length) return undefined
+  if (!fields.every(([name, ok]) => Object.hasOwn(label, name) && ok(label[name]))) return undefined
+  return identityKey(
+    kind,
+    fields.map(([name]) => label[name]),
+  )
+}
+
+/** The repository item the v6 notation wrote for a repository target with no item. */
+const NO_ITEM = 'text_objective'
+
+/** How many `/` a legacy label holds: counted in place, nothing allocated (r25). */
+function slashCount(label: string): number {
+  let count = 0
+  for (let at = label.indexOf('/'); at !== -1; at = label.indexOf('/', at + 1)) count += 1
+  return count
+}
+
+/** Whether `label` is exactly `head`, a `/`, then `tail`: checked in place, at UTF-16 positions, nothing allocated. */
+const joins = (label: string, head: string, tail: string): boolean =>
+  label.length === head.length + 1 + tail.length &&
+  label.startsWith(head) &&
+  label.charCodeAt(head.length) === 0x2f &&
+  label.startsWith(tail, head.length + 1)
+
+type LegacyKind = Exclude<Target, { readonly kind: 'comparison' } | { readonly kind: 'mission' }>
+
+/**
+ * What a legacy string label says of the observed target, read in its kind under the v6 notation (a string never names
+ * a kind): how many targets of that kind it could denote (`readings`), and whether the observed target is one of them
+ * (`hit`). The readings are counted, never listed or serialized (r25, R24-F01): work is linear in the label and the
+ * target, whatever the label holds.
+ * - operation: the whole label as an id with no new target, or a split at any `/` (1 + the number of `/`);
+ * - repository_work: a split at any `/`, and the split before a final `/text_objective` also as no item;
+ * - thread: the scope before a final `_thread`; kind-only targets: their fixed word; the others: the label as the id.
+ */
+function legacyReading(target: LegacyKind, label: string): { readings: number; hit: boolean } {
+  if (target.kind === 'operation')
+    return {
+      readings: 1 + slashCount(label),
+      hit: target.newTarget === null ? label === target.id : joins(label, target.id, target.newTarget),
+    }
+  if (target.kind === 'repository_work')
+    return {
+      readings: slashCount(label) + (label.endsWith(`/${NO_ITEM}`) ? 1 : 0),
+      hit: joins(label, target.repo, target.item ?? NO_ITEM),
+    }
+  return singleReading(target, label)
+}
+
+/** The kinds a legacy string can denote at most one way: whether it is such a string, and whether it names the target. */
+function singleReading(
+  target: Exclude<LegacyKind, { readonly kind: 'operation' } | { readonly kind: 'repository_work' }>,
+  label: string,
+): { readings: number; hit: boolean } {
+  if (target.kind === 'thread')
+    return { readings: label.endsWith('_thread') ? 1 : 0, hit: label === `${target.scope}_thread` }
+  if (target.kind === 'artifact') return { readings: 1, hit: label === target.ref }
+  if ('id' in target) return { readings: 1, hit: label === target.id }
+  const word = target.kind === 'native_history' ? 'unrelated_native_history' : target.kind
+  return { readings: label === word ? 1 : 0, hit: label === word }
+}
+
+/** A legacy string label against the observed target (compatibility, r24): never more than the string can say. */
+function legacyVerdict(target: Target, label: string): TargetVerdict {
+  if (target.kind === 'comparison') {
+    const refs = parseComparisonLabel(label)
+    const same = refs !== undefined && refs.length === target.refs.length && refs.every((r, i) => r === target.refs[i])
+    return { result: same ? 'match' : 'mismatch', form: 'legacy', note: 'legacy_label' }
+  }
+  // An id is all a legacy mission label says: it never proves the manager, the generation or the binding.
+  if (target.kind === 'mission')
+    return label === target.id
+      ? { result: 'unassessed', form: 'legacy', note: 'legacy_label_mission_id_only' }
+      : { result: 'mismatch', form: 'legacy', note: 'legacy_label' }
+  const { readings, hit } = legacyReading(target, label)
+  if (!hit) return { result: 'mismatch', form: 'legacy', note: 'legacy_label' }
+  if (readings === 1) return { result: 'match', form: 'legacy', note: 'legacy_label' }
+  return { result: 'unassessed', form: 'legacy', note: 'ambiguous_legacy_target_label' }
+}
+
+/**
+ * Exact-target comparison (r24, report v7). A structured label is compared field by field, kind included: one label
+ * names one target. A legacy string is read in the observed kind and is a match only when it can denote nothing else;
+ * a string that could denote several targets is unassessed, never a match. Comparison refs keep their order.
+ */
+export function targetVerdict(target: Target, label: unknown): TargetVerdict {
+  if (typeof label === 'string') return legacyVerdict(target, label)
+  const key = isRecord(label) ? structuredTargetKey(label) : undefined
+  if (key === undefined) return { result: 'mismatch', form: 'invalid', note: 'invalid_target_label' }
+  return { result: key === identityKey(target.kind, fieldsOf(target)) ? 'match' : 'mismatch', form: 'structured' }
+}
+
+/** How many target labels of each form the report compared, and the notation it read them in. */
+function targetLabelCounts(records: readonly CaseRecord[]) {
+  const forms = { structured: 0, legacy: 0, invalid: 0 }
+  for (const r of records) {
+    const c = r.comparison.find((f) => f.field === 'target')
+    if (c !== undefined && c.result !== 'not_labelled') forms[targetLabelForm(c.expected)] += 1
+  }
+  return { notation: TARGET_LABEL_NOTATION, forms }
+}
+
+/** The form of a target label, for the report's count of the labels it compared. */
+export function targetLabelForm(label: unknown): TargetLabelForm {
+  if (typeof label === 'string') return 'legacy'
+  return isRecord(label) && structuredTargetKey(label) !== undefined ? 'structured' : 'invalid'
 }
 
 /** A list of distinct ids, each a non-empty string: the only set an addressee label can name. */
@@ -429,7 +592,6 @@ export function addresseeMatches(ids: readonly string[], label: unknown): boolea
 
 function equalField(field: ScoredField, expected: unknown, o: IntakeObservation, observed: unknown): boolean {
   if (field === 'actualEffects') return effectsMatch(expected, o.effects)
-  if (field === 'target') return targetMatches(o.proposal.target, expected)
   if (field === 'addressee') return addresseeMatches(o.addressee.ids, expected)
   return expected === observed
 }
@@ -442,14 +604,24 @@ const ABSTAINABLE: ReadonlySet<ScoredField> = new Set([
   'admissionReason',
 ])
 
-function fieldResult(field: ScoredField, expected: unknown, observed: unknown, o: IntakeObservation): FieldResult {
+function fieldResult(
+  field: ScoredField,
+  expected: unknown,
+  observed: unknown,
+  o: IntakeObservation,
+): { result: FieldResult; note?: string } {
   // An abstention leaves addressee, action, target and admission unknown: abstained before any equality, so a label
   // that happens to equal an abstention's placeholder (abstain, none, unresolved, recorded_only, null) is never a
-  // match (r11, report v5; unchanged in v6).
-  if (ABSTAINABLE.has(field) && o.proposal.kind === 'abstain') return 'abstained'
-  if (equalField(field, expected, o, observed)) return 'match'
-  if (field === 'admission' && observed === 'unassessed') return 'unassessed'
-  return 'mismatch'
+  // match (r11, report v5; unchanged in v6 and v7).
+  if (ABSTAINABLE.has(field) && o.proposal.kind === 'abstain') return { result: 'abstained' }
+  if (field === 'target') {
+    const { result, note } = targetVerdict(o.proposal.target, expected)
+    return note === undefined ? { result } : { result, note }
+  }
+  if (equalField(field, expected, o, observed)) return { result: 'match' }
+  if (field === 'admission' && observed === 'unassessed')
+    return { result: 'unassessed', note: ADMISSION_UNASSESSED_REASON }
+  return { result: 'mismatch' }
 }
 
 export function compareCase(o: IntakeObservation, meta: CaseMeta): FieldComparison[] {
@@ -460,8 +632,7 @@ export function compareCase(o: IntakeObservation, meta: CaseMeta): FieldComparis
     if (expected === null || !Object.hasOwn(expected, source))
       return { field, expected: null, observed: observed[field], result: 'not_labelled' }
     const label = expected[source]
-    const result = fieldResult(field, label, observed[field], o)
-    const note = result === 'unassessed' ? ADMISSION_UNASSESSED_REASON : undefined
+    const { result, note } = fieldResult(field, label, observed[field], o)
     return { field, expected: label, observed: observed[field], result, ...(note === undefined ? {} : { note }) }
   })
 }
@@ -650,8 +821,8 @@ export function buildReport(doc: Record<string, unknown>, cases: readonly unknow
     audienceScoring:
       'coarse: compares only change=unchanged; not owner, member, revision, thread or publication qualification',
     admissionScoring: `deterministic policy outcomes (waiting, denied, conflict, replay, reconciliation, clarification, non-admission recorded-only) are compared as they are; every unblocked proposal is unassessed (${ADMISSION_UNASSESSED_REASON}): this offline evaluator makes no positive admission claim, and a positive admission label counts as unassessed, a loss of evaluation scope rather than an accuracy result`,
-    targetScoring:
-      'structured: comparison refs exactly; a mission label scores only the mission id, not manager, generation or binding identity',
+    targetScoring: `structural (r24, ${TARGET_LABEL_NOTATION}): a structured label {kind, ...fields} with exactly that kind's fields is compared field by field, kind included, so one label names one target; a legacy string is read in the observed kind and is a match only when it can denote nothing else; a string that could denote several targets (a / in an operation or repository field, the text_objective sentinel) is unassessed (ambiguous_legacy_target_label), and a legacy mission string names the mission id only (legacy_label_mission_id_only), never manager, generation or binding; comparison refs are compared in order`,
+    targetLabels: targetLabelCounts(records),
     labelsStrippedBeforePolicy: LABEL_KEYS,
     scoredFields: SCORED_FIELDS,
     unscoredLabelFields: UNSCORED_FIELDS,

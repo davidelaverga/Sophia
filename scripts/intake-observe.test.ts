@@ -11,10 +11,18 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { canonicalJson } from '../packages/coordination/src/canonical.ts'
 import type { IntakeObservation } from '../packages/coordination/src/intake-observation.ts'
-import { buildReport, checkOutputPath, parseCli, parseCorpus, REPOSITORY_ROOT, UsageError } from './intake-observe.ts'
+import {
+  buildReport,
+  checkOutputPath,
+  CLI_LIMITS,
+  parseCli,
+  parseCorpus,
+  REPOSITORY_ROOT,
+  UsageError,
+} from './intake-observe.ts'
 
 const SCRIPT = fileURLToPath(new URL('./intake-observe.ts', import.meta.url))
 const sha256 = (b: string | Buffer) => createHash('sha256').update(b).digest('hex')
@@ -777,7 +785,7 @@ describe('F03 (r9): only a comparable action label can make a proposal unexpecte
       assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
       const written = JSON.parse(readFileSync(out, 'utf8'))
       // v4 introduced this list; v5 (r11) keeps it and changes only how abstentions score.
-      assert.equal(written.schema, 'sophia.intake-observation.report.v6')
+      assert.equal(written.schema, 'sophia.intake-observation.report.v7')
       checkLabelTallies(written)
     })
   })
@@ -928,7 +936,8 @@ describe('r11 (P1 discussion_r4520830068): an abstention is never a semantic mat
       testCase('NA-match', 'Stop the job.', live, {
         addressee: 'sophia',
         proposedAction: 'control_stop',
-        target: 'm9',
+        // r24 (report v7): a legacy mission string names the id only, so a full match takes the structured label.
+        target: { kind: 'mission', id: 'm9', manager: null, generation: null, binding: null },
         admission: 'admitted',
         admissionDenialOrWaitReason: null,
       }),
@@ -977,7 +986,7 @@ describe('r11 (P1 discussion_r4520830068): an abstention is never a semantic mat
       const out = join(dir, 'r.json')
       assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
       const written = JSON.parse(readFileSync(out, 'utf8'))
-      assert.equal(written.schema, 'sophia.intake-observation.report.v6')
+      assert.equal(written.schema, 'sophia.intake-observation.report.v7')
       checkAbstentionReport(written)
     })
   })
@@ -2013,7 +2022,7 @@ describe('r22 through the consumer: family buckets and addressee identity', () =
       const out = join(dir, 'r.json')
       assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
       const written = JSON.parse(readFileSync(out, 'utf8')) as R22View & { schema: string }
-      assert.equal(written.schema, 'sophia.intake-observation.report.v6')
+      assert.equal(written.schema, 'sophia.intake-observation.report.v7')
       checkR22Families(written)
       checkR22Recipients(written)
     })
@@ -2174,7 +2183,7 @@ describe('r23 through the consumer: a case id is owned before its fields are che
       const out = join(dir, 'r.json')
       assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 1)
       const written = JSON.parse(readFileSync(out, 'utf8')) as R23View
-      assert.equal(written.schema, 'sophia.intake-observation.report.v6')
+      assert.equal(written.schema, 'sophia.intake-observation.report.v7')
       checkR23(written)
     })
   })
@@ -2191,5 +2200,451 @@ describe('r23 through the consumer: a case id is owned before its fields are che
       [own(6, 'R-rev-family', 'invalid_family', '.family'), dup(7, 'R-rev-family')],
     )
     assert.ok(!r.cases.some((c) => c.caseId === 'R-rev-family'))
+  })
+})
+
+/**
+ * The r24 consumer corpus: a target label names one target. Structured labels compare every field, kind included;
+ * legacy strings stay compatible only where they can denote nothing else. Every id and word is synthetic.
+ */
+const opPair = (id: string, newTarget: string) => ({
+  audience: 'project',
+  originalOperation: id,
+  newTarget,
+  dispatchState: 'not_sent',
+})
+const opAlone = (id: string) => ({ audience: 'project', originalOperation: id, dispatchState: 'not_sent' })
+const repoWork = (repo: string, attachment?: string) => ({
+  audience: 'project',
+  directAddress: 'sophia',
+  repo,
+  ...(attachment === undefined ? {} : { attachment }),
+})
+const MISSION_CONTEXT = {
+  audience: 'project',
+  activeMission: 'm/1',
+  control: 'running',
+  stopQualified: true,
+  manager: 'mgr',
+  managerGeneration: 3,
+  missionBinding: 'bind',
+}
+const OPAQUE = 'a"b\\c/é..x@y_thread'
+const op = (id: string, newTarget: string | null) => ({ kind: 'operation', id, newTarget })
+const repoTarget = (repo: string, item: string | null) => ({ kind: 'repository_work', repo, item })
+const mission = (generation: unknown) => ({ kind: 'mission', id: 'm/1', manager: 'mgr', generation, binding: 'bind' })
+
+/** Each r24 case: its input, context, target label and the result the comparison must give (with its note). */
+const R24: ReadonlyArray<readonly [string, string, Record<string, unknown>, unknown, string, string | null]> = [
+  // The four v6 collision pairs, both directions, with the v6 string: never a match.
+  ['C-op-left', 'Switch it to v3.', opPair('a', 'b/c'), 'a/b/c', 'unassessed', 'ambiguous_legacy_target_label'],
+  ['C-op-right', 'Switch it to v3.', opPair('a/b', 'c'), 'a/b/c', 'unassessed', 'ambiguous_legacy_target_label'],
+  ['C-op-null', 'Switch it.', opAlone('a/b'), 'a/b', 'unassessed', 'ambiguous_legacy_target_label'],
+  ['C-op-new', 'Switch it to v3.', opPair('a', 'b'), 'a/b', 'unassessed', 'ambiguous_legacy_target_label'],
+  [
+    'C-repo-left',
+    'Implement the requested change.',
+    repoWork('x', 'y/z'),
+    'x/y/z',
+    'unassessed',
+    'ambiguous_legacy_target_label',
+  ],
+  [
+    'C-repo-right',
+    'Implement the requested change.',
+    repoWork('x/y', 'z'),
+    'x/y/z',
+    'unassessed',
+    'ambiguous_legacy_target_label',
+  ],
+  [
+    'C-repo-null',
+    'Implement the requested change.',
+    repoWork('r'),
+    'r/text_objective',
+    'unassessed',
+    'ambiguous_legacy_target_label',
+  ],
+  [
+    'C-repo-sentinel',
+    'Implement the requested change.',
+    repoWork('r', 'text_objective'),
+    'r/text_objective',
+    'unassessed',
+    'ambiguous_legacy_target_label',
+  ],
+  // The same pairs with structured labels: each its own target, never the other's, in either direction.
+  ['S-op-left-own', 'Switch it to v3.', opPair('a', 'b/c'), op('a', 'b/c'), 'match', null],
+  ['S-op-left-other', 'Switch it to v3.', opPair('a', 'b/c'), op('a/b', 'c'), 'mismatch', null],
+  ['S-op-right-own', 'Switch it to v3.', opPair('a/b', 'c'), op('a/b', 'c'), 'match', null],
+  ['S-op-right-other', 'Switch it to v3.', opPair('a/b', 'c'), op('a', 'b/c'), 'mismatch', null],
+  ['S-op-null-own', 'Switch it.', opAlone('a/b'), op('a/b', null), 'match', null],
+  ['S-op-null-other', 'Switch it.', opAlone('a/b'), op('a', 'b'), 'mismatch', null],
+  ['S-op-new-own', 'Switch it to v3.', opPair('a', 'b'), op('a', 'b'), 'match', null],
+  ['S-op-new-other', 'Switch it to v3.', opPair('a', 'b'), op('a/b', null), 'mismatch', null],
+  ['S-repo-left-own', 'Implement the requested change.', repoWork('x', 'y/z'), repoTarget('x', 'y/z'), 'match', null],
+  [
+    'S-repo-left-other',
+    'Implement the requested change.',
+    repoWork('x', 'y/z'),
+    repoTarget('x/y', 'z'),
+    'mismatch',
+    null,
+  ],
+  ['S-repo-right-own', 'Implement the requested change.', repoWork('x/y', 'z'), repoTarget('x/y', 'z'), 'match', null],
+  [
+    'S-repo-right-other',
+    'Implement the requested change.',
+    repoWork('x/y', 'z'),
+    repoTarget('x', 'y/z'),
+    'mismatch',
+    null,
+  ],
+  ['S-repo-null-own', 'Implement the requested change.', repoWork('r'), repoTarget('r', null), 'match', null],
+  [
+    'S-repo-null-other',
+    'Implement the requested change.',
+    repoWork('r'),
+    repoTarget('r', 'text_objective'),
+    'mismatch',
+    null,
+  ],
+  [
+    'S-repo-sentinel-own',
+    'Implement the requested change.',
+    repoWork('r', 'text_objective'),
+    repoTarget('r', 'text_objective'),
+    'match',
+    null,
+  ],
+  [
+    'S-repo-sentinel-other',
+    'Implement the requested change.',
+    repoWork('r', 'text_objective'),
+    repoTarget('r', null),
+    'mismatch',
+    null,
+  ],
+  // Legacy strings that can denote one target only keep their meaning; a plain different label is a mismatch.
+  ['L-plain-different', 'Switch it to v3.', opPair('plain', 'one'), 'plain/two', 'mismatch', 'legacy_label'],
+  [
+    'L-plain-ambiguous',
+    'Switch it to v3.',
+    opPair('plain', 'one'),
+    'plain/one',
+    'unassessed',
+    'ambiguous_legacy_target_label',
+  ],
+  ['L-alone-exact', 'Switch it.', opAlone('opQ'), 'opQ', 'match', 'legacy_label'],
+  ['L-repo-exact', 'Implement the requested change.', repoWork('r', 'att@r8'), 'r/att@r8', 'match', 'legacy_label'],
+  ['L-repo-other', 'Implement the requested change.', repoWork('r', 'att@r8'), 'r/att@r7', 'mismatch', 'legacy_label'],
+  [
+    'L-repo-astral',
+    'Implement the requested change.',
+    repoWork('\u{1F600}r', 'att'),
+    '\u{1F600}r/att',
+    'match',
+    'legacy_label',
+  ],
+  // A mission: a structured label proves every field; a legacy id proves the id only.
+  ['M-structured', 'Stop the job.', MISSION_CONTEXT, mission(3), 'match', null],
+  ['M-generation', 'Stop the job.', MISSION_CONTEXT, mission(4), 'mismatch', null],
+  ['M-generation-text', 'Stop the job.', MISSION_CONTEXT, mission('3'), 'mismatch', 'invalid_target_label'],
+  ['M-legacy-id', 'Stop the job.', MISSION_CONTEXT, 'm/1', 'unassessed', 'legacy_label_mission_id_only'],
+  ['M-legacy-other', 'Stop the job.', MISSION_CONTEXT, 'm/2', 'mismatch', 'legacy_label'],
+  // Opaque ids round-trip exactly: quotes, a backslash, a slash, non-ASCII, `..`, `@`, a `_thread` suffix.
+  [
+    'O-structured',
+    'Explain the selected chart.',
+    { audience: 'personal', selectedArtifact: OPAQUE },
+    { kind: 'artifact', ref: OPAQUE },
+    'match',
+    null,
+  ],
+  [
+    'O-legacy',
+    'Explain the selected chart.',
+    { audience: 'personal', selectedArtifact: OPAQUE },
+    OPAQUE,
+    'match',
+    'legacy_label',
+  ],
+  [
+    'O-other-kind',
+    'Explain the selected chart.',
+    { audience: 'personal', selectedArtifact: OPAQUE },
+    { kind: 'message', id: OPAQUE },
+    'mismatch',
+    null,
+  ],
+  [
+    'O-trimmed',
+    'Explain the selected chart.',
+    { audience: 'personal', selectedArtifact: OPAQUE },
+    { kind: 'artifact', ref: ` ${OPAQUE}` },
+    'mismatch',
+    null,
+  ],
+  // Null is not the string "null", nor a missing field; an unknown kind, an extra field or a non-label is invalid.
+  ['N-null-text', 'Switch it.', opAlone('a/b'), op('a/b', 'null'), 'mismatch', null],
+  ['N-missing', 'Switch it.', opAlone('a/b'), { kind: 'operation', id: 'a/b' }, 'mismatch', 'invalid_target_label'],
+  ['N-extra', 'Switch it.', opAlone('a/b'), { ...op('a/b', null), manager: null }, 'mismatch', 'invalid_target_label'],
+  [
+    'N-kind',
+    'Switch it.',
+    opAlone('a/b'),
+    { kind: 'op', id: 'a/b', newTarget: null },
+    'mismatch',
+    'invalid_target_label',
+  ],
+  ['N-number', 'Switch it.', opAlone('a/b'), 42, 'mismatch', 'invalid_target_label'],
+  ['N-list', 'Switch it.', opAlone('a/b'), ['a/b'], 'mismatch', 'invalid_target_label'],
+  // An abstention is abstained before any equality, also for a structured label equal to its placeholder.
+  ['AB-structured', 'What changed?', { audience: 'project' }, { kind: 'unresolved' }, 'abstained', null],
+]
+
+function r24Corpus(): TestDoc {
+  const doc = corpus()
+  doc.cases = R24.map(([id, input, context, label]) => testCase(id, input, context, { target: label }))
+  // r23 control: a later case under an owned id is a duplicate, and the first keeps its comparison.
+  doc.cases.push(testCase('C-op-left', 'Switch it to v3.', opPair('a', 'b/c'), { target: op('a', 'b/c') }))
+  return doc
+}
+
+interface R24View {
+  schema?: string
+  cases: readonly {
+    caseId: string
+    observation: IntakeObservation
+    comparison: readonly { field: string; result: string; note?: string; expected: unknown; observed: unknown }[]
+  }[]
+  errors: readonly { index: number; caseId: string | null; code: string }[]
+  counts: { cases: number; observed: number; invalidCases: number }
+  comparison: { fields: Record<string, Record<string, number>> }
+  targetLabels: { notation: string; forms: Record<string, number> }
+  actualEffects: Record<string, number>
+}
+
+function checkR24(r: R24View): void {
+  const byCase = new Map(r.cases.map((c) => [c.caseId, c.comparison.find((f) => f.field === 'target')]))
+  for (const [id, , , label, result, note] of R24) {
+    const got = byCase.get(id)
+    assert.deepEqual([got?.result, got?.note ?? null], [result, note], id)
+    assert.deepEqual(got?.expected, label, `${id}: the label is reported as given`)
+  }
+  // The observed target is reported whole, as the policy gave it.
+  assert.deepEqual(byCase.get('C-op-null')?.observed, op('a/b', null))
+  assert.deepEqual(byCase.get('C-repo-null')?.observed, repoTarget('r', null))
+  assert.deepEqual(byCase.get('C-repo-sentinel')?.observed, repoTarget('r', 'text_objective'))
+  assert.deepEqual(r.comparison.fields.target, {
+    match: 14,
+    mismatch: 21,
+    abstained: 1,
+    unassessed: 10,
+    not_labelled: 0,
+    denominator: 46,
+  })
+  assert.deepEqual(r.targetLabels, {
+    notation: 'sophia.intake-observation.target-label.v1',
+    forms: { structured: 23, legacy: 17, invalid: 6 },
+  })
+  assert.deepEqual(r.errors, [{ index: 46, caseId: 'C-op-left', code: 'duplicate_case_id', path: 'cases[46].caseId' }])
+  assert.deepEqual([r.counts.cases, r.counts.observed, r.counts.invalidCases], [47, 46, 1])
+  assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+}
+
+describe('r24 through the consumer: a target label names one target', () => {
+  it('in the built report', () => {
+    checkR24(report(r24Corpus()))
+  })
+
+  it('in the written report from the command line (exit 1: one duplicate id)', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, r24Corpus())
+      const out = join(dir, 'r.json')
+      assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 1)
+      const written = JSON.parse(readFileSync(out, 'utf8')) as R24View
+      assert.equal(written.schema, 'sophia.intake-observation.report.v7')
+      checkR24(written)
+    })
+  })
+
+  it('no label matches two of the colliding targets, whichever form it takes', () => {
+    const r = report(r24Corpus()) as unknown as R24View
+    const matched = new Map<string, Set<string>>()
+    for (const c of r.cases) {
+      const t = c.comparison.find((f) => f.field === 'target')
+      if (t?.result !== 'match') continue
+      const key = JSON.stringify(t.expected)
+      matched.set(key, (matched.get(key) ?? new Set()).add(JSON.stringify(c.observation.proposal.target)))
+    }
+    for (const [label, targets] of matched) assert.equal(targets.size, 1, label)
+  })
+})
+
+/**
+ * r25 (R24-F01): a legacy target label is read in work linear in its length, however many `/` it holds. Each run is a
+ * child under a generous completion sentinel (killed and reaped by spawnSync past it): the claim is the source-level
+ * bound (readings counted, never listed); the sentinel only keeps a regression from hanging the suite. Labels are data.
+ */
+const SENTINEL_MS = 30_000
+
+interface BoundedRun {
+  status: number | null
+  stdout: string
+  terminated: boolean
+}
+
+function bounded(args: string[]): BoundedRun {
+  const r = spawnSync(process.execPath, args, {
+    encoding: 'utf8',
+    timeout: SENTINEL_MS,
+    killSignal: 'SIGKILL',
+    maxBuffer: 64 * 1024 * 1024,
+  })
+  const code = r.error && 'code' in r.error ? r.error.code : undefined
+  return { status: r.status, stdout: r.stdout, terminated: code === 'ETIMEDOUT' || r.signal !== null }
+}
+
+/** The target comparison of the one case, from the built report, in a child (never the label itself: it is large). */
+function builtInChild(path: string): BoundedRun {
+  const code = `import { readFileSync } from 'node:fs'
+import { buildReport, parseCorpus } from ${JSON.stringify(pathToFileURL(SCRIPT).href)}
+const bytes = readFileSync(${JSON.stringify(path)})
+const { doc, cases } = parseCorpus(bytes)
+const r = buildReport(doc, cases, { name: 'c.json', sha256: '0'.repeat(64), bytes: bytes.length, policySourceSha256: '0'.repeat(64) })
+const t = r.cases[0].comparison.find((f) => f.field === 'target')
+process.stdout.write(JSON.stringify({ schema: r.schema, result: t.result, note: t.note, observed: t.observed, labelLength: t.expected.length, effects: r.actualEffects, forms: r.targetLabels.forms }))`
+  return bounded(['--input-type=module', '-e', code])
+}
+
+interface LargeView {
+  schema: string
+  result: string
+  note?: string
+  observed: unknown
+  labelLength: number
+  effects: Record<string, number>
+  forms: Record<string, number>
+}
+
+function viewOfWritten(path: string): LargeView {
+  const r = JSON.parse(readFileSync(path, 'utf8')) as {
+    schema: string
+    cases: { comparison: { field: string; result: string; note?: string; observed: unknown; expected: string }[] }[]
+    actualEffects: Record<string, number>
+    targetLabels: { forms: Record<string, number> }
+  }
+  const t = r.cases[0]?.comparison.find((f) => f.field === 'target')
+  assert.ok(t)
+  return {
+    schema: r.schema,
+    result: t.result,
+    ...(t.note === undefined ? {} : { note: t.note }),
+    observed: t.observed,
+    labelLength: t.expected.length,
+    effects: r.actualEffects,
+    forms: r.targetLabels.forms,
+  }
+}
+
+/** One case: an operation or a repository target, labelled with `label` (data, stripped before the policy). */
+function largeCase(kind: 'operation' | 'repository', label: string): TestDoc {
+  const doc = corpus()
+  doc.cases = [
+    kind === 'operation'
+      ? testCase('W-op', 'Switch it.', opAlone('ordinary-operation'), { target: label })
+      : testCase('W-repo', 'Implement the requested change.', repoWork('r', 'att@r8'), { target: label }),
+  ]
+  return doc
+}
+
+/** Checks the one case built and written, each in a bounded child; the corpus file's size is returned. */
+function checkLarge(doc: TestDoc, want: { result: string; note: string; observed: unknown; labelLength: number }) {
+  let size = 0
+  withTmp((dir) => {
+    const { path, hash } = writeCorpus(dir, doc)
+    size = readFileSync(path).length
+    assert.ok(size <= CLI_LIMITS.fileBytes, `${String(size)} bytes is within the accepted file size`)
+    const built = builtInChild(path)
+    assert.equal(built.terminated, false, `the built report completed within the ${String(SENTINEL_MS)} ms sentinel`)
+    assert.equal(built.status, 0)
+    const out = join(dir, 'r.json')
+    const written = bounded([SCRIPT, '--input', path, '--input-sha256', hash, '--out', out])
+    assert.equal(
+      written.terminated,
+      false,
+      `the written report completed within the ${String(SENTINEL_MS)} ms sentinel`,
+    )
+    assert.equal(written.status, 0)
+    for (const view of [JSON.parse(built.stdout) as LargeView, viewOfWritten(out)]) {
+      assert.equal(view.schema, 'sophia.intake-observation.report.v7')
+      assert.deepEqual(
+        { result: view.result, note: view.note, observed: view.observed, labelLength: view.labelLength },
+        want,
+      )
+      assert.deepEqual(view.forms, { structured: 0, legacy: 1, invalid: 0 })
+      assert.ok(Object.values(view.effects).every((v) => v === 0))
+    }
+  })
+  return size
+}
+
+describe('r25 through the consumer: legacy target labels of any length are read in linear work', () => {
+  const sizes = [1_000, 100_000, 1_900_000]
+
+  it('operation: a label of only `/` (every split a reading, none the target), up to near the file limit', () => {
+    const files = sizes.map((n) =>
+      checkLarge(largeCase('operation', '/'.repeat(n)), {
+        result: 'mismatch',
+        note: 'legacy_label',
+        observed: op('ordinary-operation', null),
+        labelLength: n,
+      }),
+    )
+    assert.ok((files.at(-1) ?? 0) > 1_900_000, 'the largest is near the 2 MiB file limit')
+  })
+
+  it('repository: a label of `/` ending in the no-item sentinel (one more reading), up to near the file limit', () => {
+    const files = sizes.map((n) =>
+      checkLarge(largeCase('repository', `${'/'.repeat(n)}/text_objective`), {
+        result: 'mismatch',
+        note: 'legacy_label',
+        observed: repoTarget('r', 'att@r8'),
+        labelLength: n + 15,
+      }),
+    )
+    assert.ok((files.at(-1) ?? 0) > 1_900_000, 'the largest is near the 2 MiB file limit')
+  })
+
+  it('near the 200-character field bound: a hit among many readings stays ambiguous, an exact short label matches', () => {
+    const slashes = '/'.repeat(200)
+    const doc = corpus()
+    doc.cases = [
+      testCase('W-op-ambiguous', 'Switch it to v3.', opPair(slashes, slashes), { target: '/'.repeat(401) }),
+      testCase('W-repo-ambiguous', 'Implement the requested change.', repoWork(slashes, slashes), {
+        target: '/'.repeat(401),
+      }),
+      testCase('W-repo-sentinel', 'Implement the requested change.', repoWork(slashes), {
+        target: `${slashes}/text_objective`,
+      }),
+      testCase('W-op-exact', 'Switch it.', opAlone('a'.repeat(200)), { target: 'a'.repeat(200) }),
+      testCase('W-op-near', 'Switch it.', opAlone('a'.repeat(200)), { target: `${'a'.repeat(200)}/` }),
+    ]
+    const r = report(doc)
+    const got = Object.fromEntries(
+      r.cases.map((c) => {
+        const t = c.comparison.find((f) => f.field === 'target')
+        return [c.caseId, [t?.result, t?.note]]
+      }),
+    )
+    assert.deepEqual(got, {
+      'W-op-ambiguous': ['unassessed', 'ambiguous_legacy_target_label'],
+      'W-repo-ambiguous': ['unassessed', 'ambiguous_legacy_target_label'],
+      'W-repo-sentinel': ['unassessed', 'ambiguous_legacy_target_label'],
+      'W-op-exact': ['match', 'legacy_label'],
+      'W-op-near': ['mismatch', 'legacy_label'],
+    })
+    assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
   })
 })

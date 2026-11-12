@@ -432,7 +432,7 @@ the final name (which fails if it exists) — no silent overwrite of a source, a
 
 ## Report
 
-`sophia.intake-observation.report.v6` (r22; v5 until r21): tool and policy version, policy descriptor and source SHA-256, input
+`sophia.intake-observation.report.v7` (r24; v6 from r22 to r23, v5 until r21): tool and policy version, policy descriptor and source SHA-256, input
 basename/SHA-256/bytes/schema, explicit scored and unscored label fields, semantic assessment `absent`, counts with
 denominators (cases, observed, invalidCases, errorIssues, abstentions, clarifications, by kind/admission), per-field
 comparison (`match` / `mismatch` / `abstained` / `unassessed`; the denominator includes all four), every miss and
@@ -483,6 +483,58 @@ errors and paths, `observed + invalidCases = cases`, a valid first occurrence ke
 a policy-input error after valid metadata. The report shape is unchanged, so the schema stays v6. A v6 report written
 before r23 may have classified a later case whose id an earlier metadata-invalid case had; it is not reinterpreted or
 retallied.
+
+**Target comparison (r24, report v7, target label notation `sophia.intake-observation.target-label.v1`).** The v6
+comparison rendered the observed target to a compact string (`renderTarget`) and compared strings, which lost
+structure. `operation {id: a, newTarget: b/c}` and `{id: a/b, newTarget: c}` both read `a/b/c`. `{id: a/b, newTarget:
+null}` and `{id: a, newTarget: b}` both read `a/b`. A repository item null and the literal item `text_objective` both
+read `r/text_objective`. A label written for one of these targets therefore matched the other.
+
+From r24 the observed target is compared as the policy's Target object. A label takes one of two forms.
+
+- **A structured label** is an object `{kind, ...fields}` with exactly that kind's fields and types:
+  - thread `scope`; artifact `ref`; comparison `refs`;
+  - mission `id`, `manager`, `generation` (an integer) and `binding`, each of the last three possibly `null`;
+  - message, reference and utterance `id`; operation `id` and `newTarget` (possibly `null`);
+  - repository_work `repo` and `item` (possibly `null`); no field for native_history, text_objective and unresolved.
+
+  It is compared field by field, kind included. Nothing is coerced, trimmed or split, and `null` is neither `"null"`
+  nor a missing field, so one label names one target. An object that is not such a label (an unknown kind, a missing
+  or extra field, a wrong type), or any other non-string, is `mismatch` with note `invalid_target_label`.
+- **A legacy string** stays readable, explicitly limited. It never names a kind, so it is read in the observed target's
+  kind, and every target the v6 notation lets it denote there is listed:
+  - an operation string as one id, or split at any `/`;
+  - a repository string split at any `/`, with the `text_objective` item also read as `null`;
+  - a thread as its scope before `_thread`;
+  - kind-only targets as their fixed word.
+
+  It is a match (note `legacy_label`) only when it can denote exactly one target and that is the observed one. It is a
+  mismatch when none is the observed one. It is `unassessed` (note `ambiguous_legacy_target_label`) when it could
+  denote several targets, one of them the observed one: it then needs a structured label.
+
+  So all four v6 collisions are `unassessed` from either side, never a match. A legacy mission string names the mission
+  id only. With the observed id it is `unassessed` (note `legacy_label_mission_id_only`): manager, generation and
+  binding are never claimed from an id. With another id it is a mismatch. Comparison labels keep their ordered-ref
+  reading.
+
+Unchanged: abstention comes before any equality, and so do `not_labelled`, the other fields and labels as data
+stripped before the policy. The report adds `targetLabels: {notation, forms: {structured, legacy, invalid}}` and
+restates `targetScoring`. The policy, including `Target` and `renderTarget`, is byte-identical (still
+`sophia.intake-observation.policy.v21`); `renderTarget` is no longer used for comparison. v6 reports are not
+reinterpreted, and no issued report is retallied.
+
+**Work bound (r25).** A legacy string is compared in work linear in its length and the target's. Its readings are
+counted, never listed or serialized:
+- an operation string has 1 + (its number of `/`) readings;
+- a repository string has one reading per `/`, plus one when it ends in `/text_objective`;
+- every other kind has at most one reading.
+
+Whether the observed target is among the readings is checked in place: for a pair, the label is exactly the first
+field, a `/`, then the second. The verdict is the same as r24's (no hit: mismatch; one reading and a hit: match;
+several readings and a hit: unassessed), so every report v7 and target-label.v1 meaning is unchanged. Nothing is
+truncated, refused or versioned: a label of any accepted length, up to the 2 MiB file, is compared in full. r24 listed
+every split and serialized each one, which is quadratic: a label of 100 000 `/` took seconds, and one of 400 000 did not
+finish within 30 s.
 
 Admission comparison (F04, bounded choice in r3) is separate from proposal comparison and never changes the policy
 outcome. A policy outcome that is a deterministic result — `waiting`, `denied`, `conflict`, `replay_original`,
