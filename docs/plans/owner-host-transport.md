@@ -398,3 +398,155 @@ gateway, fsynced journal and owner-host agent to a fake channel:
 Each answers `unknown` with no bearer in the reply, the journal bytes or the channel answer. A clean launch is still
 received with its exact ids. Fail-before on exact `5eb`, then minimal mutants: guard removed, escaped-form check
 removed, request-local set removed.
+
+## Native14: a capability file is complete and flushed before success (NATIVE13-F01)
+
+**Base.** Published `f615b602` (tree `8fb71829`). This is one signed sole child, by the same native author (Claude
+Code, session `session_01FGXfrJoUMojmJSW3H7XfoG`), worktree `r14`, branch `inc01-cc005-r14`. Written before any code.
+
+**Scope.** Four paths:
+- `scripts/owner-host.ts`, changing `makeCapability` only;
+- the new `tests/unit/owner-host-cli.test.mjs`, which the existing `tests/unit/**/*.test.mjs` glob runs;
+- this plan;
+- the INC01-CC-003 handoff.
+
+Unchanged: `check`, the hello, loopback and configuration loading, the `redeem` and `run` refusals, the journal, the
+gateway, the channel, SQL, contracts, generated outputs and SOURCE_MAP.
+
+**Finding (independent FINAL `db93190c…`, automatic comment 4549551048).** `makeCapability` opens the file `wx` with
+mode 0600, calls `writeSync` once for the 44 bytes (secret and newline) without checking its count, closes, and prints
+success. It never calls `fsync`. Observed outcomes:
+- **1 byte or 0 bytes written:** exit 0 and "written". `check` then refuses the malformed file, and a retry refuses the
+  existing path.
+- **A 7-byte prefix, then EIO:** exit 1, but the malformed 0600 file blocks every retry.
+- **Controls:**
+  - a normal 44-byte write passes `check`;
+  - a close error after a valid write leaves a valid file;
+  - the flush-error seam was never hit, because no `fsync` is called. No flush failure or crash is claimed reproduced.
+
+### States and rules
+
+1. **An existing path is refused before anything is created.** Unchanged message; the file is never replaced.
+2. **Create.** Open `wx` (`O_CREAT | O_EXCL`, which also refuses an existing symbolic link), mode 0600.
+   - If opening fails, the refusal names only the error code; nothing was created by this run.
+   - The new file's identity (device and inode) is pinned from its open descriptor.
+3. **Write every byte.**
+   - The capability is encoded once (`newSecret()` and a newline, 44 ASCII bytes) into a buffer.
+   - It is written at offsets 0..43, continuing after any positive short write.
+   - Progress that is not a whole number in 1..remaining (zero, negative, NaN, fractional or too large) fails at once,
+     so the loop is bounded.
+4. **Flush, then success.**
+   - `fsync` the file. Only then close it, and `fsync` its directory so the new name is recorded.
+   - Then print `capability written`. Success is printed only after all of these.
+5. **Failed initialization** (a write error, invalid progress, or a file `fsync` error, all before success):
+   - The capability was never announced, so it is not a credential yet.
+   - While the descriptor is still open, the path is unlinked only if it still names the pinned inode (a regular file
+     with the same device and inode).
+     - A replacement file or a symbolic link at the path is never removed.
+     - If the unlink itself fails, the file is left, and the message says so.
+   - Then the descriptor is closed, and the command exits 1. The message names the error code and either "removed; run
+     capability again" or "left in place".
+   - So an ordinary retry works after a removed failure.
+6. **A complete, flushed file is never deleted or rotated.** If closing it, or syncing its directory, fails after the
+   file's `fsync`:
+   - the file is kept;
+   - the command exits 1 without "written", naming the code, and asks the owner to run `check`, which validates the
+     file;
+   - nothing is retried, rewritten or replaced.
+7. **No value, path or raw error text is printed.** Only fixed text and an error code. The secret buffer is zeroed
+   after use (best effort).
+
+**Limits.**
+- A same-user process racing renames in the private directory, between the identity check and the unlink, is not
+  defended against.
+- Power-loss or crash atomicity, filesystem-specific `fsync` semantics and non-POSIX hosts are not qualified.
+- Process-local fault injection on regular files is the only fault evidence.
+
+### Proof (to be run)
+
+`tests/unit/owner-host-cli.test.mjs` runs the **real CLI** in bounded child processes (a timeout, no network), with a
+fake, unregistered configuration in an owned 0700 temporary directory. The configuration has a loopback URL nothing
+listens on and a fake token.
+
+The test-only preload, written into that directory:
+- patches `fs.writeSync`, `fs.fsyncSync` and `fs.closeSync` for the capability's descriptor only, then resynchronizes
+  the ESM imports;
+- traces writes, flushes and closes;
+- never records secret bytes.
+
+Cases, each followed by `check` and then a second `capability`:
+- **Normal:** 44 bytes, mode 0600, `isSecret`; `check` passes; a retry refuses the existing file.
+- **Positive short progress completing the exact bytes:** 1 byte, then 7, then the rest.
+- **Impossible progress:** zero, negative, fractional and too large.
+- **Errors:** a prefix then `EIO`; a file `fsync` error.
+- **A close error** after a complete write and flush.
+- **Existing files:** an existing valid file and an existing malformed or foreign file are refused and kept byte for
+  byte.
+- **Replacement during a failure:** a replacement regular file, or a symbolic link, at the path during a failed write
+  is kept.
+
+The new tests run on exact `f615` production (fail-before, actual causes), then on the repair. The narrow class
+mutants are: the one-call write, zero progress accepted, too-large progress accepted, no `fsync`, the cleanup removed,
+and the identity check dropped. Each is run alone with its source SHA restored. Then one signed commit, an early
+checkpoint, **one** ordinary `pnpm check` and the sealed handback.
+
+### Native14 repair 1: the whole initialization is guarded, and an unverified path is never deleted (NATIVE14-F01)
+
+**Base.** The published `f615b602`, with the exact rejected `8b1ebb89` tree (`5de342c6`) staged first and no
+intermediate commit. Worktree `r14r1`, branch `inc01-cc005-r14r1`. The final result is one signed sole child of
+`f615`; `8b1` stays outside its ancestry, with its ref, worktree, raw evidence and its one ordinary check kept. The same
+four paths. Written before any code.
+
+**Finding (CORE `405098e6…` and its recovery addendum `8f3a1ec1…`).**
+- **The unguarded step.** `8b1` creates the file, then builds the secret buffer and reads the file's identity
+  (`fstatSync`) **outside** its failure guard. An injected identity-read error (EIO) therefore escaped as a raw
+  exception:
+  - its message, the private path and a stack were printed;
+  - a 0-byte 0600 file was left, with no explicit close;
+  - `check` refused it, and a retry refused the existing path.
+
+  The child's exit released its descriptor: no surviving descriptor leak, credential disclosure or random-generator
+  failure is claimed.
+- **Conflated guidance (addendum).** The cleanup's single `catch` treated an unreadable path (no identity
+  established) like a confirmed-own unlink failure. In both cases it told the owner to "remove it".
+
+**Rules (adding to the rules above; everything else unchanged).**
+1. **The secret is made before anything is created.** A failure to generate it creates nothing and prints a fixed,
+   code-only refusal.
+2. **Every step after a successful create is guarded:** reading the identity, writing, and the file `fsync`. On any
+   failure:
+   - the secret buffer is zeroed;
+   - the descriptor's close is attempted, and a close error never replaces the original error, whose code is what is
+     reported;
+   - the command exits 1 with fixed text and the original error code only: no injected message, path or stack.
+3. **No identity, no deletion.** If the identity read failed, nothing is unlinked. The message says the path was left
+   in place unverified and asks for inspection before any retry. `check` and `capability` may then refuse it; no
+   blind removal is advised.
+4. **Cleanup states are kept apart:**
+   - **Removed:** the path still named this run's inode and was unlinked. The owner can run `capability` again.
+   - **Replaced:** the path names another file or a link. It is left in place, as before.
+   - **Not inspected:** the path could not be inspected (an `lstat` error), so ownership is unknown. It is left in
+     place, the error code is given, and the owner is asked to inspect it. There is no "remove it".
+   - **Own but not removable:** the path is confirmed as this run's file, but the unlink failed. Only here is the owner
+     told to remove it, then run `capability` again.
+5. **Unchanged:**
+   - complete bytes, bounded progress, file and directory sync;
+   - a valid, flushed file is kept when a later close or directory sync fails;
+   - foreign files and links are kept;
+   - 0600, no overwrite, the value never printed;
+   - configuration, `check`, the hello, `run` and `redeem`.
+
+   No same-user hostile-directory or crash guarantee is claimed.
+
+**Proof (to be run).** New bounded CLI cases in the same test file, using the same test-only preload, extended to
+patch `fstatSync` on the capability's descriptor and `lstatSync` and `unlinkSync` on its path. The injected identity
+error carries a private marker and the path, so that leaking either is caught. The cases:
+- an identity-read EIO before any write;
+- the same error after a replacement regular file, or a symbolic link, was put at the path;
+- the identity-read EIO with a secondary close failure carrying a different code (the original code wins);
+- a zero-progress write whose cleanup `lstat` fails ("not inspected": no removal advice);
+- a confirmed-own unlink failure (the existing "remove it" advice, as a control).
+
+The new cases must fail on exact `8b1` for these causes and pass on the repair, with all 15 existing cases kept.
+Narrow new mutants: the identity read moved outside the guard; no close on failure; a close error replacing the
+original; the not-inspected state conflated with "remove it"; unlinking without an identity.

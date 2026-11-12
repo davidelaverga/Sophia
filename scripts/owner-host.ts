@@ -7,8 +7,19 @@
 // Paths only on the command line: the T3 bearer, the capability and a pairing code are read from files (or, later, from
 // standard input), never from argv, never printed and never logged. `check` opens the gateway journal (creating it on
 // first use) under its lock, to report its durable id; it calls neither Sophia nor T3.
-import { closeSync, existsSync, openSync, readFileSync, statSync, writeSync } from 'node:fs'
-import { isAbsolute } from 'node:path'
+import {
+  closeSync,
+  existsSync,
+  fstatSync,
+  fsyncSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+  statSync,
+  unlinkSync,
+  writeSync,
+} from 'node:fs'
+import { dirname, isAbsolute } from 'node:path'
 import { parseArgs } from 'node:util'
 import { helloRefusal, isSecret, newSecret, type HostHello } from '../packages/coordination/src/owner-host-channel.ts'
 import { RunnerJournal } from '../packages/coordination/src/runner-journal.ts'
@@ -145,14 +156,117 @@ function check(c: HostConfig) {
   console.log('owner-host: configuration ok (nothing was sent to Sophia or T3)')
 }
 
+/** An error's code only (EIO, ENOSPC, …): never its message, which may name a private path. */
+const codeOf = (err: unknown): string =>
+  err instanceof Error && 'code' in err && typeof err.code === 'string' && /^E[A-Z0-9]{1,15}$/.test(err.code)
+    ? err.code
+    : 'no valid progress'
+
+/**
+ * Every byte of `bytes` from the start of the new file (Native14, NATIVE13-F01). A positive short write continues from
+ * the byte it stopped at; progress that is not a whole number in 1..remaining throws, so the loop is bounded.
+ */
+function writeWhole(fd: number, bytes: Buffer): void {
+  let done = 0
+  while (done < bytes.length) {
+    const left = bytes.length - done
+    const n = writeSync(fd, bytes, done, left, done)
+    if (!Number.isSafeInteger(n) || n < 1 || n > left) throw new Error('owner-host: a write made no valid progress')
+    done += n
+  }
+}
+
+/**
+ * Remove a failed initialization's file only while the path still names the inode this run created (a regular file,
+ * same device and inode), with its descriptor still open. A replacement or a symbolic link is left in place. Repair 1
+ * (NATIVE14-F01): a path that cannot be inspected is left in place without removal advice; only a confirmed own file
+ * whose unlink failed is the owner's to remove.
+ */
+function removeOwnIncomplete(file: string, created: { dev: number; ino: number }): string {
+  let named: ReturnType<typeof lstatSync>
+  try {
+    named = lstatSync(file)
+  } catch (err) {
+    return `the path could not be inspected (${codeOf(err)}), so it was left in place; inspect it before any retry`
+  }
+  if (!named.isFile() || named.dev !== created.dev || named.ino !== created.ino)
+    return 'the path no longer names the file this run created; it was left in place'
+  try {
+    unlinkSync(file)
+  } catch (err) {
+    return `the incomplete file could not be removed (${codeOf(err)}); remove it, then run capability again`
+  }
+  return 'the incomplete file was removed; run capability again'
+}
+
+/** Close a descriptor on a failure path; a close error never replaces the error being reported. */
+function closeQuietly(fd: number): void {
+  try {
+    closeSync(fd)
+  } catch {
+    // The original error is the one reported.
+  }
+}
+
+const UNVERIFIED =
+  'its identity could not be read, so the path was left in place unverified; inspect it before any retry ' +
+  '(check reports what is there)'
+
+/**
+ * Make this host's capability (Native14, NATIVE13-F01; docs/plans/owner-host-transport.md). Created exclusively, mode
+ * 0600, never replaced. Its 44 bytes are written whole and fsynced before success; then the file is closed and its
+ * directory fsynced. A write or file-fsync failure is a failed initialization: never announced, and this run's own
+ * file is removed so that an ordinary retry works. A complete, flushed file is never removed: a later close or
+ * directory-sync failure keeps it and says so. Only fixed text and an error code are printed, never the value or a path.
+ */
 function makeCapability(c: HostConfig) {
   if (existsSync(c.capabilityFile))
     fail('capabilityFile exists: a capability is never replaced; pair again as a new host')
-  const fd = openSync(c.capabilityFile, 'wx', 0o600)
+  // Repair 1 (NATIVE14-F01): the secret exists before anything is created, so nothing can fail between the create
+  // and the guard below.
+  let bytes: Buffer
   try {
-    writeSync(fd, `${newSecret()}\n`)
-  } finally {
+    bytes = Buffer.from(`${newSecret()}\n`, 'utf8')
+  } catch (err) {
+    fail(`capability could not be generated (${codeOf(err)}); nothing was created`)
+  }
+  let fd: number
+  try {
+    fd = openSync(c.capabilityFile, 'wx', 0o600)
+  } catch (err) {
+    bytes.fill(0)
+    fail(`capabilityFile could not be created (${codeOf(err)}); nothing was written`)
+  }
+  // Every step after the create is guarded: the identity read, the writes and the file's fsync. Without an identity,
+  // nothing is unlinked.
+  let created: { dev: number; ino: number } | null = null
+  try {
+    created = fstatSync(fd)
+    writeWhole(fd, bytes)
+    fsyncSync(fd)
+  } catch (err) {
+    bytes.fill(0)
+    const outcome = created === null ? UNVERIFIED : removeOwnIncomplete(c.capabilityFile, created)
+    closeQuietly(fd)
+    fail(`capability not written (${codeOf(err)}): ${outcome}`)
+  }
+  bytes.fill(0)
+  try {
     closeSync(fd)
+  } catch (err) {
+    fail(`the capability was written and flushed, but closing it failed (${codeOf(err)}); run check before pairing`)
+  }
+  try {
+    const dir = openSync(dirname(c.capabilityFile), 'r')
+    try {
+      fsyncSync(dir)
+    } finally {
+      closeSync(dir)
+    }
+  } catch (err) {
+    fail(
+      `the capability was written and flushed, but its directory was not synced (${codeOf(err)}); run check before pairing`,
+    )
   }
   console.log('owner-host: capability written (its value is not shown)')
 }
