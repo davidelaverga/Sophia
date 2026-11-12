@@ -1,6 +1,6 @@
 # Implementation-session handoff — INC01-DES-001
 
-Goal and attempt: INC01-DES-001, revision 3 repair 8 (r2 `changes_requested` by Davide's iteration pack), attempt 1 (INC-01)  
+Goal and attempt: INC01-DES-001, revision 3 repair 11 (r2 `changes_requested` by Davide's iteration pack), attempt 1 (INC-01)  
 Human owner / executor resource: Davide / the dedicated Claude Code designer (cloud session, Auto mode)  
 Native session: `session_01FGXfrKKdKs2Y9XbfrHzs3s`; coordinator Codex `01a1bd48-df51-7692-b30c-9e20f6eb4c81`  
 Starting worktree/commit: `/home/user/Sophia`, branch `claude/determined-ritchie-eujmht` at `main`
@@ -13,14 +13,14 @@ one publication commit on the base, its r2-based work commit kept on a separate 
 published as `1164e75dce7ffea5724d2b20d58856ae8e4f63fd` (tree `fd233c6b4a314ae35f026bcbddf80208e0521f1e`, PR 506);
 repair 3 was published as `85c4a88606704ba7a9ce88907d7b218086851cf2` (tree `8aae2238135780c2f53773cafe473a10437ac91f`,
 PR 506); repairs 4 to 7 were published by root as `de661b30ed60ce12e6ccfa81bf48e729116f638d` (tree
-`a71d97d8bf798ea30e2617fe2fa6f33fb635dad8`), and repair 8 is one local, unpushed child of that published commit, never a
-rewrite of it (`b466f693`, `fbebda5e` and `58e44a2a` stay kept, unpublished partial repairs). Changed:
-`apps/studio/src/features/resources/{ResourceSheet.tsx, ResourceTile.tsx, resource.ts, resources.css, status-words.ts,
-status-words.test.ts, receipts.ts, receipts.test.ts, SessionActs.tsx, work-control.ts, work-control.test.ts}`,
-`apps/studio/src/features/work/planning/{actions.ts, actions.test.ts}`, `apps/studio/fixtures/{resources.tsx,
-work.tsx}`, `apps/studio/e2e/{resources.spec.ts, resource-control-status.spec.ts, work.spec.ts}`,
-`docs/plans/inc01-resource-control-truth.md`, this file,
-`docs/coordination/SOPHIA-INC-2026-11/DESIGN_RESOURCE_CONTROLS.md`.
+`a71d97d8bf798ea30e2617fe2fa6f33fb635dad8`), and repair 8 as `18a7320bd74b43156a5824638a44e15dbad7573e` (tree
+`ae8bfddf05a6ff143f231b48fb20fba85958d869`); repair 11 is one local, unpushed child of `18a7320b` holding repairs 9 to 11 (repair 9 alone, `28d1ec59`, and repair 10, `cef4992e`, are kept unpublished; repair 11 was developed as a child of `cef4992e`), never a rewrite of it (`b466f693`, `fbebda5e` and `58e44a2a` stay kept, unpublished partial repairs). Changed (27 paths):
+`apps/studio/src/features/resources/{history.ts, history.test.ts, pace.ts, pace.test.ts, ResourceSheet.tsx,
+ResourceTile.tsx, resource.ts, resources.css, status-words.ts, status-words.test.ts, receipts.ts, receipts.test.ts,
+SessionActs.tsx, work-control.ts, work-control.test.ts}`, `apps/studio/src/features/work/planning/{TaskActions.tsx,
+actions.ts, actions.test.ts}`, `apps/studio/fixtures/{resources.tsx, work.tsx}`, `apps/studio/e2e/{resources.spec.ts,
+resource-control-status.spec.ts, work.spec.ts, task-keys.spec.ts}`, `docs/plans/inc01-resource-control-truth.md`, this
+file, `docs/coordination/SOPHIA-INC-2026-11/DESIGN_RESOURCE_CONTROLS.md`.
 
 Assignment: `INC01-DES-001.md`, SHA-256 `9ef27aeadf95641ad400d1d13eb15ced00d3a09951a77e734d71695fafdbff38`. Pack read
 without merging at `afe68b679722e28471dcdf6222d519759cd78c49` (README, MISSION, INC-01 module, C01, C02,
@@ -51,9 +51,12 @@ its Try again the same operation. The state comes from the one store Resources a
 execution; Tasks draws no second Hold either, nor names H for one. Readiness opens on request, fact by fact, the
 unknown ones said as not reported. Control support uses the pack's words.
 
-State: repair 8 of the published `de661b30` (UI-DE66-F11: the settled control a work rests on), one local, unpushed
-candidate, awaiting the same reviewer's whole-diff source review; root and that reviewer assess its materiality on the
-actual diff. Repairs 4 to 7 (`de661b30`) were accepted pre-push (`6e50d169…`) and published by root; its post-push gate
+State: repairs 9 and 10 of the published `18a7320b`, one local, unpushed candidate: UI18-F12 (an observed stop
+supersedes a Hold or Resume in the live status), and UI9-F13 and UI9-F14 (the focus handoff says the current state; the
+keyboard test reads one row). It awaits the same reviewer's whole-actual pre-push gate; root and that reviewer assess its
+materiality on the actual diff. Repair 9 alone (`28d1ec59`, parent `18a7320b`) is kept unpublished: its whole-26 gate
+(`0a162b8a…`) closed F12 and found F13 and F14. Repair 8 (`18a7320b`) was accepted pre-push (`9a66d20f…`) and
+published by root; its post-push gate (`ef804efe…`) found F12. Repairs 4 to 7 (`de661b30`) were accepted pre-push (`6e50d169…`) and published by root; its post-push gate
 (`cc68625c…`) found F11. `b466f693`, `fbebda5e` and `58e44a2a` are
 preserved partial repairs, not source accepted (`58e44a2a`'s whole-26 pre-push gate `7c72f635…`: needs revision, F10). Repair 3 (`85c4a886`, UI1164-F08) was
 accepted pre-push (`04d63f48…`), judged an ordinary correction within the approved design and published by root.
@@ -414,12 +417,93 @@ the two e2e specs and the three records.
 6. Captures: 5 states before on `de661b30` and after, desktop and narrow. The candidate is one signed child of
    `de661b30`; the focused checks, captures, `pnpm check` and the build ran on it (manifest).
 
+## r3 repair 9, as it happened
+
+The same reviewer's post-push gate on `18a7320b` (`ef804efe…`) kept every earlier closure and confirmed one P2 class
+from the automatic review, UI18-F12. Lease: the same eight paths.
+
+1. The plan's repair 9 section first. A probe on the exact `18a7320b`, both widths, through the fixture's existing
+   projection control (`workFixture.setLifecycle(work-2, stopped)`, no new hook, no forged receipt): a Hold confirmed in
+   Resources, then Open work, then stopped: the sheet said Stopped and offered nothing, Act's status "Held. Its runtime
+   confirmed the hold."; a Resume confirmed in Tasks, then stopped: "Resumed.". A confirmed covering Stop and a seeded
+   pending Hold were said rightly. Nothing was sent; the retained operations were unchanged.
+2. Fail-before on the exact `18a7320b` `SessionActs.tsx`, `work-control.ts`, `receipts.ts`, `TaskActions.tsx` and both
+   fixtures (blobs verified): 2 of 19 unit tests failed, by assertion; the 4 new browser checks failed (both paths,
+   desktop and phone), the control check (covering Stop, pending Hold) passing.
+3. The repair: `inForce` takes the view's observation: once it observes the work stopped, only a Stop its runtime
+   confirmed can be in force. `superseded(k, force)`: a settled control (not refused, not under way) that isn't the one
+   in force. `SessionActs` says the latest row only when it isn't superseded. Nothing is made up; every command, its
+   operation, target and retry stay as they were; unresolved commands and refusals are said as before.
+4. Pass-after: 19/19 unit; the probe at both widths: neither path says Held or Resumed once stopped, the covering Stop
+   and the pending Hold said as before, nothing offered or sent, the retained operations unchanged; the three affected
+   specs (Resources, its control status, Tasks), both projects, 360 passed (355 and the 5 new).
+5. Mutations, each applied exactly once, 0 cancelled, restored byte-identical, all failing assertions: `inForce`
+   ignoring the observed stop (1 unit, 4 browser: both paths, both widths), `SessionActs` saying a superseded latest
+   (browser only, 2: the exact Resume path, a component), `superseded` counting a command still under way, or a
+   refusal (1 unit each; unit-only: no fixture path pairs them with an observed stop as the latest).
+6. Captures: 5 states before on `18a7320b` and after, desktop and narrow. The candidate is one signed child of
+   `18a7320b`; the focused checks, captures, `pnpm check` and the build ran on it (manifest).
+
+## r3 repair 10, as it happened
+
+The same reviewer's whole-26 gate on `28d1ec59` (`0a162b8a…`) closed F12 and found two P2 classes. Lease: the eight
+paths and, for this repair only, `apps/studio/e2e/task-keys.spec.ts`.
+
+1. The plan's repair 10 section first. The original keyboard test, unchanged, run once on the exact `28d1ec59` without
+   retries: failed at line 28 in strict mode, two step rows (the confirmed Hold, then the Resume on its way), as on
+   `18a7320b`'s CI (job 130807296644); kept.
+2. Fail-before on the exact `28d1ec59` `SessionActs.tsx`, `work-control.ts`, `receipts.ts`, `TaskActions.tsx` and both
+   fixtures (blobs verified): 2 of 21 unit tests failed, by assertion; 5 new browser checks failed (Resume focused then
+   the covering Hold stopped, Stop focused then the exact Resume stopped, desktop and phone; a focus put elsewhere): the
+   focus on the status line, its name empty. The repaired keyboard test passed there (a test-only change). Before
+   captures, the focus recorded: `DIV.act-status role=status`, no label, no text, in all four.
+3. The repair: `currentSaid(state, rowsShown)` in `work-control.ts`, the work's stop as its view observes it
+   (`workState`'s own words) when no row is said; `SessionActs` says it in the status line and names the line by it
+   (`statusOf` gathers the line's rows and words). A confirmed Stop is still said by its own receipt row; nothing is made
+   up. `task-keys.spec.ts:28` now waits for the one row saying `Resumed.`, then one row, the task Working, and one Hold
+   and one Resume sent; every other check of it is unchanged.
+4. Pass-after: 21/21 unit; the focus probe at both widths: the status line focused, named and saying "Stopped. Its
+   runtime reports it stopped."; the covering Stop's own row unchanged; browser: the four affected specs on the worktree, run 1: 366 passed, 1 failed (`[desktop] work.spec.ts:55`, five lanes: the Active lane read empty), exit 1, kept; that single test re-run alone on the same blobs without retries passed. Its cause is unproven: a first-render timing race is a hypothesis only, not established, and no baseline replay was run; the test is not changed or weakened.
+5. Mutations: each applied once, the unit run and the five repair 10 browser checks, then restored identical. M-AN (`currentSaid` says nothing): 1 unit test and 5 browser checks failed, by assertion. M-AO (said beside a row too): 2 unit tests failed, by assertion; the 5 browser checks passed, so it is killed by unit only. M-AP (the status line left unnamed): unit passed (it is markup only); 5 browser checks failed, by assertion. 0 cancelled.
+6. Captures: 5 states before on `28d1ec59` and after, desktop and narrow. Development commit a signed child of
+   `28d1ec59`; the candidate one signed child of `18a7320b` with the same tree; the final checks on it (manifest).
+7. Final checks on that candidate, `cef4992e` (recorded here by repair 11, since this file was written before them):
+   176/176 focused unit; the four affected specs without retries, 366 passed and 1 failed (`[desktop]
+   work.spec.ts:55`, the Active lane read `[]`), exit 1, kept and not waived; captures and focus probe passed;
+   `pnpm check` exit 0; Studio build exit 0. The same reviewer's gate (`b0dd0372…`) closed F12, F13 and F14 and
+   opened UI10-F15 on that failure.
+
+## r3 repair 11, as it happened
+
+The same reviewer's whole-27 gate on `cef4992e` (`b0dd0372…`) found one P2, UI10-F15: the five-lane test reads each
+lane once, before the board may have rendered. Its discriminator on `cef4992e` (normal and 6× CPU) saw load before
+React's first board commit, an immediate `[]` at 6×, and all five exact arrays and chips afterwards. That establishes
+the early-read mechanism only, not one cause for every past failure. Lease: `apps/studio/e2e/work.spec.ts`, the plan
+and this file.
+
+1. The plan's repair 11 section first. Before, on the unchanged `cef4992e` test: a discriminator ran the test's five
+   reads after `goto` at 1× and 6× CPU (CDP). At 1×, 5 of 5 first reads were exact. At 6×, 4 of 5, with Active `[]`.
+   Then the retrying assertions on the same page passed for all five lanes and the chips, with 0 commands, 0 page
+   errors and 0 external requests. The actual unchanged test at normal CPU, once, without retries: passed.
+2. The repair: the five one-shot reads became `await expect(…'.task-tile-title').toHaveText([...], { useInnerText:
+   true })`. These are the same exact titles, in the same order and the same number, read as inner text, retried
+   within the 5000 ms expect timeout. Every lane, state and chip assertion is unchanged; no sleep, test retry, skip or
+   soft expect. `toHaveText` also normalises runs of whitespace; none of these titles holds any.
+3. After: the actual repaired test at normal CPU without retries passed. The discriminator gave the same raw first
+   reads (Active `[]` at 6×) and the repaired assertions passed at 1× and 6×.
+4. Mutant M-AQ on the actual spec ("Review the report pane" expected in Up next, not Active): failed by assertion
+   after the 5000 ms timeout, then restored byte for byte, 0 cancelled. In the harness it also fails at both rates.
+5. Production, fixture and CSS blobs are unchanged from `cef4992e`; their unit and capture proofs are reused by blob
+   identity. Development commit a signed sole child of `cef4992e`; the candidate one signed sole child of `18a7320b`
+   with the same tree; the final checks on it (manifest).
+
 ## Remaining obligations
 
-- Same reviewer's whole-diff source review of repair 8 before root pushes it; then root fast-forwards once, and the
+- Same reviewer's whole-actual source review of repairs 9 to 11 before root pushes them; then root fast-forwards once, and the
   current-head automatic review, CI and Luis's integration follow on PR 506.
-- Davide's approval covers exactly `1164e75d`. Root and the reviewer judge repair 8's materiality on its diff (a made-up
-  reset time corrected to the existing unknown-reset wording, saying none); any material UI change needs his decision on that working candidate.
+- Davide's approval covers exactly `1164e75d`. Root and the reviewer judge the materiality of repairs 9 to 11 on their
+  diff (an observed stop superseding a Hold or Resume in Act's status; the focus handoff saying the current state; a
+  keyboard test reading one row; a lane test waiting for the board); any material UI change needs his decision on that working candidate.
 - r3 repair 3 bounds: the mixed capacity line is unchanged (beside a 25 % window, the tile's capacity still names that
   window while the summary waits for the used-up count); a count's name follows the existing `windowName` (an unmapped
   id reads as words, e.g. "daily tokens"); no live readiness projection or quota collector exists, so this is fixture
@@ -439,6 +523,16 @@ the two e2e specs and the three records.
   Hold still says Working, and the Act's status line now says beside it the Hold as sent and confirmed, never that the
   named attempt itself settled. The fixture's Tasks page never settles a Resume (no `settle=` is carried), so a Resume
   confirmed after a Hold is unit-tested, not rendered. No runtime verification or service projection is claimed.
+- r3 repair 9 bounds: once the work is observed stopped, a Hold or Resume it overtook is no longer said in Act's
+  status, and nothing is said in its place there: the sheet says the stop as its view observes it. Its receipt stays in
+  the store as it was (not shown as history in Act). A confirmed Stop overtaking a Hold is handled by the same rule.
+- r3 repair 10 bounds: the line said when no row is said appears only for stopped work (as its view observes it); held
+  work with no row says nothing more there, as before. It is the view's word, not a command's receipt.
+- r3 repair 11 bounds: only the five-lane test's five reads wait for the board. Other one-shot `titles(...)` reads in
+  `work.spec.ts` follow actions or waits in their own tests and are reported, not edited. The repair 10 failures stay
+  as they were; their cause is not claimed beyond the early-read mechanism the reviewer reproduced.
+  The design review record (`DESIGN_RESOURCE_CONTROLS.md`) is outside repair 11's lease, so its rows still describe
+  repair 10; root updates it or leases it.
 - r3 repair 1 bounds: the readiness projection and `runtimeControl` are the Studio's proposal; no service supplies them,
   so production shows the unknown states; the seeds prove the UI rebuilds from a retained record, not that a service
   retains or reconciles one: real binding, recovery, revocation and permission checks stay not run, with the backend
@@ -456,6 +550,6 @@ the two e2e specs and the three records.
 
 ## Next bounded action
 
-Root sends the repair 8 export to the same reviewer for its whole-diff source review; nothing is pushed before that.
+Root sends the repair 11 export (repairs 9 to 11 together) to the same reviewer for its whole-diff source review; nothing is pushed before that.
 After integration, the next consumer is INC01-S2: bind real `ResourcePanel` data in `ProjectShell` and add the readiness and
 authentication observations C01-R05 names. This candidate's "not reported" line then shows what is observed.

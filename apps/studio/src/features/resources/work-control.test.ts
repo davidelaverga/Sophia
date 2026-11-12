@@ -262,3 +262,60 @@ describe('the settled control a work’s state rests on, said as its own (r3 rep
     assert.equal(inForceOf([other({ work_id: 'w2' })], tasks), undefined)
   })
 })
+
+const supersededOf = (k: Known, force: Known | undefined) => {
+  assert.equal(typeof wc.superseded, 'function', 'superseded')
+  return wc.superseded(k, force)
+}
+
+describe('a newer stop supersedes a Hold or Resume in the live status (r3 repair 9, UI18-F12)', () => {
+  const hold = settled(command('hold'), 'held')
+  const resumed = settled(command('resume', 'op-resume', tasks), 'resumed')
+  const stop = settled(command('stop'), 'stopped')
+
+  it('has nothing but a confirmed Stop in force once its view observes the work stopped', () => {
+    assert.equal(wc.inForce([hold], tasks, 'stopped'), undefined) // the Hold isn't current any more
+    assert.equal(wc.inForce([hold, resumed], tasks, 'stopped'), undefined)
+    assert.equal(wc.inForce([hold, stop], tasks, 'stopped'), stop) // a Stop its runtime confirmed stays
+    assert.equal(wc.inForce([hold, pending(command('stop', 'op-stop-2'))], tasks, 'stopped'), undefined)
+    // Without that observation, as before: the last confirmed Hold or Resume, a confirmed Stop over both.
+    assert.equal(wc.inForce([hold], tasks, null), hold)
+    assert.equal(wc.inForce([hold], tasks, 'held'), hold)
+    assert.equal(wc.inForce([hold, resumed], tasks), resumed)
+  })
+
+  it('says a settled control superseded when it isn’t the one in force; never one still open, refused or guidance', () => {
+    assert.equal(supersededOf(resumed, undefined), true) // overtaken by an observed stop
+    assert.equal(supersededOf(hold, stop), true) // overtaken by a confirmed Stop
+    assert.equal(supersededOf(stop, stop), false) // the one in force
+    assert.equal(supersededOf(hold, hold), false)
+    assert.equal(supersededOf(pending(command('hold', 'op-h2')), stop), false) // still open: said as it is
+    assert.equal(supersededOf(lost(sending(command('stop', 'op-s3'))), undefined), false)
+    assert.equal(supersededOf(refused(command('hold', 'op-h3')), stop), false) // a refusal is said as refused
+    assert.equal(supersededOf(settled(command('guidance', 'op-g'), 'not_applicable'), stop), false)
+  })
+})
+
+const currentSaidOf = (state: ReturnType<typeof workState>, rowsShown: boolean) => {
+  assert.equal(typeof wc.currentSaid, 'function', 'currentSaid')
+  return wc.currentSaid(state, rowsShown)
+}
+
+describe('the status line says the current state when nothing else is said (r3 repair 10, UI9-F13)', () => {
+  const OBSERVED = { status: 'Stopped', tone: 'muted', sentence: 'Its runtime reports it stopped.' }
+
+  it('says the stop its view observes when no row is said, never a receipt', () => {
+    const hold = settled(command('hold'), 'held')
+    assert.deepEqual(currentSaidOf(workState([hold], tasks, 'stopped'), false), OBSERVED) // the Hold overtaken
+    assert.deepEqual(currentSaidOf(workState([], tasks, 'stopped'), false), OBSERVED)
+    assert.equal(currentSaidOf(workState([hold], tasks, 'stopped'), true), null) // a row says it already
+  })
+
+  it('says nothing more for work that isn’t stopped, or stopped by a Stop said by its own row', () => {
+    assert.equal(currentSaidOf(workState([settled(command('hold'), 'held')], tasks, null), false), null)
+    assert.equal(currentSaidOf(workState([pending(command('hold'))], tasks, null), false), null)
+    assert.equal(currentSaidOf(workState([], tasks, 'held'), false), null)
+    assert.equal(currentSaidOf(workState([], tasks, null), false), null)
+    assert.equal(currentSaidOf(workState([settled(command('stop'), 'stopped')], tasks, null), true), null)
+  })
+})

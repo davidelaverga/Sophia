@@ -922,6 +922,77 @@ test('@phone · r3-repair8 · F11 · at a phone’s width, the confirmed Stop an
   expect(await workSent(page)).toEqual([])
 })
 
+// ---- r3 repair 9 (UI18-F12): a newer stop supersedes a Hold or Resume in the live status. ----
+
+/** The task's view observes the work stopped (the fixture's existing projection control): no command is sent. */
+const observedStopped = (page: Page) => page.evaluate(() => window.workFixture?.setLifecycle?.('work-2', 'stopped'))
+
+test('r3-repair9 · F12 · a Hold confirmed in Resources, then its task observed stopped: never said Held as current', async ({
+  page,
+}) => {
+  const task = await confirmedThenOpen(page, 'hold')
+  const [hold] = carriedControls(page)
+  await expect(task.locator('.act-status')).toContainText(HELD) // in force until something newer says otherwise
+  await observedStopped(page)
+  await expect(task).toContainText('Stopped') // its view's word
+  await expect(task.locator('.act-status')).not.toContainText(/\bHeld\b/)
+  await expect(task.locator('.session-acts button')).toHaveCount(0) // nothing offered once stopped
+  expect(carriedControls(page)).toEqual([hold]) // the Hold kept as it was, its operation and target
+  expect(await workSent(page)).toEqual([]) // no Stop made up, nothing sent
+})
+
+test('r3-repair9 · F12 · a confirmed covering Stop stays said, and a Hold still on its way stays open, once stopped', async ({
+  page,
+}) => {
+  const task = await confirmedThenOpen(page, 'stop')
+  await observedStopped(page)
+  await expect(task.locator('.act-status')).toContainText('Stop sent without naming its attempt')
+  await expect(task.locator('.act-status')).toContainText(STOPPED) // its own confirmed receipt, still true
+  await page.goto(`${PAGE}?viewer=davide&seed=pending`)
+  const sheet = await open(page, 'Davide · Codex')
+  await row(sheet).getByRole('button', { name: 'Open work: Review the report pane' }).click()
+  const pendingTask = page.getByRole('dialog', { name: /Review the report pane/ })
+  await expect(pendingTask).toBeVisible()
+  await observedStopped(page)
+  const earlier = pendingTask.getByRole('list', { name: 'Earlier, still open' })
+  await expect(earlier).toContainText('Hold requested; waiting for the runtime to confirm.') // as it is, never settled
+  expect(await workSent(page)).toEqual([])
+})
+
+test('@phone · r3-repair9 · F12 · at a phone’s width, a Hold then an observed stop is never said Held as current', async ({
+  page,
+}) => {
+  test.setTimeout(90_000)
+  const task = await confirmedThenOpen(page, 'hold')
+  await observedStopped(page)
+  await expect(task).toContainText('Stopped')
+  await expect(task.locator('.act-status')).not.toContainText(/\bHeld\b/)
+  await expect(task.locator('.session-acts button')).toHaveCount(0)
+  expect(await workSent(page)).toEqual([])
+})
+
+// ---- r3 repair 10 (UI9-F13): the focus handoff lands on the current state, never on a blank line. ----
+
+const OBSERVED_STOP = 'Stopped. Its runtime reports it stopped.'
+
+for (const width of ['desktop', 'phone'] as const) {
+  test(`${width === 'phone' ? '@phone · ' : ''}r3-repair10 · F13 · Resume focused, then the work observed stopped: the focus says it stopped`, async ({
+    page,
+  }) => {
+    test.setTimeout(90_000)
+    const task = await confirmedThenOpen(page, 'hold')
+    await task.getByRole('button', { name: /^Resume/ }).focus()
+    await observedStopped(page)
+    const status = task.locator('.act-status')
+    await expect(status).toBeFocused() // kept in the sheet, on its status line
+    await expect(status).toHaveAccessibleName(OBSERVED_STOP) // the current state, as its view observes it
+    await expect(status).toHaveText(OBSERVED_STOP)
+    await expect(status).not.toContainText(/\bHeld\b/) // repair 9 kept: the overtaken Hold isn't said
+    await expect(task.locator('.session-acts button')).toHaveCount(0)
+    expect(await workSent(page)).toEqual([]) // no Stop made up or sent
+  })
+}
+
 test('@phone · r3-repair · readiness at a phone’s width: its line and details inside the sheet', async ({ page }) => {
   await page.goto(`${PAGE}?viewer=davide&readiness=1`)
   const sheet = await open(page, 'Davide · Codex')

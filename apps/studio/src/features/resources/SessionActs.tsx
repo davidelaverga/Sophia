@@ -44,7 +44,17 @@ import {
   type Offer,
 } from './receipts.ts'
 import type { Resource } from './resource.ts'
-import { guidanceWithheld, inForce, retryKinds, stillOffered, workState, type Observed } from './work-control.ts'
+import {
+  currentSaid,
+  guidanceWithheld,
+  inForce,
+  retryKinds,
+  stillOffered,
+  superseded,
+  workState,
+  type Observed,
+  type WorkState,
+} from './work-control.ts'
 
 export type { Offer } from './receipts.ts'
 
@@ -351,6 +361,33 @@ function useFocusKept(allowedKey: string) {
   return { box, status, onFocus, onBlur }
 }
 
+/** What the status line says now: its rows, and the current state when no row says anything. */
+interface Status {
+  forceShown: Known | undefined
+  latestShown: Known | undefined
+  saidLine: string | undefined
+}
+
+/**
+ * The settled control the work's state rests on, said as sent, when it isn't the latest here (r3 repair 8, UI-DE66-F11).
+ * Its view observing the work stopped overtakes a Hold or Resume: the latest is said only while it isn't overtaken
+ * (r3 repair 9, UI18-F12), and nothing is made up in its place. With no row said, the line says the current state, a
+ * stop its view observes, never left blank for the focus it is handed (r3 repair 10, UI9-F13).
+ */
+function statusOf(
+  known: readonly Known[],
+  target: CommandTarget,
+  observed: Observed,
+  latest: Known | undefined,
+  state: WorkState,
+): Status {
+  const force = inForce(known, target, observed)
+  const latestShown = latest && !superseded(latest, force) ? latest : undefined
+  const forceShown = force && force !== latestShown ? force : undefined
+  const said = currentSaid(state, Boolean(forceShown ?? latestShown))
+  return { forceShown, latestShown, saidLine: said ? `${said.status}. ${said.sentence}` : undefined }
+}
+
 export function SessionActs({ target, offer, acts, keys, observed = null }: Props) {
   const known = acts.of(scopeOf(target))
   // The execution shown speaks; another attempt's or session's commands are its history, listed under it.
@@ -361,9 +398,7 @@ export function SessionActs({ target, offer, acts, keys, observed = null }: Prop
   const withheld = guidanceWithheld(offer, state, acts.draft(executionOf(target)))
   // Tried again: what is still offered, and the controls in play, always their own operation, never a new one.
   const kinds = retryKinds(offer, state)
-  // The settled control its state rests on, said as sent, when it isn't the latest here (r3 repair 8, UI-DE66-F11).
-  const force = inForce(known, target)
-  const forceShown = force && force !== latest ? force : undefined
+  const { forceShown, latestShown, saidLine } = statusOf(known, target, observed, latest, state)
   const focus = useFocusKept(allowed.map((o) => o.kind).join(' '))
   const send = (kind: CommandKind) => acts.send(kind, target)
   // Tried again only with a port to send it through, and by the same rule as ever (Codex F-002, F-007, F-021).
@@ -383,7 +418,8 @@ export function SessionActs({ target, offer, acts, keys, observed = null }: Prop
         <p className="act-note muted">{NOT_SENDABLE}</p>
       )}
       {/* Mounted before anything is said, so each step of the latest is announced as it comes; the rest is read. */}
-      <div role="status" tabIndex={-1} ref={focus.status} className="act-status">
+      <div role="status" tabIndex={-1} ref={focus.status} className="act-status" aria-label={saidLine}>
+        {saidLine && <p className="act-note">{saidLine}</p>}
         {forceShown && (
           <Steps
             known={forceShown}
@@ -392,7 +428,7 @@ export function SessionActs({ target, offer, acts, keys, observed = null }: Prop
             onRetry={() => retry(forceShown)}
           />
         )}
-        {latest && <Steps known={latest} retryable={retryable} onRetry={() => retry(latest)} />}
+        {latestShown && <Steps known={latestShown} retryable={retryable} onRetry={() => retry(latestShown)} />}
       </div>
       <Earlier
         known={known.filter((k) => k !== latest && unresolved(k))}

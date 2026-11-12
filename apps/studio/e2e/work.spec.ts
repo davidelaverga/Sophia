@@ -58,15 +58,17 @@ test('five lanes, each task in the one its state says; the words only where the 
   await page.goto(PAGE)
   // WBC-01: Active, Up next, Blocked (while something is), Unassigned, Complete. A finished run waiting for its check
   // is Active, not done; a task after one not done is Blocked, not next.
-  expect(await titles(lane(page, 'Active'))).toEqual([
-    'Implement the PDF retry',
-    'Write the retry’s failing test',
-    'Review the report pane',
-  ])
-  expect(await titles(lane(page, 'Up next'))).toEqual(['Review the retry’s candidate'])
-  expect(await titles(lane(page, 'Blocked'))).toEqual(['Write the export’s release note'])
-  expect(await titles(lane(page, 'Unassigned'))).toEqual(['Measure render time on large reports'])
-  expect(await titles(lane(page, 'Complete'))).toEqual(['Reproduce the failed render'])
+  // Load can come before the board's first render, so each lane's exact titles are awaited, not read once (UI10-F15):
+  // an array matches every title in full, in order, and only at that count.
+  const laneTitles = (name: string) => lane(page, name).locator('.task-tile-title')
+  await expect(laneTitles('Active')).toHaveText(
+    ['Implement the PDF retry', 'Write the retry’s failing test', 'Review the report pane'],
+    { useInnerText: true },
+  )
+  await expect(laneTitles('Up next')).toHaveText(['Review the retry’s candidate'], { useInnerText: true })
+  await expect(laneTitles('Blocked')).toHaveText(['Write the export’s release note'], { useInnerText: true })
+  await expect(laneTitles('Unassigned')).toHaveText(['Measure render time on large reports'], { useInnerText: true })
+  await expect(laneTitles('Complete')).toHaveText(['Reproduce the failed render'], { useInnerText: true })
   await expect(tile(page, 'work-1').locator('.task-chip')).toHaveText('Waiting on Davide')
   await expect(tile(page, 'work-2').locator('.task-chip')).toHaveText('Working')
   await expect(lane(page, 'Up next').locator('.task-chip')).toHaveCount(0)
@@ -1009,6 +1011,68 @@ test('wbc · UI-10 · a Stop delivered is requested, not stopped; unknown says s
   await page.keyboard.press('Escape')
   await expect(tile(page, 'work-2')).toHaveCount(0) // out of the lanes, into Closed work
   await expect(board(page).getByRole('button', { name: /^Closed work/ })).toContainText('1')
+})
+
+// r3 repair 9 (UI18-F12): a Resume confirmed here, then its view observes the work stopped (the fixture's existing
+// projection control): the Resume is no longer said as current; nothing is sent or made up.
+for (const width of ['desktop', 'phone'] as const) {
+  test(`${width === 'phone' ? '@phone · ' : ''}r3-repair9 · F12 · a Resume confirmed here, then the work observed stopped: not said Resumed`, async ({
+    page,
+  }) => {
+    await page.goto(`${PAGE}?viewer=davide&settle=confirmed`)
+    const sheet = await openTask(page, 'work-2', 'Review the report pane')
+    await sheet.getByRole('button', { name: /^Hold/ }).click()
+    await expect(sheet.locator('.act-steps').last()).toContainText('Held. Its runtime confirmed the hold.')
+    await sheet.getByRole('button', { name: /^Resume/ }).click()
+    await expect(sheet.locator('.act-steps').last()).toContainText('Resumed.')
+    const sent = (await commanded(page)).map((c) => c.operation_id)
+    await page.evaluate(() => window.workFixture?.setLifecycle?.('work-2', 'stopped'))
+    await expect(sheet).toContainText('Stopped')
+    await expect(sheet.locator('.act-status')).not.toContainText(/Resumed|\bHeld\b/)
+    await expect(sheet.locator('.session-acts button')).toHaveCount(0)
+    expect(
+      (await commanded(page)).map((c) => c.operation_id),
+      'nothing more sent',
+    ).toEqual(sent)
+  })
+}
+
+// r3 repair 10 (UI9-F13): Stop focused after a Resume confirmed here, then the work observed stopped: the focus lands on
+// the status line, named by the current state as its view observes it; a focus put elsewhere stays there.
+for (const width of ['desktop', 'phone'] as const) {
+  test(`${width === 'phone' ? '@phone · ' : ''}r3-repair10 · F13 · Stop focused, then the work observed stopped: the focus says it stopped`, async ({
+    page,
+  }) => {
+    await page.goto(`${PAGE}?viewer=davide&settle=confirmed`)
+    const sheet = await openTask(page, 'work-2', 'Review the report pane')
+    await sheet.getByRole('button', { name: /^Hold/ }).click()
+    await expect(sheet.locator('.act-steps').last()).toContainText('Held. Its runtime confirmed the hold.')
+    await sheet.getByRole('button', { name: /^Resume/ }).click()
+    await expect(sheet.locator('.act-steps').last()).toContainText('Resumed.')
+    const sent = (await commanded(page)).map((c) => c.operation_id)
+    await sheet.getByRole('button', { name: /^Stop/ }).focus()
+    await page.evaluate(() => window.workFixture?.setLifecycle?.('work-2', 'stopped'))
+    const status = sheet.locator('.act-status')
+    await expect(status).toBeFocused()
+    await expect(status).toHaveAccessibleName('Stopped. Its runtime reports it stopped.')
+    await expect(status).not.toContainText(/Resumed|\bHeld\b/)
+    expect(
+      (await commanded(page)).map((c) => c.operation_id),
+      'nothing more sent',
+    ).toEqual(sent)
+  })
+}
+
+test('r3-repair10 · F13 · a focus put elsewhere stays there when the work is observed stopped', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&settle=confirmed`)
+  const sheet = await openTask(page, 'work-2', 'Review the report pane')
+  await sheet.getByRole('button', { name: /^Hold/ }).click()
+  await expect(sheet.locator('.act-steps').last()).toContainText('Held. Its runtime confirmed the hold.')
+  const field = sheet.getByRole('textbox', { name: 'Ask Sophia about this task' })
+  await field.focus()
+  await page.evaluate(() => window.workFixture?.setLifecycle?.('work-2', 'stopped'))
+  await expect(sheet.locator('.act-status')).toHaveAccessibleName('Stopped. Its runtime reports it stopped.')
+  await expect(field).toBeFocused() // chosen on purpose: not taken back
 })
 
 test('wbc · Resume is offered only for a hold the runtime confirmed, and never by itself', async ({ page }) => {

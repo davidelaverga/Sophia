@@ -344,6 +344,83 @@ the three records.
   `held` removed, nothing else); the view-held control; a later Resume from Tasks; reload; nothing sent on arrival, the
   original target retained. Fail-before on exact `de661b30`, pass after, a mutation removing the selector's use.
 
+## Revision 3, repair 9: a newer stop supersedes a Hold or Resume in the live status (UI18-F12)
+
+Written before the repair's code. Root published repair 8 as `18a7320b`; the same reviewer's post-push gate (`ef804efe…`)
+kept every earlier closure and confirmed one P2 class. Lease: the same eight paths as repair 8.
+
+- **The class (probe on `18a7320b`, both widths).** `workState` already puts an observed stop above everything and
+  withholds every control, but the status line didn't ask it: `inForce` took no observation and still returned the
+  confirmed Hold (Resources' Hold, then Open work, then the task observed stopped: the sheet said Stopped, Act's status
+  "Held. Its runtime confirmed the hold."), and the exact execution's latest row was always shown (a Resume confirmed in
+  Tasks, then the task observed stopped: "Resumed."). A confirmed covering Stop and a Hold still on its way were said
+  rightly and stay as they are.
+- **The repair.** `inForce(known, target, observed)`: when the view observes the work stopped, only a Stop its runtime
+  confirmed can be in force (a Hold or Resume never is then); otherwise as before. `superseded(k, force)`: a settled
+  control (Hold, Resume or Stop; not refused, not still under way) that isn't the one in force. `SessionActs` says a
+  latest row only when it isn't superseded; the one in force is said as in repair 8. So a Hold or Resume overtaken by an
+  observed stop, or by a confirmed Stop, is no longer said as current; the sheet says the stop as its view observes it.
+  Nothing is made up: no Stop command, receipt, settlement, identity or delivery; every command, its operation and target
+  are kept as they were, retry stays exact, unresolved commands and refusals are said as before.
+- **Not changed.** `workState`, `covers`, `sameTarget`, `retryableNow`, receipts, TaskActions, fixtures, CSS, flows.
+- **Evidence.** Unit: `inForce` with an observed stop (Hold, Resume, confirmed Stop, Stop under way), `superseded` (the
+  one in force, a settled Hold under a Stop, an unresolved, a refused, a guidance). Browser, desktop and phone, through
+  the fixture's existing `workFixture.setLifecycle`: Resources' Hold then Open work then stopped; a Resume confirmed in
+  Tasks then stopped; a confirmed covering Stop then stopped (kept); a seeded pending Hold then stopped (kept); nothing
+  sent, no control offered, the retained operations unchanged. Fail-before on exact `18a7320b`, mutations.
+
+## Revision 3, repair 10: the focus handoff says the current state; the keyboard test reads one row (UI9-F13, UI9-F14)
+
+Written before the repair's code. Repair 9 (`28d1ec59`, parent `18a7320b`) stays unpublished: the same reviewer's
+whole-26 gate (`0a162b8a…`) closed F12 and found two P2 classes. Lease: the same eight paths and, for this repair only,
+`apps/studio/e2e/task-keys.spec.ts`.
+
+- **F13, the class.** Repair 9 rightly stopped saying a Hold or Resume overtaken by an observed stop, but when nothing
+  else is said the status line, the focus handoff's target (`useFocusKept`), is left empty: Resume or Stop focused, the
+  work observed stopped, the press removed, and the focus lands on a blank line with no name.
+- **F13, the repair.** `currentSaid(state, rowsShown)` in `work-control.ts`: the work's stopped state as its view
+  observes it (`workState`'s own words, "Stopped. Its runtime reports it stopped."), only when the work is stopped and
+  no row is said. `SessionActs` says it in the status line and names the line by it, so the focus handoff lands on the
+  current state. It is the view's observation, never a Stop command, receipt or settlement; a confirmed Stop is said by
+  its own receipt row as before, and a focus elsewhere stays where it is.
+- **F14, the class.** `task-keys.spec.ts:28` read the step rows as one, while a Resume on its way rightly shows two
+  (the confirmed Hold, then the Resume): it failed on `28d1ec59`, as on `18a7320b`'s CI.
+- **F14, the repair.** The check waits for the one row saying `Resumed.`, then one row only, the task Working, and the
+  commands sent: one Hold, one Resume. Every original key, repeat, safe-focus and field check stays. The other single
+  `.act-steps` readers were checked: none reaches a two-row state.
+- **Records.** Repair 9's entries are corrected: an observed stop superseding a Hold or Resume, parent `18a7320b`.
+- **Evidence.** Unit `currentSaid`. Browser, desktop and phone: Resume focused then the covering Hold stopped; Stop
+  focused then the exact Resume stopped; the focus on the status line, named by the current state; a focus elsewhere
+  kept; the keyboard test as repaired. Fail-before on exact `28d1ec59`, the original keyboard failure kept. Development
+  as a signed child of `28d1ec59`; the candidate one signed child of `18a7320b` with the same tree.
+
+## Revision 3, repair 11: the five-lane check waits for the board (UI10-F15)
+
+Written before the repair's code. Repair 10 (`cef4992e`, parent `18a7320b`) stays unpublished. The same reviewer's
+whole-27 gate (`b0dd0372…`) closed F12, F13 and F14, and found one P2. Lease: `apps/studio/e2e/work.spec.ts`, this plan
+and the handoff only. No product, CSS, fixture or `task-keys.spec.ts` change.
+
+- **The class.** `work.spec.ts`'s five-lane test reads each lane's titles once (`allInnerTexts()`, which doesn't
+  retry) straight after `page.goto`, which waits for load. The reviewer's discriminator on `cef4992e` (normal and 6×
+  CPU) found that load can come before React's first board commit. At 6× the immediate read is `[]`, and the same five
+  arrays and the chips follow once the board renders, with no new command. Both of repair 10's four-spec runs failed
+  this way: 366 passed and 1 failed each, with the Active lane read `[]`. This establishes the early-read mechanism
+  only; it doesn't say every past failure had one cause.
+- **The repair.** Each of the five reads becomes a retrying assertion on the same locator,
+  `await expect(lane(page, name).locator('.task-tile-title')).toHaveText([...], { useInnerText: true })`. It keeps the
+  same exact titles, in the same order and the same number (an array matches every element fully, and only at that
+  count), read as inner text like `allInnerTexts()`. It is bounded by the configured expect timeout. Every lane, state
+  and chip assertion is unchanged. No sleep, test retry, skip, soft expect or reduced check.
+- **Evidence.** The test and its five arrays under normal CPU and a bounded 6× CPU throttle (CDP), on the unchanged
+  `cef4992e` and on the repaired source: raw first reads, then the final assertions. One title-misassignment mutant,
+  which must fail by assertion, then restored byte for byte. The four affected specs with `--retries=0` on the
+  immutable candidate. The normal `pnpm check` and the Studio build on the final tree. Production blobs are unchanged
+  from `cef4992e`, so its unit and capture proofs are reused by blob identity.
+- **Not in this repair.** Other one-shot `titles(...)` reads in `work.spec.ts` follow actions or waits in their own
+  tests. They are outside UI10-F15 and are reported, not edited.
+- **Shape.** Development as a signed sole child of `cef4992e`. The candidate is one signed sole child of the published
+  `18a7320b`, with the same tree (9 paths from `18a7320b`, 27 from `953e5dc3`).
+
 ## Evidence plan
 
 - Unit (`status-words.test.ts`): host words, grouping/order, every note branch including the teammate and no-port cases.

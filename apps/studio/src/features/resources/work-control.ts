@@ -191,8 +191,14 @@ function fencesOf(stopUnsettled: boolean, { held, resuming }: Pause): Set<Comman
  * changed nothing). It may have been sent for the same work without naming the attempt shown, or naming it where the
  * view names none: it is said as it was sent, never as the shown attempt's own settlement, and never tried again (retry
  * stays exact, receipts.ts `retryableNow`). Undefined while none is settled: one still under way is said as such.
+ * Once its view observes the work stopped, only a Stop its runtime confirmed can be in force: a Hold or Resume is
+ * overtaken, never current (r3 repair 9, UI18-F12); nothing is made up in its place.
  */
-export function inForce(known: readonly Known[], target: CommandTarget | null): Known | undefined {
+export function inForce(
+  known: readonly Known[],
+  target: CommandTarget | null,
+  observed: Observed = null,
+): Known | undefined {
   if (!target) return undefined
   const settledControls = known.filter(
     (k) =>
@@ -201,11 +207,27 @@ export function inForce(known: readonly Known[], target: CommandTarget | null): 
       !unresolved(k) &&
       covers(target, k.command.target),
   )
-  return (
-    settledControls.findLast((k) => k.command.kind === 'stop') ??
-    settledControls.findLast((k) => k.command.kind === 'hold' || k.command.kind === 'resume')
-  )
+  const stop = settledControls.findLast((k) => k.command.kind === 'stop')
+  if (stop || observed === 'stopped') return stop
+  return settledControls.findLast((k) => k.command.kind === 'hold' || k.command.kind === 'resume')
 }
+
+/**
+ * Whether a command is a settled control that a newer one, or its view, has overtaken: a Hold, Resume or Stop its
+ * runtime confirmed that isn't the one in force (r3 repair 9). Said as current, it would contradict the work's state;
+ * it stays as it was in the store, its operation and target kept. One still under way, a refusal or a guidance is never
+ * overtaken here: each is said as it is.
+ */
+export const superseded = (k: Known, force: Known | undefined): boolean =>
+  k.command.kind !== 'guidance' && k.receipt?.admission !== 'rejected' && !unresolved(k) && k !== force
+
+/**
+ * What the status line says when no row says anything (r3 repair 10, UI9-F13): the work's stop as its view observes it
+ * (`workState`'s own words: "Stopped", "Its runtime reports it stopped."), so the focus handed to the line lands on the
+ * current state. Only for stopped work: a confirmed Stop is said by its own receipt row, and nothing else is added.
+ */
+export const currentSaid = (state: WorkState, rowsShown: boolean): ControlSaid | null =>
+  state.settled === 'stopped' && !rowsShown ? state.said : null
 
 /** What may still be offered: everything its view offers that the work's control state doesn't withhold. */
 export const stillOffered = (offer: readonly Offer[], state: WorkState): Offer[] =>
