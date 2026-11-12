@@ -1428,3 +1428,97 @@ describe('an input is received only on positive evidence about its own run (repa
     g.close()
   })
 })
+
+/**
+ * Repair 9 (NATIVE8-F01): passes every call to the actual FakeT3, and while `recent` or `active` is set rewrites only a
+ * read's run identities (each recent run renamed `recent` and called completed; the active run `active`). The fake's
+ * own runs, effects and calls are untouched.
+ */
+class RenamingRunsT3 implements T3Transport {
+  recent: string | null = null
+  active: string | null | undefined = undefined
+  readonly fake: FakeT3
+  constructor(fake: FakeT3) {
+    this.fake = fake
+  }
+  namespace(): string {
+    return this.fake.namespace()
+  }
+  async call(call: T3Call): Promise<T3Reply> {
+    const reply = await this.fake.call(call)
+    if (call.tool !== 't3_thread_read' || reply.kind !== 'ok') return reply
+    if (this.recent === null && this.active === undefined) return reply
+    const body = reply.body as { thread: Record<string, unknown>; recentRuns: { runId: string; status: string }[] }
+    const recentRuns =
+      this.recent === null ? body.recentRuns : body.recentRuns.map(() => ({ runId: this.recent, status: 'completed' }))
+    const activeRunId = this.active === undefined ? null : this.active
+    return { kind: 'ok', body: { ...body, thread: { ...body.thread, activeRunId }, recentRuns } }
+  }
+}
+
+describe('a read naming runs by malformed ids never settles a Stop (repair 9, NATIVE8-F01)', () => {
+  it('keeps a lost Stop unknown on blank recent run ids, across a reopen, until a genuine read settles it', async () => {
+    const blanks: [string, string][] = [
+      ['space', ' '],
+      ['tab', '\t'],
+      ['CRLF', '\r\n'],
+      ['NBSP', ' '],
+    ]
+    const seen: unknown[] = []
+    for (const [i, [what, blank]] of blanks.entries()) {
+      const fake = new FakeT3()
+      const t3 = new RenamingRunsT3(fake)
+      const file = journalFile()
+      const g = new RunnerGateway({ journal: new RunnerJournal(file), transport: t3, profile })
+      const c = create(8600 + 10 * i)
+      const created = await g.send(c, digestOf(c), g.journalId)
+      fake.inject('t3_thread_interrupt', { kind: 'lose_before_effect' })
+      const stop = follow(8601 + 10 * i, 8600 + 10 * i, threadOf(created), 'stop')
+      const id = { envelope: stop, digest: digestOf(stop), journalId: g.journalId }
+      assert.equal((await g.send(stop, id.digest, id.journalId)).kind, 'unknown')
+      t3.recent = blank
+      const first = await g.reconcile(id)
+      g.close()
+      const again = new RunnerGateway({ journal: new RunnerJournal(file), transport: t3, profile })
+      const replay = await again.reconcile(id)
+      const blankPhase = [first.kind, replay.kind, finals(file, stop.operationId)]
+      // The genuine read: the launch's run really ended; nothing is forged.
+      t3.recent = null
+      fake.finishRun(runOf(created))
+      const late = await again.reconcile(id)
+      seen.push([
+        what,
+        ...blankPhase,
+        late.kind,
+        finals(file, stop.operationId),
+        fake.effects.stops,
+        fake.count('t3_thread_interrupt'),
+      ])
+      again.close()
+    }
+    assert.deepEqual(
+      seen,
+      blanks.map(([what]) => [what, 'unknown', 'unknown', 0, 'settled', 1, 0, 1]),
+    )
+  })
+
+  it('keeps a lost Stop unknown on a blank active run id, even with every run terminal and visible', async () => {
+    const fake = new FakeT3()
+    const t3 = new RenamingRunsT3(fake)
+    const file = journalFile()
+    const g = new RunnerGateway({ journal: new RunnerJournal(file), transport: t3, profile })
+    const c = create(8700)
+    const created = await g.send(c, digestOf(c), g.journalId)
+    fake.inject('t3_thread_interrupt', { kind: 'lose_before_effect' })
+    const stop = follow(8701, 8700, threadOf(created), 'stop')
+    const id = { envelope: stop, digest: digestOf(stop), journalId: g.journalId }
+    await g.send(stop, id.digest, id.journalId)
+    fake.finishRun(runOf(created))
+    t3.active = ' '
+    assert.deepEqual([(await g.reconcile(id)).kind, finals(file, stop.operationId)], ['unknown', 0])
+    t3.active = undefined
+    assert.deepEqual([(await g.reconcile(id)).kind, finals(file, stop.operationId)], ['settled', 1], 'the genuine read')
+    assert.deepEqual([fake.effects.stops, fake.count('t3_thread_interrupt')], [0, 1])
+    g.close()
+  })
+})

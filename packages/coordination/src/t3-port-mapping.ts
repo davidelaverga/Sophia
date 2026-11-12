@@ -300,11 +300,15 @@ export interface ThreadRead {
 
 const nonNegative = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0
 
+/**
+ * The read's recent runs by exact run id. Repair 9 (NATIVE8-F01): a run id is an entity id, as on items and replies; a
+ * missing, null, non-string, empty or whitespace-only one makes the page no evidence. It is never trimmed or dropped.
+ */
 function runsIn(list: unknown): Map<string, string> | null {
   if (!Array.isArray(list)) return null
   const runs = new Map<string, string>()
   for (const run of list) {
-    const id = isRecord(run) ? str(run.runId) : null
+    const id = isRecord(run) ? entityId(run.runId) : null
     const status = isRecord(run) ? str(run.status) : null
     if (!id || !status || runs.has(id)) return null
     runs.set(id, status)
@@ -339,7 +343,8 @@ function detailOf(
 ): { activeRunId: string | null; runCount: number } | { error: string } {
   if (!isRecord(thread)) return { error: 'the read has no thread' }
   if (str(thread.threadId) !== threadId) return { error: 'the read is of another thread' }
-  const activeRunId = thread.activeRunId === null ? null : str(thread.activeRunId)
+  // Repair 9 (NATIVE8-F01): a non-null active run is an entity id too; null alone is the idle answer.
+  const activeRunId = thread.activeRunId === null ? null : entityId(thread.activeRunId)
   if (thread.activeRunId !== null && activeRunId === null) return { error: 'the read has no activeRunId' }
   if (!nonNegative(thread.runCount)) return { error: 'the read has no runCount' }
   return { activeRunId, runCount: thread.runCount }

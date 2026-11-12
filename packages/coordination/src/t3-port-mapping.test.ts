@@ -11,6 +11,7 @@ import {
   launchCommandId,
   stableCommandId,
   stableMessageId,
+  stopSettled,
   T3_TOOLS,
 } from './t3-port-mapping.ts'
 
@@ -303,5 +304,75 @@ describe('the v2 calls (INC01-CC-005, 0096): the pinned launch shapes, the instr
 
   it('builds no v2 call without its checked payload', () => {
     assert.throws(() => callFor(v2(), 'env-1'), /checked payload/)
+  })
+})
+
+/** A read of thread t-1: idle unless `active` is given, every run in `runs` visible (runCount matches). */
+const readOf = (runs: unknown[], active: unknown = null, extra: Record<string, unknown> = {}) => ({
+  thread: { threadId: 't-1', activeRunId: active, runCount: runs.length, ...extra },
+  recentRuns: runs,
+  items: [],
+  hasMore: false,
+  nextPosition: null,
+})
+describe('a recent or active run identity is evidence only when it is one (repair 9, NATIVE8-F01)', () => {
+  const BLANKS: [string, string][] = [
+    ['space', ' '],
+    ['tab', '\t'],
+    ['CRLF', '\r\n'],
+    ['NBSP', '\u00a0'],
+    ['em space', '\u2003'],
+    ['BOM', '\ufeff'],
+    ['empty', ''],
+  ]
+  const MALFORMED: [string, Record<string, unknown>][] = [
+    ...BLANKS.map(([what, id]): [string, Record<string, unknown>] => [what, { runId: id }]),
+    ['missing', {}],
+    ['null', { runId: null }],
+    ['a number', { runId: 7 }],
+    ['an object', { runId: { id: 'run-1' } }],
+  ]
+
+  it('decodes no page whose recent run is named by anything but a run id, so no Stop settles on it', () => {
+    const seen = MALFORMED.map(([what, id]) => {
+      const read = decodeThreadRead(readOf([{ ...id, status: 'completed' }]), 't-1')
+      return [what, 'error' in read ? 'no evidence' : `decoded; settled=${stopSettled(read)}`]
+    })
+    assert.deepEqual(
+      seen,
+      MALFORMED.map(([what]) => [what, 'no evidence']),
+    )
+  })
+
+  it('decodes no page whose active run is named by anything but a run id; null stays the idle answer', () => {
+    const run = { runId: 'run-1', status: 'completed' }
+    const seen = [
+      ...BLANKS.map(([what, id]) => [what, readOf([run], id)] as const),
+      ['a number', readOf([run], 7)] as const,
+      ['an object', readOf([run], { id: 'run-1' })] as const,
+      ['missing key', { ...readOf([run]), thread: { threadId: 't-1', runCount: 1 } }] as const,
+    ].map(([what, body]) => [what, 'error' in decodeThreadRead(body, 't-1') ? 'no evidence' : 'decoded'])
+    assert.deepEqual(
+      seen,
+      seen.map(([what]) => [what, 'no evidence']),
+    )
+    const idle = decodeThreadRead(readOf([run], null), 't-1')
+    assert.ok(!('error' in idle))
+    assert.deepEqual(
+      [idle.activeRunId, stopSettled(idle)],
+      [null, true],
+      'a null active run is idle, complete, settled',
+    )
+  })
+
+  it('keeps legitimate opaque run ids exactly, with no trimming or UUID grammar (controls)', () => {
+    const ids = ['opaque/run:\u{10400}', ' padded ', '0', 'run-\u00e9']
+    const terminal = decodeThreadRead(readOf(ids.map((runId) => ({ runId, status: 'completed' }))), 't-1')
+    assert.ok(!('error' in terminal))
+    assert.deepEqual([...terminal.runs.keys()], ids)
+    assert.equal(stopSettled(terminal), true, 'a complete, idle, terminal read of opaque ids settles')
+    const active = decodeThreadRead(readOf([{ runId: ' padded ', status: 'running' }], ' padded '), 't-1')
+    assert.ok(!('error' in active))
+    assert.deepEqual([active.activeRunId, stopSettled(active)], [' padded ', false])
   })
 })

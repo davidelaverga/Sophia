@@ -2527,3 +2527,74 @@ describe('the worker setting', () => {
     assert.throws(() => runnerDispatchFromEnv({ SOPHIA_OWNER_RUNNER_DISPATCH: 'on' }), /INC01-CC-003/)
   })
 })
+
+/**
+ * Repair 9 (NATIVE8-F01): passes every call to the actual FakeT3, and while `recent` is set renames every recent run of a
+ * read to it, called completed, and reports no active run. The fake's own runs, effects and calls are untouched.
+ */
+class RenamingRunsT3 implements T3Transport {
+  recent: string | null = null
+  readonly fake: FakeT3
+  constructor(fake: FakeT3) {
+    this.fake = fake
+  }
+  namespace(): string {
+    return this.fake.namespace()
+  }
+  async call(call: T3Call): Promise<T3Reply> {
+    const reply = await this.fake.call(call)
+    if (call.tool !== 't3_thread_read' || reply.kind !== 'ok' || this.recent === null) return reply
+    const body = reply.body as { thread: Record<string, unknown>; recentRuns: unknown[] }
+    const recentRuns = body.recentRuns.map(() => ({ runId: this.recent, status: 'completed' }))
+    return { kind: 'ok', body: { ...body, thread: { ...body.thread, activeRunId: null }, recentRuns } }
+  }
+}
+
+describe('a read naming runs by blank ids never settles a Stop or its binding (repair 9, NATIVE8-F01)', () => {
+  it('keeps a lost Stop unknown and its binding stopping, then settles on a genuine read with no new Stop', async () => {
+    const t3 = new FakeT3()
+    const renaming = new RenamingRunsT3(t3)
+    const w = await world({ t3, transport: renaming })
+    const created = await w.create()
+    await w.pass()
+    t3.inject('t3_thread_interrupt', { kind: 'lose_before_effect' })
+    const stopped = await w.stop(created.operationId)
+    renaming.recent = ' '
+    for (let i = 0; i < 4; i++) {
+      await w.pass()
+      await due(w.projectId)
+    }
+    const s = await op(stopped.operationId)
+    const running = [...t3.threads.values()].flatMap((t) => t.runs).filter((r) => r.status === 'running').length
+    assert.deepEqual(
+      {
+        stop: s.state,
+        binding: (await binding(s.binding_id)).state,
+        reservations: await reservations(w.accountKey),
+        running,
+        stops: t3.effects.stops,
+        interrupts: t3.count('t3_thread_interrupt'),
+      },
+      {
+        stop: 'unknown',
+        binding: 'stopping',
+        reservations: [{ binding_id: s.binding_id }],
+        running: 1,
+        stops: 0,
+        interrupts: 1,
+      },
+      'nothing settles on blank ids; the run still runs; the reservation is held as before; no Stop is sent again',
+    )
+    // The genuine read: the launch's run really ended; nothing is renamed.
+    renaming.recent = null
+    w.finishAll()
+    for (let i = 0; i < 4; i++) {
+      await w.pass()
+      await due(w.projectId)
+    }
+    const genuine = await op(stopped.operationId)
+    assert.equal(genuine.state, 'settled')
+    assert.equal((await binding(genuine.binding_id)).state, 'settled')
+    assert.deepEqual([t3.effects.stops, t3.count('t3_thread_interrupt'), t3.effects.launches], [0, 1, 1])
+  })
+})

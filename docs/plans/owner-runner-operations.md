@@ -621,3 +621,66 @@ The cases:
 - the unknown journaled as a final answer.
 
 Focused gateway, journal and mapping tests, then one ordinary `pnpm check` on the final head.
+
+## Repair 9: a read with a malformed run identity is no evidence (INC01-CC-005-repair8-SOURCE-FINAL-001, NATIVE8-F01, P1)
+
+Written before any code. One signed sole child of the published `8cabb3ee` (tree `c6bebd25`). At most six writable
+paths: `t3-port-mapping.ts` and its test, the gateway test, the worker DB test, this plan and the CC-005 handoff. The
+gateway, the worker, SQL, contracts, the generated outputs, the FakeT3 fixture and every other path stay byte-exact.
+
+### The defect
+
+`decodeThreadRead` reads each `recentRuns[].runId` and a non-null `thread.activeRunId` with `str`, which accepts any
+non-empty string, whitespace included.
+
+A read whose recent runs are named `" "`, `"\t"`, `"\r\n"` or `" "` with terminal statuses still counts toward
+`runsComplete`. So, with `activeRunId: null` and a matching `runCount`, `stopSettled` is true:
+- The gateway journals a final `settled` (fsynced), and a reopened journal replays it even after a genuine read shows a
+  run running.
+- The worker marks the Stop and its binding settled, while the run still runs and no native Stop was applied.
+
+A blank non-null `activeRunId` does not settle by itself, but it is the same malformed evidence.
+
+### The rule
+
+T3's run ids at the pin are entity ids: a trimmed, non-blank string. Item and reply run ids already use `entityId` (a
+string whose trim is non-empty, kept exactly as given; integrated r3).
+
+**Now `recentRuns[].runId` and a non-null `thread.activeRunId` use the same rule.** A missing, null, non-string, empty
+or whitespace-only (any Unicode whitespace `trim` removes) recent-run id, or such a non-null `activeRunId`, makes the
+whole page no evidence. The page is never repaired, trimmed or turned into null.
+
+**Unchanged:**
+- a null `activeRunId` is still the valid idle answer;
+- legitimate opaque ids, padded ones and non-ASCII ones, are kept exactly, with no UUID grammar;
+- the count, duplicate, status, queued and complete-run guards, and the exact thread and message checks;
+- repair 8's positive input evidence, the input barriers and every earlier closure.
+
+### Proof plan
+
+**Mapping (public `decodeThreadRead`, `stopSettled`, `runState`):**
+- recent ids that are space, tab, CRLF, NBSP, em space, BOM, empty, missing, null, a number or an object are no
+  evidence;
+- active ids of the same shapes, and a missing key, are no evidence;
+- controls: null active is idle; opaque ids (`opaque/run:𐐀`, `" padded "`, `"0"`) are kept exactly and settle a
+  complete terminal read.
+
+**Gateway:** actual `FakeT3`, a read-rewriting transport, `RunnerGateway`, the fsynced `RunnerJournal`, then reopened.
+1. A Stop's request is lost before any effect.
+2. Reads name the thread's runs with blank ids, terminal and idle. They stay unknown, with no final answer in the file,
+   and stay unknown after a reopen.
+3. Then a genuine complete terminal read settles the Stop, with no new interrupt and zero native stops.
+4. A blank active id with valid terminal runs is also no evidence.
+
+**Worker (real disposable PostgreSQL 16):** the same Stop, lost before effect, under blank-id reads.
+- The Stop is not settled, the binding stays `stopping`, and the reservation stays as current semantics hold it (held
+  by the unresolved create).
+- No resend: one interrupt call and zero native stops.
+- Then genuine reads settle it without a new Stop.
+
+**Fail-before** runs on exact `8cabb3ee` mapping bytes with the final tests.
+
+**Mutations:** the recent-run id check back to `str`, and the active id check back to `str`. Each is killed by actual
+assertions.
+
+**Then:** focused mapping, gateway, journal and worker crossings, and one ordinary `pnpm check` on the committed head.
