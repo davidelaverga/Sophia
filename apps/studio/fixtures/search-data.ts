@@ -4,7 +4,7 @@
 import type { SearchHit as ServedHit } from '@sophia/contracts'
 import type { SearchHit } from '../src/api/vision.ts'
 import { anchorOf } from '../src/features/artifacts/markdown.ts'
-import { says } from '../src/features/search/search-view.ts'
+import { says } from '../src/features/search/word-match.ts'
 import { allRecaps, type Meeting } from './meeting-data.ts'
 import { DEMO } from './demo.ts'
 import { content, REPORT, versions } from './report-data.ts'
