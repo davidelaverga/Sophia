@@ -22,7 +22,7 @@
 import { realpathSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { parseArgs } from 'node:util'
+import { isDeepStrictEqual, parseArgs } from 'node:util'
 import { RuntimeSupervisor } from '../apps/execution-host/dist/runtime-supervisor.js'
 import { DSH_ENTRY, RUNTIME_DIR, loadRuntimeUnit } from './lib/common.mjs'
 import { CUSTODY_ROUTE, CustodyError, readBinding, readCustodyKey } from './lib/contribution-custody.mjs'
@@ -32,13 +32,51 @@ import { assertToolchain } from './lib/toolchain.mjs'
 
 const RESEARCH_ROLE = 'sophia-research-md-v1'
 
-/** The recorded unit must still route the contributed role to the contributed route, keyed by its reference name. */
+/**
+ * The contributed route's fixed execution, credential and billing policy, as registration authorized it (0094 and
+ * register-contribution-runtime.ts: route research-sol-medium-v1, gpt-6.1-sol at medium, through the research key at
+ * OpenAI). It is written here, not read from the unit: a coherent unit and profile carrying another policy under the
+ * same unit id must not receive this registration's key. A new policy is a new route, migration and qualification.
+ */
+const CONTRIBUTED_POLICY = Object.freeze({
+  adapter: '@deepseek-ai/dsh-llm-pi-ai',
+  provider: 'openai-research',
+  model: 'gpt-6.1-sol',
+  reasoningEffort: 'medium',
+  maxTokens: 16000,
+  prices: Object.freeze({ input: 2, cacheRead: 0.1, cacheWrite: 2.5, output: 10 }),
+  contextWindow: 272000,
+  baseURL: 'https://api.openai.com/v1',
+  cacheRetention: null,
+  compat: Object.freeze({ supportsStrictMode: true, supportsLongCacheRetention: false }),
+  credential_ref: CUSTODY_ROUTE.credentialRef,
+})
+/** Notes a route may carry that are not execution authority: text or a flag, nothing else. */
+const DOCUMENTARY = new Set(['status', 'decided', 'model_entry_source', 'live_verified', 'live_checklist'])
+/** The one compaction the contributed route runs under: exactly this, nothing missing, changed or added. */
+const CONTRIBUTED_COMPACTION = Object.freeze({
+  modelPolicies: Object.freeze([
+    Object.freeze({ provider: 'openai-research', model: 'gpt-6.1-sol', thresholdRatio: 0.45, headroomTokens: 16000, maxTokens: 8000 }),
+  ]),
+})
+const plainObject = (value) => typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/**
+ * The recorded unit must carry exactly the registered policy for the contributed route, its role binding and its sole
+ * compaction, before any custody is read. Anything missing, malformed, changed or added refuses route_unrecorded;
+ * only documentary notes may differ.
+ */
 export function assertContributedRoute(unit) {
   const route = unit?.model_routes?.[CUSTODY_ROUTE.routeId]
-  if (!route || route.credential_ref !== CUSTODY_ROUTE.credentialRef || route.provider !== 'openai-research')
-    throw new CustodyError('route_unrecorded')
+  if (!plainObject(route)) throw new CustodyError('route_unrecorded')
+  for (const [field, value] of Object.entries(CONTRIBUTED_POLICY))
+    if (!Object.hasOwn(route, field) || !isDeepStrictEqual(route[field], value)) throw new CustodyError('route_unrecorded')
+  for (const [field, value] of Object.entries(route)) {
+    if (Object.hasOwn(CONTRIBUTED_POLICY, field)) continue
+    if (!DOCUMENTARY.has(field) || !['string', 'boolean'].includes(typeof value)) throw new CustodyError('route_unrecorded')
+  }
   if (unit.role_routes?.[RESEARCH_ROLE] !== CUSTODY_ROUTE.routeId) throw new CustodyError('route_unrecorded')
-  for (const policy of unit.compaction?.modelPolicies ?? []) if (policy.provider !== route.provider) throw new CustodyError('route_unrecorded')
+  if (!isDeepStrictEqual(unit.compaction, CONTRIBUTED_COMPACTION)) throw new CustodyError('route_unrecorded')
   return route
 }
 

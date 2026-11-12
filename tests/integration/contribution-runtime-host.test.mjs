@@ -31,7 +31,8 @@ import { join } from 'node:path'
 import { after, before, describe, test } from 'node:test'
 import { REPO_ROOT, RUNTIME_DIR } from '../../scripts/lib/common.mjs'
 import { assertRecordedArtifacts, homeLayout, installProfile } from '../../scripts/lib/profile.mjs'
-import { BINDING_SCHEMA, custodyFileName, readBinding, writeBinding } from '../../scripts/lib/contribution-custody.mjs'
+import { BINDING_SCHEMA, CustodyError, custodyFileName, readBinding, writeBinding } from '../../scripts/lib/contribution-custody.mjs'
+import { prepareContributionLaunch } from '../../scripts/contribution-runtime-host.mjs'
 import { researchRouteOverlay, startMockResponses } from '../support/mock-responses.mjs'
 import { sleep, unit } from '../support/harness.mjs'
 
@@ -392,6 +393,27 @@ describe('contribution runtime with an explicit custodian (real API, PostgreSQL,
     assert.equal(refusedLaunch(bad, w.custody).code, 'binding_invalid')
     assert.equal(refusedLaunch(join(badDir, 'absent.binding.json'), w.custody).code, 'not_found')
     for (const r of [refusedLaunch(w.first.path, empty)]) assert.ok(!r.text.includes(KEY1) && !r.text.includes(b.capability))
+    // The fixed registered policy is decided before any custody read: this registration's binding and custodian with a
+    // drifted copy of the unit (the committed unit is frozen) refuse route_unrecorded, the key nowhere in the refusal;
+    // a missing custody under the same drift says the same, not not_found.
+    const refusal = (fn) => {
+      try {
+        fn()
+        return null
+      } catch (error) {
+        assert.ok(error instanceof CustodyError, String(error))
+        assert.ok(!String(error.message).includes(KEY1) && !String(error.message).includes(b.capability))
+        return error.code
+      }
+    }
+    const drift = structuredClone(unit)
+    drift.model_routes[ROUTE].baseURL = 'https://api.example.net/v1'
+    drift.compaction.modelPolicies[0].model = 'gpt-6.1'
+    for (const custodyDir of [w.custody, empty])
+      assert.equal(refusal(() => prepareContributionLaunch({ binding: w.first.path, custodyDir, unit: drift })), 'route_unrecorded')
+    assert.deepEqual(prepareContributionLaunch({ binding: w.first.path, custodyDir: w.custody, unit }).credentialValues, {
+      OPENAI_RESEARCH_API_KEY: KEY1,
+    })
     assert.equal(llm.requests.length, requests, 'no refused launch reached the provider')
   })
 

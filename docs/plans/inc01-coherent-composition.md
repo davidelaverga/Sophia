@@ -413,3 +413,77 @@ generated sources, the Studio and CI are unchanged.
   `foreign_owner` is then reached), and ancestor ownership treated as always safe.
 - **Then:** static checks, one signed commit with `da48d25a` as its sole parent, an early checkpoint, ONE ordinary
   check with diagnostics outside the worktree, and the sealed raw.
+
+## CONTRIBUTION-ROUTE-REPAIR-001: the custodian key only for the fixed registered policy (CI73AD-ROUTE-POLICY-F01, P1)
+
+Assignment `f33fa03f…`. Independent receipt `194ed443…` rejects `73ad178c` (tree `3d3b1a71`) as source final. Written
+before the edits. This is a signed child of the published `73ad178c`, changing five paths:
+
+- `scripts/contribution-runtime-host.mjs`;
+- `tests/unit/contribution-custody.test.mjs`;
+- `tests/integration/contribution-runtime-host.test.mjs`;
+- this plan and the handoff.
+
+Frozen: `scripts/lib/contribution-custody.mjs` (and its `CUSTODY_ROUTE`), registration, SQL, `config/runtime-unit.json`,
+the bundle, pins, the toolchain, workflows, generated sources and every other slice's paths.
+
+### Cause, in the actual source
+
+- **What the launcher checked.** `assertContributedRoute` (launcher lines 35–42) checked only the route's
+  `credential_ref` and `provider`, the research role's route, and each compaction policy's provider. Then
+  `prepareContributionLaunch` read the custodian file and put its value in the supervisor's explicit credential map.
+- **What it accepted.** An endpoint, model, effort, token bound, prices, context window, cache or compat setting, or a
+  compaction policy different from the one registration authorized (0094: route `research-sol-medium-v1`,
+  `gpt-6.1-sol`, `medium`). It also accepted missing or extra policies, under the same unit id and binding.
+- **Why artifact and profile checks don't cover it.** They bind the running composition to its own unit, not to that
+  fixed policy.
+- **Proved immediate effect:** the receipt shows an early custody read and the key in the explicit environment.
+- **Not demonstrated:** no key delivery, request or charge. A changed unit file alone does not redirect the unchanged
+  recorded bundle.
+
+### Repair (launcher only)
+
+- **A fixed policy in the launcher source,** independent of the unit file. Its values are the receipt's
+  `policy_security_fields`, identical to the currently recorded route:
+  - `adapter`, `provider`, `model`, `reasoningEffort`, `maxTokens`;
+  - `prices` (`input`, `cacheRead`, `cacheWrite`, `output`);
+  - `contextWindow`, `baseURL`, `cacheRetention` (null), `compat` (`supportsStrictMode`, `supportsLongCacheRetention`);
+  - `credential_ref`.
+- **The role binding:** `sophia-research-md-v1` maps to `research-sol-medium-v1`.
+- **Compaction:** exactly `{ modelPolicies: [ { provider, model, thresholdRatio 0.45, headroomTokens 16000,
+  maxTokens 8000 } ] }`.
+- **`assertContributedRoute`, before any custody read,** refuses with the existing fixed `route_unrecorded` when:
+  - the route is not a plain object;
+  - any policy field is missing or not deep-equal to its fixed value. The nested `prices` and `compat` are closed
+    shapes, so an extra or missing key fails;
+  - the route carries any key that is neither policy nor documentary metadata. The documentary keys are `status`,
+    `decided`, `model_entry_source`, `live_verified` and `live_checklist`, as strings or booleans. An unknown key
+    could be a runtime override, so it fails closed;
+  - the role binding differs;
+  - `compaction` is not exactly the fixed object: missing, malformed, extra or changed policies, or extra keys.
+- **Documentary notes may change.** No other unit metadata is frozen, and nothing is compared with the unit itself.
+- **Unchanged:** the CLI's lack of an overlay, and the test-only loopback stub overlay seam. Nothing new is restricted
+  there.
+- **Unchanged:** `CUSTODY_ROUTE`, the custody library, the binding protocol, the explicit credential map with no ambient
+  fallback, safe diagnostics, private-file safety, and the non-root-portable first-ownership tests.
+
+### Tests
+
+- **Unit** (`tests/unit/contribution-custody.test.mjs`):
+  - the committed unit passes, and the existing key, safe-field and no-ambient-key baseline is kept;
+  - each policy field changed and missing, a malformed `prices` or `compat` and an extra key in each, and an extra
+    non-documentary route key: each refuses `route_unrecorded`;
+  - compaction missing, an empty list, an extra policy, each policy field changed, an extra key in the policy, an
+    extra key beside `modelPolicies`, and a non-array list: each refuses;
+  - a documentary note changed still passes;
+  - **ordering:** a valid binding with a missing custody directory and a drifted route gives `route_unrecorded`, not
+    `not_found`, and likewise with an unsafe (open) custody directory, not `directory_unsafe`.
+- **Integration** (real registration, PostgreSQL and the loopback stub): the real binding and custodian with a drifted
+  copy of the unit refuse `route_unrecorded` in process, before any read, and the key appears nowhere. The unchanged
+  launch path keeps passing.
+- **Fail-before:** the final tests on the exact `73ad178c` launcher.
+- **Reached-guard mutants,** each restored by SHA-256: the route-policy comparison removed, the closed-shape (extra-key)
+  rejection removed, the compaction comparison removed, and the documentary allowance widened to any key.
+- **Then:** static checks, one signed commit with `73ad178c` as its sole parent, an early checkpoint, ONE ordinary
+  check with diagnostics outside the worktree, and the sealed raw. The capacity and SQL evidence is inherited
+  unchanged, because those sources are byte-identical.

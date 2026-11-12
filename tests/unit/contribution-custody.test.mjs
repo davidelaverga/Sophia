@@ -293,6 +293,86 @@ describe('the launcher before the root is touched', () => {
     compaction.compaction.modelPolicies = [{ provider: 'openai' }]
     assert.equal(code(() => assertContributedRoute(compaction)), 'route_unrecorded')
   })
+
+  test('refuses any drift from the fixed registered route policy or its sole compaction (documentary notes aside)', () => {
+    const id = CUSTODY_ROUTE.routeId
+    const route = unit.model_routes[id]
+    assert.equal(assertContributedRoute(unit), route, 'the committed unit carries the registered policy')
+    /** A copy of the unit with `mutate(unit, route)` applied. */
+    const drifted = (mutate) => {
+      const u = structuredClone(unit)
+      mutate(u, u.model_routes[id])
+      return u
+    }
+    const refused = (mutate, why) => assert.equal(code(() => assertContributedRoute(drifted(mutate))), 'route_unrecorded', why)
+    // Documentary notes are not policy: editing them changes nothing.
+    for (const note of ['status', 'decided', 'model_entry_source', 'live_checklist'])
+      assert.equal(code(() => assertContributedRoute(drifted((_, r) => { r[note] = `${r[note] ?? ''} (edited)` }))), null, note)
+    assert.equal(code(() => assertContributedRoute(drifted((_, r) => { r.live_verified = !r.live_verified }))), null, 'live_verified')
+    // Every execution, credential and billing field: changed, and missing.
+    const changed = {
+      adapter: '@deepseek-ai/dsh-llm-other',
+      provider: 'openai',
+      model: 'gpt-6.1',
+      reasoningEffort: 'high',
+      maxTokens: 32000,
+      prices: { ...route.prices, output: 0 },
+      contextWindow: 400000,
+      baseURL: 'https://api.example.net/v1',
+      cacheRetention: 'short',
+      compat: { ...route.compat, supportsStrictMode: false },
+      credential_ref: 'OPENAI_API_KEY',
+    }
+    for (const [field, value] of Object.entries(changed)) {
+      refused((_, r) => { r[field] = value }, `${field} changed`)
+      refused((_, r) => { delete r[field] }, `${field} missing`)
+    }
+    for (const key of Object.keys(route.prices)) refused((_, r) => { r.prices = { ...r.prices, [key]: r.prices[key] + 1 } }, `prices.${key}`)
+    for (const key of Object.keys(route.compat)) refused((_, r) => { r.compat = { ...r.compat, [key]: !r.compat[key] } }, `compat.${key}`)
+    for (const nested of ['prices', 'compat']) {
+      refused((_, r) => { r[nested] = { ...r[nested], extra: 1 } }, `${nested} with an extra key`)
+      refused((_, r) => { r[nested] = 'malformed' }, `${nested} malformed`)
+    }
+    refused((_, r) => { r.headers = { 'x-override': '1' } }, 'an unknown route key')
+    refused((_, r) => { r.endpoint = 'https://api.example.net/v1' }, 'an unknown route key with a text value')
+    refused((_, r) => { r.apiKeyEnv = 'OPENAI_API_KEY' }, 'an unknown credential override')
+    refused((_, r) => { r.status = { baseURL: 'https://api.example.net/v1' } }, 'a documentary key that is not a note')
+    refused((u) => { u.model_routes[id] = 'malformed' }, 'a malformed route')
+    // The sole compaction policy, exactly: missing, malformed, extra or changed semantics.
+    const policy = unit.compaction.modelPolicies[0]
+    refused((u) => { delete u.compaction }, 'compaction missing')
+    refused((u) => { u.compaction.modelPolicies = [] }, 'no compaction policy')
+    refused((u) => { u.compaction.modelPolicies = { ...policy } }, 'policies not a list')
+    refused((u) => { u.compaction.modelPolicies.push({ ...policy }) }, 'an extra policy')
+    refused((u) => { u.compaction.summarizer = 'other' }, 'an extra compaction key')
+    refused((u) => { u.compaction.modelPolicies[0].baseURL = 'https://api.example.net/v1' }, 'an extra policy key')
+    for (const key of Object.keys(policy)) {
+      refused((u) => { u.compaction.modelPolicies[0][key] = typeof policy[key] === 'number' ? policy[key] + 1 : `${policy[key]}-other` }, `compaction ${key} changed`)
+      refused((u) => { delete u.compaction.modelPolicies[0][key] }, `compaction ${key} missing`)
+    }
+  })
+
+  test('a drifted route is refused before the custodian file is read: a missing or unsafe custody says route_unrecorded', () => {
+    const b = binding()
+    const path = writeBinding(privateDir(), b)
+    const drift = structuredClone(unit)
+    drift.model_routes[CUSTODY_ROUTE.routeId].baseURL = 'https://api.example.net/v1'
+    // Controls: with the registered policy, the custody's own refusal is reached.
+    const empty = privateDir()
+    assert.equal(code(() => prepareContributionLaunch({ binding: path, custodyDir: empty, unit })), 'not_found')
+    const open = join(scratch, `open${n++}`)
+    mkdirSync(open, { mode: 0o700 })
+    custody(open, b)
+    chmodSync(open, 0o755)
+    assert.equal(code(() => prepareContributionLaunch({ binding: path, custodyDir: open, unit })), 'directory_unsafe')
+    // With a drifted policy, the policy refuses first: the custody is never read.
+    assert.equal(code(() => prepareContributionLaunch({ binding: path, custodyDir: empty, unit: drift })), 'route_unrecorded')
+    assert.equal(code(() => prepareContributionLaunch({ binding: path, custodyDir: open, unit: drift })), 'route_unrecorded')
+    const valid = privateDir()
+    custody(valid, b)
+    assert.equal(code(() => prepareContributionLaunch({ binding: path, custodyDir: valid, unit: drift })), 'route_unrecorded')
+    assert.deepEqual(prepareContributionLaunch({ binding: path, custodyDir: valid, unit }).credentialValues, { [CUSTODY_ROUTE.credentialRef]: KEY })
+  })
 })
 
 describe('registration\'s record (S5c r2): checked before registering, then created completely and durably or removed', () => {

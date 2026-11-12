@@ -3,8 +3,10 @@
 ## What this commit is
 
 One signed development commit on the published native parent `45564a5a8cc1644b13c17739a40a4723892d33f1` (tree
-`ea62bdd0…`, Native14 r1): `da48d25a`, published once as PR 507 after the whole-diff PRE. One signed child of
-`da48d25a` follows it: the CI repair below.
+`ea62bdd0…`, Native14 r1): `da48d25a`, published once as PR 507 after the whole-diff PRE. Two signed children follow:
+
+- the CI repair `73ad178c`, published to PR 507 and then rejected as source final for CI73AD-ROUTE-POLICY-F01;
+- the contribution route repair below, as a child of `73ad178c`.
 
 - **What it composes:** the accepted owned slices.
 
@@ -52,7 +54,8 @@ One signed development commit on the published native parent `45564a5a8cc1644b13
     repairs were made on top.
 - **Plan:** `docs/plans/inc01-coherent-composition.md`, written before the edits, with its WRITE-003 section written
   before the functional edits.
-- **Status.** `da48d25a` is published as PR 507, not merged or activated. The CI repair child is unpublished. Native
+- **Status.** `da48d25a` and `73ad178c` are published to PR 507, not merged or activated. The route repair child is
+  unpublished. Native
   post-push gates on `45564a5a`, the independent whole-diff gate, current automatic and CI, Luis and the RTA all remain.
 
 ## CI repair (CI-REPAIR-001): the structural foreign-owner custody test on any runner
@@ -86,6 +89,47 @@ unchanged.
   - This host runs as root, so only the root layout ran here: both cases reach `directory_unsafe`.
   - The non-root layout is the CI runner's. Its actual refusal (`ancestor_unsafe`, in the CI raw) is the code the
     derivation predicts for it.
+
+## Contribution route repair (CONTRIBUTION-ROUTE-REPAIR-001): the key only for the fixed registered policy
+
+Assignment `f33fa03f…`. Independent receipt `194ed443…` confirmed CI73AD-ROUTE-POLICY-F01 (P1) on `73ad178c`. This
+repair is a signed child of `73ad178c` changing five paths:
+
+- `scripts/contribution-runtime-host.mjs`;
+- `tests/unit/contribution-custody.test.mjs`;
+- `tests/integration/contribution-runtime-host.test.mjs`;
+- the plan and this handoff.
+
+`scripts/lib/contribution-custody.mjs` (and `CUSTODY_ROUTE`), registration, SQL, `config/runtime-unit.json`, the bundle
+and generated sources are unchanged.
+
+- **What was wrong.** `assertContributedRoute` checked only the route's credential reference and provider, the
+  research role's route and each compaction policy's provider. Then the custodian file was read and its value placed
+  in the supervisor's explicit credential map. A unit and profile carrying another endpoint, model, effort, token
+  bound, prices, context window, cache or compat setting, or another compaction, kept the same unit id and binding,
+  and so received this registration's key.
+  - **Shown by the receipt:** the early custody read, and the key in the explicit environment.
+  - **Not shown:** any key delivery, request or charge. A changed unit file alone does not redirect the unchanged
+    recorded bundle.
+- **The repair.** Before any custody read, the launcher compares the unit with a fixed policy written in its own
+  source, not read from the unit. The values are those registration authorized (0094: research-sol-medium-v1,
+  gpt-6.1-sol, medium):
+  - `adapter`, `provider`, `model`, `reasoningEffort` and `maxTokens`;
+  - `prices` (`input`, `cacheRead`, `cacheWrite` and `output`, as a closed shape);
+  - `contextWindow`, `baseURL` and `cacheRetention` (null);
+  - `compat` (`supportsStrictMode` and `supportsLongCacheRetention`, as a closed shape);
+  - `credential_ref`;
+  - the research role's binding;
+  - exactly one compaction policy (`openai-research`, `gpt-6.1-sol`, 0.45, 16000, 8000), with no other compaction key.
+- **Refusals.** Anything missing, malformed, changed or added refuses with the existing fixed `route_unrecorded`. A
+  route key that is neither policy nor a documentary note (`status`, `decided`, `model_entry_source`, `live_verified`
+  or `live_checklist`, as text or a flag) also refuses.
+  - Notes may change freely.
+  - No other unit metadata is frozen.
+  - The committed unit passes.
+- **Unchanged:** the explicit credential map with no ambient fallback, private-file safety, the binding identity,
+  key and capability secrecy in diagnostics, and the test-only loopback stub overlay seam. The CLI still passes no
+  overlay.
 
 ## Composition (WRITE-002)
 
@@ -190,6 +234,31 @@ These three copied donor paths are changed and are no longer exact copies:
 No production UI, CSS, component, contract, generated or configuration path changed.
 
 ## Evidence (raw logs in the handback)
+
+**Route repair evidence** (the child of `73ad178c`; raw logs in its own handback):
+
+- **Fail-before on the exact `73ad178c` launcher, with the final tests.**
+  - Custody unit test: 12 pass, 2 fail, both on assertions. A changed `adapter` is accepted (`null`), and a drift with
+    a missing custody gives `not_found`, not `route_unrecorded`.
+  - Crossing (`supervisor.test.mjs` and `contribution-runtime-host.test.mjs`): 19 pass, 1 fail. With the real
+    registration, the drifted unit is accepted (`null`).
+  - A first crossing attempt had 10 tests cancelled. The container had restarted at 16:25:49Z and stopped the
+    disposable PostgreSQL (`ECONNREFUSED`). It was restarted, and both logs are kept.
+- **On the repaired launcher:** custody unit 14 out of 14; crossing 20 out of 20, which includes the real host on the
+  loopback stub, 0 cancelled.
+- **Five reached-guard mutants on the final bytes,** each caught by an assertion with 0 cancelled and restored by
+  SHA-256:
+  - the policy fields not compared;
+  - the route shape left open;
+  - the compaction not compared;
+  - any key treated as a documentary note;
+  - the role binding not checked.
+
+  In a first round, the any-key mutant survived: the unknown-key case used an object value, which the type check
+  refuses anyway. Text-valued unknown keys (an alternative endpoint field and a credential override) were added. That
+  round is kept.
+- **Inherited, not rerun:** the SQL, combined, focused and capacity evidence. Their sources are byte-identical to
+  `da48d25a`.
 
 **CI repair evidence** (the child of `da48d25a`; raw logs in its own handback):
 
