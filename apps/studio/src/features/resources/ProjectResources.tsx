@@ -5,6 +5,7 @@
 // anew (SignedIn keys it), and only Try again reads again. It offers no act, effort, request or control: the catalog
 // reports none of them.
 import { useCallback, useEffect, useReducer, useRef } from 'react'
+import { ConfirmButton } from '@sophia/ui'
 import { tokenSubject } from '../../app/auth-callback.ts'
 import { canonicalId, listProjectNativeResources } from '../../api/native-resources.ts'
 import { catalogReducer, initialCatalog, type CatalogState } from './native-catalog.ts'
@@ -25,6 +26,14 @@ interface Props {
   onSignIn?: (() => void) | undefined
 }
 
+/**
+ * What signing in again costs, said before it starts (REC01): the existing sign-out of this device (App's `leaving`)
+ * ends the call with the signed-in Studio, and forgets everything unsent here, drafts and messages in projects and in
+ * the personal space, even when the sign-out itself fails. Nothing here promises any of it is kept once confirmed.
+ */
+export const SIGN_IN_AGAIN_WARNING =
+  'Signing in again signs out this device. It ends any call you’re in and removes everything unsent on this device: drafts and messages in your projects and your personal space.'
+
 /** What the refused read says, by its status: the session ended, or this person can't read the project's resources. */
 const REFUSED: Record<401 | 403 | 404, string> = {
   401: 'Your session has ended. Sign in again to read the resources.',
@@ -34,7 +43,8 @@ const REFUSED: Record<401 | 403 | 404, string> = {
 
 /**
  * A read that showed nothing, said in the panel's frame: why, and the explicit way on. A final 401 asks to sign in
- * again, so it offers that, where the app gives the way (UX04); only a press starts it. Everything else reads again.
+ * again, so it offers that, where the app gives the way (UX04): pressed, it says first what signing out of this device
+ * ends and removes, and only Sign out and continue starts it (REC01). Everything else reads again.
  */
 function ReadNotice({
   state,
@@ -62,9 +72,16 @@ function ReadNotice({
       <div className="resources-read" role="status" data-read={state.status}>
         <p>{said}</p>
         {signIn ? (
-          <button type="button" className="text-button" onClick={onSignIn}>
-            Sign in again
-          </button>
+          // Asked first, in place: Stay here takes the focus, so a second Enter never confirms; only Sign out and
+          // continue calls the app's sign-out, once (REC01).
+          <ConfirmButton
+            label="Sign in again"
+            className="text-button"
+            warning={SIGN_IN_AGAIN_WARNING}
+            keep="Stay here"
+            confirm="Sign out and continue"
+            onConfirm={onSignIn}
+          />
         ) : (
           <button type="button" className="text-button" onClick={onRetry}>
             Try again

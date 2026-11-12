@@ -190,7 +190,7 @@ async function joined(page: Page) {
     .getByRole('navigation', { name: 'Room controls' })
     .getByRole('button', { name: /^Join the room/ })
     .click()
-  await expect(leaveRoom(page).first()).toBeVisible()
+  await expect(leaveRoom(page).first()).toBeVisible({ timeout: 15_000 })
 }
 
 test.describe('default build: the read flag off', () => {
@@ -252,36 +252,58 @@ async function refused404(context: BrowserContext, on: string) {
   await expect(tiles(page)).toHaveCount(0)
 }
 
-/** A final 401: Sign in again, only when pressed, signs this device out to the sign-in at the same address; back in, it reads anew and joins no call. */
-async function signInAgain(context: BrowserContext, on: string) {
-  await answerCatalog(context, 'unauthorized')
-  const logouts = await auth(context)
-  const page = await signedIn(context, on)
-  await page.goto(`${on}/p/${PROJECT}/studio?work=lost&vision=off`)
+/** What Sign in again says before it signs this device out (REC01). */
+const SIGN_IN_WARNING =
+  'Signing in again signs out this device. It ends any call you’re in and removes everything unsent on this device: drafts and messages in your projects and your personal space.'
+
+/** The project view's stored draft (useViewerState's format, as app-auth's checks seed it): Davide's, in this project. */
+const VIEWER_KEY = `sophia.viewer.v1.${DAVIDE.id}.${PROJECT}`
+const VIEWER_DRAFT = JSON.stringify({ lens: 'build', drafts: { build: 'secret plan' } })
+/** Words typed into a project conversation's composer and not sent: kept while the Studio is open (talk-store.ts). */
+const UNSENT = 'words for the team, not sent yet'
+
+const storedViewer = (page: Page) => page.evaluate((k) => localStorage.getItem(k), VIEWER_KEY)
+const composer = (page: Page) => page.getByPlaceholder('Continue this question with the team')
+
+/** The first conversation's composer: open already beside the list, or opened from it where the list comes first. */
+async function openConversation(page: Page) {
+  await expect(page.getByText('What makes a report worth reading?').first()).toBeVisible()
+  if (!(await composer(page).isVisible())) await page.getByText('What makes a report worth reading?').first().click()
+  await expect(composer(page)).toBeVisible()
+}
+
+/** The project's Conversations, by its views (never a reload, which a tab's kept words don't survive). */
+async function toConversations(page: Page) {
+  await nav(page).getByRole('link', { name: 'Conversations', exact: true }).click()
+  await openConversation(page)
+}
+
+/**
+ * Two real unsent drafts before the call: words typed into a project conversation's composer through the app, and the
+ * project view's stored draft. The fixture's own views flag is on here, as it serves the Conversations view; only the
+ * read flag decides Resources.
+ */
+async function withDrafts(page: Page, on: string) {
+  await page.evaluate(([k, v]) => localStorage.setItem(k, v), [VIEWER_KEY, VIEWER_DRAFT] as const)
+  await page.goto(`${on}/p/${PROJECT}/conversations?work=lost`)
   await expect(account(page)).toBeVisible({ timeout: 20_000 })
   await settled(page)
+  await openConversation(page)
+  await composer(page).fill(UNSENT)
+  await nav(page).getByRole('link', { name: 'Studio', exact: true }).click()
+  await settled(page)
   await joined(page)
-  await nav(page).getByRole('link', { name: 'Resources', exact: true }).click()
-  const notice = page.locator('.resources-read')
-  await expect(notice).toHaveAttribute('data-read', 'refused')
-  await expect(notice).toContainText('Your session has ended. Sign in again to read the resources.')
-  await expect(tiles(page)).toHaveCount(0)
-  // Nothing happens by itself: still in, still in the call, no sign-out asked.
-  await page.waitForTimeout(1000)
-  expect(logouts).toEqual([])
-  await expect(account(page)).toBeVisible()
-  const signIn = notice.getByRole('button', { name: 'Sign in again' })
-  await signIn.focus()
-  await page.keyboard.press('Enter')
-  // This device only, then the sign-in, at the project's Resources address, whose link comes back to it.
-  await expect(page.locator('input[type="email"]')).toBeVisible()
-  expect(logouts).toEqual(['local'])
-  await expect(page).toHaveURL(new RegExp(`/p/${PROJECT}/resources`))
-  // Back in (as another tab of this browser signs in): read anew as Davide, rows shown, and no call joined by itself.
+}
+
+/**
+ * Back in (as another tab of this browser signs in), after Sign out and continue: read anew as Davide, rows shown, no
+ * call joined by itself, still one sign-out, and the drafts that went stay gone.
+ */
+async function backInWithoutDrafts(page: Page, logouts: string[]) {
   await page.evaluate(() => {
     window.catalogMode = 'page'
   })
-  const asked = await page.evaluate(() => window.catalogAsked?.length ?? 0)
+  const reads = await page.evaluate(() => window.catalogAsked?.length ?? 0)
   await page.evaluate(
     ([key, signed]) => {
       localStorage.setItem(key, signed)
@@ -293,11 +315,73 @@ async function signInAgain(context: BrowserContext, on: string) {
   await expect(account(page)).toBeVisible({ timeout: 20_000 })
   await expect(page).toHaveURL(new RegExp(`/p/${PROJECT}/resources`))
   await expect(tiles(page)).toHaveCount(2)
-  expect(await page.evaluate(() => window.catalogAsked?.length ?? 0)).toBeGreaterThan(asked)
+  expect(await page.evaluate(() => window.catalogAsked?.length ?? 0)).toBeGreaterThan(reads)
   await expect(leaveRoom(page)).toHaveCount(0)
+  expect(logouts).toEqual(['local'])
+  await toConversations(page)
+  await expect(composer(page)).toHaveValue('')
+  expect(JSON.parse((await storedViewer(page)) ?? '{}')).toEqual({ lens: 'build', drafts: {} })
 }
 
-/** A final 401 whose sign-out fails: said, the person still in, the refusal kept, no row shown, no read again. */
+/**
+ * A final 401 in a settled project, in a call, with two unsent drafts: Sign in again asks first. Stay here, or leaving
+ * for another view before answering, signs nothing out, reads nothing, keeps the call and both drafts byte for byte.
+ * Then Sign out and continue: this device only, once; both drafts gone; no row; the sign-in at the same address; back
+ * in, a fresh read and no call joined by itself.
+ */
+async function stayThenSignOut(context: BrowserContext, on: string) {
+  await answerCatalog(context, 'unauthorized')
+  const logouts = await auth(context)
+  const page = await signedIn(context, on)
+  await withDrafts(page, on)
+  await nav(page).getByRole('link', { name: 'Resources', exact: true }).click()
+  const notice = page.locator('.resources-read')
+  await expect(notice).toHaveAttribute('data-read', 'refused')
+  await expect(notice).toContainText('Your session has ended. Sign in again to read the resources.')
+  await expect(tiles(page)).toHaveCount(0)
+  const asked = await page.evaluate(() => window.catalogAsked?.length ?? 0)
+  const signIn = notice.getByRole('button', { name: 'Sign in again' })
+  const choice = notice.getByRole('group', { name: 'Sign in again' })
+  // Asked first: what it ends and removes, said plainly, Stay here focused. A second Enter keeps.
+  await signIn.focus()
+  await page.keyboard.press('Enter')
+  await expect(choice).toContainText(SIGN_IN_WARNING)
+  await expect(choice).toBeInViewport()
+  await expect(choice.getByRole('button', { name: 'Stay here' })).toBeFocused()
+  await expect(choice.getByRole('button', { name: 'Sign out and continue' })).toBeVisible()
+  await page.keyboard.press('Enter')
+  await expect(choice).toHaveCount(0)
+  await expect(signIn).toBeFocused()
+  // Leaving for another view before answering is no answer either.
+  await signIn.click()
+  await expect(choice).toBeVisible()
+  await toConversations(page)
+  // Nothing signed out, nothing read, the call live with its switches, both drafts exactly as they were.
+  await page.waitForTimeout(800)
+  expect(logouts).toEqual([])
+  expect(await page.evaluate(() => window.catalogAsked?.length ?? 0)).toBe(asked)
+  await expect(account(page)).toBeVisible()
+  await expect(leaveRoom(page).first()).toBeVisible()
+  await expect(composer(page)).toHaveValue(UNSENT)
+  expect(await storedViewer(page)).toBe(VIEWER_DRAFT)
+  // Back to Resources (a new read, as any opening is), then Sign out and continue: the disclosed sign-out, once.
+  await nav(page).getByRole('link', { name: 'Resources', exact: true }).click()
+  await expect(notice).toHaveAttribute('data-read', 'refused')
+  await signIn.click()
+  await choice.getByRole('button', { name: 'Sign out and continue' }).click()
+  await expect(page.locator('input[type="email"]')).toBeVisible()
+  expect(logouts).toEqual(['local'])
+  await expect(page).toHaveURL(new RegExp(`/p/${PROJECT}/resources`))
+  await expect(leaveRoom(page)).toHaveCount(0)
+  await expect(tiles(page)).toHaveCount(0)
+  expect(JSON.parse((await storedViewer(page)) ?? '{}')).toEqual({ lens: 'build', drafts: {} })
+  await backInWithoutDrafts(page, logouts)
+}
+
+/**
+ * A final 401 whose sign-out fails, confirmed: said, the person still in, the refusal kept, no row shown, no read again.
+ * The drafts go even so (App's `leaving` forgets them before and after the attempt), as the warning says.
+ */
 async function signOutFails(context: BrowserContext, on: string) {
   await answerCatalog(context, 'unauthorized')
   await auth(context)
@@ -319,8 +403,12 @@ async function signOutFails(context: BrowserContext, on: string) {
   await page.evaluate(() => {
     window.catalogMode = 'page'
   })
+  await page.evaluate(([k, v]) => localStorage.setItem(k, v), [VIEWER_KEY, VIEWER_DRAFT] as const)
   const asked = await page.evaluate(() => window.catalogAsked?.length ?? 0)
   await notice.getByRole('button', { name: 'Sign in again' }).click()
+  const choice = notice.getByRole('group', { name: 'Sign in again' })
+  await expect(choice).toContainText(SIGN_IN_WARNING)
+  await choice.getByRole('button', { name: 'Sign out and continue' }).click()
   const toast = page.locator('.toast')
   await expect(toast).toContainText('Couldn’t sign out: this device is still signed in.')
   await expect(toast.getByRole('button', { name: 'Try again' })).toBeVisible()
@@ -329,6 +417,7 @@ async function signOutFails(context: BrowserContext, on: string) {
   await page.waitForTimeout(1000)
   await expect(tiles(page)).toHaveCount(0)
   expect(await page.evaluate(() => window.catalogAsked?.length ?? 0)).toBe(asked)
+  expect(JSON.parse((await storedViewer(page)) ?? '{}')).toEqual({ lens: 'build', drafts: {} })
 }
 
 /**
@@ -423,9 +512,12 @@ test.describe('a build with the read flag on (its own server)', () => {
   test('@phone a settled project in a call: Resources, its sheet stepped and closed, the call’s switches in reach', ({
     context,
   }) => settledInCall(context, on, true))
-  test('a final 401: Sign in again, only when pressed, signs this device out to the sign-in at the same address; back in, it reads anew and joins no call', ({
+  test('a final 401 in a call with unsent drafts: Sign in again asks first; Stay here keeps all; Sign out and continue signs this device out only', ({
     context,
-  }) => signInAgain(context, on))
+  }) => stayThenSignOut(context, on))
+  test('@phone a final 401 in a call with unsent drafts: Sign in again asks first; Stay here keeps all; Sign out and continue signs this device out only', ({
+    context,
+  }) => stayThenSignOut(context, on))
   test('a final 401 whose sign-out fails: said, the person still in, the refusal kept, no row shown, no read again', ({
     context,
   }) => signOutFails(context, on))

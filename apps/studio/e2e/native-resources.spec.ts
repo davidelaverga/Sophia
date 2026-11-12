@@ -15,6 +15,9 @@ const SCOPE = 'Saved coding-resource records. Live activity, usage and controls 
 const LIVE = 'Live sign-in and readiness aren’t reported.'
 const UNREPORTED = 'Work activity, remaining usage and controls aren’t reported by this view.'
 const EVIDENCE = 'Recorded host and capability evidence'
+/** What Sign in again says before it signs this device out (REC01). */
+const SIGN_IN_WARNING =
+  'Signing in again signs out this device. It ends any call you’re in and removes everything unsent on this device: drafts and messages in your projects and your personal space.'
 /** Words the catalog never says: what it doesn't report, said as none, or a host said live. */
 const NEVER = [/nothing waiting/i, /no assignment/i, /\bonline\b/i, /never observed/i, /signed in/i, /\bready\b/i]
 
@@ -466,8 +469,21 @@ test('the partial cue comes before the toolbar and tiles, once, and the 401 offe
   await page.waitForTimeout(500)
   expect(await page.evaluate(() => window.nativeFixture?.signIns)).toBe(0)
   const asked = await page.evaluate(() => window.nativeFixture?.requests.length ?? 0)
+  // Pressed, it asks first (REC01): what signing out of this device ends and removes, Stay here focused.
   await signIn.focus()
   await page.keyboard.press('Enter')
+  const choice = page.locator('.resources-read').getByRole('group', { name: 'Sign in again' })
+  await expect(choice).toContainText(SIGN_IN_WARNING)
+  await expect(choice.getByRole('button', { name: 'Stay here' })).toBeFocused()
+  expect(await page.evaluate(() => window.nativeFixture?.signIns)).toBe(0)
+  // A second Enter keeps: nothing signed out, nothing read, the refusal and its way back as they were.
+  await page.keyboard.press('Enter')
+  await expect(choice).toHaveCount(0)
+  await expect(signIn).toBeFocused()
+  expect(await page.evaluate(() => window.nativeFixture?.signIns)).toBe(0)
+  // Only Sign out and continue starts it, once.
+  await signIn.click()
+  await choice.getByRole('button', { name: 'Sign out and continue' }).click()
   expect(await page.evaluate(() => window.nativeFixture?.signIns)).toBe(1)
   expect(await page.evaluate(() => window.nativeFixture?.requests.length ?? 0)).toBe(asked)
   await expect(tiles(page)).toHaveCount(0)
