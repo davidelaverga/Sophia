@@ -2,7 +2,8 @@
 // now. The view decides, never the browser: no grant is read from a role, a logo or whose account it is, and a command
 // the view doesn't mention is unavailable. Hold is offered while a task isn't held; Resume only while it genuinely is.
 // Commands go to the exact assignment and generation shown: with no assignment known, there is no target. Pure: tested.
-import type { CommandKind, CommandTarget, Offer } from '../../resources/receipts.ts'
+import { scopeOf, type CommandKind, type CommandTarget, type Known, type Offer } from '../../resources/receipts.ts'
+import { observedOf, stillOffered, workState } from '../../resources/work-control.ts'
 import { actionOf, type PlanRow } from './plan.ts'
 
 export const COMMANDS: readonly CommandKind[] = ['guidance', 'hold', 'resume', 'stop']
@@ -58,12 +59,23 @@ export interface SheetKeys {
   stop: boolean
 }
 
+/** The board's commands as the sheet's keys read them: where they go, whether they can, and what was sent. */
+interface KeyActs {
+  project: string
+  canSend: boolean
+  /** The commands sent in a scope (command-store.ts); absent, none is known. */
+  of?: (scope: string) => readonly Known[]
+}
+
 /**
- * Which of the sheet's keys have a press: exactly what «Act on it» draws (a target, an offer, a port to send through),
- * so the foot never names a key that does nothing there (informe-25 DL-12).
+ * Which of the sheet's keys have a press: exactly what «Act on it» draws (a target, an offer its control state still
+ * allows, a port to send through), so the foot never names a key that does nothing there (informe-25 DL-12, INC01-DES-001
+ * r3: no H for a second Hold on its way or done).
  */
-export function sheetKeys(row: PlanRow, acts: { project: string; canSend: boolean } | undefined): SheetKeys {
-  const kinds = acts?.canSend && targetOf(row, acts.project) ? offered(row).map((o) => o.kind) : []
+export function sheetKeys(row: PlanRow, acts: KeyActs | undefined): SheetKeys {
+  const target = acts?.canSend ? targetOf(row, acts.project) : null
+  const state = workState(target && acts?.of ? acts.of(scopeOf(target)) : [], target, observedOf(row.view?.lifecycle))
+  const kinds = target ? stillOffered(offered(row), state).map((o) => o.kind) : []
   return { hold: kinds.includes('hold') || kinds.includes('resume'), stop: kinds.includes('stop') }
 }
 

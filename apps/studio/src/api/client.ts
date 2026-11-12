@@ -332,14 +332,36 @@ interface CallInit {
    * (R-391-UPDATES-01). The view fences on it.
    */
   doorRead?: true
+  /**
+   * A project member read (opted into per caller): on a read (a GET without a key), a final 401, 403 or 404 is the
+   * refusal, known from the status alone. A51 answers a nonmember and a missing project alike with 404. It is raised at
+   * once with that status and retry `never`, its body cancelled unread, never after an error body that may be slow,
+   * endless or malformed (R-MEMBER-READ-01, docs/plans/native-resources-member-read.md). `apiFetch` has already
+   * renewed a refused token once. It takes precedence over `protectedRead` and `doorRead`. It changes nothing on a write
+   * or an admission, and it clears no view: the caller fences on the refusal.
+   */
+  memberRead?: true
 }
 
 /**
  * One call with an optional bearer, body and key; the reply validated as `parse`, never cast. A GET waits as a
  * read does; anything else, as a write.
  */
-/** A protected read's refusal, known from its status alone (`protectedRead`, `doorRead`); undefined for any other. */
-function refusedByStatus(status: number, init: CallInit, retry: ApiErrorBody['retry']): ApiError | undefined {
+/** The final statuses a member read is refused by: no session, no access, or no such project for this member. */
+const MEMBER_REFUSAL = new Set([401, 403, 404])
+
+/**
+ * A protected read's refusal, known from its status alone (`memberRead`, `protectedRead`, `doorRead`); undefined for
+ * any other. A member read's comes first and is never retried.
+ */
+function refusedByStatus(
+  status: number,
+  init: CallInit,
+  call: Call,
+  retry: ApiErrorBody['retry'],
+): ApiError | undefined {
+  if (init.memberRead && call === 'read' && MEMBER_REFUSAL.has(status))
+    return new ApiError(status, `http_${status}`, unreadRefusal(status), 'never')
   if (status === 403 && init.protectedRead) return new ApiError(403, 'forbidden', unreadRefusal(403), retry)
   if ((status === 401 || status === 403) && init.doorRead)
     return new ApiError(status, `http_${status}`, unreadRefusal(status), retry)
@@ -369,7 +391,7 @@ export function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value
     } catch {
       throw new ApiError(0, 'outcome_unknown', 'No reply from Sophia', retry)
     }
-    const refused = refusedByStatus(res.status, init, retry)
+    const refused = refusedByStatus(res.status, init, call, retry)
     if (refused) {
       void res.body?.cancel().catch(() => undefined)
       throw refused

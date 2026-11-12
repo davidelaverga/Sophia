@@ -30,6 +30,10 @@ export type ErrorCode =
   | 'coordination_closed'
   | 'conversations_closed'
   | 'html_unavailable'
+  | 'runner_admission_disabled'
+  | 'runner_unqualified'
+  | 'runner_operation_unsupported'
+  | 'contribution_unavailable'
 
 export type Retry = ApiError['retry']
 
@@ -78,6 +82,15 @@ const DISPOSITION: Record<ErrorCode, { status: number; retry: Retry }> = {
   conversations_closed: { status: 403, retry: 'never' },
   // HTML was asked for while no designer or capture renderer is ready: nothing is admitted; Markdown is offered (SDD-01).
   html_unavailable: { status: 503, retry: 'never' },
+  // Owner-runner admissions are off on this API (SOPHIA_OWNER_RUNNERS is read): reads stay, nothing is admitted (A47).
+  runner_admission_disabled: { status: 403, retry: 'never' },
+  // The owner's native route has no current qualification for this operation: refused before any write (A47, 0092).
+  runner_unqualified: { status: 403, retry: 'never' },
+  // Hold, Resume, permission approval and question answers have no qualified native mapping: never emulated (A47).
+  runner_operation_unsupported: { status: 422, retry: 'never' },
+  // A member's API contribution cannot fund this now: paused, expired, admin-disabled, unqualified, busy or another
+  // reason the message names. Nothing was admitted and no other payer was used; retry only after it changes (0094).
+  contribution_unavailable: { status: 409, retry: 'never' },
 }
 
 export class DomainError extends Error {
