@@ -887,6 +887,31 @@ describe('A2-F01 the declared UUID language (format uuid) on the three input rou
   })
 })
 
+/**
+ * A pool whose companion-readiness query (the payer's admission, `personal_companion_admitted`) is rejected as by an
+ * unavailable database (08006); every other query and connection goes to `base` unchanged. Counts the rejections.
+ */
+function readinessFaulting(base: pg.Pool): { pool: pg.Pool; faults: () => number } {
+  let faults = 0
+  const query = (...args: Parameters<pg.Pool['query']>): unknown => {
+    const [first] = args
+    const text = typeof first === 'string' ? first : ((first as { text?: string } | undefined)?.text ?? '')
+    if (text.includes('sophia.personal_companion_admitted(')) {
+      faults += 1
+      return Promise.reject(Object.assign(new Error('synthetic readiness query unavailable'), { code: '08006' }))
+    }
+    return (base.query as (...a: unknown[]) => unknown)(...args)
+  }
+  const faulty = new Proxy(base, {
+    get(target, key) {
+      if (key === 'query') return query
+      const value: unknown = Reflect.get(target, key)
+      return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(target) : value
+    },
+  })
+  return { pool: faulty, faults: () => faults }
+}
+
 /** A moment for a background wake to have done whatever it would do. */
 const quiet = () => new Promise((r) => setTimeout(r, 600))
 
@@ -1070,6 +1095,67 @@ describe('A2-F02 an automatic original waits, pending, while its answer cannot b
     assert.deepEqual(await refusals(person), [])
     // The payer admitted again: the next start answers it once.
     await owner('UPDATE sophia.personal_companion_payers SET owner_id=$2 WHERE payer=$1', [payer, person])
+    await api(live(person, payer, llm)).ready()
+    assert.equal(await settled(auto.turnId), 'answered')
+    assert.equal(llm.prepared, 1)
+  })
+
+  it('A2-F03: a kept answer is written with no call even when the readiness query fails; without one the original waits', async () => {
+    // A real live companion whose own readiness query (its payer's admission) is rejected by the database (08006); every
+    // other query, the owner's kept ledger included, goes through. The answer was kept by an earlier process, which went
+    // away (its claim lapsed; asked_at untouched).
+    const kept = await enrolled()
+    const auto = await admitted(kept.person, profileOf(kept.person, kept.payer), 'Kept before a readiness fault')
+    await earlierCall(kept.person, kept.payer, auto.turnId, 'keep')
+    await owner(`UPDATE sophia.personal_turns SET answering_since=now()-interval '3 minutes' WHERE id=$1`, [
+      auto.turnId,
+    ])
+    const faulty = readinessFaulting(pool)
+    const llm = new FakeLlm()
+    await api(
+      liveCompanion(liveSettings(JSON.stringify(rawSettings(kept.person, kept.payer))), llm, faulty.pool),
+    ).ready()
+    assert.equal(await settled(auto.turnId), 'answered')
+    assert.equal(await answerOf(auto.turnId), 'Kept words')
+    assert.equal(llm.prepared, 0)
+    assert.deepEqual(
+      (await usage(kept.person)).map((u) => u.state),
+      ['settled'],
+    )
+    assert.equal(faulty.faults(), 0, 'a known kept answer needs no fresh-effect readiness')
+
+    // Control: no answer kept, the same readiness fault: the original waits, pending and unclaimed, nothing asked.
+    const none = await enrolled()
+    const unkept = await admitted(none.person, profileOf(none.person, none.payer), 'Nothing kept, readiness down')
+    const asked = (await state(unkept.turnId)).asked
+    const faulty2 = readinessFaulting(pool)
+    const llm2 = new FakeLlm()
+    await api(
+      liveCompanion(liveSettings(JSON.stringify(rawSettings(none.person, none.payer))), llm2, faulty2.pool),
+    ).ready()
+    await quiet()
+    assert.deepEqual(await state(unkept.turnId), { reply: 'pending', claim: null, asked })
+    assert.ok(faulty2.faults() >= 1, 'the readiness query was reached and failed')
+    assert.equal(llm2.prepared, 0)
+    assert.equal((await usage(none.person)).length, 0)
+  })
+
+  it('A2-F03: a kept-ledger read that fails defers, unclaimed, and never reads as kept or legacy', async () => {
+    const { person, payer } = await enrolled()
+    const auto = await admitted(person, profileOf(person, payer), 'Ledger unreadable for a moment')
+    const asked = (await state(auto.turnId)).asked
+    const llm = new FakeLlm()
+    await owner('REVOKE EXECUTE ON FUNCTION sophia.personal_settled_answer(uuid) FROM sophia_api')
+    try {
+      await api(live(person, payer, llm)).ready()
+      await quiet()
+      assert.deepEqual(await state(auto.turnId), { reply: 'pending', claim: null, asked })
+      assert.equal(llm.prepared, 0)
+      assert.equal((await usage(person)).length, 0)
+    } finally {
+      await owner('GRANT EXECUTE ON FUNCTION sophia.personal_settled_answer(uuid) TO sophia_api')
+    }
+    // The ledger readable again: the next start answers the same original once.
     await api(live(person, payer, llm)).ready()
     assert.equal(await settled(auto.turnId), 'answered')
     assert.equal(llm.prepared, 1)

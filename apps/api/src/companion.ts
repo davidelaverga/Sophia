@@ -408,22 +408,23 @@ export class CompanionRunner {
   }
 
   /**
-   * Whether a live companion may take `turnId` now (A2-F02), decided before any claim. A legacy turn may, as before. An
+   * Whether a live companion may take `turnId` now (A2-F02, A2-F03), decided before any claim. First the owner's kept
+   * answer: one already paid for and kept (0078) is written with no new effect, so it needs none of the fresh-effect
+   * prerequisites below, nor may their failure hold it back. Without one, a legacy turn may go ahead, as before; an
    * automatic turn (an automatic_v1 input, 0098) needs what a new paid answer needs: 0102's guard installed and the
-   * companion ready (0078, and its payer still admitted for the owner); without them only an answer already kept for it
-   * is written (no call). Otherwise it is deferred: nothing is claimed, failed, reserved, prepared or decided, its
-   * asked_at and frozen admission are untouched, and its two-minute wait runs on as for any pending turn. A read that
-   * fails is reported and defers; it is never read as legacy. A companion that is not live keeps its own refusal (ask).
+   * companion ready (0078, and its payer still admitted for the owner). Otherwise it is deferred: nothing is claimed,
+   * failed, reserved, prepared or decided, its asked_at and frozen admission are untouched, and its two-minute wait
+   * runs on as for any pending turn. A read that fails, the kept ledger's included, is reported and defers; nothing is
+   * read as kept or as legacy for it. A companion that is not live keeps its own refusal (ask).
    */
   private async eligible(actorId: string, turnId: string): Promise<boolean> {
     if (this.companion.mode !== 'live') return true
     try {
+      const kept = await withActor(this.pool, actorId, 'read', (c) => readPersonalSettledAnswer(c, turnId))
+      if (kept !== null) return true
       const origin = await withActor(this.pool, actorId, 'read', (c) => readPersonalAnswerOrigin(c, turnId))
       if (origin === 'legacy') return true
-      const ready = (await personalAnswerGuardInstalled(this.pool)) && (await (this.companion.ready?.() ?? true))
-      if (ready) return true
-      const kept = await withActor(this.pool, actorId, 'read', (c) => readPersonalSettledAnswer(c, turnId))
-      return kept !== null
+      return (await personalAnswerGuardInstalled(this.pool)) && (await (this.companion.ready?.() ?? true))
     } catch (err: unknown) {
       this.onError(err)
       return false

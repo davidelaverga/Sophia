@@ -301,3 +301,63 @@ review comment 4556204505. The repair is one signed child of `4a152826`, writing
 - A few cause-reaching mutants (the missing-guard check, the readiness check, kept-first), each restored.
 - The changed API DB file and the static checks.
 - ONE ordinary on the new head.
+
+## Repair A2-F03 and A2-T01: kept recovery before fresh-effect readiness; wait for the legacy answer
+
+Written before this repair's code. Task `INC03-CC-003-A2-F03-KEPT-AND-TEST-REPAIR-001` (`b2ea7714…`), from the
+independent `INC03-CC-003-A2-F02-03d9-SOURCE-CORE-001` (`48f0a20f…`, inside evidence ZIP `99388c24…`). The repair is
+one signed sole child of `03d9a0dc`, writing at most `companion.ts`, the two API DB test files (`personal-inputs` only
+for A2-T01), this plan and the A2 handoff. `app.ts` is frozen.
+
+### A2-F03 (P2)
+**Cause.** In `03d9`, `CompanionRunner.eligible` reads the origin, the guard's presence and `Companion.ready` before
+it looks for a kept answer. The live companion's `ready()` runs real queries that can reject. A rejection made the
+catch defer the turn, so an answer already kept for it, readable from a healthy ledger, was not written.
+
+**Repair (`companion.ts` only).**
+- For a live companion, `eligible` first reads the owner's kept answer (`readPersonalSettledAnswer`, under the owner).
+  A known kept answer is eligible at once. It is written with no new effect, and none of the origin, guard or
+  readiness reads are made for it.
+- If the kept read itself fails, it is reported and defers: no claim, no failure, no fabricated answer.
+- Only without a kept answer do the F02 checks follow, unchanged:
+  - legacy: eligible;
+  - automatic: guard installed and companion ready;
+  - otherwise deferred;
+  - any failed read reports and defers, and is never read as legacy.
+- Unchanged:
+  - the claim, epoch, erasure, shutdown, lost and current-profile fences and frozen admissions (the reservation
+    guard);
+  - the FIFO drain stop;
+  - the installed guard's explicit refusals;
+  - the rehearsal's refusal;
+  - UUID aliases and the default-off switch.
+- A kept answer is never permission for a new effect; `answerOne` still writes it under the claim without asking.
+
+### A2-T01 (P2, the test only)
+**Cause.** `personal-inputs.db.test.ts:255` counts 4 turns right after a legacy send answered 202 and a 409. The 202
+commits the person's turn and starts the runner's answer asynchronously, so 3 turns is a valid intermediate state.
+
+**Repair.**
+- A bounded public completion observer. It polls `GET /api/v1/personal/turns?after=0` until that legacy receipt's turn
+  reads `answered`, with a finite deadline that fails by `assert.fail`.
+- It runs before the unchanged final exact count (4 turns, 2 inputs). Every replay, conflict and privacy assertion is
+  kept. No sleep, no lowered count.
+- Two observer tests on a barrier companion (a rehearsal whose answers wait for an explicit release):
+  - **Delayed answer:** the observer is still waiting, with 1 turn, before release; after release it resolves and
+    there are 2 turns.
+  - **Never-completing negative:** an unreleased answer makes the observer fail by assertion. The barrier is released
+    afterwards so nothing is left running.
+- The cause of past failed runs is not rewritten: their exact scheduling stays untraced.
+
+### Checks
+- **A2-F03** (API DB test, on the A2-F02 suite's database, 0102 installed):
+  - a live companion whose real readiness query (`personal_companion_admitted`) rejects (08006, selectively) while
+    the ledger stays healthy writes the kept answer: 0 prepares, the usage unchanged (one settled row);
+  - control, no kept answer with the same rejection: deferred, pending and unclaimed;
+  - control, kept-ledger read error (EXECUTE on `personal_settled_answer` revoked, then restored): deferred, pending
+    and unclaimed, 0 prepares.
+- **Fail-before** on exact `03d9`.
+- **Two mutants:** kept read after readiness; a kept-read error read as no kept.
+- **The five-file DB set** (the API DB file, `personal`, `personal-inputs`, `readiness`, `personal-live`), plus the
+  static and type checks.
+- **ONE ordinary** on the new head.

@@ -166,6 +166,23 @@ const rowsOf = async (person: string) =>
     )
   )[0]
 
+/**
+ * A2-T01: until the person's turn `turnId` reads `answered` through the public poll (GET /api/v1/personal/turns), within
+ * `ms`. A 202 commits the person's turn and starts the companion's answer; it does not wait for it. Fails by assertion
+ * if the answer does not come in time.
+ */
+async function answeredWithin(as: string, turnId: string, ms: number, at?: string): Promise<void> {
+  const end = Date.now() + ms
+  for (;;) {
+    const page = parsePersonalTurnPage(
+      (await call('/api/v1/personal/turns?after=0', { as, ...(at ? { at } : {}) })).json,
+    )
+    if (page.turns.find((t) => t.id === turnId)?.reply === 'answered') return
+    if (Date.now() > end) assert.fail(`turn ${turnId} was not answered within ${String(ms)} ms`)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+}
+
 before(async () => {
   db = await createTestDatabase()
   pool = createPool(db.apiUrl, { max: 6 })
@@ -249,9 +266,14 @@ describe('a held Personal input over HTTP', () => {
       epoch: await epochOf(person),
       body: { text: 'Asked, the legacy way.' },
     })
-    assert.equal(parsePersonalReceipt(legacy.json).operation, 'send_turn')
+    const legacyReceipt = parsePersonalReceipt(legacy.json)
+    assert.equal(legacyReceipt.operation, 'send_turn')
     const heldUnderLegacy = await hold(person, 'Asked, the legacy way.', legacyKey)
     assert.deepEqual([heldUnderLegacy.status, heldUnderLegacy.json?.code], [409, 'idempotency_conflict'])
+    // The legacy 202 started the companion's answer without waiting for it (A2-T01): its turn is observed answered
+    // before the final count, which then includes Sophia's reply.
+    assert.ok(legacyReceipt.turnId)
+    await answeredWithin(person, legacyReceipt.turnId, 15_000)
     assert.deepEqual(await rowsOf(person), { turns: 4, inputs: 2 })
   })
 
@@ -462,5 +484,73 @@ describe('a database without 0099', () => {
     } finally {
       await owner(def)
     }
+  })
+})
+
+describe('A2-T01: the answer observer waits for the answer, and fails when none comes', () => {
+  // A rehearsal whose answers wait at a gate, one per asked text, until the test opens it.
+  const gates = new Map<string, PromiseWithResolvers<void>>()
+  const gate = (text: string) => {
+    let g = gates.get(text)
+    if (!g) {
+      g = Promise.withResolvers<void>()
+      gates.set(text, g)
+    }
+    return g
+  }
+  let gated: FastifyInstance
+  let gatedBase = ''
+  before(async () => {
+    const inner = rehearsalCompanion(0)
+    const companion: Companion = {
+      mode: inner.mode,
+      answer: async (context, signal, companionCall) => {
+        await gate(context.asked.text).promise
+        return inner.answer(context, signal, companionCall)
+      },
+      greet: (context, name, signal) => inner.greet(context, name, signal),
+    }
+    gated = buildApp({ pool, verifyActor, companion, personalInputs: true })
+    await gated.listen({ port: 0, host: '127.0.0.1' })
+    gatedBase = `http://127.0.0.1:${String((gated.server.address() as AddressInfo).port)}`
+  })
+  after(async () => {
+    for (const g of gates.values()) g.resolve()
+    await gated.close()
+  })
+
+  const send = async (person: string, text: string) => {
+    const r = await call('/api/v1/personal/turns', {
+      as: person,
+      at: gatedBase,
+      key: randomUUID(),
+      epoch: await epochOf(person),
+      body: { text },
+    })
+    assert.equal(r.status, 202, JSON.stringify(r.json))
+    const { turnId } = parsePersonalReceipt(r.json)
+    assert.ok(turnId)
+    return turnId
+  }
+
+  it('never completing: the observer fails by assertion at its deadline, and the reply is not counted', async () => {
+    const person = randomUUID()
+    const turnId = await send(person, 'An answer that never comes.')
+    await assert.rejects(answeredWithin(person, turnId, 400, gatedBase), assert.AssertionError)
+    assert.deepEqual(await rowsOf(person), { turns: 1, inputs: 0 })
+  })
+
+  it('delayed: the observer resolves only once the held answer is released and written', async () => {
+    const person = randomUUID()
+    const text = 'An answer held at the gate.'
+    const turnId = await send(person, text)
+    let released = false
+    const observed = answeredWithin(person, turnId, 15_000, gatedBase).then(() => released)
+    // The answer is held: only the person's turn is kept so far.
+    assert.deepEqual(await rowsOf(person), { turns: 1, inputs: 0 })
+    released = true
+    gate(text).resolve()
+    assert.equal(await observed, true, 'the observer resolved only after the release')
+    assert.deepEqual(await rowsOf(person), { turns: 2, inputs: 0 })
   })
 })
