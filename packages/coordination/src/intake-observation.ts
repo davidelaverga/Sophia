@@ -1990,7 +1990,20 @@ function renderUnkeyed(target: Exclude<Target, { readonly id: string }>): string
   return target.kind
 }
 
-/** The addressee in the corpus notation: ids sorted and joined with '+', or 'none'. */
+/**
+ * An id the compact notation can carry without ambiguity (r22): not empty, not the reserved `none`, without `+`, and not
+ * starting with `[` (which begins the list form).
+ */
+export const isCompactAddresseeId = (id: string): boolean =>
+  id !== '' && id !== 'none' && !id.includes('+') && !id.startsWith('[')
+
+/**
+ * The addressee in the corpus notation, injectively (r22): no recipient is `none`; ids the compact notation can carry are
+ * sorted and joined with `+` (`maria+sophia`); otherwise the sorted ids as a JSON list (`["a+b","c"]`, `["none"]`).
+ * A compact form never starts with `[`, so the two forms never meet.
+ */
 export function renderAddressee(ids: readonly string[]): string {
-  return ids.length === 0 ? 'none' : ids.toSorted().join('+')
+  if (ids.length === 0) return 'none'
+  const sorted = ids.toSorted()
+  return sorted.every(isCompactAddresseeId) ? sorted.join('+') : JSON.stringify(sorted)
 }

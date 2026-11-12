@@ -777,7 +777,7 @@ describe('F03 (r9): only a comparable action label can make a proposal unexpecte
       assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
       const written = JSON.parse(readFileSync(out, 'utf8'))
       // v4 introduced this list; v5 (r11) keeps it and changes only how abstentions score.
-      assert.equal(written.schema, 'sophia.intake-observation.report.v5')
+      assert.equal(written.schema, 'sophia.intake-observation.report.v6')
       checkLabelTallies(written)
     })
   })
@@ -977,7 +977,7 @@ describe('r11 (P1 discussion_r4520830068): an abstention is never a semantic mat
       const out = join(dir, 'r.json')
       assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
       const written = JSON.parse(readFileSync(out, 'utf8'))
-      assert.equal(written.schema, 'sophia.intake-observation.report.v5')
+      assert.equal(written.schema, 'sophia.intake-observation.report.v6')
       checkAbstentionReport(written)
     })
   })
@@ -1153,7 +1153,13 @@ function r13Corpus(): TestDoc {
 interface R13View {
   cases: { caseId: string; observation: IntakeObservation; comparison: { field: string; result: string }[] }[]
   errors: { caseId?: string; code: string }[]
-  counts: { observed: number; invalidCases: number; byFamily: Record<string, unknown>; byKind: Record<string, unknown> }
+  counts: {
+    observed: number
+    invalidCases: number
+    noFamily: number
+    byFamily: Record<string, unknown>
+    byKind: Record<string, unknown>
+  }
   actualEffects: Record<string, number>
 }
 
@@ -1171,16 +1177,18 @@ function checkR13(r: R13View): void {
     ['constructor', 1],
     ['toString', 1],
     ['hasOwnProperty', 1],
-    ['unlabelled', 1],
     ['test_family', 3],
   ] as const) {
     assert.ok(Object.hasOwn(families, name), name)
     assert.equal(families[name], n, name)
   }
+  // Report v6 (r22): a null family is no family, counted apart from every explicit one; the sum still covers all.
+  assert.ok(!Object.hasOwn(families, 'unlabelled'))
+  assert.equal(r.counts.noFamily, 1)
   const values = Object.values(families)
   assert.ok(values.every((v) => typeof v === 'number'))
   assert.equal(
-    values.reduce((sum: number, v) => sum + (typeof v === 'number' ? v : 0), 0),
+    values.reduce((sum: number, v) => sum + (typeof v === 'number' ? v : 0), 0) + r.counts.noFamily,
     r.counts.observed,
   )
   assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
@@ -1578,7 +1586,7 @@ function r18Corpus(): TestDoc {
 interface R18View {
   cases: { caseId: string; observation: IntakeObservation; comparison: { field: string; result: string }[] }[]
   errors: { index?: number; caseId?: string | null; code: string; path?: string }[]
-  counts: { cases: number; observed: number; invalidCases: number; byFamily: Record<string, unknown> }
+  counts: { cases: number; observed: number; invalidCases: number; noFamily: number; byFamily: Record<string, unknown> }
   actualEffects: Record<string, number>
 }
 
@@ -1608,8 +1616,10 @@ function checkR18Families(r: R18View): void {
   assert.equal(r.counts.observed, 8)
   assert.equal(r.counts.observed + r.counts.invalidCases, r.counts.cases)
   const families = r.counts.byFamily
+  // Report v6 (r22): absent and null are no family, counted apart; no explicit family here is named unlabelled.
+  assert.equal(r.counts.noFamily, 2)
+  assert.ok(!Object.hasOwn(families, 'unlabelled'))
   for (const [name, n] of [
-    ['unlabelled', 2],
     ['__proto__', 1],
     ['constructor', 1],
     ['acks', 1],
@@ -1871,6 +1881,141 @@ describe('r21 through the consumer: original unknown-effect reconciliation', () 
       const out = join(dir, 'r.json')
       assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
       checkR21(JSON.parse(readFileSync(out, 'utf8')))
+    })
+  })
+})
+
+/** The r22 consumer corpus: family metadata kept apart from missing metadata, and addressee identity by set. */
+function r22Corpus(): TestDoc {
+  const doc = corpus()
+  const shared = { audience: 'project' }
+  const to = (ids: string[]) => ({ ...shared, trustedMentions: ids })
+  const plain = (id: string) => testCase(id, 'Thanks.', shared, {})
+  const { family: _omitted, ...absent } = plain('F-absent')
+  const addressed = (id: string, ids: string[], label: unknown) =>
+    testCase(id, 'Thanks.', to(ids), { addressee: label })
+  doc.cases = [
+    absent,
+    withFamily(plain('F-null'), null),
+    withFamily(plain('F-literal'), 'unlabelled'),
+    withFamily(plain('F-empty'), ''),
+    withFamily(plain('F-proto'), '__proto__'),
+    withFamily(plain('F-constructor'), 'constructor'),
+    withFamily(plain('F-none'), 'none'),
+    addressed('A-none-id-vs-none', ['none'], 'none'),
+    addressed('A-none-id-array', ['none'], ['none']),
+    addressed('A-none-id-json', ['none'], '["none"]'),
+    addressed('A-plus-id-vs-two', ['a+b'], 'a+b'),
+    addressed('A-plus-id-array', ['a+b'], ['a+b']),
+    addressed('A-two-compact', ['a', 'b'], 'a+b'),
+    addressed('A-two-vs-plus-array', ['a', 'b'], ['a+b']),
+    addressed('A-left-vs-three', ['a+b', 'c'], 'a+b+c'),
+    addressed('A-left-array', ['a+b', 'c'], ['c', 'a+b']),
+    addressed('A-right-vs-left', ['a', 'b+c'], ['a+b', 'c']),
+    addressed('A-right-array', ['a', 'b+c'], ['a', 'b+c']),
+    addressed('A-three-compact', ['a', 'b', 'c'], 'a+b+c'),
+    testCase('A-empty-none', 'Thanks.', shared, { addressee: 'none' }),
+    testCase('A-empty-array', 'Thanks.', shared, { addressee: [] }),
+    testCase('A-empty-vs-none-id', 'Thanks.', shared, { addressee: ['none'] }),
+    addressed('A-bad-empty-segment', ['a', 'b'], 'a++b'),
+    addressed('A-bad-none-segment', ['a', 'none'], 'a+none'),
+    addressed('A-bad-repeat', ['a'], ['a', 'a']),
+    addressed('A-bad-type', ['a'], [1]),
+    addressed('A-bad-empty-string', ['a'], ''),
+    addressed('O-human-none-id', ['none', 'sophia'], ['none']),
+    addressed('O-two-humans', ['a', 'b', 'sophia'], 'a+b'),
+    addressed('O-none-label', ['sophia'], 'none'),
+  ]
+  return doc
+}
+
+interface R22View {
+  cases: readonly {
+    caseId: string
+    observation: IntakeObservation
+    comparison: readonly { field: string; result: string; observed?: unknown }[]
+  }[]
+  counts: { cases: number; observed: number; invalidCases: number; noFamily: number; byFamily: Record<string, unknown> }
+  developmentTallies: { explicitHumanAddressOverrides: string[] }
+  actualEffects: Record<string, number>
+}
+
+const R22_RESULTS: Record<string, string> = {
+  'A-none-id-vs-none': 'mismatch',
+  'A-none-id-array': 'match',
+  'A-none-id-json': 'match',
+  'A-plus-id-vs-two': 'mismatch',
+  'A-plus-id-array': 'match',
+  'A-two-compact': 'match',
+  'A-two-vs-plus-array': 'mismatch',
+  'A-left-vs-three': 'mismatch',
+  'A-left-array': 'match',
+  'A-right-vs-left': 'mismatch',
+  'A-right-array': 'match',
+  'A-three-compact': 'match',
+  'A-empty-none': 'match',
+  'A-empty-array': 'match',
+  'A-empty-vs-none-id': 'mismatch',
+  'A-bad-empty-segment': 'mismatch',
+  'A-bad-none-segment': 'mismatch',
+  'A-bad-repeat': 'mismatch',
+  'A-bad-type': 'mismatch',
+  'A-bad-empty-string': 'mismatch',
+}
+
+function checkR22Families(r: R22View): void {
+  assert.equal(r.counts.noFamily, 2, 'absent and null only')
+  const families = r.counts.byFamily
+  for (const [name, n] of [
+    ['unlabelled', 1],
+    ['', 1],
+    ['__proto__', 1],
+    ['constructor', 1],
+    ['none', 1],
+    ['test_family', 23],
+  ] as const) {
+    assert.ok(Object.hasOwn(families, name), name)
+    assert.equal(families[name], n, name)
+  }
+  const sum = Object.values(families).reduce((s: number, v) => s + (typeof v === 'number' ? v : 0), 0)
+  assert.equal(sum + r.counts.noFamily, r.counts.observed)
+  assert.deepEqual([r.counts.cases, r.counts.observed, r.counts.invalidCases], [30, 30, 0])
+  assert.equal(Object.getPrototypeOf({}), Object.prototype)
+}
+
+function checkR22Recipients(r: R22View): void {
+  const byCase = new Map(r.cases.map((c) => [c.caseId, c]))
+  for (const [id, want] of Object.entries(R22_RESULTS))
+    assert.equal(byCase.get(id)?.comparison.find((f) => f.field === 'addressee')?.result, want, id)
+  const observedOf = (id: string) => byCase.get(id)?.comparison.find((f) => f.field === 'addressee')?.observed
+  assert.deepEqual(
+    ['A-none-id-array', 'A-plus-id-array', 'A-two-compact', 'A-left-array', 'A-right-array', 'A-empty-none'].map(
+      observedOf,
+    ),
+    ['["none"]', '["a+b"]', 'a+b', '["a+b","c"]', '["a","b+c"]', 'none'],
+  )
+  assert.deepEqual(r.developmentTallies.explicitHumanAddressOverrides.toSorted(), ['O-human-none-id', 'O-two-humans'])
+  assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+}
+
+describe('r22 through the consumer: family buckets and addressee identity', () => {
+  it('families in the built report', () => {
+    checkR22Families(report(r22Corpus()) as unknown as R22View)
+  })
+
+  it('recipients in the built report', () => {
+    checkR22Recipients(report(r22Corpus()) as unknown as R22View)
+  })
+
+  it('families and recipients in the written report from the command line', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, r22Corpus())
+      const out = join(dir, 'r.json')
+      assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
+      const written = JSON.parse(readFileSync(out, 'utf8')) as R22View & { schema: string }
+      assert.equal(written.schema, 'sophia.intake-observation.report.v6')
+      checkR22Families(written)
+      checkR22Recipients(written)
     })
   })
 })

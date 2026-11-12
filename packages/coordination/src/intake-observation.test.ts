@@ -2900,3 +2900,18 @@ describe('r21 (R20-F01 comment 4544525044): an original effect of unknown outcom
     assert.equal(redelivered.admission.outcome, 'replay_original')
   })
 })
+
+describe('r22 (R21-F02 comment 4544778335): the addressee notation is injective', () => {
+  it('ordinary ids keep the compact notation; ids it cannot carry render as a sorted JSON list', () => {
+    assert.equal(renderAddressee([]), 'none')
+    assert.equal(renderAddressee(['sophia', 'maria']), 'maria+sophia')
+    assert.equal(renderAddressee(['none']), '["none"]')
+    assert.equal(renderAddressee(['a+b']), '["a+b"]')
+    assert.equal(renderAddressee(['[x']), '["[x"]')
+    assert.equal(renderAddressee(['']), '[""]')
+    const forms = [['a+b', 'c'], ['a', 'b+c'], ['a', 'b', 'c'], ['a+b'], ['a', 'b'], ['none'], []].map((ids) =>
+      renderAddressee(ids),
+    )
+    assert.equal(new Set(forms).size, forms.length, JSON.stringify(forms))
+  })
+})

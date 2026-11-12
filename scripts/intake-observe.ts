@@ -41,6 +41,7 @@ import {
   ZERO_EFFECTS,
   observeWithLedger,
   policyDigest,
+  isCompactAddresseeId,
   renderAddressee,
   renderTarget,
   type InputError,
@@ -52,7 +53,7 @@ import {
   type ZeroEffects,
 } from '../packages/coordination/src/intake-observation.ts'
 
-export const REPORT_SCHEMA = 'sophia.intake-observation.report.v5'
+export const REPORT_SCHEMA = 'sophia.intake-observation.report.v6'
 export const CLI_LIMITS = { fileBytes: 2 * 1024 * 1024, cases: 500, idChars: 200 } as const
 
 /** Corpus schemas this tool reads, and the interaction a case without an `interaction` member is observed under. */
@@ -383,9 +384,46 @@ export function targetMatches(target: Target, label: unknown): boolean {
   return refs !== undefined && refs.length === target.refs.length && refs.every((r, i) => r === target.refs[i])
 }
 
+/** A list of distinct ids, each a non-empty string: the only set an addressee label can name. */
+function distinctIds(values: unknown): string[] | undefined {
+  if (!Array.isArray(values) || !values.every((v): v is string => typeof v === 'string' && v !== '')) return undefined
+  return new Set(values).size === values.length ? values : undefined
+}
+
+/**
+ * The recipients an addressee label names, or undefined when it names none clearly (r22). The one reader of the
+ * notation, for comparison and tallies alike: a list of ids; or a string, `none` for no recipient, a JSON list of ids
+ * (starting with `[`), or compact ids joined by `+`, each one the compact notation can carry. A label is data; it is
+ * never read by the policy.
+ */
+export function addresseeLabelIds(label: unknown): string[] | undefined {
+  if (Array.isArray(label)) return distinctIds(label)
+  if (typeof label !== 'string' || label === '') return undefined
+  if (label === 'none') return []
+  if (label.startsWith('[')) {
+    try {
+      const parsed: unknown = JSON.parse(label)
+      return distinctIds(parsed)
+    } catch {
+      return undefined
+    }
+  }
+  const ids = label.split('+')
+  return ids.every(isCompactAddresseeId) ? distinctIds(ids) : undefined
+}
+
+/** Whether a label names exactly these recipients: the same set, whatever the order or notation. */
+export function addresseeMatches(ids: readonly string[], label: unknown): boolean {
+  const named = addresseeLabelIds(label)
+  if (named === undefined || named.length !== ids.length) return false
+  const sorted = named.toSorted()
+  return ids.toSorted().every((id, i) => id === sorted[i])
+}
+
 function equalField(field: ScoredField, expected: unknown, o: IntakeObservation, observed: unknown): boolean {
   if (field === 'actualEffects') return effectsMatch(expected, o.effects)
   if (field === 'target') return targetMatches(o.proposal.target, expected)
+  if (field === 'addressee') return addresseeMatches(o.addressee.ids, expected)
   return expected === observed
 }
 
@@ -400,7 +438,7 @@ const ABSTAINABLE: ReadonlySet<ScoredField> = new Set([
 function fieldResult(field: ScoredField, expected: unknown, observed: unknown, o: IntakeObservation): FieldResult {
   // An abstention leaves addressee, action, target and admission unknown: abstained before any equality, so a label
   // that happens to equal an abstention's placeholder (abstain, none, unresolved, recorded_only, null) is never a
-  // match (r11, report v5).
+  // match (r11, report v5; unchanged in v6).
   if (ABSTAINABLE.has(field) && o.proposal.kind === 'abstain') return 'abstained'
   if (equalField(field, expected, o, observed)) return 'match'
   if (field === 'admission' && observed === 'unassessed') return 'unassessed'
@@ -484,8 +522,8 @@ function developmentTallies(records: readonly CaseRecord[]): Record<string, unkn
   const unexpected = consequential.filter((r) => actionResult(r) === 'mismatch')
   const notLabelled = consequential.filter((r) => actionResult(r) === 'not_labelled')
   const humanOverrides = records.filter((r) => {
-    const label = labelOf(r, 'addressee')
-    const humanOnly = typeof label === 'string' && label !== 'none' && !label.split('+').includes('sophia')
+    const named = addresseeLabelIds(labelOf(r, 'addressee'))
+    const humanOnly = named !== undefined && named.length > 0 && !named.includes('sophia')
     return humanOnly && r.observation.addressee.ids.includes('sophia')
   })
   return {
@@ -618,7 +656,9 @@ export function buildReport(doc: Record<string, unknown>, cases: readonly unknow
       clarifications: kinds.filter((k) => k === 'clarify').length,
       byKind: tally(kinds),
       byPolicyAdmission: tally(records.map((r) => r.observation.admission.outcome)),
-      byFamily: tally(records.map((r) => r.family ?? 'unlabelled')),
+      // Every explicit family is its own key, `unlabelled` included; absent or null family is counted apart (r22).
+      byFamily: tally(records.flatMap((r) => (r.family === null ? [] : [r.family]))),
+      noFamily: records.filter((r) => r.family === null).length,
     },
     comparison: { fields: fieldSummary(records), misses: misses(records) },
     developmentTallies: developmentTallies(records),

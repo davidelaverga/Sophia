@@ -432,7 +432,7 @@ the final name (which fails if it exists) — no silent overwrite of a source, a
 
 ## Report
 
-`sophia.intake-observation.report.v5`: tool and policy version, policy descriptor and source SHA-256, input
+`sophia.intake-observation.report.v6` (r22; v5 until r21): tool and policy version, policy descriptor and source SHA-256, input
 basename/SHA-256/bytes/schema, explicit scored and unscored label fields, semantic assessment `absent`, counts with
 denominators (cases, observed, invalidCases, errorIssues, abstentions, clarifications, by kind/admission), per-field
 comparison (`match` / `mismatch` / `abstained` / `unassessed`; the denominator includes all four), every miss and
@@ -444,6 +444,32 @@ evidence: novel counterexamples showed r1 gaps that a clean development tally di
 consequential proposal needs an actual proposed-action label that it misses (report v4): a case without that label,
 wholly unlabelled or labelled only in other fields, is listed under `consequentialProposalsActionNotLabelled` —
 neither a miss nor a match, and no evidence of safety. Report v3 counted those cases as unexpected.
+
+Report v6 (r22) changes two things and nothing else:
+
+- **Families.** `counts.byFamily` has one key per explicit family string: `unlabelled`, `none`, the empty string,
+  `__proto__` and `constructor` are ordinary keys, counted as own properties. A case whose family is absent or `null`
+  is counted in the new `counts.noFamily`. The sum of `byFamily` plus `noFamily` is `observed`. In v5, `unlabelled`
+  counted both missing metadata and the literal family; a v5 report is not reinterpreted as v6.
+- **Addressee identity.**
+  - **Matching.** A label matches when it names exactly the observed recipients as a set, not when two renderings are
+    equal. One parser (`addresseeLabelIds`) reads every label, for the comparison and for
+    `explicitHumanAddressOverrides` alike.
+  - **Label forms.** A label is a list of distinct non-empty ids, or a string:
+    - `none` means no recipient;
+    - a JSON list of ids starts with `[`;
+    - otherwise compact ids are joined by `+`. Each compact id must be non-empty, not `none`, without `+` and not
+      starting with `[` (`isCompactAddresseeId`).
+  - **Anything else** names no set and never matches.
+  - **Effect:** a human whose id is `none` is not "no recipient", the one id `a+b` is not `a` and `b`, and
+    `[a+b, c]`, `[a, b+c]` and `[a, b, c]` are three different sets. Ordinary labels (`maria+sophia`, `none`) keep
+    their meaning.
+  - **Observed values** use `renderAddressee`, now injective: the compact form when every id can be carried, otherwise
+    the sorted ids as a JSON list. The compact form never starts with `[`.
+  - Labels remain data, stripped before the policy runs.
+
+The policy's observations are unchanged (still `sophia.intake-observation.policy.v21`); only its report-notation
+helper `renderAddressee` changed.
 
 Admission comparison (F04, bounded choice in r3) is separate from proposal comparison and never changes the policy
 outcome. A policy outcome that is a deterministic result — `waiting`, `denied`, `conflict`, `replay_original`,
