@@ -44,6 +44,7 @@ import { roomRoutes } from './routes/rooms.ts'
 import { designRoutes } from './routes/design.ts'
 import { RENDERER_ROUTES, rendererRoutes } from './routes/renderer.ts'
 import { RUNTIME_ROUTES, conversationRuntimeRoutes, researchRoutes, runtimeRoutes } from './routes/runtime.ts'
+import { OWNER_RUNNER_SCHEMA, runnerOperationRoutes, type OwnerRunnerAdmissions } from './routes/runner-operations.ts'
 import { sourceRoutes } from './routes/sources.ts'
 import type { LiveKitConfig } from './livekit.ts'
 import { NotificationHub } from './notification-hub.ts'
@@ -116,6 +117,14 @@ export interface AppDeps {
    * default. A call that finds none free within its wait (5 s) answers unknown, and runs and marks nothing.
    */
   callFenceSessions?: number
+  /**
+   * New owner-runner work (A47, migration 0092): `off` by default. The routes are always served: off refuses new
+   * creates and inputs (runner_admission_disabled) but still admits a qualified owner's Stop of a running binding, with
+   * all its checks, and the owner keeps reading work already admitted; a database without 0092
+   * answers those reads projection_unavailable, never an empty list, and /ready requires 0092 only with `admit`. Each
+   * admission still needs an operator-recorded qualification of the owner's route, which no request can create.
+   */
+  ownerRunnerAdmissions?: OwnerRunnerAdmissions
 }
 
 /**
@@ -361,6 +370,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   eventRoutes(app, { pool: deps.pool, hub, heartbeatMs: deps.eventPollMs ?? 10_000 })
   registerPersonal(app, deps)
   if (deps.conversations) projectConversationRoutes(app, { pool: deps.pool })
+  runnerOperationRoutes(app, { pool: deps.pool, admissions: deps.ownerRunnerAdmissions ?? 'off' })
   return app
 }
 
@@ -508,6 +518,7 @@ interface Health {
   conversations: boolean
   companion: Companion | null
   voice: boolean
+  ownerRunners: boolean
   commit: string | null
 }
 
@@ -516,17 +527,19 @@ const healthOf = (deps: AppDeps): Health => ({
   conversations: Boolean(deps.conversations),
   companion: deps.companion ?? null,
   voice: deps.voiceQualification === true,
+  ownerRunners: deps.ownerRunnerAdmissions === 'admit',
   commit: deps.commit ?? null,
 })
 
 /** Whether the database has every function and column this API's switches call (each part only when it is on). */
-async function schemaReady(pool: pg.Pool, { stores, conversations, voice }: Health): Promise<boolean> {
+async function schemaReady(pool: pg.Pool, { stores, conversations, voice, ownerRunners }: Health): Promise<boolean> {
   const part = async (on: boolean, sql: string) => !on || (await pool.query<{ ok: boolean }>(sql)).rows[0]?.ok === true
   return (
     (await part(true, REQUIRED_SCHEMA)) &&
     (await part(stores, STORE_SCHEMA)) &&
     (await part(conversations, CONVERSATION_SCHEMA)) &&
-    (await part(voice, VOICE_SCHEMA))
+    (await part(voice, VOICE_SCHEMA)) &&
+    (await part(ownerRunners, OWNER_RUNNER_SCHEMA))
   )
 }
 

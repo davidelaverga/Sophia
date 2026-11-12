@@ -278,15 +278,135 @@ How to read this section:
   `639ed015` (§2c).
 - **Nothing qualified.** No profile, account, toolkit, owner-host route,
   designer setup or product candidate is qualified by this section.
-- **Nothing relied on yet.** No file in this repository relies on these
-  sources. When a goal starts relying on one, record its exact upstream file
-  and the Sophia files grounded in it here, as in §2–2j.
+- **Relied on only as §2l, §2m and §2n record.** Apart from the T3 files that
+  §2l records for INC01-CC-002, §2m for INC01-CC-003 S1a and §2n for
+  INC01-CC-005, no file in this repository relies on these sources. When a goal
+  starts relying on one, record its exact upstream file and the Sophia files
+  grounded in it here, as in §2–2j and §2l–2n.
 
 | Register id | Repository and studied pin | Upstream files relied on | Purpose in the programme | Status and limits |
 |---|---|---|---|---|
 | D1, D2 | DSH Super Agent, `deepseek-ai/dsh-superagent-prototype@8c32a9dc5d72c033816c6a8110b37f40cf94fba4` (MIT; a research prototype) | [`README.md`](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/8c32a9dc5d72c033816c6a8110b37f40cf94fba4/README.md), [`src/policy.ts`](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/8c32a9dc5d72c033816c6a8110b37f40cf94fba4/src/policy.ts), [`src/app/delivery.ts`](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/8c32a9dc5d72c033816c6a8110b37f40cf94fba4/src/app/delivery.ts) (D1); [`package.json`](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/8c32a9dc5d72c033816c6a8110b37f40cf94fba4/package.json), [`src/app/role-models.ts`](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/8c32a9dc5d72c033816c6a8110b37f40cf94fba4/src/app/role-models.ts) (D2) | Patterns only: admission and intent evidence, observation mode, durable delivery, correlation, model defaults | Studied, not installed. It is not a second coordinator, agent loop, scheduler or subscription broker. It targets the `0.2.1-alpha.2` family; Sophia records `0.2.0-rc.2`. Adopting a pattern requires no runtime migration |
 | T1, T2 | T3 Code, `pingdotgg/t3code@ade473018d32003658b7d38693e083ee2e314bd8` (MIT) | [`apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts), [`apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts) (T1); [`docs/orchestration-v2/orchestrator-mcp-server.md`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/docs/orchestration-v2/orchestrator-mcp-server.md), [`docs/user/outside-agents.md`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/docs/user/outside-agents.md) (T2) | The preferred bounded native-session adapter candidate, behind Sophia's authority: instance, session, input, events, control, reconciliation. An ordinary follow-up queues; steer and restart are stronger interventions, not the default. T3's environment-wide MCP scope must be narrowed by Sophia's owner, project, repository and grant gateway | A source-bound candidate. Not installed. These documents qualify no live profile, account, injected toolkit or owner-host route; that is INC-01's work |
 | I1, I2 | Impeccable, `pbakaus/impeccable@924bbd194d02e5e15a227e75b5901fb0d7a4ecad`, package and skill 4.8.1 (Apache-2.0) | [`README.md`](https://github.com/pbakaus/impeccable/blob/924bbd194d02e5e15a227e75b5901fb0d7a4ecad/README.md) (I1); [`.claude/skills/impeccable/SKILL.md`](https://github.com/pbakaus/impeccable/blob/924bbd194d02e5e15a227e75b5901fb0d7a4ecad/.claude/skills/impeccable/SKILL.md) (I2) | Project-scoped Claude Code design tooling for the designer: a pinned, reviewed setup, refinement of the incumbent UI and real preview checks, through the normal agent-permission path | Studied, not installed here. Its documented live Apply fallback is excluded because it bypasses normal agent permissions. A studied pin is neither runtime or product qualification nor Davide's approval of a candidate. Evidence of the designer's actual setup is kept separately. Nothing here installs, authenticates or runs it |
+## 2l. Upstream sources at INC01-CC-002 (owner-runner port, T3 mapping)
+
+Numbered 2l on purpose. The November programme's donor-pin entry (INC00-DOC-003, on the unmerged installation branch
+of PR #503) is §2k there, so the two sections never claim the same number. That entry records T3 Code from the
+programme's source register only; this section is the study this candidate's code relies on.
+
+T3 Code, [`pingdotgg/t3code`](https://github.com/pingdotgg/t3code) at
+`ade473018d32003658b7d38693e083ee2e314bd8` (MIT), read outside this tree. It is a **studied pin, not an installed or
+qualified version**: no T3 code is copied, installed or called by Sophia. `packages/coordination/src/t3-port-mapping.ts`
+derives identities and builds calls exactly as these files do at the pin; the fake in `runner-fake-t3.ts` mirrors them.
+
+| File at the pin | Blob | What Sophia relies on |
+|---|---|---|
+| `apps/server/src/mcp/toolkits/project/handlers.ts` | `667b878e` | `t3_thread_launch`: command, thread and message id are all `mcp:launch:<sha256(JSON.stringify([requestNamespace, clientRequestId]))>`; a retry under the same key replays the launch |
+| `apps/server/src/mcp/toolkits/project/tools.ts` | `56799959` | The launch input (`projectId`, `title`, `message`, `runtimeMode`, `clientRequestId`) and result (`threadId`, `runId`, `status`) |
+| `apps/server/src/mcp/OrchestratorMcpService.ts` | `9d154084` | `stableCommandId` / `stableOperationMessageId`: `command\|message:mcp:<enc(namespace)>:<operation>:<enc(key)>`; `t3_thread_send` defaults to `auto` (`mode ?? "auto"`); `thread-stop` operation for `t3_thread_interrupt(stop:true)` |
+| `apps/server/src/mcp/McpSessionRegistry.ts` | `80dc4936` | In-thread namespace is the provider session id; the orchestration capability is granted unconditionally |
+| `apps/server/src/auth/McpOAuth.ts` | `0be7c1eb` | An outside OAuth client's namespace is `client:<MCP client session id>` |
+| `apps/server/src/mcp/toolkits/thread/tools.ts`, `handlers.ts` | `c6670c4e`, `f9683124` | `t3_pending_request` answers `user_input` questions only (never approvals; `respond` takes no `clientRequestId`); `t3_queue` entries carry `queuedRunId`, not `messageId` |
+| `packages/contracts/src/orchestratorMcp.ts` | `c73bbd48` | Send, interrupt, read and timeline-item schemas (`delivery`, `messageId`, `runId`, `nextPosition`) |
+| `packages/contracts/src/orchestrationV2.ts` | `5c430ef7` | Run statuses: active (`preparing` … `waiting`) and terminal (`completed`, `interrupted`, `failed`, `cancelled`, `rolled_back`) |
+| `docs/orchestration-v2/orchestrator-mcp-server.md`, `docs/user/outside-agents.md` | `2f6ba536`, `ebc477d7` | Delivery modes (`auto`, `queue`, `steer`, `restart`); `clientRequestId` is scoped to its namespace; outside-agent scopes cover every project in the environment |
+| `apps/server/src/orchestration-v2/ThreadManagementService.ts` | `46ea4543` | r2 (R1-F04): `isActiveRun` counts `preparing`, `starting`, `running` and `waiting`, not `queued`; `latestActiveRun` (the read's `activeRunId`) covers every run of the thread, while `recentRuns` is cut by `runLimit` |
+| `apps/server/src/mcp/OrchestratorMcpService.ts` (`threadDetail`) | `9d154084` | r2 (R1-F04): the read's `thread` carries `threadId`, `activeRunId` and `runCount`; its `settled` is the user-interface `settledOverride`, never run settlement, and is not read |
+
+## 2m. Upstream sources at INC01-CC-003 S1a (owner-host transport)
+
+The same T3 Code pin as §2l, [`pingdotgg/t3code`](https://github.com/pingdotgg/t3code) at
+`ade473018d32003658b7d38693e083ee2e314bd8` (MIT), read outside this tree from a local clone whose `HEAD` is that commit;
+each blob below was checked against it. It is a **studied pin, not an installed or qualified version**: no T3 code is
+copied, installed or called by Sophia, and the runtime pin is unchanged.
+
+This is source-study evidence only. The operational evidence for this slice is a fake loopback Streamable HTTP server
+backed by `runner-fake-t3.ts`, in `t3-mcp-transport.test.ts`. No T3 install, sign-in, account, provider or profile was
+used, and none is qualified here.
+
+Sophia files grounded here: `packages/coordination/src/t3-mcp-transport.ts` (the protocol), and the declared namespace
+rule in `packages/coordination/src/owner-host-channel.ts`, `scripts/owner-host.ts` and
+`db/migrations/0093_owner_host_enrollment.sql` (`owner_hosts.t3_namespace`).
+
+| File at the pin | Blob | What Sophia relies on |
+|---|---|---|
+| [`apps/server/src/peer/PeerMcpClient.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/peer/PeerMcpClient.ts) | `885c91dc` | T3's own Streamable HTTP client, which the transport follows. Protocol `2025-06-18` (L22). A JSON body, or one server-sent event's `data:` lines (L88–95). A POST with `accept: application/json, text/event-stream` and a bearer (L104–114). `initialize`, the `mcp-session-id` header, then `notifications/initialized` (L116–153). `tools/call` with `mcp-session-id` and `mcp-protocol-version`; a 404 renews the session once (L184–188); a 401 is `capability_denied` (L189–195). An `isError` result's text decodes as `{code, message}`, success as JSON text (L225–242). Not followed: T3 maps a JSON-RPC error to `invalid_request` (L214–217); Sophia keeps it `unknown`, conservatively |
+| [`apps/server/src/auth/McpOAuth.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/auth/McpOAuth.ts) | `0be7c1eb` | An outside agent's request namespace is `client:${client.sessionId}` (L599). Only the `authorization_code` grant is offered (L96) and accepted (L499–500): there is no refresh grant, so a new sign-in is a new namespace |
+| [`apps/server/src/auth/EnvironmentAuth.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/auth/EnvironmentAuth.ts) | `b6bf6379` | `authenticateMcpClient` (L1298–1311): that `sessionId` is the verified bearer's auth session (`session.sessionId`), not the MCP transport session. Hence the namespace is declared in the host's configuration and bound at hello, never derived from `Mcp-Session-Id` |
+
+Still unproven, for live qualification: that the namespace a host declares is the one T3 uses (a launch receipt's thread
+id must equal `launchCommandId(namespace, key)`); that HTTP 401 and 403 are pre-dispatch for an outside agent; and the
+response shapes of a real install.
+
+## 2n. Upstream sources at INC01-CC-005 (owner-runner source authority, launch settings)
+
+The same T3 Code pin as §2l and §2m, [`pingdotgg/t3code`](https://github.com/pingdotgg/t3code) at
+`ade473018d32003658b7d38693e083ee2e314bd8` (MIT). The files were read outside this tree from the public pin. Each
+full-file SHA-256 below was computed from the whole file and matches both the INC01-CC-005 qualification record
+([NATIVE_PORT_QUALIFICATION](coordination/SOPHIA-INC-2026-11/NATIVE_PORT_QUALIFICATION.md)) and the independent
+reviewer's receipt. The lines are the passages relied on; the hash covers the whole file. This is a **studied pin**:
+nothing is copied, installed, called or qualified.
+
+**Sophia files grounded here:**
+
+- `packages/coordination/src/t3-port-mapping.ts`: the launch call;
+- `packages/coordination/src/runner-port.ts`: the settings and base it carries;
+- `packages/coordination/src/runner-fake-t3.ts`: the fake that mirrors them;
+- `db/migrations/0096_owner_runner_source_authority.sql`: the frozen requested base and settings.
+
+| File at the pin | Lines | Full-file SHA-256 | What Sophia relies on |
+|---|---|---|---|
+| [`packages/contracts/src/orchestrationV2.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/packages/contracts/src/orchestrationV2.ts) | 654–674 | `9f791f7e75031f56c36fddabb2529913c2c4f1f539415037f9d7b9355dc597fb` | The launch `workspaceStrategy` is a tagged union, `root`, `existing_worktree` or `worktree`; there is no worktree boolean. `worktree` carries `baseRef` and an optional `branch` and `startFromOrigin`. Sophia sends `{type: "worktree", baseRef}` with its frozen 40-hex base |
+| [`packages/contracts/src/modelSelection.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/packages/contracts/src/modelSelection.ts) | 9–50 | `54832cd6d41fae198eca90fe58cfceab4f6b97572c90e32cbfff703b584b434a` | `ModelSelection` is `{instanceId, model, options?}` on the wire. A legacy `provider` decodes to `instanceId`, and encoding emits `instanceId` |
+| [`packages/contracts/src/providerInstance.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/packages/contracts/src/providerInstance.ts) | 7–22 | `ade67de404651ff6c5373ba1b0359f598c06d49f5e4de2aa77ebf396ab91233a` | `ProviderInstanceId` is a branded slug: a letter, then letters, digits, `_` or `-`, at most 64 characters. It names a native provider instance, not an account |
+| [`packages/contracts/src/orchestratorMcp.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/packages/contracts/src/orchestratorMcp.ts) | 501–525 | `a1a1f5ffc84c5cc151947db666069a440f1f4f15c96cdd6dabfbc0b9bae826d1` | `t3_thread_send` input has no model, effort or workspace field. A queued input therefore carries no launch settings and runs under the thread's. Its result's `delivery` is `started`, `queued`, `steered` or `restarted` |
+| [`apps/server/src/mcp/toolkits/project/tools.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/mcp/toolkits/project/tools.ts) | 124–164 | `ccaba4a185d959ce0c3c0b812f23cbc5196e21dfa87349f06b15904b66bd0d6c` | `t3_thread_launch` accepts an optional `modelSelection` and `workspaceStrategy`, and its success echoes `modelSelection`, `runId` and `status` |
+| [`apps/server/src/mcp/toolkits/project/handlers.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/mcp/toolkits/project/handlers.ts) | 146–236, 277–284 | `0d7027332a51cf6d8e23222484daf50be263e61f8b2c665ccbe66dbdd4bb0284` | Two passages. First, a `worktree` base is pre-checked only for resolvability before acceptance, and checkout happens later. Second, the launch stores the selection it resolved (the given one, else an inherited or project default) and echoes the thread's stored `modelSelection` |
+
+**Limits.**
+
+- **Requested, accepted, reported and observed stay distinct.** The launch echo is the thread's stored selection, and
+  a run's `model` is a label. Neither proves the model or effort actually used, so accepted and observed stay
+  `unknown`.
+- **Still unqualified:**
+  - that T3 checks out exactly the requested base (its pre-check is permissive, and nothing echoes the base after
+    checkout);
+  - the upstream checkout itself;
+  - `read_only` enforcement;
+  - effective effort and a real profile's catalog values;
+  - account and billing;
+  - the injected toolkit's scope;
+  - the privacy of a native copy once delivered;
+  - operational release isolation.
+- **Nothing is inferred** from these references, a profile declaration, an echoed setting or the fake.
+- **Recorded on a blocked parent.** These facts were recorded on development parent `33c020af` (INC01-CC-005,
+  final-gate blocked on two P1 authority races). They are source facts, not acceptance.
+
+### Pagination sources (INC01-CC-005 repair 11)
+
+The same T3 Code pin, [`pingdotgg/t3code`](https://github.com/pingdotgg/t3code) at
+`ade473018d32003658b7d38693e083ee2e314bd8` (MIT). It was read outside this tree, from the read-only reference
+`NATIVE11_PINNED_READONLY_REFERENCE` (archive SHA-256 `886369f4746fcb5a27c3334fc6598cb22d4a07d7bb1b3222a1d0992565036127`),
+whose `PIN.json` records the full-file and excerpt provenance.
+
+**What was read.** Only the bounded excerpts below were supplied and consulted. Each full-file SHA-256 identifies the
+original file at the pin; it does not mean the whole file was read. Nothing is copied, installed, run or qualified.
+
+**Sophia file grounded here:** `packages/coordination/src/runner-gateway.ts`, the bounded targeted scan (its cursor and
+its last-page summary).
+
+| File at the pin | Lines read | Full-file SHA-256 | Excerpt SHA-256 | What Sophia relies on |
+|---|---|---|---|---|
+| [`apps/server/src/orchestration-v2/ProjectionStore.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/orchestration-v2/ProjectionStore.ts) | 5977–6082 | `a5295e7d9f0aa9db402d4992e852eb4f75fde1c44a048eb3ca90c142d2af07dd` | `0f056839ed58946386d3611b58e0b7dcd91dab54fa3e1127d0b290a24cea5477` | `getTimelinePage` gives each visible row its position before the view filter, then keeps rows with `position > afterPosition` and cuts to `limit`. Positions may therefore have gaps, and a valid cursor strictly increases. `hasMore` compares the matching rows with the page. Each page is one SQL transaction, which gives no atomicity across pages |
+| [`apps/server/src/orchestration-v2/Orchestrator.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/orchestration-v2/Orchestrator.ts) | 14437–14443 | `fd0644826587f652d05fae07961f1674b6ccc39bfc75000fa79359e693a64efd` | `c35741f4dda7be83be7bf0e6b50de09a7b8115405df73a1c8ccb574f8f6d3764` | `getTimelinePage` forwards to the projection store's and maps its errors |
+
+**Limits.** These are source facts only:
+- no upstream execution;
+- no authenticated tool, account, profile or native qualification;
+- no atomic snapshot across pages, or between a thread's runs and its timeline.
+
+This registration grants no authority and changes no protocol.
 
 ## 3. Facts learned at the pin (not in the pack)
 
