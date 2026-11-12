@@ -368,6 +368,13 @@ export type ProjectNativeResourcePage = { "observedAt": string; "resources": Rea
 export type PersonalInputSend = { "interactionContract": "automatic_v1"; "text": string; };
 export type PersonalInputRef = { "id": string; "interactionContract": "automatic_v1"; "contractVersion": 1; "state": "recorded"; "effect": "none"; };
 export type PersonalInputRecorded = { "revision": number; "turn": PersonalTurn; "input": PersonalInputRef; };
+export type PersonalAnswerSend = { "answerContract": "personal_answer_v1"; "text": string; };
+export type PersonalAnswerRetry = { "expectedSeq": number; };
+export type PersonalAnswerCancel = { "expectedSeq": number; };
+export type PersonalAnswerDecision = { "seq": number; "operation": "send" | "retry" | "cancel"; "outcome": "admitted" | "waiting" | "cancelled"; "reason": "payer_unavailable" | "cancelled_by_owner" | null; "late": boolean; "epoch": number; "admittedAt": string | null; "policy": "personal-default-answer"; "policyVersion": 1; "family": "answer"; "basis": "personal_default_addressee"; };
+export type PersonalAnswerReceipt = { "operation": "send_answer_input" | "retry_answer_input" | "cancel_answer_input"; "revision": number; "turnId": string; "seq": number; "inputId": string; "answerContract": "personal_answer_v1"; "interactionContract": "automatic_v1"; "contractVersion": 1; "decision": PersonalAnswerDecision; "suggestionId": null; "noteId": null; "releaseId": null; "projectId": null; "erased": null; };
+export type PersonalAnswerDecisionEntry = { "decision": PersonalAnswerDecision; "createdAt": string; };
+export type PersonalAnswerDecisionList = { "inputId": string; "turnId": string; "decisions": ReadonlyArray<PersonalAnswerDecisionEntry>; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
@@ -584,4 +591,8 @@ export interface Operations {
   "sendConversationInput": { method: "POST"; path: "/api/v1/conversations/{conversationId}/inputs"; request: ConversationInputSend; response: ConversationInputRecorded; };
   "listProjectNativeResources": { method: "GET"; path: "/api/v1/projects/{projectId}/native-resources"; request: undefined; response: ProjectNativeResourcePage; };
   "sendPersonalInput": { method: "POST"; path: "/api/v1/personal/inputs"; request: PersonalInputSend; response: PersonalInputRecorded; };
+  "sendPersonalAnswer": { method: "POST"; path: "/api/v1/personal/answers"; request: PersonalAnswerSend; response: PersonalAnswerReceipt; };
+  "retryPersonalAnswer": { method: "POST"; path: "/api/v1/personal/answers/{inputId}/retry"; request: PersonalAnswerRetry; response: PersonalAnswerReceipt; };
+  "cancelPersonalAnswer": { method: "POST"; path: "/api/v1/personal/answers/{inputId}/cancel"; request: PersonalAnswerCancel; response: PersonalAnswerReceipt; };
+  "readPersonalAnswerDecisions": { method: "GET"; path: "/api/v1/personal/answers/{inputId}/decisions"; request: undefined; response: PersonalAnswerDecisionList; };
 }

@@ -79,6 +79,8 @@ import {
   validateProjectTask,
   validateProjectTaskList,
   validateProjectNativeResourcePage,
+  validatePersonalAnswerReceipt,
+  validatePersonalAnswerDecisionList,
 } from './generated/validators.js'
 import type { CursorAdvance, Error as ErrorBody, Event } from './generated-types.ts'
 
@@ -186,6 +188,13 @@ export const parseDesignRetryReceipt = parser('DesignRetryReceipt', validateDesi
  * and order, nextCursor against complete) is left to the consumer that reads it.
  */
 export const parseProjectNativeResourcePage = parser('ProjectNativeResourcePage', validateProjectNativeResourcePage)
+/**
+ * A Personal Answer receipt (A53): the decision its own send, retry or cancel made. Tolerant like the rest; the pairing
+ * of the operation with its decision's operation is left to the consumer.
+ */
+export const parsePersonalAnswerReceipt = parser('PersonalAnswerReceipt', validatePersonalAnswerReceipt)
+/** One input's decisions (A53), in seq order and without the answer profile; tolerant like the rest. */
+export const parsePersonalAnswerDecisionList = parser('PersonalAnswerDecisionList', validatePersonalAnswerDecisionList)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {

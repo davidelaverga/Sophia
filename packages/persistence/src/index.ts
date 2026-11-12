@@ -296,6 +296,30 @@ export {
   type PersonalSettledOutcome,
   type PersonalUsageCounts,
 } from './personal-usage.ts'
+// INC03-CC-003 A2: the Answer operation's writers and read (0101), reachable now through the A53 routes, and the effect
+// guard every fresh answer reservation passes (0102).
+export {
+  cancelPersonalAnswerInput,
+  isPersonalAnswerProfile,
+  PERSONAL_ANSWER_V1,
+  readPersonalAnswerDecisions,
+  retryPersonalAnswerInput,
+  sendPersonalAnswerInput,
+  type PersonalAnswerDecisionRecord,
+  type PersonalAnswerProfile,
+  type PersonalAnswerReceipt as PersonalAnswerReceiptRecord,
+} from './personal-admission.ts'
+export {
+  personalAnswerGuardInstalled,
+  readPersonalAnswerOrigin,
+  readPersonalAnswerRefusals,
+  reserveGuardedPersonalAnswer,
+  type PersonalAnswerEffect,
+  type PersonalAnswerOrigin,
+  type PersonalAnswerRefusal,
+  type PersonalAnswerRefusalReason,
+  type PersonalAnswerSpend,
+} from './personal-answer-effects.ts'
 export {
   PERSONAL_AUTOMATIC_V1,
   PERSONAL_INPUT_PAGE_LIMIT,

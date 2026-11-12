@@ -4,6 +4,8 @@
 // conversation, other person, tool or memory reaches it. Each call is reserved before the provider is asked and settled
 // from the usage the provider reported (0073); one whose usage is unknown stays uncertain and holds the payer.
 // Sophia's welcome back stays the fixed one: no model call is made for it.
+// Every reservation passes 0102's effect guard (INC03-CC-003 A2): an automatic turn is answered only under its admitted
+// decision and only while the profile built here from the live settings, for that call, equals the one it froze.
 import { createHash } from 'node:crypto'
 import {
   ReasoningEffortId,
@@ -14,16 +16,18 @@ import {
 } from '@deepseek-ai/dsh-llm'
 import {
   holdPersonalCompanion,
+  isPersonalAnswerProfile,
   personalCompanionAdmitted,
   personalSettledAnswersInstalled,
   readPersonalSettledAnswer,
-  reservePersonalAnswer,
+  reserveGuardedPersonalAnswer,
   releasePersonalCompanion,
   settlePersonalCompanion,
   settlePersonalCompanionAnswer,
   withActor,
   type CompanionContext,
-  type PersonalReservation,
+  type PersonalAnswerEffect,
+  type PersonalAnswerProfile,
   type PersonalSettledOutcome,
   type PersonalUsageCounts,
 } from '@sophia/persistence'
@@ -155,6 +159,29 @@ export function liveSettings(raw: string | undefined): LiveCompanionSettings {
     credentialRef,
     profile,
   })
+}
+
+/**
+ * The trusted answer profile (A1, 0101) of these settings, built anew each time it is asked for: exactly the fields 0101
+ * keeps, from the settings as they are, nothing normalized or repriced, and never the credential reference or provider
+ * profile. Null when 0101 would not accept it (its model and effort bounds are narrower than these settings'): an
+ * automatic answer is then refused explicitly, while a legacy turn and a kept answer are not affected.
+ */
+export function answerProfile(settings: LiveCompanionSettings): PersonalAnswerProfile | null {
+  const { call, prices } = settings
+  const profile: unknown = {
+    version: 1,
+    owner: settings.owner,
+    payer: settings.payer,
+    routeId: settings.routeId,
+    roleDigest: settings.roleDigest,
+    provider: call.provider,
+    model: call.model,
+    reasoningEffort: call.reasoningEffort,
+    maxTokens: call.maxTokens,
+    prices: { input: prices.input, cacheRead: prices.cacheRead, cacheWrite: prices.cacheWrite, output: prices.output },
+  }
+  return isPersonalAnswerProfile(profile) ? profile : null
 }
 
 /** At most this many bytes of the person's turns, and of their notes, go to the provider; the newest are kept. */
@@ -301,14 +328,13 @@ export function personalReply(text: string): CompanionReply | null {
   return { text: body, suggestion: storableNote(note) ? note : null }
 }
 
-type Refusal =
-  | Exclude<PersonalReservation, 'reserved'>
-  | 'unstorable'
-  | 'no_answer'
-  | 'route_mismatch'
-  | 'not_installed'
-  /** The turn's answer was made by a call whose settlement never committed, and is gone: never asked again (0079). */
-  | 'lost'
+/**
+ * Why no answer was given. From the reservation: 0073's and 0080's refusals, 'lost' (the turn's answer was made by a
+ * call whose settlement never committed, and is gone: never asked again, 0079), and 0102's: an automatic turn without
+ * a valid admission ('not_admitted'), a profile 0101 would not accept ('profile_unsupported') or one that differs from
+ * the admitted one ('profile_mismatch'), a database without the guard ('not_installed').
+ */
+type Refusal = Exclude<PersonalAnswerEffect, 'reserved' | 'kept'> | 'unstorable' | 'no_answer' | 'route_mismatch'
 
 /** A call that gave no answer, its reason a content-free code (the runner logs only a failure's name and code). */
 export class CompanionRefused extends Error {
@@ -363,7 +389,9 @@ class LiveCall {
   /**
    * Reserve before the provider is asked, bound to the turn (0078); anything but 'reserved' asks nothing. 'kept': an
    * answer already paid for is kept for the turn, and it is written instead. Only under the turn's claim, while it is
-   * pending: an attempt whose claim went to another, or whose turn was answered meanwhile, is refused (R-C55).
+   * pending: an attempt whose claim went to another, or whose turn was answered meanwhile, is refused (R-C55). Through
+   * 0102's guard, with the profile built now from these settings: a refusal's diagnostic commits with the transaction,
+   * and only then is it thrown.
    */
   async reserve(prompt: string): Promise<'reserved' | 'kept'> {
     const { payer, routeId } = this.settings
@@ -372,8 +400,9 @@ class LiveCall {
     if (!turnId || !(await personalSettledAnswersInstalled(this.pool))) throw new CompanionRefused('not_installed')
     if (!claim) throw new CompanionRefused('not_current')
     const micros = personalReservation(prompt, this.settings)
+    const profile = answerProfile(this.settings)
     const outcome = await this.owned((c, callId) =>
-      reservePersonalAnswer(c, { callId, turnId, claim }, payer, routeId, micros),
+      reserveGuardedPersonalAnswer(c, { callId, turnId, claim }, { payer, routeId, micros, profile }),
     )
     if (outcome !== 'reserved' && outcome !== 'kept') throw new CompanionRefused(outcome)
     return outcome
@@ -527,6 +556,8 @@ export function liveCompanion(settings: LiveCompanionSettings, llm: PersonalLlm,
     greet: (_context, name) => Promise.resolve(rehearsalWelcome(name)),
     // Its payer is still admitted (0073 installed, and the operator's row kept).
     owner: settings.owner,
+    // The trusted profile the Answer operation decides under, built from these settings when asked (never a client's).
+    answerProfile: () => answerProfile(settings),
     ready: async () =>
       (await personalSettledAnswersInstalled(pool)) &&
       (await personalCompanionAdmitted(pool, settings.payer, settings.owner)),

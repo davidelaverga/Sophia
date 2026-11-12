@@ -5,6 +5,11 @@
 // Two kinds exist: a keyless rehearsal for development and tests (companion-rehearsal.ts: scripted, never live
 // evidence), and later the runtime's Companion agent (goal D1), another implementation of the same interface. Where
 // none is configured, the API refuses to keep a message nobody would answer.
+//
+// INC03-CC-003 A2 (docs/plans/personal-answers.md): the runner also resumes a person's waiting turns (resume), once when
+// the API is ready for the live companion's owner and after a Personal write commits, through the same claims. An
+// automatic turn (an automatic_v1 input, 0098) is answered only by the live companion, whose reservation passes 0102's
+// guard; the rehearsal never answers one.
 import { randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
 import type pg from 'pg'
@@ -21,6 +26,7 @@ import {
   forgetErasedCompanionCalls,
   nextPersonalReply,
   readCompanionContext,
+  readPersonalAnswerOrigin,
   readPersonalEpoch,
   readWelcomeContext,
   recordPersonalGreeting,
@@ -32,6 +38,7 @@ import {
   renewPersonalReply,
   withActor,
   type CompanionContext,
+  type PersonalAnswerProfile,
 } from '@sophia/persistence'
 
 export interface CompanionReply {
@@ -63,6 +70,20 @@ export interface Companion {
   greet(context: Omit<CompanionContext, 'asked'>, name: string | null, signal: AbortSignal): Promise<string>
   /** Whether what it needs outside this process is in place (/ready); none means nothing is needed. */
   ready?(): Promise<boolean>
+  /**
+   * The trusted answer profile (A1) its live settings make now, or null when 0101 would not accept it; none for a
+   * companion that never pays for an answer (the rehearsal). The Answer operation decides under it (A53).
+   */
+  answerProfile?(): PersonalAnswerProfile | null
+}
+
+/** A turn of an automatic_v1 input asked of a companion that is not live: it is never answered without the guard. */
+export class AutomaticNotLive extends Error {
+  readonly code = 'automatic_not_live'
+  constructor() {
+    super('An automatic Personal answer needs the live companion')
+    this.name = 'AutomaticNotLive'
+  }
 }
 
 /**
@@ -234,6 +255,41 @@ export class CompanionRunner {
     return this.companion.owner === undefined || this.companion.owner === actorId.toLowerCase()
   }
 
+  /** The one owner a live companion answers, or null (the rehearsal serves anyone, and is never resumed at start). */
+  get liveOwner(): string | null {
+    return this.companion.mode === 'live' ? (this.companion.owner ?? null) : null
+  }
+
+  /** The trusted answer profile the live settings make now, or null (none, or one 0101 would not accept). */
+  answerProfile(): PersonalAnswerProfile | null {
+    return this.companion.answerProfile?.() ?? null
+  }
+
+  /**
+   * Resume `actorId`'s conversation: its oldest turn waiting for an answer (next_personal_reply), answered as answer()
+   * answers it, so through the same claim, in-flight set, chaining and shutdown; or nothing. Only for whom it serves, and
+   * never once shutting down. No timer, loop or claim reset: a turn waiting longer than its two minutes stays failed
+   * until the person asks again. Resolves when that run ends; it never rejects (a failure is reported by onError).
+   */
+  resume(actorId: string): Promise<void> {
+    if (this.closing || !this.serves(actorId)) return Promise.resolve()
+    const run = (async () => {
+      const next = await withActor(this.pool, actorId, 'read', (c) => nextPersonalReply(c))
+      // The answer's own failure is reported by its own handler (answer), once.
+      if (next) await this.answer(actorId, next).catch(() => undefined)
+    })()
+    this.running.add(run)
+    return run.then(
+      () => {
+        this.running.delete(run)
+      },
+      (err: unknown) => {
+        this.running.delete(run)
+        this.onError(err)
+      },
+    )
+  }
+
   /**
    * Start answering `turnId` for `actorId`; resolves when the reply or the failure is written. Once shutting down,
    * nothing is started: the turn stays pending, as it is, for the next process.
@@ -393,6 +449,13 @@ export class CompanionRunner {
         actorId,
         (c) => renewPersonalReply(c, turnId, claim),
         async (stop, callId) => {
+          // Only the live companion answers an automatic turn, through 0102's guard: its origin is read first, and a
+          // read that fails fails the turn, never reads as legacy.
+          if (
+            this.companion.mode !== 'live' &&
+            (await withActor(this.pool, actorId, 'read', (c) => readPersonalAnswerOrigin(c, turnId))) !== 'legacy'
+          )
+            throw new AutomaticNotLive()
           // Its lease is renewed as the context goes to the companion: no other attempt takes the turn meanwhile.
           const context = await withActor(this.pool, actorId, 'write', (c) => readCompanionContext(c, turnId, claim))
           return context

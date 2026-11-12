@@ -31,6 +31,7 @@ import { MEDIA_ROUTES, mediaRoutes } from './routes/media.ts'
 import { missionRoutes } from './routes/mission.ts'
 import { personalRoutes } from './routes/personal.ts'
 import { personalInputRoutes } from './routes/personal-inputs.ts'
+import { PERSONAL_ANSWERS_SCHEMA, personalAnswerRoutes } from './routes/personal-answers.ts'
 import { needsRoutes } from './routes/needs.ts'
 import { CONVERSATION_SCHEMA, projectConversationRoutes } from './routes/project-conversations.ts'
 import { CONVERSATION_INPUTS_SCHEMA, conversationInputRoutes } from './routes/conversation-inputs.ts'
@@ -118,6 +119,13 @@ export interface AppDeps {
    * after it was on, the held turns it kept stay readable in every Personal read.
    */
   personalInputs?: boolean
+  /**
+   * Personal answers (INC03-CC-003 A2, amendment A53, migrations 0101 and 0102): off unless set; server.ts does not set
+   * it. Off, /api/v1/personal/answers and its operations do not exist (404). On, only with a live companion whose
+   * settings make a trusted answer profile 0101 accepts (anything else: buildApp refuses the configuration), and /ready
+   * requires 0101's writers and 0102's guard. The guard and the resumption of waiting turns do not depend on it.
+   */
+  personalAnswers?: boolean
   /** The deployed commit (RENDER_GIT_COMMIT, 40 hex), served by /health so a probe can name what it reached; else null. */
   commit?: string | null
   /**
@@ -337,8 +345,8 @@ export const writeOnceStore = (pool: pg.Pool, store: ByteStore | null | undefine
     : null
 
 export function buildApp(deps: AppDeps): FastifyInstance {
-  // Refuses automatic inputs without conversations before any listener, hook or route exists.
-  inputsOn(deps)
+  // Refuses automatic inputs without conversations, and answers without a live profile, before anything exists.
+  refuseMisconfiguration(deps)
   const app = Fastify({
     logger: deps.logger ?? false,
     genReqId: () => randomUUID(),
@@ -428,8 +436,35 @@ function registerPersonal(app: FastifyInstance, deps: AppDeps): void {
     : null
   // Shutdown waits for the answers already accepted (their runs outlive the 202), before the pool or model close.
   if (companion) app.addHook('onClose', () => companion.close())
+  // R1 (A2): once ready, the live companion's one owner's oldest waiting turn is resumed (a restart, a config change),
+  // through the same runner and 0102's guard; whatever the Answer routes' switch. Its failure is reported, never thrown.
+  const owner = companion?.liveOwner ?? null
+  if (companion && owner)
+    app.addHook('onReady', () => {
+      void companion.resume(owner)
+      return Promise.resolve()
+    })
   personalRoutes(app, { pool: deps.pool, companion })
   if (deps.personalInputs === true) personalInputRoutes(app, { pool: deps.pool })
+  if (companion && answersOn(deps)) personalAnswerRoutes(app, { pool: deps.pool, companion })
+}
+
+/** The switches' configuration errors, thrown before the app has anything of its own. */
+function refuseMisconfiguration(deps: AppDeps): void {
+  inputsOn(deps)
+  answersOn(deps)
+}
+
+/**
+ * Whether the Answer routes are served: the switch on, with a live companion whose live settings make a trusted answer
+ * profile 0101 accepts. On without one is a configuration error, refused when the app is built.
+ */
+function answersOn(deps: AppDeps): boolean {
+  if (deps.personalAnswers !== true) return false
+  const { companion } = deps
+  if (companion?.mode !== 'live' || !companion.answerProfile?.())
+    throw new Error('personalAnswers requires a live companion with a supported answer profile')
+  return true
 }
 
 /** Routes anyone may call. Everything else, matched or not, needs a verified actor. */
@@ -579,6 +614,7 @@ interface Health {
   stores: boolean
   conversations: boolean
   conversationInputs: boolean
+  personalAnswers: boolean
   companion: Companion | null
   voice: boolean
   ownerRunners: boolean
@@ -590,6 +626,7 @@ const healthOf = (deps: AppDeps): Health => ({
   stores: Boolean(deps.byteStore),
   conversations: Boolean(deps.conversations),
   conversationInputs: inputsOn(deps),
+  personalAnswers: answersOn(deps),
   companion: deps.companion ?? null,
   voice: deps.voiceQualification === true,
   ownerRunners: deps.ownerRunnerAdmissions === 'admit',
@@ -600,7 +637,7 @@ const healthOf = (deps: AppDeps): Health => ({
 /** Whether the database has every function and column this API's switches call (each part only when it is on). */
 async function schemaReady(
   pool: pg.Pool,
-  { stores, conversations, conversationInputs, voice, ownerRunners, apiContributions }: Health,
+  { stores, conversations, conversationInputs, personalAnswers, voice, ownerRunners, apiContributions }: Health,
 ): Promise<boolean> {
   const part = async (on: boolean, sql: string) => !on || (await pool.query<{ ok: boolean }>(sql)).rows[0]?.ok === true
   return (
@@ -608,6 +645,7 @@ async function schemaReady(
     (await part(stores, STORE_SCHEMA)) &&
     (await part(conversations, CONVERSATION_SCHEMA)) &&
     (await part(conversationInputs, CONVERSATION_INPUTS_SCHEMA)) &&
+    (await part(personalAnswers, PERSONAL_ANSWERS_SCHEMA)) &&
     (await part(voice, VOICE_SCHEMA)) &&
     (await part(ownerRunners, OWNER_RUNNER_SCHEMA)) &&
     (await part(apiContributions, CONTRIBUTION_FUNDING_SCHEMA))

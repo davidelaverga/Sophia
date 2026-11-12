@@ -90,6 +90,8 @@ const EXPORTS = [
   'DesignEditReceipt',
   'DesignRetryReceipt',
   'ProjectNativeResourcePage',
+  'PersonalAnswerReceipt',
+  'PersonalAnswerDecisionList',
 ] as const
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')

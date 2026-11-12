@@ -19254,6 +19254,417 @@
           }
         }
       }
+    },
+    "/api/v1/personal/answers": {
+      "post": {
+        "operationId": "sendPersonalAnswer",
+        "summary": "The owner's message under personal_answer_v1: kept as an automatic_v1 input and decided at once under the server's trusted answer profile (admitted, or waiting while its payer is not admitted). An admitted input's turn waits for Sophia's answer, which is paid for only while the live settings still match the admitted profile. Served only when the API is built with Personal answers (off by default). Idempotent per person and key, in the one Personal key namespace.",
+        "tags": [
+          "personal"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "INC03-CC-003-A2",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-personal-epoch",
+            "in": "header",
+            "required": true,
+            "description": "The epoch of the space the write is made against (PersonalSpace.epoch). A write made against another epoch, so one issued before an erasure however late it arrives, is refused (409 request_erased) and writes nothing.",
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,14})$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonalAnswerSend"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Decided: the receipt of this send and its decision (seq 1); after it commits, the owner's oldest waiting turn is resumed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalAnswerReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted: a guest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Personal answers are not served by this API (off by default)"
+          },
+          "409": {
+            "description": "Idempotency key reused with a different request, including another Personal operation (idempotency_conflict); a write against an epoch an erasure has since moved, or under a key from before it (request_erased); a stale expectedSeq (stale_revision); or an input that is not waiting for a decision (invalid_state)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema (unknown fields such as profile, payer, routeId, model, ownerId or interactionContract are refused), or the input is not the caller's or was kept without an answer admission (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Personal answers are not installed on this database (projection_unavailable), the database is unavailable, Sophia does not answer this person live (nothing was kept), or the write's outcome is unknown: retry with the same Idempotency-Key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/personal/answers/{inputId}/retry": {
+      "post": {
+        "operationId": "retryPersonalAnswer",
+        "summary": "An explicit retry of a waiting input, under its own key: one new decision under the server's current answer profile, admitted or still waiting. Served only with Personal answers.",
+        "tags": [
+          "personal"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "INC03-CC-003-A2",
+        "parameters": [
+          {
+            "name": "inputId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-personal-epoch",
+            "in": "header",
+            "required": true,
+            "description": "The epoch of the space the write is made against (PersonalSpace.epoch). A write made against another epoch, so one issued before an erasure however late it arrives, is refused (409 request_erased) and writes nothing.",
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,14})$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonalAnswerRetry"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Decided again: the receipt of this retry and its decision; after it commits, the owner's oldest waiting turn is resumed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalAnswerReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted: a guest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Personal answers are not served by this API (off by default)"
+          },
+          "409": {
+            "description": "Idempotency key reused with a different request, including another Personal operation (idempotency_conflict); a write against an epoch an erasure has since moved, or under a key from before it (request_erased); a stale expectedSeq (stale_revision); or an input that is not waiting for a decision (invalid_state)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema (unknown fields such as profile, payer, routeId, model, ownerId or interactionContract are refused), or the input is not the caller's or was kept without an answer admission (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Personal answers are not installed on this database (projection_unavailable), the database is unavailable, Sophia does not answer this person live (nothing was kept), or the write's outcome is unknown: retry with the same Idempotency-Key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/personal/answers/{inputId}/cancel": {
+      "post": {
+        "operationId": "cancelPersonalAnswer",
+        "summary": "An explicit cancel of a waiting input, under its own key: terminal, the words stay held, nothing is woken. Served only with Personal answers.",
+        "tags": [
+          "personal"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "INC03-CC-003-A2",
+        "parameters": [
+          {
+            "name": "inputId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-personal-epoch",
+            "in": "header",
+            "required": true,
+            "description": "The epoch of the space the write is made against (PersonalSpace.epoch). A write made against another epoch, so one issued before an erasure however late it arrives, is refused (409 request_erased) and writes nothing.",
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,14})$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonalAnswerCancel"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Cancelled: the receipt of this cancel and its decision; nothing is woken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalAnswerReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted: a guest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Personal answers are not served by this API (off by default)"
+          },
+          "409": {
+            "description": "Idempotency key reused with a different request, including another Personal operation (idempotency_conflict); a write against an epoch an erasure has since moved, or under a key from before it (request_erased); a stale expectedSeq (stale_revision); or an input that is not waiting for a decision (invalid_state)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema (unknown fields such as profile, payer, routeId, model, ownerId or interactionContract are refused), or the input is not the caller's or was kept without an answer admission (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Personal answers are not installed on this database (projection_unavailable), the database is unavailable, Sophia does not answer this person live (nothing was kept), or the write's outcome is unknown: retry with the same Idempotency-Key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/personal/answers/{inputId}/decisions": {
+      "get": {
+        "operationId": "readPersonalAnswerDecisions",
+        "summary": "The owner's own input's decisions, in order, without the answer profile. Effect-free. Served only with Personal answers.",
+        "tags": [
+          "personal"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "INC03-CC-003-A2",
+        "parameters": [
+          {
+            "name": "inputId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalAnswerDecisionList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted: a guest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Personal answers are not served by this API (off by default)"
+          },
+          "422": {
+            "description": "Request fails the declared schema, or the input is not the caller's, unknown or kept without an answer admission (not_found): the three read alike",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Personal answers are not installed on this database (projection_unavailable), or the database is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -43001,6 +43412,289 @@
           "input"
         ],
         "description": "What a held Personal input answers: the space's revision, the exact retained turn (reply recorded) and its input."
+      },
+      "PersonalAnswerSend": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "answerContract": {
+            "type": "string",
+            "enum": [
+              "personal_answer_v1"
+            ],
+            "description": "The versioned Answer operation, explicit and required. No other value, no default; a legacy PersonalMessage or an A52 PersonalInputSend is a different request."
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "answerContract",
+          "text"
+        ],
+        "description": "A Personal message for Sophia to answer under personal_answer_v1: kept as an automatic_v1 input and decided at once. Closed: the owner, profile, payer, route, model, prices, audience, origin and context are the server's, never the request's."
+      },
+      "PersonalAnswerRetry": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedSeq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "expectedSeq"
+        ],
+        "description": "An explicit retry of a waiting input, naming the latest decision seq the caller saw."
+      },
+      "PersonalAnswerCancel": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedSeq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "expectedSeq"
+        ],
+        "description": "An explicit cancel of a waiting input, naming the latest decision seq the caller saw. Terminal; the words stay held."
+      },
+      "PersonalAnswerDecision": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "send",
+              "retry",
+              "cancel"
+            ]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "admitted",
+              "waiting",
+              "cancelled"
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "payer_unavailable",
+                  "cancelled_by_owner"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "late": {
+            "type": "boolean"
+          },
+          "epoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "admittedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "policy": {
+            "type": "string",
+            "enum": [
+              "personal-default-answer"
+            ]
+          },
+          "policyVersion": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "family": {
+            "type": "string",
+            "enum": [
+              "answer"
+            ]
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "personal_default_addressee"
+            ]
+          }
+        },
+        "required": [
+          "seq",
+          "operation",
+          "outcome",
+          "reason",
+          "late",
+          "epoch",
+          "admittedAt",
+          "policy",
+          "policyVersion",
+          "family",
+          "basis"
+        ],
+        "description": "One immutable decision of an input, as its operation made it. admittedAt is set exactly when admitted. Never the answer profile."
+      },
+      "PersonalAnswerReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "send_answer_input",
+              "retry_answer_input",
+              "cancel_answer_input"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "turnId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "inputId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "answerContract": {
+            "type": "string",
+            "enum": [
+              "personal_answer_v1"
+            ]
+          },
+          "interactionContract": {
+            "type": "string",
+            "enum": [
+              "automatic_v1"
+            ]
+          },
+          "contractVersion": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "decision": {
+            "$ref": "#/components/schemas/PersonalAnswerDecision"
+          },
+          "suggestionId": {
+            "type": "null"
+          },
+          "noteId": {
+            "type": "null"
+          },
+          "releaseId": {
+            "type": "null"
+          },
+          "projectId": {
+            "type": "null"
+          },
+          "erased": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "operation",
+          "revision",
+          "turnId",
+          "seq",
+          "inputId",
+          "answerContract",
+          "interactionContract",
+          "contractVersion",
+          "decision",
+          "suggestionId",
+          "noteId",
+          "releaseId",
+          "projectId",
+          "erased"
+        ],
+        "description": "What an Answer mutation remembers and every replay of it returns: its own decision, never the latest one, a refreshed time or the profile."
+      },
+      "PersonalAnswerDecisionEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/PersonalAnswerDecision"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "decision",
+          "createdAt"
+        ],
+        "description": "A decision and when it was made. Its frozen answer profile is deliberately not part of it."
+      },
+      "PersonalAnswerDecisionList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "inputId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "turnId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decisions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/PersonalAnswerDecisionEntry"
+            },
+            "description": "Every decision of the input, in seq order from 1: the current one is the last."
+          }
+        },
+        "required": [
+          "inputId",
+          "turnId",
+          "decisions"
+        ],
+        "description": "The owner's own read of one input's decisions: identity, decision metadata and times only, no profile, payer, route, body or diagnostic."
       }
     }
   }
