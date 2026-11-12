@@ -1,0 +1,2445 @@
+{
+  "id": "A48",
+  "goal": "INC01-S5",
+  "title": "Member API contributions: the owner's account, connection metadata and selected-project grants, admin narrowing, a member's explicit funding pin and task funding, behind actor-scoped idempotency",
+  "why": [
+    "SOPHIA-INC-2026-11 INC-01 slice S5 (INC01-CC-004 S5b): the HTTP boundary for migration 0094's records and functions. Its generated output is regenerated with `pnpm --filter @sophia/contracts generate`, never by hand.",
+    "No existing operation covers it. /projects/{projectId}/contributions is the discussion contribution (A05) and is not overloaded: these are `api-contributions`.",
+    "The actor is the verified token subject. No field names an owner, requester, payer, credential, runtime or capability; unknown fields are refused. Authority (owner, the grant's project admin, a current editor) is decided by the database under its locks. Every write takes an Idempotency-Key: the same key and request replays the first receipt under the caller's current authority; another request under it conflicts.",
+    "Metadata and control only: no key intake, registration, qualification or execution endpoint. A connection state of connected is not live authentication, qualification or funding. Served only when the API is built with apiContributions (off by default)."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/ApiContributionReadinessReason",
+      "value": {
+        "type": "string",
+        "enum": [
+          "grant_missing",
+          "grant_revoked",
+          "grant_paused",
+          "grant_expired",
+          "admin_disabled",
+          "connection_not_connected",
+          "owner_not_member",
+          "requester_ineligible",
+          "project_research_gate_closed",
+          "route_unqualified",
+          "runtime_unavailable",
+          "account_busy"
+        ],
+        "description": "One reason a contribution cannot fund new work now. An empty list means ready for that actor; a connection state of connected is metadata, never live authentication, qualification or funding."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ApiContributionSettings",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "eligible": {
+            "type": "string",
+            "enum": ["editors", "listed"]
+          },
+          "eligibleActors": {
+            "type": "array",
+            "maxItems": 50,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "taskCapUsd": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 10000
+          },
+          "totalCapUsd": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 10000
+          },
+          "concurrency": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "fundingPolicy": {
+            "type": "string",
+            "enum": ["bounded_total_spend"]
+          },
+          "fundingAcknowledgementRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "activeSettlement": {
+            "type": "string",
+            "enum": ["block_new_calls"]
+          },
+          "unknownUsagePolicy": {
+            "type": "string",
+            "enum": ["hold_uncertain"]
+          }
+        },
+        "minProperties": 1,
+        "description": "A selected-project grant's settings. The owner may enlarge; a project admin may only narrow (eligibility, caps, concurrency, expiry). Only Markdown research on research-sol-medium-v1 is contributable; Stop/finish settlement and benefit-only funding are refused as unsupported."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ApiAccountCreateRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "totalCapUsd": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 10000
+          },
+          "concurrency": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "provenance": {
+            "type": "string",
+            "enum": ["owner_declared", "unknown"]
+          },
+          "separateOwnershipNote": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "required": ["label", "totalCapUsd"],
+        "description": "The caller's own API account record: one accounting root per owner and provider unless separate ownership is recorded. Provenance is the owner's declaration, never provider-verified. No key, billing id or token."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ApiAccountUpdateRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "patch": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "totalCapUsd": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 10000
+              },
+              "concurrency": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3
+              },
+              "provenance": {
+                "type": "string",
+                "enum": ["owner_declared", "unknown"]
+              }
+            },
+            "minProperties": 1
+          }
+        },
+        "required": ["expectedRevision", "patch"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ApiAccountReceipt",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["accountId", "revision"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ApiConnectionCreateRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "custodianLabel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        },
+        "required": ["accountId", "label", "custodianLabel"],
+        "description": "Metadata for a connection on the caller's own account: its label and the operator custodian's label. It is created as draft; no key is sent, stored or accepted here. Custody is registered by the operator, outside this API."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ApiConnectionStateRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "state": {
+            "type": "string",
+            "enum": ["paused", "connected", "revoked"]
+          }
+        },
+        "required": ["expectedRevision", "state"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ApiConnectionReceipt",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "connectionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "state": {
+            "type": "string",
+            "enum": ["draft", "connected", "paused", "revoked"]
+          }
+        },
+        "required": ["connectionId", "revision", "state"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ApiContributionGrantCreateRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/ApiContributionSettings"
+          }
+        },
+        "required": ["projectId", "settings"],
+        "description": "Grant one selected project, of which the owner is a current member. Private by default: no grant, no use."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ApiContributionGrantUpdateRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "settings": {
+            "$ref": "#/components/schemas/ApiContributionSettings"
+          }
+        },
+        "required": ["expectedRevision", "settings"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ApiContributionGrantStateRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "state": {
+            "type": "string",
+            "enum": ["enabled", "paused", "revoked"]
+          }
+        },
+        "required": ["expectedRevision", "state"],
+        "description": "The owner pauses, resumes or revokes (final). block_new_calls: no new dispatch or paid model call once authority fails; an already-authorized output may publish under its original payer, unless revoked or admin-disabled; an active provider request is not stopped."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ApiContributionAdminDisableRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "required": ["expectedRevision", "reason"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ApiContributionAdminLiftRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["expectedRevision"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ApiContributionAdminNarrowRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "patch": {
+            "$ref": "#/components/schemas/ApiContributionSettings"
+          }
+        },
+        "required": ["expectedRevision", "patch"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ApiContributionGrantReceipt",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "grantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "state": {
+            "type": "string",
+            "enum": ["enabled", "paused", "revoked"]
+          },
+          "adminDisabled": {
+            "type": "boolean"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["grantId", "projectId", "revision", "state", "adminDisabled", "expiresAt"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ResearchFundingPinRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "grantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["grantId", "expectedRevision"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ResearchFundingPin",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "grantId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grantRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["projectId", "grantId"],
+        "description": "The caller's own explicit choice of a contribution for research in this project, at the grant revision seen. Never falls back to another payer; null when cleared."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MyApiResources",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "accountId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "provider": {
+                  "type": "string",
+                  "enum": ["openai"]
+                },
+                "category": {
+                  "type": "string",
+                  "enum": ["api"]
+                },
+                "provenance": {
+                  "type": "string",
+                  "enum": ["owner_declared", "unknown"]
+                },
+                "separateOwnership": {
+                  "type": "boolean"
+                },
+                "concurrencyLimit": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "totalCapUsd": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "slotsHeld": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "committedUsd": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "providerBalance": {
+                  "type": "string",
+                  "enum": ["unknown"]
+                }
+              },
+              "required": [
+                "accountId",
+                "label",
+                "provider",
+                "category",
+                "provenance",
+                "separateOwnership",
+                "concurrencyLimit",
+                "totalCapUsd",
+                "revision",
+                "slotsHeld",
+                "committedUsd",
+                "providerBalance"
+              ]
+            }
+          },
+          "connections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "connectionId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "accountId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "route": {
+                  "type": "string"
+                },
+                "model": {
+                  "type": "string"
+                },
+                "effort": {
+                  "type": "string"
+                },
+                "credentialRef": {
+                  "type": "string",
+                  "description": "The reference NAME the operator host reads the key from; never a key value."
+                },
+                "credentialRevision": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "custodianKind": {
+                  "type": "string",
+                  "enum": ["operator_runtime_host"]
+                },
+                "custodianLabel": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "state": {
+                  "type": "string",
+                  "enum": ["draft", "connected", "paused", "revoked"]
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "connectionId",
+                "accountId",
+                "label",
+                "route",
+                "model",
+                "effort",
+                "credentialRef",
+                "credentialRevision",
+                "custodianKind",
+                "custodianLabel",
+                "state",
+                "revision"
+              ]
+            }
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "grantId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "projectId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "state": {
+                  "type": "string",
+                  "enum": ["enabled", "paused", "revoked"]
+                },
+                "adminDisabled": {
+                  "type": "boolean"
+                },
+                "expiresAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "connectionId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "eligible": {
+                  "type": "string",
+                  "enum": ["editors", "listed"]
+                },
+                "eligibleActors": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "taskCapUsd": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "totalCapUsd": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "concurrency": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "fundingPolicy": {
+                  "type": "string",
+                  "enum": ["bounded_total_spend"]
+                },
+                "activeSettlement": {
+                  "type": "string",
+                  "enum": ["block_new_calls"]
+                },
+                "adminDisabledReason": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 300
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "readiness": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiContributionReadinessReason"
+                  }
+                },
+                "committedUsd": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "grantId",
+                "projectId",
+                "revision",
+                "state",
+                "adminDisabled",
+                "expiresAt",
+                "connectionId",
+                "eligible",
+                "eligibleActors",
+                "taskCapUsd",
+                "totalCapUsd",
+                "concurrency",
+                "fundingPolicy",
+                "activeSettlement",
+                "adminDisabledReason",
+                "readiness",
+                "committedUsd"
+              ]
+            }
+          }
+        },
+        "required": ["accounts", "connections", "grants"],
+        "description": "The caller's own API accounts, connections and grants. Owner only: nobody else's, and no key value, fingerprint, billing id or provider balance (always unknown)."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectApiContribution",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "grantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "route": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "effort": {
+            "type": "string"
+          },
+          "output": {
+            "type": "string",
+            "enum": ["markdown"]
+          },
+          "taskCapUsd": {
+            "type": "number",
+            "minimum": 0
+          },
+          "totalCapUsd": {
+            "type": "number",
+            "minimum": 0
+          },
+          "concurrency": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["enabled", "paused"]
+          },
+          "adminDisabled": {
+            "type": "boolean"
+          },
+          "fundingPolicy": {
+            "type": "string",
+            "enum": ["bounded_total_spend"]
+          },
+          "activeSettlement": {
+            "type": "string",
+            "enum": ["block_new_calls"]
+          },
+          "eligibleForMe": {
+            "type": "boolean",
+            "description": "Permission only. Whether it can fund work now is readiness."
+          },
+          "readiness": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiContributionReadinessReason"
+            }
+          }
+        },
+        "required": [
+          "grantId",
+          "revision",
+          "ownerId",
+          "label",
+          "route",
+          "model",
+          "effort",
+          "output",
+          "taskCapUsd",
+          "totalCapUsd",
+          "concurrency",
+          "expiresAt",
+          "state",
+          "adminDisabled",
+          "fundingPolicy",
+          "activeSettlement",
+          "eligibleForMe",
+          "readiness"
+        ],
+        "description": "What a project member may see of a contribution shared with the project: limits, state and their own readiness. No account, usage, credential reference, slots or other projects."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectApiContributionList",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "contributions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectApiContribution"
+            }
+          },
+          "myPin": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "grantId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "grantRevision": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "stale": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["grantId", "grantRevision", "stale"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["contributions", "myPin"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ResearchTaskFunding",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "funding": {
+            "type": "string",
+            "enum": ["project", "contribution"]
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "grantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "grantRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "credentialRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "requesterId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payers": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "model": {
+                "type": "string",
+                "enum": ["project", "contributor_api_account"]
+              },
+              "search": {
+                "type": "string",
+                "enum": ["project"]
+              },
+              "read": {
+                "type": "string",
+                "enum": ["project"]
+              }
+            },
+            "required": ["model", "search", "read"]
+          },
+          "settings": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "requested": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "route": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "effort": {
+                    "type": "string"
+                  }
+                },
+                "required": ["route", "model", "effort"]
+              },
+              "accepted": {
+                "type": "string",
+                "enum": ["unknown"]
+              },
+              "observedModels": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["unknown"]
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              },
+              "observedEffort": {
+                "type": "string",
+                "enum": ["unknown"]
+              }
+            },
+            "required": ["requested", "accepted", "observedModels", "observedEffort"]
+          }
+        },
+        "required": ["taskId", "funding", "payers"],
+        "description": "Who pays which meter for a research task: model calls by the contributor's API account under its frozen grant and credential revision, search and read by the project. Requested, accepted and observed settings stay distinct; accepted is unknown."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1me~1api-resources",
+      "value": {
+        "get": {
+          "tags": ["api-contributions"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC01-S5",
+          "operationId": "readMyApiResources",
+          "summary": "The caller's own API accounts, connections (metadata) and grants. Owner only.",
+          "responses": {
+            "200": {
+              "description": "The caller's own records",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/MyApiResources"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted, or a record that is not the caller's (answered like a missing one)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision (stale_revision), the key reused with another request (idempotency_conflict), a final state (invalid_state), or the contribution cannot fund this now (contribution_unavailable)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Invalid request, an unknown field, or an unsupported policy",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Member API contributions are not installed on this database (projection_unavailable), or the database is unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1me~1api-accounts",
+      "value": {
+        "post": {
+          "tags": ["api-contributions"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC01-S5",
+          "operationId": "createApiAccount",
+          "summary": "Record the caller's own API account (no key).",
+          "parameters": [
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiAccountCreateRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "201": {
+              "description": "Created, or the first receipt for the same key and request (replayed only under the caller's current authority)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ApiAccountReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted, or a record that is not the caller's (answered like a missing one)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision (stale_revision), the key reused with another request (idempotency_conflict), a final state (invalid_state), or the contribution cannot fund this now (contribution_unavailable)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Invalid request, an unknown field, or an unsupported policy",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Member API contributions are not installed on this database (projection_unavailable), or the database is unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1me~1api-accounts~1{accountId}",
+      "value": {
+        "patch": {
+          "tags": ["api-contributions"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC01-S5",
+          "operationId": "updateApiAccount",
+          "summary": "Edit the caller's own API account at its expected revision.",
+          "parameters": [
+            {
+              "name": "accountId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiAccountUpdateRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Updated, or the first receipt for the same key and request (replayed only under the caller's current authority)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ApiAccountReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted, or a record that is not the caller's (answered like a missing one)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision (stale_revision), the key reused with another request (idempotency_conflict), a final state (invalid_state), or the contribution cannot fund this now (contribution_unavailable)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Invalid request, an unknown field, or an unsupported policy",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Member API contributions are not installed on this database (projection_unavailable), or the database is unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1me~1api-connections",
+      "value": {
+        "post": {
+          "tags": ["api-contributions"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC01-S5",
+          "operationId": "createApiConnection",
+          "summary": "Record connection metadata on the caller's own account, as draft. No key is accepted.",
+          "parameters": [
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiConnectionCreateRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "201": {
+              "description": "Created, or the first receipt for the same key and request (replayed only under the caller's current authority)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ApiConnectionReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted, or a record that is not the caller's (answered like a missing one)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision (stale_revision), the key reused with another request (idempotency_conflict), a final state (invalid_state), or the contribution cannot fund this now (contribution_unavailable)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Invalid request, an unknown field, or an unsupported policy",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Member API contributions are not installed on this database (projection_unavailable), or the database is unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1me~1api-connections~1{connectionId}~1state",
+      "value": {
+        "post": {
+          "tags": ["api-contributions"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC01-S5",
+          "operationId": "setApiConnectionState",
+          "summary": "Pause, resume or revoke (final) the caller's own connection. Resuming needs an operator-registered credential.",
+          "parameters": [
+            {
+              "name": "connectionId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiConnectionStateRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Changed, or the first receipt for the same key and request (replayed only under the caller's current authority)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ApiConnectionReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted, or a record that is not the caller's (answered like a missing one)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision (stale_revision), the key reused with another request (idempotency_conflict), a final state (invalid_state), or the contribution cannot fund this now (contribution_unavailable)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Invalid request, an unknown field, or an unsupported policy",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Member API contributions are not installed on this database (projection_unavailable), or the database is unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1me~1api-connections~1{connectionId}~1grants",
+      "value": {
+        "post": {
+          "tags": ["api-contributions"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC01-S5",
+          "operationId": "createApiContributionGrant",
+          "summary": "Grant one selected project from the caller's own connection.",
+          "parameters": [
+            {
+              "name": "connectionId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiContributionGrantCreateRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "201": {
+              "description": "Created, or the first receipt for the same key and request (replayed only under the caller's current authority)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ApiContributionGrantReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted, or a record that is not the caller's (answered like a missing one)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision (stale_revision), the key reused with another request (idempotency_conflict), a final state (invalid_state), or the contribution cannot fund this now (contribution_unavailable)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Invalid request, an unknown field, or an unsupported policy",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Member API contributions are not installed on this database (projection_unavailable), or the database is unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1api-contribution-grants~1{grantId}",
+      "value": {
+        "patch": {
+          "tags": ["api-contributions"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC01-S5",
+          "operationId": "updateApiContributionGrant",
+          "summary": "The grant's owner edits its settings at the expected revision.",
+          "parameters": [
+            {
+              "name": "grantId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiContributionGrantUpdateRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Updated, or the first receipt for the same key and request (replayed only under the caller's current authority)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ApiContributionGrantReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted, or a record that is not the caller's (answered like a missing one)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision (stale_revision), the key reused with another request (idempotency_conflict), a final state (invalid_state), or the contribution cannot fund this now (contribution_unavailable)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Invalid request, an unknown field, or an unsupported policy",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Member API contributions are not installed on this database (projection_unavailable), or the database is unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1api-contribution-grants~1{grantId}~1state",
+      "value": {
+        "post": {
+          "tags": ["api-contributions"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC01-S5",
+          "operationId": "setApiContributionGrantState",
+          "summary": "The grant's owner enables, pauses or revokes (final) it.",
+          "parameters": [
+            {
+              "name": "grantId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiContributionGrantStateRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Changed, or the first receipt for the same key and request (replayed only under the caller's current authority)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ApiContributionGrantReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted, or a record that is not the caller's (answered like a missing one)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision (stale_revision), the key reused with another request (idempotency_conflict), a final state (invalid_state), or the contribution cannot fund this now (contribution_unavailable)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Invalid request, an unknown field, or an unsupported policy",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Member API contributions are not installed on this database (projection_unavailable), or the database is unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1api-contribution-grants~1{grantId}~1admin-disable",
+      "value": {
+        "post": {
+          "tags": ["api-contributions"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC01-S5",
+          "operationId": "adminDisableApiContribution",
+          "summary": "An admin of the grant's own project disables team use of it.",
+          "parameters": [
+            {
+              "name": "grantId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiContributionAdminDisableRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Disabled, or the first receipt for the same key and request (replayed only under the caller's current authority)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ApiContributionGrantReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted, or a record that is not the caller's (answered like a missing one)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision (stale_revision), the key reused with another request (idempotency_conflict), a final state (invalid_state), or the contribution cannot fund this now (contribution_unavailable)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Invalid request, an unknown field, or an unsupported policy",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Member API contributions are not installed on this database (projection_unavailable), or the database is unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1api-contribution-grants~1{grantId}~1admin-lift",
+      "value": {
+        "post": {
+          "tags": ["api-contributions"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC01-S5",
+          "operationId": "adminLiftApiContribution",
+          "summary": "An admin of the grant's own project lifts the team disable; it restores the owner's grant, never enlarges it.",
+          "parameters": [
+            {
+              "name": "grantId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiContributionAdminLiftRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Lifted, or the first receipt for the same key and request (replayed only under the caller's current authority)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ApiContributionGrantReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted, or a record that is not the caller's (answered like a missing one)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision (stale_revision), the key reused with another request (idempotency_conflict), a final state (invalid_state), or the contribution cannot fund this now (contribution_unavailable)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Invalid request, an unknown field, or an unsupported policy",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Member API contributions are not installed on this database (projection_unavailable), or the database is unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1api-contribution-grants~1{grantId}~1admin-narrow",
+      "value": {
+        "post": {
+          "tags": ["api-contributions"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC01-S5",
+          "operationId": "adminNarrowApiContribution",
+          "summary": "An admin of the grant's own project narrows it (eligibility, caps, concurrency, expiry); never enlarges.",
+          "parameters": [
+            {
+              "name": "grantId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiContributionAdminNarrowRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Narrowed, or the first receipt for the same key and request (replayed only under the caller's current authority)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ApiContributionGrantReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted, or a record that is not the caller's (answered like a missing one)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision (stale_revision), the key reused with another request (idempotency_conflict), a final state (invalid_state), or the contribution cannot fund this now (contribution_unavailable)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Invalid request, an unknown field, or an unsupported policy",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Member API contributions are not installed on this database (projection_unavailable), or the database is unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1api-contributions",
+      "value": {
+        "get": {
+          "tags": ["api-contributions"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC01-S5",
+          "operationId": "listProjectApiContributions",
+          "summary": "The contributions shared with this project, as a member may see them, with the caller's own readiness and pin.",
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "The member-safe list",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProjectApiContributionList"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted, or a record that is not the caller's (answered like a missing one)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision (stale_revision), the key reused with another request (idempotency_conflict), a final state (invalid_state), or the contribution cannot fund this now (contribution_unavailable)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Invalid request, an unknown field, or an unsupported policy",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Member API contributions are not installed on this database (projection_unavailable), or the database is unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1research-funding",
+      "value": {
+        "put": {
+          "tags": ["api-contributions"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC01-S5",
+          "operationId": "setResearchFundingPin",
+          "summary": "The caller pins a contribution for their own research in this project, at the revision they saw.",
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchFundingPinRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Pinned, or the first receipt for the same key and request (replayed only under the caller's current authority)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ResearchFundingPin"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted, or a record that is not the caller's (answered like a missing one)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision (stale_revision), the key reused with another request (idempotency_conflict), a final state (invalid_state), or the contribution cannot fund this now (contribution_unavailable)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Invalid request, an unknown field, or an unsupported policy",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Member API contributions are not installed on this database (projection_unavailable), or the database is unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "delete": {
+          "tags": ["api-contributions"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC01-S5",
+          "operationId": "clearResearchFundingPin",
+          "summary": "The caller clears their own pin: their research uses the project payer again.",
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Cleared, or the first receipt for the same key and request (replayed only under the caller's current authority)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ResearchFundingPin"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted, or a record that is not the caller's (answered like a missing one)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision (stale_revision), the key reused with another request (idempotency_conflict), a final state (invalid_state), or the contribution cannot fund this now (contribution_unavailable)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Invalid request, an unknown field, or an unsupported policy",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Member API contributions are not installed on this database (projection_unavailable), or the database is unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1research-tasks~1{taskId}~1funding",
+      "value": {
+        "get": {
+          "tags": ["api-contributions"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC01-S5",
+          "operationId": "readResearchTaskFunding",
+          "summary": "Who pays which meter for a research task in this project.",
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "taskId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "The task's funding",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ResearchTaskFunding"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted, or a record that is not the caller's (answered like a missing one)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision (stale_revision), the key reused with another request (idempotency_conflict), a final state (invalid_state), or the contribution cannot fund this now (contribution_unavailable)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Invalid request, an unknown field, or an unsupported policy",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Member API contributions are not installed on this database (projection_unavailable), or the database is unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

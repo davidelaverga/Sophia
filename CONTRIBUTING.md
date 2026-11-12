@@ -775,8 +775,15 @@ either:
   `answer` for a pending turn, `greet` for the welcome back. The keyless
   rehearsal (`SOPHIA_COMPANION=rehearse`, refused in production) is for
   development and tests only, and the space says so (`companion:
-  'rehearsal'`). Without a companion, sending is refused and nothing is kept:
-  never store a message nobody will answer. A retry still gets the receipt
+  'rehearsal'`). Without a companion, a legacy message (A10's
+  `POST /api/v1/personal/turns`, an implicit ask) is refused and nothing is
+  kept: never store a legacy ask nobody will answer. The one exception is
+  explicit: a Personal input sent under `interactionContract: automatic_v1`
+  (A52, `POST /api/v1/personal/inputs`, off unless the API is built with
+  `personalInputs`) is retained before any assessment, held as a person
+  turn with reply `recorded`. Nothing asks, answers, wakes or notifies for it,
+  and its words are no companion context and no welcome activity (0099)
+  until a later, separate admission of that input by its id. A retry still gets the receipt
   its key keeps where no companion runs (a deploy rolling out): only new
   work is refused there. A companion's failure is logged
   by its name and code only (`companionFailure`): its message may carry a

@@ -4,7 +4,8 @@
 // shown as refused, never drawn. The query string picks who is looking, `viewer=davide|luis|mara` (default: Luis;
 // Mara is a viewer who reads); `case=…` a scenario (work-cases.ts); `proposed=1` (no plan accepted yet: the first
 // goal's plan is proposed); `superseded=1` (none shows); `two=1` (a second goal, its plan proposed); `goals=6`; `goals=9` (three more:
-// held, stopped, completed); `view=goals` (opens on Goals);
+// held, stopped, completed); `view=goals` (opens on Goals); `held=<work id>` (that task's hold already confirmed, as
+// Resources' Open work carries it);
 // `attempt=none` (no assignment names its attempt); `many=1`; `unplanned=1`; `since=1|2` (an earlier look; 2, before Davide's decision was asked); `expired=1|state|soon`
 // (the decision waiting on Davide past its expiry, marked expired, or expiring 30 s after the page opens); `odd-id=1`
 // (its id with quotes and brackets); `conflict=1` and `unknown=1` (how a decision's answer comes back); `later=1` (the
@@ -33,7 +34,8 @@ import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import { ResourcePanel } from '../src/features/resources/ResourcePanel.tsx'
 import type { SendCommand } from '../src/features/resources/SessionActs.tsx'
 import type { View } from '../src/app/route.ts'
-import type { Command, Receipt } from '../src/features/resources/receipts.ts'
+import type { Command, Known, Receipt } from '../src/features/resources/receipts.ts'
+import { added, commandSpace, received, unanswered } from '../src/features/resources/command-store.ts'
 import { linkHash } from '../src/features/resources/link.ts'
 import { moving } from '../src/features/resources/motion.ts'
 import type { Resource } from '../src/features/resources/resource.ts'
@@ -521,6 +523,82 @@ const observed =
     items: g.items.map((v) => (v.work_id === workId ? { ...v, ...change(v) } : v)),
   })
 
+/** A task the simulated service observes held, and which, as the view says, offers Resume (simulated, not qualified). */
+const heldWith = (workId: string, within: string | null): Change =>
+  observed(workId, (v) => ({
+    lifecycle: 'held',
+    available_actions: [...v.available_actions, action('resume', 'allowed', 'Resumes from its saved state.', within)],
+  }))
+
+/**
+ * `held=<work id>`: that task's hold was already confirmed when this page opened, as the service would observe it, so
+ * Resources' Open work arrives at the same state (INC01-DES-001 r3; the two fixture pages share no store, the app's one
+ * page does). Nothing is sent from here.
+ */
+/**
+ * `retained=`: the controls Resources' page kept for the work opened from it (fixtures/resources.tsx), each as itself:
+ * its command with its original target, and its receipt as observed, pending or unknown as it was. Put in this page's
+ * store before it shows, as the service's retained record would be read again: nothing is sent, confirmed or rebound
+ * (a Resources command names no attempt, and stays so).
+ */
+function rebuildRetained(raw: string | null) {
+  if (!raw) return
+  let list: unknown
+  try {
+    list = JSON.parse(raw)
+  } catch {
+    return
+  }
+  if (!Array.isArray(list)) return
+  const space = commandSpace(PROJECT, asViewer(query.get('viewer')))
+  for (const item of list.filter(isRetained)) {
+    const { command, local, receipt } = item
+    added(space, command)
+    if (receipt) received(space, command.operation_id, retainedReceipt(command, receipt))
+    else if (local === 'lost') unanswered(space, command.operation_id)
+  }
+}
+
+type Retained = Pick<Known, 'command' | 'local' | 'receipt'>
+const KINDS: readonly unknown[] = ['guidance', 'hold', 'resume', 'stop']
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null
+
+/** A retained control as Resources' page wrote it: a command naming its operation, kind and target; else dropped. */
+function isRetained(v: unknown): v is Retained {
+  if (!isObject(v) || !isObject(v['command'])) return false
+  const { operation_id: id, kind, target } = v['command']
+  return (
+    typeof id === 'string' &&
+    KINDS.includes(kind) &&
+    isObject(target) &&
+    (v['receipt'] === null || isObject(v['receipt']))
+  )
+}
+
+/** A retained observation as the receipt the service would send again; a settled effect keeps an evidence reference. */
+const retainedReceipt = (command: Command, r: NonNullable<Known['receipt']>): Receipt => ({
+  schema_version: 'sophia.work.receipt.v1',
+  operation_id: command.operation_id,
+  receipt_id: `retained-${command.operation_id}`,
+  project_id: command.target.project_id,
+  work_id: command.target.work_id,
+  assignment_id: command.target.assignment_id,
+  assignment_generation: command.target.assignment_generation,
+  kind: command.kind,
+  ...r,
+  observed_at: NOW.toISOString(),
+  evidence_refs: ['held', 'stopped', 'resumed'].includes(r.effect) ? ['fixture-retained'] : [],
+})
+rebuildRetained(query.get('retained'))
+
+const heldAtOpen = query.get('held')
+const opened = (viewer: Viewer): GoalView => {
+  const g = opening(viewer)
+  return heldAtOpen
+    ? heldWith(heldAtOpen, viewer === 'luis' ? 'Within Davide’s contribution to this project.' : null)(g)
+    : g
+}
+
 /** What a settled command makes of its task: stopped (closed, its work kept), held (resumable), or running again. */
 function settled(command: Command, effect: Receipt['effect'], viewer: Viewer): Change {
   const within = viewer === 'luis' ? 'Within Davide’s contribution to this project.' : null
@@ -531,12 +609,7 @@ function settled(command: Command, effect: Receipt['effect'], viewer: Viewer): C
       available_actions: v.available_actions.filter((a) => a.kind === 'ask_sophia'),
     }))
   }
-  if (effect === 'held') {
-    return observed(command.target.work_id, (v) => ({
-      lifecycle: 'held',
-      available_actions: [...v.available_actions, action('resume', 'allowed', 'Resumes from its saved state.', within)],
-    }))
-  }
+  if (effect === 'held') return heldWith(command.target.work_id, within)
   return effect === 'resumed' ? observed(command.target.work_id, () => ({ lifecycle: 'running' })) : (g) => g
 }
 
@@ -896,7 +969,7 @@ function useLead(first: GoalView, viewer: Viewer) {
 
 function Tasks() {
   const [viewer, setViewer] = useState<Viewer>(() => asViewer(query.get('viewer')))
-  const [first, setFirst] = useState(() => opening(viewer))
+  const [first, setFirst] = useState(() => opened(viewer))
   const [arrived, setArrived] = useState(query.get('later') !== '1')
   const [connected, setConnected] = useState(true)
   const [ported, setPorted] = useState(true)
@@ -914,7 +987,7 @@ function Tasks() {
         update,
         (v) => {
           setViewer(v)
-          setFirst(opening(v))
+          setFirst(opened(v))
         },
         { arrive: () => setArrived(true), connect: setConnected, port: setPorted, read: setCoverage },
         viewer,

@@ -296,6 +296,15 @@ export {
   type PersonalSettledOutcome,
   type PersonalUsageCounts,
 } from './personal-usage.ts'
+export {
+  PERSONAL_AUTOMATIC_V1,
+  PERSONAL_INPUT_PAGE_LIMIT,
+  readPersonalInputs,
+  recordPersonalInput,
+  type PersonalInputPage,
+  type PersonalInputRecord,
+  type PersonalInputSend as PersonalInputWrite,
+} from './personal-inputs.ts'
 export { listProjects, PROJECT_LIST_BOUNDS, type ProjectListing } from './project-list.ts'
 export {
   admitWorkCommand,
@@ -368,6 +377,17 @@ export {
   type ConversationSendWrite,
   type ConversationStartWrite,
 } from './conversations.ts'
+// Versioned automatic inputs (INC03-CC-002 S01b, 0095): the two writers the automatic-input routes call.
+export {
+  AUTOMATIC_V1,
+  isInputReceipt,
+  sendConversationInput,
+  startConversationInput,
+  type AutomaticContract,
+  type ConversationInputReceipt,
+  type ConversationInputSend,
+  type ConversationInputStart,
+} from './conversation-inputs.ts'
 
 export {
   runtimeConversationClaim,
@@ -391,3 +411,53 @@ export {
   removedJustNow,
   removeMember,
 } from './activity.ts'
+export {
+  admitRunnerOperation,
+  claimRunnerOutbox,
+  maintainRunnerOperations,
+  prepareRunnerSend,
+  readRunnerOperation,
+  readRunnerOperations,
+  recordRunnerAnswer,
+  runnerFollowups,
+  type OwnerRunner,
+  type PrepareOutcome,
+  type RunnerFollowup,
+  type RunnerRecord,
+  type RunnerClaim,
+  type RunnerRecordTarget,
+} from './runner-operations.ts'
+export {
+  BLOCK_NEW_CALLS_POLICY,
+  CONTRIBUTION_WRITES,
+  contributionRefusalOf,
+  contributionWrite,
+  readMyContributions,
+  readProjectContributions,
+  readResearchTaskFunding,
+  ContributionRefusal,
+  ContributionUnsupported,
+  type ContributionReadinessReason,
+  type ContributionSettings,
+  type ContributionWrite,
+  type ProjectContribution,
+  type ResearchTaskFunding,
+} from './api-contributions.ts'
+export { readProjectNativeResources } from './project-resources.ts'
+export {
+  createOwnerHostPairing,
+  DbExchangeStore,
+  DbHostChannel,
+  listOwnerHosts,
+  maintainOwnerHosts,
+  ownerHostRunner,
+  redeemOwnerHostPairing,
+  retireOwnerHost,
+  revokeOwnerHost,
+  revokeOwnerHostPairing,
+  type OwnerHostPairing,
+  type OwnerHostPairingView,
+  type OwnerHostRunner,
+  type OwnerHostView,
+  type RedeemResult,
+} from './owner-host-enrollment.ts'
