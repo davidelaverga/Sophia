@@ -1284,3 +1284,147 @@ describe('a non-regular lock path is refused promptly, in bounded child processe
     assert.equal(existsSync(`${ok}.lock`), false, 'released')
   })
 })
+
+// Repair 8 (NATIVE7-F01) helpers.
+/** Every native effect and every mutating call so far: none may be added by a reconcile or a restart. */
+const effects = (t3: FakeT3) => ({
+  ...t3.effects,
+  launchCalls: t3.count('t3_thread_launch'),
+  sendCalls: t3.count('t3_thread_send'),
+  interruptCalls: t3.count('t3_thread_interrupt'),
+})
+/** How many final answers the journal FILE holds for one operation (what a new gateway would replay). */
+const finals = (file: string, operationId: string) =>
+  readFileSync(file, 'utf8')
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l) as { type?: string; operationId?: string })
+    .filter((r) => r.type === 'answer' && r.operationId === operationId).length
+const statusOf = (t3: FakeT3, thread: string, run: string) =>
+  t3.threads.get(thread)?.runs.find((r) => r.runId === run)?.status
+const shape = (a: RunnerAnswer) => (a.kind === 'received' ? `received ${a.delivery} ${runOf(a)}` : a.kind)
+
+/** A create whose run runs, then an input queued behind it whose answer was lost after T3 accepted it. */
+async function lostQueuedInput(base: number) {
+  const w = setup()
+  const thread = threadOf(await w.send(create(base)))
+  const launchRun = w.t3.threads.get(thread)?.runs[0]?.runId ?? ''
+  w.t3.inject('t3_thread_send', { kind: 'lose_after_effect' })
+  const e = follow(base + 1, base, thread)
+  assert.equal((await w.send(e)).kind, 'unknown')
+  const run = w.t3.threads.get(thread)?.runs.at(-1)?.runId ?? ''
+  assert.equal(statusOf(w.t3, thread, run), 'queued')
+  return { ...w, thread, e, run, launchRun }
+}
+
+/** Reconcile, close, reopen the fsynced journal in a new gateway and reconcile again: [first, replay, finals]. */
+async function reconcileAcrossRestart(w: Awaited<ReturnType<typeof lostQueuedInput>>) {
+  const first = await w.rec(w.e)
+  w.gateway.close()
+  const again = setup({ file: w.file, t3: w.t3 })
+  const replay = await again.rec(w.e)
+  return { again, seen: [shape(first), shape(replay), finals(w.file, w.e.operationId)] }
+}
+
+describe('an input is received only on positive evidence about its own run (repair 8, NATIVE7-F01)', () => {
+  it('keeps an input whose run the 50-run window omits unknown across a restart, until a read shows it started', async () => {
+    const w = await lostQueuedInput(8000)
+    for (let i = 0; i < 51; i++) await w.send(follow(8002 + i, 8000, w.thread))
+    assert.equal(w.t3.threads.get(w.thread)?.runs.length, 53)
+    const before = effects(w.t3)
+    const { again, seen } = await reconcileAcrossRestart(w)
+    assert.deepEqual(seen, ['unknown', 'unknown', 0], 'absent from the window is not started, and nothing final')
+    assert.deepEqual(effects(w.t3), before, 'no native effect during reconcile or restart')
+    // Later the queue moves on: the launch ends and the original run is T3's active run, still outside the window.
+    w.t3.finishRun(w.launchRun)
+    w.t3.finishRun(w.run, 'running')
+    const late = await again.rec(w.e)
+    assert.equal(shape(late), `received started ${w.run}`, 'the same run, positively started')
+    assert.equal(finals(w.file, w.e.operationId), 1)
+    assert.deepEqual(effects(w.t3), before)
+    again.gateway.close()
+    const third = setup({ file: w.file, t3: w.t3 })
+    const calls = w.t3.calls.length
+    assert.deepEqual(await third.rec(w.e), late, 'answered from the journal')
+    assert.equal(w.t3.calls.length, calls, 'with no call')
+    third.gateway.close()
+  })
+
+  it('keeps a queued input later cancelled by an interrupt unknown across a restart: it may never have started', async () => {
+    const w = await lostQueuedInput(8100)
+    assert.equal((await w.send(follow(8102, 8100, w.thread, 'stop'))).kind, 'received')
+    assert.equal(statusOf(w.t3, w.thread, w.run), 'cancelled')
+    const before = effects(w.t3)
+    const { again, seen } = await reconcileAcrossRestart(w)
+    assert.deepEqual(seen, ['unknown', 'unknown', 0])
+    assert.deepEqual(effects(w.t3), before)
+    again.gateway.close()
+  })
+
+  it('keeps an unrecognized status unknown across a restart, and resolves on a later read that shows it running', async () => {
+    const w = await lostQueuedInput(8200)
+    w.t3.finishRun(w.run, 'held_by_vendor')
+    const before = effects(w.t3)
+    const { again, seen } = await reconcileAcrossRestart(w)
+    assert.deepEqual(seen, ['unknown', 'unknown', 0])
+    w.t3.finishRun(w.launchRun)
+    w.t3.finishRun(w.run, 'running')
+    assert.equal(shape(await again.rec(w.e)), `received started ${w.run}`)
+    assert.deepEqual(effects(w.t3), before)
+    again.gateway.close()
+  })
+
+  it('receives a visible queued or active run as such, and keeps every terminal status unknown (controls)', async () => {
+    const cases: [string, string][] = [
+      ['queued', 'received queued'],
+      ['preparing', 'received started'],
+      ['starting', 'received started'],
+      ['running', 'received started'],
+      ['waiting', 'received started'],
+      ['completed', 'unknown'],
+      ['interrupted', 'unknown'],
+      ['failed', 'unknown'],
+      ['cancelled', 'unknown'],
+      ['rolled_back', 'unknown'],
+    ]
+    const seen: string[][] = []
+    for (const [i, [status]] of cases.entries()) {
+      const w = await lostQueuedInput(8300 + 10 * i)
+      w.t3.finishRun(w.run, status)
+      const before = effects(w.t3)
+      const { again, seen: s } = await reconcileAcrossRestart(w)
+      assert.deepEqual(effects(w.t3), before, status)
+      seen.push([status, String(s[0]).replace(` ${w.run}`, ''), String(s[1]).replace(` ${w.run}`, ''), String(s[2])])
+      again.gateway.close()
+    }
+    assert.deepEqual(
+      seen,
+      cases.map(([status, read]) => [status, read, read, read === 'unknown' ? '0' : '1']),
+    )
+  })
+
+  it('keeps a read that contradicts itself (its run listed queued, yet named the active run) unknown', async () => {
+    const fake = new FakeT3()
+    let forgeActive: string | null = null
+    const t3: T3Transport = {
+      namespace: () => fake.namespace(),
+      call: async (call) => {
+        const reply = await fake.call(call)
+        if (call.tool !== 't3_thread_read' || forgeActive === null || reply.kind !== 'ok') return reply
+        const body = reply.body as { thread: Record<string, unknown> }
+        return { kind: 'ok', body: { ...body, thread: { ...body.thread, activeRunId: forgeActive } } }
+      },
+    }
+    const file = journalFile()
+    const g = new RunnerGateway({ journal: new RunnerJournal(file), transport: t3, profile })
+    const thread = threadOf(await g.send(create(8500), digestOf(create(8500)), g.journalId))
+    fake.inject('t3_thread_send', { kind: 'lose_after_effect' })
+    const e = follow(8501, 8500, thread)
+    assert.equal((await g.send(e, digestOf(e), g.journalId)).kind, 'unknown')
+    forgeActive = fake.threads.get(thread)?.runs.at(-1)?.runId ?? ''
+    assert.equal(statusOf(fake, thread, forgeActive), 'queued')
+    const r = await g.reconcile({ envelope: e, digest: digestOf(e), journalId: g.journalId })
+    assert.deepEqual([shape(r), finals(file, e.operationId)], ['unknown', 0])
+    g.close()
+  })
+})

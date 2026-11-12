@@ -19,6 +19,11 @@
  * exact message; a missing, null or malformed run keeps it unknown, and the gateway checks every receipt itself
  * (receiptError) before journaling or returning it.
  *
+ * delivery (repair 8, NATIVE7-F01): an input reconciled from a read is received only on positive evidence about the
+ * exact run its exact message names: listed `queued`, or listed in T3's started set (or the read's activeRunId, which T3
+ * derives over every run, not only the runLimit window). A run cut from the window, a terminal status (a cancelled
+ * queued run may never have started) or an unknown one stays unknown, and nothing final is journaled.
+ *
  * settlement (R1-F04): a Stop settles, and a run counts as ended, only on a complete, decoded read of the exact thread
  * (t3-port-mapping.ts stopSettled, runState). An acknowledgement, a malformed or foreign read, a truncated run list or
  * an unknown status is no evidence.
@@ -347,13 +352,15 @@ export class RunnerGateway implements SophiaRunnerPort {
     if (found.runId === null) {
       return { kind: 'unknown', identity, reason: 'its message is in the read with no run; no accepted run is proven' }
     }
-    const queued = envelope.kind === 'input' && found.read.runs.get(found.runId) === 'queued'
-    const answer = admitted(envelope.kind, {
-      kind: 'received',
-      identity,
-      runId: found.runId,
-      delivery: queued ? 'queued' : 'started',
-    })
+    const delivery = envelope.kind === 'input' ? inputDelivery(found.read, found.runId) : 'started'
+    if (delivery === null) {
+      return {
+        kind: 'unknown',
+        identity,
+        reason: 'its message is in the read, but no read shows its run queued or started; this is not proof of either',
+      }
+    }
+    const answer = admitted(envelope.kind, { kind: 'received', identity, runId: found.runId, delivery })
     if (answer.kind === 'received') this.journal.append('answer', envelope.operationId, { answer })
     return answer
   }
@@ -420,6 +427,21 @@ export class RunnerGateway implements SophiaRunnerPort {
     if (found.kind === 'error') return { kind: 'unknown', reason: found.reason }
     return observed(entry.envelope.kind, found.read, receipt.runId)
   }
+}
+
+/**
+ * T3's active statuses at the pin less `queued` (isActiveRun, ThreadManagementService.ts): a run in one of these has left
+ * the queue. Terminal statuses are not here: `cancelled` or `completed` alone does not prove a queued input ever started.
+ */
+const STARTED = new Set(['preparing', 'starting', 'running', 'waiting'])
+
+/** What a read positively proves about an input's own run (repair 8, NATIVE7-F01): queued, started, or nothing. */
+function inputDelivery(read: ThreadRead, runId: string): 'queued' | 'started' | null {
+  const status = read.runs.get(runId)
+  const active = read.activeRunId === runId
+  if (status === 'queued') return active ? null : 'queued'
+  if (status !== undefined) return STARTED.has(status) ? 'started' : null
+  return active ? 'started' : null
 }
 
 /** What a decoded read proves about one operation: a stop's settlement, or its own run's state. */

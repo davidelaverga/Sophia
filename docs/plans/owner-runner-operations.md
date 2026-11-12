@@ -542,3 +542,82 @@ becomes 200, the same invalid-source create is refused by 0096's source check wi
 
 **Fail-before and mutations.** Fail-before runs on `5eb86c22`'s route with these final tests. The mutations: the
 capability reduced back to 0092's objects, and the per-request check that caches partial presence.
+
+## Repair 8: an input's delivery needs positive evidence (INC01-CC-005-repair7-SOURCE-FINAL-001, NATIVE7-F01, P2)
+
+Written before any code. One signed sole child of the published `f15dad08` (tree `360b0d33`). Exactly four writable
+paths: `runner-gateway.ts`, its test, this plan and the CC-005 handoff. The transport, the mapping, the FakeT3 fixture,
+the journal, SQL and every other path stay byte-exact. The fixture and test destination were checked first: the actual
+`FakeT3` (`runner-fake-t3.ts`) already models everything needed, through `send`, `interrupt`, `finishRun`, the 50-run
+`recentRuns` window and `activeRunId` over every run. So no other path is needed.
+
+### The defect
+
+When an input's answer was lost after its effect, reconcile reads the exact thread and finds the exact message with
+its run id. It then compared only `runs.get(runId) === 'queued'`, and everything else fell to `started`, and that
+answer was journaled as final (fsynced):
+- a run cut off by the `recentRuns` window (`runLimit` 50; 53 runs);
+- a queued run later cancelled by an interrupt, which never left the queue;
+- an unrecognized status.
+
+A new gateway then replayed the false `started` from the journal without reading.
+
+### T3's semantics at the pin (SOURCE_MAP)
+
+- **Run statuses** (`orchestrationV2.ts`): active `preparing`, `queued`, `starting`, `running`, `waiting`; terminal
+  `completed`, `interrupted`, `failed`, `cancelled`, `rolled_back`.
+- **`isActiveRun`** (`ThreadManagementService.ts`) counts `preparing`, `starting`, `running` and `waiting`, not
+  `queued`. The read's `activeRunId` (`latestActiveRun`) covers every run of the thread, while `recentRuns` is cut by
+  `runLimit`.
+
+### The rule
+
+An input reconciled from a read is `received` only on positive evidence about its own run, the exact run its exact
+message names:
+- **queued:** the read lists that run with status `queued`;
+- **started:** the read lists that run as `preparing`, `starting`, `running` or `waiting` (T3's own active-and-not-
+  queued set), or the read's `activeRunId` is that run. That second form is the same run id, not a rebinding: T3 derives
+  it over every run, so a run cut from the window can still be positively started.
+- **anything else stays `unknown`, and nothing final is journaled:**
+  - the run is absent from the window and not the active run;
+  - the status is terminal (a `cancelled` or `completed` status alone does not prove the input ever left the queue);
+  - the status is unrecognized;
+  - the read contradicts itself (listed `queued` yet active).
+
+The operation's possible send stays journaled, so it is never sent again. A later read with positive evidence resolves
+it, with no new native effect.
+
+**Unchanged:**
+- a create's reconcile, and every send-time receipt;
+- Stop settlement, receipt checks, malformed-run refusals, fixed diagnostics and privacy;
+- the window and page bounds, and no new call or loop.
+
+No identity is rewritten, and an absence is never turned into proof.
+
+### Proof plan
+
+Public synthetic `FakeT3` → actual `RunnerGateway` → fsynced `RunnerJournal` → closed, then a new gateway on the
+reopened file. Each case asserts:
+- the answer;
+- no final answer in the journal file;
+- the replay after the restart;
+- zero new native effects and zero send, launch or interrupt calls during reconcile and restart.
+
+The cases:
+- **the window omits the run:** 53 runs, the original queued run not in `recentRuns`. Unknown, and unknown after the
+  restart. Later the run becomes the active run, and a read resolves it to `started`, journaled once; a third gateway
+  answers from the journal with no call.
+- **queued, then cancelled by an interrupt:** unknown, and unknown after the restart.
+- **an unrecognized status:** unknown. When the read later shows the run `running`, it resolves to `started`.
+- **controls:** a visible queued run is `queued`, and a started one is `started` (each active status). Every terminal
+  status is unknown. The existing lost-accept, steered, restart, page-bound, Stop, receipt and privacy tests stay.
+
+**Fail-before:** the final tests on exact `f15dad08`.
+
+**Mutations:**
+- the f15 rule restored (not queued means started);
+- any listed status but queued taken as started;
+- `activeRunId` ignored, so the late positive is lost;
+- the unknown journaled as a final answer.
+
+Focused gateway, journal and mapping tests, then one ordinary `pnpm check` on the final head.

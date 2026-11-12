@@ -1050,7 +1050,7 @@ describe('a Stop settles only after every earlier input has converged (integrate
     assert.equal(t3.count('t3_thread_send'), 1, 'the fake saw the one released request; nothing was resent')
   })
 
-  it('keeps the Stop unresolved while a lost-response input is unreconciled, then settles it on a fresh proof', async () => {
+  it('keeps the Stop unresolved while a lost-response input is unreconciled, and still after its queued run is cancelled (repair 8)', async () => {
     const w = await world()
     const created = await w.create()
     await w.pass()
@@ -1075,9 +1075,13 @@ describe('a Stop settles only after every earlier input has converged (integrate
     )
     await w.pass()
     await w.pass()
-    const converged = (await op(lost.operationId)).state
-    assert.ok(['received', 'settled'].includes(converged), `the input converged (${converged})`)
-    assert.equal((await op(stopped.operationId)).state, 'settled', 'converged, then proven by a fresh complete read')
+    // Repair 8 (NATIVE7-F01): the Stop cancelled the input's queued run, so no read proves it ever started or is still
+    // queued: the input stays unknown, the barrier holds, and an operator settles it. Nothing is sent again.
+    assert.equal((await op(lost.operationId)).state, 'unknown')
+    const s = await op(stopped.operationId)
+    assert.equal(s.state, 'received', 'no settlement over an unproven input')
+    assert.equal((await binding(s.binding_id)).state, 'stopping')
+    assert.deepEqual(await reservations(w.accountKey), [{ binding_id: s.binding_id }])
     assert.equal(w.t3.effects.messages, 1)
     assert.equal(w.t3.count('t3_thread_interrupt'), 1)
   })
