@@ -91,6 +91,51 @@ test('supervisor: the launch environment is explicit and carries only named cred
   }
 })
 
+// INC01-CC-004 S5c: an explicit credential map replaces the ambient lookup completely; legacy callers are unchanged.
+test('supervisor: an explicit credential map passes only its own values, an empty one passes none, and nothing falls back', async (t) => {
+  const ambient = { OPENAI_RESEARCH_API_KEY: 'sk-s5c-ambient-research', OPENAI_API_KEY: 'sk-s5c-ambient-default', TAVILY_API_KEY: 'tvly-s5c-ambient' }
+  const saved = Object.fromEntries(Object.keys(ambient).map((k) => [k, process.env[k]]))
+  Object.assign(process.env, ambient)
+  try {
+    const s = await setup(t, { extraEnv: {} })
+    const explicit = s.make({ credentialValues: { OPENAI_RESEARCH_API_KEY: 'sk-s5c-custodian-value' }, extraEnv: {} })
+    const env = explicit.environment()
+    assert.equal(env.OPENAI_RESEARCH_API_KEY, 'sk-s5c-custodian-value', 'the custodian value, not the ambient one')
+    for (const name of ['OPENAI_API_KEY', 'TAVILY_API_KEY']) assert.equal(name in env, false, `${name} is not inherited`)
+    assert.equal(env.SOPHIA_BRIDGE_TOKEN, s.service.token, 'the bridge binding is still the supervisor\'s')
+    assert.equal(env.HOME, join(s.root, 'home'))
+    const empty = s.make({ credentialValues: {}, extraEnv: {} }).environment()
+    for (const name of Object.keys(ambient)) assert.equal(name in empty, false, `an empty map passes no ${name}`)
+    // Undefined keeps the old lookup exactly: named credentials come from this process's environment.
+    const legacy = s.make({ credentials: ['OPENAI_API_KEY'], extraEnv: {} }).environment()
+    assert.equal(legacy.OPENAI_API_KEY, 'sk-s5c-ambient-default')
+    assert.equal('OPENAI_RESEARCH_API_KEY' in legacy, false)
+  } finally {
+    for (const [k, v] of Object.entries(saved)) if (v === undefined) delete process.env[k]
+    else process.env[k] = v
+  }
+})
+
+test('supervisor: with an explicit map, a reserved or colliding name and an unusable value are refused before spawn', async (t) => {
+  const s = await setup(t, { extraEnv: {} })
+  const refused = (options) => assert.throws(() => s.make({ extraEnv: {}, ...options }).environment())
+  refused({ credentialValues: { K_KEY: 'v' }, credentials: ['OPENAI_API_KEY'] })
+  const reserved = ['SOPHIA_BRIDGE_TOKEN', 'SOPHIA_BRIDGE_URL', 'HOME', 'PATH', 'TMPDIR', 'DSH_HOME', 'NODE_OPTIONS', 'SOPHIA_REPLY_ROOT']
+  for (const name of [...reserved, 'lower_case']) refused({ credentialValues: { [name]: 'v' } })
+  for (const name of reserved) refused({ credentialValues: { OPENAI_RESEARCH_API_KEY: 'v' }, extraEnv: { [name]: 'x' } })
+  // An ordinary test variable beside the map is still allowed.
+  assert.equal(s.make({ credentialValues: { OPENAI_RESEARCH_API_KEY: 'v' }, extraEnv: { MOCK_FLAG: '1' } }).environment().MOCK_FLAG, '1')
+  refused({ credentialValues: { OPENAI_RESEARCH_API_KEY: 'v' }, extraEnv: { OPENAI_RESEARCH_API_KEY: 'override' } })
+  for (const value of ['', 'two\nlines', 'cr\rvalue', 'nul\0value']) refused({ credentialValues: { OPENAI_RESEARCH_API_KEY: value } })
+  // A refused environment fails start before any child runs, and the project home is released.
+  const before = s.events.length
+  const failing = s.make({ credentialValues: { SOPHIA_BRIDGE_TOKEN: 'v' }, extraEnv: {} })
+  await assert.rejects(failing.start())
+  assert.equal(failing.pid, undefined, 'no child was spawned')
+  assert.equal(s.events.slice(before).some((e) => e.type === 'exit'), false, 'no runtime exited: none started')
+  assert.equal(existsSync(join(s.root, 'supervisor.lease')), false, 'the lease was released')
+})
+
 test('supervisor: a second supervisor on the same project home is refused, in or across processes', async (t) => {
   const s = await setup(t)
   await s.supervisor.start()
