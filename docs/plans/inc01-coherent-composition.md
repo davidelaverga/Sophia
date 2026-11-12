@@ -361,3 +361,55 @@ onto `45564a5a` (`reset --soft`; index tree equal to `1bc7af5e`) before any edit
   before the read. Each must fail on an assertion, and each is restored by SHA-256.
 - **Then:** the SQL test, focused suites on the final bytes, static checks, one signed commit, an early checkpoint,
   and ONE ordinary check.
+
+## CI-REPAIR-001: the structural foreign-owner custody test on any runner's ownership layout
+
+Assignment `7a0b22ee…`. CI raw `6eb40047…` (PR 507, run 43247849955, runtime-unit job 131285369901). Written before the
+edit. This is a child of the published `da48d25a` (tree `99e02d30`). Three paths change:
+`tests/unit/contribution-custody.test.mjs`, this plan and the handoff. Production custody, 0100, the combined tests,
+generated sources, the Studio and CI are unchanged.
+
+### Cause, in the actual source and raw
+
+- **What the test does.** `tests/unit/contribution-custody.test.mjs:184` asks for a private directory under the scratch
+  root, which is `mkdtemp(tmpdir())` and owned by whoever runs the test. It asks with an artificial EXPECTED uid,
+  `getuid() + 4242`, and expects `directory_unsafe`.
+- **What production checks.** `assertPrivateDirectory` (`scripts/lib/contribution-custody.mjs`) checks every ancestor
+  first. An ancestor must be owned by root or by the expected uid; otherwise the refusal is `ancestor_unsafe`. Only
+  then is the directory's own owner checked (`directory_unsafe`).
+- **As root** (this host): every ancestor is root-owned, so the directory is the first refusal.
+- **As a non-root runner** (GitHub Actions): the scratch root is owned by the runner, which is neither root nor the
+  artificial uid, so the ancestor is the first refusal. Production rightly gives `ancestor_unsafe`.
+- Both answers refuse. The test's fixed expectation encoded the root layout only.
+
+### Repair (the test only)
+
+- **The expected code comes from the fixture's actual ownership,** read with `lstat`. The first ancestor of the
+  directory (root first) owned by neither root nor the expected uid gives `ancestor_unsafe`. Failing that, the
+  directory, which is owned by this process and not by the expected uid, gives `directory_unsafe`. That is exactly the
+  order production checks.
+- **Positive control:** the same directory and file read the invented key under this process's own uid. So every
+  check except ownership passes, and the expected refusal is an ownership one.
+- **Two layouts per run:**
+  - a directory under the scratch root: `ancestor_unsafe` as non-root, `directory_unsafe` as root;
+  - a directory created directly in `tmpdir()`: `directory_unsafe` wherever `tmpdir()`'s ancestry is root-owned, as
+    for `/tmp`.
+
+  The test records which boundary each case reached.
+- **Unchanged:** the fixed safe `CustodyError` message, the no-key assertion and the file-read form (`readPrivateFile`
+  with the expected uid). The file's own `foreign_owner` check is not reached, because the directory or an ancestor
+  refuses first. The test says so; it is not claimed.
+- **Scope:** this remains structural, with no real second user. No user is created, nothing is chowned and no
+  privilege is changed. On this root host only the root layout runs. The non-root layout is the CI runner's, whose
+  actual refusal (`ancestor_unsafe`) is the code this derivation predicts for it.
+
+### Verification
+
+- **The custody unit file and the launcher crossing** (`tests/integration/contribution-runtime-host.test.mjs`), on the
+  final bytes.
+- **Fail-before:** the `da48d25a` test as root passes, and its fixed expectation is the defect for a non-root layout,
+  as the CI raw shows.
+- **Temporary production mutants,** each restored by SHA-256: the directory owner check removed (the file's own
+  `foreign_owner` is then reached), and ancestor ownership treated as always safe.
+- **Then:** static checks, one signed commit with `da48d25a` as its sole parent, an early checkpoint, ONE ordinary
+  check with diagnostics outside the worktree, and the sealed raw.

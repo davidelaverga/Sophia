@@ -3,6 +3,8 @@
  * launcher's checks before the root is touched (scripts/contribution-runtime-host.mjs prepareContributionLaunch).
  * Every key here is INVENTED and marked; the directories are fresh temporary ones. A "foreign owner" case runs under a
  * different EXPECTED uid only: no second real user exists here, so it is structural, not an actual foreign-UID test.
+ * Its expected refusal is the first ownership boundary of the fixture as it actually lies on this runner (an ancestor
+ * owned by neither root nor that uid, else the directory), so root and non-root runners each check their own layout.
  * A file changing while it is read is guarded in source but not driven here (no deterministic interposition).
  * S5c r2: registration's caller fields are checked and canonical before anything is registered, and a record is
  * created completely and durably or removed; its I/O failures are driven through createBinding's injected calls.
@@ -12,10 +14,10 @@ import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import * as fs from 'node:fs'
-import { chmodSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join, sep } from 'node:path'
 import { after, describe, test } from 'node:test'
 import {
   BINDING_SCHEMA,
@@ -181,13 +183,45 @@ describe('the custody file', () => {
     assert.equal(code(() => readCustodyKey({ custodyDir: alias, binding: b })), 'directory_unsafe', 'a linked directory')
   })
 
-  test('refuses a file this process does not own (structural: another EXPECTED uid, not a real second user)', () => {
-    const dir = privateDir()
-    const b = binding()
-    custody(dir, b)
-    const other = (typeof process.getuid === 'function' ? process.getuid() : 0) + 4242
-    assert.equal(code(() => readCustodyKey({ custodyDir: dir, binding: b, uid: other })), 'directory_unsafe')
-    assert.equal(code(() => readPrivateFile(join(dir, custodyFileName(b)), 8192, other)), 'directory_unsafe')
+  test('refuses another EXPECTED uid at its first ownership boundary, an ancestor or the directory (structural: not a real second user)', () => {
+    const own = typeof process.getuid === 'function' ? process.getuid() : 0
+    const other = own + 4242
+    /**
+     * The refusal production must give first for `other`, from the fixture's actual ownership, in production's order:
+     * an ancestor (root first) owned by neither root nor `other` is ancestor_unsafe; else the directory, owned by this
+     * process and not by `other`, is directory_unsafe. (Every other condition is shown to pass by the own-uid read.)
+     */
+    const firstOwnershipRefusal = (dir) => {
+      let at = sep
+      for (const part of ['', ...dirname(dir).split(sep).filter(Boolean)]) {
+        at = part === '' ? sep : join(at, part)
+        const owner = lstatSync(at).uid
+        if (owner !== 0 && owner !== other) return 'ancestor_unsafe'
+      }
+      assert.notEqual(lstatSync(dir).uid, other)
+      return 'directory_unsafe'
+    }
+    // Under the scratch root (owned by this process: an ancestor boundary for a non-root runner, the directory for root),
+    // and directly in the temporary directory (the directory boundary wherever its ancestry is root-owned, as /tmp).
+    const direct = mkdtempSync(join(tmpdir(), 'sophia-s5c-owner-'))
+    try {
+      chmodSync(direct, 0o700)
+      const reached = []
+      for (const dir of [privateDir(), direct]) {
+        const b = binding()
+        const file = custody(dir, b)
+        // The positive control: the same private directory and file give the key to this process's own uid.
+        assert.equal(readCustodyKey({ custodyDir: dir, binding: b }), KEY)
+        const expected = firstOwnershipRefusal(dir)
+        assert.equal(code(() => readCustodyKey({ custodyDir: dir, binding: b, uid: other })), expected, dir)
+        // Read as a file too: the directory or an ancestor refuses first, so the file's own foreign_owner is not reached.
+        assert.equal(code(() => readPrivateFile(file, 8192, other)), expected, file)
+        reached.push(expected)
+      }
+      if (own !== 0) assert.equal(reached[0], 'ancestor_unsafe', 'a non-root runner owns the scratch root')
+    } finally {
+      rmSync(direct, { recursive: true, force: true })
+    }
   })
 })
 

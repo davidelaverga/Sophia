@@ -3,7 +3,8 @@
 ## What this commit is
 
 One signed development commit on the published native parent `45564a5a8cc1644b13c17739a40a4723892d33f1` (tree
-`ea62bdd0…`, Native14 r1).
+`ea62bdd0…`, Native14 r1): `da48d25a`, published once as PR 507 after the whole-diff PRE. One signed child of
+`da48d25a` follows it: the CI repair below.
 
 - **What it composes:** the accepted owned slices.
 
@@ -51,8 +52,40 @@ One signed development commit on the published native parent `45564a5a8cc1644b13
     repairs were made on top.
 - **Plan:** `docs/plans/inc01-coherent-composition.md`, written before the edits, with its WRITE-003 section written
   before the functional edits.
-- **Status.** Not published, merged or activated. Native post-push gates on `45564a5a`, the independent whole-diff gate,
-  current automatic and CI, Luis and the RTA all remain.
+- **Status.** `da48d25a` is published as PR 507, not merged or activated. The CI repair child is unpublished. Native
+  post-push gates on `45564a5a`, the independent whole-diff gate, current automatic and CI, Luis and the RTA all remain.
+
+## CI repair (CI-REPAIR-001): the structural foreign-owner custody test on any runner
+
+Assignment `7a0b22ee…`. CI raw `6eb40047…` (PR 507, run 43247849955, runtime-unit job 131285369901) failed one test.
+This repair is a signed child of `da48d25a` changing three paths: `tests/unit/contribution-custody.test.mjs`, the plan
+and this handoff. Production custody, 0100, the combined tests, generated sources, the Studio and CI configuration are
+unchanged.
+
+- **What failed.** The custody unit test "refuses a file this process does not own" (line 184) asked with an
+  artificial EXPECTED uid (`getuid() + 4242`) and expected `directory_unsafe`. The actual refusal was
+  `ancestor_unsafe`.
+- **Why.** Production (`assertPrivateDirectory`) checks every ancestor first, and accepts an ancestor owned by root or
+  by the expected uid. The test's scratch root is `mkdtemp(tmpdir())`, owned by whoever runs the test.
+  - On a non-root runner that ancestor is owned by neither, so production rightly refuses at the ancestor.
+  - As root, every ancestor is root-owned and the directory is the first refusal.
+  - Both are refusals. The test's fixed expectation encoded only the root layout.
+- **The repair (test only).** The expected refusal comes from the fixture's actual ownership, read with `lstat`, in
+  production's order: the first ancestor owned by neither root nor the expected uid gives `ancestor_unsafe`; failing
+  that, the directory gives `directory_unsafe`.
+  - **Positive control:** the same directory and file give the invented key to this process's own uid. Every
+    condition except ownership therefore passes.
+  - **Two cases:** a directory under the scratch root (the ancestor boundary on a non-root runner), and a directory
+    created directly in `tmpdir()` (the directory boundary wherever `tmpdir()`'s ancestry is root-owned, as `/tmp`).
+  - **Non-root assertion:** on a non-root runner, the scratch case must reach `ancestor_unsafe`.
+  - **Unchanged:** the fixed safe `CustodyError` message and the no-key check. The file read (`readPrivateFile`) now
+    expects the same first boundary. The file's own `foreign_owner` check is not reached, because a directory or
+    ancestor refuses first, and the test says so.
+- **Scope.** This remains structural, with no real second user. No user was created, nothing was chowned and no
+  privilege was changed.
+  - This host runs as root, so only the root layout ran here: both cases reach `directory_unsafe`.
+  - The non-root layout is the CI runner's. Its actual refusal (`ancestor_unsafe`, in the CI raw) is the code the
+    derivation predicts for it.
 
 ## Composition (WRITE-002)
 
@@ -158,7 +191,22 @@ No production UI, CSS, component, contract, generated or configuration path chan
 
 ## Evidence (raw logs in the handback)
 
-These checks ran on the final uncommitted working tree, before the commit. One ordinary `pnpm check` runs afterwards,
+**CI repair evidence** (the child of `da48d25a`; raw logs in its own handback):
+
+- **Baseline:** the `da48d25a` custody unit test, as root, passes 12 out of 12. Its defect appears only on a non-root
+  layout, as the CI raw shows.
+- **On the repaired test as root:** custody unit 12 out of 12. Supervisor and launcher crossing
+  (`supervisor.test.mjs`, `contribution-runtime-host.test.mjs`): 20 out of 20.
+  - A first crossing attempt had 10 tests cancelled. The container had restarted at 15:35:07Z and stopped the
+    disposable PostgreSQL (`ECONNREFUSED 127.0.0.1:54329`). It was restarted with its usual command, and the rerun
+    passed. Both logs are kept.
+- **Temporary production mutants,** restored by SHA-256:
+  - P1, the directory-owner check removed: caught by an assertion (`foreign_owner` reached instead of
+    `directory_unsafe`).
+  - P2, the ancestor-owner check removed: survives on this root host, because no ancestor here is owned by anyone but
+    root. Only a non-root layout (the CI runner's) reaches that branch. This is stated as a limit, not hidden.
+
+These checks ran on the final uncommitted working tree, before the commit. (WRITE-004 and earlier:) One ordinary `pnpm check` runs afterwards,
 on the committed head. Counts from earlier bytes are stated with their bytes, and none is restamped.
 
 - **SQL.** On the final 0100: 100 migrations and 13 SQL files pass. The 0100 SQL test also checks that
