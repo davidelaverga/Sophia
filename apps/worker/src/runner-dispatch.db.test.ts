@@ -2735,3 +2735,234 @@ describe('an inconsistent read never clears the input barrier under a Stop (repa
     })
   }
 })
+
+type PageBody = ReadBody & { hasMore: boolean; nextPosition: number | null }
+/**
+ * Repair 11 (NATIVE10-F01/F02/F03): holds the next request of `holdTool` in transit (it lands only on release, exactly
+ * once, never rebuilt), and while `page` is set answers each read with what it returns for the read's thread, cursor and
+ * the actual FakeT3 reply (null keeps the fake's reply). `heldMessage` is the held input's message id. The fake's own
+ * runs, messages and effects are untouched.
+ */
+class PagedT3 implements T3Transport {
+  holdTool: 't3_thread_launch' | 't3_thread_send' | null = null
+  heldMessage = ''
+  page: ((threadId: string, cursor: number | undefined, real: PageBody | null) => PageBody | null) | null = null
+  private readonly held: T3Call[] = []
+  readonly fake: FakeT3
+  constructor(fake: FakeT3) {
+    this.fake = fake
+  }
+  namespace(): string {
+    return this.fake.namespace()
+  }
+  async call(call: T3Call): Promise<T3Reply> {
+    if (call.tool === this.holdTool) {
+      this.holdTool = null
+      this.held.push(call)
+      if (call.tool === 't3_thread_send')
+        this.heldMessage = stableMessageId(this.fake.namespace(), 'thread-send', String(call.args.clientRequestId))
+      return { kind: 'transport_error', reason: 'fake: the request is still in transit' }
+    }
+    const reply = await this.fake.call(call)
+    if (call.tool !== 't3_thread_read' || !this.page) return reply
+    const cursor = typeof call.args.afterPosition === 'number' ? call.args.afterPosition : undefined
+    const body = this.page(String(call.args.threadId), cursor, reply.kind === 'ok' ? (reply.body as PageBody) : null)
+    return body ? { kind: 'ok', body } : reply
+  }
+  /** Deliver every held request now, exactly once. */
+  async release(): Promise<void> {
+    for (const call of this.held.splice(0)) await this.fake.call(call)
+  }
+}
+const passes = async (w: Awaited<ReturnType<typeof world>>, n: number) => {
+  for (let i = 0; i < n; i++) {
+    await w.pass()
+    await due(w.projectId)
+  }
+}
+
+describe('a create needs coherent evidence of its own launch run (repair 11, NATIVE10-F01)', () => {
+  const PHANTOM = 'phantom/own-run:\u{10400}'
+  const cases: [string, (t: string) => PageBody][] = [
+    [
+      'complete 0',
+      (t) => ({
+        thread: { threadId: t, activeRunId: null, runCount: 0 },
+        recentRuns: [],
+        items: [{ position: 0, messageId: t, runId: PHANTOM }],
+        hasMore: false,
+        nextPosition: null,
+      }),
+    ],
+    [
+      'complete, another run listed',
+      (t) => ({
+        thread: { threadId: t, activeRunId: null, runCount: 1 },
+        recentRuns: [{ runId: 'run-other', status: 'completed' }],
+        items: [{ position: 0, messageId: t, runId: PHANTOM }],
+        hasMore: false,
+        nextPosition: null,
+      }),
+    ],
+  ]
+  for (const [what, make] of cases) {
+    it(`${what}: no running binding or follow-up until the held launch lands and a coherent read shows its run`, async () => {
+      const t3 = new FakeT3()
+      const paged = new PagedT3(t3)
+      const w = await world({ t3, transport: paged })
+      paged.holdTool = 't3_thread_launch'
+      const created = await w.create()
+      await passes(w, 2)
+      paged.page = (t) => make(t)
+      await passes(w, 3)
+      const o = await op(created.operationId)
+      const followup = await codeOf(w.input(created.operationId))
+      assert.deepEqual(
+        {
+          create: o.state,
+          answers: journalAnswers(w.journalFile, created.operationId),
+          binding: (await binding(o.binding_id)).state,
+          followupAdmitted: followup === 'resolved',
+          reservations: (await reservations(w.accountKey)).length,
+          launches: t3.effects.launches,
+        },
+        { create: 'unknown', answers: 0, binding: 'launching', followupAdmitted: false, reservations: 1, launches: 0 },
+        `a complete summary without the launch run proves nothing (follow-up: ${followup})`,
+      )
+      // The SAME held launch lands now, once; coherent reads (nothing forged) converge it.
+      paged.page = null
+      await paged.release()
+      await passes(w, 2)
+      const landed = await op(created.operationId)
+      assert.deepEqual(
+        [landed.state, landed.native_delivery, (await binding(landed.binding_id)).state],
+        ['received', 'started', 'running'],
+      )
+      assert.equal(landed.native_run_id, [...t3.threads.values()][0]?.runs[0]?.runId)
+      assert.equal(await codeOf(w.input(created.operationId)), 'resolved')
+      assert.deepEqual([journalAnswers(w.journalFile, created.operationId), t3.effects.launches], [1, 1])
+    })
+  }
+})
+
+describe('an operation is never settled while the same read names its run active (repair 11, NATIVE10-F02)', () => {
+  for (const status of ['completed', 'interrupted', 'failed', 'cancelled', 'rolled_back', 'queued', 'held_by_vendor']) {
+    it(`a run named active but listed ${status}: the create stays unsettled, its account reserved, until a genuine end`, async () => {
+      const accountKey = `claude:${randomUUID()}`
+      const who = randomUUID()
+      const t3 = new FakeT3()
+      const paged = new PagedT3(t3)
+      const w = await world({ accountKey, t3, who, transport: paged })
+      const second = await world({ accountKey, t3, who })
+      second.gateway.close()
+      const created = await w.create()
+      await passes(w, 1)
+      const o = await op(created.operationId)
+      const run = o.native_run_id ?? ''
+      assert.equal(o.state, 'received')
+      paged.page = (_t, _cursor, real) =>
+        real ? { ...real, thread: { ...real.thread, activeRunId: run }, recentRuns: [{ runId: run, status }] } : null
+      const other = await second.create()
+      await passes(w, 3)
+      assert.deepEqual(
+        {
+          create: (await op(created.operationId)).state,
+          reservations: await reservations(accountKey),
+          otherProject: (await op(other.operationId)).state,
+          launches: t3.effects.launches,
+          stops: t3.count('t3_thread_interrupt'),
+        },
+        {
+          create: 'received',
+          reservations: [{ binding_id: o.binding_id }],
+          otherProject: 'admitted',
+          launches: 1,
+          stops: 0,
+        },
+        'a contradictory read settles nothing and frees no account',
+      )
+      paged.page = null
+      t3.finishRun(run)
+      await passes(w, 2)
+      assert.equal((await op(created.operationId)).state, 'settled', 'a genuine terminal read settles it normally')
+    })
+  }
+})
+
+describe('an input is judged over every page read, under a Stop (repair 11, NATIVE10-F03)', () => {
+  const cases: [string, string | null][] = [
+    ['a later page names another run', 'run-x'],
+    ['a later page names no run', null],
+  ]
+  for (const [what, later] of cases) {
+    it(`${what}: the barrier holds until the held request lands and runs end; nothing is sent again`, async () => {
+      const t3 = new FakeT3()
+      const paged = new PagedT3(t3)
+      const w = await world({ t3, transport: paged })
+      const created = await w.create()
+      await w.pass()
+      paged.holdTool = 't3_thread_send'
+      const lost = await w.input(created.operationId)
+      await w.pass({ minAge: 3600 })
+      const stopped = await w.stop(created.operationId)
+      await w.pass({ minAge: 3600 })
+      // The first page names the held message with the running launch run and says more pages follow; a later page
+      // names it with `later`.
+      paged.page = (_t, cursor, real) => {
+        if (!real) return null
+        const m = paged.heldMessage
+        if (cursor === undefined)
+          return {
+            ...real,
+            items: [...real.items, { position: 1, messageId: m, runId: 'run-1' }],
+            hasMore: true,
+            nextPosition: 1,
+          }
+        return { ...real, items: [{ position: 2, messageId: m, runId: later }], hasMore: false, nextPosition: null }
+      }
+      await w.pass()
+      await w.pass()
+      // Genuine reads from here on; the acknowledged Stop does not end the running launch run in the fake: end it.
+      paged.page = null
+      w.finishAll()
+      await passes(w, 4)
+      const s = await op(stopped.operationId)
+      assert.deepEqual(
+        {
+          input: (await op(lost.operationId)).state,
+          inputAnswers: journalAnswers(w.journalFile, lost.operationId),
+          stop: s.state,
+          binding: (await binding(s.binding_id)).state,
+          reservations: (await reservations(w.accountKey)).length,
+          messages: t3.effects.messages,
+          sends: t3.count('t3_thread_send'),
+          interrupts: t3.count('t3_thread_interrupt'),
+        },
+        {
+          input: 'unknown',
+          inputAnswers: 0,
+          stop: 'received',
+          binding: 'stopping',
+          reservations: 1,
+          messages: 0,
+          sends: 0,
+          interrupts: 1,
+        },
+        'pages that disagree prove nothing: the barrier holds, the commitment stays, nothing is sent',
+      )
+      await paged.release()
+      await passes(w, 2)
+      assert.deepEqual(
+        [(await op(lost.operationId)).state, (await op(lost.operationId)).native_delivery],
+        ['received', 'started'],
+      )
+      w.finishAll()
+      await passes(w, 4)
+      assert.equal((await op(stopped.operationId)).state, 'settled')
+      assert.equal((await binding(s.binding_id)).state, 'settled')
+      assert.deepEqual(await reservations(w.accountKey), [])
+      assert.equal(journalAnswers(w.journalFile, lost.operationId), 1, 'converged once')
+      assert.deepEqual([t3.effects.messages, t3.count('t3_thread_send'), t3.count('t3_thread_interrupt')], [1, 1, 1])
+    })
+  }
+})

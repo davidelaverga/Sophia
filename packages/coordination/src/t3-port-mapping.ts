@@ -56,6 +56,8 @@ export const T3_RUN_LIMIT = 50
 /** Statuses of a run that has ended (OrchestrationV2RunStatus at the pin). */
 const TERMINAL = new Set(['completed', 'interrupted', 'failed', 'cancelled', 'rolled_back'])
 const ACTIVE = new Set(['preparing', 'queued', 'starting', 'running', 'waiting'])
+/** T3's isActiveRun at the pin (ThreadManagementService 506-513): exactly these; `queued` and terminal are not active. */
+const PROVIDER_ACTIVE = new Set(['preparing', 'starting', 'running', 'waiting'])
 export const isTerminalRun = (status: string): boolean => TERMINAL.has(status)
 
 /**
@@ -373,7 +375,24 @@ function summaryError(
   if (runs.size > detail.runCount) return 'the read lists more runs than it counts'
   if (runs.size === detail.runCount && detail.activeRunId !== null && !runs.has(detail.activeRunId))
     return 'the read lists every run but not its active run'
-  return null
+  return activeStatusError(runs, detail.activeRunId)
+}
+
+/**
+ * Repair 11 (NATIVE10-F02 and its pinned sibling): T3 names as active the latest run whose status is one of
+ * PROVIDER_ACTIVE, from the same runs it lists. So a listed active run must have such a status, and with no active run
+ * no listed run may have one; either contradiction makes the page no evidence, complete or truncated.
+ */
+function activeStatusError(runs: Map<string, string>, activeRunId: string | null): string | null {
+  if (activeRunId === null) {
+    return [...runs.values()].some((status) => PROVIDER_ACTIVE.has(status))
+      ? 'the read names no active run but lists one'
+      : null
+  }
+  const status = runs.get(activeRunId)
+  return status === undefined || PROVIDER_ACTIVE.has(status)
+    ? null
+    : 'the read names an active run it lists as not active'
 }
 
 /** The decoded read of exactly `threadId`, or why it is not evidence. */

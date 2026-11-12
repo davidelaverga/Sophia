@@ -61,6 +61,7 @@ import {
   decodeThreadRead,
   deriveIdentity,
   readCall,
+  runsComplete,
   runState,
   stopSettled,
   type T3Reply,
@@ -352,14 +353,8 @@ export class RunnerGateway implements SophiaRunnerPort {
     if (found.runId === null) {
       return { kind: 'unknown', identity, reason: 'its message is in the read with no run; no accepted run is proven' }
     }
-    const delivery = envelope.kind === 'input' ? inputDelivery(found.read, found.runId) : 'started'
-    if (delivery === null) {
-      return {
-        kind: 'unknown',
-        identity,
-        reason: 'its message is in the read, but no read shows its run queued or started; this is not proof of either',
-      }
-    }
+    const delivery = deliveryOf(envelope.kind, found.read, found.runId)
+    if (typeof delivery === 'object') return { kind: 'unknown', identity, reason: delivery.reason }
     const answer = admitted(envelope.kind, { kind: 'received', identity, runId: found.runId, delivery })
     if (answer.kind === 'received') this.journal.append('answer', envelope.operationId, { answer })
     return answer
@@ -398,20 +393,57 @@ export class RunnerGateway implements SophiaRunnerPort {
     return decodeThreadRead(reply.body, threadId)
   }
 
-  /** Bounded pages of one exact thread, looking for one exact message id. */
+  /** Bounded pages of one exact thread: the last page read, or (with a message id) a complete scan for it. */
   private async readThread(threadId: string, messageId: string | null): Promise<Read> {
+    return messageId === null ? this.readLast(threadId) : this.scanFor(threadId, messageId)
+  }
+
+  /** Stop and observe need only the summary: up to the bound, the last page read. */
+  private async readLast(threadId: string): Promise<Read> {
     let after: number | undefined
     let last: ThreadRead | null = null
     for (let pages = 1; pages <= this.maxReadPages; pages++) {
       const page = await this.readPage(threadId, after)
       if ('error' in page) return { kind: 'error', reason: page.error }
       last = page
-      if (messageId !== null && page.messages.has(messageId)) {
-        return { kind: 'read', read: page, found: true, runId: page.messages.get(messageId) ?? null, pages }
-      }
       if (page.nextPosition === null) return { kind: 'read', read: page, found: false, runId: null, pages }
       after = page.nextPosition
     }
+    return last
+      ? { kind: 'read', read: last, found: false, runId: null, pages: this.maxReadPages }
+      : { kind: 'error', reason: 'nothing was read' }
+  }
+
+  /**
+   * Repair 11 (NATIVE10-F03): every page up to the bound is read, and the message's associations on all of them must
+   * agree (each page is its own snapshot, so a change is uncertainty, not proof). The scan must complete: more pages at
+   * the bound, or a cursor that does not advance past the last one, leaves it unproven even if the message was seen.
+   * The result carries the last page read, the freshest summary.
+   */
+  private async scanFor(threadId: string, messageId: string): Promise<Read> {
+    let after: number | undefined
+    let last: ThreadRead | null = null
+    const seen: (string | null)[] = []
+    for (let pages = 1; pages <= this.maxReadPages; pages++) {
+      const page = await this.readPage(threadId, after)
+      if ('error' in page) return { kind: 'error', reason: page.error }
+      last = page
+      if (page.messages.has(messageId)) seen.push(page.messages.get(messageId) ?? null)
+      if (seen.some((runId) => runId !== seen[0])) {
+        return {
+          kind: 'error',
+          reason: 'its message is named with different runs on different pages; nothing is proved',
+        }
+      }
+      const found = seen.length > 0
+      if (page.nextPosition === null) return { kind: 'read', read: page, found, runId: seen[0] ?? null, pages }
+      if (after !== undefined && page.nextPosition <= after) {
+        return { kind: 'error', reason: 'the read does not progress past a page; the scan is incomplete' }
+      }
+      after = page.nextPosition
+    }
+    if (seen.length > 0)
+      return { kind: 'error', reason: `more pages remain after ${this.maxReadPages}; the scan is incomplete` }
     return last
       ? { kind: 'read', read: last, found: false, runId: null, pages: this.maxReadPages }
       : { kind: 'error', reason: 'nothing was read' }
@@ -442,6 +474,30 @@ function inputDelivery(read: ThreadRead, runId: string): 'queued' | 'started' | 
   if (status === 'queued') return active ? null : 'queued'
   if (status !== undefined) return STARTED.has(status) ? 'started' : null
   return active ? 'started' : null
+}
+
+/**
+ * The delivery a found run proves for a create or input, or why it proves none. An input needs positive evidence
+ * (repair 8). Repair 11 (NATIVE10-F01): a create's launch run must be in a summary that claims every run of the thread;
+ * a truncated window may omit it (it is the oldest run), but a complete one that omits it proves nothing, malformed or
+ * simply not atomic with the timeline.
+ */
+function deliveryOf(
+  kind: RunnerOperationKind,
+  read: ThreadRead,
+  runId: string,
+): 'queued' | 'started' | { reason: string } {
+  if (kind === 'input') {
+    return (
+      inputDelivery(read, runId) ?? {
+        reason: 'its message is in the read, but no read shows its run queued or started; this is not proof of either',
+      }
+    )
+  }
+  if (runsComplete(read) && !read.runs.has(runId)) {
+    return { reason: 'its launch run is not in a run summary that lists every run; nothing is proved' }
+  }
+  return 'started'
 }
 
 /** What a decoded read proves about one operation: a stop's settlement, or its own run's state. */

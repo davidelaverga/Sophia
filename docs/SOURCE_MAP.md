@@ -383,6 +383,31 @@ nothing is copied, installed, called or qualified.
 - **Recorded on a blocked parent.** These facts were recorded on development parent `33c020af` (INC01-CC-005,
   final-gate blocked on two P1 authority races). They are source facts, not acceptance.
 
+### Pagination sources (INC01-CC-005 repair 11)
+
+The same T3 Code pin, [`pingdotgg/t3code`](https://github.com/pingdotgg/t3code) at
+`ade473018d32003658b7d38693e083ee2e314bd8` (MIT). It was read outside this tree, from the read-only reference
+`NATIVE11_PINNED_READONLY_REFERENCE` (archive SHA-256 `886369f4746fcb5a27c3334fc6598cb22d4a07d7bb1b3222a1d0992565036127`),
+whose `PIN.json` records the full-file and excerpt provenance.
+
+**What was read.** Only the bounded excerpts below were supplied and consulted. Each full-file SHA-256 identifies the
+original file at the pin; it does not mean the whole file was read. Nothing is copied, installed, run or qualified.
+
+**Sophia file grounded here:** `packages/coordination/src/runner-gateway.ts`, the bounded targeted scan (its cursor and
+its last-page summary).
+
+| File at the pin | Lines read | Full-file SHA-256 | Excerpt SHA-256 | What Sophia relies on |
+|---|---|---|---|---|
+| [`apps/server/src/orchestration-v2/ProjectionStore.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/orchestration-v2/ProjectionStore.ts) | 5977–6082 | `a5295e7d9f0aa9db402d4992e852eb4f75fde1c44a048eb3ca90c142d2af07dd` | `0f056839ed58946386d3611b58e0b7dcd91dab54fa3e1127d0b290a24cea5477` | `getTimelinePage` gives each visible row its position before the view filter, then keeps rows with `position > afterPosition` and cuts to `limit`. Positions may therefore have gaps, and a valid cursor strictly increases. `hasMore` compares the matching rows with the page. Each page is one SQL transaction, which gives no atomicity across pages |
+| [`apps/server/src/orchestration-v2/Orchestrator.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/orchestration-v2/Orchestrator.ts) | 14437–14443 | `fd0644826587f652d05fae07961f1674b6ccc39bfc75000fa79359e693a64efd` | `c35741f4dda7be83be7bf0e6b50de09a7b8115405df73a1c8ccb574f8f6d3764` | `getTimelinePage` forwards to the projection store's and maps its errors |
+
+**Limits.** These are source facts only:
+- no upstream execution;
+- no authenticated tool, account, profile or native qualification;
+- no atomic snapshot across pages, or between a thread's runs and its timeline.
+
+This registration grants no authority and changes no protocol.
+
 ## 3. Facts learned at the pin (not in the pack)
 
 These are observed behaviors of the pinned release, recorded so later goals

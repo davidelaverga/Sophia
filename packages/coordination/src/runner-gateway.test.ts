@@ -1663,3 +1663,291 @@ describe('an input is never received on a read inconsistent with itself (repair 
     g.close()
   })
 })
+
+type PageBody = ReadBody & { hasMore: boolean; nextPosition: number | null }
+/**
+ * Repair 11 (NATIVE10-F01/F02/F03): holds the next request of `holdTool` in transit (it lands only on release, exactly
+ * once, never rebuilt), and while `page` is set answers each read with what it returns for the read's thread, cursor and
+ * the actual FakeT3 reply (null keeps the fake's reply). The fake's own runs, messages and effects are untouched.
+ */
+class PagedT3 implements T3Transport {
+  holdTool: 't3_thread_launch' | 't3_thread_send' | null = null
+  page: ((threadId: string, cursor: number | undefined, real: PageBody | null) => PageBody | null) | null = null
+  private readonly held: T3Call[] = []
+  readonly fake: FakeT3
+  constructor(fake: FakeT3) {
+    this.fake = fake
+  }
+  namespace(): string {
+    return this.fake.namespace()
+  }
+  async call(call: T3Call): Promise<T3Reply> {
+    if (call.tool === this.holdTool) {
+      this.holdTool = null
+      this.held.push(call)
+      return { kind: 'transport_error', reason: 'fake: the request is still in transit' }
+    }
+    const reply = await this.fake.call(call)
+    if (call.tool !== 't3_thread_read' || !this.page) return reply
+    const cursor = typeof call.args.afterPosition === 'number' ? call.args.afterPosition : undefined
+    const real = reply.kind === 'ok' ? (reply.body as PageBody) : null
+    const body = this.page(String(call.args.threadId), cursor, real)
+    return body ? { kind: 'ok', body } : reply
+  }
+  /** Deliver every held request now, exactly once. */
+  async release(): Promise<void> {
+    for (const call of this.held.splice(0)) await this.fake.call(call)
+  }
+}
+
+/** A one-page read of `threadId` built from scratch: no active run unless given, the runs listed, these rows. */
+const pageOf = (
+  threadId: string,
+  o: { runs?: { runId: string; status: string }[]; active?: string | null; runCount?: number; items?: unknown[] },
+): PageBody => ({
+  thread: { threadId, activeRunId: o.active ?? null, runCount: o.runCount ?? o.runs?.length ?? 0 },
+  recentRuns: o.runs ?? [],
+  items: o.items ?? [],
+  hasMore: false,
+  nextPosition: null,
+})
+const PHANTOM = 'phantom/own-run:\u{10400}'
+/** A gateway over a PagedT3 on a fresh journal, and a reopen of it. */
+function paged(fake = new FakeT3(), maxReadPages?: number) {
+  const t3 = new PagedT3(fake)
+  const file = journalFile()
+  const open = () =>
+    new RunnerGateway({
+      journal: new RunnerJournal(file),
+      transport: t3,
+      profile,
+      ...(maxReadPages ? { maxReadPages } : {}),
+    })
+  return { fake, t3, file, open }
+}
+const idOf = (g: RunnerGateway, e: RunnerEnvelope) => ({ envelope: e, digest: digestOf(e), journalId: g.journalId })
+const answerShape = (a: RunnerAnswer, own: string) =>
+  a.kind === 'received' ? `received ${a.delivery} ${a.runId === own ? 'its own run' : a.runId}` : a.kind
+
+describe('a create is received only on coherent evidence of its own launch run (repair 11, NATIVE10-F01)', () => {
+  it('keeps a held launch unknown on a complete summary without its run, across a reopen; it converges once when it lands', async () => {
+    const cases: [string, (t: string) => PageBody][] = [
+      ['complete 0', (t) => pageOf(t, { items: [{ position: 0, messageId: t, runId: PHANTOM }] })],
+      [
+        'complete, another run listed',
+        (t) =>
+          pageOf(t, {
+            runs: [{ runId: 'run-other', status: 'completed' }],
+            items: [{ position: 0, messageId: t, runId: PHANTOM }],
+          }),
+      ],
+    ]
+    const seen: unknown[] = []
+    for (const [i, [what, make]] of cases.entries()) {
+      const { fake, t3, file, open } = paged()
+      const g = open()
+      t3.holdTool = 't3_thread_launch'
+      const c = create(9000 + 10 * i)
+      assert.equal((await g.send(c, digestOf(c), g.journalId)).kind, 'unknown')
+      t3.page = (thread) => make(thread)
+      const first = await g.reconcile(idOf(g, c))
+      g.close()
+      const again = open()
+      const replay = await again.reconcile(idOf(again, c))
+      const phantom = [first.kind, replay.kind, finals(file, c.operationId), fake.effects.launches]
+      t3.page = null
+      await t3.release()
+      const late = await again.reconcile(idOf(again, c))
+      const own = [...fake.threads.values()][0]?.runs[0]?.runId ?? ''
+      seen.push([what, ...phantom, answerShape(late, own), finals(file, c.operationId), fake.effects.launches])
+      again.close()
+    }
+    assert.deepEqual(
+      seen,
+      cases.map(([what]) => [what, 'unknown', 'unknown', 0, 0, 'received started its own run', 1, 1]),
+    )
+  })
+
+  it('receives a launch whose run is listed, or omitted from a truncated window, beside inherited rows; a null run stays unknown', async () => {
+    const window = Array.from({ length: 50 }, (_, i) => ({ runId: `run-later-${i}`, status: 'completed' }))
+    const controls: [string, (t: string, real: PageBody) => PageBody | null][] = [
+      ['complete, listed active', () => null],
+      ['complete, listed historical terminal', () => null],
+      [
+        'truncated 50 of 51, own run not in the window',
+        (_t, real) => ({ ...real, thread: { ...real.thread, activeRunId: null, runCount: 51 }, recentRuns: window }),
+      ],
+      [
+        'an inherited row naming an ancestor run',
+        (_t, real) => ({
+          ...real,
+          items: [...real.items, { position: 7, messageId: 'ancestor-msg', runId: 'ancestor/run' }],
+        }),
+      ],
+      ['an explicit null own run', (t, real) => ({ ...real, items: [{ position: 0, messageId: t, runId: null }] })],
+    ]
+    const seen: unknown[] = []
+    for (const [i, [what, make]] of controls.entries()) {
+      const { fake, t3, file, open } = paged()
+      const g = open()
+      fake.inject('t3_thread_launch', { kind: 'lose_after_effect' })
+      const c = create(9100 + 10 * i)
+      await g.send(c, digestOf(c), g.journalId)
+      const own = [...fake.threads.values()][0]?.runs[0]?.runId ?? ''
+      if (what.includes('terminal')) fake.finishRun(own)
+      t3.page = (t, _after, real) => (real ? make(t, real) : null)
+      const r = await g.reconcile(idOf(g, c))
+      seen.push([what, answerShape(r, own), finals(file, c.operationId), fake.effects.launches])
+      g.close()
+    }
+    assert.deepEqual(seen, [
+      ['complete, listed active', 'received started its own run', 1, 1],
+      ['complete, listed historical terminal', 'received started its own run', 1, 1],
+      ['truncated 50 of 51, own run not in the window', 'received started its own run', 1, 1],
+      ['an inherited row naming an ancestor run', 'received started its own run', 1, 1],
+      ['an explicit null own run', 'unknown', 0, 1],
+    ])
+  })
+})
+
+describe('a run is observed ended only when the read agrees it is not active (repair 11, NATIVE10-F02)', () => {
+  it('never observes the run as ended while the same read names it active; a genuine terminal read does', async () => {
+    const statuses = ['completed', 'interrupted', 'failed', 'cancelled', 'rolled_back', 'queued', 'held_by_vendor']
+    const seen: unknown[] = []
+    for (const [i, status] of statuses.entries()) {
+      const { fake, t3, open } = paged()
+      const g = open()
+      const c = create(9200 + 10 * i)
+      const created = await g.send(c, digestOf(c), g.journalId)
+      const run = runOf(created)
+      t3.page = (_t, _after, real) =>
+        real ? { ...real, thread: { ...real.thread, activeRunId: run }, recentRuns: [{ runId: run, status }] } : null
+      const contradictory = await g.observe(idOf(g, c))
+      t3.page = null
+      fake.finishRun(run)
+      const genuine = await g.observe(idOf(g, c))
+      seen.push([status, contradictory.kind, genuine.kind === 'run' && genuine.terminal])
+      g.close()
+    }
+    assert.deepEqual(
+      seen,
+      statuses.map((s) => [s, 'unknown', true]),
+    )
+  })
+})
+
+describe("an input's message is judged over every page read (repair 11, NATIVE10-F03)", () => {
+  /** A received launch, then an input whose answer was lost after T3 queued it: its message is the thread's second row. */
+  async function lostInput(base: number, maxReadPages?: number) {
+    const w = paged(new FakeT3(), maxReadPages)
+    const g = w.open()
+    const thread = threadOf(await g.send(create(base), digestOf(create(base)), g.journalId))
+    w.fake.inject('t3_thread_send', { kind: 'lose_after_effect' })
+    const e = follow(base + 1, base, thread)
+    assert.equal((await g.send(e, digestOf(e), g.journalId)).kind, 'unknown')
+    const message = w.fake.threads.get(thread)?.messages.at(-1)
+    const run = message?.runId ?? ''
+    w.fake.pageSize = 1
+    return { ...w, g, e, m: message?.messageId ?? '', run }
+  }
+  /** The fake's own page with the target row named `first` on the first page and `later` on every later page. */
+  const naming =
+    (m: string, first: string | null | undefined, later: string | null | undefined) =>
+    (_t: string, cursor: number | undefined, real: PageBody | null) => {
+      if (!real) return null
+      const other = real.items.filter((r) => (r as { messageId?: string }).messageId !== m)
+      const value = cursor === undefined ? first : later
+      return { ...real, items: value === undefined ? other : [...other, { position: 50, messageId: m, runId: value }] }
+    }
+
+  it('keeps the input unknown when pages disagree about its run, in either order, across a reopen; it converges once', async () => {
+    const cases: [string, (m: string, run: string) => ReturnType<typeof naming>][] = [
+      ['its run first, another run later', (m, run) => naming(m, run, 'run-x')],
+      ['its run first, no run later', (m, run) => naming(m, run, null)],
+      ['another run first, its run later', (m, run) => naming(m, 'run-x', run)],
+      ['no run first, its run later', (m, run) => naming(m, null, run)],
+    ]
+    const seen: unknown[] = []
+    for (const [i, [what, make]] of cases.entries()) {
+      const w = await lostInput(9300 + 10 * i)
+      w.t3.page = make(w.m, w.run)
+      const first = await w.g.reconcile(idOf(w.g, w.e))
+      w.g.close()
+      const again = w.open()
+      const replay = await again.reconcile(idOf(again, w.e))
+      const conflict = [first.kind, replay.kind, finals(w.file, w.e.operationId)]
+      w.t3.page = null
+      w.fake.pageSize = 100
+      const late = await again.reconcile(idOf(again, w.e))
+      seen.push([
+        what,
+        ...conflict,
+        answerShape(late, w.run),
+        finals(w.file, w.e.operationId),
+        w.fake.count('t3_thread_send'),
+      ])
+      again.close()
+    }
+    assert.deepEqual(
+      seen,
+      cases.map(([what]) => [what, 'unknown', 'unknown', 0, 'received queued its own run', 1, 1]),
+    )
+  })
+
+  it('keeps an incomplete scan unknown: more pages at the bound, or a cursor that does not advance', async () => {
+    const bounded = await lostInput(9400, 1)
+    bounded.t3.page = naming(bounded.m, bounded.run, undefined)
+    const atBound = await bounded.g.reconcile(idOf(bounded.g, bounded.e))
+    const cycling = await lostInput(9410)
+    let reads = 0
+    // Page 2 claims more rows but does not move the cursor; page 3, read at the same cursor, then completes the scan.
+    cycling.t3.page = (t, cursor, real) => {
+      reads += 1
+      const base = naming(cycling.m, cycling.run, undefined)(t, cursor, real)
+      if (!base || cursor === undefined) return base
+      return reads === 2
+        ? { ...base, hasMore: true, nextPosition: cursor }
+        : { ...base, hasMore: false, nextPosition: null }
+    }
+    const stuck = await cycling.g.reconcile(idOf(cycling.g, cycling.e))
+    assert.deepEqual(
+      [
+        atBound.kind,
+        finals(bounded.file, bounded.e.operationId),
+        stuck.kind,
+        finals(cycling.file, cycling.e.operationId),
+      ],
+      ['unknown', 0, 'unknown', 0],
+    )
+    bounded.g.close()
+    cycling.g.close()
+  })
+
+  it('receives a coherent scan: the same association on several pages, the message only on a later page, other rows (controls)', async () => {
+    const controls: [string, (m: string, run: string) => ReturnType<typeof naming> | null][] = [
+      ['the same run on every page', (m, run) => naming(m, run, run)],
+      ['only on a later page', () => null],
+      [
+        'distinct and inherited rows on every page',
+        (m, run) => (t, cursor, real) => {
+          const base = naming(m, cursor === undefined ? undefined : run, run)(t, cursor, real)
+          return (
+            base && { ...base, items: [...base.items, { position: 60, messageId: 'other', runId: 'ancestor/run' }] }
+          )
+        },
+      ],
+    ]
+    const seen: unknown[] = []
+    for (const [i, [what, make]] of controls.entries()) {
+      const w = await lostInput(9500 + 10 * i)
+      w.t3.page = make(w.m, w.run)
+      const r = await w.g.reconcile(idOf(w.g, w.e))
+      seen.push([what, answerShape(r, w.run), finals(w.file, w.e.operationId), w.fake.count('t3_thread_send')])
+      w.g.close()
+    }
+    assert.deepEqual(
+      seen,
+      controls.map(([what]) => [what, 'received queued its own run', 1, 1]),
+    )
+  })
+})

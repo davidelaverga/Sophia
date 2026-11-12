@@ -467,3 +467,65 @@ describe('a read is evidence only when it is consistent with itself (repair 10, 
     )
   })
 })
+
+/** Repair 11: whether a body decodes at all. */
+const verdict = (r: ReturnType<typeof decoded>) => (r === 'no evidence' ? r : 'decoded')
+
+describe('the active run id agrees with the listed statuses (repair 11, NATIVE10-F02 and its pinned sibling)', () => {
+  const ACTIVE = ['preparing', 'starting', 'running', 'waiting']
+  const NOT_ACTIVE = ['completed', 'interrupted', 'failed', 'cancelled', 'rolled_back', 'queued', 'held_by_vendor']
+  /** A read naming run-a with `status`, complete (runCount 1) or truncated (runCount 60), with the given active id. */
+  const one = (status: string, active: string | null, complete: boolean) =>
+    decoded(readOf([{ runId: 'run-a', status }], active, complete ? {} : { runCount: 60 }))
+
+  it('decodes no page naming an active run that is listed with a terminal, queued or unknown status (F02)', () => {
+    const seen = NOT_ACTIVE.flatMap((status) =>
+      [true, false].map((complete) => [status, complete, verdict(one(status, 'run-a', complete))]),
+    )
+    assert.deepEqual(
+      seen,
+      seen.map(([status, complete]) => [status, complete, 'no evidence']),
+    )
+  })
+
+  it('decodes no page with no active run while a listed run has an active status (pinned sibling)', () => {
+    const seen = ACTIVE.flatMap((status) =>
+      [true, false].map((complete) => [status, complete, verdict(one(status, null, complete))]),
+    )
+    assert.deepEqual(
+      seen,
+      seen.map(([status, complete]) => [status, complete, 'no evidence']),
+    )
+  })
+
+  it('keeps every coherent summary (controls)', () => {
+    const seen = [
+      ...ACTIVE.flatMap((status) =>
+        [true, false].map((c) => [`active ${status}`, c, verdict(one(status, 'run-a', c))]),
+      ),
+      ...NOT_ACTIVE.flatMap((status) => [true, false].map((c) => [`idle ${status}`, c, verdict(one(status, null, c))])),
+      ['truncated, active run not listed', false, verdict(one('completed', 'run-old', false))],
+    ]
+    assert.deepEqual(
+      seen,
+      seen.map(([what, complete]) => [what, complete, 'decoded']),
+    )
+  })
+
+  it('still rejects a repeated run id, identical or conflicting (unchanged)', () => {
+    const twice = (second: string) =>
+      verdict(
+        decoded(
+          readOf(
+            [
+              { runId: 'run-a', status: 'completed' },
+              { runId: 'run-a', status: second },
+            ],
+            null,
+            { runCount: 2 },
+          ),
+        ),
+      )
+    assert.deepEqual([twice('completed'), twice('running')], ['no evidence', 'no evidence'])
+  })
+})

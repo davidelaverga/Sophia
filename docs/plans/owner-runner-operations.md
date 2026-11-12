@@ -771,3 +771,111 @@ was run.
 - the complete-list active check removed.
 
 **Then:** focused crossings and one ordinary `pnpm check` on the committed head.
+
+## Repair 11: coherent native recovery and bounded pagination (INC01-CC-005-repair10-SOURCE-FINAL-001, NATIVE10-F01, F02 and F03)
+
+Written before any code. One signed sole child of the published `1d87bf3f` (tree `0aef3e1e`). Exactly seven writable
+paths:
+- `t3-port-mapping.ts` and its test;
+- `runner-gateway.ts` and its test;
+- the worker DB test;
+- this plan and the CC-005 handoff.
+
+SQL, contracts, the generated outputs, the worker production code, FakeT3, the transport and the journal stay
+byte-exact. The pinned reference (`ade47301`, archive `886369f4…`) was read outside the product tree and never run: four
+full files, plus exact excerpts of `ProjectionStore.getTimelinePage` (lines 5977-6082) and `Orchestrator` (lines
+14437-14443).
+
+### The pin's facts, and their limits
+
+- **Runs.** `runCount`, `activeRunId` and `recentRuns` come from one own-thread run array (`threadDetail` 835-865,
+  returned list 3127). `recentRuns` is newest first, cut to `runLimit`.
+  - The active id is the newest run whose status is in `isActiveRun`: exactly `preparing`, `starting`, `running` or
+    `waiting` (`ThreadManagementService` 506-551). `queued` and terminal statuses are not active.
+- **Runs and the timeline are separate reads.** `loadReadableThread` (1263-1291) fetches the runs, then
+  `getTimelinePage` fetches one page in its own transaction. So a timeline may be newer than its run summary, and
+  nothing is atomic across page calls.
+- **Pages.**
+  - Positions are indexes assigned before the view filter, so they can have gaps.
+  - A page keeps rows with `position > afterPosition`, a strict comparison; `nextPosition` is the page's last
+    position; `hasMore` means rows remain.
+  - Rows carry `sourceThreadId`, so inherited rows may name ancestor runs outside this thread's runs. Message ids need
+    not be unique.
+- **Launch.** The thread id, the launch message id and the command id are one id (`handlers.ts` 100-102). The launch
+  run is the run whose `userMessageId` is that message (277-284).
+
+### Each consumer: the rule after this repair
+
+| Consumer | Fact used | Rule (anything else is unknown, with nothing final journaled) |
+|---|---|---|
+| Decoder (every read) | Run summary | **New (F02):** a listed `activeRunId` must have one of the four active statuses, in a complete or truncated window; a terminal, `queued` or unknown status is no evidence. **New (sibling):** a null `activeRunId` while a listed run has one of those four statuses is no evidence; listed `queued`, terminal or unknown statuses with a null active id stay valid. **Kept:** duplicate run ids rejected; blank ids; overcount; a complete list without its active run; one association per message per page. A truncated window may still omit the active run |
+| Create reconcile | Exact launch message, its run R, last validated summary | **New (F01):** if the summary is complete (`runs.size === runCount`) and R is not listed, the result is unknown: the read cannot prove the launch run, whether it is malformed or simply not atomic. **Kept:** a listed R (active or historical terminal) and an R missing from a truncated window are `received started`; an explicit null run is unknown; inherited or other rows naming runs outside the list are not judged |
+| Input reconcile (`inputDelivery`) | The input's run R, last validated summary | Unchanged: positive `queued` or started evidence only. With the new decoder rules, the active fallback applies only in a truncated window to an active id with a consistent status; a complete-absent R is unknown |
+| Stop reconcile (`stopSettled`) | Summary only | Unchanged (null active id, complete list, every run terminal). The sibling rule removes a contradictory idle summary |
+| Observe (`runState`) | The operation's run R in the last page's summary | Unchanged rule. The F02 decoder rule stops a page that calls R active while listing it terminal from settling the operation or freeing its reservation |
+| `readThread` with a target message (create, input) | Every page up to the existing bound (5 pages × 100 items, unchanged) | **New (F03):** keep reading until the timeline says there is no more. The target's associations are combined over every page; disagreement across pages (a run against another run, or a run against no run, in either order) is unknown. Associations may change between pages, so this is uncertainty, not a provider breach. **Incomplete scans are unknown,** even if the target was already seen: `hasMore` at the 5-page bound, or a cursor that does not advance (`nextPosition` not greater than the previous cursor). That is the conservative limit "incomplete after five pages". The result uses the last validated page's summary; statuses are not frozen across pages |
+| `readThread` with no target (Stop, observe) | Summary only | Unchanged; it reads at most 5 pages and uses the last one |
+
+**What every rejection preserves:**
+- the original operation, thread, message and run identities, and the possible send in the journal;
+- the SQL input barrier, the binding state and the account reservation;
+- no resend, new key or namespace, and no `not_sent` or `refused` answer;
+- a later coherent read converges the operation exactly once.
+
+**Not touched:** journals already holding false answers are not rewritten. Live admission stays off and unqualified,
+and all evidence here comes from synthetic test principals.
+
+### Proof plan
+
+**Mapping:**
+- an active id listed with each of the five terminal statuses, `queued` and an unknown status, in complete and
+  truncated windows: no evidence;
+- a null active id with each of the four active statuses listed (complete and truncated): no evidence;
+- controls:
+  - the four active statuses, complete and truncated;
+  - an absent active id in a truncated window;
+  - a null active id with terminal, `queued` or unknown listed;
+  - duplicate run ids, identical or conflicting, rejected as before.
+
+**Gateway:** actual `FakeT3`, a transport that holds the launch or input request in transit and rewrites reads,
+`RunnerGateway`, the fsynced `RunnerJournal`, then a reopen.
+
+| Area | Case | Expected |
+|---|---|---|
+| F01 | Complete 0 and complete-other summaries for the held launch | Unknown before and after the reopen, 0 final answers, 0 launches |
+| F01 | The launch lands, followed by a coherent read | Received once |
+| F01 (controls) | Complete active launch, listed historical terminal launch, a 50-of-51 truncated window omitting the launch run, an inherited row naming an ancestor run | Received |
+| F01 (controls) | Explicit null own run | Unknown |
+| F02 | An observation reads the operation's run as the active id but listed terminal (each status), `queued` or unknown | Unknown |
+| F02 (controls) | A genuine terminal read | Terminal |
+| F03 | Target on page 1 with more pages, a later page mapping it to another run or to no run (both directions) | Unknown, also after the reopen |
+| F03 | The 5-page bound exhausted with the target on page 1 | Unknown |
+| F03 | A cursor that does not advance | Unknown |
+| F03 (controls) | Identical repeats across pages, target only on a later page, distinct and inherited rows | Received |
+| F03 | Coherent reads afterwards | Converge once |
+| All | — | Zero sends, launches or interrupts during reconcile |
+
+**Worker (real disposable PostgreSQL 16):**
+- **F01:** with the launch held and phantom complete reads, the create stays unknown, the binding does not run, a
+  same-owner follow-up is refused, and the reservation is held. Then the launch lands, and coherent reads give
+  `received`, a running binding, and an admitted follow-up.
+- **F02:** a received create, its run still running. A read calls it active but lists it terminal (each of the five
+  statuses), `queued` or unknown. The create is not settled, the reservation is held, and another project on the same
+  account stays deferred, with no second reservation. Then a genuine terminal read settles it, and the reservation is
+  freed.
+- **F03:** an input held in transit; the first page maps it to the running launch run with more pages to come, and a
+  later page maps it to another run or no run. The barrier holds, the Stop and binding are unsettled, and the
+  reservation is held. Then the same request lands once, the runs are ended explicitly, and everything converges once
+  with no resend.
+
+**Fail-before** runs on exact `1d87bf3f` with the final tests.
+
+**Mutations:**
+- the create membership rule removed;
+- the active-status check removed;
+- the null-active check removed;
+- the cross-page conflict check removed;
+- the incomplete-bound refusal removed;
+- the cursor progress check removed.
+
+**Then:** focused crossings and static checks, and one ordinary `pnpm check` on the committed head.
