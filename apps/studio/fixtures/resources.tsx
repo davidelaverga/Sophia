@@ -117,11 +117,12 @@ const more = query.get('more') === '1'
 const unfenced = (list: Resource[]): Resource[] =>
   list.map((r) => ({
     ...r,
-    sessions: r.sessions.map((s) =>
-      s.assignment
-        ? { ...s, assignment: { workId: s.assignment.workId, title: s.assignment.title, state: s.assignment.state } }
-        : s,
-    ),
+    sessions:
+      r.sessions?.map((s) =>
+        s.assignment
+          ? { ...s, assignment: { workId: s.assignment.workId, title: s.assignment.title, state: s.assignment.state } }
+          : s,
+      ) ?? null,
   }))
 const listed = more ? [...resources, ...moreResources] : resources
 
@@ -213,11 +214,12 @@ const seeded = (list: Resource[]): Resource[] =>
   seed === 'held'
     ? list.map((r) => ({
         ...r,
-        sessions: r.sessions.map((s) =>
-          s.id === 'codex-reviewer' && s.assignment
-            ? { ...s, assignment: { ...s.assignment, runtimeControl: 'held' as const } }
-            : s,
-        ),
+        sessions:
+          r.sessions?.map((s) =>
+            s.id === 'codex-reviewer' && s.assignment
+              ? { ...s, assignment: { ...s.assignment, runtimeControl: 'held' as const } }
+              : s,
+          ) ?? null,
       }))
     : list
 
@@ -237,7 +239,7 @@ const withHostTime = (list: Resource[]): Resource[] =>
     : list
 const shown = seeded(withReadiness(withHostTime(query.get('unfenced') === '1' ? unfenced(listed) : listed)))
 
-const reviewer = shown.flatMap((r) => r.sessions).find((s) => s.id === 'codex-reviewer')
+const reviewer = shown.flatMap((r) => r.sessions ?? []).find((s) => s.id === 'codex-reviewer')
 const reviewerTarget = reviewer ? sessionTarget(PROJECT, reviewer) : null
 if ((seed === 'pending' || seed === 'unknown') && reviewerTarget) {
   const space = commandSpace(PROJECT, viewer.id)
@@ -377,11 +379,12 @@ if (query.get('since') === '1') {
   const then = shown.map((r) => ({
     ...r,
     host: r.id === 'davide-grok' ? { ...r.host, state: 'online' as const } : r.host,
-    sessions: r.sessions.map((s) =>
-      s.id === 'codex-reviewer' && s.assignment
-        ? { ...s, assignment: { ...s.assignment, state: 'queued' as const } }
-        : s,
-    ),
+    sessions:
+      r.sessions?.map((s) =>
+        s.id === 'codex-reviewer' && s.assignment
+          ? { ...s, assignment: { ...s.assignment, state: 'queued' as const } }
+          : s,
+      ) ?? null,
   }))
   writeSeen('fixture', viewer.id, glance(then, [], read, NOW))
 }
@@ -396,7 +399,7 @@ const planned = new Set([...plan.items, ...secondView.proposed_plans.flatMap((p)
  * its receipt as observed, pending or unknown as it is (`retained=`). Nothing is confirmed or rebound on the way.
  */
 function carriedState(workId: string): [string, string][] {
-  const session = shown.flatMap((r) => r.sessions).find((s) => s.assignment?.workId === workId)
+  const session = shown.flatMap((r) => r.sessions ?? []).find((s) => s.assignment?.workId === workId)
   const target = session ? sessionTarget(PROJECT, session) : null
   if (!session || !target) return []
   const known = spaceOf(commandSpace(PROJECT, viewer.id)).known.filter(
@@ -440,7 +443,10 @@ type LiveState = {
 /** The live state with one session changed. */
 const withSession = (l: LiveState, id: string, change: (s: Session) => Session): LiveState => ({
   ...l,
-  resources: l.resources.map((r) => ({ ...r, sessions: r.sessions.map((s) => (s.id === id ? change(s) : s)) })),
+  resources: l.resources.map((r) => ({
+    ...r,
+    sessions: r.sessions?.map((s) => (s.id === id ? change(s) : s)) ?? null,
+  })),
 })
 
 /** The same native session, given its next assignment at the next generation, as its runtime would report it. */
@@ -473,7 +479,7 @@ const startedWith = (s: Session, level: string): Session => ({
 function advanced(l: LiveState, id: string): LiveState {
   const ask = l.asks[id]
   if (ask?.when !== 'now') return l
-  const session = l.resources.flatMap((r) => r.sessions).find((s) => s.id === id)
+  const session = l.resources.flatMap((r) => r.sessions ?? []).find((s) => s.id === id)
   if (!session?.change) {
     const stopping = withSession(l, id, (s) => ({
       ...s,

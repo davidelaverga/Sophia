@@ -228,7 +228,7 @@ const AS_COMMAND: Record<Control, CommandKind> = { steer: 'guidance', hold: 'hol
 
 /** The acts a resource's route supports, in order. */
 export const supported = (resource: Resource): Control[] =>
-  (['steer', 'hold', 'stop'] as const).filter((c) => resource.controls[c] === 'supported')
+  (['steer', 'hold', 'stop'] as const).filter((c) => resource.controls?.[c] === 'supported')
 
 /** The same, as commands to offer: a resource's owner is offered what its route supports. */
 export const routeOffers = (resource: Resource): Offer[] => supported(resource).map((c) => ({ kind: AS_COMMAND[c] }))

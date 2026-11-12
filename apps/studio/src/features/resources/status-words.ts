@@ -9,6 +9,8 @@ import {
   resetAt,
   TOOL,
   windowView,
+  type CatalogFacts,
+  type CatalogMine,
   type ControlName,
   type OperationReadiness,
   type QuotaObservation,
@@ -277,6 +279,9 @@ export const CONTROL_NAME: Record<ControlName, string> = {
   permissions: 'Permissions',
 }
 
+/** Where a route's controls aren't reported (A51's catalog): none is offered from here, and none is said unsupported. */
+export const CONTROLS_UNREPORTED = 'Controls aren’t offered from this view.'
+
 /** Stop first: it is the control that must always be there. */
 const ORDER: ControlName[] = ['stop', 'hold', 'steer', 'permissions']
 
@@ -296,6 +301,8 @@ export interface ControlGroup {
 
 /** The route's controls grouped by their support, in order; a state no control has isn't listed. */
 export function controlGroups(controls: Resource['controls']): ControlGroup[] {
+  // Not reported (the catalog): no group, none said supported or unsupported.
+  if (controls === null) return []
   return SUPPORT_ORDER.map((support) => ({
     support,
     label: SUPPORT_SAID[support],
@@ -328,6 +335,7 @@ function whoSends({ resource, mine, offered }: NoteInput, any: boolean): string 
  */
 export function controlsNote(input: NoteInput): string {
   const { controls, tool } = input.resource
+  if (controls === null) return CONTROLS_UNREPORTED
   const any = SENDABLE.some((name) => controls[name] === 'supported')
   return [
     any ? 'Each is a request until its runtime confirms it.' : null,
@@ -336,4 +344,121 @@ export function controlsNote(input: NoteInput): string {
   ]
     .filter((s) => s !== null)
     .join(' ')
+}
+
+// A51's catalog (INC01-DES-002): what a native resource's record says, in words, and nothing more. Its host, connection
+// and recorded qualification are its owner's alone; a host bound or active, a recent sighting or a handshake is never
+// online, signed in or ready, and a recorded qualification, current or not, is evidence, never a supported control.
+// Every state is the server's at its page's time, never judged again on this clock.
+
+/** The owner's recorded host and qualification, as the catalog's facts carry them. */
+export type CatalogHost = CatalogMine['host']
+export type CatalogQualification = CatalogMine['qualification']
+
+/** A teammate's view: the owner's host and connection aren't theirs to see (A51 `mine` null). */
+export const CATALOG_PRIVATE = 'Its host and connection details are private to its owner.'
+
+/** Where capacity isn't reported (A51's catalog): said, never "never observed", which would say it was looked for. */
+export const CAPACITY_UNREPORTED = 'Capacity isn’t reported for this tool yet.'
+
+/** Where sessions aren't reported (A51's catalog): said, never an empty list. */
+export const SESSIONS_UNREPORTED = 'Sessions aren’t reported for this tool yet.'
+
+/** The live limit of every catalog record, said in its sheet before its evidence (UX02): never ready, never signed in. */
+export const CATALOG_LIVE_UNREPORTED = 'Live sign-in and readiness aren’t reported.'
+
+/** What a catalog record carries none of, said once in its sheet (UX02), never as three empty sections. */
+export const CATALOG_UNREPORTED = 'Work activity, remaining usage and controls aren’t reported by this view.'
+
+/** The owner's own recorded facts, behind one closed disclosure in their sheet (UX02); a teammate's has none. */
+export const CATALOG_EVIDENCE = 'Recorded host and capability evidence'
+
+/**
+ * How a tool comes to be listed, under an observed empty catalog (UX04): from its owner's own computer. Studio has no
+ * enrollment of its own to point to, so it offers none.
+ */
+export const CATALOG_ENROLLMENT =
+  'Each owner enrolls their own tool from the computer it runs on; Studio doesn’t enroll tools.'
+
+const CATALOG_STATE: Record<CatalogFacts['state'], string | null> = {
+  active: null,
+  needs_connection: 'Needs a connection',
+  revoked: 'Revoked',
+}
+
+/** The catalog's state of a resource, when it is not simply enrolled: "Needs a connection", "Revoked". */
+export const catalogState = (facts: CatalogFacts): string | null => CATALOG_STATE[facts.state]
+
+const CONNECTION: Record<NonNullable<CatalogMine['connection']>['state'], string> = {
+  pending: 'Connection pending',
+  linked: 'Connection linked',
+  expired: 'Connection expired',
+  denied: 'Connection denied',
+  revoked: 'Connection revoked',
+  rotation_unknown: 'Connection rotation unknown',
+}
+
+/** The owner's connection as recorded; a linked one past its time is said expired, never usable. */
+export function connectionSaid(connection: CatalogMine['connection']): string {
+  if (connection === null) return 'No connection recorded'
+  if (connection.state === 'linked' && connection.expired) return 'Connection expired'
+  return CONNECTION[connection.state]
+}
+
+const HOST_RECORDED: Record<NonNullable<CatalogMine['host']>['state'], string> = {
+  bound: 'Host bound',
+  active: 'Host active',
+}
+
+/**
+ * How long before the page's reading its host was last seen ("4 min before this reading"), from the server's count of
+ * seconds; null when it gave none (no usable time, or one not before its reading). Never measured on this clock.
+ */
+export function seenBefore(seconds: number | null): string | null {
+  if (seconds === null || !Number.isFinite(seconds) || seconds < 0) return null
+  return seconds < 60 ? 'less than a minute before this reading' : `${roughly(seconds * 1000)} before this reading`
+}
+
+/**
+ * The owner's host on a tile, short enough to leave its tool's name whole: recorded or not, never its state, which a
+ * tile could read as online (the sheet says it, as recorded); a teammate's says it is private.
+ */
+export function catalogHostShort(facts: CatalogFacts): string {
+  if (facts.mine === null) return 'Host private'
+  return facts.mine.host === null ? 'No host' : 'Host recorded'
+}
+
+/** The owner's host in the sheet, in one line, and what else is recorded of it. */
+export function catalogHostLines(host: CatalogMine['host']): string[] {
+  if (host === null) return ['No bound or active host recorded']
+  const seen = seenBefore(host.secondsSinceSeen)
+  return [
+    `${HOST_RECORDED[host.state]} (recorded) · ${seen ? `last seen ${seen}` : 'last seen time not recorded in a usable form'}`,
+    host.helloOk ? 'Handshake recorded' : 'No handshake recorded',
+    ...(host.helloConflict ? ['A conflict is recorded'] : []),
+  ]
+}
+
+const OPERATIONS_SAID: Record<CatalogMine['qualification']['operations'][number], string> = {
+  create: 'create',
+  input: 'input',
+  stop: 'stop',
+}
+
+const QUALIFICATION: Record<Exclude<CatalogMine['qualification']['state'], 'none' | 'current'>, string> = {
+  expired: 'Recorded qualification: expired',
+  revoked: 'Recorded qualification: revoked',
+  stale: 'Recorded qualification: stale',
+  not_applicable: 'Recorded qualification: doesn’t apply now',
+}
+
+/**
+ * The owner's recorded qualification, as the server judged it at the page's time: null when there is none. Current is
+ * recorded evidence for the operations it names, never a promise that a control works or that it is supported.
+ */
+export function qualificationSaid(q: CatalogMine['qualification']): string | null {
+  if (q.state === 'none') return null
+  if (q.state !== 'current') return QUALIFICATION[q.state]
+  const ops = q.operations.map((o) => OPERATIONS_SAID[o])
+  return `Recorded qualification: current for ${listed(ops)}. Recorded evidence, not a promise that a control works.`
 }

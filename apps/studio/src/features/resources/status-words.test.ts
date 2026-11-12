@@ -558,3 +558,99 @@ describe('a host time that isn’t an instant is an unknown age, never “never 
     assert.equal(sw.offlineFor({ state: 'online', observedAt: '2026-10-01T10:00:00Z' }, now), null) // only offline says it
   })
 })
+
+// A51's catalog (INC01-DES-002): what a native resource's record says, and nothing more.
+const host = (over: Partial<NonNullable<sw.CatalogHost>> = {}): NonNullable<sw.CatalogHost> => ({
+  state: 'bound',
+  helloOk: true,
+  helloConflict: false,
+  lastSeenAt: '2026-11-12T13:56:00Z',
+  secondsSinceSeen: 240,
+  ...over,
+})
+const q = (state: sw.CatalogQualification['state'], operations: sw.CatalogQualification['operations'] = []) => ({
+  state,
+  operations,
+  qualifiedAt: null,
+  expiresAt: null,
+})
+
+describe('the catalog’s words', () => {
+  it('offers no control where controls aren’t reported, and says none is unsupported', () => {
+    assert.deepEqual(controlGroups(null), [])
+    const r = { ...resource(), controls: null }
+    assert.equal(controlsNote({ resource: r, mine: true, offered: false }), sw.CONTROLS_UNREPORTED)
+    assert.equal(controlsNote({ resource: r, mine: false, offered: false }), 'Controls aren’t offered from this view.')
+  })
+
+  it('says a host as recorded, its age from the server’s count before its reading, never online or fresh', () => {
+    assert.deepEqual(sw.catalogHostLines(host()), [
+      'Host bound (recorded) · last seen 4 min before this reading',
+      'Handshake recorded',
+    ])
+    assert.deepEqual(
+      sw.catalogHostLines(host({ state: 'active', helloOk: false, helloConflict: true, secondsSinceSeen: null })),
+      [
+        'Host active (recorded) · last seen time not recorded in a usable form',
+        'No handshake recorded',
+        'A conflict is recorded',
+      ],
+    )
+    assert.deepEqual(sw.catalogHostLines(null), ['No bound or active host recorded'])
+    for (const line of [...sw.catalogHostLines(host()), ...sw.catalogHostLines(null)]) {
+      assert.doesNotMatch(line, /online|signed in|ready|supported|never/i)
+    }
+  })
+
+  it('never makes an age from what isn’t one: null, NaN or below zero say nothing', () => {
+    assert.equal(sw.seenBefore(null), null)
+    assert.equal(sw.seenBefore(Number.NaN), null)
+    assert.equal(sw.seenBefore(-1), null)
+    assert.equal(sw.seenBefore(30), 'less than a minute before this reading')
+  })
+
+  it('says a connection as recorded, and a linked one past its time as expired, never usable', () => {
+    assert.equal(sw.connectionSaid({ state: 'linked', expired: false }), 'Connection linked')
+    assert.equal(sw.connectionSaid({ state: 'linked', expired: true }), 'Connection expired')
+    assert.equal(sw.connectionSaid({ state: 'rotation_unknown', expired: false }), 'Connection rotation unknown')
+    assert.equal(sw.connectionSaid(null), 'No connection recorded')
+  })
+
+  it('says a recorded qualification as evidence, by the server’s state, never as support', () => {
+    assert.equal(sw.qualificationSaid(q('none')), null)
+    assert.equal(
+      sw.qualificationSaid(q('current', ['create', 'input', 'stop'])),
+      'Recorded qualification: current for create, input and stop. Recorded evidence, not a promise that a control works.',
+    )
+    assert.equal(sw.qualificationSaid(q('expired', ['stop'])), 'Recorded qualification: expired')
+    assert.equal(sw.qualificationSaid(q('not_applicable', ['stop'])), 'Recorded qualification: doesn’t apply now')
+    assert.doesNotMatch(sw.qualificationSaid(q('current', ['stop'])) ?? '', /supported|verified|ready/i)
+  })
+
+  it('says a teammate’s view private, and the catalog’s states, briefly', () => {
+    const facts = { state: 'needs_connection' as const, observedAt: '2026-11-12T14:00:00Z', mine: null }
+    assert.equal(sw.catalogHostShort(facts), 'Host private')
+    const mine = {
+      connection: null,
+      host: null,
+      qualification: { state: 'none' as const, operations: [], qualifiedAt: null, expiresAt: null },
+    }
+    assert.equal(sw.catalogHostShort({ ...facts, mine }), 'No host')
+    assert.equal(sw.catalogHostShort({ ...facts, mine: { ...mine, host: host({ state: 'active' }) } }), 'Host recorded')
+    assert.equal(sw.catalogState(facts), 'Needs a connection')
+    assert.equal(sw.catalogState({ ...facts, state: 'active' }), null)
+    assert.equal(sw.catalogState({ ...facts, state: 'revoked' }), 'Revoked')
+    assert.equal(sw.CATALOG_PRIVATE, 'Its host and connection details are private to its owner.')
+  })
+
+  it('says the catalog’s limits as limits (UX iteration 001): never ready, online, signed in, none or zero', () => {
+    const said = [sw.CATALOG_LIVE_UNREPORTED, sw.CATALOG_UNREPORTED, sw.CATALOG_EVIDENCE, sw.CATALOG_ENROLLMENT]
+    for (const words of said) {
+      assert.doesNotMatch(words, /\bready\b|\bonline\b|signed in|\bnone\b|\bzero\b|\bno (sessions|capacity)\b/i)
+    }
+    assert.match(sw.CATALOG_LIVE_UNREPORTED, /aren’t reported/)
+    assert.match(sw.CATALOG_UNREPORTED, /aren’t reported/)
+    // No enrollment is offered in Studio, so none is promised.
+    assert.match(sw.CATALOG_ENROLLMENT, /Studio doesn’t enroll tools/)
+  })
+})

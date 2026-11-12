@@ -186,6 +186,12 @@ describe('room elsewhere', () => {
     assert.equal(roomElsewhere(claude, [claude, codex], runs, now, 'luis'), null)
     assert.equal(roomElsewhere(claude, [claude, codex], [tight], now, 'luis'), null)
   })
+
+  it('an account not reported (A51’s catalog) has room nowhere and gives none (INC01-DES-002)', () => {
+    const unreported = { ...codex, entitlementId: null }
+    assert.equal(roomElsewhere({ ...claude, entitlementId: null }, [claude, codex], readings, now, 'luis'), null)
+    assert.equal(roomElsewhere(claude, [claude, unreported], readings, now, 'luis'), null)
+  })
 })
 
 describe('a short account in a few words', () => {
