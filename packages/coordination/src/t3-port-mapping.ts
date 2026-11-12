@@ -364,15 +364,17 @@ function detailOf(
 }
 
 /**
- * Repair 10 (NATIVE9-F02): at the pin runCount, activeRunId and recentRuns come from the same runs. So more listed runs
- * than counted, or a complete list without its active run, is a summary inconsistent with itself: no evidence. A
- * truncated list may omit the active run.
+ * Repair 10 (NATIVE9-F02): at the pin runCount, activeRunId and recentRuns come from the same runs, so a complete list
+ * without its active run is a summary inconsistent with itself: no evidence. A truncated list may omit the active run.
+ * Repair 12 (NATIVE11-F01): readCall asks for T3_RUN_LIMIT runs, which the pin clamps to at most 50, and the pin returns
+ * that many of the newest: exactly min(runCount, T3_RUN_LIMIT). Fewer or more is no evidence.
  */
 function summaryError(
   runs: Map<string, string>,
   detail: { activeRunId: string | null; runCount: number },
 ): string | null {
-  if (runs.size > detail.runCount) return 'the read lists more runs than it counts'
+  if (runs.size !== Math.min(detail.runCount, T3_RUN_LIMIT))
+    return 'the read does not list exactly the runs T3 returns for its count'
   if (runs.size === detail.runCount && detail.activeRunId !== null && !runs.has(detail.activeRunId))
     return 'the read lists every run but not its active run'
   return activeStatusError(runs, detail.activeRunId)
@@ -380,16 +382,20 @@ function summaryError(
 
 /**
  * Repair 11 (NATIVE10-F02 and its pinned sibling): T3 names as active the latest run whose status is one of
- * PROVIDER_ACTIVE, from the same runs it lists. So a listed active run must have such a status, and with no active run
- * no listed run may have one; either contradiction makes the page no evidence, complete or truncated.
+ * PROVIDER_ACTIVE, from the same runs it lists, so a listed active run must have such a status.
+ * Repair 12 (NATIVE11-F02): recentRuns and the active run are sorted with the same comparator, newest first, and the
+ * window holds the newest runs. So if any listed run is active, the FIRST one in list order is the active run: an active
+ * id that is null, omitted, or listed behind a newer active run contradicts it. Either is no evidence, complete or
+ * truncated. With no listed active run, a truncated window may omit an older active one.
  */
 function activeStatusError(runs: Map<string, string>, activeRunId: string | null): string | null {
-  if (activeRunId === null) {
-    return [...runs.values()].some((status) => PROVIDER_ACTIVE.has(status))
+  const newestActive = [...runs].find(([, status]) => PROVIDER_ACTIVE.has(status))?.[0]
+  if (newestActive !== undefined && newestActive !== activeRunId) {
+    return activeRunId === null
       ? 'the read names no active run but lists one'
-      : null
+      : 'the read names as active a run other than its newest listed active run'
   }
-  const status = runs.get(activeRunId)
+  const status = activeRunId === null ? undefined : runs.get(activeRunId)
   return status === undefined || PROVIDER_ACTIVE.has(status)
     ? null
     : 'the read names an active run it lists as not active'

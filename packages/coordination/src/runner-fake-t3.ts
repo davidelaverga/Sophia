@@ -235,7 +235,11 @@ export class FakeT3 implements T3Transport {
           // The pin's user-interface marker: never evidence of run settlement.
           settled: true,
         },
-        recentRuns: thread.runs.slice(-runLimit).map((r) => ({ runId: r.runId, status: r.status })),
+        // Newest first, as the pin's recentRuns (sorted by descending ordinal, then cut to runLimit); repair 12.
+        recentRuns: thread.runs
+          .slice(-runLimit)
+          .toReversed()
+          .map((r) => ({ runId: r.runId, status: r.status })),
         items: items.slice(after, after + this.pageSize),
         hasMore,
         nextPosition: hasMore ? after + this.pageSize : null,

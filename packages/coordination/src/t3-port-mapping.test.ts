@@ -475,8 +475,11 @@ describe('the active run id agrees with the listed statuses (repair 11, NATIVE10
   const ACTIVE = ['preparing', 'starting', 'running', 'waiting']
   const NOT_ACTIVE = ['completed', 'interrupted', 'failed', 'cancelled', 'rolled_back', 'queued', 'held_by_vendor']
   /** A read naming run-a with `status`, complete (runCount 1) or truncated (runCount 60), with the given active id. */
+  // Repair 12: a truncated window lists exactly 50 runs, newest first (min(runCount, 50) at the pin); run-a is the newest,
+  // the older runs listed after it ended.
+  const older = Array.from({ length: 49 }, (_, i) => ({ runId: `run-older-${i}`, status: 'completed' }))
   const one = (status: string, active: string | null, complete: boolean) =>
-    decoded(readOf([{ runId: 'run-a', status }], active, complete ? {} : { runCount: 60 }))
+    decoded(readOf([{ runId: 'run-a', status }, ...(complete ? [] : older)], active, complete ? {} : { runCount: 60 }))
 
   it('decodes no page naming an active run that is listed with a terminal, queued or unknown status (F02)', () => {
     const seen = NOT_ACTIVE.flatMap((status) =>
@@ -527,5 +530,64 @@ describe('the active run id agrees with the listed statuses (repair 11, NATIVE10
         ),
       )
     assert.deepEqual([twice('completed'), twice('running')], ['no evidence', 'no evidence'])
+  })
+})
+
+/** Repair 12: `size` runs, newest first: the first `actives` with `status`, the rest ended. */
+const runWindow = (size: number, actives = 0, status = 'running') =>
+  Array.from({ length: size }, (_, i) => ({ runId: `run-${i}`, status: i < actives ? status : 'completed' }))
+
+describe('a run window is exactly what T3 returns, and its newest active run is the one named (repair 12, NATIVE11-F01/F02)', () => {
+  it('decodes a window only of exactly min(runCount, 50) runs, under and over each boundary (F01)', () => {
+    const seen: [number, number, string][] = []
+    for (const runCount of [0, 1, 2, 49, 50, 51, 60, 100]) {
+      const exact = Math.min(runCount, 50)
+      for (const size of [exact - 1, exact, exact + 1]) {
+        if (size < 0) continue
+        seen.push([runCount, size, verdict(decoded(readOf(runWindow(size), null, { runCount })))])
+      }
+    }
+    assert.deepEqual(
+      seen,
+      seen.map(([runCount, size]) => [runCount, size, size === Math.min(runCount, 50) ? 'decoded' : 'no evidence']),
+    )
+  })
+
+  it('decodes no page whose first listed active run is not the one named active, omitted or listed (F02)', () => {
+    const cases: [string, unknown][] = [
+      [
+        'truncated, active id omitted, a newer listed run running',
+        readOf(runWindow(50, 1), 'run-older-active', { runCount: 60 }),
+      ],
+      ...['preparing', 'starting', 'waiting'].map((status): [string, unknown] => [
+        `truncated, active id omitted, a newer listed run ${status}`,
+        readOf(runWindow(50, 1, status), 'run-older-active', { runCount: 60 }),
+      ]),
+      ['complete, the older of two listed active runs named', readOf(runWindow(3, 2), 'run-1')],
+      ['truncated, the older of two listed active runs named', readOf(runWindow(50, 2), 'run-1', { runCount: 60 })],
+    ]
+    assert.deepEqual(
+      cases.map(([what, body]) => [what, verdict(decoded(body))]),
+      cases.map(([what]) => [what, 'no evidence']),
+    )
+  })
+
+  it('keeps the newest of several active runs, an omitted older active run behind ended or queued ones, and boundaries (controls)', () => {
+    const queued = runWindow(50).map((r) => ({ ...r, status: 'queued' }))
+    const controls: [string, unknown][] = [
+      ['complete, two active, the newest named', readOf(runWindow(3, 2), 'run-0')],
+      ['truncated, two active, the newest named', readOf(runWindow(50, 2), 'run-0', { runCount: 60 })],
+      [
+        'truncated, active id omitted, every listed run ended',
+        readOf(runWindow(50), 'run-older-active', { runCount: 51 }),
+      ],
+      ['truncated, active id omitted, every listed run queued', readOf(queued, 'run-older-active', { runCount: 100 })],
+      ['complete 0', readOf([], null, { runCount: 0 })],
+      ['complete 50 of 50', readOf(runWindow(50, 1), 'run-0', { runCount: 50 })],
+    ]
+    assert.deepEqual(
+      controls.map(([what, body]) => [what, verdict(decoded(body))]),
+      controls.map(([what]) => [what, 'decoded']),
+    )
   })
 })

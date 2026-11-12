@@ -33,7 +33,15 @@ import {
   type RunnerEnvelopeV2,
   type RunnerSourcePolicy,
 } from './runner-port.ts'
-import { deriveIdentity, stableMessageId, type T3Call, type T3Reply, type T3Transport } from './t3-port-mapping.ts'
+import {
+  decodeThreadRead,
+  deriveIdentity,
+  readCall,
+  stableMessageId,
+  type T3Call,
+  type T3Reply,
+  type T3Transport,
+} from './t3-port-mapping.ts'
 
 const root = mkdtempSync(join(tmpdir(), 'sophia-runner-gateway-'))
 after(() => rmSync(root, { recursive: true, force: true }))
@@ -1948,6 +1956,169 @@ describe("an input's message is judged over every page read (repair 11, NATIVE10
     assert.deepEqual(
       seen,
       controls.map(([what]) => [what, 'received queued its own run', 1, 1]),
+    )
+  })
+})
+
+/** Repair 12: `size` ended runs named `run-w<i>`, newest first, after `head` (the newest rows). */
+const windowOf = (size: number, head: { runId: string; status: string }[] = []) => [
+  ...head,
+  ...Array.from({ length: size - head.length }, (_, i) => ({ runId: `run-w${i}`, status: 'completed' })),
+]
+
+describe("FakeT3's read lists recent runs newest first, as the pin does (repair 12)", () => {
+  it('names as active the first listed active run, and its reads decode with several active runs', async () => {
+    const fake = new FakeT3()
+    const launched = await fake.call({
+      tool: 't3_thread_launch',
+      args: { projectId: 'project-sophia', title: 't', message: 'm', clientRequestId: 'k1' },
+    })
+    const thread = (launched as { body: { threadId: string } }).body.threadId
+    await fake.call({
+      tool: 't3_thread_send',
+      args: { threadId: thread, message: 'x', mode: 'queue', clientRequestId: 'k2' },
+    })
+    const [first, second] = fake.threads.get(thread)?.runs ?? []
+    fake.finishRun(second?.runId ?? '', 'preparing')
+    const reply = await fake.call(readCall('env-owner-1', thread))
+    const read = decodeThreadRead((reply as { body: unknown }).body, thread)
+    assert.ok(!('error' in read), JSON.stringify(read))
+    assert.deepEqual(
+      [[...read.runs.keys()], read.activeRunId],
+      [[second?.runId, first?.runId], second?.runId],
+      'newest first; the newest active run is the one named',
+    )
+  })
+})
+
+describe('a recovery read is evidence only with the exact window and its newest active run named (repair 12, NATIVE11-F01/F02)', () => {
+  it('keeps a held launch unknown on an underfilled summary across a reopen; it converges once when it lands (F01)', async () => {
+    const { fake, t3, file, open } = paged()
+    const g = open()
+    t3.holdTool = 't3_thread_launch'
+    const c = create(9600)
+    assert.equal((await g.send(c, digestOf(c), g.journalId)).kind, 'unknown')
+    t3.page = (t) => ({
+      ...pageOf(t, { items: [{ position: 0, messageId: t, runId: PHANTOM }] }),
+      thread: { threadId: t, activeRunId: null, runCount: 1 },
+    })
+    const first = await g.reconcile(idOf(g, c))
+    g.close()
+    const again = open()
+    const replay = await again.reconcile(idOf(again, c))
+    const phantom = [first.kind, replay.kind, finals(file, c.operationId), fake.effects.launches]
+    t3.page = null
+    await t3.release()
+    const late = await again.reconcile(idOf(again, c))
+    const own = [...fake.threads.values()][0]?.runs[0]?.runId ?? ''
+    assert.deepEqual(
+      [...phantom, answerShape(late, own), finals(file, c.operationId), fake.effects.launches],
+      ['unknown', 'unknown', 0, 0, 'received started its own run', 1, 1],
+    )
+    again.close()
+  })
+
+  /** A received launch, then an input whose answer was lost after T3 queued it behind the running launch run. */
+  async function lostInput(base: number) {
+    const w = paged()
+    const g = w.open()
+    const thread = threadOf(await g.send(create(base), digestOf(create(base)), g.journalId))
+    w.fake.inject('t3_thread_send', { kind: 'lose_after_effect' })
+    const e = follow(base + 1, base, thread)
+    assert.equal((await g.send(e, digestOf(e), g.journalId)).kind, 'unknown')
+    const run = w.fake.threads.get(thread)?.runs.at(-1)?.runId ?? ''
+    return { ...w, g, e, run }
+  }
+
+  it("keeps an input unknown when the read's active run is not its newest listed active one, across a reopen; it converges once (F02)", async () => {
+    const cases: [string, (run: string, real: PageBody) => PageBody][] = [
+      [
+        'its run named active but omitted, a newer listed run running (truncated 50 of 60)',
+        (run, real) => ({
+          ...real,
+          thread: { ...real.thread, activeRunId: run, runCount: 60 },
+          recentRuns: windowOf(50, [{ runId: 'run-newer', status: 'running' }]),
+        }),
+      ],
+      [
+        'its run named active and listed, behind a newer listed run running (complete)',
+        (run, real) => ({
+          ...real,
+          thread: { ...real.thread, activeRunId: run, runCount: 2 },
+          recentRuns: [
+            { runId: 'run-newer', status: 'running' },
+            { runId: run, status: 'running' },
+          ],
+        }),
+      ],
+    ]
+    const seen: unknown[] = []
+    for (const [i, [what, make]] of cases.entries()) {
+      const w = await lostInput(9700 + 10 * i)
+      w.t3.page = (_t, _cursor, real) => (real ? make(w.run, real) : null)
+      const first = await w.g.reconcile(idOf(w.g, w.e))
+      w.g.close()
+      const again = w.open()
+      const replay = await again.reconcile(idOf(again, w.e))
+      const contradiction = [first.kind, replay.kind, finals(w.file, w.e.operationId)]
+      w.t3.page = null
+      const late = await again.reconcile(idOf(again, w.e))
+      seen.push([
+        what,
+        ...contradiction,
+        answerShape(late, w.run),
+        finals(w.file, w.e.operationId),
+        w.fake.count('t3_thread_send'),
+      ])
+      again.close()
+    }
+    assert.deepEqual(
+      seen,
+      cases.map(([what]) => [what, 'unknown', 'unknown', 0, 'received queued its own run', 1, 1]),
+    )
+  })
+
+  it('receives an input when the newest active run is named, or an omitted older one sits behind ended or queued runs (controls)', async () => {
+    const controls: [string, (run: string, real: PageBody) => PageBody][] = [
+      [
+        'its run the newest of two listed active runs, named',
+        (run, real) => ({
+          ...real,
+          thread: { ...real.thread, activeRunId: run, runCount: 2 },
+          recentRuns: [
+            { runId: run, status: 'running' },
+            { runId: 'run-older', status: 'running' },
+          ],
+        }),
+      ],
+      [
+        'its run named active, omitted behind 50 ended runs (51)',
+        (run, real) => ({
+          ...real,
+          thread: { ...real.thread, activeRunId: run, runCount: 51 },
+          recentRuns: windowOf(50),
+        }),
+      ],
+      [
+        'its run named active, omitted behind 50 queued runs (100)',
+        (run, real) => ({
+          ...real,
+          thread: { ...real.thread, activeRunId: run, runCount: 100 },
+          recentRuns: windowOf(50).map((r) => ({ ...r, status: 'queued' })),
+        }),
+      ],
+    ]
+    const seen: unknown[] = []
+    for (const [i, [what, make]] of controls.entries()) {
+      const w = await lostInput(9800 + 10 * i)
+      w.t3.page = (_t, _cursor, real) => (real ? make(w.run, real) : null)
+      const r = await w.g.reconcile(idOf(w.g, w.e))
+      seen.push([what, answerShape(r, w.run), finals(w.file, w.e.operationId)])
+      w.g.close()
+    }
+    assert.deepEqual(
+      seen,
+      controls.map(([what]) => [what, 'received started its own run', 1]),
     )
   })
 })

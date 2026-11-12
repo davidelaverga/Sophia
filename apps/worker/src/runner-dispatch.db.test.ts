@@ -2966,3 +2966,153 @@ describe('an input is judged over every page read, under a Stop (repair 11, NATI
     })
   }
 })
+
+/** Repair 12: `size` ended runs, newest first, after `head` (the newest rows). */
+const windowOf = (size: number, head: { runId: string; status: string }[] = []) => [
+  ...head,
+  ...Array.from({ length: size - head.length }, (_, i) => ({ runId: `run-w${i}`, status: 'completed' })),
+]
+
+describe('a create needs the exact run window (repair 12, NATIVE11-F01)', () => {
+  it('an underfilled summary: no running binding, follow-up or other-project work until the held launch lands', async () => {
+    const accountKey = `claude:${randomUUID()}`
+    const who = randomUUID()
+    const t3 = new FakeT3()
+    const paged = new PagedT3(t3)
+    const w = await world({ accountKey, t3, who, transport: paged })
+    const second = await world({ accountKey, t3, who })
+    second.gateway.close()
+    paged.holdTool = 't3_thread_launch'
+    const created = await w.create()
+    await passes(w, 2)
+    paged.page = (t) => ({
+      thread: { threadId: t, activeRunId: null, runCount: 1 },
+      recentRuns: [],
+      items: [{ position: 0, messageId: t, runId: 'phantom/own-run:\u{10400}' }],
+      hasMore: false,
+      nextPosition: null,
+    })
+    const other = await second.create()
+    await passes(w, 3)
+    const o = await op(created.operationId)
+    const followup = await codeOf(w.input(created.operationId))
+    assert.deepEqual(
+      {
+        create: o.state,
+        answers: journalAnswers(w.journalFile, created.operationId),
+        binding: (await binding(o.binding_id)).state,
+        followupAdmitted: followup === 'resolved',
+        reservations: await reservations(accountKey),
+        otherProject: (await op(other.operationId)).state,
+        launches: t3.effects.launches,
+      },
+      {
+        create: 'unknown',
+        answers: 0,
+        binding: 'launching',
+        followupAdmitted: false,
+        reservations: [{ binding_id: o.binding_id }],
+        otherProject: 'admitted',
+        launches: 0,
+      },
+      `an underfilled run window proves nothing (follow-up: ${followup})`,
+    )
+    paged.page = null
+    await paged.release()
+    await passes(w, 2)
+    const landed = await op(created.operationId)
+    assert.deepEqual(
+      [landed.state, landed.native_delivery, (await binding(landed.binding_id)).state],
+      ['received', 'started', 'running'],
+    )
+    assert.deepEqual([journalAnswers(w.journalFile, created.operationId), t3.effects.launches], [1, 1])
+  })
+})
+
+describe("an input under a Stop needs the read's newest active run named (repair 12, NATIVE11-F02)", () => {
+  const HELD = 'run-held'
+  const cases: [string, (real: PageBody) => Omit<PageBody, 'items' | 'hasMore' | 'nextPosition'>][] = [
+    [
+      'its run named active but omitted, a newer listed run running (50 of 60)',
+      (real) => ({
+        thread: { ...real.thread, activeRunId: HELD, runCount: 60 },
+        recentRuns: windowOf(50, [{ runId: 'run-newer', status: 'running' }]),
+      }),
+    ],
+    [
+      'its run named active and listed behind a newer listed run running',
+      (real) => ({
+        thread: { ...real.thread, activeRunId: HELD, runCount: 2 },
+        recentRuns: [
+          { runId: 'run-newer', status: 'running' },
+          { runId: HELD, status: 'running' },
+        ],
+      }),
+    ],
+  ]
+  for (const [what, summary] of cases) {
+    it(`${what}: the barrier holds until the held request lands and runs end; nothing is sent again`, async () => {
+      const t3 = new FakeT3()
+      const paged = new PagedT3(t3)
+      const w = await world({ t3, transport: paged })
+      const created = await w.create()
+      await w.pass()
+      paged.holdTool = 't3_thread_send'
+      const lost = await w.input(created.operationId)
+      await w.pass({ minAge: 3600 })
+      const stopped = await w.stop(created.operationId)
+      await w.pass({ minAge: 3600 })
+      paged.page = (_t, _cursor, real) =>
+        real
+          ? {
+              ...real,
+              ...summary(real),
+              items: [...real.items, { position: 1, messageId: paged.heldMessage, runId: HELD }],
+            }
+          : null
+      await w.pass()
+      await w.pass()
+      // Genuine reads from here on; the acknowledged Stop does not end the running launch run in the fake: end it.
+      paged.page = null
+      w.finishAll()
+      await passes(w, 4)
+      const s = await op(stopped.operationId)
+      assert.deepEqual(
+        {
+          input: (await op(lost.operationId)).state,
+          inputAnswers: journalAnswers(w.journalFile, lost.operationId),
+          stop: s.state,
+          binding: (await binding(s.binding_id)).state,
+          reservations: (await reservations(w.accountKey)).length,
+          messages: t3.effects.messages,
+          sends: t3.count('t3_thread_send'),
+          interrupts: t3.count('t3_thread_interrupt'),
+        },
+        {
+          input: 'unknown',
+          inputAnswers: 0,
+          stop: 'received',
+          binding: 'stopping',
+          reservations: 1,
+          messages: 0,
+          sends: 0,
+          interrupts: 1,
+        },
+        'a summary naming an older active run proves nothing: the barrier holds, the commitment stays, nothing is sent',
+      )
+      await paged.release()
+      await passes(w, 2)
+      assert.deepEqual(
+        [(await op(lost.operationId)).state, (await op(lost.operationId)).native_delivery],
+        ['received', 'started'],
+      )
+      w.finishAll()
+      await passes(w, 4)
+      assert.equal((await op(stopped.operationId)).state, 'settled')
+      assert.equal((await binding(s.binding_id)).state, 'settled')
+      assert.deepEqual(await reservations(w.accountKey), [])
+      assert.equal(journalAnswers(w.journalFile, lost.operationId), 1, 'converged once')
+      assert.deepEqual([t3.effects.messages, t3.count('t3_thread_send'), t3.count('t3_thread_interrupt')], [1, 1, 1])
+    })
+  }
+})

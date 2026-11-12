@@ -879,3 +879,102 @@ and all evidence here comes from synthetic test principals.
 - the cursor progress check removed.
 
 **Then:** focused crossings and static checks, and one ordinary `pnpm check` on the committed head.
+
+## Repair 12: the exact run window and the newest active run (INC01-CC-005-repair11-PUB-SOURCE-FINAL-001, NATIVE11-F01 and F02)
+
+Written before any code. One signed sole child of the published `ef6d350c` (tree `a2580749`). Exactly seven writable
+paths:
+- `t3-port-mapping.ts` and its test;
+- the gateway test;
+- `runner-fake-t3.ts` (the read projection only);
+- the worker DB test;
+- this plan and the CC-005 handoff.
+
+Gateway production, the journal, the transport, the worker production code, SQL, contracts, the generated outputs, the
+API and SOURCE_MAP stay byte-exact. No new upstream file is used: the registered pin files already prove these facts.
+An external note (`92b6d84d…`) corrects my preflight's "no unsafe effect" inference against the receipt's actual
+evidence.
+
+### The pin's facts
+
+- **The window size.** `readCall` sends `runLimit` 50, which the pin clamps with `Math.min(value, 50)`.
+  - `runCount`, `activeRunId` and `recentRuns` come from the same `target.runs` in one response.
+  - `recentRuns` is those runs sorted by descending `ordinal`, then cut to the limit.
+  - So a response lists **exactly `min(runCount, 50)`** runs, newest first.
+- **The active run.** `latestActiveRun` filters the same runs by the four active statuses (`preparing`, `starting`,
+  `running`, `waiting`) and sorts them with the same stable comparator. So if any listed run is active, the **first**
+  such run in list order is `activeRunId`. This holds whether the active id is listed or omitted, and whether the list
+  is complete or truncated.
+
+### The defects
+
+- **F01.** Only a list longer than `runCount` was rejected. An underfilled list (`runCount` 1, empty) counted as
+  truncated, so the create membership check was skipped. A phantom launch run became `received started`; the binding
+  ran and a follow-up was admitted, with 0 launches.
+- **F02.**
+  - An omitted `activeRunId` was accepted even with a listed active run newer than it. The input fallback then said
+    started.
+  - A listed `activeRunId` with an active status was accepted even behind a newer listed active run. Its listed status
+    said started.
+  - Either way, the in-transit input became durably received, the barrier cleared, and the Stop and binding settled
+    before the original landed. The reservation stayed at 1.
+
+### The rule (the decoder's summary check)
+
+1. **The window size.** The list must hold exactly `min(runCount, T3_RUN_LIMIT)` runs. This replaces the old
+   `size > runCount` check, and catches underfill, overfill and lists over 50. `runsComplete` keeps its meaning.
+2. **The newest active run.** If any listed run has an active status, the first one in list order must equal
+   `activeRunId`. This covers an omitted active id, a listed id that is not the newest active, and (as before) a null
+   active id with a listed active run.
+3. **Kept:**
+   - a listed active id must have an active status;
+   - a complete list must contain its active id;
+   - an omitted older active id is valid when every listed run is not active (terminal, `queued` or unknown);
+   - several active runs are valid when the newest is the one named.
+4. **Unchanged:** duplicates, blank ids, message conflicts, the cross-page scan, the 5-page bound, cursor progress, the
+   create membership rule, `inputDelivery`, Stop settlement and observe.
+
+**FakeT3** returns `recentRuns` newest first (`thread.runs.slice(-runLimit).reverse()`), matching the pin. Its internal
+chronological `runs`, active and latest selection, timeline, paging, effects and default limit are unchanged.
+
+**Fixtures.** Earlier synthetic fixtures that list fewer runs than `min(runCount, 50)` (for example one run with
+`runCount` 60) become coherent: filled to 50 with non-active runs listed after the subject run. Their assertions are
+unchanged.
+
+### Proof plan
+
+**Fail-before** runs on exact `ef6d350c` production and fake bytes with the final tests. The fake's oldest-first order
+breaks only fake-contract tests, which are classified separately from the decoder's positive-acceptance classes.
+
+**Mapping:**
+- for every `runCount` in {0, 1, 2, 49, 50, 51, 60, 100}: the exact size decodes, and `min - 1` and `min + 1` are no
+  evidence;
+- the first-active rule: an omitted id behind a listed active run (truncated), and a listed id behind a newer active
+  run (complete and truncated);
+- controls: several active runs with the newest named, and an omitted older active id with every listed run not
+  active.
+
+**The fake contract:** a FakeT3 thread with two active runs decodes, and its newest is the first listed. This fails if
+the projection is reverted.
+
+**Gateway** (actual gateway, fsynced journal, reopen):
+- a held launch with an underfilled summary: unknown, then it converges once;
+- a lost input with an omitted active id behind a newer active run, or a listed old active id: unknown, then
+  converges once;
+- controls: received.
+
+**Worker (real PostgreSQL 16):**
+- **Underfilled create:** the binding stays `launching`, a follow-up is refused, the reservation is held, and another
+  project stays deferred. Then it converges once.
+- **Input under a Stop (omitted and listed):** the barrier, Stop and binding are pending, and the reservation is held.
+  The same request lands once, the runs are ended explicitly, and everything converges once with no resend.
+
+**Mutations:**
+- the window weakened back to `size > runCount`;
+- the limit off by one;
+- the omitted-active check removed;
+- the listed-not-newest check removed;
+- the fake's projection reversed back to oldest first.
+
+**Then:** focused crossings and static checks, one ordinary `pnpm check` on the signed head, an early checkpoint while
+it runs, and the sealed raw evidence.
