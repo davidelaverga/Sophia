@@ -292,3 +292,50 @@ this polish within the same 34 paths. No other path, package, fixture, GEN, auth
     owner's evidence to another resource starts it closed. A teammate's resource has no disclosure at all.
   - **The call in the sheet.** The frame's own call switches (SheetCall) stay in the sheet's head. The check reaches
     microphone and Leave there and in the dock, and J/K never turn a page while typing in the search.
+
+## REC01: Sign in again asks first, with what it ends (a child of `8c1077b3`)
+
+Written before the follow-up's code. Assignment `INC01-DES-002-REC01-SIGNIN-CONFIRMATION-001` (`1f16a692…f25e`), on
+Davide's acceptance of `8c1077b3` and his review (`d22af99a…3c`). PR #511 stays at `8c1077b3`, untouched. The work is on
+the new local branch `inc01-des-002-rec01`, in a fresh public worktree, and ends in one signed commit whose sole parent
+is `8c1077b3`. No push is granted. Five leased paths: `ProjectResources.tsx`, both catalog specs, this plan and the
+handoff.
+
+- **What changes.** A final 401's "Sign in again" no longer signs out at its first press. It asks first, in place, with
+  the kit's existing `ConfirmButton`:
+  - Pressed, it says plainly: "Signing in again signs out this device. It ends any call you're in and removes everything
+    unsent on this device: drafts and messages in your projects and your personal space."
+  - It then offers "Stay here", which takes the focus so a second Enter never confirms, and "Sign out and continue".
+- **Why that copy.** It names what the existing sign-out actually does (`App.leaving`):
+  - **Call:** signing out unmounts the signed-in Studio, which ends the call.
+  - **Drafts and messages:** `forgetAllDrafts` removes personal-space drafts (`forgetDrafts`) and project-view drafts
+    (`forgetViewerDrafts`). `forgetUnderWay` removes messages under way or held in project conversations
+    (`forgetKept`, `forgetHeld`), unanswered review proposals (`forgetProposals`) and recent palette entries
+    (`forgetRecent`).
+  - **Even on failure:** these run before and after the sign-out attempt, so they go even when it fails. The copy
+    promises no preservation once confirmed, and doesn't call it a refresh or a seamless re-authentication.
+- **What stays exactly as it is.**
+  - "Stay here" and leaving the page before confirming call nothing: no sign-out, no draft touched, no catalog read, the
+    call and its switches untouched.
+  - "Sign out and continue" calls the same `onSignIn` (SignedIn's `onSignOut`, this device only) exactly once, with its
+    existing failure toast and Try again. The sign-in then shows at the same Resources address, and no call is
+    rejoined by itself.
+  - The refusal keeps every row cleared throughout. 403 and 404 keep their words and Try again. Without `onSignIn` (the
+    fixture page by itself), Try again is unchanged.
+  - No change to SignedIn, App, auth, sign-out, the reader, reducer, flag, kit or CSS. Default-off is exact.
+- **Layout.** The kit's `.confirm` group sits inside the existing read notice. It is checked at 1280 and 390 with the
+  real copy. If it can't fit without a kit or CSS change, I report that instead of widening the lease.
+- **Evidence.**
+  - **App check, at desktop and phone, on the settled fixture project with a joined call:**
+    - Two real unsent drafts: words typed into the personal composer through the app, and a project-view draft in its
+      stored format (as app-auth's checks seed it).
+    - "Stay here": the call is still live with its switches, both drafts are intact (the personal one read back in its
+      composer after leaving the call), no sign-out request, and no extra catalog read.
+    - Then "Sign out and continue": one sign-out, local scope only; both drafts gone; no row shown; the sign-in at the
+      same address; back in, a fresh read and no call joined.
+    - The failed sign-out path asks first too.
+  - **Catalog fixture check:** its `signin=app` case now requires the confirmation, keyboard-safe: Enter on the opened
+    choice keeps.
+  - **Fail-before:** one bounded run on `8c1077b3`'s product with the final new recovery tests.
+  - **Then:** focused static, type and build checks and the affected browser specs at desktop and phone with no
+    retries; two confirmation captures (desktop, narrow); one signed child; ONE ordinary at that head.

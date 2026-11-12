@@ -155,6 +155,38 @@ foundation `775e2271`. The reviewer's read-only preparation (`bbabd5da…a517`) 
    - None of this is a committed candidate, an ordinary run, a PRE or a design decision. The staged-tree unit (205) and
      browser (185) runs and the build belong to `579ac1d5`'s bytes.
 
+## REC01, Sign in again asks first, as it happened (a child of `8c1077b3`)
+
+Davide accepted `8c1077b3` as the bounded read-only catalog design. It is published as PR #511 and stays there
+unchanged. He required Sign in again's consequences to be explicit and cancellable before routine activation.
+Assignment `INC01-DES-002-REC01-SIGNIN-CONFIRMATION-001` (`1f16a692…f25e`) leased five paths. The work is on the local
+branch `inc01-des-002-rec01`, in a fresh public worktree at `8c1077b3`.
+
+1. **Plan first:** the plan's REC01 section, logged before code.
+2. **The change, in `ProjectResources.tsx` only.** After a final 401, Sign in again is the kit's existing
+   `ConfirmButton`. Pressed, it says that signing in again signs out this device, ends any call, and removes everything
+   unsent on this device: drafts and messages in projects and in the personal space. That copy matches what App's
+   `leaving` forgets, even when sign-out fails. It offers Stay here (focused) and Sign out and continue. Only the latter
+   calls the same `onSignIn`, once. Nothing else changed: no SignedIn, App, auth, kit or CSS change. Default-off is
+   exact.
+3. **The app check finds its drafts.**
+   - The personal composer can't be typed into in the fixture app, because the fixture doesn't serve the personal
+     space. That attempt failed and is kept.
+   - The Studio chat draft doesn't survive leaving the Studio view, which is existing behaviour.
+   - So the check types into a project conversation's composer, which keeps drafts across views while the Studio is
+     open and is forgotten on sign-out. That needs the fixture's own views flag on; only the read flag decides
+     Resources.
+   - It also seeds the project view's stored draft, as app-auth's checks do.
+   - The join needed the Studio settled and up to 15 s. The first runs, failing on these points, are kept.
+4. **Fail-before** on `8c1077b3`'s product with the final tests: 4 of 4 failed by assertion (no confirmation group),
+   with no timeouts. Restored byte for byte.
+5. **What it shows.**
+   - Stay here, or leaving for another view before answering: no sign-out, no read, the call live with its switches,
+     and the typed words still in their composer and the stored draft byte for byte.
+   - Sign out and continue: one sign-out of this device only; both drafts gone; no row; the sign-in at the same
+     address. Back in: a fresh read, no call joined by itself, the composer empty.
+   - The failed sign-out asks first too, and its drafts go even so.
+
 ## Remaining obligations
 
 - The independent whole-actual source and pre-push review of this UX iteration candidate on `775`.
