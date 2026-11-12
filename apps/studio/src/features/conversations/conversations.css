@@ -1426,7 +1426,9 @@
   .conv-compose {
     padding: 4px 10px calc(var(--floor) + 58px);
   }
-  .conv-compose-hint {
+  /* The keys are a keyboard's; why Sophia won't answer is anyone's, said alone (conversation-ask-reason.md). */
+  .conv-compose-hint:not([data-unanswered]),
+  .conv-compose-hint[data-unanswered] > span:not([data-asked]) {
     display: none;
   }
   .conv-new {

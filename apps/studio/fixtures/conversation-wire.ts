@@ -1,6 +1,9 @@
 // The fixtures' conversations as A33 serves them (CON-01): the list with its policy and the reader's capability, a
 // summary with its coverage, a message with its order and its reply request. Only the fixture pages use this; what
-// they keep is conversation-data.ts's. Every word is synthetic.
+// they keep is conversation-data.ts's. Every word is synthetic. Whether Sophia answers here is the page's `ask=`: none,
+// she does (`ask: available`); `ask=off`, she doesn't, as while replies aren't enabled (`replies_not_enabled`); any
+// other reason code, she doesn't, for that reason as the API gives it (`ask=calls_exhausted`, `ask=runtime_unavailable`,
+// one the Studio doesn't know yet, as `ask=some_new_reason`; docs/plans/conversation-ask-reason.md).
 import type { ConversationList, ConversationMessage, ConversationSummary, ProjectionCoverage } from '@sophia/contracts'
 import { PROJECT } from './data.ts'
 import type { FixtureConversation, FixtureMessage } from './conversation-data.ts'
@@ -83,7 +86,7 @@ export function wireSummary(
 export function wireList(
   list: readonly FixtureConversation[],
   messages: Readonly<Record<string, readonly FixtureMessage[]>>,
-  opts: { lastShown: boolean; viewer: boolean; admin: boolean; more?: boolean; askOff?: boolean },
+  opts: { lastShown: boolean; viewer: boolean; admin: boolean; more?: boolean; askReason?: string | null },
 ): ConversationList {
   return {
     projectId: PROJECT,
@@ -105,9 +108,7 @@ export function wireList(
       state: 'enabled',
       write: !opts.viewer,
       moderate: opts.admin,
-      ...(opts.askOff === true
-        ? { ask: 'unavailable', askReason: 'replies_not_enabled' }
-        : { ask: 'available', askReason: null }),
+      ...(opts.askReason ? { ask: 'unavailable', askReason: opts.askReason } : { ask: 'available', askReason: null }),
     },
   }
 }
