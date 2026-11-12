@@ -6,7 +6,7 @@ installed automatic routing, not a live intake service and not the shipped INC-0
 from `@sophia/coordination`, registered in an app, or reachable from a request.
 
 - `packages/coordination/src/intake-observation.ts` — a pure, versioned, deterministic observation policy
-  (currently `sophia.intake-observation.policy.v20`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11, v12 r12, v13 r13, v14 r14, v15 r15 (unpublished), v16 r16, v17 r17, v18 r18, v19 r19). It reads a validated input and returns a proposal. It holds no
+  (currently `sophia.intake-observation.policy.v21`; v1 was r1, v2 r2, v3 r3, v4 r4, v5 r5, v6 r6, v7 r7, v8 r8, v9 r9 (unpublished), v10 r10, v11 r11, v12 r12, v13 r13, v14 r14, v15 r15 (unpublished), v16 r16, v17 r17, v18 r18, v19 r19, v20 r20). It reads a validated input and returns a proposal. It holds no
   transport, provider, database, notification, control or dispatch handle and reads no clock or environment.
 - `scripts/intake-observe.ts` — the consumer: an offline CLI that validates a bounded corpus file, strips every
   label before the policy sees a case, runs the policy, compares results with the labels separately and writes a
@@ -57,7 +57,7 @@ the CLI keeps them as comparison metadata, and a context that carries any of tho
 `unlabelled`. Any other value (number, boolean, array, object) is the case error `invalid_family` at
 `cases[i].family` (r18), so the case is counted invalid, never observed, and the command line exits 1.
 
-## States (one observation) — policy v20
+## States (one observation) — policy v21
 
 Policy v2 (`sophia.intake-observation.policy.v2`) replaced v1 after the independent r1 review
 (INC03-CC-001-r1-SOURCE-PRE-PUSH-001, F01–F07). Policy v3 (`sophia.intake-observation.policy.v3`) replaces v2 after
@@ -287,6 +287,21 @@ v20 (published r19 `90e46f7b`, gate `INC03-CC-001-r19-SOURCE-FINAL-001`) repairs
   symbol are still no word character. The pair shapes, the whole-input pair check, escaping and imports are
   unchanged. The lexicon's own `\b` matching treats every non-ASCII letter alike, BMP or supplementary, and is not a
   quote boundary; it is unchanged.
+
+v21 (published r20 `dbe6b772`, gate `INC03-CC-001-r20-SOURCE-FINAL-001`) repairs one class:
+
+- **Original unknown-effect reconciliation.** A retry of an operation whose dispatch is `possibly_sent` or
+  `outcome_unknown`, with no new target, proposes `reconcile_original`: the original operation, `newTarget` null,
+  admission `reconciliation_required` / `original_effect_outcome_unknown`.
+  - **Before v21:** the first current negative on new effects replaced that admission with a denial or a wait. Those
+    negatives are a source ineligible (three facts), membership lost, grant revoked, project excluded, actor
+    unauthorized, delegation unqualified, and an unavailable pin. The proposal still said "reconcile", but the
+    admission pretended a new, not-yet-sent effect was being judged.
+  - **Now:** that reconciliation is a settled outcome, like replay and conflict. It is bookkeeping about what may
+    already have happened, never admission of another effect, so those negatives do not replace it.
+  - **Not a reorder:** a replacement target after a possible send (`correlated_followup`, waiting), a new target before
+    a send (`correct_proposal`) and every other proposal still meet the current negatives first. Origin, redelivery,
+    human-only, failed addressing, replay, conflict and quiet keep their order. Effects stay zero.
 
 | State | When | Proposal | Admission |
 |---|---|---|---|

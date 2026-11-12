@@ -20,7 +20,7 @@
 import { createHash } from 'node:crypto'
 import { canonicalJson } from './canonical.ts'
 
-export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v20'
+export const INTAKE_OBSERVATION_POLICY_VERSION = 'sophia.intake-observation.policy.v21'
 
 export const INTAKE_LIMITS = { textChars: 4000, contextKeys: 64, stringChars: 200, listItems: 16 } as const
 
@@ -1630,9 +1630,17 @@ function routeUncertainty(facts: Facts, p: Proposal): string[] {
   return p.route === 'api' && !apiKnown ? ['api_payer_unknown'] : []
 }
 
-/** Recording kinds and settled operation outcomes are what they are; no further blocker applies. */
+/**
+ * Recording kinds and settled operation outcomes are what they are; no further blocker applies. So is reconciling an
+ * original effect whose outcome is unknown (r21): bookkeeping about what may already have happened, not a new effect,
+ * so a current negative fact on new effects (source, membership, grant, project, actor, delegation, pin) cannot replace
+ * it. Only correctionRule's retry without a new target yields it; a replacement or new target still meets those facts.
+ */
 const finalOutcome = (p: Proposal): boolean =>
-  SILENT_KINDS.has(p.kind) || p.block?.outcome === 'replay_original' || p.block?.outcome === 'conflict'
+  SILENT_KINDS.has(p.kind) ||
+  p.block?.outcome === 'replay_original' ||
+  p.block?.outcome === 'conflict' ||
+  p.block?.outcome === 'reconciliation_required'
 
 const firstBlock = (facts: Facts, p: Proposal): Block | undefined =>
   universalBlock(facts) ?? p.block ?? apiBlock(facts, p) ?? nativeBlock(facts, p)
@@ -1937,6 +1945,8 @@ export const INTAKE_OBSERVATION_POLICY = {
       'ambiguity counts distinct candidates (targets, candidates, repositories; comparisons as whole ordered pairs); one distinct candidate grants no target',
     recipients:
       'structured mentions are distinct recipient ids in first-occurrence order before the membership check; a repeated id is one recipient and never restores a departed member',
+    originalReconciliation:
+      'an original effect of unknown outcome (possibly_sent, outcome_unknown) with no new target is reconciled first: current negatives on new effects do not replace it; a replacement or new target still meets them',
     quietAddressees:
       'a no-reply hint quiets the answer only: the resolved humans (distinct, first occurrence, current members) stay beside Sophia',
     unicodeBoundaries:

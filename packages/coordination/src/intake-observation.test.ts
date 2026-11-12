@@ -2812,3 +2812,91 @@ describe('r20 (R19-F02 comment 4544262979): word boundaries read whole Unicode c
     malformed("Stop x'\udc00 now.")
   })
 })
+
+/** The nine current negative facts and the block each puts on a new or replacement effect. */
+const NEW_EFFECT_NEGATIVES: [string, Record<string, unknown>, { outcome: string; reason: string }][] = [
+  ['source ineligible', { currentSourceEligible: false }, { outcome: 'denied', reason: 'source_ineligible' }],
+  ['source permission', { sourcePermission: false }, { outcome: 'denied', reason: 'source_ineligible' }],
+  ['unrelated native history', { unrelatedNativeHistory: true }, { outcome: 'denied', reason: 'source_ineligible' }],
+  ['membership lost', { membershipRemovedBeforePublication: true }, { outcome: 'denied', reason: 'membership_lost' }],
+  ['grant revoked', { grantRevokedBeforeSend: true }, { outcome: 'denied', reason: 'grant_revoked' }],
+  ['project excluded', { projectExcludedByGrant: true }, { outcome: 'denied', reason: 'project_excluded' }],
+  ['actor unauthorized', { currentActorAuthorized: false }, { outcome: 'denied', reason: 'actor_unauthorized' }],
+  [
+    'delegation unqualified',
+    { resourceOwner: 'luis', requester: 'maria' },
+    { outcome: 'denied', reason: 'native_delegation_unqualified' },
+  ],
+  ['pin unavailable', { pin: 'pin21', pinUnavailable: true }, { outcome: 'waiting', reason: 'pin_unavailable' }],
+]
+
+describe('r21 (R20-F01 comment 4544525044): an original effect of unknown outcome is reconciled, whatever blocks new ones', () => {
+  const base = { audience: 'project', trustedMentions: ['sophia'], originalOperation: 'op21' }
+  const RECONCILE = { outcome: 'reconciliation_required', reason: 'original_effect_outcome_unknown', authority: 'none' }
+
+  it('both unknown states under each of the nine negatives keep the original reconciliation', () => {
+    for (const state of ['possibly_sent', 'outcome_unknown'])
+      for (const [name, negative] of NEW_EFFECT_NEGATIVES) {
+        const label = `${state} ${name}`
+        const o = observe('Try again.', { ...base, dispatchState: state, ...negative })
+        assert.equal(kindOf(o), 'reconcile_original', label)
+        assert.deepEqual(o.proposal.target, { kind: 'operation', id: 'op21', newTarget: null }, label)
+        assert.deepEqual(o.admission, RECONCILE, label)
+        assert.deepEqual(o.effects, ZERO_EFFECTS, label)
+      }
+  })
+
+  it('a replacement target after a possible send, and a new target before one, still meet the current negatives', () => {
+    for (const state of ['possibly_sent', 'outcome_unknown']) {
+      const replacement = { ...base, dispatchState: state, newTarget: 'card@v3' }
+      const plain = observe('Switch it to v3.', replacement)
+      assert.equal(kindOf(plain), 'correlated_followup')
+      assert.deepEqual(plain.admission, {
+        outcome: 'waiting',
+        reason: 'original_effect_outcome_unknown',
+        authority: 'none',
+      })
+      for (const [name, negative, block] of NEW_EFFECT_NEGATIVES)
+        assert.deepEqual(
+          observe('Switch it to v3.', { ...replacement, ...negative }).admission,
+          { ...block, authority: 'none' },
+          `${state} replacement ${name}`,
+        )
+    }
+    for (const [name, negative, block] of NEW_EFFECT_NEGATIVES) {
+      const o = observe('Switch it to v3.', { ...base, dispatchState: 'not_sent', newTarget: 'card@v3', ...negative })
+      assert.equal(kindOf(o), 'correct_proposal', name)
+      assert.deepEqual(o.admission, { ...block, authority: 'none' }, `not_sent new target ${name}`)
+    }
+  })
+
+  it('a retry of an unsent operation and a stale correction keep their settled outcomes', () => {
+    for (const [name, negative] of NEW_EFFECT_NEGATIVES) {
+      const retry = observe('Try again.', { ...base, dispatchState: 'not_sent', ...negative })
+      assert.deepEqual(retry.admission.outcome, 'replay_original', name)
+      const stale = observe('Switch it to v3.', {
+        ...base,
+        dispatchState: 'not_sent',
+        newTarget: 'card@v3',
+        expectedRevision: 2,
+        currentRevision: 3,
+        ...negative,
+      })
+      assert.deepEqual(stale.admission.outcome, 'conflict', name)
+    }
+  })
+
+  it('people, a quiet hint, generated origin and redelivery keep their precedence', () => {
+    const unknown = { ...base, dispatchState: 'outcome_unknown', currentSourceEligible: false }
+    const human = observe('Try again.', { ...unknown, trustedMentions: ['maria'] })
+    assert.equal(kindOf(human), 'human_message')
+    assert.ok(human.uncertainty.includes('operation_metadata_not_applied'))
+    const quiet = observe('Try again.', { ...unknown, needsReply: false })
+    assert.deepEqual([kindOf(quiet), quiet.admission.outcome], ['reconcile_original', 'reconciliation_required'])
+    const generated = observe('Try again.', { ...unknown, origin: 'generated', causedBy: 'op-g' })
+    assert.equal(generated.proposal.rule, 'origin.output_not_instruction')
+    const redelivered = observe('Try again.', { ...unknown, redeliveryOf: 'op-r', samePayload: true })
+    assert.equal(redelivered.proposal.rule, 'identity.redelivery_same_payload')
+    assert.equal(redelivered.admission.outcome, 'replay_original')
+  })
+})

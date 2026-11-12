@@ -1792,3 +1792,85 @@ describe('r20 through the consumer: quiet mixed addressees and whole-code-point 
     })
   })
 })
+
+/** The r21 consumer corpus: original unknown-effect reconciliation beside current negatives, with controls. */
+function r21Corpus(): TestDoc {
+  const doc = corpus()
+  const base = { audience: 'project', trustedMentions: ['sophia'], originalOperation: 'op21' }
+  doc.cases = [
+    testCase(
+      'R-possibly-source',
+      'Try again.',
+      { ...base, dispatchState: 'possibly_sent', currentSourceEligible: false },
+      {},
+    ),
+    testCase(
+      'R-unknown-pin',
+      'Try again.',
+      { ...base, dispatchState: 'outcome_unknown', pin: 'pin21', pinUnavailable: true },
+      {},
+    ),
+    testCase(
+      'R-unknown-delegation',
+      'Try again.',
+      { ...base, dispatchState: 'outcome_unknown', resourceOwner: 'luis', requester: 'maria' },
+      {},
+    ),
+    testCase(
+      'C-replacement',
+      'Switch it to v3.',
+      { ...base, dispatchState: 'possibly_sent', newTarget: 'card@v3', grantRevokedBeforeSend: true },
+      {},
+    ),
+    testCase(
+      'C-new-target',
+      'Switch it to v3.',
+      { ...base, dispatchState: 'not_sent', newTarget: 'card@v3', currentActorAuthorized: false },
+      {},
+    ),
+  ]
+  return doc
+}
+
+interface R21View {
+  cases: readonly { caseId: string; observation: IntakeObservation }[]
+  counts: { cases: number; observed: number; invalidCases: number }
+  actualEffects: Record<string, number>
+}
+
+function checkR21(r: R21View): void {
+  const o = new Map(r.cases.map((c) => [c.caseId, c.observation]))
+  for (const id of ['R-possibly-source', 'R-unknown-pin', 'R-unknown-delegation']) {
+    const obs = o.get(id)
+    assert.equal(obs?.proposal.kind, 'reconcile_original', id)
+    assert.deepEqual(obs.proposal.target, { kind: 'operation', id: 'op21', newTarget: null }, id)
+    assert.deepEqual(
+      obs.admission,
+      { outcome: 'reconciliation_required', reason: 'original_effect_outcome_unknown', authority: 'none' },
+      id,
+    )
+  }
+  assert.deepEqual(o.get('C-replacement')?.admission, { outcome: 'denied', reason: 'grant_revoked', authority: 'none' })
+  assert.deepEqual(o.get('C-new-target')?.admission, {
+    outcome: 'denied',
+    reason: 'actor_unauthorized',
+    authority: 'none',
+  })
+  assert.deepEqual([r.counts.cases, r.counts.observed, r.counts.invalidCases], [5, 5, 0])
+  assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+}
+
+describe('r21 through the consumer: original unknown-effect reconciliation', () => {
+  it('in the built report', () => {
+    checkR21(report(r21Corpus()))
+  })
+
+  it('in the written report from the command line', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, r21Corpus())
+      const out = join(dir, 'r.json')
+      assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 0)
+      checkR21(JSON.parse(readFileSync(out, 'utf8')))
+    })
+  })
+})
