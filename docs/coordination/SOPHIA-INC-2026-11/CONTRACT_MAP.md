@@ -21,3 +21,19 @@ This is a small implementation-enabling source map, authored by the coordinator 
 Coordinator owns this map and allocation of shared migration/amendment IDs. No product writer is active yet. The first Claude worker receives a disjoint contract/native assignment only after actual session identity and clean owner-native authentication exist. The designer receives a separate existing-UI scope after reviewed Impeccable setup. Do not concurrently assign resource types or shared generated contracts to both.
 
 INC-03 can begin with observation-only assessment work after its module is read and writable scope frozen. Inferred effects remain disabled until the module's evaluation and route qualification pass. INC-04 automation follows proven explicit bindings. INC-02 starts after one owner's qualified Codex/Claude pair, without waiting for all four routes.
+
+## Current composition (INC01-COHERENT-001, development, not accepted)
+
+One development commit on published native `45564a5a` composes the accepted owned slices. It is not published and
+activates nothing. Amendments are applied by the canonical generator in sorted file order: 50 files, A19 and A20 do
+not exist.
+
+| ID | Source slice | What it adds | Migration |
+|---|---|---|---|
+| A47 | Native (`45564a5a`) | Owner-runner operations | 0092, 0093 |
+| A48 | API (`9587bd72`) | Member API contributions, default off | 0094 |
+| A49 | S01 (`37b1f47d`) | Saved-conversation automatic inputs, default off, requires `conversations` | 0095 |
+| A50 | Native (`45564a5a`) | Owner-runner source authority (adds to A47's schemas) | 0096 |
+| A51 | Resource (`b98603b9`) | Member read of the project native-resource catalog | 0097 |
+| A52 | Personal P2 r1 (`858f957c`) | Personal automatic inputs, default off; `recorded` added to the A10 `PersonalTurn.reply` values | 0098, 0099 |
+| — | Coherent composition (WRITE-003) | No amendment: a rebuilt contributed research task keeps its funding binding; unbound lineages are fenced | 0100 |

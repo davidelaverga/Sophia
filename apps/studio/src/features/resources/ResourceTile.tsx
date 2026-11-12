@@ -24,15 +24,16 @@ import {
   type Resource,
   type Session,
 } from './resource.ts'
+import { hostShort, offlineFor, readinessSummary } from './status-words.ts'
 import { ToolLogo } from './ToolLogo.tsx'
-import { roughly } from '../../app/time-words.ts'
 
-const HOST = { online: 'Online', offline: 'Offline', unknown: 'Unknown' } as const
-
-/** An offline host says how long it has been gone, in a word: "Offline · 3 h", "Offline · 1 day". */
-function hostLabel({ state, observedAt }: Resource['host'], now: Date): string {
-  if (state !== 'offline' || !observedAt) return HOST[state]
-  return `${HOST[state]} · ${roughly(now.getTime() - Date.parse(observedAt))}`
+/**
+ * Its host, named as the host: an online host is not a ready tool (status-words.ts). An offline host says how long it
+ * has been gone, in a word: "Host offline · 3 h", "Host offline · 1 day".
+ */
+function hostLabel(host: Resource['host'], now: Date): string {
+  const gone = offlineFor(host, now) // only from a time that is an instant (r3 repair 7)
+  return gone === null ? hostShort(host) : `${hostShort(host)} · ${gone}`
 }
 
 interface Props {
@@ -111,6 +112,26 @@ function useChanged(signature: string): boolean {
     return () => clearTimeout(timer)
   }, [signature])
   return changed
+}
+
+/** Where a readiness projection exists: what it can do now, or what it waits on, in one line (status-words.ts). */
+function TileReadiness({
+  resource,
+  observation,
+  now,
+  id,
+}: {
+  resource: Resource
+  observation: QuotaObservation | undefined
+  now: Date
+  id: string
+}) {
+  const summary = readinessSummary(resource, observation, now)
+  return (
+    <span id={id} className="resource-tile-readiness" data-tone={summary.tone} title={summary.more ?? summary.line}>
+      {summary.line}
+    </span>
+  )
 }
 
 /** What the session at work last reported, and how long ago: amber while it waits, still once it isn't live. */
@@ -193,6 +214,22 @@ const marks = ({ changed, waiting, away }: { changed: boolean; waiting: number; 
   'data-away': away || undefined,
 })
 
+/** The ids of what a tile's lines say, in order: assistive technology hears them as its description. */
+function describedBy({ resource, mine, waiting }: Props, speaks: boolean, said: (part: string) => string): string {
+  return [
+    'host',
+    resource.readiness && 'readiness',
+    mine && 'you',
+    waiting > 0 && 'waiting',
+    'activity',
+    speaks && 'live',
+    'capacity',
+  ]
+    .filter((part) => typeof part === 'string')
+    .map(said)
+    .join(' ')
+}
+
 export function ResourceTile(props: Props) {
   const { resource, observation, now, mine, waiting, onOpen, current, onFocus, ref, buddy, drag } = props
   const { tool, owner, host } = resource
@@ -205,10 +242,7 @@ export function ResourceTile(props: Props) {
   const id = useId()
   const changed = useChanged(saysNow(props, held))
   const said = (part: string) => `${id}-${part}`
-  const described = ['host', mine && 'you', waiting > 0 && 'waiting', 'activity', speaks && 'live', 'capacity']
-    .filter((part) => typeof part === 'string')
-    .map(said)
-    .join(' ')
+  const described = describedBy(props, Boolean(speaks), said)
   return (
     <Card
       as="button"
@@ -237,6 +271,9 @@ export function ResourceTile(props: Props) {
         </span>
       </span>
       <Owner owner={owner} mine={mine} waiting={waiting} live={live ? speaks : null} now={now} said={said} />
+      {resource.readiness && (
+        <TileReadiness resource={resource} observation={observation} now={now} id={said('readiness')} />
+      )}
       <span id={said('activity')} className="resource-tile-activity" title={activity(resource)}>
         {model && <ModelChip model={model} />}
         <span className="resource-tile-activity-words">{activity(resource)}</span>

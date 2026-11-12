@@ -27,7 +27,7 @@ interface TurnRow {
   body: string
   created_at: Date
   reply_to: string | null
-  reply: 'pending' | 'answered' | 'failed' | null
+  reply: 'pending' | 'answered' | 'failed' | 'recorded' | null
   suggestion_id: string | null
   suggestion_body: string | null
   suggestion_state: 'open' | 'kept' | null
@@ -42,14 +42,23 @@ const TURNS = `SELECT t.id, t.seq, t.author, t.body, t.created_at, t.reply_to,
   WHERE t.owner_id = sophia.actor_id()`
 
 /**
+ * A turn the companion may read: not a held person turn (0098's `recorded`, an automatic_v1 input nobody asked about).
+ * Held words are kept and shown to their owner, but no answer or welcome is written from them, nor does one count as
+ * activity, until a later, separate admission of the input by its id makes it eligible (none exists yet). 0099's
+ * sophia.personal_welcome_due() applies the same rule in SQL. Applied before any LIMIT, so held turns never take the
+ * place of the turns read.
+ */
+const NOT_HELD = (t: string) => `NOT (${t}.author = 'person' AND ${t}.reply IS NOT DISTINCT FROM 'recorded')`
+
+/**
  * The conversation as the companion reads it to answer the turn at `$1`: each turn with the answer to it, up to that one
  * (an answer written after a later turn was said stays with its own), at most `$2` of them, newest first. Only the
  * newest `$2` turns up to it are read (by the conversation's order), and the answers written to them since: never the
  * whole conversation.
  */
 const HISTORY = `WITH recent AS (
-    SELECT id, seq, author, body, reply_to FROM sophia.personal_turns
-     WHERE owner_id = sophia.actor_id() AND seq <= $1 ORDER BY seq DESC LIMIT $2
+    SELECT id, seq, author, body, reply_to FROM sophia.personal_turns h
+     WHERE owner_id = sophia.actor_id() AND seq <= $1 AND ${NOT_HELD('h')} ORDER BY seq DESC LIMIT $2
   ), later AS (
     SELECT id, seq, author, body, reply_to FROM sophia.personal_turns
      WHERE owner_id = sophia.actor_id() AND seq > $1 AND reply_to IN (SELECT id FROM recent)
@@ -193,6 +202,20 @@ export async function readPersonalTurnsBefore(
   return { turns: rows.slice(0, limit).map(turnOf).toReversed(), earlier: rows.length > limit }
 }
 
+/**
+ * The turn a held input keeps (0098), read through the caller's own input row: the exact turn its receipt names, as
+ * every Personal read shows it; null when the caller has no such input. For personal-inputs.ts; not in the index.
+ */
+export async function readPersonalInputTurn(c: pg.PoolClient, inputId: string): Promise<PersonalTurn | null> {
+  const { rows } = await c.query<TurnRow>(
+    `${TURNS} AND t.id = (SELECT i.turn_id FROM sophia.personal_inputs i
+                           WHERE i.owner_id = sophia.actor_id() AND i.id = $1)`,
+    [inputId],
+  )
+  const row = rows[0]
+  return row ? turnOf(row) : null
+}
+
 /** Turns after `after`, and whether any reply is still pending: what a waiting client polls. */
 export async function readPersonalTurnsAfter(c: pg.PoolClient, after: number): Promise<PersonalTurnPage> {
   const { rows } = await c.query<TurnRow>(`${TURNS} AND t.seq > $1 ORDER BY t.seq LIMIT $2`, [
@@ -257,9 +280,12 @@ export async function readCompanionContext(
   }
 }
 
-/** A welcome is due: the last turn is more than an hour old and is not already one. */
+/**
+ * A welcome is due: the last turn, held person turns aside (NOT_HELD, as 0099), is more than an hour old and is not
+ * already one. None is due in a space with no other turn.
+ */
 const WELCOME_DUE = `SELECT (t.created_at < now() - interval '1 hour' AND NOT (t.author = 'sophia' AND t.reply_to IS NULL)) AS due
-  FROM sophia.personal_turns t WHERE t.owner_id = sophia.actor_id() ORDER BY t.seq DESC LIMIT 1`
+  FROM sophia.personal_turns t WHERE t.owner_id = sophia.actor_id() AND ${NOT_HELD('t')} ORDER BY t.seq DESC LIMIT 1`
 
 /**
  * What Sophia's welcome back is written from, for the attempt holding the welcome's `claim` (beginPersonalGreeting), its
@@ -275,7 +301,7 @@ export async function readWelcomeContext(
   if (!onlyRow(held.rows, 'renew_personal_greeting').held) return null
   const due = (await c.query<{ due: boolean }>(WELCOME_DUE)).rows[0]?.due ?? false
   if (!due) return null
-  const { rows } = await c.query<TurnRow>(`${TURNS} ORDER BY t.seq DESC LIMIT $1`, [depth])
+  const { rows } = await c.query<TurnRow>(`${TURNS} AND ${NOT_HELD('t')} ORDER BY t.seq DESC LIMIT $1`, [depth])
   const notes = await readNotes(c)
   return {
     history: rows.toReversed().map((r) => ({ author: r.author, text: r.body })),

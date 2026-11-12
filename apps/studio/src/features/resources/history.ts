@@ -21,18 +21,26 @@ const sameWindow = (a: QuotaWindow, b: QuotaWindow) =>
     ? a.window_epoch === b.window_epoch
     : a.resets_at === b.resets_at
 
-/** How long a history spans, from its first reading to its last: "3 h". Empty for fewer than two readings. */
+/**
+ * How long a history spans, from its first reading to its last: "3 h". Empty for fewer than two readings, and for ends
+ * that aren't finite or run backwards: no span is said from a time that isn't one (r3 repair 6, UI85C4-F09).
+ */
 export function spanOf(points: readonly Point[]): string {
   const first = points[0]
   const last = points.at(-1)
-  if (!first || !last || last.at <= first.at) return ''
+  if (!first || !last || !Number.isFinite(first.at) || !Number.isFinite(last.at) || last.at <= first.at) return ''
   return roughly(last.at - first.at)
 }
 
+/**
+ * The window's points, oldest first, one per moment. A reading whose time isn't a finite instant gives none: it is kept
+ * as read, and no time, zero or count is made up in its place (r3 repair 6, UI85C4-F09).
+ */
 export function windowHistory(window: QuotaWindow, readings: readonly QuotaObservation[]): Point[] {
   const points = readings.flatMap((o) => {
     const w = o.windows.find((x) => x.window_id === window.window_id && sameWindow(x, window))
-    return w && drawable(w) && w.value !== null ? [{ at: Date.parse(o.observed_at), value: w.value }] : []
+    const at = Date.parse(o.observed_at)
+    return w && drawable(w) && w.value !== null && Number.isFinite(at) ? [{ at, value: w.value }] : []
   })
   const seen = new Set<number>()
   return points

@@ -25,7 +25,12 @@ test('keys · H holds, then resumes; S asks to stop and the safe answer takes th
   await expect(page.locator('[data-task="work-2"] .task-chip')).toHaveText('Held')
   await expect(page.locator('[data-task="work-2"] .task-chip')).toHaveText('Held')
   await page.keyboard.press('h')
-  await expect(sheet.locator('.act-steps')).toContainText('Resumed.')
+  // While its Resume is on its way, the Hold it would undo is still said beside it (two rows, r3 repair 8); once the
+  // runtime confirms the Resume, it alone is said, and the task works again (r3 repair 10, UI9-F14).
+  await expect(sheet.locator('.act-steps').filter({ hasText: 'Resumed.' })).toHaveCount(1)
+  await expect(sheet.locator('.act-steps')).toHaveCount(1)
+  await expect(page.locator('[data-task="work-2"] .task-chip')).toHaveText('Working')
+  expect((await page.evaluate(() => window.workFixture?.commands ?? [])).map((c) => c.kind)).toEqual(['hold', 'resume'])
   await page.keyboard.press('s')
   const ask = sheet.getByRole('group', { name: 'Stop' })
   await expect(ask).toBeVisible()
