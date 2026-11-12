@@ -88,6 +88,57 @@ DO $$ BEGIN
  IF length(repeat(E'\U0001F680',8000))<>8000 THEN RAISE EXCEPTION 'length() is not code points'; END IF;
 END $$;
 
+-- --- repair 13 (NATIVE12-F02, F02-W1): a declared model or string value is 1 to 200 code points, no trim() edge -------
+-- The gateway keeps a model or string value only if it equals its own JavaScript trim() and is at most 200 code points.
+-- The policy declares nothing the gateway would refuse: the same 25 characters as owner_runner_blank, whatever the
+-- database's locale, and code points. Every disagreement is collected, then reported at once.
+DO $$ DECLARE
+ trims text[]:=ARRAY[E'\u0009',E'\u000a',E'\u000b',E'\u000c',E'\u000d',E' ',E' ',E' ',E' ',E' ',
+  E' ',E' ',E' ',E' ',E' ',E' ',E' ',E' ',E' ',E' ',E' ',E' ',
+  E' ',E'　',E'﻿'];
+ c text; v text; bad text[]:='{}';
+BEGIN
+ IF cardinality(trims)<>25 OR EXISTS(SELECT 1 FROM unnest(trims) x WHERE NOT sophia.owner_runner_blank(x)) THEN
+  RAISE EXCEPTION 'Not the 25 characters owner_runner_blank takes as blank'; END IF;
+ CREATE TEMP TABLE r13_values(label text, value text, allowed boolean) ON COMMIT DROP;
+ FOREACH c IN ARRAY trims LOOP
+  INSERT INTO r13_values VALUES ('leading U+'||lpad(upper(to_hex(ascii(c))),4,'0'), c||'m', false),
+   ('trailing U+'||lpad(upper(to_hex(ascii(c))),4,'0'), 'm'||c, false),
+   ('inside U+'||lpad(upper(to_hex(ascii(c))),4,'0'), 'm'||c||'m', true);
+ END LOOP;
+ -- Characters trim() keeps may stand at an edge.
+ INSERT INTO r13_values VALUES ('leading U+0085', E'\u0085m', true), ('leading U+200B', E'​m', true),
+  ('leading U+180E', E'᠎m', true),
+  ('200 supplementary', repeat(E'\U0001F680',200), true), ('201 supplementary', repeat(E'\U0001F680',201), false),
+  ('200 mixed', repeat(E'é\U0001F680',100), true), ('200 ASCII', repeat('m',200), true),
+  ('201 ASCII', repeat('m',201), false), ('one character', 'm', true), ('empty', '', false);
+ FOR v, c IN SELECT value, label FROM r13_values LOOP
+  IF (sophia.owner_runner_policy_refusal(jsonb_build_object('v',1,'instanceId','codex','models',
+       jsonb_build_array(jsonb_build_object('model',v,'options','[]'::jsonb)))) IS NULL)
+     IS DISTINCT FROM (SELECT allowed FROM r13_values WHERE label=c) THEN bad:=bad||('model, '||c); END IF;
+  IF (sophia.owner_runner_policy_refusal(jsonb_build_object('v',1,'instanceId','codex','models',
+       jsonb_build_array(jsonb_build_object('model','m','options',
+        jsonb_build_array(jsonb_build_object('id','effort','values',jsonb_build_array(v))))))) IS NULL)
+     IS DISTINCT FROM (SELECT allowed FROM r13_values WHERE label=c) THEN bad:=bad||('value, '||c); END IF;
+ END LOOP;
+ IF cardinality(bad)>0 THEN
+  RAISE EXCEPTION 'The policy disagrees with the gateway (lc_ctype %) on %: %',
+   (SELECT datctype FROM pg_database WHERE datname=current_database()), cardinality(bad), bad; END IF;
+ -- A declared 200-point model and value are requested as declared; an undeclared value of that length is refused.
+ IF sophia.owner_runner_settings_refusal(jsonb_build_object('v',1,'instanceId','codex','models',jsonb_build_array(
+      jsonb_build_object('model',repeat(E'\U0001F680',200),'options',jsonb_build_array(
+       jsonb_build_object('id','effort','values',jsonb_build_array(repeat(E'é\U0001F680',100))))))),
+    jsonb_build_object('instanceId','codex','model',repeat(E'\U0001F680',200),'options',jsonb_build_array(
+     jsonb_build_object('id','effort','value',repeat(E'é\U0001F680',100))))) IS NOT NULL THEN
+  RAISE EXCEPTION 'Declared 200-point settings were refused'; END IF;
+ IF sophia.owner_runner_settings_refusal(jsonb_build_object('v',1,'instanceId','codex','models',jsonb_build_array(
+      jsonb_build_object('model','m','options',jsonb_build_array(
+       jsonb_build_object('id','effort','values',jsonb_build_array(repeat(E'é\U0001F680',100))))))),
+    jsonb_build_object('instanceId','codex','model','m','options',jsonb_build_array(
+     jsonb_build_object('id','effort','value',repeat(E'\U0001F680',200))))) IS NULL THEN
+  RAISE EXCEPTION 'An undeclared 200-point value was allowed'; END IF;
+END $$;
+
 -- --- the envelope ----------------------------------------------------------------------------------------------------
 DO $$ DECLARE o sophia.owner_runner_operations; e jsonb; BEGIN
  o:=jsonb_populate_record(NULL::sophia.owner_runner_operations, jsonb_build_object('project_id',gen_random_uuid(),'id',gen_random_uuid(),

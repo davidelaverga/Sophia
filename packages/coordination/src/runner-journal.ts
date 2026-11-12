@@ -21,6 +21,10 @@
  *   read, torn-line repair and append goes through that one descriptor, and each append first checks that the path
  *   still names it. Limits: POSIX hosts only (O_NOFOLLOW, getuid); this uid and root are trusted; ancestors are judged
  *   once, at opening; no filesystem's isolation is qualified by this.
+ * - Whole bytes (repair 13, NATIVE12-F01 and F01-A3): every write of the header, a record or a terminating newline
+ *   writes all of its UTF-8 bytes before its fsync, or throws; nothing advances (the journal's id, seq, length or an
+ *   entry) until the whole write and its fsync are done. A torn final line is cut at its first raw byte, never by the
+ *   length of its decoded text. No power-loss, filesystem or kernel guarantee beyond the fsyncs is claimed.
  * @module @sophia/coordination/runner-journal
  */
 import { randomUUID } from 'node:crypto'
@@ -129,6 +133,24 @@ function openPrivate(file: string, uid: number): number {
   return fd
 }
 
+/**
+ * Write every UTF-8 byte of `text` at `position`, continuing after any positive short write (repair 13, NATIVE12-F01).
+ * Progress that is not a whole number of bytes in 1..remaining (zero, negative, NaN, fractional, too many) throws, so
+ * every call either advances or ends the write. A thrown call is never retried, rewound or taken as written: the caller
+ * fails closed, and a later opening cuts a torn tail. Returns the number of bytes written.
+ */
+function writeWhole(fd: number, text: string, position: number): number {
+  const bytes = Buffer.from(text, 'utf8')
+  let done = 0
+  while (done < bytes.length) {
+    const left = bytes.length - done
+    const n = writeSync(fd, bytes, done, left, position + done)
+    if (!Number.isSafeInteger(n) || n < 1 || n > left) throw new Error('runner journal: a write made no valid progress')
+    done += n
+  }
+  return bytes.length
+}
+
 /** Every byte of the open file. */
 function readAll(fd: number): Buffer {
   const bytes = Buffer.alloc(fstatSync(fd).size)
@@ -176,19 +198,22 @@ export class RunnerJournal {
   }
 
   private create(): void {
-    this.journalId = randomUUID()
-    const header = { seq: 0, time: Date.now(), type: 'header', journalId: this.journalId, version: JOURNAL_VERSION }
+    const journalId = randomUUID()
+    const header = { seq: 0, time: Date.now(), type: 'header', journalId, version: JOURNAL_VERSION }
     // Only ever an empty file: a new one, or one whose torn header was cut to nothing.
     if (fstatSync(this.fd).size !== 0) throw new Error('runner journal: a header is written only to an empty file')
-    writeSync(this.fd, `${JSON.stringify(header)}\n`, 0)
+    const size = writeWhole(this.fd, `${JSON.stringify(header)}\n`, 0)
     fsyncSync(this.fd)
-    this.length = fstatSync(this.fd).size
+    if (fstatSync(this.fd).size !== size) throw new Error('runner journal: its header was not written whole')
     const dir = openSync(dirname(this.file), 'r')
     try {
       fsyncSync(dir)
     } finally {
       closeSync(dir)
     }
+    // Repair 13: the id becomes this journal's only once its whole header and directory entry are durable.
+    this.length = size
+    this.journalId = journalId
     this.seq = 1
   }
 
@@ -211,7 +236,9 @@ export class RunnerJournal {
         // Only a final line without its newline is a torn append; a complete line that does not parse is corruption.
         if (!last || complete)
           throw new Error(`runner journal is corrupt at line ${index + 1}: ${describe(error)}`, { cause: error })
-        length = bytes.length - Buffer.byteLength(line)
+        // Repair 13 (NATIVE12-F01-A3): cut at the torn line's first raw byte, just after the last newline byte. Its
+        // decoded text is no measure: an incomplete UTF-8 character decodes to U+FFFD, longer than its bytes.
+        length = bytes.lastIndexOf(0x0a) + 1
         this.truncate(length, '')
         continue
       }
@@ -247,7 +274,7 @@ export class RunnerJournal {
 
   private truncate(length: number, suffix: string): void {
     ftruncateSync(this.fd, length)
-    if (suffix) writeSync(this.fd, suffix, length)
+    if (suffix) writeWhole(this.fd, suffix, length)
     fsyncSync(this.fd)
   }
 
@@ -285,9 +312,10 @@ export class RunnerJournal {
     const next = this.next(checked)
     this.assertSamePath()
     if (fstatSync(this.fd).size !== this.length) throw new Error('runner journal was written by another writer')
-    writeSync(this.fd, line, this.length)
+    // Repair 13: the whole line, then its fsync, before the length, seq or entry advance.
+    const size = writeWhole(this.fd, line, this.length)
     fsyncSync(this.fd)
-    this.length += Buffer.byteLength(line)
+    this.length += size
     this.seq += 1
     this.entries.set(operationId, next)
   }

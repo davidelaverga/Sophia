@@ -1,6 +1,6 @@
-import { after, describe, it } from 'node:test'
+import { after, describe, it, mock } from 'node:test'
 import assert from 'node:assert/strict'
-import {
+import fs, {
   appendFileSync,
   chmodSync,
   existsSync,
@@ -16,6 +16,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import { syncBuiltinESMExports } from 'node:module'
 import { hostname, tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import { join } from 'node:path'
@@ -2119,6 +2120,208 @@ describe('a recovery read is evidence only with the exact window and its newest 
     assert.deepEqual(
       seen,
       controls.map(([what]) => [what, 'received started its own run', 1]),
+    )
+  })
+})
+
+// ---- repair 13 (NATIVE12-F01 and F02): durable bytes before the native call, and settings in code points ----
+
+type WriteStep = number | 'rest' | 'zero' | 'throw' | { readonly cut: (bytes: Buffer) => number }
+const realWriteSync = fs.writeSync
+const enospc = () => Object.assign(new Error('ENOSPC: no space left on device, write'), { code: 'ENOSPC' })
+
+/** One writeSync call, in either of its forms, as its bytes and position. */
+function writeRequest(data: unknown, a: unknown, b: unknown, c: unknown): { bytes: Buffer; position: number | null } {
+  if (typeof data === 'string') return { bytes: Buffer.from(data, 'utf8'), position: typeof a === 'number' ? a : null }
+  const view = data as Buffer
+  const offset = typeof a === 'number' ? a : 0
+  const length = typeof b === 'number' ? b : view.length - offset
+  return { bytes: Buffer.from(view.subarray(offset, offset + length)), position: typeof c === 'number' ? c : null }
+}
+
+/**
+ * TEST-PROCESS-ONLY write faults, as in runner-journal.test.ts (repair 13): `fs.writeSync` is replaced and the named ESM
+ * imports resynchronized, then both restored in `finally`. The first call whose bytes contain `marker` gets `steps[0]`;
+ * each call continuing exactly its remaining bytes gets the next. A number writes that many bytes for real.
+ */
+async function withWrites<T>(
+  marker: string,
+  steps: readonly WriteStep[],
+  run: () => Promise<T>,
+): Promise<{ value: T | undefined; error: unknown; hits: number }> {
+  const left = [...steps]
+  let hits = 0
+  let pending: Buffer | null = null
+  const fake = (fd: number, data: unknown, a?: unknown, b?: unknown, c?: unknown): number => {
+    const { bytes, position } = writeRequest(data, a, b, c)
+    const continues = pending !== null && bytes.equals(pending)
+    const step = continues || (hits === 0 && bytes.includes(marker)) ? left.shift() : undefined
+    pending = null
+    if (step === undefined) return realWriteSync(fd, bytes, 0, bytes.length, position)
+    hits += 1
+    if (step === 'throw') throw enospc()
+    const k = step === 'rest' ? bytes.length : step === 'zero' ? 0 : typeof step === 'number' ? step : step.cut(bytes)
+    const written = k === 0 ? 0 : realWriteSync(fd, bytes, 0, k, position)
+    pending = bytes.subarray(written)
+    return written
+  }
+  const mocked = mock.method(fs, 'writeSync', fake as unknown as typeof fs.writeSync)
+  syncBuiltinESMExports()
+  try {
+    try {
+      return { value: await run(), error: undefined, hits }
+    } catch (error) {
+      return { value: undefined, error, hits }
+    }
+  } finally {
+    mocked.mock.restore()
+    syncBuiltinESMExports()
+    assert.equal(fs.writeSync, realWriteSync, 'the real writeSync is restored')
+  }
+}
+const errorOf = (e: unknown) => (e === undefined ? null : e instanceof Error ? e.message : JSON.stringify(e))
+
+describe('no native call before a whole, durable possible send (repair 13, NATIVE12-F01)', () => {
+  it('completes a possible send cut short, calls once, and answers the same after a reopen', async () => {
+    const file = journalFile()
+    const t3 = new FakeT3()
+    const first = setup({ file, t3 })
+    const e = create(1)
+    const run = await withWrites('"type":"possible_send"', [{ cut: (b) => Math.floor(b.length / 2) }, 'rest'], () =>
+      first.send(e),
+    )
+    first.gateway.close()
+    const again = setup({ file, t3 })
+    const replay = await again.send(e)
+    const reconciled = await again.rec(e)
+    again.gateway.close()
+    assert.deepEqual(
+      {
+        hits: run.hits,
+        error: errorOf(run.error),
+        sent: run.value?.kind,
+        launches: t3.effects.launches,
+        replay: replay.kind,
+        reconciled: reconciled.kind,
+        sameRun: runOf(replay) === runOf(run.value ?? replay),
+      },
+      {
+        hits: 2,
+        error: null,
+        sent: 'received',
+        launches: 1,
+        replay: 'received',
+        reconciled: 'received',
+        sameRun: true,
+      },
+    )
+  })
+
+  for (const [name, steps] of [
+    ['writes no byte of it', ['zero']],
+    ['throws after a prefix of it', [20, 'throw']],
+  ] as const) {
+    it(`makes no native call when the journal ${name}; the original stays unknown after a reopen, never sent again`, async () => {
+      const file = journalFile()
+      const t3 = new FakeT3()
+      const first = setup({ file, t3 })
+      const e = create(1)
+      const run = await withWrites('"type":"possible_send"', steps, () => first.send(e))
+      const launchesBefore = t3.effects.launches
+      first.gateway.close()
+      const again = setup({ file, t3 })
+      const replay = await again.send(e)
+      const reconciled = await again.rec(e)
+      again.gateway.close()
+      assert.deepEqual(
+        {
+          hits: run.hits,
+          failed: run.error !== undefined,
+          launchesBefore,
+          replay: replay.kind,
+          reconciled: reconciled.kind,
+          launches: t3.effects.launches,
+          reads: t3.count('t3_thread_read'),
+        },
+        {
+          hits: steps.length,
+          failed: true,
+          launchesBefore: 0,
+          replay: 'unknown',
+          reconciled: 'unknown',
+          launches: 0,
+          reads: 0,
+        },
+      )
+    })
+  }
+
+  it('hands out no journal id, and so sends nothing, when the header is not written whole', async () => {
+    const file = journalFile()
+    const t3 = new FakeT3()
+    const run = await withWrites('"type":"header"', ['zero'], async () => {
+      const g = setup({ file, t3 })
+      const answer = await g.send(create(1))
+      g.gateway.close()
+      return answer.kind
+    })
+    let reopened = 'opened'
+    try {
+      setup({ file, t3 }).gateway.close()
+    } catch (err) {
+      reopened = errorOf(err) ?? ''
+    }
+    assert.deepEqual(
+      { hits: run.hits, opened: run.error === undefined, launches: t3.effects.launches, reopened },
+      { hits: 1, opened: false, launches: 0, reopened: 'opened' },
+    )
+  })
+})
+
+describe('settings of up to 200 code points reach the native call exactly (repair 13, NATIVE12-F02)', () => {
+  const rocket = '\u{1F680}'
+  const mixed = (points: number) => Array.from({ length: points }, (_, i) => (i % 2 === 0 ? 'é' : rocket)).join('')
+  const routed = (model: string, value: string) => {
+    const policy: RunnerSourcePolicy = {
+      v: 1,
+      instanceId: 'claudeAgent',
+      models: [{ model, options: [{ id: 'effort', values: [value] }] }],
+    }
+    const settings = { instanceId: 'claudeAgent', model, options: [{ id: 'effort', value }] }
+    return { hostProfile: { ...profile, sourcePolicy: policy }, settings }
+  }
+
+  for (const [name, model, value] of [
+    ['a 200-point supplementary model and a 200-point mixed value', rocket.repeat(200), mixed(200)],
+    ['a 200-point mixed model and a 200-point supplementary value', mixed(200), rocket.repeat(200)],
+  ] as const) {
+    it(`sends ${name} exactly, and reloads its journaled envelope after a reopen`, async () => {
+      const file = journalFile()
+      const t3 = new FakeT3()
+      const { hostProfile, settings } = routed(model, value)
+      const first = setup({ file, t3, hostProfile })
+      const { envelope, payload } = v2(1, 'create', { settings })
+      const sent = await sendV2(first.gateway, envelope, payload)
+      first.gateway.close()
+      const again = setup({ file, t3, hostProfile })
+      const replay = await sendV2(again.gateway, envelope)
+      again.gateway.close()
+      const launch = t3.calls.find((c) => c.tool === 't3_thread_launch')
+      assert.deepEqual(
+        { sent: sent.kind, selection: launch?.args.modelSelection, launches: t3.effects.launches, replay: replay.kind },
+        { sent: 'received', selection: settings, launches: 1, replay: 'received' },
+      )
+    })
+  }
+
+  it('refuses 201 points before any intent, as the schema and SQL do', async () => {
+    const { hostProfile, settings } = routed(rocket.repeat(201), 'high')
+    const { gateway, t3 } = setup({ hostProfile })
+    const { envelope, payload } = v2(1, 'create', { settings })
+    const answer = await sendV2(gateway, envelope, payload)
+    assert.deepEqual(
+      { kind: answer.kind, reason: answer.kind === 'refused' ? answer.reason : null, launches: t3.effects.launches },
+      { kind: 'refused', reason: 'model is not a model name', launches: 0 },
     )
   })
 })

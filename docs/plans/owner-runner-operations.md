@@ -978,3 +978,127 @@ the projection is reverted.
 
 **Then:** focused crossings and static checks, one ordinary `pnpm check` on the signed head, an early checkpoint while
 it runs, and the sealed raw evidence.
+
+## Repair 13: durable byte writes and code-point settings (INC01-CC-005-repair12-SOURCE-FINAL-001 and its A3 addendum: NATIVE12-F01, F01-A3, F02 and F02-W1)
+
+Written before any code, by the same native author (Claude Code, session `session_01FGXfrJoUMojmJSW3H7XfoG`), in the
+worktree `r13` on branch `inc01-cc005-r13`. It is one signed sole child of the published `ad318fe0` (tree `05129cae`).
+
+Exactly eleven writable existing paths:
+- `runner-journal.ts`, `runner-journal-lock.ts` and `runner-port.ts`;
+- their tests `runner-journal.test.ts` and `runner-port.test.ts`, plus the gateway test and the worker DB test;
+- `0096_owner_runner_source_authority.sql` and its SQL test;
+- this plan and the CC-005 handoff.
+
+The gateway, the worker production code, the journal-record parser, the host channel, the transport, the mapper,
+FakeT3, the API, every other SQL file, the contracts, the generated outputs, SOURCE_MAP, dependencies and configuration
+stay byte-exact. There is no new file and no shared helper. The issued preflight (`e9516d9e…`) is unchanged, and an
+external note (`7a8f3f17…`) corrects its overstatements against the receipts.
+
+### The defects (confirmed by the independent receipts)
+
+- **F01 (P1), incomplete writes.** All four `writeSync` sites ignored the bytes actually written:
+  - the header;
+  - every appended record (`intent`, `possible_send`, `answer`, `unknown`, `refused`);
+  - the newline that terminates a final record;
+  - the lock's content.
+
+  Observed outcomes:
+  - **Header:** a half or zero-byte header still handed out its id, a create was received with one launch, and the
+    reopen was corrupt.
+  - **`possible_send`:** half or zero bytes, yet one native call was made; the reopen answered `unknown` with no
+    replay.
+  - **Lock:** half or zero bytes let the journal open but refused its first append; the reopen was refused.
+  - **Terminating newline:** zero bytes still opened the journal; the next append failed its length fence.
+- **F01-A3 (P1), torn UTF-8 recovery.** The torn final line was measured after decoding.
+  - An incomplete 1- or 2-byte UTF-8 fragment decodes to U+FFFD (3 bytes), so the cut removed 1 or 2 bytes of the
+    previous, fsynced record.
+  - Observed: 20 over-cuts. On a second reopen, 3 lost the header's id and 3 lost a `possible_send`, which then
+    reconciled to `unknown` with 0 reads.
+- **F02 (P2), settings in UTF-16.** The gateway checked the model and string option values with `v.length <= 200`. The
+  published schema and SQL count code points. Observed: valid 101 to 200 code-point supplementary or mixed values were
+  admitted, `possible_send_at` was set, and the operation was then denied by the gateway (state `denied`, 0 launches,
+  reservation 0).
+- **F02-W1 (P2), edge whitespace in SQL.** Both policy sites (model and string value) used the locale-dependent POSIX
+  `^\S(.{0,198}\S)?$`, while the gateway uses JavaScript `trim()`. Observed in the C locale: a leading-U+FEFF model was
+  declared and admitted, then denied with 0 launches and reservation 0.
+
+### The rules
+
+1. **Every intended byte, or nothing usable.**
+   - One private routine in each of the journal and lock modules encodes UTF-8 once.
+   - It writes from the right byte offset to the right file position, continuing after any positive short write.
+   - It throws on progress that is zero, negative, NaN, not an integer, or more than the bytes left. Each call either
+     advances or throws, so the loop is bounded.
+   - A thrown call is not retried, rewound or treated as a record.
+2. **Nothing advances before the whole write and its `fsync`.**
+   - The header's id is set and usable only after every byte is written and fsynced, the file size equals the header's
+     byte length, and the directory is fsynced.
+   - `append` advances `length`, `seq` and the entry only after its whole line and `fsync`.
+   - A thrown `intent` or `possible_send` therefore always ends before `transport.call`.
+3. **The terminating newline** uses the same routine; a failure fails the opening.
+4. **The lock.**
+   - The content is written in full and fsynced.
+   - On failure, the descriptor is closed and the lock file is unlinked only if the path still names the exact inode
+     this call created with `O_EXCL` (same device and inode). A replacement or foreign lock is never removed.
+   - Then `acquire` throws: no journal opens and no id is handed out.
+   - Every ownership, mode, link, no-follow, FIFO/non-regular, cross-process and current-path fence is unchanged.
+5. **The torn tail is cut at a raw byte boundary:** just after the last `\n` byte, or 0. Unchanged:
+   - every byte of every earlier complete record, and its id;
+   - a complete final record missing its newline is validated and terminated;
+   - a complete line that does not parse, anywhere, is corruption;
+   - no earlier record is repaired, no new identity is created, and nothing is retried.
+6. **Settings in code points (gateway).** The model and string option values are 1 to 200 **code points** (the
+   existing `characters()`), non-empty and equal to their own `trim()`. Unchanged:
+   - declared policy membership, exact keys, types and booleans;
+   - option count (at most 10), order and uniqueness;
+   - the ASCII `instanceId` (64) and option-id (100) patterns.
+
+   Nothing is normalized or truncated, and no other `String.length` check changes.
+7. **Settings edges (SQL, 0096).** Both policy sites require 1 to 200 code points whose first and last characters are
+   not in the explicit `trim()` set that `owner_runner_blank` already uses: tab to carriage return, space, U+00A0,
+   U+1680, U+2000–U+200A, U+2028, U+2029, U+202F, U+205F, U+3000 and U+FEFF (25 characters).
+   - This does not depend on the locale.
+   - An unusable declaration is refused (22023) before any admission. Settings that name an undeclared model or value
+     are refused at admission as before.
+   - Function signatures, privileges, roles and grants, the API and the schema are unchanged, and nothing is
+     normalized.
+
+**Consequences kept exact:**
+- A thrown or incomplete write is never evidence of `not_sent`.
+- Existing uncertain outcomes keep their barrier and reservation.
+- A definite denial or settlement follows the existing contract; no capacity release or retention is claimed beyond
+  what is observed.
+
+### Proof (to be run)
+
+Fresh public synthetic inputs only.
+
+**Test-process-only filesystem fault.** In the journal and gateway tests, `fs.writeSync` is replaced with
+`mock.method`, then `module.syncBuiltinESMExports()` is called, and both are restored and resynchronized in `finally`.
+- The fault really writes the stated prefix with the original `writeSync`.
+- Its variants: half or a byte count inside a multibyte character, then the rest; zero; invalid (more than asked, -1,
+  NaN, 1.5); and a prefix then a thrown `ENOSPC`.
+- Each test asserts that its hook was hit.
+
+**Fail-before on exact `ad318` production bytes with the final tests, then pass-after:**
+- **Journal:** the header; each record type; the terminating newline; the lock, including a replacement lock appearing
+  during a failed creation; and torn UTF-8 tails at 2-, 3- and 4-byte boundaries after a header, an intent, a
+  `possible_send` and an answer, reopened twice. Controls: ASCII, complete UTF-8, 3-of-4 bytes, complete without a
+  newline, and a corrupt middle line.
+- **Gateway** (actual `FakeT3` and a journal on disk): no native call before a complete, durable `possible_send`; the
+  same original request after the reopen; no resend or new identity.
+- **Port:** model and option value at 100, 101, 199, 200 and 201 code points, supplementary, mixed and ASCII, plus the
+  existing negatives.
+- **Real PostgreSQL 16:**
+  - the 0096 SQL test, covering the 25 trim characters at the leading and trailing edges of both sites, internal
+    controls, and 200 against 201 code points;
+  - the worker crossing, recording admission, `possible_send_at`, outcome, launches, binding and reservation for
+    200-code-point model and value positives and for 201, undeclared and U+FEFF negatives.
+
+**Class mutants,** each run alone with its source SHA restored: the header loop, the append loop, the zero and invalid
+progress checks, the newline loop, the lock loop, the exact-inode cleanup, the raw-byte cut, the code-point count, and
+the SQL edge guard reverted to the POSIX `\S` pattern.
+
+**Then:** the focused crossings, one signed commit, an early checkpoint, **one** ordinary `pnpm check`, and the sealed
+handback.

@@ -130,9 +130,15 @@ SET search_path=pg_catalog,sophia AS $$ SELECT coalesce(jsonb_typeof(v)='string'
 -- Why a route's declared source policy is malformed, or NULL. {v:1, instanceId, models:[{model, options:[{id, values}]}]}:
 -- the T3 pin's ProviderInstanceId slug, model names and provider option ids (Codex reasoningEffort, Claude effort) with
 -- the values the qualified profile's catalog declared. No value is invented here.
+-- Repair 13 (NATIVE12-F02-W1): a model name or string value is 1 to 200 code points whose first and last characters are
+-- not among the 25 that JavaScript trim() removes (owner_runner_blank's set), exactly as the gateway checks it, in any
+-- database locale. The POSIX \S class depended on the locale: in C, a leading U+FEFF was declared, admitted, then denied
+-- by the gateway after the possible send. Nothing is normalized; an unusable declaration is refused.
 CREATE FUNCTION sophia.owner_runner_policy_refusal(p jsonb) RETURNS text LANGUAGE plpgsql IMMUTABLE
 SET search_path=pg_catalog,sophia AS $$
 DECLARE m jsonb; o jsonb; v jsonb;
+ edged text:='^[^\u0009-\u000d\u0020\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]'
+  '(.{0,198}[^\u0009-\u000d\u0020\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff])?$';
 BEGIN
  IF jsonb_typeof(p) IS DISTINCT FROM 'object'
     OR (SELECT array_agg(k ORDER BY k) FROM jsonb_object_keys(p) k) IS DISTINCT FROM ARRAY['instanceId','models','v']
@@ -145,7 +151,7 @@ BEGIN
  FOR m IN SELECT x FROM jsonb_array_elements(p->'models') x LOOP
   IF jsonb_typeof(m) IS DISTINCT FROM 'object'
      OR (SELECT array_agg(k ORDER BY k) FROM jsonb_object_keys(m) k) IS DISTINCT FROM ARRAY['model','options']
-     OR NOT sophia.owner_runner_json_string(m->'model','^\S(.{0,198}\S)?$')
+     OR NOT sophia.owner_runner_json_string(m->'model',edged)
      OR jsonb_typeof(m->'options') IS DISTINCT FROM 'array' OR jsonb_array_length(m->'options')>10 THEN
    RETURN 'a model is {model, options}'; END IF;
   IF (SELECT count(DISTINCT x->'id') FROM jsonb_array_elements(m->'options') x)<>jsonb_array_length(m->'options') THEN
@@ -158,7 +164,7 @@ BEGIN
       OR (SELECT count(DISTINCT x) FROM jsonb_array_elements(o->'values') x)<>jsonb_array_length(o->'values') THEN
     RETURN 'an option is {id, values}'; END IF;
    FOR v IN SELECT x FROM jsonb_array_elements(o->'values') x LOOP
-    IF NOT (jsonb_typeof(v)='boolean' OR sophia.owner_runner_json_string(v,'^\S(.{0,198}\S)?$')) THEN
+    IF NOT (jsonb_typeof(v)='boolean' OR sophia.owner_runner_json_string(v,edged)) THEN
      RETURN 'an option value is a non-blank string or a boolean'; END IF;
    END LOOP;
   END LOOP;

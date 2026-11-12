@@ -355,9 +355,12 @@ const V2_KEYS: readonly (keyof RunnerEnvelopeV2)[] = [
 const INSTANCE = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/
 /** An option id Sophia admits: an identifier, like the pin's reasoningEffort (Codex) and effort (Claude). */
 const OPTION_ID = /^[A-Za-z][A-Za-z0-9_.-]{0,99}$/
-/** A non-blank text with no surrounding space, as 0096 checks a model name or option value. */
+/**
+ * A non-blank text with no surrounding space, as 0096 checks a model name or option value: at most `max` code points,
+ * as the published schema and SQL count them (repair 13, NATIVE12-F02), and equal to its own trim().
+ */
 const trimmed = (v: unknown, max: number): v is string =>
-  typeof v === 'string' && v.length > 0 && v.length <= max && v.trim() === v
+  typeof v === 'string' && v.length > 0 && characters(v) <= max && v.trim() === v
 
 const sameKeys = (v: Record<string, unknown>, keys: readonly string[]) =>
   Object.keys(v).toSorted().join(',') === keys.toSorted().join(',')

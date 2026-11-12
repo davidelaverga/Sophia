@@ -19,8 +19,10 @@ import { RunnerGateway, type GatewayProfile } from '@sophia/coordination/runner-
 import { RunnerJournal } from '@sophia/coordination/runner-journal'
 import {
   digestOf,
+  type RunnerEnvelope,
   type RunnerIdentity,
   type RunObservation,
+  type RunnerSourcePolicy,
   type SophiaRunnerPort,
 } from '@sophia/coordination/runner-port'
 import {
@@ -226,6 +228,8 @@ interface WorldOptions {
   transport?: T3Transport
   who?: string
   allowance?: number
+  /** The route's declared source policy, declared in SQL and held by the gateway alike (default POLICY). */
+  policy?: RunnerSourcePolicy
 }
 
 /** A project of a fresh owner, a synthetic native resource and qualification, and an owner gateway over a fake T3. */
@@ -235,6 +239,7 @@ async function world({
   transport,
   who = randomUUID(),
   allowance = 50,
+  policy = POLICY,
 }: WorldOptions = {}) {
   const p = await seedProject(db.ownerUrl, { admin: who })
   const connectionId = randomUUID()
@@ -258,7 +263,7 @@ async function world({
     await owner.query(`SELECT sophia.declare_owner_runner_source_policy($1, $2, $3)`, [
       p.projectId,
       id,
-      JSON.stringify(POLICY),
+      JSON.stringify(policy),
     ])
     return id
   }
@@ -272,7 +277,7 @@ async function world({
     profileId: 'read-only-v1',
     profileRevision: 1,
     operations: new Set(['create', 'input', 'stop'] as const),
-    sourcePolicy: POLICY,
+    sourcePolicy: policy,
   }
   const journalFile = join(root, `${randomUUID()}.jsonl`)
   const gateway = new RunnerGateway({ journal: new RunnerJournal(journalFile), transport: transport ?? t3, profile })
@@ -3113,6 +3118,161 @@ describe("an input under a Stop needs the read's newest active run named (repair
       assert.deepEqual(await reservations(w.accountKey), [])
       assert.equal(journalAnswers(w.journalFile, lost.operationId), 1, 'converged once')
       assert.deepEqual([t3.effects.messages, t3.count('t3_thread_send'), t3.count('t3_thread_interrupt')], [1, 1, 1])
+    })
+  }
+})
+
+// ---- repair 13 (NATIVE12-F02 and F02-W1): settings agree from declaration and admission to the native call ----
+
+/** A route declaring one model with one string option value, and the settings that request exactly them. */
+const routeOf = (model: string, value: string) => ({
+  policy: {
+    v: 1,
+    instanceId: 'claudeAgent',
+    models: [{ model, options: [{ id: 'effort', values: [value] }] }],
+  } satisfies RunnerSourcePolicy,
+  settings: { instanceId: 'claudeAgent', model, options: [{ id: 'effort', value }] },
+})
+
+describe('settings agree in code points and edges from declaration to the gateway (repair 13, NATIVE12-F02, F02-W1)', () => {
+  const rocket = '\u{1F680}'
+  const mixed = (points: number) => Array.from({ length: points }, (_, i) => (i % 2 === 0 ? 'é' : rocket)).join('')
+  const createWithSettings = (w: World, settings: unknown) =>
+    w.admit({
+      kind: 'create',
+      goalId: w.goalId,
+      title: 'A synthetic title',
+      message: 'A synthetic instruction.',
+      expectedGoalRevision: 1,
+      expectedAuthorityEpoch: 1,
+      sourceIds: [],
+      baseCommit: BASE,
+      writeScope: 'read_only',
+      settings: settings as typeof SETTINGS,
+    })
+  /** What SQL and FakeT3 hold for an operation (or for none): state, possible send, launches, binding, reservations. */
+  async function outcome(w: World, operationId: string | null) {
+    const row =
+      operationId === null
+        ? null
+        : await one<{ state: string; possible_send_at: Date | null; binding_id: string }>(
+            `SELECT state, possible_send_at, binding_id FROM sophia.owner_runner_operations WHERE id=$1`,
+            [operationId],
+          )
+    return {
+      state: row?.state ?? null,
+      possibleSend: row ? row.possible_send_at !== null : null,
+      launches: w.t3.effects.launches,
+      binding: row ? (await binding(row.binding_id)).state : null,
+      reservations: (await reservations(w.accountKey)).length,
+    }
+  }
+
+  for (const [name, model, value] of [
+    ['a 200-point supplementary model and a 200-point mixed value', rocket.repeat(200), mixed(200)],
+    ['a 200-point mixed model and a 200-point supplementary value', mixed(200), rocket.repeat(200)],
+  ] as const) {
+    it(`declares, admits and sends ${name} exactly once; the journal reloads it`, async () => {
+      const { policy, settings } = routeOf(model, value)
+      const w = await world({ policy })
+      const created = await createWithSettings(w, settings)
+      await w.pass()
+      const launch = w.t3.calls.find((c) => c.tool === 't3_thread_launch')
+      const seen = { ...(await outcome(w, created.operationId)), selection: launch?.args.modelSelection }
+      // The gateway's journal reloads the intent's envelope with these settings, and answers the original from it.
+      const again = w.restart(w.gateway)
+      const [intent] = intents(w.journalFile)
+      const replay = intent
+        ? (
+            await again.reconcile({
+              envelope: intent.envelope as RunnerEnvelope,
+              digest: String(intent.digest),
+              journalId: again.journalId,
+            })
+          ).kind
+        : 'no intent journaled'
+      assert.deepEqual(
+        { ...seen, replay, launchesAfter: w.t3.effects.launches },
+        {
+          state: 'received',
+          possibleSend: true,
+          launches: 1,
+          binding: 'running',
+          reservations: 1,
+          selection: settings,
+          replay: 'received',
+          launchesAfter: 1,
+        },
+      )
+    })
+  }
+
+  it('refuses a 201-point declaration, and an undeclared 200-point value at admission: nothing sent', async () => {
+    const w = await world()
+    let declared = 'declared'
+    try {
+      await owner.query(`SELECT sophia.declare_owner_runner_source_policy($1, $2, $3)`, [
+        w.projectId,
+        w.qualificationId,
+        JSON.stringify(routeOf(rocket.repeat(201), 'high').policy),
+      ])
+    } catch (err) {
+      declared = sqlstate(err)
+    }
+    const undeclared = await codeOf(createWithSettings(w, routeOf('synthetic-model', rocket.repeat(200)).settings))
+    await w.pass()
+    assert.deepEqual(
+      { declared, undeclared, ...(await outcome(w, null)) },
+      {
+        declared: '22023',
+        undeclared: 'runner_unqualified',
+        state: null,
+        possibleSend: null,
+        launches: 0,
+        binding: null,
+        reservations: 0,
+      },
+    )
+  })
+
+  for (const [name, model, value] of [
+    ['a model with a leading U+FEFF', '﻿synthetic-model', 'high'],
+    ['a string value with a trailing U+FEFF', 'synthetic-model', 'high﻿'],
+    ['a model with a trailing U+00A0', 'synthetic-model ', 'high'],
+  ] as const) {
+    it(`refuses to declare ${name}, which the gateway would refuse: nothing is admitted or sent`, async () => {
+      const w = await world()
+      const { policy, settings } = routeOf(model, value)
+      let declared = 'declared'
+      try {
+        await owner.query(`SELECT sophia.declare_owner_runner_source_policy($1, $2, $3)`, [
+          w.projectId,
+          w.qualificationId,
+          JSON.stringify(policy),
+        ])
+      } catch (err) {
+        declared = sqlstate(err)
+      }
+      let admitted: string | null = null
+      let admission = 'admitted'
+      try {
+        admitted = (await createWithSettings(w, settings)).operationId
+      } catch (err) {
+        admission = err instanceof Error && 'code' in err && err.name === 'DomainError' ? String(err.code) : String(err)
+      }
+      await w.pass()
+      assert.deepEqual(
+        { declared, admission, ...(await outcome(w, admitted)) },
+        {
+          declared: '22023',
+          admission: 'runner_unqualified',
+          state: null,
+          possibleSend: null,
+          launches: 0,
+          binding: null,
+          reservations: 0,
+        },
+      )
     })
   }
 })

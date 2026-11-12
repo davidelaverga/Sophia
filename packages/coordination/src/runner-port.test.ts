@@ -10,6 +10,7 @@ import {
   digestOf,
   envelopeV2,
   settingsRefusal,
+  settingsShapeRefusal,
   sha256Hex,
   type RunnerEnvelope,
   type RunnerEnvelopeV2,
@@ -212,5 +213,152 @@ describe("settings are a profile's declared policy, exactly (0096)", () => {
     ]
     for (const [policy, settings, reason] of cases)
       assert.match(settingsRefusal(policy, settings) ?? 'allowed', reason, JSON.stringify(settings))
+  })
+})
+
+// ---- repair 13 (NATIVE12-F02): the model and string option values are counted in code points ----
+
+const rocket = '\u{1F680}'
+/** A value of `points` code points: supplementary (2 UTF-16 units each), mixed, or ASCII. */
+const text = (kind: 'supplementary' | 'mixed' | 'ascii', points: number) =>
+  kind === 'supplementary'
+    ? rocket.repeat(points)
+    : kind === 'mixed'
+      ? Array.from({ length: points }, (_, i) => (i % 2 === 0 ? 'é' : rocket)).join('')
+      : 'm'.repeat(points)
+const withModel = (model: string) => ({
+  instanceId: 'codex',
+  model,
+  options: [{ id: 'reasoningEffort', value: 'high' }],
+})
+const withValue = (value: string) => ({
+  instanceId: 'codex',
+  model: 'synthetic-model',
+  options: [{ id: 'reasoningEffort', value }],
+})
+const declaring = (model: string, value: string): RunnerSourcePolicy => ({
+  v: 1,
+  instanceId: 'codex',
+  models: [{ model, options: [{ id: 'reasoningEffort', values: [value] }] }],
+})
+/** Code points, counted without spreading the string. */
+const pointsOf = (v: string) => {
+  let count = 0
+  for (const _ of v) count += 1
+  return count
+}
+const REFUSED = ['model is not a model name', 'an option value is a text or a boolean']
+/** Every check that reads them agrees: all allow, or all refuse with their own reason. */
+const agreed = (ok: boolean) => ({
+  shape: ok ? [null, null] : REFUSED,
+  envelope: ok ? [null, null] : REFUSED,
+  policy: ok ? [null, null] : REFUSED,
+})
+/** The 25 characters JavaScript trim() removes. */
+const TRIMS = [
+  '\t',
+  '\n',
+  '\u000b',
+  '\f',
+  '\r',
+  ' ',
+  '\u00a0',
+  '\u1680',
+  '\u2000',
+  '\u2001',
+  '\u2002',
+  '\u2003',
+  '\u2004',
+  '\u2005',
+  '\u2006',
+  '\u2007',
+  '\u2008',
+  '\u2009',
+  '\u200a',
+  '\u2028',
+  '\u2029',
+  '\u202f',
+  '\u205f',
+  '\u3000',
+  '\ufeff',
+]
+
+describe('a model and a string option value are 1 to 200 code points, as the schema and SQL count (repair 13, NATIVE12-F02)', () => {
+  it('accepts up to 200 and refuses 201, for supplementary, mixed and ASCII, at every check that reads them', () => {
+    const seen: unknown[] = []
+    for (const kind of ['supplementary', 'mixed', 'ascii'] as const)
+      for (const points of [1, 100, 101, 199, 200, 201]) {
+        const value = text(kind, points)
+        assert.equal(pointsOf(value), points)
+        const model = withModel(value)
+        const option = withValue(value)
+        seen.push({
+          kind,
+          points,
+          units: value.length,
+          shape: [settingsShapeRefusal(model), settingsShapeRefusal(option)],
+          envelope: [refusal(v2({ settings: model })), refusal(v2({ settings: option }))],
+          policy: [
+            settingsRefusal(declaring(value, 'high'), model),
+            settingsRefusal(declaring('synthetic-model', value), option),
+          ],
+        })
+      }
+    assert.deepEqual(
+      seen,
+      seen.map((s) => {
+        const { kind, points, units } = s as { kind: string; points: number; units: number }
+        return { kind, points, units, ...agreed(points <= 200) }
+      }),
+    )
+  })
+
+  it('keeps every other rule: no edge whitespace, non-empty, a string or a boolean, ASCII ids and instances', () => {
+    const trims = TRIMS
+    assert.equal(trims.length, 25)
+    for (const c of trims) {
+      assert.equal(`${c}m`.trim(), 'm', 'the established trim() set')
+      for (const v of [`${c}m`, `m${c}`]) {
+        assert.equal(settingsShapeRefusal(withModel(v)), 'model is not a model name', JSON.stringify(v))
+        assert.equal(settingsShapeRefusal(withValue(v)), 'an option value is a text or a boolean', JSON.stringify(v))
+      }
+      // Inside a value, a trim() character is kept, as SQL keeps it.
+      assert.equal(settingsShapeRefusal(withModel(`m${c}m`)), null, JSON.stringify(c))
+    }
+    // Characters trim() keeps are allowed at an edge.
+    for (const c of ['\u0085', '​', '᠎']) assert.equal(settingsShapeRefusal(withModel(`${c}m`)), null)
+    assert.equal(settingsShapeRefusal(withModel('')), 'model is not a model name')
+    assert.equal(settingsShapeRefusal(withValue('')), 'an option value is a text or a boolean')
+    assert.equal(settingsShapeRefusal({ ...withModel('m'), model: 7 }), 'model is not a model name')
+    assert.equal(settingsShapeRefusal({ ...withValue('x'), options: [{ id: 'reasoningEffort', value: true }] }), null)
+    assert.equal(
+      settingsShapeRefusal({ ...withValue('x'), options: [{ id: 'reasoningEffort', value: 3 }] }),
+      'an option value is a text or a boolean',
+    )
+    assert.equal(settingsShapeRefusal({ ...SETTINGS, instanceId: 'i'.repeat(64) }), null)
+    assert.equal(
+      settingsShapeRefusal({ ...SETTINGS, instanceId: 'i'.repeat(65) }),
+      'instanceId is not a provider instance id',
+    )
+    assert.equal(
+      settingsShapeRefusal({ ...SETTINGS, instanceId: `é${'i'.repeat(10)}` }),
+      'instanceId is not a provider instance id',
+    )
+    assert.equal(settingsShapeRefusal({ ...withValue('x'), options: [{ id: `o${'p'.repeat(99)}`, value: 'x' }] }), null)
+    assert.equal(
+      settingsShapeRefusal({ ...withValue('x'), options: [{ id: `o${'p'.repeat(100)}`, value: 'x' }] }),
+      'an option is {id, value}',
+    )
+    assert.equal(
+      settingsShapeRefusal({ ...withValue('x'), options: [{ id: `é${'p'.repeat(5)}`, value: 'x' }] }),
+      'an option is {id, value}',
+    )
+  })
+
+  it('keeps policy membership exact at 200 code points: an undeclared value of that length is refused as undeclared', () => {
+    assert.match(
+      settingsRefusal(declaring('synthetic-model', text('mixed', 200)), withValue(text('supplementary', 200))) ?? '',
+      /not declared/,
+    )
   })
 })

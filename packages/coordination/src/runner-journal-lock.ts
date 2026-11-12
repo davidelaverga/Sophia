@@ -14,6 +14,9 @@
  * - Repair 6 (NATIVE5-F01): every read is also non-blocking, and only a regular file is read. A FIFO, socket, directory
  *   or other special file at the lock path is refused at once at acquisition, refuses an append at assertHeld, and is
  *   left in place by release: never waited on, consumed, unlinked or adopted.
+ * - Repair 13 (NATIVE12-F01): the lock's content is written whole (every UTF-8 byte, any short write continued) and
+ *   fsynced, or the acquisition fails: its descriptor is closed and the file it created is unlinked only while the path
+ *   still names that exact inode (device and inode); a lock that replaced it is never removed.
  * Limits: the lock is per host (a journal on a shared network filesystem written from two hosts is out of scope);
  * where the process start time is unavailable (non-Linux), a live pid is always treated as a live holder.
  * @module @sophia/coordination/runner-journal-lock
@@ -25,6 +28,7 @@ import {
   fstatSync,
   fsyncSync,
   linkSync,
+  lstatSync,
   openSync,
   readFileSync,
   renameSync,
@@ -115,6 +119,31 @@ function syncDir(path: string): void {
   }
 }
 
+/** Every UTF-8 byte of `text` from the start of the new lock, or a throw (repair 13); see runner-journal.ts. */
+function writeWhole(fd: number, text: string): void {
+  const bytes = Buffer.from(text, 'utf8')
+  let done = 0
+  while (done < bytes.length) {
+    const left = bytes.length - done
+    const n = writeSync(fd, bytes, done, left, done)
+    if (!Number.isSafeInteger(n) || n < 1 || n > left)
+      throw new Error('runner journal lock: a write made no valid progress')
+    done += n
+  }
+}
+
+/** Unlink the lock this call created, only while `path` still names that exact inode: never a replacement. */
+function removeOwn(path: string, fd: number): void {
+  const own = fstatSync(fd)
+  let named: ReturnType<typeof lstatSync>
+  try {
+    named = lstatSync(path)
+  } catch {
+    return
+  }
+  if (named.isFile() && named.dev === own.dev && named.ino === own.ino) unlinkSync(path)
+}
+
 function create(path: string, content: LockContent): boolean {
   let fd: number
   try {
@@ -124,11 +153,18 @@ function create(path: string, content: LockContent): boolean {
     throw err
   }
   try {
-    writeSync(fd, JSON.stringify(content))
+    writeWhole(fd, JSON.stringify(content))
     fsyncSync(fd)
-  } finally {
-    closeSync(fd)
+  } catch (err) {
+    // Repair 13: a partial lock is never left to be read as unreadable, and never taken as ours.
+    try {
+      removeOwn(path, fd)
+    } finally {
+      closeSync(fd)
+    }
+    throw err
   }
+  closeSync(fd)
   syncDir(path)
   return true
 }
