@@ -471,6 +471,19 @@ Report v6 (r22) changes two things and nothing else:
 The policy's observations are unchanged (still `sophia.intake-observation.policy.v21`); only its report-notation
 helper `renderAddressee` changed.
 
+**Case identity (r23, within report v6).** A case's identity is decided before any of its other fields are checked.
+A case with a bounded `caseId` (a non-empty string of at most 200 characters, `boundedCaseId`) owns that id if no
+earlier case in input order has it, whether or not the case is otherwise valid. Every later case with the same id gets
+exactly one error, `duplicate_case_id` at `cases[i].caseId`. Its family, expected labels, other fields and input are
+not checked, and it never reaches the policy. An id that is not bounded (not a string, empty, too long) is
+`invalid_case_id` and owns nothing. It is never coerced, trimmed or truncated, so a later `"0"` after `0`, or a 200-character
+id after its 201-character extension, is a different, valid id. Ids are compared exactly: case, whitespace and
+prototype-looking names (`__proto__`, `constructor`) are ordinary distinct ids. Unchanged: the first occurrence's own
+errors and paths, `observed + invalidCases = cases`, a valid first occurrence kept beside a later duplicate error, and
+a policy-input error after valid metadata. The report shape is unchanged, so the schema stays v6. A v6 report written
+before r23 may have classified a later case whose id an earlier metadata-invalid case had; it is not reinterpreted or
+retallied.
+
 Admission comparison (F04, bounded choice in r3) is separate from proposal comparison and never changes the policy
 outcome. A policy outcome that is a deterministic result — `waiting`, `denied`, `conflict`, `replay_original`,
 `reconciliation_required`, `clarification_required`, or a `recorded_only` with a non-admission reason (human

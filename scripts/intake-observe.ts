@@ -245,9 +245,16 @@ export interface PreparedCase {
   readonly policyInput: { readonly interaction: unknown; readonly text: unknown; readonly context: unknown }
 }
 
+/**
+ * A case's identity: its caseId when the case is a record and the id is bounded (a non-empty string of at most
+ * CLI_LIMITS.idChars), else null. Decided once, here, for both the reservation and the case's own checks; never
+ * coerced, trimmed or truncated, so an invalid id stays invalid and is never reserved.
+ */
+const boundedCaseId = (raw: unknown): string | null => (isRecord(raw) && isBoundedId(raw.caseId) ? raw.caseId : null)
+
 export function prepareCase(raw: unknown, index: number, defaultInteraction: unknown): PreparedCase | CaseError {
   if (!isRecord(raw)) return { index, caseId: null, code: 'invalid_case', path: `cases[${index}]` }
-  const caseId = isBoundedId(raw.caseId) ? raw.caseId : null
+  const caseId = boundedCaseId(raw)
   const fail = (code: string, path: string): CaseError => ({ index, caseId, code, path: `cases[${index}]${path}` })
   if (caseId === null) return fail('invalid_case_id', '.caseId')
   const unknown = Object.keys(raw).find((k) => !CASE_KEYS.some((allowed) => allowed === k))
@@ -575,19 +582,24 @@ function observeCases(doc: Record<string, unknown>, rawCases: readonly unknown[]
   const fixtures = checkFixtures(doc)
   const records: CaseRecord[] = []
   const errors: CaseError[] = []
-  const seen = new Set<string>()
+  // Identity first (r23): the first case, in input order, with a bounded caseId owns it, valid or not; every later
+  // case with that id is duplicate_case_id and nothing else, and is neither checked further nor observed.
+  const owned = new Set<string>()
   for (const [index, raw] of rawCases.entries()) {
+    const caseId = boundedCaseId(raw)
+    if (caseId !== null) {
+      if (owned.has(caseId)) {
+        errors.push({ index, caseId, code: 'duplicate_case_id', path: `cases[${index}].caseId` })
+        continue
+      }
+      owned.add(caseId)
+    }
     const prepared = prepareCase(raw, index, defaults)
     if ('code' in prepared) {
       errors.push(prepared)
       continue
     }
     const { meta } = prepared
-    if (seen.has(meta.caseId)) {
-      errors.push({ index, caseId: meta.caseId, code: 'duplicate_case_id', path: `cases[${index}].caseId` })
-      continue
-    }
-    seen.add(meta.caseId)
     const result = observeCase(prepared)
     if (result.ok) records.push(recordOf(meta, result.observation))
     else errors.push(...result.errors.map((e: InputError) => caseInputError(meta, e)))

@@ -2019,3 +2019,177 @@ describe('r22 through the consumer: family buckets and addressee identity', () =
     })
   })
 })
+
+/**
+ * The r23 consumer corpus: a case's identity is owned by its first occurrence before any of its fields are checked.
+ * Every id and word here is synthetic; labels are comparison data only.
+ */
+function r23Corpus(): TestDoc {
+  const doc = corpus()
+  const ok = { audience: 'project' }
+  const plain = (id: unknown, more: Record<string, unknown> = {}): TestCase => ({
+    ...testCase('', 'Thanks.', ok, {}),
+    caseId: id,
+    ...more,
+  })
+  const { caseId: _missing, ...noId } = plain('dropped')
+  doc.cases = [
+    plain('R-fam-first', { family: true }),
+    plain('R-fam-first'),
+    plain('R-exp-first', { expected: [] }),
+    plain('R-exp-first'),
+    plain('R-extra-first', { extraMetadata: 1 }),
+    plain('R-extra-first'),
+    plain('R-rev-family'),
+    plain('R-rev-family', { family: true }),
+    plain('R-rev-expected'),
+    plain('R-rev-expected', { expected: 'x' }),
+    plain('R-rev-extra'),
+    plain('R-rev-extra', { extraMetadata: 1 }),
+    plain('R-both-invalid', { family: 1 }),
+    plain('R-both-invalid', { expected: [] }),
+    plain('R-policy-first', { context: { audience: 'nowhere' } }),
+    plain('R-policy-first'),
+    plain('R-valid-valid'),
+    plain('R-valid-valid'),
+    plain('R-no-policy-run', { family: true }),
+    plain('R-no-policy-run', { context: { audience: 'nowhere' } }),
+    plain('R-distinct-a', { family: true }),
+    plain('R-distinct-b'),
+    plain('Id'),
+    plain('id'),
+    plain(' w'),
+    plain('w'),
+    plain('__proto__', { family: true }),
+    plain('__proto__'),
+    plain('constructor'),
+    plain('constructor'),
+    plain('hasOwnProperty'),
+    plain(0),
+    plain('0'),
+    plain(''),
+    noId,
+    plain('L'.repeat(201)),
+    plain('L'.repeat(200)),
+    plain(null),
+    plain(['x']),
+    plain('x'),
+  ]
+  return doc
+}
+
+interface R23View {
+  schema?: string
+  cases: readonly { caseId: string; observation: IntakeObservation }[]
+  errors: readonly { index: number; caseId: string | null; code: string; path: string }[]
+  counts: { cases: number; observed: number; invalidCases: number; errorIssues: number }
+  actualEffects: Record<string, number>
+}
+
+const dup = (index: number, caseId: string) => ({
+  index,
+  caseId,
+  code: 'duplicate_case_id',
+  path: `cases[${String(index)}].caseId`,
+})
+const own = (index: number, caseId: string | null, code: string, path: string) => ({
+  index,
+  caseId,
+  code,
+  path: `cases[${String(index)}]${path}`,
+})
+
+/** Each occurrence's one error, in input order: the first occurrence's own, then exactly duplicate_case_id. */
+const R23_ERRORS = [
+  own(0, 'R-fam-first', 'invalid_family', '.family'),
+  dup(1, 'R-fam-first'),
+  own(2, 'R-exp-first', 'invalid_expected', '.expected'),
+  dup(3, 'R-exp-first'),
+  own(4, 'R-extra-first', 'unknown_case_field', '.extraMetadata'),
+  dup(5, 'R-extra-first'),
+  dup(7, 'R-rev-family'),
+  dup(9, 'R-rev-expected'),
+  dup(11, 'R-rev-extra'),
+  own(12, 'R-both-invalid', 'invalid_family', '.family'),
+  dup(13, 'R-both-invalid'),
+  own(14, 'R-policy-first', 'invalid_field', '.context.audience'),
+  dup(15, 'R-policy-first'),
+  dup(17, 'R-valid-valid'),
+  own(18, 'R-no-policy-run', 'invalid_family', '.family'),
+  // Its own input is invalid for the policy too; as a later occurrence it never reaches the policy.
+  dup(19, 'R-no-policy-run'),
+  own(20, 'R-distinct-a', 'invalid_family', '.family'),
+  own(26, '__proto__', 'invalid_family', '.family'),
+  dup(27, '__proto__'),
+  dup(29, 'constructor'),
+  own(31, null, 'invalid_case_id', '.caseId'),
+  own(33, null, 'invalid_case_id', '.caseId'),
+  own(34, null, 'invalid_case_id', '.caseId'),
+  own(35, null, 'invalid_case_id', '.caseId'),
+  own(37, null, 'invalid_case_id', '.caseId'),
+  own(38, null, 'invalid_case_id', '.caseId'),
+]
+
+/** Observed, in input order: each the first, valid occurrence of its id; invalid ids reserve nothing. */
+const R23_RECORDS = [
+  'R-rev-family',
+  'R-rev-expected',
+  'R-rev-extra',
+  'R-valid-valid',
+  'R-distinct-b',
+  'Id',
+  'id',
+  ' w',
+  'w',
+  'constructor',
+  'hasOwnProperty',
+  '0',
+  'L'.repeat(200),
+  'x',
+]
+
+function checkR23(r: R23View): void {
+  assert.deepEqual(
+    r.errors.map((e) => ({ index: e.index, caseId: e.caseId, code: e.code, path: e.path })),
+    R23_ERRORS,
+  )
+  assert.deepEqual(
+    r.cases.map((c) => c.caseId),
+    R23_RECORDS,
+  )
+  assert.deepEqual([r.counts.cases, r.counts.observed, r.counts.invalidCases, r.counts.errorIssues], [40, 14, 26, 26])
+  assert.equal(r.counts.observed + r.counts.invalidCases, r.counts.cases)
+  assert.equal(new Set(r.cases.map((c) => c.caseId)).size, r.cases.length, 'one record per id')
+  assert.ok(Object.values(r.actualEffects).every((v) => v === 0))
+}
+
+describe('r23 through the consumer: a case id is owned before its fields are checked', () => {
+  it('in the built report', () => {
+    checkR23(report(r23Corpus()))
+  })
+
+  it('in the written report from the command line, which exits 1 for the invalid cases', () => {
+    withTmp((dir) => {
+      const { path, hash } = writeCorpus(dir, r23Corpus())
+      const out = join(dir, 'r.json')
+      assert.equal(run(['--input', path, '--input-sha256', hash, '--out', out]).status, 1)
+      const written = JSON.parse(readFileSync(out, 'utf8')) as R23View
+      assert.equal(written.schema, 'sophia.intake-observation.report.v6')
+      checkR23(written)
+    })
+  })
+
+  it('reordering whole id groups keeps each first occurrence the owner', () => {
+    const doc = r23Corpus()
+    // Valid then invalid becomes invalid then valid for one pair: ownership follows input order, not validity.
+    const [a, b] = [doc.cases[6]!, doc.cases[7]!]
+    doc.cases[6] = b
+    doc.cases[7] = a
+    const r = report(doc) as unknown as R23View
+    assert.deepEqual(
+      r.errors.filter((e) => e.caseId === 'R-rev-family'),
+      [own(6, 'R-rev-family', 'invalid_family', '.family'), dup(7, 'R-rev-family')],
+    )
+    assert.ok(!r.cases.some((c) => c.caseId === 'R-rev-family'))
+  })
+})
