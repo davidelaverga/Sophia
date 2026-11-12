@@ -550,3 +550,61 @@ error carries a private marker and the path, so that leaking either is caught. T
 The new cases must fail on exact `8b1` for these causes and pass on the repair, with all 15 existing cases kept.
 Narrow new mutants: the identity read moved outside the guard; no close on failure; a close error replacing the
 original; the not-inspected state conflated with "remove it"; unlinking without an identity.
+
+## S2 r2: the Darwin startup patch on the current native base (source only)
+
+**Base.** Published `f15dad08` (tree `360b0d33`), the composed native repair-7 candidate. Its newer gateway P2 is
+repair 8's, so this is not an accepted prefix. One development child, four paths. Written before the change.
+
+**What carries over, unchanged.** The S2 compatibility patch from `22c9eee8`, byte for byte (SHA-256
+`295a7da1…d554`): `patches/t3code/ade47301-darwin-process-observation.patch` for `pingdotgg/t3code` `ade47301`.
+
+- **Its correction.** In `OpenCodeServerLedger.make`, only the owner observation treats exactly one `Die` defect
+  whose error is Node's synchronous spawn refusal (`EPERM`, `syscall: "spawn"`) as owner unknown, with one warning.
+- **Unchanged.** Interruption, every other defect, typed failures, the Linux path, and the shared `observe`. A refused
+  observation inside `track` or the reaper stays a logged defect, so an older entry that cannot be verified is kept,
+  never cleaned on a guess.
+- **Its proof is not rerun.** The 16 upstream cases, the fail-before, the five mutants and the clean apply and reverse
+  are bound to the patch's exact bytes in the S2 export. Nothing upstream is refetched, rebuilt or retested.
+
+**What is reconciled on `f15`, not copied from `22c`.** The `22c` map, plan and handoff predate repair 7, so they
+are not copied over `f15`.
+
+- **SOURCE_MAP.**
+  - §2o is inserted before §3 with the exact pin, files, lines and full-file hashes, and the patch hash and limits.
+  - §2k's reliance overview is reconciled to name §2o and the patch artifact.
+  - Every other line of §2k, and all of §2l–§2n, stays as `f15` has it.
+- **This plan and the handoff.** New sections appended. The repair-7 sections and everything before them are untouched.
+
+**Not shown here.** The patch is not applied or installed by Sophia. An owner-unknown warning is not a host that is
+ready. Root's external Mac diagnostic is quoted as root's report, not performed here. It was the patched pinned
+server, offline, under the unchanged fake profile: one incomplete anonymous MCP 503, then a bounded poll to a 401
+`invalid_mcp_credential` with protected-resource metadata; both owned process groups gone; a login-shell `zsh` EPERM
+remains. It is a fake anonymous auth denial only: no authenticated tool, native, account, provider, profile or app
+qualification, and technical isolation stays UNQUALIFIED.
+
+**Checks (focused, Node 24.21.0, pnpm 11.7.0).**
+
+- The patch SHA equals `295a7da1…` and its blob equals `22c`'s.
+- Every `f15` blob outside the four paths is byte-equal.
+- §2l–§2n, all pins and the repair-7 sections are preserved. The only removed lines are §2k's reconciled reliance
+  sentence.
+- Format, `contracts:check` and repository discovery.
+
+No ordinary `pnpm check` on this development child; it runs once on the coherent publication candidate.
+
+### Current annotation (INC01 coherent composition)
+
+This S2 r2 section was written on `f15dad08`, before Native14 appended its sections above. It is integrated here
+unchanged, after them; nothing above it was edited. Current provenance, to be read with the section, not in place of
+it:
+
+- **Original startup diagnostic.** `T3-NATIVE-HOST-STARTUP-BOUNDED-DIAGNOSTIC-001` was the independent reviewer's,
+  routed by root.
+- **External Mac patch, build and probe.** Performed by root: artifact
+  `89fdba95288c3664b8fa35fb2f8ee88f4c3595ab2ad1b29f412c3ba54e391cf8`, profile `5db1`, pin `ade47301`, patch
+  `295a7da12d62967a0c4cd27d5dddd6beeb02260f8af4fafae45d23605cd0d554`. Its outcome (an initial 503, then a fake
+  anonymous MCP 401, then cleanup) is not authenticated tool, native or profile qualification.
+- **Mutants.** Of the patch's five mutants, four were caught and one survived (M3); it is not shown equivalent.
+- **References.** The S2 r2 study reading note (`f660bcff…`) and its reconciliation receipt (`c90a17e2…`).
+- **"Still open" above** is S2's view when it was written. The current state is in `docs/handoffs/INC01-COHERENT-001.md`.

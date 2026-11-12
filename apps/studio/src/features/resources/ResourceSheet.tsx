@@ -1,7 +1,8 @@
 // One resource up close, in the app's sheet (as Invite opens): its host, each session with what it reported and what
 // it works on (a way to that task, when it is on the plan's board), its account's capacity window by window and, when
 // it runs short, a resource with room. Its owner acts on a session at work from its row (Act: guidance, Hold, Stop, as
-// its route supports them, LFE-06.4). Then what its route supports, and the requests waiting on its owner. Esc or Close
+// its route supports them, LFE-06.4). Then what its route supports, in words, and that a control sent is a request
+// until its runtime confirms it (status-words.ts). Its host is said as observed, never as a ready tool. Esc or Close
 // returns to the tile it was opened from.
 import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import { Icon, Tag, Tip } from '@sophia/ui'
@@ -9,19 +10,15 @@ import { Sheet } from '../../app/Sheet.tsx'
 import { CapacityBlock } from './CapacityBlock.tsx'
 import { ResourceRequests } from './RequiredActions.tsx'
 import {
-  ago,
   observedAgo,
   reportsLive,
-  SUPPORT,
   TOOL,
   VENDOR,
   WORK_STATE,
-  type ControlName,
   type QuotaObservation,
   type RequiredAction,
   type Resource,
   type Session,
-  type Support,
 } from './resource.ts'
 import { CopyLink } from './CopyLink.tsx'
 import { EffortMeter } from './EffortMeter.tsx'
@@ -30,29 +27,92 @@ import { EffortPicker } from './EffortPicker.tsx'
 import { ModelChip } from './ModelChip.tsx'
 import { OwnerAvatar } from './OwnerAvatar.tsx'
 import type { Room } from './room.ts'
-import { sessionTarget, UNFENCED, type CommandTarget } from './receipts.ts'
-import { actsSaid, canAct, routeOffers, SessionActs, type Acts } from './SessionActs.tsx'
+import { scopeOf, sessionTarget, UNFENCED, type CommandTarget } from './receipts.ts'
+import { canAct, offersSaid, routeOffers, SessionActs, type Acts } from './SessionActs.tsx'
+import {
+  CONTROL_NAME,
+  controlGroups,
+  controlsNote,
+  hostAge,
+  hostState,
+  readinessRows,
+  readinessSummary,
+} from './status-words.ts'
 import { ToolLogo } from './ToolLogo.tsx'
+import { stillOffered, workState, type ControlSaid, type WorkState } from './work-control.ts'
 import { when } from '../../app/time-words.ts'
 
-const HOST = { online: 'online', offline: 'offline', unknown: 'unknown' } as const
-const CONTROL: Record<ControlName, string> = { stop: 'Stop', hold: 'Hold', steer: 'Guidance', permissions: 'Requests' }
-const CONTROL_TIP: Record<ControlName, string> = {
-  stop: 'Ends its work at once, whatever else is waiting',
-  hold: 'Pauses its work at the next safe point',
-  steer: 'Sends it guidance while it works',
-  permissions: 'Answers its tool’s requests from here',
-}
-/** Stop first: it is the control that must always be there. */
-const ORDER: ControlName[] = ['stop', 'hold', 'steer', 'permissions']
-const GLYPH: Record<Support, string> = { supported: '✓', unqualified: '–', unsupported: '×' }
-
+/**
+ * After its host's state: " · observed 2 min ago", or " · never observed" without a time; nothing at all for a time
+ * that isn't an instant, no bare "observed", empty time or dangling separator (r3 repair 7, UI58E-F10).
+ */
 function Since({ at, now }: { at: string | null; now: Date }) {
-  if (!at) return <span className="resource-age">never observed</span>
+  const age = hostAge(at, now)
+  if (age === '') return null
   return (
-    <time className="resource-age" dateTime={at} title={when(at, now.getTime())}>
-      {ago(at, now)}
-    </time>
+    <>
+      {' · '}
+      {age === null || at === null ? (
+        <span className="resource-age">never observed</span>
+      ) : (
+        <span className="resource-age">
+          observed{' '}
+          <time dateTime={at} title={when(at, now.getTime())}>
+            {age}
+          </time>
+        </span>
+      )}
+    </>
+  )
+}
+
+/**
+ * Its host as observed, and under it that its tool's sign-in and readiness aren't reported: a host seen online is not
+ * a tool ready to work (C01-R05). Readiness details, on request, keep each fact apart, the unknown ones said as such.
+ */
+function Host({
+  resource,
+  observation,
+  now,
+}: {
+  resource: Resource
+  observation: QuotaObservation | undefined
+  now: Date
+}) {
+  const { host } = resource
+  const summary = readinessSummary(resource, observation, now)
+  const [open, setOpen] = useState(false)
+  const details = useId()
+  return (
+    <div className="resource-host">
+      <p className={host.state}>
+        <span className="resource-dot" aria-hidden />
+        {hostState(host)}
+        <Since at={host.observedAt} now={now} />
+      </p>
+      <p className="resource-readiness" data-tone={summary.tone}>
+        <span className="readiness-line">{summary.line}</span>
+        {summary.more && <span className="readiness-more">{summary.more}</span>}
+        <button
+          type="button"
+          className="text-button readiness-toggle"
+          aria-expanded={open}
+          aria-controls={details}
+          onClick={() => setOpen((o) => !o)}
+        >
+          Readiness details
+          <Icon name="chevron" />
+        </button>
+      </p>
+      <dl id={details} className="readiness-details" hidden={!open}>
+        {readinessRows(resource, now).map((row) => (
+          <div key={row.label} data-observed={row.observed || undefined}>
+            <dt>{row.label}</dt>
+            <dd>{row.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   )
 }
 
@@ -300,17 +360,114 @@ function ActToggle({ open, controls, said, onToggle }: ToggleProps) {
   )
 }
 
-/** What Act holds, in its tip: the acts its route supports, or why nothing can be sent. */
-const actTip = (resource: Resource, target: CommandTarget | null, acts: Acts) => {
+/** What Act holds, in its tip: what its route supports and its work's control state still allows, or why nothing. */
+const actTip = (resource: Resource, target: CommandTarget | null, acts: Acts, state: WorkState) => {
   if (!target) return 'Nothing can be sent yet'
-  return acts.canSend ? actsSaid(resource) : 'Nothing can be sent from here now'
+  if (!acts.canSend) return 'Nothing can be sent from here now'
+  const left = stillOffered(routeOffers(resource), state)
+  return left.length > 0 ? offersSaid(left) : 'What was sent to it'
+}
+
+/**
+ * Work with a control in play (work-control.ts): one sentence, and Open work, its one primary action, to the same work
+ * in Tasks. Opening it sends nothing. Where the work is on no board there is nothing to open, and the status stands.
+ */
+function WorkStatus({ said, work, tasks }: { said: ControlSaid; work: Work; tasks: TaskLinks | undefined }) {
+  return (
+    <div className="work-control">
+      <p className="work-control-sentence">{said.sentence}</p>
+      {tasks?.has(work.workId) && (
+        <button
+          type="button"
+          className="pill primary work-open"
+          aria-label={`Open work: ${work.title}`}
+          onClick={() => tasks.open(work.workId)}
+        >
+          Open work
+          <Icon name="forward" />
+        </button>
+      )}
+    </div>
+  )
+}
+
+type Work = NonNullable<Session['assignment']>
+
+/** What a session works on: its status (its control's, while one is in play, else its view's) and its task. */
+function WorkLine({
+  work,
+  said,
+  tasks,
+}: {
+  work: Work | null
+  said: ControlSaid | null
+  tasks: TaskLinks | undefined
+}) {
+  if (!work) return <span className="resource-work idle">No assignment</span>
+  return (
+    <span className="resource-work">
+      {said ? (
+        <Tag tone={said.tone}>{said.status}</Tag>
+      ) : (
+        <Tag tone={WORK_STATE[work.state][0]}>{WORK_STATE[work.state][1]}</Tag>
+      )}
+      <WorkTitle work={work} tasks={tasks} />
+    </span>
+  )
+}
+
+interface OwnerWorkProps {
+  work: Work
+  resource: Resource
+  target: CommandTarget | null
+  state: WorkState
+  tasks: TaskLinks | undefined
+  acts: Acts
+}
+
+/**
+ * Its owner's way with the work: Act (opening what may be sent, and what was), and while a control is in play its one
+ * sentence with Open work. The status line is mounted with the row, so a change while Act is closed is still announced.
+ */
+function OwnerWork({ work, resource, target, state, tasks, acts }: OwnerWorkProps) {
+  const [acting, setActing] = useState(false)
+  const actsId = useId()
+  const said = state.said
+  return (
+    <>
+      <ActToggle
+        open={acting}
+        controls={actsId}
+        said={actTip(resource, target, acts, state)}
+        onToggle={() => setActing((o) => !o)}
+      />
+      <div role="status" className="work-control-live">
+        {said && <WorkStatus said={said} work={work} tasks={tasks} />}
+      </div>
+      {acting && (
+        <div id={actsId} className="resource-session-acts">
+          {target ? (
+            <SessionActs
+              target={target}
+              offer={routeOffers(resource)}
+              acts={acts}
+              observed={work.runtimeControl ?? null}
+            />
+          ) : (
+            <p className="act-note muted">{UNFENCED}</p>
+          )}
+        </div>
+      )}
+    </>
+  )
 }
 
 function SessionRow({ session, resource, live, now, control, tasks, acts }: SessionProps) {
   const work = session.assignment
   const target = acts ? sessionTarget(acts.project, session) : null
-  const [acting, setActing] = useState(false)
-  const actsId = useId()
+  // Its control state (work-control.ts): from every control sent for it and from what its view reports. A teammate's
+  // space holds none of the owner's commands, so a teammate sees the view's own state only.
+  const state = workState(acts && target ? acts.of(scopeOf(target)) : [], target, work?.runtimeControl ?? null)
   return (
     <li className="resource-session">
       <span className="resource-role">{session.role}</span>
@@ -318,52 +475,42 @@ function SessionRow({ session, resource, live, now, control, tasks, acts }: Sess
         {session.model ? <ModelChip model={session.model} /> : 'Model not reported'}
         <Effort session={session} tool={resource.tool} control={control} />
       </span>
-      {work ? (
-        <span className="resource-work">
-          <Tag tone={WORK_STATE[work.state][0]}>{WORK_STATE[work.state][1]}</Tag>
-          <WorkTitle work={work} tasks={tasks} />
-        </span>
-      ) : (
-        <span className="resource-work idle">No assignment</span>
-      )}
+      <WorkLine work={work} said={state.said} tasks={tasks} />
       {work && acts && (
-        <ActToggle
-          open={acting}
-          controls={actsId}
-          said={actTip(resource, target, acts)}
-          onToggle={() => setActing((o) => !o)}
-        />
+        <OwnerWork work={work} resource={resource} target={target} state={state} tasks={tasks} acts={acts} />
       )}
       <SessionLive session={session} live={live} now={now} />
       <SessionEarlier session={session} now={now} />
-      {work && acts && acting && (
-        <div id={actsId} className="resource-session-acts">
-          {target ? (
-            <SessionActs target={target} offer={routeOffers(resource)} acts={acts} />
-          ) : (
-            <p className="act-note muted">{UNFENCED}</p>
-          )}
-        </div>
-      )}
     </li>
   )
 }
 
-/** What the route supports, as small mono labels with a glyph; a tip says what each does. Its owner acts per session. */
-function Controls({ controls }: { controls: Resource['controls'] }) {
+/**
+ * What the route supports, in words, grouped: qualified, not qualified yet, not offered. Then one line: a control sent is
+ * a request until its runtime confirms it, who may send it and from where. Nothing here sends anything.
+ */
+function Controls({ resource, mine, offered }: { resource: Resource; mine: boolean; offered: boolean }) {
+  const note = controlsNote({ resource, mine, offered })
   return (
-    <ul className="resource-controls" aria-label="Controls">
-      {ORDER.map((name) => (
-        <li key={name} className={`control has-tip ${controls[name]}`}>
-          <span aria-hidden className="control-glyph">
-            {GLYPH[controls[name]]}
-          </span>
-          {CONTROL[name]}
-          <span className="sr-only">: {SUPPORT[controls[name]]}</span>
-          <Tip label={`${CONTROL_TIP[name]}: ${SUPPORT[controls[name]]}`} side="top" />
-        </li>
-      ))}
-    </ul>
+    <>
+      <dl className="resource-controls">
+        {controlGroups(resource.controls).map((group) => (
+          <div key={group.support} className={`control-group ${group.support}`}>
+            <dt>{group.label}</dt>
+            <dd>
+              <ul aria-label={group.label}>
+                {group.names.map((name) => (
+                  <li key={name} className="control">
+                    {CONTROL_NAME[name]}
+                  </li>
+                ))}
+              </ul>
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {note && <p className="resource-controls-note">{note}</p>}
+    </>
   )
 }
 
@@ -518,13 +665,14 @@ export function ResourceSheet(props: Props) {
   const { resource, observation, earlier, actions, viewerId, now, onClose, onStep, effort, room, onShow } = props
   const panel = useRef<HTMLDivElement>(null)
   const { turn, show } = usePageTurns(panel, onStep, onShow)
-  const host = resource.host
+  const mine = resource.owner.id === viewerId
+  const acts = mine && canAct(resource) ? props.acts : undefined
   return (
     <Sheet
       className="resource-sheet"
       headClassName="resource-sheet-head"
       label={`${resource.owner.name} · ${TOOL[resource.tool]}`}
-      head={<Head resource={resource} mine={resource.owner.id === viewerId} />}
+      head={<Head resource={resource} mine={mine} />}
       actions={
         <>
           {turn && <Steps onStep={turn} />}
@@ -539,18 +687,9 @@ export function ResourceSheet(props: Props) {
     >
       {/* Keyed by the resource: stepping to another plays the sheet's arrival again, a page turned. */}
       <Fragment key={resource.id}>
-        <p className={`resource-host ${host.state}`}>
-          <span className="resource-dot" aria-hidden />
-          Host {HOST[host.state]} · <Since at={host.observedAt} now={now} />
-        </p>
+        <Host resource={resource} observation={observation} now={now} />
         <ResourceRequests actions={actions} resource={resource} viewerId={viewerId} now={now} />
-        <Sessions
-          resource={resource}
-          now={now}
-          control={resource.owner.id === viewerId ? effort : undefined}
-          tasks={props.tasks}
-          acts={resource.owner.id === viewerId && canAct(resource) ? props.acts : undefined}
-        />
+        <Sessions resource={resource} now={now} control={mine ? effort : undefined} tasks={props.tasks} acts={acts} />
         <section className="sheet-section" aria-labelledby="capacity-title">
           <h3 id="capacity-title">Capacity</h3>
           <CapacityBlock
@@ -564,7 +703,7 @@ export function ResourceSheet(props: Props) {
         </section>
         <section className="sheet-section" aria-labelledby="controls-title">
           <h3 id="controls-title">Controls</h3>
-          <Controls controls={resource.controls} />
+          <Controls resource={resource} mine={mine} offered={acts?.canSend === true} />
         </section>
       </Fragment>
     </Sheet>

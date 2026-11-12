@@ -1,0 +1,342 @@
+{
+  "id": "A51",
+  "goal": "INC01-S6",
+  "title": "Project native resources: the member-safe catalog of a project's enrolled Codex and Claude Code resources, with the owner's own recorded connection, host and qualification",
+  "why": [
+    "SOPHIA-INC-2026-11 INC-01 (R04, R16) and C01-R05/R06/R20: the Resources panel needs a member-safe project read of native resources (INC01-DES-001 service preflight). Assigned centrally to INC01-CC-006 with migration 0097; the generated output is regenerated with `pnpm --filter @sophia/contracts generate`, never by hand.",
+    "No existing read covers it. A47 reads an owner's operations, not resources; A48 reads API contributions. The table policy that lets members read executor_resources rows is not widened or relied on: one SECURITY DEFINER reader checks current membership first, and builds the owner's part only for the owner.",
+    "Connection health is not readiness (C01-R05) and a catalog entry is not qualification (C01-R06): a host's state and last-seen time never mean online or signed in, and a recorded qualification is the operator's evidence judged at one instant, never supported, verified or a promise that a control works. Sessions, assignments, models, efforts, capacity, readiness, sign-in and accounts are not observed here and are declared notReported, never returned as empty lists; no account or entitlement id is derived from a connection or resource id.",
+    "Pages of at most 200 by resource id with a next cursor only when a further resource exists; no total. A database without 0097 answers projection_unavailable (503), a nonmember and a missing project answer 404 alike. Path and cursor ids are uuid in any case or as urn:uuid:, as declared, and read in one lowercase spelling. Always served (a read activates nothing), with owner-runner admissions off; /ready is unchanged."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectNativeResourceHost",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The connection's one live (bound or active) host, as recorded. Neither state nor lastSeenAt means online, signed in or ready. secondsSinceSeen is null when lastSeenAt is missing or later than observedAt: such a time is never presented as fresh. lastSeenAt is also null, and secondsSinceSeen with it, when the recorded time has no RFC 3339 form (infinity, -infinity, a year outside 1 to 9999): no representable finite time; state is unaffected. helloConflict says only that a conflict is recorded, never what it is.",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": ["bound", "active"]
+          },
+          "helloOk": {
+            "type": "boolean"
+          },
+          "helloConflict": {
+            "type": "boolean"
+          },
+          "lastSeenAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "secondsSinceSeen": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["state", "helloOk", "helloConflict", "lastSeenAt", "secondsSinceSeen"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectNativeResourceQualification",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The operator's recorded qualification of the owner's route for this resource (0092's one unrevoked record, else the latest by qualifiedAt then id), judged at observedAt. current means every fact it was recorded on still holds (unrevoked, unexpired, the resource active at the same revision, the connection linked, unexpired and the same at the same revision, the owner an active admin or editor). It is recorded evidence, not live per-operation readiness: it is not supported, verified or a promise that any control works. A47 admission and dispatch decide each operation. operations is the set the record names, each once, in the fixed order create, input, stop: a repeated recorded value adds nothing and nothing is added; it is empty only for none. qualifiedAt and expiresAt are null when there is no record, or when the recorded time has no RFC 3339 form (infinity, -infinity, a year outside 1 to 9999): no representable finite time. That null never means expired or not current: state is judged on the recorded time itself, so a record with an infinity expiry stays current while every other fact holds.",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": ["none", "current", "expired", "revoked", "stale", "not_applicable"]
+          },
+          "operations": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "type": "string",
+              "enum": ["create", "input", "stop"]
+            }
+          },
+          "qualifiedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["state", "operations", "qualifiedAt", "expiresAt"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectNativeResourceMine",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The owner's own view, present only to the resource's owner (null for everyone else). States and booleans only: no label, path, credential, account, environment, profile, journal or conflict text.",
+        "properties": {
+          "connection": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": ["pending", "linked", "expired", "denied", "revoked", "rotation_unknown"]
+                  },
+                  "expired": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["state", "expired"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "host": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProjectNativeResourceHost"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recordedQualification": {
+            "$ref": "#/components/schemas/ProjectNativeResourceQualification"
+          }
+        },
+        "required": ["connection", "host", "recordedQualification"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectNativeResource",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One enrolled native resource of the project (codex-native or claude-native; Sophia's dsh runtime is not listed). Its own shape: not the Studio Resource, which a later adapter maps (claude to claude-code, a null owner label to an unknown name, accounts, sessions and assignments unknown).",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tool": {
+            "type": "string",
+            "enum": ["codex", "claude"]
+          },
+          "state": {
+            "type": "string",
+            "enum": ["active", "revoked", "needs_connection"]
+          },
+          "owner": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "label": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "isYou": {
+                "type": "boolean"
+              },
+              "isMember": {
+                "type": "boolean",
+                "description": "The owner's current active membership in any role; false for a former owner."
+              }
+            },
+            "required": ["id", "label", "isYou", "isMember"]
+          },
+          "mine": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProjectNativeResourceMine"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["id", "tool", "state", "owner", "mine"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectNativeResourcePage",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One page of the project's native resource catalog, by resource id: an observation within the reader's current authority at observedAt (one database instant judging every expiry and age), not a grant and not a stable snapshot across pages. complete is true when no further resource follows this page in this observation; then nextCursor is null. An empty list with complete true is an observed empty catalog. No total is given. notReported names what this catalog does not observe at all: it is never an empty list of those facts.",
+        "properties": {
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resources": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/ProjectNativeResource"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "notReported": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "enum": ["sessions", "assignments", "models", "efforts", "capacity", "readiness", "signIn", "accounts"]
+            }
+          }
+        },
+        "required": ["observedAt", "resources", "nextCursor", "complete", "notReported"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-resources",
+      "value": {
+        "get": {
+          "tags": ["native-resources"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "INC01-S6",
+          "operationId": "listProjectNativeResources",
+          "summary": "The project's enrolled native resources as a member may see them: the owner alone also reads their own connection, live host and recorded qualification. A read: no grant, control or readiness.",
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "after",
+              "in": "query",
+              "required": false,
+              "description": "The nextCursor of the previous page: resources with a greater id.",
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "One page of the member-safe catalog (cache-control: no-store)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProjectNativeResourcePage"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "404": {
+              "description": "No such project, or the caller is not a current member of it (not_found): the two answer alike",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "A malformed project id or cursor, or an unknown query parameter",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "The catalog is not installed on this database (projection_unavailable), never an empty list; or the database is unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

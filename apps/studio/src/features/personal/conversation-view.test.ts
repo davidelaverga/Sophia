@@ -11,7 +11,9 @@ import {
   notePrefill,
   opensHere,
   opensWithIntro,
+  RECORDED,
   topicOf,
+  welcomeDue,
   type ConversationInput,
   withReadBack,
   keptOnReadBack,
@@ -471,5 +473,52 @@ describe('today’s moment before anything is said (personal-small-p2.md)', () =
       notes(going).filter(([label]) => label === 'Today'),
       [['Today', '12 days later']],
     )
+  })
+})
+
+describe('a message kept without asking her (A52 recorded)', () => {
+  const greeting = turn('sophia', 'Morning. How are you arriving today?', at(0, 9))
+  const keptNow = (words: string, when: string) => turn('person', words, when, { reply: 'recorded' })
+
+  it('shows your own words, then quietly that they are kept and she was not asked: no wait, no Ask again', () => {
+    const kept = keptNow('A thought to keep.', at(0, 10))
+    const rows = conversationRows(input([turn('sophia', 'Earlier.', at(1, 9)), kept]))
+    assert.deepEqual(shape(rows).slice(-2), ['person', 'recorded'])
+    const words = rows.find((r) => r.kind === 'turn' && r.author === 'person')
+    assert.equal(words?.kind === 'turn' ? words.text : null, 'A thought to keep.')
+    const said = rows.at(-1)
+    assert.deepEqual(said?.kind === 'recorded' ? [said.key, said.turnId] : null, [`recorded-${kept.id}`, kept.id])
+    for (const kind of ['typing', 'failed', 'arrive', 'starters']) assert.equal(shape(rows).includes(kind), false)
+    assert.equal(RECORDED, 'Kept — not asked yet')
+  })
+
+  it('beside a legacy message still waiting, only that one waits; a failed one still offers Ask again', () => {
+    const waiting = turn('person', 'Please answer.', at(0, 10), { reply: 'pending' })
+    const failed = turn('person', 'Did this go?', at(0, 10, 2), { reply: 'failed' })
+    const rows = conversationRows(input([waiting, keptNow('Kept.', at(0, 10, 1)), failed]))
+    assert.deepEqual(shape(rows).slice(1), ['person', 'person+', 'recorded', 'person', 'failed', 'typing'])
+  })
+
+  it('a kept message after her line of the day is something you said: the ways to arrive go', () => {
+    const rows = conversationRows(input([greeting, keptNow('Already here.', at(0, 9, 5))]))
+    assert.equal(shape(rows).includes('arrive'), false)
+  })
+
+  it('is not news to a screen reader: kept words are yours, and nothing is writing', () => {
+    const before = turn('sophia', 'Hello.', at(0, 9))
+    assert.equal(heard([before], [before, keptNow('Mine.', at(0, 10))], false, false), null)
+  })
+
+  it('a welcome back is decided without kept messages, as the server decides (0099)', () => {
+    const quiet = turn('sophia', 'An answer.', at(0, 18), { replyTo: 'x' })
+    // Her last answer is three hours old: kept words since don't make the quiet spell shorter.
+    assert.equal(welcomeDue([quiet, keptNow('Kept just now.', at(0, 20, 59))], NOW), true)
+    // Only kept words, however old: nothing to welcome back from.
+    assert.equal(welcomeDue([keptNow('Long kept.', at(2, 9))], NOW), false)
+    // Her welcome, then kept words: no second welcome.
+    const welcome = turn('sophia', 'Welcome back.', at(0, 12))
+    assert.equal(welcomeDue([quiet, welcome, keptNow('After it.', at(0, 13))], NOW), false)
+    // The legacy rule is unchanged: a recent answered message means none is due.
+    assert.equal(welcomeDue([quiet, turn('person', 'Hi.', at(0, 20, 30))], NOW), false)
   })
 })

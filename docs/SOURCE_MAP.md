@@ -278,11 +278,14 @@ How to read this section:
   `639ed015` (§2c).
 - **Nothing qualified.** No profile, account, toolkit, owner-host route,
   designer setup or product candidate is qualified by this section.
-- **Relied on only as §2l, §2m and §2n record.** Apart from the T3 files that
-  §2l records for INC01-CC-002, §2m for INC01-CC-003 S1a and §2n for
-  INC01-CC-005, no file in this repository relies on these sources. When a goal
-  starts relying on one, record its exact upstream file and the Sophia files
-  grounded in it here, as in §2–2j and §2l–2n.
+- **Relied on only as §2l, §2m, §2n and §2o record.** Apart from the T3 files
+  that §2l records for INC01-CC-002, §2m for INC01-CC-003 S1a, §2n for
+  INC01-CC-005 and §2o for INC01-CC-003 S2, no file in this repository relies
+  on these sources. §2o also records the one patch artifact for the T3 pin
+  (`patches/t3code/ade47301-darwin-process-observation.patch`), which Sophia
+  neither applies nor installs. When a goal starts relying on one, record its
+  exact upstream file and the Sophia files grounded in it here, as in §2–2j and
+  §2l–2o.
 
 | Register id | Repository and studied pin | Upstream files relied on | Purpose in the programme | Status and limits |
 |---|---|---|---|---|
@@ -407,6 +410,67 @@ its last-page summary).
 - no atomic snapshot across pages, or between a thread's runs and its timeline.
 
 This registration grants no authority and changes no protocol.
+
+## 2o. Upstream sources and a compatibility patch at INC01-CC-003 S2 (Darwin startup)
+
+The same T3 Code pin as §2l, §2m and §2n: [`pingdotgg/t3code`](https://github.com/pingdotgg/t3code) at
+`ade473018d32003658b7d38693e083ee2e314bd8` (MIT, tree `107c4f087f85dd137429e3d441ab770fd4b2a67b`). The files were
+read outside this tree from the public pin. Each full-file SHA-256 below was computed from the whole file at the pin;
+the lines are the passages relied on. Upstream code and tests stay outside Sophia.
+
+| File at the pin | Lines | Full-file SHA-256 | What it shows |
+|---|---|---|---|
+| [`packages/provider-opencode/src/server/OpenCodeServerLedger.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/packages/provider-opencode/src/server/OpenCodeServerLedger.ts) | 123–148, 181–184 | `5e8d948ab208aa26c32cf89f1317f2aad083e558f15fe37dd6566b3f3065e845` | On `darwin` the ledger observes a pid by running the fixed `/bin/ps`. `observe` absorbs typed failures only (`orElseSucceed`). `make` observes the server's own pid unguarded |
+| [`packages/provider-opencode/src/server/OpenCodeServerLedger.test.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/packages/provider-opencode/src/server/OpenCodeServerLedger.test.ts) | 1–291 | `b588b5de32aa9bf18176f8658c3e35ddeee95580d97109191eed84fef62238cc` | The existing suite runs the Darwin `ps` path on Linux too (procps takes the same flags) |
+| [`apps/server/src/server.ts`](https://github.com/pingdotgg/t3code/blob/ade473018d32003658b7d38693e083ee2e314bd8/apps/server/src/server.ts) | 708–720 | `4d983a3e62db868bb9ae235ada9156bc3d15d1accde274dfdba841666ff7f1f9` | Every server composes `OpenCodeServerLedger.layer`, whichever providers it uses |
+| `@effect/platform-node-shared@4.1.2` `dist/NodeChildProcessSpawner.js` (lockfile-pinned dependency) | 336–346 | `02348e968a2d00159d0428050ba25b6013e1009ea6bcf71a2c9b4666f0ea6a93` | `spawn` calls Node's `spawn` inside `Effect.callback`. A synchronous throw becomes a defect, and only an emitted `error` becomes a typed failure |
+
+**The patch.** [`patches/t3code/ade47301-darwin-process-observation.patch`](../patches/t3code/ade47301-darwin-process-observation.patch),
+SHA-256 `295a7da12d62967a0c4cd27d5dddd6beeb02260f8af4fafae45d23605cd0d554`. It is the source and regression diff for
+those two upstream files only, written for this pin:
+
+- **What it changes.** In `make`, a cause that is exactly one `Die` whose defect is Node's synchronous spawn refusal
+  (`code: "EPERM"`, `syscall: "spawn"`) leaves the owner unknown, with one warning. The ledger's existing unknown-owner
+  path then applies: nothing is recorded, nothing is promised and nothing is reaped. Interruption, every other defect,
+  typed failures, the shared `observe` and the Linux path are unchanged.
+- **Hashes.** Patched ledger `2cdf9a113a4359f608e910de55546fc7053eb988952edaac6345285bbc4fe857` and test
+  `feb246e4d80d7afbfa83e8718a8d74e278d4db10e4388660de5f365c460dc89d`. It applies with `git apply` and reverses to the
+  pin's tree.
+- **Provenance.** Authored for INC01-CC-003 S2 from root's diagnostic `T3-NATIVE-HOST-STARTUP-BOUNDED-DIAGNOSTIC-001`.
+  Tested outside Sophia with Node 26.12.1 and pnpm 12.14.0 against the pin's frozen lockfile (filtered install,
+  lifecycle scripts off).
+
+**Limits.**
+
+- **Not applied by Sophia.** No Sophia build, install or startup uses it. It is not an upstream change and not a
+  fork.
+- **The shared observation is unchanged.** Only `make`'s owner observation is caught. A refused observation inside
+  `track` or the reaper stays a logged defect. An older recorded entry that cannot be verified is therefore kept: it
+  is never cleaned on a guess, and its server is never signalled.
+- **An owner-unknown warning is not a ready host.** It means OpenCode servers this server starts are not recorded for
+  orphan cleanup. OpenCode stays unavailable under the profile.
+- **Linux runs prove only the source.** The 16 upstream cases ran through the real Node spawner, answering only
+  `/bin/ps` with Node's own synchronous `EPERM`. That proves the source behavior; it does not qualify macOS.
+- **Root's external Mac diagnostic.** This is root's report, not performed or reproduced here. Root applied this
+  exact patch and rebuilt the pinned server offline, under the unchanged fake profile:
+  - one incomplete anonymous MCP 503 attempt;
+  - then a bounded poll that reached 401 `invalid_mcp_credential`, with protected-resource metadata;
+  - both owned process groups gone afterwards;
+  - a login-shell `zsh` EPERM remaining.
+
+  That is a fake anonymous authentication denial only. No authenticated tool, native, account, provider, profile or
+  app behavior was qualified, and the profile's technical isolation stays UNQUALIFIED.
+- **Nothing qualified.** Build, help or startup qualifies no native, account, `read_only`, toolkit, billing, model,
+  base or Stop behavior. F03, F04 and the owner's four routes stay open.
+- **Recorded on a held base.** `f15dad08` is the composed native repair-7 candidate. Its newer gateway P2 (repair 8)
+  holds it, so this is not acceptance.
+
+**Current annotation (INC01 coherent composition).** §2o was written on `f15dad08`. It is integrated here after the
+native §2n pagination sources, which are unchanged. The original startup diagnostic was the independent reviewer's,
+routed by root. The later external Mac patch, build and probe were root's (artifact
+`89fdba95288c3664b8fa35fb2f8ee88f4c3595ab2ad1b29f412c3ba54e391cf8`, profile `5db1`, pin `ade47301`); their outcome,
+an initial 503 then a fake anonymous MCP 401 and cleanup, is not authenticated tool, native or profile qualification.
+Of the patch's five mutants, four were caught and one survived (M3), not shown equivalent.
 
 ## 3. Facts learned at the pin (not in the pack)
 

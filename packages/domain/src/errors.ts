@@ -33,6 +33,7 @@ export type ErrorCode =
   | 'runner_admission_disabled'
   | 'runner_unqualified'
   | 'runner_operation_unsupported'
+  | 'contribution_unavailable'
 
 export type Retry = ApiError['retry']
 
@@ -87,6 +88,9 @@ const DISPOSITION: Record<ErrorCode, { status: number; retry: Retry }> = {
   runner_unqualified: { status: 403, retry: 'never' },
   // Hold, Resume, permission approval and question answers have no qualified native mapping: never emulated (A47).
   runner_operation_unsupported: { status: 422, retry: 'never' },
+  // A member's API contribution cannot fund this now: paused, expired, admin-disabled, unqualified, busy or another
+  // reason the message names. Nothing was admitted and no other payer was used; retry only after it changes (0094).
+  contribution_unavailable: { status: 409, retry: 'never' },
 }
 
 export class DomainError extends Error {

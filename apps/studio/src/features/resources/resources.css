@@ -143,8 +143,10 @@
 }
 .resource-tile-host {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 5px;
+  white-space: nowrap;
   font-family: var(--mono);
   font-size: var(--type-label);
   font-weight: 500;
@@ -774,13 +776,88 @@
   font-size: 9.5px;
   object-fit: cover;
 }
+/* Its host as observed, and under it, a step quieter, that its tool's sign-in and readiness aren't reported. */
 .resource-host {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: grid;
+  gap: 2px;
   padding-bottom: 14px;
   color: var(--text-2);
   font-size: var(--type-body);
+}
+.resource-host p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 6px;
+  margin: 0;
+}
+.resource-readiness {
+  flex-wrap: wrap;
+  gap: 0 10px;
+  padding-left: 13px; /* under the words, past the dot and its gap */
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+/* The readiness summary: what it can do now (teal), what it waits on (amber), or what isn't known (quiet). */
+.resource-readiness[data-tone='ready'] .readiness-line {
+  color: var(--teal);
+}
+.resource-readiness[data-tone='wait'] .readiness-line {
+  color: var(--amber);
+}
+.readiness-more {
+  color: var(--text-3);
+}
+.resource-tile-readiness {
+  overflow: hidden;
+  font-size: var(--type-small);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+}
+.resource-tile-readiness[data-tone='ready'] {
+  color: var(--teal);
+}
+.resource-tile-readiness[data-tone='wait'] {
+  color: var(--amber);
+}
+/* Its status line takes the focus when the press that had it leaves (SessionActs), with no ring of its own. */
+.act-status:focus {
+  outline: none;
+}
+.act-status:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+  border-radius: var(--r-2);
+}
+
+/* Readiness, fact by fact, on request: each label and what is known of it; what isn't reported reads a step quieter. */
+.readiness-toggle {
+  font-size: var(--type-small);
+}
+.readiness-details {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 16px;
+  margin: 6px 0 0 13px;
+  font-size: var(--type-small);
+}
+.readiness-details[hidden] {
+  display: none;
+}
+.readiness-details > div {
+  display: contents;
+}
+.readiness-details dt {
+  color: var(--text-3);
+}
+.readiness-details dd {
+  margin: 0;
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}
+.readiness-details [data-observed] dd {
+  color: var(--text-2);
 }
 .sheet-section {
   display: grid;
@@ -913,6 +990,30 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Work with a control in play: its one sentence, and Open work, the one primary action, under its title. */
+.work-control-live {
+  grid-column: 2;
+}
+.work-control-live:empty {
+  display: none;
+}
+.work-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 4px 0 2px;
+}
+.work-control-sentence {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-body);
+}
+.work-open .icon {
+  width: 14px;
+  height: 14px;
+}
+
 /* Capacity: a line, a thin meter only for a known percentage, and every window on request. No box. */
 .capacity {
   display: grid;
@@ -975,19 +1076,22 @@
   flex: 1;
   min-width: 0;
 }
-.capacity-toggle {
+.capacity-toggle,
+.readiness-toggle {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   justify-self: start;
   font-size: var(--type-body);
 }
-.capacity-toggle .icon {
+.capacity-toggle .icon,
+.readiness-toggle .icon {
   width: 12px;
   height: 12px;
   transition: transform var(--fast) var(--ease);
 }
-.capacity-toggle[aria-expanded='true'] .icon {
+.capacity-toggle[aria-expanded='true'] .icon,
+.readiness-toggle[aria-expanded='true'] .icon {
   transform: rotate(180deg);
 }
 .capacity-windows {
@@ -1018,8 +1122,27 @@
   font-size: var(--type-body);
 }
 
-/* The route's controls: small mono labels with a glyph; a tip says what each does. */
+/* The route's controls, grouped by support in words: qualified, not qualified yet, not offered. Each name a small mono
+   label; the qualified a step up. One quiet line under them says a control sent is a request, and who sends it. */
 .resource-controls {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 16px;
+  align-items: baseline;
+  margin: 0;
+}
+/* Each group's label and names share the list's two columns, so the names line up from row to row. */
+.control-group {
+  display: contents;
+}
+.control-group dt {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.control-group dd {
+  margin: 0;
+}
+.control-group ul {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 14px;
@@ -1028,26 +1151,20 @@
   list-style: none;
 }
 .control {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
   font-family: var(--mono);
   font-size: var(--type-label);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  /* What the route can't do still reads; the supported, a step up, and the glyph say which. */
   color: var(--text-3);
 }
-.control.supported {
+.control-group.supported .control {
   color: var(--text-2);
 }
-.control.supported .control-glyph {
-  color: var(--teal);
-}
-.control.unsupported .control-glyph {
-  color: var(--rose);
+.resource-controls-note {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
 }
 
 /* What waits on the owner, first in the sheet: the pulse's timeline, an amber dot for what waits. */
@@ -1184,6 +1301,8 @@
 }
 .resource-session-acts {
   grid-column: 2;
+  /* Last in its row, under what the session reported, as before its toggle moved with the owner's controls. */
+  order: 1;
   margin-top: 6px;
   animation: arrive 0.3s var(--ease) both;
 }
@@ -1298,6 +1417,7 @@
   .resource-work,
   .resource-session-live,
   .session-earlier,
+  .work-control-live,
   .resource-session-acts {
     grid-column: 1;
   }
@@ -1957,6 +2077,7 @@
     transform: none;
   }
   .capacity-toggle .icon,
+  .readiness-toggle .icon,
   .effort-scale .effort-fill,
   .effort-knob,
   .effort-button .icon,
